@@ -10,7 +10,7 @@ build:
 	@swift build -c debug $(flags)
 
 build-release: 
-	@swift build -c release --product muter --disable-sandbox
+	@swift build -c release --product swift-mutator --disable-sandbox
 
 project:
 	@xed .
@@ -20,16 +20,16 @@ release:
 
 install: build-release
 	@install -d "$(bindir)" "$(libdir)"
-	@install "$(builddir)/release/muter" "$(bindir)"
+	@install "$(builddir)/release/swift-mutator" "$(bindir)"
 
 uninstall:
-	@rm -rf "$(bindir)/muter"
+	@rm -rf "$(bindir)/swift-mutator"
 
 clean:
 	@rm -rf .build
 
 run: build
-	@$(builddir)/debug/muter
+	@$(builddir)/debug/swift-mutator
 
 test:
 	@swift test --filter 'muterTests'
@@ -41,7 +41,7 @@ regression-test: build
 	@./RegressionTests/runRegressionTests.sh
 
 mutation-test: clean
-	muter
+	swift-mutator
 
 # ci
 

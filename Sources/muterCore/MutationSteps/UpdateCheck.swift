@@ -27,7 +27,7 @@ extension URLSession: Server {
 extension URLSession: Server {}
 #endif
 
-private let url = "https://api.github.com/repos/muter-mutation-testing/muter/releases?per_page=1"
+private let url = "https://api.github.com/repos/Joseph-Cursio/SwiftMutator/releases?per_page=1"
 
 struct UpdateCheck: MutationStep {
     @Dependency(\.notificationCenter)

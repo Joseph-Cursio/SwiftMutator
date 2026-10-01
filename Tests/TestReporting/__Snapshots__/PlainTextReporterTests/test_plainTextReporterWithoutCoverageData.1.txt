@@ -2,9 +2,9 @@
 Applied Mutation Operators
 --------------------------
 
-These are all of the ways that Muter introduced changes into your code.
+These are all of the ways that SwiftMutator introduced changes into your code.
 
-In total, Muter introduced 1 mutants in 1 files.
+In total, SwiftMutator introduced 1 mutants in 1 files.
 
 File            Applied Mutation Operator       Mutation Test Result
 ----            -------------------------       --------------------
@@ -15,7 +15,7 @@ file3.swift:0   RelationalOperatorReplacement   mutant survived
 Mutation Test Scores
 --------------------
 
-Muter took 00:00:00.000 to run.
+SwiftMutator took 00:00:00.000 to run.
 
 These are the mutation scores for your test suite, as well as the files that had mutants introduced into them.
 
@@ -23,7 +23,7 @@ Mutation scores ignore build errors.
 
 Of the 1 mutants introduced into your code, your test suite killed 0.
 Mutation Score of Test Suite: 0%
-Muter could not gather coverage data from your project
+SwiftMutator could not gather coverage data from your project
 
 File          # of Introduced Mutants   Mutation Score
 ----          -----------------------   --------------

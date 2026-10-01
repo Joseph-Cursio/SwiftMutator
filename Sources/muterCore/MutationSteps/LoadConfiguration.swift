@@ -70,7 +70,7 @@ struct LoadConfiguration: MutationStep {
         guard let resolved = process().which(executable) else {
             throw MuterError.literal(
                 reason: """
-                Muter could not find "\(executable)" on your PATH.
+                SwiftMutator could not find "\(executable)" on your PATH.
 
                 The "executable" option in \(MuterConfiguration.fileNameWithExtension) must name a command \
                 that exists on your PATH, or be an absolute path such as "/usr/bin/\(executable)".

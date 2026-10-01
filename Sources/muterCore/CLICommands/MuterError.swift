@@ -18,14 +18,14 @@ extension MuterError: CustomStringConvertible {
         switch self {
         case let .configurationParsingError(reason):
             return """
-            Muter was unable to parse your configuration file.
+            SwiftMutator was unable to parse your configuration file.
 
-            This is often caused from running Muter from the wrong directory, or having a corrupted or missing \(
+            This is often caused from running SwiftMutator from the wrong directory, or having a corrupted or missing \(
                 MuterConfiguration
                     .fileNameWithExtension
             )
 
-            You can run \("muter init".bold) to generate or regenerate a configuration file.
+            You can run \("swift-mutator init".bold) to generate or regenerate a configuration file.
 
             ******************
             FileManager Error:
@@ -34,9 +34,9 @@ extension MuterError: CustomStringConvertible {
             """
         case let .projectCopyFailed(reason):
             return """
-            Muter was unable to create a temporary directory, or was unable to copy your project into a temporary directory, and cannot continue.
+            SwiftMutator was unable to create a temporary directory, or was unable to copy your project into a temporary directory, and cannot continue.
 
-            This is unusual. Try running Muter again to see if that fixes the issue.
+            This is unusual. Try running SwiftMutator again to see if that fixes the issue.
             Alternatively, try clearing all temp files from your temp directory by restarting your computer.
 
             Please include the following in the bug report:
@@ -45,9 +45,9 @@ extension MuterError: CustomStringConvertible {
             """
         case let .unableToCreateSwapFileDirectory(reason):
             return """
-            Muter was unable to create a swap file directory, which is a necessary component of it's mutation testing strategy.
+            SwiftMutator was unable to create a swap file directory, which is a necessary component of it's mutation testing strategy.
 
-            This is unusual. Try running Muter again to see if that fixes the issue. Alternatively, try clearing all temp files from your temp directory by restarting your computer.
+            This is unusual. Try running SwiftMutator again to see if that fixes the issue. Alternatively, try clearing all temp files from your temp directory by restarting your computer.
 
             Please include the following in the bug report:
             *********************
@@ -55,21 +55,21 @@ extension MuterError: CustomStringConvertible {
             """
         case .noSourceFilesDiscovered:
             return """
-            Muter wasn't able to discover any code it could mutation test.
+            SwiftMutator wasn't able to discover any code it could mutation test.
 
-            This is likely caused by misconfiguring Muter, usually by excluding a directory that contains your code.
+            This is likely caused by misconfiguring SwiftMutator, usually by excluding a directory that contains your code.
             """
         case .noSourceFilesOnExclusiveList:
             return """
-            Muter wasn't able to discover on list provided by the `files-to-mutate` flag.
+            SwiftMutator wasn't able to discover on list provided by the `files-to-mutate` flag.
 
             Please check the list of files and try again.
             """
         case .noMutationPointsDiscovered:
             return """
-            Muter wasn't able to discover any code it could mutation test.
+            SwiftMutator wasn't able to discover any code it could mutation test.
 
-            This is likely caused by misconfiguring Muter, usually by excluding a directory that contains your code.
+            This is likely caused by misconfiguring SwiftMutator, usually by excluding a directory that contains your code.
             """
         case let .mutationTestingAborted(reason):
             return """
@@ -77,7 +77,7 @@ extension MuterError: CustomStringConvertible {
             """
         case let .removeProjectFromPreviousRunFailed(reason: reason):
             return """
-            Muter wasn't able to remove project from previous run.
+            SwiftMutator wasn't able to remove project from previous run.
 
             ******************
             FileManager Error: \(reason)
@@ -86,7 +86,7 @@ extension MuterError: CustomStringConvertible {
             return reason
         case let .createTempDirectoryUrlFailed(reason: reason):
             return """
-            Muter wasn't able to create a temporary directory.
+            SwiftMutator wasn't able to create a temporary directory.
 
             ******************
             FileManager Error: \(reason)

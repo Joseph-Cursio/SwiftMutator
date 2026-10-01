@@ -1,13 +1,13 @@
-OVERVIEW: 🔎 Automated mutation testing for Swift 🕳️
+OVERVIEW: 🔎 Automated mutation testing for Swift, based on Muter 🕳️
 
-USAGE: muter <subcommand>
+USAGE: swift-mutator <subcommand>
 
 OPTIONS:
   --version               Show the version.
   -h, --help              Show help information.
 
 SUBCOMMANDS:
-  init                    Creates the configuration file that Muter uses
+  init                    Creates the configuration file that SwiftMutator uses
   run (default)           Performs mutation testing for the Swift project
                           contained within the current directory.
   run-without-mutating    Performs mutation testing using the test plan.
@@ -15,4 +15,4 @@ SUBCOMMANDS:
                           JSON.
   operator                Describes a given mutation operator.
 
-  See 'muter help <subcommand>' for detailed help.
+  See 'swift-mutator help <subcommand>' for detailed help.

@@ -1,6 +1,6 @@
 OVERVIEW: Describes a given mutation operator.
 
-USAGE: muter operator <operator>
+USAGE: swift-mutator operator <operator>
 
 ARGUMENTS:
   <operator>                  Avaiable operators are:

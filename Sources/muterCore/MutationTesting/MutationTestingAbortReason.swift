@@ -20,13 +20,13 @@ extension MutationTestingAbortReason: CustomStringConvertible {
 
         case .tooManyBuildErrors:
             return """
-            Muter noticed the last 5 attempts to apply a mutation operator resulted in a build error within your code base.
+            SwiftMutator noticed the last 5 attempts to apply a mutation operator resulted in a build error within your code base.
             This is considered unlikely and abnormal. If you can reproduce this, please consider filing an issue at
             https://github.com/muter-mutation-testing/muter/issues/
             """
 
         case let .unknownError(error):
-            return "Muter encountered an error running your test suite and can't continue\n\(error)"
+            return "SwiftMutator encountered an error running your test suite and can't continue\n\(error)"
         }
     }
 }
@@ -111,8 +111,8 @@ struct CompilerError: Equatable {
 extension CompilerError {
     /// The first compile error in `log` reported against any of `filePaths`.
     ///
-    /// Matching is by file name rather than full path: the log's paths point into Muter's copy of the
-    /// project, while the paths Muter records for its mutants are relative to the original.
+    /// Matching is by file name rather than full path: the log's paths point into SwiftMutator's copy of the
+    /// project, while the paths SwiftMutator records for its mutants are relative to the original.
     static func first(
         in log: String,
         inFilesAt filePaths: [String]

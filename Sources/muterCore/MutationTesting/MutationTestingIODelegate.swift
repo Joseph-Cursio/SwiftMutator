@@ -134,7 +134,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             return (
                 .buildError,
                 """
-                Muter could not run your test command and captured no test output.
+                SwiftMutator could not run your test command and captured no test output.
 
                   executable: \(configuration.testCommandExecutable)
                   arguments: \(configuration.testCommandArguments.joined(separator: " "))

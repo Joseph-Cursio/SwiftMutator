@@ -4,12 +4,12 @@ import Foundation
 import PackageDescription
 
 let package = Package(
-    name: "muter",
+    name: "SwiftMutator",
     platforms: [
         .macOS(.v12),
     ],
     products: [
-        .executable(name: "muter", targets: ["muter", "muterCore"]),
+        .executable(name: "swift-mutator", targets: ["muter", "muterCore"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.6.1"),

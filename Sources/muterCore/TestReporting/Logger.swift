@@ -31,7 +31,7 @@ final class Logger {
         if let newVersion {
             print("🎉 New version \(newVersion) available!")
         } else {
-            print("✅ You are already using the latest of Muter")
+            print("✅ You are already using the latest of SwiftMutator")
         }
     }
 
@@ -71,7 +71,7 @@ final class Logger {
     }
 
     func sourceFileDiscoveryStarted() {
-        printMessage("🔎 Discovering Swift files which Muter will analyze...")
+        printMessage("🔎 Discovering Swift files which SwiftMutator will analyze...")
     }
 
     func sourceFileDiscoveryFinished(sourceFileCandidates: [String]) {
@@ -81,7 +81,7 @@ final class Logger {
             .joined(separator: "\n")
             .bold
 
-        print("✅ In total, Muter discovered \(sourceFileCandidates.count) Swift files\n\n\(fileNames)")
+        print("✅ In total, SwiftMutator discovered \(sourceFileCandidates.count) Swift files\n\n\(fileNames)")
     }
 
     func mutationsDiscoveryStarted() {
@@ -97,7 +97,7 @@ final class Logger {
             filesSummary[mutation.fileName] = mutation.mutationSchemata.count
         }
 
-        print("✅ In total, Muter discovered \(numberOfMutationPoints) mutants in \(numberOfFiles) files\n")
+        print("✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants in \(numberOfFiles) files\n")
         for (fileName, mutantCount) in filesSummary {
             print("\(fileName) (\(mutantCount) mutants)".bold)
         }
@@ -117,8 +117,8 @@ final class Logger {
             print(
                 """
                 📊 Determined baseline for mutation testing.
-                🧟 Muter is now going to apply each mutant one at a time and run your test suite for each mutant.
-                📃 After this step, Muter will generate a report detailing the efficacy of your test suite.
+                🧟 SwiftMutator is now going to apply each mutant one at a time and run your test suite for each mutant.
+                📃 After this step, SwiftMutator will generate a report detailing the efficacy of your test suite.
                 ☕️ This step may take a while.
 
                 """
@@ -150,12 +150,12 @@ final class Logger {
         isExportingReport: Bool,
         didSaveReport: Bool
     ) {
-        print("🏁 Muter finished running!")
+        print("🏁 SwiftMutator finished running!")
 
         guard isExportingReport else {
             return print(
                 """
-                📝 Muter's report
+                📝 SwiftMutator's report
 
                 \(report)
                 """
@@ -186,7 +186,7 @@ final class Logger {
     }
 
     func muterMutationTestPlanLoaded() {
-        print("⬆️ Muter mutation test plan loaded")
+        print("⬆️ SwiftMutator mutation test plan loaded")
     }
 
     /// Every line Muter logs goes through here, and so through the injected `printer`.
