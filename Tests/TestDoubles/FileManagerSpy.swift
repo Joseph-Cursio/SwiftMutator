@@ -25,6 +25,7 @@ class FileManagerSpy: Spy, FileSystemManager {
     }
 
     var delegate: FileManagerDelegate?
+    private(set) var delegateDuringCopy: FileManagerDelegate?
     var temporaryDirectory: URL = .init(fileURLWithPath: "")
     var currentDirectoryPathToReturn: String = ""
     var changeCurrentDirectoryPath: [String] = []
@@ -76,6 +77,7 @@ class FileManagerSpy: Spy, FileSystemManager {
     ) throws {
         methodCalls.append(#function)
         copyPaths.append((source: srcPath, dest: dstPath))
+        delegateDuringCopy = delegate
         if let error = errorToThrow {
             throw error
         }
