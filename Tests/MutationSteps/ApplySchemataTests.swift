@@ -65,6 +65,32 @@ final class ApplySchemataTests: MuterTestCase {
         XCTAssertEqual(result.count, 0)
     }
 
+    // Production never caches source (`DiscoverMutationPoints` passes an empty
+    // dictionary), so this is the path every real run takes. The schemata are
+    // keyed by syntax nodes from the tree discovery parsed; a freshly parsed
+    // tree has different node identities and would match none of them, writing
+    // the file back with no mutation switches at all.
+    func test_writesMutationSwitchesWhenSourceIsNotCached() async throws {
+        let path = "\(mutationExamplesDirectory)/NegateConditionals/sampleWithConditionalOperators.swift"
+        let source = try XCTUnwrap(sourceCode(fromFileAt: path))
+        let mappings = generateSchemataMappings(for: source)
+        let schemata = mappings.flatMap(\.mutationSchemata)
+        XCTAssertFalse(schemata.isEmpty, "fixture should contain mutation points")
+
+        state.sourceCodeByFilePath = [:]
+        state.mutationMapping = mappings
+
+        _ = try await sut.run(with: state)
+
+        let written = try XCTUnwrap(writeFile.contentPassed)
+        for schema in schemata {
+            XCTAssertTrue(
+                written.contains(schema.id),
+                "written source has no switch for mutant \(schema.id)"
+            )
+        }
+    }
+
     func test_handlesEmptyMutationMapping() async throws {
         state.mutationMapping = []
         state.sourceCodeByFilePath = [:]
