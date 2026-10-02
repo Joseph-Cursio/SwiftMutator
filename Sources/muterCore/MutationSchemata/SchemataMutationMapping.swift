@@ -97,6 +97,26 @@ final class SchemataMutationMapping {
         mappings[CodeBlockKey(codeBlockSyntax)]
     }
 
+    /// Drops the mutants of every block nested inside a mutated opaque-typed, non-builder body.
+    ///
+    /// That body's switch compiles as an `if` expression, whose branches must share one type. A
+    /// nested switch inside a builder closure (a SwiftUI `label:`, say) turns the default branch's
+    /// view into `_ConditionalContent<…>` while the mutant branches keep the original type, and the
+    /// shared build of every mutant fails. The nested mutants go rather than being misreported; the
+    /// body's own mutants stay. `source` must be the tree the mappings were discovered in.
+    func dropNestedSchemataInOpaqueBodies(of source: SourceFileSyntax) {
+        let lists = CodeBlockListCollector.lists(in: source)
+        let opaqueBodies = lists.filter { mappings[CodeBlockKey($0)] != nil && $0.isOpaqueNonBuilderBody }
+
+        for body in opaqueBodies {
+            for nested in lists where nested.isNested(inside: body) {
+                let key = CodeBlockKey(nested)
+                mappings[key] = nil
+                codeBlockText[key] = nil
+            }
+        }
+    }
+
     // Key-based add for merging two mappings without reconstructing a syntax node from text.
     fileprivate func add(
         _ key: CodeBlockKey,
@@ -212,5 +232,91 @@ extension SchemataMutationMapping: CustomStringConvertible, CustomDebugStringCon
 extension CodeBlockKey: Comparable {
     static func < (lhs: CodeBlockKey, rhs: CodeBlockKey) -> Bool {
         lhs.text < rhs.text
+    }
+}
+
+/// Every statement list in a file, in source order.
+private final class CodeBlockListCollector: SyntaxVisitor {
+    private var lists: [CodeBlockItemListSyntax] = []
+
+    static func lists(in source: SourceFileSyntax) -> [CodeBlockItemListSyntax] {
+        let collector = CodeBlockListCollector(viewMode: .sourceAccurate)
+        collector.walk(source)
+        return collector.lists
+    }
+
+    override func visit(_ node: CodeBlockItemListSyntax) -> SyntaxVisitorContinueKind {
+        lists.append(node)
+        return .visitChildren
+    }
+}
+
+private extension CodeBlockItemListSyntax {
+    func isNested(inside outer: CodeBlockItemListSyntax) -> Bool {
+        var ancestor = parent
+        while let current = ancestor {
+            if current.id == outer.id {
+                return true
+            }
+            ancestor = current.parent
+        }
+        return false
+    }
+
+    /// The statements of a getter or function whose result type is `some …` and that is not a
+    /// result builder: neither marked `@…Builder` nor a `body`, which `View` makes a builder.
+    var isOpaqueNonBuilderBody: Bool {
+        guard let parent else {
+            return false
+        }
+        // `var x: some View { … }`: the getter's statements sit directly in the accessor block.
+        if let accessorBlock = parent.as(AccessorBlockSyntax.self) {
+            return accessorBlock.parent?.as(PatternBindingSyntax.self)?.isOpaqueNonBuilder ?? false
+        }
+        guard let block = parent.as(CodeBlockSyntax.self) else {
+            return false
+        }
+        if let function = block.parent?.as(FunctionDeclSyntax.self) {
+            return function.signature.returnClause?.type.isOpaque == true
+                && !function.attributes.containsResultBuilder
+        }
+        // `var x: some View { get { … } }`
+        if let accessor = block.parent?.as(AccessorDeclSyntax.self) {
+            var ancestor = accessor.parent
+            while let current = ancestor {
+                if let binding = current.as(PatternBindingSyntax.self) {
+                    return binding.isOpaqueNonBuilder
+                }
+                ancestor = current.parent
+            }
+        }
+        return false
+    }
+}
+
+private extension PatternBindingSyntax {
+    var isOpaqueNonBuilder: Bool {
+        guard typeAnnotation?.type.isOpaque == true else {
+            return false
+        }
+        if pattern.as(IdentifierPatternSyntax.self)?.identifier.text == "body" {
+            return false
+        }
+        let declaration = parent?.parent?.as(VariableDeclSyntax.self)
+        return !(declaration?.attributes.containsResultBuilder ?? false)
+    }
+}
+
+private extension TypeSyntax {
+    var isOpaque: Bool {
+        self.as(SomeOrAnyTypeSyntax.self)?.someOrAnySpecifier.tokenKind == .keyword(.some)
+    }
+}
+
+private extension AttributeListSyntax {
+    var containsResultBuilder: Bool {
+        contains { element in
+            element.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true
+        }
     }
 }
