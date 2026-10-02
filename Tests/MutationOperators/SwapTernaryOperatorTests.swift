@@ -1,4 +1,5 @@
 @testable import muterCore
+import SwiftParser
 import TestingExtensions
 import XCTest
 
@@ -143,5 +144,46 @@ final class SwapTernaryOperatorTests: MuterTestCase {
         visitor.walk(source)
 
         XCTAssertTrue(visitor.schemataMappings.isEmpty)
+    }
+
+    // An else-branch with more than one term is several sibling children of the unresolved
+    // sequence. The swap used to bail out and return the node unchanged, yet still register it as
+    // a mutant: an identical copy of the original was switched in and reported as "survived".
+    func test_swapsAnElseBranchWithSeveralTerms() throws {
+        let mutations = try swappedMutations(of: """
+        func join(_ flag: Bool, _ a: String, _ b: String) -> String {
+            return flag ? a + b : a + "/" + b
+        }
+        """)
+
+        XCTAssertEqual(mutations, [#"return flag ? a + "/" + b : a + b"#])
+    }
+
+    // #308: when the else-branch is a comparison, swapping only its first term produced
+    // `x < y < d`, which does not compile. The whole else-branch must move.
+    func test_swapsAComparisonElseBranchIntoValidSwift() throws {
+        let mutations = try swappedMutations(of: """
+        func pick(_ x: Int, _ y: Int, _ p: Int, _ q: Int) -> Bool {
+            return x == y ? p < q : x < y
+        }
+        """)
+
+        XCTAssertEqual(mutations, ["return x == y ? x < y : p < q"])
+        for mutation in mutations {
+            XCTAssertFalse(Parser.parse(source: mutation).hasError, mutation)
+        }
+    }
+
+    /// Each mutation's text with runs of whitespace collapsed, so the assertions read like source.
+    private func swappedMutations(of text: String) throws -> [String] {
+        let source = try sourceCode(text)
+        let visitor = SwapTernaryOperator.Visitor(sourceCodeInfo: .init(path: "/path/to/file", code: source))
+        visitor.walk(source)
+
+        return visitor.schemataMappings.mutationSchemata.map {
+            $0.syntaxMutation.description
+                .split(whereSeparator: \.isWhitespace)
+                .joined(separator: " ")
+        }
     }
 }

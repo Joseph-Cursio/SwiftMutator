@@ -21,6 +21,11 @@ enum SwapTernaryOperator {
             }
 
             let mutatedSyntax = mutated(node)
+            // A swap that could not be made returns the node unchanged. Registering it would run
+            // the original code as a "mutant" and report it as survived.
+            guard mutatedSyntax.description != node.description else {
+                return super.visit(node)
+            }
             let position = endLocation(for: node)
             let snapshot = MutationOperator.Snapshot(
                 before: node.description.trimmed.inlined,
@@ -29,7 +34,7 @@ enum SwapTernaryOperator {
             )
 
             add(
-                mutation: mutated(node),
+                mutation: mutatedSyntax,
                 with: node,
                 at: position,
                 snapshot: snapshot
@@ -48,6 +53,11 @@ enum SwapTernaryOperator {
             }
 
             let mutatedSyntax = mutated(node)
+            // A swap that could not be made returns the node unchanged. Registering it would run
+            // the original code as a "mutant" and report it as survived.
+            guard mutatedSyntax.description != node.description else {
+                return super.visit(node)
+            }
             let position = endLocation(for: node)
             let snapshot = MutationOperator.Snapshot(
                 before: node.description.trimmed.inlined,
@@ -56,7 +66,7 @@ enum SwapTernaryOperator {
             )
 
             add(
-                mutation: mutated(node),
+                mutation: mutatedSyntax,
                 with: node,
                 at: position,
                 snapshot: snapshot
@@ -88,31 +98,48 @@ enum SwapTernaryOperator {
                 return node
             }
 
-            // Only swap when the else-expression is a SINGLE trailing child (`… ? a : b`, so the
-            // ternary is at `index` and `b` at `index + 1`, the last element). When the else-expression
-            // is itself a comparison/sequence (`… ? a : c < d`), SwiftSyntax flattens `c < d` into
-            // multiple sibling children of the outer SequenceExpr; swapping would take only `c` and
-            // leave `< d` dangling, producing `x < y < d` — adjacent operators in a non-associative
-            // precedence group, a compile error. Skip rather than emit invalid code.
-            guard children.count == index + 2 else {
+            // In an unresolved sequence the else-expression is every child after the ternary:
+            // `… ? a : c < d` flattens `c < d` into three siblings. Swapping only the first of them
+            // left `< d` dangling (`x < y < d`, which does not compile, #308), so the whole tail moves.
+            // An assignment binds more loosely than `?:`, so a tail containing one is not the
+            // else-expression alone; that rare shape is left unmutated.
+            let elseTerms = Array(children[(index + 1)...])
+            guard !elseTerms.isEmpty, !elseTerms.contains(where: isAssignment) else {
                 return node
             }
 
-            let secondChoice = children[index + 1]
+            let elseExpression = elseTerms.count == 1
+                ? elseTerms[0]
+                : ExprSyntax(SequenceExprSyntax(elements: ExprListSyntax(elseTerms)))
+            let secondChoice = elseExpression
                 .withTrailingTrivia(.spaces(1))
                 .withLeadingTrivia(.spaces(1))
             let firstChoice = ternary.thenExpression
                 .withTrailingTrivia(.spaces(1))
                 .withLeadingTrivia(.spaces(1))
 
-            children[index] = ExprSyntax(
-                UnresolvedTernaryExprSyntax(thenExpression: secondChoice)
-                    .withTrailingTrivia(.spaces(1))
-                    .withLeadingTrivia(.spaces(1))
-            )
-            children[index + 1] = firstChoice
+            children.replaceSubrange(index..., with: [
+                ExprSyntax(
+                    UnresolvedTernaryExprSyntax(thenExpression: secondChoice)
+                        .withTrailingTrivia(.spaces(1))
+                        .withLeadingTrivia(.spaces(1))
+                ),
+                firstChoice,
+            ])
 
             return ExprListSyntax(children)
+        }
+
+        /// `=` and the compound assignments (`+=`, `??=`, …), but not the comparisons that also end in `=`.
+        private func isAssignment(_ expression: ExprSyntax) -> Bool {
+            if expression.is(AssignmentExprSyntax.self) {
+                return true
+            }
+            guard let binary = expression.as(BinaryOperatorExprSyntax.self) else {
+                return false
+            }
+            let text = binary.operator.text
+            return text.hasSuffix("=") && !["==", "!=", "<=", ">=", "===", "!=="].contains(text)
         }
 
         private func ternaryIndex(_ node: ExprListSyntax) -> Int? {
