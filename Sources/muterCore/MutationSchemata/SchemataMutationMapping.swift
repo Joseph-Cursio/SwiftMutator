@@ -49,17 +49,6 @@ final class SchemataMutationMapping {
         mappings.keys.compactMap { codeBlockText[$0] }.sorted()
     }
 
-    /// The parsed file the mapped code blocks belong to.
-    ///
-    /// Mappings are keyed by syntax node identity, so only this tree's nodes can
-    /// match them — a fresh parse of the same file matches none. The keys already
-    /// retain this tree, so returning it costs no extra memory.
-    var sourceFile: SourceFileSyntax? {
-        mappings.keys.lazy
-            .compactMap { $0.root.as(SourceFileSyntax.self) }
-            .first
-    }
-
     var fileName: String {
         URL(fileURLWithPath: filePath).lastPathComponent
     }
