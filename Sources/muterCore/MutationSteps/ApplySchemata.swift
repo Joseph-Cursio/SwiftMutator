@@ -12,11 +12,14 @@ struct ApplySchemata: MutationStep {
         with state: AnyMutationTestState
     ) async throws -> [MutationTestState.Change] {
         for mutationMap in state.mutationMapping {
-            // Try cached source code first, fall back to re-parsing
-            // Re-parsing on demand prevents memory exhaustion on large codebases
+            // Prefer the tree the mappings were discovered in: they are keyed by
+            // node identity, so a re-parsed tree would match none of them and the
+            // file would be written back without any mutation switches.
             let sourceCode: SourceFileSyntax
             if let cached = state.sourceCodeByFilePath[mutationMap.filePath] {
                 sourceCode = cached
+            } else if let discovered = mutationMap.sourceFile {
+                sourceCode = discovered
             } else if let parsed = loadSourceCode(from: mutationMap.filePath) {
                 sourceCode = parsed
             } else {
