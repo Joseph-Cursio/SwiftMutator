@@ -112,4 +112,33 @@ final class CopyProjectToTempDirectoryTests: MuterTestCase {
             XCTAssertFalse(reason.isEmpty)
         }
     }
+
+    func test_whenFilesVanishDuringTheCopy_thenItReportsThemAndFinishes() async throws {
+        state.projectDirectoryURL = URL(string: "/some/projectName")!
+        state.mutatedProjectDirectoryURL = URL(string: "/tmp/projectName")!
+        fileManager.pathsVanishingDuringCopy = ["/some/projectName/.build/a.lock", "/some/projectName/.build/b.lock"]
+        var reported: [String]?
+        let token = notificationCenter.addObserver(
+            forName: .projectCopySkippedVanishedFiles, object: nil, queue: nil
+        ) { reported = $0.object as? [String] }
+        defer { notificationCenter.removeObserver(token) }
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(reported, ["/some/projectName/.build/a.lock", "/some/projectName/.build/b.lock"])
+    }
+
+    func test_whenNoFileVanishes_thenNothingIsReported() async throws {
+        state.projectDirectoryURL = URL(string: "/some/projectName")!
+        state.mutatedProjectDirectoryURL = URL(string: "/tmp/projectName")!
+        var reported = false
+        let token = notificationCenter.addObserver(
+            forName: .projectCopySkippedVanishedFiles, object: nil, queue: nil
+        ) { _ in reported = true }
+        defer { notificationCenter.removeObserver(token) }
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertFalse(reported)
+    }
 }
