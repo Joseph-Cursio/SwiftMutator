@@ -91,7 +91,45 @@ final class MuterVisitorTests: MuterTestCase {
             ]
         )
 
-        XCTAssertTrue(mappings.isEmpty)
+        // The region is the `if` body, so `a == b` inside it goes. The condition `a && b` sits on the
+        // region's first line but before it starts, and runs whether or not the body does.
+        let mutants = mappings
+            .flatMap(\.mutationSchemata)
+            .map { "\($0.mutationOperatorId.rawValue)@\($0.position.line)" }
+        XCTAssertEqual(mutants, ["ChangeLogicalConnector@4"])
+    }
+
+    func test_keepCoveredCodeAfterARegionWithoutCoverage() throws {
+        let source = try sourceCode("""
+        import Foundation
+
+        public func foo(_ a: Bool, _ b: Bool) -> Bool {
+            if a {
+                return false
+            }
+
+            return a == b
+        }
+        """)
+
+        let mappings = generateSchemataMappings(
+            for: .init(path: "/path/to/file", code: source),
+            changes: .null,
+            regionsWithoutCoverage: [
+                // The `if` body: it ends on line 6, before `a == b` on line 8 starts.
+                .make(
+                    lineStart: 4,
+                    columnStart: 10,
+                    lineEnd: 6,
+                    columnEnd: 6
+                ),
+            ]
+        )
+
+        let mutants = mappings
+            .flatMap(\.mutationSchemata)
+            .map { "\($0.mutationOperatorId.rawValue)@\($0.position.line)" }
+        XCTAssertEqual(mutants, ["RelationalOperatorReplacement@8"])
     }
 }
 

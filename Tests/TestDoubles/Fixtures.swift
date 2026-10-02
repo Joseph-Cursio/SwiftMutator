@@ -170,14 +170,16 @@ extension Region {
         columnStart: Int = 0,
         lineEnd: Int = 0,
         columnEnd: Int = 0,
-        executionCount: Int = 0
+        executionCount: Int = 0,
+        kind: Region.Kind = .code
     ) -> Region {
         Region(
             lineStart: lineStart,
             columnStart: columnStart,
             lineEnd: lineEnd,
             columnEnd: columnEnd,
-            executionCount: executionCount
+            executionCount: executionCount,
+            kind: kind
         )
     }
 }
