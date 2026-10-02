@@ -219,4 +219,30 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
         XCTAssertFalse(testingTimeOutExecutor.withTimeLimitCalled)
     }
+
+    func test_whenTheLogEndsPartwayThroughACharacter_thenTheRunIsClassifiedFromIt() async throws {
+        let configuration = MuterConfiguration(
+            executable: "/tmp/swift",
+            arguments: ["test"]
+        )
+        // A run stopped at the time limit, or a test process that crashed mid-write, can leave a log
+        // that ends partway through a multi-byte character: here the first two of the three bytes of
+        // "✔". Such a log couldn't be decoded, and the run was reported as a build error.
+        let summary = "Executed 1 test, with 1 failure (0 unexpected) in 0.001 (0.001) seconds\n"
+        process.outputWrittenBeforeExit = Data(summary.utf8) + [0xE2, 0x9C]
+
+        let schemata = try MutationSchema.make(
+            filePath: "/path/fileName",
+            position: .init(line: 1)
+        )
+
+        let result = await sut.runTestSuite(
+            withSchemata: schemata,
+            using: configuration,
+            savingResultsIntoFileNamed: "logFileName"
+        )
+
+        XCTAssertEqual(result.outcome, .failed)
+        XCTAssertTrue(result.testLog.contains("with 1 failure"), result.testLog)
+    }
 }
