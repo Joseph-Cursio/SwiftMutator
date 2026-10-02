@@ -22,8 +22,8 @@ final class RemoveSideEffectsOperatorTests: MuterTestCase {
             actualSchemata, [
                 MutationPosition(utf8Offset: 186, line: 10, column: 27),
                 MutationPosition(utf8Offset: 423, line: 20, column: 62),
-                MutationPosition(utf8Offset: 643, line: 30, column: 71),
-                MutationPosition(utf8Offset: 713, line: 31, column: 70),
+                // Lines 30 and 31 declare variables whose string literal contains `_ = `. They used to
+                // be removed on that text alone; a declaration is not a side effect to remove.
                 MutationPosition(utf8Offset: 906, line: 39, column: 6),
                 MutationPosition(utf8Offset: 80, line: 3, column: 27),
                 MutationPosition(utf8Offset: 994, line: 44, column: 19),
@@ -101,5 +101,30 @@ final class RemoveSideEffectsOperatorTests: MuterTestCase {
         let rewriter = MuterRewriter(visitor.schemataMappings).rewrite(source)
 
         AssertSnapshot(formatCode(rewriter.description))
+    }
+
+    // A discarded result was recognised by searching the statement's text for `_ = `, so a string
+    // literal containing it qualified. Removing `let body = "…_ = …"` leaves `body` undeclared, and
+    // since every mutant is compiled into one baseline build, that one mutant broke the whole run.
+    func test_doesNotRemoveADeclarationWhoseStringLiteralContainsADiscard() throws {
+        let source = try sourceCode(
+            """
+            func describe(_ value: Int) -> String {
+                let body = "_ = \\(value); return true"
+                record(value)
+                _ = validate(value)
+                let _ = check(value)
+                return body
+            }
+            """
+        )
+        let visitor = RemoveSideEffectsOperator.Visitor(
+            sourceCodeInfo: .init(path: "/path/to/file", code: source)
+        )
+
+        visitor.walk(source)
+
+        let removed = visitor.schemataMappings.mutationSchemata.map(\.snapshot.before)
+        XCTAssertEqual(removed.sorted(), ["_ = validate(value)", "let _ = check(value)", "record(value)"])
     }
 }

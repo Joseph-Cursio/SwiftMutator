@@ -113,7 +113,7 @@ enum RemoveSideEffectsOperator {
 
         private func statementContainsMutableToken(_ statement: CodeBlockItemListSyntax.Element) -> Bool {
             let doesntContainVariableAssignment = doesntContainVariableAssignment(statement.allChildren)
-            let containsDiscardedResult = statement.description.contains("_ = ")
+            let containsDiscardedResult = discardsAResult(statement)
 
             let containsFunctionCall = statement.allChildren
                 .include(functionCallStatements)
@@ -127,6 +127,31 @@ enum RemoveSideEffectsOperator {
             return doesntContainVariableAssignment
                 && doesntContainPossibleDeadlock
                 && (containsDiscardedResult || containsFunctionCall)
+        }
+
+        /// `_ = expr` or `let _ = expr`: a statement whose only effect is evaluating `expr`.
+        ///
+        /// Read from the syntax tree, never the text. Searching the statement's description for `_ = `
+        /// also matched string literals, so `let body = "_ = \(x)"` was removed and every later use of
+        /// `body` failed to compile, which breaks the single build all mutants share.
+        private func discardsAResult(_ statement: CodeBlockItemListSyntax.Element) -> Bool {
+            let item = Syntax(statement.item)
+            if let sequence = item.as(SequenceExprSyntax.self) {
+                let elements = Array(sequence.elements)
+                return elements.count >= 3
+                    && elements[0].is(DiscardAssignmentExprSyntax.self)
+                    && elements[1].is(AssignmentExprSyntax.self)
+            }
+            if let infix = item.as(InfixOperatorExprSyntax.self) {
+                return infix.leftOperand.is(DiscardAssignmentExprSyntax.self)
+                    && infix.operator.is(AssignmentExprSyntax.self)
+            }
+            if let declaration = item.as(VariableDeclSyntax.self),
+               declaration.bindings.count == 1,
+               let binding = declaration.bindings.first {
+                return binding.pattern.is(WildcardPatternSyntax.self) && binding.initializer != nil
+            }
+            return false
         }
 
         private func doesntContainVariableAssignment(_ children: SyntaxChildren) -> Bool {

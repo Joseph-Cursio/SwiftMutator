@@ -115,7 +115,7 @@ private extension DiscoverMutationPoints {
     ) -> [SchemataMutationMapping] {
         let source = sourceCode.source.code
 
-        return operators.accumulate(into: []) { newSchemataMappings, mutationOperatorId in
+        let mappings: [SchemataMutationMapping] = operators.accumulate(into: []) { newSchemataMappings, mutationOperatorId in
             let visitor = mutationOperatorId.visitor(
                 configuration,
                 sourceCode.source,
@@ -134,6 +134,12 @@ private extension DiscoverMutationPoints {
                 return newSchemataMappings
             }
         }
+
+        // Pruning has to see every operator's mutants for the file at once: an outer mutant from
+        // one operator conflicts with a nested one from another.
+        let merged = mappings.mergeByFileName()
+        merged.forEach { $0.dropNestedSchemataInOpaqueBodies(of: source) }
+        return merged.filter { !$0.isEmpty }
     }
 
     func pathContainsDotSwift(_ filePath: String) -> Bool {

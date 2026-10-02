@@ -65,6 +65,40 @@ final class RewriterTests: MuterTestCase {
 
         AssertSnapshot(formatCode(mutatedSourceCode.description))
     }
+
+    // A stored-property initializer has no statement list of its own, so its mutations were
+    // keyed to the nearest one walking up: the file's top level, or a top-level `#if`. Wrapping
+    // that list in the mutation switch puts imports and type declarations inside an `if`, which
+    // does not compile, and the shared baseline build of every mutant fails with it.
+    func test_doesNotWrapFileScopeStatementsInAMutationSwitch() throws {
+        let source = SourceCodeInfo(
+            path: "/path/to/probe.swift",
+            code: Parser.parse(source: """
+            import Foundation
+
+            struct Config {
+                static let isLarge = Int.max > 1
+                func check(_ value: Int) -> Bool {
+                    return value > 1
+                }
+            }
+
+            #if DEBUG
+            enum Probe {
+                static let temp = CommandLine.arguments.count > 1 ? "a" : "b"
+            }
+            #endif
+            """)
+        )
+        let mapping = try XCTUnwrap(generateSchemataMappings(for: source).first)
+
+        let lines = mapping.mutationSchemata.map(\.position.line)
+        XCTAssertEqual(Set(lines), [6], "only the comparison inside check(_:) can be switched")
+
+        let rewritten = MuterRewriter(mapping).rewrite(source.code).description
+        let fileScopeSwitches = rewritten.split(separator: "\n").filter { $0.hasPrefix("if ProcessInfo") }
+        XCTAssertEqual(fileScopeSwitches, [])
+    }
 }
 
 private let allOperatorsSourceCode =

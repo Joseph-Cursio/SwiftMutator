@@ -195,6 +195,13 @@ class MuterVisitor: SyntaxAnyVisitor {
             return
         }
 
+        // A stored-property initializer has no statement list of its own; walking up reaches the
+        // file's top level, where a switch around declarations cannot compile. Skip it rather than
+        // break the build every mutant shares.
+        guard !syntax.cannotHoldMutationSwitch else {
+            return
+        }
+
         let schemata = makeSchemata(
             with: syntax,
             mutation: mutation,

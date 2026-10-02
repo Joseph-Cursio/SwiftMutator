@@ -253,18 +253,8 @@ struct SideEffects {
   }
 
   func containsADeepMethodCall() {
-    if ProcessInfo.processInfo.environment["sampleWithAllOperators_RemoveSideEffects_70_75_1500"]
-      != nil
-    {
-      var anotherIgnoredResult = statement.description.contains("_ = ")
-    } else if ProcessInfo.processInfo.environment[
-      "sampleWithAllOperators_RemoveSideEffects_71_74_1574"] != nil
-    {
-      let containsIgnoredResult = statement.description.contains("_ = ")
-    } else {
-      let containsIgnoredResult = statement.description.contains("_ = ")
-      var anotherIgnoredResult = statement.description.contains("_ = ")
-    }
+    let containsIgnoredResult = statement.description.contains("_ = ")
+    var anotherIgnoredResult = statement.description.contains("_ = ")
   }
 
   func containsAVoidFunctionCallThatSpansManyLine() {
