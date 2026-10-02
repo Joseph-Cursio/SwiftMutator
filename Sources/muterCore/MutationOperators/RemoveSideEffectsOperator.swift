@@ -87,9 +87,10 @@ enum RemoveSideEffectsOperator {
         private func removeSideEffectAt(_ body: CodeBlockSyntax) {
             let statements = body.statements
             for statement in body.statements where statementContainsMutableToken(statement) {
+                // By identity, not text: an identical statement elsewhere in the block is a mutant of its own.
                 let mutatedFunctionStatements = body
                     .statements
-                    .exclude { $0.description == statement.description }
+                    .exclude { $0.id == statement.id }
 
                 let newCodeBlockItemList = CodeBlockItemListSyntax(mutatedFunctionStatements)
 
