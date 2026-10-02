@@ -81,4 +81,20 @@ final class LoggerTests: MuterTestCase {
             )
         )
     }
+
+    func test_mutationsDiscoveryFinished_countsFilesWithTheSameNameTogether() throws {
+        let mappings = try ["/project/First/main.swift", "/project/Second/main.swift"].map { path in
+            try SchemataMutationMapping.make(
+                filePath: path,
+                (source: "func bar() { }", schemata: [.make(filePath: path, position: .firstPosition)])
+            )
+        }
+
+        sut.mutationsDiscoveryFinished(mutations: mappings)
+
+        XCTAssertTrue(
+            printer.linesPassed.contains("main.swift (2 mutants)".bold),
+            "\(printer.linesPassed)"
+        )
+    }
 }
