@@ -47,13 +47,33 @@ struct BuildForTesting: MutationStep {
     private func runBuildForTestingCommand(
         _ configuration: MuterConfiguration
     ) throws {
-        guard let _: String = process().runProcess(
+        let buildProcess = process()
+        guard let output: String = buildProcess.runProcess(
             url: configuration.testCommandExecutable,
             arguments: configuration.buildForTestingArguments
         ).flatMap(\.nilIfEmpty)
         else {
             throw MuterError.literal(reason: "Could not run test with -build-for-testing argument")
         }
+
+        // Checked only after the output guard: a process that never launched has no exit status, and
+        // reading it raises. Without this check a failed build surfaced later as a missing xctestrun.
+        guard buildProcess.terminationStatus == 0 else {
+            throw MuterError.literal(
+                reason: buildFailureReason(output, status: buildProcess.terminationStatus)
+            )
+        }
+    }
+
+    private func buildFailureReason(_ output: String, status: Int32) -> String {
+        let lines = output.split(separator: "\n", omittingEmptySubsequences: true)
+        let errorLines = lines.filter { $0.contains("error:") }
+        let details = errorLines.isEmpty ? lines.suffix(10) : errorLines[...]
+
+        return """
+        xcodebuild build-for-testing failed with exit code \(status):
+        \(details.joined(separator: "\n"))
+        """
     }
 
     private func parseBuildRequest(_ path: String) throws -> XCTestBuildRequest {

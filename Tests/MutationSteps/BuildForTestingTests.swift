@@ -107,6 +107,61 @@ final class BuildForTestingTests: MuterTestCase {
         )
     }
 
+    func test_buildForTestingFails_thenReportXcodebuildErrors() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/path/to/xcodebuild",
+            arguments: ["some", "commands", "test"]
+        )
+
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/temp")
+        process.stdoutToBeReturned = xcodebuildBuildForTestingFailedOutput()
+        process.terminationStatus = 65
+
+        try await assertThrowsMuterError(
+            await sut.run(with: state),
+            .literal(
+                reason: """
+                xcodebuild build-for-testing failed with exit code 65:
+                /path/to/temp/iOSProject.xcodeproj: error: The iOS Simulator deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 12.0, but the range of supported deployment target versions is 15.0 to 27.0.x. (in target 'iOSProjectTests' from project 'iOSProject')
+                """
+            )
+        )
+        XCTAssertFalse(fileManager.methodCalls.contains("copyItem(atPath:toPath:)"))
+    }
+
+    func test_buildForTestingFailsWithoutErrorLines_thenReportTailOfOutput() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/path/to/xcodebuild",
+            arguments: ["some", "commands", "test"]
+        )
+
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/temp")
+        process.stdoutToBeReturned = "Prepare packages\n\n** TEST BUILD FAILED **\n"
+        process.terminationStatus = 1
+
+        try await assertThrowsMuterError(
+            await sut.run(with: state),
+            .literal(
+                reason: """
+                xcodebuild build-for-testing failed with exit code 1:
+                Prepare packages
+                ** TEST BUILD FAILED **
+                """
+            )
+        )
+    }
+
+    private func xcodebuildBuildForTestingFailedOutput() -> String {
+        """
+        Command line invocation:
+            /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project iOSProject.xcodeproj -scheme iOSProject build-for-testing
+
+        /path/to/temp/iOSProject.xcodeproj: error: The iOS Simulator deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 12.0, but the range of supported deployment target versions is 15.0 to 27.0.x. (in target 'iOSProjectTests' from project 'iOSProject')
+
+        ** TEST BUILD FAILED **
+        """
+    }
+
     private func xcodebuildBuildForTestingOutput() -> String {
         """
         Command line invocation:
