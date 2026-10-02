@@ -39,6 +39,8 @@ protocol MutationTestingIODelegate {
 }
 
 struct MutationTestingDelegate: MutationTestingIODelegate {
+    @Dependency(\.fileManager)
+    private var fileManager: FileSystemManager
     @Dependency(\.notificationCenter)
     private var notificationCenter: NotificationCenter
     @Dependency(\.process)
@@ -138,7 +140,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
 
                   executable: \(configuration.testCommandExecutable)
                   arguments: \(configuration.testCommandArguments.joined(separator: " "))
-                  working directory: \(FileManager.default.currentDirectoryPath)
+                  working directory: \(fileManager.currentDirectoryPath)
 
                 \(error.localizedDescription)
                 """
@@ -252,7 +254,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         logFileUrl: URL
     ) {
         let testLogUrl = URL(
-            fileURLWithPath: FileManager.default.currentDirectoryPath + "/" + logFileName
+            fileURLWithPath: fileManager.currentDirectoryPath + "/" + logFileName
         )
         try Data().write(to: testLogUrl)
 
