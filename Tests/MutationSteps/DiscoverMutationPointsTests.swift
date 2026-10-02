@@ -92,6 +92,22 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         }
     }
 
+    func test_returnsFilesInPathOrder() async throws {
+        // Mutants are tested in this order, so it has to be the same on every run for two runs to be
+        // compared mutant by mutant. Discovery finishes files in whatever order its threads do.
+        let paths = try makeSourceFiles(at: (1 ... 8).map { "Module\($0)/File\(9 - $0).swift" })
+        state.sourceFileCandidates = paths.reversed()
+
+        let result = try await sut.run(with: state)
+        let change = try XCTUnwrap(result.first)
+
+        guard case let .mutationMappingsDiscovered(mappings) = change else {
+            return XCTFail("Expected mappings, got \(change)")
+        }
+
+        XCTAssertEqual(mappings.map(\.filePath), paths)
+    }
+
     /// Writes a file with one mutant (`value < 0`) at each of `relativePaths`, under a new directory
     /// removed when the test finishes, and returns the files' paths.
     private func makeSourceFiles(at relativePaths: [String]) throws -> [String] {

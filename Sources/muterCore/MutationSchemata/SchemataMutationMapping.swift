@@ -195,6 +195,7 @@ extension [SchemataMutationMapping] {
     /// share a name (one `main.swift` per executable target, an `Extensions.swift` in several
     /// modules), and `+` keeps only the left-hand path, so merging them put one file's mutants into
     /// the other, or nowhere.
+    /// Sorted by path, so mutants are tested in the same order on every run.
     func mergeByFilePath() -> Self {
         var result = [FilePath: SchemataMutationMapping]()
 
@@ -206,7 +207,7 @@ extension [SchemataMutationMapping] {
             }
         }
 
-        return Array(result.values)
+        return result.values.sorted { $0.filePath < $1.filePath }
     }
 }
 
