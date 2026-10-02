@@ -28,12 +28,12 @@ final class AcceptanceTests: XCTestCase {
 
         XCTAssertTrue(output.contains("Copying your project to a temporary directory for testing"))
 
-        XCTAssertTrue(output.contains("In total, Muter discovered 4 Swift files"))
+        XCTAssertTrue(output.contains("In total, SwiftMutator discovered 4 Swift files"))
         XCTAssertTrue(try numberOfDiscoveredFileLists(in: output) >= 1)
 
         XCTAssertTrue(output.contains("_mutated"))
 
-        XCTAssertTrue(output.contains("In total, Muter introduced 3 mutants in 3 files."))
+        XCTAssertTrue(output.contains("In total, SwiftMutator introduced 3 mutants in 3 files."))
 
         XCTAssertEqual(try numberOfProgressUpdates(in: output), 3)
         XCTAssertEqual(try numberOfDurationEstimates(in: output), 3)
@@ -64,7 +64,7 @@ final class AcceptanceTests: XCTestCase {
     func test_runWithTestPlanCommand() throws {
         let output = try mutersOutputWithTestPlan
 
-        XCTAssertTrue(output.contains("Muter mutation test plan loaded"))
+        XCTAssertTrue(output.contains("SwiftMutator mutation test plan loaded"))
     }
 
     func test_withCoverage() throws {
@@ -82,13 +82,13 @@ final class AcceptanceTests: XCTestCase {
     func test_filesToMutate() throws {
         let output = try muterFilesToMutateOutput
 
-        XCTAssertTrue(output.contains("In total, Muter discovered 1 mutants in 1 files"))
+        XCTAssertTrue(output.contains("In total, SwiftMutator discovered 1 mutants in 1 files"))
     }
 
     func test_muterDoesntDiscoverAnyMutationOperators() throws {
         let output = try muterEmptyStateOutput
 
-        XCTAssertTrue(output.contains("Muter wasn't able to discover any code it could mutation test."))
+        XCTAssertTrue(output.contains("SwiftMutator wasn't able to discover any code it could mutation test."))
         XCTAssertFalse(output.contains(messages.mutationScoresHeader))
         XCTAssertFalse(output.contains(messages.mutationScoreOfTestSuite))
         XCTAssertFalse(output.contains(messages.appliedMutationOperatorsHeader))
