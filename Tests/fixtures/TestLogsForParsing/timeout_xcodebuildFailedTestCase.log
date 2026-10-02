@@ -1,0 +1,23 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test-without-building -destination platform=macOS,arch=x86_64 -xctestrun muter.xctestrun
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:x86_64, id:00000000-0000000000000000, name:My Mac }
+{ platform:macOS, arch:x86_64, variant:Mac Catalyst, id:00000000-0000000000000000, name:My Mac }
+2026-10-02 09:56:52.256 xcodebuild[87441:1222032]  DVTAssertions: Warning in IDEFrameworks/IDEFoundation/Execution/LaunchSystem/IDELaunchSession.m:395
+Details:  setRunnablePIDWithDiagnostics:logSection:andCompletionHandler: called without a completion handler - blocking until diagnostics setup completes. Callers should migrate to using a completion handler for better performance.
+Object:   <IDELaunchSession: 0x750da28300>
+Method:   -setRunnablePIDWithDiagnostics:logSection:andCompletionHandler:
+Thread:   <NSThread: 0x750f1a1340>{number = 3, name = (null)}
+Please file a bug at https://feedbackassistant.apple.com with this warning message and any useful information you can provide.
+Test Suite 'All tests' started at 2026-10-02 09:56:52.497.
+Test Suite 'FFCParserCombinatorTests.xctest' started at 2026-10-02 09:56:52.498.
+Test Suite 'FFCParserCombinatorTests' started at 2026-10-02 09:56:52.498.
+Test Case '-[FFCParserCombinatorTests.FFCParserCombinatorTests testBacktrack]' started.
+Test Case '-[FFCParserCombinatorTests.FFCParserCombinatorTests testBacktrack]' passed (0.002 seconds).
+Test Case '-[FFCParserCombinatorTests.FFCParserCombinatorTests testFlatMap]' started.
+/path/to/FFCParserCombinator_mutated/Tests/FFCParserCombinatorTests/FFCParserCombinatorTests.swift:53: error: -[FFCParserCombinatorTests.FFCParserCombinatorTests testFlatMap] : XCTAssertEqual failed: ("nil") is not equal to ("Optional(1)")
+/path/to/FFCParserCombinator_mutated/Tests/FFCParserCombinatorTests/FFCParserCombinatorTests.swift:54: error: -[FFCParserCombinatorTests.FFCParserCombinatorTests testFlatMap] : XCTAssertEqual failed: ("nil") is not equal to ("Optional(4)")
+/path/to/FFCParserCombinator_mutated/Tests/FFCParserCombinatorTests/FFCParserCombinatorTests.swift:56: error: -[FFCParserCombinatorTests.FFCParserCombinatorTests testFlatMap] : XCTAssertEqual failed: ("nil") is not equal to ("Optional(-12)")
+Test Case '-[FFCParserCombinatorTests.FFCParserCombinatorTests testFlatMap]' failed (0.528 seconds).
+Test Case '-[FFCParserCombinatorTests.FFCParserCombinatorTests testMultiMatching]' started.

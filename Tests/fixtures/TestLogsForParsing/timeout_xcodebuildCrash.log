@@ -1,0 +1,33 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test-without-building -destination platform=macOS,arch=x86_64 -xctestrun muter.xctestrun
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:x86_64, id:00000000-0000000000000000, name:My Mac }
+{ platform:macOS, arch:x86_64, variant:Mac Catalyst, id:00000000-0000000000000000, name:My Mac }
+2026-10-02 09:55:29.842 xcodebuild[87188:1219483]  DVTAssertions: Warning in IDEFrameworks/IDEFoundation/Execution/LaunchSystem/IDELaunchSession.m:395
+Details:  setRunnablePIDWithDiagnostics:logSection:andCompletionHandler: called without a completion handler - blocking until diagnostics setup completes. Callers should migrate to using a completion handler for better performance.
+Object:   <IDELaunchSession: 0x764f902100>
+Method:   -setRunnablePIDWithDiagnostics:logSection:andCompletionHandler:
+Thread:   <NSThread: 0x7651f99b80>{number = 5, name = (null)}
+Please file a bug at https://feedbackassistant.apple.com with this warning message and any useful information you can provide.
+Test Suite 'All tests' started at 2026-10-02 09:55:30.877.
+Test Suite 'FFCParserCombinatorTests.xctest' started at 2026-10-02 09:55:30.878.
+Test Suite 'FFCParserCombinatorTests' started at 2026-10-02 09:55:30.878.
+Test Case '-[FFCParserCombinatorTests.FFCParserCombinatorTests testBacktrack]' started.
+Test Case '-[FFCParserCombinatorTests.FFCParserCombinatorTests testBacktrack]' passed (0.002 seconds).
+Test Case '-[FFCParserCombinatorTests.FFCParserCombinatorTests testFlatMap]' started.
+FFCParserCombinator/FFCParserCombinator.swift:105: Fatal error: Unexpectedly found nil while unwrapping an Optional value
+2026-10-02 09:55:30.884589-0500 xctest[87191:1219509] FFCParserCombinator/FFCParserCombinator.swift:105: Fatal error: Unexpectedly found nil while unwrapping an Optional value
+2026-10-02 09:55:34.666 xcodebuild[87188:1219466]  DVTAssertions: Warning in IDEFrameworks/IDEFoundation/Execution/LaunchSystem/IDELaunchSession.m:395
+Details:  setRunnablePIDWithDiagnostics:logSection:andCompletionHandler: called without a completion handler - blocking until diagnostics setup completes. Callers should migrate to using a completion handler for better performance.
+Object:   <IDELaunchSession: 0x764f902e80>
+Method:   -setRunnablePIDWithDiagnostics:logSection:andCompletionHandler:
+Thread:   <NSThread: 0x7651f99b40>{number = 4, name = (null)}
+Please file a bug at https://feedbackassistant.apple.com with this warning message and any useful information you can provide.
+
+Restarting after unexpected exit, crash, or test timeout; summary will include totals from previous launches.
+
+Test Suite 'Selected tests' started at 2026-10-02 09:55:34.905.
+Test Suite 'FFCParserCombinatorTests.xctest' started at 2026-10-02 09:55:34.906.
+Test Suite 'FFCParserCombinatorTests' started at 2026-10-02 09:55:34.906.
+Test Case '-[FFCParserCombinatorTests.FFCParserCombinatorTests testMultiMatching]' started.

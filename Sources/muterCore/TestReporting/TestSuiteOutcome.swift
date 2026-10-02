@@ -35,7 +35,7 @@ extension TestSuiteOutcome {
         timeoutExecution: TestingExecutionResult? = nil
     ) -> TestSuiteOutcome {
         if timeoutExecution == .timeout {
-            return .timeout
+            return outcomeOfStoppedRun(testLog)
         }
 
         if logContainsBuildError(testLog) {
@@ -47,6 +47,49 @@ extension TestSuiteOutcome {
         }
 
         return .passed
+    }
+
+    /// A run stopped at the time limit has no exit status of its own, so only what its log already
+    /// shows can say the mutant was killed. A crash is common here: after one, xcodebuild collects
+    /// diagnostics and relaunches the runner for each remaining test, which can take several times as
+    /// long as the baseline run the limit is derived from.
+    private static func outcomeOfStoppedRun(_ testLog: String) -> TestSuiteOutcome {
+        if logContainsTestFailure(testLog) || logContainsFailedTestCase(testLog) {
+            return .failed
+        } else if logContainsCrash(testLog) {
+            return .runtimeError
+        }
+
+        return .timeout
+    }
+
+    /// XCTest's line for a failed test. A stopped run may end before the suite summary
+    /// `logContainsTestFailure` looks for, so a stopped run's log is also checked for this.
+    private static func logContainsFailedTestCase(_ testLog: String) -> Bool {
+        let entireTestLog = NSRange(testLog.startIndex..., in: testLog)
+        return failedTestCaseRegEx.numberOfMatches(in: testLog, options: [], range: entireTestLog) > 0
+    }
+
+    private static var failedTestCaseRegEx: NSRegularExpression {
+        NSRegularExpression.regexWithPattern(#"Test Case '[^']*' failed \("#)
+    }
+
+    /// The Swift runtime's message for a trap (`file.swift:12: Fatal error: …`), or SwiftPM's report
+    /// of a test process killed by a signal (`exited with unexpected signal code 5`; older versions
+    /// say `Exited with signal code 4`). Signal 9 is left out: stopping a run sends SIGKILL to the
+    /// test processes before `swift test` itself, which can report that as a signal exit. Used only
+    /// for stopped runs: a finished run's exit status is better evidence, and a `Fatal error` line
+    /// alone with exit status 0 still counts as passed.
+    private static func logContainsCrash(_ testLog: String) -> Bool {
+        let entireTestLog = NSRange(testLog.startIndex..., in: testLog)
+        return crashRegEx.numberOfMatches(in: testLog, options: [], range: entireTestLog) > 0
+    }
+
+    private static var crashRegEx: NSRegularExpression {
+        NSRegularExpression.regexWithPattern(
+            #"(^|: )Fatal error: |[Ee]xited with (unexpected )?signal code (?!9\b)[0-9]+"#,
+            .anchorsMatchLines
+        )
     }
 
     private static func logContainsTestFailure(_ testLog: String) -> Bool {
