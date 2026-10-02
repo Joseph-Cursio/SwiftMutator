@@ -2,6 +2,12 @@ import SwiftSyntax
 
 final class AddImportRewriter: SyntaxRewriter {
     private let visitor = AddImportVisitior()
+    private let accessLevel: String?
+
+    init(accessLevel: String? = nil) {
+        self.accessLevel = accessLevel
+        super.init()
+    }
 
     private(set) var newLinesAddedToFile = 0
 
@@ -22,6 +28,19 @@ final class AddImportRewriter: SyntaxRewriter {
         )
     }
 
+    /// The module's own access level on Foundation imports, so the injected import agrees with it.
+    private var accessLevelModifier: DeclModifierSyntax? {
+        let keyword: Keyword
+        switch accessLevel {
+        case "internal": keyword = .internal
+        case "package": keyword = .package
+        case "fileprivate": keyword = .fileprivate
+        case "private": keyword = .private
+        default: return nil
+        }
+        return DeclModifierSyntax(name: .keyword(keyword, trailingTrivia: .space))
+    }
+
     private func insertImportFoundation(
         in node: CodeBlockItemListSyntax
     ) -> CodeBlockItemListSyntax {
@@ -30,7 +49,9 @@ final class AddImportRewriter: SyntaxRewriter {
                 item: CodeBlockItemSyntax.Item(
                     ImportDeclSyntax(
                         leadingTrivia: .space,
-                        modifiers: [
+                        modifiers: DeclModifierListSyntax(
+                            accessLevelModifier.map { [$0] } ?? []
+                        ) + [
                             DeclModifierSyntax(
                                 name: TokenSyntax(
                                     .keyword(.import),
