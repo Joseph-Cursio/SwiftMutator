@@ -101,6 +101,14 @@ final class TestSuiteResultParsingTests: MuterTestCase {
 
         contents = loadLogFile(named: "testRunWithoutFailures_withTestSucceededFooter.log")
         XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .timeout)
+
+        // Stopping the run kills the test process with SIGKILL first, and `swift test` may report
+        // that before it is killed too. That's our own kill, not a crash.
+        contents = """
+        Test Case '-[ExampleTests.ExampleTests testHangs]' started.
+        error: Process '/path/to/xctest /path/to/ExamplePackageTests.xctest' exited with unexpected signal code 9
+        """
+        XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .timeout)
     }
 
     func test_stoppedRunWhoseLogShowsACrash_isARuntimeError() {

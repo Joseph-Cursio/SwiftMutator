@@ -76,8 +76,10 @@ extension TestSuiteOutcome {
 
     /// The Swift runtime's message for a trap (`file.swift:12: Fatal error: …`), or SwiftPM's report
     /// of a test process killed by a signal (`exited with unexpected signal code 5`; older versions
-    /// say `Exited with signal code 4`). Used only for stopped runs: a finished run's exit status is
-    /// better evidence, and a `Fatal error` line alone with exit status 0 still counts as passed.
+    /// say `Exited with signal code 4`). Signal 9 is left out: stopping a run sends SIGKILL to the
+    /// test processes before `swift test` itself, which can report that as a signal exit. Used only
+    /// for stopped runs: a finished run's exit status is better evidence, and a `Fatal error` line
+    /// alone with exit status 0 still counts as passed.
     private static func logContainsCrash(_ testLog: String) -> Bool {
         let entireTestLog = NSRange(testLog.startIndex..., in: testLog)
         return crashRegEx.numberOfMatches(in: testLog, options: [], range: entireTestLog) > 0
@@ -85,7 +87,7 @@ extension TestSuiteOutcome {
 
     private static var crashRegEx: NSRegularExpression {
         NSRegularExpression.regexWithPattern(
-            #"(^|: )Fatal error: |[Ee]xited with (unexpected )?signal code [0-9]+"#,
+            #"(^|: )Fatal error: |[Ee]xited with (unexpected )?signal code (?!9\b)[0-9]+"#,
             .anchorsMatchLines
         )
     }
