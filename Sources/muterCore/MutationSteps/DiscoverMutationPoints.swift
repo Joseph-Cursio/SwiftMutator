@@ -26,7 +26,7 @@ struct DiscoverMutationPoints: MutationStep {
             throw MuterError.noMutationPointsDiscovered
         }
 
-        let mappings = discovered.mappings.mergeByFileName()
+        let mappings = discovered.mappings.mergeByFilePath()
 
         notificationCenter.post(
             name: .mutationsDiscoveryFinished,
@@ -137,7 +137,7 @@ private extension DiscoverMutationPoints {
 
         // Pruning has to see every operator's mutants for the file at once: an outer mutant from
         // one operator conflicts with a nested one from another.
-        let merged = mappings.mergeByFileName()
+        let merged = mappings.mergeByFilePath()
         merged.forEach { $0.dropNestedSchemataInOpaqueBodies(of: source) }
         return merged.filter { !$0.isEmpty }
     }
