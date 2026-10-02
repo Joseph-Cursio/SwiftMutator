@@ -27,6 +27,19 @@ extension SyntaxProtocol {
         return parent!.as(CodeBlockItemListSyntax.self)!
     }
 
+    /// Whether the statement list a mutation would be switched in cannot hold the `if` switch.
+    ///
+    /// A stored-property initializer has no statement list of its own, so walking up reaches the
+    /// file's top level (or a top-level `#if`). Wrapping that list in an `if` moves its imports and
+    /// type declarations into a local scope, which does not compile. A file-scope list of plain
+    /// statements (top-level code in `main.swift` or a script) can be switched, so only a list
+    /// holding a declaration is refused.
+    var cannotHoldMutationSwitch: Bool {
+        let list = codeBlockItemListSyntax
+        return list.isFileScope
+            && list.contains { Syntax($0.item).asProtocol(DeclSyntaxProtocol.self) != nil }
+    }
+
     func appendingLeadingTrivia(
         _ pieces: TriviaPiece...
     ) -> Self {
@@ -142,5 +155,32 @@ extension SwiftSyntax.Trivia {
 extension Trivia? {
     func containsLineComment(_ comment: String) -> Bool {
         map { $0.containsLineComment(comment) } ?? false
+    }
+}
+
+extension CodeBlockItemListSyntax {
+    /// The file's own top level, or a `#if` clause at the file's top level.
+    var isFileScope: Bool {
+        guard let parent else {
+            return true
+        }
+        if parent.is(SourceFileSyntax.self) {
+            return true
+        }
+        guard parent.is(IfConfigClauseSyntax.self) else {
+            return false
+        }
+        // A `#if` clause is as file-scoped as the list its `#if` sits in.
+        var ancestor = parent.parent
+        while let current = ancestor {
+            if current.is(MemberBlockItemListSyntax.self) {
+                return false
+            }
+            if let enclosing = current.as(CodeBlockItemListSyntax.self) {
+                return enclosing.isFileScope
+            }
+            ancestor = current.parent
+        }
+        return true
     }
 }
