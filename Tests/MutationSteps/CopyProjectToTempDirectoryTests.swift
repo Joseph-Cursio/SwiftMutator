@@ -28,17 +28,23 @@ final class CopyProjectToTempDirectoryTests: MuterTestCase {
         process.stdoutToBeReturned = """
         /tmp/projectName/.build/arm64-apple-macosx/debug/ModuleCache
         /tmp/projectName/.build/arm64-apple-macosx/release/ModuleCache
+        /tmp/projectName/.build/out/ModuleCache.noindex
         """
 
         _ = try await sut.run(with: state)
 
         // A module cache records the absolute path it was built under, so one carried into the copy makes
-        // every compile there fail with `missing required module 'SwiftShims'`.
+        // every compile there fail with `missing required module 'SwiftShims'`. The native build system
+        // names it `ModuleCache`; Swift Build (`.build/out`) names it `ModuleCache.noindex`.
         XCTAssertEqual(process.executableURL?.path, "/usr/bin/find")
-        XCTAssertEqual(process.arguments, ["/tmp/projectName", "-name", "ModuleCache"])
+        XCTAssertEqual(
+            process.arguments,
+            ["/tmp/projectName", "(", "-name", "ModuleCache", "-o", "-name", "ModuleCache.noindex", ")"]
+        )
         XCTAssertEqual(fileManager.paths, [
             "/tmp/projectName/.build/arm64-apple-macosx/debug/ModuleCache",
             "/tmp/projectName/.build/arm64-apple-macosx/release/ModuleCache",
+            "/tmp/projectName/.build/out/ModuleCache.noindex",
         ])
     }
 

@@ -96,6 +96,19 @@ extension MuterProcess {
         .flatMap(\.nilIfEmpty)
     }
 
+    /// Paths under `path` whose name is any of `names`, in one `find` call.
+    func find(
+        atPath path: String,
+        byNames names: [String]
+    ) -> String? {
+        let alternatives = names.flatMap { ["-o", "-name", $0] }.dropFirst()
+        return runProcess(
+            url: "/usr/bin/find",
+            arguments: [path, "("] + alternatives + [")"]
+        )
+        .flatMap(\.nilIfEmpty)
+    }
+
     func findExecutable(
         atPath path: String,
         byName name: String
