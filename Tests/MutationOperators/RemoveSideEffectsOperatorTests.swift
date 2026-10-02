@@ -58,6 +58,28 @@ final class RemoveSideEffectsOperatorTests: MuterTestCase {
         AssertSnapshot(formatCode(rewriter.description))
     }
 
+    // Statements were matched by their text, so removing one of two identical statements removed
+    // both, and the block's two mutants were the same mutant.
+    func test_removesOnlyItsOwnStatement_whenTheBlockRepeatsIt() throws {
+        let source = try sourceCode(
+            """
+            func refresh(_ event: Event) {
+                reload()
+                log(event)
+                reload()
+            }
+            """
+        )
+        let visitor = RemoveSideEffectsOperator.Visitor(
+            sourceCodeInfo: .init(path: "/path/to/file", code: source)
+        )
+
+        visitor.walk(source)
+
+        let remaining = visitor.schemataMappings.mutationSchemata.map { $0.syntaxMutation.description.trimmed.inlined }
+        XCTAssertEqual(remaining.sorted(), ["log(event) reload()", "reload() log(event)", "reload() reload()"])
+    }
+
     func test_sideEffectsInDoStatement() throws {
         let source = try sourceCode(
             """

@@ -157,7 +157,10 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             ? try runTestProcess(process)
             : try runTestProcess(process, withTimeout: timeout!)
 
-        let testExecutionLog = try String(contentsOf: logFileUrl)
+        // Decoded leniently: the log is whatever the test command wrote, and a run stopped at the time
+        // limit, or a test process that crashed mid-write, can end partway through a character. Strict
+        // decoding threw on that, and the run was reported as a build error, outside the score.
+        let testExecutionLog = try String(decoding: Data(contentsOf: logFileUrl), as: UTF8.self)
         let testResult = TestSuiteOutcome.from(
             testLog: testExecutionLog,
             terminationStatus: process.terminationStatus,
