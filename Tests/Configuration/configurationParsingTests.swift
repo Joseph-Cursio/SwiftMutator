@@ -84,4 +84,49 @@ final class ConfigurationParsingTests: MuterTestCase {
             MuterConfiguration(testSuiteTimeOut: 5, mutationTestWorkers: 3)
         )
     }
+
+    func test_configurationWithEveryFieldSet_leavesNoFieldAtItsDefault() {
+        // A field added to MuterConfiguration fails this until the helper below sets it, which makes
+        // the copy tests that follow cover the new field too.
+        let fields = Mirror(reflecting: configurationWithEveryFieldSet()).children
+        let defaults = Mirror(reflecting: MuterConfiguration()).children
+        for (field, defaultField) in zip(fields, defaults) {
+            XCTAssertNotEqual(
+                "\(field.value)",
+                "\(defaultField.value)",
+                "\(field.label ?? "a field") is at its default"
+            )
+        }
+    }
+
+    func test_withExecutable_keepsEveryOtherField() {
+        XCTAssertEqual(
+            configurationWithEveryFieldSet().withExecutable("/opt/homebrew/bin/swift"),
+            configurationWithEveryFieldSet(executable: "/opt/homebrew/bin/swift")
+        )
+    }
+
+    func test_withDefaultTestSuiteTimeout_keepsEveryOtherField() {
+        XCTAssertEqual(
+            configurationWithEveryFieldSet(timeout: nil).withDefaultTestSuiteTimeout(12),
+            configurationWithEveryFieldSet(timeout: 12)
+        )
+    }
+
+    /// No field is left at its default, so a copy that drops one no longer equals this.
+    private func configurationWithEveryFieldSet(
+        executable: String = "/usr/bin/swift",
+        timeout: Double? = 30
+    ) -> MuterConfiguration {
+        MuterConfiguration(
+            executable: executable,
+            arguments: ["test"],
+            excludeList: ["Generated"],
+            excludeCallList: ["print"],
+            coverageThreshold: 80,
+            testSuiteTimeOut: timeout,
+            buildSystem: .swift,
+            mutationTestWorkers: 4
+        )
+    }
 }
