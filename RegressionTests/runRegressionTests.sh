@@ -23,7 +23,6 @@ cd ../..
 
 echo "Running Regression Test on Project With Concurrency..."
 cd ./Repositories/ProjectWithConcurrency
-swift package generate-xcodeproj
 "$muterdir"/swift-mutator --skip-coverage --skip-update-check --format json --output muterReport.json
 cp ./muterReport.json "$samplesdir"/projectwithconcurrency_test_output.json
 cd ../..
