@@ -29,6 +29,8 @@ To run Muter's unit tests from the command line:
 
 ```make test```
 
+This runs only the `muterTests` target. A plain `swift test` also runs the acceptance and regression targets, and their tests fail unless the sample projects they read have been generated first (see below).
+
 Alternatively, you can generate an xcode project with the command:
 
 ```make project```
@@ -54,6 +56,14 @@ Run the acceptance tests often if you're making a change which impacts a user's 
 Run the regression tests often if you are making changes to Muter's test report. Otherwise, we want you to run them once prior to making a pull request.
 
 Both of these test suites are lengthy (~5 minutes). Budget your time accordingly, perhaps to coincide with a bathroom or tea break. :)
+
+#### Continuous Integration
+GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) builds the package and runs the unit tests on every pull request and every push to `main`, on two toolchains:
+
+- `macos-26` with Xcode 26.6 (Swift 6.3). It is one Swift release and one macOS release behind the current ones, so a failure only here usually means code that needs the newest toolchain.
+- `xcode-27` with Xcode 27.0 (Swift 6.4), the current toolchain. GitHub still calls this runner image a preview.
+
+CI doesn't run the acceptance or regression tests, so run them locally as described above. If a job fails, the run's summary lists the errors and failing tests, and the full logs and any mismatched snapshots are attached to the run.
 
 #### Mutation Tests
 It's possible (and encouraged!) to run Muter on itself. To do this with the version of the code you've been working on, run:
