@@ -121,6 +121,27 @@ final class LoadConfigurationTests: MuterTestCase {
         )
     }
 
+    func test_whenExecutableIsABareCommandName_thenMutationTestWorkersIsKept() async throws {
+        fileManager.fileExistsToReturn = [false, true]
+        fileManager.fileContentsToReturn = MuterConfiguration(
+            executable: "swift",
+            arguments: ["test"],
+            mutationTestWorkers: 4
+        ).asData
+        process.stdoutToBeReturned = "/usr/bin/swift\n"
+
+        let result = try await sut.run(with: state)
+
+        // Resolving the path must change only `executable`. A setting lost on the way falls back to its
+        // default without a word: for `mutationTestWorkers`, that means testing one mutant at a time.
+        XCTAssertEqual(
+            result.last,
+            .configurationParsed(
+                MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 4)
+            )
+        )
+    }
+
     func test_whenExecutableIsAnAbsolutePath_thenItIsLeftAlone() async throws {
         fileManager.fileExistsToReturn = [false, true]
         fileManager.fileContentsToReturn = MuterConfiguration(

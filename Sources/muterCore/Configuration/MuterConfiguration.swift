@@ -3,13 +3,18 @@ import Yams
 
 struct MuterConfiguration: Equatable, Codable {
     let testCommandArguments: [String]
-    let testCommandExecutable: String
+    // A `var` only so `withExecutable` can copy `self` and change just this field. Rebuilding with
+    // `init` instead silently resets any field the call leaves out, as every parameter has a default.
+    private(set) var testCommandExecutable: String
     /// File exclusion list.
     let excludeFileList: [String]
     /// Exclusion list of functions for Remove Side Effects.
     let excludeCallList: [String]
     let coverageThreshold: Double
-    let testSuiteTimeout: Double?
+    // A `var` only so `withDefaultTestSuiteTimeout` can copy `self` and change just this field.
+    // Rebuilding with `init` instead silently resets any field the call leaves out, as every parameter
+    // has a default.
+    private(set) var testSuiteTimeout: Double?
     /// How many mutants to test at once (`mutationTestWorkers:`). Each worker runs the test command in
     /// its own clone of the mutated project, because `swift test` locks the package's build directory.
     /// Only SwiftPM projects run in parallel; nil or 1 tests one mutant at a time.
@@ -88,16 +93,9 @@ struct MuterConfiguration: Equatable, Codable {
     /// This configuration with `testSuiteTimeout` set to `timeout`, unless it already has one.
     func withDefaultTestSuiteTimeout(_ timeout: TimeInterval) -> MuterConfiguration {
         guard testSuiteTimeout == nil else { return self }
-        return MuterConfiguration(
-            executable: testCommandExecutable,
-            arguments: testCommandArguments,
-            excludeList: excludeFileList,
-            excludeCallList: excludeCallList,
-            coverageThreshold: coverageThreshold,
-            testSuiteTimeOut: timeout,
-            buildSystem: explicitBuildSystem,
-            mutationTestWorkers: mutationTestWorkers
-        )
+        var copy = self
+        copy.testSuiteTimeout = timeout
+        return copy
     }
 
     init(from data: Data) throws {
@@ -112,15 +110,9 @@ struct MuterConfiguration: Equatable, Codable {
 extension MuterConfiguration {
     /// A copy of this configuration whose test command runs `executable`.
     func withExecutable(_ executable: String) -> MuterConfiguration {
-        MuterConfiguration(
-            executable: executable,
-            arguments: testCommandArguments,
-            excludeList: excludeFileList,
-            excludeCallList: excludeCallList,
-            coverageThreshold: coverageThreshold,
-            testSuiteTimeOut: testSuiteTimeout,
-            buildSystem: explicitBuildSystem
-        )
+        var copy = self
+        copy.testCommandExecutable = executable
+        return copy
     }
 }
 
