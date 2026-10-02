@@ -15,6 +15,8 @@ final class MutationTestingDelegateTests: MuterTestCase {
             at: URL(fileURLWithPath: outputFolder),
             withIntermediateDirectories: true
         )
+        // Test logs are written to the current directory; keep them in the folder tearDown removes.
+        fileManager.currentDirectoryPathToReturn = outputFolder
     }
 
     override func tearDownWithError() throws {
@@ -111,17 +113,17 @@ final class MutationTestingDelegateTests: MuterTestCase {
     }
 
     func test_fileHandle() throws {
-        let currentDirectoryPath = fileManager.currentDirectoryPath
-        fileManager.changeCurrentDirectoryPath(outputFolder)
-
         let handleAndLogFileUrl = try sut.fileHandle(
             for: "logFileName"
         )
 
         XCTAssertEqual(handleAndLogFileUrl.logFileUrl.lastPathComponent, "logFileName")
         XCTAssertNotNil(handleAndLogFileUrl.handle)
-
-        fileManager.changeCurrentDirectoryPath(currentDirectoryPath)
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: outputFolderURL.appendingPathComponent("logFileName").path
+            )
+        )
     }
 
     func test_timeout() async throws {
@@ -194,6 +196,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
         XCTAssertTrue(result.testLog.contains("swift"), result.testLog)
         XCTAssertTrue(result.testLog.contains("test --filter CalcTests"), result.testLog)
         XCTAssertTrue(result.testLog.contains("doesn't exist"), result.testLog)
+        XCTAssertTrue(result.testLog.contains("working directory: \(outputFolder)"), result.testLog)
     }
 
     func test_whenConfigurationHasNoTimeOut_thenRunTestsWithoutTimeOut() async throws {
