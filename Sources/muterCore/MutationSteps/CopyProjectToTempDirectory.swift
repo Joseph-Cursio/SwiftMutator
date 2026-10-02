@@ -29,10 +29,21 @@ class CopyProjectToTempDirectory: MutationStep {
             manager.delegate = tolerance
             defer { manager.delegate = previousDelegate }
 
-            try manager.copyItem(
-                atPath: state.projectDirectoryURL.path,
-                toPath: state.mutatedProjectDirectoryURL.path
-            )
+            // `delegate` is weak, and `tolerance` isn't used after this, so its lifetime
+            // is extended explicitly to cover the copy.
+            try withExtendedLifetime(tolerance) {
+                try manager.copyItem(
+                    atPath: state.projectDirectoryURL.path,
+                    toPath: state.mutatedProjectDirectoryURL.path
+                )
+            }
+
+            if !tolerance.skippedPaths.isEmpty {
+                notificationCenter.post(
+                    name: .projectCopySkippedVanishedFiles,
+                    object: tolerance.skippedPaths
+                )
+            }
 
             discardModuleCaches(in: state.mutatedProjectDirectoryURL)
 
