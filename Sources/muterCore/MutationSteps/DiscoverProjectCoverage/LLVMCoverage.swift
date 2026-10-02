@@ -6,13 +6,32 @@ struct Region: Equatable {
     let lineEnd: Int
     let columnEnd: Int
     let executionCount: Int
+    let kind: Kind
 
-    init(lineStart: Int, columnStart: Int, lineEnd: Int, columnEnd: Int, executionCount: Int = 0) {
+    /// llvm-cov's region kinds, from the eighth element of each exported region.
+    enum Kind: Int {
+        case code = 0
+        case expansion = 1
+        case skipped = 2
+        case gap = 3
+        case branch = 4
+        case other = -1
+    }
+
+    init(
+        lineStart: Int,
+        columnStart: Int,
+        lineEnd: Int,
+        columnEnd: Int,
+        executionCount: Int = 0,
+        kind: Kind = .code
+    ) {
         self.lineStart = lineStart
         self.columnStart = columnStart
         self.lineEnd = lineEnd
         self.columnEnd = columnEnd
         self.executionCount = executionCount
+        self.kind = kind
     }
 }
 
@@ -27,11 +46,15 @@ extension Region: Decodable {
         lineEnd = data[safe: 2] ?? 0
         columnEnd = data[safe: 3] ?? 0
         executionCount = data[safe: 4] ?? 0
+        // Exports without the field predate region kinds; treat them as code, as before.
+        kind = data[safe: 7].map { Kind(rawValue: $0) ?? .other } ?? .code
     }
 
+    /// Whether `other` lies entirely inside this region. Positions compare as (line, column) pairs,
+    /// so a region that ends on a line before `other` starts never contains it, whatever the columns.
     func contains(_ other: Region) -> Bool {
-        lineStart <= other.lineEnd
-            && columnStart <= other.columnEnd
+        (lineStart, columnStart) <= (other.lineStart, other.columnStart)
+            && (other.lineEnd, other.columnEnd) <= (lineEnd, columnEnd)
     }
 }
 

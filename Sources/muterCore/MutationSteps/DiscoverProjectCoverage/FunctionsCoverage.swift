@@ -22,8 +22,12 @@ final class FunctionsCoverage {
         }
     }
 
+    /// Code that never ran, or that an inactive `#if` kept out of the build. Gap and expansion
+    /// regions also report a zero count, but they describe whitespace and macro expansions rather
+    /// than source a mutant could sit in.
     private func containsNonExecutionRegion(_ region: Region) -> Bool {
         region.executionCount == 0
+            && (region.kind == .code || region.kind == .skipped)
     }
 
     func regionsForFile(_ filePath: FilePath) -> [Region] {
