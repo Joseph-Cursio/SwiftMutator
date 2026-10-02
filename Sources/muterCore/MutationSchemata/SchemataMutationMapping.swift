@@ -191,18 +191,23 @@ func + (
 }
 
 extension [SchemataMutationMapping] {
-    func mergeByFileName() -> Self {
-        var result = [FileName: SchemataMutationMapping]()
+    /// Merges each file's mappings into one. Keyed by full path, not by file name: two files can
+    /// share a name (one `main.swift` per executable target, an `Extensions.swift` in several
+    /// modules), and `+` keeps only the left-hand path, so merging them put one file's mutants into
+    /// the other, or nowhere.
+    /// Sorted by path, so mutants are tested in the same order on every run.
+    func mergeByFilePath() -> Self {
+        var result = [FilePath: SchemataMutationMapping]()
 
         for map in self {
-            if let exists = result[map.fileName] {
-                result[map.fileName] = exists + map
+            if let exists = result[map.filePath] {
+                result[map.filePath] = exists + map
             } else {
-                result[map.fileName] = map
+                result[map.filePath] = map
             }
         }
 
-        return Array(result.values)
+        return result.values.sorted { $0.filePath < $1.filePath }
     }
 }
 

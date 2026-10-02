@@ -103,7 +103,7 @@ final class Logger {
 
         for mutation in mutations {
             numberOfMutationPoints += mutation.mutationSchemata.count
-            filesSummary[mutation.fileName] = mutation.mutationSchemata.count
+            filesSummary[mutation.fileName, default: 0] += mutation.mutationSchemata.count
         }
 
         print("✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants in \(numberOfFiles) files\n")

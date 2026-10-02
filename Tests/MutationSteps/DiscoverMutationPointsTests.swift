@@ -71,6 +71,63 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         )
     }
 
+    // MARK: - Files with the same name
+
+    func test_keepsFilesWithTheSameNameApart() async throws {
+        // Two copies of one file in different directories. Merged by name, one copy's mapping
+        // swallowed the other's, which put its mutants into the other copy, or nowhere.
+        let paths = try makeSourceFiles(at: ["First/Module.swift", "Second/Module.swift"])
+        state.sourceFileCandidates = paths
+
+        let result = try await sut.run(with: state)
+        let change = try XCTUnwrap(result.first)
+
+        guard case let .mutationMappingsDiscovered(mappings) = change else {
+            return XCTFail("Expected mappings, got \(change)")
+        }
+
+        XCTAssertEqual(mappings.map(\.filePath).sorted(), paths)
+        for mapping in mappings {
+            XCTAssertEqual(Set(mapping.mutationSchemata.map(\.filePath)), [mapping.filePath])
+        }
+    }
+
+    func test_returnsFilesInPathOrder() async throws {
+        // Mutants are tested in this order, so it has to be the same on every run for two runs to be
+        // compared mutant by mutant. Discovery finishes files in whatever order its threads do.
+        let paths = try makeSourceFiles(at: (1 ... 8).map { "Module\($0)/File\(9 - $0).swift" })
+        state.sourceFileCandidates = paths.reversed()
+
+        let result = try await sut.run(with: state)
+        let change = try XCTUnwrap(result.first)
+
+        guard case let .mutationMappingsDiscovered(mappings) = change else {
+            return XCTFail("Expected mappings, got \(change)")
+        }
+
+        XCTAssertEqual(mappings.map(\.filePath), paths)
+    }
+
+    /// Writes a file with one mutant (`value < 0`) at each of `relativePaths`, under a new directory
+    /// removed when the test finishes, and returns the files' paths.
+    private func makeSourceFiles(at relativePaths: [String]) throws -> [String] {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        addTeardownBlock { try? FileManager.default.removeItem(atPath: root) }
+
+        return try relativePaths.map { relativePath in
+            let path = "\(root)/\(relativePath)"
+            try FileManager.default.createDirectory(
+                atPath: URL(fileURLWithPath: path).deletingLastPathComponent().path,
+                withIntermediateDirectories: true
+            )
+            try "func isNegative(_ value: Int) -> Bool { value < 0 }\n"
+                .write(toFile: path, atomically: true, encoding: .utf8)
+            return path
+        }
+    }
+
     // MARK: - Large Codebase Tests (Parallel Processing)
 
     func test_discoversMultipleFilesInParallel() async throws {
