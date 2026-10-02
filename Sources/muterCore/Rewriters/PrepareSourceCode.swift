@@ -13,7 +13,7 @@ struct PrepareSourceCode {
             return nil
         }
 
-        let addImport = AddImportRewriter()
+        let addImport = AddImportRewriter(accessLevel: FoundationImportStyle.accessLevel(forFileAt: path))
         let addImportSource = addImport.visit(source.code)
 
         let disableLinters = DisableLintersRewriter()
