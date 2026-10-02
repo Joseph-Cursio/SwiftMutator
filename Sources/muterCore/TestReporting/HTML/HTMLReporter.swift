@@ -60,7 +60,7 @@ extension Node where Context == HTML.DocumentContext {
         let css = normalizeCSS + reportCSS
 
         return .head(
-            .title("Muter Report"),
+            .title("SwiftMutator Report"),
             .meta(.charset(.utf8)),
             .style(css),
             .raw("<script>\(javascript)</script>")
@@ -116,16 +116,16 @@ extension Node where Context: HTML.BodyContext {
     ) -> Self {
         .div(
             .p(
-                "📝 In total, Muter introduced ",
+                "📝 In total, SwiftMutator introduced ",
                 .span(.class("strong"), "\(testReport.totalAppliedMutationOperators)"),
                 " mutants in ",
                 .span(.class("strong"), "\(testReport.fileReports.count)"),
                 " files."
             ),
-            .p("⏰ Muter took \(testReport.timeElapsed) to run."),
+            .p("⏰ SwiftMutator took \(testReport.timeElapsed) to run."),
             .if(
                 !newVersion.isEmpty,
-                .p("🆕 The version \(newVersion) of Muter is available")
+                .p("🆕 The version \(newVersion) of SwiftMutator is available")
             )
         )
     }

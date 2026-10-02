@@ -8,9 +8,9 @@ final class PlainTextReporter: Reporter {
         Applied Mutation Operators
         --------------------------
 
-        These are all of the ways that Muter introduced changes into your code.
+        These are all of the ways that SwiftMutator introduced changes into your code.
 
-        In total, Muter introduced \(report.totalAppliedMutationOperators) mutants in \(report.fileReports.count) files.
+        In total, SwiftMutator introduced \(report.totalAppliedMutationOperators) mutants in \(report.fileReports.count) files.
 
         \(generateAppliedMutationOperatorsCLITable(from: report.fileReports).description)
 
@@ -28,7 +28,7 @@ final class PlainTextReporter: Reporter {
         Mutation Test Scores
         --------------------
 
-        Muter took \(report.timeElapsed) to run.
+        SwiftMutator took \(report.timeElapsed) to run.
 
         These are the mutation scores for your test suite, as well as the files that had mutants introduced into them.
 
@@ -50,6 +50,6 @@ final class PlainTextReporter: Reporter {
 
     private func coverageMessage(from report: MuterTestReport) -> String {
         report.projectCodeCoverage.map { "Code Coverage of your project: \($0)%" }
-            ?? "Muter could not gather coverage data from your project"
+            ?? "SwiftMutator could not gather coverage data from your project"
     }
 }

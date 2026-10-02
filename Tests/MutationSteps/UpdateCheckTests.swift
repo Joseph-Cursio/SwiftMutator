@@ -26,7 +26,7 @@ final class UpdateCheckTests: MuterTestCase {
 
         XCTAssertEqual(
             server.urlPassed?.absoluteString,
-            "https://api.github.com/repos/muter-mutation-testing/muter/releases?per_page=1"
+            "https://api.github.com/repos/Joseph-Cursio/SwiftMutator/releases?per_page=1"
         )
     }
 

@@ -4,7 +4,7 @@ import Foundation
 struct ReportArguments: ParsableArguments {
     @Option(
         name: [.customShort("f"), .customLong("format")],
-        help: "The report format for muter: \(ReportFormat.description)",
+        help: "The report format: \(ReportFormat.description)",
         transform: {
             guard let report = ReportFormat(rawValue: $0) else {
                 throw MuterError.literal(reason: ReportFormat.description)

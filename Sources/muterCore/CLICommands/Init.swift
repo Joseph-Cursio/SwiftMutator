@@ -5,7 +5,7 @@ public struct Init: AsyncParsableCommand {
 
     public static let configuration = CommandConfiguration(
         commandName: "init",
-        abstract: "Creates the configuration file that Muter uses"
+        abstract: "Creates the configuration file that SwiftMutator uses"
     )
 
     private let directory: String

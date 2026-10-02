@@ -281,7 +281,7 @@ extension PerformMutationTesting {
         let status: Int32
 
         var description: String {
-            "Muter could not clone the mutated project to \(clone.path) for a parallel worker (cp exited \(status))."
+            "SwiftMutator could not clone the mutated project to \(clone.path) for a parallel worker (cp exited \(status))."
         }
     }
 

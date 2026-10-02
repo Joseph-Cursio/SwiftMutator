@@ -1,6 +1,6 @@
-OVERVIEW: Creates the configuration file that Muter uses
+OVERVIEW: Creates the configuration file that SwiftMutator uses
 
-USAGE: muter init
+USAGE: swift-mutator init
 
 OPTIONS:
   --version               Show the version.
