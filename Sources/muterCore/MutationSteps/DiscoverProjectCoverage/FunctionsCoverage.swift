@@ -1,6 +1,7 @@
 import Foundation
 
 final class FunctionsCoverage {
+    /// Keyed by canonical path, since llvm-cov may spell a file's path differently from SwiftMutator.
     private var coverage: [String: [Region]] = [:]
 
     private init() {}
@@ -18,7 +19,7 @@ final class FunctionsCoverage {
                 continue
             }
 
-            coverage[filename, default: []].append(contentsOf: functionsWithoutExecutaion)
+            coverage[filename.canonicalPath, default: []].append(contentsOf: functionsWithoutExecutaion)
         }
     }
 
@@ -31,7 +32,7 @@ final class FunctionsCoverage {
     }
 
     func regionsForFile(_ filePath: FilePath) -> [Region] {
-        coverage[filePath] ?? []
+        coverage[filePath.canonicalPath] ?? []
     }
 }
 extension FunctionsCoverage: Equatable {

@@ -145,4 +145,78 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         XCTAssertEqual(mappings.count, 1)
         XCTAssertTrue(mappings[0].fileName.hasSuffix(".swift"))
     }
+
+    // MARK: - Coverage
+
+    func test_shouldIgnoreMutantsWithoutCoverage() async throws {
+        let (directory, _) = try makeDirectoryWithSymbolicLink()
+        try writeSourceWithAnUncoveredFunction(to: "\(directory)/Module.swift")
+
+        state.sourceFileCandidates = ["\(directory)/Module.swift"]
+        state.projectCoverage = coverageMissingIsNegative(reportedAt: "\(directory)/Module.swift")
+
+        let mutatedLines = try await discoveredMutantLines()
+
+        XCTAssertEqual(mutatedLines, [3])
+    }
+
+    func test_shouldIgnoreMutantsWithoutCoverage_reportedThroughASymbolicLink() async throws {
+        // How llvm-cov reports a file SwiftMutator found in `/private/tmp`: by its `/tmp` path.
+        let (directory, link) = try makeDirectoryWithSymbolicLink()
+        try writeSourceWithAnUncoveredFunction(to: "\(directory)/Module.swift")
+
+        state.sourceFileCandidates = ["\(directory)/Module.swift"]
+        state.projectCoverage = coverageMissingIsNegative(reportedAt: "\(link)/Module.swift")
+
+        let mutatedLines = try await discoveredMutantLines()
+
+        XCTAssertEqual(mutatedLines, [3])
+    }
+
+    func test_shouldIgnoreMutantsWithoutCoverage_inAFileReachedThroughASymbolicLink() async throws {
+        let (directory, link) = try makeDirectoryWithSymbolicLink()
+        try writeSourceWithAnUncoveredFunction(to: "\(directory)/Module.swift")
+
+        state.sourceFileCandidates = ["\(link)/Module.swift"]
+        state.projectCoverage = coverageMissingIsNegative(reportedAt: "\(directory)/Module.swift")
+
+        let mutatedLines = try await discoveredMutantLines()
+
+        XCTAssertEqual(mutatedLines, [3])
+    }
+
+    /// A mutant on line 1, in a function the tests never run, and one on line 3, in one they do.
+    private func writeSourceWithAnUncoveredFunction(to path: String) throws {
+        try """
+        func isNegative(_ value: Int) -> Bool { value < 0 }
+        func isPositive(_ value: Int) -> Bool {
+            value > 0
+        }
+        """.write(toFile: path, atomically: true, encoding: .utf8)
+    }
+
+    /// Coverage in which only `isNegative`'s body never ran, reported for the file at `path`.
+    private func coverageMissingIsNegative(reportedAt path: String) -> Coverage {
+        let isNegativeBody = Region.make(lineStart: 1, columnStart: 39, lineEnd: 1, columnEnd: 52)
+
+        return Coverage.make(
+            functionsCoverage: FunctionsCoverage(
+                from: LLVMCoverage(data: [
+                    .init(functions: [Function(filenames: [path], regions: [isNegativeBody])]),
+                ])
+            )
+        )
+    }
+
+    private func discoveredMutantLines() async throws -> [Int] {
+        let result = try await sut.run(with: state)
+        let change = try XCTUnwrap(result.first)
+
+        guard case let .mutationMappingsDiscovered(mappings) = change else {
+            XCTFail("Expected mappings, got \(change)")
+            return []
+        }
+
+        return mappings.flatMap(\.mutationSchemata).map(\.position.line).sorted()
+    }
 }
