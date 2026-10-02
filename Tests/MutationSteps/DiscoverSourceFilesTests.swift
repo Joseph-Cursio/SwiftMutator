@@ -115,6 +115,43 @@ final class DiscoverSourceFilesTests: MuterTestCase {
         ])
     }
 
+    func test_shouldIgnoreFilesWithoutCoverage_reportedThroughASymbolicLink() async throws {
+        current.fileManager = FileManager.default
+
+        // How xcodebuild reports a project SwiftMutator found in `/private/tmp`: by its `/tmp` path.
+        let (directory, link) = try makeDirectoryWithSymbolicLink()
+        try makeProjectWithCoveredAndUncoveredFiles(in: directory)
+
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "\(directory)/Project", isDirectory: true)
+        state.projectCoverage = Coverage.make(
+            filesWithoutCoverage: ["\(link)/Project/Uncovered.swift"]
+        )
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result, [
+            .sourceFileCandidatesDiscovered(["\(directory)/Project/Covered.swift"]),
+        ])
+    }
+
+    func test_shouldIgnoreFilesWithoutCoverage_inAProjectReachedThroughASymbolicLink() async throws {
+        current.fileManager = FileManager.default
+
+        let (directory, link) = try makeDirectoryWithSymbolicLink()
+        try makeProjectWithCoveredAndUncoveredFiles(in: directory)
+
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "\(link)/Project", isDirectory: true)
+        state.projectCoverage = Coverage.make(
+            filesWithoutCoverage: ["\(directory)/Project/Uncovered.swift"]
+        )
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result, [
+            .sourceFileCandidatesDiscovered(["\(link)/Project/Covered.swift"]),
+        ])
+    }
+
     func test_whenDoesntDiscoverFilesInProjectDirectory() async throws {
         state.mutatedProjectDirectoryURL = URL(
             fileURLWithPath: "\(filsToDiscoverPath)/Directory4",
@@ -264,5 +301,16 @@ final class DiscoverSourceFilesTests: MuterTestCase {
             await sut.run(with: state),
             .noSourceFilesOnExclusiveList
         )
+    }
+
+    private func makeProjectWithCoveredAndUncoveredFiles(in directory: String) throws {
+        try FileManager.default.createDirectory(
+            atPath: "\(directory)/Project",
+            withIntermediateDirectories: true
+        )
+
+        for file in ["Covered.swift", "Uncovered.swift"] {
+            FileManager.default.createFile(atPath: "\(directory)/Project/\(file)", contents: Data())
+        }
     }
 }

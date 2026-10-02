@@ -138,3 +138,21 @@ public extension XCTestCase {
     var configurationPath: String { "\(fixturesDirectory)/\(MuterConfiguration.fileNameWithExtension)" }
     var mutationExamplesDirectory: String { "\(fixturesDirectory)/MutationExamples" }
 }
+
+extension XCTestCase {
+    /// A new, empty directory that can also be reached through a symbolic link, the way `/private/tmp`
+    /// is also `/tmp` on macOS. Both are removed when the test finishes.
+    func makeDirectoryWithSymbolicLink() throws -> (directory: String, link: String) {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        let directory = "\(root)/directory"
+        let link = "\(root)/link"
+
+        try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: directory)
+        addTeardownBlock { try? FileManager.default.removeItem(atPath: root) }
+
+        return (directory, link)
+    }
+}

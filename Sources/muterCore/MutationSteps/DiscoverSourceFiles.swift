@@ -79,8 +79,10 @@ private extension DiscoverSourceFiles {
                 )
                 .map { String($0.dropFirst(2)) }
                 .map { append(root: rootPath, to: $0) }
-                .exclude(filesWithoutCoverageList(filesWithoutCoverage))
         )
+        // Only Swift files are checked against coverage: each check resolves the path on disk, and a
+        // project holds far more files than Swift sources.
+        .exclude(filesWithoutCoverageList(filesWithoutCoverage))
     }
 
     private func pathsContainingItems(
@@ -101,10 +103,12 @@ private extension DiscoverSourceFiles {
         }
     }
 
+    /// Matches by canonical path, since the coverage tools may spell a file's path differently.
     private func filesWithoutCoverageList(
         _ list: [FilePath]
     ) -> (FilePath) -> Bool {
-        { path in list.contains(path) }
+        let canonicalPaths = Set(list.map(\.canonicalPath))
+        return { path in canonicalPaths.contains(path.canonicalPath) }
     }
 
     private func findFilesToMutate(
