@@ -42,6 +42,60 @@ final class CopyProjectToTempDirectoryTests: MuterTestCase {
         ])
     }
 
+    func test_copiesWithVanishedFileToleranceAndRestoresTheDelegate() async throws {
+        state.projectDirectoryURL = URL(string: "/some/projectName")!
+        state.mutatedProjectDirectoryURL = URL(string: "/tmp/projectName")!
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertTrue(fileManager.delegateDuringCopy is VanishedFileTolerance)
+        XCTAssertNil(fileManager.delegate)
+    }
+
+    func test_restoresTheDelegateWhenTheCopyFails() async throws {
+        fileManager.errorToThrow = TestingError.stub
+        state.projectDirectoryURL = URL(string: "/some/projectName")!
+        state.mutatedProjectDirectoryURL = URL(string: "/tmp/projectName")!
+
+        _ = try? await sut.run(with: state)
+
+        XCTAssertNil(fileManager.delegate)
+    }
+
+    func test_vanishedFileToleranceProceedsOnlyPastMissingFiles() {
+        let tolerance = VanishedFileTolerance()
+        let missing: [Error] = [
+            NSError(domain: NSCocoaErrorDomain, code: NSFileNoSuchFileError),
+            NSError(domain: NSCocoaErrorDomain, code: NSFileReadNoSuchFileError),
+            NSError(domain: NSPOSIXErrorDomain, code: Int(ENOENT)),
+            NSError(
+                domain: NSCocoaErrorDomain,
+                code: NSFileWriteUnknownError,
+                userInfo: [NSUnderlyingErrorKey: NSError(domain: NSPOSIXErrorDomain, code: Int(ENOENT))]
+            ),
+        ]
+        let fatal: [Error] = [
+            NSError(domain: NSCocoaErrorDomain, code: NSFileReadNoPermissionError),
+            NSError(domain: NSCocoaErrorDomain, code: NSFileWriteOutOfSpaceError),
+            NSError(domain: NSPOSIXErrorDomain, code: Int(EACCES)),
+            TestingError.stub,
+        ]
+
+        for error in missing {
+            XCTAssertTrue(
+                tolerance.fileManager(.default, shouldProceedAfterError: error, copyingItemAtPath: "/src/x.lock", toPath: "/dst/x.lock"),
+                "should skip \(error)"
+            )
+        }
+        for error in fatal {
+            XCTAssertFalse(
+                tolerance.fileManager(.default, shouldProceedAfterError: error, copyingItemAtPath: "/src/x", toPath: "/dst/x"),
+                "should stop on \(error)"
+            )
+        }
+        XCTAssertEqual(tolerance.skippedPaths.count, missing.count)
+    }
+
     func test_whenItsUnableToCopyAProjectIntoATempDirectory() async throws {
         fileManager.errorToThrow = TestingError.stub
         state.projectDirectoryURL = URL(string: "/some/projectName")!

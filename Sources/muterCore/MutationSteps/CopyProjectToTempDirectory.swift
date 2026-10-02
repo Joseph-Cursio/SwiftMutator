@@ -19,7 +19,17 @@ class CopyProjectToTempDirectory: MutationStep {
                 object: nil
             )
 
-            try fileManager.copyItem(
+            // The project is live while it is copied: build tools create and
+            // delete lock and temporary files under `.build` at any moment, and
+            // one vanishing mid-copy used to abort the whole run. The shared
+            // file manager's delegate is restored afterwards.
+            var manager = fileManager
+            let previousDelegate = manager.delegate
+            let tolerance = VanishedFileTolerance()
+            manager.delegate = tolerance
+            defer { manager.delegate = previousDelegate }
+
+            try manager.copyItem(
                 atPath: state.projectDirectoryURL.path,
                 toPath: state.mutatedProjectDirectoryURL.path
             )
@@ -52,6 +62,43 @@ class CopyProjectToTempDirectory: MutationStep {
 
         for cache in caches {
             try? fileManager.removeItem(atPath: cache)
+        }
+    }
+}
+
+/// Lets a recursive copy continue past files that disappear after the copy has
+/// enumerated them. Every other error, a permission failure included, still
+/// stops the copy.
+final class VanishedFileTolerance: NSObject, FileManagerDelegate {
+    private(set) var skippedPaths: [String] = []
+
+    func fileManager(
+        _ fileManager: FileManager,
+        shouldProceedAfterError error: Error,
+        copyingItemAtPath srcPath: String,
+        toPath dstPath: String
+    ) -> Bool {
+        guard Self.isNoSuchFile(error) else {
+            return false
+        }
+
+        skippedPaths.append(srcPath)
+        return true
+    }
+
+    static func isNoSuchFile(_ error: Error) -> Bool {
+        let nsError = error as NSError
+
+        switch (nsError.domain, nsError.code) {
+        case (NSCocoaErrorDomain, NSFileNoSuchFileError),
+             (NSCocoaErrorDomain, NSFileReadNoSuchFileError),
+             (NSPOSIXErrorDomain, Int(ENOENT)):
+            return true
+        default:
+            if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? Error {
+                return isNoSuchFile(underlying)
+            }
+            return false
         }
     }
 }
