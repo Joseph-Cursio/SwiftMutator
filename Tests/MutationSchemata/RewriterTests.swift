@@ -99,6 +99,24 @@ final class RewriterTests: MuterTestCase {
         let fileScopeSwitches = rewritten.split(separator: "\n").filter { $0.hasPrefix("if ProcessInfo") }
         XCTAssertEqual(fileScopeSwitches, [])
     }
+
+    // A mutant is located in its block by position. Searching the block's text found the first copy of
+    // a repeated expression, so the second ternary's mutant changed the first one instead.
+    func test_mutatesTheRightCopyOfARepeatedExpression() throws {
+        let source = SourceCodeInfo(path: "/path/to/twice.swift", code: Parser.parse(source: """
+        func twice(_ flag: Bool) -> Int {
+            let first = flag ? 1 : 2
+            let second = flag ? 1 : 2
+            return first + second
+        }
+        """))
+        let visitor = SwapTernaryOperator.Visitor(sourceCodeInfo: source)
+        visitor.walk(source.code)
+        let mutations = visitor.schemataMappings.mutationSchemata.map(\.syntaxMutation.description)
+
+        XCTAssertEqual(mutations.count, 2)
+        XCTAssertEqual(Set(mutations).count, 2, "both mutants changed the same ternary: \(mutations)")
+    }
 }
 
 private let allOperatorsSourceCode =
