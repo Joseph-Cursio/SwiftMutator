@@ -24,7 +24,16 @@ extension SyntaxProtocol {
             parent = parent?.parent
         }
 
-        return parent!.as(CodeBlockItemListSyntax.self)!
+        var list = parent!.as(CodeBlockItemListSyntax.self)!
+        // `#if` is not a scope: a declaration in a clause is visible after `#endif`. Switching the
+        // clause's own statements would put it inside the switch's `if` block, out of reach of the code
+        // after `#endif`, so such a clause's mutants are switched in the list around the `#if`.
+        while list.parent?.is(IfConfigClauseSyntax.self) == true,
+              list.containsDeclaration,
+              let enclosing = list.enclosingListOfIfConfig {
+            list = enclosing
+        }
+        return list
     }
 
     /// Whether the statement list a mutation would be switched in cannot hold the `if` switch.
@@ -182,5 +191,27 @@ extension CodeBlockItemListSyntax {
             ancestor = current.parent
         }
         return true
+    }
+}
+
+private extension CodeBlockItemListSyntax {
+    var containsDeclaration: Bool {
+        contains { Syntax($0.item).asProtocol(DeclSyntaxProtocol.self) != nil }
+    }
+
+    /// The statement list holding the `#if` this clause belongs to, or `nil` when the `#if` sits in
+    /// a type's member list, where clauses hold members rather than statements.
+    var enclosingListOfIfConfig: CodeBlockItemListSyntax? {
+        var ancestor = parent?.parent
+        while let current = ancestor {
+            if current.is(MemberBlockItemListSyntax.self) {
+                return nil
+            }
+            if let enclosing = current.as(CodeBlockItemListSyntax.self) {
+                return enclosing
+            }
+            ancestor = current.parent
+        }
+        return nil
     }
 }
