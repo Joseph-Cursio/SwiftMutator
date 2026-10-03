@@ -99,6 +99,65 @@ final class RewriterTests: MuterTestCase {
         let fileScopeSwitches = rewritten.split(separator: "\n").filter { $0.hasPrefix("if ProcessInfo") }
         XCTAssertEqual(fileScopeSwitches, [])
     }
+
+    // `#if` is not a scope: a `let` in a clause is visible after `#endif`. Switching the clause's own
+    // statements put that `let` inside an `if` block and hid it from the code after `#endif`
+    // ("cannot find 'outputActual' in scope", swift-argument-parser's TestHelpers.swift). Such a
+    // clause's mutants are switched in the list around the `#if` instead.
+    func test_switchesAroundAnIfConfigClauseThatDeclaresSomething() throws {
+        let source = SourceCodeInfo(path: "/path/to/describe.swift", code: Parser.parse(source: """
+        func describe(_ flag: Bool) throws -> String {
+            #if os(macOS)
+            let value = flag ? "on" : "off"
+            #else
+            throw Failure()
+            #endif
+            return value
+        }
+        """))
+        let mapping = try XCTUnwrap(generateSchemataMappings(for: source).first)
+
+        XCTAssertEqual(mapping.codeBlocks.count, 1)
+        let block = try XCTUnwrap(mapping.codeBlocks.first)
+        XCTAssertTrue(block.contains("#endif") && block.contains("return value"), block)
+
+        let rewritten = MuterRewriter(mapping).rewrite(source.code).description
+        let branches = mapping.mutationSchemata.count + 1
+        XCTAssertEqual(rewritten.components(separatedBy: "return value").count - 1, branches, rewritten)
+    }
+
+    func test_keepsSwitchingInsideAnIfConfigClauseWithoutDeclarations() throws {
+        let source = SourceCodeInfo(path: "/path/to/log.swift", code: Parser.parse(source: """
+        func log(_ flag: Bool) {
+            #if DEBUG
+            print(flag ? 1 : 2)
+            #endif
+            print("done")
+        }
+        """))
+        let mapping = try XCTUnwrap(generateSchemataMappings(for: source).first)
+
+        XCTAssertEqual(mapping.codeBlocks.count, 1)
+        XCTAssertFalse(try XCTUnwrap(mapping.codeBlocks.first).contains("#if"), mapping.codeBlocks.description)
+    }
+
+    // A mutant is located in its block by position. Searching the block's text found the first copy of
+    // a repeated expression, so the second ternary's mutant changed the first one instead.
+    func test_mutatesTheRightCopyOfARepeatedExpression() throws {
+        let source = SourceCodeInfo(path: "/path/to/twice.swift", code: Parser.parse(source: """
+        func twice(_ flag: Bool) -> Int {
+            let first = flag ? 1 : 2
+            let second = flag ? 1 : 2
+            return first + second
+        }
+        """))
+        let visitor = SwapTernaryOperator.Visitor(sourceCodeInfo: source)
+        visitor.walk(source.code)
+        let mutations = visitor.schemataMappings.mutationSchemata.map(\.syntaxMutation.description)
+
+        XCTAssertEqual(mutations.count, 2)
+        XCTAssertEqual(Set(mutations).count, 2, "both mutants changed the same ternary: \(mutations)")
+    }
 }
 
 private let allOperatorsSourceCode =

@@ -142,6 +142,26 @@ class MuterVisitor: SyntaxAnyVisitor {
         )
     }
 
+    /// Where `node` sits in its block's text, found from the node's own position. Searching the text
+    /// for the node finds the FIRST copy, so of two identical ternaries the second one's mutant
+    /// changed the first instead. `nil` if the offsets don't line up, and the text search is used.
+    static func range(
+        of node: SyntaxProtocol,
+        in block: CodeBlockItemListSyntax,
+        description: String
+    ) -> Range<String.Index>? {
+        let offset = node.position.utf8Offset - block.position.utf8Offset
+        let utf8 = description.utf8
+        guard offset >= 0,
+              let start = utf8.index(utf8.startIndex, offsetBy: offset, limitedBy: utf8.endIndex),
+              let end = utf8.index(start, offsetBy: node.description.utf8.count, limitedBy: utf8.endIndex),
+              description[start ..< end] == node.description
+        else {
+            return nil
+        }
+        return start ..< end
+    }
+
     func transform(
         node: SyntaxProtocol,
         mutatedSyntax: SyntaxProtocol,
@@ -150,7 +170,9 @@ class MuterVisitor: SyntaxAnyVisitor {
         let codeBlockItemListSyntax = node.codeBlockItemListSyntax
         let codeBlockDescription = codeBlockItemListSyntax.description
         let mutationDescription = mutatedSyntax.description
-        let range = mutationRange ?? codeBlockDescription.range(of: node.description)
+        let range = mutationRange
+            ?? Self.range(of: node, in: codeBlockItemListSyntax, description: codeBlockDescription)
+            ?? codeBlockDescription.range(of: node.description)
         let codeBlockTree = Parser.parse(source: codeBlockDescription)
         guard let range
         else {
