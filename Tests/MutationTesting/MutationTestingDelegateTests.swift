@@ -275,4 +275,69 @@ final class MutationTestingDelegateTests: MuterTestCase {
         XCTAssertEqual(result.outcome, .failed)
         XCTAssertTrue(result.testLog.contains("with 1 failure"), result.testLog)
     }
+
+    // A run waited for its test process on the Swift concurrency thread it ran on. There are only about
+    // as many of those as the machine has cores, so runs waiting together could hold every one, and then
+    // nothing else could run until a process exited, not even a run's time limit. Synchronous, so the
+    // test itself doesn't need one of those threads.
+    func test_waitingForTestProcesses_holdsNoSwiftConcurrencyThread() throws {
+        try assertWaitingForTestProcessesHoldsNoSwiftConcurrencyThread(timeLimit: 60)
+    }
+
+    func test_waitingForTestProcessesWithoutATimeLimit_holdsNoSwiftConcurrencyThread() throws {
+        try assertWaitingForTestProcessesHoldsNoSwiftConcurrencyThread(timeLimit: nil)
+    }
+
+    /// Starts more runs than Swift concurrency has threads, each of a process that runs until it's killed,
+    /// and checks that a task started after them still runs. Then kills every process and waits for
+    /// every run to end.
+    private func assertWaitingForTestProcessesHoldsNoSwiftConcurrencyThread(timeLimit: TimeInterval?) throws {
+        let threadCount = ProcessInfo.processInfo.activeProcessorCount
+        // They run well past the probe's time limit: one that gave up first would free its thread.
+        let processes = (0..<threadCount + 2).map { _ in ScriptedProcessSpy([.runUntilKilled], deadline: 20) }
+        let lock = NSLock()
+        var unlaunched = processes[...]
+        current.process = { lock.withLock { unlaunched.removeFirst() } }
+        current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
+
+        let configuration = MuterConfiguration(
+            executable: "/tmp/swift",
+            arguments: ["test"],
+            testSuiteTimeOut: timeLimit
+        )
+        let schemata = try MutationSchema.make(
+            filePath: "/path/fileName",
+            position: .init(line: 1)
+        )
+
+        let runsEnded = processes.indices.map { index in
+            let runEnded = expectation(description: "run \(index) ended")
+            Task {
+                _ = await sut.runTestSuite(
+                    withSchemata: schemata,
+                    using: configuration,
+                    savingResultsIntoFileNamed: "logFileName\(index)"
+                )
+                runEnded.fulfill()
+            }
+            return runEnded
+        }
+        // Each run waits once its process is launched; if waiting holds a thread, these hold every one.
+        waitUntil(threadCount, of: processes, areWaitedForWithin: 5)
+
+        let probe = expectation(description: "a task started after the runs ran")
+        Task { probe.fulfill() }
+        wait(for: [probe], timeout: 5)
+
+        processes.forEach { $0.terminateTree() }
+        wait(for: runsEnded, timeout: 5)
+    }
+
+    /// Returns once `count` of `processes` are being waited for, or after `timeout` seconds.
+    private func waitUntil(_ count: Int, of processes: [ScriptedProcessSpy], areWaitedForWithin timeout: TimeInterval) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while processes.filter(\.waitUntilExitCalled).count < count, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+    }
 }

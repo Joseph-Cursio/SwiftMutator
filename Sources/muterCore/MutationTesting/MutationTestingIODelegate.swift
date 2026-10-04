@@ -205,7 +205,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
     ) async throws -> TestingExecutionResult {
         try await testingTimeOutExecutor().withTimeLimit(timeout) {
             try process.run()
-            process.waitUntilExit()
+            await process.exited()
             return .success
         } timeoutHandler: {
             // Kill the whole process tree, not just the launched command — see terminateTree().
@@ -216,7 +216,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
 
     private func runTestProcess(_ process: Process) async throws -> TestingExecutionResult {
         try process.run()
-        process.waitUntilExit()
+        await process.exited()
 
         return .success
     }
