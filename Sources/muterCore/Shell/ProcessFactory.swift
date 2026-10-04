@@ -2,6 +2,10 @@ import Foundation
 
 let isMuterRunningKey = "IS_MUTER_RUNNING"
 let isMuterRunningValue = "YES"
+/// Foundation's switch for unbuffered standard output, which makes `swift test` pass its test runners'
+/// output on to the log as it arrives.
+let unbufferedOutputKey = "NSUnbufferedIO"
+let unbufferedOutputValue = "YES"
 
 enum MuterProcessFactory {
     static func makeProcess() -> MuterProcess {

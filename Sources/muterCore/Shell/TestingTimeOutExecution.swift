@@ -11,6 +11,8 @@ protocol TestingTimeoutExecution {
 enum TestingExecutionResult {
     case success
     case timeout
+    /// Stopped at its first failed test (`stopAtFirstFailure`).
+    case stoppedAtFirstFailure
 }
 
 struct TestingTimeoutExecutor: TestingTimeoutExecution {

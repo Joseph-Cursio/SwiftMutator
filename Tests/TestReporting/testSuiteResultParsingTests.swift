@@ -139,4 +139,82 @@ final class TestSuiteResultParsingTests: MuterTestCase {
         contents = loadLogFile(named: "timeout_xcodebuildFailedTestCase.log") + loadLogFile(named: "timeout_xcodebuildCrash.log")
         XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .failed)
     }
+
+    func test_stoppedRunWhoseLogShowsARecordedSwiftTestingIssue_isFailed() {
+        // Stopped after Swift Testing recorded an issue but before the test ended, so neither the test's
+        // "failed after" line nor the run's summary was printed.
+        for issueLine in [
+            "✘ Test computeInC() recorded an issue at CTests.swift:28:9: Expectation failed: (compute(5) → 11) == 10",
+            "✘ Test sum(of:) recorded an issue with 1 argument of → 5 at A.swift:3:5: Expectation failed",
+            "\u{1B}[91m✘\u{1B}[0m Test computeInC() recorded an issue at CTests.swift:28:9: Expectation failed",
+        ] {
+            let contents = """
+            ◇ Test run started.
+            ↳ Testing Library Version: 6.3.3 (48d727cc1cf4eda)
+            ◇ Test computeInC() started.
+            \(issueLine)
+            ↳ compute(5) == 10 → false
+            """
+            XCTAssertEqual(
+                TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout),
+                .failed,
+                issueLine
+            )
+        }
+    }
+
+    func test_stoppedRunWhoseLogShowsOnlyAKnownIssueOrWarning_isATimeout() {
+        let contents = """
+        ◇ Test run started.
+        ↳ Testing Library Version: 6.3.3 (48d727cc1cf4eda)
+        ━ Test knownIssueAlways() recorded a known issue at ATests.swift:34:13: Expectation failed: 1 == 2
+        ↳ probe: deliberately known
+        ⚠︎ Test recordsWarning() recorded a warning at CTests.swift:35:21: Issue recorded
+        ◇ Test hangs() started.
+        """
+        XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .timeout)
+    }
+
+    func test_stoppedRunWhoseRecordedIssueLineIsUnreliable_isATimeout() {
+        // A passing baseline printed this line, so here too it may come from a test that passed.
+        let contents = """
+        ◇ Test run started.
+        ✘ Test sum() recorded an issue at SumTests.swift:3:5: Expectation failed: 1 == 2
+        ✔ Test sum() passed after 0.001 seconds.
+        ◇ Test loopsForever() started.
+        """
+        XCTAssertEqual(
+            TestSuiteOutcome.from(
+                testLog: contents,
+                terminationStatus: 9,
+                timeoutExecution: .timeout,
+                failedTestLinesAreReliable: false
+            ),
+            .timeout
+        )
+        XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .failed)
+    }
+
+    // MARK: - Runs stopped at their first failed test
+
+    func test_runStoppedAtItsFirstFailure_isFailedWhateverItsLogShows() {
+        // The run was killed as soon as its log showed a failed test, so the log may end before that line
+        // was written out, and the exit status is the SIGKILL that stopped it.
+        for contents in [
+            "",
+            """
+            ◇ Test run started.
+            ✔ Test sumOfTwoNumbers() passed after 0.001 seconds.
+            ✔ Test sumOfNoNumbers() passed after 0.001 seconds.
+            """,
+            "error: terminated(9): /usr/bin/swift test",
+            "SumTests.swift:12: Fatal error: Index out of range",
+        ] {
+            XCTAssertEqual(
+                TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .stoppedAtFirstFailure),
+                .failed,
+                contents
+            )
+        }
+    }
 }

@@ -85,6 +85,84 @@ final class ConfigurationParsingTests: MuterTestCase {
         )
     }
 
+    func test_parseStopAtFirstFailure() throws {
+        let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
+        let switchedOn = try MuterConfiguration(from: Data("\(swiftTest)\nstopAtFirstFailure: true".utf8))
+        let switchedOff = try MuterConfiguration(from: Data("\(swiftTest)\nstopAtFirstFailure: false".utf8))
+        let unset = try MuterConfiguration(from: Data(swiftTest.utf8))
+
+        XCTAssertEqual(switchedOn.stopAtFirstFailure, true)
+        XCTAssertEqual(switchedOff.stopAtFirstFailure, false)
+        XCTAssertNil(unset.stopAtFirstFailure)
+    }
+
+    func test_stopAtFirstFailureThatIsNotABoolean_failsToParse() {
+        // An error, as for mutationTestWorkers, rather than read as unset: a typo would otherwise leave
+        // every run going to its end without a word.
+        let yaml = "executable: /usr/bin/swift\narguments: [test]\nstopAtFirstFailure: sometimes"
+
+        XCTAssertThrowsError(try MuterConfiguration(from: Data(yaml.utf8)))
+    }
+
+    func test_stopsAtFirstFailure_onlyForSwiftPMWhenSwitchedOn() {
+        let swift = MuterConfiguration(executable: "/usr/bin/swift", stopAtFirstFailure: true)
+        XCTAssertTrue(swift.stopsAtFirstFailure)
+        XCTAssertNil(swift.stopAtFirstFailureUnsupportedReason)
+
+        XCTAssertFalse(MuterConfiguration(executable: "/usr/bin/swift").stopsAtFirstFailure)
+        XCTAssertFalse(MuterConfiguration(executable: "/usr/bin/swift", stopAtFirstFailure: false).stopsAtFirstFailure)
+
+        // xcodebuild runs the tests in a process SwiftMutator can't stop.
+        let xcode = MuterConfiguration(executable: "/usr/bin/xcodebuild", stopAtFirstFailure: true)
+        XCTAssertFalse(xcode.stopsAtFirstFailure)
+        XCTAssertNotNil(xcode.stopAtFirstFailureUnsupportedReason)
+
+        // A wrapper script counts only when the configuration says it runs `swift test`.
+        XCTAssertFalse(MuterConfiguration(executable: "/bin/sh", stopAtFirstFailure: true).stopsAtFirstFailure)
+        XCTAssertTrue(
+            MuterConfiguration(executable: "/bin/sh", buildSystem: .swift, stopAtFirstFailure: true).stopsAtFirstFailure
+        )
+    }
+
+    func test_stopsAtFirstFailure_isOffWhenFailingTestsAreRetried() {
+        for arguments in [["test", "--repeat-until", "pass"], ["test", "--repeat-until=pass"]] {
+            let configuration = MuterConfiguration(
+                executable: "/usr/bin/swift",
+                arguments: arguments,
+                stopAtFirstFailure: true
+            )
+
+            XCTAssertFalse(configuration.stopsAtFirstFailure, "\(arguments)")
+            XCTAssertNotNil(configuration.stopAtFirstFailureUnsupportedReason, "\(arguments)")
+        }
+    }
+
+    // A passing baseline printed a line shaped like a failed test, so such a line can't stop a run.
+    func test_stopsAtFirstFailure_isOffOnceFailedTestLinesAreUnreliable() {
+        let configuration = MuterConfiguration(executable: "/usr/bin/swift", stopAtFirstFailure: true)
+
+        XCTAssertTrue(configuration.failedTestLinesAreReliable)
+        XCTAssertTrue(configuration.stopsAtFirstFailure)
+        XCTAssertFalse(configuration.withUnreliableFailedTestLines().stopsAtFirstFailure)
+    }
+
+    func test_asData_writesStopAtFirstFailureOnlyWhenSet() throws {
+        // Left out while unset, so `init` and the JSON-to-YAML migration write the same files as before.
+        let unset = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+        XCTAssertFalse(String(decoding: unset.asData, as: UTF8.self).contains("stopAtFirstFailure"))
+
+        for value in [true, false] {
+            let configuration = MuterConfiguration(
+                executable: "/usr/bin/swift",
+                arguments: ["test"],
+                stopAtFirstFailure: value
+            )
+
+            XCTAssertTrue(String(decoding: configuration.asData, as: UTF8.self).contains("stopAtFirstFailure: \(value)"))
+            XCTAssertEqual(try MuterConfiguration(from: configuration.asData), configuration)
+        }
+    }
+
     func test_configurationWithEveryFieldSet_leavesNoFieldAtItsDefault() {
         // A field added to MuterConfiguration fails this until the helper below sets it, which makes
         // the copy tests that follow cover the new field too.
@@ -113,12 +191,20 @@ final class ConfigurationParsingTests: MuterTestCase {
         )
     }
 
+    func test_withUnreliableFailedTestLines_keepsEveryOtherField() {
+        XCTAssertEqual(
+            configurationWithEveryFieldSet(failedTestLinesAreReliable: true).withUnreliableFailedTestLines(),
+            configurationWithEveryFieldSet(failedTestLinesAreReliable: false)
+        )
+    }
+
     /// No field is left at its default, so a copy that drops one no longer equals this.
     private func configurationWithEveryFieldSet(
         executable: String = "/usr/bin/swift",
-        timeout: Double? = 30
+        timeout: Double? = 30,
+        failedTestLinesAreReliable: Bool = false
     ) -> MuterConfiguration {
-        MuterConfiguration(
+        let configuration = MuterConfiguration(
             executable: executable,
             arguments: ["test"],
             excludeList: ["Generated"],
@@ -126,7 +212,9 @@ final class ConfigurationParsingTests: MuterTestCase {
             coverageThreshold: 80,
             testSuiteTimeOut: timeout,
             buildSystem: .swift,
-            mutationTestWorkers: 4
+            mutationTestWorkers: 4,
+            stopAtFirstFailure: false
         )
+        return failedTestLinesAreReliable ? configuration : configuration.withUnreliableFailedTestLines()
     }
 }

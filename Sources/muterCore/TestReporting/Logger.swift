@@ -121,6 +121,10 @@ final class Logger {
         )
     }
 
+    func stopAtFirstFailureTurnedOff(reason: String) {
+        print("⚠️ stopAtFirstFailure is off for this run, so every mutant's tests run to the end: \(reason)")
+    }
+
     func newMutationTestLogAvailable(mutationTestLog: MutationTestLog) {
         if mutationTestLog.mutationPoint == nil {
             print(

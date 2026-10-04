@@ -19,6 +19,8 @@ class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate {
     private let lock = NSLock()
 
     var testSuiteOutcomes: [TestSuiteOutcome]!
+    /// The log of the baseline run in the mutated project.
+    var baselineTestLog = "testLog"
 
     func backupFile(at path: String, using swapFilePaths: [FilePath: FilePath]) {
         methodCalls.append(#function)
@@ -74,7 +76,7 @@ class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate {
     ) {
         methodCalls.append(#function)
         testLogs.append(fileName)
-        return (testSuiteOutcomes.remove(at: 0), "testLog")
+        return (testSuiteOutcomes.remove(at: 0), baselineTestLog)
     }
 
     /// Called concurrently for each worker clone, so it takes the lock.
