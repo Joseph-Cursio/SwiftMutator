@@ -482,36 +482,251 @@ final class MutationTestingDelegateTests: MuterTestCase {
     // the run's task, which is still waiting for the process. Cancelling it may not kill the tree again:
     // by then the process may have exited, and the system may have given its ID to another process.
     func test_whenTheTimeLimitComesFirst_thenTheRunTimesOutAndIsKilledOnce() async throws {
-        let testProcess = ScriptedProcessSpy([.runUntilKilled])
-        current.process = { testProcess }
+        try await assertTheTimeLimitComingFirstTimesTheRunOutAndKillsItOnce(stopAtFirstFailure: nil)
+    }
+
+    // The run is also watched for a failed test, which never comes.
+    func test_whenTheTimeLimitComesFirstWhileStoppingAtFirstFailure_thenTheRunTimesOutAndIsKilledOnce() async throws {
+        try await assertTheTimeLimitComingFirstTimesTheRunOutAndKillsItOnce(stopAtFirstFailure: true)
+    }
+
+    private func assertTheTimeLimitComingFirstTimesTheRunOutAndKillsItOnce(
+        stopAtFirstFailure: Bool?,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let testProcess = ScriptedProcessSpy([.write("\(passedTestLine)\n", after: 0), .runUntilKilled])
         current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
 
         let configuration = MuterConfiguration(
             executable: "/tmp/swift",
             arguments: ["test"],
-            testSuiteTimeOut: 0.3
-        )
-        let schemata = try MutationSchema.make(
-            filePath: "/path/fileName",
-            position: .init(line: 1)
+            testSuiteTimeOut: 0.3,
+            stopAtFirstFailure: stopAtFirstFailure
         )
 
         let started = Date()
-        let result = await sut.runTestSuite(
-            withSchemata: schemata,
-            using: configuration,
-            savingResultsIntoFileNamed: "logFileName"
-        )
+        let result = try await runMutantsTests(on: testProcess, using: configuration)
 
-        XCTAssertEqual(result.outcome, .timeout)
+        XCTAssertEqual(result.outcome, .timeout, file: file, line: line)
         // Well under the process's own deadline, so the time limit, not that deadline, ended the run.
-        XCTAssertLessThan(Date().timeIntervalSince(started), 3)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 3, file: file, line: line)
         // A second kill would come from a GCD thread, so it could land after the run returned.
         let deadline = Date().addingTimeInterval(0.2)
         while testProcess.terminateTreeCallCount <= 1, Date() < deadline {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
+        XCTAssertEqual(testProcess.terminateTreeCallCount, 1, file: file, line: line)
+    }
+
+    // MARK: - Stopping at the first failed test
+
+    private let passedTestLine = "✔ Test passes() passed after 0.001 seconds."
+    private let failedTestLine = "✘ Test sum() recorded an issue at SumTests.swift:3:5: Expectation failed: 5 == 4"
+    private let failedRunSummary = "✘ Test run with 2 tests in 1 suite failed after 0.301 seconds with 1 issue."
+    private let stoppingConfiguration = MuterConfiguration(
+        executable: "/tmp/swift",
+        arguments: ["test"],
+        testSuiteTimeOut: 60,
+        stopAtFirstFailure: true
+    )
+
+    // Any failed test kills a mutant, so the tests after it can't change its outcome.
+    func test_whenAMutantsRunShowsAFailedTest_thenItIsStoppedThereAndCountsAsKilled() async throws {
+        let testProcess = ScriptedProcessSpy([.write("\(passedTestLine)\n\(failedTestLine)\n", after: 0), .runUntilKilled])
+        current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
+
+        let started = Date()
+        let result = try await runMutantsTests(on: testProcess, using: stoppingConfiguration)
+
+        XCTAssertEqual(result.outcome, .failed)
         XCTAssertEqual(testProcess.terminateTreeCallCount, 1)
+        // Well under the process's own deadline, so the failed test, not that deadline, ended the run.
+        XCTAssertLessThan(Date().timeIntervalSince(started), 3)
+    }
+
+    // A stopped run's log ends where it was killed, often partway through a line, with no summary. The note
+    // says why, and which line stopped it, without its colour codes.
+    func test_whenARunIsStoppedAtItsFirstFailure_thenItsLogEndsWithANoteNamingTheLine() async throws {
+        let colouredFailedTestLine = "\u{1B}[91m✘\u{1B}[0m"
+            + " Test sum() recorded an issue at SumTests.swift:3:5: Expectation failed: 5 == 4"
+        let output = "\(passedTestLine)\n\(colouredFailedTestLine)\n↳ 5 == 4 → false\n✔ Test other() pass"
+        let testProcess = ScriptedProcessSpy([.write(output, after: 0), .runUntilKilled])
+        current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
+
+        let result = try await runMutantsTests(on: testProcess, using: stoppingConfiguration)
+
+        XCTAssertEqual(result.testLog, output + """
+
+
+            [SwiftMutator] Stopped this test run at its first failed test (stopAtFirstFailure); the tests after it did not run.
+            [SwiftMutator] The line that stopped it: \(failedTestLine)
+
+            """)
+    }
+
+    // A blank line sets the note apart, whether the run was killed after a whole line or partway through one.
+    func test_theNoteForAStoppedRun_followsABlankLine() {
+        for log in ["\(failedTestLine)\n", "\(failedTestLine)\n✔ Test other() pass"] {
+            let notedLog = log + MutationTestingDelegate.noteForRunStopped(at: failedTestLine, after: log)
+
+            XCTAssertTrue(notedLog.contains("\n\n[SwiftMutator] Stopped this test run"), notedLog)
+        }
+    }
+
+    // Whether the baseline passes decides whether mutation testing can start, so it always runs to its end.
+    func test_theBaselineIsNeverStoppedAtAFailedTest() async throws {
+        for workingDirectory in [nil, outputFolderURL] {
+            let testProcess = ScriptedProcessSpy([
+                .write("\(failedTestLine)\n", after: 0),
+                .write("\(failedRunSummary)\n", after: 0.3),
+            ])
+            current.process = { testProcess }
+
+            let result: (outcome: TestSuiteOutcome, testLog: String)
+            if let workingDirectory {
+                result = await sut.benchmarkTests(
+                    using: stoppingConfiguration,
+                    savingResultsIntoFileNamed: "logFileName",
+                    workingDirectory: workingDirectory
+                )
+            } else {
+                result = await sut.benchmarkTests(
+                    using: stoppingConfiguration,
+                    savingResultsIntoFileNamed: "logFileName"
+                )
+            }
+
+            let overload = workingDirectory == nil ? "in the project" : "in a worker's clone"
+            XCTAssertEqual(testProcess.terminateTreeCallCount, 0, overload)
+            XCTAssertTrue(result.testLog.contains(failedRunSummary), "\(overload): \(result.testLog)")
+        }
+    }
+
+    func test_whenStopAtFirstFailureIsOff_thenAFailingRunGoesToTheEnd() async throws {
+        let configurations = [
+            MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], testSuiteTimeOut: 60),
+            MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], testSuiteTimeOut: 60, stopAtFirstFailure: false),
+            // Switched on, but xcodebuild runs can't be stopped.
+            MuterConfiguration(executable: "/tmp/xcodebuild", arguments: ["test"], testSuiteTimeOut: 60, stopAtFirstFailure: true),
+        ]
+        current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
+
+        for configuration in configurations {
+            let testProcess = ScriptedProcessSpy([
+                .write("\(failedTestLine)\n", after: 0),
+                .write("\(failedRunSummary)\n", after: 0.3),
+            ])
+
+            let result = try await runMutantsTests(on: testProcess, using: configuration)
+
+            let description = "\(configuration.testCommandExecutable), \(String(describing: configuration.stopAtFirstFailure))"
+            XCTAssertEqual(testProcess.terminateTreeCallCount, 0, description)
+            XCTAssertEqual(result.outcome, .failed, description)
+            XCTAssertTrue(result.testLog.contains(failedRunSummary), "\(description): \(result.testLog)")
+        }
+    }
+
+    // Only a failing issue kills a mutant: a known issue or a warning leaves its test passing.
+    func test_knownIssuesAndWarnings_doNotStopTheRun() async throws {
+        let testProcess = ScriptedProcessSpy([
+            .write("""
+                ━ Test knownIssue() recorded a known issue at ATests.swift:34:13: Expectation failed: 1 == 2
+                ⚠︎ Test recordsWarning() recorded a warning at CTests.swift:35:21: Issue recorded
+                \(passedTestLine)
+
+                """, after: 0),
+            .write("✔ Test run with 3 tests in 1 suite passed after 0.301 seconds with 1 known issue.\n", after: 0.3),
+        ])
+        current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
+
+        let started = Date()
+        let result = try await runMutantsTests(on: testProcess, using: stoppingConfiguration)
+
+        XCTAssertEqual(result.outcome, .passed)
+        XCTAssertEqual(testProcess.terminateTreeCallCount, 0)
+        // Well under the time limit and runMutantsTests' cancel: the run ends with its process, although the
+        // follower was still watching the log.
+        XCTAssertLessThan(Date().timeIntervalSince(started), 3, "the run outlived its process")
+    }
+
+    // The time limit can fire while a run is being stopped at its failed test. Its handler may not kill the
+    // process again, and the run counts as stopped there, which kills the mutant, not as timed out.
+    func test_whenTheTimeLimitFiresAfterTheRunWasStopped_thenItCountsAsKilledAndIsKilledOnce() async throws {
+        testingTimeOutExecutor.firesAfterBody = true
+        let testProcess = ScriptedProcessSpy([.write("\(failedTestLine)\n", after: 0), .runUntilKilled])
+
+        let result = try await runMutantsTests(on: testProcess, using: stoppingConfiguration)
+
+        XCTAssertEqual(result.outcome, .failed)
+        XCTAssertEqual(testProcess.terminateTreeCallCount, 1)
+    }
+
+    // Foundation reaps a process up to about 60 ms before waitUntilExit() returns. A run whose last test
+    // failed just before it exited was stopped in that gap: a process that had exited was killed, and its
+    // whole log got a note saying the tests after the failure did not run.
+    func test_whenTheLogShowsAFailedTestAfterTheProcessExited_thenTheRunIsNotStopped() async throws {
+        // Written while the follower waits between reads, so it reads the line only after the exit.
+        let testProcess = ScriptedProcessSpy(
+            [.write("\(failedTestLine)\n\(failedRunSummary)\n", after: 0.05)],
+            exitNoticedAfter: 0.5
+        )
+        current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
+
+        let result = try await runMutantsTests(on: testProcess, using: stoppingConfiguration)
+
+        XCTAssertEqual(result.outcome, .failed)
+        XCTAssertEqual(testProcess.terminateTreeCallCount, 0)
+        XCTAssertFalse(result.testLog.contains("[SwiftMutator]"), result.testLog)
+    }
+
+    // In the same gap, a time limit that fired just after the process exited killed it, and reported a run
+    // that passed as timed out.
+    func test_whenTheTimeLimitFiresAfterTheProcessExitedButBeforeWaitingEnds_thenNothingIsKilled() async throws {
+        let summary = "✔ Test run with 1 test in 1 suite passed after 0.001 seconds.\n"
+        let testProcess = ScriptedProcessSpy([.write(summary, after: 0)], exitNoticedAfter: 0.5)
+        current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
+        let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], testSuiteTimeOut: 0.2)
+
+        let result = try await runMutantsTests(on: testProcess, using: configuration)
+
+        XCTAssertEqual(result.outcome, .passed, result.testLog)
+        XCTAssertEqual(testProcess.terminateTreeCallCount, 0)
+    }
+
+    /// Runs a mutant's tests with `testProcess` as the test command. Cancels the run after 10 seconds, which
+    /// kills its process, so a run that never ends, such as one still watching its log, fails a test instead
+    /// of hanging it. Then waits at most 5 seconds more: a run that ignores its cancellation, such as one
+    /// whose follower never stops, fails a test too.
+    private func runMutantsTests(
+        on testProcess: ScriptedProcessSpy,
+        using configuration: MuterConfiguration
+    ) async throws -> (outcome: TestSuiteOutcome, testLog: String) {
+        current.process = { testProcess }
+        let schemata = try MutationSchema.make(
+            filePath: "/path/fileName",
+            position: .init(line: 1)
+        )
+
+        let ended = XCTestExpectation(description: "the run ended")
+        let run = Task { [sut] in
+            let result = await sut.runTestSuite(
+                withSchemata: schemata,
+                using: configuration,
+                savingResultsIntoFileNamed: "logFileName"
+            )
+            ended.fulfill()
+            return result
+        }
+        let deadline = Task {
+            try await Task.sleep(nanoseconds: 10_000_000_000)
+            run.cancel()
+        }
+        defer { deadline.cancel() }
+        guard await XCTWaiter().fulfillment(of: [ended], timeout: 15) == .completed else {
+            return try XCTUnwrap(nil, "the run ignored its cancellation")
+        }
+        return await run.value
     }
 
     /// Returns once `count` of `processes` are being waited for, or after `timeout` seconds.

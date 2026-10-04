@@ -150,7 +150,15 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             )
 
             let timeout = isBenchmark ? nil : configuration.testSuiteTimeout
-            let (outcome, contents) = try await runTestProcess(process, logFileUrl: testLogUrl, withTimeout: timeout)
+            // Never a baseline, the mutated project's or a worker's: whether it passes decides whether mutation
+            // testing can start, so it always runs to its end. A run with no mutant switched on is one too.
+            let stopsAtFirstFailure = !isBenchmark && schemata != .null && configuration.stopsAtFirstFailure
+            let (outcome, contents) = try await runTestProcess(
+                process,
+                logFileUrl: testLogUrl,
+                withTimeout: timeout,
+                stoppingAtFirstFailure: stopsAtFirstFailure
+            )
 
             return (
                 outcome: outcome,
@@ -181,17 +189,19 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
     private func runTestProcess(
         _ process: Process,
         logFileUrl: URL,
-        withTimeout timeout: TimeInterval?
+        withTimeout timeout: TimeInterval?,
+        stoppingAtFirstFailure: Bool
     ) async throws -> (TestSuiteOutcome, String) {
         let ending = TestRunEnding()
+        let follower = stoppingAtFirstFailure ? TestLogFollower(logFileUrl: logFileUrl) : nil
         let run: @Sendable () async throws -> TestingExecutionResult = {
-            try await Self.runToExit(process, ending: ending)
+            try await Self.runToExit(process, follower: follower, ending: ending)
             return .success
         }
         if let timeout {
             _ = try await testingTimeOutExecutor().withTimeLimit(timeout, run) {
                 // Kill the whole process tree, not just the launched command — see terminateTree(). Only if
-                // nothing ended the run first: its process may have just exited.
+                // nothing ended the run first: its process may have just exited, or been stopped at a failed test.
                 if ending.record(.timedOut) { process.terminateTree() }
                 return .timeout
             }
@@ -204,28 +214,63 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         // Decoded leniently: the log is whatever the test command wrote, and a run stopped at the time
         // limit, or a test process that crashed mid-write, can end partway through a character. Strict
         // decoding threw on that, and the run was reported as a build error, outside the score.
-        let testExecutionLog = try String(decoding: Data(contentsOf: logFileUrl), as: UTF8.self)
+        var testExecutionLog = try String(decoding: Data(contentsOf: logFileUrl), as: UTF8.self)
         let testResult = TestSuiteOutcome.from(
             testLog: testExecutionLog,
             terminationStatus: process.terminationStatus,
             timeoutExecution: executionResult
         )
+        if case let .failedTest(line) = ending.reason {
+            testExecutionLog += Self.noteForRunStopped(at: line, after: testExecutionLog)
+        }
 
         return (testResult, testExecutionLog)
     }
 
-    /// Launches `process` and waits for it to exit. Cancelling the calling task kills the process tree:
-    /// waiting ignores cancellation, so the run would otherwise go on until its tests ended.
-    private static func runToExit(_ process: Process, ending: TestRunEnding) async throws {
+    /// Launches `process` and waits for it to exit. With a follower, stops it at the first failed test its
+    /// log shows. Cancelling the calling task kills the process tree: waiting ignores cancellation, so the
+    /// run would otherwise go on until its tests ended.
+    private static func runToExit(_ process: Process, follower: TestLogFollower?, ending: TestRunEnding) async throws {
+        // Foundation calls this as soon as it reaps the process, while waitUntilExit() notices the exit up to
+        // about 60 ms later. Recording the exit here closes that gap: in it, the follower or the time limit
+        // could kill a process that had exited, and report a run that ended by itself as stopped.
+        process.terminationHandler = { _ in _ = ending.record(.exited) }
         try process.run()
         await withTaskCancellationHandler {
-            await process.exited()
-            _ = ending.record(.exited)
+            await withTaskGroup(of: Void.self) { group in
+                if let follower {
+                    group.addTask {
+                        guard let line = await follower.firstFailedTestLine(),
+                              ending.record(.failedTest(line: line))
+                        else { return }
+                        process.terminateTree()
+                    }
+                }
+                await process.exited()
+                // For a process that doesn't call terminationHandler, such as a test double.
+                _ = ending.record(.exited)
+                // Stops the follower if it is still watching. The group waits for it, so it never outlives the run.
+                group.cancelAll()
+            }
         } onCancel: {
             if ending.record(.cancelled) {
                 process.terminateTreeInBackground()
             }
         }
+    }
+
+    /// The note that ends a stopped run's log: why it ends there, and the line that stopped it. Appended after
+    /// the run is classified, so it can't change the outcome. Its lines start with `[SwiftMutator]`, so
+    /// `FailedTestLine` doesn't match them if the log is read again.
+    static func noteForRunStopped(at failedTestLine: String, after log: String) -> String {
+        // The run was killed wherever its output was, often partway through a line.
+        let lineBreak = log.isEmpty || log.hasSuffix("\n") ? "" : "\n"
+        return lineBreak + """
+
+            [SwiftMutator] Stopped this test run at its first failed test (stopAtFirstFailure); the tests after it did not run.
+            [SwiftMutator] The line that stopped it: \(failedTestLine)
+
+            """
     }
 
     func switchOn(

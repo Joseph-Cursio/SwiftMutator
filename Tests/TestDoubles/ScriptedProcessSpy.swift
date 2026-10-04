@@ -3,7 +3,8 @@ import Foundation
 
 /// A test command that plays `script` while it's waited for, as a real one runs: it writes its output
 /// over time, and can run until it's killed. `terminateTree()` kills it: it stops where it is and exits
-/// with SIGKILL's status, 9. Several runs can use these at once, from any thread.
+/// with SIGKILL's status, 9. When it exits it calls `terminationHandler`, as Foundation does once it reaps
+/// a process. Several runs can use these at once, from any thread.
 final class ScriptedProcessSpy: MuterProcess, @unchecked Sendable { // shared state is behind `lock`
     enum Step {
         /// Writes `text` to standard output `delay` seconds after the step before it.
@@ -26,6 +27,7 @@ final class ScriptedProcessSpy: MuterProcess, @unchecked Sendable { // shared st
 
     private let script: [Step]
     private let deadline: TimeInterval
+    private let exitNoticedAfter: TimeInterval
     /// Signalled once for each kill.
     private let kills = DispatchSemaphore(value: 0)
     private let lock = NSLock()
@@ -33,9 +35,12 @@ final class ScriptedProcessSpy: MuterProcess, @unchecked Sendable { // shared st
     private var waited = false
     private var killCount = 0
 
-    init(_ script: [Step], deadline: TimeInterval = 5) {
+    /// `exitNoticedAfter` is how long after it exits `waitUntilExit()` returns: Foundation's notices an
+    /// exit up to about 60 ms after it reaps the process.
+    init(_ script: [Step], deadline: TimeInterval = 5, exitNoticedAfter: TimeInterval = 0) {
         self.script = script
         self.deadline = deadline
+        self.exitNoticedAfter = exitNoticedAfter
     }
 
     var waitUntilExitCalled: Bool { lock.withLock { waited } }
@@ -45,6 +50,14 @@ final class ScriptedProcessSpy: MuterProcess, @unchecked Sendable { // shared st
 
     func waitUntilExit() {
         lock.withLock { waited = true }
+        play()
+        // This isn't a Foundation.Process, so the handler gets a stand-in.
+        terminationHandler?(Foundation.Process())
+        Thread.sleep(forTimeInterval: exitNoticedAfter)
+    }
+
+    /// Plays the script until it ends or the process is killed.
+    private func play() {
         for step in script {
             switch step {
             case let .write(text, after: delay):

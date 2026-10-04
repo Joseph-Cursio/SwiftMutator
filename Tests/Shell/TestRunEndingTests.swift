@@ -24,7 +24,7 @@ final class TestRunEndingTests: XCTestCase {
 
     func test_concurrentRecords_haveOneWinner() {
         let ending = TestRunEnding()
-        let reasons: [TestRunEnding.Reason] = [.exited, .timedOut, .cancelled]
+        let reasons: [TestRunEnding.Reason] = [.exited, .timedOut, .cancelled, .failedTest(line: "✘ Test a() …")]
         let lock = NSLock()
         var winners: [TestRunEnding.Reason] = []
 
@@ -42,6 +42,7 @@ final class TestRunEndingTests: XCTestCase {
     func test_executionResult_followsTheReason() throws {
         XCTAssertEqual(try ending(.exited).executionResult(), .success)
         XCTAssertEqual(try ending(.timedOut).executionResult(), .timeout)
+        XCTAssertEqual(try ending(.failedTest(line: "✘ Test a() …")).executionResult(), .stoppedAtFirstFailure)
         XCTAssertThrowsError(try ending(.cancelled).executionResult()) { error in
             XCTAssertTrue(error is CancellationError, "\(error)")
         }
