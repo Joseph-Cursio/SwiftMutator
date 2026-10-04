@@ -24,6 +24,9 @@ struct MuterConfiguration: Equatable, Codable {
     /// executable-basename heuristic — needed when `executable` is a wrapper script (e.g. one that
     /// restores env / forwards SIMCTL_CHILD_ vars) whose filename isn't literally `xcodebuild`/`swift`.
     let explicitBuildSystem: BuildSystem?
+    /// Whether a mutant's test run stops at its first failed test (`stopAtFirstFailure:`), which already
+    /// decides that the mutant is killed. nil leaves it to the default; see `stopsAtFirstFailure`.
+    let stopAtFirstFailure: Bool?
 
     var buildSystem: BuildSystem {
         if let explicitBuildSystem, explicitBuildSystem != .unknown {
@@ -46,6 +49,7 @@ struct MuterConfiguration: Equatable, Codable {
         case testSuiteTimeout = "mutationTestTimeout"
         case explicitBuildSystem = "buildSystem"
         case mutationTestWorkers
+        case stopAtFirstFailure
     }
 
     init(
@@ -56,7 +60,8 @@ struct MuterConfiguration: Equatable, Codable {
         coverageThreshold threshold: Double = 0,
         testSuiteTimeOut timeout: Double? = nil,
         buildSystem: BuildSystem? = nil,
-        mutationTestWorkers workers: Int? = nil
+        mutationTestWorkers workers: Int? = nil,
+        stopAtFirstFailure: Bool? = nil
     ) {
         testCommandExecutable = executable
         testCommandArguments = arguments
@@ -66,6 +71,7 @@ struct MuterConfiguration: Equatable, Codable {
         testSuiteTimeout = timeout
         explicitBuildSystem = buildSystem
         mutationTestWorkers = workers
+        self.stopAtFirstFailure = stopAtFirstFailure
     }
 
     init(from decoder: Decoder) throws {
@@ -82,6 +88,8 @@ struct MuterConfiguration: Equatable, Codable {
         explicitBuildSystem = (try container.decodeIfPresent(String.self, forKey: .explicitBuildSystem))
             .map(BuildSystem.init(rawValue:))
         mutationTestWorkers = try container.decodeIfPresent(Int.self, forKey: .mutationTestWorkers)
+        // Throws on a value that isn't a Boolean, so a typo is a configuration error rather than "unset".
+        stopAtFirstFailure = try container.decodeIfPresent(Bool.self, forKey: .stopAtFirstFailure)
     }
 
     /// The number of mutants to test at once: `mutationTestWorkers` for a SwiftPM project, at least 1;
@@ -89,6 +97,24 @@ struct MuterConfiguration: Equatable, Codable {
     var workerCount: Int {
         guard buildSystem == .swift else { return 1 }
         return max(1, mutationTestWorkers ?? 1)
+    }
+
+    /// Why a mutant's test run can't be stopped at its first failed test with this test command, or nil.
+    var stopAtFirstFailureUnsupportedReason: String? {
+        if buildSystem != .swift {
+            return "it works only for `swift test` (set `buildSystem: swift` if `executable` wraps it); "
+                + "other test commands run tests where SwiftMutator can't stop them"
+        }
+        if testCommandArguments.contains(where: { $0.hasPrefix("--repeat-until") }) {
+            return "the test arguments retry failing tests (--repeat-until), so a failure doesn't decide the run"
+        }
+        return nil
+    }
+
+    /// Whether mutants' test runs stop at their first failed test: only when `stopAtFirstFailure` is
+    /// set and this test command supports it. Baselines never do.
+    var stopsAtFirstFailure: Bool {
+        stopAtFirstFailureUnsupportedReason == nil && (stopAtFirstFailure ?? false)
     }
 
     /// This configuration with `testSuiteTimeout` set to `timeout`, unless it already has one.
