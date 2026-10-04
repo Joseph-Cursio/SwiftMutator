@@ -20,7 +20,9 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   ternary swaps that don't corrupt code, and simulator, PATH and module-cache fixes (from
   [muter#309](https://github.com/muter-mutation-testing/muter/pull/309), by John Marshall).
 - **Parallel workers:** `mutationTestWorkers: N` tests N mutants at once on SwiftPM projects,
-  each in its own APFS clone of the mutated project.
+  each in its own APFS clone of the mutated project. Each clone is built once before testing, which
+  costs one extra build per worker but keeps tests that write files next to their sources from
+  sharing them across workers.
 - **A default timeout:** without `mutationTestTimeout`, a mutant's test run stops after 3× the
   baseline (at least 10 s), so a mutant that loops forever can't hang the run.
 - **Logging through the injected printer**, so log output can be captured and tested.
