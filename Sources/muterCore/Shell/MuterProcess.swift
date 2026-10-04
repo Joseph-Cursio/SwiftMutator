@@ -26,7 +26,7 @@ protocol MuterProcess: AnyObject {
 
     func interrupt()
 
-    /// SIGKILL this process and every transitive descendant (default impl lists them with `ProcessTree`).
+    /// Stop, then SIGKILL, this process and every transitive descendant (default impl: `ProcessTree.terminate`).
     /// Declared here so it dynamically dispatches to conformers/test doubles rather than binding statically.
     func terminateTree()
 }
@@ -49,13 +49,11 @@ extension MuterProcess {
     /// SIGKILL this process and every transitive descendant. `interrupt()`/`terminate()` signal only
     /// the launched command (`swift test` / `xcodebuild`), not the test-runner grandchildren it spawns
     /// (`swiftpm-testing-helper`, `xctest`); those survive, keep spinning at ~100% CPU, and accumulate
-    /// across mutants until they starve the machine. List the whole tree (from the kernel on macOS, so
-    /// no `ps` starts on every kill) and kill it so a timed-out mutant's test leaves nothing behind.
+    /// across mutants until they starve the machine. Stop the whole tree, listing it from the kernel on
+    /// macOS so no `ps` starts on every kill, then kill it, so a timed-out mutant's test leaves nothing behind.
     func terminateTree() {
-        let root = processIdentifier
-        guard root > 0 else { return }
-        for pid in ProcessTree.descendants(of: root) + [root] {
-            kill(pid, SIGKILL)
+        ProcessTree.terminate(root: processIdentifier, descendants: ProcessTree.descendants(of:)) { pid, signal in
+            kill(pid, signal)
         }
     }
 

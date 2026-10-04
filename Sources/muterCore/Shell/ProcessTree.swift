@@ -2,6 +2,35 @@ import Foundation
 
 /// A process and its descendants.
 enum ProcessTree {
+    /// How many times `terminate` lists a tree, at most, while it stops it.
+    static let maximumListings = 10
+
+    /// Stops `root` and every descendant, parents first, and lists them again until a listing finds
+    /// nothing new. Then it SIGKILLs them all, root last. Killed from one listing, a running `swift test`
+    /// could start the next test bundle's runner between the listing and the kill, and that runner would
+    /// be left running. A stopped process starts nothing, but a child can start one before its own stop,
+    /// so the tree is listed again. `root` 0, a process that never launched, gets no signal: `kill` would
+    /// read it as SwiftMutator's own process group.
+    static func terminate(
+        root: Int32,
+        descendants: (Int32) -> [Int32],
+        signal send: (_ pid: Int32, _ signal: Int32) -> Void
+    ) {
+        guard root > 0 else { return }
+        send(root, SIGSTOP)
+        var stopped: [Int32] = []
+        var seen: Set<Int32> = [root]
+        for _ in 0..<maximumListings {
+            let fresh = descendants(root).filter { seen.insert($0).inserted }
+            guard !fresh.isEmpty else { break }
+            fresh.forEach { send($0, SIGSTOP) }
+            stopped += fresh
+        }
+        for pid in stopped + [root] {
+            send(pid, SIGKILL) // SIGKILL also ends a stopped process
+        }
+    }
+
     /// Every transitive child of `root`, each parent before its children.
     static func descendants(of root: Int32) -> [Int32] {
         #if os(macOS)
