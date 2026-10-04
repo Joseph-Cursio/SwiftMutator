@@ -4,12 +4,12 @@ import TestingExtensions
 import XCTest
 
 final class MuterVisitorTests: MuterTestCase {
-    private lazy var samplePath = "\(fixturesDirectory)/MutationExamples/sampleWithDisabledCode.swift"
+    private var samplePath: String!
 
-    override func tearDownWithError() throws {
-        try super.tearDownWithError()
+    override func setUpWithError() throws {
+        try super.setUpWithError()
 
-        try? FileManager.default.removeItem(atPath: samplePath)
+        samplePath = try makeTemporaryDirectory() + "/sampleWithDisabledCode.swift"
     }
 
     func test_shouldIgnoreSkippedLines() throws {
