@@ -3,26 +3,17 @@ import TestingExtensions
 import XCTest
 
 final class MutationTestingDelegateTests: MuterTestCase {
-    private lazy var outputFolder = fixturesDirectory + "/MutationTestingDelegateTests"
-    private lazy var outputFolderURL = URL(fileURLWithPath: outputFolder)
+    private var outputFolder: String!
+    private var outputFolderURL: URL { URL(fileURLWithPath: outputFolder) }
 
     private let sut = MutationTestingDelegate()
 
     override func setUpWithError() throws {
         try super.setUpWithError()
 
-        try FileManager.default.createDirectory(
-            at: URL(fileURLWithPath: outputFolder),
-            withIntermediateDirectories: true
-        )
-        // Test logs are written to the current directory; keep them in the folder tearDown removes.
+        outputFolder = try makeTemporaryDirectory()
+        // Test logs are written to the current directory; keep them in the folder removed afterwards.
         fileManager.currentDirectoryPathToReturn = outputFolder
-    }
-
-    override func tearDownWithError() throws {
-        try super.tearDownWithError()
-
-        try FileManager.default.removeItem(atPath: outputFolder)
     }
 
     func test_testProcessForXcodeBuild() async throws {
@@ -196,7 +187,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
         XCTAssertTrue(result.testLog.contains("swift"), result.testLog)
         XCTAssertTrue(result.testLog.contains("test --filter CalcTests"), result.testLog)
         XCTAssertTrue(result.testLog.contains("doesn't exist"), result.testLog)
-        XCTAssertTrue(result.testLog.contains("working directory: \(outputFolder)"), result.testLog)
+        XCTAssertTrue(result.testLog.contains("working directory: \(outputFolder!)"), result.testLog)
     }
 
     func test_whenConfigurationHasNoTimeOut_thenRunTestsWithoutTimeOut() async throws {

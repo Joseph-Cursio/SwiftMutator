@@ -140,6 +140,19 @@ public extension XCTestCase {
 }
 
 extension XCTestCase {
+    /// A new, empty directory, removed when the test finishes. A test that writes files uses one
+    /// rather than a folder next to its source: every process running the same compiled tests finds
+    /// that folder at the same `#filePath`, so when mutation testing runs the suite in several
+    /// processes at once, the copies overwrite and delete each other's files and fail.
+    func makeTemporaryDirectory() throws -> String {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .path
+        try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(atPath: directory) }
+        return directory
+    }
+
     /// A new, empty directory that can also be reached through a symbolic link, the way `/private/tmp`
     /// is also `/tmp` on macOS. Both are removed when the test finishes.
     func makeDirectoryWithSymbolicLink() throws -> (directory: String, link: String) {

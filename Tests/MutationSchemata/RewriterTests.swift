@@ -5,11 +5,12 @@ import TestingExtensions
 import XCTest
 
 final class RewriterTests: MuterTestCase {
-    private lazy var samplePath = "\(fixturesDirectory)/MutationExamples/sampleWithAllOperators.swift"
+    private var samplePath: String!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
 
+        samplePath = try makeTemporaryDirectory() + "/sampleWithAllOperators.swift"
         FileManager.default.createFile(
             atPath: samplePath,
             contents: allOperatorsSourceCode.data(using: .utf8)
@@ -20,12 +21,6 @@ final class RewriterTests: MuterTestCase {
         super.setUp()
 
         current.writeFile = { try $0.write(toFile: $1, atomically: true, encoding: .utf8) }
-    }
-
-    override func tearDownWithError() throws {
-        try super.tearDownWithError()
-
-        try FileManager.default.removeItem(atPath: samplePath)
     }
 
     func test_allOperatorsWithImplicitReturn() throws {
