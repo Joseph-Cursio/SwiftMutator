@@ -35,7 +35,8 @@ extension MuterProcess {
     /// Waits for this process to exit on a GCD thread. `waitUntilExit()` blocks its thread until then,
     /// and Swift concurrency has only about as many threads as the machine has cores: test runs waiting
     /// on them could hold every one, and nothing else could run, not even a run's time limit. Ignores
-    /// cancellation, as `waitUntilExit()` does: `terminationStatus` may be read only after exit.
+    /// cancellation, as `waitUntilExit()` does: `terminationStatus` may be read only after exit. So
+    /// whoever cancels a run kills its process, and this returns once the process is gone.
     func exited() async {
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             DispatchQueue.global(qos: .userInitiated).async {
@@ -85,6 +86,14 @@ extension MuterProcess {
             queue.append(contentsOf: childrenByParent[pid] ?? [])
         }
         return result
+    }
+
+    /// `terminateTree()` on a GCD thread, for a caller that shouldn't wait while the tree is listed, such
+    /// as a task's cancellation handler, which runs on the thread that cancels the task.
+    func terminateTreeInBackground() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            self.terminateTree()
+        }
     }
 
     func runProcess(

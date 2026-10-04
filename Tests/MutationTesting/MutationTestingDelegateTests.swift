@@ -333,6 +333,121 @@ final class MutationTestingDelegateTests: MuterTestCase {
         wait(for: runsEnded, timeout: 5)
     }
 
+    // A run's task is cancelled when mutation testing stops with runs in flight, as it does after too many
+    // build errors in a row. Waiting for the process ignores cancellation, so the run went on until its
+    // tests ended, holding up the stop, and its processes ran on although nothing would read the outcome.
+    func test_whenTheRunIsCancelled_thenItsProcessTreeIsKilled() throws {
+        try assertCancellingARunKillsItsProcessTree(timeLimit: nil)
+    }
+
+    func test_whenARunWithATimeLimitIsCancelled_thenItsProcessTreeIsKilled() throws {
+        try assertCancellingARunKillsItsProcessTree(timeLimit: 60)
+    }
+
+    /// Starts a run of a process that runs until it's killed, cancels the run's task once the process is
+    /// waited for, and checks that the run kills it, once, and ends soon after.
+    private func assertCancellingARunKillsItsProcessTree(
+        timeLimit: TimeInterval?,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let testProcess = ScriptedProcessSpy([.runUntilKilled])
+        current.process = { testProcess }
+        current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
+
+        let configuration = MuterConfiguration(
+            executable: "/tmp/swift",
+            arguments: ["test"],
+            testSuiteTimeOut: timeLimit
+        )
+        let schemata = try MutationSchema.make(
+            filePath: "/path/fileName",
+            position: .init(line: 1)
+        )
+
+        let runEnded = expectation(description: "the run ended")
+        let run = Task {
+            _ = await sut.runTestSuite(
+                withSchemata: schemata,
+                using: configuration,
+                savingResultsIntoFileNamed: "logFileName"
+            )
+            runEnded.fulfill()
+        }
+        waitUntil(1, of: [testProcess], areWaitedForWithin: 5)
+        let cancelled = Date()
+        run.cancel()
+        // Longer than the process's own deadline, so a run that isn't stopped still ends within it.
+        wait(for: [runEnded], timeout: 10)
+
+        XCTAssertEqual(testProcess.terminateTreeCallCount, 1, file: file, line: line)
+        XCTAssertLessThan(Date().timeIntervalSince(cancelled), 3, file: file, line: line)
+    }
+
+    // withTimeLimit returns whichever of its tasks finishes first, and the time limit can fire just as the
+    // process exits. Its handler then killed a process that had exited, whose ID the system may have given
+    // to another process, and reported a run that passed as timed out.
+    func test_whenTheTimeLimitFiresAfterTheProcessExited_thenNothingIsKilled() async throws {
+        let configuration = MuterConfiguration(
+            executable: "/tmp/swift",
+            arguments: ["test"],
+            testSuiteTimeOut: 9
+        )
+        testingTimeOutExecutor.firesAfterBody = true
+        let summary = "Executed 1 test, with 0 failures (0 unexpected) in 0.001 (0.001) seconds\n"
+        process.outputWrittenBeforeExit = Data(summary.utf8)
+
+        let schemata = try MutationSchema.make(
+            filePath: "/path/fileName",
+            position: .init(line: 1)
+        )
+
+        let result = await sut.runTestSuite(
+            withSchemata: schemata,
+            using: configuration,
+            savingResultsIntoFileNamed: "logFileName"
+        )
+
+        XCTAssertFalse(process.terminateTreeCalled)
+        XCTAssertEqual(result.outcome, .passed)
+    }
+
+    // When the time limit comes first, its handler kills the process tree, and then withTimeLimit cancels
+    // the run's task, which is still waiting for the process. Cancelling it may not kill the tree again:
+    // by then the process may have exited, and the system may have given its ID to another process.
+    func test_whenTheTimeLimitComesFirst_thenTheRunTimesOutAndIsKilledOnce() async throws {
+        let testProcess = ScriptedProcessSpy([.runUntilKilled])
+        current.process = { testProcess }
+        current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
+
+        let configuration = MuterConfiguration(
+            executable: "/tmp/swift",
+            arguments: ["test"],
+            testSuiteTimeOut: 0.3
+        )
+        let schemata = try MutationSchema.make(
+            filePath: "/path/fileName",
+            position: .init(line: 1)
+        )
+
+        let started = Date()
+        let result = await sut.runTestSuite(
+            withSchemata: schemata,
+            using: configuration,
+            savingResultsIntoFileNamed: "logFileName"
+        )
+
+        XCTAssertEqual(result.outcome, .timeout)
+        // Well under the process's own deadline, so the time limit, not that deadline, ended the run.
+        XCTAssertLessThan(Date().timeIntervalSince(started), 3)
+        // A second kill would come from a GCD thread, so it could land after the run returned.
+        let deadline = Date().addingTimeInterval(0.2)
+        while testProcess.terminateTreeCallCount <= 1, Date() < deadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(testProcess.terminateTreeCallCount, 1)
+    }
+
     /// Returns once `count` of `processes` are being waited for, or after `timeout` seconds.
     private func waitUntil(_ count: Int, of processes: [ScriptedProcessSpy], areWaitedForWithin timeout: TimeInterval) {
         let deadline = Date().addingTimeInterval(timeout)

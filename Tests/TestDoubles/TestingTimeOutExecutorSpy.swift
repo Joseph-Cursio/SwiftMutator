@@ -7,6 +7,9 @@ final class TestingTimeOutExecutorSpy: TestingTimeoutExecution {
     private(set) var timeLimitPassed: TimeInterval = 0
 
     var shouldSucceed = true
+    /// Runs the body, then the timeout handler, and returns the handler's value: the time limit fires
+    /// just after the run ended, and its task finishes first.
+    var firesAfterBody = false
     func withTimeLimit<T>(
         _ timeLimit: TimeInterval,
         _ body: @escaping @Sendable () async throws -> T,
@@ -15,6 +18,10 @@ final class TestingTimeOutExecutorSpy: TestingTimeoutExecution {
         withTimeLimitCalled = true
         timeLimitPassed = timeLimit
 
+        if firesAfterBody {
+            _ = try await body()
+            return try await timeoutHandler()
+        }
         return shouldSucceed
             ? try await body()
             : try await timeoutHandler()

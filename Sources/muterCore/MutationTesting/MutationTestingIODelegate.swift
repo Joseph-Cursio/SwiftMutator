@@ -161,7 +161,8 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             // Reaching here means the test command never ran — the log file couldn't be opened, or
             // the process failed to spawn. There is no test output to report, so the thrown error is
             // the only evidence of what went wrong; return it as the log rather than an empty string,
-            // which leaves the caller with nothing to show the user.
+            // which leaves the caller with nothing to show the user. A cancelled run also ends here; whoever
+            // cancelled it doesn't use its outcome.
             return (
                 .buildError,
                 """
@@ -182,10 +183,24 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         logFileUrl: URL,
         withTimeout timeout: TimeInterval?
     ) async throws -> (TestSuiteOutcome, String) {
-        let executionResult = await timeout == nil
-            ? try runTestProcess(process)
-            : try runTestProcess(process, withTimeout: timeout!)
+        let ending = TestRunEnding()
+        let run: @Sendable () async throws -> TestingExecutionResult = {
+            try await Self.runToExit(process, ending: ending)
+            return .success
+        }
+        if let timeout {
+            _ = try await testingTimeOutExecutor().withTimeLimit(timeout, run) {
+                // Kill the whole process tree, not just the launched command — see terminateTree(). Only if
+                // nothing ended the run first: its process may have just exited.
+                if ending.record(.timedOut) { process.terminateTree() }
+                return .timeout
+            }
+        } else {
+            _ = try await run()
+        }
 
+        // withTimeLimit returns whichever of its tasks finishes first, which needn't be what ended the run.
+        let executionResult = try ending.executionResult()
         // Decoded leniently: the log is whatever the test command wrote, and a run stopped at the time
         // limit, or a test process that crashed mid-write, can end partway through a character. Strict
         // decoding threw on that, and the run was reported as a build error, outside the score.
@@ -199,26 +214,18 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         return (testResult, testExecutionLog)
     }
 
-    private func runTestProcess(
-        _ process: Process,
-        withTimeout timeout: TimeInterval
-    ) async throws -> TestingExecutionResult {
-        try await testingTimeOutExecutor().withTimeLimit(timeout) {
-            try process.run()
-            await process.exited()
-            return .success
-        } timeoutHandler: {
-            // Kill the whole process tree, not just the launched command — see terminateTree().
-            process.terminateTree()
-            return .timeout
-        }
-    }
-
-    private func runTestProcess(_ process: Process) async throws -> TestingExecutionResult {
+    /// Launches `process` and waits for it to exit. Cancelling the calling task kills the process tree:
+    /// waiting ignores cancellation, so the run would otherwise go on until its tests ended.
+    private static func runToExit(_ process: Process, ending: TestRunEnding) async throws {
         try process.run()
-        await process.exited()
-
-        return .success
+        await withTaskCancellationHandler {
+            await process.exited()
+            _ = ending.record(.exited)
+        } onCancel: {
+            if ending.record(.cancelled) {
+                process.terminateTreeInBackground()
+            }
+        }
     }
 
     func switchOn(
