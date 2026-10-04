@@ -265,6 +265,14 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         // xcodebuild's build-request.json.
         process.environment?[isMuterRunningKey] = isMuterRunningValue
 
+        if configuration.stopsAtFirstFailure {
+            // `swift test` relays its test runners' output through its own standard output, which holds
+            // output bound for a file 4 KiB at a time until it exits: a run stopped at its first failed test
+            // would show that failure late, or lose its whole log. Set on every run, the baseline too, so
+            // every run sees the same environment.
+            process.environment?[unbufferedOutputKey] = unbufferedOutputValue
+        }
+
         if schemata != .null {
             process.environment?[schemata.id] = "YES"
             // Also forward the activation var into an iOS Simulator test host. When xcodebuild spawns

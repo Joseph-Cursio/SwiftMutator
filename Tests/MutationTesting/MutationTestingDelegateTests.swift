@@ -104,6 +104,72 @@ final class MutationTestingDelegateTests: MuterTestCase {
         XCTAssertNil(process.environment?[isMuterRunningKey])
     }
 
+    // `swift test` relays its test runners' output through its own standard output, which holds output
+    // bound for a file 4 KiB at a time until it exits. A run stopped at its first failed test would show
+    // that failure late, or lose its whole log.
+    func test_whenStoppingAtFirstFailure_thenEveryTestProcessWritesUnbuffered() async throws {
+        current.process = { Self.makeProcess(inheritingUnbufferedOutput: nil) }
+        let configuration = MuterConfiguration(
+            executable: "/tmp/swift",
+            arguments: ["test"],
+            stopAtFirstFailure: true
+        )
+        let mutant = try MutationSchema.make(
+            filePath: "/path/fileName",
+            position: .init(line: 1)
+        )
+
+        // The baseline too, although it is never stopped, so every run sees the same environment.
+        for schemata in [mutant, .null] {
+            let testProcess = try await sut.testProcess(
+                with: configuration,
+                schemata: schemata,
+                and: FileHandle(fileDescriptor: 0)
+            )
+
+            XCTAssertEqual(testProcess.environment?["NSUnbufferedIO"], "YES", schemata.id)
+        }
+    }
+
+    func test_whenNotStoppingAtFirstFailure_thenOutputBufferingIsLeftAlone() async throws {
+        let configurations = [
+            MuterConfiguration(executable: "/tmp/swift", arguments: ["test"]),
+            // Switched on, but xcodebuild runs can't be stopped.
+            MuterConfiguration(executable: "/tmp/xcodebuild", arguments: ["test"], stopAtFirstFailure: true),
+        ]
+        let mutant = try MutationSchema.make(
+            filePath: "/path/fileName",
+            position: .init(line: 1)
+        )
+
+        for inherited in [nil, "NO"] {
+            current.process = { Self.makeProcess(inheritingUnbufferedOutput: inherited) }
+            for configuration in configurations {
+                for schemata in [mutant, .null] {
+                    let testProcess = try await sut.testProcess(
+                        with: configuration,
+                        schemata: schemata,
+                        and: FileHandle(fileDescriptor: 0)
+                    )
+
+                    XCTAssertEqual(
+                        testProcess.environment?["NSUnbufferedIO"],
+                        inherited,
+                        "\(configuration.testCommandExecutable) \(schemata.id)"
+                    )
+                }
+            }
+        }
+    }
+
+    /// The real factory's process, as if this process's environment had `NSUnbufferedIO` set to `value`,
+    /// so these tests don't depend on the environment the test suite was launched with.
+    private static func makeProcess(inheritingUnbufferedOutput value: String?) -> MuterProcess {
+        let process = MuterProcessFactory.makeProcess()
+        process.environment?["NSUnbufferedIO"] = value
+        return process
+    }
+
     func test_switchOn() async throws {
         let schemata = try MutationSchema.make()
         let testRun = XCTestRun()
