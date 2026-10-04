@@ -174,4 +174,27 @@ final class TestSuiteResultParsingTests: MuterTestCase {
         """
         XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .timeout)
     }
+
+    // MARK: - Runs stopped at their first failed test
+
+    func test_runStoppedAtItsFirstFailure_isFailedWhateverItsLogShows() {
+        // The run was killed as soon as its log showed a failed test, so the log may end before that line
+        // was written out, and the exit status is the SIGKILL that stopped it.
+        for contents in [
+            "",
+            """
+            ◇ Test run started.
+            ✔ Test sumOfTwoNumbers() passed after 0.001 seconds.
+            ✔ Test sumOfNoNumbers() passed after 0.001 seconds.
+            """,
+            "error: terminated(9): /usr/bin/swift test",
+            "SumTests.swift:12: Fatal error: Index out of range",
+        ] {
+            XCTAssertEqual(
+                TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .stoppedAtFirstFailure),
+                .failed,
+                contents
+            )
+        }
+    }
 }

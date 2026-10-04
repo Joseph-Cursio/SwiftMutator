@@ -34,6 +34,12 @@ extension TestSuiteOutcome {
         terminationStatus: Int32,
         timeoutExecution: TestingExecutionResult? = nil
     ) -> TestSuiteOutcome {
+        // Stopped because a test failed (stopAtFirstFailure): the mutant is killed, whatever the log shows. The
+        // log ends where the run was killed, with no summary for testFailureRegEx, and the exit status is our SIGKILL.
+        if timeoutExecution == .stoppedAtFirstFailure {
+            return .failed
+        }
+
         if timeoutExecution == .timeout {
             return outcomeOfStoppedRun(testLog)
         }
