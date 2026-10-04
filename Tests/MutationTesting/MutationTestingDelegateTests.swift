@@ -86,6 +86,24 @@ final class MutationTestingDelegateTests: MuterTestCase {
         XCTAssertNil(process.environment?[isMuterRunningKey])
     }
 
+    func test_makeProcess_dropsAnInheritedMuterRunningMarker() {
+        // SwiftMutator sets the marker on the test process, so when its own suite is the one being
+        // mutation tested, this process already has it.
+        let previous = ProcessInfo.processInfo.environment[isMuterRunningKey]
+        setenv(isMuterRunningKey, isMuterRunningValue, 1)
+        defer {
+            if let previous {
+                setenv(isMuterRunningKey, previous, 1)
+            } else {
+                unsetenv(isMuterRunningKey)
+            }
+        }
+
+        let process = MuterProcessFactory.makeProcess()
+
+        XCTAssertNil(process.environment?[isMuterRunningKey])
+    }
+
     func test_switchOn() async throws {
         let schemata = try MutationSchema.make()
         let testRun = XCTestRun()

@@ -13,7 +13,11 @@ enum MuterProcessFactory {
         // env var makes xcodebuild skip writing `build-request.json`, breaking BuildForTesting's parse.
         // Nothing reads IS_MUTER_RUNNING at build time; it's set on the test process (and xctestrun)
         // where schemata activation lives — see MutationTestingIODelegate.testProcess.
-        process.environment = ProcessInfo.processInfo.environment
+        // An inherited marker is removed too: SwiftMutator runs with it set when its own test suite is
+        // the one being mutation tested, and it must not reach the build process then either.
+        var environment = ProcessInfo.processInfo.environment
+        environment[isMuterRunningKey] = nil
+        process.environment = environment
 
         return process
     }
