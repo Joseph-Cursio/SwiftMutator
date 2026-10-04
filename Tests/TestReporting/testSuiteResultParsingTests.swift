@@ -175,6 +175,26 @@ final class TestSuiteResultParsingTests: MuterTestCase {
         XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .timeout)
     }
 
+    func test_stoppedRunWhoseRecordedIssueLineIsUnreliable_isATimeout() {
+        // A passing baseline printed this line, so here too it may come from a test that passed.
+        let contents = """
+        ◇ Test run started.
+        ✘ Test sum() recorded an issue at SumTests.swift:3:5: Expectation failed: 1 == 2
+        ✔ Test sum() passed after 0.001 seconds.
+        ◇ Test loopsForever() started.
+        """
+        XCTAssertEqual(
+            TestSuiteOutcome.from(
+                testLog: contents,
+                terminationStatus: 9,
+                timeoutExecution: .timeout,
+                failedTestLinesAreReliable: false
+            ),
+            .timeout
+        )
+        XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .failed)
+    }
+
     // MARK: - Runs stopped at their first failed test
 
     func test_runStoppedAtItsFirstFailure_isFailedWhateverItsLogShows() {

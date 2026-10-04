@@ -64,6 +64,15 @@ final class LoggerTests: MuterTestCase {
         ])
     }
 
+    func test_stopAtFirstFailureTurnedOff_saysWhy() {
+        sut.stopAtFirstFailureTurnedOff(reason: "the test arguments retry failing tests")
+
+        XCTAssertEqual(printer.linesPassed, [
+            "⚠️ stopAtFirstFailure is off for this run, so every mutant's tests run to the end: "
+                + "the test arguments retry failing tests",
+        ])
+    }
+
     private func makeSchemataMapping() throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
             filePath: "/some/path",

@@ -157,7 +157,8 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
                 process,
                 logFileUrl: testLogUrl,
                 withTimeout: timeout,
-                stoppingAtFirstFailure: stopsAtFirstFailure
+                stoppingAtFirstFailure: stopsAtFirstFailure,
+                failedTestLinesAreReliable: configuration.failedTestLinesAreReliable
             )
 
             return (
@@ -190,7 +191,8 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         _ process: Process,
         logFileUrl: URL,
         withTimeout timeout: TimeInterval?,
-        stoppingAtFirstFailure: Bool
+        stoppingAtFirstFailure: Bool,
+        failedTestLinesAreReliable: Bool
     ) async throws -> (TestSuiteOutcome, String) {
         let ending = TestRunEnding()
         let follower = stoppingAtFirstFailure ? TestLogFollower(logFileUrl: logFileUrl) : nil
@@ -218,7 +220,8 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         let testResult = TestSuiteOutcome.from(
             testLog: testExecutionLog,
             terminationStatus: process.terminationStatus,
-            timeoutExecution: executionResult
+            timeoutExecution: executionResult,
+            failedTestLinesAreReliable: failedTestLinesAreReliable
         )
         if case let .failedTest(line) = ending.reason {
             testExecutionLog += Self.noteForRunStopped(at: line, after: testExecutionLog)
@@ -313,8 +316,10 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         if configuration.stopsAtFirstFailure {
             // `swift test` relays its test runners' output through its own standard output, which holds
             // output bound for a file 4 KiB at a time until it exits: a run stopped at its first failed test
-            // would show that failure late, or lose its whole log. Set on every run, the baseline too, so
-            // every run sees the same environment.
+            // would show that failure late, or lose its whole log. Set on the baselines too, although they are
+            // never stopped, so they run as the mutants that stop do, and the time limit derived from them
+            // allows for unbuffered output. Mutants run without it once a passing baseline's failure-like line
+            // has turned stopping off for them.
             process.environment?[unbufferedOutputKey] = unbufferedOutputValue
         }
 

@@ -137,6 +137,15 @@ final class ConfigurationParsingTests: MuterTestCase {
         }
     }
 
+    // A passing baseline printed a line shaped like a failed test, so such a line can't stop a run.
+    func test_stopsAtFirstFailure_isOffOnceFailedTestLinesAreUnreliable() {
+        let configuration = MuterConfiguration(executable: "/usr/bin/swift", stopAtFirstFailure: true)
+
+        XCTAssertTrue(configuration.failedTestLinesAreReliable)
+        XCTAssertTrue(configuration.stopsAtFirstFailure)
+        XCTAssertFalse(configuration.withUnreliableFailedTestLines().stopsAtFirstFailure)
+    }
+
     func test_asData_writesStopAtFirstFailureOnlyWhenSet() throws {
         // Left out while unset, so `init` and the JSON-to-YAML migration write the same files as before.
         let unset = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
@@ -182,12 +191,20 @@ final class ConfigurationParsingTests: MuterTestCase {
         )
     }
 
+    func test_withUnreliableFailedTestLines_keepsEveryOtherField() {
+        XCTAssertEqual(
+            configurationWithEveryFieldSet(failedTestLinesAreReliable: true).withUnreliableFailedTestLines(),
+            configurationWithEveryFieldSet(failedTestLinesAreReliable: false)
+        )
+    }
+
     /// No field is left at its default, so a copy that drops one no longer equals this.
     private func configurationWithEveryFieldSet(
         executable: String = "/usr/bin/swift",
-        timeout: Double? = 30
+        timeout: Double? = 30,
+        failedTestLinesAreReliable: Bool = false
     ) -> MuterConfiguration {
-        MuterConfiguration(
+        let configuration = MuterConfiguration(
             executable: executable,
             arguments: ["test"],
             excludeList: ["Generated"],
@@ -198,5 +215,6 @@ final class ConfigurationParsingTests: MuterTestCase {
             mutationTestWorkers: 4,
             stopAtFirstFailure: false
         )
+        return failedTestLinesAreReliable ? configuration : configuration.withUnreliableFailedTestLines()
     }
 }

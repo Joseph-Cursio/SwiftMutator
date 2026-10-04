@@ -27,6 +27,7 @@ extension Notification.Name {
     static let mutationsDiscoveryFinished = Notification.Name("mutationsDiscoveryFinished")
 
     static let mutationTestingStarted = Notification.Name("mutationTestingStarted")
+    static let stopAtFirstFailureTurnedOff = Notification.Name("stopAtFirstFailureTurnedOff")
     static let mutationTestingFinished = Notification.Name("mutationTestingFinished")
 
     static let newMutationTestOutcomeAvailable = Notification.Name("newMutationTestOutcomeAvailable")
@@ -75,6 +76,7 @@ final class MutationTestObserver {
             (name: .mutationsDiscoveryFinished, handler: handleMutationsDiscoveryFinished),
 
             (name: .mutationTestingStarted, handler: handleMutationTestingStarted),
+            (name: .stopAtFirstFailureTurnedOff, handler: handleStopAtFirstFailureTurnedOff),
 
             (name: .newMutationTestOutcomeAvailable, handler: handleNewMutationTestOutcomeAvailable),
             (name: .newTestLogAvailable, handler: handleNewTestLogAvailable),
@@ -168,6 +170,10 @@ extension MutationTestObserver {
 
     func handleMutationTestingStarted(notification: Notification) {
         logger.mutationTestingStarted()
+    }
+
+    func handleStopAtFirstFailureTurnedOff(notification: Notification) {
+        (notification.object as? String).map(logger.stopAtFirstFailureTurnedOff(reason:))
     }
 
     func handleNewMutationTestOutcomeAvailable(notification: Notification) {

@@ -27,6 +27,11 @@ struct MuterConfiguration: Equatable, Codable {
     /// Whether a mutant's test run stops at its first failed test (`stopAtFirstFailure:`), which already
     /// decides that the mutant is killed. nil leaves it to the default; see `stopsAtFirstFailure`.
     let stopAtFirstFailure: Bool?
+    /// Whether a line `FailedTestLine` matches shows a failed test. Not a configuration key: false once a
+    /// passing baseline has printed such a line, as its tests print text shaped like a failure. Such a line
+    /// then neither stops a mutant's run nor counts a timed-out run killed. A `var` only so
+    /// `withUnreliableFailedTestLines` can copy `self` and change just this field.
+    private(set) var failedTestLinesAreReliable = true
 
     var buildSystem: BuildSystem {
         if let explicitBuildSystem, explicitBuildSystem != .unknown {
@@ -112,9 +117,16 @@ struct MuterConfiguration: Equatable, Codable {
     }
 
     /// Whether mutants' test runs stop at their first failed test: only when `stopAtFirstFailure` is
-    /// set and this test command supports it. Baselines never do.
+    /// set, this test command supports it, and failed-test lines are reliable. Baselines never do.
     var stopsAtFirstFailure: Bool {
-        stopAtFirstFailureUnsupportedReason == nil && (stopAtFirstFailure ?? false)
+        stopAtFirstFailureUnsupportedReason == nil && failedTestLinesAreReliable && (stopAtFirstFailure ?? false)
+    }
+
+    /// This configuration with `failedTestLinesAreReliable` false.
+    func withUnreliableFailedTestLines() -> MuterConfiguration {
+        var copy = self
+        copy.failedTestLinesAreReliable = false
+        return copy
     }
 
     /// This configuration with `testSuiteTimeout` set to `timeout`, unless it already has one.

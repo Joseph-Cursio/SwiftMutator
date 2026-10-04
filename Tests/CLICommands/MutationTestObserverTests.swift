@@ -114,6 +114,17 @@ final class MutationTestObserverTests: MuterTestCase {
         ])
         XCTAssertEqual(fileManager.contents, Data("Executed 3 tests, with 1 failure".utf8))
     }
+
+    func test_stopAtFirstFailureTurnedOff_isPrinted() {
+        sut.start()
+
+        notificationCenter.post(name: .stopAtFirstFailureTurnedOff, object: "the reason")
+
+        XCTAssertEqual(
+            printer.linesPassed.last,
+            "⚠️ stopAtFirstFailure is off for this run, so every mutant's tests run to the end: the reason"
+        )
+    }
 }
 
 private extension Notification {

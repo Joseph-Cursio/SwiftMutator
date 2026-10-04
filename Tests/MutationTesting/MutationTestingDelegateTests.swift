@@ -119,7 +119,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
             position: .init(line: 1)
         )
 
-        // The baseline too, although it is never stopped, so every run sees the same environment.
+        // The baseline too, although it is never stopped, so it runs as the mutants that stop do.
         for schemata in [mutant, .null] {
             let testProcess = try await sut.testProcess(
                 with: configuration,
@@ -692,6 +692,23 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
         XCTAssertEqual(result.outcome, .passed, result.testLog)
         XCTAssertEqual(testProcess.terminateTreeCallCount, 0)
+    }
+
+    // A passing baseline printed a line shaped like a failed test, so a timed-out run showing it may only
+    // have run the test that prints it.
+    func test_whenFailedTestLinesAreUnreliable_thenATimedOutRunShowingOneTimesOut() async throws {
+        let testProcess = ScriptedProcessSpy([.write("\(failedTestLine)\n", after: 0), .runUntilKilled])
+        current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
+        let configuration = MuterConfiguration(
+            executable: "/tmp/swift",
+            arguments: ["test"],
+            testSuiteTimeOut: 0.3,
+            stopAtFirstFailure: true
+        ).withUnreliableFailedTestLines()
+
+        let result = try await runMutantsTests(on: testProcess, using: configuration)
+
+        XCTAssertEqual(result.outcome, .timeout, result.testLog)
     }
 
     /// Runs a mutant's tests with `testProcess` as the test command. Cancels the run after 10 seconds, which
