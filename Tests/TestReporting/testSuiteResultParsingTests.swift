@@ -139,4 +139,39 @@ final class TestSuiteResultParsingTests: MuterTestCase {
         contents = loadLogFile(named: "timeout_xcodebuildFailedTestCase.log") + loadLogFile(named: "timeout_xcodebuildCrash.log")
         XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .failed)
     }
+
+    func test_stoppedRunWhoseLogShowsARecordedSwiftTestingIssue_isFailed() {
+        // Stopped after Swift Testing recorded an issue but before the test ended, so neither the test's
+        // "failed after" line nor the run's summary was printed.
+        for issueLine in [
+            "✘ Test computeInC() recorded an issue at CTests.swift:28:9: Expectation failed: (compute(5) → 11) == 10",
+            "✘ Test sum(of:) recorded an issue with 1 argument of → 5 at A.swift:3:5: Expectation failed",
+            "\u{1B}[91m✘\u{1B}[0m Test computeInC() recorded an issue at CTests.swift:28:9: Expectation failed",
+        ] {
+            let contents = """
+            ◇ Test run started.
+            ↳ Testing Library Version: 6.3.3 (48d727cc1cf4eda)
+            ◇ Test computeInC() started.
+            \(issueLine)
+            ↳ compute(5) == 10 → false
+            """
+            XCTAssertEqual(
+                TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout),
+                .failed,
+                issueLine
+            )
+        }
+    }
+
+    func test_stoppedRunWhoseLogShowsOnlyAKnownIssueOrWarning_isATimeout() {
+        let contents = """
+        ◇ Test run started.
+        ↳ Testing Library Version: 6.3.3 (48d727cc1cf4eda)
+        ━ Test knownIssueAlways() recorded a known issue at ATests.swift:34:13: Expectation failed: 1 == 2
+        ↳ probe: deliberately known
+        ⚠︎ Test recordsWarning() recorded a warning at CTests.swift:35:21: Issue recorded
+        ◇ Test hangs() started.
+        """
+        XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .timeout)
+    }
 }

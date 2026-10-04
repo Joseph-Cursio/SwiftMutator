@@ -50,11 +50,13 @@ extension TestSuiteOutcome {
     }
 
     /// A run stopped at the time limit has no exit status of its own, so only what its log already
-    /// shows can say the mutant was killed. A crash is common here: after one, xcodebuild collects
-    /// diagnostics and relaunches the runner for each remaining test, which can take several times as
-    /// long as the baseline run the limit is derived from.
+    /// shows can say the mutant was killed: a failure summary, XCTest's line for a failed test, or
+    /// Swift Testing's line for an issue as it is recorded. A run stopped before that test ended shows
+    /// nothing else. A crash is common here: after one, xcodebuild collects diagnostics and relaunches
+    /// the runner for each remaining test, which can take several times as long as the baseline run
+    /// the limit is derived from.
     private static func outcomeOfStoppedRun(_ testLog: String) -> TestSuiteOutcome {
-        if logContainsTestFailure(testLog) || logContainsFailedTestCase(testLog) {
+        if logContainsTestFailure(testLog) || logContainsFailedTestCase(testLog) || FailedTestLine.first(inLog: testLog) != nil {
             return .failed
         } else if logContainsCrash(testLog) {
             return .runtimeError
