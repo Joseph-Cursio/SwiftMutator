@@ -356,6 +356,66 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(posted().count, 0)
     }
 
+    func test_whenStopAtFirstFailureIsSetForXcodebuild_thenANoticeSaysItIsOff() async throws {
+        let configuration = MuterConfiguration(
+            executable: "/usr/bin/xcodebuild", arguments: ["test"], stopAtFirstFailure: true
+        )
+        state.muterConfiguration = configuration
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        let posted = recordNotifications(
+            named: [.mutationTestingStarted, .stopAtFirstFailureTurnedOff, .newTestLogAvailable]
+        )
+
+        _ = try await sut.run(with: state)
+
+        let names = posted().map(\.name)
+        XCTAssertEqual(names.filter { $0 == .stopAtFirstFailureTurnedOff }.count, 1)
+        // With the start of mutation testing, before the baseline's log starts the progress bar.
+        XCTAssertEqual(
+            Array(names.prefix(3)),
+            [.mutationTestingStarted, .stopAtFirstFailureTurnedOff, .newTestLogAvailable]
+        )
+        let reason = try XCTUnwrap(configuration.stopAtFirstFailureUnsupportedReason)
+        let notice = posted().first { $0.name == .stopAtFirstFailureTurnedOff }
+        XCTAssertEqual(notice?.object as? String, reason)
+        XCTAssertEqual(ioDelegate.configurations.map(\.stopsAtFirstFailure), [false, false])
+    }
+
+    func test_whenStopAtFirstFailureIsSetWithRepeatUntil_thenANoticeSaysItIsOff() async throws {
+        let configuration = MuterConfiguration(
+            executable: "/usr/bin/swift",
+            arguments: ["test", "--repeat-until", "pass"],
+            stopAtFirstFailure: true
+        )
+        state.muterConfiguration = configuration
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        let posted = recordNotifications(named: [.stopAtFirstFailureTurnedOff])
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(posted().count, 1)
+        let reason = try XCTUnwrap(posted().first?.object as? String)
+        XCTAssertEqual(reason, configuration.stopAtFirstFailureUnsupportedReason)
+        XCTAssertTrue(reason.contains("--repeat-until"), reason)
+        XCTAssertEqual(ioDelegate.configurations.map(\.stopsAtFirstFailure), [false, false])
+    }
+
+    func test_whenStopAtFirstFailureIsUnset_thenNoNoticeIsPosted() async throws {
+        let posted = recordNotifications(named: [.stopAtFirstFailureTurnedOff])
+
+        // Only an explicit `true` asks for it, so a test command that can't use it is worth a notice only then.
+        for stopAtFirstFailure in [nil, false] as [Bool?] {
+            state.muterConfiguration = MuterConfiguration(
+                executable: "/usr/bin/xcodebuild", arguments: ["test"], stopAtFirstFailure: stopAtFirstFailure
+            )
+            ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+
+            _ = try await sut.run(with: state)
+        }
+
+        XCTAssertEqual(posted().count, 0)
+    }
+
     /// Records every notification posted with one of `names`, in order, until the test ends.
     private func recordNotifications(named names: [Notification.Name]) -> () -> [Notification] {
         var posted: [Notification] = []

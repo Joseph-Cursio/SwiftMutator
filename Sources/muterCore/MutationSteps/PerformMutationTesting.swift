@@ -76,6 +76,14 @@ private extension PerformMutationTesting {
     ) async throws -> [MutationTestOutcome.Mutation] {
         notificationCenter.post(name: .mutationTestingStarted, object: nil)
 
+        // Only an explicit `true` asked for it, so only that is worth saying, and before the baseline run,
+        // which can take minutes. Not a configuration error: the same configuration may be used with
+        // another test command.
+        if state.muterConfiguration.stopAtFirstFailure == true,
+           let reason = state.muterConfiguration.stopAtFirstFailureUnsupportedReason {
+            notificationCenter.post(name: .stopAtFirstFailureTurnedOff, object: reason)
+        }
+
         let initialTime = Date()
         let (testSuiteOutcome, testLog) = await ioDelegate.benchmarkTests(
             using: state.muterConfiguration,
