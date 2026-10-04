@@ -14,6 +14,7 @@ class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate {
     private(set) var testRunPaths: [URL] = []
     private(set) var testLogs: [String] = []
     private(set) var workingDirectories: [URL] = []
+    private(set) var builtWorkerDirectories: [URL] = []
     private(set) var configurations: [MuterConfiguration] = []
     private let lock = NSLock()
 
@@ -74,6 +75,24 @@ class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate {
         methodCalls.append(#function)
         testLogs.append(fileName)
         return (testSuiteOutcomes.remove(at: 0), "testLog")
+    }
+
+    /// Called concurrently for each worker clone, so it takes the lock.
+    func benchmarkTests(
+        using configuration: MuterConfiguration,
+        savingResultsIntoFileNamed fileName: String,
+        workingDirectory: URL
+    ) async -> (
+        outcome: TestSuiteOutcome,
+        testLog: String
+    ) {
+        await Task.yield()
+        return lock.withLock {
+            methodCalls.append(#function)
+            testLogs.append(fileName)
+            builtWorkerDirectories.append(workingDirectory)
+            return (testSuiteOutcomes.remove(at: 0), "testLog")
+        }
     }
 
     func switchOn(schemata: MutationSchema, for testRun: XCTestRun, at path: URL) throws {

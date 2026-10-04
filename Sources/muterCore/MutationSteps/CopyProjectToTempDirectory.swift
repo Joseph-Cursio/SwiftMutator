@@ -10,7 +10,7 @@ class CopyProjectToTempDirectory: MutationStep {
 
     /// `ModuleCache` from the native build system, `ModuleCache.noindex` from Swift Build (`.build/out`).
     /// Swift Build's other precompiled-module folders survive a copy; only this one is path-bound.
-    private let moduleCacheDirectoryNames = ["ModuleCache", "ModuleCache.noindex"]
+    static let moduleCacheDirectoryNames = ["ModuleCache", "ModuleCache.noindex"]
 
     func run(
         with state: AnyMutationTestState
@@ -69,7 +69,7 @@ class CopyProjectToTempDirectory: MutationStep {
     /// warm — the compiler rebuilds the caches in place on the next compile.
     private func discardModuleCaches(in directory: URL) {
         let caches = process()
-            .find(atPath: directory.path, byNames: moduleCacheDirectoryNames)?
+            .find(atPath: directory.path, byNames: Self.moduleCacheDirectoryNames)?
             .split(separator: "\n")
             .map(String.init) ?? []
 

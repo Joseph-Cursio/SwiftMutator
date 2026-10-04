@@ -31,6 +31,18 @@ protocol MutationTestingIODelegate {
         testLog: String
     )
 
+    /// `benchmarkTests(using:savingResultsIntoFileNamed:)` with the test command, build included, run
+    /// in `workingDirectory`, a parallel worker's clone of the mutated project. The log is still saved
+    /// in the current directory.
+    func benchmarkTests(
+        using configuration: MuterConfiguration,
+        savingResultsIntoFileNamed fileName: String,
+        workingDirectory: URL
+    ) async -> (
+        outcome: TestSuiteOutcome,
+        testLog: String
+    )
+
     func switchOn(
         schemata: MutationSchema,
         for testRun: XCTestRun,
@@ -62,6 +74,23 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             using: configuration,
             savingResultsIntoFileNamed: fileName,
             isBenchmark: true
+        )
+    }
+
+    func benchmarkTests(
+        using configuration: MuterConfiguration,
+        savingResultsIntoFileNamed fileName: String,
+        workingDirectory: URL
+    ) async -> (
+        outcome: TestSuiteOutcome,
+        testLog: String
+    ) {
+        await runTestSuite(
+            withSchemata: .null,
+            using: configuration,
+            savingResultsIntoFileNamed: fileName,
+            isBenchmark: true,
+            workingDirectory: workingDirectory
         )
     }
 

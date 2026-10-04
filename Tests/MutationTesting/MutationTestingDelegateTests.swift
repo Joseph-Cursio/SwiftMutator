@@ -208,6 +208,27 @@ final class MutationTestingDelegateTests: MuterTestCase {
         XCTAssertTrue(result.testLog.contains("working directory: \(outputFolder!)"), result.testLog)
     }
 
+    // A parallel worker's clone is built by this run, so it must not skip the build, must run in the
+    // clone, and has no time limit, like the baseline.
+    func test_benchmarkingInAWorkingDirectory_runsTheWholeTestCommandThereWithoutATimeLimit() async throws {
+        let configuration = MuterConfiguration(
+            executable: "/tmp/swift",
+            arguments: ["test"],
+            testSuiteTimeOut: 5
+        )
+        let clone = URL(fileURLWithPath: "/project_mutated_worker1")
+
+        _ = await sut.benchmarkTests(
+            using: configuration,
+            savingResultsIntoFileNamed: "logFileName",
+            workingDirectory: clone
+        )
+
+        XCTAssertEqual(process.arguments, ["test"])
+        XCTAssertEqual(process.currentDirectoryURL, clone)
+        XCTAssertFalse(testingTimeOutExecutor.withTimeLimitCalled)
+    }
+
     func test_whenConfigurationHasNoTimeOut_thenRunTestsWithoutTimeOut() async throws {
         let configuration = MuterConfiguration(
             executable: "/tmp/swift",

@@ -17,6 +17,7 @@ struct MuterConfiguration: Equatable, Codable {
     private(set) var testSuiteTimeout: Double?
     /// How many mutants to test at once (`mutationTestWorkers:`). Each worker runs the test command in
     /// its own clone of the mutated project, because `swift test` locks the package's build directory.
+    /// Each clone is built once before testing, so the paths compiled into its tests point into it.
     /// Only SwiftPM projects run in parallel; nil or 1 tests one mutant at a time.
     let mutationTestWorkers: Int?
     /// Optional explicit build system from the `buildSystem:` config key. When set it overrides the

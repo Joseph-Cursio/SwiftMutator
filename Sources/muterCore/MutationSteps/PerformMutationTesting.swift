@@ -177,6 +177,7 @@ private extension PerformMutationTesting {
     ) async throws -> [MutationTestOutcome.Mutation] {
         let clones = try makeWorkerDirectories(state.mutatedProjectDirectoryURL, workers - 1)
         defer { removeWorkerDirectories(clones) }
+        try await buildWorkerDirectories(clones, using: state)
         let directories = [state.mutatedProjectDirectoryURL] + clones
 
         var outcomes = [MutationTestOutcome.Mutation?](repeating: nil, count: jobs.count)
@@ -218,6 +219,40 @@ private extension PerformMutationTesting {
         }
 
         return outcomes.compactMap { $0 }
+    }
+
+    /// Builds each worker clone once, by running the baseline test command in it. A clone is copied
+    /// after the mutated project was built, and `swift test --skip-build` would otherwise run the test
+    /// binaries built there: `#filePath` and every other path compiled into them would still point into
+    /// the mutated project, so tests that write files next to their sources would share those files
+    /// across workers, fail each other, and kill mutants they never tested. A clone whose baseline
+    /// doesn't pass stops the run, naming the worker: the same command just passed in the mutated
+    /// project, so the configuration isn't what's wrong.
+    func buildWorkerDirectories(_ clones: [URL], using state: AnyMutationTestState) async throws {
+        let runs = await withTaskGroup(of: (worker: Int, outcome: TestSuiteOutcome, testLog: String).self) { group in
+            for (index, clone) in clones.enumerated() {
+                group.addTask {
+                    let run = await ioDelegate.benchmarkTests(
+                        using: state.muterConfiguration,
+                        savingResultsIntoFileNamed: "baseline run worker \(index + 1)",
+                        workingDirectory: clone
+                    )
+                    return (index + 1, run.outcome, run.testLog)
+                }
+            }
+            return await group.reduce(into: []) { $0.append($1) }
+        }
+
+        // The lowest-numbered failure, so the same worker is named whichever build finished first.
+        if let failed = runs.filter({ $0.outcome != .passed }).min(by: { $0.worker < $1.worker }) {
+            throw MuterError.mutationTestingAborted(
+                reason: .workerBaselineTestFailed(
+                    worker: failed.worker,
+                    directory: clones[failed.worker - 1].path,
+                    log: failed.testLog
+                )
+            )
+        }
     }
 
     /// Builds `job`'s outcome, posts its notifications, and aborts after `buildErrorsThreshold`
@@ -286,7 +321,11 @@ extension PerformMutationTesting {
     }
 
     /// One clone of `project` per extra worker, next to it as `<name>_worker<n>`. On macOS `cp -c`
-    /// clones on APFS, so even a large build directory copies in seconds and takes no extra space.
+    /// clones on APFS, so even a large build directory copies in seconds. Each clone is then built once
+    /// before testing (`buildWorkerDirectories`). Every path in it has changed, so that is a full build:
+    /// about one baseline build of time, and much of the clone's build directory is rewritten rather
+    /// than shared. Its copied Clang module caches record the mutated project's path, so they're
+    /// discarded first, as `CopyProjectToTempDirectory` does for the mutated project itself.
     static func cloneMutatedProject(_ project: URL, count: Int) throws -> [URL] {
         guard count > 0 else { return [] }
         return try (1...count).map { index in
@@ -305,7 +344,22 @@ extension PerformMutationTesting {
             #else
             try FileManager.default.copyItem(at: project, to: clone)
             #endif
+            discardModuleCaches(in: clone)
             return clone
+        }
+    }
+
+    static func discardModuleCaches(in directory: URL) {
+        guard let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: [.isDirectoryKey])
+        else { return }
+
+        for case let url as URL in enumerator
+            where CopyProjectToTempDirectory.moduleCacheDirectoryNames.contains(url.lastPathComponent) {
+            // On Darwin, skipping the descendants of anything but a directory skips the next directory.
+            if (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true {
+                enumerator.skipDescendants()
+            }
+            try? FileManager.default.removeItem(at: url)
         }
     }
 

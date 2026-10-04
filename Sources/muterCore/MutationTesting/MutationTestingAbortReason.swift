@@ -5,6 +5,9 @@ public enum MutationTestingAbortReason: Equatable {
     /// them points at Muter's own rewriting rather than at the user's configuration, so the message
     /// needs them to tell the two apart.
     case baselineTestFailed(log: String, mutatedFilePaths: [String])
+    /// The mutated project's baseline passed, but a parallel worker's clone of it, at `directory`,
+    /// failed the same build-and-test run.
+    case workerBaselineTestFailed(worker: Int, directory: String, log: String)
     case tooManyBuildErrors
     case unknownError(description: String)
 }
@@ -17,6 +20,19 @@ extension MutationTestingAbortReason: CustomStringConvertible {
                 log: log,
                 mutatedFilePaths: mutatedFilePaths
             )
+
+        case let .workerBaselineTestFailed(worker, directory, log):
+            return """
+            Your test suite passed its baseline in the mutated project, but failed the same build-and-test \
+            run in the copy SwiftMutator made for parallel worker \(worker), at \(directory).
+
+            Your tests may not tolerate running alongside a copy of themselves, for example if they share \
+            files outside the project, ports, user defaults or the keychain. Or the workers' builds ran out \
+            of disk space or memory. Set mutationTestWorkers to 1 in your \(MuterConfiguration.fileNameWithExtension) \
+            to test one mutant at a time.
+
+            \(Self.baselineTestFailedEvidence(log: log))
+            """
 
         case .tooManyBuildErrors:
             return """

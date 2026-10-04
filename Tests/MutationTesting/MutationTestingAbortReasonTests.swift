@@ -5,6 +5,22 @@ import XCTest
 final class MutationTestingAbortReasonTests: MuterTestCase {
     private let mutatedFilePath = "/project/Sources/Calc/Calc.swift"
 
+    func test_whenAWorkerClonesBaselineFailed_thenNameTheWorkerAndSuggestOneWorker() {
+        let description = MutationTestingAbortReason.workerBaselineTestFailed(
+            worker: 2,
+            directory: "/project_mutated_worker2",
+            log: "Test Case '-[CalcTests.FixtureTests test_roundTrip]' failed"
+        ).description
+
+        XCTAssertTrue(description.contains("parallel worker 2, at /project_mutated_worker2"), description)
+        XCTAssertTrue(description.contains("mutationTestWorkers to 1"), description)
+        XCTAssertTrue(description.contains("FixtureTests test_roundTrip"), description)
+        XCTAssertFalse(
+            description.contains("misconfiguring"),
+            "The same command passed in the mutated project, so the configuration isn't to blame:\n\(description)"
+        )
+    }
+
     func test_whenBaselineFailedToCompileAMutatedFile_thenBlameMuterAndNameTheFileAndError() {
         let log = """
         Building for debugging...
