@@ -52,7 +52,7 @@ final class MutationTestObserver {
     private var notificationCenter: NotificationCenter
 
     private var numberOfMutationPoints: Int = 0
-    private var loggingDirectory: String = ""
+    private(set) var loggingDirectory: String = ""
     private let runOptions: Run.Options
 
     private var notificationHandlerMappings: [(name: Notification.Name, handler: (Notification) -> Void)] {

@@ -18,6 +18,9 @@ protocol AnyMutationTestState: AnyObject {
     var filesToMutate: [String] { get }
     var swapFilePathsByOriginalPath: [FilePath: FilePath] { get }
     var mutationTestOutcome: MutationTestOutcome { get }
+    /// The folder the run's test logs are kept in, `<project>_muter_logs/<timestamp>`, so a step can keep other
+    /// files of the run beside them; "" until the handler has created it.
+    var loggingDirectory: String { get }
 
     func apply(_ stateChanges: [MutationTestState.Change])
 }
@@ -39,6 +42,7 @@ final class MutationTestState: AnyMutationTestState {
     var sourceCodeByFilePath: [FilePath: SourceFileSyntax] = [:]
     var swapFilePathsByOriginalPath: [FilePath: FilePath] = [:]
     var mutationTestOutcome: MutationTestOutcome = .init()
+    var loggingDirectory = ""
 
     init() {}
 
@@ -63,6 +67,7 @@ extension MutationTestState {
         case sourceCodeParsed([FilePath: SourceFileSyntax])
         case swapFilePathGenerated([FilePath: FilePath])
         case mutationTestOutcomeGenerated(MutationTestOutcome)
+        case loggingDirectoryCreated(String)
     }
 }
 
@@ -94,6 +99,8 @@ extension MutationTestState {
                 self.swapFilePathsByOriginalPath = swapFilePathsByOriginalPath
             case let .mutationTestOutcomeGenerated(mutationTestOutcome):
                 self.mutationTestOutcome = mutationTestOutcome
+            case let .loggingDirectoryCreated(loggingDirectory):
+                self.loggingDirectory = loggingDirectory
             }
         }
     }

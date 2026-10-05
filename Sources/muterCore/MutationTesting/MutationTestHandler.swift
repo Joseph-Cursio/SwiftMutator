@@ -38,8 +38,10 @@ final class MutationTestHandler {
         try await runMutationsSteps()
     }
 
+    /// Starts the observer, which creates the run's log folder, and hands that folder to the steps.
     private func startObserver() {
         observer.start()
+        state.apply([.loggingDirectoryCreated(observer.loggingDirectory)])
     }
 
     private func notifyMuterLaunched() {
