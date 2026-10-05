@@ -26,6 +26,7 @@ Repositories/UninitializedApp/muter.conf.json
 *_mutated
 *_muter_logs
 .swiftpm
+/.claude/
 
 
 ### macOS ###
