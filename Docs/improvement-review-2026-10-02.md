@@ -6,7 +6,7 @@ This is a ranked list of improvements to SwiftMutator, made at commit `4ba72fc` 
 - **How the suggestions held up.** There were 61 suggestions. Verification rejected none of the 54 from the six areas. About half of those needed a corrected estimate, and the corrected numbers are used below. The final agent's seven suggestions weren't separately checked.
 - **Status, updated 5 October 2026.** Each finished item below says what was done and what was left out.
   - CI (§4) is done in PR #24, and §2.3, §2.5 and the three bug fixes in §2.7 in PRs #25–#27.
-  - Fail-fast (§1.2) is done in PR #36, behind a switch that is off by default. One part of PR #36 applies even with the switch off: a time-out rule that can raise scores (see §2.7).
+  - Fail-fast (§1.2) is done in PR #36, and on by default for SwiftPM since PR #41, after an A/B run took 37% less time. One part of PR #36 applies whether or not it's on: a time-out rule that can raise scores (see §2.7).
   - A plain `swift test` and `swiftlint` pass on `main` since PR #37 (§4).
   - The results file (§2.1 item 1) and the data for §2.2 item 1 are done in PR #38.
   - Problems found along the way, and which PRs fixed them, are under [Found while implementing](#found-while-implementing). Three are still open.
@@ -31,7 +31,7 @@ The test project is SwiftProjectLint, run on the whole repo: 528 files, **2,497 
 | # | Change | Effect on this run | Effort |
 |---|---|---|---|
 | 1 | Stop recompiling `Package.swift` for every mutant | About −1.2 h (cause not yet proven) | M |
-| 2 | Stop each mutant's test run at the first failure (built in PR #36, off by default) | About 1.65×; with #1, **4.2 h → 1.4 h** | M |
+| 2 | Stop each mutant's test run at the first failure (PR #36, on by default since PR #41) | About 1.65×; with #1, **4.2 h → 1.4 h**. Measured: 37% less time on 255 mutants | M |
 | 3 | Skip mutants that no test reaches (about 6%) | About −16 min | M |
 | 4 | Do less work per run: reuse unchanged results, `--since`, `--shard` | Minutes for nightly or PR runs; about 2× with sharding | M |
 | 5 | Try release-mode tests and tune the worker count | Unmeasured; about 10–20% for the worker count | S |
@@ -50,7 +50,7 @@ The test project is SwiftProjectLint, run on the whole repo: 528 files, **2,497 
 
 ### 1.2 Stop each mutant's test run at the first failure
 
-**Done in PR #36, behind a switch** (`stopAtFirstFailure: true`, SwiftPM only, off by default).
+**Done in PR #36, and on by default since PR #41** (SwiftPM only; turn it off with `stopAtFirstFailure: false`).
 - **Trigger.** It doesn't use the event stream proposed below. On Swift 6.4 with several test bundles, SwiftPM merges the bundles' event streams only when the whole run exits, and the stream never covers XCTest.
   - Instead the run stops at the first console line that shows a failed test, matched from the start of the line: Swift Testing's `✘ … recorded an issue`, or XCTest's `Test Case '…' failed (`. Known issues and warnings don't match.
   - With the switch on, every test process gets `NSUnbufferedIO=YES`, baselines included. Otherwise `swift test` relays output in 4 KiB blocks, so the failure line arrives late, and a stopped run can lose the part of its log still in the buffer.
@@ -62,9 +62,18 @@ The test project is SwiftProjectLint, run on the whole repo: 528 files, **2,497 
   - The trigger matched every run scored as failed.
   - It also matched 19 runs that recorded an issue and then crashed. They are still killed, by a failure rather than a crash.
   - It matched nothing in the passing baseline, and gave no false matches.
+- **Measured, 5 October.** An A/B run on SwiftProjectLint: 255 mutants in 33 files, 4 workers, arms in the order off, on, on, off.
+  - **Time.** The whole run took 37% less time (1,847 s against 2,937 s for the two arms of each), and testing the mutants 46% less. A killed mutant took about 7 s instead of about 18 s.
+  - **Verdicts.** The switch changed none.
+    - Two mutants were killed in only one off arm each, because SwiftProjectLint's `analyze(files:)` test helper walks a Dictionary in hash-seed order. Repeated runs give the same kill rates with the switch on or off.
+    - One mutant that both fails a test and crashes was reported as a runtime error with the switch off and a test failure with it on. It's killed either way.
+  - **Survivors.** Not slower: 0.0% in a test that ran both modes side by side under the same load.
+  - **Leftover processes.** No test process outlived its run, sampled every 0.57 s.
+  - **Temporary files.** The temporary folder grew by the same number of bytes in both modes. Stopped runs leave about 4–5 extra entries each, because a killed test skips its cleanup.
+  - **Projection.** For the full 4.1 h run, the PR's estimate of about 2.6–2.8 h holds.
 - **Not done yet.**
-  - Turning it on by default waits for an A/B run on SwiftProjectLint. The PR's revised estimate is about 4.1 h → 2.6–2.8 h, about 1.5×. That's a little less than the review's 2.55 h below and the 1.65× in the §1 table.
   - Running quietly, the bonus below.
+  - Stopping crash-only runs at SwiftPM's "exited with signal" line. Today they run their remaining test targets, about 1–3 s each.
 
 - **What happens.** The test process writes straight to a file (`MutationTestingIODelegate.swift:244-245`), and the log is read only after the process exits (`:160`). So every mutant runs all three test bundles to completion, even though about 76% are killed. The first failure appears about 2.5 s after the test helper starts. The code to kill the whole process tree already exists (`MuterProcess.swift:40`), but only the timeout path uses it.
 - **Proposal.**
@@ -276,7 +285,7 @@ Not done yet: items 2–4. They are planned as follow-up PRs, outlined in PR #38
 
 1. **Small correctness fixes:** same-name merge, worker drop, UTF-8 classification (§2.3, §2.5, §2.7). *Done in PRs #25–#27.*
 2. **The base for most of the rest:** a per-mutant results file and the killing tests for each mutant (§2.1, §2.2). *Results file done in PR #38, with the killing tests in it; reports don't show them yet. The `report` command, clean interruptions and `--resume` are designed but not built.*
-3. **Fail-fast,** triggered by the event stream (§1.2). *Done in PR #36, triggered by console lines instead (see §1.2). It's off by default until an A/B run on SwiftProjectLint.*
+3. **Fail-fast,** triggered by the event stream (§1.2). *Done in PR #36, triggered by console lines instead (see §1.2). On by default since PR #41, after an A/B run took 37% less time.*
 4. **Measure, then fix, the manifest recompile** (§1.1).
 5. **Progress output** that works in a log file (§3).
 6. **Reuse, `--since`, the coverage fix and CI** (§1.3, §1.4, §4). *CI done in PR #24.*
@@ -304,5 +313,7 @@ Not done yet: items 2–4. They are planned as follow-up PRs, outlined in PR #38
   - It prints `swift --version` before it changes into the project folder (line 79 versus line 84). That's why the header said 6.3.3 for one run and 6.4 for the other. Both runs actually tested with Xcode's toolchain, because SwiftProjectLint's `.swift-version` is `xcode`.
   - Add start and end timestamps to `summary.txt`.
   - Exclude `ExampleCode/` and `.swiftinfer`.
-- **SwiftProjectLint.** Skip, or rewrite, the wall-clock timing test in `ProjectLinterTests.swift:98` for mutation runs.
+- **SwiftProjectLint.**
+  - Skip, or rewrite, the wall-clock timing test in `ProjectLinterTests.swift:98` for mutation runs.
+  - Sort the files that `PrimitiveNamedForDomainTypeVisitorTests.analyze(files:)` walks. It walks a Dictionary in hash-seed order, so two `RemoveSideEffects` mutants (lines 77 and 105) are killed in only about 75% and 50% of runs. The score moves by a point or two from run to run.
 - **Spotlight.** It indexes the copies and logs under `~/xcode_projects`. Naming the work folders `*.noindex` is a cheap fix, though the benefit hasn't been measured.
