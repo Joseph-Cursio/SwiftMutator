@@ -152,6 +152,33 @@ final class DiscoverSourceFilesTests: MuterTestCase {
         ])
     }
 
+    func test_versionedPackageManifestsAreExcluded() async throws {
+        current.fileManager = FileManager.default
+
+        // Every `swift test` run in a worker folder has one environment, so SwiftPM reuses the baseline's
+        // cached manifest and a mutant in any manifest, versioned or not, never switches on.
+        let project = try makeTemporaryDirectory()
+        try makeFiles(
+            [
+                "Package.swift",
+                "Package@swift-5.9.swift",
+                "Package@swift-6.0.swift",
+                "LocalPackages/Dependency/Package.swift",
+                "LocalPackages/Dependency/Package@swift-6.0.swift",
+                "Sources/Library/Library.swift",
+            ],
+            in: project
+        )
+
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: project, isDirectory: true)
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result, [
+            .sourceFileCandidatesDiscovered(["\(project)/Sources/Library/Library.swift"]),
+        ])
+    }
+
     func test_whenDoesntDiscoverFilesInProjectDirectory() async throws {
         state.mutatedProjectDirectoryURL = URL(
             fileURLWithPath: "\(filsToDiscoverPath)/Directory4",
@@ -301,6 +328,17 @@ final class DiscoverSourceFilesTests: MuterTestCase {
             await sut.run(with: state),
             .noSourceFilesOnExclusiveList
         )
+    }
+
+    private func makeFiles(_ files: [String], in directory: String) throws {
+        for file in files {
+            let path = "\(directory)/\(file)"
+            try FileManager.default.createDirectory(
+                atPath: (path as NSString).deletingLastPathComponent,
+                withIntermediateDirectories: true
+            )
+            FileManager.default.createFile(atPath: path, contents: Data())
+        }
     }
 
     private func makeProjectWithCoveredAndUncoveredFiles(in directory: String) throws {

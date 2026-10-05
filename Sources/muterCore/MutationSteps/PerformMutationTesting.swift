@@ -232,7 +232,8 @@ private extension PerformMutationTesting {
 
     /// Tests `jobs` on `workers` test processes at once, each in its own clone of the mutated project:
     /// `swift test` locks the package's build directory, so two runs can't share one. Every mutant is
-    /// switched on by its own process's environment, so the clones never need rewriting. Outcomes are
+    /// switched on per run: under `swift test` by the worker's active-mutant file, written just before the run
+    /// (see `MutationTestingDelegate.testProcess`), so the clones' code never needs rewriting. Outcomes are
     /// recorded, and their notifications posted, as they finish; they're returned in `jobs` order. Once
     /// mutation testing is cancelled, no mutant starts, and none that returns is recorded.
     func testMutationsInParallel(

@@ -53,8 +53,13 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
     private var process: ProcessFactory
     @Dependency(\.testingTimeOutExecutor)
     private var testingTimeOutExecutor: TestingTimeoutExecutorFactory
+    @Dependency(\.writeFile)
+    private var writeFile: WriteFile
 
     private let muterTestRunFileName = "muter.xctestrun"
+    /// The file in a worker's folder, the mutated project or a clone, that `activeMutantFileKey` names. Hidden, so
+    /// SwiftPM never takes it for a source or a resource.
+    static let activeMutantFileName = ".swiftmutator-active-mutant"
 
     func benchmarkTests(
         using configuration: MuterConfiguration,
@@ -313,13 +318,22 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             process.environment?[unbufferedOutputKey] = unbufferedOutputValue
         }
 
-        if schemata != .null {
+        if configuration.buildSystem == .swift {
+            // SwiftPM keys its cache of compiled package manifests on the whole environment, so a variable of the
+            // mutant's own made every run recompile every manifest. A worker's runs, baseline included, name one file
+            // instead, written here before the run starts and read lazily by the generated code. A worker runs one
+            // test process at a time (see PerformMutationTesting.testMutationsInParallel), so nothing rewrites it
+            // during a run.
+            let folder = workingDirectory ?? URL(fileURLWithPath: fileManager.currentDirectoryPath)
+            let activeMutantFile = folder.appendingPathComponent(Self.activeMutantFileName).path
+            try writeFile(schemata == .null ? "" : schemata.id, activeMutantFile)
+            process.environment?[activeMutantFileKey] = activeMutantFile
+        } else if schemata != .null {
             process.environment?[schemata.id] = "YES"
             // Also forward the activation var into an iOS Simulator test host. When xcodebuild spawns
             // tests in the simulator, CoreSimulator only propagates env vars prefixed `SIMCTL_CHILD_`
             // into the simulated process; a bare var set on this (parent) process never reaches the
-            // test host, so the mutant wouldn't activate. Harmless for non-simulator (swift/macOS) runs,
-            // which read the bare var directly. Complements the xctestrun `EnvironmentVariables` path.
+            // test host, so the mutant wouldn't activate. Complements the xctestrun `EnvironmentVariables` path.
             process.environment?["SIMCTL_CHILD_\(schemata.id)"] = "YES"
         }
 

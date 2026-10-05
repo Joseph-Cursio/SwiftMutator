@@ -68,13 +68,173 @@ final class MutationTestingDelegateTests: MuterTestCase {
             and: FileHandle(fileDescriptor: 0)
         )
 
-        XCTAssertEqual(testProcess.environment?[schemata.id], "YES")
-        // Also forwarded with the SIMCTL_CHILD_ prefix so it reaches an iOS Simulator test host
-        // (CoreSimulator only propagates SIMCTL_CHILD_-prefixed vars into the simulated process).
-        XCTAssertEqual(testProcess.environment?["SIMCTL_CHILD_\(schemata.id)"], "YES")
+        // SwiftPM keys its cache of compiled package manifests on the whole environment, so the mutant is
+        // named in a file the environment names, rather than in a variable of its own.
+        let activeMutantFile = "\(outputFolder!)/\(activeMutantFileName)"
+        XCTAssertNil(testProcess.environment?[schemata.id])
+        XCTAssertNil(testProcess.environment?["SIMCTL_CHILD_\(schemata.id)"])
+        XCTAssertEqual(testProcess.environment?[activeMutantFileKey], activeMutantFile)
+        XCTAssertEqual(writeFile.contentPassed, schemata.id)
+        XCTAssertEqual(writeFile.pathPassed, activeMutantFile)
         XCTAssertEqual(testProcess.environment?[isMuterRunningKey], isMuterRunningValue)
         XCTAssertEqual(testProcess.arguments, ["test", "--skip-build"])
         XCTAssertEqual(testProcess.executableURL?.path, "/tmp/swift")
+    }
+
+    // MARK: - Switching a mutant on
+
+    /// The file in a worker's folder that names the mutant a `swift test` run switches on.
+    private let activeMutantFileName = ".swiftmutator-active-mutant"
+
+    // SwiftPM keys its cache of compiled package manifests on the whole environment, names and values, so a
+    // variable of each mutant's own made every run recompile every manifest. A worker's runs, its baseline
+    // included, get one environment, whether or not they stop at their first failed test.
+    func test_swiftTest_baselineAndEveryMutantGetTheSameEnvironment() async throws {
+        current.process = MuterProcessFactory.makeProcess
+        let mutantA = try MutationSchema.make(filePath: "/path/Sample.swift", position: .init(line: 1))
+        let mutantB = try MutationSchema.make(filePath: "/path/Other.swift", position: .init(line: 2))
+
+        for stopAtFirstFailure in [false, true] {
+            let configuration = MuterConfiguration(
+                executable: "/tmp/swift",
+                arguments: ["test"],
+                stopAtFirstFailure: stopAtFirstFailure
+            )
+            for folder in [nil, URL(fileURLWithPath: "/runs/p_mutated_worker1")] {
+                var environments: [[String: String]] = []
+                for schemata in [MutationSchema.null, mutantA, mutantB] {
+                    let testProcess = try await sut.testProcess(
+                        with: configuration,
+                        schemata: schemata,
+                        and: FileHandle(fileDescriptor: 0),
+                        workingDirectory: folder
+                    )
+                    environments.append(try XCTUnwrap(testProcess.environment))
+                }
+
+                let description = "stopAtFirstFailure: \(stopAtFirstFailure), folder: \(folder?.path ?? "none")"
+                XCTAssertEqual(variablesThatDiffer(in: environments), [], description)
+                for mutant in [mutantA, mutantB] {
+                    XCTAssertEqual(environments.flatMap(\.keys).filter { $0.contains(mutant.id) }, [], description)
+                }
+                if stopAtFirstFailure {
+                    XCTAssertEqual(environments[0][unbufferedOutputKey], unbufferedOutputValue, description)
+                }
+            }
+        }
+    }
+
+    /// The names of the variables whose values differ between `environments`, or that only some of them set.
+    /// Only the names, so a failure doesn't print the values this suite inherited.
+    private func variablesThatDiffer(in environments: [[String: String]]) -> [String] {
+        Set(environments.flatMap(\.keys))
+            .filter { name in environments.contains { $0[name] != environments.first?[name] } }
+            .sorted()
+    }
+
+    // A baseline names the file too, empty, so tests that can't read it fail the baseline rather than let every
+    // mutant survive.
+    func test_swiftTest_aBaselineNamesNoMutant() async throws {
+        current.process = MuterProcessFactory.makeProcess
+        let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"])
+
+        let testProcess = try await sut.testProcess(
+            with: configuration,
+            schemata: .null,
+            and: FileHandle(fileDescriptor: 0)
+        )
+
+        let activeMutantFile = "\(outputFolder!)/\(activeMutantFileName)"
+        XCTAssertEqual(writeFile.contentPassed, "")
+        XCTAssertEqual(writeFile.pathPassed, activeMutantFile)
+        XCTAssertEqual(testProcess.environment?[activeMutantFileKey], activeMutantFile)
+    }
+
+    // Workers test mutants at once, each in its own folder, so each names its mutant in a file of its own.
+    func test_swiftTest_eachWorkerHasItsOwnActiveMutantFile() async throws {
+        current.process = MuterProcessFactory.makeProcess
+        let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"])
+        let schemata = try MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1))
+
+        for folder in ["/runs/p_mutated", "/runs/p_mutated_worker1"] {
+            let testProcess = try await sut.testProcess(
+                with: configuration,
+                schemata: schemata,
+                and: FileHandle(fileDescriptor: 0),
+                workingDirectory: URL(fileURLWithPath: folder)
+            )
+
+            let activeMutantFile = "\(folder)/\(activeMutantFileName)"
+            XCTAssertEqual(writeFile.contentPassed, schemata.id, folder)
+            XCTAssertEqual(writeFile.pathPassed, activeMutantFile, folder)
+            XCTAssertEqual(testProcess.environment?[activeMutantFileKey], activeMutantFile, folder)
+        }
+    }
+
+    // A wrapper script counts as `swift test` with `buildSystem: swift`, and its runs switch mutants on as it does.
+    func test_aWrapperDeclaredSwiftUsesTheActiveMutantFile() async throws {
+        current.process = MuterProcessFactory.makeProcess
+        let configuration = MuterConfiguration(executable: "/tmp/run-tests.sh", arguments: ["test"], buildSystem: .swift)
+        let schemata = try MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1))
+
+        let testProcess = try await sut.testProcess(
+            with: configuration,
+            schemata: schemata,
+            and: FileHandle(fileDescriptor: 0)
+        )
+
+        let activeMutantFile = "\(outputFolder!)/\(activeMutantFileName)"
+        XCTAssertEqual(writeFile.contentPassed, schemata.id)
+        XCTAssertEqual(writeFile.pathPassed, activeMutantFile)
+        XCTAssertEqual(testProcess.environment?[activeMutantFileKey], activeMutantFile)
+        XCTAssertNil(testProcess.environment?[schemata.id])
+    }
+
+    // SwiftMutator can't tell whether a wrapper's tests can read a file on this machine: it may run them in
+    // Docker or over ssh. xcodebuild passes variables on to a simulator's test host.
+    func test_otherTestCommands_stillSwitchTheMutantOnThroughItsOwnVariable() async throws {
+        current.process = MuterProcessFactory.makeProcess
+        let schemata = try MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1))
+
+        for executable in ["/tmp/xcodebuild", "/tmp/run-tests.sh"] {
+            let configuration = MuterConfiguration(executable: executable, arguments: ["test"])
+
+            let testProcess = try await sut.testProcess(
+                with: configuration,
+                schemata: schemata,
+                and: FileHandle(fileDescriptor: 0)
+            )
+            let baselineProcess = try await sut.testProcess(
+                with: configuration,
+                schemata: .null,
+                and: FileHandle(fileDescriptor: 0)
+            )
+
+            XCTAssertEqual(testProcess.environment?[schemata.id], "YES", executable)
+            // Also forwarded with the SIMCTL_CHILD_ prefix so it reaches an iOS Simulator test host
+            // (CoreSimulator only propagates SIMCTL_CHILD_-prefixed vars into the simulated process).
+            XCTAssertEqual(testProcess.environment?["SIMCTL_CHILD_\(schemata.id)"], "YES", executable)
+            XCTAssertNil(testProcess.environment?[activeMutantFileKey], executable)
+            XCTAssertNil(baselineProcess.environment?[activeMutantFileKey], executable)
+        }
+        XCTAssertFalse(writeFile.writeFileCalled)
+    }
+
+    // The tests would otherwise run with whatever mutant the file named before, or with none switched on.
+    func test_whenTheActiveMutantFileCannotBeWritten_thenTheTestCommandIsNotRun() async throws {
+        let error = CocoaError(.fileWriteNoPermission)
+        writeFile.errorToThrow = error
+
+        let result = try await sut.runTestSuite(
+            withSchemata: MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1)),
+            using: MuterConfiguration(executable: "/tmp/swift", arguments: ["test"]),
+            savingResultsIntoFileNamed: "logFileName"
+        )
+
+        XCTAssertEqual(result.outcome, .buildError)
+        XCTAssertEqual(result.ending, .couldNotRun)
+        XCTAssertFalse(process.runCalled)
+        XCTAssertTrue(result.testLog.contains(error.localizedDescription), result.testLog)
     }
 
     func test_makeProcess_doesNotSetMuterRunningMarker() {
