@@ -21,6 +21,12 @@ class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate {
     var testSuiteOutcomes: [TestSuiteOutcome]!
     /// The log of the baseline run in the mutated project.
     var baselineTestLog = "testLog"
+    /// How each mutant's run ends, in the order they're run; `.exited` once empty.
+    var mutantRunEndings: [TestRun.Ending] = []
+    /// Called with each mutant run's zero-based number just before it returns, so a test can cancel
+    /// mutation testing while a run is under way.
+    var whileRunningMutant: ((Int) -> Void)?
+    private var mutantRunCount = 0
 
     func backupFile(at path: String, using swapFilePaths: [FilePath: FilePath]) {
         methodCalls.append(#function)
@@ -41,7 +47,9 @@ class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate {
         methodCalls.append(#function)
         testLogs.append(fileName)
         configurations.append(configuration)
-        return TestRun(outcome: testSuiteOutcomes.remove(at: 0), testLog: "testLog")
+        let (run, number) = nextMutantRun()
+        whileRunningMutant?(number)
+        return run
     }
 
     /// Called concurrently by parallel workers, so it takes the lock.
@@ -52,13 +60,22 @@ class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate {
         workingDirectory: URL
     ) async -> TestRun {
         await Task.yield()
-        return lock.withLock {
+        let (run, number) = lock.withLock {
             methodCalls.append(#function)
             testLogs.append(fileName)
             workingDirectories.append(workingDirectory)
             configurations.append(configuration)
-            return TestRun(outcome: testSuiteOutcomes.remove(at: 0), testLog: "testLog")
+            return nextMutantRun()
         }
+        whileRunningMutant?(number)
+        return run
+    }
+
+    /// The next mutant run, and its zero-based number.
+    private func nextMutantRun() -> (run: TestRun, number: Int) {
+        defer { mutantRunCount += 1 }
+        let ending = mutantRunEndings.isEmpty ? .exited : mutantRunEndings.removeFirst()
+        return (TestRun(outcome: testSuiteOutcomes.remove(at: 0), testLog: "testLog", ending: ending), mutantRunCount)
     }
 
     func benchmarkTests(

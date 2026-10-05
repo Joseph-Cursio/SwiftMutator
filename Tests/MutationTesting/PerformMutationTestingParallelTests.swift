@@ -122,6 +122,56 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         XCTAssertEqual(removedClones, [[workerClone]])
     }
 
+    func test_whenCancelled_noFurtherMutantStarts_andNothingMoreIsRecorded() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
+        )
+        state.mutationMapping = try (1...6).map { try makeSchemataMapping(line: $0) }
+        // The baseline, the worker clone's build, then every mutant, in case cancelling doesn't stop them.
+        ioDelegate.testSuiteOutcomes = [.passed, .passed] + Array(repeating: .failed, count: 6)
+        let recorded = cancelMutationTesting(whenPosted: .newMutationTestOutcomeAvailable)
+
+        let result = await runInItsOwnTask()
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(recorded(), 1)
+        // The two that started together, and no other.
+        XCTAssertEqual(ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count, 2)
+        XCTAssertEqual(removedClones, [[workerClone]])
+    }
+
+    // The run under way returns as if it had exited by itself, as a process killed before its run's cancellation
+    // handler is in place does.
+    func test_whenCancelledWithNoMutantLeftToStart_theRunUnderWayIsNotRecorded() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
+        let recorded = cancelMutationTesting(whenPosted: .newMutationTestOutcomeAvailable)
+
+        let result = await runInItsOwnTask()
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(recorded(), 1)
+        XCTAssertEqual(removedClones, [[workerClone]])
+    }
+
+    // With no run under way to return, mutation testing would end as if every mutant had been tested.
+    func test_whenCancelledBeforeTheFirstMutant_noneStarts_andTheRunDoesNotFinish() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
+        // The baseline's log is the last thing posted before the worker clones are made.
+        _ = cancelMutationTesting(whenPosted: .newTestLogAvailable)
+
+        let result = await runInItsOwnTask()
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertFalse(ioDelegate.methodCalls.contains { $0.hasPrefix("runTestSuite") })
+        XCTAssertEqual(removedClones, [[workerClone]])
+    }
+
     func test_withThreeWorkers_everyCloneIsBuilt() async throws {
         let clones = (1...2).map { URL(fileURLWithPath: "/project_mutated_worker\($0)") }
         let sut = PerformMutationTesting(makeWorkerDirectories: { _, _ in clones }, removeWorkerDirectories: { _ in })
@@ -202,6 +252,22 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
             ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") },
             Array(repeating: "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)", count: 2)
         )
+    }
+
+    /// Runs mutation testing in a task of its own, so a test that cancels it mid-run doesn't cancel itself.
+    private func runInItsOwnTask() async -> Result<[MutationTestState.Change], Error> {
+        await Task { [sut, state] in try await sut.run(with: state) }.result
+    }
+
+    /// Cancels mutation testing whenever it posts `name`, from the task that posts it; returns how often it did.
+    private func cancelMutationTesting(whenPosted name: Notification.Name) -> () -> Int {
+        var count = 0
+        let observer = notificationCenter.addObserver(forName: name, object: nil, queue: nil) { _ in
+            count += 1
+            withUnsafeCurrentTask { $0?.cancel() }
+        }
+        addTeardownBlock { [notificationCenter] in notificationCenter.removeObserver(observer) }
+        return { count }
     }
 
     private func makeSchemataMapping(line: Int) throws -> SchemataMutationMapping {

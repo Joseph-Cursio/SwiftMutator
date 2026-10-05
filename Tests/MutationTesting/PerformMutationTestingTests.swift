@@ -293,6 +293,52 @@ final class PerformMutationTestingTests: MuterTestCase {
         ])
     }
 
+    // A cancelled run's process was killed, so its outcome, a build error, says nothing about its mutant. Recorded,
+    // it would report a mutant that doesn't compile, and five in a row would abort the run as broken.
+    func test_whenCancelledDuringAMutantRun_itThrowsCancellation_andRecordsNothingMore() async throws {
+        state.mutationMapping = try Array(repeating: makeSchemataMapping(), count: 3)
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .buildError, .failed]
+        ioDelegate.mutantRunEndings = [.exited, .cancelled]
+        ioDelegate.whileRunningMutant = { number in
+            if number == 1 { withUnsafeCurrentTask { $0?.cancel() } }
+        }
+        let posted = recordNotifications(named: [.newMutationTestOutcomeAvailable])
+
+        let result = await runInItsOwnTask()
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(posted().count, 1)
+        XCTAssertEqual(ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count, 2)
+    }
+
+    // A process killed before its run's cancellation handler is in place reads as one that exited by a signal:
+    // a runtime error, which counts as killed. A run that returns once mutation testing is cancelled tested
+    // nothing, whatever it says.
+    func test_aRunThatReturnsAfterCancellation_isNotRecorded_whateverItsEnding() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .runtimeError, .failed]
+        ioDelegate.mutantRunEndings = [.exited]
+        ioDelegate.whileRunningMutant = { _ in withUnsafeCurrentTask { $0?.cancel() } }
+        let posted = recordNotifications(named: [.newMutationTestOutcomeAvailable, .newTestLogAvailable])
+
+        let result = await runInItsOwnTask()
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        // Only the baseline's log.
+        XCTAssertEqual(posted().map(\.name), [.newTestLogAvailable])
+        XCTAssertEqual(ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count, 1)
+    }
+
+    func test_whenCancelledBeforeTheFirstMutant_noneRuns() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        // The baseline's log is the last thing posted before the first mutant.
+        cancelMutationTesting(whenPosted: .newTestLogAvailable)
+
+        let result = await runInItsOwnTask()
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(ioDelegate.methodCalls, ["benchmarkTests(using:savingResultsIntoFileNamed:)"])
+    }
+
     func test_whenThePassingBaselinePrintsAFailureLikeLine_thenMutantsRunWithStoppingOff() async throws {
         let lookalike = "✘ Test sum() recorded an issue at SumTests.swift:3:5: Expectation failed: 1 == 2"
         state.muterConfiguration = MuterConfiguration(
@@ -424,6 +470,19 @@ final class PerformMutationTestingTests: MuterTestCase {
         }
         addTeardownBlock { [notificationCenter] in tokens.forEach(notificationCenter.removeObserver) }
         return { posted }
+    }
+
+    /// Runs mutation testing in a task of its own, so a test that cancels it mid-run doesn't cancel itself.
+    private func runInItsOwnTask() async -> Result<[MutationTestState.Change], Error> {
+        await Task { [sut, state] in try await sut.run(with: state) }.result
+    }
+
+    /// Cancels mutation testing when it posts `name`, from the task that posts it.
+    private func cancelMutationTesting(whenPosted name: Notification.Name) {
+        let observer = notificationCenter.addObserver(forName: name, object: nil, queue: nil) { _ in
+            withUnsafeCurrentTask { $0?.cancel() }
+        }
+        addTeardownBlock { [notificationCenter] in notificationCenter.removeObserver(observer) }
     }
 
     private func makeSchemataMapping() throws -> SchemataMutationMapping {

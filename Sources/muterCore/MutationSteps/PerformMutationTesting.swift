@@ -169,6 +169,7 @@ private extension PerformMutationTesting {
         var buildErrors = 0
 
         for job in jobs {
+            try Task.checkCancellation()
             try? await ioDelegate.switchOn(
                 schemata: job.schema,
                 for: state.projectXCTestRun,
@@ -180,6 +181,7 @@ private extension PerformMutationTesting {
                 using: configuration,
                 savingResultsIntoFileNamed: logFileName(for: job.fileName, schemata: job.schema)
             )
+            try Self.throwIfCancelled(run)
 
             outcomes.append(
                 try record(job, run.outcome, run.testLog, using: state, buildErrors: &buildErrors)
@@ -192,7 +194,8 @@ private extension PerformMutationTesting {
     /// Tests `jobs` on `workers` test processes at once, each in its own clone of the mutated project:
     /// `swift test` locks the package's build directory, so two runs can't share one. Every mutant is
     /// switched on by its own process's environment, so the clones never need rewriting. Outcomes are
-    /// recorded, and their notifications posted, as they finish; they're returned in `jobs` order.
+    /// recorded, and their notifications posted, as they finish; they're returned in `jobs` order. Once
+    /// mutation testing is cancelled, no mutant starts, and none that returns is recorded.
     func testMutationsInParallel(
         _ jobs: [MutantJob],
         workers: Int,
@@ -208,35 +211,40 @@ private extension PerformMutationTesting {
         var buildErrors = 0
 
         try await withThrowingTaskGroup(
-            of: (index: Int, directory: URL, outcome: TestSuiteOutcome, log: String).self
+            of: (index: Int, directory: URL, run: TestRun).self
         ) { group in
             var nextJob = 0
-            func start(_ index: Int, in directory: URL) {
+            // Throws once mutation testing is cancelled, rather than skip the job: with no run under way, the
+            // loop below would end as if every mutant had been tested.
+            func start(_ index: Int, in directory: URL) throws {
                 let job = jobs[index]
                 let fileName = logFileName(for: job.fileName, schemata: job.schema)
-                group.addTask {
+                let started = group.addTaskUnlessCancelled {
                     let run = await ioDelegate.runTestSuite(
                         withSchemata: job.schema,
                         using: configuration,
                         savingResultsIntoFileNamed: fileName,
                         workingDirectory: directory
                     )
-                    return (index, directory, run.outcome, run.testLog)
+                    return (index, directory, run)
                 }
+                guard started else { throw CancellationError() }
             }
 
             for directory in directories {
-                start(nextJob, in: directory)
+                try start(nextJob, in: directory)
                 nextJob += 1
             }
 
             while let finished = try await group.next() {
+                // Throwing cancels the other runs, whose cancellation handlers kill their process trees.
+                try Self.throwIfCancelled(finished.run)
                 outcomes[finished.index] = try record(
-                    jobs[finished.index], finished.outcome, finished.log,
+                    jobs[finished.index], finished.run.outcome, finished.run.testLog,
                     using: state, buildErrors: &buildErrors
                 )
                 if nextJob < jobs.count {
-                    start(nextJob, in: finished.directory)
+                    try start(nextJob, in: finished.directory)
                     nextJob += 1
                 }
             }
@@ -277,6 +285,13 @@ private extension PerformMutationTesting {
                 )
             )
         }
+    }
+
+    /// A run that returns once mutation testing is cancelled may have been ended by SwiftMutator itself, whatever
+    /// it says: a process killed before its run's cancellation handler was installed reads as an exit with status
+    /// 9, which counts as killed. Such a run is never recorded.
+    static func throwIfCancelled(_ run: TestRun) throws {
+        if run.ending == .cancelled || Task.isCancelled { throw CancellationError() }
     }
 
     /// Builds `job`'s outcome, posts its notifications, and aborts after `buildErrorsThreshold`
