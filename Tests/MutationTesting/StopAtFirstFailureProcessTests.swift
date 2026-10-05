@@ -55,6 +55,22 @@ final class StopAtFirstFailureProcessTests: MuterTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(started), 10, "the run outlived its process")
     }
 
+    func test_aRealRunThatExits_recordsItsExitStatus() async throws {
+        let result = try await runMutantsTests(using: testCommand(running: "exit 3"))
+
+        XCTAssertEqual(result.ending, .exited, result.testLog)
+        XCTAssertEqual(result.exitStatus, 3)
+    }
+
+    // Foundation's terminationStatus is the signal's number when a signal ended the process.
+    func test_aRealRunEndedByASignal_recordsTheSignalAsItsExitStatus() async throws {
+        let result = try await runMutantsTests(using: testCommand(running: "kill -TERM $$"))
+
+        XCTAssertEqual(result.ending, .exited, result.testLog)
+        XCTAssertEqual(result.exitStatus, SIGTERM)
+        XCTAssertEqual(result.outcome, .runtimeError)
+    }
+
     // MARK: - Helpers
 
     /// `/bin/sh` running `script` as a mutant's test command, which may stop at its first failed test.
@@ -73,7 +89,7 @@ final class StopAtFirstFailureProcessTests: MuterTestCase {
     /// parallel worker runs them in its clone.
     private func runMutantsTests(
         using configuration: MuterConfiguration
-    ) async throws -> (outcome: TestSuiteOutcome, testLog: String) {
+    ) async throws -> TestRun {
         current.process = { [unowned self] in
             let process = MuterProcessFactory.makeProcess()
             if let launchable = process as? Foundation.Process {

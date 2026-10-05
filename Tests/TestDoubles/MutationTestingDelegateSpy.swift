@@ -37,14 +37,11 @@ class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate {
         withSchemata schemata: MutationSchema,
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String
-    ) -> (
-        outcome: TestSuiteOutcome,
-        testLog: String
-    ) {
+    ) -> TestRun {
         methodCalls.append(#function)
         testLogs.append(fileName)
         configurations.append(configuration)
-        return (testSuiteOutcomes.remove(at: 0), "testLog")
+        return TestRun(outcome: testSuiteOutcomes.remove(at: 0), testLog: "testLog")
     }
 
     /// Called concurrently by parallel workers, so it takes the lock.
@@ -53,17 +50,14 @@ class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate {
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String,
         workingDirectory: URL
-    ) async -> (
-        outcome: TestSuiteOutcome,
-        testLog: String
-    ) {
+    ) async -> TestRun {
         await Task.yield()
         return lock.withLock {
             methodCalls.append(#function)
             testLogs.append(fileName)
             workingDirectories.append(workingDirectory)
             configurations.append(configuration)
-            return (testSuiteOutcomes.remove(at: 0), "testLog")
+            return TestRun(outcome: testSuiteOutcomes.remove(at: 0), testLog: "testLog")
         }
     }
 

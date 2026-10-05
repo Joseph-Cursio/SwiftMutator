@@ -175,14 +175,14 @@ private extension PerformMutationTesting {
                 at: state.mutatedProjectDirectoryURL
             )
 
-            let (testSuiteOutcome, testLog) = await ioDelegate.runTestSuite(
+            let run = await ioDelegate.runTestSuite(
                 withSchemata: job.schema,
                 using: configuration,
                 savingResultsIntoFileNamed: logFileName(for: job.fileName, schemata: job.schema)
             )
 
             outcomes.append(
-                try record(job, testSuiteOutcome, testLog, using: state, buildErrors: &buildErrors)
+                try record(job, run.outcome, run.testLog, using: state, buildErrors: &buildErrors)
             )
         }
 
@@ -215,13 +215,13 @@ private extension PerformMutationTesting {
                 let job = jobs[index]
                 let fileName = logFileName(for: job.fileName, schemata: job.schema)
                 group.addTask {
-                    let (outcome, log) = await ioDelegate.runTestSuite(
+                    let run = await ioDelegate.runTestSuite(
                         withSchemata: job.schema,
                         using: configuration,
                         savingResultsIntoFileNamed: fileName,
                         workingDirectory: directory
                     )
-                    return (index, directory, outcome, log)
+                    return (index, directory, run.outcome, run.testLog)
                 }
             }
 
