@@ -47,6 +47,26 @@ final class GeneratedEnvironmentCacheTests: MuterTestCase {
         XCTAssertTrue(unreadable.errors.contains("could not read the active mutant"), unreadable.errors)
     }
 
+    /// Under `-default-isolation MainActor` the cache's enum is isolated to the main actor, and a mutant in
+    /// nonisolated code must still be able to read it.
+    func test_theGeneratedCodeBuildsInAModuleIsolatedToTheMainActorByDefault() throws {
+        try skipUnlessTheCompilerTakesDefaultIsolation()
+        let (program, identifier) = try compileMutatedCheck(
+            declaring: "nonisolated func check(_ value: Int) -> Bool",
+            arguments: ["-default-isolation", "MainActor"]
+        )
+        let activeMutantFile = directory.appendingPathComponent("active-mutant")
+        try write(identifier, to: activeMutantFile)
+
+        XCTAssertEqual(try run(program).output, "original\n", "no mutant named")
+        XCTAssertEqual(
+            try run(program, adding: [activeMutantFileKey: activeMutantFile.path]).output,
+            "mutant\n",
+            "the mutant's ID in the file"
+        )
+        XCTAssertEqual(try run(program, adding: [identifier: "YES"]).output, "mutant\n", "the mutant's own variable")
+    }
+
     // MARK: - Helpers
 
     private struct Run {
@@ -62,14 +82,18 @@ final class GeneratedEnvironmentCacheTests: MuterTestCase {
 
     /// Rewrites a file holding one mutant, as `swift test` builds it, and compiles it into a program that
     /// prints which code ran. It's compiled in the strictest mode the generated code must pass: Swift 6, with
-    /// only `ProcessInfo` imported from Foundation and members of other imports hidden.
-    private func compileMutatedCheck() throws -> (program: URL, identifier: String) {
+    /// only `ProcessInfo` imported from Foundation and members of other imports hidden. `signature` declares
+    /// the function the mutant is in, and `arguments` go to the compiler as well.
+    private func compileMutatedCheck(
+        declaring signature: String = "func check(_ value: Int) -> Bool",
+        arguments: [String] = []
+    ) throws -> (program: URL, identifier: String) {
         let source = SourceCodeInfo(
             path: "/path/to/Check.swift",
             code: Parser.parse(source: """
             import class Foundation.ProcessInfo
 
-            func check(_ value: Int) -> Bool {
+            \(signature) {
                 return value > 1
             }
 
@@ -98,27 +122,46 @@ final class GeneratedEnvironmentCacheTests: MuterTestCase {
             to: main
         )
 
-        // The compiler runs with this suite's environment, without the dynamic loader's variables the test
-        // runner may set and without the active-mutant file an outer mutation-testing run may name.
         let compiled = try execute(
             URL(fileURLWithPath: xcrun),
-            arguments: [
-                "swiftc",
-                "-swift-version", "6",
+            arguments: ["swiftc", "-swift-version", "6"] + arguments + [
                 "-enable-upcoming-feature", "MemberImportVisibility",
                 "-warnings-as-errors",
                 "-o", program.path,
                 mutated.path,
                 main.path,
             ],
-            environment: MuterProcessFactory.environment(inheriting: ProcessInfo.processInfo.environment)
-                .filter { !$0.key.hasPrefix("DYLD_") },
+            environment: compilerEnvironment,
             timeLimit: 300
         )
         guard compiled.status == 0 else {
             throw Failure(description: "the generated code didn't compile:\n\(compiled.errors)")
         }
         return (program, identifier)
+    }
+
+    /// Skips a test that compiles with `-default-isolation`, which compilers before Swift 6.2 don't take. Any
+    /// other failure is left for the test's own compile to report.
+    private func skipUnlessTheCompilerTakesDefaultIsolation() throws {
+        let empty = directory.appendingPathComponent("Empty.swift")
+        try write("", to: empty)
+        let probe = try execute(
+            URL(fileURLWithPath: xcrun),
+            arguments: ["swiftc", "-typecheck", "-default-isolation", "MainActor", empty.path],
+            environment: compilerEnvironment,
+            timeLimit: 300
+        )
+        try XCTSkipIf(
+            probe.status != 0 && probe.errors.contains("unknown argument: '-default-isolation'"),
+            "compiling with -default-isolation needs Swift 6.2 or later:\n\(probe.errors)"
+        )
+    }
+
+    /// The compiler runs with this suite's environment, without the dynamic loader's variables the test runner
+    /// may set and without the active-mutant file an outer mutation-testing run may name.
+    private var compilerEnvironment: [String: String] {
+        MuterProcessFactory.environment(inheriting: ProcessInfo.processInfo.environment)
+            .filter { !$0.key.hasPrefix("DYLD_") }
     }
 
     /// Runs the compiled program with nothing in its environment but `PATH` and `variables`.

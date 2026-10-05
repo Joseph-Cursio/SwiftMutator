@@ -16,6 +16,11 @@ final class MuterRewriter: SyntaxRewriter {
     /// initialised once, lazily and thread-safely, and unlike a top-level global it is safe in
     /// `main.swift`, where a global would not be initialised until execution reached it.
     ///
+    /// The cache is `nonisolated`: in a module built with `-default-isolation MainActor` the enum is
+    /// isolated to the main actor, and a mutant in nonisolated code, an actor, a `Sendable` closure or
+    /// another global actor couldn't read it. `[String: String]` is `Sendable`, so no compiler back to
+    /// Swift 5.9 warns about the attribute.
+    ///
     /// The cache also adds the mutant named in the file `activeMutantFileKey` names, as if its own
     /// variable were set: a `swift test` run can't set that variable, because SwiftPM keys its cache of
     /// compiled package manifests on the whole environment. Only the file's first line counts, so a file
@@ -31,7 +36,7 @@ final class MuterRewriter: SyntaxRewriter {
         let cache = Parser.parse(source: """
 
         fileprivate enum \(Self.environmentCacheName) {
-            static let environment: [String: String] = {
+            nonisolated static let environment: [String: String] = {
                 var environment = ProcessInfo.processInfo.environment
                 if let path = environment["\(activeMutantFileKey)"] {
                     guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {

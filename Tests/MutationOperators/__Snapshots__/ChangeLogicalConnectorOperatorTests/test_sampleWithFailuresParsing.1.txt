@@ -143,7 +143,7 @@ extension String {
   }
 }
 fileprivate enum __SwiftMutator {
-    static let environment: [String: String] = {
+    nonisolated static let environment: [String: String] = {
         var environment = ProcessInfo.processInfo.environment
         if let path = environment["SWIFTMUTATOR_ACTIVE_MUTANT_FILE"] {
             guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
