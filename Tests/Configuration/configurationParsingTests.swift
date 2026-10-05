@@ -104,24 +104,28 @@ final class ConfigurationParsingTests: MuterTestCase {
         XCTAssertThrowsError(try MuterConfiguration(from: Data(yaml.utf8)))
     }
 
-    func test_stopsAtFirstFailure_onlyForSwiftPMWhenSwitchedOn() {
+    func test_stopsAtFirstFailure_forSwiftPMUnlessSwitchedOff() {
         let swift = MuterConfiguration(executable: "/usr/bin/swift", stopAtFirstFailure: true)
         XCTAssertTrue(swift.stopsAtFirstFailure)
         XCTAssertNil(swift.stopAtFirstFailureUnsupportedReason)
 
-        XCTAssertFalse(MuterConfiguration(executable: "/usr/bin/swift").stopsAtFirstFailure)
+        // On by default: an unset key stops, and only an explicit false doesn't.
+        XCTAssertTrue(MuterConfiguration(executable: "/usr/bin/swift").stopsAtFirstFailure)
         XCTAssertFalse(MuterConfiguration(executable: "/usr/bin/swift", stopAtFirstFailure: false).stopsAtFirstFailure)
 
-        // xcodebuild runs the tests in a process SwiftMutator can't stop.
+        // xcodebuild runs the tests in a process SwiftMutator can't stop, whether the key is set or not.
         let xcode = MuterConfiguration(executable: "/usr/bin/xcodebuild", stopAtFirstFailure: true)
         XCTAssertFalse(xcode.stopsAtFirstFailure)
         XCTAssertNotNil(xcode.stopAtFirstFailureUnsupportedReason)
+        XCTAssertFalse(MuterConfiguration(executable: "/usr/bin/xcodebuild").stopsAtFirstFailure)
 
         // A wrapper script counts only when the configuration says it runs `swift test`.
         XCTAssertFalse(MuterConfiguration(executable: "/bin/sh", stopAtFirstFailure: true).stopsAtFirstFailure)
+        XCTAssertFalse(MuterConfiguration(executable: "/bin/sh").stopsAtFirstFailure)
         XCTAssertTrue(
             MuterConfiguration(executable: "/bin/sh", buildSystem: .swift, stopAtFirstFailure: true).stopsAtFirstFailure
         )
+        XCTAssertTrue(MuterConfiguration(executable: "/bin/sh", buildSystem: .swift).stopsAtFirstFailure)
     }
 
     func test_stopsAtFirstFailure_isOffWhenFailingTestsAreRetried() {

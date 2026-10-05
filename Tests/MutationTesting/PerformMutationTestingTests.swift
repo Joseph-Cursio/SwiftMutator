@@ -367,7 +367,9 @@ final class PerformMutationTestingTests: MuterTestCase {
 
     // The line would also count a mutant whose run reaches the time limit after printing it as killed.
     func test_whenThePassingBaselinePrintsAFailureLikeLineWithoutStopping_thenItStillDoesNotCount() async throws {
-        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], stopAtFirstFailure: false
+        )
         ioDelegate.baselineTestLog = """
         ◇ Test run started.
         ✘ Test sum() recorded an issue at SumTests.swift:3:5: Expectation failed: 1 == 2
@@ -383,10 +385,9 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(posted().count, 0)
     }
 
+    // With the key unset: stopping at the first failed test is the default.
     func test_whenThePassingBaselineHasNoFailureLikeLine_thenMutantsStopAtTheirFirstFailure() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], stopAtFirstFailure: true
-        )
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
         ioDelegate.baselineTestLog = """
         ◇ Test run started.
         ✔ Test sum() passed after 0.001 seconds.

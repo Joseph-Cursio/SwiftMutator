@@ -116,10 +116,13 @@ struct MuterConfiguration: Equatable, Codable {
         return nil
     }
 
-    /// Whether mutants' test runs stop at their first failed test: only when `stopAtFirstFailure` is
-    /// set, this test command supports it, and failed-test lines are reliable. Baselines never do.
+    /// Whether mutants' test runs stop at their first failed test: unless `stopAtFirstFailure` is false,
+    /// whenever this test command supports it and failed-test lines are reliable. Baselines never do.
+    /// On by default since an A/B run on SwiftProjectLint (255 mutants, 4 workers) took 37% less time and
+    /// the switch changed no mutant's verdict. A mutant that both fails a test and crashes can be reported
+    /// killed by a test failure rather than by a runtime error, depending on which comes first.
     var stopsAtFirstFailure: Bool {
-        stopAtFirstFailureUnsupportedReason == nil && failedTestLinesAreReliable && (stopAtFirstFailure ?? false)
+        stopAtFirstFailureUnsupportedReason == nil && failedTestLinesAreReliable && (stopAtFirstFailure ?? true)
     }
 
     /// This configuration with `failedTestLinesAreReliable` false.

@@ -133,7 +133,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
     func test_whenNotStoppingAtFirstFailure_thenOutputBufferingIsLeftAlone() async throws {
         let configurations = [
-            MuterConfiguration(executable: "/tmp/swift", arguments: ["test"]),
+            MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], stopAtFirstFailure: false),
             // Switched on, but xcodebuild runs can't be stopped.
             MuterConfiguration(executable: "/tmp/xcodebuild", arguments: ["test"], stopAtFirstFailure: true),
         ]
@@ -482,7 +482,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
     // the run's task, which is still waiting for the process. Cancelling it may not kill the tree again:
     // by then the process may have exited, and the system may have given its ID to another process.
     func test_whenTheTimeLimitComesFirst_thenTheRunTimesOutAndIsKilledOnce() async throws {
-        try await assertTheTimeLimitComingFirstTimesTheRunOutAndKillsItOnce(stopAtFirstFailure: nil)
+        try await assertTheTimeLimitComingFirstTimesTheRunOutAndKillsItOnce(stopAtFirstFailure: false)
     }
 
     // The run is also watched for a failed test, which never comes.
@@ -605,8 +605,9 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
     func test_whenStopAtFirstFailureIsOff_thenAFailingRunGoesToTheEnd() async throws {
         let configurations = [
-            MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], testSuiteTimeOut: 60),
             MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], testSuiteTimeOut: 60, stopAtFirstFailure: false),
+            // On by default, but a wrapper script counts as `swift test` only with `buildSystem: swift`.
+            MuterConfiguration(executable: "/tmp/run-tests.sh", arguments: ["test"], testSuiteTimeOut: 60),
             // Switched on, but xcodebuild runs can't be stopped.
             MuterConfiguration(executable: "/tmp/xcodebuild", arguments: ["test"], testSuiteTimeOut: 60, stopAtFirstFailure: true),
         ]
