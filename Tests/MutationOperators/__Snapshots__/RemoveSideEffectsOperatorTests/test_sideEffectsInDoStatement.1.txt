@@ -34,5 +34,17 @@ static func validate(_ type: ParsableArguments.Type, parent: InputKey?)
   }
 }
 private enum __SwiftMutator {
-  static let environment = ProcessInfo.processInfo.environment
+  static let environment: [String: String] = {
+    var environment = ProcessInfo.processInfo.environment
+    if let path = environment["SWIFTMUTATOR_ACTIVE_MUTANT_FILE"] {
+      guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
+        fatalError("SwiftMutator could not read the active mutant from \(path)")
+      }
+      let identifier = String(contents.prefix { !$0.isNewline })
+      if !identifier.isEmpty {
+        environment[identifier] = "YES"
+      }
+    }
+    return environment
+  }()
 }

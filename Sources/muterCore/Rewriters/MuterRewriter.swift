@@ -15,16 +15,35 @@ final class MuterRewriter: SyntaxRewriter {
     /// line of the file moves and every recorded mutant position stays valid. A `static let` is
     /// initialised once, lazily and thread-safely, and unlike a top-level global it is safe in
     /// `main.swift`, where a global would not be initialised until execution reached it.
+    ///
+    /// The cache also adds the mutant named in the file `activeMutantFileKey` names, as if its own
+    /// variable were set: a `swift test` run can't set that variable, because SwiftPM keys its cache of
+    /// compiled package manifests on the whole environment. Only the file's first line counts, so a file
+    /// written with `echo` works too. A file that can't be read stops the tests: switching no mutant on
+    /// would let every mutant survive.
     override func visit(_ node: SourceFileSyntax) -> SourceFileSyntax {
         let rewritten = super.visit(node)
         guard rewritten.description.contains("\(Self.environmentCacheName).environment[") else {
             return rewritten
         }
 
+        // A plain literal, so `\\(path)` keeps the interpolation in the generated code.
         let cache = Parser.parse(source: """
 
         fileprivate enum \(Self.environmentCacheName) {
-            static let environment = ProcessInfo.processInfo.environment
+            static let environment: [String: String] = {
+                var environment = ProcessInfo.processInfo.environment
+                if let path = environment["\(activeMutantFileKey)"] {
+                    guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
+                        fatalError("SwiftMutator could not read the active mutant from \\(path)")
+                    }
+                    let identifier = String(contents.prefix { !$0.isNewline })
+                    if !identifier.isEmpty {
+                        environment[identifier] = "YES"
+                    }
+                }
+                return environment
+            }()
         }
 
         """).statements
