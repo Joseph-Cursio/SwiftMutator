@@ -13,6 +13,7 @@ class MuterTestCase: XCTestCase {
     private(set) var writeFile = WriteFileSpy()
     private(set) var printer = PrinterSpy()
     private(set) var testingTimeOutExecutor = TestingTimeOutExecutorSpy()
+    private(set) var resultsFiles = ResultsFilesSpy()
 
     private let fixedNow = DateComponents(
         calendar: .init(identifier: .gregorian),
@@ -49,7 +50,8 @@ class MuterTestCase: XCTestCase {
             now: { self.fixedNow },
             instant: { DispatchTime(uptimeNanoseconds: 1) },
             testingTimeOutExecutor: { self.testingTimeOutExecutor },
-            provenance: { _ in .fixture }
+            provenance: { _ in .fixture },
+            resultsFiles: resultsFiles
         )
     }
 

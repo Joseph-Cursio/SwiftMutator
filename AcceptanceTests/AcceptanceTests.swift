@@ -64,11 +64,13 @@ final class AcceptanceTests: XCTestCase {
             .map(contentsOfLogFile(named:))
             .count { $0.isEmpty }
 
+        // The run's results file is kept beside its logs.
         XCTAssertEqual(
             logFiles.sorted(),
-            expectedLogFiles.sorted()
+            (expectedLogFiles + ["results.jsonl"]).sorted()
         ) // Sort these so it's easier to reason about any erroneous failures
         XCTAssertEqual(numberOfEmptyLogFiles, 0)
+        XCTAssertFalse(try contentsOfLogFile(named: "results.jsonl").isEmpty)
     }
 
     func test_runWithTestPlanCommand() throws {

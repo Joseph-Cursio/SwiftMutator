@@ -5,6 +5,8 @@ final class Logger {
     private var printer: Printer
     private var numberOfMutationPoints: Int = 0
     private var progressBar: ProgressBar!
+    /// How many lines the progress bar takes. Its printer redraws it by moving the cursor up over that many lines.
+    private static let progressBarLines = 2
 
     func launched() {
         print(
@@ -125,6 +127,22 @@ final class Logger {
         print("⚠️ stopAtFirstFailure is off for this run, so every mutant's tests run to the end: \(reason)")
     }
 
+    func resultsFileCreated(atPath path: String) {
+        print("💾 SwiftMutator saves each mutant's result as it finishes, in \(path.bold)")
+    }
+
+    func resultsFileUnavailable(reason: String) {
+        print(
+            "⚠️ SwiftMutator can't save each mutant's result as it goes: \(reason). "
+                + "The report at the end doesn't depend on it."
+        )
+        leaveRoomForTheProgressBar()
+    }
+
+    func resultsFileKept(atPath path: String) {
+        print("💾 Each mutant's result is in \(path.bold)")
+    }
+
     func newMutationTestLogAvailable(mutationTestLog: MutationTestLog) {
         if mutationTestLog.mutationPoint == nil {
             print(
@@ -150,7 +168,7 @@ final class Logger {
                             .timePerBuildTestCycle!
                     ),
                 ],
-                printer: ProgressBarMultilineTerminalPrinter(numberOfLines: 2)
+                printer: ProgressBarMultilineTerminalPrinter(numberOfLines: Self.progressBarLines)
             )
         }
 
@@ -214,5 +232,17 @@ final class Logger {
     private func printMessage(_ message: String) {
         print("+-----------------+")
         print(message)
+    }
+
+    /// Follows a message printed while the progress bar is still to be redrawn with as many empty lines as the bar
+    /// takes. The redraw moves the cursor up over those lines rather than over the end of the message. The bar's
+    /// `next()` redraws it only while `element <= count`, so the bar's last redraw needs no room after it.
+    private func leaveRoomForTheProgressBar() {
+        guard let progressBar, progressBar.element <= progressBar.count else {
+            return
+        }
+        for _ in 0 ..< Self.progressBarLines {
+            print("")
+        }
     }
 }

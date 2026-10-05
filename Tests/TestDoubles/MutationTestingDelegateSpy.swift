@@ -21,6 +21,8 @@ class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate {
     var testSuiteOutcomes: [TestSuiteOutcome]!
     /// The log of the baseline run in the mutated project.
     var baselineTestLog = "testLog"
+    /// Each mutant run's log, in the order they're run; "testLog" once empty.
+    var mutantTestLogs: [String] = []
     /// How each mutant's run ends, in the order they're run; `.exited` once empty.
     var mutantRunEndings: [TestRun.Ending] = []
     /// Called with each mutant run's zero-based number just before it returns, so a test can cancel
@@ -74,8 +76,9 @@ class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate {
     /// The next mutant run, and its zero-based number.
     private func nextMutantRun() -> (run: TestRun, number: Int) {
         defer { mutantRunCount += 1 }
+        let testLog = mutantTestLogs.isEmpty ? "testLog" : mutantTestLogs.removeFirst()
         let ending = mutantRunEndings.isEmpty ? .exited : mutantRunEndings.removeFirst()
-        return (TestRun(outcome: testSuiteOutcomes.remove(at: 0), testLog: "testLog", ending: ending), mutantRunCount)
+        return (TestRun(outcome: testSuiteOutcomes.remove(at: 0), testLog: testLog, ending: ending), mutantRunCount)
     }
 
     func benchmarkTests(

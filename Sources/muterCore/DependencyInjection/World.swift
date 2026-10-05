@@ -56,4 +56,5 @@ struct World {
     var instant: Instant = DispatchTime.now
     var testingTimeOutExecutor: TestingTimeoutExecutorFactory = { TestingTimeoutExecutor() }
     var provenance: ProvenanceProbe = { Provenance.probe($0) }
+    var resultsFiles: ResultsFileOpening = ResultsFile.Opener()
 }
