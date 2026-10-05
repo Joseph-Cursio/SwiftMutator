@@ -104,6 +104,20 @@ final class MutationTestingDelegateTests: MuterTestCase {
         XCTAssertNil(process.environment?[isMuterRunningKey])
     }
 
+    // When SwiftMutator's own suite is the one being mutation tested, its tests run with the outer run's
+    // active-mutant file named. A process started here must not read that file, or the outer run's mutant
+    // would be switched on in it. Checked on the pure function, so this test never sets a variable the
+    // outer run's generated code may read at any moment.
+    func test_inheritedEnvironment_dropsAnOuterRunsActiveMutantFile() {
+        let environment = MuterProcessFactory.environment(inheriting: [
+            activeMutantFileKey: "/outer/.swiftmutator-active-mutant",
+            isMuterRunningKey: isMuterRunningValue,
+            "PATH": "/usr/bin",
+        ])
+
+        XCTAssertEqual(environment, ["PATH": "/usr/bin"])
+    }
+
     // `swift test` relays its test runners' output through its own standard output, which holds output
     // bound for a file 4 KiB at a time until it exits. A run stopped at its first failed test would show
     // that failure late, or lose its whole log.
