@@ -35,3 +35,14 @@ extension TestRun.Ending {
         }
     }
 }
+
+/// A mutant's finished test run, as mutation testing records it.
+struct FinishedRun {
+    /// The mutant's position in this session's jobs.
+    let index: Int
+    /// Where it ran: 0 is the mutated project, n is its clone `<mutated>_worker<n>`.
+    let worker: Int
+    let run: TestRun
+    /// From launch to classification, on the monotonic clock.
+    let seconds: TimeInterval
+}

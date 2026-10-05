@@ -305,3 +305,23 @@ extension MutationTestLog {
         )
     }
 }
+
+extension Provenance {
+    static var fixture: Provenance {
+        Provenance(
+            swiftMutator: .init(
+                version: "1.0.0",
+                executablePath: "/usr/local/bin/swift-mutator",
+                executableSHA256: "9f2c"
+            ),
+            toolchain: .init(
+                testCommandVersion: "Apple Swift version 6.4",
+                testExecutableSHA256: nil,
+                environment: ["SDKROOT": "/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk"]
+            ),
+            processIdentifier: 81234,
+            host: "host",
+            arguments: ["-c", "mutation.conf.yml", "--skip-coverage"]
+        )
+    }
+}
