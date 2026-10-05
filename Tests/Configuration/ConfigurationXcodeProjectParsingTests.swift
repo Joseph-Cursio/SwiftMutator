@@ -65,7 +65,7 @@ final class ConfigurationXcodeProjectParsingTests: MuterTestCase {
                 "-derivedDataPath",
                 "DerivedData",
                 "clean",
-                "build-for-testing"
+                "build-for-testing",
             ]
         )
 

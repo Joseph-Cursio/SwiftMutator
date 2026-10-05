@@ -4,6 +4,17 @@ import TestingExtensions
 import XCTest
 
 final class RegressionTests: XCTestCase {
+    /// These tests read the reports `runRegressionTests.sh` wrote into `samples/`. That script recreates the
+    /// folder before it writes anything, so a missing folder means it hasn't been run, not that it failed:
+    /// skip, so a plain `swift test` can pass. A run that failed partway leaves the folder, and these tests
+    /// then fail.
+    override func setUpWithError() throws {
+        try XCTSkipUnless(
+            FileManager.default.fileExists(atPath: "\(rootTestDirectory)/samples"),
+            "No samples: run `make regression-test` to generate them and run these tests"
+        )
+    }
+
     func runRegressionTest(
         forFixtureNamed fixtureName: String,
         withResultAt path: FilePath,

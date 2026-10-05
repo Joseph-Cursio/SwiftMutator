@@ -55,7 +55,7 @@ final class XCTestRunTests: MuterTestCase {
         sut = muterCore.XCTestRun([
             "TestConfigurations": [
                 ["TestTargets": [["BlueprintName": "SomeTestTarget"] as [String: AnyHashable]]] as [String: AnyHashable]
-            ]
+            ],
         ])
 
         let actualPlist = sut.updateEnvironmentVariable(setting: "keyToBeSet")
