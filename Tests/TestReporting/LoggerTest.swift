@@ -1,5 +1,6 @@
 import Foundation
 @testable import muterCore
+import Rainbow
 import TestingExtensions
 
 final class LoggerTests: MuterTestCase {
@@ -61,6 +62,47 @@ final class LoggerTests: MuterTestCase {
               /p/f5.lock
               … and 2 more
             """,
+        ])
+    }
+
+    func test_resultsFileUnavailable_saysTheReportDoesntDependOnIt() {
+        sut.resultsFileUnavailable(reason: "can't open /logs/results.jsonl: Permission denied")
+
+        XCTAssertEqual(printer.linesPassed, [
+            "⚠️ SwiftMutator can't save each mutant's result as it goes: "
+                + "can't open /logs/results.jsonl: Permission denied. The report at the end doesn't depend on it.",
+        ])
+    }
+
+    // The progress bar's printer redraws it by moving the cursor up over its two lines, which would overwrite the
+    // warning's last two rows. The empty lines take the redraw instead. After the bar's last redraw they aren't needed.
+    func test_resultsFileUnavailable_whileTheProgressBarIsStillToRedraw_leavesItTwoEmptyLines() throws {
+        let reason = "can't write to /logs/results.jsonl: No space left on device"
+        let warning = "⚠️ SwiftMutator can't save each mutant's result as it goes: "
+            + "\(reason). The report at the end doesn't depend on it."
+        try sut.mutationsDiscoveryFinished(mutations: [makeSchemataMapping(), makeSchemataMapping()])
+        sut.newMutationTestLogAvailable(
+            mutationTestLog: .make(timePerBuildTestCycle: 50, remainingMutationPointsCount: 2)
+        )
+
+        var printedBefore = printer.linesPassed.count
+        sut.resultsFileUnavailable(reason: reason)
+        XCTAssertEqual(Array(printer.linesPassed.dropFirst(printedBefore)), [warning, "", ""])
+
+        // With two mutants, the first one's log redraws the bar for the last time.
+        sut.newMutationTestLogAvailable(mutationTestLog: .make(mutationPoint: .make()))
+        printedBefore = printer.linesPassed.count
+        sut.resultsFileUnavailable(reason: reason)
+        XCTAssertEqual(Array(printer.linesPassed.dropFirst(printedBefore)), [warning])
+    }
+
+    func test_resultsFileCreated_andKept_nameTheFile() {
+        sut.resultsFileCreated(atPath: "/logs/results.jsonl")
+        sut.resultsFileKept(atPath: "/logs/results.jsonl")
+
+        XCTAssertEqual(printer.linesPassed, [
+            "💾 SwiftMutator saves each mutant's result as it finishes, in \("/logs/results.jsonl".bold)",
+            "💾 Each mutant's result is in \("/logs/results.jsonl".bold)",
         ])
     }
 

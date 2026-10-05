@@ -1,4 +1,5 @@
 @testable import muterCore
+import Rainbow
 import XCTest
 
 final class MutationTestObserverTests: MuterTestCase {
@@ -124,6 +125,43 @@ final class MutationTestObserverTests: MuterTestCase {
             printer.linesPassed.last,
             "⚠️ stopAtFirstFailure is off for this run, so every mutant's tests run to the end: the reason"
         )
+    }
+
+    func test_resultsFileCreated_isLogged_andNamedAtTheEnd() {
+        sut.start()
+
+        notificationCenter.post(name: .resultsFileCreated, object: "/logs/results.jsonl")
+
+        XCTAssertEqual(
+            printer.linesPassed.last,
+            "💾 SwiftMutator saves each mutant's result as it finishes, in \("/logs/results.jsonl".bold)"
+        )
+
+        notificationCenter.post(name: .mutationTestingFinished, object: MutationTestOutcome.make())
+
+        XCTAssertEqual(printer.linesPassed.last, "💾 Each mutant's result is in \("/logs/results.jsonl".bold)")
+    }
+
+    // The file then lacks every result after the failed write, which the warning said.
+    func test_aResultsFileThatCouldNotBeWritten_isNotNamedAtTheEnd() {
+        sut.start()
+
+        notificationCenter.post(name: .resultsFileCreated, object: "/logs/results.jsonl")
+        notificationCenter.post(
+            name: .resultsFileUnavailable,
+            object: "can't write to /logs/results.jsonl: No space left on device"
+        )
+
+        XCTAssertEqual(
+            printer.linesPassed.last,
+            "⚠️ SwiftMutator can't save each mutant's result as it goes: "
+                + "can't write to /logs/results.jsonl: No space left on device. "
+                + "The report at the end doesn't depend on it."
+        )
+
+        notificationCenter.post(name: .mutationTestingFinished, object: MutationTestOutcome.make())
+
+        XCTAssertFalse(printer.linesPassed.contains { $0.hasPrefix("💾 Each mutant's result") }, "\(printer.linesPassed)")
     }
 }
 

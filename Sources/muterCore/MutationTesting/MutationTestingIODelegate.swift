@@ -5,10 +5,7 @@ protocol MutationTestingIODelegate {
         withSchemata schemata: MutationSchema,
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String
-    ) async -> (
-        outcome: TestSuiteOutcome,
-        testLog: String
-    )
+    ) async -> TestRun
 
     /// `runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)` with the test command run in
     /// `workingDirectory`, a parallel worker's clone of the mutated project. The log is still saved
@@ -18,10 +15,7 @@ protocol MutationTestingIODelegate {
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String,
         workingDirectory: URL
-    ) async -> (
-        outcome: TestSuiteOutcome,
-        testLog: String
-    )
+    ) async -> TestRun
 
     func benchmarkTests(
         using configuration: MuterConfiguration,
@@ -69,12 +63,13 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         outcome: TestSuiteOutcome,
         testLog: String
     ) {
-        await runTestSuite(
+        let run = await runTestSuite(
             withSchemata: .null,
             using: configuration,
             savingResultsIntoFileNamed: fileName,
             isBenchmark: true
         )
+        return (run.outcome, run.testLog)
     }
 
     func benchmarkTests(
@@ -85,23 +80,21 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         outcome: TestSuiteOutcome,
         testLog: String
     ) {
-        await runTestSuite(
+        let run = await runTestSuite(
             withSchemata: .null,
             using: configuration,
             savingResultsIntoFileNamed: fileName,
             isBenchmark: true,
             workingDirectory: workingDirectory
         )
+        return (run.outcome, run.testLog)
     }
 
     func runTestSuite(
         withSchemata schemata: MutationSchema,
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String
-    ) async -> (
-        outcome: TestSuiteOutcome,
-        testLog: String
-    ) {
+    ) async -> TestRun {
         await runTestSuite(
             withSchemata: schemata,
             using: configuration,
@@ -115,10 +108,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String,
         workingDirectory: URL
-    ) async -> (
-        outcome: TestSuiteOutcome,
-        testLog: String
-    ) {
+    ) async -> TestRun {
         await runTestSuite(
             withSchemata: schemata,
             using: configuration,
@@ -134,10 +124,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         savingResultsIntoFileNamed fileName: String,
         isBenchmark: Bool,
         workingDirectory: URL? = nil
-    ) async -> (
-        outcome: TestSuiteOutcome,
-        testLog: String
-    ) {
+    ) async -> TestRun {
         do {
             let (testProcessFileHandle, testLogUrl) = try fileHandle(for: fileName)
             defer { try? testProcessFileHandle.close() }
@@ -153,7 +140,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             // Never a baseline, the mutated project's or a worker's: whether it passes decides whether mutation
             // testing can start, so it always runs to its end. A run with no mutant switched on is one too.
             let stopsAtFirstFailure = !isBenchmark && schemata != .null && configuration.stopsAtFirstFailure
-            let (outcome, contents) = try await runTestProcess(
+            return try await runTestProcess(
                 process,
                 logFileUrl: testLogUrl,
                 withTimeout: timeout,
@@ -161,20 +148,16 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
                 failedTestLinesAreReliable: configuration.failedTestLinesAreReliable
             )
 
-            return (
-                outcome: outcome,
-                testLog: contents
-            )
-
         } catch {
             // Reaching here means the test command never ran — the log file couldn't be opened, or
             // the process failed to spawn. There is no test output to report, so the thrown error is
             // the only evidence of what went wrong; return it as the log rather than an empty string,
-            // which leaves the caller with nothing to show the user. A cancelled run also ends here; whoever
-            // cancelled it doesn't use its outcome.
-            return (
-                .buildError,
-                """
+            // which leaves the caller with nothing to show the user. A cancelled run ends here too, by the
+            // CancellationError of its ending or of its time limit's task. Its outcome then says nothing
+            // about the mutant, and its ending says so.
+            return TestRun(
+                outcome: .buildError,
+                testLog: """
                 SwiftMutator could not run your test command and captured no test output.
 
                   executable: \(configuration.testCommandExecutable)
@@ -182,7 +165,8 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
                   working directory: \(fileManager.currentDirectoryPath)
 
                 \(error.localizedDescription)
-                """
+                """,
+                ending: error is CancellationError || Task.isCancelled ? .cancelled : .couldNotRun
             )
         }
     }
@@ -193,7 +177,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         withTimeout timeout: TimeInterval?,
         stoppingAtFirstFailure: Bool,
         failedTestLinesAreReliable: Bool
-    ) async throws -> (TestSuiteOutcome, String) {
+    ) async throws -> TestRun {
         let ending = TestRunEnding()
         let follower = stoppingAtFirstFailure ? TestLogFollower(logFileUrl: logFileUrl) : nil
         let run: @Sendable () async throws -> TestingExecutionResult = {
@@ -227,7 +211,13 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             testExecutionLog += Self.noteForRunStopped(at: line, after: testExecutionLog)
         }
 
-        return (testResult, testExecutionLog)
+        let endedBy = TestRun.Ending(ending.reason)
+        return TestRun(
+            outcome: testResult,
+            testLog: testExecutionLog,
+            ending: endedBy,
+            exitStatus: endedBy == .exited ? process.terminationStatus : nil
+        )
     }
 
     /// Launches `process` and waits for it to exit. With a follower, stops it at the first failed test its

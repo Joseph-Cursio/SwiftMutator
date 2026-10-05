@@ -84,6 +84,22 @@ final class MutationTestHandlerTests: MuterTestCase {
         stepSpy3.resultToReturn = .success([])
     }
 
+    // Every step, the first included, finds the folder the observer keeps the run's test logs in, so a step can
+    // keep other files of the run beside them.
+    func test_theRunsLogFolderReachesTheStateBeforeTheFirstStep() async throws {
+        fileManager.currentDirectoryPathToReturn = "/project"
+        let firstStep = LoggingDirectoryProbe()
+        stepSpy1.resultToReturn = .success([])
+        sut = MutationTestHandler(steps: [firstStep, stepSpy1], state: state)
+
+        try await sut.run()
+
+        let loggingDirectory = try XCTUnwrap(fileManager.paths.first)
+        XCTAssertTrue(loggingDirectory.hasPrefix("/project_muter_logs/"), loggingDirectory)
+        XCTAssertEqual(firstStep.loggingDirectories, [loggingDirectory])
+        XCTAssertEqual(state.loggingDirectory, loggingDirectory)
+    }
+
     func test_allSteps() {
         sut = MutationTestHandler(options: .make())
 
@@ -164,5 +180,15 @@ final class MutationTestHandlerTests: MuterTestCase {
             file: file,
             line: line
         )
+    }
+}
+
+/// A step that notes the state's log folder as it runs, since the state is shared and could change after it.
+private final class LoggingDirectoryProbe: MutationStep {
+    private(set) var loggingDirectories: [String] = []
+
+    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+        loggingDirectories.append(state.loggingDirectory)
+        return []
     }
 }

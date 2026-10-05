@@ -29,6 +29,7 @@ typealias ProjectCoverage = (BuildSystem) -> BuildSystemCoverage?
 typealias Now = () -> Date
 typealias Instant = () -> DispatchTime
 typealias TestingTimeoutExecutorFactory = () -> TestingTimeoutExecution
+typealias ProvenanceProbe = (MuterConfiguration) -> Provenance
 
 struct World {
     var notificationCenter: NotificationCenter = .default
@@ -54,4 +55,6 @@ struct World {
     var now: Now = Date.init
     var instant: Instant = DispatchTime.now
     var testingTimeOutExecutor: TestingTimeoutExecutorFactory = { TestingTimeoutExecutor() }
+    var provenance: ProvenanceProbe = { Provenance.probe($0) }
+    var resultsFiles: ResultsFileOpening = ResultsFile.Opener()
 }

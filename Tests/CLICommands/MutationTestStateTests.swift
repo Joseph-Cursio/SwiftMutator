@@ -16,4 +16,12 @@ final class MutationTestStateTests: MuterTestCase {
         XCTAssertEqual(sut.filesToMutate[safe: 1], "/path/to/file3.swift")
         XCTAssertEqual(sut.filesToMutate[safe: 2], "/path/to/file3.swift")
     }
+
+    func test_loggingDirectoryCreated_setsIt() {
+        XCTAssertEqual(sut.loggingDirectory, "")
+
+        sut.apply([.loggingDirectoryCreated("/project_muter_logs/Oct 4, 2026 at 1:16 PM")])
+
+        XCTAssertEqual(sut.loggingDirectory, "/project_muter_logs/Oct 4, 2026 at 1:16 PM")
+    }
 }

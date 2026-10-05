@@ -305,3 +305,117 @@ extension MutationTestLog {
         )
     }
 }
+
+extension Provenance {
+    static var fixture: Provenance {
+        Provenance(
+            swiftMutator: .init(
+                version: "1.0.0",
+                executablePath: "/usr/local/bin/swift-mutator",
+                executableSHA256: "9f2c"
+            ),
+            toolchain: .init(
+                testCommandVersion: "Apple Swift version 6.4",
+                testExecutableSHA256: nil,
+                environment: ["SDKROOT": "/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk"]
+            ),
+            processIdentifier: 81234,
+            host: "host",
+            arguments: ["-c", "mutation.conf.yml", "--skip-coverage"]
+        )
+    }
+}
+
+extension ResultsHeader {
+    /// 2026-10-04T13:16:04.500Z: a whole number of milliseconds that a binary fraction holds exactly, so a header
+    /// read back from a results file equals the one written.
+    static let fixedStart = Date(timeIntervalSince1970: 1_791_119_764.5)
+
+    static func make(
+        formatVersion: Int = ResultsCoding.formatVersion,
+        session: Int = 1,
+        startedAt: Date = fixedStart,
+        mutantsDiscovered: Int = 3,
+        mutantsToTest: Int = 3
+    ) -> ResultsHeader {
+        ResultsHeader(
+            formatVersion: formatVersion,
+            session: session,
+            startedAt: startedAt,
+            provenance: .fixture,
+            configuration: MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"]),
+            operators: ["RelationalOperatorReplacement"],
+            filesToMutate: [],
+            skipCoverage: true,
+            usingTestPlan: false,
+            projectPath: "/project",
+            mutatedProjectPath: "/project_mutated",
+            logDirectory: "/project_muter_logs/run",
+            coverage: nil,
+            newVersion: "",
+            baselineSeconds: 32.125,
+            timeoutSeconds: 96.5,
+            timeoutIsDefault: true,
+            workers: 1,
+            stopsAtFirstFailure: false,
+            failedTestLinesAreReliable: true,
+            mutantsDiscovered: mutantsDiscovered,
+            mutantsToTest: mutantsToTest
+        )
+    }
+}
+
+extension MutantResult {
+    static func make(
+        session: Int = 1,
+        path: String = "Sources/Sum.swift",
+        line: Int = 73,
+        column: Int = 22,
+        occurrence: Int = 0,
+        outcome: TestSuiteOutcome = .failed,
+        finishedAt: Date = ResultsHeader.fixedStart.addingTimeInterval(31.25)
+    ) -> MutantResult {
+        MutantResult(
+            session: session,
+            path: path,
+            line: line,
+            column: column,
+            occurrence: occurrence,
+            utf8Offset: 3361,
+            mutationOperatorId: .ror,
+            switchID: "Sum_RelationalOperatorReplacement_\(line)_\(column)_3361",
+            snapshot: .make(before: ">", after: "<", description: "changed > to <"),
+            outcome: outcome,
+            endedBy: .exited,
+            exitStatus: outcome == .passed ? 0 : 1,
+            durationSeconds: 31.25,
+            worker: 0,
+            finishedAt: finishedAt,
+            killedBy: nil,
+            failedTestCount: nil,
+            firstFailedTestLine: nil,
+            log: "RelationalOperatorReplacement @ Sum.swift-\(line)-\(column).log",
+            fileSHA256: nil
+        )
+    }
+}
+
+extension ResultsEnd {
+    static func make(
+        session: Int = 1,
+        endedAt: Date = ResultsHeader.fixedStart.addingTimeInterval(100.5),
+        reason: Reason = .finished,
+        detail: String? = nil,
+        testDurationSeconds: Double = 100.5,
+        recorded: Int = 3
+    ) -> ResultsEnd {
+        ResultsEnd(
+            session: session,
+            endedAt: endedAt,
+            reason: reason,
+            detail: detail,
+            testDurationSeconds: testDurationSeconds,
+            recorded: recorded
+        )
+    }
+}

@@ -33,6 +33,10 @@ extension Notification.Name {
     static let newMutationTestOutcomeAvailable = Notification.Name("newMutationTestOutcomeAvailable")
     static let newTestLogAvailable = Notification.Name("newTestLogAvailable")
     static let baselineTestFailed = Notification.Name("baselineTestFailed")
+    /// The object is the results file's path.
+    static let resultsFileCreated = Notification.Name("resultsFileCreated")
+    /// The object is why the results file can't be created or written to.
+    static let resultsFileUnavailable = Notification.Name("resultsFileUnavailable")
 
     static let configurationFileCreated = Notification.Name("configurationFileCreated")
 
@@ -52,7 +56,9 @@ final class MutationTestObserver {
     private var notificationCenter: NotificationCenter
 
     private var numberOfMutationPoints: Int = 0
-    private var loggingDirectory: String = ""
+    private(set) var loggingDirectory: String = ""
+    /// The run's results file, while every result has been written to it.
+    private var resultsFilePath: String?
     private let runOptions: Run.Options
 
     private var notificationHandlerMappings: [(name: Notification.Name, handler: (Notification) -> Void)] {
@@ -81,6 +87,8 @@ final class MutationTestObserver {
             (name: .newMutationTestOutcomeAvailable, handler: handleNewMutationTestOutcomeAvailable),
             (name: .newTestLogAvailable, handler: handleNewTestLogAvailable),
             (name: .baselineTestFailed, handler: handleBaselineTestFailed),
+            (name: .resultsFileCreated, handler: handleResultsFileCreated),
+            (name: .resultsFileUnavailable, handler: handleResultsFileUnavailable),
 
             (name: .mutationTestingFinished, handler: handleMutationTestingFinished),
 
@@ -208,11 +216,19 @@ extension MutationTestObserver {
     }
 
     func logFileName(from mutationPoint: MutationPoint?) -> String {
-        guard let mutationPoint else {
-            return "baseline run.log"
-        }
+        MutationTestLog.keptFileName(for: mutationPoint)
+    }
 
-        return "\(mutationPoint.mutationOperatorId.rawValue) @ \(mutationPoint.fileName)-\(mutationPoint.position.line)-\(mutationPoint.position.column).log"
+    func handleResultsFileCreated(notification: Notification) {
+        guard let path = notification.object as? String else { return }
+        resultsFilePath = path
+        logger.resultsFileCreated(atPath: path)
+    }
+
+    /// The file, if there is one, lacks every result after the failed write, so the end of the run doesn't name it.
+    func handleResultsFileUnavailable(notification: Notification) {
+        resultsFilePath = nil
+        (notification.object as? String).map(logger.resultsFileUnavailable(reason:))
     }
 
     func handleMutationTestingFinished(notification: Notification) {
@@ -235,6 +251,7 @@ extension MutationTestObserver {
             isExportingReport: !reportPath.isEmpty,
             didSaveReport: didSave
         )
+        resultsFilePath.map(logger.resultsFileKept(atPath:))
     }
 
     func handleTestPlanFileCreated(notification: Notification) {
