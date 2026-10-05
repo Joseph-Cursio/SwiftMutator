@@ -51,6 +51,15 @@ SwiftMutator adds:
 | `mutationTestTimeout` | Seconds before a mutant's test run is stopped (default: 3× the baseline, at least 10) |
 | `stopAtFirstFailure` | Stop a mutant's test run at its first failed test, which already decides that it is killed (SwiftPM projects only; never the baseline; default false) |
 
+## Results file
+
+SwiftMutator saves each mutant's result as soon as it is tested, as one line of JSON in
+`results.jsonl` in the run's log folder, `<project>_muter_logs/<run>/`. A run that is stopped or
+crashes keeps every result it finished. The file's first line records the SwiftMutator build, the
+toolchain and the settings the run used, and each killed mutant's line names the tests that failed.
+[Docs/results-file.md](Docs/results-file.md) describes the format, with `jq` recipes such as the
+tests that killed the most mutants.
+
 ## Development
 
 `make test` runs the unit tests (the `muterTests` target). CI runs them on every pull request

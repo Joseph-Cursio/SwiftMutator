@@ -4,7 +4,7 @@ This is a ranked list of improvements to SwiftMutator, made at commit `4ba72fc` 
 
 - **How it was produced.** Thirteen agents read the code and the run logs without modifying anything. Six of them each examined one area. Six more each tried to disprove another agent's suggestions against the code. A final agent looked for anything all of them had missed.
 - **How the suggestions held up.** There were 61 suggestions. Verification rejected none of the 54 from the six areas. About half of those needed a corrected estimate, and the corrected numbers are used below. The final agent's seven suggestions weren't separately checked.
-- **Status, updated 3 October 2026.** CI (§4), §2.3, §2.5 and the three bug fixes in §2.7 are done, in PRs #24–#27. Each finished item below says what was done and what was left out. Two problems found along the way are under [Found while implementing](#found-while-implementing).
+- **Status, updated 4 October 2026.** CI (§4), §2.3, §2.5 and the three bug fixes in §2.7 are done, in PRs #24–#27. The results file (§2.1 item 1) and the data for §2.2 item 1 are done in the results-file PR (`feat/results-file`). Each finished item below says what was done and what was left out. Two problems found along the way are under [Found while implementing](#found-while-implementing).
 
 ## The workload these numbers come from
 
@@ -91,6 +91,8 @@ The test project is SwiftProjectLint, run on the whole repo: 528 files, **2,497 
 
 ### 2.1 Nothing is saved until the run finishes, and there's no resume (four of six agents flagged this)
 
+**Item 1 done in the results-file PR (`feat/results-file`).** Each tested mutant's result is appended to `results.jsonl` in the run's log folder as it finishes, and flushed with `fsync`, between a header and an end line. [results-file.md](results-file.md) documents the format. Results are keyed by repo-relative path, operator, line, column and occurrence, never by job position or mutant ID. The header also records the provenance §3 asks for, with the executable's SHA-256 in place of the commit. Not done yet: items 2–4.
+
 - **What happens.** Outcomes exist only in memory until the report is written at the very end. The "before" run was stopped at 1,103 of 2,497 mutants and kept no structured results, only 747 MB of raw per-mutant logs. There's also no signal handler, so an interrupted run leaves its test processes and worker copies behind.
 - **Proposal.**
   1. **Results file.** In `record()` (`PerformMutationTesting.swift:225`), append one JSON line per mutant and flush it. Record: the mutant ID, repo-relative path, line and column, operator, outcome, duration, worker, exit status and killing tests. Add a header line with the toolchain, the SwiftMutator commit and the config.
@@ -99,6 +101,8 @@ The test project is SwiftProjectLint, run on the whole repo: 528 files, **2,497 
   4. **Interruptions.** On SIGINT/SIGTERM or an abort, write a partial report and remove the worker copies.
 
 ### 2.2 Tests that fail only under load inflate the score
+
+**Item 1 partly done in the results-file PR (`feat/results-file`).** Each killed, crashed or timed-out mutant's line in the results file names up to 20 failing tests with their locations, read from Swift Testing's `✘ Test … recorded an issue` lines and XCTest's `Test Case '…' failed (` lines, plus how many failed in all. No report format shows them yet, and items 2–4 aren't done.
 
 - **What happened.** SwiftProjectLint's `ProjectLinterTests.swift:98` asserts `#expect(duration < 10.0)`.
   - **Before run:** it failed in 817 of 1,103 mutant runs, and was the only failing test for about 200 mutants. Of the mutants seen in both runs, 23 of the 24 killed only by this test flipped to survived in the new run.
@@ -226,7 +230,7 @@ The test project is SwiftProjectLint, run on the whole repo: 528 files, **2,497 
 ## Suggested order
 
 1. **Small correctness fixes:** same-name merge, worker drop, UTF-8 classification (§2.3, §2.5, §2.7). *Done in PRs #25–#27.*
-2. **The base for most of the rest:** a per-mutant results file and the killing tests for each mutant (§2.1, §2.2).
+2. **The base for most of the rest:** a per-mutant results file and the killing tests for each mutant (§2.1, §2.2). *Results file done in the results-file PR, with the killing tests in it; reports don't show them yet.*
 3. **Fail-fast,** triggered by the event stream (§1.2).
 4. **Measure, then fix, the manifest recompile** (§1.1).
 5. **Progress output** that works in a log file (§3).
