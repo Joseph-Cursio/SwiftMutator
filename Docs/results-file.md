@@ -89,7 +89,7 @@ A value that couldn't be found, such as the hash of an executable that can't be 
 | `line`, `column` | Int | Where the mutant is in the original file |
 | `occurrence` | Int | 0, or n for the nth repeat in the run of the same `path`, operator, `line` and `column` |
 | `mutationOperatorId` | String | `RelationalOperatorReplacement`, `RemoveSideEffects`, `ChangeLogicalConnector` or `SwapTernary` |
-| `switchID` | String | The environment variable that switched the mutant on. It is only for diagnosis: two files with the same name can share one. |
+| `switchID` | String | The ID that switched the mutant on: under `swift test`, the contents of the worker's `.swiftmutator-active-mutant` file; otherwise an environment variable of that name. Only for diagnosis: two files with the same name can share one. |
 | `utf8Offset` | Int | The mutant's offset in the file as SwiftMutator prepared it, which has lines SwiftMutator added at the top |
 | `snapshot` | `{before, after, description}` | The code before and after the mutation, as the report shows it |
 | `outcome` | String | `failed` (killed: a test failed), `runtimeError` (killed: the tests crashed), `passed` (survived), `timeout` (stopped at the time limit without showing a failure) or `buildError` |
