@@ -48,7 +48,8 @@ class MuterTestCase: XCTestCase {
             server: server,
             now: { self.fixedNow },
             instant: { DispatchTime(uptimeNanoseconds: 1) },
-            testingTimeOutExecutor: { self.testingTimeOutExecutor }
+            testingTimeOutExecutor: { self.testingTimeOutExecutor },
+            provenance: { _ in .fixture }
         )
     }
 
