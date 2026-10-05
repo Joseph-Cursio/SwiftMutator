@@ -29,7 +29,7 @@ To run Muter's unit tests from the command line:
 
 ```make test```
 
-This runs only the `muterTests` target. A plain `swift test` also runs the acceptance and regression targets, and their tests fail unless the sample projects they read have been generated first (see below).
+This runs only the `muterTests` target. A plain `swift test` also runs the acceptance and regression targets. Their tests read samples that the scripts below generate, and they skip themselves while the `samples` folder doesn't exist. Once a script has run, they run too, and fail if what it generated is missing or wrong.
 
 Alternatively, you can generate an xcode project with the command:
 
