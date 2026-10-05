@@ -7,6 +7,7 @@ This is a ranked list of improvements to SwiftMutator, made at commit `4ba72fc` 
 - **Status, updated 5 October 2026.** Each finished item below says what was done and what was left out.
   - CI (§4) is done in PR #24, and §2.3, §2.5 and the three bug fixes in §2.7 in PRs #25–#27.
   - Fail-fast (§1.2) is done in PR #36, and on by default for SwiftPM since PR #41, after an A/B run took 37% less time. One part of PR #36 applies whether or not it's on: a time-out rule that can raise scores (see §2.7).
+  - The manifest recompile (§1.1) is fixed in PR #42, after lab measurements confirmed its cause. An A/B run of the merged build is still to do.
   - A plain `swift test` and `swiftlint` pass on `main` since PR #37 (§4).
   - The results file (§2.1 item 1) and the data for §2.2 item 1 are done in PR #38.
   - Problems found along the way, and which PRs fixed them, are under [Found while implementing](#found-while-implementing). Three are still open.
@@ -30,13 +31,30 @@ The test project is SwiftProjectLint, run on the whole repo: 528 files, **2,497 
 
 | # | Change | Effect on this run | Effort |
 |---|---|---|---|
-| 1 | Stop recompiling `Package.swift` for every mutant | About −1.2 h (cause not yet proven) | M |
+| 1 | Stop recompiling `Package.swift` for every mutant (PR #42) | About −1 h. Measured in the lab: 29% less time per mutant with 4 workers | M |
 | 2 | Stop each mutant's test run at the first failure (PR #36, on by default since PR #41) | About 1.65×; with #1, **4.2 h → 1.4 h**. Measured: 37% less time on 255 mutants | M |
 | 3 | Skip mutants that no test reaches (about 6%) | About −16 min | M |
 | 4 | Do less work per run: reuse unchanged results, `--since`, `--shard` | Minutes for nightly or PR runs; about 2× with sharding | M |
 | 5 | Try release-mode tests and tune the worker count | Unmeasured; about 10–20% for the worker count | S |
 
 ### 1.1 Stop recompiling `Package.swift` for every mutant
+
+**Done in PR #42** (SwiftPM only: `swift test`, or a wrapper with `buildSystem: swift`).
+- **Cause, confirmed.** SwiftPM 6.4 hashes the name and value of every environment variable, apart from a short deny-list, into its manifest cache key. So each mutant's own `<id>=YES` made every run compile all 22 manifests and add 22 rows to the shared cache. One fixed variable whose value changes each run measured the same: 9.81 s against 9.81 s. Only an identical environment helps.
+- **Fix.** Every run in a worker's folder, baseline included, gets one environment.
+  - `SWIFTMUTATOR_ACTIVE_MUTANT_FILE` names the folder's hidden `.swiftmutator-active-mutant` file. It holds the mutant's ID, or nothing for a baseline, and is written just before each run.
+  - The generated `__SwiftMutator` enum reads the file once. If it can't, the tests stop with a fatal error, so a broken channel fails the baseline instead of letting every mutant survive.
+  - xcodebuild and other wrappers keep each mutant's own variable. A SwiftPM test plan made by an older SwiftMutator is refused.
+- **Measured in the lab** (Swift 6.4, SwiftProjectLint's full suite with `--skip-build`).
+  - One run on its own: 9.81 s → 7.60 s.
+  - 4 free-running workers: 21.6 s → 15.3 s per mutant per worker, 29% less. The time before the test helper starts went from 7.7 s to 1.9 s.
+  - A prototype, run end to end on 24 mutants with 4 workers: the median time per mutant went from 20.02 s to 13.77 s. Mutant runs added no manifest rows, against 22 each before, and all 24 outcomes and failed-test counts matched.
+  - `--skip-update` made no measurable difference, so it isn't used.
+- **Projection.** About 2,497 × 6 s / 4 ≈ 1 h off the ~4.1 h run.
+- **Not done yet.**
+  - An A/B run of the merged build on SwiftProjectLint, and a full run.
+  - About 1.3–1.9 s still passes before the test helper starts: toolchain probes, loading the package graph, a resolution step on every run, and XCTest discovery.
+  - Tests that list hidden files at the package root, or need a clean `git status` in the copy, see the file. They see it in the baseline too, so they fail loudly.
 
 - **What happens.** Each mutant runs `swift test --skip-build` (`MuterConfiguration.swift:192-193`). About 9 s of each mutant's ~24 s passes before the test helper even starts. During that time each worker's `swift-test` starts new `swift-driver` processes and links the package manifest again (`Package-1.o`).
 - **Likely cause.** SwiftPM's manifest cache is keyed on the environment, and every mutant sets a different activation variable. So all 22 package manifests are recompiled every time.
@@ -286,7 +304,7 @@ Not done yet: items 2–4. They are planned as follow-up PRs, outlined in PR #38
 1. **Small correctness fixes:** same-name merge, worker drop, UTF-8 classification (§2.3, §2.5, §2.7). *Done in PRs #25–#27.*
 2. **The base for most of the rest:** a per-mutant results file and the killing tests for each mutant (§2.1, §2.2). *Results file done in PR #38, with the killing tests in it; reports don't show them yet. The `report` command, clean interruptions and `--resume` are designed but not built.*
 3. **Fail-fast,** triggered by the event stream (§1.2). *Done in PR #36, triggered by console lines instead (see §1.2). On by default since PR #41, after an A/B run took 37% less time.*
-4. **Measure, then fix, the manifest recompile** (§1.1).
+4. **Measure, then fix, the manifest recompile** (§1.1). *Done in PR #42: every `swift test` run in a worker's folder gets one environment, and the mutant is named in a file.*
 5. **Progress output** that works in a log file (§3).
 6. **Reuse, `--since`, the coverage fix and CI** (§1.3, §1.4, §4). *CI done in PR #24.*
 

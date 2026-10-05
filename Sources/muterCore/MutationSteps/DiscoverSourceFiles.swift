@@ -44,6 +44,9 @@ struct DiscoverSourceFiles: MutationStep {
 }
 
 private extension DiscoverSourceFiles {
+    /// Package manifests, versioned (`Package@swift-6.0.swift`) or not, are never mutated: every `swift test`
+    /// run in a worker folder has one environment, so SwiftPM reuses the baseline's cached manifest and a
+    /// mutant in one would never switch on.
     private var defaultExcludeList: [FilePath] {
         [
             "/.swiftpm/",
@@ -57,6 +60,7 @@ private extension DiscoverSourceFiles {
             "Tests.swift",
             "/fastlane/",
             "/Package.swift",
+            "/Package@swift-",
         ]
     }
 

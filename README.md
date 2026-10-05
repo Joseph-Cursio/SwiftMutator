@@ -23,6 +23,13 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   each in its own APFS clone of the mutated project. Each clone is built once before testing, which
   costs one extra build per worker but keeps tests that write files next to their sources from
   sharing them across workers.
+- **One environment for every `swift test` run:** a mutant is switched on by its ID in a hidden
+  `.swiftmutator-active-mutant` file in the worker's folder, not by a variable of its own. SwiftPM
+  keys its cache of compiled package manifests on the whole environment, so runs no longer
+  recompile every `Package.swift`, which saves about 6 s per mutant with 4 workers. A wrapper
+  script around `swift test` gets this only with `buildSystem: swift`; other wrappers and
+  `xcodebuild` keep a variable per mutant. A SwiftPM test plan made by an older SwiftMutator is
+  refused: make it again with `swift-mutator mutate-without-running`.
 - **A default timeout:** without `mutationTestTimeout`, a mutant's test run stops after 3× the
   baseline (at least 10 s), so a mutant that loops forever can't hang the run.
 - **Logging through the injected printer**, so log output can be captured and tested.

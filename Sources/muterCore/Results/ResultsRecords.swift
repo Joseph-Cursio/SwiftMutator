@@ -173,7 +173,8 @@ struct MutantResult: Codable, Equatable {
     /// The mutant's offset in the file as SwiftMutator prepared it.
     let utf8Offset: Int
     let mutationOperatorId: MutationOperator.Id
-    /// `MutationSchema.id`, the environment variable that switched the mutant on. Never a key.
+    /// `MutationSchema.id`, the ID that switched the mutant on: under `swift test`, the contents of the worker's
+    /// active-mutant file; otherwise an environment variable of that name. Never a key.
     let switchID: String
     let snapshot: MutationOperator.Snapshot
     let outcome: TestSuiteOutcome
