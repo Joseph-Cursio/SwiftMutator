@@ -23,7 +23,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
             executable: "/tmp/xcodebuild",
             arguments: [
                 "-destination",
-                "platform=macOS,arch=x86_64,variant=Mac Catalyst"
+                "platform=macOS,arch=x86_64,variant=Mac Catalyst",
             ]
         )
 
@@ -43,7 +43,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
             "-destination",
             "platform=macOS,arch=x86_64,variant=Mac Catalyst",
             "-xctestrun",
-            "muter.xctestrun"
+            "muter.xctestrun",
         ])
 
         XCTAssertEqual(testProcess.executableURL?.path, "/tmp/xcodebuild")

@@ -5,7 +5,7 @@ extension MuterConfiguration {
         generateXcodeProjectConfiguration,
         generateXcodeWorkspaceConfiguration,
         generateSPMConfiguration,
-        generateEmptyConfiguration
+        generateEmptyConfiguration,
     ]
 
     init(from directoryContents: [FilePath]) {
@@ -73,7 +73,7 @@ private extension MuterConfiguration {
             isWorkSpace ? "-workspace" : "-project",
             isWorkSpace ? "\(projectName).xcworkspace" : "\(projectName).xcodeproj",
             "-scheme",
-            "\(projectName)"
+            "\(projectName)",
         ]
 
         let destination = projectFile.contains("SDKROOT = iphoneos") ?

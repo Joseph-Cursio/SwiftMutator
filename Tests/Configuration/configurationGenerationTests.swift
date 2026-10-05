@@ -7,7 +7,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
             "/some/path/Package.swift",
             "/some/path/Package@swift-5.11.swift",
             "/some/path/main.swift",
-            "/some/path/PackageIgnoreMe.swift"
+            "/some/path/PackageIgnoreMe.swift",
         ]
 
         process.stdoutToBeReturned = which("swift")
@@ -29,7 +29,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
         let projectDirectoryContents = [
             "/some/path/Package.swift",
             "/some/path/main.swift",
-            "\(fixturesDirectory)/XcodeProjectFiles/iOSApp.xcodeproj"
+            "\(fixturesDirectory)/XcodeProjectFiles/iOSApp.xcodeproj",
         ]
 
         process.stdoutToBeReturned = simCtl()
@@ -46,7 +46,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
                 "iOSApp",
                 "-destination",
                 "platform=iOS Simulator,name=iPhone SE (3rd generation)",
-                "test"
+                "test",
             ]
         )
 
@@ -64,7 +64,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
     func test_iosProject() {
         let projectDirectoryContents = [
             "\(fixturesDirectory)/XcodeProjectFiles/iOSApp.xcodeproj",
-            "/some/path/AppDelegate.swift"
+            "/some/path/AppDelegate.swift",
         ]
 
         process.stdoutToBeReturned = simCtl()
@@ -81,7 +81,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
                 "iOSApp",
                 "-destination",
                 "platform=iOS Simulator,name=iPhone SE (3rd generation)",
-                "test"
+                "test",
             ]
         )
 
@@ -101,7 +101,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
             "\(fixturesDirectory)/XcodeProjectFiles/iOSApp.xcodeproj",
             "\(fixturesDirectory)/XcodeProjectFiles/iOSApp.xcodeproj/project.xcworkspace",
             "\(fixturesDirectory)/XcodeProjectFiles/iOSApp.xcodeproj/project.xcworkspace/contents.xcworkspacedata",
-            "/some/path/AppDelegate.swift"
+            "/some/path/AppDelegate.swift",
         ]
 
         process.stdoutToBeReturned = simCtl()
@@ -118,7 +118,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
                 "iOSApp",
                 "-destination",
                 "platform=iOS Simulator,name=iPhone SE (3rd generation)",
-                "test"
+                "test",
             ]
         )
 
@@ -136,7 +136,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
     func test_macOSProject() {
         let projectDirectoryContents = [
             "\(fixturesDirectory)/XcodeProjectFiles/CocoaApp.xcodeproj",
-            "/some/path/AppDelegate.swift"
+            "/some/path/AppDelegate.swift",
         ]
 
         process.stdoutToBeReturned = macOSDescitionation()
@@ -155,7 +155,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
                     "CocoaApp",
                     "-destination",
                     "platform=macOS,arch=arm64,id=00006000-000A38D61E02401E,name=My Mac",
-                    "test"
+                    "test",
                 ]
             )
         )
@@ -165,7 +165,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
         let projectDirectoryContents = [
             "\(fixturesDirectory)/XcodeProjectFiles/iOSApp.xcodeproj",
             "/some/path/iOSApp.xcworkspace", // does not need to be a real file - just needs to share a name
-            "/some/path/AppDelegate.swift"
+            "/some/path/AppDelegate.swift",
         ]
 
         process.stdoutToBeReturned = simCtl()
@@ -182,7 +182,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
                 "iOSApp",
                 "-destination",
                 "platform=iOS Simulator,name=iPhone SE (3rd generation)",
-                "test"
+                "test",
             ]
         )
 
@@ -201,7 +201,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
         let projectDirectoryContents = [
             "\(fixturesDirectory)/XcodeProjectFiles/CocoaApp.xcodeproj",
             "/some/path/CocoaApp.xcworkspace", // does not need to be a real file - just needs to share a name
-            "/some/path/AppDelegate.swift"
+            "/some/path/AppDelegate.swift",
         ]
 
         process.stdoutToBeReturned = macOSDescitionation()
@@ -220,7 +220,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
                     "CocoaApp",
                     "-destination",
                     "platform=macOS,arch=arm64,id=00006000-000A38D61E02401E,name=My Mac",
-                    "test"
+                    "test",
                 ]
             )
         )

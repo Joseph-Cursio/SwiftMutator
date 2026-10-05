@@ -218,7 +218,7 @@ extension MuterConfiguration {
                 testCommandArguments[destinationIndex],
                 testCommandArguments[destinationIndex + 1],
                 "-xctestrun",
-                testRunFile
+                testRunFile,
             ]
         case .swift:
             return arguments + ["--skip-build"]
