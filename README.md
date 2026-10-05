@@ -49,7 +49,7 @@ SwiftMutator adds:
 |---|---|
 | `mutationTestWorkers` | How many mutants to test at once (SwiftPM projects only; default 1) |
 | `mutationTestTimeout` | Seconds before a mutant's test run is stopped (default: 3× the baseline, at least 10) |
-| `stopAtFirstFailure` | Stop a mutant's test run at its first failed test, which already decides that it is killed (SwiftPM projects only; never the baseline; default false) |
+| `stopAtFirstFailure` | Stop a mutant's test run at its first failed test, which already decides that it is killed (SwiftPM projects only; never the baseline; default true) |
 
 ## Results file
 
