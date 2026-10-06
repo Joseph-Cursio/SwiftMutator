@@ -30,6 +30,8 @@ typealias Now = () -> Date
 typealias Instant = () -> DispatchTime
 typealias TestingTimeoutExecutorFactory = () -> TestingTimeoutExecution
 typealias ProvenanceProbe = (MuterConfiguration) -> Provenance
+/// The files in a project, relative to it, or nil if it can't list them.
+typealias ProjectFileListing = (URL) -> [String]?
 
 struct World {
     var notificationCenter: NotificationCenter = .default
@@ -60,6 +62,10 @@ struct World {
     var testingTimeOutExecutor: TestingTimeoutExecutorFactory = { TestingTimeoutExecutor() }
     var provenance: ProvenanceProbe = { Provenance.probe($0) }
     var resultsFiles: ResultsFileOpening = ResultsFile.Opener()
+    var listProjectFiles: ProjectFileListing = GitFileListing.list(in:)
+    /// SwiftMutator's command-line arguments, after the executable: what a results file's header records, and what the
+    /// command that continues a stopped run repeats.
+    var commandLineArguments: [String] = Array(CommandLine.arguments.dropFirst())
     /// The signal that stopped this run, if one did.
     var interruption = InterruptionRecord()
 }

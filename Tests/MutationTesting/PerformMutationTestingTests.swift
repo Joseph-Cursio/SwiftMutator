@@ -91,6 +91,19 @@ final class PerformMutationTestingTests: MuterTestCase {
         )
     }
 
+    // The progress bar's first estimate of the time left starts from this count. It used to come from state no step
+    // sets, so the estimate was always 0 minutes.
+    func test_theBaselinesLog_countsTheMutantsToTest() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        let posted = recordNotifications(named: [.newTestLogAvailable])
+
+        _ = try await sut.run(with: state)
+
+        let baselineLog = try XCTUnwrap(posted().first?.object as? MutationTestLog)
+        XCTAssertNil(baselineLog.mutationPoint)
+        XCTAssertEqual(baselineLog.remainingMutationPointsCount, 2)
+    }
+
     func test_whenBaselineFailsDueToTestingFailure() async throws {
         ioDelegate.testSuiteOutcomes = [.failed]
 
@@ -267,6 +280,35 @@ final class PerformMutationTestingTests: MuterTestCase {
         _ = try await sut.run(with: state)
 
         XCTAssertEqual(posted().count, 0)
+    }
+
+    // The jobs and their keys are there before the baseline runs, so only its passing tells a stop that has something
+    // to report from one that hasn't. A stop during the baseline posts no early end; one just after it passed posts
+    // one, with nothing tested yet and every mutant discovered.
+    func test_anEarlyEnd_isPostedOnlyOnceTheBaselinePassed() async throws {
+        ioDelegate.testSuiteOutcomes = [.buildError, .passed]
+        ioDelegate.whileRunningBaseline = { _ in withUnsafeCurrentTask { $0?.cancel() } }
+        let posted = recordNotifications(named: [.mutationTestingEndedEarly])
+
+        let stoppedDuringTheBaseline = await runInItsOwnTask()
+
+        XCTAssertThrowsError(try stoppedDuringTheBaseline.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(posted().count, 0)
+
+        ioDelegate.whileRunningBaseline = nil
+        // The baseline's log is the last thing posted before the first mutant.
+        cancelMutationTesting(whenPosted: .newTestLogAvailable)
+
+        let stoppedOnceItPassed = await runInItsOwnTask()
+
+        XCTAssertThrowsError(try stoppedOnceItPassed.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        let earlyEnds = posted().compactMap { $0.object as? EarlyEnd }
+        XCTAssertEqual(earlyEnds.count, 1)
+        let earlyEnd = try XCTUnwrap(earlyEnds.first)
+        XCTAssertEqual(earlyEnd.reason, .interrupted)
+        XCTAssertEqual(earlyEnd.discovered, 2)
+        XCTAssertEqual(earlyEnd.outcome.mutations.count, 0)
+        XCTAssertEqual(ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count, 0)
     }
 
     func test_whenEncountersFiveNonConsecutiveBuildErrors_thenPerformMutationTesting() async throws {

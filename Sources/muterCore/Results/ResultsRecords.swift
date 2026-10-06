@@ -2,9 +2,16 @@ import Foundation
 
 /// How a results file's lines are written and read: JSON Lines, one record per line, each with a `kind`.
 enum ResultsCoding {
-    /// Changes only for a change that a reader of the earlier format would misread. A new key or a new kind needs
-    /// none: readers ignore keys and skip kinds they don't know.
+    /// A first session's header's format. A format changes only for a change that a reader of the earlier one would
+    /// misread. A new key, or a new kind a reader can skip, needs none: readers ignore keys and skip kinds they don't
+    /// know.
     static let formatVersion = 1
+    /// A resumed session's header's format: its file holds `retired` lines, which a format-1 reader would skip, so it
+    /// would report results the run no longer stands by. A file that was never resumed stays in format 1, which older
+    /// SwiftMutators read.
+    static let resumedFormatVersion = 2
+    /// The newest format this SwiftMutator reads. It refuses a file with a header in a newer one.
+    static let newestFormatVersion = resumedFormatVersion
 
     /// Sorted keys, so lines read and compare alike; slashes unescaped, so paths read as paths; never pretty-printed,
     /// so a record is one line, any line break in it escaped. Dates are ISO 8601 in UTC, to the millisecond.
@@ -78,11 +85,13 @@ struct CoverageSummary: Codable, Equatable {
 }
 
 /// A session's first line: where its results came from, and what they were tested with. Written once the baseline
-/// passes, so a run whose baseline fails leaves no results file.
+/// passes, so a run whose baseline fails leaves no results file, and a resumed one adds no session to its file. A
+/// resumed session with nothing left to test runs no baseline, and writes it at once.
 struct ResultsHeader: Codable, Equatable {
     var kind = "header"
+    /// `ResultsCoding.formatVersion` for a first session, `resumedFormatVersion` for a resumed one.
     let formatVersion: Int
-    /// 1 for now; a resumed run adds the next session to the same file.
+    /// 1 for a run's first session; each resumed session adds the next to the same file.
     let session: Int
     /// When mutation testing started, which the session's test duration is measured from.
     let startedAt: Date
@@ -97,15 +106,16 @@ struct ResultsHeader: Codable, Equatable {
     let usingTestPlan: Bool
     let projectPath: String
     let mutatedProjectPath: String
-    /// The folder of the session's kept logs, which each mutant's `log` names a file in.
+    /// The folder of the session's kept logs, which each of its mutants' `log` names a file in. A resumed session has
+    /// a folder of its own; the results file stays in the first session's.
     let logDirectory: String
     /// Absent when the run has no coverage, as its report then shows none.
     let coverage: CoverageSummary?
     /// The newer SwiftMutator version the update check found, or "", which the HTML report shows.
     let newVersion: String
-    /// How long the baseline run took.
+    /// How long the baseline run took; nil when a resumed session had nothing left to test, and ran none.
     let baselineSeconds: Double?
-    /// The time limit for a mutant's run: the configured one, or else the default the baseline set.
+    /// The time limit for a mutant's run: the configured one, or else the default the baseline set, if one ran.
     let timeoutSeconds: Double?
     let timeoutIsDefault: Bool
     let workers: Int
@@ -113,11 +123,23 @@ struct ResultsHeader: Codable, Equatable {
     let failedTestLinesAreReliable: Bool
     let mutantsDiscovered: Int
     let mutantsToTest: Int
+    /// The project's files, as the mutated copy held them before discovery rewrote it. Absent when the run tested a
+    /// test plan, which copies nothing.
+    let project: ProjectTree?
+    /// Only in a resumed session: how many earlier results it kept rather than tested again.
+    let mutantsReused: Int?
+    /// Only in a resumed session: the changed project files `--resume-ignoring` let through, by their paths.
+    let waived: [String]?
+    /// Only in a resumed session: the build and toolchain differences `--force-resume` let through, by their names in
+    /// `provenance`.
+    let forced: [String]?
 }
 
 extension ResultsHeader {
     /// The header of a session that tests `state`'s mutants with `configuration`, the effective configuration: the
-    /// default time limit applied, and failed-test lines judged by the baseline. `logDirectory` is the run's.
+    /// default time limit applied, and failed-test lines judged by the baseline. `logDirectory` is the session's. A
+    /// session after the first is a resumed one, in `ResultsCoding.resumedFormatVersion`, which says what it reused,
+    /// and what `--resume-ignoring` and `--force-resume` let through.
     init(
         session: Int,
         startedAt: Date,
@@ -128,11 +150,14 @@ extension ResultsHeader {
         workers: Int,
         mutantsDiscovered: Int,
         mutantsToTest: Int,
-        provenance: Provenance
+        provenance: Provenance,
+        mutantsReused: Int? = nil,
+        waived: [String]? = nil,
+        forced: [String]? = nil
     ) {
         let coverage = state.projectCoverage
         self.init(
-            formatVersion: ResultsCoding.formatVersion,
+            formatVersion: session == 1 ? ResultsCoding.formatVersion : ResultsCoding.resumedFormatVersion,
             session: session,
             startedAt: startedAt,
             provenance: provenance,
@@ -155,7 +180,11 @@ extension ResultsHeader {
             stopsAtFirstFailure: configuration.stopsAtFirstFailure,
             failedTestLinesAreReliable: configuration.failedTestLinesAreReliable,
             mutantsDiscovered: mutantsDiscovered,
-            mutantsToTest: mutantsToTest
+            mutantsToTest: mutantsToTest,
+            project: state.projectTree,
+            mutantsReused: mutantsReused,
+            waived: waived,
+            forced: forced
         )
     }
 }
@@ -250,6 +279,15 @@ extension MutantResult {
     }
 }
 
+/// The keys of earlier sessions' results that a resumed session no longer stands by: those of the mutants it tests
+/// again, and of those its discovery no longer finds. A reader drops each key's records before this line; a mutant
+/// line after it records the key again.
+struct ResultsRetired: Codable, Equatable {
+    var kind = "retired"
+    let session: Int
+    let keys: [MutantKey]
+}
+
 /// A session's last line, written when mutation testing stops however it can. A run killed by SIGKILL, or that
 /// crashed, has none.
 struct ResultsEnd: Codable, Equatable {
@@ -266,7 +304,8 @@ struct ResultsEnd: Codable, Equatable {
     /// Why it stopped early: the stopping signal's name (`"SIGINT"`) for an interruption a signal caused, or else a
     /// short code (`detail(for:)`).
     let detail: String?
-    /// Exactly the session's `MutationTestOutcome.testDuration`.
+    /// How long this session's mutation testing took. For a first session, exactly its `MutationTestOutcome`'s
+    /// `testDuration`; a resumed session's outcome adds the earlier sessions'.
     let testDurationSeconds: Double
     /// How many mutant lines the session wrote.
     let recorded: Int

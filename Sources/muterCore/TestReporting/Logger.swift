@@ -5,7 +5,8 @@ final class Logger {
     private var printer: Printer
     @Dependency(\.errorPrinter)
     private var errorPrinter: Printer
-    private var numberOfMutationPoints: Int = 0
+    /// How many mutants the progress bar counts: those discovered, or those a resumed run has left to test.
+    private(set) var numberOfMutationPoints: Int = 0
     private var progressBar: ProgressBar!
     /// How many lines the progress bar takes. Its printer redraws it by moving the cursor up over that many lines.
     private static let progressBarLines = 2
@@ -116,6 +117,68 @@ final class Logger {
         }
     }
 
+    /// How many of a resumed run's results still hold, and how many mutants are left to test and why; then each change
+    /// no result depends on, and what `--force-resume` and `--resume-ignoring` let through. The progress bar then
+    /// counts only the mutants left to test.
+    func resumePlanned(_ summary: ResumeSummary) {
+        numberOfMutationPoints = summary.toTest
+        let resuming = "♻️ Resuming the run in \(summary.path.bold): "
+        if summary.toTest == 0 {
+            let reused = summary.reused == 1 ? "its only result still holds" : "all \(summary.reused) results still hold"
+            print(resuming + "\(reused), so nothing is left to test.")
+        } else {
+            let reasons = ResumePlan.Reason.allCases.compactMap { reason in
+                summary.retestedBecause[reason].flatMap { $0 > 0 ? Self.retested($0, because: reason) : nil }
+            }
+            let reused = summary.reused == 1 ? "1 result still holds" : "\(summary.reused) results still hold"
+            let left = summary.toTest == 1 ? "1 mutant is" : "\(summary.toTest) mutants are"
+            let why = reasons.isEmpty ? "" : " (\(reasons.joined(separator: ", ")))"
+            print(resuming + "\(reused), so \(left) left to test\(why).")
+        }
+        for notice in summary.notices {
+            print("ℹ️ \(notice)")
+        }
+        if !summary.forced.isEmpty {
+            let subjects = summary.forced.map { name in
+                let subject = ResumeCheck.subject(of: name)
+                return subject.hasPrefix("The ") ? "the " + subject.dropFirst(4) : subject
+            }
+            print("⚠️ Results are reused although \(Self.listed(subjects)) changed (--force-resume).")
+        }
+        if !summary.waived.isEmpty {
+            let named = summary.waived.prefix(ResumeRefusal.changedFilesNamed)
+            let others = summary.waived.count - named.count
+            let files = summary.waived.count == 1 ? "1 project file" : "\(summary.waived.count) project files"
+            print(
+                "⚠️ Results are reused although \(files) changed (--resume-ignoring): "
+                    + named.joined(separator: ", ") + (others > 0 ? ", and \(others) more" : "")
+            )
+        }
+    }
+
+    /// "5 build errors": how many mutants are tested again for `reason`.
+    private static func retested(_ count: Int, because reason: ResumePlan.Reason) -> String {
+        let one = count == 1
+        switch reason {
+        case .notRecorded:
+            return "\(count) never tested"
+        case .buildError:
+            return "\(count) build error\(one ? "" : "s")"
+        case .fileChanged:
+            return "\(count) in \(one ? "a changed file" : "changed files")"
+        case .mutationChanged:
+            return "\(count) changed mutation\(one ? "" : "s")"
+        case .repeated:
+            return "\(count) repeated in \(one ? "its" : "their") file"
+        }
+    }
+
+    /// "a, b and c".
+    private static func listed(_ items: [String]) -> String {
+        guard let last = items.last, items.count > 1 else { return items.first ?? "" }
+        return items.dropLast().joined(separator: ", ") + " and " + last
+    }
+
     func mutationTestingStarted() {
         printMessage(
             """
@@ -166,8 +229,11 @@ final class Logger {
                     ProgressPercent(),
                     ColoredProgressBarLine(barLength: 50),
                     SimpleTimeEstimate(
-                        initialEstimate: Double(mutationTestLog.remainingMutationPointsCount!) * mutationTestLog
-                            .timePerBuildTestCycle!
+                        initialEstimate: Self.initialEstimate(
+                            remaining: mutationTestLog.remainingMutationPointsCount!,
+                            cycle: mutationTestLog.timePerBuildTestCycle!,
+                            workers: mutationTestLog.workers
+                        )
                     ),
                 ],
                 printer: ProgressBarMultilineTerminalPrinter(numberOfLines: Self.progressBarLines)
@@ -175,6 +241,13 @@ final class Logger {
         }
 
         progressBar.next()
+    }
+
+    /// The time left before any mutant has finished. Each worker tests its share of the `remaining` mutants, a
+    /// build-and-test `cycle` for each, while the others test theirs, so the largest share sets it.
+    static func initialEstimate(remaining: Int, cycle: TimeInterval, workers: Int) -> TimeInterval {
+        let largestShare = ceil(Double(remaining) / Double(max(workers, 1)))
+        return largestShare * cycle
     }
 
     func mutationTestingFinished(
@@ -205,25 +278,18 @@ final class Logger {
     }
 
     /// What mutation testing tested before it stopped early, where its partial report is, if it has one, where each
-    /// result is, and the command that makes a report of them all. On standard error: it reaches the terminal even when
-    /// a `| tee` that the same Ctrl-C ended has closed standard output. An abort's error follows on standard output.
+    /// result is, the command that makes a report of them all, and the command that continues the run. A resumed
+    /// session counts the mutants it tested apart from the results it kept. On standard error: it reaches the terminal
+    /// even when a `| tee` that the same Ctrl-C ended has closed standard output. An abort's error follows on standard
+    /// output.
     func mutationTestingEndedEarly(
         _ earlyEnd: EarlyEnd,
         partialReport: (path: String, saved: Bool)?,
-        resultsFile: String?
+        resultsFile: String?,
+        continueCommand: String?
     ) {
-        let tested = earlyEnd.outcome.mutations.count
-        let stoppedBy = earlyEnd.reason == .interrupted ? "by \(earlyEnd.detail ?? "a signal")" : "by the error below"
-        var lines: [String]
-        if tested == 0 {
-            lines = ["⏹ Stopped \(stoppedBy) before any of \(earlyEnd.discovered) mutants finished."]
-        } else {
-            let score = mutationScore(from: earlyEnd.outcome.mutations.map(\.testSuiteOutcome))
-            lines = [
-                "⏹ Stopped \(stoppedBy) after testing \(tested) of \(earlyEnd.discovered) mutants. "
-                    + "Mutation score so far: \(score)%.",
-            ]
-        }
+        let results = earlyEnd.outcome.mutations.count
+        var lines = [Self.stopped(earlyEnd)]
         if let partialReport {
             lines.append(
                 partialReport.saved
@@ -233,17 +299,55 @@ final class Logger {
         }
         if let resultsFile {
             lines.append("💾 Each tested mutant's result is in \(resultsFile.bold)")
-            if tested > 0 {
+            // Without a result, the report would be empty, and a resume would keep nothing a new run doesn't.
+            if results > 0 {
                 lines.append("📝 Full report: swift-mutator report \(Self.shellQuoted(resultsFile))")
+                if let continueCommand {
+                    lines.append("▶️ Continue: \(continueCommand)")
+                }
             }
         }
         lines.forEach(errorPrinter)
+    }
+
+    /// "⏹ Stopped by SIGINT after testing 3 of 9 mutants. Mutation score so far: 50%." A resumed session says how many
+    /// of the mutants left it tested, and how many of every mutant have a result, kept or tested; the score is theirs.
+    private static func stopped(_ earlyEnd: EarlyEnd) -> String {
+        let stoppedBy = earlyEnd.reason == .interrupted ? "by \(earlyEnd.detail ?? "a signal")" : "by the error below"
+        let results = earlyEnd.outcome.mutations.count
+        guard results > 0 else {
+            return "⏹ Stopped \(stoppedBy) before any of \(earlyEnd.discovered) mutants finished."
+        }
+        let score = "Mutation score so far: \(mutationScore(from: earlyEnd.outcome.mutations.map(\.testSuiteOutcome)))%."
+        let tested = results - earlyEnd.reused
+        guard earlyEnd.reused > 0 else {
+            return "⏹ Stopped \(stoppedBy) after testing \(tested) of \(earlyEnd.discovered) mutants. " + score
+        }
+        let left = earlyEnd.discovered - earlyEnd.reused
+        let progress = tested == 0
+            ? "before any of the \(left) mutants left finished"
+            : "after testing \(tested) of the \(left) mutants left"
+        return "⏹ Stopped \(stoppedBy) \(progress): \(results) of \(earlyEnd.discovered) have results. " + score
     }
 
     /// `text` as one word for a POSIX shell, so that a printed command pastes whatever the path holds: log folders are
     /// named like `Oct 4, 2026 at 1:16 PM`.
     static func shellQuoted(_ text: String) -> String {
         "'" + text.replacingOccurrences(of: "'", with: #"'\''"#) + "'"
+    }
+
+    /// The characters a POSIX shell gives no meaning to, in any place in a word that isn't a command's name.
+    private static let plainWordCharacters = Set(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_@%+=:,./-".unicodeScalars
+    )
+
+    /// `text` as it is if a POSIX shell reads it as that one word, and quoted as `shellQuoted` quotes it otherwise:
+    /// a printed command keeps the arguments it repeats as readable as they were typed.
+    static func shellWord(_ text: String) -> String {
+        guard !text.isEmpty, text.unicodeScalars.allSatisfy(plainWordCharacters.contains) else {
+            return shellQuoted(text)
+        }
+        return text
     }
 
     func testPlanFileCreated(atPath path: String?) {

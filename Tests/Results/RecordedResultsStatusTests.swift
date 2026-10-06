@@ -113,6 +113,29 @@ final class RecordedResultsStatusTests: XCTestCase {
             ]
         )
     }
+
+    func test_aRetiredKey_isNotCountedAsReported() throws {
+        let resumed = ResultsHeader.make(
+            formatVersion: ResultsCoding.resumedFormatVersion, session: 2, mutantsDiscovered: 3
+        )
+
+        let recorded = try read(
+            file(
+                header,
+                sum,
+                product,
+                ResultsEnd.make(reason: .interrupted, detail: "SIGINT"),
+                resumed,
+                ResultsRetired(session: 2, keys: [sum.key]),
+                ResultsEnd.make(session: 2, reason: .aborted, detail: "tooManyBuildErrors")
+            )
+        )
+
+        XCTAssertEqual(
+            recorded.statusLines(path: path),
+            ["Report of 1 of 3 mutants, from /logs/results.jsonl: the run stopped on an error (tooManyBuildErrors)."]
+        )
+    }
 }
 
 private extension RecordedResultsStatusTests {

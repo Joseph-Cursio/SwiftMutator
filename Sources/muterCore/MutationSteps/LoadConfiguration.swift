@@ -82,12 +82,18 @@ struct LoadConfiguration: MutationStep {
     }
 
     private func configurationPath(_ options: Run.Options) -> String {
-        let currentDirectoryPath = options.configurationURL?.path ?? fileManager.currentDirectoryPath
-        if currentDirectoryPath.pathContainsConfigExtension {
-            return currentDirectoryPath
+        Self.configurationPath(options, in: fileManager.currentDirectoryPath)
+    }
+
+    /// The configuration file a run with `options` loads: `--configuration`'s, if it names a `.yml` file, or else
+    /// `muter.conf.yml` in the folder it names, or in `currentDirectoryPath` without one.
+    static func configurationPath(_ options: Run.Options, in currentDirectoryPath: String) -> String {
+        let path = options.configurationURL?.path ?? currentDirectoryPath
+        if path.pathContainsConfigExtension {
+            return path
         }
 
-        return "\(currentDirectoryPath)/\(MuterConfiguration.fileNameWithExtension)"
+        return "\(path)/\(MuterConfiguration.fileNameWithExtension)"
     }
 
     private func hasJsonInProjectAtPath(_ path: String) -> Bool {

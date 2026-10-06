@@ -16,18 +16,7 @@ extension RunCommand {
             try await MutationTestHandler(options: options).run()
         }
         if let error = ended.errorToShow {
-            print(
-                """
-                ⚠️ ⚠️ ⚠️ ⚠️ ⚠️  SwiftMutator has encountered an error  ⚠️ ⚠️ ⚠️ ⚠️ ⚠️
-                \(error)
-
-
-                ⚠️ ⚠️ ⚠️ ⚠️ ⚠️  See the SwiftMutator error log above this line  ⚠️ ⚠️ ⚠️ ⚠️ ⚠️
-
-                If you think this is a bug, or want help figuring out what could be happening, please open an issue at
-                https://github.com/muter-mutation-testing/muter/issues
-                """
-            )
+            print(Self.message(showing: error))
         }
         if let signal = ended.signal {
             // Dying by the signal tells a shell that SwiftMutator was interrupted, so a script or loop running it stops
@@ -40,6 +29,25 @@ extension RunCommand {
     }
 
     func validate() throws {}
+
+    /// What a run command prints when its work failed with `error`. A refused resume is printed as it is: refusing is
+    /// an expected outcome, and its message says what to do. Anything else comes inside the banner that asks for a bug
+    /// report.
+    static func message(showing error: Error) -> String {
+        if error is ResumeRefused {
+            return "\(error)"
+        }
+        return """
+        ⚠️ ⚠️ ⚠️ ⚠️ ⚠️  SwiftMutator has encountered an error  ⚠️ ⚠️ ⚠️ ⚠️ ⚠️
+        \(error)
+
+
+        ⚠️ ⚠️ ⚠️ ⚠️ ⚠️  See the SwiftMutator error log above this line  ⚠️ ⚠️ ⚠️ ⚠️ ⚠️
+
+        If you think this is a bug, or want help figuring out what could be happening, please open an issue at
+        https://github.com/muter-mutation-testing/muter/issues
+        """
+    }
 }
 
 extension Interruptions.Ended {

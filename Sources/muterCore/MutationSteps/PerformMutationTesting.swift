@@ -42,12 +42,19 @@ struct PerformMutationTesting: MutationStep {
 
     /// Tests every mutant, writing each one's result to the run's results file as it finishes, between a header
     /// and an end line that says how mutation testing ended. Mutation testing that stops early then posts what it
-    /// tested. Worker clones are removed last.
+    /// tested. Worker clones are removed last. A resumed run adds its session to the stopped run's results file, tests
+    /// only the mutants without a recorded result that still holds, and reports the results it keeps with the ones it
+    /// tests, in job order; its test duration adds the earlier sessions'.
     func run(
         with state: AnyMutationTestState
     ) async throws -> [MutationTestState.Change] {
         fileManager.changeCurrentDirectoryPath(state.mutatedProjectDirectoryURL.path)
-        let session = TestingSession(startedAt: now())
+        let resume = state.resumeState
+        let session = TestingSession(
+            number: (resume?.lastSession ?? 0) + 1,
+            startedAt: now(),
+            earlierTestDuration: resume?.recorded.testDuration ?? 0
+        )
         // After the end line and anything posted about an early end: removing large clones can take seconds, and a
         // second signal in that time exits at once. A clone left behind is removed when SwiftMutator next runs.
         defer {
@@ -55,6 +62,9 @@ struct PerformMutationTesting: MutationStep {
                 removeWorkerDirectories(session.clones)
             }
         }
+        // A resumed file's lock goes before the clones are removed, as a first session's goes at its end line: also
+        // when the baseline failed, which writes nothing to the file.
+        defer { resume?.file.close() }
 
         do {
             try await performMutationTesting(using: state, session: session)
@@ -65,19 +75,25 @@ struct PerformMutationTesting: MutationStep {
             let detail = reason == .interrupted
                 ? interruption.signal.map(InterruptionRecord.name(of:))
                 : ResultsEnd.detail(for: error)
-            let testDuration = now().timeIntervalSince(session.startedAt)
-            endResults(of: session, reason, detail: detail, testDuration: testDuration)
-            postEarlyEnd(of: session, reason, detail: detail, state: state, testDuration: testDuration)
+            let thisSession = now().timeIntervalSince(session.startedAt)
+            endResults(of: session, reason, detail: detail, testDuration: thisSession)
+            postEarlyEnd(
+                of: session,
+                reason,
+                detail: detail,
+                state: state,
+                testDuration: session.earlierTestDuration + thisSession
+            )
             throw error
         }
 
-        let testDuration = now().timeIntervalSince(session.startedAt)
-        endResults(of: session, .finished, testDuration: testDuration)
+        let thisSession = now().timeIntervalSince(session.startedAt)
+        endResults(of: session, .finished, testDuration: thisSession)
 
         let mutationTestOutcome = MutationTestOutcome(
             mutations: session.outcomesInJobOrder,
             coverage: state.projectCoverage,
-            testDuration: testDuration,
+            testDuration: session.earlierTestDuration + thisSession,
             newVersion: state.newVersion
         )
 
@@ -91,11 +107,54 @@ struct PerformMutationTesting: MutationStep {
 }
 
 private extension PerformMutationTesting {
-    /// Keeps each tested mutant's outcome, and each worker clone it makes, in `session`.
+    /// Keeps each mutant's outcome, tested or kept, and each worker clone it makes, in `session`.
     func performMutationTesting(
         using state: AnyMutationTestState,
         session: TestingSession
     ) async throws {
+        // What there is to test doesn't depend on the baseline, so it's known before the baseline runs. Whether a stop
+        // has anything to report is whether the baseline passed, which the session records once it has.
+        let jobs = Self.jobs(of: state)
+        session.keys = MutantKey.keys(for: jobs.map(\.schema), under: state.mutatedProjectDirectoryURL)
+        let plan = state.resumeState.map { resume in
+            ResumePlan.make(
+                keys: session.keys,
+                snapshots: jobs.map(\.schema.snapshot),
+                recorded: resume.recorded.latest,
+                fileHashes: state.projectTree?.files ?? [:]
+            )
+        } ?? .everything(jobs.count)
+
+        if let resume = state.resumeState {
+            session.earlierBuildErrors = Set(
+                plan.toRun.filter { resume.recorded.latest[session.keys[$0]]?.outcome == .buildError }
+            )
+            notificationCenter.post(
+                name: .resumePlanned,
+                object: ResumeSummary(resume, plan, waived: state.resumeWaived)
+            )
+            // With every result kept there is nothing to test, so no baseline and no clones: the session is a header,
+            // the retired line of mutants no longer discovered, if any, and the end line `run(with:)` writes.
+            if plan.toRun.isEmpty {
+                session.baselinePassed = true
+                startResults(
+                    header(
+                        of: session,
+                        plan,
+                        state: state,
+                        configuration: state.muterConfiguration,
+                        baselineSeconds: nil,
+                        workers: 0
+                    ),
+                    retiring: plan.retired,
+                    in: session,
+                    state: state
+                )
+                keepReused(plan, of: jobs, in: session, state: state)
+                return
+            }
+        }
+
         notificationCenter.post(name: .mutationTestingStarted, object: nil)
 
         // Only an explicit `true` asked for it, so only that is worth saying, and before the baseline run,
@@ -120,20 +179,18 @@ private extension PerformMutationTesting {
             end: timeAfterRunningTestSuite
         ).duration
 
-        let mutationLog = MutationTestLog(
-            mutationPoint: .none,
-            testLog: testLog,
-            timePerBuildTestCycle: timePerBuildTestCycle,
-            remainingMutationPointsCount: state.mutationPoints.count
-        )
-
         guard testSuiteOutcome == .passed else {
             // A failing baseline is exactly when the user needs its output on disk, and nothing else
             // records it. It gets its own notification rather than `.newTestLogAvailable`, which also
             // announces that a baseline was successfully determined and starts the progress bar.
             notificationCenter.post(
                 name: .baselineTestFailed,
-                object: mutationLog
+                object: MutationTestLog(
+                    mutationPoint: .none,
+                    testLog: testLog,
+                    timePerBuildTestCycle: timePerBuildTestCycle,
+                    remainingMutationPointsCount: .none
+                )
             )
 
             throw MuterError.mutationTestingAborted(
@@ -143,6 +200,7 @@ private extension PerformMutationTesting {
                 )
             )
         }
+        session.baselinePassed = true
 
         var muterConfiguration = state.muterConfiguration
         // A passing run can't show a failed test, so these tests print text shaped like one. Under a mutant it
@@ -163,46 +221,114 @@ private extension PerformMutationTesting {
         let configuration = muterConfiguration.withDefaultTestSuiteTimeout(
             max(timePerBuildTestCycle * Self.defaultTimeoutMultiplier, Self.minimumDefaultTimeout)
         )
-        let jobs = state.mutationMapping.flatMap { mutationMap in
-            mutationMap.mutationSchemata.map { MutantJob(fileName: mutationMap.fileName, schema: $0) }
-        }
-        let workers = min(configuration.workerCount, jobs.count)
-        session.keys = MutantKey.keys(for: jobs.map(\.schema), under: state.mutatedProjectDirectoryURL)
+        // A clone costs a copy and about a baseline build, so there are never more workers than mutants to test.
+        let workers = min(configuration.workerCount, plan.toRun.count)
 
         // Before the baseline's log, which starts the progress bar, so the results file's path is printed first.
         startResults(
-            ResultsHeader(
-                session: session.number,
-                startedAt: session.startedAt,
+            header(
+                of: session,
+                plan,
                 state: state,
-                logDirectory: state.loggingDirectory,
                 configuration: configuration,
                 baselineSeconds: timePerBuildTestCycle,
-                workers: workers,
-                mutantsDiscovered: jobs.count,
-                mutantsToTest: jobs.count,
-                provenance: provenance(state.muterConfiguration)
+                workers: workers
             ),
+            retiring: plan.retired,
             in: session,
-            loggingDirectory: state.loggingDirectory
+            state: state
         )
+        keepReused(plan, of: jobs, in: session, state: state)
 
+        // The progress bar's first estimate of the time left: every mutant to test, spread over the workers.
         notificationCenter.post(
             name: .newTestLogAvailable,
-            object: mutationLog
+            object: MutationTestLog(
+                mutationPoint: .none,
+                testLog: testLog,
+                timePerBuildTestCycle: timePerBuildTestCycle,
+                remainingMutationPointsCount: plan.toRun.count,
+                workers: workers
+            )
         )
 
         if workers > 1 {
             try await testMutationsInParallel(
-                jobs, workers: workers, using: state, configuration: configuration, session: session
+                jobs, plan.toRun, workers: workers, using: state, configuration: configuration, session: session
             )
         } else {
-            try await testMutations(jobs, using: state, configuration: configuration, session: session)
+            try await testMutations(jobs, plan.toRun, using: state, configuration: configuration, session: session)
         }
     }
 
-    /// Posts what mutation testing that stopped early tested, for the partial report and the summary, once the
-    /// baseline has passed. Before then there is nothing to report, and an abort says why.
+    /// The session's header, for testing `plan.toRun` of the jobs `session.keys` are of, with `configuration`, the
+    /// effective one, on `workers` workers. A resumed session's says what it kept, and what its resume let through.
+    func header(
+        of session: TestingSession,
+        _ plan: ResumePlan,
+        state: AnyMutationTestState,
+        configuration: MuterConfiguration,
+        baselineSeconds: Double?,
+        workers: Int
+    ) -> ResultsHeader {
+        let resume = state.resumeState
+        return ResultsHeader(
+            session: session.number,
+            startedAt: session.startedAt,
+            state: state,
+            logDirectory: state.loggingDirectory,
+            configuration: configuration,
+            baselineSeconds: baselineSeconds,
+            workers: workers,
+            mutantsDiscovered: session.keys.count,
+            mutantsToTest: plan.toRun.count,
+            // A resume's was probed before the copy, and what was checked is what is recorded.
+            provenance: resume?.provenance ?? provenance(state.muterConfiguration),
+            mutantsReused: resume == nil ? nil : plan.reused.count,
+            waived: resume == nil ? nil : state.resumeWaived,
+            forced: resume?.forced
+        )
+    }
+
+    /// Keeps each of `plan`'s reused results' outcomes in `session` by job index, built from its job as `record` builds
+    /// a tested one's, and sends it to the reporter, so the Xcode format warns of every survivor. Never posts a test
+    /// log: nothing ran, and the progress bar counts only the mutants left to test.
+    func keepReused(
+        _ plan: ResumePlan,
+        of jobs: [MutantJob],
+        in session: TestingSession,
+        state: AnyMutationTestState
+    ) {
+        for (index, result) in plan.reused.sorted(by: { $0.key < $1.key }) {
+            let outcome = Self.outcome(result.outcome, of: jobs[index], state: state)
+            session.outcomes[index] = outcome
+            session.reused += 1
+            notificationCenter.post(name: .newMutationTestOutcomeAvailable, object: outcome)
+        }
+    }
+
+    /// The outcome of `job`'s mutant, which `testSuiteOutcome` says, as the report shows it.
+    static func outcome(
+        _ testSuiteOutcome: TestSuiteOutcome,
+        of job: MutantJob,
+        state: AnyMutationTestState
+    ) -> MutationTestOutcome.Mutation {
+        MutationTestOutcome.Mutation(
+            testSuiteOutcome: testSuiteOutcome,
+            mutationPoint: MutationPoint(
+                mutationOperatorId: job.schema.mutationOperatorId,
+                filePath: job.schema.filePath,
+                position: job.schema.position
+            ),
+            mutationSnapshot: job.schema.snapshot,
+            originalProjectDirectoryUrl: state.projectDirectoryURL,
+            mutatedProjectDirectoryURL: state.mutatedProjectDirectoryURL
+        )
+    }
+
+    /// Posts what mutation testing that stopped early tested, and the results a resumed session kept, for the partial
+    /// report and the summary, once the baseline has passed. Before then there is nothing to report, and an abort says
+    /// why.
     func postEarlyEnd(
         of session: TestingSession,
         _ reason: ResultsEnd.Reason,
@@ -210,7 +336,7 @@ private extension PerformMutationTesting {
         state: AnyMutationTestState,
         testDuration: TimeInterval
     ) {
-        guard !session.keys.isEmpty else { return }
+        guard session.baselinePassed else { return }
         notificationCenter.post(
             name: .mutationTestingEndedEarly,
             object: EarlyEnd(
@@ -222,7 +348,8 @@ private extension PerformMutationTesting {
                     testDuration: testDuration,
                     newVersion: state.newVersion
                 ),
-                discovered: session.keys.count
+                discovered: session.keys.count,
+                reused: session.reused
             )
         )
     }
@@ -232,15 +359,25 @@ private extension PerformMutationTesting {
         let schema: MutationSchema
     }
 
+    /// Every discovered mutant, in job order: file by file as discovery mapped them, and in each file in its order.
+    static func jobs(of state: AnyMutationTestState) -> [MutantJob] {
+        state.mutationMapping.flatMap { mutationMap in
+            mutationMap.mutationSchemata.map { MutantJob(fileName: mutationMap.fileName, schema: $0) }
+        }
+    }
+
+    /// Tests the jobs at `indices`, in their order, one at a time in the mutated project.
     func testMutations(
         _ jobs: [MutantJob],
+        _ indices: [Int],
         using state: AnyMutationTestState,
         configuration: MuterConfiguration,
         session: TestingSession
     ) async throws {
         var buildErrors = 0
 
-        for (index, job) in jobs.enumerated() {
+        for index in indices {
+            let job = jobs[index]
             try Task.checkCancellation()
             try? await ioDelegate.switchOn(
                 schemata: job.schema,
@@ -267,7 +404,8 @@ private extension PerformMutationTesting {
         }
     }
 
-    /// Tests `jobs` on `workers` test processes at once, each in its own clone of the mutated project:
+    /// Tests the jobs at `indices`, started in their order, on `workers` test processes at once, never more than
+    /// `indices`, each in its own clone of the mutated project:
     /// `swift test` locks the package's build directory, so two runs can't share one. Every mutant is
     /// switched on per run: under `swift test` by the worker's active-mutant file, written just before the run
     /// (see `MutationTestingDelegate.testProcess`), so the clones' code never needs rewriting. Outcomes are
@@ -276,6 +414,7 @@ private extension PerformMutationTesting {
     /// is made, no mutant starts, and none that returns is recorded.
     func testMutationsInParallel(
         _ jobs: [MutantJob],
+        _ indices: [Int],
         workers: Int,
         using state: AnyMutationTestState,
         configuration: MuterConfiguration,
@@ -298,7 +437,8 @@ private extension PerformMutationTesting {
         var buildErrors = 0
 
         try await withThrowingTaskGroup(of: FinishedRun.self) { group in
-            var nextJob = 0
+            // The position in `indices` of the next job to start.
+            var next = 0
             // Throws once mutation testing is cancelled, rather than skip the job: with no run under way, the
             // loop below would end as if every mutant had been tested.
             func start(_ index: Int, worker: Int) throws {
@@ -319,8 +459,8 @@ private extension PerformMutationTesting {
             }
 
             for worker in directories.indices {
-                try start(nextJob, worker: worker)
-                nextJob += 1
+                try start(indices[next], worker: worker)
+                next += 1
             }
 
             while let finished = try await group.next() {
@@ -335,9 +475,9 @@ private extension PerformMutationTesting {
                     buildErrors: &buildErrors
                 )
                 // The worker that finished takes the next job; the directory is looked up from it.
-                if nextJob < jobs.count {
-                    try start(nextJob, worker: finished.worker)
-                    nextJob += 1
+                if next < indices.count {
+                    try start(indices[next], worker: finished.worker)
+                    next += 1
                 }
             }
         }
@@ -394,9 +534,10 @@ private extension PerformMutationTesting {
     }
 
     /// Writes `finished`'s result, the run of `job`'s mutant, to the results file, keeps its outcome in `session`,
-    /// posts its notifications, and aborts after `buildErrorsThreshold` build errors in a row. The result is written
-    /// first, so it is on disk before anything else happens, and the outcome is kept before the abort, so mutation
-    /// testing that stops there still has it.
+    /// posts its notifications, and aborts after `buildErrorsThreshold` build errors in a row, not counting a mutant
+    /// that an earlier session recorded as one (`TestingSession.earlierBuildErrors`). The result is written first, so
+    /// it is on disk before anything else happens, and the outcome is kept before the abort, so mutation testing that
+    /// stops there still has it.
     func record(
         _ finished: FinishedRun,
         of job: MutantJob,
@@ -405,33 +546,24 @@ private extension PerformMutationTesting {
         session: TestingSession,
         buildErrors: inout Int
     ) throws {
-        let mutationPoint = MutationPoint(
-            mutationOperatorId: job.schema.mutationOperatorId,
-            filePath: job.schema.filePath,
-            position: job.schema.position
-        )
+        let outcome = Self.outcome(finished.run.outcome, of: job, state: state)
+        let mutationPoint = outcome.point
 
+        let key = session.keys[finished.index]
         write(
             MutantResult(
-                key: session.keys[finished.index],
+                key: key,
                 schema: job.schema,
                 finished: finished,
                 configuration: configuration,
                 session: session.number,
                 finishedAt: now(),
-                log: MutationTestLog.keptFileName(for: mutationPoint)
+                log: MutationTestLog.keptFileName(for: mutationPoint),
+                fileSHA256: state.projectTree?.files[key.path]
             ),
             in: session
         )
         session.recorded += 1
-
-        let outcome = MutationTestOutcome.Mutation(
-            testSuiteOutcome: finished.run.outcome,
-            mutationPoint: mutationPoint,
-            mutationSnapshot: job.schema.snapshot,
-            originalProjectDirectoryUrl: state.projectDirectoryURL,
-            mutatedProjectDirectoryURL: state.mutatedProjectDirectoryURL
-        )
         session.outcomes[finished.index] = outcome
 
         let mutationLog = MutationTestLog(
@@ -451,7 +583,11 @@ private extension PerformMutationTesting {
             object: mutationLog
         )
 
-        buildErrors = finished.run.outcome == .buildError ? (buildErrors + 1) : 0
+        if finished.run.outcome != .buildError {
+            buildErrors = 0
+        } else if !session.earlierBuildErrors.contains(finished.index) {
+            buildErrors += 1
+        }
         if buildErrors >= buildErrorsThreshold {
             throw MuterError.mutationTestingAborted(reason: .tooManyBuildErrors)
         }
@@ -465,17 +601,33 @@ private extension PerformMutationTesting {
     }
 }
 
-/// The run's results file: a header once the baseline passes, a line for each tested mutant as it finishes, and an
-/// end line however mutation testing ends.
+/// The run's results file: a header once the baseline passes, or at once for a resumed run with nothing left to test,
+/// a line for each tested mutant as it finishes, and an end line however mutation testing ends.
 private extension PerformMutationTesting {
     /// Creates the results file in the run's log folder, and writes `header` to it. Without one the run goes on: the
     /// report at the end doesn't need it. A state without a log folder, which a test that bypasses the handler
     /// makes, writes none, and the header isn't made.
+    ///
+    /// A resumed run instead writes `header`, then a `retired` line of the `retiring` keys, to the stopped run's file,
+    /// which it opened before the copy, and announces the file once both are written. It is attached to the session
+    /// only now: before its header, no line of the session's would belong to one.
     func startResults(
         _ header: @autoclosure () -> ResultsHeader,
+        retiring retired: [MutantKey],
         in session: TestingSession,
-        loggingDirectory: String
+        state: AnyMutationTestState
     ) {
+        if let resume = state.resumeState {
+            session.results = resume.file
+            guard write(header(), in: session) else { return }
+            // Without it, the file would still stand by the earlier results this session doesn't keep.
+            if !retired.isEmpty, !write(ResultsRetired(session: session.number, keys: retired), in: session) {
+                return
+            }
+            notificationCenter.post(name: .resultsFileCreated, object: resume.path)
+            return
+        }
+        let loggingDirectory = state.loggingDirectory
         guard !loggingDirectory.isEmpty else { return }
         do {
             let results = try resultsFiles.create(in: loggingDirectory)

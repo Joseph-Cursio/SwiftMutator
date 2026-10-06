@@ -117,20 +117,51 @@ final class MutationTestHandlerTests: MuterTestCase {
     func test_allSteps() {
         sut = MutationTestHandler(options: .make())
 
-        XCTAssertEqual(sut.steps.count, 12)
+        XCTAssertEqual(sut.steps.count, 13)
 
         XCTAssertTypeEqual(sut.steps[safe: 0], UpdateCheck.self)
         XCTAssertTypeEqual(sut.steps[safe: 1], LoadConfiguration.self)
         XCTAssertTypeEqual(sut.steps[safe: 2], CreateMutatedProjectDirectoryURL.self)
         XCTAssertTypeEqual(sut.steps[safe: 3], PreviousRunCleanUp.self)
         XCTAssertTypeEqual(sut.steps[safe: 4], CopyProjectToTempDirectory.self)
-        XCTAssertTypeEqual(sut.steps[safe: 5], DiscoverProjectCoverage.self)
-        XCTAssertTypeEqual(sut.steps[safe: 6], DiscoverSourceFiles.self)
-        XCTAssertTypeEqual(sut.steps[safe: 7], DiscoverMutationPoints.self)
-        XCTAssertTypeEqual(sut.steps[safe: 8], GenerateSwapFilePaths.self)
-        XCTAssertTypeEqual(sut.steps[safe: 9], ApplySchemata.self)
-        XCTAssertTypeEqual(sut.steps[safe: 10], BuildForTesting.self)
-        XCTAssertTypeEqual(sut.steps[safe: 11], PerformMutationTesting.self)
+        // Right after the copy: discovery rewrites the copy's files within milliseconds of starting.
+        XCTAssertTypeEqual(sut.steps[safe: 5], FingerprintProjectTree.self)
+        XCTAssertTypeEqual(sut.steps[safe: 6], DiscoverProjectCoverage.self)
+        XCTAssertTypeEqual(sut.steps[safe: 7], DiscoverSourceFiles.self)
+        XCTAssertTypeEqual(sut.steps[safe: 8], DiscoverMutationPoints.self)
+        XCTAssertTypeEqual(sut.steps[safe: 9], GenerateSwapFilePaths.self)
+        XCTAssertTypeEqual(sut.steps[safe: 10], ApplySchemata.self)
+        XCTAssertTypeEqual(sut.steps[safe: 11], BuildForTesting.self)
+        XCTAssertTypeEqual(sut.steps[safe: 12], PerformMutationTesting.self)
+    }
+
+    func test_steps_whenResuming() {
+        sut = MutationTestHandler(options: .make(resumeURL: URL(fileURLWithPath: "/logs/results.jsonl")))
+
+        XCTAssertEqual(sut.steps.count, 14)
+
+        XCTAssertTypeEqual(sut.steps[safe: 0], UpdateCheck.self)
+        XCTAssertTypeEqual(sut.steps[safe: 1], LoadConfiguration.self)
+        XCTAssertTypeEqual(sut.steps[safe: 2], LoadResumeState.self)
+        XCTAssertTypeEqual(sut.steps[safe: 3], CreateMutatedProjectDirectoryURL.self)
+        XCTAssertTypeEqual(sut.steps[safe: 4], PreviousRunCleanUp.self)
+        XCTAssertTypeEqual(sut.steps[safe: 5], CopyProjectToTempDirectory.self)
+        XCTAssertTypeEqual(sut.steps[safe: 6], FingerprintProjectTree.self)
+        XCTAssertTypeEqual(sut.steps[safe: 13], PerformMutationTesting.self)
+    }
+
+    // A run still writing the results file tests in the copy that cleaning up removes, and a refused resume should
+    // leave everything as it was.
+    func test_loadResumeState_comesBeforeCleanUpAndCopy() throws {
+        sut = MutationTestHandler(
+            options: .make(skipCoverage: true, skipUpdateCheck: true, resumeURL: URL(fileURLWithPath: "/logs"))
+        )
+        let index = { (step: MutationStep.Type) in self.sut.steps.firstIndex { type(of: $0) == step } }
+
+        let loading = try XCTUnwrap(index(LoadResumeState.self))
+        XCTAssertLessThan(try XCTUnwrap(index(LoadConfiguration.self)), loading, "it compares the configuration")
+        XCTAssertLessThan(loading, try XCTUnwrap(index(PreviousRunCleanUp.self)))
+        XCTAssertLessThan(loading, try XCTUnwrap(index(CopyProjectToTempDirectory.self)))
     }
 
     func test_steps_whenSkipsCoverage() {

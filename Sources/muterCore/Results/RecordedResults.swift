@@ -23,7 +23,7 @@ struct RecordedResults {
     }
 
     private(set) var sessions: [Session] = []
-    /// Each key's last record.
+    /// Each key's last record, unless a `retired` line after it retired the key.
     private(set) var latest: [MutantKey: MutantResult] = [:]
     /// The 1-based numbers of the lines skipped: those that don't read as a record, and records of a session no
     /// earlier header started. Empty lines, and kinds of record this SwiftMutator doesn't know, aren't among them.
@@ -64,7 +64,7 @@ struct RecordedResults {
         switch kind {
         case "header":
             if let version = try? decoder.decode(FormatVersion.self, from: line).formatVersion,
-               version > ResultsCoding.formatVersion {
+               version > ResultsCoding.newestFormatVersion {
                 throw ResultsFileError.newerFormat(path: path, version: version)
             }
             guard let header = try? decoder.decode(ResultsHeader.self, from: line) else { return false }
@@ -75,6 +75,14 @@ struct RecordedResults {
             else { return false }
             latest[record.key] = record
             sessions[session].lastFinishedAt = max(sessions[session].lastFinishedAt ?? .distantPast, record.finishedAt)
+        case "retired":
+            guard let retired = try? decoder.decode(ResultsRetired.self, from: line),
+                  sessionIndex(retired.session) != nil
+            else { return false }
+            // In file order, so a key a later mutant line records again counts again.
+            for key in retired.keys {
+                latest.removeValue(forKey: key)
+            }
         case "end":
             guard let end = try? decoder.decode(ResultsEnd.self, from: line),
                   let session = sessionIndex(end.session)

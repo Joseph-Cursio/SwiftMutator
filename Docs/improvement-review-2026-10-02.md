@@ -11,7 +11,8 @@ This is a ranked list of improvements to SwiftMutator, made at commit `4ba72fc` 
   - A plain `swift test` and `swiftlint` pass on `main` since PR #37 (§4).
   - The results file (§2.1 item 1) and the data for §2.2 item 1 are done in PR #38.
   - Clean interruptions (§2.1 item 4) are done: Ctrl-C, SIGTERM and SIGHUP stop the test processes, end the results file, write a partial report beside a requested one, and remove the worker clones.
-  - The `report` command (§2.1 item 2) is done: `swift-mutator report` makes a run's report, in any format, from its results file. Of §2.1, only `--resume` (item 3) is left.
+  - The `report` command (§2.1 item 2) is done: `swift-mutator report` makes a run's report, in any format, from its results file.
+  - `--resume` (§2.1 item 3) is done, which finishes §2.1: `swift-mutator run --resume` continues a stopped run, testing only the mutants without a result that still holds.
   - Problems found along the way, and which PRs fixed them, are under [Found while implementing](#found-while-implementing). Two are still open.
 
 ## The workload these numbers come from
@@ -165,7 +166,13 @@ The test project is SwiftProjectLint, run on the whole repo: 528 files, **2,497 
 - **The stop summary** now ends with the command, with the results file's path quoted for the shell.
 - **One report writer.** The final report, the partial report and `report` all save through `ReportWriter`.
 
-Not done yet: item 3, `--resume`, which refuses to reuse a result if the configuration, the SwiftMutator build, the toolchain or a file's hash has changed. It is planned as a follow-up PR, outlined in PR #38's description under "What's left", but not built.
+**Item 3 done.** `swift-mutator run --resume <results file or log folder>` continues a stopped run, and a stopped run's summary ends with the command that does it. The README's [Resuming a run](../README.md#resuming-a-run) says what a user sees.
+- **What's kept.** Discovery runs again, and a result is kept only if its key's place and operator appear once, it isn't a build error, its file's SHA-256 matches, and its snapshot is unchanged. Timeouts are kept: the score counts them like survivors, so a kept one can't raise it. Results are matched by key, never by job position, as the proposal asked. Unlike the proposal, it doesn't build on `mutate-without-running` and `run-without-mutating`, and a test-plan run can't be resumed.
+- **Strict by default.** A change to the configuration (except `mutationTestWorkers` and `stopAtFirstFailure`) or to which mutants are tested always refuses. A changed SwiftMutator build, toolchain or SDK needs `--force-resume`, and changed project files need `--resume-ignoring <glob>`. Every refusal comes in one message, without the bug-report banner, and before the cleanup and the copy, except for a file that changes during the copy.
+- **The project's files.** Every run now records each project file's SHA-256 in its header: the files git lists in the project, tracked and untracked but not ignored, plus every Swift file, `.swift-version` and the root `Package.resolved`, hashed in the copy before discovery rewrites it. That takes about 0.1 s and 205 KB on SwiftProjectLint. There's no default ignore list, because SwiftProjectLint's tests read its Markdown.
+- **One file.** A resumed session appends to the same results file. Its `retired` line drops the results it no longer stands by, and its header says `formatVersion` 2, so a SwiftMutator from before `--resume` refuses the file rather than misreport it. The report at the end, and `report` of the file, cover every mutant.
+- **What it saves.** The copy, build, baseline and worker clones are made again, which is 5–9% of a full SwiftProjectLint run. So a resume of a run stopped halfway should save about 33–46 min (~46%). In the lab's small runs, setup was most of the run, and the estimate was 12–18%.
+- **Left out.** Retesting timeouts under a longer limit, `run-without-mutating --resume`, §1.4's `--since`, a lock on the project as well as the file, and a link to the results file in later sessions' log folders.
 
 - **What happens.** Outcomes exist only in memory until the report is written at the very end. The "before" run was stopped at 1,103 of 2,497 mutants and kept no structured results, only 747 MB of raw per-mutant logs. There's also no signal handler, so an interrupted run leaves its test processes and worker copies behind.
 - **Proposal.**
@@ -315,7 +322,7 @@ Not done yet: item 3, `--resume`, which refuses to reuse a result if the configu
 ## Suggested order
 
 1. **Small correctness fixes:** same-name merge, worker drop, UTF-8 classification (§2.3, §2.5, §2.7). *Done in PRs #25–#27.*
-2. **The base for most of the rest:** a per-mutant results file and the killing tests for each mutant (§2.1, §2.2). *Results file done in PR #38, with the killing tests in it; reports don't show them yet. Clean interruptions and the `report` command are done too. `--resume` is designed but not built.*
+2. **The base for most of the rest:** a per-mutant results file and the killing tests for each mutant (§2.1, §2.2). *Results file done in PR #38, with the killing tests in it; reports don't show them yet. Clean interruptions, the `report` command and `--resume` are done too.*
 3. **Fail-fast,** triggered by the event stream (§1.2). *Done in PR #36, triggered by console lines instead (see §1.2). On by default since PR #41, after an A/B run took 37% less time.*
 4. **Measure, then fix, the manifest recompile** (§1.1). *Done in PR #42: every `swift test` run in a worker's folder gets one environment, and the mutant is named in a file.*
 5. **Progress output** that works in a log file (§3).

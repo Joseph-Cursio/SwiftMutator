@@ -43,6 +43,13 @@ final class LoggerTests: MuterTestCase {
         AssertSnapshot(printer.linesPassed.joined(separator: "\n"))
     }
 
+    // Each worker tests its share of the mutants while the others test theirs, so the time left is the longest
+    // share's: 3 of 5 mutants for one of 2 workers.
+    func test_theFirstEstimate_spreadsTheMutantsOverTheWorkers() {
+        XCTAssertEqual(Logger.initialEstimate(remaining: 5, cycle: 50, workers: 2), 150)
+        XCTAssertEqual(Logger.initialEstimate(remaining: 5, cycle: 50, workers: 1), 250)
+    }
+
     func test_print_writesThroughTheInjectedPrinter() {
         sut.print("a line")
 
@@ -106,6 +113,79 @@ final class LoggerTests: MuterTestCase {
         ])
     }
 
+    // The progress bar counts the mutants left to test, not every one discovery found. Each reason a mutant is tested
+    // again is counted, in the plan's order, and only when it has any.
+    func test_resumePlanned_saysWhatIsReusedAndRetested_andSetsTheProgressTotal() throws {
+        try sut.mutationsDiscoveryFinished(mutations: Array(repeating: makeSchemataMapping(), count: 4))
+        let printedBefore = printer.linesPassed.count
+
+        sut.resumePlanned(.make(reused: 1103, toTest: 1394, retestedBecause: [.buildError: 5, .notRecorded: 1389]))
+
+        XCTAssertEqual(sut.numberOfMutationPoints, 1394)
+        sut.resumePlanned(
+            .make(
+                reused: 1,
+                toTest: 7,
+                retestedBecause: [.repeated: 2, .mutationChanged: 1, .fileChanged: 3, .buildError: 1, .notRecorded: 0]
+            )
+        )
+        sut.resumePlanned(.make(reused: 0, toTest: 1, retestedBecause: [.fileChanged: 1]))
+
+        XCTAssertEqual(Array(printer.linesPassed.dropFirst(printedBefore)), [
+            "♻️ Resuming the run in \("/logs/results.jsonl".bold): 1103 results still hold, "
+                + "so 1394 mutants are left to test (1389 never tested, 5 build errors).",
+            "♻️ Resuming the run in \("/logs/results.jsonl".bold): 1 result still holds, so 7 mutants are left to test "
+                + "(1 build error, 3 in changed files, 1 changed mutation, 2 repeated in their file).",
+            "♻️ Resuming the run in \("/logs/results.jsonl".bold): 0 results still hold, "
+                + "so 1 mutant is left to test (1 in a changed file).",
+        ])
+        XCTAssertEqual(sut.numberOfMutationPoints, 1)
+    }
+
+    func test_resumePlanned_withNothingLeft_saysSo() {
+        sut.resumePlanned(.make(reused: 2497, toTest: 0, retestedBecause: [:]))
+        sut.resumePlanned(.make(reused: 1, toTest: 0, retestedBecause: [:]))
+
+        XCTAssertEqual(printer.linesPassed, [
+            "♻️ Resuming the run in \("/logs/results.jsonl".bold): all 2497 results still hold, "
+                + "so nothing is left to test.",
+            "♻️ Resuming the run in \("/logs/results.jsonl".bold): its only result still holds, "
+                + "so nothing is left to test.",
+        ])
+        XCTAssertEqual(sut.numberOfMutationPoints, 0)
+    }
+
+    // A change no result depends on is only said. What --force-resume and --resume-ignoring let through is a warning:
+    // the results are reused on the user's word.
+    func test_resumePlanned_namesForcedWaivedAndNotices() {
+        sut.resumePlanned(
+            .make(
+                forced: ["swiftMutator.executableSHA256", "toolchain.testCommandVersion"],
+                waived: ["README.md", "notes.txt"],
+                notices: ["mutationTestWorkers was 4 and is 2 now, which no result depends on."]
+            )
+        )
+        sut.resumePlanned(
+            .make(
+                forced: ["toolchain.environment"],
+                waived: (1...12).map { "Docs/rules/rule\($0).md" }
+            )
+        )
+
+        XCTAssertEqual(printer.linesPassed, [
+            "♻️ Resuming the run in \("/logs/results.jsonl".bold): 2 results still hold, "
+                + "so 2 mutants are left to test (2 never tested).",
+            "ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.",
+            "⚠️ Results are reused although SwiftMutator and the toolchain changed (--force-resume).",
+            "⚠️ Results are reused although 2 project files changed (--resume-ignoring): README.md, notes.txt",
+            "♻️ Resuming the run in \("/logs/results.jsonl".bold): 2 results still hold, "
+                + "so 2 mutants are left to test (2 never tested).",
+            "⚠️ Results are reused although the toolchain's environment changed (--force-resume).",
+            "⚠️ Results are reused although 12 project files changed (--resume-ignoring): "
+                + (1...10).map { "Docs/rules/rule\($0).md" }.joined(separator: ", ") + ", and 2 more",
+        ])
+    }
+
     func test_stopAtFirstFailureTurnedOff_saysWhy() {
         sut.stopAtFirstFailureTurnedOff(reason: "the test arguments retry failing tests")
 
@@ -120,12 +200,14 @@ final class LoggerTests: MuterTestCase {
         sut.mutationTestingEndedEarly(
             .make(reason: .interrupted, detail: "SIGTERM", tested: [.failed, .passed, .buildError], discovered: 9),
             partialReport: (path: "/out/report.partial.txt", saved: true),
-            resultsFile: "/logs/results.jsonl"
+            resultsFile: "/logs/results.jsonl",
+            continueCommand: nil
         )
         sut.mutationTestingEndedEarly(
             .make(reason: .aborted, detail: "tooManyBuildErrors", tested: [.failed, .buildError], discovered: 9),
             partialReport: nil,
-            resultsFile: nil
+            resultsFile: nil,
+            continueCommand: nil
         )
 
         XCTAssertEqual(standardError.linesPassed, [
@@ -144,11 +226,95 @@ final class LoggerTests: MuterTestCase {
     func test_mutationTestingEndedEarly_namesTheReportCommand_quotingItsPath() throws {
         let resultsFile = "/logs/Bob's project_muter_logs/Oct 4, 2026 at 1:16 PM/results.jsonl"
 
-        sut.mutationTestingEndedEarly(.make(tested: [.failed]), partialReport: nil, resultsFile: resultsFile)
+        sut.mutationTestingEndedEarly(
+            .make(tested: [.failed]),
+            partialReport: nil,
+            resultsFile: resultsFile,
+            continueCommand: nil
+        )
 
         let quoted = #"'/logs/Bob'\''s project_muter_logs/Oct 4, 2026 at 1:16 PM/results.jsonl'"#
         XCTAssertEqual(standardError.linesPassed.last, "📝 Full report: swift-mutator report \(quoted)")
         XCTAssertEqual(try wordsAShellReads(in: quoted), [resultsFile])
+    }
+
+    // Last, after the command that reports what was tested, and unbolded, so that no colour codes paste with it.
+    func test_mutationTestingEndedEarly_namesTheCommandThatContinues() {
+        let continueCommand = "swift-mutator run -o report.txt --resume '/logs/results.jsonl'"
+
+        sut.mutationTestingEndedEarly(
+            .make(reason: .interrupted, detail: "SIGINT", tested: [.failed, .passed], discovered: 4),
+            partialReport: (path: "/out/report.partial.txt", saved: true),
+            resultsFile: "/logs/results.jsonl",
+            continueCommand: continueCommand
+        )
+
+        XCTAssertEqual(standardError.linesPassed, [
+            "⏹ Stopped by SIGINT after testing 2 of 4 mutants. Mutation score so far: 50%.",
+            "📝 Partial report: \("/out/report.partial.txt".bold)",
+            "💾 Each tested mutant's result is in \("/logs/results.jsonl".bold)",
+            "📝 Full report: swift-mutator report '/logs/results.jsonl'",
+            "▶️ Continue: swift-mutator run -o report.txt --resume '/logs/results.jsonl'",
+        ])
+        XCTAssertEqual(printer.linesPassed, [])
+    }
+
+    // A resumed session tests only the mutants left. It says how many of them it tested, and how many of every mutant
+    // have a result, kept or tested; the score is over them all, as the report's is. Kept results alone still make a
+    // report, and a run to continue.
+    func test_ofAResumedSession_countsReusedApart() {
+        let continueCommand = "swift-mutator run --resume '/logs/results.jsonl'"
+
+        sut.mutationTestingEndedEarly(
+            .make(detail: "SIGINT", tested: [.failed, .failed, .passed, .failed, .passed], discovered: 9, reused: 3),
+            partialReport: nil,
+            resultsFile: "/logs/results.jsonl",
+            continueCommand: continueCommand
+        )
+        sut.mutationTestingEndedEarly(
+            .make(detail: "SIGTERM", tested: [.failed, .passed, .passed], discovered: 9, reused: 3),
+            partialReport: nil,
+            resultsFile: "/logs/results.jsonl",
+            continueCommand: continueCommand
+        )
+
+        XCTAssertEqual(standardError.linesPassed, [
+            "⏹ Stopped by SIGINT after testing 2 of the 6 mutants left: 5 of 9 have results. "
+                + "Mutation score so far: 60%.",
+            "💾 Each tested mutant's result is in \("/logs/results.jsonl".bold)",
+            "📝 Full report: swift-mutator report '/logs/results.jsonl'",
+            "▶️ Continue: swift-mutator run --resume '/logs/results.jsonl'",
+            "⏹ Stopped by SIGTERM before any of the 6 mutants left finished: 3 of 9 have results. "
+                + "Mutation score so far: 33%.",
+            "💾 Each tested mutant's result is in \("/logs/results.jsonl".bold)",
+            "📝 Full report: swift-mutator report '/logs/results.jsonl'",
+            "▶️ Continue: swift-mutator run --resume '/logs/results.jsonl'",
+        ])
+    }
+
+    // Without a results file there is nothing to resume from. Without a result, a resume would keep nothing that a new
+    // run doesn't.
+    func test_noContinueLine_withoutAResultsFileOrAnyResult() {
+        let continueCommand = "swift-mutator run --resume '/logs/results.jsonl'"
+
+        sut.mutationTestingEndedEarly(
+            .make(detail: "SIGINT", tested: [.failed], discovered: 4),
+            partialReport: nil,
+            resultsFile: nil,
+            continueCommand: continueCommand
+        )
+        sut.mutationTestingEndedEarly(
+            .make(detail: "SIGINT", tested: [], discovered: 4),
+            partialReport: nil,
+            resultsFile: "/logs/results.jsonl",
+            continueCommand: continueCommand
+        )
+
+        XCTAssertEqual(standardError.linesPassed, [
+            "⏹ Stopped by SIGINT after testing 1 of 4 mutants. Mutation score so far: 100%.",
+            "⏹ Stopped by SIGINT before any of 4 mutants finished.",
+            "💾 Each tested mutant's result is in \("/logs/results.jsonl".bold)",
+        ])
     }
 
     // There is no score to give, and no report: a report needs a tested mutant.
@@ -156,7 +322,8 @@ final class LoggerTests: MuterTestCase {
         sut.mutationTestingEndedEarly(
             .make(reason: .interrupted, detail: "SIGINT", tested: [], discovered: 9),
             partialReport: nil,
-            resultsFile: "/logs/results.jsonl"
+            resultsFile: "/logs/results.jsonl",
+            continueCommand: nil
         )
 
         XCTAssertEqual(standardError.linesPassed, [
@@ -169,7 +336,8 @@ final class LoggerTests: MuterTestCase {
         sut.mutationTestingEndedEarly(
             .make(tested: [.failed]),
             partialReport: (path: "/out/report.partial.txt", saved: false),
-            resultsFile: nil
+            resultsFile: nil,
+            continueCommand: nil
         )
 
         XCTAssertEqual(standardError.linesPassed, [
@@ -194,20 +362,6 @@ final class LoggerTests: MuterTestCase {
                 ]
             )
         )
-    }
-
-    /// The words `/bin/sh` reads in `text`, as it would reading a command whose arguments are `text`.
-    private func wordsAShellReads(in text: String) throws -> [String] {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        process.arguments = ["-c", #"printf '%s\0' "# + text]
-        let output = Pipe()
-        process.standardOutput = output
-        try process.run()
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        XCTAssertEqual(process.terminationStatus, 0)
-        return String(decoding: data, as: UTF8.self).split(separator: "\0").map(String.init)
     }
 
     func test_mutationsDiscoveryFinished_countsFilesWithTheSameNameTogether() throws {

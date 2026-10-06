@@ -45,7 +45,8 @@ extension Provenance {
         executable: URL? = Bundle.main.executableURL?.resolvingSymlinksInPath(),
         environment: [String: String] = ProcessInfo.processInfo.environment,
         output: (String, [String]) -> String? = { current.process().runProcess(url: $0, arguments: $1) },
-        sha256: (URL) -> String? = FileDigest.sha256(of:)
+        sha256: (URL) -> String? = FileDigest.sha256(of:),
+        arguments: [String] = current.commandLineArguments
     ) -> Provenance {
         Provenance(
             swiftMutator: Build(
@@ -61,7 +62,7 @@ extension Provenance {
             ),
             processIdentifier: ProcessInfo.processInfo.processIdentifier,
             host: hostName(),
-            arguments: Array(CommandLine.arguments.dropFirst())
+            arguments: arguments
         )
     }
 
@@ -75,10 +76,18 @@ extension Provenance {
     }
 }
 
-private extension Provenance.Toolchain {
+extension Provenance.Toolchain {
     /// What makes `swift` and `xcodebuild` say their version.
     static let versionArguments = ["swift": ["--version"], "xcodebuild": ["-version"]]
 
+    /// Whether `testCommand` is asked its version, which then identifies the toolchain. Any other test command is
+    /// identified by its SHA-256.
+    static func isAskedItsVersion(_ testCommand: String) -> Bool {
+        versionArguments[(testCommand as NSString).lastPathComponent] != nil
+    }
+}
+
+private extension Provenance.Toolchain {
     init(
         testCommand: String,
         environment: [String: String],
@@ -120,9 +129,24 @@ enum FileDigest {
         } catch {
             return nil
         }
-        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+        return hex(hasher.finalize())
         #else
         return nil
         #endif
     }
+
+    /// The hex SHA-256 of `data`, or nil if there is no CryptoKit.
+    static func sha256(of data: Data) -> String? {
+        #if canImport(CryptoKit)
+        return hex(SHA256.hash(data: data))
+        #else
+        return nil
+        #endif
+    }
+
+    #if canImport(CryptoKit)
+    private static func hex(_ digest: SHA256.Digest) -> String {
+        digest.map { String(format: "%02x", $0) }.joined()
+    }
+    #endif
 }

@@ -58,7 +58,7 @@ struct ResultsReport {
     /// Refuses an `outputPath` that saving the report at would destroy, before anything is printed: saving replaces
     /// whatever is there, so the results file the report is made from, or a folder and everything in it.
     private func checkSaving(to outputPath: String, from file: String) throws {
-        if Self.isSameFile(outputPath, file) {
+        if ResultsFile.isSameFile(outputPath, file) {
             throw MuterError.literal(
                 reason: "\(outputPath) is the results file the report is made from: choose another output path"
             )
@@ -66,29 +66,5 @@ struct ResultsReport {
         if (try? fileManager.contentsOfDirectory(atPath: outputPath)) != nil {
             throw MuterError.literal(reason: "\(outputPath) is a folder: name the file to save the report to")
         }
-    }
-
-    /// Whether `output` names the file at `results`, so saving the report there would replace it: the same path once
-    /// symbolic links are resolved, or another name for the same file, as a different case gives on a
-    /// case-insensitive volume.
-    private static func isSameFile(_ output: String, _ results: String) -> Bool {
-        if resolved(output) == resolved(results) {
-            return true
-        }
-        guard let outputIdentity = identity(of: output), let resultsIdentity = identity(of: results) else {
-            return false
-        }
-        return outputIdentity == resultsIdentity
-    }
-
-    private static func resolved(_ path: String) -> String {
-        URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path
-    }
-
-    /// The device and inode of the file at `path`, if there is one.
-    private static func identity(of path: String) -> (device: dev_t, inode: ino_t)? {
-        var info = stat()
-        guard stat(path, &info) == 0 else { return nil }
-        return (info.st_dev, info.st_ino)
     }
 }

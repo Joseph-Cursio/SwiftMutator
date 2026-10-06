@@ -58,13 +58,37 @@ extension EarlyEnd {
         reason: ResultsEnd.Reason = .interrupted,
         detail: String? = nil,
         tested: [TestSuiteOutcome] = [.failed, .passed],
-        discovered: Int = 4
+        discovered: Int = 4,
+        reused: Int = 0
     ) -> EarlyEnd {
         EarlyEnd(
             reason: reason,
             detail: detail,
             outcome: MutationTestOutcome(mutations: tested.map { .make(testSuiteOutcome: $0) }),
-            discovered: discovered
+            discovered: discovered,
+            reused: reused
+        )
+    }
+}
+
+extension ResumeSummary {
+    static func make(
+        path: String = "/logs/results.jsonl",
+        reused: Int = 2,
+        toTest: Int = 2,
+        retestedBecause: [ResumePlan.Reason: Int] = [.notRecorded: 2],
+        forced: [String] = [],
+        waived: [String] = [],
+        notices: [String] = []
+    ) -> ResumeSummary {
+        ResumeSummary(
+            path: path,
+            reused: reused,
+            toTest: toTest,
+            retestedBecause: retestedBecause,
+            forced: forced,
+            waived: waived,
+            notices: notices
         )
     }
 }
@@ -211,7 +235,10 @@ extension Run.Options {
         skipUpdateCheck: Bool = false,
         configurationURL: URL? = nil,
         testPlanURL: URL? = nil,
-        createTestPlan: Bool = false
+        createTestPlan: Bool = false,
+        resumeURL: URL? = nil,
+        resumeIgnoring: [String] = [],
+        forceResume: Bool = false
     ) -> Self {
         .init(
             filesToMutate: filesToMutate,
@@ -222,7 +249,10 @@ extension Run.Options {
             skipUpdateCheck: skipUpdateCheck,
             configurationURL: configurationURL,
             testPlanURL: testPlanURL,
-            createTestPlan: createTestPlan
+            createTestPlan: createTestPlan,
+            resumeURL: resumeURL,
+            resumeIgnoring: resumeIgnoring,
+            forceResume: forceResume
         )
     }
 }
@@ -281,6 +311,28 @@ extension MuterConfiguration {
         }
         return configuration
     }
+}
+
+/// No field is left at its default, so a copy that drops one no longer equals this, and every configuration key
+/// differs from the default's. `test_configurationWithEveryFieldSet_leavesNoFieldAtItsDefault` fails until a new
+/// field is set here, which then reaches the copy tests and `test_everyConfigurationKeyButTwo_isCompared`.
+func configurationWithEveryFieldSet(
+    executable: String = "/usr/bin/swift",
+    timeout: Double? = 30,
+    failedTestLinesAreReliable: Bool = false
+) -> MuterConfiguration {
+    let configuration = MuterConfiguration(
+        executable: executable,
+        arguments: ["test"],
+        excludeList: ["Generated"],
+        excludeCallList: ["print"],
+        coverageThreshold: 80,
+        testSuiteTimeOut: timeout,
+        buildSystem: .swift,
+        mutationTestWorkers: 4,
+        stopAtFirstFailure: false
+    )
+    return failedTestLinesAreReliable ? configuration : configuration.withUnreliableFailedTestLines()
 }
 
 extension MutationPosition {
@@ -357,18 +409,28 @@ extension ResultsHeader {
         coverage: CoverageSummary? = nil,
         newVersion: String = "",
         mutantsDiscovered: Int = 3,
-        mutantsToTest: Int = 3
+        mutantsToTest: Int = 3,
+        project: ProjectTree? = nil,
+        provenance: Provenance = .fixture,
+        configuration: MuterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"]),
+        operators: [String] = ["RelationalOperatorReplacement"],
+        filesToMutate: [String] = [],
+        skipCoverage: Bool = true,
+        usingTestPlan: Bool = false,
+        mutantsReused: Int? = nil,
+        waived: [String]? = nil,
+        forced: [String]? = nil
     ) -> ResultsHeader {
         ResultsHeader(
             formatVersion: formatVersion,
             session: session,
             startedAt: startedAt,
-            provenance: .fixture,
-            configuration: MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"]),
-            operators: ["RelationalOperatorReplacement"],
-            filesToMutate: [],
-            skipCoverage: true,
-            usingTestPlan: false,
+            provenance: provenance,
+            configuration: configuration,
+            operators: operators,
+            filesToMutate: filesToMutate,
+            skipCoverage: skipCoverage,
+            usingTestPlan: usingTestPlan,
             projectPath: projectPath,
             mutatedProjectPath: mutatedProjectPath,
             logDirectory: "/project_muter_logs/run",
@@ -381,7 +443,11 @@ extension ResultsHeader {
             stopsAtFirstFailure: false,
             failedTestLinesAreReliable: true,
             mutantsDiscovered: mutantsDiscovered,
-            mutantsToTest: mutantsToTest
+            mutantsToTest: mutantsToTest,
+            project: project,
+            mutantsReused: mutantsReused,
+            waived: waived,
+            forced: forced
         )
     }
 }
@@ -393,8 +459,14 @@ extension MutantResult {
         line: Int = 73,
         column: Int = 22,
         occurrence: Int = 0,
+        utf8Offset: Int = 3361,
+        mutationOperatorId: MutationOperator.Id = .ror,
+        switchID: String? = nil,
+        snapshot: MutationOperator.Snapshot = .make(before: ">", after: "<", description: "changed > to <"),
         outcome: TestSuiteOutcome = .failed,
-        finishedAt: Date = ResultsHeader.fixedStart.addingTimeInterval(31.25)
+        endedBy: TestRun.Ending = .exited,
+        finishedAt: Date = ResultsHeader.fixedStart.addingTimeInterval(31.25),
+        fileSHA256: String? = nil
     ) -> MutantResult {
         MutantResult(
             session: session,
@@ -402,21 +474,21 @@ extension MutantResult {
             line: line,
             column: column,
             occurrence: occurrence,
-            utf8Offset: 3361,
-            mutationOperatorId: .ror,
-            switchID: "Sum_RelationalOperatorReplacement_\(line)_\(column)_3361",
-            snapshot: .make(before: ">", after: "<", description: "changed > to <"),
+            utf8Offset: utf8Offset,
+            mutationOperatorId: mutationOperatorId,
+            switchID: switchID ?? "Sum_\(mutationOperatorId.rawValue)_\(line)_\(column)_\(utf8Offset)",
+            snapshot: snapshot,
             outcome: outcome,
-            endedBy: .exited,
-            exitStatus: outcome == .passed ? 0 : 1,
+            endedBy: endedBy,
+            exitStatus: endedBy == .exited ? (outcome == .passed ? 0 : 1) : nil,
             durationSeconds: 31.25,
             worker: 0,
             finishedAt: finishedAt,
             killedBy: nil,
             failedTestCount: nil,
             firstFailedTestLine: nil,
-            log: "RelationalOperatorReplacement @ Sum.swift-\(line)-\(column).log",
-            fileSHA256: nil
+            log: "\(mutationOperatorId.rawValue) @ Sum.swift-\(line)-\(column).log",
+            fileSHA256: fileSHA256
         )
     }
 }
@@ -437,6 +509,40 @@ extension ResultsEnd {
             detail: detail,
             testDurationSeconds: testDurationSeconds,
             recorded: recorded
+        )
+    }
+}
+
+/// `lines` as a results file holds them, each on a line of its own.
+func resultsFileData(_ lines: [any Encodable]) throws -> Data {
+    let encoder = ResultsCoding.encoder
+    return try lines.reduce(into: Data()) { data, line in
+        data += try encoder.encode(line) + Data("\n".utf8)
+    }
+}
+
+extension ResumeState {
+    /// The resume of the results file at `path`, which holds `lines`, opened as `file`.
+    static func make(
+        path: String = "/project_muter_logs/session 1/results.jsonl",
+        lines: [any Encodable],
+        file: ResultsRecording,
+        provenance: Provenance = .fixture,
+        forced: [String] = [],
+        notices: [String] = []
+    ) throws -> ResumeState {
+        let recorded = try RecordedResults.read(resultsFileData(lines), path: path)
+        guard let lastHeader = recorded.headers.last else {
+            throw ResultsFileError.notAResultsFile(path: path)
+        }
+        return ResumeState(
+            path: path,
+            file: file,
+            recorded: recorded,
+            lastHeader: lastHeader,
+            provenance: provenance,
+            forced: forced,
+            notices: notices
         )
     }
 }

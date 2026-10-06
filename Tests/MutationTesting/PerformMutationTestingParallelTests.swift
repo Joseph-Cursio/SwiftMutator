@@ -111,6 +111,26 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         XCTAssertEqual(clonedCounts, [1], "two mutants need one clone, not seven")
     }
 
+    // The progress bar's first estimate spreads the mutants over the workers that test them, which are never more
+    // than the mutants.
+    func test_theBaselinesLog_namesTheWorkersThatTestTheMutants() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 8
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
+        var baselineLogs: [MutationTestLog] = []
+        whenPosted(.newTestLogAvailable) { notification in
+            if let log = notification.object as? MutationTestLog, log.mutationPoint == nil {
+                baselineLogs.append(log)
+            }
+        }
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(baselineLogs.map(\.workers), [2])
+        XCTAssertEqual(baselineLogs.map(\.remainingMutationPointsCount), [2])
+    }
+
     // The clone is copied after the mutated project was built. Its tests must run from binaries built
     // in the clone, or every path compiled into them, `#filePath` included, still points into the
     // mutated project, and tests that write files next to their sources share them across workers.

@@ -16,15 +16,22 @@ final class ResultsRecordTests: XCTestCase {
 
     func test_aHeaderAndAnEndRecordRoundTrip() throws {
         let header = makeHeader()
+        let headerWithoutAProject = makeHeader(project: nil)
+        let resumedHeader = makeHeader(mutantsReused: 1103, waived: ["README.md"], forced: ["toolchain.environment"])
         let end = makeEnd()
 
         XCTAssertEqual(try decode(ResultsHeader.self, from: line(header)), header)
+        XCTAssertEqual(try decode(ResultsHeader.self, from: line(headerWithoutAProject)), headerWithoutAProject)
+        XCTAssertEqual(try decode(ResultsHeader.self, from: line(resumedHeader)), resumedHeader)
         XCTAssertEqual(try decode(ResultsEnd.self, from: line(end)), end)
     }
 
     func test_eachRecordSaysItsKind() throws {
+        let retired = ResultsRetired(session: 2, keys: [MutantResult.make().key])
+
         XCTAssertEqual(try decode(ResultsCoding.Kind.self, from: line(makeHeader())).kind, "header")
         XCTAssertEqual(try decode(ResultsCoding.Kind.self, from: line(makeMutantRecord())).kind, "mutant")
+        XCTAssertEqual(try decode(ResultsCoding.Kind.self, from: line(retired)).kind, "retired")
         XCTAssertEqual(try decode(ResultsCoding.Kind.self, from: line(makeEnd())).kind, "end")
     }
 
@@ -124,6 +131,7 @@ final class ResultsRecordTests: XCTestCase {
                 coverage: nil,
                 baselineSeconds: nil,
                 timeoutSeconds: nil,
+                project: nil,
                 provenance: Provenance(
                     swiftMutator: .init(version: "1.0.0", executablePath: nil, executableSHA256: nil),
                     toolchain: .init(testCommandVersion: nil, testExecutableSHA256: nil, environment: [:]),
@@ -141,7 +149,8 @@ final class ResultsRecordTests: XCTestCase {
         }
         for key in [
             "coverage", "baselineSeconds", "timeoutSeconds", "executablePath", "executableSHA256",
-            "testCommandVersion", "testExecutableSHA256", "mutationTestTimeout", "buildSystem",
+            "testCommandVersion", "testExecutableSHA256", "mutationTestTimeout", "buildSystem", "project",
+            "mutantsReused", "waived", "forced",
         ] {
             XCTAssertFalse(header.contains("\"\(key)\""), "\(key) in \(header)")
         }
@@ -303,6 +312,8 @@ final class ResultsRecordTests: XCTestCase {
             stopAtFirstFailure: true
         )
         state.muterConfiguration = loaded
+        let project = makeProjectTree()
+        state.projectTree = project
         let effective = loaded.withUnreliableFailedTestLines().withDefaultTestSuiteTimeout(96.5)
 
         let header = ResultsHeader(
@@ -342,7 +353,11 @@ final class ResultsRecordTests: XCTestCase {
                 stopsAtFirstFailure: false,
                 failedTestLinesAreReliable: false,
                 mutantsDiscovered: 7,
-                mutantsToTest: 7
+                mutantsToTest: 7,
+                project: project,
+                mutantsReused: nil,
+                waived: nil,
+                forced: nil
             )
         )
         XCTAssertEqual(header.kind, "header")
@@ -370,8 +385,42 @@ final class ResultsRecordTests: XCTestCase {
         XCTAssertFalse(header.timeoutIsDefault)
         XCTAssertTrue(header.usingTestPlan)
         XCTAssertNil(header.coverage)
+        XCTAssertNil(header.project)
         XCTAssertTrue(header.stopsAtFirstFailure)
         XCTAssertTrue(header.failedTestLinesAreReliable)
+    }
+
+    // A format-1 reader would skip the resumed session's retired line, and report results it no longer stands by.
+    func test_aResumedSessionsHeader_isInFormat2_andSaysWhatItReusedAndWhatWasLetThrough() {
+        let state = MutationTestState(from: .make())
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+        let header = { (session: Int, mutantsReused: Int?, waived: [String]?, forced: [String]?) in
+            ResultsHeader(
+                session: session,
+                startedAt: self.startedAt,
+                state: state,
+                logDirectory: "/logs",
+                configuration: state.muterConfiguration,
+                baselineSeconds: 32.125,
+                workers: 1,
+                mutantsDiscovered: 3,
+                mutantsToTest: 3,
+                provenance: .fixture,
+                mutantsReused: mutantsReused,
+                waived: waived,
+                forced: forced
+            )
+        }
+
+        let first = header(1, nil, nil, nil)
+        let resumed = header(2, 0, ["README.md"], ["toolchain.testCommandVersion"])
+
+        XCTAssertEqual(first.formatVersion, ResultsCoding.formatVersion)
+        XCTAssertEqual(resumed.formatVersion, ResultsCoding.resumedFormatVersion)
+        XCTAssertEqual(resumed.session, 2)
+        XCTAssertEqual(resumed.mutantsReused, 0)
+        XCTAssertEqual(resumed.waived, ["README.md"])
+        XCTAssertEqual(resumed.forced, ["toolchain.testCommandVersion"])
     }
 
     func test_endDetail_namesTheAbortReason() {
@@ -490,7 +539,16 @@ private extension ResultsRecordTests {
         coverage: CoverageSummary? = CoverageSummary(percent: 87, filesWithoutCoverage: ["Sources/Untested.swift"]),
         baselineSeconds: Double? = 32.104,
         timeoutSeconds: Double? = 96.312,
-        provenance: Provenance = .fixture
+        project: ProjectTree? = .init(
+            listedBy: .git,
+            files: ["Package.swift": "3f1a", "Sources/Core/Walker.swift": "c07e", "README.md": "link:9d42"],
+            excluded: ["mutation-report.partial.txt", "mutation-report.txt"],
+            treeSHA256: "e5b8"
+        ),
+        provenance: Provenance = .fixture,
+        mutantsReused: Int? = nil,
+        waived: [String]? = nil,
+        forced: [String]? = nil
     ) -> ResultsHeader {
         ResultsHeader(
             formatVersion: ResultsCoding.formatVersion,
@@ -518,8 +576,17 @@ private extension ResultsRecordTests {
             stopsAtFirstFailure: false,
             failedTestLinesAreReliable: true,
             mutantsDiscovered: 2497,
-            mutantsToTest: 2497
+            mutantsToTest: 2497,
+            project: project,
+            mutantsReused: mutantsReused,
+            waived: waived,
+            forced: forced
         )
+    }
+
+    func makeProjectTree() -> ProjectTree {
+        let files = ["Sources/Sum.swift": "5a1c", "README.md": "0b9d"]
+        return ProjectTree(listedBy: .walk, files: files, excluded: [], treeSHA256: ProjectTree.treeHash(of: files))
     }
 
     func makeEnd(

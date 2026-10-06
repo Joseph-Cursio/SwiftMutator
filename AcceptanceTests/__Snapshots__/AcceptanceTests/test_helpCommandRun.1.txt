@@ -1,7 +1,7 @@
 OVERVIEW: Performs mutation testing for the Swift project contained within the
 current directory.
 
-USAGE: swift-mutator run [--files-to-mutate <files-to-mutate> ...] [--operators <operators> ...] [--configuration <configuration>] [--skip-coverage] [--skip-update-check] [--format <format>] [--output <output>]
+USAGE: swift-mutator run [--files-to-mutate <files-to-mutate> ...] [--operators <operators> ...] [--configuration <configuration>] [--skip-coverage] [--skip-update-check] [--format <format>] [--output <output>] [--resume <results>] [--resume-ignoring <glob> ...] [--force-resume]
 
 OPTIONS:
   --files-to-mutate <files-to-mutate>
@@ -17,6 +17,15 @@ OPTIONS:
                           versions.
   -f, --format <format>   The report format: plain, json, html, xcode
   -o, --output <output>   Output file for the report to be saved.
+  --resume <results>      Continue a stopped run from its results file, or the
+                          log folder that holds it. Only mutants without a
+                          result that still holds are tested.
+  --resume-ignoring <glob>
+                          With --resume, reuse results although project files
+                          matching this glob changed; * also matches /.
+                          Repeatable.
+  --force-resume          With --resume, reuse results although SwiftMutator,
+                          the toolchain or the SDK changed.
   --version               Show the version.
   -h, --help              Show help information.
 

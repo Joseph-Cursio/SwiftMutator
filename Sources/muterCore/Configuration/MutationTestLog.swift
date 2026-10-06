@@ -5,6 +5,8 @@ struct MutationTestLog {
     let testLog: String
     let timePerBuildTestCycle: TimeInterval?
     let remainingMutationPointsCount: Int?
+    /// How many workers test the remaining mutants at once. Only the baseline's log says.
+    var workers = 1
 }
 
 extension MutationTestLog {

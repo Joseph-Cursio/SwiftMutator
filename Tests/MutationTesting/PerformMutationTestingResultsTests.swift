@@ -74,6 +74,26 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(posted().first?.object as? String, "/logs/results.jsonl")
     }
 
+    func test_theHeaderRecordsTheProjectTree() async throws {
+        let tree = makeProjectTree(["Sources/Sum.swift": "5a1c", "Sources/Product.swift": "77e0", "README.md": "0b9d"])
+        state.projectTree = tree
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.project), [tree])
+    }
+
+    // A test plan's run copies nothing, so its state has no tree, and neither does its header.
+    func test_aStateWithoutAProjectTree_writesAHeaderWithoutOne_andMutantLinesWithoutHashes() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.project), [nil])
+        XCTAssertEqual(try resultsFiles.records(MutantResult.self).map(\.fileSHA256), [nil, nil])
+    }
+
     // No more workers run than there are mutants, and the header says how many ran.
     func test_theHeadersWorkers_areTheEffectiveCount_whenMoreAreConfiguredThanThereAreMutants() async throws {
         state.muterConfiguration = MuterConfiguration(
@@ -146,6 +166,21 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
             "RelationalOperatorReplacement @ Sum.swift-3-5.log",
             "RelationalOperatorReplacement @ Product.swift-7-5.log",
         ])
+    }
+
+    // The hash of the file as the copy held it before discovery rewrote it, so a later run can tell whether the
+    // mutant's file is still the one it was tested in.
+    func test_aMutantLineCarriesItsFilesHash() async throws {
+        let tree = makeProjectTree(["Sources/Sum.swift": "5a1c", "Sources/Product.swift": "77e0", "README.md": "0b9d"])
+        state.projectTree = tree
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+
+        _ = try await sut.run(with: state)
+
+        let mutants = try resultsFiles.records(MutantResult.self)
+        XCTAssertEqual(mutants.map(\.path), ["Sources/Sum.swift", "Sources/Product.swift"])
+        XCTAssertEqual(mutants.first?.fileSHA256, tree.files["Sources/Sum.swift"])
+        XCTAssertEqual(mutants.map(\.fileSHA256), ["5a1c", "77e0"])
     }
 
     func test_parallelLines_nameTheirWorker_andMatchTheJobsByKey() async throws {
@@ -500,6 +535,11 @@ private extension PerformMutationTestingResultsTests {
     func whenPosted(_ name: Notification.Name, _ handler: @escaping (Notification) -> Void) {
         let observer = notificationCenter.addObserver(forName: name, object: nil, queue: nil, using: handler)
         addTeardownBlock { [notificationCenter] in notificationCenter.removeObserver(observer) }
+    }
+
+    /// A tree of `files`, each a path relative to the project and its hash.
+    func makeProjectTree(_ files: [String: String]) -> ProjectTree {
+        ProjectTree(listedBy: .git, files: files, excluded: [], treeSHA256: ProjectTree.treeHash(of: files))
     }
 
     /// A file in the mutated project with one mutant, at `line`, column 5.
