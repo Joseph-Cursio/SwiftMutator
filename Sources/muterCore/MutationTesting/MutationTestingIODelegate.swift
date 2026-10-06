@@ -200,6 +200,14 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             _ = try await run()
         }
 
+        // A signal from outside SwiftMutator (killall, logout, a supervisor stopping the whole tree) can end the test
+        // command milliseconds before SwiftMutator's own signal stops mutation testing; the run would be recorded first,
+        // as a crash, which counts as killed. Only a run that seems to have died of such a signal waits: SwiftMutator's
+        // own kills end a run for another reason. A cancellation in the wait throws, and the run reads as cancelled.
+        if ending.reason == .exited, Self.mayHaveEndedByAnOutsideSignal(process) {
+            try await Task.sleep(nanoseconds: Self.outsideSignalWait)
+        }
+
         // withTimeLimit returns whichever of its tasks finishes first, which needn't be what ended the run.
         let executionResult = try ending.executionResult()
         // Decoded leniently: the log is whatever the test command wrote, and a run stopped at the time
@@ -254,6 +262,26 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             if ending.record(.cancelled) {
                 process.terminateTreeInBackground()
             }
+        }
+    }
+
+    /// How long a run that may have ended by a signal from outside waits before it is recorded. Measured: a run is
+    /// recorded 1–65 ms after its test process dies, and with SwiftMutator signalled 5–50 ms after the test process,
+    /// 8 of 15 such runs were recorded as killed.
+    static let outsideSignalWait: UInt64 = 250_000_000
+
+    /// Whether `process`, which has exited, may have ended by a stopping signal sent from outside SwiftMutator:
+    /// SIGINT, SIGTERM or SIGHUP. An ordinary test failure exits 1, a crash dies of another signal, and SwiftMutator's
+    /// own SIGKILL ends a run for another reason, so none of them wait.
+    static func mayHaveEndedByAnOutsideSignal(_ process: Process) -> Bool {
+        switch process.terminationReason {
+        case .uncaughtSignal:
+            return [SIGINT, SIGTERM, SIGHUP].contains(process.terminationStatus)
+        // swiftly's proxy, and shells, pass a child's signal on as its number or 128 + it.
+        case .exit:
+            return [2, 15, 129, 130, 143].contains(process.terminationStatus)
+        @unknown default:
+            return false
         }
     }
 

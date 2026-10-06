@@ -5,6 +5,8 @@ typealias Process = MuterProcess
 protocol MuterProcess: AnyObject {
     var processIdentifier: Int32 { get }
     var terminationStatus: Int32 { get }
+    /// Whether the process exited or died of a signal; `terminationStatus` is then its exit code or that signal.
+    var terminationReason: Foundation.Process.TerminationReason { get }
     var terminationHandler: (@Sendable (Foundation.Process) -> Void)? { get set }
     var environment: [String: String]? { get set }
     var arguments: [String]? { get set }
