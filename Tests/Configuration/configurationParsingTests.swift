@@ -168,7 +168,7 @@ final class ConfigurationParsingTests: MuterTestCase {
     }
 
     func test_configurationWithEveryFieldSet_leavesNoFieldAtItsDefault() {
-        // A field added to MuterConfiguration fails this until the helper below sets it, which makes
+        // A field added to MuterConfiguration fails this until the helper in Fixtures.swift sets it, which makes
         // the copy tests that follow cover the new field too.
         let fields = Mirror(reflecting: configurationWithEveryFieldSet()).children
         let defaults = Mirror(reflecting: MuterConfiguration()).children
@@ -200,25 +200,5 @@ final class ConfigurationParsingTests: MuterTestCase {
             configurationWithEveryFieldSet(failedTestLinesAreReliable: true).withUnreliableFailedTestLines(),
             configurationWithEveryFieldSet(failedTestLinesAreReliable: false)
         )
-    }
-
-    /// No field is left at its default, so a copy that drops one no longer equals this.
-    private func configurationWithEveryFieldSet(
-        executable: String = "/usr/bin/swift",
-        timeout: Double? = 30,
-        failedTestLinesAreReliable: Bool = false
-    ) -> MuterConfiguration {
-        let configuration = MuterConfiguration(
-            executable: executable,
-            arguments: ["test"],
-            excludeList: ["Generated"],
-            excludeCallList: ["print"],
-            coverageThreshold: 80,
-            testSuiteTimeOut: timeout,
-            buildSystem: .swift,
-            mutationTestWorkers: 4,
-            stopAtFirstFailure: false
-        )
-        return failedTestLinesAreReliable ? configuration : configuration.withUnreliableFailedTestLines()
     }
 }

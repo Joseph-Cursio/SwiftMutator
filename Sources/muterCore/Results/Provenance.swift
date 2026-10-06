@@ -75,10 +75,18 @@ extension Provenance {
     }
 }
 
-private extension Provenance.Toolchain {
+extension Provenance.Toolchain {
     /// What makes `swift` and `xcodebuild` say their version.
     static let versionArguments = ["swift": ["--version"], "xcodebuild": ["-version"]]
 
+    /// Whether `testCommand` is asked its version, which then identifies the toolchain. Any other test command is
+    /// identified by its SHA-256.
+    static func isAskedItsVersion(_ testCommand: String) -> Bool {
+        versionArguments[(testCommand as NSString).lastPathComponent] != nil
+    }
+}
+
+private extension Provenance.Toolchain {
     init(
         testCommand: String,
         environment: [String: String],

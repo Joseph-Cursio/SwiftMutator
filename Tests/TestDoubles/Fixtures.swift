@@ -283,6 +283,28 @@ extension MuterConfiguration {
     }
 }
 
+/// No field is left at its default, so a copy that drops one no longer equals this, and every configuration key
+/// differs from the default's. `test_configurationWithEveryFieldSet_leavesNoFieldAtItsDefault` fails until a new
+/// field is set here, which then reaches the copy tests and `test_everyConfigurationKeyButTwo_isCompared`.
+func configurationWithEveryFieldSet(
+    executable: String = "/usr/bin/swift",
+    timeout: Double? = 30,
+    failedTestLinesAreReliable: Bool = false
+) -> MuterConfiguration {
+    let configuration = MuterConfiguration(
+        executable: executable,
+        arguments: ["test"],
+        excludeList: ["Generated"],
+        excludeCallList: ["print"],
+        coverageThreshold: 80,
+        testSuiteTimeOut: timeout,
+        buildSystem: .swift,
+        mutationTestWorkers: 4,
+        stopAtFirstFailure: false
+    )
+    return failedTestLinesAreReliable ? configuration : configuration.withUnreliableFailedTestLines()
+}
+
 extension MutationPosition {
     static var firstPosition: MutationPosition {
         MutationPosition(utf8Offset: 0, line: 0, column: 0)
@@ -358,18 +380,24 @@ extension ResultsHeader {
         newVersion: String = "",
         mutantsDiscovered: Int = 3,
         mutantsToTest: Int = 3,
-        project: ProjectTree? = nil
+        project: ProjectTree? = nil,
+        provenance: Provenance = .fixture,
+        configuration: MuterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"]),
+        operators: [String] = ["RelationalOperatorReplacement"],
+        filesToMutate: [String] = [],
+        skipCoverage: Bool = true,
+        usingTestPlan: Bool = false
     ) -> ResultsHeader {
         ResultsHeader(
             formatVersion: formatVersion,
             session: session,
             startedAt: startedAt,
-            provenance: .fixture,
-            configuration: MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"]),
-            operators: ["RelationalOperatorReplacement"],
-            filesToMutate: [],
-            skipCoverage: true,
-            usingTestPlan: false,
+            provenance: provenance,
+            configuration: configuration,
+            operators: operators,
+            filesToMutate: filesToMutate,
+            skipCoverage: skipCoverage,
+            usingTestPlan: usingTestPlan,
             projectPath: projectPath,
             mutatedProjectPath: mutatedProjectPath,
             logDirectory: "/project_muter_logs/run",
