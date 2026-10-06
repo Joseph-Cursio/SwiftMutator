@@ -64,6 +64,7 @@ SwiftMutator saves each mutant's result as soon as it is tested, as one line of 
 `results.jsonl` in the run's log folder, `<project>_muter_logs/<run>/`. A run that is stopped or
 crashes keeps every result it finished. The file's first line records the SwiftMutator build, the
 toolchain and the settings the run used, and each killed mutant's line names the tests that failed.
+`run --resume` continues a stopped run from it (see [Resuming a run](#resuming-a-run)).
 [Docs/results-file.md](Docs/results-file.md) describes the format, with `jq` recipes such as the
 tests that killed the most mutants.
 
@@ -99,9 +100,11 @@ which a closed terminal sends, stop it the same way. SwiftMutator then:
 3. Ends `results.jsonl` with an `end` line whose `detail` names the signal, such as `"SIGINT"`, and
    writes the partial report described below.
 4. Says on standard error how many mutants it tested, the mutation score so far, where the results
-   file is, and the `swift-mutator report` command that makes a report of them all from it, in any
-   format. The command is left out when no mutant was tested, or when the results file couldn't be
-   written in full.
+   file is, the `swift-mutator report` command that makes a report of them all from it, in any
+   format, and the command that continues the run (see [Resuming a run](#resuming-a-run)). The
+   commands are left out when no mutant has a result, or when the results file couldn't be written
+   in full. A run of a test plan (`run-without-mutating`) can't be resumed, so it gets no command
+   to continue it.
 5. Removes its worker clones, `<project>_mutated_worker<n>`. The mutated project,
    `<project>_mutated`, is kept, as after a finished run.
 6. Exits by the same signal, so the shell sees status 130 for SIGINT, 143 for SIGTERM or 129 for
@@ -135,6 +138,111 @@ A stop before the baseline has passed has nothing to keep: the results file star
   hide it: SwiftMutator still shows the error, then exits by the signal.
 - **Pipes.** SwiftMutator ignores SIGPIPE, so piping its output into `head`, or quitting a `less` it
   writes to, doesn't stop a run: it runs to the end and still writes its results file and report.
+
+## Resuming a run
+
+`run --resume` continues a stopped run. A stopped run's summary ends with the command, which repeats
+the run's own arguments, ready to paste:
+
+```
+⏹ Stopped by SIGINT after testing 1103 of 2497 mutants. Mutation score so far: 61%.
+📝 Partial report: report.partial.txt
+💾 Each tested mutant's result is in /…/SwiftProjectLint_muter_logs/Oct 6, 2026 at 9:12 AM/results.jsonl
+📝 Full report: swift-mutator report '/…/results.jsonl'
+▶️ Continue: swift-mutator run --skip-coverage -o report.txt --resume '/…/results.jsonl'
+```
+
+`--resume` takes the results file, or the log folder that holds it. SwiftMutator copies, discovers
+and builds the project as any run does, then says which results it keeps:
+
+```
+♻️ Resuming the run in /…/results.jsonl: 1098 results still hold, so 1399 mutants are left to test (1394 never tested, 5 build errors).
+```
+
+It runs the baseline again and tests only the mutants left, which the progress bar counts. Their
+results go into the same file, as a new session, so the file stays in the first session's log folder.
+The report at the end covers every mutant, kept or tested, and so does `swift-mutator report` of the
+file.
+
+- **What it saves.** The copy, the build, the baseline and the worker clones are made again. On
+  SwiftProjectLint's 2,497 mutants they take 5–9% of a run, so resuming a run stopped halfway should
+  save about 33–46 minutes, roughly 46% of a new run. On a small project they are most of the run:
+  for lab runs of 43 and 151 mutants, the estimate is 12–18%.
+- **What it keeps.** A result is kept when discovery finds its mutant again in the same file, at the
+  same place, with the same operator and the same change (`snapshot`), and the file's SHA-256 hasn't
+  changed. Killed mutants, survivors and timeouts are kept: the score counts a timeout as a survivor,
+  so a kept one can't raise it. These are tested again:
+  - build errors, including test runs that couldn't start;
+  - mutants in a file that changed, and mutations that changed;
+  - mutants whose place and operator appear more than once in a file, as they share a switch ID;
+  - mutants never tested, including any that discovery finds for the first time.
+- **Stopping again.** A resumed run stops as any run does. Its summary counts what it tested apart
+  from what it kept, `⏹ Stopped by SIGINT after testing 197 of the 1399 mutants left: 1295 of 2497
+  have results.`, and ends with the command that continues it, as often as needed.
+- **A finished run** can be resumed too. Only its build errors and newly discovered mutants are
+  tested, so this is how to test build errors again. With nothing left to test, it says `nothing is
+  left to test`, builds nothing, runs no baseline and prints the report.
+
+### When a resume is refused
+
+A result is reused only if this run would give the same one, so SwiftMutator compares this run with
+the file's last session. It checks before it removes or copies anything, and names every reason in
+one message:
+
+```
+SwiftMutator won't resume the run in '/…/results.jsonl', so that no result is reused that this run might not reproduce:
+  - mutationTestTimeout was 60 and is 120 now. A configuration change needs a new run.
+  - The toolchain (toolchain.testCommandVersion) was "Apple Swift version 6.3.3 …" and is "Apple Swift version 6.4 …" now. --force-resume reuses the results anyway.
+  - 2 project files changed since the run stopped: README.md (changed), notes.txt (added).
+    If they can't change any test's result: --resume-ignoring 'README.md' --resume-ignoring 'notes.txt'
+    Mutants in a changed source file are tested again either way.
+Nothing was copied or removed.
+```
+
+It then exits with status 255, as after an error, but without asking for a bug report. A project
+file that changes while SwiftMutator copies the project is refused after the copy, so that message
+doesn't end with `Nothing was copied or removed.`
+
+| Since the last session | Resuming |
+|---|---|
+| A configuration key changed, other than `mutationTestWorkers` and `stopAtFirstFailure` | Refused: start a new run |
+| `--operators`, `--files-to-mutate` or `--skip-coverage` changed | Refused: start a new run |
+| `mutationTestWorkers` or `stopAtFirstFailure` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
+| SwiftMutator, the toolchain or the SDK changed | Refused, unless `--force-resume` is given |
+| Project files changed, were added or were removed | Refused, unless a `--resume-ignoring` glob matches each one |
+| Another SwiftMutator holds the file, because its run is still going | Refused, naming the process and host that wrote the file's last session |
+
+A run of a test plan (`run-without-mutating`) can't be resumed, nor can a results file written
+before `--resume` existed, as it records no project files. `-o` can't name the results file itself.
+`--force-resume` and `--resume-ignoring` work only with `--resume`; without it they are a usage
+error, with status 64.
+
+- **`--force-resume`** reuses the results although the SwiftMutator build (its executable's
+  SHA-256), the test command's version (`swift --version` or `xcodebuild -version`) or SHA-256, or
+  `SDKROOT`, `DEVELOPER_DIR` or `TOOLCHAINS` changed. A value that couldn't be read counts as changed.
+  Rebuilding SwiftMutator from the same code at the same path gives the same SHA-256, so it needs no
+  force, but a build at another path gets a different one. The session's header records what it ran
+  with, so the command that continues it leaves `--force-resume` out.
+- **`--resume-ignoring <glob>`** reuses the results although project files the glob matches changed.
+  It can be given more than once. Quote a glob, so that the shell doesn't expand it. `*` also matches
+  `/`, so `--resume-ignoring 'Docs/*'` matches every file under `Docs`, and `'*.md'` every Markdown
+  file. A leading `./` is ignored. The command that continues the run keeps these flags, as the same
+  files may well change again.
+- **Which files count.** The files git lists in your project, tracked ones and untracked ones that
+  aren't ignored, plus every Swift file and `.swift-version`, and the root `Package.resolved`, ignored
+  or not. Outside a git repository, or in a folder that its repository ignores, every file. Build
+  products, such as `.build`, never count, and nor does the configuration file the run loads, such as
+  `muter.conf.yml`: its settings are compared one by one, as the table above says.
+  [Project](Docs/results-file.md#project) has the details.
+- **Local packages outside the project count too.** SwiftMutator copies only your project, so a
+  package that a `Package.swift` names with `.package(path: "../Core")`, or an Xcode project with a
+  local package reference, is built from where it is, as it is then. Its files count under their
+  path from the project, such as `../Core/Sources/Core/Core.swift`. Only literal paths are followed.
+  Nothing else outside the project counts, such as sources an Xcode project references there: after
+  changing a file like that, which a test can read, start a new run rather than resume.
+- **A waiver is your call.** Mutants in a changed Swift file are always tested again, but a change
+  can also change the results of mutants elsewhere: a test file, a fixture a test reads, or a source
+  file the mutated code calls. Waive only files that no test's result depends on.
 
 ## Development
 

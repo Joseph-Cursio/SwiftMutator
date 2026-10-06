@@ -1,12 +1,13 @@
 # The results file
 
-SwiftMutator saves each mutant's result as soon as its test run finishes, as one line of JSON in the run's log folder. A run that is stopped, killed or crashes keeps every result it finished, and you can read a run's results while it is still going. The report at the end is written as before and doesn't depend on this file. `swift-mutator report` makes a run's report from the file, in any format, at any time: see [Reports from the file](#reports-from-the-file).
+SwiftMutator saves each mutant's result as soon as its test run finishes, as one line of JSON in the run's log folder. A run that is stopped, killed or crashes keeps every result it finished, and you can read a run's results while it is still going. The report at the end is written as before and doesn't depend on this file. `swift-mutator report` makes a run's report from the file, in any format, at any time: see [Reports from the file](#reports-from-the-file). `swift-mutator run --resume` continues a stopped run from it, testing only the mutants without a result that still holds: see [Resuming a run](../README.md#resuming-a-run).
 
 ## Where it is
 
 - `<project>_muter_logs/<run>/results.jsonl`, next to your project, beside the run's kept logs. For example, `SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM/results.jsonl`.
 - The run's folder is named to the minute. If a run that started in the same minute already has a `results.jsonl` there, the file is `results-2.jsonl`, then `results-3.jsonl`, up to `results-99.jsonl`. An existing file is never overwritten.
-- SwiftMutator prints the path when it creates the file ("SwiftMutator saves each mutant's result as it finishes, in …"). After the report it prints it again ("Each mutant's result is in …"), if every line was written. When mutation testing stops early, it prints it on standard error instead ("Each tested mutant's result is in …"), on the same condition. If a mutant was tested, the command that makes a report from the file follows it, with the path quoted for the shell: "Full report: swift-mutator report '…/results.jsonl'".
+- SwiftMutator prints the path when it creates the file ("SwiftMutator saves each mutant's result as it finishes, in …"). After the report it prints it again ("Each mutant's result is in …"), if every line was written. When mutation testing stops early, it prints it on standard error instead ("Each tested mutant's result is in …"), on the same condition. If a mutant has a result, the command that makes a report from the file follows it, with the path quoted for the shell: "Full report: swift-mutator report '…/results.jsonl'". Then comes the command that continues the run, which repeats SwiftMutator's own arguments but for an earlier `--resume` and `--force-resume`: "Continue: swift-mutator run … --resume '…/results.jsonl'". A run of a test plan can't be resumed, and gets no Continue line.
+- `run --resume` adds a session to the file it continues, which stays where it is, in the first session's log folder. The new session prints the file's path as it starts testing, as a first session does. Its kept logs go to a log folder of its own, named for the minute it started in. So a later session's folder holds no results file: give `report` and `--resume` the file, or the first session's folder. A session that starts in the same minute as the one before shares its folder, and a mutant it tests again replaces that one's kept log.
 - It is always written, and there's no option to turn it off. A line takes about 0.5–1 KB, so a run of 2,500 mutants writes an estimated 2–3 MB, beside well over a gigabyte of logs. The header's list of the project's files adds about 140 bytes a file: about 205 KB for a project of 1,450 files.
 - `run` and `run-without-mutating` write one. `mutate-without-running` tests no mutants and writes none.
 
@@ -54,7 +55,7 @@ The header's `project` lists five files here. A real one lists every file in the
 | `usingTestPlan` | Bool | Whether the run tested a test plan (`run-without-mutating`) |
 | `projectPath` | String | Your project |
 | `mutatedProjectPath` | String | The mutated copy that SwiftMutator tested. Each mutant's `path` is relative to it. |
-| `logDirectory` | String | The session's log folder, which holds its kept logs. A resumed session has a folder of its own, and adds to the file in the first session's folder. |
+| `logDirectory` | String | The session's log folder, which holds its kept logs. A resumed session has a folder of its own, unless it started in the same minute as the session before, and adds to the file in the first session's folder. |
 | `coverage` | `{percent, filesWithoutCoverage}` | The project's coverage, as the report shows it. Left out when the run has none: coverage was skipped, isn't supported for the test command, or couldn't be gathered. |
 | `newVersion` | String | The newer SwiftMutator version the update check found, or `""` |
 | `baselineSeconds` | Double | How long the baseline test run took. Left out by a resumed session with nothing left to test, which runs no baseline. |
@@ -163,7 +164,8 @@ A session that `--resume` adds no longer stands by some of the earlier sessions'
 
 - **Durable at once.** Each line is written whole and then flushed to disk with `fsync`. That happens before SwiftMutator shows the mutant's progress or keeps its log, and before its worker starts the next mutant. A line on disk survives SwiftMutator being killed, even with SIGKILL, and an operating-system crash.
 - **Before an abort.** A mutant's line is written before the build-error check, so the fifth build error in a row, which stops the run, is in the file.
-- **Locked while open.** The running SwiftMutator holds an exclusive `flock` on the file, so no other SwiftMutator process writes to it. The lock goes when the process exits, however it exits. Reading takes no lock, so you can read the file while the run is still writing it.
+- **Locked while open.** The running SwiftMutator holds an exclusive `flock` on the file, so no other SwiftMutator process writes to it. The lock goes when the process exits, however it exits. So `run --resume` of a file that a run still holds is refused, naming the process and host that wrote the file's last session. Reading takes no lock, so you can read the file while the run is still writing it.
+- **A cut-off line is ended.** Before a resumed session writes, it adds a line break to a last line that doesn't end in one, such as a line a killed run cut off, so that its own first line stands alone. Readers still skip a cut-off line.
 - **Failures don't stop the run.** If the file can't be created, SwiftMutator says so once and the run goes on without it. If a write fails, it says so once and writes nothing more, so a half-written line is never followed by another. Either way the report at the end is complete.
 
 ## Reading it
@@ -256,15 +258,19 @@ The report doesn't say whether the run finished. The status on standard error do
 
 ### Sessions
 
-Every file SwiftMutator writes today holds one session. A file with several is reported as one run:
+A run's file holds one session, and one more for each time `run --resume` continued it. Each session runs from its header to its end line. `report` reports them as one run:
 
-- each mutant's last line, from whichever session wrote it;
+- each mutant's last line, from whichever session wrote it, unless a later `retired` line dropped its key;
 - the last header's project paths, coverage and update notice;
 - every session's test duration, added up;
 - how the run ended, from the last session's end line;
 - how many mutants the run found, from the last header's `mutantsDiscovered`.
 
+So a resumed run that finished gets back the report its last session made, which covers every mutant, kept or tested again. The status counts every mutant with a result, whichever session tested it: `Report of 2497 of 2497 mutants, from …: the run finished.`
+
 ## `jq` recipes
+
+The first five recipes read every `mutant` line. In a file that `run --resume` added sessions to, a mutant tested again has a line from each session that tested it, and a `retired` line can drop a result. Run them on `latest.jsonl`, which the last recipe makes, to read only the lines that count.
 
 The tests that killed the most mutants:
 
@@ -296,22 +302,28 @@ The slowest mutants, with the worker that ran them:
 jq -r 'select(.kind == "mutant") | [.durationSeconds, .worker, "\(.path):\(.line):\(.column)"] | @tsv' results.jsonl | sort -rn | head
 ```
 
-How the run ended. No output means it is still running, or was killed:
+How each session ended, one line each, with its `session`. If the last session has none, it is still running, or was killed:
 
 ```bash
 jq -c 'select(.kind == "end")' results.jsonl
 ```
 
-Plain `jq` stops at the first line that doesn't parse, such as a cut-off last line, after printing what the lines before it gave. The two recipes below read each line as text and skip any that doesn't parse (`fromjson?`), so they also work on a file from a run that was killed.
+Plain `jq` stops at the first line that doesn't parse, such as a cut-off last line, after printing what the lines before it gave. The three recipes below read each line as text and skip any that doesn't parse (`fromjson?`), so they also work on a file from a run that was killed. They follow sessions too, so they work on a file that `run --resume` added sessions to.
 
-The progress of a run:
+The progress of a run: how many mutants its last session has tested, of those it set out to test. A resumed session adds how many results it kept, and so how many of the run's mutants have one:
 
 ```bash
-jq -nR '[inputs | fromjson?] | "\(map(select(.kind == "mutant")) | length) of \(map(select(.kind == "header"))[0].mutantsToTest) tested"' results.jsonl
+jq -nR '[inputs | fromjson?] | (map(select(.kind == "header")) | last) as $header | (map(select(.kind == "mutant" and .session == $header.session)) | length) as $tested | "\($tested) of \($header.mutantsToTest) tested" + if $header | has("mutantsReused") then ", and \($header.mutantsReused) results kept from earlier sessions: \($tested + $header.mutantsReused) of \($header.mutantsDiscovered) mutants have results" else "" end' results.jsonl
 ```
 
-The score so far, worked out as the report works it out: killed (`failed` and `runtimeError`) divided by everything but `buildError`, then times 100 and rounded down, or -1 when no mutant has been tested. Keep that order: multiplying first can give a score 1 higher than the report's, such as 29 rather than 28 for 29 killed out of 100.
+The score so far, worked out as the report works it out: from each mutant's line that counts (see [Reading it](#reading-it)), killed (`failed` and `runtimeError`) divided by everything but `buildError`, then times 100 and rounded down, or -1 when no mutant has a result. Keep that order: multiplying first can give a score 1 higher than the report's, such as 29 rather than 28 for 29 killed out of 100.
 
 ```bash
-jq -nR '[inputs | fromjson? | select(.kind == "mutant") | .outcome] | (map(select(. == "failed" or . == "runtimeError")) | length) as $killed | (map(select(. != "buildError")) | length) as $scored | {tested: length, killed: $killed, score: (if length == 0 then -1 elif $scored > 0 then ($killed / $scored * 100 | floor) else 0 end)}' results.jsonl
+jq -nR 'def key: [.path, .mutationOperatorId, .line, .column, .occurrence] | tojson; reduce (inputs | fromjson?) as $line ({}; if $line.kind == "mutant" then .[$line | key] = $line.outcome elif $line.kind == "retired" then reduce ($line.keys[] | key) as $retired (.; del(.[$retired])) else . end) | [.[]] | (map(select(. == "failed" or . == "runtimeError")) | length) as $killed | (map(select(. != "buildError")) | length) as $scored | {results: length, killed: $killed, score: (if length == 0 then -1 elif $scored > 0 then ($killed / $scored * 100 | floor) else 0 end)}' results.jsonl
+```
+
+Each mutant's line that counts, as the report reads them: its last `mutant` line, unless a later `retired` line dropped its key. They go into `latest.jsonl`, one a line, which the recipes at the top can read in place of `results.jsonl`:
+
+```bash
+jq -cnR 'def key: [.path, .mutationOperatorId, .line, .column, .occurrence] | tojson; reduce (inputs | fromjson?) as $line ({}; if $line.kind == "mutant" then .[$line | key] = $line elif $line.kind == "retired" then reduce ($line.keys[] | key) as $retired (.; del(.[$retired])) else . end) | .[]' results.jsonl > latest.jsonl
 ```
