@@ -13,6 +13,7 @@ SUBCOMMANDS:
   run-without-mutating    Performs mutation testing using the test plan.
   mutate-without-running  Mutates the source code and outputs the test plan as
                           JSON.
+  report                  Builds a report from a run's results file.
   operator                Describes a given mutation operator.
 
   See 'swift-mutator help <subcommand>' for detailed help.

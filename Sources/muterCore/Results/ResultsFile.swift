@@ -25,6 +25,8 @@ enum ResultsFileError: Error, Equatable, CustomStringConvertible {
     /// Another SwiftMutator process holds its lock.
     case inUse(path: String)
     case cannotWrite(path: String, errno: Int32)
+    /// Nothing SwiftMutator can read is at `path`, as when it's missing.
+    case unreadable(path: String)
     case notAResultsFile(path: String)
     case newerFormat(path: String, version: Int)
     /// A log folder holds no results file to make a report from.
@@ -40,6 +42,8 @@ enum ResultsFileError: Error, Equatable, CustomStringConvertible {
             return "\(path) is in use by another SwiftMutator run"
         case let .cannotWrite(path, code):
             return "can't write to \(path): \(String(cString: strerror(code)))"
+        case let .unreadable(path):
+            return "can't read \(path)"
         case let .notAResultsFile(path):
             return "\(path) isn't a SwiftMutator results file: it has no header line"
         case let .newerFormat(path, version):

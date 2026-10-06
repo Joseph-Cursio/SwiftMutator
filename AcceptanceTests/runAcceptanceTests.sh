@@ -105,6 +105,9 @@ echo " > Running run help command..."
 echo " > Running operators help command..."
 "$muterdir"/swift-mutator help operator > "$samplesdir"/muters_operator_help_output.txt
 
+echo " > Running report help command..."
+"$muterdir"/swift-mutator help report > "$samplesdir"/muters_report_help_output.txt
+
 echo " > Running all operators command..."
 "$muterdir"/swift-mutator operator all > "$samplesdir"/muters_operator_all_output.txt
 
