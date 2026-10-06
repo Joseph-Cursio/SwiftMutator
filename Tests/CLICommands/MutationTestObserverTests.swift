@@ -164,6 +164,40 @@ final class MutationTestObserverTests: MuterTestCase {
         XCTAssertFalse(printer.linesPassed.contains { $0.hasPrefix("💾 Each mutant's result") }, "\(printer.linesPassed)")
     }
 
+    func test_aFinishedRun_savesItsReportAtTheRequestedPath_replacingAnOldOne() {
+        options = .make(reportURL: URL(fileURLWithPath: "/out/report.txt"))
+        let outcome = MutationTestOutcome.make(mutations: [.make(testSuiteOutcome: .failed), .make()])
+        sut.start()
+        fileManager.fileExistsToReturn = [true]
+
+        notificationCenter.post(name: .mutationTestingFinished, object: outcome)
+
+        XCTAssertEqual(
+            fileManager.methodCalls.suffix(3),
+            ["fileExists(atPath:)", "removeItem(atPath:)", "createFile(atPath:contents:attributes:)"]
+        )
+        XCTAssertEqual(fileManager.paths.suffix(2), ["/out/report.txt", "/out/report.txt"])
+        XCTAssertEqual(fileManager.contents, Data(PlainTextReporter().report(from: outcome).utf8))
+        XCTAssertEqual(printer.linesPassed.last, "📝 Report generated: \("/out/report.txt".bold)")
+    }
+
+    // Without `-o` the report is printed, and there is no file to save it to.
+    func test_aFinishedRunWithoutARequestedReport_savesNothing() {
+        let outcome = MutationTestOutcome.make(mutations: [.make(testSuiteOutcome: .failed), .make()])
+        sut.start()
+
+        notificationCenter.post(name: .mutationTestingFinished, object: outcome)
+
+        XCTAssertFalse(
+            fileManager.methodCalls.contains("createFile(atPath:contents:attributes:)"),
+            "\(fileManager.methodCalls)"
+        )
+        XCTAssertEqual(
+            printer.linesPassed.last,
+            "📝 SwiftMutator's report\n\n\(PlainTextReporter().report(from: outcome))"
+        )
+    }
+
     // A complete report from an earlier run is never replaced by a partial one.
     func test_anEarlyEnd_writesThePartialReportBesideTheRequestedOne() {
         options = .make(reportURL: URL(fileURLWithPath: "/out/report.txt"))
