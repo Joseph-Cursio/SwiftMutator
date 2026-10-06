@@ -60,4 +60,6 @@ struct World {
     var testingTimeOutExecutor: TestingTimeoutExecutorFactory = { TestingTimeoutExecutor() }
     var provenance: ProvenanceProbe = { Provenance.probe($0) }
     var resultsFiles: ResultsFileOpening = ResultsFile.Opener()
+    /// The signal that stopped this run, if one did.
+    var interruption = InterruptionRecord()
 }
