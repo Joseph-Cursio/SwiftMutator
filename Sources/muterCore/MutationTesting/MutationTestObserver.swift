@@ -246,14 +246,16 @@ extension MutationTestObserver {
     func handleMutationTestingFinished(notification: Notification) {
         let reporter = runOptions.reportOptions.reporter
         let reportPath = runOptions.reportOptions.path ?? ""
-        let report = reporter.report(from: notification.object as! MutationTestOutcome)
+        let outcome = notification.object as! MutationTestOutcome
+        let report = reporter.report(from: outcome)
         let didSave = ReportWriter.save(report, to: reportPath, using: fileManager)
 
         logger.mutationTestingFinished(
             report: report,
             reportPath: reportPath,
             isExportingReport: !reportPath.isEmpty,
-            didSaveReport: didSave
+            didSaveReport: didSave,
+            suspectWarning: KillingTestSummary.warning(for: outcome)
         )
         resultsFilePath.map(logger.resultsFileKept(atPath:))
     }

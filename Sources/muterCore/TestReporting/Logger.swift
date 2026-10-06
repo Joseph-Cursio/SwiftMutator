@@ -250,38 +250,43 @@ final class Logger {
         return largestShare * cycle
     }
 
+    /// Where the report went, or the report itself, then the report's `suspectWarning`
+    /// (`KillingTestSummary.warning(for:)`), if it has one: the run's last word on its score.
     func mutationTestingFinished(
         report: String,
         reportPath: String,
         isExportingReport: Bool,
-        didSaveReport: Bool
+        didSaveReport: Bool,
+        suspectWarning: String?
     ) {
         print("🏁 SwiftMutator finished running!")
 
-        guard isExportingReport else {
-            return print(
+        if !isExportingReport {
+            print(
                 """
                 📝 SwiftMutator's report
 
                 \(report)
                 """
             )
-        }
-
-        if didSaveReport {
+        } else if didSaveReport {
             print("📝 Report generated: \(reportPath.bold)")
         } else {
             print(report)
             print("\n")
             print("Could not save report!")
         }
+
+        if let suspectWarning {
+            print("⚠️ \(suspectWarning)")
+        }
     }
 
-    /// What mutation testing tested before it stopped early, where its partial report is, if it has one, where each
-    /// result is, the command that makes a report of them all, and the command that continues the run. A resumed
-    /// session counts the mutants it tested apart from the results it kept. On standard error: it reaches the terminal
-    /// even when a `| tee` that the same Ctrl-C ended has closed standard output. An abort's error follows on standard
-    /// output.
+    /// What mutation testing tested before it stopped early, and the warning of suspect tests its report gives, if it
+    /// gives one, then where its partial report is, if it has one, where each result is, the command that makes a
+    /// report of them all, and the command that continues the run. A resumed session counts the mutants it tested apart
+    /// from the results it kept. On standard error: it reaches the terminal even when a `| tee` that the same Ctrl-C
+    /// ended has closed standard output. An abort's error follows on standard output.
     func mutationTestingEndedEarly(
         _ earlyEnd: EarlyEnd,
         partialReport: (path: String, saved: Bool)?,
@@ -290,6 +295,9 @@ final class Logger {
     ) {
         let results = earlyEnd.outcome.mutations.count
         var lines = [Self.stopped(earlyEnd)]
+        if let suspectWarning = KillingTestSummary.warning(for: earlyEnd.outcome) {
+            lines.append("⚠️ \(suspectWarning)")
+        }
         if let partialReport {
             lines.append(
                 partialReport.saved

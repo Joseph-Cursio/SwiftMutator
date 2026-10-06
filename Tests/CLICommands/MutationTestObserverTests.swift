@@ -213,6 +213,24 @@ final class MutationTestObserverTests: MuterTestCase {
         )
     }
 
+    // The warning the report gives of the run's suspect tests, after where the report went and before the results
+    // file's line.
+    func test_finished_passesTheSuspectWarningToTheLogger() {
+        options = .make(reportURL: URL(fileURLWithPath: "/out/report.txt"))
+        sut.start()
+        notificationCenter.post(name: .resultsFileCreated, object: "/logs/results.jsonl")
+
+        notificationCenter.post(name: .mutationTestingFinished, object: MutationTestOutcome.withSuspectTests)
+
+        XCTAssertEqual(printer.linesPassed.suffix(3), [
+            "📝 Report generated: \("/out/report.txt".bold)",
+            "⚠️ 2 tests may fail whatever the mutant: they failed for mutants in at least 15% of the 12 files with a "
+                + "killed mutant (timing() in 12, order() in 10). Without their failures, the mutation score would be "
+                + "at least 50%, not 92%.",
+            "💾 Each mutant's result is in \("/logs/results.jsonl".bold)",
+        ])
+    }
+
     // A complete report from an earlier run is never replaced by a partial one.
     func test_anEarlyEnd_writesThePartialReportBesideTheRequestedOne() {
         options = .make(reportURL: URL(fileURLWithPath: "/out/report.txt"))

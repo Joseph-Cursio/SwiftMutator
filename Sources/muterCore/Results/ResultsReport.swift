@@ -23,7 +23,8 @@ struct ResultsReport {
 
     /// Makes the report from the results file `path` names: the file itself, or a run's log folder that holds it.
     /// Standard output holds the report alone (and, in the Xcode format, its warnings), so `-f json > report.json` is
-    /// valid JSON; what the file holds, and where the report went, are said on standard error.
+    /// valid JSON; what the file holds, the report's warning of suspect tests, and where the report went, are said on
+    /// standard error.
     func make(from path: String) throws {
         let file = try ResultsFile.find(at: path, using: fileManager)
         if let outputPath {
@@ -50,6 +51,8 @@ struct ResultsReport {
         // The report comes before what's said about it, should both go to one place.
         flushStandardOut()
         recorded.statusLines(path: file).forEach(errorPrinter)
+        // As a run ends with it, without the run's emoji: it is said of the report, as the status lines are.
+        KillingTestSummary.warning(for: outcome).map(errorPrinter)
         if let outputPath {
             errorPrinter("Report saved to \(outputPath)")
         }
