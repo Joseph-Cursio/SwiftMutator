@@ -26,6 +26,9 @@ extension Notification.Name {
     static let mutationsDiscoveryStarted = Notification.Name("mutationsDiscoveryStarted")
     static let mutationsDiscoveryFinished = Notification.Name("mutationsDiscoveryFinished")
 
+    /// The object is a `ResumeSummary`: what a resumed run keeps of its results file and tests again, before anything
+    /// is tested.
+    static let resumePlanned = Notification.Name("resumePlanned")
     static let mutationTestingStarted = Notification.Name("mutationTestingStarted")
     static let stopAtFirstFailureTurnedOff = Notification.Name("stopAtFirstFailureTurnedOff")
     static let mutationTestingFinished = Notification.Name("mutationTestingFinished")
@@ -83,6 +86,7 @@ final class MutationTestObserver {
             (name: .mutationsDiscoveryStarted, handler: handleMutationsDiscoveryStarted),
             (name: .mutationsDiscoveryFinished, handler: handleMutationsDiscoveryFinished),
 
+            (name: .resumePlanned, handler: handleResumePlanned),
             (name: .mutationTestingStarted, handler: handleMutationTestingStarted),
             (name: .stopAtFirstFailureTurnedOff, handler: handleStopAtFirstFailureTurnedOff),
 
@@ -177,6 +181,10 @@ extension MutationTestObserver {
 
     func handleMutationsDiscoveryFinished(notification: Notification) {
         logger.mutationsDiscoveryFinished(mutations: notification.object as! [SchemataMutationMapping])
+    }
+
+    func handleResumePlanned(notification: Notification) {
+        (notification.object as? ResumeSummary).map(logger.resumePlanned)
     }
 
     func handleMutationTestingStarted(notification: Notification) {

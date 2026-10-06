@@ -14,7 +14,7 @@ SwiftMutator saves each mutant's result as soon as its test run finishes, as one
 
 The file is [JSON Lines](https://jsonlines.org): UTF-8, one JSON object per line, each line ending in a line break. Every object has a `kind`:
 
-1. **`header`**, once per session. A run's first session writes it when the baseline test run has passed, before the first mutant is tested, so a run whose baseline fails writes no file. A run that `--resume` continues adds a session to the same file, which starts with a header of its own on the same condition, so one whose baseline fails adds nothing.
+1. **`header`**, once per session. A run's first session writes it when the baseline test run has passed, before the first mutant is tested, so a run whose baseline fails writes no file. A run that `--resume` continues adds a session to the same file, which starts with a header of its own on the same condition, so one whose baseline fails adds nothing. One with nothing left to test runs no baseline, and writes its header at once.
 2. **`retired`**, only in a resumed session, right after its header: the earlier results it no longer stands by. See [below](#retired).
 3. **`mutant`**, one for each tested mutant, written as its test run finishes. With several workers, mutants finish in a different order from the one they started in.
 4. **`end`**, last in each session. It is written when mutation testing stops: when it finishes, when an error stops it, and when Ctrl-C (SIGINT), SIGTERM or SIGHUP stops it (see [Stopping a run](../README.md#stopping-a-run)). A run that is killed with SIGKILL or crashes has no end line. Nor does one stopped at once, by a second signal or after 30 seconds of stopping, unless it had already written the end line.
@@ -57,14 +57,14 @@ The header's `project` lists five files here. A real one lists every file in the
 | `logDirectory` | String | The session's log folder, which holds its kept logs. A resumed session has a folder of its own, and adds to the file in the first session's folder. |
 | `coverage` | `{percent, filesWithoutCoverage}` | The project's coverage, as the report shows it. Left out when the run has none: coverage was skipped, isn't supported for the test command, or couldn't be gathered. |
 | `newVersion` | String | The newer SwiftMutator version the update check found, or `""` |
-| `baselineSeconds` | Double | How long the baseline test run took |
-| `timeoutSeconds` | Double | The time limit for each mutant's test run: `mutationTestTimeout`, or else the default the baseline set (3× its time, at least 10 s) |
+| `baselineSeconds` | Double | How long the baseline test run took. Left out by a resumed session with nothing left to test, which runs no baseline. |
+| `timeoutSeconds` | Double | The time limit for each mutant's test run: `mutationTestTimeout`, or else the default the baseline set (3× its time, at least 10 s). Left out when neither is there: in a resumed session with nothing left to test, without `mutationTestTimeout`. |
 | `timeoutIsDefault` | Bool | Whether `mutationTestTimeout` wasn't set, so `timeoutSeconds` is the default |
-| `workers` | Int | How many mutants were tested at once |
+| `workers` | Int | How many mutants were tested at once: `mutationTestWorkers`, but never more than the mutants to test, so 0 in a resumed session with nothing left to test |
 | `stopsAtFirstFailure` | Bool | Whether a mutant's test run stopped at its first failed test |
 | `failedTestLinesAreReliable` | Bool | False when the passing baseline printed a line that looks like a failed test. Such lines then don't show that a mutant was killed, so no mutant line has `killedBy`. |
 | `mutantsDiscovered` | Int | How many mutants the run found |
-| `mutantsToTest` | Int | How many of them it set out to test, which today is all of them. It is written before any mutant is tested, so it says nothing about how many were: that is the number of `mutant` lines, or the end line's `recorded`. |
+| `mutantsToTest` | Int | How many of them it set out to test: all of them in a run's first session, and fewer in a resumed one, which tests only those without an earlier result that still holds. It is written before any mutant is tested, so it says nothing about how many were: that is the number of `mutant` lines, or the end line's `recorded`. |
 | `project` | Object | Your project's files, each one's SHA-256, as SwiftMutator copied them, before it prepared any for mutation. See [below](#project). Left out by `run-without-mutating`, which copies nothing. |
 | `mutantsReused` | Int | Only in a resumed session: how many earlier sessions' results it kept rather than tested again |
 | `waived` | [String] | Only in a resumed session: the project files that changed since the last session and that `--resume-ignoring` let through, by their paths relative to the project, or `[]` |

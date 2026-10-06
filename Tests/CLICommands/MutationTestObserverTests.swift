@@ -127,6 +127,21 @@ final class MutationTestObserverTests: MuterTestCase {
         )
     }
 
+    func test_resumePlanned_reachesTheLogger() {
+        sut.start()
+
+        notificationCenter.post(
+            name: .resumePlanned,
+            object: ResumeSummary.make(path: "/logs/results.jsonl", reused: 3, toTest: 1, retestedBecause: [.buildError: 1])
+        )
+
+        XCTAssertEqual(
+            printer.linesPassed.last,
+            "♻️ Resuming the run in \("/logs/results.jsonl".bold): 3 results still hold, "
+                + "so 1 mutant is left to test (1 build error)."
+        )
+    }
+
     func test_resultsFileCreated_isLogged_andNamedAtTheEnd() {
         sut.start()
 

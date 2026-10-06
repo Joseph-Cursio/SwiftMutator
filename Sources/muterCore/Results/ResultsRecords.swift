@@ -85,7 +85,8 @@ struct CoverageSummary: Codable, Equatable {
 }
 
 /// A session's first line: where its results came from, and what they were tested with. Written once the baseline
-/// passes, so a run whose baseline fails leaves no results file, and a resumed one adds no session to its file.
+/// passes, so a run whose baseline fails leaves no results file, and a resumed one adds no session to its file. A
+/// resumed session with nothing left to test runs no baseline, and writes it at once.
 struct ResultsHeader: Codable, Equatable {
     var kind = "header"
     /// `ResultsCoding.formatVersion` for a first session, `resumedFormatVersion` for a resumed one.
@@ -112,9 +113,9 @@ struct ResultsHeader: Codable, Equatable {
     let coverage: CoverageSummary?
     /// The newer SwiftMutator version the update check found, or "", which the HTML report shows.
     let newVersion: String
-    /// How long the baseline run took.
+    /// How long the baseline run took; nil when a resumed session had nothing left to test, and ran none.
     let baselineSeconds: Double?
-    /// The time limit for a mutant's run: the configured one, or else the default the baseline set.
+    /// The time limit for a mutant's run: the configured one, or else the default the baseline set, if one ran.
     let timeoutSeconds: Double?
     let timeoutIsDefault: Bool
     let workers: Int

@@ -113,6 +113,79 @@ final class LoggerTests: MuterTestCase {
         ])
     }
 
+    // The progress bar counts the mutants left to test, not every one discovery found. Each reason a mutant is tested
+    // again is counted, in the plan's order, and only when it has any.
+    func test_resumePlanned_saysWhatIsReusedAndRetested_andSetsTheProgressTotal() throws {
+        try sut.mutationsDiscoveryFinished(mutations: Array(repeating: makeSchemataMapping(), count: 4))
+        let printedBefore = printer.linesPassed.count
+
+        sut.resumePlanned(.make(reused: 1103, toTest: 1394, retestedBecause: [.buildError: 5, .notRecorded: 1389]))
+
+        XCTAssertEqual(sut.numberOfMutationPoints, 1394)
+        sut.resumePlanned(
+            .make(
+                reused: 1,
+                toTest: 7,
+                retestedBecause: [.repeated: 2, .mutationChanged: 1, .fileChanged: 3, .buildError: 1, .notRecorded: 0]
+            )
+        )
+        sut.resumePlanned(.make(reused: 0, toTest: 1, retestedBecause: [.fileChanged: 1]))
+
+        XCTAssertEqual(Array(printer.linesPassed.dropFirst(printedBefore)), [
+            "♻️ Resuming the run in \("/logs/results.jsonl".bold): 1103 results still hold, "
+                + "so 1394 mutants are left to test (1389 never tested, 5 build errors).",
+            "♻️ Resuming the run in \("/logs/results.jsonl".bold): 1 result still holds, so 7 mutants are left to test "
+                + "(1 build error, 3 in changed files, 1 changed mutation, 2 repeated in their file).",
+            "♻️ Resuming the run in \("/logs/results.jsonl".bold): 0 results still hold, "
+                + "so 1 mutant is left to test (1 in a changed file).",
+        ])
+        XCTAssertEqual(sut.numberOfMutationPoints, 1)
+    }
+
+    func test_resumePlanned_withNothingLeft_saysSo() {
+        sut.resumePlanned(.make(reused: 2497, toTest: 0, retestedBecause: [:]))
+        sut.resumePlanned(.make(reused: 1, toTest: 0, retestedBecause: [:]))
+
+        XCTAssertEqual(printer.linesPassed, [
+            "♻️ Resuming the run in \("/logs/results.jsonl".bold): all 2497 results still hold, "
+                + "so nothing is left to test.",
+            "♻️ Resuming the run in \("/logs/results.jsonl".bold): its only result still holds, "
+                + "so nothing is left to test.",
+        ])
+        XCTAssertEqual(sut.numberOfMutationPoints, 0)
+    }
+
+    // A change no result depends on is only said. What --force-resume and --resume-ignoring let through is a warning:
+    // the results are reused on the user's word.
+    func test_resumePlanned_namesForcedWaivedAndNotices() {
+        sut.resumePlanned(
+            .make(
+                forced: ["swiftMutator.executableSHA256", "toolchain.testCommandVersion"],
+                waived: ["README.md", "notes.txt"],
+                notices: ["mutationTestWorkers was 4 and is 2 now, which no result depends on."]
+            )
+        )
+        sut.resumePlanned(
+            .make(
+                forced: ["toolchain.environment"],
+                waived: (1...12).map { "Docs/rules/rule\($0).md" }
+            )
+        )
+
+        XCTAssertEqual(printer.linesPassed, [
+            "♻️ Resuming the run in \("/logs/results.jsonl".bold): 2 results still hold, "
+                + "so 2 mutants are left to test (2 never tested).",
+            "ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.",
+            "⚠️ Results are reused although SwiftMutator and the toolchain changed (--force-resume).",
+            "⚠️ Results are reused although 2 project files changed (--resume-ignoring): README.md, notes.txt",
+            "♻️ Resuming the run in \("/logs/results.jsonl".bold): 2 results still hold, "
+                + "so 2 mutants are left to test (2 never tested).",
+            "⚠️ Results are reused although the toolchain's environment changed (--force-resume).",
+            "⚠️ Results are reused although 12 project files changed (--resume-ignoring): "
+                + (1...10).map { "Docs/rules/rule\($0).md" }.joined(separator: ", ") + ", and 2 more",
+        ])
+    }
+
     func test_stopAtFirstFailureTurnedOff_saysWhy() {
         sut.stopAtFirstFailureTurnedOff(reason: "the test arguments retry failing tests")
 

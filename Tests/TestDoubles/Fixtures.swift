@@ -58,13 +58,37 @@ extension EarlyEnd {
         reason: ResultsEnd.Reason = .interrupted,
         detail: String? = nil,
         tested: [TestSuiteOutcome] = [.failed, .passed],
-        discovered: Int = 4
+        discovered: Int = 4,
+        reused: Int = 0
     ) -> EarlyEnd {
         EarlyEnd(
             reason: reason,
             detail: detail,
             outcome: MutationTestOutcome(mutations: tested.map { .make(testSuiteOutcome: $0) }),
-            discovered: discovered
+            discovered: discovered,
+            reused: reused
+        )
+    }
+}
+
+extension ResumeSummary {
+    static func make(
+        path: String = "/logs/results.jsonl",
+        reused: Int = 2,
+        toTest: Int = 2,
+        retestedBecause: [ResumePlan.Reason: Int] = [.notRecorded: 2],
+        forced: [String] = [],
+        waived: [String] = [],
+        notices: [String] = []
+    ) -> ResumeSummary {
+        ResumeSummary(
+            path: path,
+            reused: reused,
+            toTest: toTest,
+            retestedBecause: retestedBecause,
+            forced: forced,
+            waived: waived,
+            notices: notices
         )
     }
 }

@@ -5,7 +5,8 @@ final class Logger {
     private var printer: Printer
     @Dependency(\.errorPrinter)
     private var errorPrinter: Printer
-    private var numberOfMutationPoints: Int = 0
+    /// How many mutants the progress bar counts: those discovered, or those a resumed run has left to test.
+    private(set) var numberOfMutationPoints: Int = 0
     private var progressBar: ProgressBar!
     /// How many lines the progress bar takes. Its printer redraws it by moving the cursor up over that many lines.
     private static let progressBarLines = 2
@@ -114,6 +115,68 @@ final class Logger {
         for (fileName, mutantCount) in filesSummary {
             print("\(fileName) (\(mutantCount) mutants)".bold)
         }
+    }
+
+    /// How many of a resumed run's results still hold, and how many mutants are left to test and why; then each change
+    /// no result depends on, and what `--force-resume` and `--resume-ignoring` let through. The progress bar then
+    /// counts only the mutants left to test.
+    func resumePlanned(_ summary: ResumeSummary) {
+        numberOfMutationPoints = summary.toTest
+        let resuming = "♻️ Resuming the run in \(summary.path.bold): "
+        if summary.toTest == 0 {
+            let reused = summary.reused == 1 ? "its only result still holds" : "all \(summary.reused) results still hold"
+            print(resuming + "\(reused), so nothing is left to test.")
+        } else {
+            let reasons = ResumePlan.Reason.allCases.compactMap { reason in
+                summary.retestedBecause[reason].flatMap { $0 > 0 ? Self.retested($0, because: reason) : nil }
+            }
+            let reused = summary.reused == 1 ? "1 result still holds" : "\(summary.reused) results still hold"
+            let left = summary.toTest == 1 ? "1 mutant is" : "\(summary.toTest) mutants are"
+            let why = reasons.isEmpty ? "" : " (\(reasons.joined(separator: ", ")))"
+            print(resuming + "\(reused), so \(left) left to test\(why).")
+        }
+        for notice in summary.notices {
+            print("ℹ️ \(notice)")
+        }
+        if !summary.forced.isEmpty {
+            let subjects = summary.forced.map { name in
+                let subject = ResumeCheck.subject(of: name)
+                return subject.hasPrefix("The ") ? "the " + subject.dropFirst(4) : subject
+            }
+            print("⚠️ Results are reused although \(Self.listed(subjects)) changed (--force-resume).")
+        }
+        if !summary.waived.isEmpty {
+            let named = summary.waived.prefix(ResumeRefusal.changedFilesNamed)
+            let others = summary.waived.count - named.count
+            let files = summary.waived.count == 1 ? "1 project file" : "\(summary.waived.count) project files"
+            print(
+                "⚠️ Results are reused although \(files) changed (--resume-ignoring): "
+                    + named.joined(separator: ", ") + (others > 0 ? ", and \(others) more" : "")
+            )
+        }
+    }
+
+    /// "5 build errors": how many mutants are tested again for `reason`.
+    private static func retested(_ count: Int, because reason: ResumePlan.Reason) -> String {
+        let one = count == 1
+        switch reason {
+        case .notRecorded:
+            return "\(count) never tested"
+        case .buildError:
+            return "\(count) build error\(one ? "" : "s")"
+        case .fileChanged:
+            return "\(count) in \(one ? "a changed file" : "changed files")"
+        case .mutationChanged:
+            return "\(count) changed mutation\(one ? "" : "s")"
+        case .repeated:
+            return "\(count) repeated in \(one ? "its" : "their") file"
+        }
+    }
+
+    /// "a, b and c".
+    private static func listed(_ items: [String]) -> String {
+        guard let last = items.last, items.count > 1 else { return items.first ?? "" }
+        return items.dropLast().joined(separator: ", ") + " and " + last
     }
 
     func mutationTestingStarted() {
