@@ -265,6 +265,7 @@ final class MutationTestObserverTests: MuterTestCase {
             "⏹ Stopped by SIGINT after testing 2 of 4 mutants. Mutation score so far: 50%.",
             "📝 Partial report: \("/out/report.partial.txt".bold)",
             "💾 Each tested mutant's result is in \("/logs/results.jsonl".bold)",
+            "📝 Full report: swift-mutator report '/logs/results.jsonl'",
         ])
         XCTAssertEqual(printer.linesPassed, printedBefore, "nothing more on standard output")
     }
