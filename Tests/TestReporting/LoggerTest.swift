@@ -115,6 +115,56 @@ final class LoggerTests: MuterTestCase {
         ])
     }
 
+    // On standard error: a `| tee` that the same Ctrl-C ended has closed standard output.
+    func test_mutationTestingEndedEarly_saysWhatStoppedIt_andTheScoreSoFar() {
+        sut.mutationTestingEndedEarly(
+            .make(reason: .interrupted, detail: "SIGTERM", tested: [.failed, .passed, .buildError], discovered: 9),
+            partialReport: (path: "/out/report.partial.txt", saved: true),
+            resultsFile: "/logs/results.jsonl"
+        )
+        sut.mutationTestingEndedEarly(
+            .make(reason: .aborted, detail: "tooManyBuildErrors", tested: [.failed, .buildError], discovered: 9),
+            partialReport: nil,
+            resultsFile: nil
+        )
+
+        XCTAssertEqual(standardError.linesPassed, [
+            "⏹ Stopped by SIGTERM after testing 3 of 9 mutants. Mutation score so far: 50%.",
+            "📝 Partial report: \("/out/report.partial.txt".bold)",
+            "💾 Each tested mutant's result is in \("/logs/results.jsonl".bold)",
+            // The error banner follows on standard output.
+            "⏹ Stopped by the error below after testing 2 of 9 mutants. Mutation score so far: 100%.",
+        ])
+        XCTAssertEqual(printer.linesPassed, [])
+    }
+
+    // There is no score to give, and no report: a report needs a tested mutant.
+    func test_mutationTestingEndedEarly_withNothingTested_leavesTheScoreOut() {
+        sut.mutationTestingEndedEarly(
+            .make(reason: .interrupted, detail: "SIGINT", tested: [], discovered: 9),
+            partialReport: nil,
+            resultsFile: "/logs/results.jsonl"
+        )
+
+        XCTAssertEqual(standardError.linesPassed, [
+            "⏹ Stopped by SIGINT before any of 9 mutants finished.",
+            "💾 Each tested mutant's result is in \("/logs/results.jsonl".bold)",
+        ])
+    }
+
+    func test_mutationTestingEndedEarly_whenThePartialReportCouldNotBeSaved_saysWhere() {
+        sut.mutationTestingEndedEarly(
+            .make(tested: [.failed]),
+            partialReport: (path: "/out/report.partial.txt", saved: false),
+            resultsFile: nil
+        )
+
+        XCTAssertEqual(standardError.linesPassed, [
+            "⏹ Stopped by a signal after testing 1 of 4 mutants. Mutation score so far: 100%.",
+            "⚠️ Could not save the partial report to /out/report.partial.txt",
+        ])
+    }
+
     private func makeSchemataMapping() throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
             filePath: "/some/path",

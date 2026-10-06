@@ -67,6 +67,52 @@ toolchain and the settings the run used, and each killed mutant's line names the
 [Docs/results-file.md](Docs/results-file.md) describes the format, with `jq` recipes such as the
 tests that killed the most mutants.
 
+## Stopping a run
+
+Press Ctrl-C once to stop a run and keep what it tested. SIGTERM, which `kill` sends, and SIGHUP,
+which a closed terminal sends, stop it the same way. SwiftMutator then:
+
+1. Stops the test runs under way and kills every process it started, so no test runner is left
+   running. A test run that the stop ended is never recorded, so it can't count as a killed mutant.
+2. Says on standard error that it is stopping. Standard error reaches the terminal even when the
+   same Ctrl-C has ended a `| tee`.
+3. Ends `results.jsonl` with an `end` line whose `detail` names the signal, such as `"SIGINT"`, and
+   writes the partial report described below.
+4. Says on standard error how many mutants it tested, the mutation score so far, and where the
+   results file is.
+5. Removes its worker clones, `<project>_mutated_worker<n>`. The mutated project,
+   `<project>_mutated`, is kept, as after a finished run.
+6. Exits by the same signal, so the shell sees status 130 for SIGINT, 143 for SIGTERM or 129 for
+   SIGHUP, and a script or loop that runs SwiftMutator stops too.
+
+A stop before the baseline has passed has nothing to keep: the results file starts only after it.
+
+- **The partial report.** With `-o report.txt`, the mutants tested so far are reported in
+  `report.partial.txt` beside it, in the format `-f` chose, and `-o report` gives `report.partial`.
+  The stop never writes or removes `report.txt`, so a complete report from an earlier run is kept.
+  A later run that finishes leaves an old partial report alone. Without `-o` there is no partial
+  report: the summary and `results.jsonl` say what was tested. If no mutant had finished, there is
+  none either.
+- **Stopping at once.** Press Ctrl-C again, or send any second SIGINT, SIGTERM or SIGHUP, to stop at
+  once. SwiftMutator does the same by itself if stopping takes more than 30 seconds. It still kills
+  every process it started and exits by the first signal, but the end line and the partial report
+  are there only if it had already written them, and worker clones can be left behind. A SIGHUP
+  after a first SIGHUP is ignored, because zsh sends two when its terminal closes: closing a
+  terminal stops a run the same way as one Ctrl-C.
+- **Leftovers.** The next `run` removes `<project>_mutated` and any worker clones an earlier run
+  left behind, such as one stopped at once, killed with SIGKILL, or crashed. SIGKILL and crashes
+  can't be handled, so the test processes of such a run go on until they end by themselves, with no
+  time limit.
+- **`nohup` and scripts.** A signal that was ignored when SwiftMutator started stays ignored. So a
+  run started with `nohup` outlives its terminal, and SIGINT and SIGTERM still stop it. In a script,
+  a run started in the background with `&` ignores SIGINT: stop it with SIGTERM.
+- **Errors.** When an error stops mutation testing, such as 5 build errors in a row, SwiftMutator
+  writes the same summary and partial report, then shows the error and exits with status 255. A
+  signal that comes after the error, such as a Ctrl-C while the worker clones are removed, doesn't
+  hide it: SwiftMutator still shows the error, then exits by the signal.
+- **Pipes.** SwiftMutator ignores SIGPIPE, so piping its output into `head`, or quitting a `less` it
+  writes to, doesn't stop a run: it runs to the end and still writes its results file and report.
+
 ## Development
 
 `make test` runs the unit tests (the `muterTests` target). CI runs them on every pull request

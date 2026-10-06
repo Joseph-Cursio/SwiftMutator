@@ -84,6 +84,20 @@ final class MutationTestHandlerTests: MuterTestCase {
         stepSpy3.resultToReturn = .success([])
     }
 
+    // A later step would go on from what the stopped one left half done, and could start processes that stopping
+    // the run would then have to kill.
+    func test_whenCancelledDuringAStep_noLaterStepRuns() async throws {
+        givenThereAreNoFailuresInAnyOfItSteps()
+        stepSpy1.whileRunning = { withUnsafeCurrentTask { $0?.cancel() } }
+
+        let result = await Task { [sut] in try await sut.run() }.result
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(stepSpy1.methodCalls, ["run(with:)"])
+        XCTAssertTrue(stepSpy2.methodCalls.isEmpty)
+        XCTAssertTrue(stepSpy3.methodCalls.isEmpty)
+    }
+
     // Every step, the first included, finds the folder the observer keeps the run's test logs in, so a step can
     // keep other files of the run beside them.
     func test_theRunsLogFolderReachesTheStateBeforeTheFirstStep() async throws {

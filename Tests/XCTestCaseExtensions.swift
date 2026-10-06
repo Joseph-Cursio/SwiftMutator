@@ -12,6 +12,7 @@ class MuterTestCase: XCTestCase {
     private(set) var server = ServerSpy()
     private(set) var writeFile = WriteFileSpy()
     private(set) var printer = PrinterSpy()
+    private(set) var standardError = PrinterSpy()
     private(set) var testingTimeOutExecutor = TestingTimeOutExecutorSpy()
     private(set) var resultsFiles = ResultsFilesSpy()
 
@@ -42,6 +43,7 @@ class MuterTestCase: XCTestCase {
             fileManager: fileManager,
             flushStandardOut: flushStandardOut.flush,
             printer: printer.print,
+            errorPrinter: standardError.print,
             ioDelegate: ioDelegate,
             process: { self.process },
             prepareCode: prepareCode.prepare,

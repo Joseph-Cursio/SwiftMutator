@@ -72,6 +72,43 @@ final class ProcessTreeTests: XCTestCase {
         XCTAssertEqual(everyProcess.filter { !isGone($0) }, [], "still running")
     }
 
+    // What a stopping SwiftMutator does to its own descendants, with a tree this test started as the root:
+    // the test runner's own descendants include other tests' processes.
+    func test_terminateDescendants_killsEveryDescendant_butNotTheRoot() throws {
+        let tree = try launchTree()
+
+        ProcessTree.terminateDescendants(
+            of: tree.root.processIdentifier,
+            descendants: ProcessTree.descendants(of:)
+        ) { pid, signal in
+            kill(pid, signal)
+        }
+
+        _ = waitUntil(within: 2) { tree.descendants.allSatisfy(self.isGone) }
+        XCTAssertEqual(tree.descendants.filter { !isGone($0) }, [], "still running")
+        // The root was never signalled: its `wait` returned once its children were gone, and it exited.
+        XCTAssertTrue(waitUntil(within: 2) { !tree.root.isRunning }, "the root is still running")
+        guard !tree.root.isRunning else { return }
+        XCTAssertEqual(tree.root.terminationReason, .exit)
+        XCTAssertEqual(tree.root.terminationStatus, 0)
+    }
+
+    // A terminal's Ctrl-C, or the hangup a shell forwards, signals the foreground process group. Each process
+    // SwiftMutator starts leads a group of its own, so the signal reaches SwiftMutator alone, which cancels
+    // the runs under way before it kills their processes. Otherwise a run the signal ended could be recorded
+    // first, as a killed mutant.
+    func test_aProcessSwiftMutatorStarts_leadsAProcessGroupOfItsOwn() throws {
+        let process = try XCTUnwrap(MuterProcessFactory.makeProcess() as? Foundation.Process)
+        process.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        process.arguments = ["61.41"]
+        try process.run()
+        launched.append(process)
+        let pid = process.processIdentifier
+
+        XCTAssertEqual(getpgid(pid), pid)
+        XCTAssertNotEqual(getpgid(pid), getpgrp())
+    }
+
     // MARK: - Helpers
 
     /// A real process tree: `sh` starts a `sleep` and a second `sh`, which starts a second `sleep`.

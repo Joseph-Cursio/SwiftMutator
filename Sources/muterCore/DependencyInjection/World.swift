@@ -37,6 +37,9 @@ struct World {
     var flushStandardOut: Flush = { fflush(stdout) }
     var logger: Logger = .init()
     var printer: Printer = { print($0) }
+    /// Standard error, written with `fputs`: `FileHandle.write(_:)` raises an exception once the terminal has hung up
+    /// or the reader has gone.
+    var errorPrinter: Printer = { fputs($0 + "\n", stderr) }
     var progressBar: ProgressBarInitializer = {
         ProgressBar(
             count: $0,
@@ -57,4 +60,6 @@ struct World {
     var testingTimeOutExecutor: TestingTimeoutExecutorFactory = { TestingTimeoutExecutor() }
     var provenance: ProvenanceProbe = { Provenance.probe($0) }
     var resultsFiles: ResultsFileOpening = ResultsFile.Opener()
+    /// The signal that stopped this run, if one did.
+    var interruption = InterruptionRecord()
 }

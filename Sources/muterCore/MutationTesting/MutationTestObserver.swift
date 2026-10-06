@@ -29,6 +29,8 @@ extension Notification.Name {
     static let mutationTestingStarted = Notification.Name("mutationTestingStarted")
     static let stopAtFirstFailureTurnedOff = Notification.Name("stopAtFirstFailureTurnedOff")
     static let mutationTestingFinished = Notification.Name("mutationTestingFinished")
+    /// The object is an `EarlyEnd`: what mutation testing tested before it stopped early, once the baseline passed.
+    static let mutationTestingEndedEarly = Notification.Name("mutationTestingEndedEarly")
 
     static let newMutationTestOutcomeAvailable = Notification.Name("newMutationTestOutcomeAvailable")
     static let newTestLogAvailable = Notification.Name("newTestLogAvailable")
@@ -91,6 +93,7 @@ final class MutationTestObserver {
             (name: .resultsFileUnavailable, handler: handleResultsFileUnavailable),
 
             (name: .mutationTestingFinished, handler: handleMutationTestingFinished),
+            (name: .mutationTestingEndedEarly, handler: handleMutationTestingEndedEarly),
 
             (name: .configurationFileCreated, handler: handleConfigurationFileCreated),
 
@@ -252,6 +255,24 @@ extension MutationTestObserver {
             didSaveReport: didSave
         )
         resultsFilePath.map(logger.resultsFileKept(atPath:))
+    }
+
+    /// Writes what was tested to a partial report beside the requested one, never replacing it, and says what was
+    /// tested. Without a requested report there is no partial one: the summary and the results file say what was
+    /// tested, and a report printed to the terminal would run to thousands of lines.
+    func handleMutationTestingEndedEarly(notification: Notification) {
+        guard let earlyEnd = notification.object as? EarlyEnd else { return }
+        var partialReport: (path: String, saved: Bool)?
+        if !earlyEnd.outcome.mutations.isEmpty,
+           let path = PartialReport.path(besides: runOptions.reportOptions.path) {
+            let report = runOptions.reportOptions.reporter.report(from: earlyEnd.outcome)
+            if fileManager.fileExists(atPath: path) {
+                try? fileManager.removeItem(atPath: path)
+            }
+            let saved = fileManager.createFile(atPath: path, contents: Data(report.utf8), attributes: nil)
+            partialReport = (path, saved)
+        }
+        logger.mutationTestingEndedEarly(earlyEnd, partialReport: partialReport, resultsFile: resultsFilePath)
     }
 
     func handleTestPlanFileCreated(notification: Notification) {

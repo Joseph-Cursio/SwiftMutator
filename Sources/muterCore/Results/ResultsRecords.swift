@@ -263,7 +263,8 @@ struct ResultsEnd: Codable, Equatable {
     let session: Int
     let endedAt: Date
     let reason: Reason
-    /// Why it stopped early, as a short code (`detail(for:)`).
+    /// Why it stopped early: the stopping signal's name (`"SIGINT"`) for an interruption a signal caused, or else a
+    /// short code (`detail(for:)`).
     let detail: String?
     /// Exactly the session's `MutationTestOutcome.testDuration`.
     let testDurationSeconds: Double

@@ -6,7 +6,7 @@ SwiftMutator saves each mutant's result as soon as its test run finishes, as one
 
 - `<project>_muter_logs/<run>/results.jsonl`, next to your project, beside the run's kept logs. For example, `SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM/results.jsonl`.
 - The run's folder is named to the minute. If a run that started in the same minute already has a `results.jsonl` there, the file is `results-2.jsonl`, then `results-3.jsonl`, up to `results-99.jsonl`. An existing file is never overwritten.
-- SwiftMutator prints the path when it creates the file ("SwiftMutator saves each mutant's result as it finishes, in …"). After the report it prints it again ("Each mutant's result is in …"), if every line was written.
+- SwiftMutator prints the path when it creates the file ("SwiftMutator saves each mutant's result as it finishes, in …"). After the report it prints it again ("Each mutant's result is in …"), if every line was written. When mutation testing stops early, it prints it on standard error instead ("Each tested mutant's result is in …"), on the same condition.
 - It is always written, and there's no option to turn it off. A line takes about 0.5–1 KB, so a run of 2,500 mutants writes an estimated 2–3 MB, beside well over a gigabyte of logs.
 - `run` and `run-without-mutating` write one. `mutate-without-running` tests no mutants and writes none.
 
@@ -16,7 +16,7 @@ The file is [JSON Lines](https://jsonlines.org): UTF-8, one JSON object per line
 
 1. **`header`**, once. It is written when the baseline test run has passed, before the first mutant is tested, so a run whose baseline fails writes no file.
 2. **`mutant`**, one for each tested mutant, written as its test run finishes. With several workers, mutants finish in a different order from the one they started in.
-3. **`end`**, last. It is written when mutation testing stops, whether it finished or an error stopped it. A run that is killed or crashes has no end line. That includes Ctrl-C and SIGTERM, which today end SwiftMutator at once.
+3. **`end`**, last. It is written when mutation testing stops: when it finishes, when an error stops it, and when Ctrl-C (SIGINT), SIGTERM or SIGHUP stops it (see [Stopping a run](../README.md#stopping-a-run)). A run that is killed with SIGKILL or crashes has no end line. Nor does one stopped at once, by a second signal or after 30 seconds of stopping, unless it had already written the end line.
 
 Here is a header, three of a run's mutant lines, and the end line of a run that stopped after 1,103 mutants:
 
@@ -120,8 +120,8 @@ A value that couldn't be found, such as the hash of an executable that can't be 
 | `kind` | `"end"` | |
 | `session` | Int | 1, as in the header |
 | `endedAt` | Date | |
-| `reason` | String | `finished`; `aborted`, stopped by an error; or `interrupted`, when mutation testing was cancelled |
-| `detail` | String | Only when `aborted`: a short code for why. `tooManyBuildErrors` means 5 build errors in a row. `workerBaselineTestFailed(worker: n)` means a worker clone's baseline run didn't pass. Any other error gives its type's name. It is never a log. |
+| `reason` | String | `finished`; `aborted`, stopped by an error; or `interrupted`, stopped by a signal |
+| `detail` | String | Only when mutation testing stopped early. When `interrupted`: the signal that stopped it, `SIGINT` (Ctrl-C), `SIGTERM` or `SIGHUP`, so a Ctrl-C can be told apart from a `kill` or a closed terminal. When `aborted`: a short code for why. `tooManyBuildErrors` means 5 build errors in a row. `workerBaselineTestFailed(worker: n)` means a worker clone's baseline run didn't pass. Any other error gives its type's name. It is never a log. |
 | `testDurationSeconds` | Double | How long mutation testing took: the duration the report shows, before rounding |
 | `recorded` | Int | How many `mutant` lines the run wrote |
 

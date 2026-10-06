@@ -227,6 +227,48 @@ final class PerformMutationTestingTests: MuterTestCase {
         ])
     }
 
+    // What an abort tested makes the partial report, the build error that ended it included.
+    func test_whenTooManyBuildErrorsAbort_whatWasTestedIsPosted_inJobOrder() async throws {
+        state.mutationMapping = try Array(repeating: makeSchemataMapping(), count: 6)
+        ioDelegate.testSuiteOutcomes = [.passed, .failed] + Array(repeating: .buildError, count: 5)
+        let posted = recordNotifications(named: [.mutationTestingEndedEarly])
+
+        await assertThrowsMuterError(
+            try await sut.run(with: state),
+            .mutationTestingAborted(reason: .tooManyBuildErrors)
+        )
+
+        let earlyEnds = posted().compactMap { $0.object as? EarlyEnd }
+        XCTAssertEqual(earlyEnds.count, 1)
+        let earlyEnd = try XCTUnwrap(earlyEnds.first)
+        XCTAssertEqual(earlyEnd.reason, .aborted)
+        XCTAssertEqual(earlyEnd.detail, "tooManyBuildErrors")
+        XCTAssertEqual(earlyEnd.discovered, 6)
+        XCTAssertEqual(
+            earlyEnd.outcome.mutations.map(\.testSuiteOutcome),
+            [.failed] + Array(repeating: .buildError, count: 5)
+        )
+    }
+
+    // Nothing was tested, and the abort says why.
+    func test_aFailedBaseline_postsNoEarlyEnd() async throws {
+        ioDelegate.testSuiteOutcomes = [.failed]
+        let posted = recordNotifications(named: [.mutationTestingEndedEarly])
+
+        await assertThrowsMuterError(try await sut.run(with: state)) { _ in }
+
+        XCTAssertEqual(posted().count, 0)
+    }
+
+    func test_aFinishedRun_postsNoEarlyEnd() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        let posted = recordNotifications(named: [.mutationTestingEndedEarly])
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(posted().count, 0)
+    }
+
     func test_whenEncountersFiveNonConsecutiveBuildErrors_thenPerformMutationTesting() async throws {
         ioDelegate.testSuiteOutcomes = [
             .passed,
@@ -328,6 +370,23 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count, 1)
     }
 
+    // Stopping the run kills the baseline run, which then fails. That says nothing about the project's tests, so the
+    // run stops without saying they failed, and writes no results file.
+    func test_aCancelledBaseline_throwsCancellation_andPostsNoBaselineFailure() async throws {
+        state.loggingDirectory = "/logs"
+        ioDelegate.testSuiteOutcomes = [.buildError]
+        ioDelegate.whileRunningBaseline = { worker in
+            if worker == 0 { withUnsafeCurrentTask { $0?.cancel() } }
+        }
+        let posted = recordNotifications(named: [.baselineTestFailed])
+
+        let result = await runInItsOwnTask()
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(posted().count, 0)
+        XCTAssertEqual(resultsFiles.directories, [])
+    }
+
     func test_whenCancelledBeforeTheFirstMutant_noneRuns() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
         // The baseline's log is the last thing posted before the first mutant.
@@ -337,6 +396,23 @@ final class PerformMutationTestingTests: MuterTestCase {
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         XCTAssertEqual(ioDelegate.methodCalls, ["benchmarkTests(using:savingResultsIntoFileNamed:)"])
+    }
+
+    // One worker tests every mutant in the mutated project itself, which the next run's clean-up removes.
+    func test_aSerialRun_removesNoClones() async throws {
+        var removedClones: [[URL]] = []
+        let sut = PerformMutationTesting(
+            makeWorkerDirectories: { _, _ in
+                XCTFail("a serial run clones nothing")
+                return []
+            },
+            removeWorkerDirectories: { removedClones.append($0) }
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(removedClones, [])
     }
 
     func test_whenThePassingBaselinePrintsAFailureLikeLine_thenMutantsRunWithStoppingOff() async throws {

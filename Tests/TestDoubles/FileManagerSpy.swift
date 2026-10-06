@@ -12,6 +12,7 @@ class FileManagerSpy: Spy, FileSystemManager {
     private(set) var contentsAtPath: [String] = []
     private(set) var contentsAtPathSorted: [String] = []
     private(set) var contentsAtPathSortedOrder: [ComparisonResult] = []
+    private(set) var contentsOfDirectoryAtPath: [String] = []
     private(set) var contents: Data?
 
     private var fileContentsQueue: Queue<Data> = .init()
@@ -37,6 +38,7 @@ class FileManagerSpy: Spy, FileSystemManager {
     var subpathsToReturn: [String]?
     var fileExistsToReturn: [Bool] = []
     var contentsAtPathSortedToReturn: [String] = []
+    var contentsOfDirectoryToReturn: [String] = []
 
     var currentDirectoryPath: String {
         currentDirectoryPathToReturn
@@ -136,5 +138,13 @@ class FileManagerSpy: Spy, FileSystemManager {
         contentsAtPathSorted.append(path)
         contentsAtPathSortedOrder.append(sortedByDate)
         return contentsAtPathSortedToReturn
+    }
+
+    func contentsOfDirectory(
+        atPath path: String
+    ) throws -> [String] {
+        methodCalls.append(#function)
+        contentsOfDirectoryAtPath.append(path)
+        return contentsOfDirectoryToReturn
     }
 }

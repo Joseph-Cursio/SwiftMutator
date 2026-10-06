@@ -28,6 +28,9 @@ class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate {
     /// Called with each mutant run's zero-based number just before it returns, so a test can cancel
     /// mutation testing while a run is under way.
     var whileRunningMutant: ((Int) -> Void)?
+    /// Called with a worker's number just before its baseline run returns: 0 in the mutated project, and n for the
+    /// n-th worker clone's build to start. A test can cancel mutation testing while one is under way.
+    var whileRunningBaseline: ((Int) -> Void)?
     private var mutantRunCount = 0
 
     func backupFile(at path: String, using swapFilePaths: [FilePath: FilePath]) {
@@ -90,6 +93,7 @@ class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate {
     ) {
         methodCalls.append(#function)
         testLogs.append(fileName)
+        whileRunningBaseline?(0)
         return (testSuiteOutcomes.remove(at: 0), baselineTestLog)
     }
 
@@ -103,12 +107,14 @@ class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate {
         testLog: String
     ) {
         await Task.yield()
-        return lock.withLock {
+        let (outcome, worker) = lock.withLock {
             methodCalls.append(#function)
             testLogs.append(fileName)
             builtWorkerDirectories.append(workingDirectory)
-            return (testSuiteOutcomes.remove(at: 0), "testLog")
+            return (testSuiteOutcomes.remove(at: 0), builtWorkerDirectories.count)
         }
+        whileRunningBaseline?(worker)
+        return (outcome, "testLog")
     }
 
     func switchOn(schemata: MutationSchema, for testRun: XCTestRun, at path: URL) throws {

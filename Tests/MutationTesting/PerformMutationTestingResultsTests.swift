@@ -309,6 +309,106 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(end.recorded, 1)
     }
 
+    // It tells a CI cancellation (SIGTERM) apart from a Ctrl-C (SIGINT).
+    func test_anInterruptedRun_namesItsSignalInTheEndLine_andTheEarlyEnd() async throws {
+        state.mutationMapping = try (1...3).map { try makeSchemataMapping(file: "Sources/File\($0).swift", line: $0) }
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .buildError, .failed]
+        ioDelegate.mutantRunEndings = [.exited, .cancelled]
+        ioDelegate.whileRunningMutant = { number in
+            if number == 1 {
+                XCTAssertTrue(current.interruption.record(SIGTERM))
+                withUnsafeCurrentTask { $0?.cancel() }
+            }
+        }
+        var earlyEnds: [EarlyEnd] = []
+        whenPosted(.mutationTestingEndedEarly) { notification in
+            if let earlyEnd = notification.object as? EarlyEnd { earlyEnds.append(earlyEnd) }
+        }
+
+        let result = await Task { [sut, state] in try await sut.run(with: state) }.result
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        let end = try XCTUnwrap(resultsFiles.records(ResultsEnd.self).first)
+        XCTAssertEqual(end.reason, .interrupted)
+        XCTAssertEqual(end.detail, "SIGTERM")
+        XCTAssertEqual(earlyEnds.map(\.reason), [.interrupted])
+        XCTAssertEqual(earlyEnds.map(\.detail), ["SIGTERM"])
+    }
+
+    // Stopping the run kills the clones' builds, which then fail, but no clone was at fault.
+    func test_aCancelledWorkerBuild_endsInterrupted() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .buildError]
+        let mutationTesting = CancellableTask<[MutationTestState.Change]>()
+        ioDelegate.whileRunningBaseline = { worker in
+            if worker == 1 { mutationTesting.cancel() }
+        }
+
+        let result = await mutationTesting.run { [sut, state] in try await sut.run(with: state) }
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(try resultsFiles.kinds(), ["header", "end"])
+        let end = try XCTUnwrap(resultsFiles.records(ResultsEnd.self).first)
+        XCTAssertEqual(end.reason, .interrupted)
+        XCTAssertNil(end.detail)
+        XCTAssertEqual(end.recorded, 0)
+    }
+
+    // Removing large clones can take seconds, and a second signal in that time exits at once, so the end line comes
+    // first. A clone left behind is removed when SwiftMutator next runs.
+    func test_workerClonesAreRemovedAfterTheEndLine() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
+        )
+        // The baseline, the worker clone's build, then the two mutants.
+        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .passed]
+        let removals = removingClonesRecordsTheResultsLines()
+
+        _ = try await removals.sut.run(with: state)
+
+        XCTAssertEqual(removals.kindsAtEach(), [["header", "mutant", "mutant", "end"]])
+    }
+
+    func test_workerClonesAreRemovedAfterTheEndLine_whenTheRunIsInterrupted() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
+        let removals = removingClonesRecordsTheResultsLines()
+        // Both mutants start at once; the run still under way when the first is recorded is not recorded.
+        whenPosted(.newMutationTestOutcomeAvailable) { _ in withUnsafeCurrentTask { $0?.cancel() } }
+
+        let result = await Task { [state] in try await removals.sut.run(with: state) }.result
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(removals.kindsAtEach(), [["header", "mutant", "end"]])
+    }
+
+    // The end line is on disk before anything is said about what was tested, and that is said before the clones,
+    // which can take seconds, are removed.
+    func test_theEarlyEndComesAfterTheEndLine_andBeforeClonesAreRemoved() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
+        var events: [String] = []
+        let sut = PerformMutationTesting(
+            makeWorkerDirectories: { [workerClone] _, count in Array(repeating: workerClone, count: count) },
+            removeWorkerDirectories: { _ in events.append("clones removed") }
+        )
+        whenPosted(.mutationTestingEndedEarly) { [resultsFiles] _ in
+            events.append("early end posted after the \((try? resultsFiles.kinds().last) ?? "no") line")
+        }
+        whenPosted(.newMutationTestOutcomeAvailable) { _ in withUnsafeCurrentTask { $0?.cancel() } }
+
+        let result = await Task { [state] in try await sut.run(with: state) }.result
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(events, ["early end posted after the end line", "clones removed"])
+    }
+
     func test_whenTheResultsFileCannotBeCreated_theRunGoesOn_andSaysSo() async throws {
         resultsFiles.errorToThrow = ResultsFileError.cannotOpen(path: "/logs/results.jsonl", errno: EACCES)
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
@@ -380,6 +480,20 @@ private extension PerformMutationTestingResultsTests {
             whenPosted(name) { posted.append($0) }
         }
         return { posted }
+    }
+
+    /// Mutation testing whose worker clone is `workerClone`, and whose clone removal records the kinds of the results
+    /// lines written by then, once for each removal.
+    func removingClonesRecordsTheResultsLines() -> (sut: PerformMutationTesting, kindsAtEach: () -> [[String]]) {
+        var kindsAtEach: [[String]] = []
+        let sut = PerformMutationTesting(
+            makeWorkerDirectories: { [workerClone] _, count in Array(repeating: workerClone, count: count) },
+            removeWorkerDirectories: { [workerClone, resultsFiles] clones in
+                XCTAssertEqual(clones, [workerClone])
+                kindsAtEach.append((try? resultsFiles.kinds()) ?? [])
+            }
+        )
+        return (sut, { kindsAtEach })
     }
 
     /// Calls `handler` with each notification posted with `name`, from the task that posts it, until the test ends.

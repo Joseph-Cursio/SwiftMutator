@@ -990,6 +990,115 @@ final class MutationTestingDelegateTests: MuterTestCase {
             """)
     }
 
+    // MARK: - A run that a signal from outside ended
+
+    // A signal from outside SwiftMutator (killall, logout, a supervisor stopping the whole tree) can end the test
+    // command milliseconds before SwiftMutator's own signal stops mutation testing. Recorded at once, the run
+    // counted as a crash, which kills the mutant. So such a run waits, and a stop that comes meanwhile cancels it.
+    func test_aRunASignalEnded_isCancelled_whenMutationTestingStopsWithinTheWait() async throws {
+        current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
+        let schemata = try MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1))
+
+        for timeLimit in [nil, 60] as [TimeInterval?] {
+            let testProcess = ScriptedProcessSpy([.dieOf(signal: SIGTERM, after: 0)])
+            current.process = { testProcess }
+            let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], testSuiteTimeOut: timeLimit)
+
+            let run = Task { [sut] in
+                await sut.runTestSuite(
+                    withSchemata: schemata,
+                    using: configuration,
+                    savingResultsIntoFileNamed: "logFileName"
+                )
+            }
+            let deadline = Date().addingTimeInterval(5)
+            while !testProcess.waitUntilExitCalled, Date() < deadline {
+                try await Task.sleep(nanoseconds: 10_000_000)
+            }
+            try await Task.sleep(nanoseconds: 50_000_000)
+            run.cancel()
+            let result = await run.value
+
+            let description = "time limit: \(String(describing: timeLimit))"
+            XCTAssertEqual(result.ending, .cancelled, description)
+            XCTAssertNil(result.exitStatus, description)
+            // The process had exited, and the system may have given its ID to another process.
+            XCTAssertEqual(testProcess.terminateTreeCallCount, 0, description)
+        }
+    }
+
+    // Nothing stopped mutation testing, so the signal was meant for the tests alone: the run counts as before,
+    // only later.
+    func test_aRunASignalEnded_isRecordedAsBefore_whenNothingStopsIt() async throws {
+        current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
+
+        for timeLimit in [nil, 60] as [TimeInterval?] {
+            let testProcess = ScriptedProcessSpy([.dieOf(signal: SIGTERM, after: 0)])
+            let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], testSuiteTimeOut: timeLimit)
+
+            // The clock Task.sleep waits on.
+            let started = DispatchTime.now()
+            let result = try await runMutantsTests(on: testProcess, using: configuration)
+            let seconds = Double(DispatchTime.now().uptimeNanoseconds - started.uptimeNanoseconds) / 1_000_000_000
+
+            let description = "time limit: \(String(describing: timeLimit))"
+            XCTAssertEqual(result.ending, .exited, description)
+            XCTAssertEqual(result.outcome, .runtimeError, description)
+            XCTAssertEqual(result.exitStatus, SIGTERM, description)
+            XCTAssertGreaterThanOrEqual(seconds, 0.25, description)
+        }
+    }
+
+    // An ordinary test failure exits 1, and is recorded at once.
+    func test_aRunThatExitedWithStatus1_doesNotWait() async throws {
+        process.terminationStatus = 1
+
+        let started = Date()
+        let result = try await sut.runTestSuite(
+            withSchemata: MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1)),
+            using: MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], testSuiteTimeOut: 9),
+            savingResultsIntoFileNamed: "logFileName"
+        )
+
+        XCTAssertEqual(result.ending, .exited)
+        XCTAssertEqual(result.exitStatus, 1)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 0.2)
+    }
+
+    // SIGINT, SIGTERM and SIGHUP are what an outside stop sends. swiftly's proxy, and shells, pass a child's
+    // signal on as an exit status: its number, or 128 + it. A crash, SwiftMutator's own SIGKILL and an ordinary
+    // failure don't wait.
+    func test_whichEndingsMayBeAnOutsideSignal() {
+        let endings: [(reason: Foundation.Process.TerminationReason, status: Int32, mayBe: Bool)] = [
+            (.uncaughtSignal, SIGINT, true),
+            (.uncaughtSignal, SIGTERM, true),
+            (.uncaughtSignal, SIGHUP, true),
+            (.uncaughtSignal, SIGKILL, false),
+            (.uncaughtSignal, SIGSEGV, false),
+            (.uncaughtSignal, SIGABRT, false),
+            (.exit, 2, true),
+            (.exit, 15, true),
+            (.exit, 129, true),
+            (.exit, 130, true),
+            (.exit, 143, true),
+            (.exit, 0, false),
+            (.exit, 1, false),
+            (.exit, 65, false),
+        ]
+
+        for ending in endings {
+            let process = ProcessSpy()
+            process.terminationReason = ending.reason
+            process.terminationStatus = ending.status
+
+            XCTAssertEqual(
+                MutationTestingDelegate.mayHaveEndedByAnOutsideSignal(process),
+                ending.mayBe,
+                "\(ending.reason == .exit ? "exit" : "signal") \(ending.status)"
+            )
+        }
+    }
+
     /// Runs a mutant's tests with `testProcess` as the test command. Cancels the run after 10 seconds, which
     /// kills its process, so a run that never ends, such as one still watching its log, fails a test instead
     /// of hanging it. Then waits at most 5 seconds more: a run that ignores its cancellation, such as one
