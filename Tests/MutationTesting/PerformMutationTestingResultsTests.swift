@@ -230,11 +230,12 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(mutants.filter { $0.worker == 1 }.count, ranIn(workerClone))
     }
 
+    // The outcome the run reports names them as its results line does.
     func test_aKilledMutantNamesItsFailedTests() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
         ioDelegate.mutantTestLogs = [killingLog, "✔ Test run with 1 test in 0 suites passed after 0.001 seconds."]
 
-        _ = try await sut.run(with: state)
+        let changes = try await sut.run(with: state)
 
         let mutants = try resultsFiles.records(MutantResult.self)
         XCTAssertEqual(mutants.count, 2)
@@ -246,6 +247,12 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         )
         XCTAssertNil(mutants.last?.killedBy)
         XCTAssertNil(mutants.last?.failedTestCount)
+        let reported = try XCTUnwrap(outcome(of: changes))
+        XCTAssertEqual(reported.mutations.map(\.testSuiteOutcome), [.failed, .passed])
+        let line = try XCTUnwrap(mutants.first)
+        XCTAssertEqual(reported.mutations.first?.killingTests, MutationTestOutcome.KillingTests(line))
+        XCTAssertEqual(reported.mutations.first?.killingTests, sumKilled)
+        XCTAssertNil(reported.mutations.last?.killingTests)
     }
 
     // Such lines then name no test the mutant failed.
@@ -258,13 +265,14 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
         ioDelegate.mutantTestLogs = [killingLog, killingLog]
 
-        _ = try await sut.run(with: state)
+        let changes = try await sut.run(with: state)
 
         XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.failedTestLinesAreReliable), [false])
         let mutants = try resultsFiles.records(MutantResult.self)
         XCTAssertEqual(mutants.map(\.outcome), [.failed, .failed])
         XCTAssertEqual(mutants.map(\.killedBy), [nil, nil])
         XCTAssertEqual(mutants.map(\.failedTestCount), [nil, nil])
+        XCTAssertEqual(try XCTUnwrap(outcome(of: changes)).mutations.map(\.killingTests), [nil, nil])
     }
 
     func test_repeatedMutants_getDistinctKeys() async throws {
@@ -447,6 +455,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
     func test_whenTheResultsFileCannotBeCreated_theRunGoesOn_andSaysSo() async throws {
         resultsFiles.errorToThrow = ResultsFileError.cannotOpen(path: "/logs/results.jsonl", errno: EACCES)
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+        ioDelegate.mutantTestLogs = [killingLog]
         let posted = recordNotifications(named: [.resultsFileCreated, .resultsFileUnavailable])
 
         let changes = try await sut.run(with: state)
@@ -457,12 +466,15 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
             return XCTFail("Expected an outcome, got \(changes)")
         }
         XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.failed, .passed])
+        XCTAssertEqual(outcome.mutations.first?.killingTests, sumKilled, "worked out without a results file")
     }
 
+    // The second mutant's line isn't even built, and its outcome still names its tests.
     func test_whenAWriteFails_itIsSaidOnce_andTheRunGoesOn() async throws {
         // The header is written; every line after it fails.
         resultsFiles.failFromLine = 2
-        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        ioDelegate.mutantTestLogs = [killingLog, killingLog]
         let posted = recordNotifications(named: [.resultsFileUnavailable])
 
         let changes = try await sut.run(with: state)
@@ -476,7 +488,8 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
             return XCTFail("Expected an outcome, got \(changes)")
         }
-        XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.failed, .passed])
+        XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.failed, .failed])
+        XCTAssertEqual(outcome.mutations.map(\.killingTests), [sumKilled, sumKilled], "worked out after a failed write")
     }
 
     // A file without its header isn't a results file, so it isn't announced as one.
@@ -498,16 +511,37 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
     func test_aStateWithoutALogFolder_writesNoResults() async throws {
         state.loggingDirectory = ""
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+        ioDelegate.mutantTestLogs = [killingLog]
         let posted = recordNotifications(named: [.resultsFileCreated, .resultsFileUnavailable])
 
-        _ = try await sut.run(with: state)
+        let changes = try await sut.run(with: state)
 
         XCTAssertEqual(resultsFiles.directories, [])
         XCTAssertEqual(posted().count, 0)
+        XCTAssertEqual(
+            try XCTUnwrap(outcome(of: changes)).mutations.first?.killingTests,
+            sumKilled,
+            "worked out without a results file"
+        )
     }
 }
 
 private extension PerformMutationTestingResultsTests {
+    /// What `killingLog` names, for a run that exited by itself.
+    var sumKilled: MutationTestOutcome.KillingTests {
+        MutationTestOutcome.KillingTests(
+            tests: [FailedTestLine.FailedTest(name: "sum()", location: "SumTests.swift:12:5")],
+            count: 1,
+            isComplete: true
+        )
+    }
+
+    /// The outcome mutation testing that made `changes` reports, if it made one.
+    func outcome(of changes: [MutationTestState.Change]) -> MutationTestOutcome? {
+        guard case let .mutationTestOutcomeGenerated(outcome)? = changes.first else { return nil }
+        return outcome
+    }
+
     /// Records every notification posted with one of `names`, in order, until the test ends.
     func recordNotifications(named names: [Notification.Name]) -> () -> [Notification] {
         var posted: [Notification] = []

@@ -39,13 +39,41 @@ final class PlainTextReporter: Reporter {
         ) mutants introduced into your code, your test suite killed \(
             report.numberOfKilledMutants
         ).
-        \(mutationScoreMessage)
+        \(mutationScoreMessage)\(suspectScoreLines(from: report))
         \(projectCoverageMessage)
 
         \(generateMutationScoresCLITable(from: report.fileReports).description)
         """
 
-        return appliedMutationsMessage + mutationScoresMessage
+        return appliedMutationsMessage + killingTestsMessage(from: report) + mutationScoresMessage
+    }
+
+    /// The Killing Tests section, followed by the blank lines that end a section. None when no killed mutant has its
+    /// tests recorded, so such a report is as it was.
+    private func killingTestsMessage(from report: MuterTestReport) -> String {
+        guard let summary = report.killingTestSummary else { return "" }
+        // Without the line break CLITable ends each line with; none when there are no tests.
+        let tableLines = generateKillingTestsCLITable(from: summary).description
+            .split(separator: "\n")
+            .map(String.init)
+        let paragraphs: [String?] = [
+            "-------------\nKilling Tests\n-------------",
+            KillingTestSummary.introduction,
+            summary.countSentences.joined(separator: "\n"),
+            (tableLines + [summary.shownTestsSentence].compactMap { $0 }).joined(separator: "\n"),
+            summary.noVerdictSentence,
+            summary.suspectSentences(mutationScore: report.globalMutationScore).joined(separator: "\n"),
+        ]
+        return paragraphs.compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n\n") + "\n\n\n"
+    }
+
+    /// The score without suspect tests and which they are, each on a line of its own after the headline score, with
+    /// prefixes scripts can look for. None when there are no suspects, so such a report is as it was.
+    private func suspectScoreLines(from report: MuterTestReport) -> String {
+        guard let summary = report.suspectSummary else { return "" }
+        let score = summary.shownScoreWithoutSuspects(mutationScore: report.globalMutationScore)
+        return "\nMutation Score without suspect tests: \(score)"
+            + "\nSuspect tests: \(summary.suspects.count) (\(summary.suspectNames)); see Killing Tests above"
     }
 
     private func coverageMessage(from report: MuterTestReport) -> String {

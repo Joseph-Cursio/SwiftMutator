@@ -36,7 +36,13 @@ private func htmlReport(
                     .divider("Mutation Operators per File"),
                     .mutationOperatorsPerFile(from: testReport),
                     .divider("Applied Mutation Operators"),
-                    .appliedOperators(from: testReport)
+                    .appliedOperators(from: testReport),
+                    .unwrap(testReport.killingTestSummary) { summary in
+                        .group(
+                            .divider("Killing Tests"),
+                            .killingTestsTable(summary, mutationScore: testReport.globalMutationScore)
+                        )
+                    }
                 ),
                 .muterFooter(now: now)
             )
@@ -81,6 +87,21 @@ extension Node where Context: HTML.BodyContext {
                     .h1("\(testReport.globalMutationScore)%")
                 )
             ),
+            .unwrap(testReport.suspectSummary) { summary in
+                .div(
+                    .class("header-item"),
+                    .div(
+                        .class("box"),
+                        .style("background-color: #f39c12"),
+                        .p(
+                            .class("small"),
+                            .text(summary.scoreWithoutSuspectsIsALowerBound
+                                ? "Without Suspect Tests, at least" : "Without Suspect Tests")
+                        ),
+                        .h1(.text("\(summary.scoreWithoutSuspects(mutationScore: testReport.globalMutationScore))%"))
+                    )
+                )
+            },
             .unwrap(testReport.projectCodeCoverage) { coverage in
                 .div(
                     .class("header-item"),
@@ -123,6 +144,8 @@ extension Node where Context: HTML.BodyContext {
                 " files."
             ),
             .p("⏰ SwiftMutator took \(testReport.timeElapsed) to run."),
+            // Text only: the warning names tests, whose names can hold anything.
+            .unwrap(testReport.suspectWarning) { .p(.text("⚠️ \($0)")) },
             .if(
                 !newVersion.isEmpty,
                 .p("🆕 The version \(newVersion) of SwiftMutator is available")
@@ -197,6 +220,7 @@ extension Node where Context: HTML.BodyContext {
                 (fileName: report.fileName, appliedOperator: appliedOperator)
             }
         }
+        let showsKillingTests = fileReports.showsKillingTests
 
         return .table(
             .id("applied-operators"),
@@ -205,7 +229,8 @@ extension Node where Context: HTML.BodyContext {
                     .th("File"),
                     .th("Applied Mutation Operator"),
                     .th("Changes"),
-                    .th("Mutation Test Result")
+                    .th("Mutation Test Result"),
+                    .if(showsKillingTests, .th("Killed By"))
                 )
             ),
             .tbody(
@@ -222,10 +247,68 @@ extension Node where Context: HTML.BodyContext {
                         .td(.class("mutation-snapshot"), .diff(of: report.appliedOperator)),
                         .td(
                             .raw("\(report.appliedOperator.testSuiteOutcome.asIcon)")
-                        )
+                        ),
+                        .if(showsKillingTests, .td(.class("left-aligned"), .killedBy(report.appliedOperator)))
                     )
                 }
             )
+        )
+    }
+
+    /// The Killed By cell, with more than one test recorded opening to every one. Text nodes only: Plot escapes text,
+    /// but not attribute values, and Swift Testing's names can hold `"`.
+    static func killedBy(_ appliedOperator: MuterTestReport.AppliedMutationOperator) -> Self {
+        guard let tests = appliedOperator.killedByTests?.tests, tests.count > 1 else {
+            return .text(appliedOperator.killedByCell)
+        }
+        return .details(
+            .summary(.text(appliedOperator.killedByCell)),
+            .ul(
+                .forEach(tests) { test in
+                    .li(.text(test.location.map { "\(test.name) — \($0)" } ?? test.name))
+                }
+            )
+        )
+    }
+
+    /// The Killing Tests section: what it counts, then the tests, with every name whole, then what it says of suspect
+    /// tests against the headline `mutationScore`. Text nodes only, as in the Killed By column; not collapsible, so
+    /// no script.
+    static func killingTestsTable(_ summary: KillingTestSummary, mutationScore: Int) -> Self {
+        .div(
+            .class("killing-tests"),
+            .p(.text(KillingTestSummary.introduction)),
+            .forEach(summary.countSentences) { .p(.text($0)) },
+            .if(
+                !summary.tests.isEmpty,
+                .table(
+                    .thead(
+                        .tr(
+                            .th("Test"),
+                            .th("File"),
+                            .th("Mutants"),
+                            .th("Files"),
+                            .th("Only Recorded Failure Of"),
+                            .th("Suspect")
+                        )
+                    ),
+                    .tbody(
+                        .forEach(summary.tests) { test -> Node<HTML.TableContext> in
+                            .tr(
+                                .td(.class("left-aligned"), .text(test.name)),
+                                .td(.class("left-aligned"), .text(test.file ?? "-")),
+                                .td(.class("right-aligned"), .text("\(test.mutants)")),
+                                .td(.class("right-aligned"), .text("\(test.files)")),
+                                .td(.class("right-aligned"), .text("\(test.onlyRecordedFailureOf)")),
+                                .td(.text(test.suspect ? "yes" : "-"))
+                            )
+                        }
+                    )
+                )
+            ),
+            .unwrap(summary.shownTestsSentence) { .p(.text($0)) },
+            .unwrap(summary.noVerdictSentence) { .p(.text($0)) },
+            .forEach(summary.suspectSentences(mutationScore: mutationScore)) { .p(.text($0)) }
         )
     }
 

@@ -20,6 +20,8 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         excluded: [],
         treeSHA256: "e5b8"
     )
+    /// The test the stopped run recorded failing for Sum.swift's mutant.
+    private let sumTest = FailedTestLine.FailedTest(name: "sum()", location: "SumTests.swift:3:5")
     /// What the stopped run's only session recorded: a survivor and a kill that still hold, a build error, which is
     /// tested again, and a kill of a mutant this run no longer discovers. It never got to Total.swift's mutant.
     private lazy var recorded: [any Encodable] = [
@@ -27,7 +29,7 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         record(of: "Sources/Product.swift", line: 7, .passed, fileSHA256: "77e0"),
         record(of: "Sources/Gone.swift", line: 2, .failed, fileSHA256: "0b9d"),
         record(of: "Sources/Quotient.swift", line: 4, .buildError, fileSHA256: "3c4f"),
-        record(of: "Sources/Sum.swift", line: 3, .failed, fileSHA256: "5a1c"),
+        record(of: "Sources/Sum.swift", line: 3, .failed, fileSHA256: "5a1c", killedBy: [sumTest]),
         ResultsEnd.make(reason: .interrupted, detail: "SIGINT", testDurationSeconds: 100.5, recorded: 4),
     ]
     /// The provenance probed before the copy, which differs from the one `current.provenance` gives.
@@ -214,9 +216,27 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
                 ),
                 mutationSnapshot: .make(before: ">", after: "<", description: "changed > to <"),
                 originalProjectDirectoryUrl: state.projectDirectoryURL,
-                mutatedProjectDirectoryURL: state.mutatedProjectDirectoryURL
+                mutatedProjectDirectoryURL: state.mutatedProjectDirectoryURL,
+                killingTests: nil
             )
         )
+    }
+
+    // A kept kill isn't tested again, so the tests its line names are the only ones it has.
+    func test_aKeptKill_keepsItsKillingTests() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+
+        let changes = try await sut.run(with: state)
+
+        guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
+            return XCTFail("Expected an outcome, got \(changes)")
+        }
+        XCTAssertEqual(outcome.mutations.map(\.point.position.line), [7, 4, 3, 8])
+        XCTAssertEqual(
+            outcome.mutations[2].killingTests,
+            MutationTestOutcome.KillingTests(tests: [sumTest], count: 1, isComplete: true)
+        )
+        XCTAssertNil(outcome.mutations[0].killingTests, "a kept survivor names none")
     }
 
     // The mutants left are tested under this session's own baseline, whose time sets their default time limit.
@@ -512,8 +532,15 @@ private extension PerformMutationTestingResumeTests {
         addTeardownBlock { [notificationCenter] in notificationCenter.removeObserver(observer) }
     }
 
-    /// The stopped run's record of the mutant `makeSchemataMapping(file:line:)` makes, as it wrote it.
-    func record(of file: String, line: Int, _ outcome: TestSuiteOutcome, fileSHA256: String) -> MutantResult {
+    /// The stopped run's record of the mutant `makeSchemataMapping(file:line:)` makes, as it wrote it, naming
+    /// `killedBy` as the tests that failed.
+    func record(
+        of file: String,
+        line: Int,
+        _ outcome: TestSuiteOutcome,
+        fileSHA256: String,
+        killedBy: [FailedTestLine.FailedTest]? = nil
+    ) -> MutantResult {
         let name = URL(fileURLWithPath: file).deletingPathExtension().lastPathComponent
         let operatorId = MutationOperator.Id.ror
         return MutantResult.make(
@@ -524,6 +551,7 @@ private extension PerformMutationTestingResumeTests {
             mutationOperatorId: operatorId,
             switchID: "\(name)_\(operatorId.rawValue)_\(line)_5_\(line * 10)",
             outcome: outcome,
+            killedBy: killedBy,
             fileSHA256: fileSHA256
         )
     }

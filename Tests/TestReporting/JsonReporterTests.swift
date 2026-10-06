@@ -21,4 +21,151 @@ final class JsonReporterTests: ReporterTestCase {
             [.init(before: "!=", after: "==", description: "from != to ==")]
         )
     }
+
+    func test_aKilledMutantListsItsKillingTests_aSurvivorKeepsExactlyItsKeys() throws {
+        let killingTests = MutationTestOutcome.KillingTests(
+            tests: [
+                .init(name: "sum()", location: "SumTests.swift:3:5"),
+                .init(name: "-[Tests.SumTests testTotal]", location: nil),
+            ],
+            count: 3,
+            isComplete: false
+        )
+        let json = JsonReporter().report(from: .make(mutations: [
+            .make(
+                testSuiteOutcome: .failed,
+                point: .make(filePath: "/tmp/project/Sum.swift", position: 3),
+                killingTests: killingTests
+            ),
+            .make(testSuiteOutcome: .passed, point: .make(filePath: "/tmp/project/Sum.swift", position: 7)),
+        ]))
+
+        let report = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        let fileReports = try XCTUnwrap(report["fileReports"] as? [[String: Any]])
+        let operators = try XCTUnwrap(fileReports.first?["appliedOperators"] as? [[String: Any]])
+        XCTAssertEqual(operators.count, 2)
+        let kill = try XCTUnwrap(operators.first { $0["testSuiteOutcome"] as? String == "failed" })
+        let survivor = try XCTUnwrap(operators.first { $0["testSuiteOutcome"] as? String == "passed" })
+
+        XCTAssertEqual(kill["killingTests"] as? NSDictionary, [
+            "tests": [
+                ["name": "sum()", "location": "SumTests.swift:3:5"],
+                ["name": "-[Tests.SumTests testTotal]"],
+            ],
+            "count": 3,
+            "isComplete": false,
+        ] as NSDictionary)
+        let tests = try XCTUnwrap((kill["killingTests"] as? [String: Any])?["tests"] as? [[String: Any]])
+        XCTAssertEqual(tests.last?.keys.sorted(), ["name"], "an XCTest name has no location")
+        XCTAssertEqual(survivor.keys.sorted(), ["mutationPoint", "mutationSnapshot", "testSuiteOutcome"])
+    }
+
+    func test_theKillingTestSummary_isATopLevelKey_onlyWhenAKilledMutantRecordsItsTests() throws {
+        let report = try topLevelKeys(of: .make(mutations: [
+            .make(
+                testSuiteOutcome: .failed,
+                point: .make(filePath: "/tmp/project/Sum.swift", position: 3),
+                killingTests: .init(
+                    tests: [
+                        .init(name: "sum()", location: "SumTests.swift:3:5"),
+                        .init(name: "-[Tests.SumTests testTotal]", location: nil),
+                    ],
+                    count: 2,
+                    isComplete: true
+                )
+            ),
+            .make(testSuiteOutcome: .passed, point: .make(filePath: "/tmp/project/Sum.swift", position: 7)),
+        ]))
+
+        let summary = try XCTUnwrap(report["killingTestSummary"] as? [String: Any])
+        XCTAssertEqual(summary.keys.sorted(), [
+            "distinctTests",
+            "filesWithKills",
+            "incompleteLists",
+            "killedMutants",
+            "killedMutantsNamingNoTest",
+            "killedMutantsNotRecorded",
+            "suspectOnlyKills",
+            "suspectOnlyKillsWithIncompleteLists",
+            "suspectsChecked",
+            "tests",
+        ])
+        XCTAssertEqual(summary["killedMutants"] as? Int, 1)
+        XCTAssertEqual(summary["suspectsChecked"] as? Bool, false)
+        XCTAssertEqual(summary["tests"] as? NSArray, [
+            [
+                "name": "-[Tests.SumTests testTotal]",
+                "mutants": 1,
+                "files": 1,
+                "onlyRecordedFailureOf": 0,
+                "suspect": false,
+            ],
+            [
+                "name": "sum()",
+                "file": "SumTests.swift",
+                "mutants": 1,
+                "files": 1,
+                "onlyRecordedFailureOf": 0,
+                "suspect": false,
+            ],
+        ] as NSArray)
+
+        let crashKill = MutationTestOutcome.Mutation.make(
+            testSuiteOutcome: .runtimeError,
+            killingTests: .init(
+                tests: [.init(name: "sum()", location: "SumTests.swift:3:5")],
+                count: 1,
+                isComplete: true
+            )
+        )
+        for outcome: MutationTestOutcome in [
+            .make(mutations: [.make(testSuiteOutcome: .passed)]),
+            .make(mutations: [.make(testSuiteOutcome: .failed, killingTests: nil)]),
+            .make(mutations: [crashKill]),
+        ] {
+            XCTAssertNil(try topLevelKeys(of: outcome)["killingTestSummary"])
+        }
+    }
+}
+
+extension JsonReporterTests {
+    func test_aSuspectOnlyKill_isMarked_andTheSummaryGivesTheScoreWithoutThem() throws {
+        let json = JsonReporter().report(from: .withSuspectTests)
+
+        let report = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        let fileReports = try XCTUnwrap(report["fileReports"] as? [[String: Any]])
+        let operators = try fileReports.flatMap { try XCTUnwrap($0["appliedOperators"] as? [[String: Any]]) }
+        let marked = operators.filter { $0["killedOnlyBySuspectTests"] != nil }
+        XCTAssertEqual(marked.count, 6)
+        XCTAssertTrue(marked.allSatisfy { $0["killedOnlyBySuspectTests"] as? Bool == true })
+        XCTAssertTrue(marked.allSatisfy { $0["testSuiteOutcome"] as? String == "failed" })
+        XCTAssertEqual(report["globalMutationScore"] as? Int, 92)
+        XCTAssertEqual(report["numberOfKilledMutants"] as? Int, 13)
+
+        let summary = try XCTUnwrap(report["killingTestSummary"] as? [String: Any])
+        XCTAssertEqual(summary["suspectOnlyKills"] as? Int, 6)
+        XCTAssertEqual(summary["suspectOnlyKillsWithIncompleteLists"] as? Int, 1)
+        XCTAssertEqual(summary["mutationScoreWithoutSuspectOnlyKills"] as? Int, 50)
+
+        // And it reads back as it was.
+        let original = MuterTestReport(from: .withSuspectTests)
+        let decoded = try JSONDecoder().decode(MuterTestReport.self, from: Data(json.utf8))
+        XCTAssertEqual(
+            decoded.fileReports.flatMap(\.appliedOperators),
+            original.fileReports.flatMap(\.appliedOperators)
+        )
+        XCTAssertEqual(decoded.killingTestSummary, original.killingTestSummary)
+
+        // Without suspects, the score is left out.
+        let withoutSuspects = try topLevelKeys(of: .withKillingTests)["killingTestSummary"] as? [String: Any]
+        XCTAssertNil(withoutSuspects?["mutationScoreWithoutSuspectOnlyKills"])
+        XCTAssertEqual(withoutSuspects?["suspectOnlyKills"] as? Int, 0)
+    }
+}
+
+private extension JsonReporterTests {
+    func topLevelKeys(of outcome: MutationTestOutcome) throws -> [String: Any] {
+        let json = JsonReporter().report(from: outcome)
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+    }
 }

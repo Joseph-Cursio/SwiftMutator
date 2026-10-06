@@ -291,8 +291,8 @@ private extension PerformMutationTesting {
     }
 
     /// Keeps each of `plan`'s reused results' outcomes in `session` by job index, built from its job as `record` builds
-    /// a tested one's, and sends it to the reporter, so the Xcode format warns of every survivor. Never posts a test
-    /// log: nothing ran, and the progress bar counts only the mutants left to test.
+    /// a tested one's, with the tests its line names, and sends it to the reporter, so the Xcode format warns of every
+    /// survivor. Never posts a test log: nothing ran, and the progress bar counts only the mutants left to test.
     func keepReused(
         _ plan: ResumePlan,
         of jobs: [MutantJob],
@@ -300,18 +300,20 @@ private extension PerformMutationTesting {
         state: AnyMutationTestState
     ) {
         for (index, result) in plan.reused.sorted(by: { $0.key < $1.key }) {
-            let outcome = Self.outcome(result.outcome, of: jobs[index], state: state)
+            let outcome = Self.outcome(result.outcome, of: jobs[index], state: state, killingTests: .init(result))
             session.outcomes[index] = outcome
             session.reused += 1
             notificationCenter.post(name: .newMutationTestOutcomeAvailable, object: outcome)
         }
     }
 
-    /// The outcome of `job`'s mutant, which `testSuiteOutcome` says, as the report shows it.
+    /// The outcome of `job`'s mutant, which `testSuiteOutcome` says, with the tests that killed it, as the report shows
+    /// it.
     static func outcome(
         _ testSuiteOutcome: TestSuiteOutcome,
         of job: MutantJob,
-        state: AnyMutationTestState
+        state: AnyMutationTestState,
+        killingTests: MutationTestOutcome.KillingTests?
     ) -> MutationTestOutcome.Mutation {
         MutationTestOutcome.Mutation(
             testSuiteOutcome: testSuiteOutcome,
@@ -322,7 +324,8 @@ private extension PerformMutationTesting {
             ),
             mutationSnapshot: job.schema.snapshot,
             originalProjectDirectoryUrl: state.projectDirectoryURL,
-            mutatedProjectDirectoryURL: state.mutatedProjectDirectoryURL
+            mutatedProjectDirectoryURL: state.mutatedProjectDirectoryURL,
+            killingTests: killingTests
         )
     }
 
@@ -537,7 +540,8 @@ private extension PerformMutationTesting {
     /// posts its notifications, and aborts after `buildErrorsThreshold` build errors in a row, not counting a mutant
     /// that an earlier session recorded as one (`TestingSession.earlierBuildErrors`). The result is written first, so
     /// it is on disk before anything else happens, and the outcome is kept before the abort, so mutation testing that
-    /// stops there still has it.
+    /// stops there still has it. `configuration` is the effective one, whose baseline may have made failed-test lines
+    /// unreliable.
     func record(
         _ finished: FinishedRun,
         of job: MutantJob,
@@ -546,7 +550,18 @@ private extension PerformMutationTesting {
         session: TestingSession,
         buildErrors: inout Int
     ) throws {
-        let outcome = Self.outcome(finished.run.outcome, of: job, state: state)
+        // The failed tests are worked out here, not in `write`'s autoclosure: the outcome needs them without a results
+        // file, or after a failed write. One scan of the log serves both.
+        let failures = MutantResult.failedTests(
+            of: finished.run,
+            linesAreReliable: configuration.failedTestLinesAreReliable
+        )
+        let outcome = Self.outcome(
+            finished.run.outcome,
+            of: job,
+            state: state,
+            killingTests: .init(failures, endedBy: finished.run.ending)
+        )
         let mutationPoint = outcome.point
 
         let key = session.keys[finished.index]
@@ -555,7 +570,7 @@ private extension PerformMutationTesting {
                 key: key,
                 schema: job.schema,
                 finished: finished,
-                configuration: configuration,
+                failures: failures,
                 session: session.number,
                 finishedAt: now(),
                 log: MutationTestLog.keptFileName(for: mutationPoint),

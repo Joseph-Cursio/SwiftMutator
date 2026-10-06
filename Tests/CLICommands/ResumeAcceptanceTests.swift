@@ -6,9 +6,11 @@ import XCTest
 /// every wait is bounded, and every file a test writes is in a temporary folder.
 final class ResumeAcceptanceTests: XCTestCase {
     /// Writes down the active mutant of each run, or `baseline` for a run with none. Kills the mutants in Checks.swift,
-    /// printing the line Swift Testing ends a failed run with, but first hangs in each while the `hang` marker exists:
-    /// it writes down its own ID, starts a `sleep` whose odd length makes one left behind easy to find, writes down
-    /// that ID too, and waits. The mutants in Bounds.swift survive, and the baseline passes.
+    /// printing the line Swift Testing shows an issue of `check()` with, then the line it ends a failed run with, but
+    /// first hangs in each while the `hang` marker exists: it writes down its own ID, starts a `sleep` whose odd length
+    /// makes one left behind easy to find, writes down that ID too, and waits. The mutants in Bounds.swift survive, and
+    /// the baseline passes. The issue's line can stop a run there, as `buildSystem: swift` stops runs at their first
+    /// failed test.
     private static let testCommand = """
         mutant=$(cat "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE" 2>/dev/null)
         echo "${mutant:-baseline}" >> "$RESUME_TEST_MARKERS/ran"
@@ -19,6 +21,7 @@ final class ResumeAcceptanceTests: XCTestCase {
                     /bin/sleep 60.7 & echo $! > "$RESUME_TEST_MARKERS/sleep.$!"
                     wait
                 fi
+                echo "✘ Test check() recorded an issue at ChecksTests.swift:3:5: Expectation failed"
                 echo "✘ Test run with 1 test failed after 0.001 seconds with 1 issue."
                 exit 1;;
         esac
@@ -172,6 +175,7 @@ final class ResumeAcceptanceTests: XCTestCase {
         XCTAssertEqual(ranBefore.last, tested.first, "the first session hung in the first Checks mutant")
 
         XCTAssertEqual(try outcomes(inJSONReportAt: report), ["failed", "failed", "passed", "passed"])
+        XCTAssertEqual(try killingTestNames(inJSONReportAt: report), [["check()"], ["check()"], nil, nil])
         let rebuilt = try waitForEnd(of: launch(["report", resultsFile.path, "-f", "json"]))
         XCTAssertEqual(rebuilt.status, 0, rebuilt.standardError)
         let rebuiltReport = try JSONSerialization.jsonObject(with: Data(rebuilt.standardOutput.utf8)) as? NSDictionary
@@ -264,6 +268,8 @@ final class ResumeAcceptanceTests: XCTestCase {
         XCTAssertEqual(lines.last?["reason"] as? String, "finished")
         XCTAssertTrue(FileManager.default.fileExists(atPath: report.path), "the resume wrote no report")
         XCTAssertEqual(try outcomes(inJSONReportAt: report), ["failed", "failed", "passed", "passed"])
+        // Every mutant was kept from the first session, the Checks kills with the test their lines name.
+        XCTAssertEqual(try killingTestNames(inJSONReportAt: report), [["check()"], ["check()"], nil, nil])
     }
 
     // MARK: - Helpers
@@ -528,6 +534,19 @@ final class ResumeAcceptanceTests: XCTestCase {
             .flatMap { ($0["appliedOperators"] as? [[String: Any]]) ?? [] }
             .compactMap { $0["testSuiteOutcome"] as? String }
             .sorted()
+    }
+
+    /// The names of the tests each mutant's `killingTests` lists in a JSON report, or nil for a mutant without them:
+    /// Checks.swift's mutants first, then Bounds.swift's.
+    private func killingTestNames(inJSONReportAt file: URL) throws -> [[String]?] {
+        let fileReports = try XCTUnwrap(parsedJSON(at: file)["fileReports"] as? [[String: Any]])
+        let byFile = Dictionary(uniqueKeysWithValues: fileReports.compactMap { fileReport in
+            (fileReport["fileName"] as? String).map { ($0, (fileReport["appliedOperators"] as? [[String: Any]]) ?? []) }
+        })
+        return (byFile["Checks.swift", default: []] + byFile["Bounds.swift", default: []]).map { appliedOperator in
+            ((appliedOperator["killingTests"] as? [String: Any])?["tests"] as? [[String: Any]])
+                .map { tests in tests.compactMap { $0["name"] as? String } }
+        }
     }
 
     /// Polls `condition` until it holds or `timeout` seconds pass, and returns whether it held.

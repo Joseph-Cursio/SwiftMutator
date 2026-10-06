@@ -49,7 +49,8 @@ extension RecordedResults {
                     ),
                     mutationSnapshot: record.snapshot,
                     originalProjectDirectoryUrl: projectDirectory,
-                    mutatedProjectDirectoryURL: mutatedProjectDirectory
+                    mutatedProjectDirectoryURL: mutatedProjectDirectory,
+                    killingTests: .init(record)
                 )
             }
         return MutationTestOutcome(

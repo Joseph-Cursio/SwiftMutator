@@ -244,6 +244,43 @@ final class ReportCommandTests: MuterTestCase {
         )
     }
 
+    // Standard output holds the report alone, so `-f json > report.json` stays valid JSON: the warning of the run's
+    // suspect tests is said on standard error, after what the file holds, and without the run's emoji.
+    func test_suspectTests_areSaidOnStandardErrorOnly_withoutEmoji() async throws {
+        let timing = FailedTestLine.FailedTest(name: "timing()", location: "TimingTests.swift:9:5")
+        let files = (0 ..< 10).map { "Sources/F\($0).swift" }
+        let header: [any Encodable] = [ResultsHeader.make(mutantsDiscovered: 11, mutantsToTest: 11)]
+        let kills: [any Encodable] = files.map { MutantResult.make(path: $0, line: 3, killedBy: [timing]) }
+        let survivorAndEnd: [any Encodable] = [zeta9, ResultsEnd.make(recorded: 11)]
+        try write(header + kills + survivorAndEnd, to: resultsPath)
+        let outcome = MutationTestOutcome(
+            mutations: files.map { path in
+                mutation(path, line: 3, .failed, killingTests: .init(tests: [timing], count: 1, isComplete: true))
+            } + [mutation("Sources/Zeta.swift", line: 9, .passed)],
+            coverage: .null,
+            testDuration: 100.5,
+            newVersion: ""
+        )
+        let status = "Report of 11 of 11 mutants, from \(resultsPath): the run finished."
+        let warning = "1 test may fail whatever the mutant: it failed for mutants in at least 15% of the 10 files "
+            + "with a killed mutant (timing() in 10). Without its failures, the mutation score would be 0%, not 90%."
+
+        try await report(resultsPath)
+
+        XCTAssertEqual(printer.linesPassed, [PlainTextReporter().report(from: outcome)])
+        XCTAssertEqual(standardError.linesPassed, [status, warning])
+
+        let output = "\(directory)/report.json"
+        try await report(resultsPath, "-f", "json", "-o", output)
+
+        XCTAssertEqual(
+            try parsedJSON(String(contentsOfFile: output, encoding: .utf8)),
+            try parsedJSON(JsonReporter().report(from: outcome))
+        )
+        XCTAssertEqual(printer.linesPassed, [PlainTextReporter().report(from: outcome)], "nothing more")
+        XCTAssertEqual(standardError.linesPassed, [status, warning, status, warning, "Report saved to \(output)"])
+    }
+
     // The run stopped before any mutant finished.
     func test_aFileWithOnlyItsHeader_givesAnEmptyReport() async throws {
         try write(ResultsHeader.make(), to: resultsPath)
@@ -302,6 +339,10 @@ private extension ReportCommandTests {
     }
 
     func write(_ records: any Encodable..., to path: String) throws {
+        try write(records, to: path)
+    }
+
+    func write(_ records: [any Encodable], to path: String) throws {
         let data = try records.reduce(into: Data()) { data, record in
             data += try ResultsCoding.encoder.encode(record) + Data("\n".utf8)
         }
@@ -309,7 +350,12 @@ private extension ReportCommandTests {
     }
 
     /// The mutant `MutantResult.make` records at `line` of `path`, as the run reported it.
-    func mutation(_ path: String, line: Int, _ outcome: TestSuiteOutcome) -> MutationTestOutcome.Mutation {
+    func mutation(
+        _ path: String,
+        line: Int,
+        _ outcome: TestSuiteOutcome,
+        killingTests: MutationTestOutcome.KillingTests? = nil
+    ) -> MutationTestOutcome.Mutation {
         MutationTestOutcome.Mutation(
             testSuiteOutcome: outcome,
             mutationPoint: MutationPoint(
@@ -319,7 +365,8 @@ private extension ReportCommandTests {
             ),
             mutationSnapshot: .make(before: ">", after: "<", description: "changed > to <"),
             originalProjectDirectoryUrl: URL(fileURLWithPath: "/project", isDirectory: true),
-            mutatedProjectDirectoryURL: URL(fileURLWithPath: "/project_mutated", isDirectory: true)
+            mutatedProjectDirectoryURL: URL(fileURLWithPath: "/project_mutated", isDirectory: true),
+            killingTests: killingTests
         )
     }
 }

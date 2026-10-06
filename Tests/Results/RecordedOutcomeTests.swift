@@ -53,6 +53,48 @@ final class RecordedOutcomeTests: MuterTestCase {
         try await assertTheReportFromTheFileEqualsTheRuns(workers: 2)
     }
 
+    // Suspect tests, and the score without them, come from each mutant's recorded tests, so a report made from the
+    // file says what the run's own did, whatever order the lines come in.
+    func test_aRunWithSuspectTests_reportsTheSameFromItsFile_inEveryFormat() async throws {
+        state.mutationMapping = try (0 ..< 12).map { index in
+            try makeMapping(String(format: "/project_mutated/Sources/F%02d.swift", index), lines: [3])
+        }.mergeByFilePath()
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 1
+        )
+        // The baseline, then 11 kills and a survivor. Each kill's log names timing(), and the even ones' a focused
+        // test too; the second run stopped at its first failed test.
+        let timing = "✘ Test timing() recorded an issue at TimingTests.swift:9:5: Expectation failed: 1.2 < 1.0"
+        let focused = { (index: Int) in
+            "✘ Test focused\(index)() recorded an issue at F\(index)Tests.swift:3:5: Expectation failed"
+        }
+        ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 11) + [.passed]
+        ioDelegate.mutantTestLogs = (0 ..< 11).map { index in
+            index.isMultiple(of: 2) ? focused(index) + "\n" + timing : timing
+        } + ["✔ Test run with 2 tests in 0 suites passed after 0.001 seconds."]
+        ioDelegate.mutantRunEndings = [.exited, .stoppedAtFailedTest] + Array(repeating: .exited, count: 10)
+
+        let changes = try await sut.run(with: state)
+
+        guard case let .mutationTestOutcomeGenerated(runOutcome)? = changes.first else {
+            return XCTFail("Expected an outcome, got \(changes)")
+        }
+        let report = MuterTestReport(from: runOutcome)
+        let summary = try XCTUnwrap(report.killingTestSummary)
+        XCTAssertEqual(summary.filesWithKills, 11)
+        XCTAssertEqual(summary.tests.filter(\.suspect).map(\.name), ["timing()"])
+        XCTAssertEqual(summary.suspectOnlyKills, 5)
+        XCTAssertEqual(summary.suspectOnlyKillsWithIncompleteLists, 1)
+        XCTAssertEqual(report.globalMutationScore, 91)
+        XCTAssertEqual(summary.mutationScoreWithoutSuspectOnlyKills, 50)
+        XCTAssertTrue(
+            PlainTextReporter().report(from: runOutcome)
+                .contains("\nMutation Score without suspect tests: at least 50%\n")
+        )
+        XCTAssertTrue(XcodeReporter().report(from: runOutcome).contains("\nwarning: SwiftMutator: 1 test may fail"))
+        try assertTheResultsFileRebuilds(runOutcome)
+    }
+
     func test_recordsInCompletionOrder_areReportedInJobOrder() throws {
         let jobs = fixtureJobs()
         // Each repeat of a place and operator comes in the order it was found, which its occurrence numbers.
@@ -201,6 +243,32 @@ final class RecordedOutcomeTests: MuterTestCase {
         XCTAssertEqual(rebuilt.testDuration, 120.75)
     }
 
+    // A stopped run's list may not name every test that failed, nor may a list that names fewer than were counted.
+    func test_eachMutationsKillingTests_comeFromItsRecord() throws {
+        let jobs = fixtureJobs()
+        let sum = FailedTestLine.FailedTest(name: "sum()", location: "SumTests.swift:3:5")
+        let total = FailedTestLine.FailedTest(name: "total()", location: "TotalTests.swift:8:5")
+
+        let rebuilt = try rebuild(
+            ResultsHeader.make(),
+            mutantResult(jobs[2].schema, jobs[2].key, killedBy: [], failedTestCount: 0),
+            mutantResult(jobs[1].schema, jobs[1].key, outcome: .passed),
+            mutantResult(
+                jobs[0].schema,
+                jobs[0].key,
+                killedBy: [sum, total],
+                failedTestCount: 3,
+                endedBy: .stoppedAtFailedTest
+            )
+        )
+
+        XCTAssertEqual(rebuilt.mutations.map(\.killingTests), [
+            MutationTestOutcome.KillingTests(tests: [sum, total], count: 3, isComplete: false),
+            nil,
+            .noneNamed,
+        ])
+    }
+
     func test_aRunWithoutCoverage_reportsNone() throws {
         let jobs = fixtureJobs()
 
@@ -248,9 +316,21 @@ private extension RecordedOutcomeTests {
         state.muterConfiguration = MuterConfiguration(
             executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: workers
         )
-        // The baseline, each worker clone's build, then the five mutants.
+        // The baseline, each worker clone's build, then the five mutants. Each mutant's run takes its outcome, log
+        // and ending together, whichever worker runs it.
         ioDelegate.testSuiteOutcomes = Array(repeating: .passed, count: workers)
             + [.failed, .passed, .runtimeError, .timeout, .buildError]
+        ioDelegate.mutantTestLogs = [
+            """
+            ✘ Test sum() recorded an issue at SumTests.swift:12:5: Expectation failed: 3 == 4
+            ✘ Test total() recorded an issue at TotalTests.swift:8:5: Expectation failed
+            """,
+            "✔ Test run with 2 tests in 0 suites passed after 0.001 seconds.",
+            "✘ Test sum() recorded an issue at SumTests.swift:12:5: Caught error\nFatal error: boom",
+            "",
+            "error: cannot convert value of type 'Bool' to expected argument type 'Int'",
+        ]
+        ioDelegate.mutantRunEndings = [.stoppedAtFailedTest, .exited, .exited, .timedOut, .exited]
 
         let changes = try await sut.run(with: state)
 
@@ -258,6 +338,21 @@ private extension RecordedOutcomeTests {
             return XCTFail("Expected an outcome, got \(changes)", file: file, line: line)
         }
         XCTAssertEqual(runOutcome.mutations.count, 5, file: file, line: line)
+        let killingTests = { (outcome: TestSuiteOutcome) in
+            runOutcome.mutations.first { $0.testSuiteOutcome == outcome }?.killingTests
+        }
+        let sum = FailedTestLine.FailedTest(name: "sum()", location: "SumTests.swift:12:5")
+        let total = FailedTestLine.FailedTest(name: "total()", location: "TotalTests.swift:8:5")
+        // The kill's run stopped, so its list may not be complete; the timeout's names no test.
+        XCTAssertEqual(
+            killingTests(.failed), .init(tests: [sum, total], count: 2, isComplete: false), file: file, line: line
+        )
+        XCTAssertEqual(
+            killingTests(.runtimeError), .init(tests: [sum], count: 1, isComplete: true), file: file, line: line
+        )
+        XCTAssertEqual(killingTests(.timeout), .init(tests: [], count: 0, isComplete: false), file: file, line: line)
+        XCTAssertNil(killingTests(.passed), file: file, line: line)
+        XCTAssertNil(killingTests(.buildError), file: file, line: line)
         XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.workers), [workers], file: file, line: line)
         XCTAssertEqual(try resultsFiles.kinds().last, "end", file: file, line: line)
         try assertTheResultsFileRebuilds(runOutcome, file: file, line: line)
@@ -349,7 +444,8 @@ private extension RecordedOutcomeTests {
         _ schema: MutationSchema,
         at filePath: String,
         outcome: TestSuiteOutcome,
-        project: String = "/project"
+        project: String = "/project",
+        killingTests: MutationTestOutcome.KillingTests? = nil
     ) -> MutationTestOutcome.Mutation {
         MutationTestOutcome.Mutation(
             testSuiteOutcome: outcome,
@@ -360,7 +456,8 @@ private extension RecordedOutcomeTests {
             ),
             mutationSnapshot: schema.snapshot,
             originalProjectDirectoryUrl: URL(fileURLWithPath: project),
-            mutatedProjectDirectoryURL: URL(fileURLWithPath: project + "_mutated")
+            mutatedProjectDirectoryURL: URL(fileURLWithPath: project + "_mutated"),
+            killingTests: killingTests
         )
     }
 
@@ -482,13 +579,17 @@ private func makeMapping(_ path: String, lines: [Int]) throws -> SchemataMutatio
     )
 }
 
-/// The line mutation testing writes when the run of `schema`'s mutant, keyed `key`, ends in `outcome`.
+/// The line mutation testing writes when the run of `schema`'s mutant, keyed `key`, ends in `outcome`, ended `endedBy`,
+/// with `killedBy` failed, of `failedTestCount`.
 private func mutantResult(
     _ schema: MutationSchema,
     _ key: MutantKey,
     outcome: TestSuiteOutcome = .failed,
     session: Int = 1,
-    finishedAt: Date = ResultsHeader.fixedStart + 1
+    finishedAt: Date = ResultsHeader.fixedStart + 1,
+    killedBy: [FailedTestLine.FailedTest]? = nil,
+    failedTestCount: Int? = nil,
+    endedBy: TestRun.Ending = .exited
 ) -> MutantResult {
     MutantResult(
         session: session,
@@ -501,13 +602,13 @@ private func mutantResult(
         switchID: schema.id,
         snapshot: schema.snapshot,
         outcome: outcome,
-        endedBy: .exited,
-        exitStatus: outcome == .passed ? 0 : 1,
+        endedBy: endedBy,
+        exitStatus: endedBy == .exited ? (outcome == .passed ? 0 : 1) : nil,
         durationSeconds: 1.5,
         worker: 0,
         finishedAt: finishedAt,
-        killedBy: nil,
-        failedTestCount: nil,
+        killedBy: killedBy,
+        failedTestCount: failedTestCount,
         firstFailedTestLine: nil,
         log: "",
         fileSHA256: nil

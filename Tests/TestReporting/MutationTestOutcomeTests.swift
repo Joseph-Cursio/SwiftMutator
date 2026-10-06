@@ -73,4 +73,40 @@ final class MutationTestOutcomeTests: MuterTestCase {
 
         XCTAssertEqual(outcome.originalProjectPath, "/Users/user0/Code/ProjectDirectory/ProjectDirectory/file.swift")
     }
+
+    // A run stopped at its first failed test, or one that named more tests than its line holds, may not name them all.
+    func test_killingTests_areCompleteOnlyWhenTheRunExitedNamingEveryFailedTest() {
+        typealias KillingTests = MutationTestOutcome.KillingTests
+        let sum = FailedTestLine.FailedTest(name: "sum()", location: "SumTests.swift:3:5")
+
+        XCTAssertNil(KillingTests(killedBy: nil, failedTestCount: nil, endedBy: .exited))
+        XCTAssertNil(KillingTests(nil, endedBy: .exited))
+        XCTAssertEqual(
+            KillingTests(killedBy: [sum], failedTestCount: 1, endedBy: .exited),
+            KillingTests(tests: [sum], count: 1, isComplete: true)
+        )
+        XCTAssertEqual(
+            KillingTests(killedBy: [sum], failedTestCount: 3, endedBy: .exited),
+            KillingTests(tests: [sum], count: 3, isComplete: false)
+        )
+        XCTAssertEqual(
+            KillingTests(killedBy: [sum], failedTestCount: 1, endedBy: .stoppedAtFailedTest),
+            KillingTests(tests: [sum], count: 1, isComplete: false)
+        )
+        XCTAssertEqual(
+            KillingTests(killedBy: [], failedTestCount: 0, endedBy: .timedOut),
+            KillingTests(tests: [], count: 0, isComplete: false)
+        )
+        XCTAssertEqual(KillingTests(killedBy: [], failedTestCount: 0, endedBy: .exited), .noneNamed)
+        XCTAssertEqual(
+            KillingTests(killedBy: [sum], failedTestCount: nil, endedBy: .exited),
+            KillingTests(tests: [sum], count: 1, isComplete: true),
+            "a missing count is the list's length"
+        )
+        let log = "✘ Test sum() recorded an issue at SumTests.swift:3:5: Expectation failed"
+        XCTAssertEqual(
+            KillingTests(FailedTestLine.failedTests(inLog: log), endedBy: .exited),
+            KillingTests(tests: [sum], count: 1, isComplete: true)
+        )
+    }
 }

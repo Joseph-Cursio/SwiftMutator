@@ -1,3 +1,7 @@
+import Rainbow
+
+/// A plain-text table. Columns are padded by the width shown, so a cell's colour codes don't push the columns after it
+/// out of line.
 struct CLITable: Equatable {
     static let empty = CLITable(padding: 0, columns: [])
 
@@ -9,6 +13,7 @@ struct CLITable: Equatable {
             let columnIndex = $1.offset
             let column = $1.element
             let previousColumn = columns[max(0, columnIndex - 1)]
+            let previousColumnWidth = previousColumn.width
 
             var alreadyRenderedCLITableSplitByLine = $0.split(separator: "\n")
 
@@ -16,7 +21,7 @@ struct CLITable: Equatable {
             let columnRows = column.description.split(separator: "\n")
 
             return zip(previousColumnRows, columnRows).accumulate(into: "") { workingValue, currentRows in
-                let previousRowWidth = currentRows.0.count
+                let previousRowWidth = String(currentRows.0).raw.count
                 let newRow = currentRows.1
 
                 let nextLineThatsBeenRendered = alreadyRenderedCLITableSplitByLine.first ?? ""
@@ -24,7 +29,7 @@ struct CLITable: Equatable {
 
                 let padding = paddingForColumn(
                     at: columnIndex,
-                    previousColumnWidth: previousColumn.width,
+                    previousColumnWidth: previousColumnWidth,
                     previousRowWidth: previousRowWidth
                 )
 
@@ -44,8 +49,9 @@ extension CLITable {
     struct Column: Equatable {
         let title: String
         let rows: [Row]
+        /// The widest cell or title as shown: colour codes take no room on screen.
         var width: Int {
-            let stringLengths = rows.map { $0.value.count } + [title.count]
+            let stringLengths = rows.map { $0.value.raw.count } + [title.raw.count]
             return stringLengths.reduce(0, max)
         }
 

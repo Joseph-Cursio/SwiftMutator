@@ -189,16 +189,13 @@ final class ResultsRecordTests: XCTestCase {
         let schema = try makeSchema()
         let key = try XCTUnwrap(MutantKey.keys(for: [schema, schema], under: mutatedRoot).last)
 
+        let run = TestRun(outcome: .failed, testLog: log, ending: .exited, exitStatus: 1)
+
         let record = MutantResult(
             key: key,
             schema: schema,
-            finished: FinishedRun(
-                index: 4,
-                worker: 2,
-                run: TestRun(outcome: .failed, testLog: log, ending: .exited, exitStatus: 1),
-                seconds: 31.2071
-            ),
-            configuration: MuterConfiguration(),
+            finished: FinishedRun(index: 4, worker: 2, run: run, seconds: 31.2071),
+            failures: MutantResult.failedTests(of: run, linesAreReliable: true),
             session: 1,
             finishedAt: finishedAt,
             log: "RelationalOperatorReplacement @ Sum.swift-73-22.log"
@@ -261,15 +258,10 @@ final class ResultsRecordTests: XCTestCase {
 
     func test_aMutantRecordFromARun_namesNoTestsWhenFailedTestLinesAreUnreliable() throws {
         let log = "✘ Test sum() recorded an issue at SumTests.swift:12:5: Expectation failed"
+        let run = TestRun(outcome: .failed, testLog: log, ending: .exited, exitStatus: 1)
 
-        let record = try makeRecord(
-            from: TestRun(outcome: .failed, testLog: log, ending: .exited, exitStatus: 1),
-            configuration: MuterConfiguration().withUnreliableFailedTestLines()
-        )
-
-        XCTAssertNil(record.killedBy)
-        XCTAssertNil(record.failedTestCount)
-        XCTAssertNil(record.firstFailedTestLine)
+        XCTAssertNil(MutantResult.failedTests(of: run, linesAreReliable: false))
+        XCTAssertNotNil(MutantResult.failedTests(of: run, linesAreReliable: true))
     }
 
     func test_aMutantRecordFromARun_roundsItsDurationToTheMillisecond_andHasAnExitStatusOnlyIfItExited() throws {
@@ -478,17 +470,14 @@ private extension ResultsRecordTests {
         )
     }
 
-    func makeRecord(
-        from run: TestRun,
-        seconds: TimeInterval = 1,
-        configuration: MuterConfiguration = MuterConfiguration()
-    ) throws -> MutantResult {
+    /// The record of `run`, whose failed-test lines are reliable, as mutation testing makes it.
+    func makeRecord(from run: TestRun, seconds: TimeInterval = 1) throws -> MutantResult {
         let schema = try makeSchema()
         return try MutantResult(
             key: XCTUnwrap(MutantKey.keys(for: [schema], under: mutatedRoot).first),
             schema: schema,
             finished: FinishedRun(index: 0, worker: 0, run: run, seconds: seconds),
-            configuration: configuration,
+            failures: MutantResult.failedTests(of: run, linesAreReliable: true),
             session: 1,
             finishedAt: finishedAt,
             log: "RelationalOperatorReplacement @ Sum.swift-73-22.log"

@@ -137,6 +137,7 @@ SwiftMutator lists your project's files right after it copies the project, and h
 - **Lines that don't count:** known issues, warnings and SwiftMutator's own notes never name a test.
 - **When the list is complete:** when `endedBy` is `exited` and `failedTestCount` equals the length of `killedBy`. A run stopped at its first failed test, or at the time limit, shows only the tests that failed before it was stopped.
 - **An empty list** means the log shows no failed test, for example in a run that timed out.
+- **In the reports.** The plain, HTML and JSON reports show these lists, and every report works out its suspect tests from them. See [Killing tests and suspect tests](../README.md#killing-tests-and-suspect-tests).
 
 ### `retired`
 
@@ -219,12 +220,18 @@ The report is made from each mutant's last line (see [Reading it](#reading-it)) 
 - **A run stopped before any mutant finished** has no `mutant` lines, and gets an empty report: `Report of 0 of 2497 mutants`.
 - **Lines that don't read** are skipped, as a reader should skip them, and the status says which.
 
+**Killing tests.** The report names each mutant's tests from its line's `killedBy`, `failedTestCount` and `endedBy`. It works out the Killing Tests summary, the suspect tests and the score without them from those lines alone, the way the run does (see [Killing tests and suspect tests](../README.md#killing-tests-and-suspect-tests)). So a run and its `report` name the same tests and the same suspects.
+
+- **Completeness** is judged mutant by mutant, as [`killedBy`](#killedby) says. So a file whose sessions ran with different `stopAtFirstFailure` settings gives each mutant's list the right verdict.
+- **A resumed run** never tests a kill again. A list that a stopped run left short stays short.
+- **No list** is recorded by a session whose header has `failedTestLinesAreReliable` false. Its kills name no tests, and its mutants don't count toward suspect tests.
+
 The report doesn't say whether the run finished. The status on standard error does.
 
 ### Where the output goes
 
 - **Standard output** holds the report alone, followed by a line break, when there's no `-o`. So `swift-mutator report <log folder> -f json > report.json` gives valid JSON. The Xcode format also prints its warnings there, before the report, with or without `-o`, as `run` does.
-- **Standard error** says how many mutants the report covers, out of how many the run found, where the file is, and how the run ended. With `-o`, it then says where the report was saved:
+- **Standard error** says how many mutants the report covers, out of how many the run found, where the file is, and how the run ended. When the report has suspect tests, it then gives the warning a run ends with, without the emoji. With `-o`, it then says where the report was saved:
 
   ```
   Report of 1103 of 2497 mutants, from /Users/me/code/SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM/results.jsonl: the run stopped on an error (tooManyBuildErrors).
@@ -278,7 +285,7 @@ The tests that killed the most mutants:
 jq -r 'select(.kind == "mutant") | .killedBy[]?.name' results.jsonl | sort | uniq -c | sort -rn | head
 ```
 
-How many mutants each test killed on its own. A test that is the only failure of many mutants may be failing under the load of mutation testing rather than because of the mutants:
+How many mutants each test killed on its own. A test that is the only failure of many mutants may be failing under the load of mutation testing rather than because of the mutants. The reports' Killing Tests section gives both counts, from mutants a failed test killed, and flags as suspect a test that failed for mutants in too many files:
 
 ```bash
 jq -r 'select(.kind == "mutant" and .endedBy == "exited" and .failedTestCount == 1) | .killedBy[0].name' results.jsonl | sort | uniq -c | sort -rn | head

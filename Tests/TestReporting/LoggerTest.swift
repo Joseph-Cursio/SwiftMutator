@@ -37,10 +37,54 @@ final class LoggerTests: MuterTestCase {
             report: "... muter report ... ",
             reportPath: "/path/to/report",
             isExportingReport: true,
-            didSaveReport: true
+            didSaveReport: true,
+            suspectWarning: nil
         )
 
         AssertSnapshot(printer.linesPassed.joined(separator: "\n"))
+    }
+
+    // Last, after where the report went or the report itself, whether or not it was saved: the line a run ends on.
+    func test_mutationTestingFinished_withASuspectWarning_printsItLast() {
+        let warning = "1 test may fail whatever the mutant: it failed for mutants in at least 15% of the 10 files "
+            + "with a killed mutant (timing() in 10). Without its failures, the mutation score would be 0%, not 90%."
+
+        sut.mutationTestingFinished(
+            report: "the report",
+            reportPath: "/out/report.txt",
+            isExportingReport: true,
+            didSaveReport: true,
+            suspectWarning: warning
+        )
+        sut.mutationTestingFinished(
+            report: "the report",
+            reportPath: "",
+            isExportingReport: false,
+            didSaveReport: false,
+            suspectWarning: warning
+        )
+        sut.mutationTestingFinished(
+            report: "the report",
+            reportPath: "/out/report.txt",
+            isExportingReport: true,
+            didSaveReport: false,
+            suspectWarning: warning
+        )
+
+        XCTAssertEqual(printer.linesPassed, [
+            "🏁 SwiftMutator finished running!",
+            "📝 Report generated: \("/out/report.txt".bold)",
+            "⚠️ \(warning)",
+            "🏁 SwiftMutator finished running!",
+            "📝 SwiftMutator's report\n\nthe report",
+            "⚠️ \(warning)",
+            "🏁 SwiftMutator finished running!",
+            "the report",
+            "\n",
+            "Could not save report!",
+            "⚠️ \(warning)",
+        ])
+        XCTAssertEqual(standardError.linesPassed, [])
     }
 
     // Each worker tests its share of the mutants while the others test theirs, so the time left is the longest
@@ -330,6 +374,37 @@ final class LoggerTests: MuterTestCase {
             "⏹ Stopped by SIGINT before any of 9 mutants finished.",
             "💾 Each tested mutant's result is in \("/logs/results.jsonl".bold)",
         ])
+    }
+
+    // Straight after the score so far, which it qualifies, and on standard error with it. Its score is that one's: the
+    // kills only suspect tests were recorded failing for, of the mutants tested so far.
+    func test_mutationTestingEndedEarly_withSuspects_warnsAfterTheStoppedLine() {
+        let earlyEnd = EarlyEnd(
+            reason: .interrupted,
+            detail: "SIGINT",
+            outcome: .withSuspectTests,
+            discovered: 20,
+            reused: 0
+        )
+
+        sut.mutationTestingEndedEarly(
+            earlyEnd,
+            partialReport: (path: "/out/report.partial.txt", saved: true),
+            resultsFile: "/logs/results.jsonl",
+            continueCommand: "swift-mutator run --resume '/logs/results.jsonl'"
+        )
+
+        XCTAssertEqual(standardError.linesPassed, [
+            "⏹ Stopped by SIGINT after testing 14 of 20 mutants. Mutation score so far: 92%.",
+            "⚠️ 2 tests may fail whatever the mutant: they failed for mutants in at least 15% of the 12 files with a "
+                + "killed mutant (timing() in 12, order() in 10). Without their failures, the mutation score would be "
+                + "at least 50%, not 92%.",
+            "📝 Partial report: \("/out/report.partial.txt".bold)",
+            "💾 Each tested mutant's result is in \("/logs/results.jsonl".bold)",
+            "📝 Full report: swift-mutator report '/logs/results.jsonl'",
+            "▶️ Continue: swift-mutator run --resume '/logs/results.jsonl'",
+        ])
+        XCTAssertEqual(printer.linesPassed, [])
     }
 
     func test_mutationTestingEndedEarly_whenThePartialReportCouldNotBeSaved_saysWhere() {
