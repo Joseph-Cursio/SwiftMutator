@@ -68,6 +68,8 @@ struct UpdateCheck: MutationStep {
                 .newVersionAvaiable(latestVersion)
             ]
         } catch {
+            // A request cancelled because the run is stopping says nothing about versions.
+            try Task.checkCancellation()
             notificationCenter.post(name: .updateCheckFinished, object: nil)
             return []
         }

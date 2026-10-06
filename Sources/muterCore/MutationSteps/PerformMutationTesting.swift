@@ -98,6 +98,8 @@ private extension PerformMutationTesting {
             using: state.muterConfiguration,
             savingResultsIntoFileNamed: "baseline run"
         )
+        // Stopping the run kills the baseline run, which then fails, but that says nothing about the project's tests.
+        try Task.checkCancellation()
 
         let timeAfterRunningTestSuite = Date()
         let timePerBuildTestCycle = DateInterval(
@@ -235,7 +237,7 @@ private extension PerformMutationTesting {
     /// switched on per run: under `swift test` by the worker's active-mutant file, written just before the run
     /// (see `MutationTestingDelegate.testProcess`), so the clones' code never needs rewriting. Outcomes are
     /// recorded, and their notifications posted, as they finish; they're returned in `jobs` order. Once
-    /// mutation testing is cancelled, no mutant starts, and none that returns is recorded.
+    /// mutation testing is cancelled, no clone is made, no mutant starts, and none that returns is recorded.
     func testMutationsInParallel(
         _ jobs: [MutantJob],
         workers: Int,
@@ -243,7 +245,16 @@ private extension PerformMutationTesting {
         configuration: MuterConfiguration,
         session: TestingSession
     ) async throws -> [MutationTestOutcome.Mutation] {
-        let clones = try makeWorkerDirectories(state.mutatedProjectDirectoryURL, workers - 1)
+        // A clone costs a copy and about one baseline build, which a stopped run would only throw away.
+        try Task.checkCancellation()
+        let clones: [URL]
+        do {
+            clones = try makeWorkerDirectories(state.mutatedProjectDirectoryURL, workers - 1)
+        } catch {
+            // Stopping the run kills a `cp` under way, which then fails.
+            try Task.checkCancellation()
+            throw error
+        }
         defer { removeWorkerDirectories(clones) }
         try await buildWorkerDirectories(clones, using: state)
         let directories = [state.mutatedProjectDirectoryURL] + clones
@@ -305,7 +316,8 @@ private extension PerformMutationTesting {
     /// the mutated project, so tests that write files next to their sources would share those files
     /// across workers, fail each other, and kill mutants they never tested. A clone whose baseline
     /// doesn't pass stops the run, naming the worker: the same command just passed in the mutated
-    /// project, so the configuration isn't what's wrong.
+    /// project, so the configuration isn't what's wrong. A run stopped meanwhile blames no clone:
+    /// stopping kills the builds under way, which then fail.
     func buildWorkerDirectories(_ clones: [URL], using state: AnyMutationTestState) async throws {
         let runs = await withTaskGroup(of: (worker: Int, outcome: TestSuiteOutcome, testLog: String).self) { group in
             for (index, clone) in clones.enumerated() {
@@ -320,6 +332,7 @@ private extension PerformMutationTesting {
             }
             return await group.reduce(into: []) { $0.append($1) }
         }
+        try Task.checkCancellation()
 
         // The lowest-numbered failure, so the same worker is named whichever build finished first.
         if let failed = runs.filter({ $0.outcome != .passed }).min(by: { $0.worker < $1.worker }) {

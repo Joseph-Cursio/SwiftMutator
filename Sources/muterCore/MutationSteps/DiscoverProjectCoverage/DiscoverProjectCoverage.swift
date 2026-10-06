@@ -30,7 +30,11 @@ final class DiscoverProjectCoverage: MutationStep {
             fileManager.changeCurrentDirectoryPath(currentDirectoryPath)
         }
 
-        switch coverage.run(with: state.muterConfiguration) {
+        let result = coverage.run(with: state.muterConfiguration)
+        // Stopping the run kills the coverage run, which then fails, but mutation testing won't go on without it.
+        try Task.checkCancellation()
+
+        switch result {
         case let .success(coverage):
             notificationCenter.post(
                 name: .projectCoverageDiscoveryFinished,

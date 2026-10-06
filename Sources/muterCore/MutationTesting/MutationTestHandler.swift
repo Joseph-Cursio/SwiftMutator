@@ -50,6 +50,9 @@ final class MutationTestHandler {
 
     private func runMutationsSteps() async throws {
         for step in steps {
+            // A stopped run starts no further step. A step under way stops at its own checks, or when its processes
+            // are killed.
+            try Task.checkCancellation()
             let changes = try await step.run(with: state)
             state.apply(changes)
         }

@@ -328,6 +328,23 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count, 1)
     }
 
+    // Stopping the run kills the baseline run, which then fails. That says nothing about the project's tests, so the
+    // run stops without saying they failed, and writes no results file.
+    func test_aCancelledBaseline_throwsCancellation_andPostsNoBaselineFailure() async throws {
+        state.loggingDirectory = "/logs"
+        ioDelegate.testSuiteOutcomes = [.buildError]
+        ioDelegate.whileRunningBaseline = { worker in
+            if worker == 0 { withUnsafeCurrentTask { $0?.cancel() } }
+        }
+        let posted = recordNotifications(named: [.baselineTestFailed])
+
+        let result = await runInItsOwnTask()
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(posted().count, 0)
+        XCTAssertEqual(resultsFiles.directories, [])
+    }
+
     func test_whenCancelledBeforeTheFirstMutant_noneRuns() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
         // The baseline's log is the last thing posted before the first mutant.

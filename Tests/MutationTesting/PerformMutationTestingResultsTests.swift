@@ -309,6 +309,27 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(end.recorded, 1)
     }
 
+    // Stopping the run kills the clones' builds, which then fail, but no clone was at fault.
+    func test_aCancelledWorkerBuild_endsInterrupted() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .buildError]
+        let mutationTesting = CancellableTask<[MutationTestState.Change]>()
+        ioDelegate.whileRunningBaseline = { worker in
+            if worker == 1 { mutationTesting.cancel() }
+        }
+
+        let result = await mutationTesting.run { [sut, state] in try await sut.run(with: state) }
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(try resultsFiles.kinds(), ["header", "end"])
+        let end = try XCTUnwrap(resultsFiles.records(ResultsEnd.self).first)
+        XCTAssertEqual(end.reason, .interrupted)
+        XCTAssertNil(end.detail)
+        XCTAssertEqual(end.recorded, 0)
+    }
+
     func test_whenTheResultsFileCannotBeCreated_theRunGoesOn_andSaysSo() async throws {
         resultsFiles.errorToThrow = ResultsFileError.cannotOpen(path: "/logs/results.jsonl", errno: EACCES)
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]

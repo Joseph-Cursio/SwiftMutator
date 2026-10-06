@@ -156,8 +156,9 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         XCTAssertEqual(removedClones, [[workerClone]])
     }
 
-    // With no run under way to return, mutation testing would end as if every mutant had been tested.
-    func test_whenCancelledBeforeTheFirstMutant_noneStarts_andTheRunDoesNotFinish() async throws {
+    // Each clone costs a copy and about one baseline build, which a stopped run would only throw away. With no run
+    // under way to return, mutation testing would also end as if every mutant had been tested.
+    func test_whenCancelledBeforeTheFirstMutant_noWorkerIsCloned() async throws {
         state.muterConfiguration = MuterConfiguration(
             executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
         )
@@ -168,8 +169,47 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         let result = await runInItsOwnTask()
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(clonedCounts, [])
+        XCTAssertEqual(removedClones, [])
+        XCTAssertFalse(ioDelegate.methodCalls.contains { $0.hasPrefix("runTestSuite") })
+    }
+
+    // Stopping the run kills the clones' builds, which then fail. That says nothing about the clones.
+    func test_aCancelledWorkerBuild_throwsCancellation_notWorkerBaselineTestFailed() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .buildError]
+        let mutationTesting = CancellableTask<[MutationTestState.Change]>()
+        ioDelegate.whileRunningBaseline = { worker in
+            if worker == 1 { mutationTesting.cancel() }
+        }
+
+        let result = await mutationTesting.run { [sut, state] in try await sut.run(with: state) }
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         XCTAssertFalse(ioDelegate.methodCalls.contains { $0.hasPrefix("runTestSuite") })
         XCTAssertEqual(removedClones, [[workerClone]])
+    }
+
+    // Stopping the run kills a `cp` under way, which then fails. That says nothing about cloning the project.
+    func test_aCloneThatFailsOnceCancelled_throwsCancellation() async throws {
+        let sut = PerformMutationTesting(
+            makeWorkerDirectories: { [workerClone] _, _ in
+                withUnsafeCurrentTask { $0?.cancel() }
+                throw PerformMutationTesting.WorkerDirectoryError(clone: workerClone, status: SIGKILL)
+            },
+            removeWorkerDirectories: { _ in }
+        )
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
+        )
+        ioDelegate.testSuiteOutcomes = [.passed]
+
+        let result = await Task { [state] in try await sut.run(with: state) }.result
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(ioDelegate.builtWorkerDirectories, [])
     }
 
     func test_withThreeWorkers_everyCloneIsBuilt() async throws {

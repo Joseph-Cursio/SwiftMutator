@@ -1,3 +1,6 @@
+#if os(Linux)
+import FoundationNetworking
+#endif
 @testable import muterCore
 import TestingExtensions
 import Version
@@ -68,6 +71,24 @@ final class UpdateCheckTests: MuterTestCase {
         await fulfillment(of: [expect], timeout: 2)
 
         XCTAssertTrue(result.isEmpty)
+    }
+
+    // A request cancelled because the run is stopping says nothing about which version is the latest.
+    func test_aCancelledCheck_saysNothingAboutVersions() async throws {
+        server.errorToBeThrown = URLError(.cancelled)
+        server.whileFetching = { withUnsafeCurrentTask { $0?.cancel() } }
+        let finished = expectation(
+            forNotification: .updateCheckFinished,
+            object: nil,
+            notificationCenter: notificationCenter
+        )
+        finished.isInverted = true
+
+        let result = await Task { [sut, state] in try await sut.run(with: state) }.result
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        // It would have been posted before the run returned.
+        await fulfillment(of: [finished], timeout: 0.1)
     }
 
     private func createReleaseJsonData(_ version: String = "") -> Data {
