@@ -197,6 +197,7 @@ extension Node where Context: HTML.BodyContext {
                 (fileName: report.fileName, appliedOperator: appliedOperator)
             }
         }
+        let showsKillingTests = fileReports.showsKillingTests
 
         return .table(
             .id("applied-operators"),
@@ -205,7 +206,8 @@ extension Node where Context: HTML.BodyContext {
                     .th("File"),
                     .th("Applied Mutation Operator"),
                     .th("Changes"),
-                    .th("Mutation Test Result")
+                    .th("Mutation Test Result"),
+                    .if(showsKillingTests, .th("Killed By"))
                 )
             ),
             .tbody(
@@ -222,8 +224,25 @@ extension Node where Context: HTML.BodyContext {
                         .td(.class("mutation-snapshot"), .diff(of: report.appliedOperator)),
                         .td(
                             .raw("\(report.appliedOperator.testSuiteOutcome.asIcon)")
-                        )
+                        ),
+                        .if(showsKillingTests, .td(.class("left-aligned"), .killedBy(report.appliedOperator)))
                     )
+                }
+            )
+        )
+    }
+
+    /// The Killed By cell, with more than one test recorded opening to every one. Text nodes only: Plot escapes text,
+    /// but not attribute values, and Swift Testing's names can hold `"`.
+    static func killedBy(_ appliedOperator: MuterTestReport.AppliedMutationOperator) -> Self {
+        guard let tests = appliedOperator.killedByTests?.tests, tests.count > 1 else {
+            return .text(appliedOperator.killedByCell)
+        }
+        return .details(
+            .summary(.text(appliedOperator.killedByCell)),
+            .ul(
+                .forEach(tests) { test in
+                    .li(.text(test.location.map { "\(test.name) — \($0)" } ?? test.name))
                 }
             )
         )

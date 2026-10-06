@@ -16,12 +16,14 @@ extension MuterTestReport.AppliedMutationOperator {
     static func make(
         mutationPoint: MutationPoint = .make(),
         mutationSnapshot: MutationOperator.Snapshot = .make(),
-        testSuiteOutcome: TestSuiteOutcome = .passed
+        testSuiteOutcome: TestSuiteOutcome = .passed,
+        killingTests: MutationTestOutcome.KillingTests? = nil
     ) -> Self {
         Self(
             mutationPoint: mutationPoint,
             mutationSnapshot: mutationSnapshot,
-            testSuiteOutcome: testSuiteOutcome
+            testSuiteOutcome: testSuiteOutcome,
+            killingTests: killingTests
         )
     }
 }
