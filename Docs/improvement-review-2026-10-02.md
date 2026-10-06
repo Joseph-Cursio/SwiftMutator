@@ -10,7 +10,8 @@ This is a ranked list of improvements to SwiftMutator, made at commit `4ba72fc` 
   - The manifest recompile (§1.1) is fixed in PR #42, after lab measurements confirmed its cause. An A/B run of the merged build is still to do.
   - A plain `swift test` and `swiftlint` pass on `main` since PR #37 (§4).
   - The results file (§2.1 item 1) and the data for §2.2 item 1 are done in PR #38.
-  - Problems found along the way, and which PRs fixed them, are under [Found while implementing](#found-while-implementing). Three are still open.
+  - Clean interruptions (§2.1 item 4) are done: Ctrl-C, SIGTERM and SIGHUP stop the test processes, end the results file, write a partial report beside a requested one, and remove the worker clones.
+  - Problems found along the way, and which PRs fixed them, are under [Found while implementing](#found-while-implementing). Two are still open.
 
 ## The workload these numbers come from
 
@@ -143,16 +144,21 @@ The test project is SwiftProjectLint, run on the whole repo: 528 files, **2,497 
 - **The file.** [results-file.md](results-file.md) documents the format.
   - A header line is written once the baseline passes, to `results.jsonl` in the run's log folder, or `results-2.jsonl` and so on if that name is taken.
   - Each tested mutant's result is appended as it finishes, and flushed with `fsync`.
-  - An end line follows only when mutation testing stops by itself. A run ended by Ctrl-C, SIGTERM or SIGKILL has none.
+  - An end line follows only when mutation testing stops by itself. A run ended by Ctrl-C, SIGTERM or SIGKILL has none. *(Since item 4, Ctrl-C, SIGTERM and SIGHUP write one too. SIGKILL still doesn't.)*
 - **Keys.** Results are keyed by repo-relative path, operator, line, column and occurrence, never by job position or mutant ID.
 - **Provenance.** Most of what §3 asks for is recorded (see §3).
   - The header records the SwiftMutator build, as its executable's SHA-256 in place of the commit, plus the toolchain, the configuration, the worker count and the effective timeout.
   - Each mutant line has its switch ID and duration.
 - **Cancellation.** A run that returns after mutation testing was cancelled is never recorded.
 
-Not done yet: items 2–4. They are planned as follow-up PRs, outlined in PR #38's description under "What's left", but not built:
+**Item 4 done.** Ctrl-C, SIGTERM and SIGHUP stop a run cleanly. The README's [Stopping a run](../README.md#stopping-a-run) says what a user sees.
+- **Test processes.** The first signal cancels mutation testing before anything is killed, so a run that the stop ended is never recorded. SwiftMutator then kills every process it started, and keeps killing new ones every 0.25 s until it exits. Each test process already leads a process group of its own, so the terminal's Ctrl-C reaches SwiftMutator alone.
+- **What's kept.** The results file gets an end line that names the signal. With `-o`, a partial report is written beside the requested one, never over it. Worker clones are removed, and each run's start removes any that an earlier run left.
+- **Exit.** SwiftMutator dies by the same signal, so the shell sees 130, 143 or 129. A second signal, or 30 s without stopping, exits at once, except a SIGHUP after a SIGHUP: zsh sends two when its terminal closes. Aborts still exit 255, and now write the partial report and a summary too.
+- **Signals from outside.** A test run that seems to have died of SIGINT, SIGTERM or SIGHUP waits 250 ms before it is recorded. If the signal reaches SwiftMutator too in that time, as one from `killall` or a logout does, the run is discarded rather than counted as killed.
+
+Not done yet: items 2 and 3. They are planned as follow-up PRs, outlined in PR #38's description under "What's left", but not built:
 - a `report` command;
-- clean Ctrl-C, SIGTERM and SIGHUP handling;
 - `--resume`, which refuses to reuse a result if the configuration, the SwiftMutator build, the toolchain or a file's hash has changed.
 
 - **What happens.** Outcomes exist only in memory until the report is written at the very end. The "before" run was stopped at 1,103 of 2,497 mutants and kept no structured results, only 747 MB of raw per-mutant logs. There's also no signal handler, so an interrupted run leaves its test processes and worker copies behind.
@@ -284,8 +290,9 @@ Not done yet: items 2–4. They are planned as follow-up PRs, outlined in PR #38
   - *PR #36's `ProcessTreeTests` kills a real tree of `sleep` processes and checks none survive.*
   - *PR #36's `StopAtFirstFailureProcessTests` stops a real stand-in test command.*
   - *PR #34's `test_cloningTheMutatedProject_discardsItsModuleCaches` copies a real temporary folder for a worker.*
+  - *The interruption work (§2.1 item 4) checks that real worker clones are removed, and its `InterruptionAcceptanceTests` stop the built `swift-mutator` with real signals and check that no test process survives.*
 
-  *Still missing: a check that worker clones are removed, a real-process test of the timeout path (it uses only a stand-in process), and the SwiftProjectLint log fixture.*
+  *Still missing: a real-process test of the timeout path (it uses only a stand-in process), and the SwiftProjectLint log fixture.*
 - **Upstream Muter leftovers.** The banner's help link, version 0.1.0 and the update check still point at Muter. The toolchain setup (swiftly with `SDKROOT=…/MacOSX26.5.sdk`) isn't documented for contributors.
 - **Swift 6 readiness.** There's global mutable dependency injection, blocking waits on the cooperative thread pool, and an untyped NotificationCenter bus. *(Since PR #36, waiting for a test process to exit no longer blocks a pool thread.)*
 - **Better relational-operator mutants.** Today `<` and `>` are swapped, which almost any test kills. Boundary mutants (`<` → `<=`, `>` → `>=`, and so on) would expose missing edge-case tests. Alternatively, add them as a separate operator. The count stays at 218, but the score may drop a few points.
@@ -302,7 +309,7 @@ Not done yet: items 2–4. They are planned as follow-up PRs, outlined in PR #38
 ## Suggested order
 
 1. **Small correctness fixes:** same-name merge, worker drop, UTF-8 classification (§2.3, §2.5, §2.7). *Done in PRs #25–#27.*
-2. **The base for most of the rest:** a per-mutant results file and the killing tests for each mutant (§2.1, §2.2). *Results file done in PR #38, with the killing tests in it; reports don't show them yet. The `report` command, clean interruptions and `--resume` are designed but not built.*
+2. **The base for most of the rest:** a per-mutant results file and the killing tests for each mutant (§2.1, §2.2). *Results file done in PR #38, with the killing tests in it; reports don't show them yet. Clean interruptions are done too. The `report` command and `--resume` are designed but not built.*
 3. **Fail-fast,** triggered by the event stream (§1.2). *Done in PR #36, triggered by console lines instead (see §1.2). On by default since PR #41, after an A/B run took 37% less time.*
 4. **Measure, then fix, the manifest recompile** (§1.1). *Done in PR #42: every `swift test` run in a worker's folder gets one environment, and the mutant is named in a file.*
 5. **Progress output** that works in a log file (§3).
@@ -323,7 +330,7 @@ Not done yet: items 2–4. They are planned as follow-up PRs, outlined in PR #38
 
   *(Fixed in PR #36's first four commits.)*
 - **Waiting for a test process to exit could hang.** Reviewers of PR #36 saw `waitUntilExit()` on a GCD thread occasionally never return in their own copies, but only when the process had no `terminationHandler`. Every test process now has one, and the hang hasn't been seen in SwiftMutator. Having `exited()` resume from `terminationHandler` itself would be sturdier.
-- **A failed worker clone leaks the clones before it.** If copying clone n fails, `cloneMutatedProject` throws before the caller has set up its cleanup. Clones 1 to n−1 and clone n's partial copy stay on disk until a later parallel run replaces them. The interruption work in §2.1 (item 4) plans the fix, along with a sweep of leftover clones at start.
+- **A failed worker clone leaks the clones before it.** If copying clone n fails, `cloneMutatedProject` throws before the caller has set up its cleanup. Clones 1 to n−1 and clone n's partial copy stay on disk until a later parallel run replaces them. *(Fixed by the interruption work in §2.1 (item 4): a failed clone removes the clones made before it and its own partial copy, and each run's start removes worker clones an earlier run left behind.)*
 - **Default-MainActor modules failed to build.** With `-default-isolation MainActor`, the generated `__SwiftMutator` enum is isolated to the main actor too. A mutant in a nonisolated function, an actor, a `Sendable` closure or another global actor then can't read the cache: "main actor-isolated static property 'environment' can not be referenced from a nonisolated context". Every mutant is compiled into the one mutated project, so a single such mutant failed the baseline build and aborted the whole run before any mutant was tested. Swift 6 mode failed this way on every toolchain from 6.2.3 to 6.5-dev. Swift 5 mode only warns, which still fails a `-warnings-as-errors` build. *(Fixed in PR #43: the cache is a `nonisolated static let`, which builds with no warnings on those toolchains under either default isolation.)*
 
 ## Outside this repo
