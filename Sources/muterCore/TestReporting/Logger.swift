@@ -3,6 +3,8 @@ import Foundation
 final class Logger {
     @Dependency(\.printer)
     private var printer: Printer
+    @Dependency(\.errorPrinter)
+    private var errorPrinter: Printer
     private var numberOfMutationPoints: Int = 0
     private var progressBar: ProgressBar!
     /// How many lines the progress bar takes. Its printer redraws it by moving the cursor up over that many lines.
@@ -200,6 +202,39 @@ final class Logger {
             print("\n")
             print("Could not save report!")
         }
+    }
+
+    /// What mutation testing tested before it stopped early, where its partial report is, if it has one, and where each
+    /// result is. On standard error: it reaches the terminal even when a `| tee` that the same Ctrl-C ended has closed
+    /// standard output. An abort's error follows on standard output.
+    func mutationTestingEndedEarly(
+        _ earlyEnd: EarlyEnd,
+        partialReport: (path: String, saved: Bool)?,
+        resultsFile: String?
+    ) {
+        let tested = earlyEnd.outcome.mutations.count
+        let stoppedBy = earlyEnd.reason == .interrupted ? "by \(earlyEnd.detail ?? "a signal")" : "by the error below"
+        var lines: [String]
+        if tested == 0 {
+            lines = ["⏹ Stopped \(stoppedBy) before any of \(earlyEnd.discovered) mutants finished."]
+        } else {
+            let score = mutationScore(from: earlyEnd.outcome.mutations.map(\.testSuiteOutcome))
+            lines = [
+                "⏹ Stopped \(stoppedBy) after testing \(tested) of \(earlyEnd.discovered) mutants. "
+                    + "Mutation score so far: \(score)%.",
+            ]
+        }
+        if let partialReport {
+            lines.append(
+                partialReport.saved
+                    ? "📝 Partial report: \(partialReport.path.bold)"
+                    : "⚠️ Could not save the partial report to \(partialReport.path)"
+            )
+        }
+        if let resultsFile {
+            lines.append("💾 Each tested mutant's result is in \(resultsFile.bold)")
+        }
+        lines.forEach(errorPrinter)
     }
 
     func testPlanFileCreated(atPath path: String?) {

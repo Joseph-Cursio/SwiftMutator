@@ -39,14 +39,15 @@ struct PerformMutationTesting: MutationStep {
     }
 
     /// Tests every mutant, writing each one's result to the run's results file as it finishes, between a header
-    /// and an end line that says how mutation testing ended. Worker clones are removed last.
+    /// and an end line that says how mutation testing ended. Mutation testing that stops early then posts what it
+    /// tested. Worker clones are removed last.
     func run(
         with state: AnyMutationTestState
     ) async throws -> [MutationTestState.Change] {
         fileManager.changeCurrentDirectoryPath(state.mutatedProjectDirectoryURL.path)
         let session = TestingSession(startedAt: now())
-        // After the end line: removing large clones can take seconds, and a second signal in that time exits at once.
-        // A clone left behind is removed when SwiftMutator next runs.
+        // After the end line and anything posted about an early end: removing large clones can take seconds, and a
+        // second signal in that time exits at once. A clone left behind is removed when SwiftMutator next runs.
         defer {
             if !session.clones.isEmpty {
                 removeWorkerDirectories(session.clones)
@@ -56,12 +57,11 @@ struct PerformMutationTesting: MutationStep {
         do {
             try await performMutationTesting(using: state, session: session)
         } catch {
-            endResults(
-                of: session,
-                error is CancellationError ? .interrupted : .aborted,
-                detail: ResultsEnd.detail(for: error),
-                testDuration: now().timeIntervalSince(session.startedAt)
-            )
+            let reason: ResultsEnd.Reason = error is CancellationError ? .interrupted : .aborted
+            let detail = ResultsEnd.detail(for: error)
+            let testDuration = now().timeIntervalSince(session.startedAt)
+            endResults(of: session, reason, detail: detail, testDuration: testDuration)
+            postEarlyEnd(of: session, reason, detail: detail, state: state, testDuration: testDuration)
             throw error
         }
 
@@ -193,6 +193,32 @@ private extension PerformMutationTesting {
         } else {
             try await testMutations(jobs, using: state, configuration: configuration, session: session)
         }
+    }
+
+    /// Posts what mutation testing that stopped early tested, for the partial report and the summary, once the
+    /// baseline has passed. Before then there is nothing to report, and an abort says why.
+    func postEarlyEnd(
+        of session: TestingSession,
+        _ reason: ResultsEnd.Reason,
+        detail: String?,
+        state: AnyMutationTestState,
+        testDuration: TimeInterval
+    ) {
+        guard !session.keys.isEmpty else { return }
+        notificationCenter.post(
+            name: .mutationTestingEndedEarly,
+            object: EarlyEnd(
+                reason: reason,
+                detail: detail,
+                outcome: MutationTestOutcome(
+                    mutations: session.outcomesInJobOrder,
+                    coverage: state.projectCoverage,
+                    testDuration: testDuration,
+                    newVersion: state.newVersion
+                ),
+                discovered: session.keys.count
+            )
+        )
     }
 
     struct MutantJob {

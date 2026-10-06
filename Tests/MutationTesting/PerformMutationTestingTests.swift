@@ -227,6 +227,48 @@ final class PerformMutationTestingTests: MuterTestCase {
         ])
     }
 
+    // What an abort tested makes the partial report, the build error that ended it included.
+    func test_whenTooManyBuildErrorsAbort_whatWasTestedIsPosted_inJobOrder() async throws {
+        state.mutationMapping = try Array(repeating: makeSchemataMapping(), count: 6)
+        ioDelegate.testSuiteOutcomes = [.passed, .failed] + Array(repeating: .buildError, count: 5)
+        let posted = recordNotifications(named: [.mutationTestingEndedEarly])
+
+        await assertThrowsMuterError(
+            try await sut.run(with: state),
+            .mutationTestingAborted(reason: .tooManyBuildErrors)
+        )
+
+        let earlyEnds = posted().compactMap { $0.object as? EarlyEnd }
+        XCTAssertEqual(earlyEnds.count, 1)
+        let earlyEnd = try XCTUnwrap(earlyEnds.first)
+        XCTAssertEqual(earlyEnd.reason, .aborted)
+        XCTAssertEqual(earlyEnd.detail, "tooManyBuildErrors")
+        XCTAssertEqual(earlyEnd.discovered, 6)
+        XCTAssertEqual(
+            earlyEnd.outcome.mutations.map(\.testSuiteOutcome),
+            [.failed] + Array(repeating: .buildError, count: 5)
+        )
+    }
+
+    // Nothing was tested, and the abort says why.
+    func test_aFailedBaseline_postsNoEarlyEnd() async throws {
+        ioDelegate.testSuiteOutcomes = [.failed]
+        let posted = recordNotifications(named: [.mutationTestingEndedEarly])
+
+        await assertThrowsMuterError(try await sut.run(with: state)) { _ in }
+
+        XCTAssertEqual(posted().count, 0)
+    }
+
+    func test_aFinishedRun_postsNoEarlyEnd() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        let posted = recordNotifications(named: [.mutationTestingEndedEarly])
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(posted().count, 0)
+    }
+
     func test_whenEncountersFiveNonConsecutiveBuildErrors_thenPerformMutationTesting() async throws {
         ioDelegate.testSuiteOutcomes = [
             .passed,

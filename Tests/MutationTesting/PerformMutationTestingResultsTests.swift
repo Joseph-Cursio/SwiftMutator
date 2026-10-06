@@ -360,6 +360,29 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(removals.kindsAtEach(), [["header", "mutant", "end"]])
     }
 
+    // The end line is on disk before anything is said about what was tested, and that is said before the clones,
+    // which can take seconds, are removed.
+    func test_theEarlyEndComesAfterTheEndLine_andBeforeClonesAreRemoved() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
+        var events: [String] = []
+        let sut = PerformMutationTesting(
+            makeWorkerDirectories: { [workerClone] _, count in Array(repeating: workerClone, count: count) },
+            removeWorkerDirectories: { _ in events.append("clones removed") }
+        )
+        whenPosted(.mutationTestingEndedEarly) { [resultsFiles] _ in
+            events.append("early end posted after the \((try? resultsFiles.kinds().last) ?? "no") line")
+        }
+        whenPosted(.newMutationTestOutcomeAvailable) { _ in withUnsafeCurrentTask { $0?.cancel() } }
+
+        let result = await Task { [state] in try await sut.run(with: state) }.result
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(events, ["early end posted after the end line", "clones removed"])
+    }
+
     func test_whenTheResultsFileCannotBeCreated_theRunGoesOn_andSaysSo() async throws {
         resultsFiles.errorToThrow = ResultsFileError.cannotOpen(path: "/logs/results.jsonl", errno: EACCES)
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]

@@ -52,6 +52,23 @@ extension MutationTestOutcome {
     }
 }
 
+extension EarlyEnd {
+    /// Mutation testing that stopped after testing a mutant with each of `tested`, of `discovered`.
+    static func make(
+        reason: ResultsEnd.Reason = .interrupted,
+        detail: String? = nil,
+        tested: [TestSuiteOutcome] = [.failed, .passed],
+        discovered: Int = 4
+    ) -> EarlyEnd {
+        EarlyEnd(
+            reason: reason,
+            detail: detail,
+            outcome: MutationTestOutcome(mutations: tested.map { .make(testSuiteOutcome: $0) }),
+            discovered: discovered
+        )
+    }
+}
+
 extension MutationTestOutcome.Mutation {
     static func make(
         testSuiteOutcome: TestSuiteOutcome = .passed,

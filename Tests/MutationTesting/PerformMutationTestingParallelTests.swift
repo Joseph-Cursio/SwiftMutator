@@ -236,6 +236,50 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         XCTAssertEqual(ioDelegate.builtWorkerDirectories, [])
     }
 
+    // A worker's run can finish before one that started earlier, and each outcome is kept as it is recorded, so what
+    // a stopped run tested is sorted back into the mutants' order for its partial report.
+    func test_anInterruptedRun_postsWhatItRecorded_inJobOrder() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
+        )
+        state.mutationMapping = try (1...6).map { try makeSchemataMapping(line: $0) }
+        ioDelegate.testSuiteOutcomes = [.passed, .passed] + Array(repeating: .failed, count: 6)
+        // The first run to start returns once the third mutant is recorded, and the fourth run to start once the
+        // first is, so the first run's mutant is recorded third, after the third mutant. Mutation testing is
+        // cancelled then. The waits are bounded, so the test can't hang.
+        let thirdMutantRecorded = DispatchSemaphore(value: 0)
+        let firstRunRecorded = DispatchSemaphore(value: 0)
+        ioDelegate.whileRunningMutant = { number in
+            if number == 0 { _ = thirdMutantRecorded.wait(timeout: .now() + 5) }
+            if number == 3 { _ = firstRunRecorded.wait(timeout: .now() + 5) }
+        }
+        var recordedLines: [Int] = []
+        whenPosted(.newMutationTestOutcomeAvailable) { notification in
+            guard let mutation = notification.object as? MutationTestOutcome.Mutation else { return }
+            recordedLines.append(mutation.point.position.line)
+            if recordedLines.count == 2 { thirdMutantRecorded.signal() }
+            if recordedLines.count == 3 {
+                withUnsafeCurrentTask { $0?.cancel() }
+                firstRunRecorded.signal()
+            }
+        }
+        var earlyEnds: [EarlyEnd] = []
+        whenPosted(.mutationTestingEndedEarly) { notification in
+            (notification.object as? EarlyEnd).map { earlyEnds.append($0) }
+        }
+
+        let result = await runInItsOwnTask()
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(recordedLines.count, 3)
+        XCTAssertNotEqual(recordedLines, recordedLines.sorted(), "the runs weren't recorded out of job order")
+        XCTAssertEqual(earlyEnds.count, 1)
+        let earlyEnd = try XCTUnwrap(earlyEnds.first)
+        XCTAssertEqual(earlyEnd.reason, .interrupted)
+        XCTAssertEqual(earlyEnd.discovered, 6)
+        XCTAssertEqual(earlyEnd.outcome.mutations.map(\.point.position.line), recordedLines.sorted())
+    }
+
     func test_withThreeWorkers_everyCloneIsBuilt() async throws {
         let clones = (1...2).map { URL(fileURLWithPath: "/project_mutated_worker\($0)") }
         let sut = PerformMutationTesting(makeWorkerDirectories: { _, _ in clones }, removeWorkerDirectories: { _ in })
@@ -362,6 +406,12 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         }
         addTeardownBlock { [notificationCenter] in notificationCenter.removeObserver(observer) }
         return { count }
+    }
+
+    /// Calls `handler` with each notification posted with `name`, from the task that posts it, until the test ends.
+    private func whenPosted(_ name: Notification.Name, _ handler: @escaping (Notification) -> Void) {
+        let observer = notificationCenter.addObserver(forName: name, object: nil, queue: nil, using: handler)
+        addTeardownBlock { [notificationCenter] in notificationCenter.removeObserver(observer) }
     }
 
     /// The line of each mutant whose outcome is posted, in the order they're posted, until the test ends.

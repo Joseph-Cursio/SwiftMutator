@@ -163,6 +163,91 @@ final class MutationTestObserverTests: MuterTestCase {
 
         XCTAssertFalse(printer.linesPassed.contains { $0.hasPrefix("💾 Each mutant's result") }, "\(printer.linesPassed)")
     }
+
+    // A complete report from an earlier run is never replaced by a partial one.
+    func test_anEarlyEnd_writesThePartialReportBesideTheRequestedOne() {
+        options = .make(reportURL: URL(fileURLWithPath: "/out/report.txt"))
+        let earlyEnd = EarlyEnd.make(tested: [.failed, .passed])
+        sut.start()
+
+        notificationCenter.post(name: .mutationTestingEndedEarly, object: earlyEnd)
+
+        XCTAssertEqual(fileManager.paths.last, "/out/report.partial.txt")
+        XCTAssertEqual(fileManager.contents, Data(PlainTextReporter().report(from: earlyEnd.outcome).utf8))
+        XCTAssertFalse(fileManager.paths.contains("/out/report.txt"), "\(fileManager.paths)")
+    }
+
+    func test_anEarlyEnd_writesThePartialReportInTheRequestedFormat() throws {
+        options = .make(reportFormat: .json, reportURL: URL(fileURLWithPath: "/out/report.json"))
+        let earlyEnd = EarlyEnd.make(tested: [.failed, .passed])
+        sut.start()
+
+        notificationCenter.post(name: .mutationTestingEndedEarly, object: earlyEnd)
+
+        XCTAssertEqual(fileManager.paths.last, "/out/report.partial.json")
+        let written = try JSONSerialization.jsonObject(with: XCTUnwrap(fileManager.contents)) as? NSDictionary
+        let expected = try JSONSerialization.jsonObject(
+            with: Data(JsonReporter().report(from: earlyEnd.outcome).utf8)
+        ) as? NSDictionary
+        XCTAssertNotNil(written)
+        XCTAssertEqual(written, expected)
+    }
+
+    // Without `-o`, the summary and the results file say what was tested.
+    func test_anEarlyEndWithoutARequestedReport_writesNoPartialReport() {
+        sut.start()
+
+        notificationCenter.post(name: .mutationTestingEndedEarly, object: EarlyEnd.make(tested: [.failed, .passed]))
+
+        XCTAssertFalse(fileManager.methodCalls.contains("createFile(atPath:contents:attributes:)"))
+        XCTAssertEqual(
+            standardError.linesPassed,
+            ["⏹ Stopped by a signal after testing 2 of 4 mutants. Mutation score so far: 50%."]
+        )
+    }
+
+    func test_anEarlyEndWithNothingTested_writesNoReport() {
+        options = .make(reportURL: URL(fileURLWithPath: "/out/report.txt"))
+        sut.start()
+
+        notificationCenter.post(name: .mutationTestingEndedEarly, object: EarlyEnd.make(tested: []))
+
+        XCTAssertFalse(fileManager.methodCalls.contains("createFile(atPath:contents:attributes:)"))
+        XCTAssertEqual(standardError.linesPassed, ["⏹ Stopped by a signal before any of 4 mutants finished."])
+    }
+
+    func test_anEarlyEnd_printsItsSummaryToStandardError_namingTheResultsFile() {
+        options = .make(reportURL: URL(fileURLWithPath: "/out/report.txt"))
+        sut.start()
+        notificationCenter.post(name: .resultsFileCreated, object: "/logs/results.jsonl")
+        let printedBefore = printer.linesPassed
+
+        notificationCenter.post(
+            name: .mutationTestingEndedEarly,
+            object: EarlyEnd.make(detail: "SIGINT", tested: [.failed, .passed])
+        )
+
+        XCTAssertEqual(standardError.linesPassed, [
+            "⏹ Stopped by SIGINT after testing 2 of 4 mutants. Mutation score so far: 50%.",
+            "📝 Partial report: \("/out/report.partial.txt".bold)",
+            "💾 Each tested mutant's result is in \("/logs/results.jsonl".bold)",
+        ])
+        XCTAssertEqual(printer.linesPassed, printedBefore, "nothing more on standard output")
+    }
+
+    // The file lacks every result after the failed write.
+    func test_anEarlyEnd_doesNotNameAResultsFileThatCouldNotBeWritten() {
+        sut.start()
+        notificationCenter.post(name: .resultsFileCreated, object: "/logs/results.jsonl")
+        notificationCenter.post(name: .resultsFileUnavailable, object: "No space left on device")
+
+        notificationCenter.post(name: .mutationTestingEndedEarly, object: EarlyEnd.make(tested: [.failed]))
+
+        XCTAssertEqual(
+            standardError.linesPassed,
+            ["⏹ Stopped by a signal after testing 1 of 4 mutants. Mutation score so far: 100%."]
+        )
+    }
 }
 
 private extension Notification {
