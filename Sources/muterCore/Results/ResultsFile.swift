@@ -18,6 +18,10 @@ protocol ResultsFileOpening {
     /// A new file in `directory`: `results.jsonl`, or `results-2.jsonl` … `results-99.jsonl` if a run that started
     /// in the same minute has one there. Never an existing file.
     func create(in directory: String) throws -> ResultsRecording
+    /// The results file at `path`, opened to append another session and locked. Nothing is written until the first
+    /// line is appended, and a last line cut off as it was written is ended just before it, so it stays a line of its
+    /// own that readers skip. Never a new file.
+    func openForResume(at path: String) throws -> ResultsRecording
 }
 
 enum ResultsFileError: Error, Equatable, CustomStringConvertible {
@@ -77,11 +81,26 @@ final class ResultsFile: ResultsRecording {
             }
             throw ResultsFileError.cannotOpen(path: path, errno: EEXIST)
         }
+
+        func openForResume(at path: String) throws -> ResultsRecording {
+            // No O_CREAT: a results file that isn't there has nothing to resume.
+            let descriptor = open(path, O_RDWR | O_APPEND | O_CLOEXEC)
+            guard descriptor >= 0 else { throw ResultsFileError.cannotOpen(path: path, errno: errno) }
+            // Locked at once, so a run still writing the file is refused. Its last line is ended only before the
+            // session's first line: a resume that is refused, or whose baseline fails, leaves the file as it was,
+            // and so does one of a file that isn't a results file at all.
+            let file = try ResultsFile(descriptor: descriptor, path: path)
+            file.endsLastLineFirst = true
+            return file
+        }
     }
 
     let path: String
     private(set) var writeError: Error?
     private var descriptor: Int32
+    /// Whether the file's last line is to be ended before the first line is appended: the file was opened to add a
+    /// session to it, and an earlier one may have cut its last line off.
+    private var endsLastLineFirst = false
     private let encoder = ResultsCoding.encoder
     /// write(2) and fsync(2); a test passes ones that fail.
     private let writeBytes: (Int32, UnsafeRawPointer, Int) -> Int
@@ -115,6 +134,10 @@ final class ResultsFile: ResultsRecording {
     func append(_ line: some Encodable) -> Bool {
         guard writeError == nil, descriptor >= 0 else { return false }
         do {
+            if endsLastLineFirst {
+                try endLastLine()
+                endsLastLineFirst = false
+            }
             var data = try encoder.encode(line)
             data.append(UInt8(ascii: "\n"))
             try writeAll(data)
@@ -131,6 +154,22 @@ final class ResultsFile: ResultsRecording {
         guard descriptor >= 0 else { return }
         closeDescriptor(descriptor)
         descriptor = -1
+    }
+
+    /// Ends the file's last line with a line break if it lacks one, so the line appended next stands alone. It looks at
+    /// the last byte, not at whether the last line reads: a whole last line without its break reads fine, and stays
+    /// readable once it is ended.
+    private func endLastLine() throws {
+        let size = lseek(descriptor, 0, SEEK_END)
+        guard size >= 0 else { throw ResultsFileError.cannotOpen(path: path, errno: errno) }
+        guard size > 0 else { return }
+        var last: UInt8 = 0
+        guard pread(descriptor, &last, 1, size - 1) == 1 else {
+            throw ResultsFileError.cannotOpen(path: path, errno: errno)
+        }
+        guard last != UInt8(ascii: "\n") else { return }
+        try writeAll(Data([UInt8(ascii: "\n")]))
+        try synchronizeToDisk()
     }
 
     /// Writes all of `data`, however many writes it takes. A write a signal interrupted is tried again.
@@ -187,6 +226,30 @@ extension ResultsFile {
         case 0: throw ResultsFileError.noResultsFile(folder: path)
         default: throw ResultsFileError.severalResultsFiles(folder: path, names: found)
         }
+    }
+
+    /// Whether `output` names the file at `results`, so saving a report there would replace it: the same path once
+    /// symbolic links are resolved, or another name for the same file, as a different case gives on a
+    /// case-insensitive volume.
+    static func isSameFile(_ output: String, _ results: String) -> Bool {
+        if resolved(output) == resolved(results) {
+            return true
+        }
+        guard let outputIdentity = identity(of: output), let resultsIdentity = identity(of: results) else {
+            return false
+        }
+        return outputIdentity == resultsIdentity
+    }
+
+    private static func resolved(_ path: String) -> String {
+        URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path
+    }
+
+    /// The device and inode of the file at `path`, if there is one.
+    private static func identity(of path: String) -> (device: dev_t, inode: ino_t)? {
+        var info = stat()
+        guard stat(path, &info) == 0 else { return nil }
+        return (info.st_dev, info.st_ino)
     }
 }
 

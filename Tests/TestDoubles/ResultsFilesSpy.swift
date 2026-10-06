@@ -57,10 +57,15 @@ final class ResultsFilesSpy: ResultsFileOpening {
 
     /// Thrown by `create` instead of making a file.
     var errorToThrow: Error?
-    /// The 1-based number of the first line whose append fails in each file made.
+    /// Thrown by `openForResume` instead of opening the file.
+    var resumeErrorToThrow: Error?
+    /// The 1-based number of the first line whose append fails in each file made or opened.
     var failFromLine: Int?
     /// The folders a file was asked for in, in order.
     private(set) var directories: [String] = []
+    /// The paths a file was asked to be opened at for resuming, in order.
+    private(set) var resumedPaths: [String] = []
+    /// Each file made or opened, in order. A file opened for resuming holds only the lines appended since.
     private(set) var files: [File] = []
 
     func create(in directory: String) throws -> ResultsRecording {
@@ -73,7 +78,17 @@ final class ResultsFilesSpy: ResultsFileOpening {
         return file
     }
 
-    /// Every line of every file made, in order.
+    func openForResume(at path: String) throws -> ResultsRecording {
+        resumedPaths.append(path)
+        if let resumeErrorToThrow {
+            throw resumeErrorToThrow
+        }
+        let file = File(path: path, failFromLine: failFromLine)
+        files.append(file)
+        return file
+    }
+
+    /// Every line of every file made or opened, in order.
     var lines: [String] {
         files.flatMap(\.lines)
     }
