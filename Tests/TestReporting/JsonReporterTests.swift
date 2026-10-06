@@ -21,4 +21,42 @@ final class JsonReporterTests: ReporterTestCase {
             [.init(before: "!=", after: "==", description: "from != to ==")]
         )
     }
+
+    func test_aKilledMutantListsItsKillingTests_aSurvivorKeepsExactlyItsKeys() throws {
+        let killingTests = MutationTestOutcome.KillingTests(
+            tests: [
+                .init(name: "sum()", location: "SumTests.swift:3:5"),
+                .init(name: "-[Tests.SumTests testTotal]", location: nil),
+            ],
+            count: 3,
+            isComplete: false
+        )
+        let json = JsonReporter().report(from: .make(mutations: [
+            .make(
+                testSuiteOutcome: .failed,
+                point: .make(filePath: "/tmp/project/Sum.swift", position: 3),
+                killingTests: killingTests
+            ),
+            .make(testSuiteOutcome: .passed, point: .make(filePath: "/tmp/project/Sum.swift", position: 7)),
+        ]))
+
+        let report = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        let fileReports = try XCTUnwrap(report["fileReports"] as? [[String: Any]])
+        let operators = try XCTUnwrap(fileReports.first?["appliedOperators"] as? [[String: Any]])
+        XCTAssertEqual(operators.count, 2)
+        let kill = try XCTUnwrap(operators.first { $0["testSuiteOutcome"] as? String == "failed" })
+        let survivor = try XCTUnwrap(operators.first { $0["testSuiteOutcome"] as? String == "passed" })
+
+        XCTAssertEqual(kill["killingTests"] as? NSDictionary, [
+            "tests": [
+                ["name": "sum()", "location": "SumTests.swift:3:5"],
+                ["name": "-[Tests.SumTests testTotal]"],
+            ],
+            "count": 3,
+            "isComplete": false,
+        ] as NSDictionary)
+        let tests = try XCTUnwrap((kill["killingTests"] as? [String: Any])?["tests"] as? [[String: Any]])
+        XCTAssertEqual(tests.last?.keys.sorted(), ["name"], "an XCTest name has no location")
+        XCTAssertEqual(survivor.keys.sorted(), ["mutationPoint", "mutationSnapshot", "testSuiteOutcome"])
+    }
 }

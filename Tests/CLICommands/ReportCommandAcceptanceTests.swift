@@ -6,12 +6,17 @@ import XCTest
 /// run's Xcode warnings came in, and JSON's key order. Every wait is bounded, a SwiftMutator still running when its
 /// wait or its test ends is killed, and every file a test writes is in a temporary folder.
 final class ReportCommandAcceptanceTests: XCTestCase {
-    /// Kills the mutants in Checks.swift, printing the line Swift Testing ends a failed run with; those in
-    /// Bounds.swift survive. The baseline, which has no active mutant, passes.
+    /// Kills the mutants in Checks.swift, printing the line Swift Testing shows an issue of `check()` with, then the
+    /// line it ends a failed run with; those in Bounds.swift survive. The baseline, which has no active mutant, passes.
+    /// The issue's line can stop a run there, as `buildSystem: swift` stops runs at their first failed test, so whether
+    /// a run exits by itself depends on timing; the run and the report read the same results line either way.
     private static let testCommand = """
         mutant=$(cat "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE" 2>/dev/null)
         case "$mutant" in
-            Checks_*) echo "✘ Test run with 1 test failed after 0.001 seconds with 1 issue."; exit 1;;
+            Checks_*)
+                echo "✘ Test check() recorded an issue at ChecksTests.swift:3:5: Expectation failed"
+                echo "✘ Test run with 1 test failed after 0.001 seconds with 1 issue."
+                exit 1;;
         esac
         exit 0
         """
@@ -109,6 +114,10 @@ final class ReportCommandAcceptanceTests: XCTestCase {
             case "json":
                 XCTAssertEqual(try parsedJSON(at: runReport), try parsedJSON(at: rebuiltReport))
                 XCTAssertEqual(try outcomes(inJSONReportAt: runReport), ["failed", "failed", "passed", "passed"])
+                XCTAssertEqual(
+                    try killingTestNames(inJSONReportAt: runReport),
+                    ["Checks.swift": [["check()"], ["check()"]], "Bounds.swift": [nil, nil]]
+                )
             case "html":
                 XCTAssertEqual(try withoutFooter(contents(of: runReport)), try withoutFooter(contents(of: rebuiltReport)))
             default:
@@ -224,6 +233,21 @@ final class ReportCommandAcceptanceTests: XCTestCase {
             .flatMap { ($0["appliedOperators"] as? [[String: Any]]) ?? [] }
             .compactMap { $0["testSuiteOutcome"] as? String }
             .sorted()
+    }
+
+    /// The names of the tests each mutant's `killingTests` lists in a JSON report, by file, or nil for a mutant without
+    /// them.
+    private func killingTestNames(inJSONReportAt file: URL) throws -> [String: [[String]?]] {
+        let fileReports = try XCTUnwrap(parsedJSON(at: file)["fileReports"] as? [[String: Any]])
+        var names: [String: [[String]?]] = [:]
+        for fileReport in fileReports {
+            let fileName = try XCTUnwrap(fileReport["fileName"] as? String)
+            names[fileName] = ((fileReport["appliedOperators"] as? [[String: Any]]) ?? []).map { appliedOperator in
+                ((appliedOperator["killingTests"] as? [String: Any])?["tests"] as? [[String: Any]])
+                    .map { tests in tests.compactMap { $0["name"] as? String } }
+            }
+        }
+        return names
     }
 
     /// The HTML report with its footer, the time it was made, left empty.

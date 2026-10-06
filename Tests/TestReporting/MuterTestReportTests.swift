@@ -57,6 +57,83 @@ final class MuterTestReportTests: MuterTestCase {
 
         XCTAssertEqual(actualMutationScores, expectedMutationScores)
     }
+
+    func test_aReportWithKillingTests_roundTrips() throws {
+        let report = MuterTestReport(from: .make(mutations: [
+            .make(
+                testSuiteOutcome: .failed,
+                point: .make(filePath: "/tmp/Sum.swift", position: 3),
+                killingTests: .init(
+                    tests: [
+                        .init(name: "sum()", location: "SumTests.swift:3:5"),
+                        .init(name: "-[Tests.SumTests testTotal]", location: nil),
+                    ],
+                    count: 2,
+                    isComplete: true
+                )
+            ),
+            .make(
+                testSuiteOutcome: .timeout,
+                point: .make(filePath: "/tmp/Sum.swift", position: 5),
+                killingTests: .init(tests: [], count: 0, isComplete: false)
+            ),
+            .make(testSuiteOutcome: .passed, point: .make(filePath: "/tmp/Sum.swift", position: 7)),
+        ]))
+
+        let decoded = try JSONDecoder().decode(MuterTestReport.self, from: JSONEncoder().encode(report))
+
+        XCTAssertEqual(decoded.fileReports.map(\.appliedOperators), report.fileReports.map(\.appliedOperators))
+        XCTAssertEqual(
+            report.fileReports.flatMap(\.appliedOperators).map(\.killingTests?.count),
+            [2, 0, nil]
+        )
+    }
+
+    /// A JSON report written before reports named killing tests.
+    func test_aReportWithoutTheNewKeys_stillDecodes() throws {
+        let json = """
+        {
+          "globalMutationScore" : 50,
+          "totalAppliedMutationOperators" : 2,
+          "numberOfKilledMutants" : 1,
+          "timeElapsed" : "00:01:02.500",
+          "fileReports" : [
+            {
+              "fileName" : "Sum.swift",
+              "mutationScore" : 50,
+              "appliedOperators" : [
+                {
+                  "mutationPoint" : {
+                    "mutationOperatorId" : "RelationalOperatorReplacement",
+                    "filePath" : "/tmp/Sum.swift",
+                    "position" : { "utf8Offset" : 30, "line" : 3, "column" : 5 }
+                  },
+                  "mutationSnapshot" : { "before" : ">", "after" : "<", "description" : "changed > to <" },
+                  "testSuiteOutcome" : "failed"
+                },
+                {
+                  "mutationPoint" : {
+                    "mutationOperatorId" : "RemoveSideEffects",
+                    "filePath" : "/tmp/Sum.swift",
+                    "position" : { "utf8Offset" : 70, "line" : 7, "column" : 9 }
+                  },
+                  "mutationSnapshot" : { "before" : "log()", "after" : "removed line", "description" : "removed line" },
+                  "testSuiteOutcome" : "passed"
+                }
+              ]
+            }
+          ]
+        }
+        """
+
+        let report = try JSONDecoder().decode(MuterTestReport.self, from: Data(json.utf8))
+
+        let operators = report.fileReports.flatMap(\.appliedOperators)
+        XCTAssertEqual(operators.map(\.testSuiteOutcome), [.failed, .passed])
+        XCTAssertEqual(operators.map(\.mutationPoint.position.line), [3, 7])
+        XCTAssertEqual(operators.map(\.killingTests), [nil, nil])
+        XCTAssertEqual(report.numberOfKilledMutants, 1)
+    }
 }
 
 extension MuterTestReportTests {

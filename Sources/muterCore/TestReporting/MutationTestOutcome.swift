@@ -58,8 +58,8 @@ extension MutationTestOutcome {
     }
 
     /// A mutant's `MutantResult.killedBy` and `failedTestCount`, with whether the list is complete
-    /// (Docs/results-file.md).
-    struct KillingTests: Equatable {
+    /// (Docs/results-file.md). The JSON report holds it as `{tests: [{name, location?}], count, isComplete}`.
+    struct KillingTests: Codable, Equatable {
         /// Each test once, in the order it first failed, at most `FailedTestLine.killedByLimit`.
         let tests: [FailedTestLine.FailedTest]
         /// How many distinct tests failed, uncapped.

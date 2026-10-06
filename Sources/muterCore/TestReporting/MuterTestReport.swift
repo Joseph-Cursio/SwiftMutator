@@ -89,21 +89,27 @@ extension MuterTestReport {
         let mutationPoint: MutationPoint
         let mutationSnapshot: MutationOperator.Snapshot
         let testSuiteOutcome: TestSuiteOutcome
+        /// The tests its run's log showed failing, as `MutationTestOutcome.Mutation` has them. Left out of the JSON
+        /// when nil, so a survivor's is as it was before reports named them.
+        let killingTests: MutationTestOutcome.KillingTests?
 
         enum CodingKeys: String, CodingKey {
             case mutationPoint
             case testSuiteOutcome
             case mutationSnapshot
+            case killingTests
         }
 
         init(
             mutationPoint: MutationPoint,
             mutationSnapshot: MutationOperator.Snapshot,
-            testSuiteOutcome: TestSuiteOutcome
+            testSuiteOutcome: TestSuiteOutcome,
+            killingTests: MutationTestOutcome.KillingTests? = nil
         ) {
             self.mutationPoint = mutationPoint
             self.mutationSnapshot = mutationSnapshot
             self.testSuiteOutcome = testSuiteOutcome
+            self.killingTests = killingTests
         }
 
         public init(from decoder: Decoder) throws {
@@ -115,6 +121,8 @@ extension MuterTestReport {
                 default: .null,
                 forKey: .mutationSnapshot
             )
+            // A report written before reports named killing tests has none.
+            killingTests = try container.decodeIfPresent(MutationTestOutcome.KillingTests.self, forKey: .killingTests)
         }
     }
 }
@@ -136,7 +144,8 @@ private extension MuterTestReport {
                         AppliedMutationOperator(
                             mutationPoint: $0.point,
                             mutationSnapshot: $0.snapshot,
-                            testSuiteOutcome: $0.testSuiteOutcome
+                            testSuiteOutcome: $0.testSuiteOutcome,
+                            killingTests: $0.killingTests
                         )
                     }
 

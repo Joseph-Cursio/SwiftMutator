@@ -4,6 +4,19 @@ import TestingExtensions
 import XCTest
 
 final class RegressionTests: XCTestCase {
+    /// Keys left out of the snapshots: where and how long a run took, and the killing tests, which depend on timing
+    /// (runs stop at their first failed test). Each is dropped at any depth, inside arrays too
+    /// (`recursivelyFiltered`), so the snapshots, which hold none of them, need no re-recording.
+    static let keysToExclude: Set<String> = [
+        "filePath", "utf8Offset", "timeElapsed",
+        "killingTests",
+    ]
+
+    /// How a report is compared with its snapshot: as JSON, without `keysToExclude`.
+    static var snapshotting: Snapshotting<MuterTestReport, String> {
+        .json(excludingKeysMatching: { keysToExclude.contains($0) })
+    }
+
     /// These tests read the reports `runRegressionTests.sh` wrote into `samples/`. That script recreates the
     /// folder before it writes anything, so a missing folder means it hasn't been run, not that it failed:
     /// skip, so a plain `swift test` can pass. A run that failed partway leaves the folder, and these tests
@@ -26,15 +39,11 @@ final class RegressionTests: XCTestCase {
             return .failure(.literal(reason: "Unable to load a valid Muter test report from \(path)"))
         }
 
-        let keysToExclude: (String) -> Bool = {
-            $0 == "filePath" || $0 == "utf8Offset" || $0 == "timeElapsed"
-        }
-
         do {
             let testReport = try JSONDecoder().decode(MuterTestReport.self, from: data)
             assertSnapshot(
                 of: testReport,
-                as: .json(excludingKeysMatching: keysToExclude),
+                as: Self.snapshotting,
                 named: fixtureName,
                 file: file,
                 testName: testName,
