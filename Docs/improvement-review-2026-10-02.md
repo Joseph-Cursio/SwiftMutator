@@ -4,13 +4,14 @@ This is a ranked list of improvements to SwiftMutator, made at commit `4ba72fc` 
 
 - **How it was produced.** Thirteen agents read the code and the run logs without modifying anything. Six of them each examined one area. Six more each tried to disprove another agent's suggestions against the code. A final agent looked for anything all of them had missed.
 - **How the suggestions held up.** There were 61 suggestions. Verification rejected none of the 54 from the six areas. About half of those needed a corrected estimate, and the corrected numbers are used below. The final agent's seven suggestions weren't separately checked.
-- **Status, updated 5 October 2026.** Each finished item below says what was done and what was left out.
+- **Status, updated 6 October 2026.** Each finished item below says what was done and what was left out.
   - CI (§4) is done in PR #24, and §2.3, §2.5 and the three bug fixes in §2.7 in PRs #25–#27.
   - Fail-fast (§1.2) is done in PR #36, and on by default for SwiftPM since PR #41, after an A/B run took 37% less time. One part of PR #36 applies whether or not it's on: a time-out rule that can raise scores (see §2.7).
   - The manifest recompile (§1.1) is fixed in PR #42, after lab measurements confirmed its cause. An A/B run of the merged build is still to do.
   - A plain `swift test` and `swiftlint` pass on `main` since PR #37 (§4).
   - The results file (§2.1 item 1) and the data for §2.2 item 1 are done in PR #38.
   - Clean interruptions (§2.1 item 4) are done: Ctrl-C, SIGTERM and SIGHUP stop the test processes, end the results file, write a partial report beside a requested one, and remove the worker clones.
+  - The `report` command (§2.1 item 2) is done: `swift-mutator report` makes a run's report, in any format, from its results file. Of §2.1, only `--resume` (item 3) is left.
   - Problems found along the way, and which PRs fixed them, are under [Found while implementing](#found-while-implementing). Two are still open.
 
 ## The workload these numbers come from
@@ -157,9 +158,14 @@ The test project is SwiftProjectLint, run on the whole repo: 528 files, **2,497 
 - **Exit.** SwiftMutator dies by the same signal, so the shell sees 130, 143 or 129. A second signal, or 30 s without stopping, exits at once, except a SIGHUP after a SIGHUP: zsh sends two when its terminal closes. Aborts still exit 255, and now write the partial report and a summary too.
 - **Signals from outside.** A test run that seems to have died of SIGINT, SIGTERM or SIGHUP waits 250 ms before it is recorded. If the signal reaches SwiftMutator too in that time, as one from `killall` or a logout does, the run is discarded rather than counted as killed.
 
-Not done yet: items 2 and 3. They are planned as follow-up PRs, outlined in PR #38's description under "What's left", but not built:
-- a `report` command;
-- `--resume`, which refuses to reuse a result if the configuration, the SwiftMutator build, the toolchain or a file's hash has changed.
+**Item 2 done.** `swift-mutator report <results file or log folder> [-f] [-o]` makes a run's report from its results file, in any format. [Reports from the file](results-file.md#reports-from-the-file) says what a user sees.
+- **Exact for a finished run.** The run's outcome is rebuilt from the file: each mutant's last line, in the order the run tested them, under the last header's project paths, coverage and update notice, with the end line's exact test duration. Its report equals the run's own in all four formats. Only the HTML footer's time, the order of the Xcode warnings, the plain text's colours and the JSON key order can differ, and each depends on when or where a report is made. A unit test checks this on real `PerformMutationTesting` runs with 1 and 2 workers, and `ReportCommandAcceptanceTests` on the built `swift-mutator`.
+- **Job order without a format change.** The order comes from fields already in the file: the resolved path, then `switchID` compared as text, then `occurrence`. That is how discovery sorts its jobs. A test over real discovery output fails if discovery's order changes.
+- **Partial runs.** The file of a run that stopped, crashed or is still going gives a report of what it holds. A stopped run's report equals its partial report. How complete the file is goes on standard error, not into the report.
+- **The stop summary** now ends with the command, with the results file's path quoted for the shell.
+- **One report writer.** The final report, the partial report and `report` all save through `ReportWriter`.
+
+Not done yet: item 3, `--resume`, which refuses to reuse a result if the configuration, the SwiftMutator build, the toolchain or a file's hash has changed. It is planned as a follow-up PR, outlined in PR #38's description under "What's left", but not built.
 
 - **What happens.** Outcomes exist only in memory until the report is written at the very end. The "before" run was stopped at 1,103 of 2,497 mutants and kept no structured results, only 747 MB of raw per-mutant logs. There's also no signal handler, so an interrupted run leaves its test processes and worker copies behind.
 - **Proposal.**
@@ -309,7 +315,7 @@ Not done yet: items 2 and 3. They are planned as follow-up PRs, outlined in PR #
 ## Suggested order
 
 1. **Small correctness fixes:** same-name merge, worker drop, UTF-8 classification (§2.3, §2.5, §2.7). *Done in PRs #25–#27.*
-2. **The base for most of the rest:** a per-mutant results file and the killing tests for each mutant (§2.1, §2.2). *Results file done in PR #38, with the killing tests in it; reports don't show them yet. Clean interruptions are done too. The `report` command and `--resume` are designed but not built.*
+2. **The base for most of the rest:** a per-mutant results file and the killing tests for each mutant (§2.1, §2.2). *Results file done in PR #38, with the killing tests in it; reports don't show them yet. Clean interruptions and the `report` command are done too. `--resume` is designed but not built.*
 3. **Fail-fast,** triggered by the event stream (§1.2). *Done in PR #36, triggered by console lines instead (see §1.2). On by default since PR #41, after an A/B run took 37% less time.*
 4. **Measure, then fix, the manifest recompile** (§1.1). *Done in PR #42: every `swift test` run in a worker's folder gets one environment, and the mutant is named in a file.*
 5. **Progress output** that works in a log file (§3).

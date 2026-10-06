@@ -132,10 +132,23 @@ final class LoggerTests: MuterTestCase {
             "⏹ Stopped by SIGTERM after testing 3 of 9 mutants. Mutation score so far: 50%.",
             "📝 Partial report: \("/out/report.partial.txt".bold)",
             "💾 Each tested mutant's result is in \("/logs/results.jsonl".bold)",
+            "📝 Full report: swift-mutator report '/logs/results.jsonl'",
             // The error banner follows on standard output.
             "⏹ Stopped by the error below after testing 2 of 9 mutants. Mutation score so far: 100%.",
         ])
         XCTAssertEqual(printer.linesPassed, [])
+    }
+
+    // Log folders are named like `Oct 4, 2026 at 1:16 PM`, and a project's name can hold a quote: the command is printed
+    // so that it pastes into a shell whatever the path holds, and unbolded, so that no colour codes paste with it.
+    func test_mutationTestingEndedEarly_namesTheReportCommand_quotingItsPath() throws {
+        let resultsFile = "/logs/Bob's project_muter_logs/Oct 4, 2026 at 1:16 PM/results.jsonl"
+
+        sut.mutationTestingEndedEarly(.make(tested: [.failed]), partialReport: nil, resultsFile: resultsFile)
+
+        let quoted = #"'/logs/Bob'\''s project_muter_logs/Oct 4, 2026 at 1:16 PM/results.jsonl'"#
+        XCTAssertEqual(standardError.linesPassed.last, "📝 Full report: swift-mutator report \(quoted)")
+        XCTAssertEqual(try wordsAShellReads(in: quoted), [resultsFile])
     }
 
     // There is no score to give, and no report: a report needs a tested mutant.
@@ -181,6 +194,20 @@ final class LoggerTests: MuterTestCase {
                 ]
             )
         )
+    }
+
+    /// The words `/bin/sh` reads in `text`, as it would reading a command whose arguments are `text`.
+    private func wordsAShellReads(in text: String) throws -> [String] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", #"printf '%s\0' "# + text]
+        let output = Pipe()
+        process.standardOutput = output
+        try process.run()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0)
+        return String(decoding: data, as: UTF8.self).split(separator: "\0").map(String.init)
     }
 
     func test_mutationsDiscoveryFinished_countsFilesWithTheSameNameTogether() throws {

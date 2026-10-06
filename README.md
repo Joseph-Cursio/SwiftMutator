@@ -67,6 +67,26 @@ toolchain and the settings the run used, and each killed mutant's line names the
 [Docs/results-file.md](Docs/results-file.md) describes the format, with `jq` recipes such as the
 tests that killed the most mutants.
 
+`swift-mutator report` makes a run's report from its results file, in any format. The log folder
+is beside the project, not in it, so from the project's folder, where `run` is run:
+
+```bash
+swift-mutator report "../SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM" -f html -o report.html
+```
+
+- **What it takes.** The results file, or the run's log folder that holds it. `-f` and `-o` work as
+  in `run`. Without `-o` the report goes to standard output alone, so `-f json > report.json` gives
+  valid JSON.
+- **A finished run** gets its own report back, in any format. Only what depends on when and where a
+  report is made can differ, such as the time in the HTML report's footer.
+- **A run that was stopped, crashed or is still going** gets a report of the mutants it has tested.
+- **On standard error** it says how many of the run's mutants the report covers, how the run ended,
+  and where it saved the report. A run that stopped on its fifth build error in a row, for example,
+  gives `Report of 1103 of 2497 mutants, from …: the run stopped on an error (tooManyBuildErrors).`
+- **It exits with status 1** when the file can't be read or isn't a results file.
+
+[Reports from the file](Docs/results-file.md#reports-from-the-file) has the details.
+
 ## Stopping a run
 
 Press Ctrl-C once to stop a run and keep what it tested. SIGTERM, which `kill` sends, and SIGHUP,
@@ -78,8 +98,10 @@ which a closed terminal sends, stop it the same way. SwiftMutator then:
    same Ctrl-C has ended a `| tee`.
 3. Ends `results.jsonl` with an `end` line whose `detail` names the signal, such as `"SIGINT"`, and
    writes the partial report described below.
-4. Says on standard error how many mutants it tested, the mutation score so far, and where the
-   results file is.
+4. Says on standard error how many mutants it tested, the mutation score so far, where the results
+   file is, and the `swift-mutator report` command that makes a report of them all from it, in any
+   format. The command is left out when no mutant was tested, or when the results file couldn't be
+   written in full.
 5. Removes its worker clones, `<project>_mutated_worker<n>`. The mutated project,
    `<project>_mutated`, is kept, as after a finished run.
 6. Exits by the same signal, so the shell sees status 130 for SIGINT, 143 for SIGTERM or 129 for
@@ -91,8 +113,9 @@ A stop before the baseline has passed has nothing to keep: the results file star
   `report.partial.txt` beside it, in the format `-f` chose, and `-o report` gives `report.partial`.
   The stop never writes or removes `report.txt`, so a complete report from an earlier run is kept.
   A later run that finishes leaves an old partial report alone. Without `-o` there is no partial
-  report: the summary and `results.jsonl` say what was tested. If no mutant had finished, there is
-  none either.
+  report: the summary and `results.jsonl` say what was tested, and `swift-mutator report` makes a
+  report from `results.jsonl` in any format. If no mutant had finished, there is no partial report
+  either.
 - **Stopping at once.** Press Ctrl-C again, or send any second SIGINT, SIGTERM or SIGHUP, to stop at
   once. SwiftMutator does the same by itself if stopping takes more than 30 seconds. It still kills
   every process it started and exits by the first signal, but the end line and the partial report

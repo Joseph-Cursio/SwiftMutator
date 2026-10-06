@@ -161,6 +161,10 @@ final class AcceptanceTests: XCTestCase {
     func test_helpCommandOperator() throws {
         try AssertSnapshot(muterOperatorHelpOutput)
     }
+
+    func test_helpCommandReport() throws {
+        try AssertSnapshot(muterReportHelpOutput)
+    }
 }
 
 extension AcceptanceTests {
@@ -245,6 +249,12 @@ extension AcceptanceTests {
     var muterOperatorHelpOutput: String {
         get throws {
             try contentsOfFileAsString("\(rootTestDirectory)/samples/muters_operator_help_output.txt")
+        }
+    }
+
+    var muterReportHelpOutput: String {
+        get throws {
+            try contentsOfFileAsString("\(rootTestDirectory)/samples/muters_report_help_output.txt")
         }
     }
 

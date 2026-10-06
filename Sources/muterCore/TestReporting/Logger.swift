@@ -204,9 +204,9 @@ final class Logger {
         }
     }
 
-    /// What mutation testing tested before it stopped early, where its partial report is, if it has one, and where each
-    /// result is. On standard error: it reaches the terminal even when a `| tee` that the same Ctrl-C ended has closed
-    /// standard output. An abort's error follows on standard output.
+    /// What mutation testing tested before it stopped early, where its partial report is, if it has one, where each
+    /// result is, and the command that makes a report of them all. On standard error: it reaches the terminal even when
+    /// a `| tee` that the same Ctrl-C ended has closed standard output. An abort's error follows on standard output.
     func mutationTestingEndedEarly(
         _ earlyEnd: EarlyEnd,
         partialReport: (path: String, saved: Bool)?,
@@ -233,8 +233,17 @@ final class Logger {
         }
         if let resultsFile {
             lines.append("💾 Each tested mutant's result is in \(resultsFile.bold)")
+            if tested > 0 {
+                lines.append("📝 Full report: swift-mutator report \(Self.shellQuoted(resultsFile))")
+            }
         }
         lines.forEach(errorPrinter)
+    }
+
+    /// `text` as one word for a POSIX shell, so that a printed command pastes whatever the path holds: log folders are
+    /// named like `Oct 4, 2026 at 1:16 PM`.
+    static func shellQuoted(_ text: String) -> String {
+        "'" + text.replacingOccurrences(of: "'", with: #"'\''"#) + "'"
     }
 
     func testPlanFileCreated(atPath path: String?) {

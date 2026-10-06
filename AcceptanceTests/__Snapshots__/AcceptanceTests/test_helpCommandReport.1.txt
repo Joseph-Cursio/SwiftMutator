@@ -1,0 +1,14 @@
+OVERVIEW: Builds a report from a run's results file.
+
+USAGE: swift-mutator report <results> [--format <format>] [--output <output>]
+
+ARGUMENTS:
+  <results>               A run's results file, or the run's log folder in
+                          <project>_muter_logs that holds it.
+
+OPTIONS:
+  -f, --format <format>   The report format: plain, json, html, xcode
+  -o, --output <output>   Output file for the report to be saved.
+  --version               Show the version.
+  -h, --help              Show help information.
+

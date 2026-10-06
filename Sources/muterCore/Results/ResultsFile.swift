@@ -25,8 +25,14 @@ enum ResultsFileError: Error, Equatable, CustomStringConvertible {
     /// Another SwiftMutator process holds its lock.
     case inUse(path: String)
     case cannotWrite(path: String, errno: Int32)
+    /// Nothing SwiftMutator can read is at `path`, as when it's missing.
+    case unreadable(path: String)
     case notAResultsFile(path: String)
     case newerFormat(path: String, version: Int)
+    /// A log folder holds no results file to make a report from.
+    case noResultsFile(folder: String)
+    /// A log folder holds a results file for each of several runs that started in the same minute.
+    case severalResultsFiles(folder: String, names: [String])
 
     var description: String {
         switch self {
@@ -36,10 +42,17 @@ enum ResultsFileError: Error, Equatable, CustomStringConvertible {
             return "\(path) is in use by another SwiftMutator run"
         case let .cannotWrite(path, code):
             return "can't write to \(path): \(String(cString: strerror(code)))"
+        case let .unreadable(path):
+            return "can't read \(path)"
         case let .notAResultsFile(path):
             return "\(path) isn't a SwiftMutator results file: it has no header line"
         case let .newerFormat(path, version):
             return "\(path) is in results format \(version), which only a newer SwiftMutator can read"
+        case let .noResultsFile(folder):
+            return "\(folder) holds no results file (results.jsonl)"
+        case let .severalResultsFiles(folder, names):
+            return "\(folder) holds \(names.count) results files, one for each run that started in that minute: "
+                + names.joined(separator: ", ") + ". Pass the one you want."
         }
     }
 }
@@ -51,10 +64,8 @@ final class ResultsFile: ResultsRecording {
     struct Opener: ResultsFileOpening {
         func create(in directory: String) throws -> ResultsRecording {
             var path = directory
-            for number in 1...99 {
-                path = (directory as NSString).appendingPathComponent(
-                    number == 1 ? "results.jsonl" : "results-\(number).jsonl"
-                )
+            for name in ResultsFile.fileNames {
+                path = (directory as NSString).appendingPathComponent(name)
                 // O_EXCL: a run that started in the same minute keeps its file.
                 let descriptor = open(path, O_WRONLY | O_CREAT | O_EXCL | O_APPEND | O_CLOEXEC, 0o644)
                 guard descriptor >= 0 else {
@@ -144,6 +155,37 @@ final class ResultsFile: ResultsRecording {
         while synchronize(descriptor) != 0 {
             let code = errno
             guard code == EINTR else { throw ResultsFileError.cannotWrite(path: path, errno: code) }
+        }
+    }
+}
+
+extension ResultsFile {
+    /// Every name `Opener.create` gives a results file, in the order it tries them, which is the order the runs that
+    /// share a log folder started in.
+    static let fileNames = (1...99).map(fileName)
+
+    /// The name `Opener.create` gives the `number`th results file in a folder: `results.jsonl`, then `results-2.jsonl`
+    /// … `results-99.jsonl`.
+    static func fileName(_ number: Int) -> String {
+        number == 1 ? "results.jsonl" : "results-\(number).jsonl"
+    }
+
+    /// Whether `name` is one `Opener.create` gives a results file, so names a results file in a run's log folder.
+    static func isResultsFileName(_ name: String) -> Bool {
+        fileNames.contains(name)
+    }
+
+    /// The results file `path` names: `path` itself, or the one results file in the run's log folder it names.
+    /// Anything that isn't a folder, a missing path included, is left for reading it to refuse.
+    static func find(at path: String, using fileManager: FileSystemManager) throws -> String {
+        guard let names = try? fileManager.contentsOfDirectory(atPath: path) else { return path }
+        let present = Set(names)
+        // In the order the runs started in, so results-10.jsonl comes after results-2.jsonl, and results.jsonl first.
+        let found = fileNames.filter(present.contains)
+        switch found.count {
+        case 1: return (path as NSString).appendingPathComponent(found[0])
+        case 0: throw ResultsFileError.noResultsFile(folder: path)
+        default: throw ResultsFileError.severalResultsFiles(folder: path, names: found)
         }
     }
 }

@@ -55,6 +55,67 @@ final class ResultsFileTests: XCTestCase {
         }
     }
 
+    func test_isResultsFileName_matchesEveryNameCreateGives_andNothingElse() throws {
+        var names: Set<String> = []
+        for _ in 1...99 {
+            let file = try ResultsFile.Opener().create(in: directory)
+            file.close()
+            let name = (file.path as NSString).lastPathComponent
+            names.insert(name)
+            XCTAssertTrue(ResultsFile.isResultsFileName(name), name)
+        }
+        XCTAssertEqual(names.count, 99)
+
+        let others = [
+            "results-1.jsonl", "results-100.jsonl", "results-02.jsonl", "results-.jsonl", "Results.jsonl",
+            "results.json", "results.jsonl.bak", "results.jsonl.partial", "my results.jsonl", "",
+        ]
+        for name in others {
+            XCTAssertFalse(ResultsFile.isResultsFileName(name), name)
+        }
+    }
+
+    func test_find_aFile_isItself() throws {
+        let file = "\(directory)/kept from an earlier run.jsonl"
+        try Data().write(to: URL(fileURLWithPath: file))
+
+        XCTAssertEqual(try ResultsFile.find(at: file, using: FileManager.default), file)
+    }
+
+    func test_find_aFolderWithOneResultsFile_givesIt() throws {
+        for name in ["results.jsonl", "results-2.jsonl"] {
+            let folder = try makeLogFolder(holding: [name, "baseline run.log", "Checks_RemoveSideEffects_3_5_42.log"])
+
+            XCTAssertEqual(try ResultsFile.find(at: folder, using: FileManager.default), "\(folder)/\(name)")
+            XCTAssertEqual(try ResultsFile.find(at: folder + "/", using: FileManager.default), "\(folder)/\(name)")
+        }
+    }
+
+    func test_find_aFolderWithSeveral_isRefused_namingThemInOrder() throws {
+        let folder = try makeLogFolder(holding: ["results-10.jsonl", "results.jsonl", "baseline run.log", "results-2.jsonl"])
+
+        XCTAssertThrowsError(try ResultsFile.find(at: folder, using: FileManager.default)) { error in
+            XCTAssertEqual(
+                error as? ResultsFileError,
+                .severalResultsFiles(folder: folder, names: ["results.jsonl", "results-2.jsonl", "results-10.jsonl"])
+            )
+        }
+    }
+
+    func test_find_aFolderWithNone_isRefused() throws {
+        let folder = try makeLogFolder(holding: ["baseline run.log", "results.json", "results-100.jsonl"])
+
+        XCTAssertThrowsError(try ResultsFile.find(at: folder, using: FileManager.default)) { error in
+            XCTAssertEqual(error as? ResultsFileError, .noResultsFile(folder: folder))
+        }
+    }
+
+    func test_find_aMissingPath_isLeftForReadingToRefuse() throws {
+        let missing = "\(directory)/missing/results.jsonl"
+
+        XCTAssertEqual(try ResultsFile.find(at: missing, using: FileManager.default), missing)
+    }
+
     func test_aLineIsOnDiskWhenAppendReturns() throws {
         let file = try ResultsFile.Opener().create(in: directory)
 
@@ -248,6 +309,16 @@ final class ResultsFileTests: XCTestCase {
             ResultsFileError.newerFormat(path: "/logs/results.jsonl", version: 2).description,
             "/logs/results.jsonl is in results format 2, which only a newer SwiftMutator can read"
         )
+        XCTAssertEqual(
+            ResultsFileError.noResultsFile(folder: "/logs/run").description,
+            "/logs/run holds no results file (results.jsonl)"
+        )
+        XCTAssertEqual(
+            ResultsFileError.severalResultsFiles(folder: "/logs/run", names: ["results.jsonl", "results-2.jsonl"])
+                .description,
+            "/logs/run holds 2 results files, one for each run that started in that minute: "
+                + "results.jsonl, results-2.jsonl. Pass the one you want."
+        )
     }
 }
 
@@ -267,6 +338,16 @@ private extension ResultsFileTests {
 
     func openForAppending(_ path: String) -> Int32 {
         open(path, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0o644)
+    }
+
+    /// A new folder in `directory`, like a run's log folder, holding empty files with the given names.
+    func makeLogFolder(holding names: [String]) throws -> String {
+        let folder = "\(directory)/\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: false)
+        for name in names {
+            try Data().write(to: URL(fileURLWithPath: "\(folder)/\(name)"))
+        }
+        return folder
     }
 
     func contents(of path: String) throws -> Data {

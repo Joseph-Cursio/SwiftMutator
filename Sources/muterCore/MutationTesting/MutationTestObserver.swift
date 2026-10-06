@@ -238,15 +238,7 @@ extension MutationTestObserver {
         let reporter = runOptions.reportOptions.reporter
         let reportPath = runOptions.reportOptions.path ?? ""
         let report = reporter.report(from: notification.object as! MutationTestOutcome)
-        if fileManager.fileExists(atPath: reportPath) {
-            try? fileManager.removeItem(atPath: reportPath)
-        }
-
-        let didSave = fileManager.createFile(
-            atPath: reportPath,
-            contents: report.data(using: .utf8),
-            attributes: nil
-        )
+        let didSave = ReportWriter.save(report, to: reportPath, using: fileManager)
 
         logger.mutationTestingFinished(
             report: report,
@@ -266,11 +258,7 @@ extension MutationTestObserver {
         if !earlyEnd.outcome.mutations.isEmpty,
            let path = PartialReport.path(besides: runOptions.reportOptions.path) {
             let report = runOptions.reportOptions.reporter.report(from: earlyEnd.outcome)
-            if fileManager.fileExists(atPath: path) {
-                try? fileManager.removeItem(atPath: path)
-            }
-            let saved = fileManager.createFile(atPath: path, contents: Data(report.utf8), attributes: nil)
-            partialReport = (path, saved)
+            partialReport = (path, ReportWriter.save(report, to: path, using: fileManager))
         }
         logger.mutationTestingEndedEarly(earlyEnd, partialReport: partialReport, resultsFile: resultsFilePath)
     }

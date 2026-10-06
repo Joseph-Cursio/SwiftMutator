@@ -10,6 +10,7 @@ struct MuterCommand: AsyncParsableCommand {
             Run.self,
             RunWithoutMutating.self,
             MutateWithoutRunning.self,
+            Report.self,
             Operator.self,
         ],
         defaultSubcommand: Run.self
