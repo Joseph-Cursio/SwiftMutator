@@ -13,6 +13,7 @@ This is a ranked list of improvements to SwiftMutator, made at commit `4ba72fc` 
   - Clean interruptions (§2.1 item 4) are done: Ctrl-C, SIGTERM and SIGHUP stop the test processes, end the results file, write a partial report beside a requested one, and remove the worker clones.
   - The `report` command (§2.1 item 2) is done: `swift-mutator report` makes a run's report, in any format, from its results file.
   - `--resume` (§2.1 item 3) is done, which finishes §2.1: `swift-mutator run --resume` continues a stopped run, testing only the mutants without a result that still holds.
+  - Killing tests (§2.2 items 1–3) are done: the plain, HTML and JSON reports name each killed mutant's failing tests and summarise them, and every report warns of suspect tests, with the score without them. Item 4, the control job, is deferred.
   - Problems found along the way, and which PRs fixed them, are under [Found while implementing](#found-while-implementing). Two are still open.
 
 ## The workload these numbers come from
@@ -183,10 +184,20 @@ The test project is SwiftProjectLint, run on the whole repo: 528 files, **2,497 
 
 ### 2.2 Tests that fail only under load inflate the score
 
-**Item 1 partly done in PR #38.** Each killed, crashed or timed-out mutant's line in the results file names up to 20 failing tests, plus how many failed in all.
+**Items 1–3 done, item 3 by a different rule; item 4 deferred.** PR #38 recorded the data: each killed, crashed or timed-out mutant's line in the results file names up to 20 failing tests, plus how many failed in all. The plain, HTML and JSON reports now show them. The README's [Killing tests and suspect tests](../README.md#killing-tests-and-suspect-tests) says what a user sees.
 - **Swift Testing.** Read from its `✘ Test … recorded an issue` and `✘ Suite … recorded an issue` lines, with the issue's location when the line gives one.
 - **XCTest.** Read from its `Test Case '…' failed (` lines, which give no location.
-- **Gaps.** The list is left out when the passing baseline printed a line that looks like a failure. No report format shows the tests yet, and items 2–4 aren't done.
+- **Item 1, in every report.** Each mutant's outcome carries its tests, with whether the list is complete. A run fills them in itself, `report` reads them from the results file, and `--resume` keeps the kept results' tests. Plain text and HTML get a Killed By column, and JSON a `killingTests` key.
+- **Item 2, the summary.** A Killing Tests section lists the 10 tests that failed for the most killed mutants. It gives how many files those mutants are in, and how many recorded each test as their only failure. Crash kills aren't counted, because a crash kills a mutant whichever tests failed.
+- **Item 3, by a spread rule instead of the 5% rule.** A test is suspect when it failed for mutants in at least 15% of the files with a killed mutant that names a test, and in at least 10 of them. Below 10 such files there is no verdict. The thresholds are fixed constants in `KillingTestSummary`.
+  - **Why not the 5% rule.** Measured on SwiftProjectLint's logs, "only killer of more than 5%" missed the arrival-order test, which was the only killer of 0.8%. It flagged good tests in 39 of 47 one-file runs. And it fired only once a flaky test failed in about 25% of runs.
+  - **What the spread rule found.** It flags both suspects in the before run, whether runs record every failure or stop at the first. It flags no good test in the after run, the 4 A/B arms, or 1,634 smaller sub-runs, where good tests reached 8.8% of files at most.
+- **The score without suspect tests.** Every report gives it beside the headline, counting each kill only suspect tests were recorded failing for as a survivor. The headline, the killed count and the exit status don't change. For the before run it is 72%, against the 92% reported. Counting only test-failure kills, the lab measured 70.4%, and the after run scores 70.6% on the same mutants. When such a kill's run stopped at its first failed test, the score is a lower bound and says "at least".
+- **Gaps.**
+  - The list is left out when the passing baseline printed a line that looks like a failure, so those reports name no tests.
+  - The rule misses a flaky test that fails in fewer than about 3% of runs, or about 5% when runs stop at their first failed test. That is worth about 1 point at most; 0.16 points was measured in the after run.
+  - It is calibrated on one project.
+  - Item 4, the control job, is deferred. So is comparing how often a test fails alone with how often it fails beside others, which needs the complete lists that fail-fast prevents.
 
 - **What happened.** SwiftProjectLint's `ProjectLinterTests.swift:98` asserts `#expect(duration < 10.0)`.
   - **Before run:** it failed in 817 of 1,103 mutant runs, and was the only failing test for about 200 mutants. Of the mutants seen in both runs, 23 of the 24 killed only by this test flipped to survived in the new run.
@@ -322,7 +333,7 @@ The test project is SwiftProjectLint, run on the whole repo: 528 files, **2,497 
 ## Suggested order
 
 1. **Small correctness fixes:** same-name merge, worker drop, UTF-8 classification (§2.3, §2.5, §2.7). *Done in PRs #25–#27.*
-2. **The base for most of the rest:** a per-mutant results file and the killing tests for each mutant (§2.1, §2.2). *Results file done in PR #38, with the killing tests in it; reports don't show them yet. Clean interruptions, the `report` command and `--resume` are done too.*
+2. **The base for most of the rest:** a per-mutant results file and the killing tests for each mutant (§2.1, §2.2). *Results file done in PR #38, with the killing tests in it, which the plain, HTML and JSON reports now show (§2.2). Clean interruptions, the `report` command and `--resume` are done too.*
 3. **Fail-fast,** triggered by the event stream (§1.2). *Done in PR #36, triggered by console lines instead (see §1.2). On by default since PR #41, after an A/B run took 37% less time.*
 4. **Measure, then fix, the manifest recompile** (§1.1). *Done in PR #42: every `swift test` run in a worker's folder gets one environment, and the mutant is named in a file.*
 5. **Progress output** that works in a log file (§3).

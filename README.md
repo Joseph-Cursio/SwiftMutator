@@ -88,6 +88,92 @@ swift-mutator report "../SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM" -f 
 
 [Reports from the file](Docs/results-file.md#reports-from-the-file) has the details.
 
+### Killing tests and suspect tests
+
+The plain text, HTML and JSON reports name the tests that failed for each killed mutant, as its log
+shows them, and add a Killing Tests section. That section lists the 10 tests that failed for the
+most killed mutants, how many files those mutants are in, and how many of them recorded the test as
+their only failure. No extra test runs are needed. `swift-mutator report` reads the names from the
+results file, and a resumed run keeps those of the results it reuses, so both name the tests the
+run named. A mutant a crash killed shows its tests but isn't counted in the section, because a
+crash kills a mutant whichever tests failed.
+
+- **Plain text.** The Applied Mutation Operators table gets a Killed By column. A cell gives the
+  first test that failed, cut at 60 characters, then `(+N)` when N more failed, and
+  `(suspect only)` when only suspect tests did (see below). `(none named)` is a kill whose log
+  names no test. `-` is a mutant that wasn't killed, or whose tests weren't recorded.
+  `grep -E 'survived|suspect only' report.txt` lists the mutants to look at first.
+- **HTML.** The same column and section. A cell that names more than one test opens to each of
+  them, with where it failed.
+- **JSON.** Each killed or timed-out mutant has `killingTests`: up to 20 tests, how many failed in
+  all, and whether the list is complete. A top-level `killingTestSummary` holds the section. The
+  [example](Docs/test_report_json_example.md#killing-tests-in-the-json-report) shows the keys.
+- **Xcode.** Only what it says of suspect tests.
+
+A list is complete when the run exited by itself and named every test that failed. With
+`stopAtFirstFailure`, which is on by default for SwiftPM, a killed mutant's run stops at its first
+failed test, so its list can stop there too.
+
+**Suspect tests.** Some tests fail whatever the mutant, because they are timing-sensitive or flaky
+under the load of several workers. Such a test makes a mutant count as killed when no test checks
+it, which raises the score. SwiftMutator calls a test *suspect* when it failed for mutants in at
+least 15% of the files that have a killed mutant naming a test, and in at least 10 of those files.
+A test of the mutated code rarely does that. With fewer than 10 such files the report gives no
+verdict, and says so.
+
+When there are suspect tests, the headline score, the killed count and the exit status stay as
+they are. Every report also gives the score without the suspect tests, which counts each kill that
+only suspect tests were recorded failing for as a survivor:
+
+```
+Of the 1103 mutants introduced into your code, your test suite killed 1024.
+Mutation Score of Test Suite: 92%
+Mutation Score without suspect tests: 72%
+Suspect tests: 2 (testAnalyzeProjectPerformance(), everyFormatRendersTheSameBytesForAnyArrivalOrder()); see Killing Tests above
+```
+
+- **Where it's said.**
+  - Plain text adds the two lines above under the score. Their prefixes don't change, so a script
+    can look for them. The Killing Tests section says more.
+  - HTML adds a "Without Suspect Tests" box beside the score, and the warning below to its
+    summary.
+  - The Xcode format adds `Mutation score without suspect tests: 72` (`at least 72` when it is a
+    lower bound) and the warning as one `warning: SwiftMutator: …` line, with no file or line.
+  - JSON marks each such kill `"killedOnlyBySuspectTests": true`, and gives the score in
+    `killingTestSummary`.
+- **The warning.** The console says it too:
+  - A finished run prints it after its report, or after where it saved the report.
+  - A run that stops early prints it on standard error, after the score so far.
+  - `swift-mutator report` prints it on standard error without the emoji, so standard output holds
+    the report alone.
+
+  ```
+  ⚠️ 2 tests may fail whatever the mutant: they failed for mutants in at least 15% of the 132 files with a killed mutant (testAnalyzeProjectPerformance() in 128, everyFormatRendersTheSameBytesForAnyArrivalOrder() in 60). Without their failures, the mutation score would be 72%, not 92%.
+  ```
+- **"At least".** A kill that only suspect tests were recorded failing for may have stopped at its
+  first failed test, so another test might have failed for it too. The score without suspect tests
+  is then a lower bound, and the reports say "at least 72%".
+- **What to do.** A suspect test is a suspicion, not a verdict. A broad end-to-end or golden-output
+  test can fail for mutants in that many files, and be right to. If a suspect test also fails
+  without a mutant, under the same load, leave it out of mutation runs. SwiftMutator sets the
+  environment variable `IS_MUTER_RUNNING` to `YES` for the baseline and every mutant's test run, so
+  a test can skip itself there:
+
+  ```swift
+  @Test(.disabled(if: ProcessInfo.processInfo.environment["IS_MUTER_RUNNING"] == "YES", "Flaky under load"))
+  func analyzesTheProjectInTime() async throws { … }
+  ```
+
+  In XCTest, start the test with
+  `try XCTSkipIf(ProcessInfo.processInfo.environment["IS_MUTER_RUNNING"] == "YES")`.
+- **Limits.**
+  - The thresholds are fixed, from one project's runs. In SwiftProjectLint's, no test of the
+    mutated code reached more than 8.8% of the files, in whole runs or in 1,634 smaller ones. The
+    tests that failed under load reached 23–97%.
+  - The rule misses a test that fails in fewer than about 3% of runs, or about 5% when runs stop
+    at their first failed test. Such a test is worth about 1 point of score at most: on
+    SwiftProjectLint, 0.16.
+
 ## Stopping a run
 
 Press Ctrl-C once to stop a run and keep what it tested. SIGTERM, which `kill` sends, and SIGHUP,
