@@ -120,9 +120,24 @@ enum FileDigest {
         } catch {
             return nil
         }
-        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+        return hex(hasher.finalize())
         #else
         return nil
         #endif
     }
+
+    /// The hex SHA-256 of `data`, or nil if there is no CryptoKit.
+    static func sha256(of data: Data) -> String? {
+        #if canImport(CryptoKit)
+        return hex(SHA256.hash(data: data))
+        #else
+        return nil
+        #endif
+    }
+
+    #if canImport(CryptoKit)
+    private static func hex(_ digest: SHA256.Digest) -> String {
+        digest.map { String(format: "%02x", $0) }.joined()
+    }
+    #endif
 }

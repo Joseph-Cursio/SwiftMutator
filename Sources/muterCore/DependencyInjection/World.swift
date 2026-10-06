@@ -30,6 +30,8 @@ typealias Now = () -> Date
 typealias Instant = () -> DispatchTime
 typealias TestingTimeoutExecutorFactory = () -> TestingTimeoutExecution
 typealias ProvenanceProbe = (MuterConfiguration) -> Provenance
+/// The files in a project, relative to it, or nil if it can't list them.
+typealias ProjectFileListing = (URL) -> [String]?
 
 struct World {
     var notificationCenter: NotificationCenter = .default
