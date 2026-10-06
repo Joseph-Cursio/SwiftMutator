@@ -2,9 +2,16 @@ import Foundation
 
 /// How a results file's lines are written and read: JSON Lines, one record per line, each with a `kind`.
 enum ResultsCoding {
-    /// Changes only for a change that a reader of the earlier format would misread. A new key or a new kind needs
-    /// none: readers ignore keys and skip kinds they don't know.
+    /// A first session's header's format. A format changes only for a change that a reader of the earlier one would
+    /// misread. A new key, or a new kind a reader can skip, needs none: readers ignore keys and skip kinds they don't
+    /// know.
     static let formatVersion = 1
+    /// A resumed session's header's format: its file holds `retired` lines, which a format-1 reader would skip, so it
+    /// would report results the run no longer stands by. A file that was never resumed stays in format 1, which older
+    /// SwiftMutators read.
+    static let resumedFormatVersion = 2
+    /// The newest format this SwiftMutator reads. It refuses a file with a header in a newer one.
+    static let newestFormatVersion = resumedFormatVersion
 
     /// Sorted keys, so lines read and compare alike; slashes unescaped, so paths read as paths; never pretty-printed,
     /// so a record is one line, any line break in it escaped. Dates are ISO 8601 in UTC, to the millisecond.
@@ -252,6 +259,15 @@ extension MutantResult {
         guard linesAreReliable, [.failed, .runtimeError, .timeout].contains(run.outcome) else { return nil }
         return FailedTestLine.failedTests(inLog: run.testLog)
     }
+}
+
+/// The keys of earlier sessions' results that a resumed session no longer stands by: those of the mutants it tests
+/// again, and of those its discovery no longer finds. A reader drops each key's records before this line; a mutant
+/// line after it records the key again.
+struct ResultsRetired: Codable, Equatable {
+    var kind = "retired"
+    let session: Int
+    let keys: [MutantKey]
 }
 
 /// A session's last line, written when mutation testing stops however it can. A run killed by SIGKILL, or that

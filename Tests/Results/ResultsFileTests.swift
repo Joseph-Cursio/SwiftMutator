@@ -306,8 +306,8 @@ final class ResultsFileTests: XCTestCase {
             "/logs/notes.txt isn't a SwiftMutator results file: it has no header line"
         )
         XCTAssertEqual(
-            ResultsFileError.newerFormat(path: "/logs/results.jsonl", version: 2).description,
-            "/logs/results.jsonl is in results format 2, which only a newer SwiftMutator can read"
+            ResultsFileError.newerFormat(path: "/logs/results.jsonl", version: 3).description,
+            "/logs/results.jsonl is in results format 3, which only a newer SwiftMutator can read"
         )
         XCTAssertEqual(
             ResultsFileError.noResultsFile(folder: "/logs/run").description,

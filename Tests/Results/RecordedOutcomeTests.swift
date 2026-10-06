@@ -174,6 +174,33 @@ final class RecordedOutcomeTests: MuterTestCase {
         XCTAssertEqual(rebuilt.testDuration, 120.75)
     }
 
+    // A resumed session retires the results it doesn't stand by, and records again those it tests again.
+    func test_aRetiredKey_isLeftOutOfTheReport() throws {
+        let jobs = fixtureJobs()
+
+        let rebuilt = try rebuild(
+            ResultsHeader.make(),
+            mutantResult(jobs[0].schema, jobs[0].key),
+            mutantResult(jobs[1].schema, jobs[1].key),
+            mutantResult(jobs[3].schema, jobs[3].key),
+            ResultsEnd.make(reason: .interrupted, testDurationSeconds: 100.5, recorded: 3),
+            ResultsHeader.make(
+                formatVersion: ResultsCoding.resumedFormatVersion,
+                session: 2,
+                startedAt: ResultsHeader.fixedStart + 3600
+            ),
+            ResultsRetired(session: 2, keys: [jobs[1].key, jobs[3].key]),
+            mutantResult(jobs[3].schema, jobs[3].key, outcome: .passed, session: 2),
+            ResultsEnd.make(session: 2, testDurationSeconds: 20.25, recorded: 1)
+        )
+
+        XCTAssertEqual(rebuilt.mutations, [
+            mutation(jobs[0].schema, at: "/project_mutated/Sources/A/Util.swift", outcome: .failed),
+            mutation(jobs[3].schema, at: "/project_mutated/Sources/Zeta.swift", outcome: .passed),
+        ])
+        XCTAssertEqual(rebuilt.testDuration, 120.75)
+    }
+
     func test_aRunWithoutCoverage_reportsNone() throws {
         let jobs = fixtureJobs()
 

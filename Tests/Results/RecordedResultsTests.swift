@@ -7,6 +7,11 @@ final class RecordedResultsTests: XCTestCase {
     private let sum = MutantResult.make(path: "Sources/Sum.swift", finishedAt: ResultsHeader.fixedStart + 31.25)
     private let product = MutantResult.make(path: "Sources/Product.swift", finishedAt: ResultsHeader.fixedStart + 62.5)
     private let end = ResultsEnd.make(testDurationSeconds: 100.5, recorded: 2)
+    private let resumed = ResultsHeader.make(
+        formatVersion: ResultsCoding.resumedFormatVersion,
+        session: 2,
+        startedAt: ResultsHeader.fixedStart + 3600
+    )
 
     func test_readsHeaderMutantsAndEnd() throws {
         let recorded = try read(file(header, sum, product, end))
@@ -77,13 +82,49 @@ final class RecordedResultsTests: XCTestCase {
     func test_unknownKindsAreIgnored() throws {
         let recorded = try read(
             file(header)
-                + Data(#"{"keys":[{"path":"Sources/Sum.swift"}],"kind":"retired","session":1}"#.utf8)
+                + Data(#"{"keys":[{"path":"Sources/Sum.swift"}],"kind":"annotation","session":1}"#.utf8)
                 + Data("\n".utf8)
                 + file(sum)
         )
 
         XCTAssertEqual(recorded.latest, [sum.key: sum])
         XCTAssertEqual(recorded.unreadableLines, [])
+    }
+
+    func test_aRetiredKeyIsDropped() throws {
+        let neverRecorded = MutantKey(
+            path: "Sources/Gone.swift", mutationOperatorId: .ror, line: 4, column: 9, occurrence: 0
+        )
+
+        let recorded = try read(
+            file(header, sum, product, end, resumed, ResultsRetired(session: 2, keys: [sum.key, neverRecorded]))
+        )
+
+        XCTAssertEqual(recorded.latest, [product.key: product])
+        XCTAssertEqual(recorded.unreadableLines, [])
+        XCTAssertEqual(recorded.headers, [header, resumed])
+    }
+
+    // A resumed session retires the results it tests again, then records them as it tests them.
+    func test_aKeyRecordedAgainAfterItsRetirement_isKept() throws {
+        let retested = MutantResult.make(session: 2, path: sum.path, outcome: .passed)
+
+        let recorded = try read(
+            file(header, sum, product, end, resumed, ResultsRetired(session: 2, keys: [sum.key, product.key]), retested)
+        )
+
+        XCTAssertEqual(recorded.latest, [sum.key: retested])
+        XCTAssertEqual(recorded.unreadableLines, [])
+    }
+
+    func test_aRetiredLineOfNoEarlierSession_isUnreadable() throws {
+        let beforeAnyHeader = try read(file(ResultsRetired(session: 1, keys: [sum.key]), header, sum))
+        let ofALaterSession = try read(file(header, sum, ResultsRetired(session: 2, keys: [sum.key])))
+
+        XCTAssertEqual(beforeAnyHeader.latest, [sum.key: sum])
+        XCTAssertEqual(beforeAnyHeader.unreadableLines, [1])
+        XCTAssertEqual(ofALaterSession.latest, [sum.key: sum])
+        XCTAssertEqual(ofALaterSession.unreadableLines, [3])
     }
 
     func test_aFileWithoutAHeader_isRefused() throws {
@@ -106,15 +147,31 @@ final class RecordedResultsTests: XCTestCase {
     }
 
     func test_aNewerFormat_isRefused() throws {
-        let newer = try file(ResultsHeader.make(formatVersion: 2), sum)
-        let newerAndUnlikeThisOne = Data(#"{"formatVersion":2,"kind":"header"}"#.utf8)
-        let newerSecondSession = try file(header, sum, end, ResultsHeader.make(formatVersion: 3, session: 2))
+        let newer = try file(ResultsHeader.make(formatVersion: 3), sum)
+        let newerAndUnlikeThisOne = Data(#"{"formatVersion":3,"kind":"header"}"#.utf8)
+        let newerSecondSession = try file(header, sum, end, ResultsHeader.make(formatVersion: 4, session: 2))
 
-        for (data, version) in [(newer, 2), (newerAndUnlikeThisOne, 2), (newerSecondSession, 3)] {
+        for (data, version) in [(newer, 3), (newerAndUnlikeThisOne, 3), (newerSecondSession, 4)] {
             XCTAssertThrowsError(try read(data)) { error in
                 XCTAssertEqual(error as? ResultsFileError, .newerFormat(path: path, version: version))
             }
         }
+    }
+
+    // A resumed session's header is in format 2, as its file holds retired lines; a first session's stays in 1.
+    func test_format2_isRead() throws {
+        let retested = MutantResult.make(session: 2, path: sum.path, outcome: .passed)
+        let resumedEnd = ResultsEnd.make(session: 2, testDurationSeconds: 20.25, recorded: 1)
+
+        let recorded = try read(
+            file(header, sum, product, end, resumed, ResultsRetired(session: 2, keys: [sum.key]), retested, resumedEnd)
+        )
+
+        XCTAssertEqual(recorded.headers.map(\.formatVersion), [1, 2])
+        XCTAssertEqual(recorded.sessions.map(\.end), [end, resumedEnd])
+        XCTAssertEqual(recorded.latest, [sum.key: retested, product.key: product])
+        XCTAssertEqual(recorded.unreadableLines, [])
+        XCTAssertEqual(recorded.testDuration, 120.75)
     }
 
     func test_aMutantLineBeforeAnyHeader_isUnreadable() throws {
