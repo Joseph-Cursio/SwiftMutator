@@ -53,7 +53,9 @@ class MuterTestCase: XCTestCase {
             instant: { DispatchTime(uptimeNanoseconds: 1) },
             testingTimeOutExecutor: { self.testingTimeOutExecutor },
             provenance: { _ in .fixture },
-            resultsFiles: resultsFiles
+            resultsFiles: resultsFiles,
+            // Never the test runner's own.
+            commandLineArguments: ["run"]
         )
     }
 
@@ -172,5 +174,23 @@ extension XCTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(atPath: root) }
 
         return (directory, link)
+    }
+
+    /// The words `/bin/sh` reads in `text`, as it would reading a command whose arguments are `text`. An empty word is
+    /// kept: each word printed ends in a NUL.
+    func wordsAShellReads(in text: String) throws -> [String] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", #"printf '%s\0' "# + text]
+        let output = Pipe()
+        process.standardOutput = output
+        try process.run()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0)
+        return String(decoding: data, as: UTF8.self)
+            .split(separator: "\0", omittingEmptySubsequences: false)
+            .dropLast()
+            .map(String.init)
     }
 }

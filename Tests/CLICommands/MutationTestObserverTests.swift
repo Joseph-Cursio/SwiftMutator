@@ -266,6 +266,7 @@ final class MutationTestObserverTests: MuterTestCase {
     }
 
     func test_anEarlyEnd_printsItsSummaryToStandardError_namingTheResultsFile() {
+        current.commandLineArguments = ["run", "-o", "/out/report.txt"]
         options = .make(reportURL: URL(fileURLWithPath: "/out/report.txt"))
         sut.start()
         notificationCenter.post(name: .resultsFileCreated, object: "/logs/results.jsonl")
@@ -281,8 +282,44 @@ final class MutationTestObserverTests: MuterTestCase {
             "📝 Partial report: \("/out/report.partial.txt".bold)",
             "💾 Each tested mutant's result is in \("/logs/results.jsonl".bold)",
             "📝 Full report: swift-mutator report '/logs/results.jsonl'",
+            "▶️ Continue: swift-mutator run -o /out/report.txt --resume '/logs/results.jsonl'",
         ])
         XCTAssertEqual(printer.linesPassed, printedBefore, "nothing more on standard output")
+    }
+
+    // The command repeats the arguments SwiftMutator was started with, so the run goes on as it was asked to.
+    func test_continueCommand_comesFromTheCommandLine() {
+        current.commandLineArguments = ["--skip-coverage", "--format", "json", "--operators", "RelationalOperatorReplacement"]
+        options = .make(reportFormat: .json, mutationOperatorsList: [.ror], skipCoverage: true)
+        sut.start()
+        notificationCenter.post(name: .resultsFileCreated, object: "/logs/Oct 6, 2026 at 9:12 AM/results.jsonl")
+
+        notificationCenter.post(name: .mutationTestingEndedEarly, object: EarlyEnd.make(tested: [.failed]))
+
+        XCTAssertEqual(
+            standardError.linesPassed.last,
+            "▶️ Continue: swift-mutator --skip-coverage --format json --operators RelationalOperatorReplacement "
+                + "--resume '/logs/Oct 6, 2026 at 9:12 AM/results.jsonl'"
+        )
+    }
+
+    // A run from a test plan can't be resumed: its results file still makes a report.
+    func test_aTestPlanRun_getsNoContinueLine() {
+        current.commandLineArguments = ["run-without-mutating", "muter-mappings.json"]
+        options = .make(testPlanURL: URL(fileURLWithPath: "/project/muter-mappings.json"))
+        sut.start()
+        notificationCenter.post(name: .resultsFileCreated, object: "/logs/results.jsonl")
+
+        notificationCenter.post(
+            name: .mutationTestingEndedEarly,
+            object: EarlyEnd.make(detail: "SIGINT", tested: [.failed, .passed])
+        )
+
+        XCTAssertEqual(standardError.linesPassed, [
+            "⏹ Stopped by SIGINT after testing 2 of 4 mutants. Mutation score so far: 50%.",
+            "💾 Each tested mutant's result is in \("/logs/results.jsonl".bold)",
+            "📝 Full report: swift-mutator report '/logs/results.jsonl'",
+        ])
     }
 
     // The file lacks every result after the failed write.

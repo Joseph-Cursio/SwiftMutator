@@ -278,25 +278,18 @@ final class Logger {
     }
 
     /// What mutation testing tested before it stopped early, where its partial report is, if it has one, where each
-    /// result is, and the command that makes a report of them all. On standard error: it reaches the terminal even when
-    /// a `| tee` that the same Ctrl-C ended has closed standard output. An abort's error follows on standard output.
+    /// result is, the command that makes a report of them all, and the command that continues the run. A resumed
+    /// session counts the mutants it tested apart from the results it kept. On standard error: it reaches the terminal
+    /// even when a `| tee` that the same Ctrl-C ended has closed standard output. An abort's error follows on standard
+    /// output.
     func mutationTestingEndedEarly(
         _ earlyEnd: EarlyEnd,
         partialReport: (path: String, saved: Bool)?,
-        resultsFile: String?
+        resultsFile: String?,
+        continueCommand: String?
     ) {
-        let tested = earlyEnd.outcome.mutations.count
-        let stoppedBy = earlyEnd.reason == .interrupted ? "by \(earlyEnd.detail ?? "a signal")" : "by the error below"
-        var lines: [String]
-        if tested == 0 {
-            lines = ["⏹ Stopped \(stoppedBy) before any of \(earlyEnd.discovered) mutants finished."]
-        } else {
-            let score = mutationScore(from: earlyEnd.outcome.mutations.map(\.testSuiteOutcome))
-            lines = [
-                "⏹ Stopped \(stoppedBy) after testing \(tested) of \(earlyEnd.discovered) mutants. "
-                    + "Mutation score so far: \(score)%.",
-            ]
-        }
+        let results = earlyEnd.outcome.mutations.count
+        var lines = [Self.stopped(earlyEnd)]
         if let partialReport {
             lines.append(
                 partialReport.saved
@@ -306,17 +299,55 @@ final class Logger {
         }
         if let resultsFile {
             lines.append("💾 Each tested mutant's result is in \(resultsFile.bold)")
-            if tested > 0 {
+            // Without a result, the report would be empty, and a resume would keep nothing a new run doesn't.
+            if results > 0 {
                 lines.append("📝 Full report: swift-mutator report \(Self.shellQuoted(resultsFile))")
+                if let continueCommand {
+                    lines.append("▶️ Continue: \(continueCommand)")
+                }
             }
         }
         lines.forEach(errorPrinter)
+    }
+
+    /// "⏹ Stopped by SIGINT after testing 3 of 9 mutants. Mutation score so far: 50%." A resumed session says how many
+    /// of the mutants left it tested, and how many of every mutant have a result, kept or tested; the score is theirs.
+    private static func stopped(_ earlyEnd: EarlyEnd) -> String {
+        let stoppedBy = earlyEnd.reason == .interrupted ? "by \(earlyEnd.detail ?? "a signal")" : "by the error below"
+        let results = earlyEnd.outcome.mutations.count
+        guard results > 0 else {
+            return "⏹ Stopped \(stoppedBy) before any of \(earlyEnd.discovered) mutants finished."
+        }
+        let score = "Mutation score so far: \(mutationScore(from: earlyEnd.outcome.mutations.map(\.testSuiteOutcome)))%."
+        let tested = results - earlyEnd.reused
+        guard earlyEnd.reused > 0 else {
+            return "⏹ Stopped \(stoppedBy) after testing \(tested) of \(earlyEnd.discovered) mutants. " + score
+        }
+        let left = earlyEnd.discovered - earlyEnd.reused
+        let progress = tested == 0
+            ? "before any of the \(left) mutants left finished"
+            : "after testing \(tested) of the \(left) mutants left"
+        return "⏹ Stopped \(stoppedBy) \(progress): \(results) of \(earlyEnd.discovered) have results. " + score
     }
 
     /// `text` as one word for a POSIX shell, so that a printed command pastes whatever the path holds: log folders are
     /// named like `Oct 4, 2026 at 1:16 PM`.
     static func shellQuoted(_ text: String) -> String {
         "'" + text.replacingOccurrences(of: "'", with: #"'\''"#) + "'"
+    }
+
+    /// The characters a POSIX shell gives no meaning to, in any place in a word that isn't a command's name.
+    private static let plainWordCharacters = Set(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_@%+=:,./-".unicodeScalars
+    )
+
+    /// `text` as it is if a POSIX shell reads it as that one word, and quoted as `shellQuoted` quotes it otherwise:
+    /// a printed command keeps the arguments it repeats as readable as they were typed.
+    static func shellWord(_ text: String) -> String {
+        guard !text.isEmpty, text.unicodeScalars.allSatisfy(plainWordCharacters.contains) else {
+            return shellQuoted(text)
+        }
+        return text
     }
 
     func testPlanFileCreated(atPath path: String?) {

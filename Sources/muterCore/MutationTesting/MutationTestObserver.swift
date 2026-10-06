@@ -59,8 +59,9 @@ final class MutationTestObserver {
     private var flushStdOut: () -> Void
     @Dependency(\.notificationCenter)
     private var notificationCenter: NotificationCenter
+    @Dependency(\.commandLineArguments)
+    private var commandLineArguments: [String]
 
-    private var numberOfMutationPoints: Int = 0
     private(set) var loggingDirectory: String = ""
     /// The run's results file, while every result has been written to it.
     private var resultsFilePath: String?
@@ -258,8 +259,9 @@ extension MutationTestObserver {
     }
 
     /// Writes what was tested to a partial report beside the requested one, never replacing it, and says what was
-    /// tested. Without a requested report there is no partial one: the summary and the results file say what was
-    /// tested, and a report printed to the terminal would run to thousands of lines.
+    /// tested, and the command that continues the run: SwiftMutator's own arguments, resuming from the results file.
+    /// Without a requested report there is no partial one: the summary and the results file say what was tested, and a
+    /// report printed to the terminal would run to thousands of lines.
     func handleMutationTestingEndedEarly(notification: Notification) {
         guard let earlyEnd = notification.object as? EarlyEnd else { return }
         var partialReport: (path: String, saved: Bool)?
@@ -268,7 +270,16 @@ extension MutationTestObserver {
             let report = runOptions.reportOptions.reporter.report(from: earlyEnd.outcome)
             partialReport = (path, ReportWriter.save(report, to: path, using: fileManager))
         }
-        logger.mutationTestingEndedEarly(earlyEnd, partialReport: partialReport, resultsFile: resultsFilePath)
+        // A run from a test plan can't be resumed: ResumeCheck refuses it.
+        let continueCommand = runOptions.isUsingTestPlan
+            ? nil
+            : resultsFilePath.map { ResumeHint.command(continuing: commandLineArguments, from: $0) }
+        logger.mutationTestingEndedEarly(
+            earlyEnd,
+            partialReport: partialReport,
+            resultsFile: resultsFilePath,
+            continueCommand: continueCommand
+        )
     }
 
     func handleTestPlanFileCreated(notification: Notification) {

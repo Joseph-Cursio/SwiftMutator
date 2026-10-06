@@ -45,7 +45,8 @@ extension Provenance {
         executable: URL? = Bundle.main.executableURL?.resolvingSymlinksInPath(),
         environment: [String: String] = ProcessInfo.processInfo.environment,
         output: (String, [String]) -> String? = { current.process().runProcess(url: $0, arguments: $1) },
-        sha256: (URL) -> String? = FileDigest.sha256(of:)
+        sha256: (URL) -> String? = FileDigest.sha256(of:),
+        arguments: [String] = current.commandLineArguments
     ) -> Provenance {
         Provenance(
             swiftMutator: Build(
@@ -61,7 +62,7 @@ extension Provenance {
             ),
             processIdentifier: ProcessInfo.processInfo.processIdentifier,
             host: hostName(),
-            arguments: Array(CommandLine.arguments.dropFirst())
+            arguments: arguments
         )
     }
 

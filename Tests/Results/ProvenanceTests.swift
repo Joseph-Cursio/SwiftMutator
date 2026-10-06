@@ -179,16 +179,19 @@ final class ProvenanceTests: XCTestCase {
         XCTAssertNil(provenance.toolchain.testExecutableSHA256)
     }
 
+    // The arguments are the ones the command that continues a stopped run repeats: by default, this process's.
     func test_recordsThisProcess_itsHost_andItsArguments() {
         let provenance = Provenance.probe(
             MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"]),
             executable: nil,
             environment: [:],
-            output: { _, _ in nil }
+            output: { _, _ in nil },
+            arguments: ["run", "--skip-coverage"]
         )
 
         XCTAssertEqual(provenance.processIdentifier, ProcessInfo.processInfo.processIdentifier)
-        XCTAssertEqual(provenance.arguments, Array(CommandLine.arguments.dropFirst()))
+        XCTAssertEqual(provenance.arguments, ["run", "--skip-coverage"])
+        XCTAssertEqual(World().commandLineArguments, Array(CommandLine.arguments.dropFirst()))
         XCTAssertFalse(provenance.host.isEmpty)
         XCTAssertFalse(provenance.host.contains("\0"), provenance.host)
     }
