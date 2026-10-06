@@ -309,6 +309,32 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(end.recorded, 1)
     }
 
+    // It tells a CI cancellation (SIGTERM) apart from a Ctrl-C (SIGINT).
+    func test_anInterruptedRun_namesItsSignalInTheEndLine_andTheEarlyEnd() async throws {
+        state.mutationMapping = try (1...3).map { try makeSchemataMapping(file: "Sources/File\($0).swift", line: $0) }
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .buildError, .failed]
+        ioDelegate.mutantRunEndings = [.exited, .cancelled]
+        ioDelegate.whileRunningMutant = { number in
+            if number == 1 {
+                XCTAssertTrue(current.interruption.record(SIGTERM))
+                withUnsafeCurrentTask { $0?.cancel() }
+            }
+        }
+        var earlyEnds: [EarlyEnd] = []
+        whenPosted(.mutationTestingEndedEarly) { notification in
+            if let earlyEnd = notification.object as? EarlyEnd { earlyEnds.append(earlyEnd) }
+        }
+
+        let result = await Task { [sut, state] in try await sut.run(with: state) }.result
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        let end = try XCTUnwrap(resultsFiles.records(ResultsEnd.self).first)
+        XCTAssertEqual(end.reason, .interrupted)
+        XCTAssertEqual(end.detail, "SIGTERM")
+        XCTAssertEqual(earlyEnds.map(\.reason), [.interrupted])
+        XCTAssertEqual(earlyEnds.map(\.detail), ["SIGTERM"])
+    }
+
     // Stopping the run kills the clones' builds, which then fail, but no clone was at fault.
     func test_aCancelledWorkerBuild_endsInterrupted() async throws {
         state.muterConfiguration = MuterConfiguration(

@@ -16,6 +16,8 @@ struct PerformMutationTesting: MutationStep {
     private var resultsFiles: ResultsFileOpening
     @Dependency(\.provenance)
     private var provenance: ProvenanceProbe
+    @Dependency(\.interruption)
+    private var interruption: InterruptionRecord
 
     private let buildErrorsThreshold: Int = 5
 
@@ -58,7 +60,11 @@ struct PerformMutationTesting: MutationStep {
             try await performMutationTesting(using: state, session: session)
         } catch {
             let reason: ResultsEnd.Reason = error is CancellationError ? .interrupted : .aborted
-            let detail = ResultsEnd.detail(for: error)
+            // The stopping signal tells a CI cancellation (SIGTERM) apart from a Ctrl-C (SIGINT). A cancellation
+            // that no signal caused has no detail.
+            let detail = reason == .interrupted
+                ? interruption.signal.map(InterruptionRecord.name(of:))
+                : ResultsEnd.detail(for: error)
             let testDuration = now().timeIntervalSince(session.startedAt)
             endResults(of: session, reason, detail: detail, testDuration: testDuration)
             postEarlyEnd(of: session, reason, detail: detail, state: state, testDuration: testDuration)

@@ -4,7 +4,7 @@ import Foundation
 struct EarlyEnd {
     /// `.interrupted` or `.aborted`.
     let reason: ResultsEnd.Reason
-    /// The end line's `detail`: why it stopped, as a short code.
+    /// The end line's `detail`: the stopping signal's name for an interruption, or a short code for an abort.
     let detail: String?
     /// The mutants tested so far, in job order.
     let outcome: MutationTestOutcome
