@@ -85,11 +85,12 @@ struct CoverageSummary: Codable, Equatable {
 }
 
 /// A session's first line: where its results came from, and what they were tested with. Written once the baseline
-/// passes, so a run whose baseline fails leaves no results file.
+/// passes, so a run whose baseline fails leaves no results file, and a resumed one adds no session to its file.
 struct ResultsHeader: Codable, Equatable {
     var kind = "header"
+    /// `ResultsCoding.formatVersion` for a first session, `resumedFormatVersion` for a resumed one.
     let formatVersion: Int
-    /// 1 for now; a resumed run adds the next session to the same file.
+    /// 1 for a run's first session; each resumed session adds the next to the same file.
     let session: Int
     /// When mutation testing started, which the session's test duration is measured from.
     let startedAt: Date
@@ -104,7 +105,8 @@ struct ResultsHeader: Codable, Equatable {
     let usingTestPlan: Bool
     let projectPath: String
     let mutatedProjectPath: String
-    /// The folder of the session's kept logs, which each mutant's `log` names a file in.
+    /// The folder of the session's kept logs, which each of its mutants' `log` names a file in. A resumed session has
+    /// a folder of its own; the results file stays in the first session's.
     let logDirectory: String
     /// Absent when the run has no coverage, as its report then shows none.
     let coverage: CoverageSummary?
@@ -123,11 +125,20 @@ struct ResultsHeader: Codable, Equatable {
     /// The project's files, as the mutated copy held them before discovery rewrote it. Absent when the run tested a
     /// test plan, which copies nothing.
     let project: ProjectTree?
+    /// Only in a resumed session: how many earlier results it kept rather than tested again.
+    let mutantsReused: Int?
+    /// Only in a resumed session: the changed project files `--resume-ignoring` let through, by their paths.
+    let waived: [String]?
+    /// Only in a resumed session: the build and toolchain differences `--force-resume` let through, by their names in
+    /// `provenance`.
+    let forced: [String]?
 }
 
 extension ResultsHeader {
     /// The header of a session that tests `state`'s mutants with `configuration`, the effective configuration: the
-    /// default time limit applied, and failed-test lines judged by the baseline. `logDirectory` is the run's.
+    /// default time limit applied, and failed-test lines judged by the baseline. `logDirectory` is the session's. A
+    /// session after the first is a resumed one, in `ResultsCoding.resumedFormatVersion`, which says what it reused,
+    /// and what `--resume-ignoring` and `--force-resume` let through.
     init(
         session: Int,
         startedAt: Date,
@@ -138,11 +149,14 @@ extension ResultsHeader {
         workers: Int,
         mutantsDiscovered: Int,
         mutantsToTest: Int,
-        provenance: Provenance
+        provenance: Provenance,
+        mutantsReused: Int? = nil,
+        waived: [String]? = nil,
+        forced: [String]? = nil
     ) {
         let coverage = state.projectCoverage
         self.init(
-            formatVersion: ResultsCoding.formatVersion,
+            formatVersion: session == 1 ? ResultsCoding.formatVersion : ResultsCoding.resumedFormatVersion,
             session: session,
             startedAt: startedAt,
             provenance: provenance,
@@ -166,7 +180,10 @@ extension ResultsHeader {
             failedTestLinesAreReliable: configuration.failedTestLinesAreReliable,
             mutantsDiscovered: mutantsDiscovered,
             mutantsToTest: mutantsToTest,
-            project: state.projectTree
+            project: state.projectTree,
+            mutantsReused: mutantsReused,
+            waived: waived,
+            forced: forced
         )
     }
 }
@@ -286,7 +303,8 @@ struct ResultsEnd: Codable, Equatable {
     /// Why it stopped early: the stopping signal's name (`"SIGINT"`) for an interruption a signal caused, or else a
     /// short code (`detail(for:)`).
     let detail: String?
-    /// Exactly the session's `MutationTestOutcome.testDuration`.
+    /// How long this session's mutation testing took. For a first session, exactly its `MutationTestOutcome`'s
+    /// `testDuration`; a resumed session's outcome adds the earlier sessions'.
     let testDurationSeconds: Double
     /// How many mutant lines the session wrote.
     let recorded: Int

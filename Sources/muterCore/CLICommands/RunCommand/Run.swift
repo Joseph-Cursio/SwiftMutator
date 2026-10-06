@@ -26,23 +26,63 @@ struct Run: RunCommand {
     @OptionGroup var options: RunArguments
     @OptionGroup var reportOptions: ReportArguments
 
+    // After the option groups, so they come last in the help. Not in `RunArguments`, which other commands share.
+    @Option(
+        name: .customLong("resume"),
+        help: ArgumentHelp(
+            "Continue a stopped run from its results file, or the log folder that holds it. "
+                + "Only mutants without a result that still holds are tested.",
+            valueName: "results"
+        )
+    )
+    var resume: URL?
+
+    @Option(
+        name: .customLong("resume-ignoring"),
+        help: ArgumentHelp(
+            "With --resume, reuse results although project files matching this glob changed; * also matches /. "
+                + "Repeatable.",
+            valueName: "glob"
+        )
+    )
+    var resumeIgnoring: [String] = []
+
+    @Flag(
+        name: .customLong("force-resume"),
+        help: "With --resume, reuse results although SwiftMutator, the toolchain or the SDK changed."
+    )
+    var forceResume = false
+
     init() {}
 
-    func run() async throws {
-        let mutationOperatorsList = !operators.isEmpty
-            ? operators
-            : .allOperators
-
-        let options = Run.Options(
+    /// The options the command line gives the run.
+    var runOptions: Run.Options {
+        Run.Options(
             filesToMutate: filesToMutate,
             reportFormat: reportOptions.reportFormat,
             reportURL: reportOptions.reportURL,
-            mutationOperatorsList: mutationOperatorsList,
+            mutationOperatorsList: !operators.isEmpty ? operators : .allOperators,
             skipCoverage: options.skipCoverage,
             skipUpdateCheck: options.skipUpdateCheck,
-            configurationURL: options.configurationURL
+            configurationURL: options.configurationURL,
+            resumeURL: resume,
+            resumeIgnoring: resumeIgnoring,
+            forceResume: forceResume
         )
+    }
 
-        try await run(with: options)
+    func run() async throws {
+        try await run(with: runOptions)
+    }
+
+    /// `--resume-ignoring` and `--force-resume` only say what a resume may reuse.
+    func validate() throws {
+        guard resume == nil else { return }
+        if !resumeIgnoring.isEmpty {
+            throw ValidationError("--resume-ignoring only applies with --resume.")
+        }
+        if forceResume {
+            throw ValidationError("--force-resume only applies with --resume.")
+        }
     }
 }

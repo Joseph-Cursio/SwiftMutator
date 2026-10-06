@@ -14,6 +14,10 @@ extension MutantResult: ResultsRecord {
     static let recordKind = "mutant"
 }
 
+extension ResultsRetired: ResultsRecord {
+    static let recordKind = "retired"
+}
+
 extension ResultsEnd: ResultsRecord {
     static let recordKind = "end"
 }

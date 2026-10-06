@@ -211,7 +211,10 @@ extension Run.Options {
         skipUpdateCheck: Bool = false,
         configurationURL: URL? = nil,
         testPlanURL: URL? = nil,
-        createTestPlan: Bool = false
+        createTestPlan: Bool = false,
+        resumeURL: URL? = nil,
+        resumeIgnoring: [String] = [],
+        forceResume: Bool = false
     ) -> Self {
         .init(
             filesToMutate: filesToMutate,
@@ -222,7 +225,10 @@ extension Run.Options {
             skipUpdateCheck: skipUpdateCheck,
             configurationURL: configurationURL,
             testPlanURL: testPlanURL,
-            createTestPlan: createTestPlan
+            createTestPlan: createTestPlan,
+            resumeURL: resumeURL,
+            resumeIgnoring: resumeIgnoring,
+            forceResume: forceResume
         )
     }
 }
@@ -386,7 +392,10 @@ extension ResultsHeader {
         operators: [String] = ["RelationalOperatorReplacement"],
         filesToMutate: [String] = [],
         skipCoverage: Bool = true,
-        usingTestPlan: Bool = false
+        usingTestPlan: Bool = false,
+        mutantsReused: Int? = nil,
+        waived: [String]? = nil,
+        forced: [String]? = nil
     ) -> ResultsHeader {
         ResultsHeader(
             formatVersion: formatVersion,
@@ -411,7 +420,10 @@ extension ResultsHeader {
             failedTestLinesAreReliable: true,
             mutantsDiscovered: mutantsDiscovered,
             mutantsToTest: mutantsToTest,
-            project: project
+            project: project,
+            mutantsReused: mutantsReused,
+            waived: waived,
+            forced: forced
         )
     }
 }
@@ -473,6 +485,40 @@ extension ResultsEnd {
             detail: detail,
             testDurationSeconds: testDurationSeconds,
             recorded: recorded
+        )
+    }
+}
+
+/// `lines` as a results file holds them, each on a line of its own.
+func resultsFileData(_ lines: [any Encodable]) throws -> Data {
+    let encoder = ResultsCoding.encoder
+    return try lines.reduce(into: Data()) { data, line in
+        data += try encoder.encode(line) + Data("\n".utf8)
+    }
+}
+
+extension ResumeState {
+    /// The resume of the results file at `path`, which holds `lines`, opened as `file`.
+    static func make(
+        path: String = "/project_muter_logs/session 1/results.jsonl",
+        lines: [any Encodable],
+        file: ResultsRecording,
+        provenance: Provenance = .fixture,
+        forced: [String] = [],
+        notices: [String] = []
+    ) throws -> ResumeState {
+        let recorded = try RecordedResults.read(resultsFileData(lines), path: path)
+        guard let lastHeader = recorded.headers.last else {
+            throw ResultsFileError.notAResultsFile(path: path)
+        }
+        return ResumeState(
+            path: path,
+            file: file,
+            recorded: recorded,
+            lastHeader: lastHeader,
+            provenance: provenance,
+            forced: forced,
+            notices: notices
         )
     }
 }

@@ -12,6 +12,12 @@ extension Run {
         let configurationURL: URL?
         let testPlanURL: URL?
         let createTestPlan: Bool
+        /// The results file, or the log folder that holds it, of the run that `--resume` continues.
+        let resumeURL: URL?
+        /// `--resume-ignoring`'s globs: project files that changed, whose changes a resume lets through.
+        let resumeIgnoring: [String]
+        /// `--force-resume`: a resume lets a changed SwiftMutator build, toolchain or SDK through.
+        let forceResume: Bool
         var isUsingTestPlan: Bool {
             testPlanURL != nil
         }
@@ -25,7 +31,10 @@ extension Run {
             skipUpdateCheck: Bool,
             configurationURL: URL?,
             testPlanURL: URL? = nil,
-            createTestPlan: Bool = false
+            createTestPlan: Bool = false,
+            resumeURL: URL? = nil,
+            resumeIgnoring: [String] = [],
+            forceResume: Bool = false
         ) {
             self.skipCoverage = skipCoverage
             self.skipUpdateCheck = skipUpdateCheck
@@ -33,6 +42,9 @@ extension Run {
             self.mutationOperatorsList = mutationOperatorsList
             self.configurationURL = configurationURL
             self.testPlanURL = testPlanURL
+            self.resumeURL = resumeURL
+            self.resumeIgnoring = resumeIgnoring
+            self.forceResume = forceResume
 
             self.filesToMutate = filesToMutate.reduce(into: []) { accum, next in
                 accum.append(
@@ -56,6 +68,10 @@ extension Run.Options: Equatable {
             lhs.skipUpdateCheck == rhs.skipUpdateCheck &&
             lhs.configurationURL == rhs.configurationURL &&
             lhs.testPlanURL == rhs.testPlanURL &&
+            lhs.createTestPlan == rhs.createTestPlan &&
+            lhs.resumeURL == rhs.resumeURL &&
+            lhs.resumeIgnoring == rhs.resumeIgnoring &&
+            lhs.forceResume == rhs.forceResume &&
             lhs.reportOptions.path == rhs.reportOptions.path &&
             "\(lhs.reportOptions.reporter)" == "\(rhs.reportOptions.reporter)"
     }
@@ -72,7 +88,10 @@ extension Run.Options: Nullable {
             skipUpdateCheck: false,
             configurationURL: nil,
             testPlanURL: nil,
-            createTestPlan: false
+            createTestPlan: false,
+            resumeURL: nil,
+            resumeIgnoring: [],
+            forceResume: false
         )
     }
 }

@@ -63,6 +63,8 @@ private extension [MutationStep] {
     static let allSteps: [MutationStep] = [
         UpdateCheck(),
         LoadConfiguration(),
+        // Before the last run's copy is removed, which a run still writing the results file is testing in.
+        LoadResumeState(),
         CreateMutatedProjectDirectoryURL(),
         PreviousRunCleanUp(),
         CopyProjectToTempDirectory(),
@@ -121,6 +123,10 @@ private extension [MutationStep] {
 
         if options.skipUpdateCheck {
             copy.removeAll { $0 is UpdateCheck }
+        }
+
+        if options.resumeURL == nil {
+            copy.removeAll { $0 is LoadResumeState }
         }
 
         return copy

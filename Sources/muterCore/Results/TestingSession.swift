@@ -4,10 +4,13 @@ import Foundation
 /// outcome, and the worker clones it made. Only the task that runs the mutants and records their outcomes uses it, so
 /// it needs no lock.
 final class TestingSession {
-    /// 1 for now; a resumed run will add the next session to the same file.
+    /// 1 for a run's first session; a resumed one is the next after the last its results file holds.
     let number: Int
     /// When mutation testing started, which its test duration is measured from.
     let startedAt: Date
+    /// How long the earlier sessions' mutation testing took, all together: a resumed run's outcome adds it to this
+    /// session's.
+    let earlierTestDuration: TimeInterval
     /// Each job's key, in job order.
     var keys: [MutantKey] = []
     /// nil until the header is written, and for good if the file couldn't be created.
@@ -22,9 +25,10 @@ final class TestingSession {
     /// The worker clones made so far, removed however mutation testing ends.
     var clones: [URL] = []
 
-    init(number: Int = 1, startedAt: Date) {
+    init(number: Int = 1, startedAt: Date, earlierTestDuration: TimeInterval = 0) {
         self.number = number
         self.startedAt = startedAt
+        self.earlierTestDuration = earlierTestDuration
     }
 
     /// The tested mutants' outcomes, in job order.

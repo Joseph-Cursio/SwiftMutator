@@ -23,7 +23,8 @@ struct ProjectTree: Codable, Equatable {
     /// A symbolic link's entry is "link:" + the SHA-256 of the path it points to; it is never followed. The files of a
     /// local package outside the project are under its path from the project, which starts with `../`.
     let files: [String: String]
-    /// Paths a run itself writes inside the project, left out: the `-o` report and its `.partial` sibling.
+    /// Paths inside the project that are left out: the `-o` report and its `.partial` sibling, which the run itself
+    /// writes, and the configuration file, whose settings the header records (`excludedPaths`).
     let excluded: [String]
     /// SHA-256 over every "path\0hash\n", sorted by path.
     let treeSHA256: String
@@ -146,11 +147,25 @@ extension ProjectTree {
         }
     }
 
+    /// What a run with `options` leaves out of its project's tree, relative to `projectRoot`, if it lies inside it: the
+    /// `-o` report and its partial sibling, which the run itself writes, and the configuration file it loads, whose
+    /// settings the header records. A resume compares those key by key, so a change that no result depends on, such
+    /// as `mutationTestWorkers`, is only said.
+    static func excludedPaths(_ options: Run.Options, under projectRoot: URL) -> [String] {
+        reportPaths(options, under: projectRoot)
+            + relativePaths([LoadConfiguration.configurationPath(options, in: projectRoot.path)], under: projectRoot)
+    }
+
     /// The `-o` report and its partial sibling, relative to `projectRoot`, if they lie inside it.
     static func reportPaths(_ options: Run.Options, under projectRoot: URL) -> [String] {
         let requested = options.reportOptions.path
+        return relativePaths([requested, PartialReport.path(besides: requested)], under: projectRoot)
+    }
+
+    /// Each of `paths` relative to `projectRoot`, if it lies inside it.
+    static func relativePaths(_ paths: [String?], under projectRoot: URL) -> [String] {
         let root = URL(fileURLWithPath: resolved(projectRoot.path))
-        return [requested, PartialReport.path(besides: requested)].compactMap { path in
+        return paths.compactMap { path in
             guard let path, !path.isEmpty else { return nil }
             let relative = RepoRelativePath.of(resolved(path), under: root)
             return relative.hasPrefix("/") ? nil : relative

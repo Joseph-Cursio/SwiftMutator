@@ -123,6 +123,24 @@ final class ProjectTreeTests: XCTestCase {
         XCTAssertEqual(ProjectTree.reportPaths(.make(), under: projectURL), [], "no report")
     }
 
+    // A run leaves its configuration file out too: its settings are in the header, which a resume compares key by key.
+    func test_excludedPaths_addTheConfigurationFileTheRunLoads() throws {
+        let report = URL(fileURLWithPath: "\(project)/report.txt")
+        XCTAssertEqual(
+            ProjectTree.excludedPaths(.make(reportURL: report), under: projectURL),
+            ["report.txt", "report.partial.txt", "muter.conf.yml"]
+        )
+        let named = URL(fileURLWithPath: "\(project)/Config/ci.yml")
+        XCTAssertEqual(ProjectTree.excludedPaths(.make(configurationURL: named), under: projectURL), ["Config/ci.yml"])
+        let folder = URL(fileURLWithPath: "\(project)/Config")
+        XCTAssertEqual(
+            ProjectTree.excludedPaths(.make(configurationURL: folder), under: projectURL),
+            ["Config/muter.conf.yml"]
+        )
+        let outside = URL(fileURLWithPath: "\(project)_configuration.yml")
+        XCTAssertEqual(ProjectTree.excludedPaths(.make(configurationURL: outside), under: projectURL), [])
+    }
+
     func test_doesNotDescendIntoAnIgnoredNestedCheckout() throws {
         try write([
             ".gitignore": "/.claude/\n",

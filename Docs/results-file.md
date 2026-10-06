@@ -14,9 +14,10 @@ SwiftMutator saves each mutant's result as soon as its test run finishes, as one
 
 The file is [JSON Lines](https://jsonlines.org): UTF-8, one JSON object per line, each line ending in a line break. Every object has a `kind`:
 
-1. **`header`**, once. It is written when the baseline test run has passed, before the first mutant is tested, so a run whose baseline fails writes no file.
-2. **`mutant`**, one for each tested mutant, written as its test run finishes. With several workers, mutants finish in a different order from the one they started in.
-3. **`end`**, last. It is written when mutation testing stops: when it finishes, when an error stops it, and when Ctrl-C (SIGINT), SIGTERM or SIGHUP stops it (see [Stopping a run](../README.md#stopping-a-run)). A run that is killed with SIGKILL or crashes has no end line. Nor does one stopped at once, by a second signal or after 30 seconds of stopping, unless it had already written the end line.
+1. **`header`**, once per session. A run's first session writes it when the baseline test run has passed, before the first mutant is tested, so a run whose baseline fails writes no file. A run that `--resume` continues adds a session to the same file, which starts with a header of its own on the same condition, so one whose baseline fails adds nothing.
+2. **`retired`**, only in a resumed session, right after its header: the earlier results it no longer stands by. See [below](#retired).
+3. **`mutant`**, one for each tested mutant, written as its test run finishes. With several workers, mutants finish in a different order from the one they started in.
+4. **`end`**, last in each session. It is written when mutation testing stops: when it finishes, when an error stops it, and when Ctrl-C (SIGINT), SIGTERM or SIGHUP stops it (see [Stopping a run](../README.md#stopping-a-run)). A run that is killed with SIGKILL or crashes has no end line. Nor does one stopped at once, by a second signal or after 30 seconds of stopping, unless it had already written the end line.
 
 Here is a header, three of a run's mutant lines, and the end line of a run that stopped after 1,103 mutants:
 
@@ -42,8 +43,8 @@ The header's `project` lists five files here. A real one lists every file in the
 | Key | Type | Meaning |
 |---|---|---|
 | `kind` | `"header"` | |
-| `formatVersion` | Int | 1. See [Compatibility](#compatibility). |
-| `session` | Int | 1 |
+| `formatVersion` | Int | 1 for a run's first session, and 2 for a resumed one, whose file can hold `retired` lines. See [Compatibility](#compatibility). |
+| `session` | Int | 1 for a run's first session, then one more for each session `--resume` adds to the file |
 | `startedAt` | Date | When mutation testing started. The run's test duration is measured from here. |
 | `provenance` | Object | The SwiftMutator build and toolchain the run used. See [below](#provenance). |
 | `configuration` | Object | The configuration as `muter.conf.yml` set it, under its own keys (`executable`, `arguments`, `exclude`, …). An `executable` given as a bare name, such as `swift`, is resolved to its full path. Optional settings that weren't set, such as `mutationTestTimeout`, are left out. |
@@ -53,7 +54,7 @@ The header's `project` lists five files here. A real one lists every file in the
 | `usingTestPlan` | Bool | Whether the run tested a test plan (`run-without-mutating`) |
 | `projectPath` | String | Your project |
 | `mutatedProjectPath` | String | The mutated copy that SwiftMutator tested. Each mutant's `path` is relative to it. |
-| `logDirectory` | String | The run's log folder, which holds this file and the kept logs |
+| `logDirectory` | String | The session's log folder, which holds its kept logs. A resumed session has a folder of its own, and adds to the file in the first session's folder. |
 | `coverage` | `{percent, filesWithoutCoverage}` | The project's coverage, as the report shows it. Left out when the run has none: coverage was skipped, isn't supported for the test command, or couldn't be gathered. |
 | `newVersion` | String | The newer SwiftMutator version the update check found, or `""` |
 | `baselineSeconds` | Double | How long the baseline test run took |
@@ -65,6 +66,9 @@ The header's `project` lists five files here. A real one lists every file in the
 | `mutantsDiscovered` | Int | How many mutants the run found |
 | `mutantsToTest` | Int | How many of them it set out to test, which today is all of them. It is written before any mutant is tested, so it says nothing about how many were: that is the number of `mutant` lines, or the end line's `recorded`. |
 | `project` | Object | Your project's files, each one's SHA-256, as SwiftMutator copied them, before it prepared any for mutation. See [below](#project). Left out by `run-without-mutating`, which copies nothing. |
+| `mutantsReused` | Int | Only in a resumed session: how many earlier sessions' results it kept rather than tested again |
+| `waived` | [String] | Only in a resumed session: the project files that changed since the last session and that `--resume-ignoring` let through, by their paths relative to the project, or `[]` |
+| `forced` | [String] | Only in a resumed session: the `provenance` values that changed since the last session and that `--force-resume` let through, by name (`swiftMutator.executableSHA256`, `toolchain.testCommandVersion`, `toolchain.testExecutableSHA256` or `toolchain.environment`), or `[]` |
 
 #### Provenance
 
@@ -73,7 +77,7 @@ The header's `project` lists five files here. A real one lists every file in the
 | `swiftMutator.version` | SwiftMutator's version string |
 | `swiftMutator.executablePath` | The running `swift-mutator`, with symbolic links resolved |
 | `swiftMutator.executableSHA256` | The SHA-256 of that executable. It identifies the build, as SwiftMutator doesn't know the commit it was built from. |
-| `toolchain.testCommandVersion` | What `swift --version` or `xcodebuild -version` printed. It is asked only when the configured `executable` is `swift` or `xcodebuild` itself, and in the mutated project, so swiftly reads its copied `.swift-version`. |
+| `toolchain.testCommandVersion` | What `swift --version` or `xcodebuild -version` printed. It is asked only when the configured `executable` is `swift` or `xcodebuild` itself, and in the mutated project, so swiftly reads its copied `.swift-version`. A resumed session asks it in your project before it is copied, where swiftly reads the same file. |
 | `toolchain.testExecutableSHA256` | The SHA-256 of any other `executable`, such as a wrapper script. Such an executable is hashed rather than run, because running a script could do anything. |
 | `toolchain.environment` | `SDKROOT`, `DEVELOPER_DIR` and `TOOLCHAINS`, the ones that are set. One that isn't set is left out, so unset and empty differ. |
 | `processIdentifier` | SwiftMutator's process ID |
@@ -90,7 +94,7 @@ SwiftMutator lists your project's files right after it copies the project, and h
 |---|---|
 | `listedBy` | `git` or `walk`. `git`: `git ls-files --cached --others --exclude-standard`, run in your project, not in the copy. That lists tracked files, and untracked ones that neither your project's ignore files nor your global ones ignore. A nested repository or submodule is listed by its own git. `walk`: every file, when the project isn't in a git repository, is in a folder its repository ignores (where git lists none of its untracked files), or git fails. |
 | `files` | Each file's SHA-256, by its path relative to the project. A symbolic link's is `link:` followed by the SHA-256 of the path it points to; it is never followed. A local package outside the project has its files under its path from the project, such as `../Core/Sources/Core/Core.swift`. |
-| `excluded` | The `-o` report and its `.partial` sibling, when they are inside the project. The run writes them itself, so they are left out of `files`. |
+| `excluded` | The `-o` report and its `.partial` sibling, which the run writes itself, and the configuration file it loads, such as `muter.conf.yml`, whose settings `configuration` records, when they are inside the project. They are left out of `files`: a resume compares the configuration key by key instead, so a change of `mutationTestWorkers` or `stopAtFirstFailure` doesn't refuse it. |
 | `treeSHA256` | The SHA-256 of every file's path, a NUL, its hash and a line break, sorted by path. Two trees with the same files and hashes have the same `treeSHA256`. |
 
 - **Always listed**, even when git ignores them: Swift files (which include `Package.swift` and `Package@swift-*.swift`) and `.swift-version`, at any depth. `Package.resolved` too, but only at the root and in an Xcode project's or workspace's `xcshareddata/swiftpm/`.
@@ -103,7 +107,7 @@ SwiftMutator lists your project's files right after it copies the project, and h
 | Key | Type | Meaning |
 |---|---|---|
 | `kind` | `"mutant"` | |
-| `session` | Int | 1, as in the header |
+| `session` | Int | The session that tested it, as in its header |
 | `path` | String | The mutant's file, relative to `mutatedProjectPath`. The mutated copy has your project's layout, so this is also the file's path in your project. It is absolute if the file is outside the copy. |
 | `line`, `column` | Int | Where the mutant is in the original file |
 | `occurrence` | Int | 0, or n for the nth repeat in the run of the same `path`, operator, `line` and `column` |
@@ -120,7 +124,7 @@ SwiftMutator lists your project's files right after it copies the project, and h
 | `killedBy` | `[{name, location}]` | See [below](#killedby). Only for `failed`, `runtimeError` and `timeout`, and left out when `failedTestLinesAreReliable` is false. |
 | `failedTestCount` | Int | With `killedBy`: how many different tests the log shows failing, without the limit of 20 |
 | `firstFailedTestLine` | String | With `killedBy`: the first line that shows a failed test, without colour codes, cut to 500 characters. Left out when no line does. |
-| `log` | String | The name of the mutant's kept log in `logDirectory`. Two same-named files' mutants with the same operator, line and column get the same log name, so only one of their logs is kept. |
+| `log` | String | The name of the mutant's kept log in its session's `logDirectory`. Two same-named files' mutants with the same operator, line and column get the same log name, so only one of their logs is kept. |
 | `fileSHA256` | String | The SHA-256 of the mutant's file as SwiftMutator copied it, before it prepared it for mutation: the file's entry in the header's `project.files`. Left out when the header has no `project`, or the file isn't in it. |
 
 #### `killedBy`
@@ -133,17 +137,27 @@ SwiftMutator lists your project's files right after it copies the project, and h
 - **When the list is complete:** when `endedBy` is `exited` and `failedTestCount` equals the length of `killedBy`. A run stopped at its first failed test, or at the time limit, shows only the tests that failed before it was stopped.
 - **An empty list** means the log shows no failed test, for example in a run that timed out.
 
+### `retired`
+
+A session that `--resume` adds no longer stands by some of the earlier sessions' results: those of the mutants it tests again, and those of mutants its discovery no longer finds. It lists their keys in one line, right after its header, when there are any.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `kind` | `"retired"` | |
+| `session` | Int | The resumed session, as in its header |
+| `keys` | `[{path, mutationOperatorId, line, column, occurrence}]` | The keys of the results it retires, sorted. Each is a key as a `mutant` line has it. |
+
 ### `end`
 
 | Key | Type | Meaning |
 |---|---|---|
 | `kind` | `"end"` | |
-| `session` | Int | 1, as in the header |
+| `session` | Int | The session it ends, as in its header |
 | `endedAt` | Date | |
 | `reason` | String | `finished`; `aborted`, stopped by an error; or `interrupted`, stopped by a signal |
 | `detail` | String | Only when mutation testing stopped early. When `interrupted`: the signal that stopped it, `SIGINT` (Ctrl-C), `SIGTERM` or `SIGHUP`, so a Ctrl-C can be told apart from a `kill` or a closed terminal. When `aborted`: a short code for why. `tooManyBuildErrors` means 5 build errors in a row. `workerBaselineTestFailed(worker: n)` means a worker clone's baseline run didn't pass. Any other error gives its type's name. It is never a log. |
-| `testDurationSeconds` | Double | How long mutation testing took: the duration the report shows, before rounding |
-| `recorded` | Int | How many `mutant` lines the run wrote |
+| `testDurationSeconds` | Double | How long the session's mutation testing took. For a run's first session, the duration the report shows, before rounding. A resumed run's report shows every session's added up. |
+| `recorded` | Int | How many `mutant` lines the session wrote |
 
 ## How it is written
 
@@ -158,10 +172,14 @@ SwiftMutator lists your project's files right after it copies the project, and h
 - **Skip a line that doesn't parse.** The last line of a run killed in the middle of a write can be cut off, and after a power loss the file can end in NUL bytes. The lines before it are complete.
 - **Key mutants by `path`, `mutationOperatorId`, `line`, `column` and `occurrence`.** Each key is unique within a run, and a file that hasn't changed gives its mutants the same keys in the next run. An edit to the file can change a key, or keep it for a different mutant, so compare `snapshot` too before you match results across runs. Never key mutants by the order of their lines, which depends on when each one finished, or by `switchID`.
 - **The last line wins.** If a key appears more than once, its last `mutant` line is the one that counts.
+- **A `retired` line drops a key.** No `mutant` line before it counts for a key it lists. A `mutant` line after it records the key again.
 
 ### Compatibility
 
 New keys and new kinds of line are added without changing `formatVersion`, so a reader that skips what it doesn't know keeps working. `formatVersion` changes only for a change that an older reader would misread. A reader should refuse a file whose header has a `formatVersion` it doesn't know.
+
+- **Format 1** is a run's first session.
+- **Format 2** is a resumed session. Its file can hold `retired` lines, and a reader that skipped them would report results the run no longer stands by, so a SwiftMutator from before `--resume` refuses the file. A file that was never resumed stays in format 1, which those read.
 
 ## Reports from the file
 

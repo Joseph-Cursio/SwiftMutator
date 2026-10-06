@@ -42,12 +42,18 @@ struct PerformMutationTesting: MutationStep {
 
     /// Tests every mutant, writing each one's result to the run's results file as it finishes, between a header
     /// and an end line that says how mutation testing ended. Mutation testing that stops early then posts what it
-    /// tested. Worker clones are removed last.
+    /// tested. Worker clones are removed last. A resumed run adds its session to the stopped run's results file, and
+    /// its test duration adds the earlier sessions'.
     func run(
         with state: AnyMutationTestState
     ) async throws -> [MutationTestState.Change] {
         fileManager.changeCurrentDirectoryPath(state.mutatedProjectDirectoryURL.path)
-        let session = TestingSession(startedAt: now())
+        let resume = state.resumeState
+        let session = TestingSession(
+            number: (resume?.lastSession ?? 0) + 1,
+            startedAt: now(),
+            earlierTestDuration: resume?.recorded.testDuration ?? 0
+        )
         // After the end line and anything posted about an early end: removing large clones can take seconds, and a
         // second signal in that time exits at once. A clone left behind is removed when SwiftMutator next runs.
         defer {
@@ -55,6 +61,9 @@ struct PerformMutationTesting: MutationStep {
                 removeWorkerDirectories(session.clones)
             }
         }
+        // A resumed file's lock goes before the clones are removed, as a first session's goes at its end line: also
+        // when the baseline failed, which writes nothing to the file.
+        defer { resume?.file.close() }
 
         do {
             try await performMutationTesting(using: state, session: session)
@@ -65,19 +74,25 @@ struct PerformMutationTesting: MutationStep {
             let detail = reason == .interrupted
                 ? interruption.signal.map(InterruptionRecord.name(of:))
                 : ResultsEnd.detail(for: error)
-            let testDuration = now().timeIntervalSince(session.startedAt)
-            endResults(of: session, reason, detail: detail, testDuration: testDuration)
-            postEarlyEnd(of: session, reason, detail: detail, state: state, testDuration: testDuration)
+            let thisSession = now().timeIntervalSince(session.startedAt)
+            endResults(of: session, reason, detail: detail, testDuration: thisSession)
+            postEarlyEnd(
+                of: session,
+                reason,
+                detail: detail,
+                state: state,
+                testDuration: session.earlierTestDuration + thisSession
+            )
             throw error
         }
 
-        let testDuration = now().timeIntervalSince(session.startedAt)
-        endResults(of: session, .finished, testDuration: testDuration)
+        let thisSession = now().timeIntervalSince(session.startedAt)
+        endResults(of: session, .finished, testDuration: thisSession)
 
         let mutationTestOutcome = MutationTestOutcome(
             mutations: session.outcomesInJobOrder,
             coverage: state.projectCoverage,
-            testDuration: testDuration,
+            testDuration: session.earlierTestDuration + thisSession,
             newVersion: state.newVersion
         )
 
@@ -167,6 +182,7 @@ private extension PerformMutationTesting {
         let workers = min(configuration.workerCount, jobs.count)
         session.keys = MutantKey.keys(for: jobs.map(\.schema), under: state.mutatedProjectDirectoryURL)
 
+        let resume = state.resumeState
         // Before the baseline's log, which starts the progress bar, so the results file's path is printed first.
         startResults(
             ResultsHeader(
@@ -179,10 +195,16 @@ private extension PerformMutationTesting {
                 workers: workers,
                 mutantsDiscovered: jobs.count,
                 mutantsToTest: jobs.count,
-                provenance: provenance(state.muterConfiguration)
+                // A resume's was probed before the copy, and what was checked is what is recorded.
+                provenance: resume?.provenance ?? provenance(state.muterConfiguration),
+                mutantsReused: resume == nil ? nil : 0,
+                waived: resume == nil ? nil : state.resumeWaived,
+                forced: resume?.forced
             ),
+            // Every mutant is tested again, so no earlier result stands.
+            retiring: resume.map { $0.recorded.latest.keys.sorted { $0.description < $1.description } } ?? [],
             in: session,
-            loggingDirectory: state.loggingDirectory
+            state: state
         )
 
         // The progress bar's first estimate of the time left: every mutant to test, spread over the workers.
@@ -478,11 +500,27 @@ private extension PerformMutationTesting {
     /// Creates the results file in the run's log folder, and writes `header` to it. Without one the run goes on: the
     /// report at the end doesn't need it. A state without a log folder, which a test that bypasses the handler
     /// makes, writes none, and the header isn't made.
+    ///
+    /// A resumed run instead writes `header`, then a `retired` line of the `retiring` keys, to the stopped run's file,
+    /// which it opened before the copy, and announces the file once both are written. It is attached to the session
+    /// only now: before its header, no line of the session's would belong to one.
     func startResults(
         _ header: @autoclosure () -> ResultsHeader,
+        retiring retired: [MutantKey],
         in session: TestingSession,
-        loggingDirectory: String
+        state: AnyMutationTestState
     ) {
+        if let resume = state.resumeState {
+            session.results = resume.file
+            guard write(header(), in: session) else { return }
+            // Without it, the file would still stand by the earlier results this session doesn't keep.
+            if !retired.isEmpty, !write(ResultsRetired(session: session.number, keys: retired), in: session) {
+                return
+            }
+            notificationCenter.post(name: .resultsFileCreated, object: resume.path)
+            return
+        }
+        let loggingDirectory = state.loggingDirectory
         guard !loggingDirectory.isEmpty else { return }
         do {
             let results = try resultsFiles.create(in: loggingDirectory)

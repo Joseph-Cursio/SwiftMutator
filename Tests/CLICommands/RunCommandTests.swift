@@ -1,7 +1,9 @@
+import ArgumentParser
 @testable import muterCore
 import XCTest
 
-/// Which error a run command shows once its work has ended under `Interruptions`.
+/// The run command's options, and which error a run command shows, and how, once its work has ended under
+/// `Interruptions`.
 final class RunCommandTests: XCTestCase {
     func test_withoutASignal_theWorksErrorIsShown() {
         let ended = Interruptions.Ended(result: .failure(MuterError.noSourceFilesDiscovered), signal: nil)
@@ -40,6 +42,92 @@ final class RunCommandTests: XCTestCase {
         for abort in aborts {
             let ended = Interruptions.Ended(result: .failure(abort), signal: SIGINT)
             XCTAssertEqual(ended.errorToShow as? MuterError, abort)
+        }
+    }
+
+    // Two runs' options that differ in any field aren't the same options.
+    func test_runOptionsEquality_coversEveryField() {
+        XCTAssertNotEqual(Run.Options.make(createTestPlan: true), .make())
+        XCTAssertNotEqual(Run.Options.make(resumeURL: URL(fileURLWithPath: "/logs/results.jsonl")), .make())
+        XCTAssertNotEqual(Run.Options.make(resumeIgnoring: ["README.md"]), .make())
+        XCTAssertNotEqual(Run.Options.make(forceResume: true), .make())
+    }
+
+    // They only say what a resume may reuse, so without one they're a mistake, which ArgumentParser shows with the
+    // usage and exit status 64.
+    func test_resumeIgnoringWithoutResume_isAUsageError() {
+        assertUsageError(["run", "--resume-ignoring", "README.md"], "--resume-ignoring only applies with --resume.")
+    }
+
+    func test_forceResumeWithoutResume_isAUsageError() {
+        assertUsageError(["run", "--force-resume"], "--force-resume only applies with --resume.")
+        assertUsageError(["--force-resume", "--skip-coverage"], "--force-resume only applies with --resume.")
+    }
+
+    func test_resumeOptions_reachTheRunOptions() throws {
+        let command = try MuterCommand.parseAsRoot([
+            "run", "--skip-coverage",
+            "--resume", "/logs/results.jsonl",
+            "--resume-ignoring", "README.md",
+            "--resume-ignoring", "Docs/*",
+            "--force-resume",
+        ])
+
+        let options = try XCTUnwrap(command as? Run).runOptions
+        XCTAssertEqual(options.resumeURL?.path, "/logs/results.jsonl")
+        XCTAssertEqual(options.resumeIgnoring, ["README.md", "Docs/*"])
+        XCTAssertTrue(options.forceResume)
+        XCTAssertTrue(options.skipCoverage)
+    }
+
+    func test_withoutResumeOptions_theRunIsNotResumed() throws {
+        let options = try XCTUnwrap(MuterCommand.parseAsRoot(["run"]) as? Run).runOptions
+
+        XCTAssertNil(options.resumeURL)
+        XCTAssertEqual(options.resumeIgnoring, [])
+        XCTAssertFalse(options.forceResume)
+    }
+
+    // The help snapshot's test only runs once the acceptance tests' samples are made; this one always runs.
+    func test_runHelp_namesTheResumeOptions() {
+        let help = Run.helpMessage(columns: 200)
+
+        XCTAssertTrue(
+            help.contains("[--resume <results>] [--resume-ignoring <glob> ...] [--force-resume]"),
+            help
+        )
+        XCTAssertTrue(help.contains("Continue a stopped run from its results file"), help)
+        XCTAssertTrue(help.contains("* also matches /. Repeatable."), help)
+        XCTAssertTrue(help.contains("reuse results although SwiftMutator, the toolchain or the SDK changed."), help)
+    }
+
+    // Refusing is an expected outcome, whose message says what to do; it isn't a bug to report.
+    func test_aResumeRefusal_isShownWithoutTheBugReportBanner() {
+        let refused = ResumeRefused(
+            path: "/logs/results.jsonl",
+            reasons: [.inUse(lastProcess: 81234, lastHost: "studio.local")],
+            beforeTheCopy: true
+        )
+
+        XCTAssertEqual(Run.message(showing: refused), "\(refused)")
+        let other = Run.message(showing: MuterError.noSourceFilesDiscovered)
+        XCTAssertTrue(other.contains("SwiftMutator has encountered an error"), other)
+        XCTAssertTrue(other.contains("\(MuterError.noSourceFilesDiscovered)"), other)
+        XCTAssertTrue(other.contains("please open an issue"), other)
+    }
+}
+
+private extension RunCommandTests {
+    /// Checks that parsing `arguments` fails validation with `message`.
+    func assertUsageError(
+        _ arguments: [String],
+        _ message: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertThrowsError(try MuterCommand.parseAsRoot(arguments), file: file, line: line) { error in
+            XCTAssertEqual(MuterCommand.exitCode(for: error), .validationFailure, file: file, line: line)
+            XCTAssertEqual(MuterCommand.message(for: error), message, file: file, line: line)
         }
     }
 }
