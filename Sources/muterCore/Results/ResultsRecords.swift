@@ -234,19 +234,19 @@ struct MutantResult: Codable, Equatable {
 }
 
 extension MutantResult {
-    /// The record of `finished`, the run of `schema`'s mutant, tested with `configuration`, the effective one.
+    /// The record of `finished`, the run of `schema`'s mutant, whose log showed `failures` failing
+    /// (`failedTests(of:linesAreReliable:)`).
     init(
         key: MutantKey,
         schema: MutationSchema,
         finished: FinishedRun,
-        configuration: MuterConfiguration,
+        failures: FailedTestLine.FailedTests?,
         session: Int,
         finishedAt: Date,
         log: String,
         fileSHA256: String? = nil
     ) {
         let run = finished.run
-        let failures = Self.failedTests(of: run, linesAreReliable: configuration.failedTestLinesAreReliable)
         self.init(
             session: session,
             path: key.path,
@@ -273,7 +273,7 @@ extension MutantResult {
 
     /// The tests a killed, crashed or timed-out run's log shows failing. nil for any other run, and when the
     /// baseline printed a line shaped like a failed test, as such lines then name no test the mutant failed.
-    private static func failedTests(of run: TestRun, linesAreReliable: Bool) -> FailedTestLine.FailedTests? {
+    static func failedTests(of run: TestRun, linesAreReliable: Bool) -> FailedTestLine.FailedTests? {
         guard linesAreReliable, [.failed, .runtimeError, .timeout].contains(run.outcome) else { return nil }
         return FailedTestLine.failedTests(inLog: run.testLog)
     }

@@ -52,7 +52,9 @@ final class PerformMutationTestingTests: MuterTestCase {
                 ),
                 snapshot: .null,
                 originalProjectDirectoryUrl: state.projectDirectoryURL,
-                mutatedProjectDirectoryURL: state.mutatedProjectDirectoryURL
+                mutatedProjectDirectoryURL: state.mutatedProjectDirectoryURL,
+                // The spy's "testLog" shows no failed test, and the baseline's shows none that makes lines unreliable.
+                killingTests: .noneNamed
             ),
             MutationTestOutcome.Mutation.make(
                 testSuiteOutcome: .failed,
@@ -63,7 +65,8 @@ final class PerformMutationTestingTests: MuterTestCase {
                 ),
                 snapshot: .null,
                 originalProjectDirectoryUrl: state.projectDirectoryURL,
-                mutatedProjectDirectoryURL: state.mutatedProjectDirectoryURL
+                mutatedProjectDirectoryURL: state.mutatedProjectDirectoryURL,
+                killingTests: .noneNamed
             ),
         ]
 
@@ -365,7 +368,8 @@ final class PerformMutationTestingTests: MuterTestCase {
                 position: .firstPosition
             ),
             snapshot: .null,
-            originalProjectDirectoryUrl: URL(fileURLWithPath: "/project")
+            originalProjectDirectoryUrl: URL(fileURLWithPath: "/project"),
+            killingTests: .noneNamed
         )
 
         let expectedTestOutcomes = Array(repeating: expectedBuildErrorOutcome, count: 4) + [expectedFailingOutcome]

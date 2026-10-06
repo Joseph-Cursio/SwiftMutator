@@ -319,7 +319,8 @@ private extension ReportCommandTests {
             ),
             mutationSnapshot: .make(before: ">", after: "<", description: "changed > to <"),
             originalProjectDirectoryUrl: URL(fileURLWithPath: "/project", isDirectory: true),
-            mutatedProjectDirectoryURL: URL(fileURLWithPath: "/project_mutated", isDirectory: true)
+            mutatedProjectDirectoryURL: URL(fileURLWithPath: "/project_mutated", isDirectory: true),
+            killingTests: nil
         )
     }
 }

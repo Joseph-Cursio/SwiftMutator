@@ -99,16 +99,23 @@ extension MutationTestOutcome.Mutation {
         point: MutationPoint = .make(),
         snapshot: MutationOperator.Snapshot = .null,
         originalProjectDirectoryUrl: URL = URL(fileURLWithPath: ""),
-        mutatedProjectDirectoryURL: URL = URL(fileURLWithPath: "")
+        mutatedProjectDirectoryURL: URL = URL(fileURLWithPath: ""),
+        killingTests: MutationTestOutcome.KillingTests? = nil
     ) -> Self {
         Self(
             testSuiteOutcome: testSuiteOutcome,
             mutationPoint: point,
             mutationSnapshot: snapshot,
             originalProjectDirectoryUrl: originalProjectDirectoryUrl,
-            mutatedProjectDirectoryURL: mutatedProjectDirectoryURL
+            mutatedProjectDirectoryURL: mutatedProjectDirectoryURL,
+            killingTests: killingTests
         )
     }
+}
+
+extension MutationTestOutcome.KillingTests {
+    /// A run that exited by itself without a line that shows a failed test.
+    static let noneNamed = Self(tests: [], count: 0, isComplete: true)
 }
 
 extension MuterTestReport.FileReport {
@@ -466,6 +473,8 @@ extension MutantResult {
         outcome: TestSuiteOutcome = .failed,
         endedBy: TestRun.Ending = .exited,
         finishedAt: Date = ResultsHeader.fixedStart.addingTimeInterval(31.25),
+        killedBy: [FailedTestLine.FailedTest]? = nil,
+        failedTestCount: Int? = nil,
         fileSHA256: String? = nil
     ) -> MutantResult {
         MutantResult(
@@ -484,8 +493,8 @@ extension MutantResult {
             durationSeconds: 31.25,
             worker: 0,
             finishedAt: finishedAt,
-            killedBy: nil,
-            failedTestCount: nil,
+            killedBy: killedBy,
+            failedTestCount: failedTestCount ?? killedBy?.count,
             firstFailedTestLine: nil,
             log: "\(mutationOperatorId.rawValue) @ Sum.swift-\(line)-\(column).log",
             fileSHA256: fileSHA256
