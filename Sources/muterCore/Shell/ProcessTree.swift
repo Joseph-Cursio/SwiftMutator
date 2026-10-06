@@ -2,7 +2,7 @@ import Foundation
 
 /// A process and its descendants.
 enum ProcessTree {
-    /// How many times `terminate` lists a tree, at most, while it stops it.
+    /// How many times `terminate` and `terminateDescendants` list a tree, at most, while they stop it.
     static let maximumListings = 10
 
     /// Stops `root` and every descendant, parents first, and lists them again until a listing finds
@@ -18,6 +18,41 @@ enum ProcessTree {
     ) {
         guard root > 0 else { return }
         send(root, SIGSTOP)
+        let stopped = stopDescendants(of: root, descendants: descendants, signal: send)
+        for pid in stopped + [root] {
+            send(pid, SIGKILL) // SIGKILL also ends a stopped process
+        }
+    }
+
+    /// `terminate` without ever signalling `root`, for SwiftMutator's own process, which
+    /// `terminate(root: getpid())` would stop: stopped, it would never send the SIGKILLs. A listing that
+    /// names `root` leaves it alone too.
+    static func terminateDescendants(
+        of root: Int32,
+        descendants: (Int32) -> [Int32],
+        signal send: (_ pid: Int32, _ signal: Int32) -> Void
+    ) {
+        guard root > 0 else { return }
+        for pid in stopDescendants(of: root, descendants: descendants, signal: send) {
+            send(pid, SIGKILL)
+        }
+    }
+
+    /// SIGKILLs every process SwiftMutator started, and every process those started, but not SwiftMutator:
+    /// for a run that is stopping, whose blocking steps (coverage, `cp`, `find`, `which`) no cancellation reaches.
+    static func killDescendantsOfThisProcess() {
+        terminateDescendants(of: getpid(), descendants: descendants(of:)) { pid, signal in
+            kill(pid, signal)
+        }
+    }
+
+    /// SIGSTOPs each descendant of `root` a listing names, and lists them again until a listing finds nothing
+    /// new or `maximumListings` pass. Returns the processes it stopped, parents first. Never signals `root`.
+    private static func stopDescendants(
+        of root: Int32,
+        descendants: (Int32) -> [Int32],
+        signal send: (_ pid: Int32, _ signal: Int32) -> Void
+    ) -> [Int32] {
         var stopped: [Int32] = []
         var seen: Set<Int32> = [root]
         for _ in 0..<maximumListings {
@@ -26,9 +61,7 @@ enum ProcessTree {
             fresh.forEach { send($0, SIGSTOP) }
             stopped += fresh
         }
-        for pid in stopped + [root] {
-            send(pid, SIGKILL) // SIGKILL also ends a stopped process
-        }
+        return stopped
     }
 
     /// Every transitive child of `root`, each parent before its children.
@@ -84,7 +117,9 @@ enum ProcessTree {
         }
 
         var result: [Int32] = []
-        var queue = childrenByParent[root] ?? []
+        // Listing SwiftMutator's own descendants, `ps` would name itself: a process already gone, and a new one
+        // at each listing, so a listing would never find nothing new.
+        var queue = (childrenByParent[root] ?? []).filter { $0 != listing.processIdentifier }
         while let pid = queue.first {
             queue.removeFirst()
             result.append(pid)

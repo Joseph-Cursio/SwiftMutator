@@ -1,8 +1,8 @@
 @testable import muterCore
 import XCTest
 
-/// `ProcessTree.terminate` with made-up listings. It records the signals it would send instead of sending
-/// them; `ProcessTreeTests` kills a real tree.
+/// `ProcessTree.terminate` and `terminateDescendants` with made-up listings. They record the signals they
+/// would send instead of sending them; `ProcessTreeTests` kills a real tree.
 final class ProcessTreeTerminateTests: XCTestCase {
     func test_terminate_stopsTheWholeTreeTopDownBeforeKillingIt() {
         let run = terminate(root: 1, listings: [[2, 3], [2, 3]])
@@ -50,6 +50,45 @@ final class ProcessTreeTerminateTests: XCTestCase {
         }
     }
 
+    // MARK: - terminateDescendants: SwiftMutator's own descendants, never SwiftMutator
+
+    func test_terminateDescendants_stopsEveryDescendantThenKillsThem_neverTheRoot() {
+        let run = terminateDescendants(of: 1, listings: [[2, 3], [2, 3]])
+
+        XCTAssertEqual(run.sent, [
+            Sent(2, SIGSTOP), Sent(3, SIGSTOP),
+            Sent(2, SIGKILL), Sent(3, SIGKILL),
+        ])
+        XCTAssertEqual(run.listings, 2)
+    }
+
+    func test_terminateDescendants_stopsAChildStartedWhileStopping() {
+        let run = terminateDescendants(of: 1, listings: [[2], [2, 4], [2, 4]])
+
+        XCTAssertEqual(run.sent, [
+            Sent(2, SIGSTOP), Sent(4, SIGSTOP),
+            Sent(2, SIGKILL), Sent(4, SIGKILL),
+        ])
+        XCTAssertEqual(run.listings, 3)
+    }
+
+    // The root is SwiftMutator itself: stopped, it would never send the SIGKILLs.
+    func test_terminateDescendants_ignoresTheRootIfListed() {
+        let run = terminateDescendants(of: 1, listings: [[1, 2], [2, 1]])
+
+        XCTAssertEqual(run.sent, [Sent(2, SIGSTOP), Sent(2, SIGKILL)])
+        XCTAssertFalse(run.sent.contains { $0.pid == 1 })
+    }
+
+    func test_terminateDescendants_ofNoProcess_sendsNothing() {
+        for root: Int32 in [0, -1] {
+            let run = terminateDescendants(of: root, listings: [[2]])
+
+            XCTAssertEqual(run.sent, [], "root \(root)")
+            XCTAssertEqual(run.listings, 0, "root \(root)")
+        }
+    }
+
     // MARK: - Helpers
 
     /// A signal `terminate` sent to a process.
@@ -68,6 +107,13 @@ final class ProcessTreeTerminateTests: XCTestCase {
         }
     }
 
+    /// `ProcessTree.terminate` or `ProcessTree.terminateDescendants`.
+    private typealias Terminating = (
+        _ root: Int32,
+        _ descendants: (Int32) -> [Int32],
+        _ signal: (_ pid: Int32, _ signal: Int32) -> Void
+    ) -> Void
+
     /// Terminates `root`, whose descendants are listed as `listings`, one listing each time `terminate`
     /// asks, then the last one again. Returns the signals it sent and how many times it listed.
     private func terminate(
@@ -76,16 +122,48 @@ final class ProcessTreeTerminateTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) -> (sent: [Sent], listings: Int) {
+        record(
+            ProcessTree.terminate(root:descendants:signal:),
+            root: root,
+            listings: listings,
+            file: file,
+            line: line
+        )
+    }
+
+    /// `terminate(root:listings:)` for `ProcessTree.terminateDescendants`.
+    private func terminateDescendants(
+        of root: Int32,
+        listings: [[Int32]],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> (sent: [Sent], listings: Int) {
+        record(
+            ProcessTree.terminateDescendants(of:descendants:signal:),
+            root: root,
+            listings: listings,
+            file: file,
+            line: line
+        )
+    }
+
+    private func record(
+        _ terminating: Terminating,
+        root: Int32,
+        listings: [[Int32]],
+        file: StaticString,
+        line: UInt
+    ) -> (sent: [Sent], listings: Int) {
         var sent: [Sent] = []
         var listingCount = 0
-        ProcessTree.terminate(
-            root: root,
-            descendants: { parent in
+        terminating(
+            root,
+            { parent in
                 XCTAssertEqual(parent, root, "lists only the root's descendants", file: file, line: line)
                 listingCount += 1
                 return listings[min(listingCount, listings.count) - 1]
             },
-            signal: { pid, signal in sent.append(Sent(pid, signal)) }
+            { pid, signal in sent.append(Sent(pid, signal)) }
         )
         return (sent, listingCount)
     }
