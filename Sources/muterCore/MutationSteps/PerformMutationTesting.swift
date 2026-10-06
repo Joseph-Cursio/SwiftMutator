@@ -515,7 +515,7 @@ extension PerformMutationTesting {
     }
 
     /// `copy` copies the project to one clone. If one fails, the clones made before it are removed, and so is whatever
-    /// the failed copy left: nothing else would remove them until a later parallel run replaced them.
+    /// the failed copy left, rather than staying beside the project until SwiftMutator next starts.
     static func cloneMutatedProject(
         _ project: URL,
         count: Int,
