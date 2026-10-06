@@ -377,6 +377,26 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "let answer = 42", "the project is intact")
     }
 
+    func test_removeClones_removesEveryCloneGiven() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let project = root.appendingPathComponent("project_mutated")
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        let clones = try (1...3).map { index in
+            let clone = root.appendingPathComponent("project_mutated_worker\(index)")
+            let object = clone.appendingPathComponent(".build/debug/File.o")
+            try FileManager.default.createDirectory(
+                at: object.deletingLastPathComponent(), withIntermediateDirectories: true
+            )
+            try Data("object \(index)".utf8).write(to: object)
+            return clone
+        }
+
+        PerformMutationTesting.removeClones(clones)
+
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root.path), ["project_mutated"])
+    }
+
     func test_xcodebuildProjectsIgnoreWorkers() async throws {
         state.muterConfiguration = MuterConfiguration(
             executable: "/usr/bin/xcodebuild", arguments: ["test"], mutationTestWorkers: 4

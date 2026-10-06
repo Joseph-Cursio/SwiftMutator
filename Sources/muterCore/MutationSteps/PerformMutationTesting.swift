@@ -596,9 +596,11 @@ extension PerformMutationTesting {
         }
     }
 
+    /// Removes each clone on a thread of its own: one large clone takes a fraction of a second or more to remove, and
+    /// a run that is stopping does this last, when a second signal exits at once and leaves the rest behind.
     static func removeClones(_ directories: [URL]) {
-        for directory in directories {
-            try? FileManager.default.removeItem(at: directory)
+        DispatchQueue.concurrentPerform(iterations: directories.count) { index in
+            try? FileManager.default.removeItem(at: directories[index])
         }
     }
 }
