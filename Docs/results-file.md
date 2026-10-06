@@ -1,12 +1,12 @@
 # The results file
 
-SwiftMutator saves each mutant's result as soon as its test run finishes, as one line of JSON in the run's log folder. A run that is stopped, killed or crashes keeps every result it finished, and you can read a run's results while it is still going. The report at the end is written as before and doesn't depend on this file.
+SwiftMutator saves each mutant's result as soon as its test run finishes, as one line of JSON in the run's log folder. A run that is stopped, killed or crashes keeps every result it finished, and you can read a run's results while it is still going. The report at the end is written as before and doesn't depend on this file. `swift-mutator report` makes a run's report from the file, in any format, at any time: see [Reports from the file](#reports-from-the-file).
 
 ## Where it is
 
 - `<project>_muter_logs/<run>/results.jsonl`, next to your project, beside the run's kept logs. For example, `SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM/results.jsonl`.
 - The run's folder is named to the minute. If a run that started in the same minute already has a `results.jsonl` there, the file is `results-2.jsonl`, then `results-3.jsonl`, up to `results-99.jsonl`. An existing file is never overwritten.
-- SwiftMutator prints the path when it creates the file ("SwiftMutator saves each mutant's result as it finishes, in …"). After the report it prints it again ("Each mutant's result is in …"), if every line was written. When mutation testing stops early, it prints it on standard error instead ("Each tested mutant's result is in …"), on the same condition.
+- SwiftMutator prints the path when it creates the file ("SwiftMutator saves each mutant's result as it finishes, in …"). After the report it prints it again ("Each mutant's result is in …"), if every line was written. When mutation testing stops early, it prints it on standard error instead ("Each tested mutant's result is in …"), on the same condition. If a mutant was tested, the command that makes a report from the file follows it, with the path quoted for the shell: "Full report: swift-mutator report '…/results.jsonl'".
 - It is always written, and there's no option to turn it off. A line takes about 0.5–1 KB, so a run of 2,500 mutants writes an estimated 2–3 MB, beside well over a gigabyte of logs.
 - `run` and `run-without-mutating` write one. `mutate-without-running` tests no mutants and writes none.
 
@@ -142,6 +142,89 @@ A value that couldn't be found, such as the hash of an executable that can't be 
 ### Compatibility
 
 New keys and new kinds of line are added without changing `formatVersion`, so a reader that skips what it doesn't know keeps working. `formatVersion` changes only for a change that an older reader would misread. A reader should refuse a file whose header has a `formatVersion` it doesn't know.
+
+## Reports from the file
+
+`swift-mutator report` makes a run's report from its results file, in any of the formats `run` writes:
+
+```
+swift-mutator report <results> [-f plain|json|html|xcode] [-o <path>]
+```
+
+It only reads the results file: it mutates nothing, prints no banner and makes no log folder. Reading takes no lock, so it can report on a run that is still writing the file.
+
+### What it takes
+
+- **`<results>`** is a results file, or a run's log folder, `<project>_muter_logs/<run>/`, that holds one.
+  - In a folder, only the names a run gives its results file count: `results.jsonl`, and `results-2.jsonl` up to `results-99.jsonl`.
+  - A folder with none is refused.
+  - So is a folder with several, one for each run that started in that minute. The error names them in the order the runs started in, so you can pass the one you want.
+  - A path that isn't a folder is read as a results file.
+- **`-f`** chooses the format, as in `run`: `plain` (the default), `json`, `html` or `xcode`.
+- **`-o`** saves the report at that path, replacing any file there.
+  - The path is used exactly as given. A report of a stopped run isn't named `.partial`, as `run`'s partial report is, because you chose the name.
+  - A path that would destroy what is there is refused before anything is printed: the results file itself, by any name (through a symbolic link, a hard link, or a different case on a case-insensitive volume), and a folder.
+
+### What the report holds
+
+The report is made from each mutant's last line (see [Reading it](#reading-it)) and the last header. The mutants come in the order the run tested and reported them, not the order they finished in. `report` works that order out from each line's `path`, `switchID` and `occurrence`, the way discovery sorted them.
+
+- **A finished run** gets back the report it made itself, in every format. The header holds the project paths, the coverage and the update notice the report shows, and the end line holds its exact test duration. Only what depends on when and where a report is made can differ:
+  1. **The HTML footer** gives the time the report was made.
+  2. **The Xcode format's warnings**, one for each survivor, come in the order the run tested the mutants. A run with several workers prints them as its mutants finish. The warnings are the same, and so is the summary.
+  3. **The plain report's colours** are added when standard output is a terminal, unless `NO_COLOR` is set. The same rule applies to `run` and `report`, so the reports match when both write to a terminal, or neither does.
+  4. **JSON keys** can come in a different order. The JSON is the same once it is parsed.
+- **A run that was stopped by a signal or an error** gets a report of the mutants it tested, made the same way. It matches the partial report the run wrote beside its `-o`, if it wrote one, with the same four exceptions. The end line's `testDurationSeconds` gives the test duration.
+- **A run with no end line**, which is still going, was killed or crashed, gets a report of the mutants it tested. The test duration runs from the header's `startedAt` to the last mutant's `finishedAt`.
+- **A run stopped before any mutant finished** has no `mutant` lines, and gets an empty report: `Report of 0 of 2497 mutants`.
+- **Lines that don't read** are skipped, as a reader should skip them, and the status says which.
+
+The report doesn't say whether the run finished. The status on standard error does.
+
+### Where the output goes
+
+- **Standard output** holds the report alone, followed by a line break, when there's no `-o`. So `swift-mutator report <log folder> -f json > report.json` gives valid JSON. The Xcode format also prints its warnings there, before the report, with or without `-o`, as `run` does.
+- **Standard error** says how many mutants the report covers, out of how many the run found, where the file is, and how the run ended. With `-o`, it then says where the report was saved:
+
+  ```
+  Report of 1103 of 2497 mutants, from /Users/me/code/SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM/results.jsonl: the run stopped on an error (tooManyBuildErrors).
+  Report saved to /Users/me/code/report.html
+  ```
+
+  How the run ended comes from the last session's end line:
+
+  | End line | Status says |
+  |---|---|
+  | `finished` | `the run finished` |
+  | `interrupted` | `the run was interrupted by SIGINT`, naming the signal in `detail` |
+  | `aborted` | `the run stopped on an error (tooManyBuildErrors)`, giving the code in `detail` |
+  | None | `the run has no end line, so it is still running, or it was killed or crashed` |
+
+  When lines were skipped, another line numbers them, and says when the last was cut off as it was written: `Skipped 1 line that didn't read: 812; the last was cut off as it was written.`
+
+  The status has no emoji, so it can be searched for in CI logs. Numbers have no thousands separators.
+
+### Exit status
+
+- **0** when the report was made, an empty one included.
+- **1** with `Error: …` on standard error, when:
+  - the path is missing or can't be read;
+  - the file isn't a results file, because it has no header line;
+  - a newer SwiftMutator wrote it, so its `formatVersion` is one this SwiftMutator doesn't know;
+  - a folder holds no results file, or several;
+  - `-o` is the results file or a folder;
+  - the report can't be saved. Unlike `run`, `report` doesn't print a report it couldn't save, because the results file still holds everything. Fix the path and make the report again.
+- **64** for a usage error, such as no path.
+
+### Sessions
+
+Every file SwiftMutator writes today holds one session. A file with several is reported as one run:
+
+- each mutant's last line, from whichever session wrote it;
+- the last header's project paths, coverage and update notice;
+- every session's test duration, added up;
+- how the run ended, from the last session's end line;
+- how many mutants the run found, from the last header's `mutantsDiscovered`.
 
 ## `jq` recipes
 
