@@ -166,8 +166,11 @@ final class Logger {
                     ProgressPercent(),
                     ColoredProgressBarLine(barLength: 50),
                     SimpleTimeEstimate(
-                        initialEstimate: Double(mutationTestLog.remainingMutationPointsCount!) * mutationTestLog
-                            .timePerBuildTestCycle!
+                        initialEstimate: Self.initialEstimate(
+                            remaining: mutationTestLog.remainingMutationPointsCount!,
+                            cycle: mutationTestLog.timePerBuildTestCycle!,
+                            workers: mutationTestLog.workers
+                        )
                     ),
                 ],
                 printer: ProgressBarMultilineTerminalPrinter(numberOfLines: Self.progressBarLines)
@@ -175,6 +178,13 @@ final class Logger {
         }
 
         progressBar.next()
+    }
+
+    /// The time left before any mutant has finished. Each worker tests its share of the `remaining` mutants, a
+    /// build-and-test `cycle` for each, while the others test theirs, so the largest share sets it.
+    static func initialEstimate(remaining: Int, cycle: TimeInterval, workers: Int) -> TimeInterval {
+        let largestShare = ceil(Double(remaining) / Double(max(workers, 1)))
+        return largestShare * cycle
     }
 
     func mutationTestingFinished(

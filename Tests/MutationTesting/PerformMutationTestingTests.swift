@@ -91,6 +91,19 @@ final class PerformMutationTestingTests: MuterTestCase {
         )
     }
 
+    // The progress bar's first estimate of the time left starts from this count. It used to come from state no step
+    // sets, so the estimate was always 0 minutes.
+    func test_theBaselinesLog_countsTheMutantsToTest() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        let posted = recordNotifications(named: [.newTestLogAvailable])
+
+        _ = try await sut.run(with: state)
+
+        let baselineLog = try XCTUnwrap(posted().first?.object as? MutationTestLog)
+        XCTAssertNil(baselineLog.mutationPoint)
+        XCTAssertEqual(baselineLog.remainingMutationPointsCount, 2)
+    }
+
     func test_whenBaselineFailsDueToTestingFailure() async throws {
         ioDelegate.testSuiteOutcomes = [.failed]
 

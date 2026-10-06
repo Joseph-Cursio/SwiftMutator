@@ -120,20 +120,18 @@ private extension PerformMutationTesting {
             end: timeAfterRunningTestSuite
         ).duration
 
-        let mutationLog = MutationTestLog(
-            mutationPoint: .none,
-            testLog: testLog,
-            timePerBuildTestCycle: timePerBuildTestCycle,
-            remainingMutationPointsCount: state.mutationPoints.count
-        )
-
         guard testSuiteOutcome == .passed else {
             // A failing baseline is exactly when the user needs its output on disk, and nothing else
             // records it. It gets its own notification rather than `.newTestLogAvailable`, which also
             // announces that a baseline was successfully determined and starts the progress bar.
             notificationCenter.post(
                 name: .baselineTestFailed,
-                object: mutationLog
+                object: MutationTestLog(
+                    mutationPoint: .none,
+                    testLog: testLog,
+                    timePerBuildTestCycle: timePerBuildTestCycle,
+                    remainingMutationPointsCount: .none
+                )
             )
 
             throw MuterError.mutationTestingAborted(
@@ -187,9 +185,16 @@ private extension PerformMutationTesting {
             loggingDirectory: state.loggingDirectory
         )
 
+        // The progress bar's first estimate of the time left: every mutant to test, spread over the workers.
         notificationCenter.post(
             name: .newTestLogAvailable,
-            object: mutationLog
+            object: MutationTestLog(
+                mutationPoint: .none,
+                testLog: testLog,
+                timePerBuildTestCycle: timePerBuildTestCycle,
+                remainingMutationPointsCount: jobs.count,
+                workers: workers
+            )
         )
 
         if workers > 1 {

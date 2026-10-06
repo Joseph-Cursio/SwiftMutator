@@ -43,6 +43,13 @@ final class LoggerTests: MuterTestCase {
         AssertSnapshot(printer.linesPassed.joined(separator: "\n"))
     }
 
+    // Each worker tests its share of the mutants while the others test theirs, so the time left is the longest
+    // share's: 3 of 5 mutants for one of 2 workers.
+    func test_theFirstEstimate_spreadsTheMutantsOverTheWorkers() {
+        XCTAssertEqual(Logger.initialEstimate(remaining: 5, cycle: 50, workers: 2), 150)
+        XCTAssertEqual(Logger.initialEstimate(remaining: 5, cycle: 50, workers: 1), 250)
+    }
+
     func test_print_writesThroughTheInjectedPrinter() {
         sut.print("a line")
 
