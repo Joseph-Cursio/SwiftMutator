@@ -511,26 +511,47 @@ extension PerformMutationTesting {
     /// than shared. Its copied Clang module caches record the mutated project's path, so they're
     /// discarded first, as `CopyProjectToTempDirectory` does for the mutated project itself.
     static func cloneMutatedProject(_ project: URL, count: Int) throws -> [URL] {
+        try cloneMutatedProject(project, count: count, copying: copyProject(_:to:))
+    }
+
+    /// `copy` copies the project to one clone. If one fails, the clones made before it are removed, and so is whatever
+    /// the failed copy left: nothing else would remove them until a later parallel run replaced them.
+    static func cloneMutatedProject(
+        _ project: URL,
+        count: Int,
+        copying copy: (_ project: URL, _ clone: URL) throws -> Void
+    ) throws -> [URL] {
         guard count > 0 else { return [] }
-        return try (1...count).map { index in
-            let clone = project.deletingLastPathComponent()
-                .appendingPathComponent("\(project.lastPathComponent)_worker\(index)")
-            try? FileManager.default.removeItem(at: clone)
-            #if os(macOS)
-            let copy = Foundation.Process()
-            copy.executableURL = URL(fileURLWithPath: "/bin/cp")
-            copy.arguments = ["-c", "-R", project.path, clone.path]
-            try copy.run()
-            copy.waitUntilExit()
-            guard copy.terminationStatus == 0 else {
-                throw WorkerDirectoryError(clone: clone, status: copy.terminationStatus)
+        var clones: [URL] = []
+        do {
+            for index in 1...count {
+                let clone = project.deletingLastPathComponent()
+                    .appendingPathComponent("\(project.lastPathComponent)_worker\(index)")
+                try? FileManager.default.removeItem(at: clone)
+                clones.append(clone) // before the copy, which can fail partway through
+                try copy(project, clone)
+                discardModuleCaches(in: clone)
             }
-            #else
-            try FileManager.default.copyItem(at: project, to: clone)
-            #endif
-            discardModuleCaches(in: clone)
-            return clone
+            return clones
+        } catch {
+            removeClones(clones)
+            throw error
         }
+    }
+
+    private static func copyProject(_ project: URL, to clone: URL) throws {
+        #if os(macOS)
+        let copy = Foundation.Process()
+        copy.executableURL = URL(fileURLWithPath: "/bin/cp")
+        copy.arguments = ["-c", "-R", project.path, clone.path]
+        try copy.run()
+        copy.waitUntilExit()
+        guard copy.terminationStatus == 0 else {
+            throw WorkerDirectoryError(clone: clone, status: copy.terminationStatus)
+        }
+        #else
+        try FileManager.default.copyItem(at: project, to: clone)
+        #endif
     }
 
     static func discardModuleCaches(in directory: URL) {

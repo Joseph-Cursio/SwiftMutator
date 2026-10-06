@@ -279,6 +279,36 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         XCTAssertTrue(files.allSatisfy { exists(project, $0) }, "the mutated project keeps its caches")
     }
 
+    // Nothing else would remove them until a later parallel run replaced them.
+    func test_whenCloningTheSecondWorkerFails_theFirstCloneAndTheSecondsPartialCopyAreRemoved() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let project = root.appendingPathComponent("project_mutated")
+        let source = project.appendingPathComponent("Sources/File.swift")
+        try FileManager.default.createDirectory(
+            at: source.deletingLastPathComponent(), withIntermediateDirectories: true
+        )
+        try Data("let answer = 42".utf8).write(to: source)
+        let failingClone = root.appendingPathComponent("project_mutated_worker2")
+
+        XCTAssertThrowsError(
+            try PerformMutationTesting.cloneMutatedProject(project, count: 3) { project, clone in
+                guard clone.path == failingClone.path else {
+                    return try FileManager.default.copyItem(at: project, to: clone)
+                }
+                // A copy that fails partway through leaves what it had copied.
+                try FileManager.default.createDirectory(at: clone, withIntermediateDirectories: true)
+                try Data().write(to: clone.appendingPathComponent("partial.o"))
+                throw PerformMutationTesting.WorkerDirectoryError(clone: clone, status: 1)
+            }
+        ) { error in
+            XCTAssertEqual((error as? PerformMutationTesting.WorkerDirectoryError)?.clone.path, failingClone.path)
+        }
+
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root.path), ["project_mutated"])
+        XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "let answer = 42", "the project is intact")
+    }
+
     func test_xcodebuildProjectsIgnoreWorkers() async throws {
         state.muterConfiguration = MuterConfiguration(
             executable: "/usr/bin/xcodebuild", arguments: ["test"], mutationTestWorkers: 4
