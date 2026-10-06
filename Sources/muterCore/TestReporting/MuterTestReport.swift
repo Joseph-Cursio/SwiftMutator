@@ -15,14 +15,27 @@ struct MuterTestReport {
     let killingTestSummary: KillingTestSummary?
 
     init(from outcome: MutationTestOutcome = .init()) {
-        killingTestSummary = KillingTestSummary(of: outcome.mutations)
+        let summary = KillingTestSummary(of: outcome.mutations)
+        killingTestSummary = summary
         globalMutationScore = mutationScore(from: outcome.mutations.map { $0.testSuiteOutcome })
         totalAppliedMutationOperators = outcome.mutations.count
         numberOfKilledMutants = outcome.mutations
             .count { $0.testSuiteOutcome == .failed || $0.testSuiteOutcome == .runtimeError }
         projectCodeCoverage = outcome.coverage == .null ? nil : outcome.coverage.percent
-        fileReports = MuterTestReport.fileReports(from: outcome)
+        fileReports = MuterTestReport.fileReports(from: outcome, suspects: summary?.suspectIdentities ?? [])
         timeElapsed = outcome.testDuration.formatted()
+    }
+}
+
+extension MuterTestReport {
+    /// The summary, when it found suspect tests: what the reports warn of, beside the headline score.
+    var suspectSummary: KillingTestSummary? {
+        killingTestSummary.flatMap { $0.suspects.isEmpty ? nil : $0 }
+    }
+
+    /// The sentence every report warns of suspect tests with. nil when there are none.
+    var suspectWarning: String? {
+        killingTestSummary?.warning(mutationScore: globalMutationScore)
     }
 }
 
@@ -96,24 +109,30 @@ extension MuterTestReport {
         /// The tests its run's log showed failing, as `MutationTestOutcome.Mutation` has them. Left out of the JSON
         /// when nil, so a survivor's is as it was before reports named them.
         let killingTests: MutationTestOutcome.KillingTests?
+        /// true when only suspect tests were recorded failing for it (`KillingTestSummary.isSuspectOnlyKill`), and
+        /// otherwise nil, so left out of the JSON.
+        let killedOnlyBySuspectTests: Bool?
 
         enum CodingKeys: String, CodingKey {
             case mutationPoint
             case testSuiteOutcome
             case mutationSnapshot
             case killingTests
+            case killedOnlyBySuspectTests
         }
 
         init(
             mutationPoint: MutationPoint,
             mutationSnapshot: MutationOperator.Snapshot,
             testSuiteOutcome: TestSuiteOutcome,
-            killingTests: MutationTestOutcome.KillingTests? = nil
+            killingTests: MutationTestOutcome.KillingTests? = nil,
+            killedOnlyBySuspectTests: Bool? = nil
         ) {
             self.mutationPoint = mutationPoint
             self.mutationSnapshot = mutationSnapshot
             self.testSuiteOutcome = testSuiteOutcome
             self.killingTests = killingTests
+            self.killedOnlyBySuspectTests = killedOnlyBySuspectTests
         }
 
         public init(from decoder: Decoder) throws {
@@ -127,12 +146,17 @@ extension MuterTestReport {
             )
             // A report written before reports named killing tests has none.
             killingTests = try container.decodeIfPresent(MutationTestOutcome.KillingTests.self, forKey: .killingTests)
+            killedOnlyBySuspectTests = try container.decodeIfPresent(Bool.self, forKey: .killedOnlyBySuspectTests)
         }
     }
 }
 
 private extension MuterTestReport {
-    static func fileReports(from outcome: MutationTestOutcome) -> [FileReport] {
+    /// Each file's report, with each kill only `suspects` were recorded failing for marked.
+    static func fileReports(
+        from outcome: MutationTestOutcome,
+        suspects: Set<FailedTestLine.TestIdentity>
+    ) -> [FileReport] {
         let outcomes = outcome.mutations
         let filesWithoutCoverage = outcome.coverage.filesWithoutCoverage
 
@@ -149,7 +173,9 @@ private extension MuterTestReport {
                             mutationPoint: $0.point,
                             mutationSnapshot: $0.snapshot,
                             testSuiteOutcome: $0.testSuiteOutcome,
-                            killingTests: $0.killingTests
+                            killingTests: $0.killingTests,
+                            killedOnlyBySuspectTests: KillingTestSummary.isSuspectOnlyKill($0, suspects: suspects)
+                                ? true : nil
                         )
                     }
 

@@ -61,13 +61,14 @@ extension MuterTestReport.AppliedMutationOperator {
     }
 
     /// What the plain and HTML reports' Killed By column shows: the first test recorded failing, its name cut at 60
-    /// characters with "…", then how many more failed. Never empty: CLITable drops an empty line, which misaligns
-    /// every row after it.
+    /// characters with "…", then how many more failed, and whether only suspect tests did. Never empty: CLITable
+    /// drops an empty line, which misaligns every row after it.
     var killedByCell: String {
         guard let killing = killedByTests else { return "-" }
         guard let first = killing.tests.first else { return "(none named)" }
         let more = killing.count > 1 ? " (+\(killing.count - 1))" : ""
-        return Self.shownName(first.name) + more
+        let suspectOnly = killedOnlyBySuspectTests == true ? " (suspect only)" : ""
+        return Self.shownName(first.name) + more + suspectOnly
     }
 }
 

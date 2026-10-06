@@ -138,6 +138,33 @@ final class PlainTextReporterTests: ReporterTestCase {
         XCTAssertEqual(Set(cells.filter { $0.key != "timing()" }.values), ["-"])
     }
 
+    func test_reportWithSuspectTests() {
+        let plainText = PlainTextReporter().report(from: .withSuspectTests)
+
+        XCTAssertTrue(plainText.contains("""
+
+        Of the 14 mutants introduced into your code, your test suite killed 13.
+        Mutation Score of Test Suite: 92%
+        Mutation Score without suspect tests: at least 50%
+        Suspect tests: 2 (timing(), order()); see Killing Tests above
+        SwiftMutator could not gather coverage data from your project
+
+        """))
+        XCTAssertTrue(plainText.contains("timing() (+1) (suspect only)"))
+        AssertSnapshot(plainText)
+    }
+
+    func test_withoutSuspectTests_theScoreHasNoOtherLines() {
+        for outcome: MutationTestOutcome in [.withKillingTests, .make(mutations: outcomes)] {
+            let plainText = PlainTextReporter().report(from: outcome)
+
+            XCTAssertFalse(plainText.contains("without suspect tests"))
+            XCTAssertFalse(plainText.contains("Suspect tests:"))
+            XCTAssertFalse(plainText.contains("(suspect only)"))
+            XCTAssertFalse(plainText.contains(isMuterRunningKey))
+        }
+    }
+
     /// The line `swift-quality` and `run-bench.sh` grep the killed count from must stay the only one that reads
     /// "killed" and a number, whatever else the report says.
     func test_onlyTheScoreSentence_matchesKilledAndANumber() throws {
@@ -158,6 +185,10 @@ final class PlainTextReporterTests: ReporterTestCase {
 
         XCTAssertTrue(plainText.contains("\nKilling Tests\n"))
         XCTAssertTrue(plainText.contains("yes"), "the report has a suspect test")
+        XCTAssertTrue(plainText.contains("\nMutation Score without suspect tests: at least "))
+        XCTAssertTrue(plainText.contains("\nSuspect tests: 1 (timing()); see Killing Tests above\n"))
+        XCTAssertTrue(plainText.contains("Some of those runs stopped at their first failed test"))
+        XCTAssertTrue(plainText.contains("(suspect only)"))
         let killedAndANumber = try NSRegularExpression(pattern: "killed [0-9]+")
         let matching = plainText.components(separatedBy: "\n").filter { line in
             killedAndANumber.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil

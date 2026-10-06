@@ -43,12 +43,31 @@ struct KillingTestSummary: Codable, Equatable {
     let distinctTests: Int
     /// The `shownTests` that failed for the most mutants, then by name and file; then every other suspect test.
     let tests: [Test]
+    /// Killed mutants only suspect tests were recorded failing for (`isSuspectOnlyKill`).
+    let suspectOnlyKills: Int
+    /// Of those, how many may not name every test that failed, so that another may have killed them.
+    let suspectOnlyKillsWithIncompleteLists: Int
+    /// The mutation score with those mutants counted as survivors, over the headline's mutants and truncated as it
+    /// is. nil when there are none, as it is then the headline score.
+    let mutationScoreWithoutSuspectOnlyKills: Int?
 
     /// Whether a test that failed for mutants in `files` of the `filesWithKills` files is suspect. Integer arithmetic,
     /// so a run and its `report` always agree.
     static func isSuspect(files: Int, filesWithKills: Int) -> Bool {
         filesWithKills >= suspectMinimumFiles && files >= suspectMinimumFiles
             && files * 100 >= suspectFilePercent * filesWithKills
+    }
+
+    /// Whether `mutation` is a kill only `suspects` were recorded failing for. Its list must name a test: one that
+    /// names none would otherwise name only suspects. A crash kills a mutant whatever failed, so stays a kill.
+    static func isSuspectOnlyKill(
+        _ mutation: MutationTestOutcome.Mutation,
+        suspects: Set<FailedTestLine.TestIdentity>
+    ) -> Bool {
+        guard mutation.testSuiteOutcome == .failed, let killing = mutation.killingTests, !killing.tests.isEmpty else {
+            return false
+        }
+        return killing.tests.allSatisfy { suspects.contains(.init($0)) }
     }
 }
 
@@ -78,6 +97,16 @@ extension KillingTestSummary {
             .map { identity, tally in Test(identity, tally, filesWithKills: filesWithKills) }
             .sorted { ($1.mutants, $0.identity) < ($0.mutants, $1.identity) }
 
+        let suspects = Set(ranked.filter(\.suspect).map(\.identity))
+        let suspectOnly = mutations.map { Self.isSuspectOnlyKill($0, suspects: suspects) }
+        let suspectOnlyKills = zip(mutations, suspectOnly).filter(\.1).map(\.0)
+        // Counted as survivors, the headline's way.
+        let scoreWithoutThem = mutationScore(
+            from: zip(mutations, suspectOnly).map { mutation, isSuspectOnly in
+                isSuspectOnly ? .passed : mutation.testSuiteOutcome
+            }
+        )
+
         self.init(
             killedMutants: recorded.count,
             killedMutantsNamingNoTest: recorded.count - named.count,
@@ -86,7 +115,10 @@ extension KillingTestSummary {
             filesWithKills: filesWithKills,
             suspectsChecked: filesWithKills >= Self.suspectMinimumFiles,
             distinctTests: ranked.count,
-            tests: Array(ranked.prefix(Self.shownTests)) + ranked.dropFirst(Self.shownTests).filter(\.suspect)
+            tests: Array(ranked.prefix(Self.shownTests)) + ranked.dropFirst(Self.shownTests).filter(\.suspect),
+            suspectOnlyKills: suspectOnlyKills.count,
+            suspectOnlyKillsWithIncompleteLists: suspectOnlyKills.count { $0.killingTests?.isComplete == false },
+            mutationScoreWithoutSuspectOnlyKills: suspectOnlyKills.isEmpty ? nil : scoreWithoutThem
         )
     }
 }
@@ -147,6 +179,105 @@ extension KillingTestSummary {
         guard !suspectsChecked else { return nil }
         return "Suspect tests are looked for once \(Self.suspectMinimumFiles) files have a killed mutant that names a "
             + "test; this report has \(filesWithKills)."
+    }
+
+    /// What the section says of its suspect tests, given the headline `mutationScore`: why they are suspect, what
+    /// the score would be without them, and how to leave one out. None when there are none.
+    func suspectSentences(mutationScore: Int) -> [String] {
+        guard !suspects.isEmpty else { return [] }
+        let these = suspects.count == 1 ? "1 suspect test" : "\(suspects.count) suspect tests"
+        let theirKills = switch suspectOnlyKills {
+        case 0: "Another test was recorded failing for each mutant a suspect test failed for."
+        case 1: "Only suspect tests were recorded failing for 1 mutant."
+        default: "Only suspect tests were recorded failing for \(suspectOnlyKills) mutants."
+        }
+        var sentences = [
+            "\(these) failed for mutants in at least \(Self.suspectFilePercent)% of the \(filesWithKills) files with a "
+                + "killed mutant. A test of the mutated code rarely does that; a test that is timing-sensitive, or "
+                + "flaky under load, does.",
+            theirKills + " " + scoreSentence(mutationScore: mutationScore),
+        ]
+        if scoreWithoutSuspectsIsALowerBound {
+            sentences.append(
+                "Some of those runs stopped at their first failed test, so other tests may have failed too: the score "
+                    + "without suspect tests is a lower bound, and the Only Recorded Failure Of counts may be high."
+            )
+        }
+        sentences.append(
+            "If a suspect test also fails without a mutant under the same load, leave it out of mutation runs: skip it "
+                + "while the environment variable \(isMuterRunningKey) is \(isMuterRunningValue), which SwiftMutator "
+                + "sets for the baseline and every mutant's test run."
+        )
+        return sentences
+    }
+}
+
+/// What every report says of suspect tests: the one warning, and the score without them. Never "killed" and a number.
+extension KillingTestSummary {
+    /// The suspect tests, those that failed for the most mutants first.
+    var suspects: [Test] {
+        tests.filter(\.suspect)
+    }
+
+    /// Which tests `isSuspectOnlyKill` takes as suspects.
+    var suspectIdentities: Set<FailedTestLine.TestIdentity> {
+        Set(suspects.map(\.identity))
+    }
+
+    /// Whether the score without suspect tests may be higher than it says: a kill only they were recorded failing
+    /// for may not name every test that failed.
+    var scoreWithoutSuspectsIsALowerBound: Bool {
+        suspectOnlyKillsWithIncompleteLists > 0
+    }
+
+    /// The mutation score without suspect tests' failures, given the headline `mutationScore`.
+    func scoreWithoutSuspects(mutationScore: Int) -> Int {
+        mutationScoreWithoutSuspectOnlyKills ?? mutationScore
+    }
+
+    /// That score as the reports show it: "72%", or "at least 72%" when it is a lower bound.
+    func shownScoreWithoutSuspects(mutationScore: Int) -> String {
+        let score = scoreWithoutSuspects(mutationScore: mutationScore)
+        return scoreWithoutSuspectsIsALowerBound ? "at least \(score)%" : "\(score)%"
+    }
+
+    /// The suspect tests' names: the first 3, then how many more.
+    var suspectNames: String {
+        names(of: suspects) { $0.name }
+    }
+
+    /// The sentence every report warns of suspect tests with, given the headline `mutationScore`: which they are,
+    /// why, and the score without them. nil when there are none.
+    func warning(mutationScore: Int) -> String? {
+        guard !suspects.isEmpty else { return nil }
+        let (these, they) = suspects.count == 1 ? ("1 test", "it") : ("\(suspects.count) tests", "they")
+        return "\(these) may fail whatever the mutant: \(they) failed for mutants in at least "
+            + "\(Self.suspectFilePercent)% of the \(filesWithKills) files with a killed mutant "
+            + "(\(names(of: suspects) { "\($0.name) in \($0.files)" })). "
+            + scoreSentence(mutationScore: mutationScore)
+    }
+
+    /// The warning for `outcome`'s report.
+    static func warning(for outcome: MutationTestOutcome) -> String? {
+        KillingTestSummary(of: outcome.mutations)?
+            .warning(mutationScore: mutationScore(from: outcome.mutations.map(\.testSuiteOutcome)))
+    }
+
+    /// What the mutation score would be without the suspect tests' failures, against the headline `mutationScore`.
+    private func scoreSentence(mutationScore: Int) -> String {
+        let their = suspects.count == 1 ? "its" : "their"
+        let without = scoreWithoutSuspects(mutationScore: mutationScore)
+        guard without != mutationScore else {
+            return "Without \(their) failures, the mutation score would still be \(mutationScore)%."
+        }
+        return "Without \(their) failures, the mutation score would be "
+            + "\(shownScoreWithoutSuspects(mutationScore: mutationScore)), not \(mutationScore)%."
+    }
+
+    /// The first 3 of `tests` as `describe` says them, then how many more.
+    private func names(of tests: [Test], _ describe: (Test) -> String) -> String {
+        let shown = tests.prefix(3).map(describe)
+        return (tests.count > 3 ? shown + ["and \(tests.count - 3) more"] : shown).joined(separator: ", ")
     }
 }
 

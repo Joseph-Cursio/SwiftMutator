@@ -88,6 +88,27 @@ final class TestReportTableGenerationTests: MuterTestCase {
         XCTAssertEqual(table.columns.map(\.title), ["File", "Applied Mutation Operator", "Mutation Test Result"])
     }
 
+    func test_aKillOnlySuspectTestsFailedFor_isMarkedSuspectOnly() {
+        let timing = FailedTestLine.FailedTest(name: "timing()", location: "TimingTests.swift:9:5")
+        let order = FailedTestLine.FailedTest(name: "order()", location: "OrderTests.swift:4:5")
+
+        let cells = operatorsTable([
+            .make(
+                testSuiteOutcome: .failed,
+                killingTests: .init(tests: [timing], count: 1, isComplete: false),
+                killedOnlyBySuspectTests: true
+            ),
+            .make(
+                testSuiteOutcome: .failed,
+                killingTests: .init(tests: [timing, order], count: 2, isComplete: true),
+                killedOnlyBySuspectTests: true
+            ),
+            .make(testSuiteOutcome: .failed, killingTests: .init(tests: [timing, order], count: 2, isComplete: true)),
+        ]).columns.last?.rows.map(\.value)
+
+        XCTAssertEqual(cells, ["timing() (suspect only)", "timing() (+1) (suspect only)", "timing() (+1)"])
+    }
+
     func test_aLongTestName_isCutTo60Characters() {
         let sixtyCharacters = String(repeating: "a", count: 58) + "()"
         let sixtyOneCharacters = String(repeating: "b", count: 59) + "()"

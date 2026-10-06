@@ -10,7 +10,7 @@ final class RegressionSnapshotKeysTests: XCTestCase {
         let withoutKillingTests = MuterTestReport(from: outcome(namingKillingTests: false))
 
         let unfiltered = try XCTUnwrap(String(data: JSONEncoder().encode(withKillingTests), encoding: .utf8))
-        for key in ["killingTests", "killingTestSummary"] {
+        for key in ["killingTests", "killingTestSummary", "killedOnlyBySuspectTests"] {
             XCTAssertTrue(unfiltered.contains("\"\(key)\""), "the report has no \(key) to leave out")
             XCTAssertTrue(RegressionTests.keysToExclude.contains(key), key)
         }
@@ -26,8 +26,9 @@ private extension RegressionSnapshotKeysTests {
         return snapshot
     }
 
-    /// A kill, a crash, a time-out and a survivor in each of two files, with the tests that failed for each, as a run
-    /// records them, or with none.
+    /// A kill, a crash, a time-out and a survivor in each of ten files, with the tests that failed for each, as a run
+    /// records them, or with none. The kills' tests failed in every file, so they are suspect, and each kill is theirs
+    /// alone.
     func outcome(namingKillingTests: Bool) -> MutationTestOutcome {
         let killingTests: [TestSuiteOutcome: MutationTestOutcome.KillingTests] = [
             .failed: .init(
@@ -46,7 +47,7 @@ private extension RegressionSnapshotKeysTests {
             .timeout: .init(tests: [], count: 0, isComplete: false),
         ]
         let outcomes: [TestSuiteOutcome] = [.failed, .runtimeError, .timeout, .passed]
-        let mutations = ["/project/Sources/Sum.swift", "/project/Sources/Total.swift"].flatMap { path in
+        let mutations = (0 ..< 10).map { "/project/Sources/File\($0).swift" }.flatMap { path in
             outcomes.enumerated().map { index, outcome in
                 MutationTestOutcome.Mutation(
                     testSuiteOutcome: outcome,

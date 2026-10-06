@@ -53,6 +53,48 @@ final class RecordedOutcomeTests: MuterTestCase {
         try await assertTheReportFromTheFileEqualsTheRuns(workers: 2)
     }
 
+    // Suspect tests, and the score without them, come from each mutant's recorded tests, so a report made from the
+    // file says what the run's own did, whatever order the lines come in.
+    func test_aRunWithSuspectTests_reportsTheSameFromItsFile_inEveryFormat() async throws {
+        state.mutationMapping = try (0 ..< 12).map { index in
+            try makeMapping(String(format: "/project_mutated/Sources/F%02d.swift", index), lines: [3])
+        }.mergeByFilePath()
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 1
+        )
+        // The baseline, then 11 kills and a survivor. Each kill's log names timing(), and the even ones' a focused
+        // test too; the second run stopped at its first failed test.
+        let timing = "✘ Test timing() recorded an issue at TimingTests.swift:9:5: Expectation failed: 1.2 < 1.0"
+        let focused = { (index: Int) in
+            "✘ Test focused\(index)() recorded an issue at F\(index)Tests.swift:3:5: Expectation failed"
+        }
+        ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 11) + [.passed]
+        ioDelegate.mutantTestLogs = (0 ..< 11).map { index in
+            index.isMultiple(of: 2) ? focused(index) + "\n" + timing : timing
+        } + ["✔ Test run with 2 tests in 0 suites passed after 0.001 seconds."]
+        ioDelegate.mutantRunEndings = [.exited, .stoppedAtFailedTest] + Array(repeating: .exited, count: 10)
+
+        let changes = try await sut.run(with: state)
+
+        guard case let .mutationTestOutcomeGenerated(runOutcome)? = changes.first else {
+            return XCTFail("Expected an outcome, got \(changes)")
+        }
+        let report = MuterTestReport(from: runOutcome)
+        let summary = try XCTUnwrap(report.killingTestSummary)
+        XCTAssertEqual(summary.filesWithKills, 11)
+        XCTAssertEqual(summary.tests.filter(\.suspect).map(\.name), ["timing()"])
+        XCTAssertEqual(summary.suspectOnlyKills, 5)
+        XCTAssertEqual(summary.suspectOnlyKillsWithIncompleteLists, 1)
+        XCTAssertEqual(report.globalMutationScore, 91)
+        XCTAssertEqual(summary.mutationScoreWithoutSuspectOnlyKills, 50)
+        XCTAssertTrue(
+            PlainTextReporter().report(from: runOutcome)
+                .contains("\nMutation Score without suspect tests: at least 50%\n")
+        )
+        XCTAssertTrue(XcodeReporter().report(from: runOutcome).contains("\nwarning: SwiftMutator: 1 test may fail"))
+        try assertTheResultsFileRebuilds(runOutcome)
+    }
+
     func test_recordsInCompletionOrder_areReportedInJobOrder() throws {
         let jobs = fixtureJobs()
         // Each repeat of a place and operator comes in the order it was found, which its occurrence numbers.

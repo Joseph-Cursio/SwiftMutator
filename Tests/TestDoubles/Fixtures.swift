@@ -17,13 +17,15 @@ extension MuterTestReport.AppliedMutationOperator {
         mutationPoint: MutationPoint = .make(),
         mutationSnapshot: MutationOperator.Snapshot = .make(),
         testSuiteOutcome: TestSuiteOutcome = .passed,
-        killingTests: MutationTestOutcome.KillingTests? = nil
+        killingTests: MutationTestOutcome.KillingTests? = nil,
+        killedOnlyBySuspectTests: Bool? = nil
     ) -> Self {
         Self(
             mutationPoint: mutationPoint,
             mutationSnapshot: mutationSnapshot,
             testSuiteOutcome: testSuiteOutcome,
-            killingTests: killingTests
+            killingTests: killingTests,
+            killedOnlyBySuspectTests: killedOnlyBySuspectTests
         )
     }
 }
@@ -132,22 +134,6 @@ extension MutationTestOutcome {
             location: "File02Tests.swift:8:5"
         )
         let xctest = FailedTestLine.FailedTest(name: "-[AppTests.ParserTests testParsesEmptyInput]", location: nil)
-        let focused = { (file: Int) in
-            FailedTestLine.FailedTest(
-                name: String(format: "focused%02d()", file),
-                location: String(format: "File%02dTests.swift:3:5", file)
-            )
-        }
-        let mutant = { (outcome: TestSuiteOutcome, file: Int, line: Int, killingTests: KillingTests?) in
-            Mutation.make(
-                testSuiteOutcome: outcome,
-                point: .make(
-                    filePath: String(format: "/tmp/project/Sources/File%02d.swift", file),
-                    position: .init(integerLiteral: line)
-                ),
-                killingTests: killingTests
-            )
-        }
         let everyFile = (1 ... 11).map { file in
             mutant(
                 .failed,
@@ -168,6 +154,52 @@ extension MutationTestOutcome {
             mutant(.failed, 7, 24, KillingTests(tests: [xctest], count: 1, isComplete: true)),
             mutant(.timeout, 8, 27, KillingTests(tests: [], count: 0, isComplete: false)),
         ])
+    }
+
+    /// Killed mutants in 12 files with two suspect tests: timing() failed for a mutant in each, order() in 10. The
+    /// kills in files 1 to 6 name a focused test too; those in files 7 to 12 name only suspects, and the run in file
+    /// 12 stopped at its first failed test, so the score without them is a lower bound. A crash only timing() failed
+    /// for stays a kill, and one mutant survived.
+    static var withSuspectTests: MutationTestOutcome {
+        let timing = FailedTestLine.FailedTest(name: "timing()", location: "TimingTests.swift:9:5")
+        let order = FailedTestLine.FailedTest(name: "order()", location: "OrderTests.swift:4:5")
+        let everyFile = (1 ... 12).map { file in
+            let tests = (file <= 6 ? [focused(file)] : []) + [timing] + (file >= 2 ? [order] : [])
+            return file == 12
+                ? mutant(.failed, file, 3, KillingTests(tests: [timing], count: 1, isComplete: false))
+                : mutant(.failed, file, 3, KillingTests(tests: tests, count: tests.count, isComplete: true))
+        }
+        return .make(mutations: everyFile + [
+            mutant(.runtimeError, 7, 8, KillingTests(tests: [timing], count: 1, isComplete: true)),
+            mutant(.passed, 8, 12, nil),
+        ])
+    }
+}
+
+private extension MutationTestOutcome {
+    /// The test that fails for a mutant in `file` alone.
+    static func focused(_ file: Int) -> FailedTestLine.FailedTest {
+        FailedTestLine.FailedTest(
+            name: String(format: "focused%02d()", file),
+            location: String(format: "File%02dTests.swift:3:5", file)
+        )
+    }
+
+    /// A mutant on `line` of `file`, with `killingTests` recorded.
+    static func mutant(
+        _ outcome: TestSuiteOutcome,
+        _ file: Int,
+        _ line: Int,
+        _ killingTests: KillingTests?
+    ) -> Mutation {
+        Mutation.make(
+            testSuiteOutcome: outcome,
+            point: .make(
+                filePath: String(format: "/tmp/project/Sources/File%02d.swift", file),
+                position: .init(integerLiteral: line)
+            ),
+            killingTests: killingTests
+        )
     }
 }
 

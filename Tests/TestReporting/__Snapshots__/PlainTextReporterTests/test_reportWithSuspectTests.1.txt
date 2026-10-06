@@ -1,0 +1,82 @@
+--------------------------
+Applied Mutation Operators
+--------------------------
+
+These are all of the ways that SwiftMutator introduced changes into your code.
+
+In total, SwiftMutator introduced 14 mutants in 12 files.
+
+File              Applied Mutation Operator   Mutation Test Result            Killed By
+----              -------------------------   --------------------            ---------
+File01.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused01() (+1)
+File02.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused02() (+2)
+File03.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused03() (+2)
+File04.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused04() (+2)
+File05.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused05() (+2)
+File06.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused06() (+2)
+File07.swift:3    ChangeLogicalConnector      mutant killed (test failure)    timing() (+1) (suspect only)
+File07.swift:8    ChangeLogicalConnector      mutant killed (runtime error)   timing()
+File08.swift:3    ChangeLogicalConnector      mutant killed (test failure)    timing() (+1) (suspect only)
+File08.swift:12   ChangeLogicalConnector      mutant survived                 -
+File09.swift:3    ChangeLogicalConnector      mutant killed (test failure)    timing() (+1) (suspect only)
+File10.swift:3    ChangeLogicalConnector      mutant killed (test failure)    timing() (+1) (suspect only)
+File11.swift:3    ChangeLogicalConnector      mutant killed (test failure)    timing() (+1) (suspect only)
+File12.swift:3    ChangeLogicalConnector      mutant killed (test failure)    timing() (suspect only)
+
+
+-------------
+Killing Tests
+-------------
+
+These are the tests that failed for the most killed mutants. A mutant a crash killed isn't counted here.
+
+12 killed mutants name the tests that failed for them, in 12 files.
+1 of them stopped at its first failed test or its time limit, or names more than 20 tests, so it may not name every test that failed.
+
+Test          File                Mutants   Files   Only Recorded Failure Of   Suspect
+----          ----                -------   -----   ------------------------   -------
+timing()      TimingTests.swift   12        12      1                          yes
+order()       OrderTests.swift    10        10      0                          yes
+focused01()   File01Tests.swift   1         1       0                          -
+focused02()   File02Tests.swift   1         1       0                          -
+focused03()   File03Tests.swift   1         1       0                          -
+focused04()   File04Tests.swift   1         1       0                          -
+focused05()   File05Tests.swift   1         1       0                          -
+focused06()   File06Tests.swift   1         1       0                          -
+
+2 suspect tests failed for mutants in at least 15% of the 12 files with a killed mutant. A test of the mutated code rarely does that; a test that is timing-sensitive, or flaky under load, does.
+Only suspect tests were recorded failing for 6 mutants. Without their failures, the mutation score would be at least 50%, not 92%.
+Some of those runs stopped at their first failed test, so other tests may have failed too: the score without suspect tests is a lower bound, and the Only Recorded Failure Of counts may be high.
+If a suspect test also fails without a mutant under the same load, leave it out of mutation runs: skip it while the environment variable IS_MUTER_RUNNING is YES, which SwiftMutator sets for the baseline and every mutant's test run.
+
+
+--------------------
+Mutation Test Scores
+--------------------
+
+SwiftMutator took 00:00:00.000 to run.
+
+These are the mutation scores for your test suite, as well as the files that had mutants introduced into them.
+
+Mutation scores ignore build errors.
+
+Of the 14 mutants introduced into your code, your test suite killed 13.
+Mutation Score of Test Suite: 92%
+Mutation Score without suspect tests: at least 50%
+Suspect tests: 2 (timing(), order()); see Killing Tests above
+SwiftMutator could not gather coverage data from your project
+
+File           # of Introduced Mutants   Mutation Score
+----           -----------------------   --------------
+File01.swift   1                         100
+File02.swift   1                         100
+File03.swift   1                         100
+File04.swift   1                         100
+File05.swift   1                         100
+File06.swift   1                         100
+File07.swift   2                         100
+File08.swift   2                         50
+File09.swift   1                         100
+File10.swift   1                         100
+File11.swift   1                         100
+File12.swift   1                         100

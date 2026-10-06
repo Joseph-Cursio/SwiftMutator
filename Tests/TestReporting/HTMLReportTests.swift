@@ -92,4 +92,24 @@ final class HTMLReportTests: MuterTestCase {
 
         XCTAssertFalse(html.contains("Killing Tests"))
     }
+
+    func test_reportWithSuspectTests() {
+        let html = sut.report(from: .withSuspectTests)
+
+        XCTAssertTrue(html.contains("<p class=\"small\">Without Suspect Tests, at least</p><h1>50%</h1>"))
+        XCTAssertTrue(html.contains("<p>⚠️ 2 tests may fail whatever the mutant: they failed for mutants in "))
+        XCTAssertTrue(html.contains(
+            "<td class=\"left-aligned\"><details><summary>timing() (+1) (suspect only)</summary>"
+        ))
+        XCTAssertTrue(html.contains("<td class=\"left-aligned\">timing() (suspect only)</td>"))
+        AssertSnapshot(html)
+    }
+
+    func test_withoutSuspectTests_theReportHasNoWarningNorOtherScore() {
+        let html = sut.report(from: .withKillingTests)
+
+        XCTAssertFalse(html.contains("Without Suspect Tests"))
+        XCTAssertFalse(html.contains("⚠️"))
+        XCTAssertFalse(html.contains("suspect only"))
+    }
 }

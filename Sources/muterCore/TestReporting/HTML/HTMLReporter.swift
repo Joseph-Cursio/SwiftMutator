@@ -38,7 +38,10 @@ private func htmlReport(
                     .divider("Applied Mutation Operators"),
                     .appliedOperators(from: testReport),
                     .unwrap(testReport.killingTestSummary) { summary in
-                        .group(.divider("Killing Tests"), .killingTestsTable(summary))
+                        .group(
+                            .divider("Killing Tests"),
+                            .killingTestsTable(summary, mutationScore: testReport.globalMutationScore)
+                        )
                     }
                 ),
                 .muterFooter(now: now)
@@ -84,6 +87,21 @@ extension Node where Context: HTML.BodyContext {
                     .h1("\(testReport.globalMutationScore)%")
                 )
             ),
+            .unwrap(testReport.suspectSummary) { summary in
+                .div(
+                    .class("header-item"),
+                    .div(
+                        .class("box"),
+                        .style("background-color: #f39c12"),
+                        .p(
+                            .class("small"),
+                            .text(summary.scoreWithoutSuspectsIsALowerBound
+                                ? "Without Suspect Tests, at least" : "Without Suspect Tests")
+                        ),
+                        .h1(.text("\(summary.scoreWithoutSuspects(mutationScore: testReport.globalMutationScore))%"))
+                    )
+                )
+            },
             .unwrap(testReport.projectCodeCoverage) { coverage in
                 .div(
                     .class("header-item"),
@@ -126,6 +144,8 @@ extension Node where Context: HTML.BodyContext {
                 " files."
             ),
             .p("⏰ SwiftMutator took \(testReport.timeElapsed) to run."),
+            // Text only: the warning names tests, whose names can hold anything.
+            .unwrap(testReport.suspectWarning) { .p(.text("⚠️ \($0)")) },
             .if(
                 !newVersion.isEmpty,
                 .p("🆕 The version \(newVersion) of SwiftMutator is available")
@@ -251,9 +271,10 @@ extension Node where Context: HTML.BodyContext {
         )
     }
 
-    /// The Killing Tests section: what it counts, then the tests, with every name whole. Text nodes only, as in the
-    /// Killed By column; not collapsible, so no script.
-    static func killingTestsTable(_ summary: KillingTestSummary) -> Self {
+    /// The Killing Tests section: what it counts, then the tests, with every name whole, then what it says of suspect
+    /// tests against the headline `mutationScore`. Text nodes only, as in the Killed By column; not collapsible, so
+    /// no script.
+    static func killingTestsTable(_ summary: KillingTestSummary, mutationScore: Int) -> Self {
         .div(
             .class("killing-tests"),
             .p(.text(KillingTestSummary.introduction)),
@@ -286,7 +307,8 @@ extension Node where Context: HTML.BodyContext {
                 )
             ),
             .unwrap(summary.shownTestsSentence) { .p(.text($0)) },
-            .unwrap(summary.noVerdictSentence) { .p(.text($0)) }
+            .unwrap(summary.noVerdictSentence) { .p(.text($0)) },
+            .forEach(summary.suspectSentences(mutationScore: mutationScore)) { .p(.text($0)) }
         )
     }
 
