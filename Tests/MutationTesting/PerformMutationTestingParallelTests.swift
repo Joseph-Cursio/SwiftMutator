@@ -76,6 +76,30 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         XCTAssertEqual(outcome.mutations.map(\.point.position.line), [1, 2])
     }
 
+    func test_outcomesKeepTheMutantsOrder_whenTheirRunsFinishOutOfOrder() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
+        )
+        state.mutationMapping = try (1...4).map { try makeSchemataMapping(line: $0) }
+        ioDelegate.testSuiteOutcomes = [.passed, .passed] + Array(repeating: .failed, count: 4)
+        // The first run to start waits until the last one has started, so the other worker runs the other three
+        // mutants meanwhile. The wait is bounded, so the test can't hang.
+        let lastRunStarted = DispatchSemaphore(value: 0)
+        ioDelegate.whileRunningMutant = { number in
+            if number == 0 { _ = lastRunStarted.wait(timeout: .now() + 5) }
+            if number == 3 { lastRunStarted.signal() }
+        }
+        let finishedLines = linesOfPostedOutcomes()
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertNotEqual(finishedLines(), [1, 2, 3, 4], "the runs didn't finish out of order")
+        guard case let .mutationTestOutcomeGenerated(outcome) = result.first else {
+            return XCTFail("Expected an outcome, got \(result)")
+        }
+        XCTAssertEqual(outcome.mutations.map(\.point.position.line), [1, 2, 3, 4])
+    }
+
     func test_workersAreCappedAtTheNumberOfMutants() async throws {
         state.muterConfiguration = MuterConfiguration(
             executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 8
@@ -338,6 +362,20 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         }
         addTeardownBlock { [notificationCenter] in notificationCenter.removeObserver(observer) }
         return { count }
+    }
+
+    /// The line of each mutant whose outcome is posted, in the order they're posted, until the test ends.
+    private func linesOfPostedOutcomes() -> () -> [Int] {
+        var lines: [Int] = []
+        let observer = notificationCenter.addObserver(
+            forName: .newMutationTestOutcomeAvailable, object: nil, queue: nil
+        ) { notification in
+            if let mutation = notification.object as? MutationTestOutcome.Mutation {
+                lines.append(mutation.point.position.line)
+            }
+        }
+        addTeardownBlock { [notificationCenter] in notificationCenter.removeObserver(observer) }
+        return { lines }
     }
 
     private func makeSchemataMapping(line: Int) throws -> SchemataMutationMapping {

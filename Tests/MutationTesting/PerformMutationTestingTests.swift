@@ -356,6 +356,23 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(ioDelegate.methodCalls, ["benchmarkTests(using:savingResultsIntoFileNamed:)"])
     }
 
+    // One worker tests every mutant in the mutated project itself, which the next run's clean-up removes.
+    func test_aSerialRun_removesNoClones() async throws {
+        var removedClones: [[URL]] = []
+        let sut = PerformMutationTesting(
+            makeWorkerDirectories: { _, _ in
+                XCTFail("a serial run clones nothing")
+                return []
+            },
+            removeWorkerDirectories: { removedClones.append($0) }
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(removedClones, [])
+    }
+
     func test_whenThePassingBaselinePrintsAFailureLikeLine_thenMutantsRunWithStoppingOff() async throws {
         let lookalike = "✘ Test sum() recorded an issue at SumTests.swift:3:5: Expectation failed: 1 == 2"
         state.muterConfiguration = MuterConfiguration(

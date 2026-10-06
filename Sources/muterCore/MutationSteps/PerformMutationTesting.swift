@@ -39,16 +39,22 @@ struct PerformMutationTesting: MutationStep {
     }
 
     /// Tests every mutant, writing each one's result to the run's results file as it finishes, between a header
-    /// and an end line that says how mutation testing ended.
+    /// and an end line that says how mutation testing ended. Worker clones are removed last.
     func run(
         with state: AnyMutationTestState
     ) async throws -> [MutationTestState.Change] {
         fileManager.changeCurrentDirectoryPath(state.mutatedProjectDirectoryURL.path)
         let session = TestingSession(startedAt: now())
+        // After the end line: removing large clones can take seconds, and a second signal in that time exits at once.
+        // A clone left behind is removed when SwiftMutator next runs.
+        defer {
+            if !session.clones.isEmpty {
+                removeWorkerDirectories(session.clones)
+            }
+        }
 
-        let mutations: [MutationTestOutcome.Mutation]
         do {
-            mutations = try await performMutationTesting(using: state, session: session)
+            try await performMutationTesting(using: state, session: session)
         } catch {
             endResults(
                 of: session,
@@ -63,7 +69,7 @@ struct PerformMutationTesting: MutationStep {
         endResults(of: session, .finished, testDuration: testDuration)
 
         let mutationTestOutcome = MutationTestOutcome(
-            mutations: mutations,
+            mutations: session.outcomesInJobOrder,
             coverage: state.projectCoverage,
             testDuration: testDuration,
             newVersion: state.newVersion
@@ -79,10 +85,11 @@ struct PerformMutationTesting: MutationStep {
 }
 
 private extension PerformMutationTesting {
+    /// Keeps each tested mutant's outcome, and each worker clone it makes, in `session`.
     func performMutationTesting(
         using state: AnyMutationTestState,
         session: TestingSession
-    ) async throws -> [MutationTestOutcome.Mutation] {
+    ) async throws {
         notificationCenter.post(name: .mutationTestingStarted, object: nil)
 
         // Only an explicit `true` asked for it, so only that is worth saying, and before the baseline run,
@@ -179,11 +186,13 @@ private extension PerformMutationTesting {
             object: mutationLog
         )
 
-        return workers > 1
-            ? try await testMutationsInParallel(
+        if workers > 1 {
+            try await testMutationsInParallel(
                 jobs, workers: workers, using: state, configuration: configuration, session: session
             )
-            : try await testMutations(jobs, using: state, configuration: configuration, session: session)
+        } else {
+            try await testMutations(jobs, using: state, configuration: configuration, session: session)
+        }
     }
 
     struct MutantJob {
@@ -196,9 +205,7 @@ private extension PerformMutationTesting {
         using state: AnyMutationTestState,
         configuration: MuterConfiguration,
         session: TestingSession
-    ) async throws -> [MutationTestOutcome.Mutation] {
-        var outcomes: [MutationTestOutcome.Mutation] = []
-        outcomes.reserveCapacity(jobs.count)
+    ) async throws {
         var buildErrors = 0
 
         for (index, job) in jobs.enumerated() {
@@ -217,34 +224,31 @@ private extension PerformMutationTesting {
             )
             try Self.throwIfCancelled(run)
 
-            outcomes.append(
-                try record(
-                    FinishedRun(index: index, worker: 0, run: run, seconds: seconds(since: launched)),
-                    of: job,
-                    using: state,
-                    configuration: configuration,
-                    session: session,
-                    buildErrors: &buildErrors
-                )
+            try record(
+                FinishedRun(index: index, worker: 0, run: run, seconds: seconds(since: launched)),
+                of: job,
+                using: state,
+                configuration: configuration,
+                session: session,
+                buildErrors: &buildErrors
             )
         }
-
-        return outcomes
     }
 
     /// Tests `jobs` on `workers` test processes at once, each in its own clone of the mutated project:
     /// `swift test` locks the package's build directory, so two runs can't share one. Every mutant is
     /// switched on per run: under `swift test` by the worker's active-mutant file, written just before the run
     /// (see `MutationTestingDelegate.testProcess`), so the clones' code never needs rewriting. Outcomes are
-    /// recorded, and their notifications posted, as they finish; they're returned in `jobs` order. Once
-    /// mutation testing is cancelled, no clone is made, no mutant starts, and none that returns is recorded.
+    /// recorded, and their notifications posted, as they finish. The clones are kept in `session`, and
+    /// `run(with:)` removes them once the end line is written. Once mutation testing is cancelled, no clone
+    /// is made, no mutant starts, and none that returns is recorded.
     func testMutationsInParallel(
         _ jobs: [MutantJob],
         workers: Int,
         using state: AnyMutationTestState,
         configuration: MuterConfiguration,
         session: TestingSession
-    ) async throws -> [MutationTestOutcome.Mutation] {
+    ) async throws {
         // A clone costs a copy and about one baseline build, which a stopped run would only throw away.
         try Task.checkCancellation()
         let clones: [URL]
@@ -255,11 +259,10 @@ private extension PerformMutationTesting {
             try Task.checkCancellation()
             throw error
         }
-        defer { removeWorkerDirectories(clones) }
+        session.clones = clones
         try await buildWorkerDirectories(clones, using: state)
         let directories = [state.mutatedProjectDirectoryURL] + clones
 
-        var outcomes = [MutationTestOutcome.Mutation?](repeating: nil, count: jobs.count)
         var buildErrors = 0
 
         try await withThrowingTaskGroup(of: FinishedRun.self) { group in
@@ -291,7 +294,7 @@ private extension PerformMutationTesting {
             while let finished = try await group.next() {
                 // Throwing cancels the other runs, whose cancellation handlers kill their process trees.
                 try Self.throwIfCancelled(finished.run)
-                outcomes[finished.index] = try record(
+                try record(
                     finished,
                     of: jobs[finished.index],
                     using: state,
@@ -306,8 +309,6 @@ private extension PerformMutationTesting {
                 }
             }
         }
-
-        return outcomes.compactMap { $0 }
     }
 
     /// Builds each worker clone once, by running the baseline test command in it. A clone is copied
@@ -360,9 +361,10 @@ private extension PerformMutationTesting {
         return Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000_000
     }
 
-    /// Writes `finished`'s result, the run of `job`'s mutant, to the results file, builds its outcome, posts its
-    /// notifications, and aborts after `buildErrorsThreshold` build errors in a row. The result is written first,
-    /// so it is on disk before anything else happens, the abort included.
+    /// Writes `finished`'s result, the run of `job`'s mutant, to the results file, keeps its outcome in `session`,
+    /// posts its notifications, and aborts after `buildErrorsThreshold` build errors in a row. The result is written
+    /// first, so it is on disk before anything else happens, and the outcome is kept before the abort, so mutation
+    /// testing that stops there still has it.
     func record(
         _ finished: FinishedRun,
         of job: MutantJob,
@@ -370,7 +372,7 @@ private extension PerformMutationTesting {
         configuration: MuterConfiguration,
         session: TestingSession,
         buildErrors: inout Int
-    ) throws -> MutationTestOutcome.Mutation {
+    ) throws {
         let mutationPoint = MutationPoint(
             mutationOperatorId: job.schema.mutationOperatorId,
             filePath: job.schema.filePath,
@@ -398,6 +400,7 @@ private extension PerformMutationTesting {
             originalProjectDirectoryUrl: state.projectDirectoryURL,
             mutatedProjectDirectoryURL: state.mutatedProjectDirectoryURL
         )
+        session.outcomes[finished.index] = outcome
 
         let mutationLog = MutationTestLog(
             mutationPoint: mutationPoint,
@@ -420,7 +423,6 @@ private extension PerformMutationTesting {
         if buildErrors >= buildErrorsThreshold {
             throw MuterError.mutationTestingAborted(reason: .tooManyBuildErrors)
         }
-        return outcome
     }
 
     func logFileName(
