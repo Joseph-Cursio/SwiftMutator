@@ -76,6 +76,20 @@ final class HTMLReportTests: MuterTestCase {
             occurrences += 1
             searchStart = found.upperBound
         }
-        XCTAssertEqual(occurrences, 3)
+        // Three in the Killed By column, one in the Killing Tests table.
+        XCTAssertEqual(occurrences, 4)
+    }
+
+    func test_reportWithKillingTests() {
+        let html = sut.report(from: .withKillingTests)
+
+        XCTAssertTrue(html.contains("<span class=\"divider-content\">Killing Tests</span>"))
+        AssertSnapshot(html)
+    }
+
+    func test_reportWithoutKillingTests_hasNoKillingTestsSection() {
+        let html = sut.report(from: .make(mutations: mutations))
+
+        XCTAssertFalse(html.contains("Killing Tests"))
     }
 }

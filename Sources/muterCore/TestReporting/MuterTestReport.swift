@@ -10,8 +10,12 @@ struct MuterTestReport {
     let projectCodeCoverage: Int?
     let fileReports: [FileReport]
     let timeElapsed: String
+    /// The tests that failed for the most killed mutants, and which are suspect. nil when no mutant a failed test
+    /// killed has its tests recorded, and then left out of the JSON.
+    let killingTestSummary: KillingTestSummary?
 
     init(from outcome: MutationTestOutcome = .init()) {
+        killingTestSummary = KillingTestSummary(of: outcome.mutations)
         globalMutationScore = mutationScore(from: outcome.mutations.map { $0.testSuiteOutcome })
         totalAppliedMutationOperators = outcome.mutations.count
         numberOfKilledMutants = outcome.mutations
@@ -188,5 +192,6 @@ extension MuterTestReport: Codable {
         case projectCodeCoverage
         case fileReports
         case timeElapsed
+        case killingTestSummary
     }
 }

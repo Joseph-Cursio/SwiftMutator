@@ -4,12 +4,13 @@ import TestingExtensions
 import XCTest
 
 final class RegressionTests: XCTestCase {
-    /// Keys left out of the snapshots: where and how long a run took, and the killing tests, which depend on timing
-    /// (runs stop at their first failed test). Each is dropped at any depth, inside arrays too
+    /// Keys left out of the snapshots: where and how long a run took, and the killing tests and their summary, which
+    /// depend on timing (runs stop at their first failed test). Each is dropped at any depth, inside arrays too
     /// (`recursivelyFiltered`), so the snapshots, which hold none of them, need no re-recording.
     static let keysToExclude: Set<String> = [
         "filePath", "utf8Offset", "timeElapsed",
         "killingTests",
+        "killingTestSummary",
     ]
 
     /// How a report is compared with its snapshot: as JSON, without `keysToExclude`.

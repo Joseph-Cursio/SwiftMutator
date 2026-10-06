@@ -36,7 +36,10 @@ private func htmlReport(
                     .divider("Mutation Operators per File"),
                     .mutationOperatorsPerFile(from: testReport),
                     .divider("Applied Mutation Operators"),
-                    .appliedOperators(from: testReport)
+                    .appliedOperators(from: testReport),
+                    .unwrap(testReport.killingTestSummary) { summary in
+                        .group(.divider("Killing Tests"), .killingTestsTable(summary))
+                    }
                 ),
                 .muterFooter(now: now)
             )
@@ -245,6 +248,45 @@ extension Node where Context: HTML.BodyContext {
                     .li(.text(test.location.map { "\(test.name) — \($0)" } ?? test.name))
                 }
             )
+        )
+    }
+
+    /// The Killing Tests section: what it counts, then the tests, with every name whole. Text nodes only, as in the
+    /// Killed By column; not collapsible, so no script.
+    static func killingTestsTable(_ summary: KillingTestSummary) -> Self {
+        .div(
+            .class("killing-tests"),
+            .p(.text(KillingTestSummary.introduction)),
+            .forEach(summary.countSentences) { .p(.text($0)) },
+            .if(
+                !summary.tests.isEmpty,
+                .table(
+                    .thead(
+                        .tr(
+                            .th("Test"),
+                            .th("File"),
+                            .th("Mutants"),
+                            .th("Files"),
+                            .th("Only Recorded Failure Of"),
+                            .th("Suspect")
+                        )
+                    ),
+                    .tbody(
+                        .forEach(summary.tests) { test -> Node<HTML.TableContext> in
+                            .tr(
+                                .td(.class("left-aligned"), .text(test.name)),
+                                .td(.class("left-aligned"), .text(test.file ?? "-")),
+                                .td(.class("right-aligned"), .text("\(test.mutants)")),
+                                .td(.class("right-aligned"), .text("\(test.files)")),
+                                .td(.class("right-aligned"), .text("\(test.onlyRecordedFailureOf)")),
+                                .td(.text(test.suspect ? "yes" : "-"))
+                            )
+                        }
+                    )
+                )
+            ),
+            .unwrap(summary.shownTestsSentence) { .p(.text($0)) },
+            .unwrap(summary.noVerdictSentence) { .p(.text($0)) }
         )
     }
 

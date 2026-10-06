@@ -1,0 +1,84 @@
+--------------------------
+Applied Mutation Operators
+--------------------------
+
+These are all of the ways that SwiftMutator introduced changes into your code.
+
+In total, SwiftMutator introduced 19 mutants in 11 files.
+
+File              Applied Mutation Operator   Mutation Test Result            Killed By
+----              -------------------------   --------------------            ---------
+File01.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused01() (+1)
+File01.swift:7    ChangeLogicalConnector      mutant killed (test failure)    focused01() (+2)
+File02.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused02() (+1)
+File02.swift:9    ChangeLogicalConnector      mutant killed (test failure)    "adding every number in a long list gives the same total in… (+1)
+File03.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused03() (+1)
+File03.swift:12   ChangeLogicalConnector      mutant killed (test failure)    (none named)
+File04.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused04() (+1)
+File04.swift:15   ChangeLogicalConnector      mutant killed (test failure)    -
+File05.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused05() (+1)
+File05.swift:18   ChangeLogicalConnector      mutant killed (runtime error)   focused05()
+File06.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused06() (+1)
+File06.swift:21   ChangeLogicalConnector      mutant survived                 -
+File07.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused07() (+1)
+File07.swift:24   ChangeLogicalConnector      mutant killed (test failure)    -[AppTests.ParserTests testParsesEmptyInput]
+File08.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused08() (+1)
+File08.swift:27   ChangeLogicalConnector      time out                        -
+File09.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused09() (+1)
+File10.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused10()
+File11.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused11()
+
+
+-------------
+Killing Tests
+-------------
+
+These are the tests that failed for the most killed mutants. A mutant a crash killed isn't counted here.
+
+14 killed mutants name the tests that failed for them, in 11 files.
+1 of them stopped at its first failed test or its time limit, or names more than 20 tests, so it may not name every test that failed.
+1 more killed mutant names no test, as no line of its log shows one failing.
+The tests that failed for 1 more killed mutant weren't recorded.
+
+Test                                                           File                Mutants   Files   Only Recorded Failure Of   Suspect
+----                                                           ----                -------   -----   ------------------------   -------
+parsesEveryRule()                                              ParserTests.swift   9         9       0                          -
+focused01()                                                    File01Tests.swift   2         1       0                          -
+focused02()                                                    File02Tests.swift   2         1       0                          -
+"adding every number in a long list gives the same total in…   File02Tests.swift   1         1       0                          -
+-[AppTests.ParserTests testParsesEmptyInput]                   -                   1         1       1                          -
+focused03()                                                    File03Tests.swift   1         1       0                          -
+focused04()                                                    File04Tests.swift   1         1       0                          -
+focused05()                                                    File05Tests.swift   1         1       0                          -
+focused06()                                                    File06Tests.swift   1         1       0                          -
+focused07()                                                    File07Tests.swift   1         1       0                          -
+These are 10 of the 14 tests that failed. The JSON report lists each mutant's.
+
+
+--------------------
+Mutation Test Scores
+--------------------
+
+SwiftMutator took 00:00:00.000 to run.
+
+These are the mutation scores for your test suite, as well as the files that had mutants introduced into them.
+
+Mutation scores ignore build errors.
+
+Of the 19 mutants introduced into your code, your test suite killed 17.
+Mutation Score of Test Suite: 89%
+SwiftMutator could not gather coverage data from your project
+
+File           # of Introduced Mutants   Mutation Score
+----           -----------------------   --------------
+File01.swift   2                         100
+File02.swift   2                         100
+File03.swift   2                         100
+File04.swift   2                         100
+File05.swift   2                         100
+File06.swift   2                         50
+File07.swift   2                         100
+File08.swift   2                         50
+File09.swift   1                         100
+File10.swift   1                         100
+File11.swift   1                         100

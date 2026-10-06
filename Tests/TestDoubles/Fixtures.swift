@@ -120,6 +120,57 @@ extension MutationTestOutcome.KillingTests {
     static let noneNamed = Self(tests: [], count: 0, isComplete: true)
 }
 
+extension MutationTestOutcome {
+    /// Killed mutants in 11 files with the tests that failed for them, as runs record them: 14 tests, the widest in 9
+    /// files, so none is suspect. One run stopped at its first failed test, one kill names no test and one has none
+    /// recorded; a crash, a time-out and a survivor aren't counted. One test is XCTest's, and one's name is longer
+    /// than the plain report shows.
+    static var withKillingTests: MutationTestOutcome {
+        let shared = FailedTestLine.FailedTest(name: "parsesEveryRule()", location: "ParserTests.swift:12:9")
+        let longName = FailedTestLine.FailedTest(
+            name: #""adding every number in a long list gives the same total in any order""#,
+            location: "File02Tests.swift:8:5"
+        )
+        let xctest = FailedTestLine.FailedTest(name: "-[AppTests.ParserTests testParsesEmptyInput]", location: nil)
+        let focused = { (file: Int) in
+            FailedTestLine.FailedTest(
+                name: String(format: "focused%02d()", file),
+                location: String(format: "File%02dTests.swift:3:5", file)
+            )
+        }
+        let mutant = { (outcome: TestSuiteOutcome, file: Int, line: Int, killingTests: KillingTests?) in
+            Mutation.make(
+                testSuiteOutcome: outcome,
+                point: .make(
+                    filePath: String(format: "/tmp/project/Sources/File%02d.swift", file),
+                    position: .init(integerLiteral: line)
+                ),
+                killingTests: killingTests
+            )
+        }
+        let everyFile = (1 ... 11).map { file in
+            mutant(
+                .failed,
+                file,
+                3,
+                file <= 9
+                    ? KillingTests(tests: [focused(file), shared], count: 2, isComplete: true)
+                    : KillingTests(tests: [focused(file)], count: 1, isComplete: true)
+            )
+        }
+        return .make(mutations: everyFile + [
+            mutant(.failed, 1, 7, KillingTests(tests: [focused(1)], count: 3, isComplete: false)),
+            mutant(.failed, 2, 9, KillingTests(tests: [longName, focused(2)], count: 2, isComplete: true)),
+            mutant(.failed, 3, 12, .noneNamed),
+            mutant(.failed, 4, 15, nil),
+            mutant(.runtimeError, 5, 18, KillingTests(tests: [focused(5)], count: 1, isComplete: true)),
+            mutant(.passed, 6, 21, nil),
+            mutant(.failed, 7, 24, KillingTests(tests: [xctest], count: 1, isComplete: true)),
+            mutant(.timeout, 8, 27, KillingTests(tests: [], count: 0, isComplete: false)),
+        ])
+    }
+}
+
 extension MuterTestReport.FileReport {
     static func make(
         name: String,

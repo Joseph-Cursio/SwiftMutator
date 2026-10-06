@@ -137,15 +137,28 @@ extension FailedTestLine {
 
     /// Which test a failed test is. Its name alone would merge same-named tests in different suites, and its
     /// location would split a test whose several issues were recorded at different lines; the location's file
-    /// does neither, as a test's issues are recorded in its own file.
-    private struct TestIdentity: Hashable {
+    /// does neither, as a test's issues are recorded in its own file. Ordered by name, then by file, none first.
+    struct TestIdentity: Hashable, Comparable {
         let name: String
-        let file: Substring?
+        let file: String?
+
+        init(name: String, file: String?) {
+            self.name = name
+            self.file = file
+        }
 
         init(_ test: FailedTest) {
-            name = test.name
             // The file name can't contain ":", so it is everything before the line and column.
-            file = test.location.map { location in location.prefix { $0 != ":" } }
+            self.init(name: test.name, file: test.location.map { location in String(location.prefix { $0 != ":" }) })
+        }
+
+        static func < (lhs: Self, rhs: Self) -> Bool {
+            guard lhs.name == rhs.name else { return lhs.name < rhs.name }
+            switch (lhs.file, rhs.file) {
+            case let (left?, right?): return left < right
+            case (nil, _?): return true
+            case (_?, nil), (nil, nil): return false
+            }
         }
     }
 

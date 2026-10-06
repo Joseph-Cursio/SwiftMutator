@@ -83,6 +83,8 @@ final class MuterTestReportTests: MuterTestCase {
         let decoded = try JSONDecoder().decode(MuterTestReport.self, from: JSONEncoder().encode(report))
 
         XCTAssertEqual(decoded.fileReports.map(\.appliedOperators), report.fileReports.map(\.appliedOperators))
+        XCTAssertNotNil(report.killingTestSummary)
+        XCTAssertEqual(decoded.killingTestSummary, report.killingTestSummary)
         XCTAssertEqual(
             report.fileReports.flatMap(\.appliedOperators).map(\.killingTests?.count),
             [2, 0, nil]
@@ -132,6 +134,7 @@ final class MuterTestReportTests: MuterTestCase {
         XCTAssertEqual(operators.map(\.testSuiteOutcome), [.failed, .passed])
         XCTAssertEqual(operators.map(\.mutationPoint.position.line), [3, 7])
         XCTAssertEqual(operators.map(\.killingTests), [nil, nil])
+        XCTAssertNil(report.killingTestSummary)
         XCTAssertEqual(report.numberOfKilledMutants, 1)
     }
 }

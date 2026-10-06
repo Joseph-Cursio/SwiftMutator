@@ -46,8 +46,13 @@ private func operatorsToTableRows(fileReport: MuterTestReport.FileReport) -> [(
 }
 
 extension MuterTestReport.AppliedMutationOperator {
-    /// How many characters of a test's name the Killed By column shows.
+    /// How many characters of a test's name the plain report's tables show, and the HTML report's Killed By column.
     static let killedByNameLimit = 60
+
+    /// `name` as those tables show it: cut at `killedByNameLimit` characters, the last of them "…".
+    static func shownName(_ name: String) -> String {
+        name.count > killedByNameLimit ? String(name.prefix(killedByNameLimit - 1)) + "…" : name
+    }
 
     /// The tests recorded failing for a mutant they killed, by a failed test or a crash. nil for any other mutant: a
     /// timeout's run records an empty list.
@@ -61,11 +66,8 @@ extension MuterTestReport.AppliedMutationOperator {
     var killedByCell: String {
         guard let killing = killedByTests else { return "-" }
         guard let first = killing.tests.first else { return "(none named)" }
-        let name = first.name.count > Self.killedByNameLimit
-            ? String(first.name.prefix(Self.killedByNameLimit - 1)) + "…"
-            : first.name
         let more = killing.count > 1 ? " (+\(killing.count - 1))" : ""
-        return name + more
+        return Self.shownName(first.name) + more
     }
 }
 
@@ -74,6 +76,22 @@ extension [MuterTestReport.FileReport] {
     var showsKillingTests: Bool {
         contains { report in report.appliedOperators.contains { $0.killedByTests != nil } }
     }
+}
+
+/// The Killing Tests section's table: each test's name, cut as the Killed By column cuts it, the file its issues were
+/// recorded in, and what it failed for.
+func generateKillingTestsCLITable(from summary: KillingTestSummary) -> CLITable {
+    let column = { (title: String, cell: (KillingTestSummary.Test) -> String) in
+        CLITable.Column(title: title, rows: summary.tests.map { CLITable.Row(value: cell($0)) })
+    }
+    return CLITable(padding: 3, columns: [
+        column("Test") { MuterTestReport.AppliedMutationOperator.shownName($0.name) },
+        column("File") { $0.file ?? "-" },
+        column("Mutants") { "\($0.mutants)" },
+        column("Files") { "\($0.files)" },
+        column("Only Recorded Failure Of") { "\($0.onlyRecordedFailureOf)" },
+        column("Suspect") { $0.suspect ? "yes" : "-" },
+    ])
 }
 
 func generateMutationScoresCLITable(

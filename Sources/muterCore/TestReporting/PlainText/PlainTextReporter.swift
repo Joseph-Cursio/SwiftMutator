@@ -45,7 +45,25 @@ final class PlainTextReporter: Reporter {
         \(generateMutationScoresCLITable(from: report.fileReports).description)
         """
 
-        return appliedMutationsMessage + mutationScoresMessage
+        return appliedMutationsMessage + killingTestsMessage(from: report) + mutationScoresMessage
+    }
+
+    /// The Killing Tests section, followed by the blank lines that end a section. None when no killed mutant has its
+    /// tests recorded, so such a report is as it was.
+    private func killingTestsMessage(from report: MuterTestReport) -> String {
+        guard let summary = report.killingTestSummary else { return "" }
+        // Without the line break CLITable ends each line with; none when there are no tests.
+        let tableLines = generateKillingTestsCLITable(from: summary).description
+            .split(separator: "\n")
+            .map(String.init)
+        let paragraphs: [String?] = [
+            "-------------\nKilling Tests\n-------------",
+            KillingTestSummary.introduction,
+            summary.countSentences.joined(separator: "\n"),
+            (tableLines + [summary.shownTestsSentence].compactMap { $0 }).joined(separator: "\n"),
+            summary.noVerdictSentence,
+        ]
+        return paragraphs.compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n\n") + "\n\n\n"
     }
 
     private func coverageMessage(from report: MuterTestReport) -> String {

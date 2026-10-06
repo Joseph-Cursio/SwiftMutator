@@ -10,7 +10,7 @@ final class RegressionSnapshotKeysTests: XCTestCase {
         let withoutKillingTests = MuterTestReport(from: outcome(namingKillingTests: false))
 
         let unfiltered = try XCTUnwrap(String(data: JSONEncoder().encode(withKillingTests), encoding: .utf8))
-        for key in ["killingTests"] {
+        for key in ["killingTests", "killingTestSummary"] {
             XCTAssertTrue(unfiltered.contains("\"\(key)\""), "the report has no \(key) to leave out")
             XCTAssertTrue(RegressionTests.keysToExclude.contains(key), key)
         }
