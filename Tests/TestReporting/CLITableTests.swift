@@ -77,4 +77,41 @@ final class CLITableTests: MuterTestCase {
     func test_emptyString() {
         XCTAssertEqual(CLITable.Column(title: "", rows: []).description, "")
     }
+
+    func test_aColumnAfterAColouredOne_linesUpWithItsTitle() {
+        // Literal colour codes, as Rainbow writes them when stdout is a terminal, so no global Rainbow state is needed.
+        let green = "\u{1B}[32m"
+        let reset = "\u{1B}[0m"
+        let resultColumn = CLITable.Column(title: "Result", rows: [
+            CLITable.Row(value: green + "mutant killed (test failure)" + reset),
+            CLITable.Row(value: green + "mutant killed" + reset),
+        ])
+        let table = CLITable(padding: 3, columns: [
+            CLITable.Column(title: "File", rows: [
+                CLITable.Row(value: "Sum.swift:3"),
+                CLITable.Row(value: "Product.swift:12"),
+            ]),
+            CLITable.Column(title: "Operator", rows: [
+                CLITable.Row(value: "RelationalOperatorReplacement"),
+                CLITable.Row(value: "SwapTernary"),
+            ]),
+            resultColumn,
+            CLITable.Column(title: "Killed By", rows: [
+                CLITable.Row(value: "sum()"),
+                CLITable.Row(value: "product() (+2)"),
+            ]),
+        ])
+
+        XCTAssertEqual(resultColumn.width, "mutant killed (test failure)".count)
+        XCTAssertTrue(table.description.contains(green + "mutant killed" + reset))
+        let visibleLines = table.description.split(separator: "\n").map {
+            $0.replacingOccurrences(of: "\u{1B}\\[[0-9;]*m", with: "", options: .regularExpression)
+        }
+        let killedByOffset = "Product.swift:12".count + "RelationalOperatorReplacement".count
+            + "mutant killed (test failure)".count + 3 * 3
+        XCTAssertEqual(
+            visibleLines.map { String($0.dropFirst(killedByOffset)) },
+            ["Killed By", "---------", "sum()", "product() (+2)"]
+        )
+    }
 }
