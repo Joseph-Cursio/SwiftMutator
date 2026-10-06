@@ -11,8 +11,11 @@ final class TestingSession {
     /// How long the earlier sessions' mutation testing took, all together: a resumed run's outcome adds it to this
     /// session's.
     let earlierTestDuration: TimeInterval
-    /// Each job's key, in job order.
+    /// Each job's key, in job order, known before the baseline runs.
     var keys: [MutantKey] = []
+    /// Whether the baseline passed. Until it has, mutation testing that stops has nothing to report, and posts no
+    /// early end: an abort says why.
+    var baselinePassed = false
     /// nil until the header is written, and for good if the file couldn't be created.
     var results: ResultsRecording?
     /// How many tested mutants the session recorded, each in a line of its own unless a write failed.

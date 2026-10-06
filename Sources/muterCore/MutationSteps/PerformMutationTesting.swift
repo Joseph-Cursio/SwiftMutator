@@ -111,6 +111,11 @@ private extension PerformMutationTesting {
         using state: AnyMutationTestState,
         session: TestingSession
     ) async throws {
+        // What there is to test doesn't depend on the baseline, so it's known before the baseline runs. Whether a stop
+        // has anything to report is whether the baseline passed, which the session records once it has.
+        let jobs = Self.jobs(of: state)
+        session.keys = MutantKey.keys(for: jobs.map(\.schema), under: state.mutatedProjectDirectoryURL)
+
         notificationCenter.post(name: .mutationTestingStarted, object: nil)
 
         // Only an explicit `true` asked for it, so only that is worth saying, and before the baseline run,
@@ -156,6 +161,7 @@ private extension PerformMutationTesting {
                 )
             )
         }
+        session.baselinePassed = true
 
         var muterConfiguration = state.muterConfiguration
         // A passing run can't show a failed test, so these tests print text shaped like one. Under a mutant it
@@ -176,11 +182,7 @@ private extension PerformMutationTesting {
         let configuration = muterConfiguration.withDefaultTestSuiteTimeout(
             max(timePerBuildTestCycle * Self.defaultTimeoutMultiplier, Self.minimumDefaultTimeout)
         )
-        let jobs = state.mutationMapping.flatMap { mutationMap in
-            mutationMap.mutationSchemata.map { MutantJob(fileName: mutationMap.fileName, schema: $0) }
-        }
         let workers = min(configuration.workerCount, jobs.count)
-        session.keys = MutantKey.keys(for: jobs.map(\.schema), under: state.mutatedProjectDirectoryURL)
 
         let resume = state.resumeState
         // Before the baseline's log, which starts the progress bar, so the results file's path is printed first.
@@ -237,7 +239,7 @@ private extension PerformMutationTesting {
         state: AnyMutationTestState,
         testDuration: TimeInterval
     ) {
-        guard !session.keys.isEmpty else { return }
+        guard session.baselinePassed else { return }
         notificationCenter.post(
             name: .mutationTestingEndedEarly,
             object: EarlyEnd(
@@ -257,6 +259,13 @@ private extension PerformMutationTesting {
     struct MutantJob {
         let fileName: FileName
         let schema: MutationSchema
+    }
+
+    /// Every discovered mutant, in job order: file by file as discovery mapped them, and in each file in its order.
+    static func jobs(of state: AnyMutationTestState) -> [MutantJob] {
+        state.mutationMapping.flatMap { mutationMap in
+            mutationMap.mutationSchemata.map { MutantJob(fileName: mutationMap.fileName, schema: $0) }
+        }
     }
 
     func testMutations(
