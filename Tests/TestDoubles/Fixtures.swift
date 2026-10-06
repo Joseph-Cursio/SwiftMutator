@@ -423,8 +423,14 @@ extension MutantResult {
         line: Int = 73,
         column: Int = 22,
         occurrence: Int = 0,
+        utf8Offset: Int = 3361,
+        mutationOperatorId: MutationOperator.Id = .ror,
+        switchID: String? = nil,
+        snapshot: MutationOperator.Snapshot = .make(before: ">", after: "<", description: "changed > to <"),
         outcome: TestSuiteOutcome = .failed,
-        finishedAt: Date = ResultsHeader.fixedStart.addingTimeInterval(31.25)
+        endedBy: TestRun.Ending = .exited,
+        finishedAt: Date = ResultsHeader.fixedStart.addingTimeInterval(31.25),
+        fileSHA256: String? = nil
     ) -> MutantResult {
         MutantResult(
             session: session,
@@ -432,21 +438,21 @@ extension MutantResult {
             line: line,
             column: column,
             occurrence: occurrence,
-            utf8Offset: 3361,
-            mutationOperatorId: .ror,
-            switchID: "Sum_RelationalOperatorReplacement_\(line)_\(column)_3361",
-            snapshot: .make(before: ">", after: "<", description: "changed > to <"),
+            utf8Offset: utf8Offset,
+            mutationOperatorId: mutationOperatorId,
+            switchID: switchID ?? "Sum_\(mutationOperatorId.rawValue)_\(line)_\(column)_\(utf8Offset)",
+            snapshot: snapshot,
             outcome: outcome,
-            endedBy: .exited,
-            exitStatus: outcome == .passed ? 0 : 1,
+            endedBy: endedBy,
+            exitStatus: endedBy == .exited ? (outcome == .passed ? 0 : 1) : nil,
             durationSeconds: 31.25,
             worker: 0,
             finishedAt: finishedAt,
             killedBy: nil,
             failedTestCount: nil,
             firstFailedTestLine: nil,
-            log: "RelationalOperatorReplacement @ Sum.swift-\(line)-\(column).log",
-            fileSHA256: nil
+            log: "\(mutationOperatorId.rawValue) @ Sum.swift-\(line)-\(column).log",
+            fileSHA256: fileSHA256
         )
     }
 }
