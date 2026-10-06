@@ -66,6 +66,7 @@ private extension [MutationStep] {
         CreateMutatedProjectDirectoryURL(),
         PreviousRunCleanUp(),
         CopyProjectToTempDirectory(),
+        FingerprintProjectTree(),
         DiscoverProjectCoverage(),
         DiscoverSourceFiles(),
         DiscoverMutationPoints(),

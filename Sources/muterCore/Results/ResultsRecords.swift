@@ -113,6 +113,9 @@ struct ResultsHeader: Codable, Equatable {
     let failedTestLinesAreReliable: Bool
     let mutantsDiscovered: Int
     let mutantsToTest: Int
+    /// The project's files, as the mutated copy held them before discovery rewrote it. Absent when the run tested a
+    /// test plan, which copies nothing.
+    let project: ProjectTree?
 }
 
 extension ResultsHeader {
@@ -155,7 +158,8 @@ extension ResultsHeader {
             stopsAtFirstFailure: configuration.stopsAtFirstFailure,
             failedTestLinesAreReliable: configuration.failedTestLinesAreReliable,
             mutantsDiscovered: mutantsDiscovered,
-            mutantsToTest: mutantsToTest
+            mutantsToTest: mutantsToTest,
+            project: state.projectTree
         )
     }
 }

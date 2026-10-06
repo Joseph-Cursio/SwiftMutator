@@ -357,7 +357,8 @@ extension ResultsHeader {
         coverage: CoverageSummary? = nil,
         newVersion: String = "",
         mutantsDiscovered: Int = 3,
-        mutantsToTest: Int = 3
+        mutantsToTest: Int = 3,
+        project: ProjectTree? = nil
     ) -> ResultsHeader {
         ResultsHeader(
             formatVersion: formatVersion,
@@ -381,7 +382,8 @@ extension ResultsHeader {
             stopsAtFirstFailure: false,
             failedTestLinesAreReliable: true,
             mutantsDiscovered: mutantsDiscovered,
-            mutantsToTest: mutantsToTest
+            mutantsToTest: mutantsToTest,
+            project: project
         )
     }
 }

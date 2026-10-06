@@ -16,9 +16,11 @@ final class ResultsRecordTests: XCTestCase {
 
     func test_aHeaderAndAnEndRecordRoundTrip() throws {
         let header = makeHeader()
+        let headerWithoutAProject = makeHeader(project: nil)
         let end = makeEnd()
 
         XCTAssertEqual(try decode(ResultsHeader.self, from: line(header)), header)
+        XCTAssertEqual(try decode(ResultsHeader.self, from: line(headerWithoutAProject)), headerWithoutAProject)
         XCTAssertEqual(try decode(ResultsEnd.self, from: line(end)), end)
     }
 
@@ -124,6 +126,7 @@ final class ResultsRecordTests: XCTestCase {
                 coverage: nil,
                 baselineSeconds: nil,
                 timeoutSeconds: nil,
+                project: nil,
                 provenance: Provenance(
                     swiftMutator: .init(version: "1.0.0", executablePath: nil, executableSHA256: nil),
                     toolchain: .init(testCommandVersion: nil, testExecutableSHA256: nil, environment: [:]),
@@ -141,7 +144,7 @@ final class ResultsRecordTests: XCTestCase {
         }
         for key in [
             "coverage", "baselineSeconds", "timeoutSeconds", "executablePath", "executableSHA256",
-            "testCommandVersion", "testExecutableSHA256", "mutationTestTimeout", "buildSystem",
+            "testCommandVersion", "testExecutableSHA256", "mutationTestTimeout", "buildSystem", "project",
         ] {
             XCTAssertFalse(header.contains("\"\(key)\""), "\(key) in \(header)")
         }
@@ -303,6 +306,8 @@ final class ResultsRecordTests: XCTestCase {
             stopAtFirstFailure: true
         )
         state.muterConfiguration = loaded
+        let project = makeProjectTree()
+        state.projectTree = project
         let effective = loaded.withUnreliableFailedTestLines().withDefaultTestSuiteTimeout(96.5)
 
         let header = ResultsHeader(
@@ -342,7 +347,8 @@ final class ResultsRecordTests: XCTestCase {
                 stopsAtFirstFailure: false,
                 failedTestLinesAreReliable: false,
                 mutantsDiscovered: 7,
-                mutantsToTest: 7
+                mutantsToTest: 7,
+                project: project
             )
         )
         XCTAssertEqual(header.kind, "header")
@@ -370,6 +376,7 @@ final class ResultsRecordTests: XCTestCase {
         XCTAssertFalse(header.timeoutIsDefault)
         XCTAssertTrue(header.usingTestPlan)
         XCTAssertNil(header.coverage)
+        XCTAssertNil(header.project)
         XCTAssertTrue(header.stopsAtFirstFailure)
         XCTAssertTrue(header.failedTestLinesAreReliable)
     }
@@ -490,6 +497,12 @@ private extension ResultsRecordTests {
         coverage: CoverageSummary? = CoverageSummary(percent: 87, filesWithoutCoverage: ["Sources/Untested.swift"]),
         baselineSeconds: Double? = 32.104,
         timeoutSeconds: Double? = 96.312,
+        project: ProjectTree? = .init(
+            listedBy: .git,
+            files: ["Package.swift": "3f1a", "Sources/Core/Walker.swift": "c07e", "README.md": "link:9d42"],
+            excluded: ["mutation-report.partial.txt", "mutation-report.txt"],
+            treeSHA256: "e5b8"
+        ),
         provenance: Provenance = .fixture
     ) -> ResultsHeader {
         ResultsHeader(
@@ -518,8 +531,14 @@ private extension ResultsRecordTests {
             stopsAtFirstFailure: false,
             failedTestLinesAreReliable: true,
             mutantsDiscovered: 2497,
-            mutantsToTest: 2497
+            mutantsToTest: 2497,
+            project: project
         )
+    }
+
+    func makeProjectTree() -> ProjectTree {
+        let files = ["Sources/Sum.swift": "5a1c", "README.md": "0b9d"]
+        return ProjectTree(listedBy: .walk, files: files, excluded: [], treeSHA256: ProjectTree.treeHash(of: files))
     }
 
     func makeEnd(

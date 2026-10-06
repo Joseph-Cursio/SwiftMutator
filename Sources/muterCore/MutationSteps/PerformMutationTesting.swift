@@ -416,15 +416,17 @@ private extension PerformMutationTesting {
             position: job.schema.position
         )
 
+        let key = session.keys[finished.index]
         write(
             MutantResult(
-                key: session.keys[finished.index],
+                key: key,
                 schema: job.schema,
                 finished: finished,
                 configuration: configuration,
                 session: session.number,
                 finishedAt: now(),
-                log: MutationTestLog.keptFileName(for: mutationPoint)
+                log: MutationTestLog.keptFileName(for: mutationPoint),
+                fileSHA256: state.projectTree?.files[key.path]
             ),
             in: session
         )

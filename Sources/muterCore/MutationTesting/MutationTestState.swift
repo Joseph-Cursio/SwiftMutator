@@ -21,6 +21,9 @@ protocol AnyMutationTestState: AnyObject {
     /// The folder the run's test logs are kept in, `<project>_muter_logs/<timestamp>`, so a step can keep other
     /// files of the run beside them; "" until the handler has created it.
     var loggingDirectory: String { get }
+    /// The project's files as the copy held them before discovery rewrote it; nil until the copy is fingerprinted,
+    /// and for good in a run that tests a test plan.
+    var projectTree: ProjectTree? { get }
 
     func apply(_ stateChanges: [MutationTestState.Change])
 }
@@ -43,6 +46,7 @@ final class MutationTestState: AnyMutationTestState {
     var swapFilePathsByOriginalPath: [FilePath: FilePath] = [:]
     var mutationTestOutcome: MutationTestOutcome = .init()
     var loggingDirectory = ""
+    var projectTree: ProjectTree?
 
     init() {}
 
@@ -68,6 +72,7 @@ extension MutationTestState {
         case swapFilePathGenerated([FilePath: FilePath])
         case mutationTestOutcomeGenerated(MutationTestOutcome)
         case loggingDirectoryCreated(String)
+        case projectTreeFingerprinted(ProjectTree)
     }
 }
 
@@ -101,6 +106,8 @@ extension MutationTestState {
                 self.mutationTestOutcome = mutationTestOutcome
             case let .loggingDirectoryCreated(loggingDirectory):
                 self.loggingDirectory = loggingDirectory
+            case let .projectTreeFingerprinted(projectTree):
+                self.projectTree = projectTree
             }
         }
     }

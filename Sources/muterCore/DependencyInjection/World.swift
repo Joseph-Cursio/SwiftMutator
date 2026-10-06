@@ -62,6 +62,7 @@ struct World {
     var testingTimeOutExecutor: TestingTimeoutExecutorFactory = { TestingTimeoutExecutor() }
     var provenance: ProvenanceProbe = { Provenance.probe($0) }
     var resultsFiles: ResultsFileOpening = ResultsFile.Opener()
+    var listProjectFiles: ProjectFileListing = GitFileListing.list(in:)
     /// The signal that stopped this run, if one did.
     var interruption = InterruptionRecord()
 }
