@@ -87,12 +87,7 @@ enum RemoveSideEffectsOperator {
         private func removeSideEffectAt(_ body: CodeBlockSyntax) {
             let statements = body.statements
             for statement in body.statements where statementContainsMutableToken(statement) {
-                // By identity, not text: an identical statement elsewhere in the block is a mutant of its own.
-                let mutatedFunctionStatements = body
-                    .statements
-                    .exclude { $0.id == statement.id }
-
-                let newCodeBlockItemList = CodeBlockItemListSyntax(mutatedFunctionStatements)
+                let newCodeBlockItemList = statements.removing(statement)
 
                 let position = endLocation(for: statement)
                 let snapshot = MutationOperator.Snapshot(
@@ -227,5 +222,34 @@ enum RemoveSideEffectsOperator {
         private func propertyName(from patternSyntax: PatternBindingSyntax) -> String {
             patternSyntax.pattern.description.trimmed
         }
+    }
+}
+
+private extension CodeBlockItemListSyntax {
+    /// The list without `statement`, which is matched by identity rather than text, because an identical
+    /// statement elsewhere in the block is a mutant of its own.
+    ///
+    /// The removed statement takes its leading trivia with it, and that trivia holds the line break before it.
+    /// A statement after it on the same line, following a `;`, has no line break of its own. So it is given the
+    /// removed statement's leading trivia: the line break, plus any comments above the line, which applied to
+    /// the whole line. Without that, removing `reload();` from `prepare()` followed by `reload(); notify()`
+    /// joined `notify()` to the line above. `prepare()notify()` doesn't compile, and fails the build that every
+    /// mutant shares. After a `//` comment, `notify()` became part of the comment.
+    func removing(_ statement: Element) -> CodeBlockItemListSyntax {
+        var remaining = [Element]()
+        var removedTrivia: Trivia?
+        for item in self {
+            if item.id == statement.id {
+                removedTrivia = item.leadingTrivia
+                continue
+            }
+            var kept = item
+            if let trivia = removedTrivia, !item.leadingTrivia.contains(where: \.isNewline) {
+                kept.leadingTrivia = trivia + item.leadingTrivia
+            }
+            removedTrivia = nil
+            remaining.append(kept)
+        }
+        return CodeBlockItemListSyntax(remaining)
     }
 }
