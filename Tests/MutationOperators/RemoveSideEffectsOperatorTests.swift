@@ -113,6 +113,92 @@ final class RemoveSideEffectsOperatorTests: MuterTestCase {
         ])
     }
 
+    // Removing a statement took the newline before it too, so a statement after it on the same
+    // line, after a `;`, joined the line above. `prepare()notify()` doesn't compile, which fails
+    // the build every mutant shares and aborts the whole run.
+    func test_keepsTheNextStatementOnItsOwnLine_whenTheRemovedOneSharedIt() throws {
+        let remainingByRemoved = try remainingStatementsByRemoved(
+            in: """
+            func refresh() {
+                prepare()
+                reload(); notify()
+            }
+            """
+        )
+
+        XCTAssertEqual(remainingByRemoved["reload();"], "\n    prepare()\n    notify()")
+    }
+
+    // After a `//` comment, the joined statement moved into the comment: the mutant compiled, but
+    // removed `notify()` too, so the report described it wrongly.
+    func test_keepsTheNextStatementOutOfAComment_whenTheRemovedOneSharedItsLine() throws {
+        let remainingByRemoved = try remainingStatementsByRemoved(
+            in: """
+            func refresh() {
+                prepare() // note
+                reload(); notify()
+            }
+            """
+        )
+
+        XCTAssertEqual(remainingByRemoved["reload();"], "\n    prepare() // note\n    notify()")
+    }
+
+    func test_keepsTheNextStatementOnItsOwnLine_withCRLFLineEndings() throws {
+        let remainingByRemoved = try remainingStatementsByRemoved(
+            in: ["func refresh() {", "    prepare()", "    reload(); notify()", "}"].joined(separator: "\r\n")
+        )
+
+        XCTAssertEqual(remainingByRemoved["reload();"], "\r\n    prepare()\r\n    notify()")
+    }
+
+    // A block's first statement compiled either way, since the switch branch's `{` comes before it,
+    // but the next statement lost the block's line break and indentation and sat against that `{`.
+    func test_keepsTheNextStatementOnItsOwnLine_whenTheRemovedOneOpensTheBlock() throws {
+        let remainingByRemoved = try remainingStatementsByRemoved(
+            in: """
+            func refresh() {
+                reload(); notify()
+                prepare()
+            }
+            """
+        )
+
+        XCTAssertEqual(remainingByRemoved["reload();"], "\n    notify()\n    prepare()")
+    }
+
+    // Only the statement straight after the removed one moves. One that already follows a `;` that
+    // stays, as `notify()` does when `reload();` goes, is left where it is.
+    func test_movesOnlyTheNextStatement_whenALineHoldsThree() throws {
+        let remainingByRemoved = try remainingStatementsByRemoved(
+            in: """
+            func refresh() {
+                prepare()
+                load(); reload(); notify()
+            }
+            """
+        )
+
+        XCTAssertEqual(remainingByRemoved["load();"], "\n    prepare()\n    reload(); notify()")
+        XCTAssertEqual(remainingByRemoved["reload();"], "\n    prepare()\n    load(); notify()")
+    }
+
+    /// Each mutant's whole statement list, exactly, keyed by the statement it removes.
+    private func remainingStatementsByRemoved(in code: String) throws -> [String: String] {
+        let source = try sourceCode(code)
+        let visitor = RemoveSideEffectsOperator.Visitor(
+            sourceCodeInfo: .init(path: "/path/to/file", code: source)
+        )
+
+        visitor.walk(source)
+
+        return Dictionary(
+            uniqueKeysWithValues: visitor.schemataMappings.mutationSchemata.map {
+                ($0.snapshot.before, $0.syntaxMutation.description)
+            }
+        )
+    }
+
     func test_sideEffectsInDoStatement() throws {
         let source = try sourceCode(
             """
