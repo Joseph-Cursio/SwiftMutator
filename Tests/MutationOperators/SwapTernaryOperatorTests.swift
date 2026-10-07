@@ -174,6 +174,34 @@ final class SwapTernaryOperatorTests: MuterTestCase {
         }
     }
 
+    // The reparse of the mutated block must be told where the edit is in UTF-8 bytes. It was told
+    // in characters, so multi-byte text earlier in the block put the edit before the statement
+    // being mutated. The reparse then reused that statement unmutated and appended the swap's
+    // leftover tail, `return flag ? face : "none"ce`, which does not compile.
+    func test_swapsATernaryAfterMultiByteText() throws {
+        let mutations = try swappedMutations(of: """
+        func pick(_ flag: Bool) -> String {
+            let face = "🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂"
+            return flag ? face : "none"
+        }
+        """)
+
+        XCTAssertEqual(mutations, [#"let face = "🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂" return flag ? "none" : face"#])
+    }
+
+    // The swap is three bytes longer than the ternary, but the reparse was told that the text after
+    // it had not moved. A statement that now started where another used to start was taken to be
+    // that other one: here `ab` was dropped and `ef` appeared twice.
+    func test_keepsTheStatementsAfterATernaryThatGrows() throws {
+        let mutations = try swappedMutations(of: """
+        func pick(_ flag: Bool, _ ab: Int, _ cd: Int, _ ef: Int) {
+            let value = flag ? 1 : 2;ab;cd;ef
+        }
+        """)
+
+        XCTAssertEqual(mutations, ["let value = flag ? 2 : 1 ;ab;cd;ef"])
+    }
+
     /// Each mutation's text with runs of whitespace collapsed, so the assertions read like source.
     private func swappedMutations(of text: String) throws -> [String] {
         let source = try sourceCode(text)

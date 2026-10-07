@@ -80,6 +80,39 @@ final class RemoveSideEffectsOperatorTests: MuterTestCase {
         XCTAssertEqual(remaining.sorted(), ["log(event) reload()", "reload() log(event)", "reload() reload()"])
     }
 
+    // The reparse of the shortened block was told where the edit ends in characters, not UTF-8
+    // bytes. After multi-byte text that put the end too early, and the reparse took the statements
+    // after it from the wrong place: the mutant meant to remove `notify()` removed `reload()`.
+    func test_removesItsOwnStatement_afterMultiByteText() throws {
+        let source = try sourceCode(
+            """
+            func refresh() {
+                let label = "🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂"
+                record(label)
+                reload()
+                notify()
+            }
+            """
+        )
+        let visitor = RemoveSideEffectsOperator.Visitor(
+            sourceCodeInfo: .init(path: "/path/to/file", code: source)
+        )
+
+        visitor.walk(source)
+
+        let remainingByRemoved = Dictionary(
+            uniqueKeysWithValues: visitor.schemataMappings.mutationSchemata.map {
+                ($0.snapshot.before, $0.syntaxMutation.description.trimmed.inlined)
+            }
+        )
+        let label = #"let label = "🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂""#
+        XCTAssertEqual(remainingByRemoved, [
+            "record(label)": "\(label) reload() notify()",
+            "reload()": "\(label) record(label) notify()",
+            "notify()": "\(label) record(label) reload()",
+        ])
+    }
+
     func test_sideEffectsInDoStatement() throws {
         let source = try sourceCode(
             """
