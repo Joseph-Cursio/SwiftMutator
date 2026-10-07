@@ -12,8 +12,9 @@ This started as a ranked review of SwiftMutator on 2 October 2026, at commit `4b
   - Killing tests and suspect tests (§2.2 items 1–3, PRs #38 and #47).
   - The bugs found while implementing, fixed in PRs #28, #31–#34, #36, #43 and #44.
   - The reparse edit's UTF-8 range (PR #49).
+  - RemoveSideEffects joining a `;`-separated statement onto the line above (PR #52).
 
-  Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except PR #49's, which is in the PR itself.
+  Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52, which are in the PRs themselves.
 - **Section numbers are the original ones,** so references in PRs and notes still work. A missing number is a finished section.
 
 ## The workload these numbers come from
@@ -164,7 +165,7 @@ Discovery has merged mutants by full path since PR #25. Deferred:
 
 ### 2.6 One uncompilable mutant switch aborts the whole run
 
-- **What happens.** A compile error in any of the ~300 rewritten files fails the baseline (`PerformMutationTesting.swift:168-200`). That ends the run after the copy, discovery and a ~95 s baseline. Stryker puts the offending mutants back instead, and cargo-mutants and mull mark them "unviable". The RemoveSideEffects bug under [Open bugs](#open-bugs) is one way to hit this today.
+- **What happens.** A compile error in any of the ~300 rewritten files fails the baseline (`PerformMutationTesting.swift:168-200`). That ends the run after the copy, discovery and a ~95 s baseline. Stryker puts the offending mutants back instead, and cargo-mutants and mull mark them "unviable". The mutant-switch brace bug under [Open bugs](#open-bugs) is one way to hit this today.
 - **Proposal.**
   1. Make the build of the mutated project its own step. For SwiftPM it happens inside the baseline test run today.
   2. On failure, match each compiler error's path to a rewritten file, by full path in the copy, and restore that file from the original project. `CompilerError.all(in:)` (`MutationTestingAbortReason.swift:141-143`) already parses the errors.
@@ -188,11 +189,11 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
 
 ## Open bugs
 
-- **RemoveSideEffects can join two statements and break the build (S).** Removing the first of two `;`-separated statements on one line also drops that statement's leading newline (`RemoveSideEffectsOperator.swift:91-95`).
-  - `prepare()` followed by `reload(); notify()` becomes `prepare()notify()`, which doesn't compile. Every mutant is compiled into one project, so this fails the baseline and aborts the whole run (§2.6).
-  - If the line above ends in a `//` comment, `notify()` moves into the comment. That mutant compiles, but removes two statements, so the report describes it wrongly.
-  - It's correct when the removed statement is the first in its block.
-  - Fix: when the next statement's leading trivia has no newline, give it the removed statement's leading trivia. Write failing tests for both cases first.
+- **A mutant switch's closing brace can join the last statement's line and break the build (S).** Found while fuzzing PR #52, and older than it. `MutationSwitch` gives each branch's closing `}` the leading trivia of the statement list (`MutationSwitch.swift:19-20`, `:35-36`, `:57-58`).
+  - When a block's first statement sits on the `{` line, as in `do { let _ = compute()`, that trivia has no line break, so the `}` lands at the end of the block's last line.
+  - If that line ends in a `//` comment, the `}` becomes part of the comment. If it ends in `#endif`, the compiler reports extra tokens after the directive. Either way the build that every mutant shares fails, and the whole run aborts (§2.6).
+  - In the fuzz corpus, 50 of 11,064 generated files failed this way, on `main` and with PR #52 alike.
+  - Fix: start the `}`'s leading trivia with a line break when the list's has none. A scratch patch to the three sites brought the 50 failures to 0. Add tests for a block whose last line ends in a `//` comment, and for one that ends in `#endif`.
 - **`TokenAwareVisitor`'s own edit range is redundant, and fragile (S).**
   - Its `transform` override (`TokenAwareVisitor.swift:68-97`) ends the edit at the mutation's length in Characters.
   - Every relational and logical mutation today has the same length as its operator, so it matches the position lookup that PR #31 added to the base class. A scratch comparison on ASCII, emoji and CRLF sources gave identical results.
@@ -332,7 +333,7 @@ Added on 7 October, from a discussion of using property-based tests (PBT) alongs
 
 ## Suggested order
 
-1. **The RemoveSideEffects bug and `TokenAwareVisitor`'s override,** with the CRLF test. They're small, and the first can abort a whole run.
+1. **The mutant-switch brace bug and `TokenAwareVisitor`'s override,** with the CRLF test for PR #49. They're small, and the first can abort a whole run.
 2. **A default time limit based on test time** (§2.7). It's the cheapest speed-up left, about 8.5 min.
 3. **Progress output** that works in a log file (§3).
 4. **Coverage** (§1.3). It saves about 11 min, and stops counting code that no test runs as survivors.
@@ -341,7 +342,7 @@ Added on 7 October, from a discussion of using property-based tests (PBT) alongs
 
 ## Outside this repo
 
-- **Upstream Muter.** The fixes in PRs #25, #27 and #49 also apply to upstream Muter at `7f1f258`, and PR #26's once muter#309 and muter#312 are in. Each PR's body says how to port it. They're held until upstream's CI is green again.
+- **Upstream Muter.** The fixes in PRs #25, #27, #49 and #52 also apply to upstream Muter at `7f1f258`, and PR #26's once muter#309 and muter#312 are in. Each PR's body says how to port it. They're held until upstream's CI is green again.
 - **`swift-quality`.**
   - It prints `swift --version` before it changes into the project folder (lines 75 and 80 at dotfiles-claude `cf472b0`), so its header can name the wrong toolchain.
   - Add start and end timestamps to `summary.txt`.
