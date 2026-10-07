@@ -179,14 +179,13 @@ class MuterVisitor: SyntaxAnyVisitor {
             return codeBlockItemListSyntax
         }
 
-        let mutationPositionInCodeBlock = codeBlockDescription.distance(
-            to: range.lowerBound
-        )
-
-        let editEnd = mutationPositionInCodeBlock + max(mutatedSyntax.description.count, node.description.count)
+        // The incremental parse reuses every statement after the edit, so the edit must be exact
+        // and in UTF-8 bytes: the replaced text's bytes, replaced by the mutation's.
+        let utf8 = codeBlockDescription.utf8
         let edit = SourceEdit(
-            range: AbsolutePosition(utf8Offset: mutationPositionInCodeBlock) ..< AbsolutePosition(utf8Offset: editEnd),
-            replacement: Array(repeating: UInt8(ascii: " "), count: mutatedSyntax.description.count)
+            range: AbsolutePosition(utf8Offset: utf8.distance(from: utf8.startIndex, to: range.lowerBound))
+                ..< AbsolutePosition(utf8Offset: utf8.distance(from: utf8.startIndex, to: range.upperBound)),
+            replacement: mutationDescription
         )
 
         let codeBlockWithMutation = codeBlockDescription.replacingCharacters(

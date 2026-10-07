@@ -108,4 +108,27 @@ final class ChangeLogicalConnectorOperatorTests: MuterTestCase {
             .rewrite(sampleWithFailuresParsing.code)
         AssertSnapshot(rewritten.description)
     }
+
+    // The reparse of the mutated block was told where the edit is in characters, not UTF-8 bytes.
+    // Multi-byte text on an earlier line put the edit before the connector's statement, so the
+    // reparse reused that statement unmutated: the mutant was the original, reported as survived.
+    func test_changesAConnectorAfterMultiByteText() throws {
+        let source = try sourceCode(
+            """
+            func both(_ a: Bool, _ b: Bool) -> Bool {
+                let face = "🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂"
+                print(face)
+                return a && b
+            }
+            """
+        )
+        let visitor = ChangeLogicalConnectorOperator.Visitor(
+            sourceCodeInfo: .init(path: "/path/to/file", code: source)
+        )
+
+        visitor.walk(source)
+
+        let mutations = visitor.schemataMappings.mutationSchemata.map { $0.syntaxMutation.description.trimmed.inlined }
+        XCTAssertEqual(mutations, [#"let face = "🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂" print(face) return a || b"#])
+    }
 }

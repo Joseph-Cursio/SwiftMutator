@@ -89,4 +89,27 @@ final class ROROperatorTests: MuterTestCase {
             .rewrite(source)
         AssertSnapshot(formatCode(rewritten.description))
     }
+
+    // The reparse of the mutated block was told where the edit is in characters, not UTF-8 bytes.
+    // Multi-byte text on an earlier line put the edit before the comparison's statement, so the
+    // reparse reused that statement unmutated: the mutant was the original, reported as survived.
+    func test_mutatesAComparisonAfterMultiByteText() throws {
+        let source = try sourceCode(
+            """
+            func matches(_ a: Int, _ b: Int) -> Bool {
+                let label = "バルーンの表示判定"
+                print(label)
+                return a == b
+            }
+            """
+        )
+        let visitor = ROROperator.Visitor(
+            sourceCodeInfo: .init(path: "/path/to/file", code: source)
+        )
+
+        visitor.walk(source)
+
+        let mutations = visitor.schemataMappings.mutationSchemata.map { $0.syntaxMutation.description.trimmed.inlined }
+        XCTAssertEqual(mutations, [#"let label = "バルーンの表示判定" print(label) return a != b"#])
+    }
 }
