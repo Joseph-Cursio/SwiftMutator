@@ -299,6 +299,32 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
 
 ---
 
+## 5. Example tests and property tests
+
+Added on 7 October, from a discussion of using property-based tests (PBT) alongside mutation testing. Not in the suggested order: it's a feature, not a fix, and its first step only reads existing results.
+
+- **The idea.** Report which kind of test kills each mutant, so the score can be split by kind. It can also show how much each property constrains the code: mutants make a measure of a property's strength.
+- **What exists.** Each `mutant` line in `results.jsonl` has `killedBy`: each failing test's name and `file:line:col`, at most 20 (`ResultsRecords.swift:219-221`, `FailedTestLine.swift:95`). A test's file or suite can mark it as a property test, so no new recording is needed to start.
+- **Measures worth reporting.**
+  - **Kills only by examples, only by properties, and by both.** A property's value is the mutants that only it kills. Two separate scores, one for examples and one for properties, overlap and hide this.
+  - **Kills per property, and kills only that property makes.** A property that kills many mutants may just be broad, for example a round trip through the whole pipeline. The unique count says more.
+  - **The same denominator as the headline score.** All tested mutants, timeouts included (§2.7), so the split adds up to the headline.
+- **Measures to leave out.**
+  - **"It survived a property too, so it's not a test gap."** A survivor that passes a property only shows that the property doesn't constrain that change. It's evidence of equivalence only when the properties fully specify the behaviour, as "ordered" plus "a permutation" do for a sort. Most code has no full specification, so a mutant that survives both kinds is as likely a gap in both.
+  - **A score over "non-equivalent" mutants.** Equivalence can't be decided automatically. Until survivors are triaged by hand, and the triage stored by mutant key so it carries across runs (§1.4's reuse uses the same keys), such a score is the headline score under another name.
+  - **A fixed target, such as 80%, or "no regressions".** These are policy choices, not standards. A "no regressions" check also needs a tolerance: SwiftProjectLint's score moves a point or two between runs from test noise alone (see [Outside this repo](#outside-this-repo)). It needs `--fail-under` and a run-to-run comparison too (§3).
+- **The catch: fail-fast.** A run stopped at its first failed test records only that test (§2.2). So an example test that fails first hides any property test that would also have killed the mutant, and "both" and "only by examples" can't be told apart. Options:
+  1. Run with `stopAtFirstFailure: false`. Every kill is then complete, up to the 20-test cap. But fail-fast cut run time by 37% in PR #41's A/B, so turning it off makes a run about 1.6 times as long.
+  2. **A second pass over killed mutants, running only the property tests,** with fail-fast on. It needs property tests to be selectable by name, for example in their own suites, since `swift test --filter` selects by name. This costs one property-suite run per killed mutant whose recorded killers include no property test. Property tests run many inputs, so this is unmeasured.
+  3. Report only what fail-fast recorded, and say the property counts are lower bounds. That's free, and enough for a first look.
+- **Steps.**
+  1. In `report`, take a pattern for property tests (a file or suite name) and print the split and the per-property counts from `killedBy`, as lower bounds when runs stopped early. No change to runs.
+  2. Option 2's second pass, if the lower bounds are too loose to be useful.
+  3. Triage labels for survivors (missing test, equivalent, out of scope, tool limitation), stored by mutant key, and shown in reports.
+- **Elsewhere.** SwiftInferProperties infers properties. This would measure how much they constrain the code.
+
+---
+
 ## Checked and not worth doing
 
 - **One mutant per line.** On 2 October, 2,478 inserted mutants sat on 2,205 lines, so a cap would save at most 11%. That was before PR #25 inserted every mutant, but that run's 2,487 logs give the same 11%.
