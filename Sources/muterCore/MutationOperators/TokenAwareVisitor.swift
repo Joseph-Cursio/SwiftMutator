@@ -64,46 +64,6 @@ class TokenAwareVisitor: MuterVisitor {
 
         return Syntax(tokenSyntax)
     }
-
-    override func transform(
-        node: SyntaxProtocol,
-        mutatedSyntax: SyntaxProtocol,
-        at mutationRange: Range<String.Index>? = nil
-    ) -> CodeBlockItemListSyntax {
-        let codeBlockItemListSyntax = node.codeBlockItemListSyntax
-        let codeBlockDescription = codeBlockItemListSyntax.description
-        let utf8Offset = node.offsetInCodeBlockItemListSyntax(sourceCodeInfo)
-
-        guard let nodePositionOffset = codeBlockDescription.convertToCharOffset(from: utf8Offset) else {
-            return super.transform(node: node, mutatedSyntax: mutatedSyntax, at: mutationRange)
-        }
-
-        let nodeStartRange = codeBlockDescription.index(
-            codeBlockDescription.startIndex,
-            offsetBy: nodePositionOffset
-        )
-
-        let nodeEndRange = codeBlockDescription.index(
-            codeBlockDescription.startIndex,
-            offsetBy: nodePositionOffset + mutatedSyntax.description.count
-        )
-        let mutationRangeInCodeBlock = nodeStartRange ..< nodeEndRange
-
-        return super.transform(
-            node: node,
-            mutatedSyntax: mutatedSyntax,
-            at: mutationRangeInCodeBlock
-        )
-    }
-}
-
-private extension SyntaxProtocol {
-    func offsetInCodeBlockItemListSyntax(_ sourceCode: SourceCodeInfo) -> Int {
-        let nodePosition = mutationPosition(with: sourceCode)
-        let codeBlockItemListSyntax = codeBlockItemListSyntax.mutationPosition(with: sourceCode)
-
-        return nodePosition.utf8Offset - codeBlockItemListSyntax.utf8Offset
-    }
 }
 
 private extension SequenceExprSyntax {

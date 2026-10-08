@@ -152,4 +152,19 @@ final class ChangeLogicalConnectorOperatorTests: MuterTestCase {
         let mutatedBody = (calls + ["    let ok = a || b", "    return ok"]).map { "\r\n" + $0 }.joined()
         XCTAssertEqual(mutations, [mutatedBody])
     }
+
+    // A name can start with a combining mark such as U+064B, which joins the space before it into one
+    // character. TokenAwareVisitor's own range ended three characters after the start of `&& `, which
+    // here is after the mark, so the mutant lost it: `a || x`, which does not compile.
+    func test_keepsACombiningMarkThatStartsTheNameAfterTheConnector() throws {
+        let source = try sourceCode("func f(a: Bool, b: Bool) -> Bool {\n    let \u{064B}x = b\n    return a && \u{064B}x\n}")
+        let visitor = ChangeLogicalConnectorOperator.Visitor(
+            sourceCodeInfo: .init(path: "/path/to/file", code: source)
+        )
+
+        visitor.walk(source)
+
+        let mutations = visitor.schemataMappings.mutationSchemata.map(\.syntaxMutation.description)
+        XCTAssertEqual(mutations, ["\n    let \u{064B}x = b\n    return a || \u{064B}x"])
+    }
 }
