@@ -131,4 +131,40 @@ final class ChangeLogicalConnectorOperatorTests: MuterTestCase {
         let mutations = visitor.schemataMappings.mutationSchemata.map { $0.syntaxMutation.description.trimmed.inlined }
         XCTAssertEqual(mutations, [#"let face = "🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂" print(face) return a || b"#])
     }
+
+    // The same with CRLF line endings: a CRLF is one character but two UTF-8 bytes, so the edit
+    // started a byte early for each one before the connector. Once they outnumbered the connector's
+    // distance from the start of its statement plus the edit's length, here 21 CRLFs, the edit ended
+    // before that statement, and the reparse reused it unmutated. 40 lines leave a margin.
+    func test_changesAConnectorInAFileWithCRLFLineEndings() throws {
+        let calls = Array(repeating: "    x()", count: 40)
+        let source = try sourceCode(
+            (["func both(_ a: Bool, _ b: Bool) -> Bool {"] + calls + ["    let ok = a && b", "    return ok", "}"])
+                .joined(separator: "\r\n")
+        )
+        let visitor = ChangeLogicalConnectorOperator.Visitor(
+            sourceCodeInfo: .init(path: "/path/to/file", code: source)
+        )
+
+        visitor.walk(source)
+
+        let mutations = visitor.schemataMappings.mutationSchemata.map(\.syntaxMutation.description)
+        let mutatedBody = (calls + ["    let ok = a || b", "    return ok"]).map { "\r\n" + $0 }.joined()
+        XCTAssertEqual(mutations, [mutatedBody])
+    }
+
+    // A name can start with a combining mark such as U+064B, which joins the space before it into one
+    // character. TokenAwareVisitor's own range ended three characters after the start of `&& `, which
+    // here is after the mark, so the mutant lost it: `a || x`, which does not compile.
+    func test_keepsACombiningMarkThatStartsTheNameAfterTheConnector() throws {
+        let source = try sourceCode("func f(a: Bool, b: Bool) -> Bool {\n    let \u{064B}x = b\n    return a && \u{064B}x\n}")
+        let visitor = ChangeLogicalConnectorOperator.Visitor(
+            sourceCodeInfo: .init(path: "/path/to/file", code: source)
+        )
+
+        visitor.walk(source)
+
+        let mutations = visitor.schemataMappings.mutationSchemata.map(\.syntaxMutation.description)
+        XCTAssertEqual(mutations, ["\n    let \u{064B}x = b\n    return a || \u{064B}x"])
+    }
 }
