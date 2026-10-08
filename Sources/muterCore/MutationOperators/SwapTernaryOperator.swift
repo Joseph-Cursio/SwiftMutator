@@ -120,7 +120,7 @@ enum SwapTernaryOperator {
             // trivia touched the next token, as in `(a < b)else`; the then-expression could join it
             // (`delse`), so it gets a space.
             let lastTermTrivia = elseTerms[elseTerms.count - 1].trailingTrivia
-            let firstChoice = ternary.thenExpression
+            let firstChoice = parenthesizedIfEndingInAClosure(ternary.thenExpression)
                 .withTrailingTrivia(lastTermTrivia.isEmpty ? .spaces(1) : lastTermTrivia)
                 .withLeadingTrivia(.spaces(1))
 
@@ -134,6 +134,15 @@ enum SwapTernaryOperator {
             ])
 
             return ExprListSyntax(children)
+        }
+
+        /// The then-expression in parentheses if it ends in a closure. The swap moves it to the end, and at
+        /// the end of a `guard` condition a `{` followed by `else` opens the guard's body instead.
+        private func parenthesizedIfEndingInAClosure(_ expression: ExprSyntax) -> ExprSyntax {
+            guard expression.lastToken(viewMode: .sourceAccurate)?.tokenKind == .rightBrace else {
+                return expression
+            }
+            return ExprSyntax(TupleExprSyntax(elements: [LabeledExprSyntax(expression: expression.withoutTrivia())]))
         }
 
         /// `=` and the compound assignments (`+=`, `??=`, …), but not the comparisons that also end in `=`.

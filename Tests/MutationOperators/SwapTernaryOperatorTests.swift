@@ -266,6 +266,27 @@ final class SwapTernaryOperatorTests: MuterTestCase {
         XCTAssertEqual(mutations.map(codeTokens), ["return flag ? 2 : 1"])
     }
 
+    // At the end of a `guard` condition, a `{` followed by `else` opens the guard's body rather than
+    // a trailing closure. The swap moved the then-branch's closure there, so the mutant did not
+    // parse, and the reparse dropped `else { return 0 }` and `return 1`. The `!` makes the branch a
+    // prefix expression rather than a call, so this pins the rule to the last token being a `}`.
+    func test_parenthesizesAThenBranchThatEndsInAClosure() throws {
+        let mutations = try swappedMutationTexts(of: """
+        func pick(_ c: Bool, _ d: Bool, _ xs: [Int]) -> Int {
+            guard c ? !xs.contains { $0 > 1 } : d else { return 0 }
+            return 1
+        }
+        """)
+
+        XCTAssertEqual(
+            mutations.map(collapsingWhitespace),
+            ["guard c ? d : (!xs.contains { $0 > 1 }) else { return 0 } return 1"]
+        )
+        for mutation in mutations {
+            XCTAssertFalse(Parser.parse(source: mutation).hasError, mutation)
+        }
+    }
+
     /// Each mutation's text with runs of whitespace collapsed, so the assertions read like source.
     private func swappedMutations(of text: String) throws -> [String] {
         try swappedMutationTexts(of: text).map(collapsingWhitespace)
