@@ -30,8 +30,14 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   script around `swift test` gets this only with `buildSystem: swift`; other wrappers and
   `xcodebuild` keep a variable per mutant. A SwiftPM test plan made by an older SwiftMutator is
   refused: make it again with `swift-mutator mutate-without-running`.
-- **A default timeout:** without `mutationTestTimeout`, a mutant's test run stops after 3× the
-  baseline (at least 10 s), so a mutant that loops forever can't hang the run.
+- **A default timeout:** without `mutationTestTimeout`, a mutant's test run stops after a limit
+  based on how long your tests take, so a mutant that loops forever can't hang the run. For a
+  SwiftPM project, SwiftMutator times one run of `swift test … --skip-build` with no mutant on,
+  just after the baseline, and allows 5× that, once more for each worker beyond the first, and at
+  least 20 s. For another build system, or when that run fails, it allows 3× the baseline, build
+  included, and at least 10 s. A timeout counts as a survivor, so if your tests set limits of their
+  own, such as Swift Testing's `.timeLimit`, which is at least a minute, set `mutationTestTimeout`
+  above them: otherwise a mutant that only your tests' limit would catch ends as a timeout.
 - **Logging through the injected printer**, so log output can be captured and tested.
 
 Fixes that apply to Muter are offered upstream too.
@@ -55,7 +61,7 @@ SwiftMutator adds:
 | Key | Meaning |
 |---|---|
 | `mutationTestWorkers` | How many mutants to test at once (SwiftPM projects only; default 1) |
-| `mutationTestTimeout` | Seconds before a mutant's test run is stopped (default: 3× the baseline, at least 10) |
+| `mutationTestTimeout` | Seconds before a mutant's test run is stopped (default: based on a timed test run; see above) |
 | `stopAtFirstFailure` | Stop a mutant's test run at its first failed test, which already decides that it is killed (SwiftPM projects only; never the baseline; default true) |
 
 ## Results file
@@ -196,7 +202,8 @@ which a closed terminal sends, stop it the same way. SwiftMutator then:
 6. Exits by the same signal, so the shell sees status 130 for SIGINT, 143 for SIGTERM or 129 for
    SIGHUP, and a script or loop that runs SwiftMutator stops too.
 
-A stop before the baseline has passed has nothing to keep: the results file starts only after it.
+A stop before the baseline has passed, or during the timed test run after it, has nothing to keep:
+the results file starts only after both.
 
 - **The partial report.** With `-o report.txt`, the mutants tested so far are reported in
   `report.partial.txt` beside it, in the format `-f` chose, and `-o report` gives `report.partial`.

@@ -37,6 +37,13 @@ protocol MutationTestingIODelegate {
         testLog: String
     )
 
+    /// A mutant's test command, which skips the build, with no mutant switched on, once the baseline has built the
+    /// project: what a mutant's run costs. Like the baseline, it has no time limit and runs to its end.
+    func runTestsWithoutBuilding(
+        using configuration: MuterConfiguration,
+        savingResultsIntoFileNamed fileName: String
+    ) async -> TestSuiteOutcome
+
     func switchOn(
         schemata: MutationSchema,
         for testRun: XCTestRun,
@@ -95,6 +102,19 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         return (run.outcome, run.testLog)
     }
 
+    func runTestsWithoutBuilding(
+        using configuration: MuterConfiguration,
+        savingResultsIntoFileNamed fileName: String
+    ) async -> TestSuiteOutcome {
+        await runTestSuite(
+            withSchemata: .null,
+            using: configuration,
+            savingResultsIntoFileNamed: fileName,
+            isBenchmark: true,
+            skippingBuild: true
+        ).outcome
+    }
+
     func runTestSuite(
         withSchemata schemata: MutationSchema,
         using configuration: MuterConfiguration,
@@ -128,6 +148,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String,
         isBenchmark: Bool,
+        skippingBuild: Bool? = nil,
         workingDirectory: URL? = nil
     ) async -> TestRun {
         do {
@@ -138,7 +159,8 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
                 with: configuration,
                 schemata: schemata,
                 and: testProcessFileHandle,
-                workingDirectory: workingDirectory
+                workingDirectory: workingDirectory,
+                skippingBuild: skippingBuild
             )
 
             let timeout = isBenchmark ? nil : configuration.testSuiteTimeout
@@ -323,11 +345,13 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         with configuration: MuterConfiguration,
         schemata: MutationSchema,
         and fileHandle: FileHandle,
-        workingDirectory: URL? = nil
+        workingDirectory: URL? = nil,
+        skippingBuild: Bool? = nil
     ) async throws -> Process {
-        let testCommandArguments = schemata == .null
-            ? configuration.testCommandArguments
-            : configuration.testWithoutBuildArguments(with: muterTestRunFileName)
+        // A mutant's run skips the build the baseline did, and so does the run that times one with no mutant on.
+        let testCommandArguments = (skippingBuild ?? (schemata != .null))
+            ? configuration.testWithoutBuildArguments(with: muterTestRunFileName)
+            : configuration.testCommandArguments
 
         let process = process()
 
@@ -339,10 +363,10 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         if configuration.stopsAtFirstFailure {
             // `swift test` relays its test runners' output through its own standard output, which holds
             // output bound for a file 4 KiB at a time until it exits: a run stopped at its first failed test
-            // would show that failure late, or lose its whole log. Set on the baselines too, although they are
-            // never stopped, so they run as the mutants that stop do, and the time limit derived from them
-            // allows for unbuffered output. Mutants run without it once a passing baseline's failure-like line
-            // has turned stopping off for them.
+            // would show that failure late, or lose its whole log. Set on the baselines and the timed test run
+            // too, although they are never stopped, so they run as the mutants that stop do, and the time limit
+            // derived from them allows for unbuffered output. Mutants run without it once a passing baseline's
+            // failure-like line has turned stopping off for them.
             process.environment?[unbufferedOutputKey] = unbufferedOutputValue
         }
 

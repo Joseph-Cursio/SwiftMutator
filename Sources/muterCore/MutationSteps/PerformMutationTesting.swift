@@ -21,11 +21,22 @@ struct PerformMutationTesting: MutationStep {
 
     private let buildErrorsThreshold: Int = 5
 
-    /// With no `mutationTestTimeout`, a mutant's test run may take this many times the baseline run
-    /// before it is stopped, but never less than `minimumDefaultTimeout` seconds. A mutant that makes
-    /// the code loop forever then costs a few baseline runs rather than the whole run.
+    /// With no `mutationTestTimeout`, a SwiftPM mutant's test run may take this many times one timed run of its test
+    /// command with no mutant on, and once more for each worker beyond the first, but never less than
+    /// `minimumTestRunTimeout` seconds. Every worker's tests compete for the same cores. A mutant that makes the code
+    /// loop forever then costs a few test runs, not the minutes a build takes.
+    static let testRunTimeoutMultiplier: TimeInterval = 5
+    static let minimumTestRunTimeout: TimeInterval = 20
+    /// With no `mutationTestTimeout` and no timed test run, as for another build system, a mutant's test run may take
+    /// this many times the baseline run, build included, but never less than `minimumDefaultTimeout` seconds.
     static let defaultTimeoutMultiplier: TimeInterval = 3
     static let minimumDefaultTimeout: TimeInterval = 10
+
+    /// The default time limit for a mutant's test run on `workers` workers, from one timed run of its test command.
+    static func defaultTimeout(testRunSeconds: TimeInterval, workers: Int) -> TimeInterval {
+        let multiplier = testRunTimeoutMultiplier + Double(max(workers, 1) - 1)
+        return max(testRunSeconds * multiplier, minimumTestRunTimeout)
+    }
 
     /// Clones the mutated project for each extra parallel worker, and removes the clones afterwards.
     /// Injected so tests don't touch the disk.
@@ -200,7 +211,6 @@ private extension PerformMutationTesting {
                 )
             )
         }
-        session.baselinePassed = true
 
         var muterConfiguration = state.muterConfiguration
         // A passing run can't show a failed test, so these tests print text shaped like one. Under a mutant it
@@ -218,11 +228,18 @@ private extension PerformMutationTesting {
             muterConfiguration = muterConfiguration.withUnreliableFailedTestLines()
         }
 
-        let configuration = muterConfiguration.withDefaultTestSuiteTimeout(
-            max(timePerBuildTestCycle * Self.defaultTimeoutMultiplier, Self.minimumDefaultTimeout)
-        )
         // A clone costs a copy and about a baseline build, so there are never more workers than mutants to test.
-        let workers = min(configuration.workerCount, plan.toRun.count)
+        let workers = min(muterConfiguration.workerCount, plan.toRun.count)
+        let testRunSeconds = muterConfiguration.testSuiteTimeout == nil && muterConfiguration.buildSystem == .swift
+            ? try await timeTestRun(using: muterConfiguration)
+            : nil
+        let configuration = muterConfiguration.withDefaultTestSuiteTimeout(
+            testRunSeconds.map { Self.defaultTimeout(testRunSeconds: $0, workers: workers) }
+                ?? max(timePerBuildTestCycle * Self.defaultTimeoutMultiplier, Self.minimumDefaultTimeout)
+        )
+        // Only now, with nothing awaited before the results start: a stop during the timed test run, like one during
+        // the baseline, has nothing to report.
+        session.baselinePassed = true
 
         // Before the baseline's log, which starts the progress bar, so the results file's path is printed first.
         startResults(
@@ -232,6 +249,7 @@ private extension PerformMutationTesting {
                 state: state,
                 configuration: configuration,
                 baselineSeconds: timePerBuildTestCycle,
+                testRunSeconds: testRunSeconds,
                 workers: workers
             ),
             retiring: plan.retired,
@@ -269,6 +287,7 @@ private extension PerformMutationTesting {
         state: AnyMutationTestState,
         configuration: MuterConfiguration,
         baselineSeconds: Double?,
+        testRunSeconds: Double? = nil,
         workers: Int
     ) -> ResultsHeader {
         let resume = state.resumeState
@@ -279,6 +298,7 @@ private extension PerformMutationTesting {
             logDirectory: state.loggingDirectory,
             configuration: configuration,
             baselineSeconds: baselineSeconds,
+            testRunSeconds: testRunSeconds,
             workers: workers,
             mutantsDiscovered: session.keys.count,
             mutantsToTest: plan.toRun.count,
@@ -527,6 +547,19 @@ private extension PerformMutationTesting {
     /// 9, which counts as killed. Such a run is never recorded.
     static func throwIfCancelled(_ run: TestRun) throws {
         if run.ending == .cancelled || Task.isCancelled { throw CancellationError() }
+    }
+
+    /// How long a mutant's test command takes with no mutant on, once the baseline has built the project, or nil if
+    /// that run didn't pass: one that crashed at once says nothing about how long a passing one takes.
+    func timeTestRun(using configuration: MuterConfiguration) async throws -> TimeInterval? {
+        let start = instant()
+        let outcome = await ioDelegate.runTestsWithoutBuilding(
+            using: configuration,
+            savingResultsIntoFileNamed: "timed test run"
+        )
+        // Stopping the run kills this run too, which then fails, but that says nothing about the project's tests.
+        try Task.checkCancellation()
+        return outcome == .passed ? seconds(since: start) : nil
     }
 
     /// The seconds from `start` to now, on the monotonic clock.

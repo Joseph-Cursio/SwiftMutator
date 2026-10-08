@@ -61,8 +61,9 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(header.configuration, state.muterConfiguration)
         XCTAssertEqual(header.logDirectory, "/logs")
         XCTAssertEqual(header.mutatedProjectPath, "/project_mutated")
-        // The spy's baseline returns at once, so the minimum default applies.
-        XCTAssertEqual(header.timeoutSeconds, PerformMutationTesting.minimumDefaultTimeout)
+        // The spy's timed test run returns at once, so the minimum default applies.
+        XCTAssertEqual(header.testRunSeconds, 0)
+        XCTAssertEqual(header.timeoutSeconds, PerformMutationTesting.minimumTestRunTimeout)
         XCTAssertTrue(header.timeoutIsDefault)
         XCTAssertEqual(header.workers, 1)
         XCTAssertTrue(header.failedTestLinesAreReliable)
@@ -116,6 +117,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         await assertThrowsMuterError(try await sut.run(with: state)) { _ in }
 
         XCTAssertEqual(resultsFiles.directories, [])
+        XCTAssertEqual(ioDelegate.methodCalls, ["benchmarkTests(using:savingResultsIntoFileNamed:)"], "no timed run")
     }
 
     func test_eachMutantsLineIsWrittenBeforeItsNotifications() async throws {

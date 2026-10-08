@@ -13,8 +13,8 @@ final class TestingSession {
     let earlierTestDuration: TimeInterval
     /// Each job's key, in job order, known before the baseline runs.
     var keys: [MutantKey] = []
-    /// Whether the baseline passed. Until it has, mutation testing that stops has nothing to report, and posts no
-    /// early end: an abort says why.
+    /// Whether the baseline passed, and the timed test run after it, if any, ended, so the results have started. Until
+    /// then, mutation testing that stops has nothing to report, and posts no early end: an abort says why.
     var baselinePassed = false
     /// nil until the header is written, and for good if the file couldn't be created.
     var results: ResultsRecording?

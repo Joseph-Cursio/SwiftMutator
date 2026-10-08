@@ -17,8 +17,9 @@ This started as a ranked review of SwiftMutator on 2 October 2026, at commit `4b
   - SwapTernary replacing the trivia on either side of the swap, which could join two statements or comment out the swap (PR #54).
   - SwapTernary moving a trailing closure to the end of a `guard` condition, and putting code after a `#endif` (PR #55).
   - `TokenAwareVisitor`'s own edit range, which dropped a combining mark after the operator and would have cut short a longer replacement, and a CRLF test for the reparse edit (PR #56).
+  - A default time limit based on a timed test run, for SwiftPM projects (§2.7, PR #57).
 
-  Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#56, which are in the PRs themselves.
+  Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#57, which are in the PRs themselves.
 - **Section numbers are the original ones,** so references in PRs and notes still work. A missing number is a finished section.
 
 ## The workload these numbers come from
@@ -46,7 +47,6 @@ The machine has 4 performance cores and 4 efficiency cores, and 24 GB of RAM. Wi
 | 1.3 | Skip the mutants that no test reaches (about 6%) | About 11 min | M |
 | 1.4 | Do less work per run: reuse unchanged results, `--since`, `--shard` | A small change runs in about 8–12 min instead of 91; two machines run the whole repo 1.9× faster | M |
 | 1.5 | Try release-mode tests, and tune the worker count | Unmeasured; up to about 9–18 min for the worker count | S |
-| 2.7 | Base the default time limit on test time | About 8.5 min | S |
 
 ### 1.1 Time before the test helper starts
 
@@ -56,7 +56,7 @@ The manifest recompile is fixed (PR #42). Left:
   - One option is to capture the exact `swiftpm-testing-helper` command lines once, with `swift test --skip-build -v`, and replay them for each mutant. That saves only SwiftPM's planning time, not process start-up or test discovery.
   - `--disable-xctest` hasn't been tried. These runs have no XCTest tests, but `swift test --skip …` still starts `swiftpm-xctest-helper` on each test bundle to look for them. On a one-bundle probe that cost about 0.07 s per run; on SwiftProjectLint's three large bundles it's unmeasured. A project with no XCTest tests can add the flag to `arguments:`. SwiftMutator mustn't add it by default, because an XCTest project would then run no tests and every mutant would survive.
   - `--skip-update` was measured and made no difference.
-- **Tests can see the active-mutant file.** It's written at the root of each worker folder (`MutationTestingIODelegate.swift:355-358`), and the copy keeps `.git`. So a test that lists hidden files at the package root, or needs a clean `git status`, sees it. It does so in the baseline too, so the test fails loudly rather than mis-scoring. Writing the file beside the clone, and pointing the variable there, would remove the problem.
+- **Tests can see the active-mutant file.** It's written at the root of each worker folder (`MutationTestingIODelegate.swift:379-382`), and the copy keeps `.git`. So a test that lists hidden files at the package root, or needs a clean `git status`, sees it. It does so in the baseline too, so the test fails loudly rather than mis-scoring. Writing the file beside the clone, and pointing the variable there, would remove the problem.
 
 ### 1.2 Fail-fast: what's left
 
@@ -64,7 +64,7 @@ Fail-fast is done (PR #36), and on by default since PR #41. Left:
 - **Stopping crash-only runs.** The stop trigger matches only failed-test lines (`TestLogFollower.swift:62`). So a run that crashes without a failed test runs its remaining test targets, about 1–3 s each.
   - The crash pattern already exists (`TestSuiteOutcome.swift:96-106`). A run stopped this way must still score as a runtime error.
   - Only 30 kills on 6 October weren't stopped at a failed test. A crash in the first bundle still runs the other two, so this saves under a minute: at most 30 × 2 × 1–3 s / 4 ≈ 15–45 s.
-- **Running quietly.** Test processes write all their output to each mutant's log (`MutationTestingIODelegate.swift:373-374`). A quiet mode would cut the log volume (see Log storage in §3). It must keep every line SwiftMutator reads:
+- **Running quietly.** Test processes write all their output to each mutant's log (`MutationTestingIODelegate.swift:397-398`). A quiet mode would cut the log volume (see Log storage in §3). It must keep every line SwiftMutator reads:
   - the `✘ … recorded an issue` and `Test Case '…' failed (` lines, which fail-fast, killing tests and the baseline check read;
   - the suite summaries, build-error lines and crash lines, which scoring reads (`TestSuiteOutcome.swift:50-56`, `:96-138`).
 
@@ -95,7 +95,7 @@ The results file and `--resume` built most of the base for this. PR #38 added st
   - Until then, passing the changed source files to `--files-to-mutate` (`Run.swift:10-11`) does the file-level part, for example from `git diff --name-only --relative <ref> -- '*.swift'`. Filter out tests and manifests first: `--files-to-mutate` skips the exclude list (`DiscoverSourceFiles.swift:18-27`), so a test file or `Package.swift` in the list would be mutated.
 - **CLI overrides.** Add `--workers N` and `--timeout S`, so wrappers don't need a YAML file for each run.
   - A changed `mutationTestWorkers` doesn't stop a resume, but a changed `mutationTestTimeout` does (`ResumeCheck.swift:48-56`).
-  - The effective limit worked out from the baseline isn't compared (`:41-45`), so a `--timeout` override must be recorded and compared as that key is.
+  - The effective limit worked out from the timed test run or the baseline isn't compared (`:41-45`), so a `--timeout` override must be recorded and compared as that key is.
 - **`--shard k/n`.** Split the mutants deterministically by a hash of their key, so that two machines each run half.
   - Each half takes about (5,438 − 382) / 2 + 382 s ≈ 48 min, which is 1.9× faster.
   - `report` reads one results file (`Report.swift:12-13`), so it needs to learn to merge them.
@@ -123,7 +123,7 @@ All four items are done (PRs #38 and #44–#46). These were left out of them:
   - Only the results file is locked (`ResultsFile.swift:64-66`), not the project, so two runs of one project can overlap.
   - A resumed session's log folder doesn't point to the results file.
   - When the results file is locked, the refusal names the previous session's writer, not the process holding the lock (`LoadResumeState.swift:26-35`).
-  - A resumed session writes its header and its `retired` line separately (`PerformMutationTesting.swift:637-640`). A SIGKILL between the two leaves `report` showing stale results until the next session. Nothing is wrongly reused, because the plan checks the hashes again.
+  - A resumed session writes its header and its `retired` line separately (`PerformMutationTesting.swift:670-673`). A SIGKILL between the two leaves `report` showing stale results until the next session. Nothing is wrongly reused, because the plan checks the hashes again.
   - A refused resume leaves an empty log folder, and refusals have no exit code of their own.
   - `report` of a resumed run's file doesn't say how many results came from earlier sessions. Its status line gives only the count and how the last session ended (`RecordedResults+Status.swift:6-22`).
   - A results file from before PR #46 can't be resumed.
@@ -143,7 +143,7 @@ Items 1–3 are done. PR #38 records each mutant's failing tests, and PR #47 sho
   - One control run per 100 mutants would cost about 2% of the run.
   - It would also make possible comparing how often a test fails alone with how often it fails beside others. That needs complete failure lists, which fail-fast prevents.
 - **Gaps in the suspect rule.**
-  - When the passing baseline printed a line that looks like a failure, no mutant records its failing tests (`ResultsRecords.swift:276-277`), so the reports name none.
+  - When the passing baseline printed a line that looks like a failure, no mutant records its failing tests (`ResultsRecords.swift:283-284`), so the reports name none.
   - The rule misses a test that fails in fewer than about 3% of runs, or about 5% when runs stop at their first failed test. That's worth about 1 point at most; 0.16 points was measured.
   - Its thresholds (`KillingTestSummary.swift:4-10`) are calibrated on SwiftProjectLint alone. Check them on a second project, and perhaps make them configuration keys.
 
@@ -156,7 +156,7 @@ Discovery has merged mutants by full path since PR #25. Deferred:
   - `--resume` never compares IDs, so it's unaffected.
 - **Kept-log names.** They're built from the operator, file name, line and column (`MutationTestLog.swift:14-20`), with no folder and no occurrence number.
   - So same-named files, and repeated mutants at one place, overwrite each other's kept log. The results file's `log` field then points both mutants at one file.
-  - The raw log each test process writes has the same flaw. It goes in the `_mutated` folder, which every worker shares, as `<file name>_<operator>_<offset>_<line>_<column>.log` (`PerformMutationTesting.swift:611-615`, `MutationTestingIODelegate.swift:379-388`). Repeats are tested next to each other, so two can run at once and write one file, which fail-fast's follower also reads. Their code is identical, so a verdict is unlikely to change.
+  - The raw log each test process writes has the same flaw. It goes in the `_mutated` folder, which every worker shares, as `<file name>_<operator>_<offset>_<line>_<column>.log` (`PerformMutationTesting.swift:644-648`, `MutationTestingIODelegate.swift:403-412`). Repeats are tested next to each other, so two can run at once and write one file, which fail-fast's follower also reads. Their code is identical, so a verdict is unlikely to change.
   - Log folders are named to the minute (`fileOperations.swift:35`). So two runs or sessions started in the same minute share a folder, and a retested mutant's log overwrites the earlier one.
 - **Order within a file.** Mutants are sorted by their ID as text (`MutationSchema.swift:92-99`): by operator, then by line as text, so line 10 comes before line 9.
   - Sorting by line, column and offset means updating `JobOrder` too (`RecordedResults+Outcome.swift:3-16`), which `report` uses to rebuild the order, and the test that pins discovery's order.
@@ -169,7 +169,7 @@ Discovery has merged mutants by full path since PR #25. Deferred:
 
 ### 2.6 One uncompilable mutant switch aborts the whole run
 
-- **What happens.** A compile error in any of the ~300 rewritten files fails the baseline (`PerformMutationTesting.swift:168-200`). That ends the run after the copy, discovery and a ~95 s baseline. Stryker puts the offending mutants back instead, and cargo-mutants and mull mark them "unviable". The multi-line string bug under [Open bugs](#open-bugs) is one way to hit this today.
+- **What happens.** A compile error in any of the ~300 rewritten files fails the baseline (`PerformMutationTesting.swift:179-211`). That ends the run after the copy, discovery and a ~95 s baseline. Stryker puts the offending mutants back instead, and cargo-mutants and mull mark them "unviable". The multi-line string bug under [Open bugs](#open-bugs) is one way to hit this today.
 - **Proposal.**
   1. Make the build of the mutated project its own step. For SwiftPM it happens inside the baseline test run today.
   2. On failure, match each compiler error's path to a rewritten file, by full path in the copy, and restore that file from the original project. `CompilerError.all(in:)` (`MutationTestingAbortReason.swift:141-143`) already parses the errors.
@@ -181,11 +181,7 @@ Discovery has merged mutants by full path since PR #25. Deferred:
 ### 2.7 Timeouts and the score
 
 PR #27 fixed truncated logs, fractional time limits and identical statements. A timed-out run counts as killed if its log already shows a failure summary or XCTest's `Test Case '…' failed (` line (PR #22). Since PR #36 it also counts if the log shows Swift Testing's `✘ … recorded an issue` line, unless the passing baseline printed such a line. Left out by choice, and still open:
-- **The default time limit is very loose.** It is 3 × the baseline's build plus test, measured with nothing else running (`PerformMutationTesting.swift:221-223`).
-  - On 6 October that was 286 s, about 17 times a survivor's whole suite under load.
-  - Now that most runs stop early, timeouts weigh more. The 9 timeouts took 9 × 286 s, 12.7% of all worker time.
-  - A limit based on test time, such as 60 s, would save about 9 × (286 − 60) / 4 s ≈ 8.5 min.
-  - Timeouts already count as survivors, so a tighter limit can't raise the score. It can only turn a late kill into a timeout.
+- **xcodebuild projects keep the old default time limit.** Since PR #57 a SwiftPM project's default comes from one timed run of `swift test … --skip-build` with no mutant on. An xcodebuild project's mutants run `test-without-building` from `muter.xctestrun`, which `switchOn` rewrites for each mutant, so timing one needs that file with no mutant switched on. Until then its default is still 3 × the baseline's build plus test (`PerformMutationTesting.swift`, `defaultTimeoutMultiplier`), as is any other build system's.
 - **Plain timeouts count as survivors** (`mutationScoring.swift:6-7`). Decide whether to count them as killed, or to leave them out of the score.
 - **The score is truncated, not rounded** (`mutationScoring.swift:13`). Muter's README, kept as `Docs/Muter-README.md` and linked from `README.md` for the configuration options, says killing 50 of 75 mutants scores 67% (line 92). The code gives 66%. Either:
   - round. That moves every score that uses `mutationScore`, including the score without suspect tests. It also changes the test at `KillingTestSummaryTests.swift:367-368`, and perhaps report snapshots; or
@@ -199,7 +195,7 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
 - **Waiting for a test process can hang.** `exited()` (`MuterProcess.swift:42-49`) calls `waitUntilExit()` on a GCD thread.
   - Reviewers of PR #36 saw that call never return, but only for a process without a `terminationHandler`.
   - Every test process now has one, and the hang hasn't been seen in SwiftMutator.
-  - Having `exited()` resume from the handler (`MutationTestingIODelegate.swift:243`) would be sturdier.
+  - Having `exited()` resume from the handler (`MutationTestingIODelegate.swift:265`) would be sturdier.
 - **Workers share the user's `UserDefaults`.** Tests that write fixed keys in `UserDefaults.standard` can overwrite each other's values across workers. That gave SwiftProjectLint 4 false kills on 2 October.
   - No SwiftMutator-side fix is known. `CFFIXED_USER_HOME` doesn't isolate `UserDefaults` on macOS 27, and it also moves `NSHomeDirectory()`, which breaks the swiftly proxy.
   - The fix belongs in the project's tests (see [Outside this repo](#outside-this-repo)).
@@ -240,7 +236,7 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
   - A stop by signal ends SwiftMutator by that same signal, so a shell reports 128 + its number (130, 143 or 129). A wrapper that reads the wait status sees a signal, not an exit code.
   - Every other failure of a run exits 255, a refused resume included. A usage error exits 64, and `report` exits 1 when it can't read its file.
 - **Log storage.**
-  - Each mutant's log is written twice. The test process writes it into the `_mutated` folder (`MutationTestingIODelegate.swift:379-394`), and then it's copied to `<project>_muter_logs` (`MutationTestObserver.swift:208-228`). Write it once.
+  - Each mutant's log is written twice. The test process writes it into the `_mutated` folder (`MutationTestingIODelegate.swift:403-418`), and then it's copied to `<project>_muter_logs` (`MutationTestObserver.swift:208-228`). Write it once.
   - Kept logs are never removed. On this machine, SwiftProjectLint's log folder holds 15 runs and 2.4 GB.
   - Keep full logs only for survivors, crashes and timeouts. That needs the results file's `log` field to become optional.
 
@@ -288,7 +284,7 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
   - As a separate operator, they would add 218 mutants, about 7–15 min.
 - **xcodebuild projects.** These always test one mutant at a time, without fail-fast (`MuterConfiguration.swift:100-111`). The per-worker copies used for SwiftPM could cover them too, with a cloned simulator per worker.
 - **Spotlight.** It indexes the copies and logs under `~/xcode_projects`. SwiftMutator names those folders itself (`_mutated`, `_muter_logs` and `_worker<n>`), so it could add `.noindex`. The benefit hasn't been measured.
-  - Only the steps that make the folders (`CreateTempDirectoryURL.swift:21`, `fileOperations.swift:41`, `PerformMutationTesting.swift:730`) and the cleanup (`PreviousRunCleanUp.swift:28`) use their names. `report` and `--resume` use the path they're given and the paths in the results file.
+  - Only the steps that make the folders (`CreateTempDirectoryURL.swift:21`, `fileOperations.swift:41`, `PerformMutationTesting.swift:763`) and the cleanup (`PreviousRunCleanUp.swift:28`) use their names. `report` and `--resume` use the path they're given and the paths in the results file.
   - Outside this repo, `swift-quality` removes `${repo}_mutated` by name, so it would need to change too.
 
 ---
@@ -298,7 +294,7 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
 Added on 7 October, from a discussion of using property-based tests (PBT) alongside mutation testing. Not in the suggested order: it's a feature, not a fix, and its first step only reads existing results.
 
 - **The idea.** Report which kind of test kills each mutant, so the score can be split by kind. It can also show how much each property constrains the code: mutants make a measure of a property's strength.
-- **What exists.** Each `mutant` line in `results.jsonl` has `killedBy`: each failing test's name and `file:line:col`, at most 20 (`ResultsRecords.swift:219-221`, `FailedTestLine.swift:95`). A test's file or suite can mark it as a property test, so no new recording is needed to start.
+- **What exists.** Each `mutant` line in `results.jsonl` has `killedBy`: each failing test's name and `file:line:col`, at most 20 (`ResultsRecords.swift:226-228`, `FailedTestLine.swift:95`). A test's file or suite can mark it as a property test, so no new recording is needed to start.
 - **Measures worth reporting.**
   - **Kills only by examples, only by properties, and by both.** A property's value is the mutants that only it kills. Two separate scores, one for examples and one for properties, overlap and hide this.
   - **Kills per property, and kills only that property makes.** A property that kills many mutants may just be broad, for example a round trip through the whole pipeline. The unique count says more.
@@ -326,11 +322,10 @@ Added on 7 October, from a discussion of using property-based tests (PBT) alongs
 
 ## Suggested order
 
-1. **A default time limit based on test time** (§2.7). It's the cheapest speed-up left, about 8.5 min.
-2. **Progress output** that works in a log file (§3).
-3. **Coverage** (§1.3). It saves about 11 min, and stops counting code that no test runs as survivors.
-4. **Unviable mutants** (§2.6), so that one bad mutant can't cost a whole run.
-5. **`--since`, reuse and `--shard`** (§1.4), for runs on a change rather than the whole repo.
+1. **Progress output** that works in a log file (§3).
+2. **Coverage** (§1.3). It saves about 11 min, and stops counting code that no test runs as survivors.
+3. **Unviable mutants** (§2.6), so that one bad mutant can't cost a whole run.
+4. **`--since`, reuse and `--shard`** (§1.4), for runs on a change rather than the whole repo.
 
 ## Outside this repo
 

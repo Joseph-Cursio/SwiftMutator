@@ -85,6 +85,7 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
 
         XCTAssertEqual(ioDelegate.testLogs, [
             "baseline run",
+            "timed test run",
             "Quotient.swift_RelationalOperatorReplacement_40_4_5.log",
             "Total.swift_RelationalOperatorReplacement_80_8_5.log",
         ])
@@ -160,6 +161,22 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
 
         XCTAssertEqual(resultsFiles.lines, [])
         XCTAssertEqual(resultsFiles.directories, [])
+        XCTAssertEqual(resultsFiles.files.map(\.isClosed), [true])
+    }
+
+    // So is a stop during the timed test run after the baseline: the session hasn't started its results, so it posts
+    // no early end, which could only say that none of the mutants has a result, although two have.
+    func test_aStopDuringTheTimedTestRun_writesNothingToTheResumedFile_andPostsNoEarlyEnd() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        ioDelegate.timedTestRunOutcome = .buildError
+        ioDelegate.whileRunningTestsWithoutBuilding = { withUnsafeCurrentTask { $0?.cancel() } }
+        let posted = recordNotifications(named: [.mutationTestingEndedEarly])
+
+        let result = await Task { [sut, state] in try await sut.run(with: state) }.result
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(posted().count, 0)
+        XCTAssertEqual(resultsFiles.lines, [])
         XCTAssertEqual(resultsFiles.files.map(\.isClosed), [true])
     }
 
@@ -239,20 +256,26 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         XCTAssertNil(outcome.mutations[0].killingTests, "a kept survivor names none")
     }
 
-    // The mutants left are tested under this session's own baseline, whose time sets their default time limit.
+    // The mutants left are tested under this session's own baseline, and its own timed test run, which sets their
+    // default time limit.
     func test_theBaselineRunsAgain() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
 
         _ = try await sut.run(with: state)
 
-        XCTAssertEqual(ioDelegate.methodCalls.first, "benchmarkTests(using:savingResultsIntoFileNamed:)")
+        XCTAssertEqual(ioDelegate.methodCalls.prefix(2), [
+            "benchmarkTests(using:savingResultsIntoFileNamed:)",
+            "runTestsWithoutBuilding(using:savingResultsIntoFileNamed:)",
+        ])
+        // The spy's timed test run returns at once, so the minimum applies.
         XCTAssertEqual(
             ioDelegate.configurations.map(\.testSuiteTimeout),
-            [PerformMutationTesting.minimumDefaultTimeout, PerformMutationTesting.minimumDefaultTimeout]
+            [PerformMutationTesting.minimumTestRunTimeout, PerformMutationTesting.minimumTestRunTimeout]
         )
         let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
         XCTAssertNotNil(header.baselineSeconds)
-        XCTAssertEqual(header.timeoutSeconds, PerformMutationTesting.minimumDefaultTimeout)
+        XCTAssertNotNil(header.testRunSeconds)
+        XCTAssertEqual(header.timeoutSeconds, PerformMutationTesting.minimumTestRunTimeout)
     }
 
     // Every result still holds, so a baseline and clones would cost minutes and test nothing. The session is a header
@@ -354,7 +377,7 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         XCTAssertEqual(clonedCounts, [1])
         XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.workers), [2])
         XCTAssertEqual(
-            Set(ioDelegate.testLogs.dropFirst(2)),
+            Set(ioDelegate.testLogs.dropFirst(3)),
             [
                 "Quotient.swift_RelationalOperatorReplacement_40_4_5.log",
                 "Total.swift_RelationalOperatorReplacement_80_8_5.log",

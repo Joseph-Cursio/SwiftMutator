@@ -469,6 +469,23 @@ final class MutationTestingDelegateTests: MuterTestCase {
         XCTAssertFalse(testingTimeOutExecutor.withTimeLimitCalled)
     }
 
+    // The run that times what a mutant's run costs: a mutant's own command, which skips the build the baseline
+    // did, with no mutant switched on and, like the baseline, no time limit.
+    func test_runningTestsWithoutBuilding_runsAMutantsCommandWithNoMutantOnAndNoTimeLimit() async throws {
+        let configuration = MuterConfiguration(
+            executable: "/tmp/swift",
+            arguments: ["test"],
+            testSuiteTimeOut: 5
+        )
+
+        _ = await sut.runTestsWithoutBuilding(using: configuration, savingResultsIntoFileNamed: "logFileName")
+
+        XCTAssertEqual(process.arguments, ["test", "--skip-build"])
+        XCTAssertEqual(writeFile.contentPassed, "")
+        XCTAssertEqual(writeFile.pathPassed, "\(outputFolder!)/\(activeMutantFileName)")
+        XCTAssertFalse(testingTimeOutExecutor.withTimeLimitCalled)
+    }
+
     func test_whenConfigurationHasNoTimeOut_thenRunTestsWithoutTimeOut() async throws {
         let configuration = MuterConfiguration(
             executable: "/tmp/swift",

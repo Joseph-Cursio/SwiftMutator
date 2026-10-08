@@ -130,6 +130,7 @@ final class ResultsRecordTests: XCTestCase {
             makeHeader(
                 coverage: nil,
                 baselineSeconds: nil,
+                testRunSeconds: nil,
                 timeoutSeconds: nil,
                 project: nil,
                 provenance: Provenance(
@@ -148,7 +149,7 @@ final class ResultsRecordTests: XCTestCase {
             XCTAssertFalse(record.contains("\"\(key)\""), "\(key) in \(record)")
         }
         for key in [
-            "coverage", "baselineSeconds", "timeoutSeconds", "executablePath", "executableSHA256",
+            "coverage", "baselineSeconds", "testRunSeconds", "timeoutSeconds", "executablePath", "executableSHA256",
             "testCommandVersion", "testExecutableSHA256", "mutationTestTimeout", "buildSystem", "project",
             "mutantsReused", "waived", "forced",
         ] {
@@ -306,7 +307,7 @@ final class ResultsRecordTests: XCTestCase {
         state.muterConfiguration = loaded
         let project = makeProjectTree()
         state.projectTree = project
-        let effective = loaded.withUnreliableFailedTestLines().withDefaultTestSuiteTimeout(96.5)
+        let effective = loaded.withUnreliableFailedTestLines().withDefaultTestSuiteTimeout(86)
 
         let header = ResultsHeader(
             session: 1,
@@ -315,6 +316,7 @@ final class ResultsRecordTests: XCTestCase {
             logDirectory: "/project_muter_logs/run",
             configuration: effective,
             baselineSeconds: 32.125,
+            testRunSeconds: 10.75,
             workers: 4,
             mutantsDiscovered: 7,
             mutantsToTest: 7,
@@ -339,7 +341,8 @@ final class ResultsRecordTests: XCTestCase {
                 coverage: CoverageSummary(percent: 87, filesWithoutCoverage: ["/project_mutated/Sources/Untested.swift"]),
                 newVersion: "9.9.9",
                 baselineSeconds: 32.125,
-                timeoutSeconds: 96.5,
+                testRunSeconds: 10.75,
+                timeoutSeconds: 86,
                 timeoutIsDefault: true,
                 workers: 4,
                 stopsAtFirstFailure: false,
@@ -527,7 +530,8 @@ private extension ResultsRecordTests {
     func makeHeader(
         coverage: CoverageSummary? = CoverageSummary(percent: 87, filesWithoutCoverage: ["Sources/Untested.swift"]),
         baselineSeconds: Double? = 32.104,
-        timeoutSeconds: Double? = 96.312,
+        testRunSeconds: Double? = 10.75,
+        timeoutSeconds: Double? = 86,
         project: ProjectTree? = .init(
             listedBy: .git,
             files: ["Package.swift": "3f1a", "Sources/Core/Walker.swift": "c07e", "README.md": "link:9d42"],
@@ -559,6 +563,7 @@ private extension ResultsRecordTests {
             coverage: coverage,
             newVersion: "",
             baselineSeconds: baselineSeconds,
+            testRunSeconds: testRunSeconds,
             timeoutSeconds: timeoutSeconds,
             timeoutIsDefault: true,
             workers: 4,
