@@ -131,4 +131,25 @@ final class ChangeLogicalConnectorOperatorTests: MuterTestCase {
         let mutations = visitor.schemataMappings.mutationSchemata.map { $0.syntaxMutation.description.trimmed.inlined }
         XCTAssertEqual(mutations, [#"let face = "🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂" print(face) return a || b"#])
     }
+
+    // The same with CRLF line endings: a CRLF is one character but two UTF-8 bytes, so the edit
+    // started a byte early for each one before the connector. Once they outnumbered the connector's
+    // distance from the start of its statement plus the edit's length, here 21 CRLFs, the edit ended
+    // before that statement, and the reparse reused it unmutated. 40 lines leave a margin.
+    func test_changesAConnectorInAFileWithCRLFLineEndings() throws {
+        let calls = Array(repeating: "    x()", count: 40)
+        let source = try sourceCode(
+            (["func both(_ a: Bool, _ b: Bool) -> Bool {"] + calls + ["    let ok = a && b", "    return ok", "}"])
+                .joined(separator: "\r\n")
+        )
+        let visitor = ChangeLogicalConnectorOperator.Visitor(
+            sourceCodeInfo: .init(path: "/path/to/file", code: source)
+        )
+
+        visitor.walk(source)
+
+        let mutations = visitor.schemataMappings.mutationSchemata.map(\.syntaxMutation.description)
+        let mutatedBody = (calls + ["    let ok = a || b", "    return ok"]).map { "\r\n" + $0 }.joined()
+        XCTAssertEqual(mutations, [mutatedBody])
+    }
 }
