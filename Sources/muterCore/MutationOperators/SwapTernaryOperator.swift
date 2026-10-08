@@ -112,16 +112,20 @@ enum SwapTernaryOperator {
                 ? elseTerms[0]
                 : ExprSyntax(SequenceExprSyntax(elements: ExprListSyntax(elseTerms)))
             let secondChoice = elseExpression
-                .withTrailingTrivia(.spaces(1))
+                .withTrailingTrivia(lineBreakAfterEndif(of: elseExpression) ?? .spaces(1))
                 .withLeadingTrivia(.spaces(1))
             // The trivia on either side of the swap is kept as it was. A `//` comment that ends the
             // condition needs the line break before the `?`, and a comment after the last term can
             // be all that separates this statement from the next. A last term with no trailing
             // trivia touched the next token, as in `(a < b)else`; the then-expression could join it
-            // (`delse`), so it gets a space.
+            // (`delse`), so it gets a space. After a `#endif` the kept trivia, only spaces and
+            // comments, is followed by a line break.
             let lastTermTrivia = elseTerms[elseTerms.count - 1].trailingTrivia
             let firstChoice = parenthesizedIfEndingInAClosure(ternary.thenExpression)
-                .withTrailingTrivia(lastTermTrivia.isEmpty ? .spaces(1) : lastTermTrivia)
+                .withTrailingTrivia(
+                    lineBreakAfterEndif(of: ternary.thenExpression).map { lastTermTrivia + $0 }
+                        ?? (lastTermTrivia.isEmpty ? .spaces(1) : lastTermTrivia)
+                )
                 .withLeadingTrivia(.spaces(1))
 
             children.replaceSubrange(index..., with: [
@@ -143,6 +147,21 @@ enum SwapTernaryOperator {
                 return expression
             }
             return ExprSyntax(TupleExprSyntax(elements: [LabeledExprSyntax(expression: expression.withoutTrivia())]))
+        }
+
+        /// A line break indented like the `#endif` that ends `expression`, if one does. Only a comment may
+        /// follow a `#endif` on its line, so whatever the swap puts after the expression has to start a new one.
+        private func lineBreakAfterEndif(of expression: ExprSyntax) -> Trivia? {
+            guard let endif = expression.lastToken(viewMode: .sourceAccurate), endif.tokenKind == .poundEndif else {
+                return nil
+            }
+            let indentation = endif.leadingTrivia.pieces.reversed().prefix { piece in
+                switch piece {
+                case .spaces, .tabs: true
+                default: false
+                }
+            }
+            return Trivia(pieces: [.newlines(1)] + indentation.reversed())
         }
 
         /// `=` and the compound assignments (`+=`, `??=`, …), but not the comparisons that also end in `=`.
