@@ -16,8 +16,7 @@ enum MutationSwitch {
         var previousElseBody = IfExprSyntax.ElseBody(
             CodeBlockSyntax(
                 statements: originalSyntax,
-                rightBrace: .rightBraceToken()
-                    .withLeadingTrivia(originalSyntax.leadingTrivia)
+                rightBrace: closingBrace(of: originalSyntax, indentedLike: originalSyntax)
             )
         )
 
@@ -32,8 +31,7 @@ enum MutationSwitch {
                     ),
                     body: CodeBlockSyntax(
                         statements: schema.syntaxMutation,
-                        rightBrace: .rightBraceToken()
-                            .withLeadingTrivia(schema.syntaxMutation.leadingTrivia)
+                        rightBrace: closingBrace(of: schema.syntaxMutation, indentedLike: schema.syntaxMutation)
                     ),
                     elseKeyword: .keyword(.else)
                         .withTrailingTrivia(.spaces(1))
@@ -54,8 +52,7 @@ enum MutationSwitch {
             ),
             body: CodeBlockSyntax(
                 statements: firstSchema.syntaxMutation,
-                rightBrace: .rightBraceToken()
-                    .withLeadingTrivia(originalSyntax.leadingTrivia)
+                rightBrace: closingBrace(of: firstSchema.syntaxMutation, indentedLike: originalSyntax)
             ),
             elseKeyword: .keyword(.else)
                 .withTrailingTrivia(.spaces(1))
@@ -66,6 +63,51 @@ enum MutationSwitch {
         return CodeBlockItemListSyntax([
             CodeBlockItemSyntax(item: .init(outterIfStatement))
         ])
+    }
+
+    /// The `}` that closes a branch holding `statements`, with the leading trivia of `original`.
+    ///
+    /// That trivia has no line break when the list's first statement shares its line with whatever opens
+    /// the list, such as `{ let limit = value > 1` or `case 0: return name`. Then the brace lands at the
+    /// end of the branch's last line. That has to stay so inside a one-line string interpolation, where a
+    /// line break doesn't compile. But after a `//` comment the brace became part of the comment, and after
+    /// `#endif` or `#sourceLocation(…)` it was an extra token. The file didn't compile, which fails the
+    /// build that every mutant shares, so in those cases alone a line break goes first.
+    private static func closingBrace(
+        of statements: CodeBlockItemListSyntax,
+        indentedLike original: CodeBlockItemListSyntax
+    ) -> TokenSyntax {
+        let trivia = original.leadingTrivia
+        guard endsInALineCommentOrDirective(statements), !startsWithLineBreak(trivia) else {
+            return .rightBraceToken().withLeadingTrivia(trivia)
+        }
+        return .rightBraceToken().withLeadingTrivia(.newline + trivia)
+    }
+
+    /// Whether the last line of `statements` ends in a `//` comment or a directive, after which nothing
+    /// else may follow on that line.
+    private static func endsInALineCommentOrDirective(_ statements: CodeBlockItemListSyntax) -> Bool {
+        guard let lastToken = statements.lastToken(viewMode: .sourceAccurate) else {
+            return false
+        }
+        let endsInLineComment = lastToken.trailingTrivia.contains { piece in
+            switch piece {
+            case .lineComment, .docLineComment: true
+            default: false
+            }
+        }
+        return endsInLineComment
+            || lastToken.tokenKind == .poundEndif
+            || lastToken.parent?.is(PoundSourceLocationSyntax.self) == true
+    }
+
+    /// Only these end a `//` comment. A form feed or vertical tab counts as a newline to swift-syntax,
+    /// but the comment runs on past it.
+    private static func startsWithLineBreak(_ trivia: Trivia) -> Bool {
+        switch trivia.first {
+        case .newlines, .carriageReturns, .carriageReturnLineFeeds: true
+        default: false
+        }
     }
 
     private static func buildSchemataCondition(
