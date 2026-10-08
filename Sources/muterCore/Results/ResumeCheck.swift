@@ -41,8 +41,8 @@ enum ResumeCheck {
     /// Compared: every configuration key but `keysThatDontAffectOutcomes`; the operators, `filesToMutate` (both as
     /// sets) and `skipCoverage`; and what identifies the SwiftMutator build, the toolchain and the SDK. Not compared:
     /// SwiftMutator's version and path, which its SHA-256 covers; the process, host and arguments; and the effective
-    /// `timeoutSeconds`, `stopsAtFirstFailure` and `failedTestLinesAreReliable`, which follow from the configuration
-    /// and the baseline. Only the build and toolchain differences are ever `forced`.
+    /// `timeoutSeconds`, `stopsAtFirstFailure` and `failedTestLinesAreReliable`, which follow from the configuration,
+    /// the baseline and the timed test run. Only the build and toolchain differences are ever `forced`.
     static func compare(_ recorded: ResultsHeader, with current: Current, forcing: Bool) -> Verdict {
         var verdict = Verdict()
         for difference in configurationDifferences(recorded.configuration, current.configuration) {

@@ -433,6 +433,25 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(resultsFiles.directories, [])
     }
 
+    // The timed test run comes after the baseline but before the results start, so a stop during it, like one during
+    // the baseline, has nothing to report: no early end, no results file, and no baseline log to start the progress bar.
+    func test_aStopDuringTheTimedTestRun_postsNoEarlyEnd_andStartsNoResults() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+        state.loggingDirectory = "/logs"
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        // Stopping the run kills the timed run, which then fails.
+        ioDelegate.timedTestRunOutcome = .buildError
+        ioDelegate.whileRunningTestsWithoutBuilding = { withUnsafeCurrentTask { $0?.cancel() } }
+        let posted = recordNotifications(named: [.mutationTestingEndedEarly, .newTestLogAvailable])
+
+        let result = await runInItsOwnTask()
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(posted().map(\.name), [])
+        XCTAssertEqual(resultsFiles.directories, [])
+        XCTAssertEqual(ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count, 0)
+    }
+
     func test_whenCancelledBeforeTheFirstMutant_noneRuns() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
         // The baseline's log is the last thing posted before the first mutant.

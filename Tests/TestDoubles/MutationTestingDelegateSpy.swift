@@ -31,6 +31,11 @@ class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate {
     /// Called with a worker's number just before its baseline run returns: 0 in the mutated project, and n for the
     /// n-th worker clone's build to start. A test can cancel mutation testing while one is under way.
     var whileRunningBaseline: ((Int) -> Void)?
+    /// How the timed run of the test command without its build ends. Not taken from `testSuiteOutcomes`, which
+    /// scripts the baselines and the mutants.
+    var timedTestRunOutcome: TestSuiteOutcome = .passed
+    /// Called just before the timed run of the test command without its build returns, so a test can move its clock.
+    var whileRunningTestsWithoutBuilding: (() -> Void)?
     private var mutantRunCount = 0
 
     func backupFile(at path: String, using swapFilePaths: [FilePath: FilePath]) {
@@ -115,6 +120,16 @@ class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate {
         }
         whileRunningBaseline?(worker)
         return (outcome, "testLog")
+    }
+
+    func runTestsWithoutBuilding(
+        using configuration: MuterConfiguration,
+        savingResultsIntoFileNamed fileName: String
+    ) -> TestSuiteOutcome {
+        methodCalls.append(#function)
+        testLogs.append(fileName)
+        whileRunningTestsWithoutBuilding?()
+        return timedTestRunOutcome
     }
 
     func switchOn(schemata: MutationSchema, for testRun: XCTestRun, at path: URL) throws {

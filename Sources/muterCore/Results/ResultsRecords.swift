@@ -115,7 +115,12 @@ struct ResultsHeader: Codable, Equatable {
     let newVersion: String
     /// How long the baseline run took; nil when a resumed session had nothing left to test, and ran none.
     let baselineSeconds: Double?
-    /// The time limit for a mutant's run: the configured one, or else the default the baseline set, if one ran.
+    /// How long one run of a mutant's test command took with no mutant on, which the default time limit is based on;
+    /// nil when none was timed: a time limit was configured, the build system isn't SwiftPM, the run didn't pass, or a
+    /// resumed session had nothing left to test.
+    let testRunSeconds: Double?
+    /// The time limit for a mutant's run: the configured one, or else the default that the timed test run, or else the
+    /// baseline, set, if one ran.
     let timeoutSeconds: Double?
     let timeoutIsDefault: Bool
     let workers: Int
@@ -147,6 +152,7 @@ extension ResultsHeader {
         logDirectory: String,
         configuration: MuterConfiguration,
         baselineSeconds: Double?,
+        testRunSeconds: Double? = nil,
         workers: Int,
         mutantsDiscovered: Int,
         mutantsToTest: Int,
@@ -174,6 +180,7 @@ extension ResultsHeader {
                 : CoverageSummary(percent: coverage.percent, filesWithoutCoverage: coverage.filesWithoutCoverage),
             newVersion: state.newVersion,
             baselineSeconds: baselineSeconds,
+            testRunSeconds: testRunSeconds,
             timeoutSeconds: configuration.testSuiteTimeout,
             timeoutIsDefault: state.muterConfiguration.testSuiteTimeout == nil,
             workers: workers,

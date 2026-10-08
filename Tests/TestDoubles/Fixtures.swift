@@ -529,6 +529,7 @@ extension ResultsHeader {
             coverage: coverage,
             newVersion: newVersion,
             baselineSeconds: 32.125,
+            testRunSeconds: 19.3,
             timeoutSeconds: 96.5,
             timeoutIsDefault: true,
             workers: 1,

@@ -39,12 +39,102 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
     }
 
     func test_aConfiguredTimeoutIsKept() async throws {
-        state.muterConfiguration = MuterConfiguration(testSuiteTimeOut: 42)
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], testSuiteTimeOut: 42
+        )
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
 
         _ = try await sut.run(with: state)
 
         XCTAssertEqual(ioDelegate.configurations.map(\.testSuiteTimeout), [42, 42])
+        XCTAssertFalse(ioDelegate.methodCalls.contains(timedRun))
+    }
+
+    // A SwiftPM mutant's run skips the build, so its default limit comes from one timed run of that command, with no
+    // mutant on: five times it at one worker.
+    func test_aSwiftPMRunWithoutATimeout_basesTheDefaultOnATimedTestRun() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        timeTheTestRun(seconds: 12)
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.methodCalls.filter { $0 == timedRun }.count, 1)
+        XCTAssertEqual(ioDelegate.configurations.map(\.testSuiteTimeout), [60, 60])
+    }
+
+    // Each worker's tests compete with the others' for the same cores, so each worker beyond the first adds one more.
+    func test_eachWorkerBeyondTheFirst_addsATimedTestRunToTheDefault() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
+        )
+        state.loggingDirectory = "/logs"
+        // The baseline, the worker clone's build, then the two mutants.
+        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
+        timeTheTestRun(seconds: 12)
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.configurations.map(\.testSuiteTimeout), [72, 72])
+        let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
+        XCTAssertEqual(header.testRunSeconds, 12)
+        XCTAssertEqual(header.timeoutSeconds, 72)
+    }
+
+    // The workers are never more than the mutants to test, and the default counts only those that test them.
+    func test_theDefault_countsOnlyTheWorkersThatTestMutants() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 8
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
+        timeTheTestRun(seconds: 12)
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.configurations.map(\.testSuiteTimeout), [72, 72])
+    }
+
+    func test_aShortTimedTestRun_getsTheMinimum() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        timeTheTestRun(seconds: 1)
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(
+            ioDelegate.configurations.map(\.testSuiteTimeout),
+            [PerformMutationTesting.minimumTestRunTimeout, PerformMutationTesting.minimumTestRunTimeout]
+        )
+    }
+
+    // A timed run that doesn't pass says nothing about how long a passing one takes: it may have crashed at once.
+    // The default then comes from the baseline, as for other build systems.
+    func test_whenTheTimedTestRunDoesNotPass_theDefaultComesFromTheBaseline() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+        state.loggingDirectory = "/logs"
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        ioDelegate.timedTestRunOutcome = .runtimeError
+        timeTheTestRun(seconds: 12)
+
+        _ = try await sut.run(with: state)
+
+        // The spy's baseline returns at once, so the minimum applies.
+        XCTAssertEqual(
+            ioDelegate.configurations.map(\.testSuiteTimeout),
+            [PerformMutationTesting.minimumDefaultTimeout, PerformMutationTesting.minimumDefaultTimeout]
+        )
+        XCTAssertNil(try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first).testRunSeconds)
+    }
+
+    // An xcodebuild project's mutants run `test-without-building` from a test run of their own, so a timed run of it
+    // isn't made, and the default stays based on the baseline.
+    func test_anotherBuildSystem_getsNoTimedTestRun() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertFalse(ioDelegate.methodCalls.contains(timedRun))
     }
 
     func test_withTwoWorkers_eachMutantRunsInAWorkerDirectory() async throws {
@@ -142,11 +232,12 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
 
         _ = try await sut.run(with: state)
 
-        XCTAssertEqual(ioDelegate.methodCalls.prefix(2), [
+        XCTAssertEqual(ioDelegate.methodCalls.prefix(3), [
             "benchmarkTests(using:savingResultsIntoFileNamed:)",
+            timedRun,
             "benchmarkTests(using:savingResultsIntoFileNamed:workingDirectory:)",
         ])
-        XCTAssertEqual(ioDelegate.testLogs.prefix(2), ["baseline run", "baseline run worker 1"])
+        XCTAssertEqual(ioDelegate.testLogs.prefix(3), ["baseline run", "timed test run", "baseline run worker 1"])
     }
 
     func test_aWorkerCloneWhoseBaselineFails_stopsTheRun() async throws {
@@ -466,6 +557,18 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         }
         addTeardownBlock { [notificationCenter] in notificationCenter.removeObserver(observer) }
         return { lines }
+    }
+
+    private let timedRun = "runTestsWithoutBuilding(using:savingResultsIntoFileNamed:)"
+
+    /// Makes the timed test run take `seconds` by the injected clock. Every baseline and mutant run takes time too, so
+    /// a limit taken from anything but the timed run alone comes out wrong.
+    private func timeTheTestRun(seconds: UInt64) {
+        var nanoseconds: UInt64 = 1
+        current.instant = { DispatchTime(uptimeNanoseconds: nanoseconds) }
+        ioDelegate.whileRunningBaseline = { _ in nanoseconds += 100_000_000_000 }
+        ioDelegate.whileRunningTestsWithoutBuilding = { nanoseconds += seconds * 1_000_000_000 }
+        ioDelegate.whileRunningMutant = { _ in nanoseconds += 7_000_000_000 }
     }
 
     private func makeSchemataMapping(line: Int) throws -> SchemataMutationMapping {
