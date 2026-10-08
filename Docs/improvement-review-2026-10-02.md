@@ -15,8 +15,9 @@ This started as a ranked review of SwiftMutator on 2 October 2026, at commit `4b
   - RemoveSideEffects joining a `;`-separated statement onto the line above (PR #52).
   - A mutant switch's closing brace landing in a `//` comment or after `#endif` (PR #53).
   - SwapTernary replacing the trivia on either side of the swap, which could join two statements or comment out the swap (PR #54).
+  - SwapTernary moving a trailing closure to the end of a `guard` condition, and putting code after a `#endif` (PR #55).
 
-  Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#54, which are in the PRs themselves.
+  Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#55, which are in the PRs themselves.
 - **Section numbers are the original ones,** so references in PRs and notes still work. A missing number is a finished section.
 
 ## The workload these numbers come from
@@ -167,7 +168,7 @@ Discovery has merged mutants by full path since PR #25. Deferred:
 
 ### 2.6 One uncompilable mutant switch aborts the whole run
 
-- **What happens.** A compile error in any of the ~300 rewritten files fails the baseline (`PerformMutationTesting.swift:168-200`). That ends the run after the copy, discovery and a ~95 s baseline. Stryker puts the offending mutants back instead, and cargo-mutants and mull mark them "unviable". The SwapTernary and multi-line string bugs under [Open bugs](#open-bugs) are ways to hit this today.
+- **What happens.** A compile error in any of the ~300 rewritten files fails the baseline (`PerformMutationTesting.swift:168-200`). That ends the run after the copy, discovery and a ~95 s baseline. Stryker puts the offending mutants back instead, and cargo-mutants and mull mark them "unviable". The multi-line string bug under [Open bugs](#open-bugs) is one way to hit this today.
 - **Proposal.**
   1. Make the build of the mutated project its own step. For SwiftPM it happens inside the baseline test run today.
   2. On failure, match each compiler error's path to a rewritten file, by full path in the copy, and restore that file from the original project. `CompilerError.all(in:)` (`MutationTestingAbortReason.swift:141-143`) already parses the errors.
@@ -191,12 +192,6 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
 
 ## Open bugs
 
-- **SwapTernary can move a trailing closure to the end of a `guard` condition (S).** Found while fuzzing PR #54, and older than it.
-  - **When it breaks the build.** `guard c ? xs.contains { $0 > 1 } : d else { return 0 }` becomes `guard c ? d : xs.contains { $0 > 1 } else …`. There the closure's `{` opens the guard's body, so the mutant doesn't parse. The reparse keeps only what it could parse, so `else { return 0 }` and the statements after it are lost. The rewritten file doesn't compile, and the whole run aborts (§2.6).
-  - **Fix.** Wrap a moved expression that ends in a trailing closure in parentheses.
-- **SwapTernary can put a `:` after `#endif` (S).** Found while fuzzing PR #54, and older than it.
-  - **When it breaks the build.** An else-branch can end in a postfix `#if` block: `return c ? a : b`, then `#if DEBUG`, `.advanced(by: 1)` and `#endif` on lines of their own. The swap moves it before the `:`, which then follows `#endif` on its line: "extra tokens following conditional compilation directive". The whole run aborts (§2.6).
-  - **Fix.** Start the `:` on a new line when the moved else-branch ends in `#endif`, as PR #53 does for a mutant switch's `}`.
 - **A mutant switch inside a multi-line string's interpolation can fail to compile.** PR #53 starts a branch's `}` on a new line when the branch's last line ends in a `//` comment or `#endif`.
   - **When it fails.** Take a closure inside a `"""` string's `\( … )` whose first statement is on the `{` line. The new line starts at column 0, which is less indented than the closing `"""`, so it fails with "insufficient indentation". It failed on `main` before PR #53 too, because the comment swallowed the brace.
   - **Fix.** Indent the `}` like the source line it follows. That indentation is part of the string's text, not trivia, so it's rare enough to leave for now.
@@ -339,7 +334,7 @@ Added on 7 October, from a discussion of using property-based tests (PBT) alongs
 
 ## Suggested order
 
-1. **The two SwapTernary bugs and `TokenAwareVisitor`'s override,** with the CRLF test for PR #49. They're small, and the SwapTernary bugs can abort a whole run.
+1. **`TokenAwareVisitor`'s override,** with the CRLF test for PR #49. Both are small, and the override must go before boundary mutants (§4).
 2. **A default time limit based on test time** (§2.7). It's the cheapest speed-up left, about 8.5 min.
 3. **Progress output** that works in a log file (§3).
 4. **Coverage** (§1.3). It saves about 11 min, and stops counting code that no test runs as survivors.
@@ -348,7 +343,7 @@ Added on 7 October, from a discussion of using property-based tests (PBT) alongs
 
 ## Outside this repo
 
-- **Upstream Muter.** The fixes in PRs #25, #27, #49 and #52–#54 also apply to upstream Muter at `7f1f258`, and PR #26's once muter#309 and muter#312 are in. Each PR's body says how to port it. They're held until upstream's CI is green again.
+- **Upstream Muter.** The fixes in PRs #25, #27, #49 and #52–#55 also apply to upstream Muter at `7f1f258`, and PR #26's once muter#309 and muter#312 are in. Each PR's body says how to port it. They're held until upstream's CI is green again.
 - **`swift-quality`.**
   - It prints `swift --version` before it changes into the project folder (lines 75 and 80 at dotfiles-claude `cf472b0`), so its header can name the wrong toolchain.
   - Add start and end timestamps to `summary.txt`.

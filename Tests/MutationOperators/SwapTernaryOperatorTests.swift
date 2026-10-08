@@ -266,6 +266,95 @@ final class SwapTernaryOperatorTests: MuterTestCase {
         XCTAssertEqual(mutations.map(codeTokens), ["return flag ? 2 : 1"])
     }
 
+    // At the end of a `guard` condition, a `{` followed by `else` opens the guard's body rather than
+    // a trailing closure. The swap moved the then-branch's closure there, so the mutant did not
+    // parse, and the reparse dropped `else { return 0 }` and `return 1`. The `!` makes the branch a
+    // prefix expression rather than a call, so this pins the rule to the last token being a `}`.
+    func test_parenthesizesAThenBranchThatEndsInAClosure() throws {
+        let mutations = try swappedMutationTexts(of: """
+        func pick(_ c: Bool, _ d: Bool, _ xs: [Int]) -> Int {
+            guard c ? !xs.contains { $0 > 1 } : d else { return 0 }
+            return 1
+        }
+        """)
+
+        XCTAssertEqual(
+            mutations.map(collapsingWhitespace),
+            ["guard c ? d : (!xs.contains { $0 > 1 }) else { return 0 } return 1"]
+        )
+        for mutation in mutations {
+            XCTAssertFalse(Parser.parse(source: mutation).hasError, mutation)
+        }
+    }
+
+    // A postfix `#if` block can end the else-branch, and only a comment may follow a `#endif` on its
+    // line. Swapped before the `:`, the `#endif` had the `:` on its line.
+    func test_startsTheColonOnANewLineAfterAnElseBranchEndingInEndif() throws {
+        let mutations = try swappedMutationTexts(of: """
+        func pick(_ c: Bool, _ a: Int, _ b: Int) -> Int {
+            return c ? a : b
+                #if DEBUG
+                .advanced(by: 1)
+                #endif
+        }
+        """)
+
+        XCTAssertEqual(mutations.map(collapsingWhitespace), ["return c ? b #if DEBUG .advanced(by: 1) #endif : a"])
+        for mutation in mutations {
+            XCTAssertFalse(Parser.parse(source: mutation).hasError, mutation)
+        }
+    }
+
+    // The same with the then-branch, which the swap moves to the end, before whatever follows the
+    // ternary: here a comment and then `else`. The comment stays, and the line break follows it.
+    func test_endsTheLineAfterAThenBranchEndingInEndif() throws {
+        let mutations = try swappedMutationTexts(of: """
+        func pick(_ c: Bool, _ d: Bool, _ xs: [Int]) -> Int {
+            guard c ? xs.isEmpty
+                #if DEBUG
+                .description.isEmpty
+                #endif
+                : d /* kept */ else { return 0 }
+            return 1
+        }
+        """)
+
+        XCTAssertEqual(
+            mutations.map(collapsingWhitespace),
+            ["guard c ? d : xs.isEmpty #if DEBUG .description.isEmpty #endif /* kept */ else { return 0 } return 1"]
+        )
+        for mutation in mutations {
+            XCTAssertFalse(Parser.parse(source: mutation).hasError, mutation)
+        }
+    }
+
+    // Inside a multi-line string's interpolation, every line must be indented at least as far as the
+    // closing `"""`. The line break after a `#endif` takes the `#endif`'s indentation, so the `)` or
+    // `:` that it moves to a new line still is.
+    func test_indentsTheLineAfterAnEndifLikeTheEndif() throws {
+        let mutations = try swappedMutationTexts(of: #"""
+        func pick(_ c: Bool, _ a: Int, _ b: Int) -> String {
+            return """
+                \(c ? a
+                    #if DEBUG
+                    .advanced(by: 1)
+                    #endif
+                    : b)
+                \(c ? a : b
+                    #if DEBUG
+                    .advanced(by: 2)
+                    #endif
+                )
+                """
+        }
+        """#)
+
+        XCTAssertEqual(mutations.count, 2)
+        for mutation in mutations {
+            XCTAssertFalse(Parser.parse(source: mutation).hasError, mutation)
+        }
+    }
+
     /// Each mutation's text with runs of whitespace collapsed, so the assertions read like source.
     private func swappedMutations(of text: String) throws -> [String] {
         try swappedMutationTexts(of: text).map(collapsingWhitespace)
