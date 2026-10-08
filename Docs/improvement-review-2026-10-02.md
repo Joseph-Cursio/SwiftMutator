@@ -16,8 +16,9 @@ This started as a ranked review of SwiftMutator on 2 October 2026, at commit `4b
   - A mutant switch's closing brace landing in a `//` comment or after `#endif` (PR #53).
   - SwapTernary replacing the trivia on either side of the swap, which could join two statements or comment out the swap (PR #54).
   - SwapTernary moving a trailing closure to the end of a `guard` condition, and putting code after a `#endif` (PR #55).
+  - `TokenAwareVisitor`'s own edit range, which dropped a combining mark after the operator and would have cut short a longer replacement, and a CRLF test for the reparse edit (PR #56).
 
-  Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#55, which are in the PRs themselves.
+  Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#56, which are in the PRs themselves.
 - **Section numbers are the original ones,** so references in PRs and notes still work. A missing number is a finished section.
 
 ## The workload these numbers come from
@@ -195,14 +196,6 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
 - **A mutant switch inside a multi-line string's interpolation can fail to compile.** PR #53 starts a branch's `}` on a new line when the branch's last line ends in a `//` comment or `#endif`.
   - **When it fails.** Take a closure inside a `"""` string's `\( … )` whose first statement is on the `{` line. The new line starts at column 0, which is less indented than the closing `"""`, so it fails with "insufficient indentation". It failed on `main` before PR #53 too, because the comment swallowed the brace.
   - **Fix.** Indent the `}` like the source line it follows. That indentation is part of the string's text, not trivia, so it's rare enough to leave for now.
-- **`TokenAwareVisitor`'s own edit range is redundant, and fragile (S).**
-  - Its `transform` override (`TokenAwareVisitor.swift:68-97`) ends the edit at the mutation's length in Characters.
-  - Every relational and logical mutation today has the same length as its operator, so it matches the position lookup that PR #31 added to the base class. A scratch comparison on ASCII, emoji and CRLF sources gave identical results.
-  - A longer replacement would run past the operator, so the override must go before boundary mutants (§4).
-  - Delete it and its helper, then `String.convertToCharOffset` and its test.
-- **No CRLF test for the reparse fix (S).** PR #49 fixed CRLF files as well as multi-byte text, but none of its five tests uses CRLF line endings.
-  - A failing-first test needs more CRLFs before the mutation than its distance from the start of its statement.
-  - About 20 `x()` lines joined by `"\r\n"`, before `let ok = a && b`, gave an unchanged mutant before PR #49 and `a || b` after.
 - **Waiting for a test process can hang.** `exited()` (`MuterProcess.swift:42-49`) calls `waitUntilExit()` on a GCD thread.
   - Reviewers of PR #36 saw that call never return, but only for a process without a `terminationHandler`.
   - Every test process now has one, and the hang hasn't been seen in SwiftMutator.
@@ -293,7 +286,6 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
 - **Better relational-operator mutants.** Today `<` and `>` are swapped, which almost any test kills. Boundary mutants (`<` → `<=`, `>` → `>=`, and so on) would expose missing edge-case tests.
   - Done in place, the count stays at 218 here.
   - As a separate operator, they would add 218 mutants, about 7–15 min.
-  - Remove `TokenAwareVisitor`'s override first (see [Open bugs](#open-bugs)).
 - **xcodebuild projects.** These always test one mutant at a time, without fail-fast (`MuterConfiguration.swift:100-111`). The per-worker copies used for SwiftPM could cover them too, with a cloned simulator per worker.
 - **Spotlight.** It indexes the copies and logs under `~/xcode_projects`. SwiftMutator names those folders itself (`_mutated`, `_muter_logs` and `_worker<n>`), so it could add `.noindex`. The benefit hasn't been measured.
   - Only the steps that make the folders (`CreateTempDirectoryURL.swift:21`, `fileOperations.swift:41`, `PerformMutationTesting.swift:730`) and the cleanup (`PreviousRunCleanUp.swift:28`) use their names. `report` and `--resume` use the path they're given and the paths in the results file.
@@ -334,12 +326,11 @@ Added on 7 October, from a discussion of using property-based tests (PBT) alongs
 
 ## Suggested order
 
-1. **`TokenAwareVisitor`'s override,** with the CRLF test for PR #49. Both are small, and the override must go before boundary mutants (§4).
-2. **A default time limit based on test time** (§2.7). It's the cheapest speed-up left, about 8.5 min.
-3. **Progress output** that works in a log file (§3).
-4. **Coverage** (§1.3). It saves about 11 min, and stops counting code that no test runs as survivors.
-5. **Unviable mutants** (§2.6), so that one bad mutant can't cost a whole run.
-6. **`--since`, reuse and `--shard`** (§1.4), for runs on a change rather than the whole repo.
+1. **A default time limit based on test time** (§2.7). It's the cheapest speed-up left, about 8.5 min.
+2. **Progress output** that works in a log file (§3).
+3. **Coverage** (§1.3). It saves about 11 min, and stops counting code that no test runs as survivors.
+4. **Unviable mutants** (§2.6), so that one bad mutant can't cost a whole run.
+5. **`--since`, reuse and `--shard`** (§1.4), for runs on a change rather than the whole repo.
 
 ## Outside this repo
 
