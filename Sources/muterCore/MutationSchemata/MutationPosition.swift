@@ -70,18 +70,3 @@ func == (lhs: MutationPosition, rhs: AbsolutePosition) -> Bool {
 func == (lhs: AbsolutePosition, rhs: MutationPosition) -> Bool {
     lhs.utf8Offset == rhs.utf8Offset
 }
-
-extension SyntaxProtocol {
-    func line(with sourceCodeInfo: SourceCodeInfo) -> Int {
-        let converter = SourceLocationConverter(
-            fileName: sourceCodeInfo.path,
-            tree: sourceCodeInfo.code
-        )
-
-        let sourceLocation = startLocation(
-            converter: converter
-        )
-
-        return MutationPosition(sourceLocation: sourceLocation).line
-    }
-}
