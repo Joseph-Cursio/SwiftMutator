@@ -164,14 +164,12 @@ class MuterVisitor: SyntaxAnyVisitor {
 
     func transform(
         node: SyntaxProtocol,
-        mutatedSyntax: SyntaxProtocol,
-        at mutationRange: Range<String.Index>? = nil
+        mutatedSyntax: SyntaxProtocol
     ) -> CodeBlockItemListSyntax {
         let codeBlockItemListSyntax = node.codeBlockItemListSyntax
         let codeBlockDescription = codeBlockItemListSyntax.description
         let mutationDescription = mutatedSyntax.description
-        let range = mutationRange
-            ?? Self.range(of: node, in: codeBlockItemListSyntax, description: codeBlockDescription)
+        let range = Self.range(of: node, in: codeBlockItemListSyntax, description: codeBlockDescription)
             ?? codeBlockDescription.range(of: node.description)
         let codeBlockTree = Parser.parse(source: codeBlockDescription)
         guard let range
