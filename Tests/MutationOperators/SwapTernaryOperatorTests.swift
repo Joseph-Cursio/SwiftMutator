@@ -28,7 +28,7 @@ final class SwapTernaryOperatorTests: MuterTestCase {
                     .make(
                         filePath: sampleCode.path,
                         mutationOperatorId: .swapTernary,
-                        syntaxMutation: "\n    return a  ? \"false\" :  \"true\" ",
+                        syntaxMutation: "\n    return a ? \"false\" :  \"true\" ",
                         position: MutationPosition(
                             utf8Offset: 199,
                             line: 10,
@@ -36,7 +36,7 @@ final class SwapTernaryOperatorTests: MuterTestCase {
                         ),
                         snapshot: MutationOperator.Snapshot(
                             before: "a ? \"true\" : \"false\"",
-                            after: "a  ? \"false\" :  \"true\"",
+                            after: "a ? \"false\" :  \"true\"",
                             description: "swapped ternary operator"
                         )
                     ),
@@ -48,7 +48,7 @@ final class SwapTernaryOperatorTests: MuterTestCase {
                     .make(
                         filePath: sampleCode.path,
                         mutationOperatorId: .swapTernary,
-                        syntaxMutation: "\n    return a  ? false :  true ",
+                        syntaxMutation: "\n    return a ? false :  true ",
                         position: MutationPosition(
                             utf8Offset: 120,
                             line: 6,
@@ -56,7 +56,7 @@ final class SwapTernaryOperatorTests: MuterTestCase {
                         ),
                         snapshot: MutationOperator.Snapshot(
                             before: "a ? true : false",
-                            after: "a  ? false :  true",
+                            after: "a ? false :  true",
                             description: "swapped ternary operator"
                         )
                     ),
@@ -82,7 +82,7 @@ final class SwapTernaryOperatorTests: MuterTestCase {
                     .make(
                         filePath: sampleNestedCode.path,
                         mutationOperatorId: .swapTernary,
-                        syntaxMutation: "\n    return a  ? false :  b ? true : false ",
+                        syntaxMutation: "\n    return a ? false :  b ? true : false ",
                         position: MutationPosition(
                             utf8Offset: 143,
                             line: 6,
@@ -90,14 +90,14 @@ final class SwapTernaryOperatorTests: MuterTestCase {
                         ),
                         snapshot: MutationOperator.Snapshot(
                             before: "a ? b ? true : false : false",
-                            after: "a  ? false :  b ? true : false",
+                            after: "a ? false :  b ? true : false",
                             description: "swapped ternary operator"
                         )
                     ),
                     .make(
                         filePath: sampleNestedCode.path,
                         mutationOperatorId: .swapTernary,
-                        syntaxMutation: "\n    return a ? b  ? false :  true : false",
+                        syntaxMutation: "\n    return a ? b ? false :  true : false",
                         position: MutationPosition(
                             utf8Offset: 136,
                             line: 6,
@@ -105,7 +105,7 @@ final class SwapTernaryOperatorTests: MuterTestCase {
                         ),
                         snapshot: MutationOperator.Snapshot(
                             before: "b ? true : false",
-                            after: "b  ? false :  true",
+                            after: "b ? false :  true",
                             description: "swapped ternary operator"
                         )
                     ),
@@ -176,8 +176,8 @@ final class SwapTernaryOperatorTests: MuterTestCase {
 
     // The reparse of the mutated block must be told where the edit is in UTF-8 bytes. It was told
     // in characters, so multi-byte text earlier in the block put the edit before the statement
-    // being mutated. The reparse then reused that statement unmutated and appended the swap's
-    // leftover tail, `return flag ? face : "none"ce`, which does not compile.
+    // being mutated. The reparse then reused that statement unmutated and appended the leftover end
+    // of the swap's text after it, which does not compile.
     func test_swapsATernaryAfterMultiByteText() throws {
         let mutations = try swappedMutations(of: """
         func pick(_ flag: Bool) -> String {
@@ -191,27 +191,105 @@ final class SwapTernaryOperatorTests: MuterTestCase {
 
     // The swap is three bytes longer than the ternary, but the reparse was told that the text after
     // it had not moved. A statement that now started where another used to start was taken to be
-    // that other one: here `ab` was dropped and `ef` appeared twice.
+    // that other one: here `ab` was dropped and `ef` appeared twice. `:2` is unspaced so that the
+    // swap, which spaces it, grows by the length of each statement after it.
     func test_keepsTheStatementsAfterATernaryThatGrows() throws {
         let mutations = try swappedMutations(of: """
         func pick(_ flag: Bool, _ ab: Int, _ cd: Int, _ ef: Int) {
-            let value = flag ? 1 : 2;ab;cd;ef
+            let value = flag ? 1 :2;ab;cd;ef
         }
         """)
 
         XCTAssertEqual(mutations, ["let value = flag ? 2 : 1 ;ab;cd;ef"])
     }
 
+    // A comment after the ternary can be all that separates it from the next statement. The swap
+    // put one space in place of the last term's trailing trivia, so the comment was lost and
+    // `record(flag)` joined the ternary's statement, which does not compile.
+    func test_keepsTheCommentAfterATernary() throws {
+        let mutations = try swappedMutationTexts(of: """
+        func pick(_ flag: Bool) {
+            _ = flag ? 1 : 2 /* one
+            two */ record(flag)
+        }
+        """)
+
+        XCTAssertEqual(mutations.map(collapsingWhitespace), ["_ = flag ? 2 : 1 /* one two */ record(flag)"])
+        for mutation in mutations {
+            XCTAssertFalse(Parser.parse(source: mutation).hasError, mutation)
+        }
+    }
+
+    // The same with an else-branch of several terms: the trivia to keep is the last term's.
+    func test_keepsTheCommentAfterATernaryWithSeveralElseTerms() throws {
+        let mutations = try swappedMutationTexts(of: """
+        func pick(_ flag: Bool, _ a: Int, _ b: Int) {
+            _ = flag ? 1 : a + b /* one
+            two */ record(flag)
+        }
+        """)
+
+        XCTAssertEqual(mutations.map(collapsingWhitespace), ["_ = flag ? a + b : 1 /* one two */ record(flag)"])
+        for mutation in mutations {
+            XCTAssertFalse(Parser.parse(source: mutation).hasError, mutation)
+        }
+    }
+
+    // An else-branch can touch the token after it, as in `(a < b)else`. Moved there, a then-branch
+    // that ends in a name joined that token into one: `delse`.
+    func test_keepsTheSwappedTernaryApartFromTheTokenAfterIt() throws {
+        let mutations = try swappedMutationTexts(of: """
+        func pick(_ c: Bool, _ d: Bool, _ a: Int, _ b: Int) -> Int {
+            guard c ? d : (a < b)else { return 0 }
+            return 1
+        }
+        """)
+
+        XCTAssertEqual(mutations.map(collapsingWhitespace), ["guard c ? (a < b) : d else { return 0 } return 1"])
+        for mutation in mutations {
+            XCTAssertFalse(Parser.parse(source: mutation).hasError, mutation)
+        }
+    }
+
+    // A `//` comment after the condition ends at the line break, which is the leading trivia of the
+    // `?` that starts the next line. The swap put one space in place of it, so the swapped ternary
+    // became part of the comment, leaving `return flag`.
+    func test_keepsTheLineBreakBeforeATernarysQuestionMark() throws {
+        let mutations = try swappedMutationTexts(of: """
+        func pick(_ flag: Bool) -> Int {
+            return flag // decides
+                ? 1
+                : 2
+        }
+        """)
+
+        XCTAssertEqual(mutations.map(codeTokens), ["return flag ? 2 : 1"])
+    }
+
     /// Each mutation's text with runs of whitespace collapsed, so the assertions read like source.
     private func swappedMutations(of text: String) throws -> [String] {
+        try swappedMutationTexts(of: text).map(collapsingWhitespace)
+    }
+
+    /// Each mutation's text as it is compiled.
+    private func swappedMutationTexts(of text: String) throws -> [String] {
         let source = try sourceCode(text)
         let visitor = SwapTernaryOperator.Visitor(sourceCodeInfo: .init(path: "/path/to/file", code: source))
         visitor.walk(source)
 
-        return visitor.schemataMappings.mutationSchemata.map {
-            $0.syntaxMutation.description
-                .split(whereSeparator: \.isWhitespace)
-                .joined(separator: " ")
-        }
+        return visitor.schemataMappings.mutationSchemata.map(\.syntaxMutation.description)
+    }
+
+    private func collapsingWhitespace(_ text: String) -> String {
+        text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+
+    /// The tokens a compiler sees, without comments or whitespace.
+    private func codeTokens(_ text: String) -> String {
+        Parser.parse(source: text)
+            .tokens(viewMode: .sourceAccurate)
+            .map(\.text)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
     }
 }

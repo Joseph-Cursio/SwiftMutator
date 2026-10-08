@@ -114,15 +114,21 @@ enum SwapTernaryOperator {
             let secondChoice = elseExpression
                 .withTrailingTrivia(.spaces(1))
                 .withLeadingTrivia(.spaces(1))
+            // The trivia on either side of the swap is kept as it was. A `//` comment that ends the
+            // condition needs the line break before the `?`, and a comment after the last term can
+            // be all that separates this statement from the next. A last term with no trailing
+            // trivia touched the next token, as in `(a < b)else`; the then-expression could join it
+            // (`delse`), so it gets a space.
+            let lastTermTrivia = elseTerms[elseTerms.count - 1].trailingTrivia
             let firstChoice = ternary.thenExpression
-                .withTrailingTrivia(.spaces(1))
+                .withTrailingTrivia(lastTermTrivia.isEmpty ? .spaces(1) : lastTermTrivia)
                 .withLeadingTrivia(.spaces(1))
 
             children.replaceSubrange(index..., with: [
                 ExprSyntax(
                     UnresolvedTernaryExprSyntax(thenExpression: secondChoice)
                         .withTrailingTrivia(.spaces(1))
-                        .withLeadingTrivia(.spaces(1))
+                        .withLeadingTrivia(ternary.leadingTrivia)
                 ),
                 firstChoice,
             ])
