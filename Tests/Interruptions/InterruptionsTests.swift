@@ -191,6 +191,26 @@ final class InterruptionsTests: MuterTestCase {
         XCTAssertTrue(hangup.contains("Send SIGINT or SIGTERM to stop at once."), hangup)
     }
 
+    // Without a terminal there's no progress bar to leave room for, so a log gets no empty lines after the message.
+    func test_withoutATerminal_theStoppingMessage_hasNoEmptyLinesAfterIt() throws {
+        current.standardOutIsATerminal = false
+        let started = Gate()
+        let running = Running(makeInterruptions()) {
+            started.open()
+            try await Task.sleep(nanoseconds: 10_000_000_000)
+        }
+        XCTAssertTrue(started.wait())
+        waitUntilObserving()
+
+        XCTAssertTrue(observer.send(SIGHUP))
+        _ = try XCTUnwrap(running.wait())
+
+        XCTAssertEqual(said.all, [
+            "⏹ Stopping (SIGHUP): ending the test runs under way and keeping what was tested. "
+                + "Send SIGINT or SIGTERM to stop at once.",
+        ])
+    }
+
     // `nohup` ignores SIGHUP, so that a run outlives its terminal.
     func test_aSignalIgnoredAtStart_neverStopsTheWork() throws {
         observer = SignalObserverFake(ignoredAtStart: [SIGHUP])
