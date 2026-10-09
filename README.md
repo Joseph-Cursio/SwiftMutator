@@ -52,6 +52,25 @@ swift build -c release --product swift-mutator
 
 `make install` installs `swift-mutator` into `/usr/local/bin`.
 
+## Progress
+
+In a terminal, a progress bar counts the mutants tested and estimates the time left from the time
+per mutant so far. Elsewhere, as with `> run.log` or `| tee run.log`, the bar's redraws would fill
+the log with cursor movements. So SwiftMutator prints a line once the baseline passes and one as
+each mutant finishes instead, and flushes each line as it prints it:
+
+```
+[13:13:25] 1103 of 2497 (44%) | 838 killed, 262 survived, 3 timed out | 47 min left | survived at Rules.swift:42:17 (changed == to !=)
+```
+
+So `tail -f run.log` follows the run, and `grep 'survived at' run.log` lists the survivors so far.
+A resumed run's lines count only the mutants it tests, so they leave out the results it kept;
+`swift-mutator report` gives them all. Standard output counts as a terminal where colour can show:
+it's a tty, and `TERM` is set and isn't `dumb`. `NO_COLOR` turns off the colour, not the bar.
+
+The Swift files a run finds, then how many mutants are in each file that has any, are listed only
+with `--verbose`.
+
 ## Configuration
 
 SwiftMutator reads Muter's `muter.conf.yml`, so existing Muter configurations work unchanged.
@@ -252,10 +271,10 @@ and builds the project as any run does, then says which results it keeps:
 ♻️ Resuming the run in /…/results.jsonl: 1098 results still hold, so 1399 mutants are left to test (1394 never tested, 5 build errors).
 ```
 
-It runs the baseline again and tests only the mutants left, which the progress bar counts. Their
-results go into the same file, as a new session, so the file stays in the first session's log folder.
-The report at the end covers every mutant, kept or tested, and so does `swift-mutator report` of the
-file.
+It runs the baseline again and tests only the mutants left, which are what the progress bar, or the
+line per mutant, counts. Their results go into the same file, as a new session, so the file stays in
+the first session's log folder. The report at the end covers every mutant, kept or tested, and so
+does `swift-mutator report` of the file.
 
 - **What it saves.** The copy, the build, the baseline and the worker clones are made again. On
   SwiftProjectLint's 2,497 mutants they take 5–9% of a run, so resuming a run stopped halfway should

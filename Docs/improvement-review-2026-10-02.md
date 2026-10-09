@@ -19,8 +19,9 @@ This started as a ranked review of SwiftMutator on 2 October 2026, at commit `4b
   - `TokenAwareVisitor`'s own edit range, which dropped a combining mark after the operator and would have cut short a longer replacement, and a CRLF test for the reparse edit (PR #56).
   - A default time limit based on a timed test run, for SwiftPM projects (§2.7, PR #57).
   - The progress bar's count, which ran one mutant ahead and hid the first estimate, its time left, which swung by 100×, its wording, and its redraw, which left stale text on screen, a whole line per redraw in an 80-column terminal (§3, PR #58).
+  - Progress in a log file: a flushed, timestamped line per mutant when stdout isn't a terminal, and the file listings only with `--verbose` (§3, PR #59).
 
-  Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#58, which are in the PRs themselves.
+  Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#59, which are in the PRs themselves.
 - **Section numbers are the original ones,** so references in PRs and notes still work. A missing number is a finished section.
 
 ## The workload these numbers come from
@@ -73,7 +74,7 @@ Fail-fast is done (PR #36), and on by default since PR #41. Left:
 
 - **What happens.** The coverage step assumes one test bundle, but SwiftPM's newer build layout makes one per test target (three for SwiftProjectLint), so coverage fails.
   - `xctestExecutable` (`BuildSystem.swift:83-85`) returns every bundle `find` lists as one path, and `coverageReport` (`SwiftCoverage.swift:63-97`) builds one `llvm-cov` call from it.
-  - `CoverageError` has only `.build` (`BuildSystem.swift:134-136`), so the log prints a fixed "Gathering coverage failed" (`Logger.swift:77-87`) and the reason is lost.
+  - `CoverageError` has only `.build` (`BuildSystem.swift:134-136`), so the log prints a fixed "Gathering coverage failed" (`Logger.swift:86-96`) and the reason is lost.
   - `swift-quality` also always passes `--skip-coverage`.
 - **Effect.** About 151 mutants (6%) are never executed by any test. They survive, so each runs the whole suite: 151 × 16.8 s / 4 ≈ 10.6 min, about 12% of the run.
 - **Options, from cheapest to most thorough.**
@@ -120,7 +121,7 @@ The results file and `--resume` built most of the base for this. PR #38 added st
 All four items are done (PRs #38 and #44–#46). These were left out of them:
 - **`--resume`.**
   - It can't retest timeouts under a longer time limit. A changed `mutationTestTimeout` refuses the resume (`ResumeCheck.swift:48-56`). Of the recorded outcomes, only build errors are always retested (`ResumePlan.swift:88-89`), so a timeout is kept like any result whose file and mutation are unchanged.
-  - A test-plan run can't be resumed: `run-without-mutating` has no `--resume` (`RunWithoutMutating.swift:20-31`).
+  - A test-plan run can't be resumed: `run-without-mutating` has no `--resume` (`RunWithoutMutating.swift:21-31`).
   - Only the results file is locked (`ResultsFile.swift:64-66`), not the project, so two runs of one project can overlap.
   - A resumed session's log folder doesn't point to the results file.
   - When the results file is locked, the refusal names the previous session's writer, not the process holding the lock (`LoadResumeState.swift:26-35`).
@@ -205,12 +206,7 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
 
 ## 3. Watching a run and using the report
 
-- **Progress output in a log file (S).**
-  - The progress bar always writes cursor-movement codes (`ProgressExtensions.swift:96-107`). Nothing checks whether stdout is a terminal.
-  - stdout is block-buffered, so a SIGKILL, a crash or a hang loses the end of the output, and a `| tee` reader sees lines late. Since PR #44, a stop by signal flushes it.
-  - There are no timestamps. Today `tail -f results.jsonl` gives a timestamped record instead, because each result has a `finishedAt` and is written as it finishes.
-
-  Instead, when stdout isn't a terminal, print one timestamped, flushed line per mutant. For example: `[13:13:25] 1103/2497 (44%) killed 837 survived 262 … | 2.0 s/mutant | ETA 0h47m`. Collapse the file listings (`Logger.swift:95-122`) unless `--verbose` is given.
+- **A heartbeat in a log file.** Since PR #59, a log gets a line as each mutant finishes, and nothing in between. So while every worker is on a long mutant, such as one that runs to SwiftProjectLint's 181 s time limit (PR #57, at 4 workers), a hang looks like a slow run. After 60 s with nothing finished, print what each worker is running and for how long.
 - **Reports.** They have shown each mutant's killing tests since PR #47. Still to do:
   - List survivors first. The plain report groups mutants by file in the order they ran, and the HTML report sorts them by file name.
   - Show the repo-relative `path:line:col`. The plain and HTML reports show `fileName:line`.
@@ -233,7 +229,7 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
   - A stop by signal ends SwiftMutator by that same signal, so a shell reports 128 + its number (130, 143 or 129). A wrapper that reads the wait status sees a signal, not an exit code.
   - Every other failure of a run exits 255, a refused resume included. A usage error exits 64, and `report` exits 1 when it can't read its file.
 - **Log storage.**
-  - Each mutant's log is written twice. The test process writes it into the `_mutated` folder (`MutationTestingIODelegate.swift:403-418`), and then it's copied to `<project>_muter_logs` (`MutationTestObserver.swift:216-236`). Write it once.
+  - Each mutant's log is written twice. The test process writes it into the `_mutated` folder (`MutationTestingIODelegate.swift:403-418`), and then it's copied to `<project>_muter_logs` (`MutationTestObserver.swift:221-241`). Write it once.
   - Kept logs are never removed. On this machine, SwiftProjectLint's log folder holds 15 runs and 2.4 GB.
   - Keep full logs only for survivors, crashes and timeouts. That needs the results file's `log` field to become optional.
 
@@ -259,7 +255,7 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
   - a real process tree that outlives its time limit, checking that the outcome is a timeout and nothing survives (today's timeout tests use stand-ins);
   - one real log from SwiftProjectLint's three test bundles, as a fixture.
 - **Upstream Muter leftovers.** The update check and version 0.1.0 are already SwiftMutator's own. Left:
-  - The banner's help link and three error messages point at Muter's issues (`Logger.swift:28`, `RunCommand.swift:48`, `MutationTestingAbortReason.swift:41` and `:76`).
+  - The banner's help link and three error messages point at Muter's issues (`Logger.swift:37`, `RunCommand.swift:48`, `MutationTestingAbortReason.swift:41` and `:76`).
   - The baseline-failure messages still call the tool Muter (`MutationTestingAbortReason.swift:68-99`).
   - `CONTRIBUTING.md` is still Muter's text: its title, pinned issues, "fork Muter's repository", `master`, and Muter on your `PATH`. Only its CI and `swift test` notes were updated.
   - The toolchain setup (swiftly, and `SDKROOT=…/MacOSX26.5.sdk` for Swift 6.3.3) isn't documented for contributors.
@@ -319,10 +315,9 @@ Added on 7 October, from a discussion of using property-based tests (PBT) alongs
 
 ## Suggested order
 
-1. **Progress output** that works in a log file (§3).
-2. **Coverage** (§1.3). It saves about 11 min, and stops counting code that no test runs as survivors.
-3. **Unviable mutants** (§2.6), so that one bad mutant can't cost a whole run.
-4. **`--since`, reuse and `--shard`** (§1.4), for runs on a change rather than the whole repo.
+1. **Coverage** (§1.3). It saves about 11 min, and stops counting code that no test runs as survivors.
+2. **Unviable mutants** (§2.6), so that one bad mutant can't cost a whole run.
+3. **`--since`, reuse and `--shard`** (§1.4), for runs on a change rather than the whole repo.
 
 ## Outside this repo
 
