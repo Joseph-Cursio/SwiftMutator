@@ -18,8 +18,9 @@ This started as a ranked review of SwiftMutator on 2 October 2026, at commit `4b
   - SwapTernary moving a trailing closure to the end of a `guard` condition, and putting code after a `#endif` (PR #55).
   - `TokenAwareVisitor`'s own edit range, which dropped a combining mark after the operator and would have cut short a longer replacement, and a CRLF test for the reparse edit (PR #56).
   - A default time limit based on a timed test run, for SwiftPM projects (§2.7, PR #57).
+  - The progress bar's count, which ran one mutant ahead and hid the first estimate, its time left, which swung by 100×, its wording, and its redraw, which left stale text on screen, a whole line per redraw in an 80-column terminal (§3, PR #58).
 
-  Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#57, which are in the PRs themselves.
+  Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#58, which are in the PRs themselves.
 - **Section numbers are the original ones,** so references in PRs and notes still work. A missing number is a finished section.
 
 ## The workload these numbers come from
@@ -72,7 +73,7 @@ Fail-fast is done (PR #36), and on by default since PR #41. Left:
 
 - **What happens.** The coverage step assumes one test bundle, but SwiftPM's newer build layout makes one per test target (three for SwiftProjectLint), so coverage fails.
   - `xctestExecutable` (`BuildSystem.swift:83-85`) returns every bundle `find` lists as one path, and `coverageReport` (`SwiftCoverage.swift:63-97`) builds one `llvm-cov` call from it.
-  - `CoverageError` has only `.build` (`BuildSystem.swift:134-136`), so the log prints a fixed "Gathering coverage failed" (`Logger.swift:73-83`) and the reason is lost.
+  - `CoverageError` has only `.build` (`BuildSystem.swift:134-136`), so the log prints a fixed "Gathering coverage failed" (`Logger.swift:77-87`) and the reason is lost.
   - `swift-quality` also always passes `--skip-coverage`.
 - **Effect.** About 151 mutants (6%) are never executed by any test. They survive, so each runs the whole suite: 151 × 16.8 s / 4 ≈ 10.6 min, about 12% of the run.
 - **Options, from cheapest to most thorough.**
@@ -123,7 +124,7 @@ All four items are done (PRs #38 and #44–#46). These were left out of them:
   - Only the results file is locked (`ResultsFile.swift:64-66`), not the project, so two runs of one project can overlap.
   - A resumed session's log folder doesn't point to the results file.
   - When the results file is locked, the refusal names the previous session's writer, not the process holding the lock (`LoadResumeState.swift:26-35`).
-  - A resumed session writes its header and its `retired` line separately (`PerformMutationTesting.swift:670-673`). A SIGKILL between the two leaves `report` showing stale results until the next session. Nothing is wrongly reused, because the plan checks the hashes again.
+  - A resumed session writes its header and its `retired` line separately (`PerformMutationTesting.swift:673-676`). A SIGKILL between the two leaves `report` showing stale results until the next session. Nothing is wrongly reused, because the plan checks the hashes again.
   - A refused resume leaves an empty log folder, and refusals have no exit code of their own.
   - `report` of a resumed run's file doesn't say how many results came from earlier sessions. Its status line gives only the count and how the last session ended (`RecordedResults+Status.swift:6-22`).
   - A results file from before PR #46 can't be resumed.
@@ -154,9 +155,9 @@ Discovery has merged mutants by full path since PR #25. Deferred:
   - Build it from the repo-relative path, or a short hash of it, plus the operator and position.
   - About 16 test files contain the ID format: 10 snapshots and 6 test files. The change also invalidates existing test plans.
   - `--resume` never compares IDs, so it's unaffected.
-- **Kept-log names.** They're built from the operator, file name, line and column (`MutationTestLog.swift:14-20`), with no folder and no occurrence number.
+- **Kept-log names.** They're built from the operator, file name, line and column (`MutationTestLog.swift:17-23`), with no folder and no occurrence number.
   - So same-named files, and repeated mutants at one place, overwrite each other's kept log. The results file's `log` field then points both mutants at one file.
-  - The raw log each test process writes has the same flaw. It goes in the `_mutated` folder, which every worker shares, as `<file name>_<operator>_<offset>_<line>_<column>.log` (`PerformMutationTesting.swift:644-648`, `MutationTestingIODelegate.swift:403-412`). Repeats are tested next to each other, so two can run at once and write one file, which fail-fast's follower also reads. Their code is identical, so a verdict is unlikely to change.
+  - The raw log each test process writes has the same flaw. It goes in the `_mutated` folder, which every worker shares, as `<file name>_<operator>_<offset>_<line>_<column>.log` (`PerformMutationTesting.swift:647-651`, `MutationTestingIODelegate.swift:403-412`). Repeats are tested next to each other, so two can run at once and write one file, which fail-fast's follower also reads. Their code is identical, so a verdict is unlikely to change.
   - Log folders are named to the minute (`fileOperations.swift:35`). So two runs or sessions started in the same minute share a folder, and a retested mutant's log overwrites the earlier one.
 - **Order within a file.** Mutants are sorted by their ID as text (`MutationSchema.swift:92-99`): by operator, then by line as text, so line 10 comes before line 9.
   - Sorting by line, column and offset means updating `JobOrder` too (`RecordedResults+Outcome.swift:3-16`), which `report` uses to rebuild the order, and the test that pins discovery's order.
@@ -205,15 +206,11 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
 ## 3. Watching a run and using the report
 
 - **Progress output in a log file (S).**
-  - The progress bar always writes cursor-movement codes (`ProgressExtensions.swift:86-93`). Nothing checks whether stdout is a terminal.
+  - The progress bar always writes cursor-movement codes (`ProgressExtensions.swift:96-107`). Nothing checks whether stdout is a terminal.
   - stdout is block-buffered, so a SIGKILL, a crash or a hang loses the end of the output, and a `| tee` reader sees lines late. Since PR #44, a stop by signal flushes it.
   - There are no timestamps. Today `tail -f results.jsonl` gives a timestamped record instead, because each result has a `finishedAt` and is written as it finishes.
-  - The finish estimate (`ProgressExtensions.swift:16-18`) multiplies the time since the last redraw by the number of mutants left, so with 4 workers it swings wildly. Base it on the average rate: time since the first mutant started ÷ mutants finished × mutants left. PR #46 fixed only the estimate shown before the first mutant finishes.
-  - Two small bugs come from Muter:
-    - the estimate's plural is the wrong way round ("1 minutes", "5 minute"; `ProgressExtensions.swift:24`);
-    - the bar runs one mutant ahead and reaches 100% a mutant early (`Progress.swift:27`, `Logger.swift:243`).
 
-  Instead, when stdout isn't a terminal, print one timestamped, flushed line per mutant. For example: `[13:13:25] 1103/2497 (44%) killed 837 survived 262 … | 2.0 s/mutant | ETA 0h47m`. Collapse the file listings (`Logger.swift:91-118`) unless `--verbose` is given.
+  Instead, when stdout isn't a terminal, print one timestamped, flushed line per mutant. For example: `[13:13:25] 1103/2497 (44%) killed 837 survived 262 … | 2.0 s/mutant | ETA 0h47m`. Collapse the file listings (`Logger.swift:95-122`) unless `--verbose` is given.
 - **Reports.** They have shown each mutant's killing tests since PR #47. Still to do:
   - List survivors first. The plain report groups mutants by file in the order they ran, and the HTML report sorts them by file name.
   - Show the repo-relative `path:line:col`. The plain and HTML reports show `fileName:line`.
@@ -236,7 +233,7 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
   - A stop by signal ends SwiftMutator by that same signal, so a shell reports 128 + its number (130, 143 or 129). A wrapper that reads the wait status sees a signal, not an exit code.
   - Every other failure of a run exits 255, a refused resume included. A usage error exits 64, and `report` exits 1 when it can't read its file.
 - **Log storage.**
-  - Each mutant's log is written twice. The test process writes it into the `_mutated` folder (`MutationTestingIODelegate.swift:403-418`), and then it's copied to `<project>_muter_logs` (`MutationTestObserver.swift:208-228`). Write it once.
+  - Each mutant's log is written twice. The test process writes it into the `_mutated` folder (`MutationTestingIODelegate.swift:403-418`), and then it's copied to `<project>_muter_logs` (`MutationTestObserver.swift:216-236`). Write it once.
   - Kept logs are never removed. On this machine, SwiftProjectLint's log folder holds 15 runs and 2.4 GB.
   - Keep full logs only for survivors, crashes and timeouts. That needs the results file's `log` field to become optional.
 
@@ -262,7 +259,7 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
   - a real process tree that outlives its time limit, checking that the outcome is a timeout and nothing survives (today's timeout tests use stand-ins);
   - one real log from SwiftProjectLint's three test bundles, as a fixture.
 - **Upstream Muter leftovers.** The update check and version 0.1.0 are already SwiftMutator's own. Left:
-  - The banner's help link and three error messages point at Muter's issues (`Logger.swift:24`, `RunCommand.swift:48`, `MutationTestingAbortReason.swift:41` and `:76`).
+  - The banner's help link and three error messages point at Muter's issues (`Logger.swift:28`, `RunCommand.swift:48`, `MutationTestingAbortReason.swift:41` and `:76`).
   - The baseline-failure messages still call the tool Muter (`MutationTestingAbortReason.swift:68-99`).
   - `CONTRIBUTING.md` is still Muter's text: its title, pinned issues, "fork Muter's repository", `master`, and Muter on your `PATH`. Only its CI and `swift test` notes were updated.
   - The toolchain setup (swiftly, and `SDKROOT=…/MacOSX26.5.sdk` for Swift 6.3.3) isn't documented for contributors.
@@ -284,7 +281,7 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
   - As a separate operator, they would add 218 mutants, about 7–15 min.
 - **xcodebuild projects.** These always test one mutant at a time, without fail-fast (`MuterConfiguration.swift:100-111`). The per-worker copies used for SwiftPM could cover them too, with a cloned simulator per worker.
 - **Spotlight.** It indexes the copies and logs under `~/xcode_projects`. SwiftMutator names those folders itself (`_mutated`, `_muter_logs` and `_worker<n>`), so it could add `.noindex`. The benefit hasn't been measured.
-  - Only the steps that make the folders (`CreateTempDirectoryURL.swift:21`, `fileOperations.swift:41`, `PerformMutationTesting.swift:763`) and the cleanup (`PreviousRunCleanUp.swift:28`) use their names. `report` and `--resume` use the path they're given and the paths in the results file.
+  - Only the steps that make the folders (`CreateTempDirectoryURL.swift:21`, `fileOperations.swift:41`, `PerformMutationTesting.swift:766`) and the cleanup (`PreviousRunCleanUp.swift:28`) use their names. `report` and `--resume` use the path they're given and the paths in the results file.
   - Outside this repo, `swift-quality` removes `${repo}_mutated` by name, so it would need to change too.
 
 ---
