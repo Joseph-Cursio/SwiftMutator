@@ -239,7 +239,7 @@ final class Logger {
                     SimpleTimeEstimate(
                         firstEstimate: Self.initialEstimate(
                             remaining: mutationTestLog.remainingMutationPointsCount!,
-                            cycle: mutationTestLog.timePerBuildTestCycle!,
+                            cycle: mutationTestLog.testRunSeconds ?? mutationTestLog.timePerBuildTestCycle!,
                             workers: mutationTestLog.workers
                         ),
                         workers: mutationTestLog.workers,
@@ -280,8 +280,9 @@ final class Logger {
         return elapsed / Double(tested) * Double(left)
     }
 
-    /// The time left before any mutant has finished. Each worker tests its share of the `remaining` mutants, a
-    /// build-and-test `cycle` for each, while the others test theirs, so the largest share sets it.
+    /// The time left before any mutant has finished. Each worker tests its share of the `remaining` mutants, a `cycle`
+    /// for each, while the others test theirs, so the largest share sets it. The cycle is the timed test run, which skips
+    /// the build as a mutant's run does, or else the baseline, build included.
     static func initialEstimate(remaining: Int, cycle: TimeInterval, workers: Int) -> TimeInterval {
         let largestShare = ceil(Double(remaining) / Double(max(workers, 1)))
         return largestShare * cycle

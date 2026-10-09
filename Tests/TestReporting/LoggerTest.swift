@@ -136,6 +136,19 @@ final class LoggerTests: MuterTestCase {
         ])
     }
 
+    // A mutant's run skips the build, which the baseline's time includes, so the timed test run makes a better first
+    // estimate: here 10 mutants of 60 s rather than of 600.
+    func test_theFirstEstimate_isBasedOnTheTimedTestRun_whenThereIsOne() throws {
+        try sut.mutationsDiscoveryFinished(mutations: (0 ..< 10).map { _ in try makeSchemataMapping() })
+
+        sut.newMutationTestLogAvailable(
+            mutationTestLog: .make(timePerBuildTestCycle: 600, remainingMutationPointsCount: 10, testRunSeconds: 60)
+        )
+
+        let draw = printer.linesPassed.last { $0.contains("ETC:") } ?? ""
+        XCTAssertTrue(draw.hasSuffix("ETC: 10 min"), draw)
+    }
+
     // Until as many mutants have finished as there are workers, about one each, a rate would count the mutants still
     // running as if none had started, so the first estimate counts down. After that, the time left is the time per
     // mutant so far, over all the workers, times the mutants left.

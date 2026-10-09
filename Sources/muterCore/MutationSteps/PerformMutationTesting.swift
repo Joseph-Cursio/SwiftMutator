@@ -266,7 +266,8 @@ private extension PerformMutationTesting {
                 testLog: testLog,
                 timePerBuildTestCycle: timePerBuildTestCycle,
                 remainingMutationPointsCount: plan.toRun.count,
-                workers: workers
+                workers: workers,
+                testRunSeconds: testRunSeconds
             )
         )
 

@@ -239,6 +239,23 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         XCTAssertEqual(baselineLogs.map(\.remainingMutationPointsCount), [2])
     }
 
+    // A mutant's run skips the build, so the first estimate is better based on the timed test run than the baseline.
+    func test_theBaselinesLog_carriesTheTimedTestRunsSeconds() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        timeTheTestRun(seconds: 12)
+        var baselineLogs: [MutationTestLog] = []
+        whenPosted(.newTestLogAvailable) { notification in
+            if let log = notification.object as? MutationTestLog, log.mutationPoint == nil {
+                baselineLogs.append(log)
+            }
+        }
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(baselineLogs.map(\.testRunSeconds), [12])
+    }
+
     // The clone is copied after the mutated project was built. Its tests must run from binaries built
     // in the clone, or every path compiled into them, `#filePath` included, still points into the
     // mutated project, and tests that write files next to their sources share them across workers.
