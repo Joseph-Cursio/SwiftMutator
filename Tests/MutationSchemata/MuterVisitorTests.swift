@@ -99,6 +99,27 @@ final class MuterVisitorTests: MuterTestCase {
         XCTAssertEqual(mutants, ["ChangeLogicalConnector@4"])
     }
 
+    // Every node's coverage check asks for its start and end. A location converter made for each took a pass over the
+    // whole file each time, so a long file with any uncovered region took over a minute in a debug build.
+    func test_regionsWithoutCoverage_keepDiscoveryFastOnALongFile() throws {
+        let functions = (0 ..< 300).map { index in
+            "public func check\(index)(_ a: Int, _ b: Int) -> Bool {\n    return a == b && a > \(index)\n}\n"
+        }
+        let source = try sourceCode("import Foundation\n\n" + functions.joined(separator: "\n"))
+        let started = Date()
+
+        let mappings = generateSchemataMappings(
+            for: .init(path: "/path/to/file", code: source),
+            changes: .null,
+            regionsWithoutCoverage: [.make(lineStart: 3, columnStart: 50, lineEnd: 5, columnEnd: 2)]
+        )
+
+        let seconds = Date().timeIntervalSince(started)
+        XCTAssertTrue(seconds < 5, "\(seconds) s")
+        // The region is the first function's body, so its three mutants go, and every other function keeps its three.
+        XCTAssertEqual(mappings.flatMap(\.mutationSchemata).count, 299 * 3)
+    }
+
     func test_keepCoveredCodeAfterARegionWithoutCoverage() throws {
         let source = try sourceCode("""
         import Foundation
