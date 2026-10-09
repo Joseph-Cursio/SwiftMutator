@@ -145,6 +145,30 @@ final class LoggerTests: MuterTestCase {
         XCTAssertEqual(draws, [1, 1, 2])
     }
 
+    // The bar is drawn once the baseline passes, with no mutant tested yet, and again as each mutant finishes, so it
+    // reaches 100% with the last one. It counted from 1, which put it one mutant ahead, never drew the last mutant,
+    // and never showed the first estimate, which only a bar at 0 shows.
+    func test_theProgressBar_countsTheMutantsTested_fromNoneToAll() throws {
+        var nanoseconds: UInt64 = 1
+        current.instant = {
+            nanoseconds += 200_000_000
+            return DispatchTime(uptimeNanoseconds: nanoseconds)
+        }
+        try sut.mutationsDiscoveryFinished(mutations: (0 ..< 3).map { _ in try makeSchemataMapping() })
+
+        sut.newMutationTestLogAvailable(
+            mutationTestLog: .make(timePerBuildTestCycle: 600, remainingMutationPointsCount: 3)
+        )
+        for _ in 0 ..< 3 {
+            sut.newMutationTestLogAvailable(mutationTestLog: .make(mutationPoint: .make()))
+        }
+
+        let draws = printer.linesPassed.filter { $0.contains("Percentage complete:") }
+        XCTAssertEqual(draws.map(percent), ["0%", "33%", "66%", "100%"])
+        // Three mutants, 600 s each, on one worker.
+        XCTAssertTrue(draws.first?.contains("ETC: 30 ") == true, draws.first ?? "no draw")
+    }
+
     // The progress bar's printer redraws it by moving the cursor up over its two lines, which would overwrite the
     // warning's last two rows. The empty lines take the redraw instead. After the bar's last redraw they aren't needed.
     func test_resultsFileUnavailable_whileTheProgressBarIsStillToRedraw_leavesItTwoEmptyLines() throws {
@@ -160,7 +184,13 @@ final class LoggerTests: MuterTestCase {
         sut.resultsFileUnavailable(reason: reason)
         XCTAssertEqual(Array(printer.linesPassed.dropFirst(printedBefore)), [warning, "", ""])
 
-        // With two mutants, the first one's log redraws the bar for the last time.
+        // With one mutant left, the bar still has its last redraw to come.
+        sut.newMutationTestLogAvailable(mutationTestLog: .make(mutationPoint: .make()))
+        printedBefore = printer.linesPassed.count
+        sut.resultsFileUnavailable(reason: reason)
+        XCTAssertEqual(Array(printer.linesPassed.dropFirst(printedBefore)), [warning, "", ""])
+
+        // The second mutant's log redraws the bar for the last time.
         sut.newMutationTestLogAvailable(mutationTestLog: .make(mutationPoint: .make()))
         printedBefore = printer.linesPassed.count
         sut.resultsFileUnavailable(reason: reason)
@@ -473,5 +503,11 @@ final class LoggerTests: MuterTestCase {
             printer.linesPassed.contains("main.swift (2 mutants)".bold),
             "\(printer.linesPassed)"
         )
+    }
+
+    /// The percentage a drawn progress bar shows.
+    private func percent(_ draw: String) -> String {
+        guard let sign = draw.range(of: "%") else { return "" }
+        return String(draw[..<sign.lowerBound].reversed().prefix(while: \.isNumber).reversed()) + "%"
     }
 }

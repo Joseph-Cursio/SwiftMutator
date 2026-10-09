@@ -24,7 +24,8 @@ struct ProgressBarTerminalPrinter: ProgressBarPrinter {
 
 struct ProgressBar {
     var isEmpty: Bool { count <= 0 }
-    private(set) var element = 1
+    /// How many items are done. `next()` draws it, then counts one more.
+    private(set) var element = 0
     let startTime = getTimeOfDay()
 
     let count: Int
