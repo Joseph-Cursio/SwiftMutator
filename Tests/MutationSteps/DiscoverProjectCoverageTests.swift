@@ -63,15 +63,33 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
 
         process.stdoutToBeReturned = ""
 
+        // Why it failed, for the message that says so.
         let expectation = expectation(
             forNotification: .projectCoverageDiscoveryFinished,
-            object: false,
+            object: nil,
             notificationCenter: notificationCenter
-        )
+        ) { ($0.object as? String) == "xcodebuild gave no coverage report" }
 
         _ = try await sut.run(with: state)
 
         await fulfillment(of: [expectation], timeout: 2)
+    }
+
+    func test_whenStepSucceeds_thenPostNotificationWithNoReason() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/path/to/swift", arguments: [])
+        let coverage = CoverageStub { .success(.make(percent: 80)) }
+        current.projectCoverage = { _ in coverage }
+
+        let expectation = expectation(
+            forNotification: .projectCoverageDiscoveryFinished,
+            object: nil,
+            notificationCenter: notificationCenter
+        ) { $0.object == nil }
+
+        let result = try await sut.run(with: state)
+
+        await fulfillment(of: [expectation], timeout: 2)
+        XCTAssertEqual(result, [.projectCoverage(.make(percent: 80))])
     }
 
     // Stopping the run kills the coverage run, which then fails. Saying coverage couldn't be gathered, and that

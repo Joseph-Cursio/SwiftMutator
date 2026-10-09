@@ -13,7 +13,7 @@ final class LoggerTests: MuterTestCase {
         sut.projectCopyStarted()
         sut.projectCopyFinished(destinationPath: "/path/to/destination")
         sut.projectCoverageDiscoveryStarted()
-        sut.projectCoverageDiscoveryFinished(success: true)
+        sut.projectCoverageDiscoveryFinished(failureReason: nil)
         sut.sourceFileDiscoveryStarted()
         sut.sourceFileDiscoveryFinished(
             sourceFileCandidates: ["file0.swift", "file1.swift", "file2.swift"],
@@ -95,6 +95,20 @@ final class LoggerTests: MuterTestCase {
     func test_theFirstEstimate_spreadsTheMutantsOverTheWorkers() {
         XCTAssertEqual(Logger.initialEstimate(remaining: 5, cycle: 50, workers: 2), 150)
         XCTAssertEqual(Logger.initialEstimate(remaining: 5, cycle: 50, workers: 1), 250)
+    }
+
+    // What went wrong, so it can be put right; nothing when nothing did.
+    func test_projectCoverageDiscoveryFinished_saysWhyCoverageFailed() {
+        sut.projectCoverageDiscoveryFinished(failureReason: nil)
+        sut.projectCoverageDiscoveryFinished(failureReason: "there is no profile data at /b/codecov/default.profdata")
+
+        XCTAssertEqual(printer.linesPassed, [
+            """
+            ❌ Gathering coverage failed: there is no profile data at /b/codecov/default.profdata.
+            Proceeding with mutation testing anyway.
+            Pass \("--skip-coverage argument".bold) to disable this step
+            """,
+        ])
     }
 
     func test_print_writesThroughTheInjectedPrinter() {

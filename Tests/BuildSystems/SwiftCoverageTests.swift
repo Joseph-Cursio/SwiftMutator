@@ -158,6 +158,36 @@ final class SwiftCoverageTests: MuterTestCase {
         XCTAssertEqual(sut.run(with: muterConfiguration), .failure(.couldNotRun("llvm-cov")))
     }
 
+    // Each follows "Gathering coverage failed: ".
+    func test_eachFailure_saysWhy() {
+        XCTAssertEqual(
+            [
+                CoverageError.testsFailed(status: 1, bySignal: false),
+                .testsFailed(status: 9, bySignal: true),
+                .couldNotRun("llvm-cov"),
+                .noBuildDirectory,
+                .noProfileData(atPath: "/b/codecov/default.profdata"),
+                .noTestBundles(inDirectory: "/b"),
+                .llvmCovFailed("error: malformed coverage data"),
+                .llvmCovFailed(""),
+                .unreadableReport,
+                .noProjectFiles,
+            ].map(\.reason),
+            [
+                "the tests with coverage on failed (exit status 1), and SwiftPM saves no coverage then",
+                "the tests with coverage on were ended by signal 9",
+                "llvm-cov couldn't be started",
+                "`swift test --show-codecov-path` didn't say where the build is",
+                "there is no profile data at /b/codecov/default.profdata",
+                "there is no test bundle in /b",
+                "llvm-cov failed: error: malformed coverage data",
+                "llvm-cov failed",
+                "llvm-cov's report couldn't be read",
+                "llvm-cov's report covers none of the project's source files",
+            ]
+        )
+    }
+
     // MARK: - Reading the export
 
     // Only the project's own source files count: not its tests, by name or by folder, a build folder, or anything

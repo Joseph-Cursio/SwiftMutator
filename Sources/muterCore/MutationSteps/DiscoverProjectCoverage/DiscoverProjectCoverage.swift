@@ -38,14 +38,14 @@ final class DiscoverProjectCoverage: MutationStep {
         case let .success(coverage):
             notificationCenter.post(
                 name: .projectCoverageDiscoveryFinished,
-                object: true
+                object: nil
             )
 
             return [.projectCoverage(coverage)]
-        case .failure:
+        case let .failure(error):
             notificationCenter.post(
                 name: .projectCoverageDiscoveryFinished,
-                object: false
+                object: error.reason
             )
 
             return [.projectCoverage(.null)]

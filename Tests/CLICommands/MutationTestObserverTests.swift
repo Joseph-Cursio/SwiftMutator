@@ -64,6 +64,16 @@ final class MutationTestObserverTests: MuterTestCase {
         ])
     }
 
+    func test_whyCoverageFailed_reachesTheLogger() {
+        sut.start()
+
+        notificationCenter.post(name: .projectCoverageDiscoveryFinished, object: "llvm-cov failed")
+        notificationCenter.post(name: .projectCoverageDiscoveryFinished, object: nil)
+
+        XCTAssertEqual(printer.linesPassed.count, 1)
+        XCTAssertTrue(printer.linesPassed.first?.hasPrefix("❌ Gathering coverage failed: llvm-cov failed.\n") == true)
+    }
+
     func test_logFileNameUsingAPlainTextReporter() {
         options = .make(reportFormat: .plain)
 
