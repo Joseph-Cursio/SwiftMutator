@@ -40,6 +40,13 @@ class MuterVisitor: SyntaxAnyVisitor {
 
     private(set) var schemataMappings: SchemataMutationMapping
 
+    /// One for the whole file: making one takes a pass over the whole file, and every node's coverage check asks for
+    /// two locations, so making them each time took minutes on a long file in a debug build.
+    private lazy var locationConverter = SourceLocationConverter(
+        fileName: sourceCodeInfo.path,
+        tree: sourceCodeInfo.code
+    )
+
     required init(
         configuration: MuterConfiguration? = nil,
         sourceCodeInfo: SourceCodeInfo,
@@ -102,13 +109,8 @@ class MuterVisitor: SyntaxAnyVisitor {
     func startLocation(
         for node: SyntaxProtocol
     ) -> MutationPosition {
-        let converter = SourceLocationConverter(
-            fileName: sourceCodeInfo.path,
-            tree: sourceCodeInfo.code
-        )
-
         let sourceLocation = node.startLocation(
-            converter: converter
+            converter: locationConverter
         )
 
         return mutationPosition(
@@ -120,10 +122,7 @@ class MuterVisitor: SyntaxAnyVisitor {
         for node: SyntaxProtocol
     ) -> MutationPosition {
         let sourceLocation = node.endLocation(
-            converter: SourceLocationConverter(
-                fileName: sourceCodeInfo.path,
-                tree: sourceCodeInfo.code
-            ),
+            converter: locationConverter,
             afterTrailingTrivia: true
         )
 

@@ -18,6 +18,7 @@ extension Notification.Name {
     static let projectCopySkippedVanishedFiles = Notification.Name("projectCopySkippedVanishedFiles")
 
     static let projectCoverageDiscoveryStarted = Notification.Name("projectCoverageDiscoveryStarted")
+    /// The object is why coverage couldn't be gathered, or nil when it was.
     static let projectCoverageDiscoveryFinished = Notification.Name("projectCoverageDiscoveryFinished")
 
     static let sourceFileDiscoveryStarted = Notification.Name("sourceFileDiscoveryStarted")
@@ -167,9 +168,7 @@ extension MutationTestObserver {
     }
 
     func handleProjectCoverageDiscoveryFinished(notification: Notification) {
-        (notification.object as? Bool).map {
-            logger.projectCoverageDiscoveryFinished(success: $0)
-        }
+        logger.projectCoverageDiscoveryFinished(failureReason: notification.object as? String)
     }
 
     func handleSourceFileDiscoveryStarted(notification: Notification) {

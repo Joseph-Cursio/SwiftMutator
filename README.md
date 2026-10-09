@@ -38,6 +38,11 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   included, and at least 10 s. A timeout counts as a survivor, so if your tests set limits of their
   own, such as Swift Testing's `.timeLimit`, which is at least a minute, set `mutationTestTimeout`
   above them: otherwise a mutant that only your tests' limit would catch ends as a timeout.
+- **Coverage with several test bundles:** Swift 6.4's build system makes a test bundle for each
+  test target, which Muter's coverage step can't read, so it tested every mutant, even in code no
+  test runs. SwiftMutator exports the coverage of every bundle at once, leaves out the files no
+  test runs and skips the mutants in code no test runs. If coverage can't be gathered, it says
+  why, and tests every mutant as before. `--skip-coverage` turns the step off.
 - **Logging through the injected printer**, so log output can be captured and tested.
 
 Fixes that apply to Muter are offered upstream too.

@@ -83,14 +83,15 @@ final class Logger {
         print("⚙️ Running tests with coverage enabled to determine which files to mutate")
     }
 
-    func projectCoverageDiscoveryFinished(success: Bool) {
-        guard success == false else {
+    /// Why coverage couldn't be gathered, if it couldn't.
+    func projectCoverageDiscoveryFinished(failureReason: String?) {
+        guard let failureReason else {
             return
         }
 
         print(
             """
-            ❌ Gathering coverage failed.
+            ❌ Gathering coverage failed: \(failureReason).
             Proceeding with mutation testing anyway.
             Pass \("--skip-coverage argument".bold) to disable this step
             """

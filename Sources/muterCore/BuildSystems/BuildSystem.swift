@@ -131,6 +131,47 @@ extension BuildSystemCoverage {
     }
 }
 
-enum CoverageError: Error {
+enum CoverageError: Error, Equatable {
+    /// xcodebuild's coverage run or its report failed.
     case build
+    /// The command, such as `swift` or `llvm-cov`, couldn't be started.
+    case couldNotRun(String)
+    /// The tests failed with coverage on, with this exit status or signal.
+    case testsFailed(status: Int32, bySignal: Bool)
+    case noBuildDirectory
+    case noProfileData(atPath: String)
+    case noTestBundles(inDirectory: String)
+    /// llvm-cov failed, saying this.
+    case llvmCovFailed(String)
+    case unreadableReport
+    /// The report covers none of the project's own source files.
+    case noProjectFiles
+}
+
+extension CoverageError {
+    /// Why coverage couldn't be gathered, to follow "Gathering coverage failed: ".
+    var reason: String {
+        switch self {
+        case .build:
+            return "xcodebuild gave no coverage report"
+        case let .couldNotRun(command):
+            return "\(command) couldn't be started"
+        case let .testsFailed(status, bySignal: true):
+            return "the tests with coverage on were ended by signal \(status)"
+        case let .testsFailed(status, bySignal: false):
+            return "the tests with coverage on failed (exit status \(status)), and SwiftPM saves no coverage then"
+        case .noBuildDirectory:
+            return "`swift test --show-codecov-path` didn't say where the build is"
+        case let .noProfileData(path):
+            return "there is no profile data at \(path)"
+        case let .noTestBundles(directory):
+            return "there is no test bundle in \(directory)"
+        case let .llvmCovFailed(message):
+            return message.isEmpty ? "llvm-cov failed" : "llvm-cov failed: \(message)"
+        case .unreadableReport:
+            return "llvm-cov's report couldn't be read"
+        case .noProjectFiles:
+            return "llvm-cov's report covers none of the project's source files"
+        }
+    }
 }

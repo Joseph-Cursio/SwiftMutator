@@ -115,6 +115,29 @@ final class DiscoverSourceFilesTests: MuterTestCase {
         ])
     }
 
+    // As SwiftPM's coverage names them. It used to give paths relative to the files' common folder, which never
+    // matched, so no file was ever left out for having no coverage.
+    func test_shouldIgnoreFilesWithoutCoverage_givenByTheirPathInTheProject() async throws {
+        current.fileManager = FileManager.default
+
+        state.muterConfiguration = MuterConfiguration(executable: "", arguments: [])
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: filsToDiscoverPath, isDirectory: true)
+        state.projectCoverage = Coverage.make(
+            filesWithoutCoverage: ["ExampleApp/ExampleAppCode.swift", "Directory2/Directory3/file6.swift"]
+        )
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result, [
+            .sourceFileCandidatesDiscovered([
+                "\(filsToDiscoverPath)/Directory1/file3.swift",
+                "\(filsToDiscoverPath)/ExampleSpec.swift",
+                "\(filsToDiscoverPath)/file1.swift",
+                "\(filsToDiscoverPath)/file2.swift",
+            ]),
+        ])
+    }
+
     func test_shouldIgnoreFilesWithoutCoverage_reportedThroughASymbolicLink() async throws {
         current.fileManager = FileManager.default
 
