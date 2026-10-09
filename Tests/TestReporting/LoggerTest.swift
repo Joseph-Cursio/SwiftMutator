@@ -15,9 +15,12 @@ final class LoggerTests: MuterTestCase {
         sut.projectCoverageDiscoveryStarted()
         sut.projectCoverageDiscoveryFinished(success: true)
         sut.sourceFileDiscoveryStarted()
-        sut.sourceFileDiscoveryFinished(sourceFileCandidates: ["file0.swift", "file1.swift", "file2.swift"])
+        sut.sourceFileDiscoveryFinished(
+            sourceFileCandidates: ["file0.swift", "file1.swift", "file2.swift"],
+            verbose: true
+        )
         sut.mutationsDiscoveryStarted()
-        try sut.mutationsDiscoveryFinished(mutations: [makeSchemataMapping()])
+        try sut.mutationsDiscoveryFinished(mutations: [makeSchemataMapping()], verbose: true)
         sut.mutationTestingStarted()
         sut.newMutationTestLogAvailable(
             mutationTestLog: .make(
@@ -98,6 +101,61 @@ final class LoggerTests: MuterTestCase {
         sut.print("a line")
 
         XCTAssertEqual(printer.linesPassed, ["a line"])
+    }
+
+    // Off a terminal, standard output is block-buffered, so a log file would get each line late, or not at all after a
+    // crash, and after anything later on standard error. On a terminal it is flushed at each line anyway.
+    func test_withoutATerminal_eachLineIsFlushedAsItIsPrinted() {
+        var written: [String] = []
+        current.printer = { written.append($0) }
+        current.flushStandardOut = { written.append("(flushed)") }
+
+        current.standardOutIsATerminal = false
+        sut.print("a line")
+        sut.print("another")
+        current.standardOutIsATerminal = true
+        sut.print("on a terminal")
+
+        XCTAssertEqual(written, ["a line", "(flushed)", "another", "(flushed)", "on a terminal"])
+    }
+
+    // The lines `tail -f` follows most: the first, and each mutant's.
+    func test_withoutATerminal_eachProgressLine_isFlushed() {
+        current.standardOutIsATerminal = false
+        var written: [String] = []
+        current.printer = { written.append($0) }
+        current.flushStandardOut = { written.append("(flushed)") }
+        sut.resumePlanned(.make(reused: 0, toTest: 1, retestedBecause: [.notRecorded: 1]))
+        sut.newMutationTestLogAvailable(
+            mutationTestLog: .make(timePerBuildTestCycle: 60, remainingMutationPointsCount: 1)
+        )
+        XCTAssertTrue(written.suffix(2) == ["[02:42:00] 0 of 1 (0%) | 1 min left", "(flushed)"], "\(written)")
+
+        sut.newMutationTestOutcomeAvailable(mutation: .make(testSuiteOutcome: .failed))
+
+        XCTAssertTrue(written.last == "(flushed)", "\(written)")
+        XCTAssertTrue(written.dropLast().last?.hasPrefix("[02:42:00] 1 of 1 (100%) | 1 killed | ") == true, "\(written)")
+    }
+
+    // Each file's name, then how many mutants each file with any has, take hundreds of lines on a large project: 830, a
+    // fifth of the log of a run of SwiftProjectLint. So they're listed only with --verbose.
+    func test_discovery_saysHowManyFilesAndMutants_andListsThemOnlyWhenVerbose() throws {
+        sut.sourceFileDiscoveryFinished(sourceFileCandidates: ["/p/a.swift", "/p/b.swift"])
+        try sut.mutationsDiscoveryFinished(mutations: [makeSchemataMapping()])
+        XCTAssertEqual(printer.linesPassed, [
+            "✅ In total, SwiftMutator discovered 2 Swift files",
+            "✅ In total, SwiftMutator discovered 1 mutants in 1 files",
+        ])
+
+        let printedBefore = printer.linesPassed.count
+        let verbose = Logger()
+        verbose.sourceFileDiscoveryFinished(sourceFileCandidates: ["/p/a.swift", "/p/b.swift"], verbose: true)
+        try verbose.mutationsDiscoveryFinished(mutations: [makeSchemataMapping()], verbose: true)
+        XCTAssertEqual(Array(printer.linesPassed.dropFirst(printedBefore)), [
+            "✅ In total, SwiftMutator discovered 2 Swift files\n\n" + "a.swift\nb.swift".bold,
+            "✅ In total, SwiftMutator discovered 1 mutants in 1 files\n",
+            "path (1 mutants)".bold,
+        ])
     }
 
     func test_projectCopySkippedVanishedFiles_listsUpToFivePaths() {
@@ -236,6 +294,102 @@ final class LoggerTests: MuterTestCase {
         XCTAssertEqual(lines.count, 2 * 2001) // every draw, from 0 to all 2,000
         let widest = widths.max() ?? 0
         XCTAssertTrue(widest <= 80, "\(widest) columns")
+    }
+
+    // A log file or a pipe gets a line once the baseline passes and one as each mutant finishes, in place of the bar,
+    // whose redraws move the cursor: when, how many are tested and the time left, and from the second on, what they
+    // came to and the mutant.
+    func test_withoutATerminal_eachMutantGetsALine_inPlaceOfTheProgressBar() throws {
+        current.standardOutIsATerminal = false
+        var seconds: UInt64 = 0
+        let start = current.now()
+        // 7 h 16 min 10 s on, so the times of day pad 0, 1 and 9 with a 0, but not 10.
+        current.now = { start.addingTimeInterval(TimeInterval(seconds) + 26170) }
+        current.instant = { DispatchTime(uptimeNanoseconds: (1 + seconds) * 1_000_000_000) }
+        try sut.mutationsDiscoveryFinished(mutations: (0 ..< 3).map { _ in try makeSchemataMapping() })
+        let printedBefore = printer.linesPassed.count
+        let killed = MutationTestOutcome.Mutation.make(
+            testSuiteOutcome: .failed,
+            point: .make(filePath: "/tmp/project/Module.swift", position: .init(utf8Offset: 40, line: 4, column: 7)),
+            snapshot: .make(description: "changed == to !=")
+        )
+        let survived = MutationTestOutcome.Mutation.make(
+            testSuiteOutcome: .passed,
+            point: .make(filePath: "/tmp/project/View.swift", position: .init(utf8Offset: 90, line: 5, column: 28)),
+            snapshot: .make(description: "removed line")
+        )
+
+        // 3 mutants, 600 s each, on one worker.
+        sut.newMutationTestLogAvailable(
+            mutationTestLog: .make(timePerBuildTestCycle: 600, remainingMutationPointsCount: 3)
+        )
+        sut.mutantRunsStarted()
+        // A minute each. As in a run, each mutant's result comes before its log.
+        for mutant in [killed, survived, killed] {
+            seconds += 60
+            sut.newMutationTestOutcomeAvailable(mutation: mutant)
+            sut.newMutationTestLogAvailable(mutationTestLog: .make(mutationPoint: mutant.point))
+        }
+
+        let printed = Array(printer.linesPassed.dropFirst(printedBefore))
+        XCTAssertTrue(printed.first?.hasPrefix("📊 Determined baseline for mutation testing.") == true, "\(printed)")
+        XCTAssertEqual(Array(printed.dropFirst()), [
+            "[09:58:10] 0 of 3 (0%) | 30 min left",
+            "[09:59:10] 1 of 3 (33%) | 1 killed | 2 min left | killed at Module.swift:4:7 (changed == to !=)",
+            "[10:00:10] 2 of 3 (66%) | 1 killed, 1 survived | 1 min left | survived at View.swift:5:28 (removed line)",
+            "[10:01:10] 3 of 3 (100%) | 2 killed, 1 survived | 0 min left | killed at Module.swift:4:7 (changed == to !=)",
+        ])
+    }
+
+    // Each count is of the mutants this session tests, as the bar's is: a resumed run's kept results are posted before
+    // the baseline's log, and get no line.
+    func test_withoutATerminal_aResumesKeptResults_getNoLine_andArentCounted() {
+        current.standardOutIsATerminal = false
+        sut.resumePlanned(.make(reused: 1, toTest: 2, retestedBecause: [.notRecorded: 2]))
+        var printedBefore = printer.linesPassed.count
+
+        sut.newMutationTestOutcomeAvailable(mutation: .make(testSuiteOutcome: .passed))
+        XCTAssertEqual(printer.linesPassed.count, printedBefore)
+
+        sut.newMutationTestLogAvailable(
+            mutationTestLog: .make(timePerBuildTestCycle: 60, remainingMutationPointsCount: 2)
+        )
+        printedBefore = printer.linesPassed.count
+        sut.newMutationTestOutcomeAvailable(mutation: .make(testSuiteOutcome: .failed))
+        let line = printer.linesPassed.last ?? ""
+        XCTAssertTrue(line.hasPrefix("[02:42:00] 1 of 2 (50%) | 1 killed | "), line)
+        XCTAssertEqual(printer.linesPassed.count, printedBefore + 1)
+    }
+
+    // What the mutants came to so far, in a fixed order, leaving out what none came to. A crash is a kill, as the score
+    // counts it.
+    func test_withoutATerminal_theLinesCountWhatTheMutantsCameTo() {
+        current.standardOutIsATerminal = false
+        sut.resumePlanned(.make(reused: 0, toTest: 5, retestedBecause: [.notRecorded: 5]))
+        sut.newMutationTestLogAvailable(
+            mutationTestLog: .make(timePerBuildTestCycle: 60, remainingMutationPointsCount: 5)
+        )
+        let point = MutationPoint.make(filePath: "/tmp/project/Module.swift", position: 3)
+
+        for outcome: TestSuiteOutcome in [.timeout, .buildError, .buildError, .passed, .runtimeError] {
+            sut.newMutationTestOutcomeAvailable(mutation: .make(testSuiteOutcome: outcome, point: point))
+        }
+
+        let lines = printer.linesPassed.suffix(5).map { $0.components(separatedBy: " | ") }
+        XCTAssertEqual(lines.map { $0[1] }, [
+            "1 timed out",
+            "1 timed out, 1 build error",
+            "1 timed out, 2 build errors",
+            "1 survived, 1 timed out, 2 build errors",
+            "1 killed, 1 survived, 1 timed out, 2 build errors",
+        ])
+        XCTAssertEqual(lines.map { $0.last ?? "" }, [
+            "timed out at Module.swift:3:3",
+            "build error at Module.swift:3:3",
+            "build error at Module.swift:3:3",
+            "survived at Module.swift:3:3",
+            "killed at Module.swift:3:3",
+        ])
     }
 
     // A burst of finished mutants redraws the bar once: it's drawn at most every tenth of a second, by the injected
@@ -610,7 +764,7 @@ final class LoggerTests: MuterTestCase {
             )
         }
 
-        sut.mutationsDiscoveryFinished(mutations: mappings)
+        sut.mutationsDiscoveryFinished(mutations: mappings, verbose: true)
 
         XCTAssertTrue(
             printer.linesPassed.contains("main.swift (2 mutants)".bold),

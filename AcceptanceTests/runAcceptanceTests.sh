@@ -24,7 +24,7 @@ cp ./muter.conf.yml "$samplesdir"/created_iOS_config.yml
 
 echo " > Running in CLI mode..."
 rm -rf ../ExampleApp_muter_logs 2>/dev/null
-"$muterdir"/swift-mutator --skip-coverage --skip-update-check > "$samplesdir"/muters_output.txt 2>"$samplesdir"/muters_output.stderr.log
+"$muterdir"/swift-mutator --skip-coverage --skip-update-check --verbose > "$samplesdir"/muters_output.txt 2>"$samplesdir"/muters_output.stderr.log
 echo " > Copying logs..."
 cp -R ../ExampleApp_muter_logs/. "$samplesdir"/muter_logs/
 rm -rf ../ExampleApp_muter_logs

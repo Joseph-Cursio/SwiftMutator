@@ -39,15 +39,18 @@ final class AcceptanceTests: XCTestCase {
         XCTAssertTrue(output.contains("Copying your project to a temporary directory for testing"))
 
         XCTAssertTrue(output.contains("In total, SwiftMutator discovered 4 Swift files"))
+        // With --verbose, how many mutants each file has is listed.
         XCTAssertTrue(try numberOfDiscoveredFileLists(in: output) >= 1)
 
         XCTAssertTrue(output.contains("_mutated"))
 
         XCTAssertTrue(output.contains("In total, SwiftMutator introduced 3 mutants in 3 files."))
 
-        // Once when the baseline passes, with no mutant tested, and once as each of the 3 mutants finishes.
+        // Standard output is a file, so a line in place of the bar: once when the baseline passes, with no mutant
+        // tested, and once as each of the 3 mutants finishes. Nothing moves the cursor, and nothing is coloured.
         XCTAssertEqual(try numberOfProgressUpdates(in: output), 4)
         XCTAssertEqual(try numberOfDurationEstimates(in: output), 4)
+        XCTAssertFalse(output.contains("\u{1B}"))
 
         XCTAssertTrue(output.contains(messages.mutationScoresHeader))
         XCTAssertTrue(output.contains(messages.mutationScoreOfTestSuite))
@@ -90,6 +93,8 @@ final class AcceptanceTests: XCTestCase {
         let output = try muterXcodeOutput
 
         XCTAssertEqual(try numberOfXcodeFormattedMessages(in: output), 1)
+        // Without --verbose, no file's mutant count is listed.
+        XCTAssertEqual(try numberOfDiscoveredFileLists(in: output), 0)
     }
 
     func test_filesToMutate() throws {
@@ -341,14 +346,14 @@ extension AcceptanceTests {
 
     func numberOfProgressUpdates(in output: String) throws -> Int {
         try applyRegex(
-            "Percentage complete:  [0-9]+%/?",
+            "^\\[[0-9]{2}:[0-9]{2}:[0-9]{2}\\] [0-9]+ of [0-9]+ \\([0-9]+%\\)",
             to: output
         )
     }
 
     func numberOfDurationEstimates(in output: String) throws -> Int {
         try applyRegex(
-            "ETC: [0-9]+ (min|h)",
+            " [0-9]+ (min|h) left",
             to: output
         )
     }

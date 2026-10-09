@@ -37,6 +37,33 @@ final class MutationTestObserverTests: MuterTestCase {
         XCTAssertFalse(flushStandardOut.flushHandlerWasCalled)
     }
 
+    // Without --verbose, the Logger says how many Swift files and mutants it found, and lists none.
+    func test_discovery_withoutVerbose_listsNothing() {
+        sut.start()
+
+        notificationCenter.post(name: .sourceFileDiscoveryFinished, object: ["/p/a.swift"])
+        notificationCenter.post(name: .mutationsDiscoveryFinished, object: [SchemataMutationMapping]())
+
+        XCTAssertEqual(printer.linesPassed, [
+            "✅ In total, SwiftMutator discovered 1 Swift files",
+            "✅ In total, SwiftMutator discovered 0 mutants in 0 files",
+        ])
+    }
+
+    // --verbose reaches the Logger, which then lists each Swift file it found, and how many mutants each file has.
+    func test_discovery_withVerbose_listsEachFile() {
+        options = .make(verbose: true)
+        sut.start()
+
+        notificationCenter.post(name: .sourceFileDiscoveryFinished, object: ["/p/a.swift"])
+        notificationCenter.post(name: .mutationsDiscoveryFinished, object: [SchemataMutationMapping]())
+
+        XCTAssertEqual(printer.linesPassed, [
+            "✅ In total, SwiftMutator discovered 1 Swift files\n\n" + "a.swift".bold,
+            "✅ In total, SwiftMutator discovered 0 mutants in 0 files\n",
+        ])
+    }
+
     func test_logFileNameUsingAPlainTextReporter() {
         options = .make(reportFormat: .plain)
 
@@ -165,6 +192,25 @@ final class MutationTestObserverTests: MuterTestCase {
         let draw = printer.linesPassed.last { $0.contains("ETC:") } ?? ""
         // 60 s a mutant, and 9 left. The first estimate would say 20 min.
         XCTAssertTrue(draw.hasSuffix("ETC: 9 min"), draw)
+    }
+
+    // Without a terminal, each mutant's result is a line of progress, which the Logger only gets from this notification.
+    func test_aMutantsOutcome_reachesTheLogger_forItsLineOfProgress() {
+        current.standardOutIsATerminal = false
+        sut.start()
+        notificationCenter.post(
+            name: .resumePlanned,
+            object: ResumeSummary.make(reused: 0, toTest: 2, retestedBecause: [.notRecorded: 2])
+        )
+        notificationCenter.post(
+            name: .newTestLogAvailable,
+            object: MutationTestLog.make(timePerBuildTestCycle: 60, remainingMutationPointsCount: 2)
+        )
+
+        notificationCenter.post(name: .newMutationTestOutcomeAvailable, object: MutationTestOutcome.Mutation.make())
+
+        let line = printer.linesPassed.last ?? ""
+        XCTAssertTrue(line.hasPrefix("[02:42:00] 1 of 2 (50%) | 1 survived | "), line)
     }
 
     func test_resultsFileCreated_isLogged_andNamedAtTheEnd() {

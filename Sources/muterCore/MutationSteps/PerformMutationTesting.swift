@@ -193,7 +193,7 @@ private extension PerformMutationTesting {
         guard testSuiteOutcome == .passed else {
             // A failing baseline is exactly when the user needs its output on disk, and nothing else
             // records it. It gets its own notification rather than `.newTestLogAvailable`, which also
-            // announces that a baseline was successfully determined and starts the progress bar.
+            // announces that a baseline was successfully determined and starts the progress bar or lines.
             notificationCenter.post(
                 name: .baselineTestFailed,
                 object: MutationTestLog(
@@ -216,7 +216,7 @@ private extension PerformMutationTesting {
         // A passing run can't show a failed test, so these tests print text shaped like one. Under a mutant it
         // could stop the run, or count a timed-out run killed, although every test passed, so such lines don't
         // count for this run. Checked whether or not runs stop at their first failed test, but worth a notice
-        // only if they do, posted before the baseline's log, which starts the progress bar. Worker clones'
+        // only if they do, posted before the baseline's log, which starts the progress bar or lines. Worker clones'
         // baselines keep the configuration as it was: a baseline is never stopped, and has no time limit.
         if let lookalike = FailedTestLine.first(inLog: testLog) {
             if muterConfiguration.stopsAtFirstFailure {
@@ -241,7 +241,7 @@ private extension PerformMutationTesting {
         // the baseline, has nothing to report.
         session.baselinePassed = true
 
-        // Before the baseline's log, which starts the progress bar, so the results file's path is printed first.
+        // Before the baseline's log, which starts the progress bar or lines, so the results file's path comes first.
         startResults(
             header(
                 of: session,
@@ -258,7 +258,7 @@ private extension PerformMutationTesting {
         )
         keepReused(plan, of: jobs, in: session, state: state)
 
-        // The progress bar's first estimate of the time left: every mutant to test, spread over the workers.
+        // The first estimate of the time left: every mutant to test, spread over the workers.
         notificationCenter.post(
             name: .newTestLogAvailable,
             object: MutationTestLog(
@@ -313,7 +313,7 @@ private extension PerformMutationTesting {
 
     /// Keeps each of `plan`'s reused results' outcomes in `session` by job index, built from its job as `record` builds
     /// a tested one's, with the tests its line names, and sends it to the reporter, so the Xcode format warns of every
-    /// survivor. Never posts a test log: nothing ran, and the progress bar counts only the mutants left to test.
+    /// survivor. Never posts a test log, and comes before the baseline's log, so no progress bar or lines count it.
     func keepReused(
         _ plan: ResumePlan,
         of jobs: [MutantJob],

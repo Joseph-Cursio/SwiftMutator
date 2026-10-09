@@ -64,6 +64,7 @@ struct Run: RunCommand {
             mutationOperatorsList: !operators.isEmpty ? operators : .allOperators,
             skipCoverage: options.skipCoverage,
             skipUpdateCheck: options.skipUpdateCheck,
+            verbose: options.verbose,
             configurationURL: options.configurationURL,
             resumeURL: resume,
             resumeIgnoring: resumeIgnoring,

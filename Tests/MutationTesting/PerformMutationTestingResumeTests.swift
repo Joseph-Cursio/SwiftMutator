@@ -436,6 +436,20 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         )
     }
 
+    // The progress lines count each outcome posted after the baseline's log, which starts them, so the kept results
+    // come before it. After it, each tested mutant's outcome comes before its log.
+    func test_keptOutcomes_comeBeforeTheBaselinesLog() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+        let posted = recordNotifications(named: [.newMutationTestOutcomeAvailable, .newTestLogAvailable])
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(
+            posted().map { $0.name == .newTestLogAvailable ? "log" : "outcome" },
+            ["outcome", "outcome", "log", "outcome", "log", "outcome", "log"]
+        )
+    }
+
     // A stop while Total.swift's mutant runs: the partial report has both kept results and Quotient.swift's, and says
     // how many were kept.
     func test_anInterruptedResumedSession_postsReusedAndNewOutcomes_withItsReusedCount() async throws {

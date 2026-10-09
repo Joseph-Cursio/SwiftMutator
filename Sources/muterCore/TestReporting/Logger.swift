@@ -7,11 +7,20 @@ final class Logger {
     private var errorPrinter: Printer
     @Dependency(\.instant)
     private var instant: Instant
-    /// When the mutants started, which the progress bar's estimate measures their rate from.
+    @Dependency(\.now)
+    private var now: Now
+    @Dependency(\.standardOutIsATerminal)
+    private var standardOutIsATerminal: Bool
+    @Dependency(\.flushStandardOut)
+    private var flushStandardOut: Flush
+    /// When the mutants started, which the estimate of the time left measures their rate from.
     private var mutantRunsStartedAt: DispatchTime?
-    /// How many mutants the progress bar counts: those discovered, or those a resumed run has left to test.
+    /// How many mutants the progress bar or the progress lines count: those discovered, or those a resumed run has
+    /// left to test.
     private(set) var numberOfMutationPoints: Int = 0
-    private var progressBar: ProgressBar!
+    private var progressBar: ProgressBar?
+    /// In place of the progress bar, when standard output isn't a terminal.
+    private var progressLines: ProgressLines?
     /// How many lines the progress bar takes. Its printer redraws it by moving the cursor up over that many lines.
     private static let progressBarLines = 2
 
@@ -92,21 +101,29 @@ final class Logger {
         printMessage("🔎 Discovering Swift files which SwiftMutator will analyze...")
     }
 
-    func sourceFileDiscoveryFinished(sourceFileCandidates: [String]) {
+    /// How many Swift files there are to analyze, and with `verbose`, each one's name: hundreds of lines on a large
+    /// project.
+    func sourceFileDiscoveryFinished(sourceFileCandidates: [String], verbose: Bool = false) {
+        let discovered = "✅ In total, SwiftMutator discovered \(sourceFileCandidates.count) Swift files"
+        guard verbose else {
+            print(discovered)
+            return
+        }
         let fileNames = sourceFileCandidates
             .map(URL.init(fileURLWithPath:))
             .map { $0.lastPathComponent }
             .joined(separator: "\n")
             .bold
 
-        print("✅ In total, SwiftMutator discovered \(sourceFileCandidates.count) Swift files\n\n\(fileNames)")
+        print("\(discovered)\n\n\(fileNames)")
     }
 
     func mutationsDiscoveryStarted() {
         printMessage("🔎 Analyzing source files to find mutants which can be inserted into your project...")
     }
 
-    func mutationsDiscoveryFinished(mutations: [SchemataMutationMapping]) {
+    /// How many mutants there are, in how many files, and with `verbose`, how many each file has.
+    func mutationsDiscoveryFinished(mutations: [SchemataMutationMapping], verbose: Bool = false) {
         let numberOfFiles = mutations.count
         var filesSummary: [String: Int] = [:]
 
@@ -115,15 +132,20 @@ final class Logger {
             filesSummary[mutation.fileName, default: 0] += mutation.mutationSchemata.count
         }
 
-        print("✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants in \(numberOfFiles) files\n")
+        let discovered = "✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants in \(numberOfFiles) files"
+        guard verbose else {
+            print(discovered)
+            return
+        }
+        print(discovered + "\n")
         for (fileName, mutantCount) in filesSummary {
             print("\(fileName) (\(mutantCount) mutants)".bold)
         }
     }
 
     /// How many of a resumed run's results still hold, and how many mutants are left to test and why; then each change
-    /// no result depends on, and what `--force-resume` and `--resume-ignoring` let through. The progress bar then
-    /// counts only the mutants left to test.
+    /// no result depends on, and what `--force-resume` and `--resume-ignoring` let through. The progress bar or the
+    /// progress lines then count only the mutants left to test.
     func resumePlanned(_ summary: ResumeSummary) {
         numberOfMutationPoints = summary.toTest
         let resuming = "♻️ Resuming the run in \(summary.path.bold): "
@@ -228,31 +250,47 @@ final class Logger {
                 """
             )
 
-            progressBar = ProgressBar(
-                count: numberOfMutationPoints,
-                configuration: [
-                    ProgressString(string: "Inserting mutant"),
-                    ProgressOneIndexed(),
-                    ProgressString(string: "\nPercentage complete: "),
-                    ProgressPercent(),
-                    // So that the line fits in an 80-column terminal. One that wraps takes another row, which a redraw
-                    // doesn't move up over, so it's left behind on screen.
-                    ColoredProgressBarLine(barLength: 30),
-                    SimpleTimeEstimate(
-                        firstEstimate: Self.initialEstimate(
-                            remaining: mutationTestLog.remainingMutationPointsCount!,
-                            cycle: mutationTestLog.testRunSeconds ?? mutationTestLog.timePerBuildTestCycle!,
-                            workers: mutationTestLog.workers
-                        ),
-                        workers: mutationTestLog.workers,
-                        elapsed: { [weak self] in self?.secondsSinceMutantRunsStarted() }
-                    ),
-                ],
-                printer: ProgressBarMultilineTerminalPrinter(numberOfLines: Self.progressBarLines)
+            let estimate = SimpleTimeEstimate(
+                firstEstimate: Self.initialEstimate(
+                    remaining: mutationTestLog.remainingMutationPointsCount!,
+                    cycle: mutationTestLog.testRunSeconds ?? mutationTestLog.timePerBuildTestCycle!,
+                    workers: mutationTestLog.workers
+                ),
+                workers: mutationTestLog.workers,
+                elapsed: { [weak self] in self?.secondsSinceMutantRunsStarted() }
             )
+            if standardOutIsATerminal {
+                progressBar = ProgressBar(
+                    count: numberOfMutationPoints,
+                    configuration: [
+                        ProgressString(string: "Inserting mutant"),
+                        ProgressOneIndexed(),
+                        ProgressString(string: "\nPercentage complete: "),
+                        ProgressPercent(),
+                        // So that the line fits in an 80-column terminal. One that wraps takes another row, which a
+                        // redraw doesn't move up over, so it's left behind on screen.
+                        ColoredProgressBarLine(barLength: 30),
+                        estimate,
+                    ],
+                    printer: ProgressBarMultilineTerminalPrinter(numberOfLines: Self.progressBarLines)
+                )
+            } else {
+                let lines = ProgressLines(total: numberOfMutationPoints, estimate: estimate)
+                progressLines = lines
+                print(lines.firstLine(at: now()))
+            }
         }
 
-        progressBar.next()
+        progressBar?.next()
+    }
+
+    /// A mutant's result, once it is saved: its line, when standard output isn't a terminal. A resumed run's kept
+    /// results are posted before the baseline's log, which starts the lines, so only the mutants this session tests are
+    /// counted, as the bar counts them.
+    func newMutationTestOutcomeAvailable(mutation: MutationTestOutcome.Mutation) {
+        if let line = progressLines?.line(after: mutation, at: now()) {
+            print(line)
+        }
     }
 
     /// The seconds since the mutants started, or nil before they have.
@@ -421,8 +459,15 @@ final class Logger {
     /// The printer used to be a property also named `print`. Calls to `print("…")` inside this
     /// type were then ambiguous between that property and this method, and newer compilers
     /// pick this method, which wrote straight to standard output and bypassed the printer.
+    ///
+    /// Off a terminal, standard output is block-buffered: a log file or a `| tee` would get each line up to 16 KB late,
+    /// lose the last ones to a crash or a SIGKILL, and get them after anything later on standard error. So each line
+    /// is flushed there.
     func print(_ message: String) {
         printer(message)
+        if !standardOutIsATerminal {
+            flushStandardOut()
+        }
     }
 
     private func printMessage(_ message: String) {

@@ -36,6 +36,8 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
 
     @Dependency(\.interruption)
     private var record: InterruptionRecord
+    @Dependency(\.standardOutIsATerminal)
+    private var standardOutIsATerminal: Bool
     private let observer: SignalObserving
     private let killDescendants: @Sendable () -> Void
     private let exit: @Sendable (Int32) -> Void
@@ -103,7 +105,7 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
         // `which` and the steps' later processes, which a step starts one after another.
         killDescendants()
         // Said after both, so that a standard error nobody reads can't hold them up.
-        say(Self.stoppingMessage(for: signal))
+        say(Self.stoppingMessage(for: signal, leavingRoomForTheProgressBar: standardOutIsATerminal))
         schedule(after: sweepInterval, repeating: sweepInterval) { [self] in killDescendants() }
         schedule(after: gracePeriod) { [self] in
             killDescendants()
@@ -112,9 +114,10 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
         }
     }
 
-    /// Followed by two empty lines, so that a progress bar redrawn in the meantime moves up over them, not over the
-    /// message. A repeated SIGHUP doesn't stop at once, so it isn't offered after one.
-    static func stoppingMessage(for signal: Int32) -> String {
+    /// Followed by two empty lines when `leavingRoomForTheProgressBar`, as on a terminal, the only place a progress bar
+    /// is drawn, so that a redraw in the meantime moves up over them, not over the message. A repeated SIGHUP doesn't
+    /// stop at once, so it isn't offered after one.
+    static func stoppingMessage(for signal: Int32, leavingRoomForTheProgressBar: Bool = true) -> String {
         let again: String
         switch signal {
         case SIGINT: again = "Press Ctrl-C again"
@@ -122,7 +125,7 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
         default: again = "Send another SIGINT, SIGTERM or SIGHUP"
         }
         return "⏹ Stopping (\(InterruptionRecord.name(of: signal))): ending the test runs under way and keeping what "
-            + "was tested. \(again) to stop at once.\n\n"
+            + "was tested. \(again) to stop at once." + (leavingRoomForTheProgressBar ? "\n\n" : "")
     }
 
     /// Ends SwiftMutator by `signal`, as its default action would have, so that a shell sees it die of the signal, and

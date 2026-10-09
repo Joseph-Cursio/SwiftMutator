@@ -42,6 +42,12 @@ struct World {
     /// Standard error, written with `fputs`: `FileHandle.write(_:)` raises an exception once the terminal has hung up
     /// or the reader has gone.
     var errorPrinter: Printer = { fputs($0 + "\n", stderr) }
+    /// Whether standard output is a terminal, where the progress bar can redraw itself. A log file or a pipe gets a
+    /// line per mutant instead.
+    var standardOutIsATerminal = World.isTerminal(
+        isatty: isatty(STDOUT_FILENO) != 0,
+        term: ProcessInfo.processInfo.environment["TERM"]
+    )
     var progressBar: ProgressBarInitializer = {
         ProgressBar(
             count: $0,
@@ -68,4 +74,13 @@ struct World {
     var commandLineArguments: [String] = Array(CommandLine.arguments.dropFirst())
     /// The signal that stopped this run, if one did.
     var interruption = InterruptionRecord()
+}
+
+extension World {
+    /// Rainbow's test of where it can colour: standard output is a tty, and TERM is set and isn't "dumb". So the
+    /// progress bar redraws itself wherever colour could show. NO_COLOR turns off the colour, not the bar.
+    static func isTerminal(isatty: Bool, term: String?) -> Bool {
+        guard isatty, let term else { return false }
+        return term.lowercased() != "dumb"
+    }
 }

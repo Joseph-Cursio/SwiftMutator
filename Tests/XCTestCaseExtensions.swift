@@ -44,6 +44,8 @@ class MuterTestCase: XCTestCase {
             flushStandardOut: flushStandardOut.flush,
             printer: printer.print,
             errorPrinter: standardError.print,
+            // Never whatever the test runner's standard output is. The tests of the lines that replace the bar say so.
+            standardOutIsATerminal: true,
             ioDelegate: ioDelegate,
             process: { self.process },
             prepareCode: prepareCode.prepare,
