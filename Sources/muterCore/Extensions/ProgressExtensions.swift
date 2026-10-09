@@ -71,10 +71,13 @@ struct ColoredProgressBarLine: ProgressElementType {
     }
 }
 struct ProgressBarMultilineTerminalPrinter: ProgressBarPrinter {
-    var lastPrintedTime = 0.0
+    /// When the bar was last drawn, by the injected clock.
+    private var lastPrinted: DispatchTime?
     private let numberOfLines: Int
     @Dependency(\.logger)
     private var logger: Logger
+    @Dependency(\.instant)
+    private var instant: Instant
 
     init(numberOfLines: Int) {
         self.numberOfLines = numberOfLines
@@ -83,20 +86,17 @@ struct ProgressBarMultilineTerminalPrinter: ProgressBarPrinter {
         logger.print("")
     }
 
+    /// Draws the bar at most every tenth of a second, so a burst of finished mutants redraws it once, but always its
+    /// last state.
     mutating func display(_ progressBar: ProgressBar) {
-        let currentTime = getTimeOfDay()
-        if currentTime - lastPrintedTime > 0.1 || progressBar.element == progressBar.count {
-            let lines = "\u{1B}[1A\u{1B}".repeated(numberOfLines)
-            logger.print("\(lines)[K\(progressBar.value)")
-            lastPrintedTime = currentTime
+        let now = instant()
+        if let lastPrinted,
+           now.uptimeNanoseconds < lastPrinted.uptimeNanoseconds + 100_000_000,
+           progressBar.element != progressBar.count {
+            return
         }
-    }
-}
-
-private extension ProgressBarMultilineTerminalPrinter {
-    func getTimeOfDay() -> Double {
-        var tv = timeval()
-        gettimeofday(&tv, nil)
-        return Double(tv.tv_sec) + Double(tv.tv_usec) / 1000000
+        let lines = "\u{1B}[1A\u{1B}".repeated(numberOfLines)
+        logger.print("\(lines)[K\(progressBar.value)")
+        lastPrinted = now
     }
 }

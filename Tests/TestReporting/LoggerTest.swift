@@ -125,6 +125,26 @@ final class LoggerTests: MuterTestCase {
         ])
     }
 
+    // A burst of finished mutants redraws the bar once: it's drawn at most every tenth of a second, by the injected
+    // clock, so the time between draws can be tested.
+    func test_theProgressBar_isRedrawnAtMostEveryTenthOfASecond() throws {
+        var nanoseconds: UInt64 = 1
+        current.instant = { DispatchTime(uptimeNanoseconds: nanoseconds) }
+        try sut.mutationsDiscoveryFinished(mutations: (0 ..< 5).map { _ in try makeSchemataMapping() })
+        var draws: [Int] = []
+        func drawn() -> Int { printer.linesPassed.filter { $0.contains("Percentage complete:") }.count }
+
+        sut.newMutationTestLogAvailable(mutationTestLog: .make(timePerBuildTestCycle: 60, remainingMutationPointsCount: 5))
+        draws.append(drawn())
+        sut.newMutationTestLogAvailable(mutationTestLog: .make(mutationPoint: .make()))
+        draws.append(drawn())
+        nanoseconds += 150_000_000
+        sut.newMutationTestLogAvailable(mutationTestLog: .make(mutationPoint: .make()))
+        draws.append(drawn())
+
+        XCTAssertEqual(draws, [1, 1, 2])
+    }
+
     // The progress bar's printer redraws it by moving the cursor up over its two lines, which would overwrite the
     // warning's last two rows. The empty lines take the redraw instead. After the bar's last redraw they aren't needed.
     func test_resultsFileUnavailable_whileTheProgressBarIsStillToRedraw_leavesItTwoEmptyLines() throws {
