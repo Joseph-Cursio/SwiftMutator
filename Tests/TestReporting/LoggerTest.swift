@@ -100,6 +100,40 @@ final class LoggerTests: MuterTestCase {
         XCTAssertEqual(printer.linesPassed, ["a line"])
     }
 
+    // Off a terminal, standard output is block-buffered, so a log file would get each line late, or not at all after a
+    // crash, and after anything later on standard error. On a terminal it is flushed at each line anyway.
+    func test_withoutATerminal_eachLineIsFlushedAsItIsPrinted() {
+        var written: [String] = []
+        current.printer = { written.append($0) }
+        current.flushStandardOut = { written.append("(flushed)") }
+
+        current.standardOutIsATerminal = false
+        sut.print("a line")
+        sut.print("another")
+        current.standardOutIsATerminal = true
+        sut.print("on a terminal")
+
+        XCTAssertEqual(written, ["a line", "(flushed)", "another", "(flushed)", "on a terminal"])
+    }
+
+    // The lines `tail -f` follows most: the first, and each mutant's.
+    func test_withoutATerminal_eachProgressLine_isFlushed() {
+        current.standardOutIsATerminal = false
+        var written: [String] = []
+        current.printer = { written.append($0) }
+        current.flushStandardOut = { written.append("(flushed)") }
+        sut.resumePlanned(.make(reused: 0, toTest: 1, retestedBecause: [.notRecorded: 1]))
+        sut.newMutationTestLogAvailable(
+            mutationTestLog: .make(timePerBuildTestCycle: 60, remainingMutationPointsCount: 1)
+        )
+        XCTAssertTrue(written.suffix(2) == ["[02:42:00] 0 of 1 (0%) | 1 min left", "(flushed)"], "\(written)")
+
+        sut.newMutationTestOutcomeAvailable(mutation: .make(testSuiteOutcome: .failed))
+
+        XCTAssertTrue(written.last == "(flushed)", "\(written)")
+        XCTAssertTrue(written.dropLast().last?.hasPrefix("[02:42:00] 1 of 1 (100%) | 1 killed | ") == true, "\(written)")
+    }
+
     func test_projectCopySkippedVanishedFiles_listsUpToFivePaths() {
         sut.projectCopySkippedVanishedFiles((1 ... 7).map { "/p/f\($0).lock" })
 

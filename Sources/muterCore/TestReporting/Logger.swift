@@ -11,6 +11,8 @@ final class Logger {
     private var now: Now
     @Dependency(\.standardOutIsATerminal)
     private var standardOutIsATerminal: Bool
+    @Dependency(\.flushStandardOut)
+    private var flushStandardOut: Flush
     /// When the mutants started, which the estimate of the time left measures their rate from.
     private var mutantRunsStartedAt: DispatchTime?
     /// How many mutants the progress bar or the progress lines count: those discovered, or those a resumed run has
@@ -444,8 +446,15 @@ final class Logger {
     /// The printer used to be a property also named `print`. Calls to `print("…")` inside this
     /// type were then ambiguous between that property and this method, and newer compilers
     /// pick this method, which wrote straight to standard output and bypassed the printer.
+    ///
+    /// Off a terminal, standard output is block-buffered: a log file or a `| tee` would get each line up to 16 KB late,
+    /// lose the last ones to a crash or a SIGKILL, and get them after anything later on standard error. So each line
+    /// is flushed there.
     func print(_ message: String) {
         printer(message)
+        if !standardOutIsATerminal {
+            flushStandardOut()
+        }
     }
 
     private func printMessage(_ message: String) {
