@@ -20,8 +20,9 @@ This started as a ranked review of SwiftMutator on 2 October 2026, at commit `4b
   - A default time limit based on a timed test run, for SwiftPM projects (§2.7, PR #57).
   - The progress bar's count, which ran one mutant ahead and hid the first estimate, its time left, which swung by 100×, its wording, and its redraw, which left stale text on screen, a whole line per redraw in an 80-column terminal (§3, PR #58).
   - Progress in a log file: a flushed, timestamped line per mutant when stdout isn't a terminal, and the file listings only with `--verbose` (§3, PR #59).
+  - Coverage with several test bundles: one `llvm-cov` export over every bundle, uncovered files named by their path in the project so discovery leaves them out, the reason a coverage run failed, and one location converter per file, without which discovery with coverage took 29 s instead of 2 s on SwiftProjectLint in a release build, and minutes in a debug build (§1.3, PR #60).
 
-  Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#59, which are in the PRs themselves.
+  Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#60, which are in the PRs themselves.
 - **Section numbers are the original ones,** so references in PRs and notes still work. A missing number is a finished section.
 
 ## The workload these numbers come from
@@ -72,15 +73,17 @@ Fail-fast is done (PR #36), and on by default since PR #41. Left:
 
 ### 1.3 Skip mutants that no test reaches
 
-- **What happens.** The coverage step assumes one test bundle, but SwiftPM's newer build layout makes one per test target (three for SwiftProjectLint), so coverage fails.
-  - `xctestExecutable` (`BuildSystem.swift:83-85`) returns every bundle `find` lists as one path, and `coverageReport` (`SwiftCoverage.swift:63-97`) builds one `llvm-cov` call from it.
-  - `CoverageError` has only `.build` (`BuildSystem.swift:134-136`), so the log prints a fixed "Gathering coverage failed" (`Logger.swift:86-96`) and the reason is lost.
-  - `swift-quality` also always passes `--skip-coverage`.
-- **Effect.** About 151 mutants (6%) are never executed by any test. They survive, so each runs the whole suite: 151 × 16.8 s / 4 ≈ 10.6 min, about 12% of the run.
-- **Options, from cheapest to most thorough.**
-  1. **Reuse existing coverage.** Accept the llvm-cov JSON that `swift-quality` already produces, mapped by canonical path. The helpers from PR #21 exist. No extra build is needed.
-  2. **Fix the coverage step.** Handle every bundle, merge their reports, and say why it failed. `functionsCoverage` (`BuildSystem.swift:51-81`) has the same one-bundle flaw, and `testProfileData` (`:94-102`) takes the first `.profdata` it finds. This adds a coverage build and test run of about 1.5–2 min, so the net saving is about 9 min.
-  3. **Trace reached switches.** Record which mutant switches the baseline run executes, and mark the rest "no coverage" without running them. This could later grow into a map from each mutant to the tests that reach it.
+Coverage works with several test bundles since PR #60. On SwiftProjectLint `20438f4d`, with its run configuration, it leaves out 14 files no test runs and 113 of 3,372 mutants (3.35%). If they survive, as all but 2 of the 93 such mutants did on 2 October, that saves about 8–11 min of a 4-worker run, depending on whether a survivor takes 16.8 s or the 22.6 s of a whole test run. The coverage step took 96 s there, on a warm build, and the baseline then rebuilds without coverage. Left:
+- **The region check covers too little.** Discovery skips a node when a region no test ran contains it, but checks only in `visitAny` (`MuterVisitor.swift:68-76`). So it covers each mutant's ancestors, not the node an operator mutates. On SwiftProjectLint `c2082e5d`, the commit the 2 October run tested, checking that node too would skip 48 more mutants, all survivors in that run. At `20438f4d`, a prototype run without the run configuration skips 54 more.
+- **Coverage builds in the project's build folder,** so the baseline then rebuilds everything without it: about 75–145 s on SwiftProjectLint. A separate `--scratch-path` would avoid that, but breaks tests that run a product from `.build/debug`, as SwiftProjectLint's CLITests do. The CLI's coverage would go missing, and 2 mutants the tests kill would be skipped.
+- **A test that fails only under coverage costs all of it,** since SwiftPM saves no profile data after a failed test. The coverage run has no time limit either.
+- **A resumed session gathers coverage again** and doesn't compare it with the first session's. If one session's coverage failed and the other's worked, they test different mutants, and nothing says so.
+- **xcodebuild projects keep their own coverage code,** which couldn't be checked here: xcodebuild fails to load `DVTCoreDeviceCore` on this machine.
+  - `XcodeBuildCoverage.buildDirectory` (`XcodeBuildCoverage.swift:34-43`) takes the whole `BUILD_DIR = …` line as the path, so its regions are never read.
+  - Its threshold is a fraction from 0 to 1, where SwiftPM's is a percentage.
+  - Its project percentage is the first target's.
+  - It still uses the one-bundle helpers in `BuildSystem.swift` that PR #60 replaced for SwiftPM.
+- **Linux is untested:** the bundle layout under Swift Build, and `llvm-cov` found through `env`.
 
 ### 1.4 Do less work per run
 
@@ -194,7 +197,7 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
 - **A mutant switch inside a multi-line string's interpolation can fail to compile.** PR #53 starts a branch's `}` on a new line when the branch's last line ends in a `//` comment or `#endif`.
   - **When it fails.** Take a closure inside a `"""` string's `\( … )` whose first statement is on the `{` line. The new line starts at column 0, which is less indented than the closing `"""`, so it fails with "insufficient indentation". It failed on `main` before PR #53 too, because the comment swallowed the brace.
   - **Fix.** Indent the `}` like the source line it follows. That indentation is part of the string's text, not trivia, so it's rare enough to leave for now.
-- **Waiting for a test process can hang.** `exited()` (`MuterProcess.swift:42-49`) calls `waitUntilExit()` on a GCD thread.
+- **Waiting for a test process can hang.** `exited()` (`MuterProcess.swift:62-69`) calls `waitUntilExit()` on a GCD thread.
   - Reviewers of PR #36 saw that call never return, but only for a process without a `terminationHandler`.
   - Every test process now has one, and the hang hasn't been seen in SwiftMutator.
   - Having `exited()` resume from the handler (`MutationTestingIODelegate.swift:265`) would be sturdier.
@@ -229,7 +232,7 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
   - A stop by signal ends SwiftMutator by that same signal, so a shell reports 128 + its number (130, 143 or 129). A wrapper that reads the wait status sees a signal, not an exit code.
   - Every other failure of a run exits 255, a refused resume included. A usage error exits 64, and `report` exits 1 when it can't read its file.
 - **Log storage.**
-  - Each mutant's log is written twice. The test process writes it into the `_mutated` folder (`MutationTestingIODelegate.swift:403-418`), and then it's copied to `<project>_muter_logs` (`MutationTestObserver.swift:221-241`). Write it once.
+  - Each mutant's log is written twice. The test process writes it into the `_mutated` folder (`MutationTestingIODelegate.swift:403-418`), and then it's copied to `<project>_muter_logs` (`MutationTestObserver.swift:220-240`). Write it once.
   - Kept logs are never removed. On this machine, SwiftProjectLint's log folder holds 15 runs and 2.4 GB.
   - Keep full logs only for survivors, crashes and timeouts. That needs the results file's `log` field to become optional.
 
@@ -267,7 +270,7 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
   - global mutable dependency injection (`World.swift:6-10`);
   - other blocking waits reached from async steps:
     - discovery's semaphore and group waits;
-    - `waitUntilExit` in `FoundationProcess.swift:29`;
+    - `waitUntilExit` in `FoundationProcess.swift:29` and `:54` (`runProcess`, and `runCommand`, which the coverage step uses);
     - the clone's `cp`;
     - the `git` listing;
   - an untyped NotificationCenter bus;
@@ -315,9 +318,8 @@ Added on 7 October, from a discussion of using property-based tests (PBT) alongs
 
 ## Suggested order
 
-1. **Coverage** (§1.3). It saves about 11 min, and stops counting code that no test runs as survivors.
-2. **Unviable mutants** (§2.6), so that one bad mutant can't cost a whole run.
-3. **`--since`, reuse and `--shard`** (§1.4), for runs on a change rather than the whole repo.
+1. **Unviable mutants** (§2.6), so that one bad mutant can't cost a whole run.
+2. **`--since`, reuse and `--shard`** (§1.4), for runs on a change rather than the whole repo.
 
 ## Outside this repo
 
@@ -327,6 +329,7 @@ Added on 7 October, from a discussion of using property-based tests (PBT) alongs
   - Add start and end timestamps to `summary.txt`.
   - Exclude `ExampleCode/` and `.swiftinfer`, until §2.4 is done.
   - Copy the "Mutation Score without suspect tests" and "Suspect tests" lines into `summary.txt`. Anchor the killed-count `grep` to the line that starts "Of the".
+  - Drop `--skip-coverage`, now that coverage works with several test bundles (PR #60), so runs leave out the mutants no test runs.
 - **SwiftProjectLint.**
   - Skip, or rewrite, the wall-clock timing test in `ProjectLinterTests.swift:98` for mutation runs.
   - Sort the files that `PrimitiveNamedForDomainTypeVisitorTests.analyze(files:)` walks. It walks a Dictionary in hash-seed order, so two `RemoveSideEffects` mutants in `PrimitiveNamedForDomainTypeVisitor.swift` (lines 77 and 105, each `typeNameStack.removeLast()`) are killed in only about 75% and 50% of runs. The score moves by a point or two from run to run.
