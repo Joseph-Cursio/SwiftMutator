@@ -142,6 +142,31 @@ final class MutationTestObserverTests: MuterTestCase {
         )
     }
 
+    // The time left is the rate since the mutants started, which the Logger only knows from this notification. Without
+    // it, the bar would show its first estimate until 100%.
+    func test_mutantRunsStarted_reachesTheLogger() {
+        var milliseconds: UInt64 = 1_000_000
+        current.instant = { DispatchTime(uptimeNanoseconds: milliseconds * 1_000_000) }
+        sut.start()
+        notificationCenter.post(
+            name: .resumePlanned,
+            object: ResumeSummary.make(reused: 0, toTest: 10, retestedBecause: [.notRecorded: 10])
+        )
+        // 10 mutants, 120 s each, on one worker.
+        notificationCenter.post(
+            name: .newTestLogAvailable,
+            object: MutationTestLog.make(timePerBuildTestCycle: 120, remainingMutationPointsCount: 10)
+        )
+
+        notificationCenter.post(name: .mutantRunsStarted, object: nil)
+        milliseconds += 60_000
+        notificationCenter.post(name: .newTestLogAvailable, object: MutationTestLog.make(mutationPoint: .make()))
+
+        let draw = printer.linesPassed.last { $0.contains("ETC:") } ?? ""
+        // 60 s a mutant, and 9 left. The first estimate would say 20 min.
+        XCTAssertTrue(draw.hasSuffix("ETC: 9 min"), draw)
+    }
+
     func test_resultsFileCreated_isLogged_andNamedAtTheEnd() {
         sut.start()
 

@@ -1,25 +1,22 @@
 import Foundation
 import Rainbow
 
-class SimpleTimeEstimate: ProgressElementType {
-    private let initialEstimate: TimeInterval
-    private var lastTime: Date = .init()
-
-    init(initialEstimate: TimeInterval) {
-        self.initialEstimate = initialEstimate
-    }
+/// The time left, from `Logger.secondsLeft`, with the bar's count of mutants tested.
+struct SimpleTimeEstimate: ProgressElementType {
+    let firstEstimate: TimeInterval
+    let workers: Int
+    /// The seconds since the mutants started, or nil before they have.
+    let elapsed: () -> TimeInterval?
 
     func value(_ progressBar: ProgressBar) -> String {
-        let timeSinceLastInvocation = Date()
-        let timePerItem = DateInterval(start: lastTime, end: timeSinceLastInvocation).duration
-
-        let estimatedTimeRemaining = progressBar.element == 0 ?
-            initialEstimate :
-            Double(progressBar.count - progressBar.element) * timePerItem
-
-        lastTime = Date()
-
-        return "ETC: \(Self.text(secondsLeft: estimatedTimeRemaining))"
+        let secondsLeft = Logger.secondsLeft(
+            tested: progressBar.element,
+            of: progressBar.count,
+            workers: workers,
+            elapsed: elapsed(),
+            firstEstimate: firstEstimate
+        )
+        return "ETC: \(Self.text(secondsLeft: secondsLeft))"
     }
 
     /// `seconds` in whole minutes, rounded up so that it never says 0 while any time is left, and in hours from 60

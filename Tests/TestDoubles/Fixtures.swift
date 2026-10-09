@@ -456,13 +456,15 @@ extension MutationTestLog {
         mutationPoint: MutationPoint? = nil,
         testLog: String = "",
         timePerBuildTestCycle: TimeInterval? = nil,
-        remainingMutationPointsCount: Int? = nil
+        remainingMutationPointsCount: Int? = nil,
+        workers: Int = 1
     ) -> MutationTestLog {
         MutationTestLog(
             mutationPoint: mutationPoint,
             testLog: testLog,
             timePerBuildTestCycle: timePerBuildTestCycle,
-            remainingMutationPointsCount: remainingMutationPointsCount
+            remainingMutationPointsCount: remainingMutationPointsCount,
+            workers: workers
         )
     }
 }

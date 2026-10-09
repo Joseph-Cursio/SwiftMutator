@@ -30,6 +30,9 @@ extension Notification.Name {
     /// is tested.
     static let resumePlanned = Notification.Name("resumePlanned")
     static let mutationTestingStarted = Notification.Name("mutationTestingStarted")
+    /// Posted once the mutants start: after the baseline, the timed test run and any worker clones' builds, just
+    /// before the first mutant's run.
+    static let mutantRunsStarted = Notification.Name("mutantRunsStarted")
     static let stopAtFirstFailureTurnedOff = Notification.Name("stopAtFirstFailureTurnedOff")
     static let mutationTestingFinished = Notification.Name("mutationTestingFinished")
     /// The object is an `EarlyEnd`: what mutation testing tested before it stopped early, once the baseline passed.
@@ -91,6 +94,7 @@ final class MutationTestObserver {
             (name: .mutationTestingStarted, handler: handleMutationTestingStarted),
             (name: .stopAtFirstFailureTurnedOff, handler: handleStopAtFirstFailureTurnedOff),
 
+            (name: .mutantRunsStarted, handler: handleMutantRunsStarted),
             (name: .newMutationTestOutcomeAvailable, handler: handleNewMutationTestOutcomeAvailable),
             (name: .newTestLogAvailable, handler: handleNewTestLogAvailable),
             (name: .baselineTestFailed, handler: handleBaselineTestFailed),
@@ -190,6 +194,10 @@ extension MutationTestObserver {
 
     func handleMutationTestingStarted(notification: Notification) {
         logger.mutationTestingStarted()
+    }
+
+    func handleMutantRunsStarted(notification: Notification) {
+        logger.mutantRunsStarted()
     }
 
     func handleStopAtFirstFailureTurnedOff(notification: Notification) {

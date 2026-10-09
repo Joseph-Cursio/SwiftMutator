@@ -94,6 +94,24 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         XCTAssertEqual(ioDelegate.configurations.map(\.testSuiteTimeout), [72, 72])
     }
 
+    // The progress bar's rate is measured from when the mutants start: after the worker clones are built, which can
+    // take minutes and isn't time spent on mutants, and before any mutant's run.
+    func test_theMutantRunsStart_onceTheClonesAreBuilt() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
+        var atTheStart: [[Int]] = []
+        whenPosted(.mutantRunsStarted) { [unowned self] _ in
+            let mutantRuns = ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count
+            atTheStart.append([ioDelegate.builtWorkerDirectories.count, mutantRuns])
+        }
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(atTheStart, [[1, 0]])
+    }
+
     func test_aShortTimedTestRun_getsTheMinimum() async throws {
         state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]

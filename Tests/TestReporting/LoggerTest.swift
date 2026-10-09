@@ -136,6 +136,54 @@ final class LoggerTests: MuterTestCase {
         ])
     }
 
+    // Until as many mutants have finished as there are workers, about one each, a rate would count the mutants still
+    // running as if none had started, so the first estimate counts down. After that, the time left is the time per
+    // mutant so far, over all the workers, times the mutants left.
+    func test_theTimeLeft_followsTheAverageRate_onceAsManyMutantsAsWorkersHaveFinished() {
+        let secondsLeft = { (tested: Int, elapsed: TimeInterval?) in
+            Logger.secondsLeft(tested: tested, of: 10, workers: 2, elapsed: elapsed, firstEstimate: 600)
+        }
+
+        XCTAssertEqual(secondsLeft(0, nil), 600) // before the mutants start
+        XCTAssertEqual(secondsLeft(0, 100), 500)
+        XCTAssertEqual(secondsLeft(1, 150), 450) // one worker is still on its first mutant
+        XCTAssertEqual(secondsLeft(2, 200), 800) // 100 s a mutant, and 8 left
+        XCTAssertEqual(secondsLeft(4, 200), 300)
+        XCTAssertEqual(secondsLeft(10, 900), 0)
+        XCTAssertEqual(secondsLeft(1, 900), 0) // a first estimate that ran out says no more than 0
+    }
+
+    // The estimate is the rate since the mutants started, not the time since the bar was last drawn times the mutants
+    // left, which swung by a factor of 100 when parallel workers finished mutants in bursts.
+    func test_theBarsTimeLeft_followsTheRateSinceTheMutantsStarted() throws {
+        var milliseconds: UInt64 = 1_000_000
+        current.instant = { DispatchTime(uptimeNanoseconds: milliseconds * 1_000_000) }
+        try sut.mutationsDiscoveryFinished(mutations: (0 ..< 10).map { _ in try makeSchemataMapping() })
+        func lastDraw() -> String { printer.linesPassed.last { $0.contains("ETC:") } ?? "" }
+
+        // 5 mutants a worker, 120 s each.
+        sut.newMutationTestLogAvailable(
+            mutationTestLog: .make(timePerBuildTestCycle: 120, remainingMutationPointsCount: 10, workers: 2)
+        )
+        XCTAssertTrue(lastDraw().hasSuffix("ETC: 10 min"), lastDraw())
+        // Building the worker clones isn't time spent on mutants.
+        milliseconds += 300_000
+        sut.mutantRunsStarted()
+        // A worker finishes a mutant, 239.8 s in. The other is still on its first, so the first estimate counts down:
+        // 600 - 239.8 s.
+        milliseconds += 239_800
+        sut.newMutationTestLogAvailable(mutationTestLog: .make(mutationPoint: .make()))
+        XCTAssertTrue(lastDraw().hasSuffix("ETC: 7 min"), lastDraw())
+        // The other finishes too, 240 s in: 120 s a mutant, and 8 left.
+        milliseconds += 200
+        sut.newMutationTestLogAvailable(mutationTestLog: .make(mutationPoint: .make()))
+        XCTAssertTrue(lastDraw().hasSuffix("ETC: 16 min"), lastDraw())
+        // One more, 60 s later: 100 s a mutant, and 7 left.
+        milliseconds += 60_000
+        sut.newMutationTestLogAvailable(mutationTestLog: .make(mutationPoint: .make()))
+        XCTAssertTrue(lastDraw().hasSuffix("ETC: 12 min"), lastDraw())
+    }
+
     // Each redraw moves up over the bar's two lines and erases each, so a shorter line leaves nothing of the longer one
     // it replaces. It erased only the top line, after a stray escape character.
     func test_theProgressBar_erasesEachOfItsLinesBeforeRedrawing() throws {
