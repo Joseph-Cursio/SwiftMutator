@@ -1,29 +1,34 @@
 import Foundation
 import Rainbow
 
-class SimpleTimeEstimate: ProgressElementType {
-    private let initialEstimate: TimeInterval
-    private var lastTime: Date = .init()
-
-    init(initialEstimate: TimeInterval) {
-        self.initialEstimate = initialEstimate
-    }
+/// The time left, from `Logger.secondsLeft`, with the bar's count of mutants tested.
+struct SimpleTimeEstimate: ProgressElementType {
+    let firstEstimate: TimeInterval
+    let workers: Int
+    /// The seconds since the mutants started, or nil before they have.
+    let elapsed: () -> TimeInterval?
 
     func value(_ progressBar: ProgressBar) -> String {
-        let timeSinceLastInvocation = Date()
-        let timePerItem = DateInterval(start: lastTime, end: timeSinceLastInvocation).duration
+        let secondsLeft = Logger.secondsLeft(
+            tested: progressBar.element,
+            of: progressBar.count,
+            workers: workers,
+            elapsed: elapsed(),
+            firstEstimate: firstEstimate
+        )
+        return "ETC: \(Self.text(secondsLeft: secondsLeft))"
+    }
 
-        let estimatedTimeRemaining = progressBar.element == 0 ?
-            initialEstimate :
-            Double(progressBar.count - progressBar.element) * timePerItem
-
-        lastTime = Date()
-
-        let remainingMinutes = Int(ceil(estimatedTimeRemaining / 60))
-
-        let formattedRemainingMinutes = "\(remainingMinutes) \(remainingMinutes == 1 ? "minutes" : "minute")"
-
-        return "ETC: \(formattedRemainingMinutes)"
+    /// `seconds` in whole minutes, rounded up so that it never says 0 while any time is left, and in hours from 60
+    /// minutes up: "1 min", "59 min", "2 h 5 min". The units are short because this ends the bar's longest line, and
+    /// a line that wraps leaves a stale copy behind on every redraw.
+    static func text(secondsLeft seconds: TimeInterval) -> String {
+        let minutes = max(Int(ceil(seconds / 60)), 0)
+        guard minutes >= 60 else {
+            return "\(minutes) min"
+        }
+        let (hours, rest) = minutes.quotientAndRemainder(dividingBy: 60)
+        return rest == 0 ? "\(hours) h" : "\(hours) h \(rest) min"
     }
 }
 
@@ -71,10 +76,13 @@ struct ColoredProgressBarLine: ProgressElementType {
     }
 }
 struct ProgressBarMultilineTerminalPrinter: ProgressBarPrinter {
-    var lastPrintedTime = 0.0
+    /// When the bar was last drawn, by the injected clock.
+    private var lastPrinted: DispatchTime?
     private let numberOfLines: Int
     @Dependency(\.logger)
     private var logger: Logger
+    @Dependency(\.instant)
+    private var instant: Instant
 
     init(numberOfLines: Int) {
         self.numberOfLines = numberOfLines
@@ -83,20 +91,18 @@ struct ProgressBarMultilineTerminalPrinter: ProgressBarPrinter {
         logger.print("")
     }
 
+    /// Draws the bar at most every tenth of a second, so a burst of finished mutants redraws it once, but always its
+    /// last state.
     mutating func display(_ progressBar: ProgressBar) {
-        let currentTime = getTimeOfDay()
-        if currentTime - lastPrintedTime > 0.1 || progressBar.element == progressBar.count {
-            let lines = "\u{1B}[1A\u{1B}".repeated(numberOfLines)
-            logger.print("\(lines)[K\(progressBar.value)")
-            lastPrintedTime = currentTime
+        let now = instant()
+        if let lastPrinted,
+           now.uptimeNanoseconds < lastPrinted.uptimeNanoseconds + 100_000_000,
+           progressBar.element != progressBar.count {
+            return
         }
-    }
-}
-
-private extension ProgressBarMultilineTerminalPrinter {
-    func getTimeOfDay() -> Double {
-        var tv = timeval()
-        gettimeofday(&tv, nil)
-        return Double(tv.tv_sec) + Double(tv.tv_usec) / 1000000
+        // Up a line and erase it, for each line of the bar, so a shorter line leaves nothing of the one it replaces.
+        let erase = "\u{1B}[1A\u{1B}[2K".repeated(numberOfLines)
+        logger.print(erase + progressBar.value)
+        lastPrinted = now
     }
 }

@@ -5,6 +5,10 @@ final class Logger {
     private var printer: Printer
     @Dependency(\.errorPrinter)
     private var errorPrinter: Printer
+    @Dependency(\.instant)
+    private var instant: Instant
+    /// When the mutants started, which the progress bar's estimate measures their rate from.
+    private var mutantRunsStartedAt: DispatchTime?
     /// How many mutants the progress bar counts: those discovered, or those a resumed run has left to test.
     private(set) var numberOfMutationPoints: Int = 0
     private var progressBar: ProgressBar!
@@ -179,6 +183,10 @@ final class Logger {
         return items.dropLast().joined(separator: ", ") + " and " + last
     }
 
+    func mutantRunsStarted() {
+        mutantRunsStartedAt = instant()
+    }
+
     func mutationTestingStarted() {
         printMessage(
             """
@@ -227,13 +235,17 @@ final class Logger {
                     ProgressOneIndexed(),
                     ProgressString(string: "\nPercentage complete: "),
                     ProgressPercent(),
-                    ColoredProgressBarLine(barLength: 50),
+                    // So that the line fits in an 80-column terminal. One that wraps takes another row, which a redraw
+                    // doesn't move up over, so it's left behind on screen.
+                    ColoredProgressBarLine(barLength: 30),
                     SimpleTimeEstimate(
-                        initialEstimate: Self.initialEstimate(
+                        firstEstimate: Self.initialEstimate(
                             remaining: mutationTestLog.remainingMutationPointsCount!,
-                            cycle: mutationTestLog.timePerBuildTestCycle!,
+                            cycle: mutationTestLog.testRunSeconds ?? mutationTestLog.timePerBuildTestCycle!,
                             workers: mutationTestLog.workers
-                        )
+                        ),
+                        workers: mutationTestLog.workers,
+                        elapsed: { [weak self] in self?.secondsSinceMutantRunsStarted() }
                     ),
                 ],
                 printer: ProgressBarMultilineTerminalPrinter(numberOfLines: Self.progressBarLines)
@@ -243,8 +255,36 @@ final class Logger {
         progressBar.next()
     }
 
-    /// The time left before any mutant has finished. Each worker tests its share of the `remaining` mutants, a
-    /// build-and-test `cycle` for each, while the others test theirs, so the largest share sets it.
+    /// The seconds since the mutants started, or nil before they have.
+    private func secondsSinceMutantRunsStarted() -> TimeInterval? {
+        guard let start = mutantRunsStartedAt else { return nil }
+        let now = instant()
+        guard now >= start else { return 0 }
+        return Double(now.uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000_000
+    }
+
+    /// The time left with `tested` of `total` mutants tested on `workers` workers, `elapsed` seconds after they started.
+    /// Until as many mutants have finished as there are workers, about one each, a rate would count the mutants still
+    /// running as if none had started, so the `firstEstimate` counts down. After that, it is the time per mutant so far
+    /// times the mutants left.
+    static func secondsLeft(
+        tested: Int,
+        of total: Int,
+        workers: Int,
+        elapsed: TimeInterval?,
+        firstEstimate: TimeInterval
+    ) -> TimeInterval {
+        let left = total - tested
+        guard left > 0 else { return 0 }
+        guard let elapsed, tested > 0, tested >= min(max(workers, 1), total) else {
+            return max(firstEstimate - (elapsed ?? 0), 0)
+        }
+        return elapsed / Double(tested) * Double(left)
+    }
+
+    /// The time left before any mutant has finished. Each worker tests its share of the `remaining` mutants, a `cycle`
+    /// for each, while the others test theirs, so the largest share sets it. The cycle is the timed test run, which skips
+    /// the build as a mutant's run does, or else the baseline, build included.
     static func initialEstimate(remaining: Int, cycle: TimeInterval, workers: Int) -> TimeInterval {
         let largestShare = ceil(Double(remaining) / Double(max(workers, 1)))
         return largestShare * cycle

@@ -266,7 +266,8 @@ private extension PerformMutationTesting {
                 testLog: testLog,
                 timePerBuildTestCycle: timePerBuildTestCycle,
                 remainingMutationPointsCount: plan.toRun.count,
-                workers: workers
+                workers: workers,
+                testRunSeconds: testRunSeconds
             )
         )
 
@@ -398,6 +399,7 @@ private extension PerformMutationTesting {
         session: TestingSession
     ) async throws {
         var buildErrors = 0
+        notificationCenter.post(name: .mutantRunsStarted, object: nil)
 
         for index in indices {
             let job = jobs[index]
@@ -458,6 +460,7 @@ private extension PerformMutationTesting {
         let directories = [state.mutatedProjectDirectoryURL] + clones
 
         var buildErrors = 0
+        notificationCenter.post(name: .mutantRunsStarted, object: nil)
 
         try await withThrowingTaskGroup(of: FinishedRun.self) { group in
             // The position in `indices` of the next job to start.

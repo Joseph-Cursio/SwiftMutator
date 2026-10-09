@@ -416,6 +416,22 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count, 1)
     }
 
+    // One at a time, the mutants start just before the first one's run.
+    func test_theMutantRunsStart_beforeTheFirstMutantsRun() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        var mutantRunsAtTheStart: [Int] = []
+        let observer = notificationCenter.addObserver(
+            forName: .mutantRunsStarted, object: nil, queue: nil
+        ) { [unowned self] _ in
+            mutantRunsAtTheStart.append(ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count)
+        }
+        defer { notificationCenter.removeObserver(observer) }
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(mutantRunsAtTheStart, [0])
+    }
+
     // Stopping the run kills the baseline run, which then fails. That says nothing about the project's tests, so the
     // run stops without saying they failed, and writes no results file.
     func test_aCancelledBaseline_throwsCancellation_andPostsNoBaselineFailure() async throws {

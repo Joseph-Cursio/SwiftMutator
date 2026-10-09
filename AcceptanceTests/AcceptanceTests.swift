@@ -45,8 +45,9 @@ final class AcceptanceTests: XCTestCase {
 
         XCTAssertTrue(output.contains("In total, SwiftMutator introduced 3 mutants in 3 files."))
 
-        XCTAssertEqual(try numberOfProgressUpdates(in: output), 3)
-        XCTAssertEqual(try numberOfDurationEstimates(in: output), 3)
+        // Once when the baseline passes, with no mutant tested, and once as each of the 3 mutants finishes.
+        XCTAssertEqual(try numberOfProgressUpdates(in: output), 4)
+        XCTAssertEqual(try numberOfDurationEstimates(in: output), 4)
 
         XCTAssertTrue(output.contains(messages.mutationScoresHeader))
         XCTAssertTrue(output.contains(messages.mutationScoreOfTestSuite))
@@ -347,7 +348,7 @@ extension AcceptanceTests {
 
     func numberOfDurationEstimates(in output: String) throws -> Int {
         try applyRegex(
-            "ETC: [0-9]+ minute/?",
+            "ETC: [0-9]+ (min|h)",
             to: output
         )
     }
