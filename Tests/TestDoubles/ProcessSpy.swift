@@ -50,6 +50,15 @@ final class ProcessSpy: MuterProcess {
         return queue.dequeue()?.data(using: .utf8)
     }
 
+    /// Each command `runCommand` was asked for, its executable first, in order.
+    private(set) var commandsRun: [[String]] = []
+    /// What `runCommand` gives for a command, its executable first: nil, as for one that can't be started, unless set.
+    var commandResult: ([String]) -> CommandResult? = { _ in nil }
+    func runCommand(url: String, arguments args: [String]) -> CommandResult? {
+        commandsRun.append([url] + args)
+        return commandResult([url] + args)
+    }
+
     var terminateCalled = false
     func terminate() {
         terminateCalled = true

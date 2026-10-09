@@ -2,6 +2,17 @@ import Foundation
 
 typealias Process = MuterProcess
 
+/// How a command ended, and what it wrote.
+struct CommandResult: Equatable {
+    /// Its exit code, or the signal that killed it.
+    let status: Int32
+    let endedBySignal: Bool
+    let output: String
+    let errors: String
+
+    var succeeded: Bool { !endedBySignal && status == 0 }
+}
+
 protocol MuterProcess: AnyObject {
     var processIdentifier: Int32 { get }
     var terminationStatus: Int32 { get }
@@ -20,6 +31,10 @@ protocol MuterProcess: AnyObject {
         arguments args: [String]
     ) -> Data?
 
+    /// Runs `url` with `arguments` to its end, for its exit status and what it wrote to standard output and standard
+    /// error, or nil if it couldn't be started.
+    func runCommand(url: String, arguments args: [String]) -> CommandResult?
+
     func run() throws
 
     func waitUntilExit()
@@ -34,6 +49,11 @@ protocol MuterProcess: AnyObject {
 }
 
 extension MuterProcess {
+    /// For test doubles that never run a command this way: as if it couldn't be started. `Foundation.Process` runs it.
+    func runCommand(url: String, arguments args: [String]) -> CommandResult? {
+        nil
+    }
+
     /// Waits for this process to exit on a GCD thread. `waitUntilExit()` blocks its thread until then,
     /// and Swift concurrency has only about as many threads as the machine has cores: test runs waiting
     /// on them could hold every one, and nothing else could run, not even a run's time limit. Ignores
