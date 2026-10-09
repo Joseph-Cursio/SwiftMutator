@@ -86,7 +86,7 @@ private extension DiscoverSourceFiles {
         )
         // Only Swift files are checked against coverage: each check resolves the path on disk, and a
         // project holds far more files than Swift sources.
-        .exclude(filesWithoutCoverageList(filesWithoutCoverage))
+        .exclude(filesWithoutCoverageList(filesWithoutCoverage, root: rootPath))
     }
 
     private func pathsContainingItems(
@@ -107,11 +107,13 @@ private extension DiscoverSourceFiles {
         }
     }
 
-    /// Matches by canonical path, since the coverage tools may spell a file's path differently.
+    /// Matches by canonical path, since the coverage tools may spell a file's path differently. A relative path, as
+    /// SwiftPM's coverage gives one, is relative to the project at `root`.
     private func filesWithoutCoverageList(
-        _ list: [FilePath]
+        _ list: [FilePath],
+        root: FilePath
     ) -> (FilePath) -> Bool {
-        let canonicalPaths = Set(list.map(\.canonicalPath))
+        let canonicalPaths = Set(list.map { ($0.hasPrefix("/") ? $0 : append(root: root, to: $0)).canonicalPath })
         return { path in canonicalPaths.contains(path.canonicalPath) }
     }
 

@@ -68,5 +68,39 @@ struct LLVMCoverage: Decodable {
 
     struct Data: Decodable {
         let functions: [Function]
+        /// Each source file's summary.
+        let files: [File]
+
+        init(functions: [Function], files: [File] = []) {
+            self.functions = functions
+            self.files = files
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            functions = try container.decode([Function].self, forKey: .functions)
+            files = try container.decodeIfPresent([File].self, forKey: .files) ?? []
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case functions
+            case files
+        }
+    }
+
+    struct File: Decodable {
+        let filename: String
+        let summary: Summary
+    }
+
+    struct Summary: Decodable {
+        let lines: Lines
+    }
+
+    /// How many lines of a file the tests could run, how many of them they ran, and that as a percentage.
+    struct Lines: Decodable {
+        let count: Int
+        let covered: Int
+        let percent: Double
     }
 }

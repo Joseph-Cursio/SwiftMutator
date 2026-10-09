@@ -131,6 +131,19 @@ extension BuildSystemCoverage {
     }
 }
 
-enum CoverageError: Error {
+enum CoverageError: Error, Equatable {
+    /// xcodebuild's coverage run or its report failed.
     case build
+    /// The command, such as `swift` or `llvm-cov`, couldn't be started.
+    case couldNotRun(String)
+    /// The tests failed with coverage on, with this exit status or signal.
+    case testsFailed(status: Int32, bySignal: Bool)
+    case noBuildDirectory
+    case noProfileData(atPath: String)
+    case noTestBundles(inDirectory: String)
+    /// llvm-cov failed, saying this.
+    case llvmCovFailed(String)
+    case unreadableReport
+    /// The report covers none of the project's own source files.
+    case noProjectFiles
 }
