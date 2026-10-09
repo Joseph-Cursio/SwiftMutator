@@ -17,14 +17,17 @@ final class SwiftCoverageTests: MuterTestCase {
     // Swift Build makes a bundle for each test target, and each maps only the code its target links, so one export
     // takes them all: the first by name, then each other as an object.
     func test_coverage_isExportedFromEveryTestBundle_inOneCall() {
-        answerWithACoverageRun(bundles: ["CoreTests.xctest", "AppTests.xctest", "Package.swift"])
+        answerWithACoverageRun(
+            bundles: ["CoreTests.xctest", "AppTests.xctest"],
+            testTargets: ["CoreTests", "AppTests"]
+        )
 
         _ = sut.run(with: muterConfiguration)
 
-        let bundle = { (name: String) in "/project/.build/out/Products/Debug/\(name).xctest/Contents/MacOS/\(name)" }
         XCTAssertEqual(process.commandsRun, [
             ["/path/to/swift", "test", "--skip", "Slow", "--enable-code-coverage"],
             ["/path/to/swift", "test", "--skip", "Slow", "--show-codecov-path"],
+            ["/path/to/swift", "package", "describe", "--type", "json"],
             [
                 "/usr/bin/xcrun", "llvm-cov", "export",
                 bundle("AppTests"), "-object", bundle("CoreTests"),
@@ -34,14 +37,41 @@ final class SwiftCoverageTests: MuterTestCase {
         XCTAssertEqual(fileManager.contentsOfDirectoryAtPath, ["/project/.build/out/Products/Debug"])
     }
 
+    // A bundle left by a test target the package no longer has, if built at the copy's paths, would read its functions,
+    // at lines that now hold other code, as never run.
+    func test_theBundleOfATestTargetThePackageNoLongerHas_isLeftOut() {
+        answerWithACoverageRun(bundles: ["CoreTests.xctest", "OldTests.xctest"], testTargets: ["CoreTests"])
+
+        _ = sut.run(with: muterConfiguration)
+
+        XCTAssertEqual(process.commandsRun.last, [
+            "/usr/bin/xcrun", "llvm-cov", "export", bundle("CoreTests"),
+            "-instr-profile", "/project/.build/out/Products/Debug/codecov/default.profdata",
+        ])
+    }
+
+    // The native build system names its one bundle after the package. Without the package's description, every
+    // bundle is used.
+    func test_everyBundle_isKept_whenNoneIsNamedAfterATestTarget_orTheTargetsAreUnknown() {
+        answerWithACoverageRun(bundles: ["ProjectPackageTests.xctest"], testTargets: ["CoreTests"])
+        _ = sut.run(with: muterConfiguration)
+        XCTAssertEqual(process.commandsRun.last?.dropFirst(3).first, bundle("ProjectPackageTests"))
+
+        answerWithACoverageRun(bundles: ["CoreTests.xctest", "OldTests.xctest", "Package.swift"], testTargets: nil)
+        _ = sut.run(with: muterConfiguration)
+        XCTAssertEqual(process.commandsRun.last, [
+            "/usr/bin/xcrun", "llvm-cov", "export", bundle("CoreTests"), "-object", bundle("OldTests"),
+            "-instr-profile", "/project/.build/out/Products/Debug/codecov/default.profdata",
+        ])
+    }
+
     // The native build system makes one bundle for the whole package.
     func test_aSingleTestBundle_isExportedAlone() {
         answerWithACoverageRun(bundles: ["ProjectPackageTests.xctest"])
 
         _ = sut.run(with: muterConfiguration)
 
-        XCTAssertEqual(process.commandsRun.last?.dropFirst(3).first, "/project/.build/out/Products/Debug/"
-            + "ProjectPackageTests.xctest/Contents/MacOS/ProjectPackageTests")
+        XCTAssertEqual(process.commandsRun.last?.dropFirst(3).first, bundle("ProjectPackageTests"))
         XCTAssertFalse(process.commandsRun.last?.contains("-object") ?? true)
     }
 
@@ -243,19 +273,35 @@ final class SwiftCoverageTests: MuterTestCase {
 
     // MARK: - Helpers
 
-    /// Answers a coverage run whose build is at `/project/.build/out/Products/Debug` and holds `bundles`, with the
-    /// export `exportJSON` gives.
-    private func answerWithACoverageRun(bundles: [String], profileExists: Bool = true) {
+    /// Answers a coverage run whose build is at `/project/.build/out/Products/Debug` and holds `bundles`, in a package
+    /// whose test targets are `testTargets`, or that can't be described, with the export `exportJSON` gives.
+    private func answerWithACoverageRun(
+        bundles: [String],
+        testTargets: [String]? = ["CoreTests"],
+        profileExists: Bool = true
+    ) {
         fileManager.currentDirectoryPathToReturn = "/project"
         fileManager.contentsOfDirectoryToReturn = bundles
         fileManager.fileExistsToReturn = [profileExists]
         let export = exportJSON
+        let description = testTargets.map { names in
+            let targets = names.map { #"{"name": "\#($0)", "type": "test"}"# }
+                + [#"{"name": "Core", "type": "library"}"#]
+            return #"{"name": "Project", "targets": [\#(targets.joined(separator: ","))]}"#
+        }
         process.commandResult = { command in
             if command.last == "--show-codecov-path" {
                 return self.result(output: "/project/.build/out/Products/Debug/codecov/Project.json\n")
             }
+            if command.contains("describe") {
+                return description.map { self.result(output: $0) } ?? self.result(status: 1)
+            }
             return command.contains("llvm-cov") ? self.result(output: export) : self.result(output: "Test run passed\n")
         }
+    }
+
+    private func bundle(_ name: String) -> String {
+        "/project/.build/out/Products/Debug/\(name).xctest/Contents/MacOS/\(name)"
     }
 
     private var exportJSON: String {

@@ -30,7 +30,7 @@ final class SwiftCoverage: BuildSystemCoverage {
         guard fileManager.fileExists(atPath: profile) else {
             return .failure(.noProfileData(atPath: profile))
         }
-        let bundles = testBundles(in: binPath)
+        let bundles = testBundles(in: binPath, testTargets: testTargets(configuration))
         guard let first = bundles.first else {
             return .failure(.noTestBundles(inDirectory: binPath))
         }
@@ -77,18 +77,50 @@ final class SwiftCoverage: BuildSystemCoverage {
 
     /// The executable of each test bundle in `binPath`, in name order. On macOS a bundle holds its executable; on Linux
     /// the bundle is the executable.
-    private func testBundles(in binPath: String) -> [String] {
-        ((try? fileManager.contentsOfDirectory(atPath: binPath)) ?? [])
+    ///
+    /// Swift Build names a bundle after its test target. One left by a test target the package no longer has maps the
+    /// paths it was built at. Copied with the project, those are the project's own, which coverage leaves out. But a
+    /// build folder that outlives the copy, such as an absolute `--scratch-path`, can hold one built at the copy's
+    /// paths, and its functions would read as never run at lines that now hold other code. So when any bundle is named
+    /// after one of `testTargets`, only those are kept. The native build system names its one bundle after the package.
+    private func testBundles(in binPath: String, testTargets: Set<String>?) -> [String] {
+        let bundles = ((try? fileManager.contentsOfDirectory(atPath: binPath)) ?? [])
             .filter { $0.hasSuffix(".xctest") }
+            .map { String($0.dropLast(".xctest".count)) }
+        let ofTestTargets = bundles.filter { testTargets?.contains($0) ?? false }
+        return (ofTestTargets.isEmpty ? bundles : ofTestTargets)
             .sorted()
-            .map { bundle in
+            .map { name in
                 #if os(Linux)
-                return "\(binPath)/\(bundle)"
+                return "\(binPath)/\(name).xctest"
                 #else
-                let name = String(bundle.dropLast(".xctest".count))
-                return "\(binPath)/\(bundle)/Contents/MacOS/\(name)"
+                return "\(binPath)/\(name).xctest/Contents/MacOS/\(name)"
                 #endif
             }
+    }
+
+    /// The package's test targets, from `swift package describe`, or nil if it can't say.
+    private func testTargets(_ configuration: MuterConfiguration) -> Set<String>? {
+        guard let described = process().runCommand(
+            url: configuration.testCommandExecutable,
+            arguments: ["package", "describe", "--type", "json"]
+        ),
+            described.succeeded,
+            let package = try? JSONDecoder().decode(PackageDescription.self, from: Data(described.output.utf8))
+        else {
+            return nil
+        }
+
+        return Set(package.targets.filter { $0.type == "test" }.map(\.name))
+    }
+
+    private struct PackageDescription: Decodable {
+        let targets: [Target]
+
+        struct Target: Decodable {
+            let name: String
+            let type: String
+        }
     }
 
     /// The coverage of the project's own source files in `export`, llvm-cov's JSON: the share of their lines the tests
