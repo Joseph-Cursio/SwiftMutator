@@ -136,6 +136,20 @@ final class LoggerTests: MuterTestCase {
         ])
     }
 
+    // Each redraw moves up over the bar's two lines and erases each, so a shorter line leaves nothing of the longer one
+    // it replaces. It erased only the top line, after a stray escape character.
+    func test_theProgressBar_erasesEachOfItsLinesBeforeRedrawing() throws {
+        try sut.mutationsDiscoveryFinished(mutations: [makeSchemataMapping()])
+
+        sut.newMutationTestLogAvailable(
+            mutationTestLog: .make(timePerBuildTestCycle: 60, remainingMutationPointsCount: 1)
+        )
+
+        let draw = printer.linesPassed.last ?? ""
+        let upAndErase = "\u{1B}[1A\u{1B}[2K"
+        XCTAssertTrue(draw.hasPrefix(upAndErase + upAndErase + "Inserting"), draw.debugDescription)
+    }
+
     // A burst of finished mutants redraws the bar once: it's drawn at most every tenth of a second, by the injected
     // clock, so the time between draws can be tested.
     func test_theProgressBar_isRedrawnAtMostEveryTenthOfASecond() throws {

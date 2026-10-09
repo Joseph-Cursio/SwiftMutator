@@ -103,8 +103,9 @@ struct ProgressBarMultilineTerminalPrinter: ProgressBarPrinter {
            progressBar.element != progressBar.count {
             return
         }
-        let lines = "\u{1B}[1A\u{1B}".repeated(numberOfLines)
-        logger.print("\(lines)[K\(progressBar.value)")
+        // Up a line and erase it, for each line of the bar, so a shorter line leaves nothing of the one it replaces.
+        let erase = "\u{1B}[1A\u{1B}[2K".repeated(numberOfLines)
+        logger.print(erase + progressBar.value)
         lastPrinted = now
     }
 }
