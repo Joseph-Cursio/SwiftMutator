@@ -7,7 +7,7 @@ struct ResumeSummary: Equatable {
     let path: String
     /// How many recorded results still hold, and are kept rather than tested again.
     let reused: Int
-    /// How many mutants are left to test, which the progress bar counts.
+    /// How many mutants are left to test, which the progress bar or the progress lines count.
     let toTest: Int
     /// How many of `toTest` are tested for each reason; a reason with none is absent.
     let retestedBecause: [ResumePlan.Reason: Int]

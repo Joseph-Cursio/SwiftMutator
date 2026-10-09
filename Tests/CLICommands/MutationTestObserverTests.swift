@@ -167,6 +167,25 @@ final class MutationTestObserverTests: MuterTestCase {
         XCTAssertTrue(draw.hasSuffix("ETC: 9 min"), draw)
     }
 
+    // Without a terminal, each mutant's result is a line of progress, which the Logger only gets from this notification.
+    func test_aMutantsOutcome_reachesTheLogger_forItsLineOfProgress() {
+        current.standardOutIsATerminal = false
+        sut.start()
+        notificationCenter.post(
+            name: .resumePlanned,
+            object: ResumeSummary.make(reused: 0, toTest: 2, retestedBecause: [.notRecorded: 2])
+        )
+        notificationCenter.post(
+            name: .newTestLogAvailable,
+            object: MutationTestLog.make(timePerBuildTestCycle: 60, remainingMutationPointsCount: 2)
+        )
+
+        notificationCenter.post(name: .newMutationTestOutcomeAvailable, object: MutationTestOutcome.Mutation.make())
+
+        let line = printer.linesPassed.last ?? ""
+        XCTAssertTrue(line.hasPrefix("[02:42:00] 1 of 2 (50%) | 1 survived | "), line)
+    }
+
     func test_resultsFileCreated_isLogged_andNamedAtTheEnd() {
         sut.start()
 

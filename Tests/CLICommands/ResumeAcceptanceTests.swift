@@ -153,6 +153,12 @@ final class ResumeAcceptanceTests: XCTestCase {
         let resumed = try waitForEnd(of: launch(commandLine: continueCommand))
 
         XCTAssertEqual(resumed.status, 0, resumed.standardError + resumed.standardOutput)
+        // Standard output is a file, so a line per mutant in place of the bar, counting only the mutants left.
+        let progress = resumed.standardOutput.components(separatedBy: "\n")
+            .filter { $0.range(of: #"^\[[0-9]{2}:[0-9]{2}:[0-9]{2}\] "#, options: .regularExpression) != nil }
+            .map { $0.dropFirst(11).components(separatedBy: " | ")[0] }
+        XCTAssertEqual(progress, ["0 of 2 (0%)", "1 of 2 (50%)", "2 of 2 (100%)"], resumed.standardOutput)
+        XCTAssertFalse(resumed.standardOutput.contains("\u{1B}"), resumed.standardOutput)
         let lines = try records(in: resultsFile)
         XCTAssertEqual(
             lines.map { $0["kind"] as? String },

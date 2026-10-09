@@ -7,11 +7,18 @@ final class Logger {
     private var errorPrinter: Printer
     @Dependency(\.instant)
     private var instant: Instant
-    /// When the mutants started, which the progress bar's estimate measures their rate from.
+    @Dependency(\.now)
+    private var now: Now
+    @Dependency(\.standardOutIsATerminal)
+    private var standardOutIsATerminal: Bool
+    /// When the mutants started, which the estimate of the time left measures their rate from.
     private var mutantRunsStartedAt: DispatchTime?
-    /// How many mutants the progress bar counts: those discovered, or those a resumed run has left to test.
+    /// How many mutants the progress bar or the progress lines count: those discovered, or those a resumed run has
+    /// left to test.
     private(set) var numberOfMutationPoints: Int = 0
-    private var progressBar: ProgressBar!
+    private var progressBar: ProgressBar?
+    /// In place of the progress bar, when standard output isn't a terminal.
+    private var progressLines: ProgressLines?
     /// How many lines the progress bar takes. Its printer redraws it by moving the cursor up over that many lines.
     private static let progressBarLines = 2
 
@@ -122,8 +129,8 @@ final class Logger {
     }
 
     /// How many of a resumed run's results still hold, and how many mutants are left to test and why; then each change
-    /// no result depends on, and what `--force-resume` and `--resume-ignoring` let through. The progress bar then
-    /// counts only the mutants left to test.
+    /// no result depends on, and what `--force-resume` and `--resume-ignoring` let through. The progress bar or the
+    /// progress lines then count only the mutants left to test.
     func resumePlanned(_ summary: ResumeSummary) {
         numberOfMutationPoints = summary.toTest
         let resuming = "♻️ Resuming the run in \(summary.path.bold): "
@@ -228,31 +235,47 @@ final class Logger {
                 """
             )
 
-            progressBar = ProgressBar(
-                count: numberOfMutationPoints,
-                configuration: [
-                    ProgressString(string: "Inserting mutant"),
-                    ProgressOneIndexed(),
-                    ProgressString(string: "\nPercentage complete: "),
-                    ProgressPercent(),
-                    // So that the line fits in an 80-column terminal. One that wraps takes another row, which a redraw
-                    // doesn't move up over, so it's left behind on screen.
-                    ColoredProgressBarLine(barLength: 30),
-                    SimpleTimeEstimate(
-                        firstEstimate: Self.initialEstimate(
-                            remaining: mutationTestLog.remainingMutationPointsCount!,
-                            cycle: mutationTestLog.testRunSeconds ?? mutationTestLog.timePerBuildTestCycle!,
-                            workers: mutationTestLog.workers
-                        ),
-                        workers: mutationTestLog.workers,
-                        elapsed: { [weak self] in self?.secondsSinceMutantRunsStarted() }
-                    ),
-                ],
-                printer: ProgressBarMultilineTerminalPrinter(numberOfLines: Self.progressBarLines)
+            let estimate = SimpleTimeEstimate(
+                firstEstimate: Self.initialEstimate(
+                    remaining: mutationTestLog.remainingMutationPointsCount!,
+                    cycle: mutationTestLog.testRunSeconds ?? mutationTestLog.timePerBuildTestCycle!,
+                    workers: mutationTestLog.workers
+                ),
+                workers: mutationTestLog.workers,
+                elapsed: { [weak self] in self?.secondsSinceMutantRunsStarted() }
             )
+            if standardOutIsATerminal {
+                progressBar = ProgressBar(
+                    count: numberOfMutationPoints,
+                    configuration: [
+                        ProgressString(string: "Inserting mutant"),
+                        ProgressOneIndexed(),
+                        ProgressString(string: "\nPercentage complete: "),
+                        ProgressPercent(),
+                        // So that the line fits in an 80-column terminal. One that wraps takes another row, which a
+                        // redraw doesn't move up over, so it's left behind on screen.
+                        ColoredProgressBarLine(barLength: 30),
+                        estimate,
+                    ],
+                    printer: ProgressBarMultilineTerminalPrinter(numberOfLines: Self.progressBarLines)
+                )
+            } else {
+                let lines = ProgressLines(total: numberOfMutationPoints, estimate: estimate)
+                progressLines = lines
+                print(lines.firstLine(at: now()))
+            }
         }
 
-        progressBar.next()
+        progressBar?.next()
+    }
+
+    /// A mutant's result, once it is saved: its line, when standard output isn't a terminal. A resumed run's kept
+    /// results are posted before the baseline's log, which starts the lines, so only the mutants this session tests are
+    /// counted, as the bar counts them.
+    func newMutationTestOutcomeAvailable(mutation: MutationTestOutcome.Mutation) {
+        if let line = progressLines?.line(after: mutation, at: now()) {
+            print(line)
+        }
     }
 
     /// The seconds since the mutants started, or nil before they have.

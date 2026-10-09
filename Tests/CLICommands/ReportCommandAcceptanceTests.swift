@@ -259,8 +259,8 @@ final class ReportCommandAcceptanceTests: XCTestCase {
         )
     }
 
-    /// The Xcode format's warnings in `output`, in the order printed, without the escape codes of the progress bar
-    /// that a run's standard output also holds.
+    /// The Xcode format's warnings in `output`, in the order printed, without any escape codes around them, such as a
+    /// progress bar's on a terminal.
     private func warnings(in output: String) -> [String] {
         let pattern = #"/[^\u001B\n]*: warning: Your test suite did not kill this mutant: [^\u001B\n]*"#
         guard let expression = try? NSRegularExpression(pattern: pattern) else {
