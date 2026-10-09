@@ -235,7 +235,9 @@ final class Logger {
                     ProgressOneIndexed(),
                     ProgressString(string: "\nPercentage complete: "),
                     ProgressPercent(),
-                    ColoredProgressBarLine(barLength: 50),
+                    // So that the line fits in an 80-column terminal. One that wraps takes another row, which a redraw
+                    // doesn't move up over, so it's left behind on screen.
+                    ColoredProgressBarLine(barLength: 30),
                     SimpleTimeEstimate(
                         firstEstimate: Self.initialEstimate(
                             remaining: mutationTestLog.remainingMutationPointsCount!,

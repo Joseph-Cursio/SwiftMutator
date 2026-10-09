@@ -40,9 +40,9 @@ path (1 mutants)
 
 
 [1A[2K[1A[2KInserting mutant 1 of 1 
-Percentage complete:  0% [                                                  ] ETC: 5 min
+Percentage complete:  0% [                              ] ETC: 5 min
 [1A[2K[1A[2KInserting mutant 1 of 1 
-Percentage complete:  100% [--------------------------------------------------] ETC: 0 min
+Percentage complete:  100% [------------------------------] ETC: 0 min
 💾 Mutation test plan created: /path/to/test-plan
 💾 Configuration file created at: /path/to/config-file
 ⬆️ SwiftMutator mutation test plan loaded

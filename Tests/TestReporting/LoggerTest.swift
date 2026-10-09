@@ -211,6 +211,33 @@ final class LoggerTests: MuterTestCase {
         XCTAssertTrue(draw.hasPrefix(upAndErase + upAndErase + "Inserting"), draw.debugDescription)
     }
 
+    // Each of the bar's lines fits in an 80-column terminal, all through a run of more than a day. A line that wraps
+    // takes another row, which a redraw doesn't move up over, so it's left behind on screen. The second line was up to
+    // 95 columns wide.
+    func test_theProgressBar_fitsIn80Columns() {
+        var milliseconds: UInt64 = 1_000_000
+        current.instant = { DispatchTime(uptimeNanoseconds: milliseconds * 1_000_000) }
+        sut.resumePlanned(.make(reused: 0, toTest: 2000, retestedBecause: [.notRecorded: 2000]))
+
+        // 2,000 mutants, 46 s each, on one worker: "ETC: 25 h 34 min" at first.
+        sut.newMutationTestLogAvailable(
+            mutationTestLog: .make(timePerBuildTestCycle: 46, remainingMutationPointsCount: 2000)
+        )
+        sut.mutantRunsStarted()
+        for _ in 0 ..< 2000 {
+            milliseconds += 46000
+            sut.newMutationTestLogAvailable(mutationTestLog: .make(mutationPoint: .make()))
+        }
+
+        let lines = printer.linesPassed.filter { $0.contains("ETC:") }.flatMap { $0.split(separator: "\n") }
+        let widths = lines.map {
+            $0.replacingOccurrences(of: "\u{1B}\\[[0-9;]*[A-Za-z]", with: "", options: .regularExpression).count
+        }
+        XCTAssertEqual(lines.count, 2 * 2001) // every draw, from 0 to all 2,000
+        let widest = widths.max() ?? 0
+        XCTAssertTrue(widest <= 80, "\(widest) columns")
+    }
+
     // A burst of finished mutants redraws the bar once: it's drawn at most every tenth of a second, by the injected
     // clock, so the time between draws can be tested.
     func test_theProgressBar_isRedrawnAtMostEveryTenthOfASecond() throws {
