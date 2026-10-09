@@ -19,11 +19,19 @@ class SimpleTimeEstimate: ProgressElementType {
 
         lastTime = Date()
 
-        let remainingMinutes = Int(ceil(estimatedTimeRemaining / 60))
+        return "ETC: \(Self.text(secondsLeft: estimatedTimeRemaining))"
+    }
 
-        let formattedRemainingMinutes = "\(remainingMinutes) \(remainingMinutes == 1 ? "minutes" : "minute")"
-
-        return "ETC: \(formattedRemainingMinutes)"
+    /// `seconds` in whole minutes, rounded up so that it never says 0 while any time is left, and in hours from 60
+    /// minutes up: "1 min", "59 min", "2 h 5 min". The units are short because this ends the bar's longest line, and
+    /// a line that wraps leaves a stale copy behind on every redraw.
+    static func text(secondsLeft seconds: TimeInterval) -> String {
+        let minutes = max(Int(ceil(seconds / 60)), 0)
+        guard minutes >= 60 else {
+            return "\(minutes) min"
+        }
+        let (hours, rest) = minutes.quotientAndRemainder(dividingBy: 60)
+        return rest == 0 ? "\(hours) h" : "\(hours) h \(rest) min"
     }
 }
 

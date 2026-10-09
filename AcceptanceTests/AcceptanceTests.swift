@@ -348,7 +348,7 @@ extension AcceptanceTests {
 
     func numberOfDurationEstimates(in output: String) throws -> Int {
         try applyRegex(
-            "ETC: [0-9]+ minute/?",
+            "ETC: [0-9]+ (min|h)",
             to: output
         )
     }

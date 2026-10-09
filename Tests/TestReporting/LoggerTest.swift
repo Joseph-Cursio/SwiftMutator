@@ -125,6 +125,17 @@ final class LoggerTests: MuterTestCase {
         ])
     }
 
+    // Rounded up, so any time left reads as at least 1 min, and in hours once there are 60 minutes. It said "1 minutes"
+    // and "2 minute", and gave a long run in minutes alone.
+    func test_theTimeLeft_readsInWholeMinutes_andInHoursFromAnHour() {
+        let seconds: [TimeInterval] = [0, 1, 60, 61, 3540, 3600, 3660, 7500, 86400]
+
+        XCTAssertEqual(seconds.map(SimpleTimeEstimate.text(secondsLeft:)), [
+            "0 min", "1 min", "1 min", "2 min", "59 min",
+            "1 h", "1 h 1 min", "2 h 5 min", "24 h",
+        ])
+    }
+
     // A burst of finished mutants redraws the bar once: it's drawn at most every tenth of a second, by the injected
     // clock, so the time between draws can be tested.
     func test_theProgressBar_isRedrawnAtMostEveryTenthOfASecond() throws {
