@@ -37,6 +37,33 @@ final class MutationTestObserverTests: MuterTestCase {
         XCTAssertFalse(flushStandardOut.flushHandlerWasCalled)
     }
 
+    // Without --verbose, the Logger says how many Swift files and mutants it found, and lists none.
+    func test_discovery_withoutVerbose_listsNothing() {
+        sut.start()
+
+        notificationCenter.post(name: .sourceFileDiscoveryFinished, object: ["/p/a.swift"])
+        notificationCenter.post(name: .mutationsDiscoveryFinished, object: [SchemataMutationMapping]())
+
+        XCTAssertEqual(printer.linesPassed, [
+            "✅ In total, SwiftMutator discovered 1 Swift files",
+            "✅ In total, SwiftMutator discovered 0 mutants in 0 files",
+        ])
+    }
+
+    // --verbose reaches the Logger, which then lists each Swift file it found, and how many mutants each file has.
+    func test_discovery_withVerbose_listsEachFile() {
+        options = .make(verbose: true)
+        sut.start()
+
+        notificationCenter.post(name: .sourceFileDiscoveryFinished, object: ["/p/a.swift"])
+        notificationCenter.post(name: .mutationsDiscoveryFinished, object: [SchemataMutationMapping]())
+
+        XCTAssertEqual(printer.linesPassed, [
+            "✅ In total, SwiftMutator discovered 1 Swift files\n\n" + "a.swift".bold,
+            "✅ In total, SwiftMutator discovered 0 mutants in 0 files\n",
+        ])
+    }
+
     func test_logFileNameUsingAPlainTextReporter() {
         options = .make(reportFormat: .plain)
 

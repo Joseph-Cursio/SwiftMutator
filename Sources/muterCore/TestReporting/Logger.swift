@@ -101,21 +101,29 @@ final class Logger {
         printMessage("🔎 Discovering Swift files which SwiftMutator will analyze...")
     }
 
-    func sourceFileDiscoveryFinished(sourceFileCandidates: [String]) {
+    /// How many Swift files there are to analyze, and with `verbose`, each one's name: hundreds of lines on a large
+    /// project.
+    func sourceFileDiscoveryFinished(sourceFileCandidates: [String], verbose: Bool = false) {
+        let discovered = "✅ In total, SwiftMutator discovered \(sourceFileCandidates.count) Swift files"
+        guard verbose else {
+            print(discovered)
+            return
+        }
         let fileNames = sourceFileCandidates
             .map(URL.init(fileURLWithPath:))
             .map { $0.lastPathComponent }
             .joined(separator: "\n")
             .bold
 
-        print("✅ In total, SwiftMutator discovered \(sourceFileCandidates.count) Swift files\n\n\(fileNames)")
+        print("\(discovered)\n\n\(fileNames)")
     }
 
     func mutationsDiscoveryStarted() {
         printMessage("🔎 Analyzing source files to find mutants which can be inserted into your project...")
     }
 
-    func mutationsDiscoveryFinished(mutations: [SchemataMutationMapping]) {
+    /// How many mutants there are, in how many files, and with `verbose`, how many each file has.
+    func mutationsDiscoveryFinished(mutations: [SchemataMutationMapping], verbose: Bool = false) {
         let numberOfFiles = mutations.count
         var filesSummary: [String: Int] = [:]
 
@@ -124,7 +132,12 @@ final class Logger {
             filesSummary[mutation.fileName, default: 0] += mutation.mutationSchemata.count
         }
 
-        print("✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants in \(numberOfFiles) files\n")
+        let discovered = "✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants in \(numberOfFiles) files"
+        guard verbose else {
+            print(discovered)
+            return
+        }
+        print(discovered + "\n")
         for (fileName, mutantCount) in filesSummary {
             print("\(fileName) (\(mutantCount) mutants)".bold)
         }

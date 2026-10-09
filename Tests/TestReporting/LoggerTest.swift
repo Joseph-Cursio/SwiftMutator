@@ -15,9 +15,12 @@ final class LoggerTests: MuterTestCase {
         sut.projectCoverageDiscoveryStarted()
         sut.projectCoverageDiscoveryFinished(success: true)
         sut.sourceFileDiscoveryStarted()
-        sut.sourceFileDiscoveryFinished(sourceFileCandidates: ["file0.swift", "file1.swift", "file2.swift"])
+        sut.sourceFileDiscoveryFinished(
+            sourceFileCandidates: ["file0.swift", "file1.swift", "file2.swift"],
+            verbose: true
+        )
         sut.mutationsDiscoveryStarted()
-        try sut.mutationsDiscoveryFinished(mutations: [makeSchemataMapping()])
+        try sut.mutationsDiscoveryFinished(mutations: [makeSchemataMapping()], verbose: true)
         sut.mutationTestingStarted()
         sut.newMutationTestLogAvailable(
             mutationTestLog: .make(
@@ -132,6 +135,27 @@ final class LoggerTests: MuterTestCase {
 
         XCTAssertTrue(written.last == "(flushed)", "\(written)")
         XCTAssertTrue(written.dropLast().last?.hasPrefix("[02:42:00] 1 of 1 (100%) | 1 killed | ") == true, "\(written)")
+    }
+
+    // Each file's name, then how many mutants each file with any has, take hundreds of lines on a large project: 830, a
+    // fifth of the log of a run of SwiftProjectLint. So they're listed only with --verbose.
+    func test_discovery_saysHowManyFilesAndMutants_andListsThemOnlyWhenVerbose() throws {
+        sut.sourceFileDiscoveryFinished(sourceFileCandidates: ["/p/a.swift", "/p/b.swift"])
+        try sut.mutationsDiscoveryFinished(mutations: [makeSchemataMapping()])
+        XCTAssertEqual(printer.linesPassed, [
+            "✅ In total, SwiftMutator discovered 2 Swift files",
+            "✅ In total, SwiftMutator discovered 1 mutants in 1 files",
+        ])
+
+        let printedBefore = printer.linesPassed.count
+        let verbose = Logger()
+        verbose.sourceFileDiscoveryFinished(sourceFileCandidates: ["/p/a.swift", "/p/b.swift"], verbose: true)
+        try verbose.mutationsDiscoveryFinished(mutations: [makeSchemataMapping()], verbose: true)
+        XCTAssertEqual(Array(printer.linesPassed.dropFirst(printedBefore)), [
+            "✅ In total, SwiftMutator discovered 2 Swift files\n\n" + "a.swift\nb.swift".bold,
+            "✅ In total, SwiftMutator discovered 1 mutants in 1 files\n",
+            "path (1 mutants)".bold,
+        ])
     }
 
     func test_projectCopySkippedVanishedFiles_listsUpToFivePaths() {
@@ -740,7 +764,7 @@ final class LoggerTests: MuterTestCase {
             )
         }
 
-        sut.mutationsDiscoveryFinished(mutations: mappings)
+        sut.mutationsDiscoveryFinished(mutations: mappings, verbose: true)
 
         XCTAssertTrue(
             printer.linesPassed.contains("main.swift (2 mutants)".bold),

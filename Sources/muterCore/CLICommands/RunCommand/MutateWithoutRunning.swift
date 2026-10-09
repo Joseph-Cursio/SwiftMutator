@@ -11,14 +11,18 @@ struct MutateWithoutRunning: RunCommand {
 
     init() {}
 
-    func run() async throws {
-        let options = Run.Options(
+    /// The options the command line gives the run.
+    var runOptions: Run.Options {
+        Run.Options(
             skipCoverage: options.skipCoverage,
             skipUpdateCheck: options.skipUpdateCheck,
+            verbose: options.verbose,
             configurationURL: options.configurationURL,
             createTestPlan: true
         )
+    }
 
-        try await run(with: options)
+    func run() async throws {
+        try await run(with: runOptions)
     }
 }

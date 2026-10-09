@@ -177,7 +177,10 @@ extension MutationTestObserver {
     }
 
     func handleSourceFileDiscoveryFinished(notification: Notification) {
-        logger.sourceFileDiscoveryFinished(sourceFileCandidates: notification.object as! [String])
+        logger.sourceFileDiscoveryFinished(
+            sourceFileCandidates: notification.object as! [String],
+            verbose: runOptions.verbose
+        )
     }
 
     func handleMutationsDiscoveryStarted(notification: Notification) {
@@ -185,7 +188,10 @@ extension MutationTestObserver {
     }
 
     func handleMutationsDiscoveryFinished(notification: Notification) {
-        logger.mutationsDiscoveryFinished(mutations: notification.object as! [SchemataMutationMapping])
+        logger.mutationsDiscoveryFinished(
+            mutations: notification.object as! [SchemataMutationMapping],
+            verbose: runOptions.verbose
+        )
     }
 
     func handleResumePlanned(notification: Notification) {

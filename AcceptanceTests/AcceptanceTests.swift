@@ -39,6 +39,7 @@ final class AcceptanceTests: XCTestCase {
         XCTAssertTrue(output.contains("Copying your project to a temporary directory for testing"))
 
         XCTAssertTrue(output.contains("In total, SwiftMutator discovered 4 Swift files"))
+        // With --verbose, how many mutants each file has is listed.
         XCTAssertTrue(try numberOfDiscoveredFileLists(in: output) >= 1)
 
         XCTAssertTrue(output.contains("_mutated"))
@@ -92,6 +93,8 @@ final class AcceptanceTests: XCTestCase {
         let output = try muterXcodeOutput
 
         XCTAssertEqual(try numberOfXcodeFormattedMessages(in: output), 1)
+        // Without --verbose, no file's mutant count is listed.
+        XCTAssertEqual(try numberOfDiscoveredFileLists(in: output), 0)
     }
 
     func test_filesToMutate() throws {

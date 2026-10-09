@@ -9,6 +9,9 @@ extension Run {
         let mutationOperatorsList: MutationOperatorList
         let skipCoverage: Bool
         let skipUpdateCheck: Bool
+        /// `--verbose`: the run lists how many mutants are in each file that has any, and the Swift files it found, if
+        /// it looks for them.
+        let verbose: Bool
         let configurationURL: URL?
         let testPlanURL: URL?
         let createTestPlan: Bool
@@ -29,6 +32,7 @@ extension Run {
             mutationOperatorsList: MutationOperatorList = .allOperators,
             skipCoverage: Bool,
             skipUpdateCheck: Bool,
+            verbose: Bool = false,
             configurationURL: URL?,
             testPlanURL: URL? = nil,
             createTestPlan: Bool = false,
@@ -38,6 +42,7 @@ extension Run {
         ) {
             self.skipCoverage = skipCoverage
             self.skipUpdateCheck = skipUpdateCheck
+            self.verbose = verbose
             self.createTestPlan = createTestPlan
             self.mutationOperatorsList = mutationOperatorsList
             self.configurationURL = configurationURL
@@ -66,6 +71,7 @@ extension Run.Options: Equatable {
             lhs.mutationOperatorsList == rhs.mutationOperatorsList &&
             lhs.skipCoverage == rhs.skipCoverage &&
             lhs.skipUpdateCheck == rhs.skipUpdateCheck &&
+            lhs.verbose == rhs.verbose &&
             lhs.configurationURL == rhs.configurationURL &&
             lhs.testPlanURL == rhs.testPlanURL &&
             lhs.createTestPlan == rhs.createTestPlan &&
@@ -86,6 +92,7 @@ extension Run.Options: Nullable {
             mutationOperatorsList: [],
             skipCoverage: false,
             skipUpdateCheck: false,
+            verbose: false,
             configurationURL: nil,
             testPlanURL: nil,
             createTestPlan: false,

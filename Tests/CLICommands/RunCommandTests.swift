@@ -51,6 +51,7 @@ final class RunCommandTests: XCTestCase {
         XCTAssertNotEqual(Run.Options.make(resumeURL: URL(fileURLWithPath: "/logs/results.jsonl")), .make())
         XCTAssertNotEqual(Run.Options.make(resumeIgnoring: ["README.md"]), .make())
         XCTAssertNotEqual(Run.Options.make(forceResume: true), .make())
+        XCTAssertNotEqual(Run.Options.make(verbose: true), .make())
     }
 
     // They only say what a resume may reuse, so without one they're a mistake, which ArgumentParser shows with the
@@ -99,6 +100,21 @@ final class RunCommandTests: XCTestCase {
         XCTAssertTrue(help.contains("Continue a stopped run from its results file"), help)
         XCTAssertTrue(help.contains("* also matches /. Repeatable."), help)
         XCTAssertTrue(help.contains("reuse results although SwiftMutator, the toolchain or the SDK changed."), help)
+    }
+
+    // Each command that runs mutation testing takes it, as it takes --skip-coverage.
+    func test_verbose_reachesTheRunOptions_ofEachRunCommand_andTheHelp() throws {
+        XCTAssertTrue(try XCTUnwrap(MuterCommand.parseAsRoot(["run", "--verbose"]) as? Run).runOptions.verbose)
+        XCTAssertFalse(try XCTUnwrap(MuterCommand.parseAsRoot(["run"]) as? Run).runOptions.verbose)
+        let mutate = try MuterCommand.parseAsRoot(["mutate-without-running", "--verbose"])
+        XCTAssertTrue(try XCTUnwrap(mutate as? MutateWithoutRunning).runOptions.verbose)
+        let runPlan = try MuterCommand.parseAsRoot(["run-without-mutating", "--verbose", "plan.json"])
+        XCTAssertTrue(try XCTUnwrap(runPlan as? RunWithoutMutating).runOptions.verbose)
+        let help = Run.helpMessage(columns: 200)
+        XCTAssertTrue(help.contains("[--skip-update-check] [--verbose]"), help)
+        let verbose = "Lists how many mutants are in each file that has any, and the Swift files found, if the "
+            + "command looks for them."
+        XCTAssertTrue(help.contains(verbose), help)
     }
 
     // Refusing is an expected outcome, whose message says what to do; it isn't a bug to report.
