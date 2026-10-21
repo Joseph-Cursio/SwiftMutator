@@ -31,12 +31,19 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
         return .success(projectCoverage)
     }
 
+    /// The folder above `BUILD_DIR`, which holds both the test bundles, under `Products`, and the coverage profile,
+    /// under `ProfileData`. xcodebuild prints each setting indented, once per target. With `BUILD_DIR=…` among the
+    /// arguments, it first echoes that as given, under "Build settings from command line:", so the search starts at
+    /// the first target's block.
     func buildDirectory(_ configuration: MuterConfiguration) -> String? {
         process().runProcess(
             url: configuration.testCommandExecutable,
             arguments: configuration.testCommandArguments + ["-showBuildSettings"]
         )
-        .flatMap { $0.firstMatchOf("BUILD_DIR = (.+)", options: .anchorsMatchLines) }
+        .map { (settings: String) in
+            settings.range(of: "Build settings for action").map { String(settings[$0.lowerBound...]) } ?? settings
+        }
+        .flatMap { $0.firstCaptureOf(#"^\s*BUILD_DIR = (.+)$"#, options: .anchorsMatchLines) }
         .map(\.trimmed)
         .flatMap(\.nilIfEmpty)
         .flatMap { URL(fileURLWithPath: $0).deletingLastPathComponent().path }

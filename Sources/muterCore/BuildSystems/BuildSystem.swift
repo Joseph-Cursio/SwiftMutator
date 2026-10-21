@@ -91,14 +91,20 @@ extension BuildSystemCoverage {
         return process().findExecutable(atPath: url.path, byName: name)
     }
 
+    /// The newest profile under `path`. Xcode keeps one per run destination, `ProfileData/<device>/Coverage.profdata`,
+    /// and leaves the other destinations' in place. `find` lists them in no set order, and `llvm-cov` reads a stale one
+    /// without failing: every function added since then counts as never run, so its mutants would be skipped.
     func testProfileData(at path: String) -> String? {
-        guard let profiles = process().find(atPath: path, byName: "*.profdata") else {
-            return nil
+        let profiles = (process().find(atPath: path, byName: "*.profdata") ?? "")
+            .components(separatedBy: "\n")
+            .map(\.trimmed)
+            .filter { !$0.isEmpty }
+        guard profiles.count > 1 else {
+            return profiles.first
         }
 
-        let lines = profiles.components(separatedBy: "\n")
-
-        return lines.first ?? profiles.trimmed
+        return process().runProcess(url: "/bin/ls", arguments: ["-t"] + profiles)
+            .flatMap { $0.components(separatedBy: "\n").first?.trimmed.nilIfEmpty }
     }
 
     func llvmCovJsonReport(withExecutableAt executablePath: String, coverageProfile: String) -> String? {
