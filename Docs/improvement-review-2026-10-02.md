@@ -22,7 +22,13 @@ This started as a ranked review of SwiftMutator on 2 October 2026, at commit `4b
   - Progress in a log file: a flushed, timestamped line per mutant when stdout isn't a terminal, and the file listings only with `--verbose` (§3, PR #59).
   - Coverage with several test bundles: one `llvm-cov` export over every bundle, uncovered files named by their path in the project so discovery leaves them out, the reason a coverage run failed, and one location converter per file, without which discovery with coverage took 29 s instead of 2 s on SwiftProjectLint in a release build, and minutes in a debug build (§1.3, PR #60).
 
-  Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#60, which are in the PRs themselves.
+  - Bugs found while comparing SwiftMutator with swift-mutation-testing, and in review (PR #61).
+    - `exclude` globs never matched anything. Pathos expanded them on disk to full paths, which were compared with relative ones, and the test pinned that. They're now matched against each file's path in the project, with `**/` for any number of folders, none included.
+    - xcodebuild coverage's build folder was the whole `BUILD_DIR = …` line, and could be the unexpanded `BUILD_DIR=…` of the arguments.
+    - With the folder right, the coverage profile was the first that `find` listed. Xcode leaves other destinations' profiles in place, and a stale one reads every function added since as never run, so their mutants were skipped. It's now the newest.
+    - The regex helpers searched a range counted in Characters, not UTF-16 units, which cut the end of the text off after an emoji, a decomposed accent or a CRLF.
+
+  Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#61, which are in the PRs themselves.
 - **Section numbers are the original ones,** so references in PRs and notes still work. A missing number is a finished section.
 
 ## The workload these numbers come from
@@ -78,8 +84,9 @@ Coverage works with several test bundles since PR #60. On SwiftProjectLint `2043
 - **Coverage builds in the project's build folder,** so the baseline then rebuilds everything without it: about 75–145 s on SwiftProjectLint. A separate `--scratch-path` would avoid that, but breaks tests that run a product from `.build/debug`, as SwiftProjectLint's CLITests do. The CLI's coverage would go missing, and 2 mutants the tests kill would be skipped.
 - **A test that fails only under coverage costs all of it,** since SwiftPM saves no profile data after a failed test. The coverage run has no time limit either.
 - **A resumed session gathers coverage again** and doesn't compare it with the first session's. If one session's coverage failed and the other's worked, they test different mutants, and nothing says so.
-- **xcodebuild projects keep their own coverage code,** which couldn't be checked here: xcodebuild fails to load `DVTCoreDeviceCore` on this machine.
-  - `XcodeBuildCoverage.buildDirectory` (`XcodeBuildCoverage.swift:34-43`) takes the whole `BUILD_DIR = …` line as the path, so its regions are never read.
+- **xcodebuild projects keep their own coverage code, and it reads regions only for code linked into the test bundle,** such as a static library tested without a host app. PR #61 fixed the build folder, and on such a project a function no test runs now loses its mutants. Checked with Xcode 27.1 on 21 October; simulators don't run here, so only macOS was checked. Not yet:
+  - **An app with hosted tests,** `Repositories/ExampleMacOSApp` (which needs `MACOSX_DEPLOYMENT_TARGET=12.0` to build with Xcode 27). `llvm-cov export` gets only the test bundle (`BuildSystem.swift:51-81`), and a Debug build puts the app's code in `ExampleMacOSApp.app/Contents/MacOS/ExampleMacOSApp.debug.dylib`. So the export names no project file, and a function no test runs still gets its mutant. Given that dylib as `-object`, the export has regions for `AppDelegate.swift` and `Module.swift`. A framework target's code is in the framework's binary (from reading, not run). An object with no coverage data, such as the app's own executable, makes `llvm-cov` fail, so each must be checked.
+  - **A Swift package tested through xcodebuild.** `xcodebuild … test -showBuildSettings` prints no settings for a package scheme ("Supported platforms for the buildables in the current scheme is empty"), so there's no `BUILD_DIR`. And `xccov` lists no files for the library target, so even files with no coverage aren't left out, and the project's coverage reads 0%.
   - Its threshold is a fraction from 0 to 1, where SwiftPM's is a percentage.
   - Its project percentage is the first target's.
   - It still uses the one-bundle helpers in `BuildSystem.swift` that PR #60 replaced for SwiftPM.
