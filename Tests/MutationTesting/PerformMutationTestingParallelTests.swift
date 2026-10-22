@@ -523,11 +523,12 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "let answer = 42", "the project is intact")
     }
 
-    func test_removeClones_removesEveryCloneGiven() throws {
+    func test_removeClones_removesEveryCloneGiven_andTheActiveMutantFileBesideIt() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         let project = root.appendingPathComponent("project_mutated")
         try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        try Data().write(to: root.appendingPathComponent("project_mutated.active-mutant"))
         let clones = try (1...3).map { index in
             let clone = root.appendingPathComponent("project_mutated_worker\(index)")
             let object = clone.appendingPathComponent(".build/debug/File.o")
@@ -535,12 +536,53 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
                 at: object.deletingLastPathComponent(), withIntermediateDirectories: true
             )
             try Data("object \(index)".utf8).write(to: object)
+            try Data().write(to: root.appendingPathComponent("project_mutated_worker\(index).active-mutant"))
             return clone
         }
 
         PerformMutationTesting.removeClones(clones)
 
-        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root.path), ["project_mutated"])
+        // The mutated project's own file goes at the end of the run.
+        XCTAssertEqual(
+            try FileManager.default.contentsOfDirectory(atPath: root.path).sorted(),
+            ["project_mutated", "project_mutated.active-mutant"]
+        )
+    }
+
+    // The mutated project is kept after the run, for a look, but not the active-mutant file beside it.
+    func test_aSwiftPMRun_removesTheActiveMutantFileBesideTheMutatedProject() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], testSuiteTimeOut: 42
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(fileManager.paths, ["/project_mutated.active-mutant"])
+    }
+
+    func test_aStoppedSwiftPMRun_removesTheActiveMutantFileBesideTheMutatedProject() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
+        _ = cancelMutationTesting(whenPosted: .newMutationTestOutcomeAvailable)
+
+        let result = await runInItsOwnTask()
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(fileManager.paths, ["/project_mutated.active-mutant"])
+        XCTAssertEqual(removedClones, [[workerClone]])
+    }
+
+    // Only a `swift test` run names its mutant in a file.
+    func test_anXcodebuildRun_removesNoActiveMutantFile() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(fileManager.paths, [])
     }
 
     func test_xcodebuildProjectsIgnoreWorkers() async throws {

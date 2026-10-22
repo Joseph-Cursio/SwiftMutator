@@ -64,9 +64,16 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
     private var writeFile: WriteFile
 
     private let muterTestRunFileName = "muter.xctestrun"
-    /// The file in a worker's folder, the mutated project or a clone, that `activeMutantFileKey` names. Hidden, so
-    /// SwiftPM never takes it for a source or a resource.
-    static let activeMutantFileName = ".swiftmutator-active-mutant"
+    /// Ends the name of the file `activeMutantFileKey` names, beside a worker's folder.
+    static let activeMutantFileSuffix = ".active-mutant"
+
+    /// The file `activeMutantFileKey` names for a worker's folder, the mutated project or a clone:
+    /// `<folder>.active-mutant`, beside it. Never in it: the folder is a whole copy of the project, `.git` included,
+    /// so a test that lists the package's hidden files, or needs a clean `git status`, would see it. Its path is the
+    /// same for every run of the worker, as one environment for them all needs, and for every SwiftMutator run.
+    static func activeMutantFile(forWorkerIn folder: URL) -> URL {
+        folder.deletingLastPathComponent().appendingPathComponent(folder.lastPathComponent + activeMutantFileSuffix)
+    }
 
     func benchmarkTests(
         using configuration: MuterConfiguration,
@@ -377,7 +384,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             // test process at a time (see PerformMutationTesting.testMutationsInParallel), so nothing rewrites it
             // during a run.
             let folder = workingDirectory ?? URL(fileURLWithPath: fileManager.currentDirectoryPath)
-            let activeMutantFile = folder.appendingPathComponent(Self.activeMutantFileName).path
+            let activeMutantFile = Self.activeMutantFile(forWorkerIn: folder).path
             try writeFile(schemata == .null ? "" : schemata.id, activeMutantFile)
             process.environment?[activeMutantFileKey] = activeMutantFile
         } else if schemata != .null {

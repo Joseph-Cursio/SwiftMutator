@@ -87,6 +87,30 @@ final class PreviousRunCleanUpTests: MuterTestCase {
         XCTAssertEqual(fileManager.paths, ["/some/x_mutated_worker1", "/some/x_mutated_worker2"])
     }
 
+    // A run stopped at once leaves the files beside the mutated project and its clones that named their active mutants.
+    func test_removesTheActiveMutantFilesAnEarlierRunLeft_andNoOthers() async throws {
+        fileManager.fileExistsToReturn = [false]
+        fileManager.contentsOfDirectoryToReturn = [
+            "x.active-mutant",
+            "x_mutated.active-mutant",
+            "x_mutated.active-mutant.txt",
+            "x_mutated_worker2.active-mutant",
+            "x_mutated_worker.active-mutant",
+            "x_mutated_workerfoo.active-mutant",
+            "y_mutated.active-mutant",
+            "y_mutated_worker1.active-mutant",
+        ]
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/some/x_mutated")
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result, [])
+        XCTAssertEqual(
+            fileManager.paths,
+            ["/some/x_mutated.active-mutant", "/some/x_mutated_worker2.active-mutant"]
+        )
+    }
+
     func test_aLeftoverCloneThatCannotBeRemoved_failsTheStep() async throws {
         fileManager.errorToThrow = RemoveTempDirectorySpecError.stub
         fileManager.fileExistsToReturn = [false]

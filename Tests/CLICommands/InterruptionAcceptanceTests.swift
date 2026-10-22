@@ -17,8 +17,8 @@ final class InterruptionAcceptanceTests: XCTestCase {
 
     /// Where the test command hangs, it writes down its own ID, starts a `sleep` whose odd length makes one left
     /// behind easy to find, writes down that ID too, and waits. A hanging run is then a tree, as `swift test` is.
-    /// `$0` is the argument SwiftMutator adds, `--enable-code-coverage` in the coverage run. The active mutant's file
-    /// is in the folder of the worker running the test command.
+    /// `$0` is the argument SwiftMutator adds, `--enable-code-coverage` in the coverage run. The test command runs in
+    /// its worker's folder.
     private static let testCommand = """
         hang() {
             echo $$ > "$INTERRUPT_TEST_MARKERS/sh.$$"
@@ -26,7 +26,7 @@ final class InterruptionAcceptanceTests: XCTestCase {
             wait
         }
         fill() { mkdir "$1" && cd "$1" && /usr/bin/seq -f "file%g" 2000 | /usr/bin/xargs /usr/bin/touch; }
-        worker="${SWIFTMUTATOR_ACTIVE_MUTANT_FILE%/*}"
+        worker=$(pwd -P)
         case "$INTERRUPT_TEST_PHASE:$0" in
             coverage:--enable-code-coverage) hang;;
             baseline:*) [ -s "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE" ] || hang;;
@@ -137,6 +137,8 @@ final class InterruptionAcceptanceTests: XCTestCase {
         }
         XCTAssertFalse(exists("project_mutated_worker1"), "the worker clone is removed")
         XCTAssertTrue(exists("project_mutated"), "the mutated project is kept, for the next run to remove")
+        XCTAssertFalse(exists("project_mutated.active-mutant"), "the mutated project's active-mutant file is removed")
+        XCTAssertFalse(exists("project_mutated_worker1.active-mutant"), "the worker's active-mutant file is removed")
         let errors = contents(of: standardError)
         XCTAssertTrue(errors.contains("Stopping (SIGINT)"), errors)
         XCTAssertTrue(errors.contains("Stopped by SIGINT"), errors)
