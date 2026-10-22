@@ -399,6 +399,66 @@ final class MutationTestingDelegateTests: MuterTestCase {
         )
     }
 
+    // A run's output goes to the run's log folder, outside every worker's folder, which may not exist yet.
+    func test_fileHandle_takesAnAbsolutePath_andMakesItsFolder() throws {
+        let file = outputFolderURL.appendingPathComponent("logs/running/baseline run").path
+
+        let opened = try sut.fileHandle(for: file)
+
+        XCTAssertEqual(opened.logFileUrl.path, file)
+        XCTAssertEqual(try Data(contentsOf: opened.logFileUrl), Data())
+    }
+
+    // The log folder keeps whatever it needs of a run's log, so the file the run wrote goes once it is read back.
+    func test_aRunsOutputFile_isRemovedOnceItsLogIsReadBack() async throws {
+        let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"])
+        let file = outputFolderURL.appendingPathComponent("running/mutant.log").path
+
+        _ = try await sut.runTestSuite(
+            withSchemata: MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1)),
+            using: configuration,
+            savingResultsIntoFileNamed: file
+        )
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file))
+    }
+
+    // Its output is all a stopped run leaves to say what it was doing.
+    func test_aCancelledRunsOutputFile_stays() async throws {
+        let testProcess = ScriptedProcessSpy([.runUntilKilled])
+        current.process = { testProcess }
+        let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"])
+        let schemata = try MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1))
+        let file = outputFolderURL.appendingPathComponent("running/mutant.log").path
+
+        let run = Task { [sut] in
+            await sut.runTestSuite(withSchemata: schemata, using: configuration, savingResultsIntoFileNamed: file)
+        }
+        let deadline = Date().addingTimeInterval(5)
+        while !testProcess.waitUntilExitCalled, Date() < deadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        run.cancel()
+        let result = await run.value
+
+        XCTAssertEqual(result.ending, .cancelled)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file))
+    }
+
+    func test_aRunThatCannotStart_leavesNoOutputFile() async throws {
+        process.runError = NSError(domain: NSCocoaErrorDomain, code: NSFileNoSuchFileError)
+        let file = outputFolderURL.appendingPathComponent("running/mutant.log").path
+
+        let result = try await sut.runTestSuite(
+            withSchemata: MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1)),
+            using: MuterConfiguration(executable: "swift", arguments: ["test"]),
+            savingResultsIntoFileNamed: file
+        )
+
+        XCTAssertEqual(result.ending, .couldNotRun)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file))
+    }
+
     func test_timeout() async throws {
         let configuration = MuterConfiguration(
             executable: "/tmp/swift",

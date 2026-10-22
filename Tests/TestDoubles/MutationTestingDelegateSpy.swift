@@ -125,11 +125,14 @@ class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate {
     func runTestsWithoutBuilding(
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String
-    ) -> TestSuiteOutcome {
+    ) -> (
+        outcome: TestSuiteOutcome,
+        testLog: String
+    ) {
         methodCalls.append(#function)
         testLogs.append(fileName)
         whileRunningTestsWithoutBuilding?()
-        return timedTestRunOutcome
+        return (timedTestRunOutcome, "timed test run log")
     }
 
     func switchOn(schemata: MutationSchema, for testRun: XCTestRun, at path: URL) throws {

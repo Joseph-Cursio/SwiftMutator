@@ -73,7 +73,6 @@ private extension [MutationStep] {
         DiscoverSourceFiles(),
         DiscoverMutationPoints(),
         CreateMuterTestPlan(),
-        GenerateSwapFilePaths(),
         ApplySchemata(),
         BuildForTesting(),
         ProjectMappings(),

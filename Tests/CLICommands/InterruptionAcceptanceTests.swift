@@ -139,6 +139,9 @@ final class InterruptionAcceptanceTests: XCTestCase {
         XCTAssertTrue(exists("project_mutated"), "the mutated project is kept, for the next run to remove")
         XCTAssertFalse(exists("project_mutated.active-mutant"), "the mutated project's active-mutant file is removed")
         XCTAssertFalse(exists("project_mutated_worker1.active-mutant"), "the worker's active-mutant file is removed")
+        // What the two runs under way wrote is kept in the log folder, and none of SwiftMutator's files is in the copy.
+        XCTAssertEqual(runningFiles().count, 2, "\(runningFiles())")
+        XCTAssertEqual(visibleNamesAddedToTheCopy(), [])
         let errors = contents(of: standardError)
         XCTAssertTrue(errors.contains("Stopping (SIGINT)"), errors)
         XCTAssertTrue(errors.contains("Stopped by SIGINT"), errors)
@@ -389,6 +392,24 @@ final class InterruptionAcceptanceTests: XCTestCase {
             ((try? FileManager.default.contentsOfDirectory(at: run, includingPropertiesForKeys: nil)) ?? [])
                 .filter { $0.lastPathComponent.hasPrefix("results") && $0.pathExtension == "jsonl" }
         }
+    }
+
+    /// The files in `project_muter_logs/<run>/running/`: the output of the test runs a stop cut short.
+    private func runningFiles() -> [String] {
+        let logs = root.appendingPathComponent("project_muter_logs", isDirectory: true)
+        let runs = (try? FileManager.default.contentsOfDirectory(at: logs, includingPropertiesForKeys: nil)) ?? []
+        return runs.flatMap { run in
+            (try? FileManager.default.contentsOfDirectory(atPath: run.appendingPathComponent("running").path)) ?? []
+        }
+    }
+
+    /// The names at the top of the mutated project that the project doesn't have, hidden ones left out.
+    private func visibleNamesAddedToTheCopy() -> [String] {
+        let names = { (folder: URL) -> Set<String> in
+            let all = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+            return Set(all.filter { !$0.hasPrefix(".") })
+        }
+        return names(root.appendingPathComponent("project_mutated")).subtracting(names(project)).sorted()
     }
 
     private func records(in file: URL) throws -> [[String: Any]] {

@@ -79,6 +79,8 @@ final class PerformMutationTestingTests: MuterTestCase {
         )
     }
 
+    // Both mutants are in same-named files at the same place, so only the job's number tells their files apart. Two
+    // runs under way at once must never share one: the first to finish removes it.
     func test_createLogFile() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
 
@@ -88,8 +90,8 @@ final class PerformMutationTestingTests: MuterTestCase {
             ioDelegate.testLogs,
             [
                 "baseline run",
-                "path_RelationalOperatorReplacement_0_0_0.log",
-                "path_RelationalOperatorReplacement_0_0_0.log",
+                "0_path_RelationalOperatorReplacement_0_0_0.log",
+                "1_path_RelationalOperatorReplacement_0_0_0.log",
             ]
         )
     }

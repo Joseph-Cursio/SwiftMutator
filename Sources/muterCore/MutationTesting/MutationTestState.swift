@@ -16,7 +16,6 @@ protocol AnyMutationTestState: AnyObject {
     var mutationMapping: [SchemataMutationMapping] { get }
     var sourceCodeByFilePath: [FilePath: SourceFileSyntax] { get }
     var filesToMutate: [String] { get }
-    var swapFilePathsByOriginalPath: [FilePath: FilePath] { get }
     var mutationTestOutcome: MutationTestOutcome { get }
     /// The folder the run's test logs are kept in, `<project>_muter_logs/<timestamp>`, so a step can keep other
     /// files of the run beside them; "" until the handler has created it.
@@ -47,7 +46,6 @@ final class MutationTestState: AnyMutationTestState {
     var mutationPoints: [MutationPoint] = []
     var mutationMapping: [SchemataMutationMapping] = []
     var sourceCodeByFilePath: [FilePath: SourceFileSyntax] = [:]
-    var swapFilePathsByOriginalPath: [FilePath: FilePath] = [:]
     var mutationTestOutcome: MutationTestOutcome = .init()
     var loggingDirectory = ""
     var projectTree: ProjectTree?
@@ -75,7 +73,6 @@ extension MutationTestState {
         case mutationPointsDiscovered([MutationPoint])
         case mutationMappingsDiscovered([SchemataMutationMapping])
         case sourceCodeParsed([FilePath: SourceFileSyntax])
-        case swapFilePathGenerated([FilePath: FilePath])
         case mutationTestOutcomeGenerated(MutationTestOutcome)
         case loggingDirectoryCreated(String)
         case projectTreeFingerprinted(ProjectTree)
@@ -108,8 +105,6 @@ extension MutationTestState {
                 self.mutationMapping = mutationMapping
             case let .sourceCodeParsed(sourceCodeByFilePath):
                 self.sourceCodeByFilePath = sourceCodeByFilePath
-            case let .swapFilePathGenerated(swapFilePathsByOriginalPath):
-                self.swapFilePathsByOriginalPath = swapFilePathsByOriginalPath
             case let .mutationTestOutcomeGenerated(mutationTestOutcome):
                 self.mutationTestOutcome = mutationTestOutcome
             case let .loggingDirectoryCreated(loggingDirectory):

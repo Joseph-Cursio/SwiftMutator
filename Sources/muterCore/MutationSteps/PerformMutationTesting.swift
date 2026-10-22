@@ -21,6 +21,12 @@ struct PerformMutationTesting: MutationStep {
 
     private let buildErrorsThreshold: Int = 5
 
+    /// The folder in the run's log folder that each test run writes its output to while it runs. Never the mutated
+    /// project or a clone, where a test that lists the package's files, or asks git for untracked ones, would see it.
+    /// Each run's file goes once its log is read back (`MutationTestingDelegate`), and the log folder keeps its own
+    /// copy, so only the output of runs a stop cut short stays.
+    static let testOutputFolderName = "running"
+
     /// With no `mutationTestTimeout`, a SwiftPM mutant's test run may take this many times one timed run of its test
     /// command with no mutant on, and once more for each worker beyond the first, but never less than
     /// `minimumTestRunTimeout` seconds. Every worker's tests compete for the same cores. A mutant that makes the code
@@ -77,6 +83,7 @@ struct PerformMutationTesting: MutationStep {
                 )
                 try? fileManager.removeItem(atPath: activeMutantFile.path)
             }
+            removeTestOutputFolderIfEmpty(state)
             if !session.clones.isEmpty {
                 removeWorkerDirectories(session.clones)
             }
@@ -187,7 +194,7 @@ private extension PerformMutationTesting {
         let initialTime = Date()
         let (testSuiteOutcome, testLog) = await ioDelegate.benchmarkTests(
             using: state.muterConfiguration,
-            savingResultsIntoFileNamed: "baseline run"
+            savingResultsIntoFileNamed: testOutput(named: "baseline run", state: state)
         )
         // Stopping the run kills the baseline run, which then fails, but that says nothing about the project's tests.
         try Task.checkCancellation()
@@ -239,7 +246,7 @@ private extension PerformMutationTesting {
         // A clone costs a copy and about a baseline build, so there are never more workers than mutants to test.
         let workers = min(muterConfiguration.workerCount, plan.toRun.count)
         let testRunSeconds = muterConfiguration.testSuiteTimeout == nil && muterConfiguration.buildSystem == .swift
-            ? try await timeTestRun(using: muterConfiguration)
+            ? try await timeTestRun(using: muterConfiguration, state: state)
             : nil
         let configuration = muterConfiguration.withDefaultTestSuiteTimeout(
             testRunSeconds.map { Self.defaultTimeout(testRunSeconds: $0, workers: workers) }
@@ -422,7 +429,10 @@ private extension PerformMutationTesting {
             let run = await ioDelegate.runTestSuite(
                 withSchemata: job.schema,
                 using: configuration,
-                savingResultsIntoFileNamed: logFileName(for: job.fileName, schemata: job.schema)
+                savingResultsIntoFileNamed: testOutput(
+                    named: logFileName(forJobAt: index, job),
+                    state: state
+                )
             )
             try Self.throwIfCancelled(run)
 
@@ -478,7 +488,7 @@ private extension PerformMutationTesting {
             func start(_ index: Int, worker: Int) throws {
                 let job = jobs[index]
                 let directory = directories[worker]
-                let fileName = logFileName(for: job.fileName, schemata: job.schema)
+                let fileName = testOutput(named: logFileName(forJobAt: index, job), state: state)
                 let started = group.addTaskUnlessCancelled {
                     let launched = instant()
                     let run = await ioDelegate.runTestSuite(
@@ -531,7 +541,7 @@ private extension PerformMutationTesting {
                 group.addTask {
                     let run = await ioDelegate.benchmarkTests(
                         using: state.muterConfiguration,
-                        savingResultsIntoFileNamed: "baseline run worker \(index + 1)",
+                        savingResultsIntoFileNamed: testOutput(named: "baseline run worker \(index + 1)", state: state),
                         workingDirectory: clone
                     )
                     return (index + 1, run.outcome, run.testLog)
@@ -540,6 +550,10 @@ private extension PerformMutationTesting {
             return await group.reduce(into: []) { $0.append($1) }
         }
         try Task.checkCancellation()
+        // A failed one's log is what says why the run stopped, and the abort message is all that shows it otherwise.
+        for run in runs.sorted(by: { $0.worker < $1.worker }) {
+            keepLog(run.testLog, named: "baseline run worker \(run.worker).log", state: state)
+        }
 
         // The lowest-numbered failure, so the same worker is named whichever build finished first.
         if let failed = runs.filter({ $0.outcome != .passed }).min(by: { $0.worker < $1.worker }) {
@@ -562,15 +576,20 @@ private extension PerformMutationTesting {
 
     /// How long a mutant's test command takes with no mutant on, once the baseline has built the project, or nil if
     /// that run didn't pass: one that crashed at once says nothing about how long a passing one takes.
-    func timeTestRun(using configuration: MuterConfiguration) async throws -> TimeInterval? {
+    func timeTestRun(
+        using configuration: MuterConfiguration,
+        state: AnyMutationTestState
+    ) async throws -> TimeInterval? {
         let start = instant()
-        let outcome = await ioDelegate.runTestsWithoutBuilding(
+        let (outcome, testLog) = await ioDelegate.runTestsWithoutBuilding(
             using: configuration,
-            savingResultsIntoFileNamed: "timed test run"
+            savingResultsIntoFileNamed: testOutput(named: "timed test run", state: state)
         )
         // Stopping the run kills this run too, which then fails, but that says nothing about the project's tests.
         try Task.checkCancellation()
-        return outcome == .passed ? seconds(since: start) : nil
+        let seconds = outcome == .passed ? seconds(since: start) : nil
+        keepLog(testLog, named: "timed test run.log", state: state)
+        return seconds
     }
 
     /// The seconds from `start` to now, on the monotonic clock.
@@ -652,11 +671,37 @@ private extension PerformMutationTesting {
         }
     }
 
-    func logFileName(
-        for fileName: FileName,
-        schemata: MutationSchema
-    ) -> String {
-        "\(fileName)_\(schemata.mutationOperatorId.rawValue)_\(schemata.position).log"
+    /// The file a mutant's run writes its output to while it runs. Its job's number comes first, so two runs under way
+    /// at once never share one, as mutants in same-named files at the same place, or a repeated mutant, otherwise
+    /// would: the first to finish would remove the file the other still has to read.
+    func logFileName(forJobAt index: Int, _ job: MutantJob) -> String {
+        "\(index)_\(job.fileName)_\(job.schema.mutationOperatorId.rawValue)_\(job.schema.position).log"
+    }
+
+    /// Keeps `log` in the run's log folder as `name`, as `MutationTestObserver` keeps the baseline's and each mutant's,
+    /// since the file its run wrote goes once read back. Without a log folder nothing is kept.
+    func keepLog(_ log: String, named name: String, state: AnyMutationTestState) {
+        guard !state.loggingDirectory.isEmpty else { return }
+        let path = (state.loggingDirectory as NSString).appendingPathComponent(name)
+        _ = fileManager.createFile(atPath: path, contents: Data(log.utf8), attributes: nil)
+    }
+
+    /// Where the test run whose log is `name` writes its output while it runs: `testOutputFolderName` in the run's
+    /// log folder, or, without one, as a state that bypasses the handler has, the current directory.
+    func testOutput(named name: String, state: AnyMutationTestState) -> String {
+        guard !state.loggingDirectory.isEmpty else { return name }
+        return (state.loggingDirectory as NSString)
+            .appendingPathComponent(Self.testOutputFolderName)
+            .appending("/\(name)")
+    }
+
+    /// Removes the run's test-output folder if it is empty, as it is once every run has been read back, so a finished
+    /// run's log folder holds only the logs it keeps. A stop leaves the folder, with the output of the runs under way.
+    func removeTestOutputFolderIfEmpty(_ state: AnyMutationTestState) {
+        guard !state.loggingDirectory.isEmpty else { return }
+        let folder = (state.loggingDirectory as NSString).appendingPathComponent(Self.testOutputFolderName)
+        guard let contents = try? fileManager.contentsOfDirectory(atPath: folder), contents.isEmpty else { return }
+        try? fileManager.removeItem(atPath: folder)
     }
 }
 
