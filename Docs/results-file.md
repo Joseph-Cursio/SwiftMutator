@@ -100,7 +100,7 @@ SwiftMutator lists your project's files right after it copies the project, and h
 | `treeSHA256` | The SHA-256 of every file's path, a NUL, its hash and a line break, sorted by path. Two trees with the same files and hashes have the same `treeSHA256`. |
 
 - **Always listed**, even when git ignores them: Swift files (which include `Package.swift` and `Package@swift-*.swift`) and `.swift-version`, at any depth. `Package.resolved` too, but only at the root and in an Xcode project's or workspace's `xcshareddata/swiftpm/`.
-- **Never listed:** anything in a `.build`, `.git`, `.swiftpm`, `DerivedData` or `xcuserdata` folder at any depth, and `.DS_Store` files. Nor are the files SwiftMutator itself writes at the project's root: `muter-mappings.json`, `.swiftmutator-active-mutant` and `muter.xctestrun`.
+- **Never listed:** anything in a `.build`, `.git`, `.swiftpm`, `DerivedData` or `xcuserdata` folder at any depth, and `.DS_Store` files. Nor are the files SwiftMutator itself writes at the project's root: `muter-mappings.json` and `muter.xctestrun`, and `.swiftmutator-active-mutant`, which earlier versions wrote there.
 - **Not followed:** with `listedBy` `git`, the walk that adds Swift files skips any folder that holds a `.git` entry, such as a worktree or a clone git ignores.
 - **Outside the project:** the local packages your `Package.swift` files name with `.package(path:)`, and your Xcode projects with a local package reference, each by a literal path, and the ones those name in turn. SwiftMutator copies only your project, beside it, so every session builds whatever they hold then. Their files are listed and hashed the same way, where they are. A path a manifest computes isn't followed, and other files outside the project that a build or a test reads, such as sources an Xcode project references there, aren't listed.
 
@@ -114,7 +114,7 @@ SwiftMutator lists your project's files right after it copies the project, and h
 | `line`, `column` | Int | Where the mutant is in the original file |
 | `occurrence` | Int | 0, or n for the nth repeat in the run of the same `path`, operator, `line` and `column` |
 | `mutationOperatorId` | String | `RelationalOperatorReplacement`, `RemoveSideEffects`, `ChangeLogicalConnector` or `SwapTernary` |
-| `switchID` | String | The ID that switched the mutant on: under `swift test`, the contents of the worker's `.swiftmutator-active-mutant` file; otherwise an environment variable of that name. Only for diagnosis: two files with the same name can share one. |
+| `switchID` | String | The ID that switched the mutant on: under `swift test`, the contents of the worker's active-mutant file, `<folder>.active-mutant` beside its folder; otherwise an environment variable of that name. Only for diagnosis: two files with the same name can share one. |
 | `utf8Offset` | Int | The mutant's offset in the file as SwiftMutator prepared it, which has lines SwiftMutator added at the top |
 | `snapshot` | `{before, after, description}` | The code before and after the mutation, as the report shows it |
 | `outcome` | String | `failed` (killed: a test failed), `runtimeError` (killed: the tests crashed), `passed` (survived), `timeout` (stopped at the time limit without showing a failure) or `buildError` |

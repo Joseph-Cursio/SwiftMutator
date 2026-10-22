@@ -19,7 +19,7 @@ final class MutantActivationProcessTests: MuterTestCase {
 
     func test_aWorkersBaselineAndMutantsShareOneEnvironment_andEachReadsItsOwnMutant() async throws {
         // MuterTestCase.setUp() replaces `current` after setUpWithError(), so these are set here. The
-        // active-mutant file is written for real, but only in this test's folder.
+        // active-mutant file is written for real, beside the worker's folder, which is inside this test's folder.
         current.process = MuterProcessFactory.makeProcess
         current.writeFile = World().writeFile
         current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
@@ -53,11 +53,12 @@ final class MutantActivationProcessTests: MuterTestCase {
         XCTAssertEqual(baseline.activeMutant, "", "\(baseline.otherOutput)")
         XCTAssertEqual(first.activeMutant, mutantA.id, "\(first.otherOutput)")
         XCTAssertEqual(second.activeMutant, mutantB.id, "\(second.otherOutput)")
-        let activeMutantFile = "\(worker.path)/.swiftmutator-active-mutant"
+        let activeMutantFile = "\(worker.path).active-mutant"
         XCTAssertTrue(
             baseline.environment.contains("\(activeMutantFileKey)=\(activeMutantFile)"),
             "\(baseline.environment.filter { $0.hasPrefix(activeMutantFileKey) })"
         )
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: worker.path), [], "the tests saw a new file")
     }
 
     // MARK: - Helpers

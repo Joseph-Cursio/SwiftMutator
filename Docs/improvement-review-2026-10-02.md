@@ -27,6 +27,7 @@ This started as a ranked review of SwiftMutator on 2 October 2026, at commit `4b
     - xcodebuild coverage's build folder was the whole `BUILD_DIR = …` line, and could be the unexpanded `BUILD_DIR=…` of the arguments.
     - With the folder right, the coverage profile was the first that `find` listed. Xcode leaves other destinations' profiles in place, and a stale one reads every function added since as never run, so their mutants were skipped. It's now the newest.
     - The regex helpers searched a range counted in Characters, not UTF-16 units, which cut the end of the text off after an emoji, a decomposed accent or a CRLF.
+  - The active-mutant file, which tests could see at the root of each worker folder. It's now beside the folder, as `<folder>.active-mutant` (§1.1, [#63]).
 
   Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#61, which are in the PRs themselves.
 - **Section numbers are the original ones,** so references in PRs and notes still work. A missing number is a finished section.
@@ -65,7 +66,6 @@ The manifest recompile is fixed (PR #42). Left:
   - One option is to capture the exact `swiftpm-testing-helper` command lines once, with `swift test --skip-build -v`, and replay them for each mutant. That saves only SwiftPM's planning time, not process start-up or test discovery.
   - `--disable-xctest` hasn't been tried. These runs have no XCTest tests, but `swift test --skip …` still starts `swiftpm-xctest-helper` on each test bundle to look for them. On a one-bundle probe that cost about 0.07 s per run; on SwiftProjectLint's three large bundles it's unmeasured. A project with no XCTest tests can add the flag to `arguments:`. SwiftMutator mustn't add it by default, because an XCTest project would then run no tests and every mutant would survive.
   - `--skip-update` was measured and made no difference.
-- **Tests can see the active-mutant file** ([#63]). It's written at the root of each worker folder (`MutationTestingIODelegate.swift:379-382`), and the copy keeps `.git`. So a test that lists hidden files at the package root, or needs a clean `git status`, sees it. It does so in the baseline too, so the test fails loudly rather than mis-scoring. Writing the file beside the clone, and pointing the variable there, would remove the problem.
 
 ### 1.2 Fail-fast: what's left
 
@@ -73,7 +73,7 @@ Fail-fast is done (PR #36), and on by default since PR #41. Left:
 - **Stopping crash-only runs** ([#64]). The stop trigger matches only failed-test lines (`TestLogFollower.swift:62`). So a run that crashes without a failed test runs its remaining test targets, about 1–3 s each.
   - The crash pattern already exists (`TestSuiteOutcome.swift:96-106`). A run stopped this way must still score as a runtime error.
   - Only 30 kills on 6 October weren't stopped at a failed test. A crash in the first bundle still runs the other two, so this saves under a minute: at most 30 × 2 × 1–3 s / 4 ≈ 15–45 s.
-- **Running quietly** ([#64]). Test processes write all their output to each mutant's log (`MutationTestingIODelegate.swift:397-398`). A quiet mode would cut the log volume (see Log storage in §3). It must keep every line SwiftMutator reads:
+- **Running quietly** ([#64]). Test processes write all their output to each mutant's log (`MutationTestingIODelegate.swift:404-405`). A quiet mode would cut the log volume (see Log storage in §3). It must keep every line SwiftMutator reads:
   - the `✘ … recorded an issue` and `Test Case '…' failed (` lines, which fail-fast, killing tests and the baseline check read;
   - the suite summaries, build-error lines and crash lines, which scoring reads (`TestSuiteOutcome.swift:50-56`, `:96-138`).
 
@@ -135,7 +135,7 @@ All four items are done (PRs #38 and #44–#46). These were left out of them:
   - Only the results file is locked (`ResultsFile.swift:64-66`), not the project, so two runs of one project can overlap ([#78]).
   - A resumed session's log folder doesn't point to the results file ([#77]).
   - When the results file is locked, the refusal names the previous session's writer, not the process holding the lock (`LoadResumeState.swift:26-35`, [#77]).
-  - A resumed session writes its header and its `retired` line separately (`PerformMutationTesting.swift:673-676`, [#77]). A SIGKILL between the two leaves `report` showing stale results until the next session. Nothing is wrongly reused, because the plan checks the hashes again.
+  - A resumed session writes its header and its `retired` line separately (`PerformMutationTesting.swift:681-684`, [#77]). A SIGKILL between the two leaves `report` showing stale results until the next session. Nothing is wrongly reused, because the plan checks the hashes again.
   - A refused resume leaves an empty log folder, and refusals have no exit code of their own ([#77]).
   - `report` of a resumed run's file doesn't say how many results came from earlier sessions ([#77]). Its status line gives only the count and how the last session ended (`RecordedResults+Status.swift:6-22`).
   - A results file from before PR #46 can't be resumed ([#77]).
@@ -168,7 +168,7 @@ Discovery has merged mutants by full path since PR #25. Deferred:
   - `--resume` never compares IDs, so it's unaffected.
 - **Kept-log names** ([#84]). They're built from the operator, file name, line and column (`MutationTestLog.swift:17-23`), with no folder and no occurrence number.
   - So same-named files, and repeated mutants at one place, overwrite each other's kept log. The results file's `log` field then points both mutants at one file.
-  - The raw log each test process writes has the same flaw. It goes in the `_mutated` folder, which every worker shares, as `<file name>_<operator>_<offset>_<line>_<column>.log` (`PerformMutationTesting.swift:647-651`, `MutationTestingIODelegate.swift:403-412`). Repeats are tested next to each other, so two can run at once and write one file, which fail-fast's follower also reads. Their code is identical, so a verdict is unlikely to change.
+  - The raw log each test process writes has the same flaw. It goes in the `_mutated` folder, which every worker shares, as `<file name>_<operator>_<offset>_<line>_<column>.log` (`PerformMutationTesting.swift:655-659`, `MutationTestingIODelegate.swift:410-419`). Repeats are tested next to each other, so two can run at once and write one file, which fail-fast's follower also reads. Their code is identical, so a verdict is unlikely to change.
   - Log folders are named to the minute (`fileOperations.swift:35`). So two runs or sessions started in the same minute share a folder, and a retested mutant's log overwrites the earlier one.
 - **Order within a file** ([#85]). Mutants are sorted by their ID as text (`MutationSchema.swift:92-99`): by operator, then by line as text, so line 10 comes before line 9.
   - Sorting by line, column and offset means updating `JobOrder` too (`RecordedResults+Outcome.swift:3-16`), which `report` uses to rebuild the order, and the test that pins discovery's order.
@@ -179,13 +179,13 @@ Discovery has merged mutants by full path since PR #25. Deferred:
 Tracked in [#86].
 
 - **What happens.** `DiscoverSourceFiles.swift:67-90` walks every path in the project and filters only by the exclude list and the `.swift` suffix. So files outside every target, such as SwiftProjectLint's `ExampleCode/` and `.swiftinfer`, get mutants that can never be killed. Coverage doesn't drop them either, because a file outside every target is never reported as uncovered.
-- **Fix.** For SwiftPM, build the candidate list from `swift package describe --type json`, or at least skip hidden and git-ignored paths. `ProjectTree.swift:302` already asks git for that list, for the resume check.
+- **Fix.** For SwiftPM, build the candidate list from `swift package describe --type json`, or at least skip hidden and git-ignored paths. `ProjectTree.swift:303` already asks git for that list, for the resume check.
 
 ### 2.6 One uncompilable mutant switch aborts the whole run
 
 Tracked in [#87].
 
-- **What happens.** A compile error in any of the ~300 rewritten files fails the baseline (`PerformMutationTesting.swift:179-211`). That ends the run after the copy, discovery and a ~95 s baseline. Stryker puts the offending mutants back instead, and cargo-mutants and mull mark them "unviable". The multi-line string bug under [Open bugs](#open-bugs) is one way to hit this today.
+- **What happens.** A compile error in any of the ~300 rewritten files fails the baseline (`PerformMutationTesting.swift:187-219`). That ends the run after the copy, discovery and a ~95 s baseline. Stryker puts the offending mutants back instead, and cargo-mutants and mull mark them "unviable". The multi-line string bug under [Open bugs](#open-bugs) is one way to hit this today.
 - **Proposal.**
   1. Make the build of the mutated project its own step. For SwiftPM it happens inside the baseline test run today.
   2. On failure, match each compiler error's path to a rewritten file, by full path in the copy, and restore that file from the original project. `CompilerError.all(in:)` (`MutationTestingAbortReason.swift:141-143`) already parses the errors.
@@ -211,7 +211,7 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
 - **Waiting for a test process can hang** ([#91]). `exited()` (`MuterProcess.swift:62-69`) calls `waitUntilExit()` on a GCD thread.
   - Reviewers of PR #36 saw that call never return, but only for a process without a `terminationHandler`.
   - Every test process now has one, and the hang hasn't been seen in SwiftMutator.
-  - Having `exited()` resume from the handler (`MutationTestingIODelegate.swift:265`) would be sturdier.
+  - Having `exited()` resume from the handler (`MutationTestingIODelegate.swift:272`) would be sturdier.
 - **Workers share the user's `UserDefaults`** ([#92]). Tests that write fixed keys in `UserDefaults.standard` can overwrite each other's values across workers. That gave SwiftProjectLint 4 false kills on 2 October.
   - No SwiftMutator-side fix is known. `CFFIXED_USER_HOME` doesn't isolate `UserDefaults` on macOS 27, and it also moves `NSHomeDirectory()`, which breaks the swiftly proxy.
   - The fix belongs in the project's tests (see [Outside this repo](#outside-this-repo)).
@@ -243,7 +243,7 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
   - A stop by signal ends SwiftMutator by that same signal, so a shell reports 128 + its number (130, 143 or 129). A wrapper that reads the wait status sees a signal, not an exit code.
   - Every other failure of a run exits 255, a refused resume included. A usage error exits 64, and `report` exits 1 when it can't read its file.
 - **Log storage** ([#97]).
-  - Each mutant's log is written twice. The test process writes it into the `_mutated` folder (`MutationTestingIODelegate.swift:403-418`), and then it's copied to `<project>_muter_logs` (`MutationTestObserver.swift:220-240`). Write it once.
+  - Each mutant's log is written twice. The test process writes it into the `_mutated` folder (`MutationTestingIODelegate.swift:410-425`), and then it's copied to `<project>_muter_logs` (`MutationTestObserver.swift:220-240`). Write it once.
   - Kept logs are never removed. On this machine, SwiftProjectLint's log folder holds 15 runs and 2.4 GB.
   - Keep full logs only for survivors, crashes and timeouts. That needs the results file's `log` field to become optional.
 
@@ -291,7 +291,7 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
   - As a separate operator, they would add 218 mutants, about 7–15 min.
 - **xcodebuild projects** ([#103]). These always test one mutant at a time, without fail-fast (`MuterConfiguration.swift:100-111`). The per-worker copies used for SwiftPM could cover them too, with a cloned simulator per worker.
 - **Spotlight** ([#104]). It indexes the copies and logs under `~/xcode_projects`. SwiftMutator names those folders itself (`_mutated`, `_muter_logs` and `_worker<n>`), so it could add `.noindex`. The benefit hasn't been measured.
-  - Only the steps that make the folders (`CreateTempDirectoryURL.swift:21`, `fileOperations.swift:41`, `PerformMutationTesting.swift:766`) and the cleanup (`PreviousRunCleanUp.swift:28`) use their names. `report` and `--resume` use the path they're given and the paths in the results file.
+  - Only the steps that make the folders (`CreateTempDirectoryURL.swift:21`, `fileOperations.swift:41`, `PerformMutationTesting.swift:774`) and the cleanup (`PreviousRunCleanUp.swift:38`) use their names. `report` and `--resume` use the path they're given and the paths in the results file.
   - Outside this repo, `swift-quality` removes `${repo}_mutated` by name, so it would need to change too.
 
 ---

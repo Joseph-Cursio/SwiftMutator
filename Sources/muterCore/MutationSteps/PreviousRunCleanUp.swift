@@ -12,15 +12,25 @@ struct PreviousRunCleanUp: MutationStep {
             try remove(mutated.path)
         }
 
-        // A run stopped at once (a second Ctrl-C, SIGKILL, a crash) leaves its worker clones, even once `_mutated` is gone.
+        // A run stopped at once (a second Ctrl-C, SIGKILL, a crash) leaves its worker clones, even once `_mutated` is
+        // gone, and the active-mutant files beside its folders.
         let parent = mutated.deletingLastPathComponent().path
         let leftovers = ((try? fileManager.contentsOfDirectory(atPath: parent)) ?? [])
-            .filter { Self.isWorkerClone($0, of: mutated.lastPathComponent) }
+            .filter { Self.isLeftover($0, of: mutated.lastPathComponent) }
             .sorted()
         for name in leftovers {
             try remove((parent as NSString).appendingPathComponent(name))
         }
         return []
+    }
+
+    /// A worker clone, or the active-mutant file beside the mutated project or a clone, as
+    /// `MutationTestingDelegate.activeMutantFile(forWorkerIn:)` names it.
+    static func isLeftover(_ name: String, of mutatedName: String) -> Bool {
+        let suffix = MutationTestingDelegate.activeMutantFileSuffix
+        guard name.hasSuffix(suffix) else { return isWorkerClone(name, of: mutatedName) }
+        let folder = String(name.dropLast(suffix.count))
+        return folder == mutatedName || isWorkerClone(folder, of: mutatedName)
     }
 
     /// `<mutated>_worker<n>`, as `PerformMutationTesting.cloneMutatedProject` names a clone.

@@ -23,13 +23,16 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   each in its own APFS clone of the mutated project. Each clone is built once before testing, which
   costs one extra build per worker but keeps tests that write files next to their sources from
   sharing them across workers.
-- **One environment for every `swift test` run:** a mutant is switched on by its ID in a hidden
-  `.swiftmutator-active-mutant` file in the worker's folder, not by a variable of its own. SwiftPM
-  keys its cache of compiled package manifests on the whole environment, so runs no longer
+- **One environment for every `swift test` run:** a mutant is switched on by its ID in a file
+  beside the worker's folder, such as `MyPackage_mutated.active-mutant`, not by a variable of its
+  own, so your tests don't find it among the package's files or in its `git status`. For a package
+  inside a larger git repository, ignore `*_mutated*` there, which covers the worker clones too.
+  SwiftPM keys its cache of compiled package manifests on the whole environment, so runs no longer
   recompile every `Package.swift`, which saves about 6 s per mutant with 4 workers. A wrapper
-  script around `swift test` gets this only with `buildSystem: swift`; other wrappers and
-  `xcodebuild` keep a variable per mutant. A SwiftPM test plan made by an older SwiftMutator is
-  refused: make it again with `swift-mutator mutate-without-running`.
+  script around `swift test` gets this only with `buildSystem: swift`, and its tests must be able
+  to read that file; other wrappers and `xcodebuild` keep a variable per mutant. A SwiftPM test
+  plan made by an older SwiftMutator is refused: make it again with
+  `swift-mutator mutate-without-running`.
 - **A default timeout:** without `mutationTestTimeout`, a mutant's test run stops after a limit
   based on how long your tests take, so a mutant that loops forever can't hang the run. For a
   SwiftPM project, SwiftMutator times one run of `swift test … --skip-build` with no mutant on,
@@ -221,8 +224,9 @@ which a closed terminal sends, stop it the same way. SwiftMutator then:
    commands are left out when no mutant has a result, or when the results file couldn't be written
    in full. A run of a test plan (`run-without-mutating`) can't be resumed, so it gets no command
    to continue it.
-5. Removes its worker clones, `<project>_mutated_worker<n>`. The mutated project,
-   `<project>_mutated`, is kept, as after a finished run.
+5. Removes its worker clones, `<project>_mutated_worker<n>`, and the active-mutant files beside the
+   mutated project and the clones. The mutated project, `<project>_mutated`, is kept, as after a
+   finished run.
 6. Exits by the same signal, so the shell sees status 130 for SIGINT, 143 for SIGTERM or 129 for
    SIGHUP, and a script or loop that runs SwiftMutator stops too.
 
@@ -239,13 +243,13 @@ the results file starts only after both.
 - **Stopping at once.** Press Ctrl-C again, or send any second SIGINT, SIGTERM or SIGHUP, to stop at
   once. SwiftMutator does the same by itself if stopping takes more than 30 seconds. It still kills
   every process it started and exits by the first signal, but the end line and the partial report
-  are there only if it had already written them, and worker clones can be left behind. A SIGHUP
-  after a first SIGHUP is ignored, because zsh sends two when its terminal closes: closing a
-  terminal stops a run the same way as one Ctrl-C.
-- **Leftovers.** The next `run` removes `<project>_mutated` and any worker clones an earlier run
-  left behind, such as one stopped at once, killed with SIGKILL, or crashed. SIGKILL and crashes
-  can't be handled, so the test processes of such a run go on until they end by themselves, with no
-  time limit.
+  are there only if it had already written them, and worker clones and their active-mutant files
+  can be left behind. A SIGHUP after a first SIGHUP is ignored, because zsh sends two when its
+  terminal closes: closing a terminal stops a run the same way as one Ctrl-C.
+- **Leftovers.** The next `run` removes `<project>_mutated` and any worker clones and active-mutant
+  files an earlier run left behind, such as one stopped at once, killed with SIGKILL, or crashed.
+  SIGKILL and crashes can't be handled, so the test processes of such a run go on until they end by
+  themselves, with no time limit.
 - **`nohup` and scripts.** A signal that was ignored when SwiftMutator started stays ignored. So a
   run started with `nohup` outlives its terminal, and SIGINT and SIGTERM still stop it. In a script,
   a run started in the background with `&` ignores SIGINT: stop it with SIGTERM.

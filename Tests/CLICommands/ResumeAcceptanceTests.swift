@@ -206,7 +206,7 @@ final class ResumeAcceptanceTests: XCTestCase {
         XCTAssertTrue(first.process.isRunning, "the refused resume stopped the run it found holding the file")
         recordMarkers()
         XCTAssertEqual(sleepers.filter(isGone).sorted(), [], "the hanging test process ended")
-        XCTAssertTrue(exists("project_mutated/.swiftmutator-active-mutant"), "the live run's copy was touched")
+        XCTAssertTrue(exists("project_mutated.active-mutant"), "the live run's files were touched")
 
         signalGroup(of: first, SIGINT)
 

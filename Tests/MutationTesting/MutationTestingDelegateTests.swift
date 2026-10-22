@@ -70,7 +70,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
         // SwiftPM keys its cache of compiled package manifests on the whole environment, so the mutant is
         // named in a file the environment names, rather than in a variable of its own.
-        let activeMutantFile = "\(outputFolder!)/\(activeMutantFileName)"
+        let activeMutantFile = "\(outputFolder!)\(activeMutantFileSuffix)"
         XCTAssertNil(testProcess.environment?[schemata.id])
         XCTAssertNil(testProcess.environment?["SIMCTL_CHILD_\(schemata.id)"])
         XCTAssertEqual(testProcess.environment?[activeMutantFileKey], activeMutantFile)
@@ -83,8 +83,8 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
     // MARK: - Switching a mutant on
 
-    /// The file in a worker's folder that names the mutant a `swift test` run switches on.
-    private let activeMutantFileName = ".swiftmutator-active-mutant"
+    /// Ends the name of the file beside a worker's folder that names the mutant a `swift test` run switches on.
+    private let activeMutantFileSuffix = ".active-mutant"
 
     // SwiftPM keys its cache of compiled package manifests on the whole environment, names and values, so a
     // variable of each mutant's own made every run recompile every manifest. A worker's runs, its baseline
@@ -144,7 +144,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
             and: FileHandle(fileDescriptor: 0)
         )
 
-        let activeMutantFile = "\(outputFolder!)/\(activeMutantFileName)"
+        let activeMutantFile = "\(outputFolder!)\(activeMutantFileSuffix)"
         XCTAssertEqual(writeFile.contentPassed, "")
         XCTAssertEqual(writeFile.pathPassed, activeMutantFile)
         XCTAssertEqual(testProcess.environment?[activeMutantFileKey], activeMutantFile)
@@ -164,10 +164,34 @@ final class MutationTestingDelegateTests: MuterTestCase {
                 workingDirectory: URL(fileURLWithPath: folder)
             )
 
-            let activeMutantFile = "\(folder)/\(activeMutantFileName)"
+            let activeMutantFile = "\(folder)\(activeMutantFileSuffix)"
             XCTAssertEqual(writeFile.contentPassed, schemata.id, folder)
             XCTAssertEqual(writeFile.pathPassed, activeMutantFile, folder)
             XCTAssertEqual(testProcess.environment?[activeMutantFileKey], activeMutantFile, folder)
+        }
+    }
+
+    // A worker's folder is a whole copy of the project, `.git` included, so a test that lists the package's hidden
+    // files, or needs a clean `git status`, would see a file written in it.
+    func test_swiftTest_theActiveMutantFileIsBesideTheWorkersFolder_neverInIt() async throws {
+        current.process = MuterProcessFactory.makeProcess
+        let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"])
+
+        for folder in [nil, URL(fileURLWithPath: "/runs/p_mutated_worker1")] {
+            _ = try await sut.testProcess(
+                with: configuration,
+                schemata: .null,
+                and: FileHandle(fileDescriptor: 0),
+                workingDirectory: folder
+            )
+
+            let workersFolder = folder ?? outputFolderURL
+            let written = try XCTUnwrap(writeFile.pathPassed)
+            XCTAssertFalse(written.hasPrefix(workersFolder.path + "/"), written)
+            XCTAssertEqual(
+                URL(fileURLWithPath: written).deletingLastPathComponent().path,
+                workersFolder.deletingLastPathComponent().path
+            )
         }
     }
 
@@ -183,7 +207,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
             and: FileHandle(fileDescriptor: 0)
         )
 
-        let activeMutantFile = "\(outputFolder!)/\(activeMutantFileName)"
+        let activeMutantFile = "\(outputFolder!)\(activeMutantFileSuffix)"
         XCTAssertEqual(writeFile.contentPassed, schemata.id)
         XCTAssertEqual(writeFile.pathPassed, activeMutantFile)
         XCTAssertEqual(testProcess.environment?[activeMutantFileKey], activeMutantFile)
@@ -482,7 +506,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
         XCTAssertEqual(process.arguments, ["test", "--skip-build"])
         XCTAssertEqual(writeFile.contentPassed, "")
-        XCTAssertEqual(writeFile.pathPassed, "\(outputFolder!)/\(activeMutantFileName)")
+        XCTAssertEqual(writeFile.pathPassed, "\(outputFolder!)\(activeMutantFileSuffix)")
         XCTAssertFalse(testingTimeOutExecutor.withTimeLimitCalled)
     }
 
