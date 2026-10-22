@@ -25,7 +25,10 @@ final class SwiftCoverageTests: MuterTestCase {
         _ = sut.run(with: muterConfiguration)
 
         XCTAssertEqual(process.commandsRun, [
-            ["/path/to/swift", "test", "--skip", "Slow", "--enable-code-coverage"],
+            [
+                "/path/to/swift", "test", "--skip", "Slow", "--enable-code-coverage",
+                "-Xswiftc", "-Xllvm", "-Xswiftc", "-instrprof-atomic-counter-update-all",
+            ],
             ["/path/to/swift", "test", "--skip", "Slow", "--show-codecov-path"],
             ["/path/to/swift", "package", "describe", "--type", "json"],
             [

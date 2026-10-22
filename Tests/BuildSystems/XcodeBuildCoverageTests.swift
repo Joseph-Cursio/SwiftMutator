@@ -16,7 +16,9 @@ final class XcodeBuildCoverageTests: MuterTestCase {
         _ = sut.run(with: muterConfiguration)
 
         XCTAssertEqual(process.executableURL?.path, "/path/to/xcodebuild")
-        XCTAssertEqual(process.arguments, ["-enableCodeCoverage", "YES"])
+        XCTAssertEqual(process.arguments, [
+            "OTHER_SWIFT_FLAGS=$(inherited) -Xllvm -instrprof-atomic-counter-update-all", "-enableCodeCoverage", "YES",
+        ])
     }
 
     func test_whenRunWithCoverageSucceeds_thenRunXcovCommand() {

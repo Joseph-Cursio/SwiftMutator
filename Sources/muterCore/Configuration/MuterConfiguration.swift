@@ -173,14 +173,29 @@ extension MuterConfiguration {
 }
 
 extension MuterConfiguration {
+    /// Coverage counts each run of a piece of code by loading its counter and storing one more, so code that runs on
+    /// two threads at once loses runs: Swift Testing runs tests in parallel, and a test can run code concurrently itself.
+    /// A count worked out from two others, such as the code after a `guard`, then reads 0 though the code ran, and its
+    /// mutants are left out. Atomic counters keep every run. On SwiftProjectLint they made the coverage run's tests take
+    /// 9.3 s rather than 7.2 s; running the tests one at a time took 11.4 s and still lost counts.
+    static let atomicCoverageCountersFlags = ["-Xllvm", "-instrprof-atomic-counter-update-all"]
+
     var enableCoverageArguments: [String] {
-        let arguments = testCommandArguments
+        var arguments = testCommandArguments
 
         switch buildSystem {
         case .xcodebuild:
+            // A setting given twice takes the second, so a project's own `OTHER_SWIFT_FLAGS=…` gets the flags added.
+            let flags = Self.atomicCoverageCountersFlags.joined(separator: " ")
+            if let index = arguments.firstIndex(where: { $0.hasPrefix("OTHER_SWIFT_FLAGS=") }) {
+                arguments[index] += " " + flags
+            } else {
+                arguments.append("OTHER_SWIFT_FLAGS=$(inherited) " + flags)
+            }
             return arguments + ["-enableCodeCoverage", "YES"]
         case .swift:
             return arguments + ["--enable-code-coverage"]
+                + Self.atomicCoverageCountersFlags.flatMap { ["-Xswiftc", $0] }
 
         case .unknown:
             return arguments
