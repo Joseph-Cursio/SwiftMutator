@@ -117,7 +117,7 @@ final class MutationTestHandlerTests: MuterTestCase {
     func test_allSteps() {
         sut = MutationTestHandler(options: .make())
 
-        XCTAssertEqual(sut.steps.count, 13)
+        XCTAssertEqual(sut.steps.count, 12)
 
         XCTAssertTypeEqual(sut.steps[safe: 0], UpdateCheck.self)
         XCTAssertTypeEqual(sut.steps[safe: 1], LoadConfiguration.self)
@@ -129,16 +129,15 @@ final class MutationTestHandlerTests: MuterTestCase {
         XCTAssertTypeEqual(sut.steps[safe: 6], DiscoverProjectCoverage.self)
         XCTAssertTypeEqual(sut.steps[safe: 7], DiscoverSourceFiles.self)
         XCTAssertTypeEqual(sut.steps[safe: 8], DiscoverMutationPoints.self)
-        XCTAssertTypeEqual(sut.steps[safe: 9], GenerateSwapFilePaths.self)
-        XCTAssertTypeEqual(sut.steps[safe: 10], ApplySchemata.self)
-        XCTAssertTypeEqual(sut.steps[safe: 11], BuildForTesting.self)
-        XCTAssertTypeEqual(sut.steps[safe: 12], PerformMutationTesting.self)
+        XCTAssertTypeEqual(sut.steps[safe: 9], ApplySchemata.self)
+        XCTAssertTypeEqual(sut.steps[safe: 10], BuildForTesting.self)
+        XCTAssertTypeEqual(sut.steps[safe: 11], PerformMutationTesting.self)
     }
 
     func test_steps_whenResuming() {
         sut = MutationTestHandler(options: .make(resumeURL: URL(fileURLWithPath: "/logs/results.jsonl")))
 
-        XCTAssertEqual(sut.steps.count, 14)
+        XCTAssertEqual(sut.steps.count, 13)
 
         XCTAssertTypeEqual(sut.steps[safe: 0], UpdateCheck.self)
         XCTAssertTypeEqual(sut.steps[safe: 1], LoadConfiguration.self)
@@ -147,7 +146,7 @@ final class MutationTestHandlerTests: MuterTestCase {
         XCTAssertTypeEqual(sut.steps[safe: 4], PreviousRunCleanUp.self)
         XCTAssertTypeEqual(sut.steps[safe: 5], CopyProjectToTempDirectory.self)
         XCTAssertTypeEqual(sut.steps[safe: 6], FingerprintProjectTree.self)
-        XCTAssertTypeEqual(sut.steps[safe: 13], PerformMutationTesting.self)
+        XCTAssertTypeEqual(sut.steps[safe: 12], PerformMutationTesting.self)
     }
 
     // A run still writing the results file tests in the copy that cleaning up removes, and a refused resume should

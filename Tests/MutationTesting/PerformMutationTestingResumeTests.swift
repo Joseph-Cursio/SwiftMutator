@@ -84,10 +84,10 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         _ = try await sut.run(with: state)
 
         XCTAssertEqual(ioDelegate.testLogs, [
-            "baseline run",
-            "timed test run",
-            "Quotient.swift_RelationalOperatorReplacement_40_4_5.log",
-            "Total.swift_RelationalOperatorReplacement_80_8_5.log",
+            running("baseline run"),
+            running("timed test run"),
+            running("1_Quotient.swift_RelationalOperatorReplacement_40_4_5.log"),
+            running("3_Total.swift_RelationalOperatorReplacement_80_8_5.log"),
         ])
     }
 
@@ -379,8 +379,8 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         XCTAssertEqual(
             Set(ioDelegate.testLogs.dropFirst(3)),
             [
-                "Quotient.swift_RelationalOperatorReplacement_40_4_5.log",
-                "Total.swift_RelationalOperatorReplacement_80_8_5.log",
+                running("1_Quotient.swift_RelationalOperatorReplacement_40_4_5.log"),
+                running("3_Total.swift_RelationalOperatorReplacement_80_8_5.log"),
             ]
         )
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
@@ -615,5 +615,10 @@ private extension PerformMutationTestingResumeTests {
                 }
             )
         )
+    }
+
+    /// Where a test run whose log is `name` writes its output: in the log folder's `running` folder.
+    func running(_ name: String) -> String {
+        "/project_muter_logs/session 2/running/\(name)"
     }
 }

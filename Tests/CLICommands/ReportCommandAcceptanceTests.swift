@@ -135,6 +135,22 @@ final class ReportCommandAcceptanceTests: XCTestCase {
         }
     }
 
+    // Each test run writes its output to the log folder, which keeps its own copy of a log once it's read back. None
+    // of SwiftMutator's files is left in the mutated project, where the next run's tests, or a worker clone made from
+    // it, would see it.
+    func test_aFinishedRun_leavesNoTestOutputInTheMutatedProject_andNoRunningFolder() throws {
+        let run = try runSwiftMutator(["run", "--skip-update-check", "--skip-coverage"])
+
+        XCTAssertEqual(run.status, 0, run.standardError)
+        let visibleNames = { (folder: URL) in
+            Set(try FileManager.default.contentsOfDirectory(atPath: folder.path).filter { !$0.hasPrefix(".") })
+        }
+        XCTAssertEqual(try visibleNames(root.appendingPathComponent("project_mutated")), try visibleNames(project))
+        let kept = try FileManager.default.contentsOfDirectory(atPath: onlyLogFolder().path)
+        XCTAssertFalse(kept.contains("running"), "\(kept)")
+        XCTAssertTrue(kept.contains("baseline run.log"), "\(kept)")
+    }
+
     func test_report_withoutOutputPath_printsOnlyTheReport() throws {
         let runReport = root.appendingPathComponent("run.json")
         let run = try runSwiftMutator(["run", "--skip-update-check", "--skip-coverage", "-f", "json", "-o", runReport.path])

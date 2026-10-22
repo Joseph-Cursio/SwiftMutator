@@ -3,7 +3,6 @@ import Rainbow
 public enum MuterError: Error, Equatable {
     case configurationParsingError(reason: String)
     case projectCopyFailed(reason: String)
-    case unableToCreateSwapFileDirectory(reason: String)
     case noSourceFilesDiscovered
     case noSourceFilesOnExclusiveList
     case noMutationPointsDiscovered
@@ -38,16 +37,6 @@ extension MuterError: CustomStringConvertible {
 
             This is unusual. Try running SwiftMutator again to see if that fixes the issue.
             Alternatively, try clearing all temp files from your temp directory by restarting your computer.
-
-            Please include the following in the bug report:
-            *********************
-            FileManager error: \(reason)
-            """
-        case let .unableToCreateSwapFileDirectory(reason):
-            return """
-            SwiftMutator was unable to create a swap file directory, which is a necessary component of it's mutation testing strategy.
-
-            This is unusual. Try running SwiftMutator again to see if that fixes the issue. Alternatively, try clearing all temp files from your temp directory by restarting your computer.
 
             Please include the following in the bug report:
             *********************

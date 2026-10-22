@@ -1,6 +1,9 @@
 import Foundation
 
 protocol MutationTestingIODelegate {
+    /// Runs the test command with `schemata` switched on. Its output goes to `fileName`, a path relative to the
+    /// current directory or an absolute one, whose folder is made if need be. The file is removed once its log has
+    /// been read back, so only a run stopped before that leaves it.
     func runTestSuite(
         withSchemata schemata: MutationSchema,
         using configuration: MuterConfiguration,
@@ -8,8 +11,8 @@ protocol MutationTestingIODelegate {
     ) async -> TestRun
 
     /// `runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)` with the test command run in
-    /// `workingDirectory`, a parallel worker's clone of the mutated project. The log is still saved
-    /// in the current directory.
+    /// `workingDirectory`, a parallel worker's clone of the mutated project. A relative `fileName` is still taken
+    /// from the current directory, not `workingDirectory`.
     func runTestSuite(
         withSchemata schemata: MutationSchema,
         using configuration: MuterConfiguration,
@@ -17,6 +20,8 @@ protocol MutationTestingIODelegate {
         workingDirectory: URL
     ) async -> TestRun
 
+    /// A baseline: the whole test command, build included, with no mutant switched on and no time limit. `fileName` is
+    /// as in `runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)`.
     func benchmarkTests(
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String
@@ -26,8 +31,8 @@ protocol MutationTestingIODelegate {
     )
 
     /// `benchmarkTests(using:savingResultsIntoFileNamed:)` with the test command, build included, run
-    /// in `workingDirectory`, a parallel worker's clone of the mutated project. The log is still saved
-    /// in the current directory.
+    /// in `workingDirectory`, a parallel worker's clone of the mutated project. A relative `fileName` is still taken
+    /// from the current directory, not `workingDirectory`.
     func benchmarkTests(
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String,
@@ -38,11 +43,15 @@ protocol MutationTestingIODelegate {
     )
 
     /// A mutant's test command, which skips the build, with no mutant switched on, once the baseline has built the
-    /// project: what a mutant's run costs. Like the baseline, it has no time limit and runs to its end.
+    /// project: what a mutant's run costs. Like the baseline, it has no time limit and runs to its end. `fileName` is
+    /// as in `runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)`.
     func runTestsWithoutBuilding(
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String
-    ) async -> TestSuiteOutcome
+    ) async -> (
+        outcome: TestSuiteOutcome,
+        testLog: String
+    )
 
     func switchOn(
         schemata: MutationSchema,
@@ -112,14 +121,18 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
     func runTestsWithoutBuilding(
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String
-    ) async -> TestSuiteOutcome {
-        await runTestSuite(
+    ) async -> (
+        outcome: TestSuiteOutcome,
+        testLog: String
+    ) {
+        let run = await runTestSuite(
             withSchemata: .null,
             using: configuration,
             savingResultsIntoFileNamed: fileName,
             isBenchmark: true,
             skippingBuild: true
-        ).outcome
+        )
+        return (run.outcome, run.testLog)
     }
 
     func runTestSuite(
@@ -158,8 +171,10 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         skippingBuild: Bool? = nil,
         workingDirectory: URL? = nil
     ) async -> TestRun {
+        var openedLogUrl: URL?
         do {
             let (testProcessFileHandle, testLogUrl) = try fileHandle(for: fileName)
+            openedLogUrl = testLogUrl
             defer { try? testProcessFileHandle.close() }
 
             let process = try await testProcess(
@@ -189,6 +204,11 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             // which leaves the caller with nothing to show the user. A cancelled run ends here too, by the
             // CancellationError of its ending or of its time limit's task. Its outcome then says nothing
             // about the mutant, and its ending says so.
+            let ending: TestRun.Ending = error is CancellationError || Task.isCancelled ? .cancelled : .couldNotRun
+            // A stopped run's output stays, to show what the run was doing; a run that never started has none.
+            if ending == .couldNotRun, let openedLogUrl {
+                try? FileManager.default.removeItem(at: openedLogUrl)
+            }
             return TestRun(
                 outcome: .buildError,
                 testLog: """
@@ -200,7 +220,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
 
                 \(error.localizedDescription)
                 """,
-                ending: error is CancellationError || Task.isCancelled ? .cancelled : .couldNotRun
+                ending: ending
             )
         }
     }
@@ -243,6 +263,8 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         // limit, or a test process that crashed mid-write, can end partway through a character. Strict
         // decoding threw on that, and the run was reported as a build error, outside the score.
         var testExecutionLog = try String(decoding: Data(contentsOf: logFileUrl), as: UTF8.self)
+        // Read back, the log is the run's: whatever records the run keeps a copy of it, in the run's log folder.
+        try? FileManager.default.removeItem(at: logFileUrl)
         let testResult = TestSuiteOutcome.from(
             testLog: testExecutionLog,
             terminationStatus: process.terminationStatus,
@@ -407,14 +429,19 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         return process
     }
 
+    /// Opens `logFileName`, a path relative to the current directory or an absolute one, empty, making its folder if
+    /// need be.
     func fileHandle(
         for logFileName: String
     ) throws -> (
         handle: FileHandle,
         logFileUrl: URL
     ) {
-        let testLogUrl = URL(
-            fileURLWithPath: fileManager.currentDirectoryPath + "/" + logFileName
+        let currentDirectory = URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
+        let testLogUrl = URL(fileURLWithPath: logFileName, relativeTo: currentDirectory).absoluteURL
+        try FileManager.default.createDirectory(
+            at: testLogUrl.deletingLastPathComponent(),
+            withIntermediateDirectories: true
         )
         try Data().write(to: testLogUrl)
 

@@ -101,6 +101,10 @@ toolchain and the settings the run used, and each killed mutant's line names the
 [Docs/results-file.md](Docs/results-file.md) describes the format, with `jq` recipes such as the
 tests that killed the most mutants.
 
+Each test run writes its output to `running/` in the log folder while it runs, never to the mutated
+project or a worker clone, where your tests would see it. Once SwiftMutator has read it back, the
+log folder keeps its own copy, such as `baseline run.log`, and the file in `running/` goes.
+
 `swift-mutator report` makes a run's report from its results file, in any format. The log folder
 is beside the project, not in it, so from the project's folder, where `run` is run:
 
@@ -214,6 +218,7 @@ which a closed terminal sends, stop it the same way. SwiftMutator then:
 
 1. Stops the test runs under way and kills every process it started, so no test runner is left
    running. A test run that the stop ended is never recorded, so it can't count as a killed mutant.
+   What it had written stays in `running/` in the log folder.
 2. Says on standard error that it is stopping. Standard error reaches the terminal even when the
    same Ctrl-C has ended a `| tee`.
 3. Ends `results.jsonl` with an `end` line whose `detail` names the signal, such as `"SIGINT"`, and
