@@ -75,12 +75,7 @@ private extension DiscoverSourceFiles {
 
         return includeSwiftFiles(
             from: subpaths
-                .exclude(
-                    pathsContainingItems(
-                        from: excludeList,
-                        root: rootPath
-                    )
-                )
+                .exclude(pathsContainingItems(from: excludeList))
                 .map { String($0.dropFirst(2)) }
                 .map { append(root: rootPath, to: $0) }
         )
@@ -89,21 +84,17 @@ private extension DiscoverSourceFiles {
         .exclude(filesWithoutCoverageList(filesWithoutCoverage, root: rootPath))
     }
 
+    /// Whether a path, given as `./` and its path in the project, is left out: it contains an entry with no `*`, such as
+    /// `/Generated/`, or an entry with one, such as `Sources/**/Generated/*.swift`, matches it.
     private func pathsContainingItems(
-        from excludeList: [FilePath],
-        root: FilePath
+        from excludeList: [FilePath]
     ) -> (FilePath) -> Bool {
-        let excludeAlso: [FilePath] = excludeList.flatMap { path in
-            path.contains("*")
-                ? expandGlobExpressions(root: root, pattern: path)
-                : [path]
-        }
+        let fragments = excludeList.filter { !$0.contains("*") }
+        let globs = excludeList.filter { $0.contains("*") }.map(ExcludeGlob.init)
 
         return { path in
-            for item in excludeAlso where path.contains(item) {
-                return true
-            }
-            return false
+            let pathInProject = String(path.dropFirst(2))
+            return fragments.contains { path.contains($0) } || globs.contains { $0.matches(pathInProject) }
         }
     }
 

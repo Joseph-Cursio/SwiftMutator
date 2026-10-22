@@ -30,7 +30,9 @@ extension String {
 }
 
 extension String {
-    private var stringRange: NSRange { NSRange(location: 0, length: count) }
+    /// In UTF-16 units, as NSRegularExpression counts. `count` counts Characters, so any one that takes more than one
+    /// unit, such as an emoji, a decomposed accent or a CRLF line ending, would cut the end of the text off the search.
+    private var stringRange: NSRange { NSRange(startIndex..., in: self) }
 
     func stringsMatchingRegex(
         _ pattern: String,
@@ -59,6 +61,7 @@ extension String {
             ).isEmpty
     }
 
+    /// The whole of the first match, capture groups included. `firstCaptureOf` gives a group's text alone.
     func firstMatchOf(
         _ pattern: String,
         options: NSRegularExpression.Options = []
@@ -71,6 +74,24 @@ extension String {
                 range: stringRange
             )
             .map { String(substring(with: $0.range)) }
+    }
+
+    /// The text of `pattern`'s first capture group in the first match, or nil if nothing matches, the pattern has no
+    /// group, or the group takes no part in the match.
+    func firstCaptureOf(
+        _ pattern: String,
+        options: NSRegularExpression.Options = []
+    ) -> String? {
+        NSRegularExpression
+            .regexWithPattern(pattern, options)
+            .firstMatch(
+                in: self,
+                options: [],
+                range: stringRange
+            )
+            // `range(at:)` raises for a group the pattern doesn't have.
+            .flatMap { $0.numberOfRanges > 1 ? Range($0.range(at: 1), in: self) : nil }
+            .map { String(self[$0]) }
     }
 
     private func substring(with nsrange: NSRange) -> String {
