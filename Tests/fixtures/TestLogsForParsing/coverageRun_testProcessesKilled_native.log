@@ -1,0 +1,23 @@
+Test Suite 'All tests' started at 2026-10-23 07:46:33.587.
+Test Suite 'KillProbePackageTests.xctest' started at 2026-10-23 07:46:33.588.
+Test Suite 'ATests' started at 2026-10-23 07:46:33.588.
+Test Case '-[ATests.ATests test_a]' started.
+Test Case '-[ATests.ATests test_a]' passed (0.000 seconds).
+Test Case '-[ATests.ATests test_fails]' started.
+/p/Tests/ATests/ATests.swift:10: error: -[ATests.ATests test_fails] : failed - fails under coverage
+Test Case '-[ATests.ATests test_fails]' failed (0.041 seconds).
+Test Suite 'ATests' failed at 2026-10-23 07:46:33.629.
+	 Executed 2 tests, with 1 failure (0 unexpected) in 0.041 (0.041) seconds
+Test Suite 'CTests' started at 2026-10-23 07:46:33.629.
+Test Case '-[CTests.CTests test_c]' started.
+Test Case '-[CTests.CTests test_c]' passed (0.000 seconds).
+Test Case '-[CTests.CTests test_z_killed]' started.
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Test stWorks() started.
+◇ Test stKilled() started.
+✔ Test stWorks() passed after 0.001 seconds.
+Note: Some test targets reported failures:
+  - KillProbePackageTests (XCTest)
+  - KillProbePackageTests (Swift Testing)

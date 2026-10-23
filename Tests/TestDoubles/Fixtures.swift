@@ -294,12 +294,14 @@ extension Coverage {
     static func make(
         percent: Int = 0,
         filesWithoutCoverage: [FilePath] = [],
-        functionsCoverage: FunctionsCoverage = .null
+        functionsCoverage: FunctionsCoverage = .null,
+        testsFailedWithCoverageOn: FailedTestLine.FailedTests? = nil
     ) -> Coverage {
         Coverage(
             percent: percent,
             filesWithoutCoverage: filesWithoutCoverage,
-            functionsCoverage: functionsCoverage
+            functionsCoverage: functionsCoverage,
+            testsFailedWithCoverageOn: testsFailedWithCoverageOn
         )
     }
 }
@@ -440,7 +442,7 @@ extension MuterConfiguration {
 
 /// No field is left at its default, so a copy that drops one no longer equals this, and every configuration key
 /// differs from the default's. `test_configurationWithEveryFieldSet_leavesNoFieldAtItsDefault` fails until a new
-/// field is set here, which then reaches the copy tests and `test_everyConfigurationKeyButTwo_isCompared`.
+/// field is set here, which then reaches the copy tests and `test_everyConfigurationKeyButThree_isCompared`.
 func configurationWithEveryFieldSet(
     executable: String = "/usr/bin/swift",
     timeout: Double? = 30,
@@ -455,7 +457,8 @@ func configurationWithEveryFieldSet(
         testSuiteTimeOut: timeout,
         buildSystem: .swift,
         mutationTestWorkers: 4,
-        stopAtFirstFailure: false
+        stopAtFirstFailure: false,
+        buildTimeout: 600
     )
     return failedTestLinesAreReliable ? configuration : configuration.withUnreliableFailedTestLines()
 }

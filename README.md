@@ -81,15 +81,18 @@ with `--verbose`.
 
 ## Configuration
 
-SwiftMutator reads Muter's `muter.conf.yml`, so existing Muter configurations work unchanged.
-The options are documented in [Muter's README](Docs/Muter-README.md#configuration-options);
-SwiftMutator adds:
+SwiftMutator reads Muter's `muter.conf.yml`, so existing Muter configurations work unchanged,
+except an xcodebuild project's `coverageThreshold`. Muter read that one as a fraction from 0 to 1,
+so any value of 1 or more left out every file. It's a percentage from 0 to 100 now, as it always
+was for SwiftPM: `0.5` means 0.5%, so write `50` for half. The options are documented in
+[Muter's README](Docs/Muter-README.md#configuration-options); SwiftMutator adds:
 
 | Key | Meaning |
 |---|---|
 | `mutationTestWorkers` | How many mutants to test at once (SwiftPM projects only; default 1) |
 | `mutationTestTimeout` | Seconds before a mutant's test run is stopped (default: based on a timed test run; see above) |
 | `stopAtFirstFailure` | Stop a mutant's test run at its first failed test, which already decides that it is killed (SwiftPM projects only; never the baseline; default true) |
+| `buildTimeout` | Seconds before the coverage run, which builds your project and runs its tests with coverage on, is stopped. Mutation testing then goes on without coverage, as after any coverage failure. For now it limits only the coverage run, not the baseline or other builds (default: no limit) |
 
 ## Results file
 
@@ -338,9 +341,9 @@ doesn't end with `Nothing was copied or removed.`
 
 | Since the last session | Resuming |
 |---|---|
-| A configuration key changed, other than `mutationTestWorkers` and `stopAtFirstFailure` | Refused: start a new run |
+| A configuration key changed, other than `mutationTestWorkers`, `stopAtFirstFailure` and `buildTimeout` | Refused: start a new run |
 | `--operators`, `--files-to-mutate` or `--skip-coverage` changed | Refused: start a new run |
-| `mutationTestWorkers` or `stopAtFirstFailure` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
+| `mutationTestWorkers`, `stopAtFirstFailure` or `buildTimeout` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
 | SwiftMutator, the toolchain or the SDK changed | Refused, unless `--force-resume` is given |
 | Project files changed, were added or were removed | Refused, unless a `--resume-ignoring` glob matches each one |
 | Another SwiftMutator holds the file, because its run is still going | Refused, naming the process and host that wrote the file's last session |

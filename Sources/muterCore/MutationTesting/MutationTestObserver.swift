@@ -18,8 +18,11 @@ extension Notification.Name {
     static let projectCopySkippedVanishedFiles = Notification.Name("projectCopySkippedVanishedFiles")
 
     static let projectCoverageDiscoveryStarted = Notification.Name("projectCoverageDiscoveryStarted")
-    /// The object is why coverage couldn't be gathered, or nil when it was.
+    /// The object is a `CoverageFailure`, why coverage couldn't be gathered, or nil when it was.
     static let projectCoverageDiscoveryFinished = Notification.Name("projectCoverageDiscoveryFinished")
+    /// The object is a `TestsFailedWithCoverage`: tests that failed in the coverage run, whose coverage was still
+    /// gathered.
+    static let projectCoverageTestsFailed = Notification.Name("projectCoverageTestsFailed")
 
     static let sourceFileDiscoveryStarted = Notification.Name("sourceFileDiscoveryStarted")
     static let sourceFileDiscoveryFinished = Notification.Name("sourceFileDiscoveryFinished")
@@ -84,6 +87,7 @@ final class MutationTestObserver {
 
             (name: .projectCoverageDiscoveryStarted, handler: handleProjectCoverageDiscoveryStarted),
             (name: .projectCoverageDiscoveryFinished, handler: handleProjectCoverageDiscoveryFinished),
+            (name: .projectCoverageTestsFailed, handler: handleProjectCoverageTestsFailed),
 
             (name: .sourceFileDiscoveryStarted, handler: handleSourceFileDiscoveryStarted),
             (name: .sourceFileDiscoveryFinished, handler: handleSourceFileDiscoveryFinished),
@@ -168,7 +172,12 @@ extension MutationTestObserver {
     }
 
     func handleProjectCoverageDiscoveryFinished(notification: Notification) {
-        logger.projectCoverageDiscoveryFinished(failureReason: notification.object as? String)
+        let failure = notification.object as? CoverageFailure
+        logger.projectCoverageDiscoveryFinished(failureReason: failure?.reason, log: failure?.log)
+    }
+
+    func handleProjectCoverageTestsFailed(notification: Notification) {
+        (notification.object as? TestsFailedWithCoverage).map(logger.projectCoverageTestsFailed)
     }
 
     func handleSourceFileDiscoveryStarted(notification: Notification) {

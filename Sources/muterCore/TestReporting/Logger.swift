@@ -81,19 +81,34 @@ final class Logger {
         print("⚙️ Running tests with coverage enabled to determine which files to mutate")
     }
 
-    /// Why coverage couldn't be gathered, if it couldn't.
-    func projectCoverageDiscoveryFinished(failureReason: String?) {
+    /// Why coverage couldn't be gathered, if it couldn't, and where the coverage run's output is, if it's kept.
+    func projectCoverageDiscoveryFinished(failureReason: String?, log: String? = nil) {
         guard let failureReason else {
             return
         }
 
+        let output = log.map { "\nThe coverage run's output is in \($0.bold)" } ?? ""
         print(
             """
-            ❌ Gathering coverage failed: \(failureReason).
+            ❌ Gathering coverage failed: \(failureReason).\(output)
             Proceeding with mutation testing anyway.
             Pass \("--skip-coverage argument".bold) to disable this step
             """
         )
+    }
+
+    /// The tests that failed in the coverage run, up to 5 of them, although coverage was gathered from every test
+    /// process, and that the code a failed test skipped reads as never run, then where the run's output is, if it's
+    /// kept.
+    func projectCoverageTestsFailed(_ failed: TestsFailedWithCoverage) {
+        let (names, more) = failed.tests.named(upTo: FailedTestLine.coverageMessageLimit)
+        let tests = failed.tests.count == 1 ? "1 test" : "\(failed.tests.count) tests"
+        let lines = ["⚠️ \(tests) failed with coverage on, but coverage was still gathered from every test process:"]
+            + names.map { "  \($0)" }
+            + (more > 0 ? ["  … and \(more) more"] : [])
+            + ["Code a failed test would have run after it stopped reads as never run, so its mutants aren't tested."]
+            + (failed.log.map { ["The coverage run's output is in \($0.bold)"] } ?? [])
+        print(lines.joined(separator: "\n"))
     }
 
     func sourceFileDiscoveryStarted() {

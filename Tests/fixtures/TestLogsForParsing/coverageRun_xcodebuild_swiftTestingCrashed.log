@@ -1,0 +1,70 @@
+Test Suite 'All tests' started at 2026-10-23 08:25:41.802.
+Test Suite 'All tests' passed at 2026-10-23 08:25:41.803.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Test sFails() started.
+◇ Test sWorks() started.
+◇ Test stCrashes() started.
+STests/STests.swift:16: Fatal error: Swift Testing crash
+✔ Test sFails() passed after 0.001 seconds.
+✔ Test sWorks() passed after 0.001 seconds.
+2026-10-23 08:25:41.803928-0500 xctest[66230:8754274] STests/STests.swift:16: Fatal error: Swift Testing crash
+Test Suite 'Selected tests' started at 2026-10-23 08:25:42.503.
+Test Suite 'Selected tests' passed at 2026-10-23 08:25:42.503.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Test stCrashes() started.
+◇ Test sWorks() started.
+STests/STests.swift:16: Fatal error: Swift Testing crash
+✔ Test sWorks() passed after 0.001 seconds.
+2026-10-23 08:25:42.504082-0500 xctest[66232:8754329] STests/STests.swift:16: Fatal error: Swift Testing crash
+Test Suite 'Selected tests' started at 2026-10-23 08:25:43.006.
+Test Suite 'Selected tests' passed at 2026-10-23 08:25:43.006.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'All tests' started at 2026-10-23 08:25:43.734.
+Test Suite 'KTests.xctest' started at 2026-10-23 08:25:43.734.
+Test Suite 'KTests' started at 2026-10-23 08:25:43.734.
+Test Case '-[KTests.KTests test_k_killed]' started.
+LLVM_PROFILE_FILE=/var/folders/zy/72q46vl90833mtsg9hj83k300000gn/T/AF2E8C1A-93FD-4B96-8178-C45AD95CC383-66032-000002AE8D084747/D9093F33-FBD4-4B80-B94E-3C8EC7086C1A-%p%c.profraw
+Test Case '-[KTests.KTests test_k_killed]' passed (0.001 seconds).
+Test Suite 'KTests' passed at 2026-10-23 08:25:43.735.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'KTests.xctest' passed at 2026-10-23 08:25:43.735.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'All tests' passed at 2026-10-23 08:25:43.735.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.001 (0.002) seconds
+Test Suite 'All tests' started at 2026-10-23 08:25:44.453.
+Test Suite 'CTests.xctest' started at 2026-10-23 08:25:44.454.
+Test Suite 'CTests' started at 2026-10-23 08:25:44.454.
+Test Case '-[CTests.CTests test_c]' started.
+Test Case '-[CTests.CTests test_c]' passed (0.000 seconds).
+Test Case '-[CTests.CTests test_z_crash]' started.
+Test Case '-[CTests.CTests test_z_crash]' passed (0.000 seconds).
+Test Suite 'CTests' passed at 2026-10-23 08:25:44.455.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'CTests.xctest' passed at 2026-10-23 08:25:44.455.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.002) seconds
+Test Suite 'All tests' passed at 2026-10-23 08:25:44.455.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.002) seconds
+Test Suite 'All tests' started at 2026-10-23 08:25:45.172.
+Test Suite 'ATests.xctest' started at 2026-10-23 08:25:45.172.
+Test Suite 'ATests' started at 2026-10-23 08:25:45.172.
+Test Case '-[ATests.ATests test_a]' started.
+Test Case '-[ATests.ATests test_a]' passed (0.001 seconds).
+Test Case '-[ATests.ATests test_fails]' started.
+Test Case '-[ATests.ATests test_fails]' passed (0.000 seconds).
+Test Suite 'ATests' passed at 2026-10-23 08:25:45.174.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'ATests.xctest' passed at 2026-10-23 08:25:45.174.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.002) seconds
+Test Suite 'All tests' passed at 2026-10-23 08:25:45.174.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.002) seconds
+
+Test session results, code coverage, and logs:
+	/DerivedData/Logs/Test/Test-XProbe-2026.10.23_08-25-35--0500.xcresult
+
+Testing started

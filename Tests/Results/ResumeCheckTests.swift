@@ -63,7 +63,18 @@ final class ResumeCheckTests: XCTestCase {
         )
     }
 
-    func test_everyConfigurationKeyButTwo_isCompared() {
+    // A limit only stops a step that runs too long, before any mutant is tested.
+    func test_aChangedBuildTimeout_onlyNotifies() {
+        let recorded = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"], buildTimeout: 900)
+        let changed = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"], buildTimeout: 1800)
+
+        let verdict = check(current(configuration: changed), recorded: header(of: current(configuration: recorded)))
+
+        XCTAssertEqual(verdict.refusals, [])
+        XCTAssertEqual(verdict.notices, ["buildTimeout was 900 and is 1800 now, which no result depends on."])
+    }
+
+    func test_everyConfigurationKeyButThree_isCompared() {
         // A new configuration key is compared unless it is added to keysThatDontAffectOutcomes, and fails this test
         // either way, so each one is a decision.
         let verdict = check(
@@ -79,6 +90,7 @@ final class ResumeCheckTests: XCTestCase {
         XCTAssertEqual(
             verdict.notices,
             [
+                "buildTimeout was not set and is 600 now, which no result depends on.",
                 "mutationTestWorkers was not set and is 4 now, which no result depends on.",
                 "stopAtFirstFailure was not set and is false now, which no result depends on.",
             ]
@@ -91,6 +103,7 @@ final class ResumeCheckTests: XCTestCase {
             [
                 .init(name: "arguments", was: "[]", isNow: #"["test"]"#),
                 .init(name: "buildSystem", was: nil, isNow: #""swift""#),
+                .init(name: "buildTimeout", was: nil, isNow: "600"),
                 .init(name: "coverageThreshold", was: "0", isNow: "80"),
                 .init(name: "exclude", was: "[]", isNow: #"["Generated"]"#),
                 .init(name: "excludeCalls", was: "[]", isNow: #"["print"]"#),

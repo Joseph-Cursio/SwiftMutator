@@ -1,0 +1,47 @@
+Test Suite 'All tests' started at 2026-10-23 08:23:13.155.
+Test Suite 'All tests' passed at 2026-10-23 08:23:13.155.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Test sFails() started.
+◇ Test sWorks() started.
+✔ Test sWorks() passed after 0.001 seconds.
+✘ Test sFails() recorded an issue at STests.swift:10:5: Expectation failed: ProcessInfo.processInfo.environment["PROBE_FAIL"] == nil
+↳ ProcessInfo.processInfo.environment["PROBE_FAIL"] == nil → false
+↳   ProcessInfo.processInfo.environment["PROBE_FAIL"] → "1"
+↳     some → "1"
+✘ Test sFails() failed after 0.001 seconds with 1 issue.
+✘ Test run with 2 tests in 0 suites failed after 0.001 seconds with 1 issue.
+Test Suite 'All tests' started at 2026-10-23 08:23:14.166.
+Test Suite 'CTests.xctest' started at 2026-10-23 08:23:14.166.
+Test Suite 'CTests' started at 2026-10-23 08:23:14.166.
+Test Case '-[CTests.CTests test_c]' started.
+Test Case '-[CTests.CTests test_c]' passed (0.001 seconds).
+Test Case '-[CTests.CTests test_z_crash]' started.
+Test Case '-[CTests.CTests test_z_crash]' passed (0.000 seconds).
+Test Suite 'CTests' passed at 2026-10-23 08:23:14.168.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.002) seconds
+Test Suite 'CTests.xctest' passed at 2026-10-23 08:23:14.168.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.002) seconds
+Test Suite 'All tests' passed at 2026-10-23 08:23:14.168.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.002) seconds
+Test Suite 'All tests' started at 2026-10-23 08:23:14.944.
+Test Suite 'ATests.xctest' started at 2026-10-23 08:23:14.945.
+Test Suite 'ATests' started at 2026-10-23 08:23:14.945.
+Test Case '-[ATests.ATests test_a]' started.
+Test Case '-[ATests.ATests test_a]' passed (0.001 seconds).
+Test Case '-[ATests.ATests test_fails]' started.
+/project/Tests/ATests/ATests.swift:11: error: -[ATests.ATests test_fails] : XCTAssertNil failed: "1"
+Test Case '-[ATests.ATests test_fails]' failed (0.284 seconds).
+Test Suite 'ATests' failed at 2026-10-23 08:23:15.230.
+	 Executed 2 tests, with 1 failure (0 unexpected) in 0.284 (0.285) seconds
+Test Suite 'ATests.xctest' failed at 2026-10-23 08:23:15.230.
+	 Executed 2 tests, with 1 failure (0 unexpected) in 0.284 (0.285) seconds
+Test Suite 'All tests' failed at 2026-10-23 08:23:15.230.
+	 Executed 2 tests, with 1 failure (0 unexpected) in 0.284 (0.286) seconds
+
+Test session results, code coverage, and logs:
+	/DerivedData/Logs/Test/Test-XProbe-2026.10.23_08-23-07--0500.xcresult
+
+Testing started

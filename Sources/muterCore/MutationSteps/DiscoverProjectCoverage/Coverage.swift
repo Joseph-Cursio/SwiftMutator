@@ -4,15 +4,20 @@ final class Coverage {
     let percent: Int
     let filesWithoutCoverage: [FilePath]
     let functionsCoverage: FunctionsCoverage
+    /// The tests that failed in the coverage run, whose test processes' coverage was gathered regardless; nil when
+    /// every test passed.
+    let testsFailedWithCoverageOn: FailedTestLine.FailedTests?
 
     init(
         percent: Int = 0,
         filesWithoutCoverage: [FilePath] = [],
-        functionsCoverage: FunctionsCoverage = .null
+        functionsCoverage: FunctionsCoverage = .null,
+        testsFailedWithCoverageOn: FailedTestLine.FailedTests? = nil
     ) {
         self.percent = percent
         self.filesWithoutCoverage = filesWithoutCoverage
         self.functionsCoverage = functionsCoverage
+        self.testsFailedWithCoverageOn = testsFailedWithCoverageOn
     }
 
     func coverage(ofFile filePath: FilePath) -> FileCoverage {
@@ -26,6 +31,7 @@ extension Coverage: Equatable {
             lhs.percent == rhs.percent
                 && lhs.filesWithoutCoverage == rhs.filesWithoutCoverage
                 && lhs.functionsCoverage == rhs.functionsCoverage
+                && lhs.testsFailedWithCoverageOn == rhs.testsFailedWithCoverageOn
         )
             || lhs === rhs
     }

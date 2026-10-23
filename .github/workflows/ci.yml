@@ -111,3 +111,83 @@ jobs:
             ${{ runner.temp }}/snapshot-failures/
           if-no-files-found: ignore
           retention-days: 14
+
+  # Non-blocking (continue-on-error): SwiftMutator doesn't compile on Linux yet,
+  # and some unit tests assume macOS, so this job is expected to fail for now. It
+  # shows how far a Linux build gets without failing the workflow. #130 tracks
+  # making it pass; then drop continue-on-error so it blocks like the macOS job.
+  linux-unit-tests:
+    name: Unit tests (Linux, Swift 6.4, non-blocking)
+    runs-on: ubuntu-latest
+    # The official image: Swift 6.4 on Ubuntu 24.04.
+    container: swift:6.4-noble
+    timeout-minutes: 45
+    continue-on-error: true
+    env:
+      # A fixed path inside the container, which every step, the upload too, reads.
+      LOGS: /tmp/ci-logs
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Show toolchain
+        run: |
+          . /etc/os-release
+          echo "$PRETTY_NAME"
+          swift --version
+          echo "swift: $(command -v swift) -> $(readlink -f "$(command -v swift)")"
+          echo "llvm-cov: $(command -v llvm-cov || echo 'not on PATH')"
+          echo "Toolchain: $PRETTY_NAME; $(swift --version 2>&1 | head -n 1)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Resolve dependencies from Package.resolved
+        run: swift package resolve --force-resolved-versions
+
+      - name: Build package and tests
+        timeout-minutes: 20
+        run: |
+          mkdir -p "$LOGS"
+          swift build --build-tests --force-resolved-versions 2>&1 | tee "$LOGS/build.log"
+
+      - name: Run unit tests (muterTests)
+        timeout-minutes: 20
+        env:
+          SNAPSHOT_TESTING_RECORD: never
+          SNAPSHOT_ARTIFACTS: ${{ env.LOGS }}/snapshot-failures
+        run: swift test --force-resolved-versions --filter '^muterTests\.' 2>&1 | tee "$LOGS/test.log"
+
+      - name: Check that the unit suite ran
+        run: |
+          # swift test exits 0, with only a warning, when --filter matches nothing.
+          executed=$(grep -oE 'Executed [0-9]+ tests?' "$LOGS/test.log" | awk '{print $2}' | sort -n | tail -n 1 || true)
+          echo "XCTest tests executed: ${executed:-0}" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${executed:-0}" -eq 0 ]; then
+            echo "::error::No unit tests ran. Check that --filter '^muterTests\.' still matches the test target."
+            exit 1
+          fi
+
+      - name: Summarize failures
+        if: failure()
+        run: |
+          {
+            echo '### Errors and failed tests (Linux, non-blocking)'
+            echo '```text'
+            grep -h -E 'error:|Test Case .* failed|with [1-9][0-9]* failures?' \
+              "$LOGS/build.log" "$LOGS/test.log" 2>/dev/null \
+              | sed "s|$GITHUB_WORKSPACE/||g" | head -n 200 || true
+            echo '```'
+            echo "Full logs and any mismatched snapshots are attached to this run as an artifact."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload logs and mismatched snapshots
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: unit-test-failure-linux-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ env.LOGS }}/build.log
+            ${{ env.LOGS }}/test.log
+            ${{ env.LOGS }}/snapshot-failures/
+          if-no-files-found: ignore
+          retention-days: 14
