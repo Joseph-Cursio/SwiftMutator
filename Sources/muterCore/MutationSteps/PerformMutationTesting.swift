@@ -552,7 +552,7 @@ private extension PerformMutationTesting {
         try Task.checkCancellation()
         // A failed one's log is what says why the run stopped, and the abort message is all that shows it otherwise.
         for run in runs.sorted(by: { $0.worker < $1.worker }) {
-            keepLog(run.testLog, named: "baseline run worker \(run.worker).log", state: state)
+            fileManager.keepLog(run.testLog, named: "baseline run worker \(run.worker).log", state: state)
         }
 
         // The lowest-numbered failure, so the same worker is named whichever build finished first.
@@ -588,7 +588,7 @@ private extension PerformMutationTesting {
         // Stopping the run kills this run too, which then fails, but that says nothing about the project's tests.
         try Task.checkCancellation()
         let seconds = outcome == .passed ? seconds(since: start) : nil
-        keepLog(testLog, named: "timed test run.log", state: state)
+        fileManager.keepLog(testLog, named: "timed test run.log", state: state)
         return seconds
     }
 
@@ -676,14 +676,6 @@ private extension PerformMutationTesting {
     /// would: the first to finish would remove the file the other still has to read.
     func logFileName(forJobAt index: Int, _ job: MutantJob) -> String {
         "\(index)_\(job.fileName)_\(job.schema.mutationOperatorId.rawValue)_\(job.schema.position).log"
-    }
-
-    /// Keeps `log` in the run's log folder as `name`, as `MutationTestObserver` keeps the baseline's and each mutant's,
-    /// since the file its run wrote goes once read back. Without a log folder nothing is kept.
-    func keepLog(_ log: String, named name: String, state: AnyMutationTestState) {
-        guard !state.loggingDirectory.isEmpty else { return }
-        let path = (state.loggingDirectory as NSString).appendingPathComponent(name)
-        _ = fileManager.createFile(atPath: path, contents: Data(log.utf8), attributes: nil)
     }
 
     /// Where the test run whose log is `name` writes its output while it runs: `testOutputFolderName` in the run's

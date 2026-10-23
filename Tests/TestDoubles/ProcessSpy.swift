@@ -52,10 +52,13 @@ final class ProcessSpy: MuterProcess {
 
     /// Each command `runCommand` was asked for, its executable first, in order.
     private(set) var commandsRun: [[String]] = []
+    /// The time limit of each command in `commandsRun`, in the same order; nil for none.
+    private(set) var timeLimits: [TimeInterval?] = []
     /// What `runCommand` gives for a command, its executable first: nil, as for one that can't be started, unless set.
     var commandResult: ([String]) -> CommandResult? = { _ in nil }
-    func runCommand(url: String, arguments args: [String]) -> CommandResult? {
+    func runCommand(url: String, arguments args: [String], timeLimit: TimeInterval?) -> CommandResult? {
         commandsRun.append([url] + args)
+        timeLimits.append(timeLimit)
         return commandResult([url] + args)
     }
 

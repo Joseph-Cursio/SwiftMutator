@@ -13,6 +13,7 @@ class FileManagerSpy: Spy, FileSystemManager {
     private(set) var contentsAtPathSorted: [String] = []
     private(set) var contentsAtPathSortedOrder: [ComparisonResult] = []
     private(set) var contentsOfDirectoryAtPath: [String] = []
+    private(set) var fileExistsAtPath: [String] = []
     private(set) var contents: Data?
 
     private var fileContentsQueue: Queue<Data> = .init()
@@ -117,6 +118,7 @@ class FileManagerSpy: Spy, FileSystemManager {
         atPath path: String
     ) -> Bool {
         methodCalls.append(#function)
+        fileExistsAtPath.append(path)
         return fileExistsToReturn.isEmpty ? false : fileExistsToReturn.removeFirst()
     }
 

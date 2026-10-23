@@ -10,23 +10,75 @@ final class SwiftCoverage: BuildSystemCoverage {
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
 
+    /// What the coverage run printed, standard output then standard error, once `run` has run it.
+    private(set) var coverageRunOutput: String?
+
+    /// The platform whose build folder and LLVM tools to expect: the host's, unless a test asks for another.
+    private let platform: Platform
+
+    /// The platforms SwiftMutator builds for, which lay out a build folder and find their LLVM tools differently.
+    enum Platform {
+        case darwin
+        case linux
+
+        /// The platform SwiftMutator was built for, and so runs on.
+        static var host: Platform {
+            #if os(Linux)
+            .linux
+            #else
+            .darwin
+            #endif
+        }
+    }
+
+    init(platform: Platform = .host) {
+        self.platform = platform
+    }
+
     func run(
         with configuration: MuterConfiguration
     ) -> Result<Coverage, CoverageError> {
         let executable = configuration.testCommandExecutable
-        guard let testRun = process().runCommand(url: executable, arguments: configuration.enableCoverageArguments)
-        else {
+        // Only the coverage run builds and runs tests, so only it has a time limit.
+        guard let testRun = process().runCommand(
+            url: executable,
+            arguments: configuration.enableCoverageArguments,
+            timeLimit: configuration.buildTimeout
+        ) else {
             return .failure(.couldNotRun(executable))
         }
-        // SwiftPM writes no profile data when a test fails, and merging what the test processes left would read the
-        // code of any that crashed as never run.
-        guard testRun.succeeded else {
-            return .failure(.testsFailed(status: testRun.status, bySignal: testRun.endedBySignal))
+        let log = Self.log(of: testRun)
+        coverageRunOutput = log
+        // Before anything else: killed at its limit, it would read as ended by a signal, or as failed tests whose
+        // profiles could be merged.
+        if testRun.timedOut, let timeLimit = configuration.buildTimeout {
+            return .failure(.timedOut(after: timeLimit))
         }
+        guard testRun.succeeded else {
+            return Self.failedTestsToMerge(in: testRun, log: log)
+                .flatMap { coverage(configuration, failedTests: $0) }
+        }
+
+        return coverage(configuration, failedTests: nil)
+    }
+
+    /// The coverage of the build the coverage run used, exported from every test bundle in it. After a run in which
+    /// `failedTests` failed, SwiftPM merged no profile, so the profiles the test processes left are merged first.
+    private func coverage(
+        _ configuration: MuterConfiguration,
+        failedTests: FailedTestLine.FailedTests?
+    ) -> Result<Coverage, CoverageError> {
         guard let binPath = buildDirectory(configuration) else {
             return .failure(.noBuildDirectory)
         }
         let profile = binPath + "/codecov/default.profdata"
+        if failedTests != nil, let error = mergeProfiles(
+            in: binPath + "/codecov",
+            into: profile,
+            testCommand: configuration.testCommandExecutable
+        ) {
+            return .failure(error)
+        }
         guard fileManager.fileExists(atPath: profile) else {
             return .failure(.noProfileData(atPath: profile))
         }
@@ -36,13 +88,11 @@ final class SwiftCoverage: BuildSystemCoverage {
         }
 
         let objects = [first] + bundles.dropFirst().flatMap { ["-object", $0] }
-        let arguments = ["llvm-cov", "export"] + objects + ["-instr-profile", profile]
-        #if os(Linux)
-        let llvmCov = "/usr/bin/env"
-        #else
-        let llvmCov = "/usr/bin/xcrun"
-        #endif
-        guard let export = process().runCommand(url: llvmCov, arguments: arguments) else {
+        let llvmCov = llvmTool("llvm-cov", nextTo: configuration.testCommandExecutable)
+        guard let export = process().runCommand(
+            url: llvmCov.executable,
+            arguments: llvmCov.arguments + ["export"] + objects + ["-instr-profile", profile]
+        ) else {
             return .failure(.couldNotRun("llvm-cov"))
         }
         guard export.succeeded else {
@@ -52,8 +102,57 @@ final class SwiftCoverage: BuildSystemCoverage {
         return Self.coverage(
             fromExport: Data(export.output.utf8),
             projectRoot: fileManager.currentDirectoryPath,
-            coverageThreshold: configuration.coverageThreshold
+            coverageThreshold: configuration.coverageThreshold,
+            testsFailedWithCoverageOn: failedTests
         )
+    }
+
+    /// The tests that failed in a coverage run that failed, when the profiles its test processes left can stand in for
+    /// the one SwiftPM merges only when every test passes. Not when a test process crashed, or stopped before its tests
+    /// finished: it left no profile, so the code it ran would read as never run. And only when a failed test is named,
+    /// which shows the tests started, so SwiftPM had emptied `codecov` first; a build that fails leaves an earlier
+    /// run's profiles there.
+    private static func failedTestsToMerge(
+        in testRun: CommandResult,
+        log: String
+    ) -> Result<FailedTestLine.FailedTests, CoverageError> {
+        guard !testRun.endedBySignal else {
+            return .failure(.endedBySignal(testRun.status))
+        }
+        let failedTests = FailedTestLine.failedTests(inLog: log)
+        if let crashed = crashedTestProcess(inErrors: testRun.errors) {
+            return .failure(.testProcessCrashed(crashed, failedTests: failedTests))
+        }
+        if let unfinished = unfinishedTestProcess(inLog: log) {
+            return .failure(.testProcessUnfinished(unfinished, failedTests: failedTests))
+        }
+        guard failedTests.count > 0 else {
+            return .failure(.runFailed(status: testRun.status, error: firstError(in: log)))
+        }
+
+        return .success(failedTests)
+    }
+
+    /// Merges the profiles the test processes left in `codecov`, one each, into `profile`, as SwiftPM does when every
+    /// test passes. Swift Testing's are named `Swift Testing<signature>.<pid>.profraw`, with a space. `testCommand`,
+    /// the test command's executable, says where llvm-profdata is.
+    private func mergeProfiles(in codecov: String, into profile: String, testCommand: String) -> CoverageError? {
+        let profiles = ((try? fileManager.contentsOfDirectory(atPath: codecov)) ?? [])
+            .filter { $0.hasSuffix(".profraw") }
+            .sorted()
+            .map { "\(codecov)/\($0)" }
+        guard !profiles.isEmpty else {
+            return .noProfileData(atPath: codecov)
+        }
+        let llvmProfdata = llvmTool("llvm-profdata", nextTo: testCommand)
+        guard let merge = process().runCommand(
+            url: llvmProfdata.executable,
+            arguments: llvmProfdata.arguments + ["merge", "-sparse"] + profiles + ["-o", profile]
+        ) else {
+            return .couldNotRun("llvm-profdata")
+        }
+
+        return merge.succeeded ? nil : .mergeFailed(Self.firstLine(of: merge.errors))
     }
 
     /// The build the coverage run used, from `swift test <arguments> --show-codecov-path`, which follows the run's own
@@ -75,8 +174,7 @@ final class SwiftCoverage: BuildSystemCoverage {
             .path
     }
 
-    /// The executable of each test bundle in `binPath`, in name order. On macOS a bundle holds its executable; on Linux
-    /// the bundle is the executable.
+    /// The file llvm-cov reads for each test bundle in `binPath`, in name order.
     ///
     /// Swift Build names a bundle after its test target. One left by a test target the package no longer has maps the
     /// paths it was built at. Copied with the project, those are the project's own, which coverage leaves out. But a
@@ -84,19 +182,34 @@ final class SwiftCoverage: BuildSystemCoverage {
     /// paths, and its functions would read as never run at lines that now hold other code. So when any bundle is named
     /// after one of `testTargets`, only those are kept. The native build system names its one bundle after the package.
     private func testBundles(in binPath: String, testTargets: Set<String>?) -> [String] {
-        let bundles = ((try? fileManager.contentsOfDirectory(atPath: binPath)) ?? [])
-            .filter { $0.hasSuffix(".xctest") }
-            .map { String($0.dropLast(".xctest".count)) }
-        let ofTestTargets = bundles.filter { testTargets?.contains($0) ?? false }
+        let bundles = testBundles(among: (try? fileManager.contentsOfDirectory(atPath: binPath)) ?? [])
+        let ofTestTargets = bundles.filter { testTargets?.contains($0.name) ?? false }
         return (ofTestTargets.isEmpty ? bundles : ofTestTargets)
-            .sorted()
-            .map { name in
-                #if os(Linux)
-                return "\(binPath)/\(name).xctest"
-                #else
-                return "\(binPath)/\(name).xctest/Contents/MacOS/\(name)"
-                #endif
+            .sorted { $0.name < $1.name }
+            .map { "\(binPath)/\($0.file)" }
+    }
+
+    /// Each test bundle among `files`, those in a build folder, by its name and the file in the folder that llvm-cov
+    /// reads. On macOS that is the executable in the bundle. On Linux, the native build system's bundle is itself the
+    /// executable, and Swift Build makes for each test target a `<name>-test-runner` that loads the tests from the
+    /// `<name>.so` next to it. Any other `.so` is a library.
+    private func testBundles(among files: [String]) -> [(name: String, file: String)] {
+        switch platform {
+        case .darwin:
+            return files.filter { $0.hasSuffix(".xctest") }.map { bundle in
+                let name = String(bundle.dropLast(".xctest".count))
+                return (name, "\(bundle)/Contents/MacOS/\(name)")
             }
+        case .linux:
+            let inFolder = Set(files)
+            return files.compactMap { file in
+                if file.hasSuffix(".xctest") {
+                    return (String(file.dropLast(".xctest".count)), file)
+                }
+                let name = String(file.dropLast(".so".count))
+                return file.hasSuffix(".so") && inFolder.contains(name + "-test-runner") ? (name, file) : nil
+            }
+        }
     }
 
     /// The package's test targets, from `swift package describe`, or nil if it can't say.
@@ -129,7 +242,8 @@ final class SwiftCoverage: BuildSystemCoverage {
     static func coverage(
         fromExport export: Data,
         projectRoot: String,
-        coverageThreshold: Double
+        coverageThreshold: Double,
+        testsFailedWithCoverageOn: FailedTestLine.FailedTests? = nil
     ) -> Result<Coverage, CoverageError> {
         guard let coverage = try? JSONDecoder().decode(LLVMCoverage.self, from: export),
               let report = coverage.data.first
@@ -160,7 +274,8 @@ final class SwiftCoverage: BuildSystemCoverage {
             Coverage(
                 percent: lines > 0 ? coveredLines * 100 / lines : 0,
                 filesWithoutCoverage: filesWithoutCoverage,
-                functionsCoverage: FunctionsCoverage(from: coverage)
+                functionsCoverage: FunctionsCoverage(from: coverage),
+                testsFailedWithCoverageOn: testsFailedWithCoverageOn
             )
         )
     }
@@ -174,5 +289,123 @@ final class SwiftCoverage: BuildSystemCoverage {
 
     private static func firstLine(of text: String) -> String {
         text.split(separator: "\n").first.map { String($0).trimmed } ?? ""
+    }
+
+    /// How to run the LLVM tool `name`, such as `llvm-cov`: the executable, and the arguments before the tool's own.
+    /// On macOS, xcrun runs the selected Xcode's. On Linux, it is the one next to `testCommand`, the test command's
+    /// executable, with its links resolved, as `/usr/bin/swift` is often a link into the toolchain. SwiftPM takes the
+    /// one next to `swiftc`, and one found elsewhere on `PATH`, such as a distribution's, may not read the toolchain's
+    /// profiles. Without one there, it is whichever comes first on `PATH`.
+    private func llvmTool(_ name: String, nextTo testCommand: String) -> (executable: String, arguments: [String]) {
+        switch platform {
+        case .darwin:
+            return ("/usr/bin/xcrun", [name])
+        case .linux:
+            let inToolchain = URL(fileURLWithPath: testCommand.canonicalPath)
+                .deletingLastPathComponent()
+                .appendingPathComponent(name)
+                .path
+            return fileManager.fileExists(atPath: inToolchain) ? (inToolchain, []) : ("/usr/bin/env", [name])
+        }
+    }
+
+    /// The test process that crashed in a run whose standard error is `errors`, by its test bundle and signal, as
+    /// SwiftPM's line for it gives them: `error: Process '…/xctest …/CoreTests.xctest' exited with unexpected signal
+    /// code 5`, or for Swift Testing's helper, `'…/swiftpm-testing-helper --test-bundle-path
+    /// …/CoreTests.xctest/Contents/MacOS/CoreTests …'`. On Linux, Swift Build's process is the test target's runner,
+    /// `'…/CoreTests-test-runner …'`, which names it instead. Any line that mentions a signal code counts, however
+    /// else it's worded, so a crash is never taken for a failed test. nil when none crashed.
+    private static func crashedTestProcess(inErrors errors: String) -> String? {
+        guard let line = errors.split(whereSeparator: \.isNewline)
+            .first(where: { $0.lowercased().contains("signal code") })
+            .map({ FailedTestLine.withoutColours($0).trimmed })
+        else {
+            return nil
+        }
+        let bundle = line.firstCaptureOf(#"([^/\s']+\.xctest)(?=[/'\s]|$)"#)
+            ?? line.firstCaptureOf(#"([^/\s']+-test-runner)(?=['\s]|$)"#)
+        let signal = line.firstCaptureOf(#"signal code ([0-9]+)"#, options: .caseInsensitive).map { "signal \($0)" }
+        let named = [bundle, signal].compactMap { $0 }
+        return named.isEmpty ? String(line.prefix(FailedTestLine.lineLengthLimit)) : named.joined(separator: ", ")
+    }
+
+    /// The test process that stopped before its tests finished, in a run whose output is `log`. SwiftPM prints no line
+    /// for one ended by SIGKILL, SIGTERM or SIGINT, as the system's memory killer ends one, and it left no profile.
+    /// Its XCTest suites, or its Swift Testing run, started and never ended. Named by its test bundle and the test it
+    /// was running, as XCTest's lines give them, or else by its test library. nil when every one finished.
+    private static func unfinishedTestProcess(inLog log: String) -> String? {
+        var suites = StartedAndEnded()
+        var testCases = StartedAndEnded()
+        var swiftTestingRuns = StartedAndEnded()
+        // Each check rules out almost every line before any regex runs.
+        for line in log.split(whereSeparator: \.isNewline).map(FailedTestLine.withoutColours) {
+            if line.hasPrefix("Test Suite '") {
+                suites.read(
+                    line,
+                    started: #"^Test Suite '([^']*)' started at "#,
+                    ended: #"^Test Suite '([^']*)' (?:passed|failed) at "#
+                )
+            } else if line.hasPrefix("Test Case '") {
+                // macOS's line says `started.`, Linux's `started at` and the time.
+                testCases.read(
+                    line,
+                    started: #"^Test Case '([^']*)' started"#,
+                    ended: #"^Test Case '([^']*)' (?:passed|failed|skipped) \("#
+                )
+            } else if line.contains("Test run ") {
+                // After Swift Testing's symbol: ◇ as a run starts, ✔ or ✘ as it ends, or SF Symbols' own.
+                swiftTestingRuns.read(
+                    line,
+                    started: #"^\S+ +(Test run) started\."#,
+                    ended: #"^\S+ +(Test run) with .* (?:passed|failed) after "#
+                )
+            }
+        }
+        if !suites.unfinished.isEmpty || !testCases.unfinished.isEmpty {
+            let bundle = suites.unfinished.first { $0.hasSuffix(".xctest") }
+            let test = testCases.unfinished.first.map { "during \($0)" }
+            return [bundle ?? "XCTest", test].compactMap { $0 }.joined(separator: ", ")
+        }
+        return swiftTestingRuns.unfinished.isEmpty ? nil : "Swift Testing"
+    }
+
+    /// The suites, tests or runs a run's output shows starting, by name, and how many more times each started than it
+    /// ended: several test processes print the same suite names, such as `All tests`.
+    private struct StartedAndEnded {
+        private var running: [String: Int] = [:]
+        private var order: [String] = []
+
+        /// Those that started more times than they ended, in the order they first started.
+        var unfinished: [String] {
+            order.filter { running[$0, default: 0] > 0 }
+        }
+
+        /// Counts `line` as a start or an end when `started` or `ended`, each of which captures a name, matches it.
+        mutating func read(_ line: String, started: String, ended: String) {
+            if let name = line.firstCaptureOf(started) {
+                if running[name] == nil { order.append(name) }
+                running[name, default: 0] += 1
+            } else if let name = line.firstCaptureOf(ended) {
+                running[name, default: 0] -= 1
+            }
+        }
+    }
+
+    /// The first line of `log` that says `error:`, without colour codes. SwiftPM prints build errors to standard error
+    /// under either build system, but a line in standard output counts too.
+    private static func firstError(in log: String) -> String? {
+        log.split(whereSeparator: \.isNewline)
+            .lazy
+            .map { FailedTestLine.withoutColours($0) }
+            .first { $0.contains("error:") }
+            .map { String($0.trimmed.prefix(FailedTestLine.lineLengthLimit)) }
+    }
+
+    /// What a command printed: its standard output, then its standard error from a new line.
+    private static func log(of result: CommandResult) -> String {
+        guard !result.output.isEmpty, !result.output.hasSuffix("\n"), !result.errors.isEmpty else {
+            return result.output + result.errors
+        }
+        return result.output + "\n" + result.errors
     }
 }

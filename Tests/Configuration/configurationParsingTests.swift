@@ -65,6 +65,23 @@ final class ConfigurationParsingTests: MuterTestCase {
         XCTAssertEqual(configuration.testSuiteTimeout, 30)
     }
 
+    // In seconds, written as an Int or a Double, like mutationTestTimeout. Unset, nothing has a limit.
+    func test_parseBuildTimeout() throws {
+        let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
+        let whole = try MuterConfiguration(from: Data("\(swiftTest)\nbuildTimeout: 900".utf8))
+        let fraction = try MuterConfiguration(from: Data("\(swiftTest)\nbuildTimeout: 1.5".utf8))
+        let json = try MuterConfiguration(
+            from: Data(#"{"executable": "/usr/bin/swift", "arguments": ["test"], "buildTimeout": 600}"#.utf8)
+        )
+        let unset = try MuterConfiguration(from: Data(swiftTest.utf8))
+
+        XCTAssertEqual(whole.buildTimeout, 900)
+        XCTAssertEqual(fraction.buildTimeout, 1.5)
+        XCTAssertEqual(json.buildTimeout, 600)
+        XCTAssertNil(unset.buildTimeout)
+        XCTAssertEqual(try MuterConfiguration(from: whole.asData), whole)
+    }
+
     func test_workerCount_isOneWithoutTheKeyOrOutsideSwiftPM() throws {
         let swift = try MuterConfiguration(from: Data("executable: /usr/bin/swift\narguments: [test]".utf8))
         let xcode = try MuterConfiguration(

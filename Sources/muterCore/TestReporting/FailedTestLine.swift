@@ -93,6 +93,8 @@ extension FailedTestLine {
 
     /// How many failed tests a mutant's results line names.
     static let killedByLimit = 20
+    /// How many failed tests a message about the coverage run names, before it says how many more failed.
+    static let coverageMessageLimit = 5
     static let nameLengthLimit = 200
     static let lineLengthLimit = 500
 
@@ -228,5 +230,20 @@ extension FailedTestLine {
 
     private static func capped(_ name: some StringProtocol) -> String {
         String(name.prefix(nameLengthLimit))
+    }
+}
+
+extension FailedTestLine.FailedTest {
+    /// Its name, then its location if it has one: `sum() at SumTests.swift:12:5`.
+    var nameAndLocation: String {
+        location.map { "\(name) at \($0)" } ?? name
+    }
+}
+
+extension FailedTestLine.FailedTests {
+    /// The first `limit` tests, each by its name and location, and how many more failed.
+    func named(upTo limit: Int) -> (names: [String], more: Int) {
+        let names = tests.prefix(limit).map(\.nameAndLocation)
+        return (names, count - names.count)
     }
 }

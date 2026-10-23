@@ -15,6 +15,10 @@ struct MuterConfiguration: Equatable, Codable {
     // Rebuilding with `init` instead silently resets any field the call leaves out, as every parameter
     // has a default.
     private(set) var testSuiteTimeout: Double?
+    /// Seconds before the coverage run, whose `swift test` or `xcodebuild` also builds the project, is stopped
+    /// (`buildTimeout:`); nil, the default, sets no limit. For now it limits only the coverage run, but it is meant
+    /// for every step that builds, such as the baseline.
+    let buildTimeout: Double?
     /// How many mutants to test at once (`mutationTestWorkers:`). Each worker runs the test command in
     /// its own clone of the mutated project, because `swift test` locks the package's build directory.
     /// Each clone is built once before testing, so the paths compiled into its tests point into it.
@@ -52,6 +56,7 @@ struct MuterConfiguration: Equatable, Codable {
         case excludeCallList = "excludeCalls"
         case coverageThreshold
         case testSuiteTimeout = "mutationTestTimeout"
+        case buildTimeout
         case explicitBuildSystem = "buildSystem"
         case mutationTestWorkers
         case stopAtFirstFailure
@@ -66,7 +71,8 @@ struct MuterConfiguration: Equatable, Codable {
         testSuiteTimeOut timeout: Double? = nil,
         buildSystem: BuildSystem? = nil,
         mutationTestWorkers workers: Int? = nil,
-        stopAtFirstFailure: Bool? = nil
+        stopAtFirstFailure: Bool? = nil,
+        buildTimeout: Double? = nil
     ) {
         testCommandExecutable = executable
         testCommandArguments = arguments
@@ -77,6 +83,7 @@ struct MuterConfiguration: Equatable, Codable {
         explicitBuildSystem = buildSystem
         mutationTestWorkers = workers
         self.stopAtFirstFailure = stopAtFirstFailure
+        self.buildTimeout = buildTimeout
     }
 
     init(from decoder: Decoder) throws {
@@ -88,13 +95,22 @@ struct MuterConfiguration: Equatable, Codable {
         excludeFileList = container.decode([String].self, default: [], forKey: .excludeFileList)
         excludeCallList = container.decode([String].self, default: [], forKey: .excludeCallList)
         coverageThreshold = container.decode(Double.self, default: 0, forKey: .coverageThreshold)
-        testSuiteTimeout = try container.decodeIfPresent(Double.self, forKey: .testSuiteTimeout)
-            ?? (try container.decodeIfPresent(Int.self, forKey: .testSuiteTimeout)).flatMap(Double.init)
+        testSuiteTimeout = try Self.seconds(forKey: .testSuiteTimeout, in: container)
+        buildTimeout = try Self.seconds(forKey: .buildTimeout, in: container)
         explicitBuildSystem = (try container.decodeIfPresent(String.self, forKey: .explicitBuildSystem))
             .map(BuildSystem.init(rawValue:))
         mutationTestWorkers = try container.decodeIfPresent(Int.self, forKey: .mutationTestWorkers)
         // Throws on a value that isn't a Boolean, so a typo is a configuration error rather than "unset".
         stopAtFirstFailure = try container.decodeIfPresent(Bool.self, forKey: .stopAtFirstFailure)
+    }
+
+    /// A number of seconds, written as an Int or a Double, or nil if `key` isn't set.
+    private static func seconds(
+        forKey key: CodingKeys,
+        in container: KeyedDecodingContainer<CodingKeys>
+    ) throws -> Double? {
+        try container.decodeIfPresent(Double.self, forKey: key)
+            ?? (try container.decodeIfPresent(Int.self, forKey: key)).flatMap(Double.init)
     }
 
     /// The number of mutants to test at once: `mutationTestWorkers` for a SwiftPM project, at least 1;
