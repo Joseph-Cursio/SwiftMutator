@@ -157,7 +157,13 @@ private extension PerformMutationTesting {
             )
             notificationCenter.post(
                 name: .resumePlanned,
-                object: ResumeSummary(resume, plan, waived: state.resumeWaived)
+                object: ResumeSummary(
+                    resume,
+                    plan,
+                    waived: state.resumeWaived,
+                    coverage: state.projectCoverage,
+                    in: state.mutatedProjectDirectoryURL
+                )
             )
             // With every result kept there is nothing to test, so no baseline and no clones: the session is a header,
             // the retired line of mutants no longer discovered, if any, and the end line `run(with:)` writes.

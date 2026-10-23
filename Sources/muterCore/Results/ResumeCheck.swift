@@ -2,7 +2,7 @@ import Foundation
 
 /// How the last session a results file recorded differs from the run that would resume it: what refuses the resume,
 /// what only `--force-resume` lets through, and what changed that no result depends on. The project's files are
-/// compared apart, by `ProjectTree.changes(since:)`.
+/// compared apart, by `ProjectTree.changes(since:)`, and coverage once it is gathered, by `coverageChange`.
 enum ResumeCheck {
     /// Configuration keys no outcome depends on: a change is only said.
     static let keysThatDontAffectOutcomes: Set = [
@@ -37,6 +37,53 @@ enum ResumeCheck {
         var forced: [String] = []
         /// A sentence for each change no result depends on.
         var notices: [String] = []
+    }
+
+    /// How the coverage a resumed run gathered differs from the coverage the last session recorded. Discovery leaves
+    /// out the files and the code no test runs, and without coverage leaves out nothing, so a change is the likeliest
+    /// reason the two sessions discover different mutants. Never refuses: a kept result doesn't depend on coverage, and
+    /// no flag could bring back the last session's.
+    enum CoverageChange: Equatable, CustomStringConvertible {
+        /// Coverage couldn't be gathered in the last session, which then discovered every mutant, and is now.
+        case gatheredOnlyNow
+        /// Coverage was gathered in the last session, and couldn't be now, so this run discovers every mutant.
+        case gatheredOnlyThen
+        /// The files without coverage, compared as sets: whatever the percent did.
+        case filesWithoutCoverageChanged
+        /// Only the percent.
+        case percentChanged(was: Int, isNow: Int)
+
+        /// Whether one of the two sessions has coverage and the other doesn't.
+        var isGatheredInOneSessionOnly: Bool {
+            self == .gatheredOnlyNow || self == .gatheredOnlyThen
+        }
+
+        /// Whether the change can leave out mutants the last session discovered: any but coverage this run couldn't
+        /// gather, without which discovery leaves out nothing.
+        var canLeaveOutMutants: Bool {
+            self != .gatheredOnlyThen
+        }
+
+        /// Whether the change can bring in mutants the last session left out: any but coverage the last session
+        /// couldn't gather, without which it left out nothing.
+        var canBringInMutants: Bool {
+            self != .gatheredOnlyNow
+        }
+
+        /// "coverage couldn't be gathered then, and is now": a lowercase clause, to follow a colon or a conjunction, or
+        /// to start a sentence once capitalized.
+        var description: String {
+            switch self {
+            case .gatheredOnlyNow:
+                return "coverage couldn't be gathered then, and is now"
+            case .gatheredOnlyThen:
+                return "coverage was gathered then, and couldn't be now"
+            case .filesWithoutCoverageChanged:
+                return "the files without coverage changed"
+            case let .percentChanged(was, isNow):
+                return "coverage was \(was)% and is \(isNow)% now"
+            }
+        }
     }
 
     /// Compared: every configuration key but `keysThatDontAffectOutcomes`; the operators, `filesToMutate` (both as
@@ -86,6 +133,36 @@ enum ResumeCheck {
         let isNow = values(of: current)
         return Set(was.keys).union(isNow.keys).sorted().compactMap { name in
             was[name] == isNow[name] ? nil : Difference(name: name, was: was[name], isNow: isNow[name])
+        }
+    }
+
+    /// How coverage changed from the last session's `recorded` summary, gathered in the project copy at
+    /// `recordedCopy`, to this run's `current` one, gathered in the copy at `currentCopy`; nil if it didn't. nil is a
+    /// session without coverage: it couldn't be gathered, or `skipCoverage`, which `compare` refuses to change, skipped
+    /// it in both. xcodebuild names the files without coverage by their absolute path in the copy, so they are compared
+    /// by their path in it (`RepoRelativePath`), as a project that moved still has the same ones.
+    static func coverageChange(
+        from recorded: CoverageSummary?,
+        in recordedCopy: URL,
+        to current: CoverageSummary?,
+        in currentCopy: URL
+    ) -> CoverageChange? {
+        switch (recorded, current) {
+        case (nil, nil):
+            return nil
+        case (nil, _?):
+            return .gatheredOnlyNow
+        case (_?, nil):
+            return .gatheredOnlyThen
+        case let (recorded?, current?):
+            let recordedFiles = Set(recorded.filesWithoutCoverage.map { RepoRelativePath.of($0, under: recordedCopy) })
+            let currentFiles = Set(current.filesWithoutCoverage.map { RepoRelativePath.of($0, under: currentCopy) })
+            if recordedFiles != currentFiles {
+                return .filesWithoutCoverageChanged
+            }
+            return recorded.percent == current.percent
+                ? nil
+                : .percentChanged(was: recorded.percent, isNow: current.percent)
         }
     }
 

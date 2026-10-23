@@ -385,6 +385,16 @@ final class ResultsRecordTests: XCTestCase {
         XCTAssertTrue(header.failedTestLinesAreReliable)
     }
 
+    // A header records it, and a resume compares it with the last header's. A run without coverage has none.
+    func test_aCoverageSummary_keepsThePercentAndTheFilesWithoutCoverage_andIsNilWithoutCoverage() {
+        XCTAssertEqual(
+            CoverageSummary(.make(percent: 87, filesWithoutCoverage: ["/project_mutated/Sources/Untested.swift"])),
+            CoverageSummary(percent: 87, filesWithoutCoverage: ["/project_mutated/Sources/Untested.swift"])
+        )
+        XCTAssertEqual(CoverageSummary(.make(percent: 0)), CoverageSummary(percent: 0, filesWithoutCoverage: []))
+        XCTAssertNil(CoverageSummary(.null))
+    }
+
     // A format-1 reader would skip the resumed session's retired line, and report results it no longer stands by.
     func test_aResumedSessionsHeader_isInFormat2_andSaysWhatItReusedAndWhatWasLetThrough() {
         let state = MutationTestState(from: .make())

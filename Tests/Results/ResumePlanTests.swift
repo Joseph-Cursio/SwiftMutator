@@ -13,7 +13,7 @@ final class ResumePlanTests: XCTestCase {
 
         XCTAssertEqual(
             plan([sum], recorded: [kept]),
-            ResumePlan(reused: [0: kept], toRun: [], retestedBecause: [:], retired: [])
+            ResumePlan(reused: [0: kept], toRun: [], retestedBecause: [:], retired: [], noLongerDiscovered: 0)
         )
     }
 
@@ -172,8 +172,9 @@ final class ResumePlanTests: XCTestCase {
         XCTAssertEqual(plan.retestedBecause.values.reduce(0, +), plan.toRun.count)
     }
 
-    func test_retiresEveryRecordedKeyItDoesntKeep_includingOnesNoLongerDiscovered() {
-        // A key that was never recorded has nothing to retire.
+    func test_retiresEveryRecordedKeyItDoesntKeep_includingOnesNoLongerDiscovered_whichItCounts() {
+        // A key that was never recorded has nothing to retire. Only the keys no job has any more are counted: a build
+        // error is retired too, but tested again.
         let kept = key(line: 1)
         let buildError = key(line: 2)
         let neverTested = key(line: 3)
@@ -191,12 +192,13 @@ final class ResumePlanTests: XCTestCase {
         XCTAssertEqual(plan.reused, [0: records[0]])
         XCTAssertEqual(plan.toRun, [1, 2])
         XCTAssertEqual(plan.retired, [inADeletedFile, buildError, noLongerDiscovered])
+        XCTAssertEqual(plan.noLongerDiscovered, 2)
     }
 
     func test_everything_testsEveryJob_reusingAndRetiringNothing() {
         XCTAssertEqual(
             ResumePlan.everything(3),
-            ResumePlan(reused: [:], toRun: [0, 1, 2], retestedBecause: [:], retired: [])
+            ResumePlan(reused: [:], toRun: [0, 1, 2], retestedBecause: [:], retired: [], noLongerDiscovered: 0)
         )
         XCTAssertEqual(ResumePlan.everything(0).toRun, [])
     }
