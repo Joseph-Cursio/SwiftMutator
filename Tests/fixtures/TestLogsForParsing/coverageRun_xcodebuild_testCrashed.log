@@ -1,0 +1,54 @@
+Test Suite 'All tests' started at 2026-10-23 08:23:42.896.
+Test Suite 'All tests' passed at 2026-10-23 08:23:42.896.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Test sWorks() started.
+◇ Test sFails() started.
+✔ Test sWorks() passed after 0.001 seconds.
+✘ Test sFails() recorded an issue at STests.swift:10:5: Expectation failed: ProcessInfo.processInfo.environment["PROBE_FAIL"] == nil
+↳ ProcessInfo.processInfo.environment["PROBE_FAIL"] == nil → false
+↳   ProcessInfo.processInfo.environment["PROBE_FAIL"] → "1"
+↳     some → "1"
+✘ Test sFails() failed after 0.001 seconds with 1 issue.
+✘ Test run with 2 tests in 0 suites failed after 0.001 seconds with 1 issue.
+Test Suite 'All tests' started at 2026-10-23 08:23:43.884.
+Test Suite 'CTests.xctest' started at 2026-10-23 08:23:43.885.
+Test Suite 'CTests' started at 2026-10-23 08:23:43.885.
+Test Case '-[CTests.CTests test_c]' started.
+Test Case '-[CTests.CTests test_c]' passed (0.001 seconds).
+Test Case '-[CTests.CTests test_z_crash]' started.
+CTests/CTests.swift:12: Fatal error: crash under PROBE_CRASH
+2026-10-23 08:23:43.886144-0500 xctest[65456:8750290] CTests/CTests.swift:12: Fatal error: crash under PROBE_CRASH
+
+Restarting after unexpected exit, crash, or test timeout; summary will include totals from previous launches.
+
+Test Suite 'Selected tests' started at 2026-10-23 08:23:44.571.
+Test Suite 'CTests.xctest' started at 2026-10-23 08:23:44.572.
+Test Suite 'CTests' started at 2026-10-23 08:23:44.572.
+Test Suite 'CTests' passed at 2026-10-23 08:23:44.572.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'CTests.xctest' passed at 2026-10-23 08:23:44.572.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-10-23 08:23:44.572.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'All tests' started at 2026-10-23 08:23:45.342.
+Test Suite 'ATests.xctest' started at 2026-10-23 08:23:45.342.
+Test Suite 'ATests' started at 2026-10-23 08:23:45.342.
+Test Case '-[ATests.ATests test_a]' started.
+Test Case '-[ATests.ATests test_a]' passed (0.001 seconds).
+Test Case '-[ATests.ATests test_fails]' started.
+/project/Tests/ATests/ATests.swift:11: error: -[ATests.ATests test_fails] : XCTAssertNil failed: "1"
+Test Case '-[ATests.ATests test_fails]' failed (0.275 seconds).
+Test Suite 'ATests' failed at 2026-10-23 08:23:45.618.
+	 Executed 2 tests, with 1 failure (0 unexpected) in 0.276 (0.276) seconds
+Test Suite 'ATests.xctest' failed at 2026-10-23 08:23:45.618.
+	 Executed 2 tests, with 1 failure (0 unexpected) in 0.276 (0.276) seconds
+Test Suite 'All tests' failed at 2026-10-23 08:23:45.619.
+	 Executed 2 tests, with 1 failure (0 unexpected) in 0.276 (0.277) seconds
+
+Test session results, code coverage, and logs:
+	/DerivedData/Logs/Test/Test-XProbe-2026.10.23_08-23-36--0500.xcresult
+
+Testing started

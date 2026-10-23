@@ -28,8 +28,7 @@ extension BuildSystem {
 
 protocol BuildSystemCoverage: AnyObject {
     var process: ProcessFactory { get }
-    /// What the coverage run printed, once `run` has run it, for the run's log folder; nil if it didn't run, or if
-    /// nothing of it is kept.
+    /// What the coverage run printed, once `run` has run it, for the run's log folder; nil if it didn't run.
     var coverageRunOutput: String? { get }
 
     func run(
@@ -40,63 +39,6 @@ protocol BuildSystemCoverage: AnyObject {
 }
 
 extension BuildSystemCoverage {
-    /// xcodebuild's coverage run keeps none of its output.
-    var coverageRunOutput: String? { nil }
-
-    func runWithCoverageEnabled(using configuration: MuterConfiguration) -> String? {
-        let result: String? = process().runProcess(
-            url: configuration.testCommandExecutable,
-            arguments: configuration.enableCoverageArguments
-        )
-        .flatMap(\.nilIfEmpty)
-        .map(\.trimmed)
-
-        return result
-    }
-
-    func functionsCoverage(_ configuration: MuterConfiguration) -> FunctionsCoverage {
-        guard let buildDirectory = buildDirectory(configuration) else {
-            return .null
-        }
-
-        guard let xctestExecutable = xctestExecutable(at: buildDirectory) else {
-            return .null
-        }
-
-        guard let testBinary = testBinary(at: xctestExecutable) else {
-            return .null
-        }
-
-        guard let testProfile = testProfileData(at: buildDirectory) else {
-            return .null
-        }
-
-        guard let reportJson = llvmCovJsonReport(
-            withExecutableAt: testBinary,
-            coverageProfile: testProfile
-        )?.data(using: .utf8)
-        else {
-            return .null
-        }
-
-        guard let coverageData = try? JSONDecoder().decode(LLVMCoverage.self, from: reportJson) else {
-            return .null
-        }
-
-        return FunctionsCoverage(from: coverageData)
-    }
-
-    func xctestExecutable(at buildDirectory: String) -> String? {
-        process().find(atPath: buildDirectory, byName: "*.xctest").map(\.trimmed)
-    }
-
-    func testBinary(at path: String) -> String? {
-        let url = URL(fileURLWithPath: path)
-        let name = url.deletingPathExtension().lastPathComponent
-
-        return process().findExecutable(atPath: url.path, byName: name)
-    }
-
     /// The newest profile under `path`. Xcode keeps one per run destination, `ProfileData/<device>/Coverage.profdata`,
     /// and leaves the other destinations' in place. `find` lists them in no set order, and `llvm-cov` reads a stale one
     /// without failing: every function added since then counts as never run, so its mutants would be skipped.
@@ -113,38 +55,37 @@ extension BuildSystemCoverage {
             .flatMap { $0.components(separatedBy: "\n").first?.trimmed.nilIfEmpty }
     }
 
-    func llvmCovJsonReport(withExecutableAt executablePath: String, coverageProfile: String) -> String? {
-        #if os(Linux)
-        let url = process().which("llvm-cov")
-        let arguments = [
-            "export",
-            executablePath,
-            "-instr-profile",
-            coverageProfile,
-            "--ignore-filename-regex=.build|Tests",
-        ]
-        #else
-        let url = process().which("xcrun")
-        let arguments = [
-            "llvm-cov",
-            "export",
-            executablePath,
-            "-instr-profile",
-            coverageProfile,
-            "--ignore-filename-regex=.build|Tests",
-        ]
-        #endif
-        return process().runProcess(
-            url: url ?? "",
-            arguments: arguments
-        )
-        .flatMap(\.nilIfEmpty)
-        .map(\.trimmed)
+    /// llvm-cov's JSON export of `objects` with `profile`, from one call: the first object by name, then each other as
+    /// an `-object`, so the code of every binary is read, as each test bundle maps only the code linked into it. An
+    /// object with no coverage data, such as an app's stub executable, does no harm while another has some; one that
+    /// doesn't exist fails the export. No file is left out: coverage is looked up only for the project's own files.
+    /// `llvmCov` is how to run llvm-cov: the executable, and the arguments before llvm-cov's own. `architecture`, if
+    /// given, is the one whose code llvm-cov reads in every object, which it needs for a universal binary.
+    func llvmCovExport(
+        of objects: [String],
+        profile: String,
+        llvmCov: (executable: String, arguments: [String]),
+        architecture: String? = nil
+    ) -> Result<Data, CoverageError> {
+        let objectArguments = Array(objects.prefix(1)) + objects.dropFirst().flatMap { ["-object", $0] }
+        guard let export = process().runCommand(
+            url: llvmCov.executable,
+            arguments: llvmCov.arguments + ["export"] + objectArguments + ["-instr-profile", profile]
+                + (architecture.map { ["-arch", $0] } ?? [])
+        ) else {
+            return .failure(.couldNotRun("llvm-cov"))
+        }
+        guard export.succeeded else {
+            // llvm-cov can warn first, as of an object newer than the profile.
+            return .failure(.llvmCovFailed(Self.firstError(in: export.errors) ?? Self.firstLine(of: export.errors)))
+        }
+
+        return .success(Data(export.output.utf8))
     }
 }
 
 enum CoverageError: Error, Equatable {
-    /// xcodebuild's coverage run or its report failed.
+    /// xcodebuild's coverage run couldn't be started, or left no result bundle whose report xccov could read.
     case build
     /// The command, such as `swift` or `llvm-cov`, couldn't be started.
     case couldNotRun(String)
@@ -159,6 +100,11 @@ enum CoverageError: Error, Equatable {
     /// SwiftPM prints no line for, named by its test bundle and the test it was running where the output gives them,
     /// and `failedTests` failed. It left no profile, so the code it ran would read as never run.
     case testProcessUnfinished(String, failedTests: FailedTestLine.FailedTests)
+    /// A test process of xcodebuild's coverage run crashed, or was stopped past its time allowance, named by its test
+    /// bundle and the test it was running where the output gives them, and `failedTests` failed. Xcode keeps what the
+    /// process counted, but the tests it was running never finished, so the code they would have run would read as
+    /// never run.
+    case testProcessRelaunched(String, failedTests: FailedTestLine.FailedTests)
     /// The coverage run failed with this exit status but named no failed test, as when the build fails, with the first
     /// line of its output that says `error:`.
     case runFailed(status: Int32, error: String?)
@@ -172,6 +118,9 @@ enum CoverageError: Error, Equatable {
     case unreadableReport
     /// The report covers none of the project's own source files.
     case noProjectFiles
+    /// xccov's report of xcodebuild's coverage run covers none of the project's own source files, as its report of a
+    /// package doesn't: it lists only the tests' files.
+    case noProjectFilesInXccovReport
 }
 
 extension CoverageError {
@@ -194,6 +143,13 @@ extension CoverageError {
                 "a test process stopped before its tests finished with coverage on (\(process))",
                 failedTests
             )
+        case let .testProcessRelaunched(process, failedTests):
+            return Self.naming(
+                failedTests,
+                after: "a test process crashed or was stopped with coverage on (\(process)), "
+                    + "and Xcode relaunched it without finishing the tests it was running, "
+                    + "so the code they would have run would read as never run"
+            )
         case let .runFailed(status, error?):
             return "the coverage run failed (exit status \(status)): \(error)"
         case let .runFailed(status, nil):
@@ -214,13 +170,19 @@ extension CoverageError {
             return "llvm-cov's report couldn't be read"
         case .noProjectFiles:
             return "llvm-cov's report covers none of the project's source files"
+        case .noProjectFilesInXccovReport:
+            return "xccov's report covers none of the project's source files"
         }
     }
 
     /// `ended`, what became of a test process that left no profile, then why that matters, then up to 5 of
     /// `failedTests`.
     private static func withoutProfile(_ ended: String, _ failedTests: FailedTestLine.FailedTests) -> String {
-        let reason = ended + ", and without its profile the code it ran would read as never run"
+        naming(failedTests, after: ended + ", and without its profile the code it ran would read as never run")
+    }
+
+    /// `reason`, then up to 5 of `failedTests`.
+    private static func naming(_ failedTests: FailedTestLine.FailedTests, after reason: String) -> String {
         guard failedTests.count > 0 else {
             return reason
         }

@@ -1,0 +1,35 @@
+Test session results, code coverage, and logs:
+	/DerivedData/Logs/Test/Test-XProbe-2026.10.23_08-28-49--0500.xcresult
+
+Testing started
+Test case 't5()' passed on 'My Mac - xctest (67088)' (0.000 seconds)
+Test case 't2()' passed on 'My Mac - xctest (67088)' (0.052 seconds)
+Test case 't4()' passed on 'My Mac - xctest (67088)' (0.052 seconds)
+Test case 't16()' passed on 'My Mac - xctest (67088)' (0.052 seconds)
+Test case 't13()' passed on 'My Mac - xctest (67088)' (0.052 seconds)
+Test case 't18()' passed on 'My Mac - xctest (67088)' (0.052 seconds)
+Test case 't8()' passed on 'My Mac - xctest (67088)' (0.052 seconds)
+Test case 't6()' passed on 'My Mac - xctest (67088)' (0.052 seconds)
+Test case 't1()' passed on 'My Mac - xctest (67088)' (0.052 seconds)
+Test case 't17()' passed on 'My Mac - xctest (67088)' (0.052 seconds)
+Test case 't3()' passed on 'My Mac - xctest (67088)' (0.052 seconds)
+Test case 't12()' passed on 'My Mac - xctest (67088)' (0.052 seconds)
+Test suite 'CTests' started on 'My Mac - xctest (67087)'
+Test case 'CTests.test_c()' passed on 'My Mac - xctest (67087)' (0.001 seconds)
+Test case 't0()' passed on 'My Mac - xctest (67088)' (0.052 seconds)
+Test case 't9()' passed on 'My Mac - xctest (67088)' (0.052 seconds)
+Test case 't10()' passed on 'My Mac - xctest (67088)' (0.052 seconds)
+Test case 't11()' passed on 'My Mac - xctest (67088)' (0.052 seconds)
+Test case 't15()' passed on 'My Mac - xctest (67088)' (0.052 seconds)
+Test case 't14()' passed on 'My Mac - xctest (67088)' (0.052 seconds)
+Test case 't19()' passed on 'My Mac - xctest (67088)' (0.052 seconds)
+Test case 't7()' passed on 'My Mac - xctest (67088)' (0.052 seconds)
+Test suite 'ATests' started on 'My Mac - xctest (67089)'
+Test case 'ATests.test_a()' passed on 'My Mac - xctest (67089)' (0.001 seconds)
+Test case 'ATests.test_fails()' passed on 'My Mac - xctest (67089)' (0.000 seconds)
+Test suite 'KTests' started on 'My Mac - xctest (67086)'
+Test case 'KTests.test_k_killed()' passed on 'My Mac - xctest (67086)' (0.001 seconds)
+Test case 'CTests.test_z_crash()' failed on 'My Mac - xctest (67087)' (0.000 seconds)
+Test case 'sWorks()' passed on 'My Mac - xctest (67085)' (0.000 seconds)
+Test case 'sFails()' passed on 'My Mac - xctest (67085)' (0.000 seconds)
+Test case 'stCrashes()' passed on 'My Mac - xctest (67085)' (0.000 seconds)

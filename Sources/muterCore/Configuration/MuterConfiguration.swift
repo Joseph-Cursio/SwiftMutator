@@ -10,6 +10,9 @@ struct MuterConfiguration: Equatable, Codable {
     let excludeFileList: [String]
     /// Exclusion list of functions for Remove Side Effects.
     let excludeCallList: [String]
+    /// A percentage from 0 to 100 (`coverageThreshold:`), the same for every build system: a file whose share of lines
+    /// the tests ran with coverage on is at or below it is left out. 0, the default, leaves out the files no test
+    /// runs. A file with no lines to run is never left out.
     let coverageThreshold: Double
     // A `var` only so `withDefaultTestSuiteTimeout` can copy `self` and change just this field.
     // Rebuilding with `init` instead silently resets any field the call leaves out, as every parameter

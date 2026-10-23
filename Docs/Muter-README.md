@@ -174,7 +174,7 @@ Should you need to modify any of the options, you can use the list below to unde
 
     **NOTE**: Doesn't support overloading currently - all function calls with a matching name will be skipped.
 
-- `coverageThreshold` - when present Muter will ignore files that have a coverage value less than this option.
+- `coverageThreshold` - a percentage from 0 to 100, 0 by default. Files whose share of lines the tests run is at or below it are left out, so by default only the files no test runs are. A file with no lines to run is never left out. It is a percentage for every build system: Muter compared an xcodebuild project's coverage with it as a fraction from 0 to 1.
 - `mutationTestTimeout` - the maximum time in seconds that a test suite is allowed to run before being terminated. This prevents mutations from causing infinite loops or hanging tests. If not specified, tests will run without a timeout.
 
 Below is an example pulled directly from the `ExampleApp` project.

@@ -242,7 +242,8 @@ final class SwiftCoverageTests: MuterTestCase {
 
     // XCTest runs one test at a time, so the test a process was running is known, and names the bundle in a suite of
     // its own. On Linux it names the bundle after the build folder, and with a filter not at all. Swift Testing's lines
-    // name neither. A process that finished nothing it started, with no failed test named, is still named.
+    // name no bundle, and of the tests it runs at once, the first that never ended is named. A process that finished
+    // nothing it started, with no failed test named, is still named.
     func test_anUnfinishedTestProcess_isNamed_asFarAsItsOutputSays() {
         let failed = "Test Case '-[ATests.ATests test_fails]' failed (0.045 seconds).\n"
         let outputs = [
@@ -285,7 +286,7 @@ final class SwiftCoverageTests: MuterTestCase {
         XCTAssertEqual(reasons, [
             "debug.xctest, during CTests.test_z_killed",
             "XCTest, during -[CTests.CTests test_z_killed]",
-            "Swift Testing",
+            "Swift Testing, during stKilled()",
             "XCTest",
         ])
         XCTAssertEqual(process.commandsRun.count, outputs.count)
@@ -756,6 +757,17 @@ final class SwiftCoverageTests: MuterTestCase {
         XCTAssertEqual(coverage.percent, 50)
     }
 
+    // llvm-cov's share of 7 of 100 lines, 7 / 100 * 100, is just above 7.
+    func test_aFileExactlyAtTheThreshold_hasNoCoverage_whateverItsShareRoundsTo() throws {
+        let coverage = try SwiftCoverage.coverage(
+            fromExport: export(files: [file("/project/A.swift", count: 100, covered: 7)]),
+            projectRoot: "/project",
+            coverageThreshold: 7
+        ).get()
+
+        XCTAssertEqual(coverage.filesWithoutCoverage, ["A.swift"])
+    }
+
     // A share that doesn't divide evenly is rounded down, as llvm-cov's total was.
     func test_thePercent_isRoundedDown() throws {
         let coverage = try SwiftCoverage.coverage(
@@ -912,8 +924,9 @@ final class SwiftCoverageTests: MuterTestCase {
         """.utf8)
     }
 
+    /// A file of llvm-cov's export, with its percentage worked out as llvm-cov does.
     private func file(_ path: String, count: Int, covered: Int) -> String {
-        let percent = count > 0 ? Double(covered) * 100 / Double(count) : 0
+        let percent = count > 0 ? Double(covered) / Double(count) * 100 : 0
         return """
         {"filename": "\(path)", "summary": {"lines": {"count": \(count), "covered": \(covered), "percent": \(percent)}}}
         """

@@ -242,6 +242,50 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         XCTAssertEqual(mutatedLines, [3])
     }
 
+    // A file an app shares with its extension has a copy of each function in each binary: in this real export, where
+    // the tests ran only the app's. The extension's copies, never run, leave out none of the code the app's ran: what
+    // the extension's build left out of an `#if`, and its closure.
+    func test_mutantsInCodeOneBinarysCopyRan_areKept() async throws {
+        let (directory, _) = try makeDirectoryWithSymbolicLink()
+        let path = "\(directory)/Shared.swift"
+        try """
+        func sharedValue(_ x: Int) -> Bool {
+            #if EXTENSION
+            return x < 3
+            #else
+            return x > 0
+            #endif
+        }
+
+        let sharedClosure: (Int) -> Bool = { $0 >= 2 }
+        """.write(toFile: path, atomically: true, encoding: .utf8)
+        let export = Data(#"""
+        {"data": [{"functions": [
+            {"name": "$s3App11sharedValueyS2iF", "filenames": ["\#(path)"], "regions": [
+                [1, 35, 7, 2, 1, 0, 0, 0], [2, 5, 4, 10, 0, 0, 0, 2], [6, 5, 6, 11, 0, 0, 0, 2]
+            ]},
+            {"name": "$s3App13sharedClosureyS2icvpfiS2icfU_", "filenames": ["\#(path)"], "regions": [
+                [9, 35, 9, 45, 1, 0, 0, 0]
+            ]},
+            {"name": "$s3Ext11sharedValueyS2iF", "filenames": ["\#(path)"], "regions": [
+                [1, 35, 7, 2, 0, 0, 0, 0], [2, 5, 2, 18, 0, 0, 0, 2], [4, 5, 6, 11, 0, 0, 0, 2]
+            ]},
+            {"name": "$s3Ext13sharedClosureyS2icvpfiS2icfU_", "filenames": ["\#(path)"], "regions": [
+                [9, 35, 9, 45, 0, 0, 0, 0]
+            ]}
+        ]}]}
+        """#.utf8)
+
+        state.sourceFileCandidates = [path]
+        state.projectCoverage = try Coverage.make(
+            functionsCoverage: FunctionsCoverage(from: JSONDecoder().decode(LLVMCoverage.self, from: export))
+        )
+
+        let mutatedLines = try await discoveredMutantLines()
+
+        XCTAssertEqual(mutatedLines, [5, 9])
+    }
+
     /// A mutant on line 1, in a function the tests never run, and one on line 3, in one they do.
     private func writeSourceWithAnUncoveredFunction(to path: String) throws {
         try """
