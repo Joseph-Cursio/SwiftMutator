@@ -9,6 +9,8 @@ protocol AnyMutationTestState: AnyObject {
     var mutationOperatorList: MutationOperatorList { get }
     var projectDirectoryURL: URL { get }
     var mutatedProjectDirectoryURL: URL { get }
+    /// The lock on the mutated project, held until SwiftMutator exits; nil until it is taken.
+    var mutatedProjectLock: MutatedProjectLock? { get }
     var projectXCTestRun: XCTestRun { get }
     var projectCoverage: Coverage { get }
     var sourceFileCandidates: [FilePath] { get }
@@ -40,6 +42,7 @@ final class MutationTestState: AnyMutationTestState {
     var muterConfiguration: MuterConfiguration = .init()
     var projectDirectoryURL: URL = .init(fileURLWithPath: "path")
     var mutatedProjectDirectoryURL: URL = .init(fileURLWithPath: "path")
+    var mutatedProjectLock: MutatedProjectLock?
     var projectXCTestRun: XCTestRun = .init()
     var projectCoverage: Coverage = .null
     var sourceFileCandidates: [FilePath] = []
@@ -67,6 +70,7 @@ extension MutationTestState {
         case configurationParsed(MuterConfiguration)
         case projectDirectoryUrlDiscovered(URL)
         case tempDirectoryUrlCreated(URL)
+        case mutatedProjectLocked(MutatedProjectLock)
         case projectXCTestRun(XCTestRun)
         case projectCoverage(Coverage)
         case sourceFileCandidatesDiscovered([FilePath])
@@ -93,6 +97,8 @@ extension MutationTestState {
                 self.projectDirectoryURL = projectDirectoryURL
             case let .tempDirectoryUrlCreated(mutatedProjectDirectoryURL):
                 self.mutatedProjectDirectoryURL = mutatedProjectDirectoryURL
+            case let .mutatedProjectLocked(mutatedProjectLock):
+                self.mutatedProjectLock = mutatedProjectLock
             case let .projectXCTestRun(projectXCTestRun):
                 self.projectXCTestRun = projectXCTestRun
             case let .projectCoverage(projectCoverage):

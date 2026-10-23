@@ -111,6 +111,19 @@ final class PreviousRunCleanUpTests: MuterTestCase {
         )
     }
 
+    // Another run of the project may hold it, and a run that removed it could lock a new file while that one held the
+    // old.
+    func test_keepsTheMutatedProjectsLockFile() async throws {
+        fileManager.fileExistsToReturn = [false]
+        fileManager.contentsOfDirectoryToReturn = ["x_mutated.lock"]
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/some/x_mutated")
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result, [])
+        XCTAssertEqual(fileManager.paths, [])
+    }
+
     func test_aLeftoverCloneThatCannotBeRemoved_failsTheStep() async throws {
         fileManager.errorToThrow = RemoveTempDirectorySpecError.stub
         fileManager.fileExistsToReturn = [false]

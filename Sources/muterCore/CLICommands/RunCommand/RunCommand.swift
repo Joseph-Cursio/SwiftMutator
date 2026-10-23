@@ -30,12 +30,15 @@ extension RunCommand {
 
     func validate() throws {}
 
-    /// What a run command prints when its work failed with `error`. A refused resume is printed as it is: refusing is
-    /// an expected outcome, and its message says what to do. Anything else comes inside the banner that asks for a bug
-    /// report.
+    /// What a run command prints when its work failed with `error`. A refused resume, and a run refused because another
+    /// is using the project's copy, are printed as they are: refusing is an expected outcome, and its message says what
+    /// to do. Anything else comes inside the banner that asks for a bug report.
     static func message(showing error: Error) -> String {
-        if error is ResumeRefused {
+        switch error {
+        case is ResumeRefused, MutatedProjectLockError.inUse:
             return "\(error)"
+        default:
+            break
         }
         return """
         ⚠️ ⚠️ ⚠️ ⚠️ ⚠️  SwiftMutator has encountered an error  ⚠️ ⚠️ ⚠️ ⚠️ ⚠️

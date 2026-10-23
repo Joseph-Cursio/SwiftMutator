@@ -60,6 +60,12 @@ swift build -c release --product swift-mutator
 
 `make install` installs `swift-mutator` into `/usr/local/bin`.
 
+A run tests in a copy of the project beside it, `<project>_mutated`, so a project has one run at a
+time. `run`, `mutate-without-running` and `run-without-mutating` lock `<project>_mutated.lock`
+before they remove, copy or test anything there. One started while another holds the lock is
+refused, naming the folder and the process that holds it, and leaves everything as it was. The
+lock goes when SwiftMutator exits, however it exits, so it never needs clearing; the file stays.
+
 ## Progress
 
 In a terminal, a progress bar counts the mutants tested and estimates the time left from the time

@@ -25,6 +25,15 @@ final class MutationTestStateTests: MuterTestCase {
         XCTAssertEqual(sut.loggingDirectory, "/project_muter_logs/Oct 4, 2026 at 1:16 PM")
     }
 
+    func test_mutatedProjectLocked_keepsTheLock() throws {
+        XCTAssertNil(sut.mutatedProjectLock)
+        let lock = try mutatedProjectLocker.lock(URL(fileURLWithPath: "/code/x_mutated"))
+
+        sut.apply([.mutatedProjectLocked(lock)])
+
+        XCTAssertTrue(sut.mutatedProjectLock === lock)
+    }
+
     func test_aRunThatIsntResumed_hasNoResumeState_andWaivesNothing() {
         XCTAssertNil(sut.resumeState)
         XCTAssertEqual(sut.resumeWaived, [])
