@@ -7,7 +7,11 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
     func run(
         with configuration: MuterConfiguration
     ) -> Result<Coverage, CoverageError> {
-        guard let resultPath = runTestsWithCoverageEnabled(using: configuration),
+        let testRun = runTestsWithCoverageEnabled(using: configuration)
+        if testRun?.timedOut == true, let timeLimit = configuration.buildTimeout {
+            return .failure(.timedOut(after: timeLimit))
+        }
+        guard let resultPath = testRun.flatMap(resultBundle(printedBy:)),
               let report = runXccov(with: resultPath)
         else {
 
@@ -51,14 +55,19 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
 
     private func runTestsWithCoverageEnabled(
         using configuration: MuterConfiguration
-    ) -> String? {
-        process().runProcess(
+    ) -> CommandResult? {
+        process().runCommand(
             url: configuration.testCommandExecutable,
-            arguments: configuration.enableCoverageArguments
+            arguments: configuration.enableCoverageArguments,
+            timeLimit: configuration.buildTimeout
         )
-        .flatMap { $0.firstMatchOf("^.*.xcresult$", options: .anchorsMatchLines) }
-        .map(\.trimmed)
-        .flatMap(\.nilIfEmpty)
+    }
+
+    /// The `.xcresult` bundle whose path the coverage run printed, whatever its exit status.
+    private func resultBundle(printedBy testRun: CommandResult) -> String? {
+        testRun.output.firstMatchOf("^.*.xcresult$", options: .anchorsMatchLines)
+            .map(\.trimmed)
+            .flatMap(\.nilIfEmpty)
     }
 
     private func runXccov(with result: String) -> CoverageReport? {

@@ -8,6 +8,7 @@ enum ResumeCheck {
     static let keysThatDontAffectOutcomes: Set = [
         MuterConfiguration.CodingKeys.mutationTestWorkers.stringValue,
         MuterConfiguration.CodingKeys.stopAtFirstFailure.stringValue,
+        MuterConfiguration.CodingKeys.buildTimeout.stringValue,
     ]
 
     /// What the resuming run would record in its header, of what a resume compares.

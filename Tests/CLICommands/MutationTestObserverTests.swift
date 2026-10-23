@@ -67,11 +67,39 @@ final class MutationTestObserverTests: MuterTestCase {
     func test_whyCoverageFailed_reachesTheLogger() {
         sut.start()
 
-        notificationCenter.post(name: .projectCoverageDiscoveryFinished, object: "llvm-cov failed")
+        notificationCenter.post(
+            name: .projectCoverageDiscoveryFinished,
+            object: CoverageFailure(reason: "llvm-cov failed", log: "/logs/coverage run.log")
+        )
         notificationCenter.post(name: .projectCoverageDiscoveryFinished, object: nil)
 
         XCTAssertEqual(printer.linesPassed.count, 1)
-        XCTAssertTrue(printer.linesPassed.first?.hasPrefix("❌ Gathering coverage failed: llvm-cov failed.\n") == true)
+        XCTAssertTrue(
+            printer.linesPassed.first?.hasPrefix(
+                "❌ Gathering coverage failed: llvm-cov failed.\n"
+                    + "The coverage run's output is in \("/logs/coverage run.log".bold)\n"
+            ) == true
+        )
+    }
+
+    func test_testsThatFailedWithCoverageOn_reachTheLogger() {
+        sut.start()
+
+        notificationCenter.post(
+            name: .projectCoverageTestsFailed,
+            object: TestsFailedWithCoverage(
+                tests: .init(tests: [.init(name: "sum()", location: nil)], count: 1, firstLine: nil),
+                log: nil
+            )
+        )
+
+        XCTAssertEqual(printer.linesPassed, [
+            """
+            ⚠️ 1 test failed with coverage on, but coverage was still gathered from every test process:
+              sum()
+            Code a failed test would have run after it stopped reads as never run, so its mutants aren't tested.
+            """,
+        ])
     }
 
     func test_logFileNameUsingAPlainTextReporter() {

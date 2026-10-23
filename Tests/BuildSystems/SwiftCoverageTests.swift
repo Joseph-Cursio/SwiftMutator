@@ -3,7 +3,11 @@ import TestingExtensions
 import XCTest
 
 final class SwiftCoverageTests: MuterTestCase {
-    private let sut = SwiftCoverage()
+    /// macOS's build folder and tools, on any host.
+    private let sut = SwiftCoverage(platform: .darwin)
+    private let onLinux = SwiftCoverage(platform: .linux)
+    /// Swift Build's build folder on Linux.
+    private let linuxBuild = "/project/.build/out/Products/Debug-linux"
 
     private var coverageThreshold: Double = 0
     private lazy var muterConfiguration = MuterConfiguration(
@@ -90,22 +94,372 @@ final class SwiftCoverageTests: MuterTestCase {
         XCTAssertEqual(coverage.functionsCoverage.regionsForFile("/project/Sources/Core/Shared.swift"), [
             .make(lineStart: 3, columnStart: 20, lineEnd: 5, columnEnd: 2, executionCount: 0),
         ])
+        XCTAssertNil(coverage.testsFailedWithCoverageOn)
     }
 
-    // SwiftPM writes no profile data when a test fails, so nothing more is run.
-    func test_failingTests_giveNoCoverage() {
-        process.commandResult = { _ in self.result(status: 1) }
+    // What the run printed is kept in the run's log folder, standard error from a line of its own.
+    func test_theCoverageRunsOutput_isKept_standardOutputThenStandardError() {
+        XCTAssertNil(sut.coverageRunOutput)
+        _ = sut.run(with: muterConfiguration)
+        XCTAssertNil(sut.coverageRunOutput, "a run that can't be started printed nothing")
 
-        XCTAssertEqual(sut.run(with: muterConfiguration), .failure(.testsFailed(status: 1, bySignal: false)))
+        process.commandResult = { _ in self.result(status: 1, output: "Test run started", errors: "oops\n") }
+        _ = sut.run(with: muterConfiguration)
+        XCTAssertEqual(sut.coverageRunOutput, "Test run started\noops\n")
+
+        process.commandResult = { _ in self.result(status: 1, output: "passed\n", errors: "Build complete!\n") }
+        _ = sut.run(with: muterConfiguration)
+        XCTAssertEqual(sut.coverageRunOutput, "passed\nBuild complete!\n")
+    }
+
+    // SwiftPM merges the test processes' profiles only when every test passes, but each process, the failed tests'
+    // too, still left its own. Merged in name order, they give the coverage, which says which tests failed.
+    func test_failedTests_withoutACrash_mergeTheProfilesEachTestProcessLeft() throws {
+        answerWithACoverageRun(
+            bundles: [
+                "CoreTests.xctest", "XCTest1234_0.501.profraw", "Swift Testing1234_0.502.profraw", "Project.json",
+            ],
+            testRun: result(status: 1, output: failedTestsOutput, errors: "Build complete! (1.60 sec)\n")
+        )
+
+        let coverage = try sut.run(with: muterConfiguration).get()
+
+        let codecov = "/project/.build/out/Products/Debug/codecov"
+        XCTAssertEqual(process.commandsRun, [
+            [
+                "/path/to/swift", "test", "--skip", "Slow", "--enable-code-coverage",
+                "-Xswiftc", "-Xllvm", "-Xswiftc", "-instrprof-atomic-counter-update-all",
+            ],
+            ["/path/to/swift", "test", "--skip", "Slow", "--show-codecov-path"],
+            [
+                "/usr/bin/xcrun", "llvm-profdata", "merge", "-sparse",
+                codecov + "/Swift Testing1234_0.502.profraw", codecov + "/XCTest1234_0.501.profraw",
+                "-o", codecov + "/default.profdata",
+            ],
+            ["/path/to/swift", "package", "describe", "--type", "json"],
+            [
+                "/usr/bin/xcrun", "llvm-cov", "export", bundle("CoreTests"),
+                "-instr-profile", codecov + "/default.profdata",
+            ],
+        ])
+        XCTAssertEqual(fileManager.contentsOfDirectoryAtPath, [codecov, "/project/.build/out/Products/Debug"])
+        XCTAssertEqual(coverage.percent, 50)
+        XCTAssertEqual(coverage.testsFailedWithCoverageOn, failedTests)
+    }
+
+    // A crashed test process left no profile, so merging would read the code it ran as never run.
+    func test_aCrashedTestProcess_givesNoCoverage_andIsNamed() {
+        answerWithACoverageRun(
+            bundles: ["CTests.xctest", "XCTest1234_0.501.profraw"],
+            testRun: result(
+                status: 1,
+                output: failedTestsOutput,
+                errors: """
+                Build complete! (0.60 sec)
+                error: Process '/Applications/Xcode.app/Contents/Developer/usr/bin/xctest \
+                /project/.build/out/Products/Debug/CTests.xctest' exited with unexpected signal code 5
+
+                """
+            )
+        )
+
+        XCTAssertEqual(
+            sut.run(with: muterConfiguration),
+            .failure(.testProcessCrashed("CTests.xctest, signal 5", failedTests: failedTests))
+        )
         XCTAssertEqual(process.commandsRun.count, 1)
     }
 
-    // A crash isn't a failing test, so it is told apart.
+    // Swift Testing's helper names the bundle's executable, and on Linux, Swift Build's test process is the target's
+    // runner; an older SwiftPM names no process. Any line that mentions a signal code is a crash, however else it's
+    // worded.
+    func test_aCrash_isFound_howeverItsLineIsWorded() {
+        let lines = [
+            "error: Process '/usr/libexec/swift/pm/swiftpm-testing-helper --test-bundle-path "
+                + "/p/Debug/BTests.xctest/Contents/MacOS/BTests --enable-code-coverage /p/Debug/BTests.xctest/Contents/"
+                + "MacOS/BTests --testing-library swift-testing' exited with unexpected signal code 5",
+            "error: Process '/p/.build/debug/ProjectPackageTests.xctest' exited with unexpected signal code 4",
+            "error: Process '/p/.build/out/Products/Debug-linux/CoreTests-test-runner --testing-library swift-testing' "
+                + "exited with unexpected signal code 11",
+            "error: Process '/p/.build/out/Products/Debug-linux/AppTests-test-runner' exited with unexpected signal code 4",
+            "\u{1B}[1;31merror: \u{1B}[0mExited with signal code 11",
+            "error: a test process ended with an unknown Signal Code",
+        ]
+
+        let crashes = lines.map { line in
+            process.commandResult = { _ in self.result(status: 1, errors: "Build complete!\n\(line)\n") }
+            return sut.run(with: muterConfiguration)
+        }
+
+        let noTests = FailedTestLine.FailedTests(tests: [], count: 0, firstLine: nil)
+        XCTAssertEqual(crashes, [
+            .failure(.testProcessCrashed("BTests.xctest, signal 5", failedTests: noTests)),
+            .failure(.testProcessCrashed("ProjectPackageTests.xctest, signal 4", failedTests: noTests)),
+            .failure(.testProcessCrashed("CoreTests-test-runner, signal 11", failedTests: noTests)),
+            .failure(.testProcessCrashed("AppTests-test-runner, signal 4", failedTests: noTests)),
+            .failure(.testProcessCrashed("signal 11", failedTests: noTests)),
+            .failure(.testProcessCrashed(
+                "error: a test process ended with an unknown Signal Code",
+                failedTests: noTests
+            )),
+        ])
+    }
+
+    // SwiftPM prints no line for a test process ended by SIGKILL, SIGTERM or SIGINT, as the system's memory killer
+    // ends one, and it left no profile. In these real runs, CTests' XCTest process killed itself during its second test,
+    // and STTests' Swift Testing process too, while one of ATests' tests failed. What they started never ended.
+    func test_aTestProcessThatStoppedBeforeItsTestsFinished_givesNoCoverage_andIsNamed() {
+        let runs = [
+            (log: "coverageRun_testProcessesKilled_swiftBuild.log", bundle: "CTests.xctest", seconds: "0.045"),
+            (log: "coverageRun_testProcessesKilled_native.log", bundle: "KillProbePackageTests.xctest", seconds: "0.041"),
+        ]
+
+        for run in runs {
+            answerWithACoverageRun(
+                bundles: ["ATests.xctest", "CTests.xctest", "XCTest1234_0.501.profraw"],
+                testRun: result(
+                    status: 1,
+                    output: loadFixture("TestLogsForParsing/\(run.log)"),
+                    errors: "Building for debugging...\nBuild complete! (5.66 sec)\n"
+                )
+            )
+
+            XCTAssertEqual(
+                sut.run(with: muterConfiguration),
+                .failure(.testProcessUnfinished(
+                    "\(run.bundle), during -[CTests.CTests test_z_killed]",
+                    failedTests: FailedTestLine.FailedTests(
+                        tests: [.init(name: "-[ATests.ATests test_fails]", location: nil)],
+                        count: 1,
+                        firstLine: "Test Case '-[ATests.ATests test_fails]' failed (\(run.seconds) seconds)."
+                    )
+                )),
+                run.log
+            )
+        }
+        XCTAssertEqual(process.commandsRun.count, runs.count)
+    }
+
+    // XCTest runs one test at a time, so the test a process was running is known, and names the bundle in a suite of
+    // its own. On Linux it names the bundle after the build folder, and with a filter not at all. Swift Testing's lines
+    // name neither. A process that finished nothing it started, with no failed test named, is still named.
+    func test_anUnfinishedTestProcess_isNamed_asFarAsItsOutputSays() {
+        let failed = "Test Case '-[ATests.ATests test_fails]' failed (0.045 seconds).\n"
+        let outputs = [
+            """
+            Test Suite 'All tests' started at 2026-10-23 07:46:16.235
+            Test Suite 'debug.xctest' started at 2026-10-23 07:46:16.236
+            Test Suite 'CTests' started at 2026-10-23 07:46:16.236
+            Test Case 'CTests.test_c' started at 2026-10-23 07:46:16.236
+            Test Case 'CTests.test_c' passed (0.0 seconds)
+            Test Case 'CTests.test_z_killed' started at 2026-10-23 07:46:16.237
+            \(failed)
+            """,
+            """
+            Test Suite 'Selected tests' started at 2026-10-23 07:46:16.235.
+            Test Case '-[CTests.CTests test_z_killed]' started.
+            \(failed)
+            """,
+            """
+            \(failed)\
+            ◇ Test run started.
+            ↳ Testing Library Version: 2084
+            ◇ Test stKilled() started.
+            ◇ Test stWorks() started.
+            ✔ Test stWorks() passed after 0.001 seconds.
+            ◇ Test run started.
+            ✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.
+
+            """,
+            "Test Suite 'All tests' started at 2026-10-23 07:46:16.235.\n",
+        ]
+
+        let reasons = outputs.map { output in
+            process.commandResult = { _ in self.result(status: 1, output: output, errors: "Build complete!\n") }
+            guard case let .failure(.testProcessUnfinished(named, _)) = sut.run(with: muterConfiguration) else {
+                return "not unfinished"
+            }
+            return named
+        }
+
+        XCTAssertEqual(reasons, [
+            "debug.xctest, during CTests.test_z_killed",
+            "XCTest, during -[CTests.CTests test_z_killed]",
+            "Swift Testing",
+            "XCTest",
+        ])
+        XCTAssertEqual(process.commandsRun.count, outputs.count)
+    }
+
+    // Every suite, test and Swift Testing run these real runs started ended, the failed tests' too, so the profiles
+    // are merged: Swift Build's, with a test process for each target and each library, some running no test, and the
+    // native build system's, with one for each library.
+    func test_realRunsWhoseTestProcessesAllFinished_areMerged() throws {
+        let runs = [
+            (log: "coverageRun_testFailed_swiftBuild.log", failed: ["failsOnlyUnderCoverage()"]),
+            (
+                log: "coverageRun_testFailed_native.log",
+                failed: ["-[CTests.CTests test_failsOnlyUnderCoverage]", "failsOnlyUnderCoverage()"]
+            ),
+        ]
+
+        for run in runs {
+            answerWithACoverageRun(
+                bundles: ["CoreTests.xctest", "XCTest1234_0.501.profraw"],
+                testRun: result(
+                    status: 1,
+                    output: loadFixture("TestLogsForParsing/\(run.log)"),
+                    errors: "Build complete! (1.60 sec)\n"
+                )
+            )
+
+            let coverage = try sut.run(with: muterConfiguration).get()
+
+            XCTAssertEqual(coverage.testsFailedWithCoverageOn?.tests.map(\.name), run.failed, run.log)
+            XCTAssertTrue(process.commandsRun.contains { $0.contains("llvm-profdata") }, run.log)
+        }
+    }
+
+    // A build that fails leaves the profiles of an earlier run in place, so with no failed test named, none are merged.
+    // Its first error says what went wrong, not a failing test.
+    func test_aFailedBuild_givesNoCoverage_andItsFirstError() {
+        answerWithACoverageRun(
+            bundles: ["CoreTests.xctest", "XCTest1234_0.501.profraw"],
+            testRun: result(
+                status: 1,
+                errors: """
+                Building for debugging...
+                [2 / 6] CoreTests-product
+                error: SwiftCompile normal arm64 failed with a nonzero exit code. Command line:     cd /project
+                /project/Tests/CoreTests/CoreTests.swift:9:19: \u{1B}[1;31merror: \u{1B}[1;39mcannot convert\u{1B}[0;0m
+                error: Build failed
+
+                """
+            )
+        )
+
+        XCTAssertEqual(
+            sut.run(with: muterConfiguration),
+            .failure(.runFailed(
+                status: 1,
+                error: "error: SwiftCompile normal arm64 failed with a nonzero exit code. Command line:     cd /project"
+            ))
+        )
+        XCTAssertEqual(process.commandsRun.count, 1)
+        XCTAssertEqual(fileManager.contentsOfDirectoryAtPath, [])
+
+        process.commandResult = { _ in
+            self.result(status: 1, errors: "/p/A.swift:1:1: \u{1B}[1;31merror: \u{1B}[0mcannot find 'x' in scope\n")
+        }
+        XCTAssertEqual(
+            sut.run(with: muterConfiguration),
+            .failure(.runFailed(status: 1, error: "/p/A.swift:1:1: error: cannot find 'x' in scope"))
+        )
+
+        // SwiftPM prints its build errors to standard error, but one in standard output counts too, and comes first.
+        let notLoaded = "error: CoreTests.xctest couldn't be loaded"
+        for errors in ["Building for debugging...\n", "error: Build failed\n"] {
+            process.commandResult = { _ in self.result(status: 1, output: notLoaded + "\n", errors: errors) }
+            XCTAssertEqual(sut.run(with: muterConfiguration), .failure(.runFailed(status: 1, error: notLoaded)), errors)
+        }
+    }
+
+    // With no failed test named, the tests may not have started, so nothing more is run.
+    func test_aFailedRun_thatNamesNoFailedTest_givesNoCoverage() {
+        process.commandResult = { _ in self.result(status: 1) }
+
+        XCTAssertEqual(sut.run(with: muterConfiguration), .failure(.runFailed(status: 1, error: nil)))
+        XCTAssertEqual(process.commandsRun.count, 1)
+    }
+
+    // Only the coverage run builds and runs tests, so only it gets `buildTimeout`. The commands that read what it
+    // left, llvm-profdata's merge among them, get no limit.
+    func test_onlyTheCoverageRun_hasATimeLimit_theBuildTimeout() {
+        answerWithACoverageRun(
+            bundles: ["CoreTests.xctest", "XCTest1234_0.501.profraw"],
+            testRun: result(status: 1, output: failedTestsOutput)
+        )
+
+        _ = sut.run(with: MuterConfiguration(executable: "/path/to/swift", arguments: ["test"], buildTimeout: 900))
+
+        XCTAssertTrue(process.commandsRun.first?.contains("--enable-code-coverage") == true)
+        XCTAssertTrue(process.commandsRun.contains { $0.contains("llvm-profdata") })
+        XCTAssertEqual(process.timeLimits, [900, nil, nil, nil, nil])
+    }
+
+    func test_withoutABuildTimeout_theCoverageRunHasNoTimeLimit() {
+        answerWithACoverageRun(bundles: ["CoreTests.xctest"])
+
+        _ = sut.run(with: muterConfiguration)
+
+        XCTAssertEqual(process.timeLimits, [nil, nil, nil, nil])
+    }
+
+    // Killed at its limit, `swift test` ends by a signal, or exits as it is killed, having named failed tests. Neither
+    // is read as such, and no profile is merged: the run gives no coverage, and what it printed is kept.
+    func test_aCoverageRunPastItsTimeLimit_givesNoCoverage_andKeepsWhatItPrinted() {
+        let limited = MuterConfiguration(executable: "/path/to/swift", arguments: ["test"], buildTimeout: 900)
+        let timedOutRuns = [
+            CommandResult(status: 9, endedBySignal: true, output: failedTestsOutput, errors: "", timedOut: true),
+            CommandResult(status: 1, endedBySignal: false, output: failedTestsOutput, errors: "", timedOut: true),
+            CommandResult(status: 0, endedBySignal: false, output: failedTestsOutput, errors: "", timedOut: true),
+        ]
+
+        for timedOutRun in timedOutRuns {
+            answerWithACoverageRun(bundles: ["CoreTests.xctest", "XCTest1234_0.501.profraw"], testRun: timedOutRun)
+
+            XCTAssertEqual(sut.run(with: limited), .failure(.timedOut(after: 900)), "\(timedOutRun)")
+            XCTAssertEqual(sut.coverageRunOutput, failedTestsOutput)
+        }
+        XCTAssertEqual(process.commandsRun.count, timedOutRuns.count)
+    }
+
+    // `swift test` itself was stopped, which says nothing of the tests.
     func test_aCoverageRunEndedByASignal_givesNoCoverage() {
         process.commandResult = { _ in CommandResult(status: 9, endedBySignal: true, output: "", errors: "") }
 
-        XCTAssertEqual(sut.run(with: muterConfiguration), .failure(.testsFailed(status: 9, bySignal: true)))
+        XCTAssertEqual(sut.run(with: muterConfiguration), .failure(.endedBySignal(9)))
         XCTAssertEqual(process.commandsRun.count, 1)
+    }
+
+    func test_aFailedMerge_givesItsFirstLine() {
+        answerWithACoverageRun(
+            bundles: ["CoreTests.xctest", "XCTest1234_0.501.profraw"],
+            testRun: result(status: 1, output: failedTestsOutput)
+        )
+        let answer = process.commandResult
+        process.commandResult = { command in
+            command.contains("llvm-profdata")
+                ? self.result(status: 1, errors: "error: XCTest1234_0.501.profraw: invalid profile data\nmore\n")
+                : answer(command)
+        }
+
+        XCTAssertEqual(
+            sut.run(with: muterConfiguration),
+            .failure(.mergeFailed("error: XCTest1234_0.501.profraw: invalid profile data"))
+        )
+        XCTAssertFalse(process.commandsRun.contains { $0.contains("llvm-cov") })
+    }
+
+    func test_anLLVMProfdataThatCantBeStarted_givesNoCoverage() {
+        answerWithACoverageRun(
+            bundles: ["CoreTests.xctest", "XCTest1234_0.501.profraw"],
+            testRun: result(status: 1, output: failedTestsOutput)
+        )
+        let answer = process.commandResult
+        process.commandResult = { command in command.contains("llvm-profdata") ? nil : answer(command) }
+
+        XCTAssertEqual(sut.run(with: muterConfiguration), .failure(.couldNotRun("llvm-profdata")))
+    }
+
+    func test_noProfileLeftByTheTestProcesses_givesNoCoverage() {
+        answerWithACoverageRun(bundles: ["CoreTests.xctest"], testRun: result(status: 1, output: failedTestsOutput))
+
+        XCTAssertEqual(
+            sut.run(with: muterConfiguration),
+            .failure(.noProfileData(atPath: "/project/.build/out/Products/Debug/codecov"))
+        )
+        XCTAssertFalse(process.commandsRun.contains { $0.contains("llvm-profdata") })
     }
 
     func test_aTestCommandThatCantBeStarted_givesNoCoverage() {
@@ -163,32 +517,200 @@ final class SwiftCoverageTests: MuterTestCase {
 
     // Each follows "Gathering coverage failed: ".
     func test_eachFailure_saysWhy() {
-        XCTAssertEqual(
-            [
-                CoverageError.testsFailed(status: 1, bySignal: false),
-                .testsFailed(status: 9, bySignal: true),
-                .couldNotRun("llvm-cov"),
-                .noBuildDirectory,
-                .noProfileData(atPath: "/b/codecov/default.profdata"),
-                .noTestBundles(inDirectory: "/b"),
-                .llvmCovFailed("error: malformed coverage data"),
-                .llvmCovFailed(""),
-                .unreadableReport,
-                .noProjectFiles,
-            ].map(\.reason),
-            [
-                "the tests with coverage on failed (exit status 1), and SwiftPM saves no coverage then",
-                "the tests with coverage on were ended by signal 9",
-                "llvm-cov couldn't be started",
-                "`swift test --show-codecov-path` didn't say where the build is",
-                "there is no profile data at /b/codecov/default.profdata",
-                "there is no test bundle in /b",
-                "llvm-cov failed: error: malformed coverage data",
-                "llvm-cov failed",
-                "llvm-cov's report couldn't be read",
-                "llvm-cov's report covers none of the project's source files",
-            ]
+        let noTests = FailedTestLine.FailedTests(tests: [], count: 0, firstLine: nil)
+        let sevenTests = FailedTestLine.FailedTests(
+            tests: [.init(name: "-[CTests.CTests test_a]", location: nil)]
+                + (2 ... 7).map { .init(name: "test\($0)()", location: "BTests.swift:\($0):5") },
+            count: 7,
+            firstLine: nil
         )
+        let errors: [CoverageError] = [
+            .timedOut(after: 900),
+            .timedOut(after: 1.5),
+            .endedBySignal(9),
+            .testProcessCrashed("CTests.xctest, signal 5", failedTests: noTests),
+            .testProcessCrashed("BTests.xctest, signal 11", failedTests: sevenTests),
+            .testProcessUnfinished("CTests.xctest, during -[CTests.CTests test_z_killed]", failedTests: noTests),
+            .testProcessUnfinished("Swift Testing", failedTests: sevenTests),
+            .runFailed(status: 1, error: "error: Build failed"),
+            .runFailed(status: 1, error: nil),
+            .couldNotRun("llvm-cov"),
+            .noBuildDirectory,
+            .noProfileData(atPath: "/b/codecov/default.profdata"),
+            .noTestBundles(inDirectory: "/b"),
+            .mergeFailed("error: invalid profile data"),
+            .mergeFailed(""),
+            .llvmCovFailed("error: malformed coverage data"),
+            .llvmCovFailed(""),
+            .unreadableReport,
+            .noProjectFiles,
+        ]
+        let neverRun: String = "and without its profile the code it ran would read as never run"
+        let sevenNamed: String = "-[CTests.CTests test_a], test2() at BTests.swift:2:5, test3() at BTests.swift:3:5, "
+            + "test4() at BTests.swift:4:5, test5() at BTests.swift:5:5, and 2 more"
+        let notMerged: String = "a test failed with coverage on, "
+            + "and llvm-profdata couldn't merge the profiles the test processes left"
+
+        XCTAssertEqual(errors.map(\.reason), [
+            "the tests with coverage on didn't end within 900 s (buildTimeout), so SwiftMutator stopped them",
+            "the tests with coverage on didn't end within 1.5 s (buildTimeout), so SwiftMutator stopped them",
+            "the tests with coverage on were ended by signal 9",
+            "a test process crashed with coverage on (CTests.xctest, signal 5), \(neverRun)",
+            "a test process crashed with coverage on (BTests.xctest, signal 11), \(neverRun); "
+                + "tests that failed: \(sevenNamed)",
+            "a test process stopped before its tests finished with coverage on "
+                + "(CTests.xctest, during -[CTests.CTests test_z_killed]), \(neverRun)",
+            "a test process stopped before its tests finished with coverage on (Swift Testing), \(neverRun); "
+                + "tests that failed: \(sevenNamed)",
+            "the coverage run failed (exit status 1): error: Build failed",
+            "the coverage run failed (exit status 1) without naming a failed test or an error",
+            "llvm-cov couldn't be started",
+            "`swift test --show-codecov-path` didn't say where the build is",
+            "there is no profile data at /b/codecov/default.profdata",
+            "there is no test bundle in /b",
+            "\(notMerged): error: invalid profile data",
+            notMerged,
+            "llvm-cov failed: error: malformed coverage data",
+            "llvm-cov failed",
+            "llvm-cov's report couldn't be read",
+            "llvm-cov's report covers none of the project's source files",
+        ])
+    }
+
+    // MARK: - On Linux
+
+    // Swift Build makes for each test target a runner that loads the target's tests, and with them its coverage
+    // mapping, from a `.so` next to it. Neither the runners nor the libraries the tests link are read.
+    func test_onLinux_eachTestTargetsLibrary_isExported_notItsRunner_orAnotherLibrary() {
+        answerWithACoverageRun(
+            bundles: [
+                "CoreTests.so", "CoreTests-test-runner", "AppTests.so", "AppTests-test-runner", "Core.so", "libCore.so",
+            ],
+            testTargets: ["CoreTests", "AppTests"],
+            buildDirectory: linuxBuild
+        )
+
+        _ = onLinux.run(with: muterConfiguration)
+
+        XCTAssertEqual(process.commandsRun.last, [
+            "/usr/bin/env", "llvm-cov", "export",
+            linuxBuild + "/AppTests.so", "-object", linuxBuild + "/CoreTests.so",
+            "-instr-profile", linuxBuild + "/codecov/default.profdata",
+        ])
+        XCTAssertEqual(fileManager.contentsOfDirectoryAtPath, [linuxBuild])
+    }
+
+    // A `.so` with no runner next to it holds no tests, even when the package's test targets are unknown, and the pair
+    // of a test target the package no longer has is left out, as on macOS.
+    func test_onLinux_aLibraryWithoutARunner_andAStaleTestTargetsPair_areLeftOut() {
+        answerWithACoverageRun(
+            bundles: ["CoreTests.so", "CoreTests-test-runner", "Core.so", "libCore.so"],
+            testTargets: nil,
+            buildDirectory: linuxBuild
+        )
+        _ = onLinux.run(with: muterConfiguration)
+        XCTAssertEqual(process.commandsRun.last?.dropFirst(2), [
+            "export", linuxBuild + "/CoreTests.so", "-instr-profile", linuxBuild + "/codecov/default.profdata",
+        ])
+
+        answerWithACoverageRun(
+            bundles: ["CoreTests.so", "CoreTests-test-runner", "OldTests.so", "OldTests-test-runner"],
+            testTargets: ["CoreTests"],
+            buildDirectory: linuxBuild
+        )
+        _ = onLinux.run(with: muterConfiguration)
+        XCTAssertEqual(process.commandsRun.last?.dropFirst(2), [
+            "export", linuxBuild + "/CoreTests.so", "-instr-profile", linuxBuild + "/codecov/default.profdata",
+        ])
+    }
+
+    // The native build system's one bundle, named after the package, is itself the executable on Linux.
+    func test_onLinux_theNativeBuildSystemsBundle_isExportedAsItIs() {
+        let native = "/project/.build/x86_64-unknown-linux-gnu/debug"
+        answerWithACoverageRun(bundles: ["ProjectPackageTests.xctest", "Core.build"], buildDirectory: native)
+
+        _ = onLinux.run(with: muterConfiguration)
+
+        XCTAssertEqual(process.commandsRun.last, [
+            "/usr/bin/env", "llvm-cov", "export", native + "/ProjectPackageTests.xctest",
+            "-instr-profile", native + "/codecov/default.profdata",
+        ])
+    }
+
+    // SwiftPM takes the llvm-cov next to the toolchain's `swiftc`. One from elsewhere on PATH, such as a
+    // distribution's, may not read the toolchain's profiles.
+    func test_onLinux_llvmCov_isTheOneNextToTheTestCommand_whenThereIsOne() throws {
+        answerWithACoverageRun(bundles: ["CoreTests.so", "CoreTests-test-runner"], buildDirectory: linuxBuild)
+        fileManager.fileExistsToReturn = [true, true]
+
+        let coverage = try onLinux.run(with: muterConfiguration).get()
+
+        XCTAssertEqual(process.commandsRun.last, [
+            "/path/to/llvm-cov", "export", linuxBuild + "/CoreTests.so",
+            "-instr-profile", linuxBuild + "/codecov/default.profdata",
+        ])
+        XCTAssertEqual(fileManager.fileExistsAtPath, [linuxBuild + "/codecov/default.profdata", "/path/to/llvm-cov"])
+        XCTAssertEqual(coverage.percent, 50)
+    }
+
+    func test_onLinux_llvmCov_isTheOneOnThePath_whenNoneIsNextToTheTestCommand() {
+        answerWithACoverageRun(bundles: ["CoreTests.so", "CoreTests-test-runner"], buildDirectory: linuxBuild)
+        fileManager.fileExistsToReturn = [true, false]
+
+        _ = onLinux.run(with: muterConfiguration)
+
+        XCTAssertEqual(process.commandsRun.last?.prefix(3), ["/usr/bin/env", "llvm-cov", "export"])
+        XCTAssertEqual(fileManager.fileExistsAtPath.last, "/path/to/llvm-cov")
+    }
+
+    // `/usr/bin/swift` is often a link into the toolchain, whose folder holds the LLVM tools.
+    func test_onLinux_theLLVMTools_areLookedFor_whereTheTestCommandsLinkLeads() throws {
+        let directory = try makeTemporaryDirectory().canonicalPath
+        let toolchain = directory + "/toolchain/usr/bin"
+        try FileManager.default.createDirectory(atPath: toolchain, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: toolchain + "/swift", contents: nil)
+        try FileManager.default.createSymbolicLink(
+            atPath: directory + "/swift",
+            withDestinationPath: toolchain + "/swift"
+        )
+        answerWithACoverageRun(bundles: ["CoreTests.so", "CoreTests-test-runner"], buildDirectory: linuxBuild)
+        fileManager.fileExistsToReturn = [true, true]
+
+        _ = onLinux.run(with: MuterConfiguration(executable: directory + "/swift", arguments: ["test"]))
+
+        XCTAssertEqual(process.commandsRun.last?.first, toolchain + "/llvm-cov")
+        XCTAssertEqual(fileManager.fileExistsAtPath.last, toolchain + "/llvm-cov")
+    }
+
+    // The merge after a failed test looks for llvm-profdata the same way.
+    func test_onLinux_theMerge_usesTheLLVMProfdataNextToTheTestCommand_orElseTheOneOnThePath() {
+        let codecov = linuxBuild + "/codecov"
+        let merge = ["merge", "-sparse", codecov + "/XCTest1234_0.501.profraw", "-o", codecov + "/default.profdata"]
+        answerWithACoverageRun(
+            bundles: ["CoreTests.so", "CoreTests-test-runner", "XCTest1234_0.501.profraw"],
+            buildDirectory: linuxBuild,
+            testRun: result(status: 1, output: failedTestsOutput)
+        )
+
+        fileManager.fileExistsToReturn = [true, true]
+        _ = onLinux.run(with: muterConfiguration)
+        XCTAssertEqual(process.commandsRun.last(where: { $0.contains("merge") }), ["/path/to/llvm-profdata"] + merge)
+        XCTAssertEqual(fileManager.fileExistsAtPath.first, "/path/to/llvm-profdata")
+
+        fileManager.fileExistsToReturn = [false, true]
+        _ = onLinux.run(with: muterConfiguration)
+        XCTAssertEqual(
+            process.commandsRun.last(where: { $0.contains("merge") }),
+            ["/usr/bin/env", "llvm-profdata"] + merge
+        )
+    }
+
+    func test_theHostPlatform_isTheOneSwiftMutatorWasBuiltFor() {
+        #if os(Linux)
+        XCTAssertEqual(SwiftCoverage.Platform.host, .linux)
+        #else
+        XCTAssertEqual(SwiftCoverage.Platform.host, .darwin)
+        #endif
     }
 
     // MARK: - Reading the export
@@ -306,12 +828,16 @@ final class SwiftCoverageTests: MuterTestCase {
 
     // MARK: - Helpers
 
-    /// Answers a coverage run whose build is at `/project/.build/out/Products/Debug` and holds `bundles`, in a package
-    /// whose test targets are `testTargets`, or that can't be described, with the export `exportJSON` gives.
+    /// Answers a coverage run that ends as `testRun` says, whose build is at `buildDirectory` and holds `bundles`, in a
+    /// package whose test targets are `testTargets`, or that can't be described, with the export `exportJSON` gives.
+    /// `bundles` also lists the build's `codecov` folder, so it holds any profiles there too. The LLVM tools, by
+    /// whatever path, answer as llvm-cov and llvm-profdata.
     private func answerWithACoverageRun(
         bundles: [String],
         testTargets: [String]? = ["CoreTests"],
-        profileExists: Bool = true
+        profileExists: Bool = true,
+        buildDirectory: String = "/project/.build/out/Products/Debug",
+        testRun: CommandResult? = nil
     ) {
         fileManager.currentDirectoryPathToReturn = "/project"
         fileManager.contentsOfDirectoryToReturn = bundles
@@ -324,14 +850,43 @@ final class SwiftCoverageTests: MuterTestCase {
         }
         process.commandResult = { command in
             if command.last == "--show-codecov-path" {
-                return self.result(output: "/project/.build/out/Products/Debug/codecov/Project.json\n")
+                return self.result(output: buildDirectory + "/codecov/Project.json\n")
             }
             if command.contains("describe") {
                 return description.map { self.result(output: $0) } ?? self.result(status: 1)
             }
-            return command.contains("llvm-cov") ? self.result(output: export) : self.result(output: "Test run passed\n")
+            if command.contains(where: { $0.hasSuffix("llvm-profdata") }) {
+                return self.result()
+            }
+            return command.contains(where: { $0.hasSuffix("llvm-cov") })
+                ? self.result(output: export)
+                : testRun ?? self.result(output: "Test run passed\n")
         }
     }
+
+    /// A coverage run's output in which an XCTest test and a Swift Testing test failed, as `failedTests` names them.
+    private let failedTestsOutput = """
+    Test Case '-[CTests.CTests test_c]' started.
+    Test Case '-[CTests.CTests test_c]' passed (0.000 seconds).
+    Test Case '-[CTests.CTests test_failsOnlyUnderCoverage]' started.
+    Test Case '-[CTests.CTests test_failsOnlyUnderCoverage]' failed (0.039 seconds).
+    ◇ Test failsOnlyUnderCoverage() started.
+    ✘ Test failsOnlyUnderCoverage() recorded an issue at BTests.swift:11:9: Expectation failed: !underCoverage
+    ✘ Test failsOnlyUnderCoverage() failed after 0.001 seconds with 1 issue.
+    Note: Some test targets reported failures:
+      - CTests (XCTest)
+      - BTests (Swift Testing)
+
+    """
+
+    private let failedTests = FailedTestLine.FailedTests(
+        tests: [
+            .init(name: "-[CTests.CTests test_failsOnlyUnderCoverage]", location: nil),
+            .init(name: "failsOnlyUnderCoverage()", location: "BTests.swift:11:9"),
+        ],
+        count: 2,
+        firstLine: "Test Case '-[CTests.CTests test_failsOnlyUnderCoverage]' failed (0.039 seconds)."
+    )
 
     private func bundle(_ name: String) -> String {
         "/project/.build/out/Products/Debug/\(name).xctest/Contents/MacOS/\(name)"

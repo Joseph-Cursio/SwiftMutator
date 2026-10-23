@@ -9,8 +9,12 @@ struct CommandResult: Equatable {
     let endedBySignal: Bool
     let output: String
     let errors: String
+    /// Whether it ran past its time limit, so it was killed with every process it started. A `var` only so the
+    /// memberwise initializer can leave it out.
+    var timedOut = false
 
-    var succeeded: Bool { !endedBySignal && status == 0 }
+    /// Not when it timed out, even if it exited as it was killed.
+    var succeeded: Bool { !timedOut && !endedBySignal && status == 0 }
 }
 
 protocol MuterProcess: AnyObject {
@@ -32,8 +36,9 @@ protocol MuterProcess: AnyObject {
     ) -> Data?
 
     /// Runs `url` with `arguments` to its end, for its exit status and what it wrote to standard output and standard
-    /// error, or nil if it couldn't be started.
-    func runCommand(url: String, arguments args: [String]) -> CommandResult?
+    /// error, or nil if it couldn't be started. Past `timeLimit` seconds, if there is one, it kills the command and
+    /// every process it started, and the result says it timed out.
+    func runCommand(url: String, arguments args: [String], timeLimit: TimeInterval?) -> CommandResult?
 
     func run() throws
 
@@ -50,8 +55,13 @@ protocol MuterProcess: AnyObject {
 
 extension MuterProcess {
     /// For test doubles that never run a command this way: as if it couldn't be started. `Foundation.Process` runs it.
-    func runCommand(url: String, arguments args: [String]) -> CommandResult? {
+    func runCommand(url: String, arguments args: [String], timeLimit: TimeInterval?) -> CommandResult? {
         nil
+    }
+
+    /// `runCommand` with no time limit.
+    func runCommand(url: String, arguments args: [String]) -> CommandResult? {
+        runCommand(url: url, arguments: args, timeLimit: nil)
     }
 
     /// Waits for this process to exit on a GCD thread. `waitUntilExit()` blocks its thread until then,

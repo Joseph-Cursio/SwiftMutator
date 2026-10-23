@@ -15,14 +15,17 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     func test_whenUsesSupportedBuildSystem_shouldRunWithCoverage() {
         _ = sut.run(with: muterConfiguration)
 
-        XCTAssertEqual(process.executableURL?.path, "/path/to/xcodebuild")
-        XCTAssertEqual(process.arguments, [
-            "OTHER_SWIFT_FLAGS=$(inherited) -Xllvm -instrprof-atomic-counter-update-all", "-enableCodeCoverage", "YES",
+        XCTAssertEqual(process.commandsRun, [
+            [
+                "/path/to/xcodebuild",
+                "OTHER_SWIFT_FLAGS=$(inherited) -Xllvm -instrprof-atomic-counter-update-all", "-enableCodeCoverage", "YES",
+            ],
         ])
+        XCTAssertEqual(process.timeLimits, [nil])
     }
 
     func test_whenRunWithCoverageSucceeds_thenRunXcovCommand() {
-        process.stdoutToBeReturned = "something\nsomething\npath/to/testResult.xcresult"
+        answerTheCoverageRun(printing: "something\nsomething\npath/to/testResult.xcresult")
         process.stdoutToBeReturned = "/path/to/xcrun"
 
         _ = sut.run(with: muterConfiguration)
@@ -35,7 +38,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     }
 
     func test_whenXcovSucceeds_thenReturnFilsWithoutCoverage() throws {
-        process.stdoutToBeReturned = "something\nsomething\npath/to/testResult.xcresult"
+        answerTheCoverageRun(printing: "something\nsomething\npath/to/testResult.xcresult")
         process.stdoutToBeReturned = "/path/to/xcrun"
         process.stdoutToBeReturned = coverageData
 
@@ -51,7 +54,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     }
 
     func test_ignoreFilesLessThanCoverageThreshold() throws {
-        process.stdoutToBeReturned = "something\nsomething\npath/to/testResult.xcresult"
+        answerTheCoverageRun(printing: "something\nsomething\npath/to/testResult.xcresult")
         process.stdoutToBeReturned = "/path/to/xcrun"
         process.stdoutToBeReturned = coverageData
 
@@ -73,7 +76,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     }
 
     func test_whenXcodeSelectFails_shouldNotRunXccov() {
-        process.stdoutToBeReturned = "something\nsomething\npath/to/testResult.xcresult"
+        answerTheCoverageRun(printing: "something\nsomething\npath/to/testResult.xcresult")
         process.stdoutToBeReturned = "/path/to/xcrun"
         process.stdoutToBeReturned = ""
 
@@ -85,11 +88,30 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     }
 
     func test_whenBuildFailes_shouldNotExecuteXcodeSelect() {
-        process.stdoutToBeReturned = ""
+        answerTheCoverageRun(printing: "", status: 65)
+
+        XCTAssertEqual(sut.run(with: muterConfiguration), .failure(.build))
+        XCTAssertNotEqual(process.executableURL?.path, "/usr/bin/xcode-select")
+    }
+
+    // xcodebuild prints the result bundle's path when a test fails too, and that bundle holds the coverage.
+    func test_theResultBundle_isRead_whateverTheCoverageRunsExitStatus() {
+        answerTheCoverageRun(printing: "Testing failed:\npath/to/testResult.xcresult\n", status: 65)
+        process.stdoutToBeReturned = "/path/to/xcrun"
 
         _ = sut.run(with: muterConfiguration)
 
-        XCTAssertNotEqual(process.executableURL?.path, "/usr/bin/xcode-select")
+        XCTAssertEqual(process.arguments, ["xccov", "view", "--report", "--json", "path/to/testResult.xcresult"])
+    }
+
+    // Killed at `buildTimeout`, the run gives no coverage, even if it had printed where its result bundle is.
+    func test_aCoverageRunPastItsTimeLimit_givesNoCoverage() {
+        answerTheCoverageRun(printing: "path/to/testResult.xcresult\n", status: 9, timedOut: true)
+        let limited = MuterConfiguration(executable: "/path/to/xcodebuild", arguments: [], buildTimeout: 900)
+
+        XCTAssertEqual(sut.run(with: limited), .failure(.timedOut(after: 900)))
+        XCTAssertEqual(process.timeLimits, [900])
+        XCTAssertNil(process.executableURL, "xccov ran")
     }
 
     // xcodebuild -showBuildSettings indents each setting and repeats them for every target. The folder above
@@ -179,6 +201,15 @@ final class XcodeBuildCoverageTests: MuterTestCase {
                 ),
             ]
         )
+    }
+
+    // MARK: - Helpers
+
+    /// Answers the coverage run, which ends with `status`, or at its time limit, having printed `output`.
+    private func answerTheCoverageRun(printing output: String, status: Int32 = 0, timedOut: Bool = false) {
+        process.commandResult = { _ in
+            CommandResult(status: status, endedBySignal: timedOut, output: output, errors: "", timedOut: timedOut)
+        }
     }
 }
 
