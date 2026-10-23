@@ -67,6 +67,36 @@ final class GeneratedEnvironmentCacheTests: MuterTestCase {
         XCTAssertEqual(try run(program, adding: [identifier: "YES"]).output, "mutant\n", "the mutant's own variable")
     }
 
+    /// Code that other modules may copy, an `@inlinable`, `@_alwaysEmitIntoClient` or `@_transparent` body or a public
+    /// function's default argument, can reference only public and `@usableFromInline` declarations, and so can a
+    /// mutant in it. Each is in a file of its own, and each file's cache is internal, so this also checks that the
+    /// caches of a module's files don't clash.
+    func test_theGeneratedCodeBuildsInCodeOtherModulesMayCopy() throws {
+        let (program, identifier) = try compileMutatedCheck(
+            declaring: "@inlinable public func check(_ value: Int) -> Bool",
+            alongside: [
+                "Emitted.swift": """
+                @_alwaysEmitIntoClient public func emitted(_ value: Int) -> Bool {
+                    return value > 1
+                }
+                """,
+                "Transparent.swift": """
+                @_transparent public func transparent(_ value: Int) -> Bool {
+                    return value > 1
+                }
+                """,
+                "Defaulted.swift": """
+                public func defaulted(_ value: Int, _ isLarge: (Int) -> Bool = { $0 > 1 }) -> Bool {
+                    return isLarge(value)
+                }
+                """,
+            ]
+        )
+
+        XCTAssertEqual(try run(program).output, "original\n", "no mutant named")
+        XCTAssertEqual(try run(program, adding: [identifier: "YES"]).output, "mutant\n", "the mutant's own variable")
+    }
+
     // MARK: - Helpers
 
     private struct Run {
@@ -83,9 +113,11 @@ final class GeneratedEnvironmentCacheTests: MuterTestCase {
     /// Rewrites a file holding one mutant, as `swift test` builds it, and compiles it into a program that
     /// prints which code ran. It's compiled in the strictest mode the generated code must pass: Swift 6, with
     /// only `ProcessInfo` imported from Foundation and members of other imports hidden. `signature` declares
-    /// the function the mutant is in, and `arguments` go to the compiler as well.
+    /// the function the mutant is in. `others` are more files of the program, by name, each rewritten from the code
+    /// given and holding mutants of its own. `arguments` go to the compiler as well.
     private func compileMutatedCheck(
         declaring signature: String = "func check(_ value: Int) -> Bool",
+        alongside others: [String: String] = [:],
         arguments: [String] = []
     ) throws -> (program: URL, identifier: String) {
         let source = SourceCodeInfo(
@@ -107,6 +139,17 @@ final class GeneratedEnvironmentCacheTests: MuterTestCase {
         let main = directory.appendingPathComponent("main.swift")
         let program = directory.appendingPathComponent("check")
         try write(MuterRewriter(mapping).rewrite(source.code).description, to: mutated)
+        let otherFiles = try others.sorted { $0.key < $1.key }.map { name, code in
+            let other = SourceCodeInfo(
+                path: "/path/to/\(name)",
+                code: Parser.parse(source: "import class Foundation.ProcessInfo\n\n\(code)\n")
+            )
+            let otherMapping = try XCTUnwrap(generateSchemataMappings(for: other).first, "\(name) holds no mutant")
+            XCTAssertFalse(otherMapping.mutationSchemata.isEmpty, "\(name) holds no mutant")
+            let file = directory.appendingPathComponent(name)
+            try write(MuterRewriter(otherMapping).rewrite(other.code).description, to: file)
+            return file.path
+        }
         // A fatal error traps (SIGTRAP on arm64, SIGILL on x86_64), and macOS keeps a crash report, outside any
         // temporary folder, of every program a trap kills. So this program exits from handlers of its own
         // instead; the generated code's fatal error is untouched.
@@ -127,10 +170,12 @@ final class GeneratedEnvironmentCacheTests: MuterTestCase {
             arguments: ["swiftc", "-swift-version", "6"] + arguments + [
                 "-enable-upcoming-feature", "MemberImportVisibility",
                 "-warnings-as-errors",
+                // Every file's errors, not only the first failing file's.
+                "-continue-building-after-errors",
                 "-o", program.path,
                 mutated.path,
                 main.path,
-            ],
+            ] + otherFiles,
             environment: compilerEnvironment,
             timeLimit: 300
         )
