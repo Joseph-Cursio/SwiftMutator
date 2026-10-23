@@ -231,51 +231,6 @@ final class SwiftCoverage: BuildSystemCoverage {
         }
     }
 
-    /// The coverage of the project's own source files in `export`, llvm-cov's JSON: the share of their lines the tests
-    /// ran, the files at or below `coverageThreshold`, by their path in the project, and the regions no test ran.
-    /// The export also covers test files and dependencies, which don't count, and gives absolute paths.
-    static func coverage(
-        fromExport export: Data,
-        projectRoot: String,
-        coverageThreshold: Double,
-        testsFailedWithCoverageOn: FailedTestLine.FailedTests? = nil
-    ) -> Result<Coverage, CoverageError> {
-        guard let coverage = try? JSONDecoder().decode(LLVMCoverage.self, from: export),
-              let report = coverage.data.first
-        else {
-            return .failure(.unreadableReport)
-        }
-
-        let projectFiles = ProjectSourceFiles(root: projectRoot)
-        let files = report.files.compactMap { file -> (path: String, lines: LLVMCoverage.Lines)? in
-            projectFiles.pathInProject(file.filename).map { ($0, file.summary.lines) }
-        }
-        guard !files.isEmpty else {
-            return .failure(.noProjectFiles)
-        }
-
-        let lines = files.map(\.lines.count).reduce(0, +)
-        let coveredLines = files.map(\.lines.covered).reduce(0, +)
-        let filesWithoutCoverage = files
-            .filter {
-                ProjectSourceFiles.hasNoCoverage(
-                    covered: $0.lines.covered,
-                    of: $0.lines.count,
-                    threshold: coverageThreshold
-                )
-            }
-            .map(\.path)
-
-        return .success(
-            Coverage(
-                percent: lines > 0 ? coveredLines * 100 / lines : 0,
-                filesWithoutCoverage: filesWithoutCoverage,
-                functionsCoverage: FunctionsCoverage(from: coverage),
-                testsFailedWithCoverageOn: testsFailedWithCoverageOn
-            )
-        )
-    }
-
     /// How to run the LLVM tool `name`, such as `llvm-cov`: the executable, and the arguments before the tool's own.
     /// On macOS, xcrun runs the selected Xcode's. On Linux, it is the one next to `testCommand`, the test command's
     /// executable, with its links resolved, as `/usr/bin/swift` is often a link into the toolchain. SwiftPM takes the

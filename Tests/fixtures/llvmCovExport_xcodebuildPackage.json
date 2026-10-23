@@ -1,0 +1,24 @@
+{
+  "data": [
+    {
+      "files": [
+        {"filename": "/project/Sources/Calc/Calc.swift", "summary": {"lines": {"count": 9, "covered": 3}}},
+        {"filename": "/project/Sources/Calc/Untested.swift", "summary": {"lines": {"count": 3, "covered": 0}}},
+        {"filename": "/project/Sources/Other/Other.swift", "summary": {"lines": {"count": 3, "covered": 0}}},
+        {"filename": "/project/Tests/CalcTests/CalcTests.swift", "summary": {"lines": {"count": 8, "covered": 8}}}
+      ],
+      "functions": [
+        {"name": "$s9CalcTests0A7XCTestsC7testAddyyF", "count": 1, "filenames": ["/project/Tests/CalcTests/CalcTests.swift"], "regions": [[6, 20, 8, 6, 1, 0, 0, 0]]},
+        {"name": "$s9CalcTests0A7XCTestsC7testAddyyFSiyKXEfu_", "count": 1, "filenames": ["/project/Tests/CalcTests/CalcTests.swift"], "regions": [[7, 24, 7, 38, 1, 0, 0, 0]]},
+        {"name": "$s9CalcTests0A7XCTestsC7testAddyyFSiyKXEfu0_", "count": 1, "filenames": ["/project/Tests/CalcTests/CalcTests.swift"], "regions": [[7, 40, 7, 41, 1, 0, 0, 0]]},
+        {"name": "$s9CalcTests8addWorksyyF", "count": 1, "filenames": ["/project/Tests/CalcTests/CalcTests.swift"], "regions": [[11, 23, 13, 2, 1, 0, 0, 0]]},
+        {"name": "$s5Other10otherThingyS2iF", "count": 0, "filenames": ["/project/Sources/Other/Other.swift"], "regions": [[1, 41, 3, 2, 0, 0, 0, 0]]},
+        {"name": "$s4Calc3addyS2i_SitF", "count": 2, "filenames": ["/project/Sources/Calc/Calc.swift"], "regions": [[1, 44, 3, 2, 2, 0, 0, 0]]},
+        {"name": "$s4Calc11neverCalledyS2iF", "count": 0, "filenames": ["/project/Sources/Calc/Calc.swift"], "regions": [[5, 42, 10, 2, 0, 0, 0, 0], [6, 8, 6, 13, 0, 0, 0, 0], [6, 14, 8, 6, 0, 0, 0, 0], [8, 6, 9, 17, 0, 0, 0, 0]]},
+        {"name": "$s4Calc8untestedySbSiF", "count": 0, "filenames": ["/project/Sources/Calc/Untested.swift"], "regions": [[1, 40, 3, 2, 0, 0, 0, 0]]}
+      ]
+    }
+  ],
+  "type": "llvm.coverage.json.export",
+  "version": "3.0.1"
+}
