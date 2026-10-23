@@ -22,18 +22,23 @@ enum RemoveSideEffectsOperator {
         convenience init(
             configuration: MuterConfiguration? = nil,
             sourceCodeInfo: SourceCodeInfo,
-            regionsWithoutCoverage: [Region] = []
+            coverage: FileCoverage = .none
         ) {
             self.init(
                 configuration: configuration,
                 sourceCodeInfo: sourceCodeInfo,
                 mutationOperatorId: .removeSideEffects,
-                regionsWithoutCoverage: regionsWithoutCoverage
+                coverage: coverage
             )
         }
 
         override func visit(_ node: PatternBindingListSyntax) -> SyntaxVisitorContinueKind {
             for statement in node where statementsContainsConcurrencyTypes(statement) {
+                // A lock made in code the tests never ran has no uses that ran. A type's property is made by code of
+                // its own, with each instance, though the code that declares the type never ran.
+                guard let value = statement.initializer?.value, hasTestCoverage(value) else {
+                    continue
+                }
                 let property = propertyName(from: statement)
                 concurrencyPropertiesInFile.append(property)
             }
@@ -102,7 +107,8 @@ enum RemoveSideEffectsOperator {
                     mutation: newCodeBlockItemList,
                     with: statements,
                     at: position,
-                    snapshot: snapshot
+                    snapshot: snapshot,
+                    changing: statement
                 )
             }
         }

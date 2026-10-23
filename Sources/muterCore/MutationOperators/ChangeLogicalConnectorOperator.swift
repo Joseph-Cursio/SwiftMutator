@@ -5,13 +5,13 @@ enum ChangeLogicalConnectorOperator {
         convenience init(
             configuration: MuterConfiguration? = nil,
             sourceCodeInfo: SourceCodeInfo,
-            regionsWithoutCoverage: [Region] = []
+            coverage: FileCoverage = .none
         ) {
             self.init(
                 configuration: configuration,
                 sourceCodeInfo: sourceCodeInfo,
                 mutationOperatorId: .logicalOperator,
-                regionsWithoutCoverage: regionsWithoutCoverage
+                coverage: coverage
             )
 
             tokensToDiscover = [

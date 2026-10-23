@@ -53,4 +53,24 @@ final class CoverageRegionTests: MuterTestCase {
             [2, 4]
         )
     }
+
+    // Counts that llvm-cov gets wrong are worked out from the ones the tests ran, so every function keeps all its
+    // regions, in order: the first is its body.
+    func test_eachFunctionKeepsItsCodeAndSkippedRegions_inOrder() throws {
+        let json = Data("""
+        {"data": [{"functions": [
+            {"filenames": ["/path/to/file.swift"], "regions": [
+                [1, 1, 9, 2, 3, 0, 0, 0], [2, 1, 2, 9, 0, 0, 0, 3], [3, 1, 3, 9, 2, 0, 0, 0]
+            ]},
+            {"filenames": ["/path/to/file.swift"], "regions": [[5, 1, 5, 9, 1, 0, 0, 0], [6, 1, 6, 9, 0, 0, 0, 2]]}
+        ]}]}
+        """.utf8)
+
+        let coverage = try FunctionsCoverage(from: JSONDecoder().decode(LLVMCoverage.self, from: json))
+
+        XCTAssertEqual(
+            coverage.coverage(ofFile: "/path/to/file.swift").functions.map { $0.map(\.lineStart) },
+            [[1, 3], [5, 6]]
+        )
+    }
 }

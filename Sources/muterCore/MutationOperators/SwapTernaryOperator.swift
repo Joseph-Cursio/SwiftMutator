@@ -5,13 +5,13 @@ enum SwapTernaryOperator {
         convenience init(
             configuration: MuterConfiguration? = nil,
             sourceCodeInfo: SourceCodeInfo,
-            regionsWithoutCoverage: [Region] = []
+            coverage: FileCoverage = .none
         ) {
             self.init(
                 configuration: configuration,
                 sourceCodeInfo: sourceCodeInfo,
                 mutationOperatorId: .swapTernary,
-                regionsWithoutCoverage: regionsWithoutCoverage
+                coverage: coverage
             )
         }
 

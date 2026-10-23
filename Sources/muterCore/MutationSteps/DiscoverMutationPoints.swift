@@ -89,7 +89,7 @@ private extension DiscoverMutationPoints {
                             forOperators: operators,
                             inFile: sourceCode,
                             configuration: configuration,
-                            regionsWithoutCoverage: coverage.regionsForFile(path)
+                            coverage: coverage.coverage(ofFile: path)
                         )
 
                         if !schemataMappings.isEmpty {
@@ -111,7 +111,7 @@ private extension DiscoverMutationPoints {
         forOperators operators: MutationOperatorList,
         inFile sourceCode: PreparedSourceCode,
         configuration: MuterConfiguration,
-        regionsWithoutCoverage: [Region]
+        coverage: FileCoverage
     ) -> [SchemataMutationMapping] {
         let source = sourceCode.source.code
 
@@ -119,7 +119,7 @@ private extension DiscoverMutationPoints {
             let visitor = mutationOperatorId.visitor(
                 configuration,
                 sourceCode.source,
-                regionsWithoutCoverage
+                coverage
             )
 
             visitor.sourceCodePreparationChange = sourceCode.changes
