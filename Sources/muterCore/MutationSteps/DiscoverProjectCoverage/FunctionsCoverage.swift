@@ -2,7 +2,7 @@ import Foundation
 
 final class FunctionsCoverage {
     /// Keyed by canonical path, since llvm-cov may spell a file's path differently from SwiftMutator.
-    private var coverage: [String: [Region]] = [:]
+    private var coverage: [String: FileCoverage] = [:]
 
     private init() {}
 
@@ -11,28 +11,33 @@ final class FunctionsCoverage {
             return
         }
 
+        var functionsByFile: [String: [[Region]]] = [:]
         for function in data.functions {
-            let functionsWithoutExecutaion = function.regions.include(containsNonExecutionRegion)
+            let regions = function.regions.include(isSource)
             guard let filename = function.filenames.first,
-                  !functionsWithoutExecutaion.isEmpty
+                  !regions.isEmpty
             else {
                 continue
             }
 
-            coverage[filename.canonicalPath, default: []].append(contentsOf: functionsWithoutExecutaion)
+            functionsByFile[filename.canonicalPath, default: []].append(regions)
         }
+        coverage = functionsByFile.mapValues(FileCoverage.init(functions:))
     }
 
-    /// Code that never ran, or that an inactive `#if` kept out of the build. Gap and expansion
-    /// regions also report a zero count, but they describe whitespace and macro expansions rather
-    /// than source a mutant could sit in.
-    private func containsNonExecutionRegion(_ region: Region) -> Bool {
-        region.executionCount == 0
-            && (region.kind == .code || region.kind == .skipped)
+    /// Code, or code an inactive `#if` kept out of the build. Gap and expansion regions describe whitespace and macro
+    /// expansions rather than source a mutant could sit in.
+    private func isSource(_ region: Region) -> Bool {
+        region.kind == .code || region.kind == .skipped
     }
 
+    func coverage(ofFile filePath: FilePath) -> FileCoverage {
+        coverage[filePath.canonicalPath] ?? .none
+    }
+
+    /// Code that never ran, or that an inactive `#if` kept out of the build.
     func regionsForFile(_ filePath: FilePath) -> [Region] {
-        coverage[filePath.canonicalPath] ?? []
+        coverage(ofFile: filePath).functions.joined().include { $0.executionCount == 0 }
     }
 }
 extension FunctionsCoverage: Equatable {
@@ -43,4 +48,11 @@ extension FunctionsCoverage: Equatable {
 
 extension FunctionsCoverage: Nullable {
     static var null: FunctionsCoverage = .init()
+}
+
+/// The regions llvm-cov reports in a file, by function, in its order: a function's first region is its whole body.
+struct FileCoverage: Equatable {
+    let functions: [[Region]]
+
+    static let none = FileCoverage(functions: [])
 }

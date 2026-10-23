@@ -34,29 +34,39 @@ class MuterVisitor: SyntaxAnyVisitor {
     let configuration: MuterConfiguration?
     let sourceCodeInfo: SourceCodeInfo
     let mutationOperatorId: MutationOperator.Id
-    let regionsWithoutCoverage: [Region]
+    let coverage: FileCoverage
 
     var sourceCodePreparationChange: MutationSourceCodePreparationChange = .null
 
     private(set) var schemataMappings: SchemataMutationMapping
 
     /// One for the whole file: making one takes a pass over the whole file, and every node's coverage check asks for
-    /// two locations, so making them each time took minutes on a long file in a debug build.
+    /// a location, so making them each time took minutes on a long file in a debug build.
     private lazy var locationConverter = SourceLocationConverter(
         fileName: sourceCodeInfo.path,
         tree: sourceCodeInfo.code
+    )
+
+    /// Lazy, because `sourceCodePreparationChange` is set after `init`.
+    private lazy var executionCounts = ExecutionCounts(
+        coverage: coverage,
+        source: sourceCodeInfo.code,
+        location: { [unowned self] position in
+            let position = mutationPosition(for: locationConverter.location(for: position))
+            return ExecutionCounts.Point(line: position.line, column: position.column)
+        }
     )
 
     required init(
         configuration: MuterConfiguration? = nil,
         sourceCodeInfo: SourceCodeInfo,
         mutationOperatorId: MutationOperator.Id,
-        regionsWithoutCoverage: [Region]
+        coverage: FileCoverage
     ) {
         self.configuration = configuration
         self.sourceCodeInfo = sourceCodeInfo
         self.mutationOperatorId = mutationOperatorId
-        self.regionsWithoutCoverage = regionsWithoutCoverage
+        self.coverage = coverage
 
         schemataMappings = SchemataMutationMapping(
             filePath: sourceCodeInfo.path
@@ -65,11 +75,19 @@ class MuterVisitor: SyntaxAnyVisitor {
         super.init(viewMode: .sourceAccurate)
     }
 
-    override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
-        guard hasTestCoverage(node) else {
-            return .skipChildren
+    /// Makes what the coverage checks need at the top of the tree. Made at the first mutant, which can be deep in a
+    /// long expression, their own recursion would start on top of the visitor's, and could run out of a discovery
+    /// thread's stack.
+    override func visit(_ node: SourceFileSyntax) -> SyntaxVisitorContinueKind {
+        _ = locationConverter
+        if !coverage.functions.isEmpty {
+            _ = executionCounts
         }
 
+        return super.visit(node)
+    }
+
+    override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
         checkNodeForDisableTag(node)
 
         return super.visitAny(node)
@@ -82,28 +100,11 @@ class MuterVisitor: SyntaxAnyVisitor {
             && node.containsLineComment(muterDisableTag)
     }
 
-    private func hasTestCoverage(
+    /// Whether the tests ran `node`, by the innermost region that holds all of it.
+    func hasTestCoverage(
         _ node: SyntaxProtocol
     ) -> Bool {
-        guard !regionsWithoutCoverage.isEmpty else {
-            return true
-        }
-
-        let nodeRegion = nodeRegion(node)
-
-        return regionsWithoutCoverage.include { $0.contains(nodeRegion) }.isEmpty
-    }
-
-    private func nodeRegion(_ node: SyntaxProtocol) -> Region {
-        let start = startLocation(for: node)
-        let end = endLocation(for: node)
-
-        return Region(
-            lineStart: start.line,
-            columnStart: start.column,
-            lineEnd: end.line,
-            columnEnd: end.column
-        )
+        coverage.functions.isEmpty || executionCounts.ran(node)
     }
 
     func startLocation(
@@ -203,13 +204,23 @@ class MuterVisitor: SyntaxAnyVisitor {
         return mutationParsed.tree.statements
     }
 
+    /// Adds the mutant that replaces `syntax` with `mutation`. `changed` is the node the mutant changes, when that
+    /// isn't `syntax` itself, as RemoveSideEffects replaces a body's statement list to remove one statement.
     func add(
         mutation: SyntaxProtocol,
         with syntax: SyntaxProtocol,
         at position: MutationPosition,
-        snapshot: MutationOperator.Snapshot
+        snapshot: MutationOperator.Snapshot,
+        changing changed: SyntaxProtocol? = nil
     ) {
         guard !isDisabled else {
+            return
+        }
+
+        // Checked by the node it changes, not by the nodes around it. A region the tests never ran can start inside
+        // all of them, as the right-hand side of `a && b > c`, which is a closure of its own, does: such a mutant could
+        // only survive. And a local function's or type's code can run though the code that declares it never did.
+        guard hasTestCoverage(changed ?? syntax) else {
             return
         }
 

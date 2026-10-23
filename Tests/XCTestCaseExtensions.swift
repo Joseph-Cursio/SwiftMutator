@@ -66,12 +66,24 @@ class MuterTestCase: XCTestCase {
         changes: MutationSourceCodePreparationChange = .null,
         regionsWithoutCoverage: [Region] = []
     ) -> [SchemataMutationMapping] {
+        generateSchemataMappings(
+            for: source,
+            changes: changes,
+            coverage: .make(regionsWithoutCoverage: regionsWithoutCoverage)
+        )
+    }
+
+    func generateSchemataMappings(
+        for source: SourceCodeInfo,
+        changes: MutationSourceCodePreparationChange = .null,
+        coverage: FileCoverage
+    ) -> [SchemataMutationMapping] {
         MutationOperator.Id.allCases
             .accumulate(into: []) { newSchemataMappings, mutationOperatorId in
                 let visitor = mutationOperatorId.visitor(
                     .init(),
                     source,
-                    regionsWithoutCoverage
+                    coverage
                 )
 
                 visitor.sourceCodePreparationChange = changes

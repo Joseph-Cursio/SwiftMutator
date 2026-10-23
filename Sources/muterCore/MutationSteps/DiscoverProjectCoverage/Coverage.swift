@@ -15,8 +15,8 @@ final class Coverage {
         self.functionsCoverage = functionsCoverage
     }
 
-    func regionsForFile(_ filePath: FilePath) -> [Region] {
-        functionsCoverage.regionsForFile(filePath)
+    func coverage(ofFile filePath: FilePath) -> FileCoverage {
+        functionsCoverage.coverage(ofFile: filePath)
     }
 }
 

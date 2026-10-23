@@ -87,7 +87,7 @@ final class SwiftCoverageTests: MuterTestCase {
         XCTAssertEqual(coverage.percent, 50)
         // Shared.swift has 4 of its 6 lines run, under the configured threshold.
         XCTAssertEqual(coverage.filesWithoutCoverage, ["Sources/Core/Shared.swift", "Sources/Core/Untested.swift"])
-        XCTAssertEqual(coverage.regionsForFile("/project/Sources/Core/Shared.swift"), [
+        XCTAssertEqual(coverage.functionsCoverage.regionsForFile("/project/Sources/Core/Shared.swift"), [
             .make(lineStart: 3, columnStart: 20, lineEnd: 5, columnEnd: 2, executionCount: 0),
         ])
     }

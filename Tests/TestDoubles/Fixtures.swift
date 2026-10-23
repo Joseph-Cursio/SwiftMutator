@@ -317,6 +317,30 @@ extension Region {
     }
 }
 
+extension FileCoverage {
+    /// Each region a function of its own, as hand-written regions the tests never ran are.
+    static func make(regionsWithoutCoverage: [Region]) -> FileCoverage {
+        FileCoverage(functions: regionsWithoutCoverage.map { [$0] })
+    }
+
+    /// Functions as llvm-cov exports them: each region `[line, column, end line, end column, count]`, with its kind
+    /// after that when it isn't code, and each function's first region its body.
+    static func llvmCov(_ functions: [[[Int]]]) -> FileCoverage {
+        FileCoverage(functions: functions.map { regions in
+            regions.map {
+                Region(
+                    lineStart: $0[0],
+                    columnStart: $0[1],
+                    lineEnd: $0[2],
+                    columnEnd: $0[3],
+                    executionCount: $0[4],
+                    kind: $0.count > 5 ? Region.Kind(rawValue: $0[5]) ?? .other : .code
+                )
+            }
+        })
+    }
+}
+
 extension Run.Options {
     static func make(
         filesToMutate: [String] = [],
