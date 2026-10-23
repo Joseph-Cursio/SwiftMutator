@@ -197,6 +197,41 @@ final class InterruptionAcceptanceTests: XCTestCase {
         XCTAssertTrue(errors.contains("Stopping at once"), errors)
     }
 
+    // Both signals come at once, so the second most likely stops SwiftMutator before mutation testing has ended: the
+    // end line is then written as it stops at once.
+    func test_aSecondSignalAtOnce_stillEndsTheResults_withTheFirstSignal() throws {
+        let mutator = try startSwiftMutator(hangingIn: .mutants)
+        guard waitUntilHanging(runs: 2, in: mutator) else { return }
+
+        signalProcess(mutator, SIGTERM)
+        signalProcess(mutator, SIGINT)
+
+        guard waitUntil(within: 15, { !mutator.isRunning }) else {
+            return XCTFail("SwiftMutator was still running after 15 s")
+        }
+        assertNoTestProcessIsLeft()
+        let signal = mutator.terminationReason == .uncaughtSignal ? mutator.terminationStatus : 0
+        XCTAssertTrue([SIGTERM, SIGINT].contains(signal), describe(mutator))
+        try assertTheResultsEnd(interruptedBy: signal == SIGTERM ? "SIGTERM" : "SIGINT")
+        let errors = contents(of: standardError)
+        XCTAssertTrue(errors.contains("Stopping at once"), errors)
+    }
+
+    // Ctrl-\ sends SIGQUIT to the terminal's foreground process group, which holds SwiftMutator alone.
+    func test_ctrlBackslash_stopsAtOnce_leavingNoTestProcess_andEndsTheResults() throws {
+        let mutator = try startSwiftMutator(hangingIn: .mutants)
+        guard waitUntilHanging(runs: 2, in: mutator) else { return }
+
+        signalGroup(of: mutator, SIGQUIT)
+
+        assertDied(mutator, by: SIGQUIT)
+        assertNoTestProcessIsLeft()
+        try assertTheResultsEnd(interruptedBy: "SIGQUIT")
+        let errors = contents(of: standardError)
+        XCTAssertTrue(errors.contains("Stopping at once"), errors)
+        XCTAssertFalse(errors.contains("Stopping (SIGQUIT)"), errors)
+    }
+
     // When its terminal closes, zsh sends the job SIGHUP twice, about a millisecond apart. The second comes here once
     // SwiftMutator has said it is stopping, so that it is handled on its own, while a large worker clone is removed.
     func test_aRepeatedHangup_stillStopsCleanly_andDiesBySIGHUP() throws {
@@ -382,6 +417,22 @@ final class InterruptionAcceptanceTests: XCTestCase {
         guard kill(pid, 0) == -1, errno == ESRCH else { return false }
         confirmedGone.insert(pid)
         return true
+    }
+
+    /// That the run wrote one results file, whose one end line, its last, says a signal named `signal` interrupted it.
+    private func assertTheResultsEnd(
+        interruptedBy signal: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let files = resultsFiles()
+        XCTAssertEqual(files.count, 1, "\(files)", file: file, line: line)
+        guard let results = files.first else { return }
+        let lines = try records(in: results)
+        XCTAssertEqual(lines.filter { $0["kind"] as? String == "end" }.count, 1, "\(lines)", file: file, line: line)
+        XCTAssertEqual(lines.last?["kind"] as? String, "end", file: file, line: line)
+        XCTAssertEqual(lines.last?["reason"] as? String, "interrupted", file: file, line: line)
+        XCTAssertEqual(lines.last?["detail"] as? String, signal, file: file, line: line)
     }
 
     /// Each results file the run wrote, in `project_muter_logs/<run>/`.

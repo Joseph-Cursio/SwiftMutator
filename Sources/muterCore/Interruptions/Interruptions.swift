@@ -1,13 +1,25 @@
 import Foundation
 
-/// The signal that stopped this run, if one did. `Interruptions` records it before it cancels the run, so that the
-/// end line can name it.
-final class InterruptionRecord: @unchecked Sendable { // `first` is behind `lock`
+/// The signal that stopped this run, if one did, and what to do before SwiftMutator stops at once. `Interruptions`
+/// records the signal before it cancels the run, so that the end line can name it.
+final class InterruptionRecord: @unchecked Sendable { // `first` and `atOnce` are behind `lock`
     private let lock = NSLock()
     private var first: Int32?
+    private var atOnce: (@Sendable () -> Void)?
 
     /// The first stopping signal, or nil if none came.
     var signal: Int32? { lock.withLock { first } }
+
+    /// Sets what stopping at once does before SwiftMutator ends, or with nil, that it does nothing: mutation testing
+    /// writes its end line while its results file is open.
+    func beforeStoppingAtOnce(_ action: (@Sendable () -> Void)?) {
+        lock.withLock { atOnce = action }
+    }
+
+    /// Does what `beforeStoppingAtOnce` set, if anything, on the thread that stops SwiftMutator at once.
+    func stoppingAtOnce() {
+        lock.withLock { atOnce }?()
+    }
 
     /// Records `signal` unless one was recorded before, and returns whether it did.
     func record(_ signal: Int32) -> Bool {
@@ -19,14 +31,18 @@ final class InterruptionRecord: @unchecked Sendable { // `first` is behind `lock
     }
 
     static func name(of signal: Int32) -> String {
-        [SIGINT: "SIGINT", SIGTERM: "SIGTERM", SIGHUP: "SIGHUP"][signal] ?? "signal \(signal)"
+        [SIGINT: "SIGINT", SIGTERM: "SIGTERM", SIGHUP: "SIGHUP", SIGQUIT: "SIGQUIT"][signal] ?? "signal \(signal)"
     }
 }
 
-/// Runs a command's work so that SIGINT, SIGTERM and SIGHUP stop it cleanly. Each process SwiftMutator starts leads a
-/// process group of its own, so a terminal's Ctrl-C reaches SwiftMutator alone, and stopping them is up to it.
+/// Runs a command's work so that SIGINT, SIGTERM and SIGHUP stop it cleanly, and SIGQUIT at once. Each process
+/// SwiftMutator starts leads a process group of its own, so a terminal's Ctrl-C reaches SwiftMutator alone, and
+/// stopping them is up to it.
 final class Interruptions: @unchecked Sendable { // `timers` is touched only on `queue`
     static let stoppingSignals = [SIGINT, SIGTERM, SIGHUP]
+    /// Ctrl-\ sends SIGQUIT, whose default action, as a SIGKILL does, would leave test processes running, and no end
+    /// line.
+    static let observedSignals = stoppingSignals + [SIGQUIT]
 
     /// How the work ended, and the signal that stopped it, if one came while it ran.
     struct Ended {
@@ -67,11 +83,12 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
 
     /// Runs `work` until it ends. The first stopping signal cancels it, kills every process SwiftMutator started, and
     /// keeps killing new ones until `work` ends; a second signal, other than a SIGHUP after a first SIGHUP, or
-    /// `gracePeriod` seconds without `work` ending, ends SwiftMutator at once, by the first signal. Once a signal came,
-    /// the caller is to exit by it, which a second signal meanwhile still does at once.
+    /// `gracePeriod` seconds without `work` ending, ends SwiftMutator at once, by the first signal. So does a SIGQUIT,
+    /// first or not. Once a signal came, the caller is to exit by it, which a second signal meanwhile still does at
+    /// once.
     func run(_ work: @escaping @Sendable () async throws -> Void) async -> Ended {
         let task = Task { try await work() }
-        observer.start(observing: Self.stoppingSignals, on: queue) { [self] signal in
+        observer.start(observing: Self.observedSignals, on: queue) { [self] signal in
             received(signal, stopping: task)
         }
         let result = await task.result
@@ -93,11 +110,10 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
             // When its terminal closes, zsh sends the job SIGHUP twice, about a millisecond apart. Nobody is left to
             // ask for a stop at once, and `gracePeriod` still bounds the stop.
             if signal == SIGHUP, record.signal == SIGHUP { return }
-            killDescendants()
-            say("⏹ Stopping at once. SwiftMutator removes worker copies it leaves behind when it next runs.")
-            exit(record.signal ?? signal)
+            stopAtOnce(by: record.signal ?? signal)
             return
         }
+        guard signal != SIGQUIT else { return stopAtOnce(by: signal) }
         // First: every run's cancellation handler then records it cancelled before anything kills its process, so no
         // run that stopping ended is recorded as a mutant's result.
         task.cancel()
@@ -108,10 +124,25 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
         say(Self.stoppingMessage(for: signal, leavingRoomForTheProgressBar: standardOutIsATerminal))
         schedule(after: sweepInterval, repeating: sweepInterval) { [self] in killDescendants() }
         schedule(after: gracePeriod) { [self] in
-            killDescendants()
-            say("⏹ SwiftMutator hasn't stopped after \(Int(gracePeriod)) seconds, so it is stopping at once.")
-            exit(signal)
+            stopAtOnce(
+                by: signal,
+                saying: "⏹ SwiftMutator hasn't stopped after \(Int(gracePeriod)) seconds, so it is stopping at once."
+            )
         }
+    }
+
+    /// On `queue`. Kills every process SwiftMutator started, has mutation testing write its end line, and ends
+    /// SwiftMutator by `signal`, whatever the work is doing.
+    private func stopAtOnce(
+        by signal: Int32,
+        saying message: String = "⏹ Stopping at once. "
+            + "SwiftMutator removes worker copies it leaves behind when it next runs."
+    ) {
+        killDescendants()
+        // Before saying anything: a standard error nobody reads could hold it up.
+        record.stoppingAtOnce()
+        say(message)
+        exit(signal)
     }
 
     /// Followed by two empty lines when `leavingRoomForTheProgressBar`, as on a terminal, the only place a progress bar
