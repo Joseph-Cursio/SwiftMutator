@@ -68,6 +68,7 @@ struct World {
     var testingTimeOutExecutor: TestingTimeoutExecutorFactory = { TestingTimeoutExecutor() }
     var provenance: ProvenanceProbe = { Provenance.probe($0) }
     var resultsFiles: ResultsFileOpening = ResultsFile.Opener()
+    var mutatedProjectLocker: MutatedProjectLocking = MutatedProjectLock.Locker()
     var listProjectFiles: ProjectFileListing = GitFileListing.list(in:)
     /// SwiftMutator's command-line arguments, after the executable: what a results file's header records, and what the
     /// command that continues a stopped run repeats.

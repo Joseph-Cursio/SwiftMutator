@@ -118,7 +118,7 @@ final class RunCommandTests: XCTestCase {
     }
 
     // Refusing is an expected outcome, whose message says what to do; it isn't a bug to report.
-    func test_aResumeRefusal_isShownWithoutTheBugReportBanner() {
+    func test_aRefusal_isShownWithoutTheBugReportBanner() {
         let refused = ResumeRefused(
             path: "/logs/results.jsonl",
             reasons: [.inUse(lastProcess: 81234, lastHost: "studio.local")],
@@ -126,6 +126,10 @@ final class RunCommandTests: XCTestCase {
         )
 
         XCTAssertEqual(Run.message(showing: refused), "\(refused)")
+        let inUse = MutatedProjectLockError.inUse(mutatedProject: "/code/x_mutated", process: 81234)
+        XCTAssertEqual(Run.message(showing: inUse), "\(inUse)")
+        let cannotLock = Run.message(showing: MutatedProjectLockError.cannotLock(path: "/x.lock", errno: EACCES))
+        XCTAssertTrue(cannotLock.contains("SwiftMutator has encountered an error"), cannotLock)
         let other = Run.message(showing: MuterError.noSourceFilesDiscovered)
         XCTAssertTrue(other.contains("SwiftMutator has encountered an error"), other)
         XCTAssertTrue(other.contains("\(MuterError.noSourceFilesDiscovered)"), other)

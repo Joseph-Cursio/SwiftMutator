@@ -15,6 +15,7 @@ class MuterTestCase: XCTestCase {
     private(set) var standardError = PrinterSpy()
     private(set) var testingTimeOutExecutor = TestingTimeOutExecutorSpy()
     private(set) var resultsFiles = ResultsFilesSpy()
+    private(set) var mutatedProjectLocker = MutatedProjectLockerSpy()
 
     private let fixedNow = DateComponents(
         calendar: .init(identifier: .gregorian),
@@ -56,6 +57,7 @@ class MuterTestCase: XCTestCase {
             testingTimeOutExecutor: { self.testingTimeOutExecutor },
             provenance: { _ in .fixture },
             resultsFiles: resultsFiles,
+            mutatedProjectLocker: mutatedProjectLocker,
             // Never the test runner's own.
             commandLineArguments: ["run"]
         )
@@ -172,6 +174,17 @@ extension XCTestCase {
         try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
         addTeardownBlock { try? FileManager.default.removeItem(atPath: directory) }
         return directory
+    }
+
+    /// Starts `arguments[0]` with `arguments`, without closing any descriptor the test has open.
+    func spawn(_ arguments: String...) throws -> pid_t {
+        var child: pid_t = 0
+        let argumentVector = arguments.map { strdup($0) } + [nil]
+        defer { argumentVector.forEach { free($0) } }
+        var environment: [UnsafeMutablePointer<CChar>?] = [nil]
+        let status = posix_spawn(&child, arguments[0], nil, nil, argumentVector, &environment)
+        guard status == 0 else { throw POSIXError(POSIXErrorCode(rawValue: status) ?? .EPERM) }
+        return child
     }
 
     /// A new, empty directory that can also be reached through a symbolic link, the way `/private/tmp`
