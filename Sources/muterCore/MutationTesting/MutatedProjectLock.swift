@@ -6,6 +6,12 @@ protocol MutatedProjectLocking {
     /// The lock on `mutatedProject`, which needn't exist yet, held until it is released or goes.
     /// Refused while another SwiftMutator process holds it.
     func lock(_ mutatedProject: URL) throws -> MutatedProjectLock
+
+    /// Records that `process`, a test process, has started, in the lock this SwiftMutator process holds, if it holds one.
+    func testProcessStarted(_ process: Int32)
+
+    /// Records that the test process `process` has ended, in the lock this SwiftMutator process holds, if it holds one.
+    func testProcessEnded(_ process: Int32)
 }
 
 enum MutatedProjectLockError: Error, Equatable, CustomStringConvertible {
@@ -36,8 +42,24 @@ enum MutatedProjectLockError: Error, Equatable, CustomStringConvertible {
 /// The holder records its process ID in the file, and when that process started, and clears them as it releases the
 /// lock, so a run that is refused can name it. A record is believed only while the process with that ID started then:
 /// a holder killed at once leaves its record, and its ID can go to another process.
-final class MutatedProjectLock: Equatable {
-    struct Locker: MutatedProjectLocking {
+///
+/// Below its record, the holder lists the test processes it is running, the same way, and tells a watcher of its own
+/// about them (`TestProcessWatcher`). Each leads a process group of its own, so if the holder dies first, killed with
+/// SIGKILL or crashed, nothing else ends them. The watcher then kills them at once. If the watcher has died too, the run
+/// that next takes the lock kills them, before it removes or uses the folders they run in: that run holds the lock, so
+/// the run that listed them has ended.
+final class MutatedProjectLock: Equatable, @unchecked Sendable { // every `var` is behind `access`
+    final class Locker: MutatedProjectLocking, @unchecked Sendable { // `held` is behind `access`
+        private let access = NSLock()
+        /// The lock this gave out last, while it is held.
+        private weak var held: MutatedProjectLock?
+        private let startWatcher: @Sendable () -> TestProcessWatcher?
+
+        /// `startWatcher` starts the watcher of a lock's test processes, as the first starts.
+        init(startWatcher: @escaping @Sendable () -> TestProcessWatcher? = { TestProcessWatcher.start() }) {
+            self.startWatcher = startWatcher
+        }
+
         func lock(_ mutatedProject: URL) throws -> MutatedProjectLock {
             let path = MutatedProjectLock.path(for: mutatedProject)
             let (descriptor, readOnlyBecause) = try MutatedProjectLock.openFile(at: path)
@@ -55,38 +77,108 @@ final class MutatedProjectLock: Equatable {
                         )
                     )
             }
-            // Only for a refused run's message, so a record that can't be written, as to a file opened read-only,
-            // refuses nothing: the holder goes unnamed.
-            if let record = MutatedProjectLock.record(of: getpid()) {
-                let bytes = Array(record.utf8)
-                _ = ftruncate(descriptor, 0)
-                _ = pwrite(descriptor, bytes, bytes.count, 0)
-            }
-            return MutatedProjectLock(descriptor: descriptor, path: path)
+            // Before this run's record replaces the list, and before anything in the folders they run in is removed or
+            // used.
+            MutatedProjectLock.terminateTestProcesses(listedIn: descriptor)
+            let lock = MutatedProjectLock(
+                descriptor: descriptor,
+                path: path,
+                holder: MutatedProjectLock.record(of: getpid()) ?? "",
+                startWatcher: startWatcher
+            )
+            access.withLock { held = lock }
+            return lock
+        }
+
+        func testProcessStarted(_ process: Int32) {
+            access.withLock { held }?.testProcessStarted(process)
+        }
+
+        func testProcessEnded(_ process: Int32) {
+            access.withLock { held }?.testProcessEnded(process)
         }
     }
 
     /// The lock file.
     let path: String
+    private let access = NSLock()
     private var descriptor: Int32
+    /// The holder's record, the file's first line, or nothing if the holder's start can't be read.
+    private let holder: String
+    /// The test processes the holder is running, by ID.
+    private var testProcesses: [Int32: RecordedProcess] = [:]
+    private let startWatcher: @Sendable () -> TestProcessWatcher?
+    private var watcher: TestProcessWatcher?
+    private var watcherStarted = false
 
-    /// Takes over `descriptor`, open on `path` and already locked.
-    init(descriptor: Int32, path: String) {
+    /// Takes over `descriptor`, open on `path` and already locked, and records `holder` in it. `startWatcher` starts the
+    /// watcher of the holder's test processes, as the first starts.
+    init(
+        descriptor: Int32,
+        path: String,
+        holder: String = "",
+        startWatcher: @escaping @Sendable () -> TestProcessWatcher? = { nil }
+    ) {
         self.descriptor = descriptor
         self.path = path
+        self.holder = holder
+        self.startWatcher = startWatcher
+        writeRecord()
     }
 
     deinit {
         release()
     }
 
-    /// Clears the holder's record, then closes the file, which releases the lock.
+    /// Lists `process`, a test process the holder has just started, in the file, and tells the watcher, which starts
+    /// with the first. Nothing once the lock is released, or for a process that has already ended.
+    func testProcessStarted(_ process: Int32) {
+        guard let recorded = RecordedProcess(process) else { return }
+        access.withLock {
+            guard descriptor >= 0 else { return }
+            testProcesses[process] = recorded
+            writeRecord()
+            if !watcherStarted {
+                watcherStarted = true
+                watcher = startWatcher()
+            }
+            watcher?.started(recorded)
+        }
+    }
+
+    /// Takes `process`, a test process that has ended, off the list, and tells the watcher.
+    func testProcessEnded(_ process: Int32) {
+        access.withLock {
+            guard descriptor >= 0, testProcesses.removeValue(forKey: process) != nil else { return }
+            writeRecord()
+            watcher?.ended(process)
+        }
+    }
+
+    /// Clears the holder's record and list, then closes the file, which releases the lock, and ends the watcher.
     func release() {
+        access.withLock {
+            guard descriptor >= 0 else { return }
+            // While the lock is still held, so it never clears the next holder's record.
+            _ = ftruncate(descriptor, 0)
+            close(descriptor)
+            descriptor = -1
+            // Any test process still listed would have no one left to kill it: the watcher kills it as it ends.
+            watcher?.close()
+            watcher = nil
+        }
+    }
+
+    /// Writes the holder's record, then a line `test <pid> <start>` for each test process it is running, over what the
+    /// file held. Cut to length after the write, so a run that is refused always finds the holder's record. Only for a
+    /// refused run's message, and the next holder, so a record that can't be written, as to a file opened read-only,
+    /// stops nothing. On `access`, but for the initializer's call.
+    private func writeRecord() {
         guard descriptor >= 0 else { return }
-        // While the lock is still held, so it never clears the next holder's record.
-        _ = ftruncate(descriptor, 0)
-        close(descriptor)
-        descriptor = -1
+        let list = testProcesses.values.sorted { $0.id < $1.id }.map { "test \($0.id) \($0.started)\n" }
+        let bytes = Array((holder + list.joined()).utf8)
+        _ = pwrite(descriptor, bytes, bytes.count, 0)
+        _ = ftruncate(descriptor, off_t(bytes.count))
     }
 
     /// The same lock, as a run takes only one.
@@ -129,14 +221,73 @@ final class MutatedProjectLock: Equatable {
     /// The holder that `descriptor`'s file records, if that process still runs. None is named in the moment between a
     /// run locking the file and recording itself, or if the holder couldn't record itself.
     private static func holder(recordedIn descriptor: Int32) -> Int32? {
-        var buffer = [UInt8](repeating: 0, count: 64)
-        let count = pread(descriptor, &buffer, buffer.count, 0)
-        guard count > 0 else { return nil }
-        let fields = String(decoding: buffer.prefix(count), as: UTF8.self).split(whereSeparator: \.isWhitespace)
+        let fields = contents(of: descriptor).prefix { $0 != "\n" }.split(whereSeparator: \.isWhitespace)
         guard fields.count == 2, let process = Int32(fields[0]), let started = UInt64(fields[1]),
               startTime(of: process) == started
         else { return nil }
         return process
+    }
+
+    /// Kills each test process the lock file at `descriptor` lists, with every process it started, if it still runs:
+    /// for a run that has just taken the lock, so the run that listed them has ended. A list written before the system
+    /// last started is left alone: its processes are gone, and on Linux, which counts a process's start from the
+    /// system's, a process started since could seem to be one of them.
+    static func terminateTestProcesses(listedIn descriptor: Int32) {
+        guard let written = modificationTime(of: descriptor), let systemStarted = systemStartTime(),
+              written > systemStarted
+        else { return }
+        for line in contents(of: descriptor).split(separator: "\n") {
+            testProcess(listedOn: line)?.terminateIfRunning()
+        }
+    }
+
+    /// The test process `line` lists, as `test <pid> <start>`, if it lists one.
+    private static func testProcess(listedOn line: Substring) -> RecordedProcess? {
+        let fields = line.split(separator: " ")
+        guard fields.count == 3, fields[0] == "test", let id = Int32(fields[1]), let started = UInt64(fields[2])
+        else { return nil }
+        return RecordedProcess(id: id, started: started)
+    }
+
+    /// What the file at `descriptor` holds, from its start, up to 1 MiB: a holder's record and list are far shorter.
+    private static func contents(of descriptor: Int32) -> String {
+        var bytes: [UInt8] = []
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while bytes.count < 1 << 20 {
+            let count = pread(descriptor, &buffer, buffer.count, off_t(bytes.count))
+            if count < 0, errno == EINTR { continue }
+            guard count > 0 else { break }
+            bytes += buffer[..<count]
+        }
+        return String(decoding: bytes, as: UTF8.self)
+    }
+
+    /// When the file at `descriptor` was last written, in seconds since 1970.
+    private static func modificationTime(of descriptor: Int32) -> TimeInterval? {
+        var info = stat()
+        guard fstat(descriptor, &info) == 0 else { return nil }
+        #if os(macOS)
+        let time = info.st_mtimespec
+        #else
+        let time = info.st_mtim
+        #endif
+        return TimeInterval(time.tv_sec) + TimeInterval(time.tv_nsec) / 1_000_000_000
+    }
+
+    /// When the system last started, in seconds since 1970, or nil if it can't tell.
+    static func systemStartTime() -> TimeInterval? {
+        #if os(macOS)
+        var start = timeval()
+        var size = MemoryLayout<timeval>.stride
+        guard sysctlbyname("kern.boottime", &start, &size, nil, 0) == 0 else { return nil }
+        return TimeInterval(start.tv_sec) + TimeInterval(start.tv_usec) / 1_000_000
+        #else
+        // proc(5): "btime", in seconds.
+        guard let stat = try? String(contentsOfFile: "/proc/stat", encoding: .utf8),
+              let line = stat.split(separator: "\n").first(where: { $0.hasPrefix("btime ") })
+        else { return nil }
+        return TimeInterval(line.dropFirst("btime ".count))
+        #endif
     }
 
     /// When `process` started, as the kernel records it, or nil if it can't tell, as when no such process runs, or it

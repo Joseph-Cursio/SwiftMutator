@@ -12,6 +12,7 @@ struct MuterCommand: AsyncParsableCommand {
             MutateWithoutRunning.self,
             Report.self,
             Operator.self,
+            WatchTestProcesses.self,
         ],
         defaultSubcommand: Run.self
     )

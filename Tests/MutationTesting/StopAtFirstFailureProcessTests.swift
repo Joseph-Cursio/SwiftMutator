@@ -62,6 +62,14 @@ final class StopAtFirstFailureProcessTests: MuterTestCase {
         XCTAssertEqual(result.exitStatus, 3)
     }
 
+    // The test command's own process, once it has started and once it has ended.
+    func test_aRealRun_recordsItsTestProcessInTheMutatedProjectsLock() async throws {
+        _ = try await runMutantsTests(using: testCommand(running: "exit 0"))
+
+        let pid = try XCTUnwrap(lock.withLock { launched.first }?.processIdentifier)
+        XCTAssertEqual(mutatedProjectLocker.testProcesses, ["started \(pid)", "ended \(pid)"])
+    }
+
     // Foundation's terminationStatus is the signal's number when a signal ended the process.
     func test_aRealRunEndedByASignal_recordsTheSignalAsItsExitStatus() async throws {
         let result = try await runMutantsTests(using: testCommand(running: "kill -TERM $$"))

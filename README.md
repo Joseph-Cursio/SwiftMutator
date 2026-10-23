@@ -264,8 +264,11 @@ the results file starts only after both.
   terminal closes: closing a terminal stops a run the same way as one Ctrl-C.
 - **Leftovers.** The next `run` removes `<project>_mutated` and any worker clones and active-mutant
   files an earlier run left behind, such as one stopped at once, killed with SIGKILL, or crashed.
-  SIGKILL and crashes can't be handled, so the test processes of such a run go on until they end by
-  themselves, with no time limit.
+  SwiftMutator can't handle SIGKILL or a crash itself, so once its tests start, it starts a watcher,
+  `swift-mutator watch-test-processes`, which kills the test processes of a run that dies, as soon as
+  it dies, and ends with SwiftMutator. If the watcher is killed too, as by `killall -9 swift-mutator`,
+  the lock file lists them, and the next command to take the lock kills them before it removes or
+  uses anything they run in.
 - **`nohup` and scripts.** A signal that was ignored when SwiftMutator started stays ignored. So a
   run started with `nohup` outlives its terminal, and SIGINT and SIGTERM still stop it. In a script,
   a run started in the background with `&` ignores SIGINT: stop it with SIGTERM.
