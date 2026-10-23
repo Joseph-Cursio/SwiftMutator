@@ -62,9 +62,11 @@ swift build -c release --product swift-mutator
 
 A run tests in a copy of the project beside it, `<project>_mutated`, so a project has one run at a
 time. `run`, `mutate-without-running` and `run-without-mutating` lock `<project>_mutated.lock`
-before they remove, copy or test anything there. One started while another holds the lock is
-refused, naming the folder and the process that holds it, and leaves everything as it was. The
-lock goes when SwiftMutator exits, however it exits, so it never needs clearing; the file stays.
+before they read, remove, copy or test anything there. One started while another holds the lock is
+refused, naming the folder, and the process that holds it when the lock file shows which, and
+leaves everything as it was. The lock goes when SwiftMutator exits, however it exits, so it never
+needs clearing; the file stays, made with the permissions your umask gives new files, so anyone
+who can remove the copy can lock it.
 
 ## Progress
 

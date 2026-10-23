@@ -1,4 +1,5 @@
 @testable import muterCore
+import SwiftParser
 import TestingExtensions
 import XCTest
 
@@ -165,10 +166,9 @@ final class MutationTestHandlerTests: MuterTestCase {
         XCTAssertLessThan(loading, try XCTUnwrap(index(CopyProjectToTempDirectory.self)))
     }
 
-    // Every command that uses the mutated project locks it once it knows where it is, and before it removes, copies,
-    // builds or tests anything there: a run, a resumed run, mutate-without-running and run-without-mutating.
-    func test_lockMutatedProject_comesBeforeAnythingIsRemovedCopiedOrTested() throws {
-        fileManager.fileContentsToReturn = MuterTestPlan.make().toData
+    // Every command that uses the mutated project locks it once it knows where it is, and before it reads, removes,
+    // copies, builds or tests anything there: a run, a resumed run, mutate-without-running and run-without-mutating.
+    func test_lockMutatedProject_comesBeforeAnythingIsReadRemovedCopiedOrTested() throws {
         let commands: [Run.Options] = [
             .make(),
             .make(resumeURL: URL(fileURLWithPath: "/logs")),
@@ -176,6 +176,7 @@ final class MutationTestHandlerTests: MuterTestCase {
             .make(testPlanURL: URL(fileURLWithPath: "/path/to/testplan")),
         ]
         let users: [MutationStep.Type] = [
+            CheckTestPlanCode.self,
             PreviousRunCleanUp.self,
             CopyProjectToTempDirectory.self,
             BuildForTesting.self,
@@ -233,6 +234,38 @@ final class MutationTestHandlerTests: MuterTestCase {
         XCTAssertTrue(fileManager.paths.contains(project.path + "_mutated"), "\(fileManager.paths)")
     }
 
+    // A test plan's run is refused before it reads the mutated project's code, which another run may be rewriting.
+    func test_aRunOfATestPlan_whileAnotherRunUsesItsMutatedProject_readsNothingThere() async throws {
+        current.mutatedProjectLocker = MutatedProjectLock.Locker()
+        let mutatedProject = URL(fileURLWithPath: try makeTemporaryDirectory()).appendingPathComponent("x_mutated")
+        let other = try MutatedProjectLock.Locker().lock(mutatedProject)
+        let mapping = try XCTUnwrap(
+            generateSchemataMappings(
+                for: SourceCodeInfo(
+                    path: mutatedProject.path + "/Sources/Check.swift",
+                    code: Parser.parse(source: "func check(_ value: Int) -> Bool {\n    return value > 1\n}\n")
+                )
+            ).first
+        )
+        fileManager.fileContentsToReturn = MuterTestPlan.make(
+            mutatedProjectPath: mutatedProject.path,
+            mappings: [mapping]
+        ).toData
+        let state = MutationTestState()
+        state.runOptions = .make(testPlanURL: URL(fileURLWithPath: "/project/muter-mappings.json"))
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+        let steps: [MutationStep] = [LoadMuterTestPlan(), LockMutatedProject(), CheckTestPlanCode()]
+
+        await AssertThrowsError(try await MutationTestHandler(steps: steps, state: state).run()) { error in
+            XCTAssertEqual(
+                error as? MutatedProjectLockError,
+                .inUse(mutatedProject: mutatedProject.path, process: getpid())
+            )
+        }
+        XCTAssertEqual(fileManager.contentsAtPath, ["/project/muter-mappings.json"])
+        withExtendedLifetime(other) {}
+    }
+
     func test_steps_whenSkipsCoverage() {
         sut = MutationTestHandler(options: .make(skipCoverage: true))
 
@@ -254,14 +287,15 @@ final class MutationTestHandlerTests: MuterTestCase {
             )
         )
 
-        XCTAssertEqual(sut.steps.count, 7)
+        XCTAssertEqual(sut.steps.count, 8)
         XCTAssertTypeEqual(sut.steps[safe: 0], UpdateCheck.self)
         XCTAssertTypeEqual(sut.steps[safe: 1], LoadConfiguration.self)
         XCTAssertTypeEqual(sut.steps[safe: 2], LoadMuterTestPlan.self)
         XCTAssertTypeEqual(sut.steps[safe: 3], LockMutatedProject.self)
-        XCTAssertTypeEqual(sut.steps[safe: 4], BuildForTesting.self)
-        XCTAssertTypeEqual(sut.steps[safe: 5], ProjectMappings.self)
-        XCTAssertTypeEqual(sut.steps[safe: 6], PerformMutationTesting.self)
+        XCTAssertTypeEqual(sut.steps[safe: 4], CheckTestPlanCode.self)
+        XCTAssertTypeEqual(sut.steps[safe: 5], BuildForTesting.self)
+        XCTAssertTypeEqual(sut.steps[safe: 6], ProjectMappings.self)
+        XCTAssertTypeEqual(sut.steps[safe: 7], PerformMutationTesting.self)
     }
 
     func test_steps_whenMutateWithoutRunning() {

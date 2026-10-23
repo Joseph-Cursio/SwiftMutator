@@ -85,7 +85,9 @@ private extension [MutationStep] {
         UpdateCheck(),
         LoadConfiguration(),
         LoadMuterTestPlan(),
+        // Before anything in the mutated project the plan names is read, which another run may be rewriting.
         LockMutatedProject(),
+        CheckTestPlanCode(),
         BuildForTesting(),
         ProjectMappings(),
         PerformMutationTesting(),

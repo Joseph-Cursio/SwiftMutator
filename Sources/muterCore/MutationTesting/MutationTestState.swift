@@ -9,7 +9,7 @@ protocol AnyMutationTestState: AnyObject {
     var mutationOperatorList: MutationOperatorList { get }
     var projectDirectoryURL: URL { get }
     var mutatedProjectDirectoryURL: URL { get }
-    /// The lock on the mutated project, held until SwiftMutator exits; nil until it is taken.
+    /// The lock on the mutated project, held until the state goes once the run's work has ended; nil until taken.
     var mutatedProjectLock: MutatedProjectLock? { get }
     var projectXCTestRun: XCTestRun { get }
     var projectCoverage: Coverage { get }
