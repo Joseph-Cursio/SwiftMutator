@@ -93,7 +93,7 @@ Coverage works with several test bundles since PR #60. On SwiftProjectLint `2043
 - **A resumed session gathers coverage again** ([#67]) and doesn't compare it with the first session's. If one session's coverage failed and the other's worked, they test different mutants, and nothing says so.
 - **A Swift package tested through xcodebuild** ([#69]). `xcodebuild … test -showBuildSettings` prints no settings for a package scheme ("Supported platforms for the buildables in the current scheme is empty"), so there's no `BUILD_DIR`, no profile, and no regions. And `xccov` lists no files for the library target, so even files with no coverage aren't left out, and mutation testing goes on without coverage, saying xccov's report covers none of the project's files.
 - **xcodebuild with parallel testing names no failed test** that SwiftMutator reads: its lines are `Test case '…' failed on '…'`, the same for a crash. So a test that fails only under coverage costs all of it there, and the killing tests aren't named. Checked with Xcode 27.1 on macOS only; simulators don't run here.
-- **Linux CI doesn't block** ([#130]). The job builds SwiftMutator and runs the unit suite on Linux, but fails for now: SwiftMutator doesn't compile there, and some tests assume macOS.
+- **Linux CI doesn't block** ([#130]). The job builds SwiftMutator and runs the unit suite on Linux, but fails for now: SwiftMutator doesn't compile there, and some tests assume macOS. Until it passes, it runs on pushes to main and by hand, not on pull requests.
 
 ### 1.4 Do less work per run
 
