@@ -132,18 +132,6 @@ extension MuterProcess {
         .flatMap(\.nilIfEmpty)
     }
 
-    func findExecutable(
-        atPath path: String,
-        byName name: String
-    ) -> String? {
-        runProcess(
-            url: "/usr/bin/find",
-            arguments: [path, "-type", "f", "-name", name]
-        )
-        .flatMap(\.nilIfEmpty)
-        .map(\.trimmed)
-    }
-
     func which(_ application: String) -> String? {
         runProcess(
             url: "/usr/bin/which",

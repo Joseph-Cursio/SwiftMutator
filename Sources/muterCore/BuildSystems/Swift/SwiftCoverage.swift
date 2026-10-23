@@ -83,28 +83,23 @@ final class SwiftCoverage: BuildSystemCoverage {
             return .failure(.noProfileData(atPath: profile))
         }
         let bundles = testBundles(in: binPath, testTargets: testTargets(configuration))
-        guard let first = bundles.first else {
+        guard !bundles.isEmpty else {
             return .failure(.noTestBundles(inDirectory: binPath))
         }
 
-        let objects = [first] + bundles.dropFirst().flatMap { ["-object", $0] }
-        let llvmCov = llvmTool("llvm-cov", nextTo: configuration.testCommandExecutable)
-        guard let export = process().runCommand(
-            url: llvmCov.executable,
-            arguments: llvmCov.arguments + ["export"] + objects + ["-instr-profile", profile]
-        ) else {
-            return .failure(.couldNotRun("llvm-cov"))
-        }
-        guard export.succeeded else {
-            return .failure(.llvmCovFailed(Self.firstLine(of: export.errors)))
-        }
-
-        return Self.coverage(
-            fromExport: Data(export.output.utf8),
-            projectRoot: fileManager.currentDirectoryPath,
-            coverageThreshold: configuration.coverageThreshold,
-            testsFailedWithCoverageOn: failedTests
+        return llvmCovExport(
+            of: bundles,
+            profile: profile,
+            llvmCov: llvmTool("llvm-cov", nextTo: configuration.testCommandExecutable)
         )
+        .flatMap { export in
+            Self.coverage(
+                fromExport: export,
+                projectRoot: fileManager.currentDirectoryPath,
+                coverageThreshold: configuration.coverageThreshold,
+                testsFailedWithCoverageOn: failedTests
+            )
+        }
     }
 
     /// The tests that failed in a coverage run that failed, when the profiles its test processes left can stand in for
@@ -251,13 +246,9 @@ final class SwiftCoverage: BuildSystemCoverage {
             return .failure(.unreadableReport)
         }
 
-        let roots = Set([projectRoot, projectRoot.canonicalPath]).map { $0.hasSuffix("/") ? $0 : $0 + "/" }
+        let projectFiles = ProjectSourceFiles(root: projectRoot)
         let files = report.files.compactMap { file -> (path: String, lines: LLVMCoverage.Lines)? in
-            guard let root = roots.first(where: file.filename.hasPrefix) else {
-                return nil
-            }
-            let path = String(file.filename.dropFirst(root.count))
-            return isTestOrBuildFile(path) ? nil : (path, file.summary.lines)
+            projectFiles.pathInProject(file.filename).map { ($0, file.summary.lines) }
         }
         guard !files.isEmpty else {
             return .failure(.noProjectFiles)
@@ -265,9 +256,14 @@ final class SwiftCoverage: BuildSystemCoverage {
 
         let lines = files.map(\.lines.count).reduce(0, +)
         let coveredLines = files.map(\.lines.covered).reduce(0, +)
-        // A file with no lines to run has nothing to mutate, and saying it has no coverage would be wrong.
         let filesWithoutCoverage = files
-            .filter { $0.lines.count > 0 && $0.lines.percent <= coverageThreshold }
+            .filter {
+                ProjectSourceFiles.hasNoCoverage(
+                    covered: $0.lines.covered,
+                    of: $0.lines.count,
+                    threshold: coverageThreshold
+                )
+            }
             .map(\.path)
 
         return .success(
@@ -278,17 +274,6 @@ final class SwiftCoverage: BuildSystemCoverage {
                 testsFailedWithCoverageOn: testsFailedWithCoverageOn
             )
         )
-    }
-
-    /// A file in a `.build` folder, such as that of a package in a subfolder, or a test file, as discovery tells them:
-    /// one in a `Tests` folder, or whose name ends in `Tests.swift`. `path` is relative to the project.
-    private static func isTestOrBuildFile(_ path: String) -> Bool {
-        let folders = path.split(separator: "/").dropLast()
-        return folders.contains(".build") || folders.contains("Tests") || path.hasSuffix("Tests.swift")
-    }
-
-    private static func firstLine(of text: String) -> String {
-        text.split(separator: "\n").first.map { String($0).trimmed } ?? ""
     }
 
     /// How to run the LLVM tool `name`, such as `llvm-cov`: the executable, and the arguments before the tool's own.
@@ -327,85 +312,5 @@ final class SwiftCoverage: BuildSystemCoverage {
         let signal = line.firstCaptureOf(#"signal code ([0-9]+)"#, options: .caseInsensitive).map { "signal \($0)" }
         let named = [bundle, signal].compactMap { $0 }
         return named.isEmpty ? String(line.prefix(FailedTestLine.lineLengthLimit)) : named.joined(separator: ", ")
-    }
-
-    /// The test process that stopped before its tests finished, in a run whose output is `log`. SwiftPM prints no line
-    /// for one ended by SIGKILL, SIGTERM or SIGINT, as the system's memory killer ends one, and it left no profile.
-    /// Its XCTest suites, or its Swift Testing run, started and never ended. Named by its test bundle and the test it
-    /// was running, as XCTest's lines give them, or else by its test library. nil when every one finished.
-    private static func unfinishedTestProcess(inLog log: String) -> String? {
-        var suites = StartedAndEnded()
-        var testCases = StartedAndEnded()
-        var swiftTestingRuns = StartedAndEnded()
-        // Each check rules out almost every line before any regex runs.
-        for line in log.split(whereSeparator: \.isNewline).map(FailedTestLine.withoutColours) {
-            if line.hasPrefix("Test Suite '") {
-                suites.read(
-                    line,
-                    started: #"^Test Suite '([^']*)' started at "#,
-                    ended: #"^Test Suite '([^']*)' (?:passed|failed) at "#
-                )
-            } else if line.hasPrefix("Test Case '") {
-                // macOS's line says `started.`, Linux's `started at` and the time.
-                testCases.read(
-                    line,
-                    started: #"^Test Case '([^']*)' started"#,
-                    ended: #"^Test Case '([^']*)' (?:passed|failed|skipped) \("#
-                )
-            } else if line.contains("Test run ") {
-                // After Swift Testing's symbol: ◇ as a run starts, ✔ or ✘ as it ends, or SF Symbols' own.
-                swiftTestingRuns.read(
-                    line,
-                    started: #"^\S+ +(Test run) started\."#,
-                    ended: #"^\S+ +(Test run) with .* (?:passed|failed) after "#
-                )
-            }
-        }
-        if !suites.unfinished.isEmpty || !testCases.unfinished.isEmpty {
-            let bundle = suites.unfinished.first { $0.hasSuffix(".xctest") }
-            let test = testCases.unfinished.first.map { "during \($0)" }
-            return [bundle ?? "XCTest", test].compactMap { $0 }.joined(separator: ", ")
-        }
-        return swiftTestingRuns.unfinished.isEmpty ? nil : "Swift Testing"
-    }
-
-    /// The suites, tests or runs a run's output shows starting, by name, and how many more times each started than it
-    /// ended: several test processes print the same suite names, such as `All tests`.
-    private struct StartedAndEnded {
-        private var running: [String: Int] = [:]
-        private var order: [String] = []
-
-        /// Those that started more times than they ended, in the order they first started.
-        var unfinished: [String] {
-            order.filter { running[$0, default: 0] > 0 }
-        }
-
-        /// Counts `line` as a start or an end when `started` or `ended`, each of which captures a name, matches it.
-        mutating func read(_ line: String, started: String, ended: String) {
-            if let name = line.firstCaptureOf(started) {
-                if running[name] == nil { order.append(name) }
-                running[name, default: 0] += 1
-            } else if let name = line.firstCaptureOf(ended) {
-                running[name, default: 0] -= 1
-            }
-        }
-    }
-
-    /// The first line of `log` that says `error:`, without colour codes. SwiftPM prints build errors to standard error
-    /// under either build system, but a line in standard output counts too.
-    private static func firstError(in log: String) -> String? {
-        log.split(whereSeparator: \.isNewline)
-            .lazy
-            .map { FailedTestLine.withoutColours($0) }
-            .first { $0.contains("error:") }
-            .map { String($0.trimmed.prefix(FailedTestLine.lineLengthLimit)) }
-    }
-
-    /// What a command printed: its standard output, then its standard error from a new line.
-    private static func log(of result: CommandResult) -> String {
-        guard !result.output.isEmpty, !result.output.hasSuffix("\n"), !result.errors.isEmpty else {
-            return result.output + result.errors
-        }
-        return result.output + "\n" + result.errors
     }
 }

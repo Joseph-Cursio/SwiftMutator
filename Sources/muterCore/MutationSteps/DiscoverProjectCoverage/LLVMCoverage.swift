@@ -59,6 +59,8 @@ extension Region: Decodable {
 }
 
 struct Function: Decodable {
+    /// The function's symbol, such as `$s3App11sharedValueyS2iF`.
+    var name: String?
     let filenames: [String]
     let regions: [Region]
 }
@@ -97,10 +99,9 @@ struct LLVMCoverage: Decodable {
         let lines: Lines
     }
 
-    /// How many lines of a file the tests could run, how many of them they ran, and that as a percentage.
+    /// How many lines of a file the tests could run, and how many of them they ran.
     struct Lines: Decodable {
         let count: Int
         let covered: Int
-        let percent: Double
     }
 }

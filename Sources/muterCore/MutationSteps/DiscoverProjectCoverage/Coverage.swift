@@ -4,8 +4,8 @@ final class Coverage {
     let percent: Int
     let filesWithoutCoverage: [FilePath]
     let functionsCoverage: FunctionsCoverage
-    /// The tests that failed in the coverage run, whose test processes' profiles were merged regardless; nil when every
-    /// test passed.
+    /// The tests that failed in the coverage run, whose test processes' coverage was gathered regardless; nil when
+    /// every test passed.
     let testsFailedWithCoverageOn: FailedTestLine.FailedTests?
 
     init(

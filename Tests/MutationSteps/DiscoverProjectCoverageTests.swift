@@ -63,12 +63,13 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
 
         process.commandResult = { _ in CommandResult(status: 65, endedBySignal: false, output: "", errors: "") }
 
-        // Why it failed, for the message that says so. xcodebuild's run keeps no output.
+        // Why it failed, for the message that says so. This state has no log folder to keep the output in.
+        let reason = "the coverage run failed (exit status 65) without naming a failed test or an error"
         let expectation = expectation(
             forNotification: .projectCoverageDiscoveryFinished,
             object: nil,
             notificationCenter: notificationCenter
-        ) { ($0.object as? CoverageFailure) == CoverageFailure(reason: "xcodebuild gave no coverage report", log: nil) }
+        ) { ($0.object as? CoverageFailure) == CoverageFailure(reason: reason, log: nil) }
 
         _ = try await sut.run(with: state)
 

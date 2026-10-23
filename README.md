@@ -81,9 +81,11 @@ with `--verbose`.
 
 ## Configuration
 
-SwiftMutator reads Muter's `muter.conf.yml`, so existing Muter configurations work unchanged.
-The options are documented in [Muter's README](Docs/Muter-README.md#configuration-options);
-SwiftMutator adds:
+SwiftMutator reads Muter's `muter.conf.yml`, so existing Muter configurations work unchanged,
+except an xcodebuild project's `coverageThreshold`. Muter read that one as a fraction from 0 to 1,
+so any value of 1 or more left out every file. It's a percentage from 0 to 100 now, as it always
+was for SwiftPM: `0.5` means 0.5%, so write `50` for half. The options are documented in
+[Muter's README](Docs/Muter-README.md#configuration-options); SwiftMutator adds:
 
 | Key | Meaning |
 |---|---|
