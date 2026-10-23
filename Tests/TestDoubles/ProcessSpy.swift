@@ -41,9 +41,12 @@ final class ProcessSpy: MuterProcess {
         try? (standardOutput as? FileHandle)?.write(contentsOf: outputWrittenBeforeExit)
     }
 
+    /// Each process `runProcess` was asked for, its executable first, in order.
+    private(set) var processesRun: [[String]] = []
     func runProcess(url: String, arguments args: [String]) -> Data? {
         executableURL = URL(string: url)
         arguments = args
+        processesRun.append([url] + args)
 
         print("WARNING: Missing return for \(url) \(args.joined(separator: " "))")
         

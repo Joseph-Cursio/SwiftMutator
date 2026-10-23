@@ -39,12 +39,13 @@ protocol BuildSystemCoverage: AnyObject {
 }
 
 extension BuildSystemCoverage {
-    /// The newest profile under `path`. Xcode keeps one per run destination, `ProfileData/<device>/Coverage.profdata`,
-    /// and leaves the other destinations' in place. `find` lists them in no set order, and `llvm-cov` reads a stale one
-    /// without failing: every function added since then counts as never run, so its mutants would be skipped.
-    func testProfileData(at path: String) -> String? {
-        let profiles = (process().find(atPath: path, byName: "*.profdata") ?? "")
-            .components(separatedBy: "\n")
+    /// The newest profile under any of `paths`. Xcode keeps one per run destination,
+    /// `ProfileData/<device>/Coverage.profdata`, and leaves the other destinations' in place, as it does other build
+    /// locations'. `find` lists them in no set order, and `llvm-cov` reads a stale one without failing: every function
+    /// added since then counts as never run, so its mutants would be skipped.
+    func testProfileData(at paths: [String]) -> String? {
+        let profiles = paths
+            .flatMap { (process().find(atPath: $0, byName: "*.profdata") ?? "").components(separatedBy: "\n") }
             .map(\.trimmed)
             .filter { !$0.isEmpty }
         guard profiles.count > 1 else {
@@ -81,6 +82,54 @@ extension BuildSystemCoverage {
         }
 
         return .success(Data(export.output.utf8))
+    }
+
+    /// The coverage of the project's own source files in `export`, llvm-cov's JSON: the share of their lines the tests
+    /// ran, the files at or below `coverageThreshold`, by their path in the project, and the regions no test ran.
+    /// The export also covers test files and dependencies, which don't count, and gives absolute paths. Nor do the
+    /// files in `buildFolders` or `testFiles` count, as `ProjectSourceFiles` takes them.
+    static func coverage(
+        fromExport export: Data,
+        projectRoot: String,
+        coverageThreshold: Double,
+        buildFolders: [FilePath] = [],
+        testFiles: [FilePath] = [],
+        testsFailedWithCoverageOn: FailedTestLine.FailedTests? = nil
+    ) -> Result<Coverage, CoverageError> {
+        guard let coverage = try? JSONDecoder().decode(LLVMCoverage.self, from: export),
+              let report = coverage.data.first
+        else {
+            return .failure(.unreadableReport)
+        }
+
+        let projectFiles = ProjectSourceFiles(root: projectRoot, buildFolders: buildFolders, testFiles: testFiles)
+        let files = report.files.compactMap { file -> (path: String, lines: LLVMCoverage.Lines)? in
+            projectFiles.pathInProject(file.filename).map { ($0, file.summary.lines) }
+        }
+        guard !files.isEmpty else {
+            return .failure(.noProjectFiles)
+        }
+
+        let lines = files.map(\.lines.count).reduce(0, +)
+        let coveredLines = files.map(\.lines.covered).reduce(0, +)
+        let filesWithoutCoverage = files
+            .filter {
+                ProjectSourceFiles.hasNoCoverage(
+                    covered: $0.lines.covered,
+                    of: $0.lines.count,
+                    threshold: coverageThreshold
+                )
+            }
+            .map(\.path)
+
+        return .success(
+            Coverage(
+                percent: lines > 0 ? coveredLines * 100 / lines : 0,
+                filesWithoutCoverage: filesWithoutCoverage,
+                functionsCoverage: FunctionsCoverage(from: coverage),
+                testsFailedWithCoverageOn: testsFailedWithCoverageOn
+            )
+        )
     }
 }
 
@@ -119,8 +168,14 @@ enum CoverageError: Error, Equatable {
     /// The report covers none of the project's own source files.
     case noProjectFiles
     /// xccov's report of xcodebuild's coverage run covers none of the project's own source files, as its report of a
-    /// package doesn't: it lists only the tests' files.
+    /// package doesn't: it lists only the tests' files. The coverage then comes from llvm-cov's export.
     case noProjectFilesInXccovReport
+    /// None of the products xccov says xcodebuild's coverage run built exists, for llvm-cov to read.
+    case noBuiltProducts
+    /// Where xcodebuild's coverage run left its profile couldn't be found: its result bundle wasn't in
+    /// `<DerivedData>/Logs/Test`, nor its products in `<DerivedData>/Build/Products`, and `-showBuildSettings` gave no
+    /// `BUILD_DIR`.
+    case noXcodeBuildFolder
 }
 
 extension CoverageError {
@@ -172,6 +227,12 @@ extension CoverageError {
             return "llvm-cov's report covers none of the project's source files"
         case .noProjectFilesInXccovReport:
             return "xccov's report covers none of the project's source files"
+        case .noBuiltProducts:
+            return "none of the products xccov says the coverage run built exists"
+        case .noXcodeBuildFolder:
+            return "the coverage run's profile couldn't be found: its result bundle isn't in <DerivedData>/Logs/Test, "
+                + "nor its products in <DerivedData>/Build/Products, "
+                + "and xcodebuild -showBuildSettings gave no BUILD_DIR"
         }
     }
 

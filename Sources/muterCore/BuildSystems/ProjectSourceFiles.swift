@@ -8,15 +8,22 @@ struct ProjectSourceFiles {
     private let roots: [String]
     /// The build's own folders in the project, relative to it, each ending in `/`.
     private let buildFolders: [String]
+    /// The files test targets build, relative to the project.
+    private let testFiles: Set<FilePath>
 
     /// `buildFolders` are folders the build used, such as the derived data an xcodebuild run was given in the project,
-    /// which holds the packages the project depends on and the files the build generates.
-    init(root: FilePath, buildFolders: [FilePath] = []) {
+    /// which holds the packages the project depends on and the files the build generates. `testFiles` are files that
+    /// test targets build, as a report names them, which the rules for paths miss when a test target isn't in a
+    /// `Tests` folder.
+    init(root: FilePath, buildFolders: [FilePath] = [], testFiles: [FilePath] = []) {
         let roots = Set([root, root.canonicalPath]).map { $0.hasSuffix("/") ? $0 : $0 + "/" }
         self.roots = roots
         self.buildFolders = buildFolders
             .compactMap { Self.relativePath($0, to: roots) ?? Self.relativePath($0.canonicalPath, to: roots) }
             .map { $0.hasSuffix("/") ? $0 : $0 + "/" }
+        self.testFiles = Set(testFiles.compactMap {
+            Self.relativePath($0, to: roots) ?? Self.relativePath($0.canonicalPath, to: roots)
+        })
     }
 
     /// `path` relative to the project, or nil if it isn't one of the project's own source files. A tool can name a
@@ -29,7 +36,7 @@ struct ProjectSourceFiles {
             return nil
         }
 
-        return Self.isTestOrBuildFile(inProject) ? nil : inProject
+        return Self.isTestOrBuildFile(inProject) || testFiles.contains(inProject) ? nil : inProject
     }
 
     /// Whether a file with `lines` lines to run, of which the tests ran `covered`, has no coverage: its share of them,

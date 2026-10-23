@@ -317,7 +317,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
         process.stdoutToBeReturned = "/Build/ProfileData/OLD/Coverage.profdata\n/Build/ProfileData/NEW/Coverage.profdata\n"
         process.stdoutToBeReturned = "/Build/ProfileData/NEW/Coverage.profdata\n/Build/ProfileData/OLD/Coverage.profdata\n"
 
-        XCTAssertEqual(sut.testProfileData(at: "/Build"), "/Build/ProfileData/NEW/Coverage.profdata")
+        XCTAssertEqual(sut.testProfileData(at: ["/Build"]), "/Build/ProfileData/NEW/Coverage.profdata")
         XCTAssertEqual(process.executableURL?.path, "/bin/ls")
         XCTAssertEqual(
             process.arguments,
@@ -328,7 +328,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     func test_testProfileData_withOneProfile_isThatProfile() {
         process.stdoutToBeReturned = "/Build/ProfileData/MAC/Coverage.profdata\n"
 
-        XCTAssertEqual(sut.testProfileData(at: "/Build"), "/Build/ProfileData/MAC/Coverage.profdata")
+        XCTAssertEqual(sut.testProfileData(at: ["/Build"]), "/Build/ProfileData/MAC/Coverage.profdata")
         XCTAssertEqual(process.executableURL?.path, "/usr/bin/find")
     }
 
@@ -691,34 +691,266 @@ final class XcodeBuildCoverageTests: MuterTestCase {
         )
     }
 
-    // xccov's report of a package tested through xcodebuild lists only its tests' files, as in this real run's, so it
-    // says nothing of the project's coverage: rather than 0%, there is none, as on SwiftPM.
-    func test_aReportOfNoneOfTheProjectsFiles_givesNoCoverage() {
-        let packageReport = report(
-            target(
-                "ATests",
-                buildProductPath: debug + "/ATests.xctest/Contents/MacOS/ATests",
-                files: [file("/project/Tests/ATests/ATests.swift", executable: 3, covered: 3)]
-            ),
-            target(
-                "Lib",
-                buildProductPath: debug + "/PackageFrameworks/Lib_1E0663EA_PackageProduct.framework/"
-                    + "Lib_1E0663EA_PackageProduct",
-                files: []
-            )
-        )
-
+    // xccov's report of a package tested through xcodebuild lists only its tests' files, as in this real run's, so its
+    // lines say nothing of the project's coverage: rather than 0%, there is none, and `run` reads llvm-cov's export.
+    func test_aReportOfNoneOfTheProjectsFiles_givesNoLines() {
         let lines = XcodeBuildCoverage.coverage(fromReport: packageReport, projectRoot: "/project", coverageThreshold: 0)
 
         XCTAssertEqual(failure(of: lines), .noProjectFilesInXccovReport)
-
-        answerWithACoverageRun(report: packageReport, existing: [true, false, false])
-
-        XCTAssertEqual(sut.run(with: muterConfiguration), .failure(.noProjectFilesInXccovReport))
-        XCTAssertFalse(process.commandsRun.contains { $0.contains("llvm-cov") }, "llvm-cov ran")
         XCTAssertEqual(
             CoverageError.noProjectFilesInXccovReport.reason,
             "xccov's report covers none of the project's source files"
+        )
+    }
+
+    // MARK: - A Swift package
+
+    // xccov lists a package's library with no files, and its tests with only theirs, though their bundle holds the
+    // library's code. So the files, lines and regions all come from llvm-cov's export of that bundle, as on SwiftPM, in
+    // this real run's, where `neverCalled()` and the files `Untested.swift` and `Other.swift` never ran. The library
+    // has no binary of its own, and `-showBuildSettings` prints nothing for a package's scheme.
+    func test_aPackage_getsItsCoverage_fromLLVMCovsExportOfItsTests() throws {
+        answerWithACoverageRun(report: packageReport, existing: [false, true, false], buildSettings: "") { _ in
+            self.result(output: self.loadFixture("llvmCovExport_xcodebuildPackage.json"))
+        }
+
+        let coverage = try sut.run(with: muterConfiguration).get()
+
+        XCTAssertEqual(coverage.percent, 20)
+        XCTAssertEqual(coverage.filesWithoutCoverage, ["Sources/Calc/Untested.swift", "Sources/Other/Other.swift"])
+        let neverRun = coverage.functionsCoverage.regionsForFile("/project/Sources/Calc/Calc.swift")
+        XCTAssertEqual(neverRun.map { [$0.lineStart, $0.lineEnd] }, [[5, 10], [6, 6], [6, 8], [8, 9]])
+        XCTAssertNil(coverage.testsFailedWithCoverageOn)
+        XCTAssertEqual(process.commandsRun.filter { $0.contains("llvm-cov") }, [
+            ["/usr/bin/xcrun", "llvm-cov", "export", packageTests, "-instr-profile", profile],
+        ])
+        XCTAssertEqual(profilesLookedFor, ["/DerivedData/Build"])
+    }
+
+    // Xcode builds the products of a package whose folder isn't named after it, as SwiftMutator's copy of a project
+    // isn't, in derived data named after the folder, and keeps the result bundle and the profile in derived data named
+    // after the package, with the same hash, as in this real run.
+    func test_aPackagesProfile_isInTheDerivedDataOfItsResultBundle_notOfItsProducts() {
+        let products = "/DerivedData/PkgProbe_mutated-heuxeczqnwuysrfhawjcixylzvcq/Build/Products/Debug"
+        let packageProfile = "/DerivedData/PkgProbe-heuxeczqnwuysrfhawjcixylzvcq/Build/ProfileData/MAC/"
+            + "Coverage.profdata"
+        answerWithACoverageRun(
+            report: packageReport(in: products),
+            existing: [false, true, false],
+            log: "/DerivedData/PkgProbe-heuxeczqnwuysrfhawjcixylzvcq/Logs/Test/Test-PkgProbe.xcresult\n",
+            buildSettings: "",
+            profiles: [packageProfile + "\n", ""]
+        ) { _ in
+            self.result(output: self.loadFixture("llvmCovExport_xcodebuildPackage.json"))
+        }
+
+        XCTAssertEqual(try sut.run(with: muterConfiguration).get().percent, 20)
+        XCTAssertEqual(profilesLookedFor, [
+            "/DerivedData/PkgProbe-heuxeczqnwuysrfhawjcixylzvcq/Build",
+            "/DerivedData/PkgProbe_mutated-heuxeczqnwuysrfhawjcixylzvcq/Build",
+        ])
+        XCTAssertEqual(process.commandsRun.last, [
+            "/usr/bin/xcrun", "llvm-cov", "export",
+            products + "/CalcTests.xctest/Contents/MacOS/CalcTests",
+            "-instr-profile", packageProfile,
+        ])
+    }
+
+    // `-resultBundlePath` moves the result bundle out of the derived data, and `SYMROOT` or `BUILD_DIR` the products,
+    // but neither moves the profile.
+    func test_theDerivedData_isFoundFromEitherTheResultBundle_orTheProducts() {
+        answerWithACoverageRun(
+            report: packageReport,
+            existing: [false, true, false],
+            log: "/out/Coverage.xcresult\n",
+            buildSettings: ""
+        )
+
+        _ = sut.run(with: muterConfiguration)
+
+        XCTAssertEqual(profilesLookedFor, ["/DerivedData/Build"])
+
+        answerWithACoverageRun(
+            report: packageReport(in: "/project/sym/Debug"),
+            existing: [false, true, false],
+            buildSettings: ""
+        )
+
+        _ = sut.run(with: muterConfiguration)
+
+        XCTAssertEqual(profilesLookedFor.last, "/DerivedData/Build")
+        XCTAssertEqual(profilesLookedFor.count, 2)
+    }
+
+    // With both moved, only `-showBuildSettings` can say where the build is, and for a package's scheme it says
+    // nothing.
+    func test_withNeitherInTheDerivedData_theProfile_isLookedForAboveBuildDir_ifThereIsOne() throws {
+        let packageReport = packageReport(in: "/project/out/Debug")
+        let testsExport: (([String]) -> CommandResult?) = { _ in
+            self.result(output: self.loadFixture("llvmCovExport_xcodebuildPackage.json"))
+        }
+        answerWithACoverageRun(
+            report: packageReport,
+            existing: [false, true, false],
+            log: "/out/Coverage.xcresult\n",
+            buildSettings: "Build settings for action test and target CalcTests:\n    BUILD_DIR = /project/out\n",
+            profiles: ["/project/ProfileData/MAC/Coverage.profdata\n"],
+            export: testsExport
+        )
+
+        XCTAssertEqual(try sut.run(with: muterConfiguration).get().percent, 20)
+        XCTAssertEqual(profilesLookedFor, ["/project"])
+
+        answerWithACoverageRun(
+            report: packageReport,
+            existing: [false, true, false],
+            log: "/out/Coverage.xcresult\n",
+            buildSettings: "",
+            profiles: [],
+            export: testsExport
+        )
+
+        XCTAssertEqual(sut.run(with: muterConfiguration), .failure(.noXcodeBuildFolder))
+        XCTAssertEqual(process.arguments, ["-showBuildSettings"])
+        XCTAssertEqual(process.commandsRun.filter { $0.contains("llvm-cov") }.count, 1, "llvm-cov ran without a build")
+    }
+
+    // With Xcode's Build Location set to Custom, relative to the workspace, as here, or to Shared Folder, the products
+    // and the profile go with the build's intermediate files, and the result bundle stays in derived data, which can
+    // hold the profile of a run from before the setting changed. The newest profile is the run's.
+    func test_theNewestProfile_inAnyBuildFolder_isTheRuns() {
+        let fresh = "/project/Build/Intermediates.noindex/CodeCoverage/ProfileData/MAC/Coverage.profdata"
+        let app = "/project/Build/Products/Debug/App.app/Contents/MacOS/App"
+        answerWithACoverageRun(
+            report: report(
+                target(
+                    "App.app",
+                    buildProductPath: app,
+                    files: [file("/project/App/Model.swift", executable: 4, covered: 2)]
+                )
+            ),
+            existing: [true, false],
+            buildSettings: "Build settings for action test and target App:\n    BUILD_DIR = /project/Build/Products\n",
+            profiles: [profile + "\n", fresh + "\n", fresh + "\n" + profile + "\n"]
+        )
+
+        _ = sut.run(with: muterConfiguration)
+
+        XCTAssertEqual(profilesLookedFor, ["/DerivedData/Build", "/project/Build"])
+        XCTAssertEqual(process.arguments, ["-t", profile, fresh])
+        XCTAssertEqual(process.commandsRun.last, ["/usr/bin/xcrun", "llvm-cov", "export", app, "-instr-profile", fresh])
+    }
+
+    // A package's test target can have a `path` of its own, outside a `Tests` folder, and xccov names its files. Nor do
+    // the files in derived data count, which `-derivedDataPath` can put in the project: those of the packages it
+    // depends on, which its tests' bundle holds too, and those the build generates.
+    func test_aPackagesTestFiles_andDerivedData_areLeftOut_whereverTheyAre() throws {
+        let derivedData = "/project/DerivedData"
+        let tests = derivedData + "/Build/Products/Debug/CalcSpecs.xctest/Contents/MacOS/CalcSpecs"
+        answerWithACoverageRun(
+            report: report(
+                target(
+                    "CalcSpecs",
+                    buildProductPath: tests,
+                    files: [file("/project/Specs/CalcSpecs.swift", executable: 10, covered: 10)]
+                )
+            ),
+            existing: [true, false],
+            log: derivedData + "/Logs/Test/Test-PkgProbe.xcresult\n",
+            buildSettings: "",
+            profiles: [derivedData + "/Build/ProfileData/MAC/Coverage.profdata\n"]
+        ) { _ in
+            self.result(output: String(decoding: self.export(files: [
+                self.exportedFile("/project/Sources/Calc/Calc.swift", count: 4, covered: 2),
+                self.exportedFile("/project/Specs/CalcSpecs.swift", count: 10, covered: 10),
+                self.exportedFile(
+                    derivedData + "/SourcePackages/checkouts/Dep/Sources/Dep/Dep.swift",
+                    count: 8,
+                    covered: 0
+                ),
+                self.exportedFile(
+                    derivedData + "/Build/Intermediates.noindex/Calc.build/Debug/Calc.build/DerivedSources/"
+                        + "resource_bundle_accessor.swift",
+                    count: 5,
+                    covered: 0
+                ),
+            ]), as: UTF8.self))
+        }
+
+        let coverage = try sut.run(with: muterConfiguration).get()
+
+        XCTAssertEqual(coverage.percent, 50)
+        XCTAssertEqual(coverage.filesWithoutCoverage, [])
+    }
+
+    // The coverage of a run in which tests failed is kept, as an app's is, and they are named.
+    func test_aPackagesFailedTests_keepItsCoverage_andAreNamed() throws {
+        answerWithACoverageRun(
+            report: packageReport,
+            existing: [false, true, false],
+            log: loadFixture("TestLogsForParsing/coverageRun_xcodebuild_testFailed.log"),
+            status: 65,
+            buildSettings: ""
+        ) { _ in
+            self.result(output: self.loadFixture("llvmCovExport_xcodebuildPackage.json"))
+        }
+
+        let coverage = try sut.run(with: muterConfiguration).get()
+
+        XCTAssertEqual(coverage.percent, 20)
+        XCTAssertEqual(
+            coverage.testsFailedWithCoverageOn?.tests.map(\.name),
+            ["sFails()", "-[ATests.ATests test_fails]"]
+        )
+    }
+
+    // Without llvm-cov's export, a package has no coverage, as xccov's report says nothing of it, and the reason is
+    // what kept the export from being had.
+    func test_aPackageWhoseExportCantBeHad_givesNoCoverage_andSaysWhy() {
+        // Without a product, `find` never runs, and its answer is left for the next run, so that one comes last.
+        typealias Export = ([String]) -> CommandResult?
+        let runs: [(existing: [Bool], profiles: [String]?, export: Export?, error: CoverageError)] = [
+            ([false, true, false], [""], nil, .noProfileData(atPath: "/DerivedData/Build")),
+            ([false, true, false], nil, { _ in nil }, .couldNotRun("llvm-cov")),
+            (
+                [false, true, false],
+                nil,
+                { _ in self.result(status: 1, errors: "error: malformed coverage data\n") },
+                .llvmCovFailed("error: malformed coverage data")
+            ),
+            ([false, true, false], nil, { _ in self.result(output: "not json") }, .unreadableReport),
+            ([false, true, false], nil, nil, .noProjectFiles),
+            ([false, false], nil, nil, .noBuiltProducts),
+        ]
+
+        for run in runs {
+            answerWithACoverageRun(
+                report: packageReport,
+                existing: run.existing,
+                buildSettings: "",
+                profiles: run.profiles,
+                export: run.export
+            )
+
+            XCTAssertEqual(sut.run(with: muterConfiguration), .failure(run.error))
+        }
+    }
+
+    // Follow "Gathering coverage failed: ".
+    func test_aPackagesOwnFailures_sayWhy() {
+        XCTAssertEqual(
+            CoverageError.noBuiltProducts.reason,
+            "none of the products xccov says the coverage run built exists"
+        )
+        XCTAssertEqual(
+            CoverageError.noXcodeBuildFolder.reason,
+            "the coverage run's profile couldn't be found: its result bundle isn't in <DerivedData>/Logs/Test, "
+                + "nor its products in <DerivedData>/Build/Products, "
+                + "and xcodebuild -showBuildSettings gave no BUILD_DIR"
+        )
+        XCTAssertEqual(
+            CoverageError.noProfileData(atPath: "/a/Build or /b/Build").reason,
+            "there is no profile data at /a/Build or /b/Build"
         )
     }
 
@@ -747,30 +979,44 @@ final class XcodeBuildCoverageTests: MuterTestCase {
 
     """
 
-    /// Answers a coverage run that passed and printed where its result bundle is, with xccov's `report` of it, a build
-    /// folder whose one profile is `profile`, and llvm-cov's export from `export`, given llvm-cov's command, or else
-    /// from `llvmCovExport.json`. Each product `report` lists, and the `.debug.dylib` looked for beside each that
-    /// exists, exists as `existing` says, in that order.
+    /// Answers a coverage run that ended with `status` and printed `log`, which says where its result bundle is, with
+    /// xccov's `report` of it, `buildSettings`, the folder above whose `BUILD_DIR` is by default `/DerivedData/Build`,
+    /// what `find` lists in each build folder, then `ls -t` if it lists more than one profile, by default `profile`,
+    /// and llvm-cov's export from `export`, given llvm-cov's command, or else from `llvmCovExport.json`. Each product
+    /// `report` lists, and the `.debug.dylib` looked for beside each that exists, exists as `existing` says, in that
+    /// order.
     private func answerWithACoverageRun(
         report: Data,
         existing: [Bool],
-        export: (([String]) -> CommandResult)? = nil
+        log: String = "Testing started\n/DerivedData/Logs/Test/Test-App.xcresult\n",
+        status: Int32 = 0,
+        buildSettings: String = """
+        Build settings for action test and target App:
+            BUILD_DIR = /DerivedData/Build/Products
+
+        """,
+        profiles: [String]? = nil,
+        export: (([String]) -> CommandResult?)? = nil
     ) {
         fileManager.currentDirectoryPathToReturn = "/project"
         fileManager.fileExistsToReturn = existing
         process.stdoutToBeReturned = "/path/to/xcrun"
         process.stdoutToBeReturned = String(decoding: report, as: UTF8.self)
-        process.stdoutToBeReturned = """
-        Build settings for action test and target App:
-            BUILD_DIR = /DerivedData/Build/Products
-        """
-        process.stdoutToBeReturned = profile + "\n"
+        process.stdoutToBeReturned = buildSettings
+        for found in profiles ?? [profile + "\n"] {
+            process.stdoutToBeReturned = found
+        }
         let exported = result(output: loadFixture("llvmCovExport.json"))
         process.commandResult = { command in
             command.contains("llvm-cov")
-                ? export?(command) ?? exported
-                : self.result(output: "Testing started\n/DerivedData/Logs/Test/Test-App.xcresult\n")
+                ? export.map { $0(command) } ?? exported
+                : self.result(status: status, output: log)
         }
+    }
+
+    /// The folders `find` looked for profiles in, in order.
+    private var profilesLookedFor: [String] {
+        process.processesRun.filter { $0.first == "/usr/bin/find" }.map { $0[1] }
     }
 
     private let debug = "/DerivedData/Build/Products/Debug"
@@ -792,6 +1038,44 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             target("AppTests.xctest", buildProductPath: appTests, files: []),
             target("AppUITests.xctest", buildProductPath: appUITests, files: [])
         )
+    }
+
+    private var packageTests: String { debug + "/CalcTests.xctest/Contents/MacOS/CalcTests" }
+
+    /// xccov's report of a real run of a package's tests through xcodebuild: its library, `Calc`, as a framework that
+    /// isn't built, with no files, and its tests with only theirs.
+    private var packageReport: Data {
+        packageReport(in: debug)
+    }
+
+    /// `packageReport`, with the products in `products`.
+    private func packageReport(in products: String) -> Data {
+        report(
+            target(
+                "Calc",
+                buildProductPath: products
+                    + "/PackageFrameworks/Calc_598848FE7_PackageProduct.framework/Calc_598848FE7_PackageProduct",
+                files: []
+            ),
+            target(
+                "CalcTests",
+                buildProductPath: products + "/CalcTests.xctest/Contents/MacOS/CalcTests",
+                files: [file("/project/Tests/CalcTests/CalcTests.swift", executable: 8, covered: 8)]
+            )
+        )
+    }
+
+    /// llvm-cov's JSON export of `files`, with no functions.
+    private func export(files: [String]) -> Data {
+        Data("""
+        {"type": "llvm.coverage.json.export", "version": "3.0.1",
+         "data": [{"files": [\(files.joined(separator: ","))], "functions": []}]}
+        """.utf8)
+    }
+
+    /// A file of llvm-cov's export, of whose `count` lines the tests ran `covered`.
+    private func exportedFile(_ path: String, count: Int, covered: Int) -> String {
+        #"{"filename": "\#(path)", "summary": {"lines": {"count": \#(count), "covered": \#(covered)}}}"#
     }
 
     /// The error `result` failed with; nil if it didn't.

@@ -45,30 +45,51 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
     }
 
     /// The coverage in the result bundle whose path `testRun` printed, of a run in which `failedTests` failed: xccov's
-    /// lines, and llvm-cov's regions.
+    /// lines, and llvm-cov's regions. xccov's report of a Swift package tested through xcodebuild names only the tests'
+    /// files: their bundle holds the library's code, which xccov counts for no target. So then the lines come from
+    /// llvm-cov's export too, as SwiftPM's do.
     private func coverage(
         _ configuration: MuterConfiguration,
         printedBy testRun: CommandResult,
         failedTests: FailedTestLine.FailedTests?
     ) -> Result<Coverage, CoverageError> {
-        guard let resultPath = resultBundle(printedBy: testRun),
-              let report = runXccov(with: resultPath).flatMap(CoverageReport.init(json:))
+        guard let resultBundle = resultBundle(printedBy: testRun),
+              let report = runXccov(with: resultBundle).flatMap(CoverageReport.init(json:))
         else {
             return .failure(.build)
         }
+        let projectRoot = fileManager.currentDirectoryPath
+        let derivedData = report.derivedData(resultBundle: resultBundle)
+        let export = { self.export(configuration, builtProducts: report.builtProducts, derivedData: derivedData) }
 
-        return Self.coverage(
+        switch Self.coverage(
             of: report,
-            projectRoot: fileManager.currentDirectoryPath,
+            projectRoot: projectRoot,
+            buildFolders: derivedData,
             coverageThreshold: configuration.coverageThreshold
-        )
-        .map { lines in
-            Coverage(
-                percent: lines.percent,
-                filesWithoutCoverage: lines.filesWithoutCoverage,
-                functionsCoverage: functionsCoverage(configuration, builtProducts: report.builtProducts),
-                testsFailedWithCoverageOn: failedTests
+        ) {
+        case let .success(lines):
+            return .success(
+                Coverage(
+                    percent: lines.percent,
+                    filesWithoutCoverage: lines.filesWithoutCoverage,
+                    functionsCoverage: Self.functionsCoverage(of: export()),
+                    testsFailedWithCoverageOn: failedTests
+                )
             )
+        case .failure(.noProjectFilesInXccovReport):
+            return export().flatMap { export in
+                Self.coverage(
+                    fromExport: export,
+                    projectRoot: projectRoot,
+                    coverageThreshold: configuration.coverageThreshold,
+                    buildFolders: derivedData,
+                    testFiles: report.testFiles,
+                    testsFailedWithCoverageOn: failedTests
+                )
+            }
+        case let .failure(error):
+            return .failure(error)
         }
     }
 
@@ -96,21 +117,51 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
         return .success(failedTests)
     }
 
-    /// Which code no test ran, which xccov's report can't say, having no regions: from one `llvm-cov export` of
-    /// `builtProducts`, the binary of each product the coverage run built, with the newest profile. `.null` if that
-    /// can't be had, and the report's lines still say which files no test ran.
-    private func functionsCoverage(_ configuration: MuterConfiguration, builtProducts: [String]) -> FunctionsCoverage {
-        let binaries = builtProducts.flatMap(binaries(of:))
-        guard !binaries.isEmpty,
-              let buildDirectory = buildDirectory(configuration),
-              let profile = testProfileData(at: buildDirectory),
-              case let .success(export) = regionsExport(of: binaries, profile: profile),
+    /// Which code no test ran, which xccov's report can't say, having no regions: from `export`, llvm-cov's. `.null` if
+    /// that couldn't be had, and the report's lines still say which files no test ran.
+    private static func functionsCoverage(of export: Result<Data, CoverageError>) -> FunctionsCoverage {
+        guard case let .success(export) = export,
               let coverage = try? JSONDecoder().decode(LLVMCoverage.self, from: export)
         else {
             return .null
         }
 
         return FunctionsCoverage(from: coverage)
+    }
+
+    /// One `llvm-cov export` of `builtProducts`, the binary of each product the coverage run built that exists, with
+    /// the newest profile in the build folders of `derivedData`, the run's, or why it couldn't be had.
+    private func export(
+        _ configuration: MuterConfiguration,
+        builtProducts: [String],
+        derivedData: [String]
+    ) -> Result<Data, CoverageError> {
+        let binaries = builtProducts.flatMap(binaries(of:))
+        guard !binaries.isEmpty else {
+            return .failure(.noBuiltProducts)
+        }
+        let buildFolders = buildFolders(configuration, derivedData: derivedData)
+        guard !buildFolders.isEmpty else {
+            return .failure(.noXcodeBuildFolder)
+        }
+        guard let profile = testProfileData(at: buildFolders) else {
+            return .failure(.noProfileData(atPath: buildFolders.joined(separator: " or ")))
+        }
+
+        return regionsExport(of: binaries, profile: profile)
+    }
+
+    /// The folders that can hold the coverage run's profile, the newest of which is the run's: `Build` in each of
+    /// `derivedData`, the run's, and the folder above `BUILD_DIR`. Xcode keeps the profile in the result bundle's
+    /// derived data even when `SYMROOT` or `BUILD_DIR` move the products, but with the products and their intermediate
+    /// files when its Build Location setting is Custom or Shared Folder, which can leave an earlier run's profile in
+    /// the derived data. A Swift package's scheme has no `BUILD_DIR`: `-showBuildSettings` prints no settings for it,
+    /// saying "Supported platforms for the buildables in the current scheme is empty".
+    private func buildFolders(_ configuration: MuterConfiguration, derivedData: [String]) -> [String] {
+        (derivedData.map { $0 + "/Build" } + [buildDirectory(configuration)].compactMap { $0 })
+            .reduce(into: []) { folders, folder in
+                if !folders.contains(folder) { folders.append(folder) }
+            }
     }
 
     /// llvm-cov's export of `binaries` with `profile`. llvm-cov reads a universal binary, as a build for every
@@ -140,9 +191,10 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
         return fileManager.fileExists(atPath: debugDylib) ? [product, debugDylib] : [product]
     }
 
-    /// The folder above `BUILD_DIR`, which holds the coverage profile, under `ProfileData`. xcodebuild prints each
-    /// setting indented, once per target. With `BUILD_DIR=…` among the arguments, it first echoes that as given, under
-    /// "Build settings from command line:", so the search starts at the first target's block.
+    /// The folder above `BUILD_DIR`, which holds the coverage profile, under `ProfileData`, unless `SYMROOT` or
+    /// `BUILD_DIR` moved the products out of the derived data. xcodebuild prints each setting indented, once per
+    /// target. With `BUILD_DIR=…` among the arguments, it first echoes that as given, under "Build settings from
+    /// command line:", so the search starts at the first target's block.
     func buildDirectory(_ configuration: MuterConfiguration) -> String? {
         process().runProcess(
             url: configuration.testCommandExecutable,
@@ -197,16 +249,22 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
             return .failure(.build)
         }
 
-        return coverage(of: report, projectRoot: projectRoot, coverageThreshold: coverageThreshold)
+        return coverage(
+            of: report,
+            projectRoot: projectRoot,
+            buildFolders: report.derivedData,
+            coverageThreshold: coverageThreshold
+        )
     }
 
+    /// `buildFolders` are the derived data, whose files never count: `-derivedDataPath` can put it in the project.
     private static func coverage(
         of report: CoverageReport,
         projectRoot: String,
+        buildFolders: [FilePath],
         coverageThreshold: Double
     ) -> Result<LineCoverage, CoverageError> {
-        // The derived data can be in the project, as `-derivedDataPath` can put it.
-        let projectFiles = ProjectSourceFiles(root: projectRoot, buildFolders: report.derivedData)
+        let projectFiles = ProjectSourceFiles(root: projectRoot, buildFolders: buildFolders)
         // A file built into several targets, such as an app and its extension, counts once, with the most of its lines
         // the tests ran in any of them.
         let files = Dictionary(
@@ -217,7 +275,8 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
             uniquingKeysWith: { $0.coveredLines >= $1.coveredLines ? $0 : $1 }
         )
         .sorted { $0.key < $1.key }
-        // xccov's report of a package tested through xcodebuild lists only its tests' files.
+        // xccov's report of a package tested through xcodebuild lists only its tests' files, so `run` reads llvm-cov's
+        // export instead.
         guard !files.isEmpty else {
             return .failure(.noProjectFilesInXccovReport)
         }
@@ -264,9 +323,29 @@ private extension CoverageReport {
     /// The derived data the coverage run used, the folder above `Build/Products` in its products' paths, which also
     /// holds the packages the project depends on, under `SourcePackages`, and the files the build generates.
     var derivedData: [String] {
-        Array(Set(builtProducts.compactMap { path in
+        Set(builtProducts.compactMap { path in
             path.range(of: "/Build/Products/").map { String(path[..<$0.lowerBound]) }
-        }))
+        })
+        .sorted()
+    }
+
+    /// The derived data the coverage run used: the folder above `Logs/Test` in `resultBundle`, the path of its result
+    /// bundle, which also holds the run's profile, under `Build/ProfileData`, and then that of its products. Those of
+    /// a Swift package whose folder isn't named after it are in other derived data, named after the folder, with the
+    /// same hash, and no profile: `PkgProbe_mutated-<hash>` rather than `PkgProbe-<hash>`, as in SwiftMutator's copy
+    /// of a project. `-resultBundlePath` moves the result bundle, and `SYMROOT` or `BUILD_DIR` the products, but
+    /// neither moves the profile. So with `-resultBundlePath`, such a package's profile can't be found, unless
+    /// `-derivedDataPath` puts all of it in one folder.
+    func derivedData(resultBundle: String) -> [String] {
+        let ofResultBundle = resultBundle.range(of: "/Logs/Test/")
+            .map { [String(resultBundle[..<$0.lowerBound])] } ?? []
+        return ofResultBundle + derivedData.exclude(ofResultBundle.contains)
+    }
+
+    /// The files the test targets build, which can be outside a `Tests` folder, as those of a package's test target
+    /// with a `path` of its own are.
+    var testFiles: [String] {
+        targets.filter(\.isTest).flatMap(\.files).map(\.path)
     }
 
     struct Target: Decodable {
@@ -283,12 +362,16 @@ private extension CoverageReport.Target {
         let coveredLines: Int
         let executableLines: Int
     }
+
+    /// Whether this is a test target, whose product is a `.xctest` bundle. xcodebuild names a package's test target
+    /// without the `.xctest`, so only its build product shows it is one.
+    var isTest: Bool {
+        name.hasSuffix(".xctest") || buildProductPath?.contains(".xctest/") == true
+    }
 }
 
 private extension [CoverageReport.Target] {
-    /// Leaves out the test targets, whose product is a `.xctest` bundle. xcodebuild names a package's test target
-    /// without the `.xctest`, so only its build product shows it is one.
     func excludeTestTargets() -> [Element] {
-        exclude { $0.name.hasSuffix(".xctest") || $0.buildProductPath?.contains(".xctest/") == true }
+        exclude(\.isTest)
     }
 }
