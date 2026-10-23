@@ -63,6 +63,8 @@ protocol MutationTestingIODelegate {
 struct MutationTestingDelegate: MutationTestingIODelegate {
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
+    @Dependency(\.mutatedProjectLocker)
+    private var mutatedProjectLocker: MutatedProjectLocking
     @Dependency(\.notificationCenter)
     private var notificationCenter: NotificationCenter
     @Dependency(\.process)
@@ -234,8 +236,9 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
     ) async throws -> TestRun {
         let ending = TestRunEnding()
         let follower = stoppingAtFirstFailure ? TestLogFollower(logFileUrl: logFileUrl) : nil
+        let locker = mutatedProjectLocker
         let run: @Sendable () async throws -> TestingExecutionResult = {
-            try await Self.runToExit(process, follower: follower, ending: ending)
+            try await Self.runToExit(process, follower: follower, ending: ending, recordingIn: locker)
             return .success
         }
         if let timeout {
@@ -286,13 +289,21 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
 
     /// Launches `process` and waits for it to exit. With a follower, stops it at the first failed test its
     /// log shows. Cancelling the calling task kills the process tree: waiting ignores cancellation, so the
-    /// run would otherwise go on until its tests ended.
-    private static func runToExit(_ process: Process, follower: TestLogFollower?, ending: TestRunEnding) async throws {
+    /// run would otherwise go on until its tests ended. While it runs, it is recorded in the mutated project's
+    /// lock, so that if SwiftMutator dies first, killed or crashed, it is killed too (see `MutatedProjectLock`).
+    private static func runToExit(
+        _ process: Process,
+        follower: TestLogFollower?,
+        ending: TestRunEnding,
+        recordingIn locker: MutatedProjectLocking
+    ) async throws {
         // Foundation calls this as soon as it reaps the process, while waitUntilExit() notices the exit up to
         // about 60 ms later. Recording the exit here closes that gap: in it, the follower or the time limit
         // could kill a process that had exited, and report a run that ended by itself as stopped.
         process.terminationHandler = { _ in _ = ending.record(.exited) }
         try process.run()
+        locker.testProcessStarted(process.processIdentifier)
+        defer { locker.testProcessEnded(process.processIdentifier) }
         await withTaskCancellationHandler {
             await withTaskGroup(of: Void.self) { group in
                 if let follower {

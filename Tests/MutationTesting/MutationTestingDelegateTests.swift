@@ -459,6 +459,30 @@ final class MutationTestingDelegateTests: MuterTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: file))
     }
 
+    // So that if SwiftMutator dies first, killed or crashed, the test process is killed too.
+    func test_aTestProcessIsRecordedInTheMutatedProjectsLock_whileItRuns() async throws {
+        let result = try await sut.runTestSuite(
+            withSchemata: MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1)),
+            using: MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], testSuiteTimeOut: 9),
+            savingResultsIntoFileNamed: "logFileName"
+        )
+
+        XCTAssertEqual(result.ending, .exited)
+        XCTAssertEqual(mutatedProjectLocker.testProcesses, ["started 0", "ended 0"])
+    }
+
+    func test_aTestProcessThatCannotStart_isNotRecorded() async throws {
+        process.runError = NSError(domain: NSCocoaErrorDomain, code: NSFileNoSuchFileError)
+
+        _ = try await sut.runTestSuite(
+            withSchemata: MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1)),
+            using: MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], testSuiteTimeOut: 9),
+            savingResultsIntoFileNamed: "logFileName"
+        )
+
+        XCTAssertEqual(mutatedProjectLocker.testProcesses, [])
+    }
+
     func test_timeout() async throws {
         let configuration = MuterConfiguration(
             executable: "/tmp/swift",
