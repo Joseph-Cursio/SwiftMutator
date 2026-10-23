@@ -3,7 +3,8 @@
 #endif
 
 func someCode() -> Bool {
-  if __SwiftMutator.environment["sampleWithLogicalOperators_ChangeLogicalConnector_6_18_101"] != nil
+  if __SwiftMutator_755928456a7ae94e.environment[
+    "sampleWithLogicalOperators_ChangeLogicalConnector_6_18_101"] != nil
   {
     return false || false
   } else {
@@ -12,8 +13,8 @@ func someCode() -> Bool {
 }
 
 func someOtherCode() -> Bool {
-  if __SwiftMutator.environment["sampleWithLogicalOperators_ChangeLogicalConnector_10_17_160"]
-    != nil
+  if __SwiftMutator_755928456a7ae94e.environment[
+    "sampleWithLogicalOperators_ChangeLogicalConnector_10_17_160"] != nil
   {
     return true && true
   } else {
@@ -23,8 +24,8 @@ func someOtherCode() -> Bool {
 
 func isEnabledToShow() -> Bool {
   // バルーンの表示判定
-  if __SwiftMutator.environment["sampleWithLogicalOperators_ChangeLogicalConnector_15_18_256"]
-    != nil
+  if __SwiftMutator_755928456a7ae94e.environment[
+    "sampleWithLogicalOperators_ChangeLogicalConnector_15_18_256"] != nil
   {
     // バルーンの表示判定
     return false || false
@@ -35,8 +36,8 @@ func isEnabledToShow() -> Bool {
     // バルーンの表示判定
   }
 }
-private enum __SwiftMutator {
-  nonisolated static let environment: [String: String] = {
+@usableFromInline internal enum __SwiftMutator_755928456a7ae94e {
+  @usableFromInline nonisolated static let environment: [String: String] = {
     var environment = ProcessInfo.processInfo.environment
     if let path = environment["SWIFTMUTATOR_ACTIVE_MUTANT_FILE"] {
       guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {

@@ -4,7 +4,8 @@ import SwiftSyntax
 enum MutationSwitch {
     static func apply(
         mutationSchemata: MutationSchemata,
-        with originalSyntax: CodeBlockItemListSyntax
+        with originalSyntax: CodeBlockItemListSyntax,
+        readingEnvironmentFrom environmentCacheName: String
     ) -> CodeBlockItemListSyntax {
         guard !mutationSchemata.isEmpty else {
             return originalSyntax
@@ -27,7 +28,8 @@ enum MutationSwitch {
                         .withTrailingTrivia(.spaces(1))
                         .withLeadingTrivia(previousElseBody.leadingTrivia),
                     conditions: buildSchemataCondition(
-                        withId: schema.id
+                        withId: schema.id,
+                        readingFrom: environmentCacheName
                     ),
                     body: CodeBlockSyntax(
                         statements: schema.syntaxMutation,
@@ -48,7 +50,8 @@ enum MutationSwitch {
                 .withTrailingTrivia(.spaces(1))
                 .withLeadingTrivia(originalSyntax.leadingTrivia),
             conditions: buildSchemataCondition(
-                withId: firstSchema.id
+                withId: firstSchema.id,
+                readingFrom: environmentCacheName
             ),
             body: CodeBlockSyntax(
                 statements: firstSchema.syntaxMutation,
@@ -111,7 +114,8 @@ enum MutationSwitch {
     }
 
     private static func buildSchemataCondition(
-        withId id: String
+        withId id: String,
+        readingFrom environmentCacheName: String
     ) -> ConditionElementListSyntax {
         ConditionElementListSyntax([
             ConditionElementSyntax(
@@ -121,14 +125,14 @@ enum MutationSwitch {
                             ExprSyntax(
                                 SubscriptCallExprSyntax(
                                     calledExpression:
-                                    // `__SwiftMutator.environment`, the copy MuterRewriter appends to
-                                    // the file. Reading `ProcessInfo.processInfo.environment` here
-                                    // rebuilt the dictionary on every execution of the block.
+                                    // `<environmentCacheName>.environment`, the copy MuterRewriter
+                                    // appends to the file. Reading `ProcessInfo.processInfo.environment`
+                                    // here rebuilt the dictionary on every execution of the block.
                                     MemberAccessExprSyntax(
                                         base: MemberAccessExprSyntax(
                                             period: .periodToken(presence: .missing),
                                             declName: DeclReferenceExprSyntax(
-                                                baseName: .identifier(MuterRewriter.environmentCacheName)
+                                                baseName: .identifier(environmentCacheName)
                                             )
                                         ),
                                         declName: DeclReferenceExprSyntax(

@@ -16,7 +16,7 @@ static func validate(_ type: ParsableArguments.Type, parent: InputKey?)
     return nil
   }
   do {
-    if __SwiftMutator.environment["file_RemoveSideEffects_17_71_597"] != nil {
+    if __SwiftMutator_aad01178f02a6a23.environment["file_RemoveSideEffects_17_71_597"] != nil {
       return InvalidDecoderError(type: type)
     } else {
       let _ = try type.init(from: Validator(argumentKeys: argumentKeys))
@@ -33,8 +33,8 @@ static func validate(_ type: ParsableArguments.Type, parent: InputKey?)
     fatalError("Unexpected validation error: error")
   }
 }
-private enum __SwiftMutator {
-  nonisolated static let environment: [String: String] = {
+@usableFromInline internal enum __SwiftMutator_aad01178f02a6a23 {
+  @usableFromInline nonisolated static let environment: [String: String] = {
     var environment = ProcessInfo.processInfo.environment
     if let path = environment["SWIFTMUTATOR_ACTIVE_MUTANT_FILE"] {
       guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {

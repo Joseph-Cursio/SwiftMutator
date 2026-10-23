@@ -9,8 +9,8 @@ import class Foundation.ProcessInfo
 
 struct ConditionalOperators {
   func something(_ a: Int) -> String {
-    if __SwiftMutator.environment["sampleWithAllOperators_RelationalOperatorReplacement_7_19_242"]
-      != nil
+    if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_RelationalOperatorReplacement_7_19_242"] != nil
     {
       let b = a != 5
       let e = a != 1
@@ -24,7 +24,9 @@ struct ConditionalOperators {
       }
 
       return a == 9 ? "goodbye" : "what"
-    } else if __SwiftMutator.environment["sampleWithAllOperators_SwapTernary_18_43_463"] != nil {
+    } else if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_SwapTernary_18_43_463"] != nil
+    {
       let b = a == 5
       let e = a != 1
       let c = a >= 4
@@ -37,7 +39,7 @@ struct ConditionalOperators {
       }
 
       return a == 9 ? "what" : "goodbye"
-    } else if __SwiftMutator.environment[
+    } else if __SwiftMutator_c132952c484be782.environment[
       "sampleWithAllOperators_RelationalOperatorReplacement_18_18_438"] != nil
     {
       let b = a == 5
@@ -52,7 +54,7 @@ struct ConditionalOperators {
       }
 
       return a != 9 ? "goodbye" : "what"
-    } else if __SwiftMutator.environment[
+    } else if __SwiftMutator_c132952c484be782.environment[
       "sampleWithAllOperators_RelationalOperatorReplacement_14_14_375"] != nil
     {
       let b = a == 5
@@ -67,7 +69,7 @@ struct ConditionalOperators {
       }
 
       return a == 9 ? "goodbye" : "what"
-    } else if __SwiftMutator.environment[
+    } else if __SwiftMutator_c132952c484be782.environment[
       "sampleWithAllOperators_RelationalOperatorReplacement_12_19_357"] != nil
     {
       let b = a == 5
@@ -82,7 +84,7 @@ struct ConditionalOperators {
       }
 
       return a == 9 ? "goodbye" : "what"
-    } else if __SwiftMutator.environment[
+    } else if __SwiftMutator_c132952c484be782.environment[
       "sampleWithAllOperators_RelationalOperatorReplacement_11_19_335"] != nil
     {
       let b = a == 5
@@ -97,7 +99,7 @@ struct ConditionalOperators {
       }
 
       return a == 9 ? "goodbye" : "what"
-    } else if __SwiftMutator.environment[
+    } else if __SwiftMutator_c132952c484be782.environment[
       "sampleWithAllOperators_RelationalOperatorReplacement_10_19_311"] != nil
     {
       let b = a == 5
@@ -112,7 +114,7 @@ struct ConditionalOperators {
       }
 
       return a == 9 ? "goodbye" : "what"
-    } else if __SwiftMutator.environment[
+    } else if __SwiftMutator_c132952c484be782.environment[
       "sampleWithAllOperators_RelationalOperatorReplacement_9_19_288"] != nil
     {
       let b = a == 5
@@ -127,7 +129,7 @@ struct ConditionalOperators {
       }
 
       return a == 9 ? "goodbye" : "what"
-    } else if __SwiftMutator.environment[
+    } else if __SwiftMutator_c132952c484be782.environment[
       "sampleWithAllOperators_RelationalOperatorReplacement_8_19_265"] != nil
     {
       let b = a == 5
@@ -163,10 +165,12 @@ struct ConditionalOperators {
   }
 
   func baz() {
-    if __SwiftMutator.environment["sampleWithAllOperators_RemoveSideEffects_26_37_596"] != nil {
+    if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_RemoveSideEffects_26_37_596"] != nil
+    {
     } else {
       _ = foo(bar: {
-        if __SwiftMutator.environment[
+        if __SwiftMutator_c132952c484be782.environment[
           "sampleWithAllOperators_RelationalOperatorReplacement_26_27_586"] != nil
         {
           $0 != char
@@ -180,7 +184,8 @@ struct ConditionalOperators {
 
 struct LogicalConnectors {
   func someCode() -> Bool {
-    if __SwiftMutator.environment["sampleWithAllOperators_ChangeLogicalConnector_32_22_684"] != nil
+    if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_ChangeLogicalConnector_32_22_684"] != nil
     {
       return false || false
     } else {
@@ -189,7 +194,8 @@ struct LogicalConnectors {
   }
 
   func someOtherCode() -> Bool {
-    if __SwiftMutator.environment["sampleWithAllOperators_ChangeLogicalConnector_36_21_755"] != nil
+    if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_ChangeLogicalConnector_36_21_755"] != nil
     {
       return true && true
     } else {
@@ -200,7 +206,9 @@ struct LogicalConnectors {
 
 struct SideEffects {
   func containsSideEffect() -> Int {
-    if __SwiftMutator.environment["sampleWithAllOperators_RemoveSideEffects_42_31_862"] != nil {
+    if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_RemoveSideEffects_42_31_862"] != nil
+    {
       return 1
     } else {
       _ = causesSideEffect()
@@ -209,7 +217,9 @@ struct SideEffects {
   }
 
   func containsSideEffect() -> Int {
-    if __SwiftMutator.environment["sampleWithAllOperators_RemoveSideEffects_49_31_984"] != nil {
+    if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_RemoveSideEffects_49_31_984"] != nil
+    {
       print("something")
     } else {
       print("something")
@@ -224,7 +234,9 @@ struct SideEffects {
   }
 
   func causesAnotherSideEffect() {
-    if __SwiftMutator.environment["sampleWithAllOperators_RemoveSideEffects_60_66_1256"] != nil {
+    if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_RemoveSideEffects_60_66_1256"] != nil
+    {
       let key = "some key"
       let value = aFunctionThatReturnsAValue()
     } else {
@@ -246,7 +258,9 @@ struct SideEffects {
   }
 
   func containsAVoidFunctionCallThatSpansManyLine() {
-    if __SwiftMutator.environment["sampleWithAllOperators_RemoveSideEffects_79_10_1797"] != nil {
+    if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_RemoveSideEffects_79_10_1797"] != nil
+    {
     } else {
       functionCall(
         "some argument",
@@ -264,7 +278,9 @@ struct Concurrency {
   private let condition = NSCondition()
 
   private func semaphoreLock(block: () -> Void) {
-    if __SwiftMutator.environment["sampleWithAllOperators_RemoveSideEffects_92_16_2159"] != nil {
+    if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_RemoveSideEffects_92_16_2159"] != nil
+    {
       defer { semaphore.signal() }
       semaphore.wait()
     } else {
@@ -275,7 +291,9 @@ struct Concurrency {
   }
 
   private func recursiveLock(block: () -> Void) {
-    if __SwiftMutator.environment["sampleWithAllOperators_RemoveSideEffects_98_16_2286"] != nil {
+    if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_RemoveSideEffects_98_16_2286"] != nil
+    {
       defer { lock.unlock() }
       lock.lock()
     } else {
@@ -286,7 +304,9 @@ struct Concurrency {
   }
 
   private func nsCondition(block: () -> Void) {
-    if __SwiftMutator.environment["sampleWithAllOperators_RemoveSideEffects_104_16_2421"] != nil {
+    if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_RemoveSideEffects_104_16_2421"] != nil
+    {
       defer { condition.signal() }
       condition.wait()
     } else {
@@ -297,7 +317,9 @@ struct Concurrency {
   }
 
   private func nsConditionLock(block: () -> Void) {
-    if __SwiftMutator.environment["sampleWithAllOperators_RemoveSideEffects_110_16_2600"] != nil {
+    if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_RemoveSideEffects_110_16_2600"] != nil
+    {
       defer { conditionLock.unlock(withCondition: 1) }
       conditionLock.lock(whenCondition: 1)
     } else {
@@ -319,7 +341,9 @@ struct Concurrency {
 
 struct TernayOperators {
   func someCode(_ a: Bool) -> Bool {
-    if __SwiftMutator.environment["sampleWithAllOperators_SwapTernary_125_32_2915"] != nil {
+    if __SwiftMutator_c132952c484be782.environment["sampleWithAllOperators_SwapTernary_125_32_2915"]
+      != nil
+    {
       return a ? false : true
     } else {
       return a ? true : false
@@ -327,7 +351,9 @@ struct TernayOperators {
   }
 
   func someAnotherCode(_ a: Bool) -> String {
-    if __SwiftMutator.environment["sampleWithAllOperators_SwapTernary_129_36_3006"] != nil {
+    if __SwiftMutator_c132952c484be782.environment["sampleWithAllOperators_SwapTernary_129_36_3006"]
+      != nil
+    {
       return a ? "false" : "true"
     } else {
       return a ? "true" : "false"
@@ -335,9 +361,13 @@ struct TernayOperators {
   }
 
   func someCode(_ a: Bool, _ b: Bool) -> Bool {
-    if __SwiftMutator.environment["sampleWithAllOperators_SwapTernary_133_44_3107"] != nil {
+    if __SwiftMutator_c132952c484be782.environment["sampleWithAllOperators_SwapTernary_133_44_3107"]
+      != nil
+    {
       return a ? false : b ? true : false
-    } else if __SwiftMutator.environment["sampleWithAllOperators_SwapTernary_133_37_3100"] != nil {
+    } else if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_SwapTernary_133_37_3100"] != nil
+    {
       return a ? b ? false : true : false
     } else {
       return a ? b ? true : false : false
@@ -354,7 +384,7 @@ public enum Enum {
     case let .a(value):
       return value
     case let .b(value):
-      if __SwiftMutator.environment[
+      if __SwiftMutator_c132952c484be782.environment[
         "sampleWithAllOperators_RelationalOperatorReplacement_146_26_3366"] != nil
       {
         if something != nil {
@@ -378,7 +408,7 @@ extension String {
       for char in self {
         guard
           let (_, newRemainder) = doSomething(condition: {
-            if __SwiftMutator.environment[
+            if __SwiftMutator_c132952c484be782.environment[
               "sampleWithAllOperators_RelationalOperatorReplacement_159_75_3694"] != nil
             {
               $0 != char
@@ -396,8 +426,8 @@ extension String {
     }
   }
 }
-private enum __SwiftMutator {
-  nonisolated static let environment: [String: String] = {
+@usableFromInline internal enum __SwiftMutator_c132952c484be782 {
+  @usableFromInline nonisolated static let environment: [String: String] = {
     var environment = ProcessInfo.processInfo.environment
     if let path = environment["SWIFTMUTATOR_ACTIVE_MUTANT_FILE"] {
       guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {

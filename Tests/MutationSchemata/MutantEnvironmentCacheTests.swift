@@ -8,6 +8,7 @@ import XCTest
 /// call, about 76 µs, and in hot code that slowed SwiftProjectLint's test run from ~9 s to ~93 s for
 /// every mutant. The rewritten file now reads one lazily initialised copy, about 0.16 µs a call.
 final class MutantEnvironmentCacheTests: MuterTestCase {
+    private let cacheName = MuterRewriter.environmentCacheName(forFileAt: "/path/to/Sample.swift")
 
     func test_switchesReadTheFileCacheInsteadOfTheLiveEnvironment() throws {
         let rewritten = try rewrite("""
@@ -17,7 +18,7 @@ final class MutantEnvironmentCacheTests: MuterTestCase {
         """)
 
         XCTAssertFalse(rewritten.contains("ProcessInfo.processInfo.environment["), rewritten)
-        XCTAssertTrue(rewritten.contains("__SwiftMutator.environment[\""), rewritten)
+        XCTAssertTrue(rewritten.contains("\(cacheName).environment[\""), rewritten)
     }
 
     func test_theCacheIsDeclaredOnceAtTheEndOfAMutatedFile() throws {
@@ -31,7 +32,7 @@ final class MutantEnvironmentCacheTests: MuterTestCase {
         }
         """)
 
-        let declarations = rewritten.components(separatedBy: "enum __SwiftMutator").count - 1
+        let declarations = rewritten.components(separatedBy: "enum \(cacheName) {").count - 1
         XCTAssertEqual(declarations, 1, rewritten)
         let lastLine = rewritten.split(separator: "\n").last.map(String.init)
         XCTAssertEqual(lastLine?.trimmingCharacters(in: .whitespaces), "}")
@@ -82,8 +83,41 @@ final class MutantEnvironmentCacheTests: MuterTestCase {
         }
         """)
 
-        XCTAssertTrue(rewritten.contains(#"__SwiftMutator.environment["Sample_RelationalOperatorReplacement_"#), rewritten)
+        XCTAssertTrue(
+            rewritten.contains(#"\#(cacheName).environment["Sample_RelationalOperatorReplacement_"#),
+            rewritten
+        )
         XCTAssertTrue(rewritten.contains(#"] != nil"#), rewritten)
+    }
+
+    // An `@inlinable`, `@_alwaysEmitIntoClient` or `@_transparent` body, or a public function's default argument,
+    // can reference only public and `@usableFromInline` declarations, and a mutant in one reads the cache.
+    func test_theCacheCanBeReadFromInlinableCode() throws {
+        let rewritten = try rewrite("""
+        @inlinable
+        public func check(_ value: Int) -> Bool {
+            return value > 1
+        }
+        """)
+
+        XCTAssertTrue(rewritten.contains("@usableFromInline internal enum \(cacheName) {"), rewritten)
+        XCTAssertTrue(
+            rewritten.contains("@usableFromInline nonisolated static let environment: [String: String]"),
+            rewritten
+        )
+        XCTAssertFalse(rewritten.contains("fileprivate"), rewritten)
+    }
+
+    // The cache is internal, so no two files of a module may name it alike, and the compiler doesn't build a module
+    // with two files of the same name. The name is the same in every process and wherever the project is.
+    func test_theCacheIsNamedAfterItsFilesName() {
+        let name = MuterRewriter.environmentCacheName(forFileAt:)
+
+        XCTAssertEqual(name("/path/to/Sample.swift"), "__SwiftMutator_c6ec652bc78cf45e")
+        XCTAssertEqual(name("/elsewhere/Sample.swift"), name("/path/to/Sample.swift"))
+        XCTAssertNotEqual(name("/path/to/Other.swift"), name("/path/to/Sample.swift"))
+        XCTAssertNotEqual(name("/path/to/sample.swift"), name("/path/to/Sample.swift"))
+        XCTAssertFalse(Parser.parse(source: "enum \(name("/path/to/Main+Tests.swift")) {}").hasError)
     }
 
     private func rewrite(_ text: String) throws -> String {

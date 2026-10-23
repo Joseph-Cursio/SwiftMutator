@@ -1,20 +1,36 @@
+import Foundation
 import SwiftParser
 import SwiftSyntax
 
 final class MuterRewriter: SyntaxRewriter {
     private let schemataMappings: SchemataMutationMapping
-
-    /// The file-private type holding the one copy of the environment every switch in a file reads.
-    static let environmentCacheName = "__SwiftMutator"
+    /// The type holding the one copy of the environment every switch in this file reads.
+    private let environmentCacheName: String
 
     required init(_ schemataMappings: SchemataMutationMapping) {
         self.schemataMappings = schemataMappings
+        environmentCacheName = Self.environmentCacheName(forFileAt: schemataMappings.filePath)
+    }
+
+    /// The name of the environment cache of the file at `path`: `__SwiftMutator_` and a hash of the file's name. The
+    /// cache is internal, so each file of a module needs a name of its own, and a module can't hold two files of the
+    /// same name. The name doesn't depend on where the project is, so the rewritten code is the same on every machine.
+    static func environmentCacheName(forFileAt path: String) -> String {
+        // FNV-1a, which unlike `hashValue` is the same in every process.
+        let hash = URL(fileURLWithPath: path).lastPathComponent.utf8.reduce(UInt64(0xCBF2_9CE4_8422_2325)) {
+            ($0 ^ UInt64($1)) &* 0x0000_0100_0000_01B3
+        }
+        return "__SwiftMutator_" + String(hash, radix: 16)
     }
 
     /// Appends the environment cache to a file that received switches. It goes at the end, so no
     /// line of the file moves and every recorded mutant position stays valid. A `static let` is
     /// initialised once, lazily and thread-safely, and unlike a top-level global it is safe in
     /// `main.swift`, where a global would not be initialised until execution reached it.
+    ///
+    /// The cache is `@usableFromInline internal`, not `fileprivate`: an `@inlinable`, `@_alwaysEmitIntoClient`
+    /// or `@_transparent` body, or a public function's default argument, can reference only public and
+    /// `@usableFromInline` declarations, and a mutant there failed the build every mutant shares.
     ///
     /// The cache is `nonisolated`: in a module built with `-default-isolation MainActor` the enum is
     /// isolated to the main actor, and a mutant in nonisolated code, an actor, a `Sendable` closure or
@@ -28,15 +44,15 @@ final class MuterRewriter: SyntaxRewriter {
     /// would let every mutant survive.
     override func visit(_ node: SourceFileSyntax) -> SourceFileSyntax {
         let rewritten = super.visit(node)
-        guard rewritten.description.contains("\(Self.environmentCacheName).environment[") else {
+        guard rewritten.description.contains("\(environmentCacheName).environment[") else {
             return rewritten
         }
 
         // A plain literal, so `\\(path)` keeps the interpolation in the generated code.
         let cache = Parser.parse(source: """
 
-        fileprivate enum \(Self.environmentCacheName) {
-            nonisolated static let environment: [String: String] = {
+        @usableFromInline internal enum \(environmentCacheName) {
+            @usableFromInline nonisolated static let environment: [String: String] = {
                 var environment = ProcessInfo.processInfo.environment
                 if let path = environment["\(activeMutantFileKey)"] {
                     guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
@@ -73,7 +89,8 @@ final class MuterRewriter: SyntaxRewriter {
 
         return MutationSwitch.apply(
             mutationSchemata: mutationSchemata,
-            with: childrenRewritten
+            with: childrenRewritten,
+            readingEnvironmentFrom: environmentCacheName
         )
     }
 }

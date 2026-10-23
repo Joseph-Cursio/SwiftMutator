@@ -38,7 +38,8 @@ final class SchemataBuilderTests: MuterTestCase {
 
         let actualMutationSwitch = MutationSwitch.apply(
             mutationSchemata: mutationSchemata,
-            with: originalSyntax
+            with: originalSyntax,
+            readingEnvironmentFrom: MuterRewriter.environmentCacheName(forFileAt: "/path/to/file")
         )
 
         AssertSnapshot(formatCode(actualMutationSwitch.description))
