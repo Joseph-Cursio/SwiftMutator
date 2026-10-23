@@ -30,6 +30,9 @@ struct ResumePlan: Equatable {
     /// Every recorded key whose result isn't kept, sorted: those of the jobs tested again, and those of mutants this
     /// run's discovery no longer finds. A resumed session's `retired` line lists them.
     let retired: [MutantKey]
+    /// How many of `retired` are of mutants this run's discovery no longer finds: their results are dropped, and no
+    /// job tests them again.
+    let noLongerDiscovered: Int
 }
 
 extension ResumePlan {
@@ -64,17 +67,19 @@ extension ResumePlan {
             }
         }
         let kept = Set(reused.keys.map { keys[$0] })
+        let discovered = Set(keys)
         return ResumePlan(
             reused: reused,
             toRun: toRun,
             retestedBecause: reasons,
-            retired: recorded.keys.filter { !kept.contains($0) }.sorted { $0.description < $1.description }
+            retired: recorded.keys.filter { !kept.contains($0) }.sorted { $0.description < $1.description },
+            noLongerDiscovered: recorded.keys.filter { !discovered.contains($0) }.count
         )
     }
 
     /// Every job, as a run that isn't resumed tests them: nothing is reused, tested again or retired.
     static func everything(_ count: Int) -> ResumePlan {
-        ResumePlan(reused: [:], toRun: Array(0..<count), retestedBecause: [:], retired: [])
+        ResumePlan(reused: [:], toRun: Array(0..<count), retestedBecause: [:], retired: [], noLongerDiscovered: 0)
     }
 
     /// Why `record`, recorded for a job whose key appears once, doesn't hold for it, given its file's hash and its

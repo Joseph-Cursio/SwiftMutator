@@ -81,6 +81,9 @@ extension ResumeSummary {
         reused: Int = 2,
         toTest: Int = 2,
         retestedBecause: [ResumePlan.Reason: Int] = [.notRecorded: 2],
+        noLongerDiscovered: Int = 0,
+        discoveredBefore: Int? = nil,
+        coverageChange: ResumeCheck.CoverageChange? = nil,
         forced: [String] = [],
         waived: [String] = [],
         notices: [String] = []
@@ -90,6 +93,10 @@ extension ResumeSummary {
             reused: reused,
             toTest: toTest,
             retestedBecause: retestedBecause,
+            noLongerDiscovered: noLongerDiscovered,
+            // As many as this run discovers, unless a test says otherwise.
+            discoveredBefore: discoveredBefore ?? reused + toTest,
+            coverageChange: coverageChange,
             forced: forced,
             waived: waived,
             notices: notices

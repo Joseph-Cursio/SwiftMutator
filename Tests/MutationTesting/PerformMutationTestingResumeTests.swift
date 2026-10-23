@@ -407,6 +407,9 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
                 reused: 2,
                 toTest: 2,
                 retestedBecause: [.buildError: 1, .notRecorded: 1],
+                noLongerDiscovered: 1,
+                discoveredBefore: 5,
+                coverageChange: nil,
                 forced: ["toolchain.testCommandVersion"],
                 waived: ["README.md"],
                 notices: ["mutationTestWorkers was 4 and is 1 now, which no result depends on."]
@@ -415,6 +418,68 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         let baselineLog = try XCTUnwrap(posted().dropFirst(2).first?.object as? MutationTestLog)
         XCTAssertNil(baselineLog.mutationPoint)
         XCTAssertEqual(baselineLog.remainingMutationPointsCount, 2)
+    }
+
+    // Gone.swift's kill no longer counts, as this session doesn't discover its mutant: the stopped run couldn't gather
+    // coverage, which now leaves Gone.swift out.
+    func test_theSummary_countsTheResultsNoLongerDiscovered_andSaysHowCoverageChanged() async throws {
+        state.projectCoverage = .make(percent: 80, filesWithoutCoverage: ["/project_mutated/Sources/Gone.swift"])
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+        let posted = recordNotifications(named: [.resumePlanned])
+
+        _ = try await sut.run(with: state)
+
+        let summary = try XCTUnwrap(posted().first?.object as? ResumeSummary)
+        XCTAssertEqual(summary.noLongerDiscovered, 1)
+        XCTAssertEqual(summary.discoveredBefore, 5)
+        XCTAssertEqual(summary.discovered, 4)
+        XCTAssertEqual(summary.coverageChange, .gatheredOnlyNow)
+    }
+
+    // Coverage the stopped run recorded as it is now explains nothing: Gone.swift's mutant is gone for another reason.
+    func test_theSummary_withTheSameCoverage_saysNoCoverageChange() async throws {
+        let gathered = CoverageSummary(percent: 80, filesWithoutCoverage: ["/project_mutated/Sources/Gone.swift"])
+        recorded[0] = ResultsHeader.make(coverage: gathered, mutantsDiscovered: 5, mutantsToTest: 5, project: tree)
+        state.resumeState = try ResumeState.make(
+            path: resultsPath,
+            lines: recorded,
+            file: XCTUnwrap(state.resumeState).file
+        )
+        state.projectCoverage = .make(percent: 80, filesWithoutCoverage: ["/project_mutated/Sources/Gone.swift"])
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+        let posted = recordNotifications(named: [.resumePlanned])
+
+        _ = try await sut.run(with: state)
+
+        let summary = try XCTUnwrap(posted().first?.object as? ResumeSummary)
+        XCTAssertNil(summary.coverageChange)
+        XCTAssertEqual(summary.noLongerDiscovered, 1)
+    }
+
+    // xcodebuild names the files without coverage by their path in the copy, which moved with the project: the stopped
+    // run was in another CI agent's checkout. They are the same files.
+    func test_theSummary_ofAProjectThatMoved_comparesTheFilesWithoutCoverageInEachCopy() async throws {
+        recorded[0] = ResultsHeader.make(
+            projectPath: "/agent1/project",
+            mutatedProjectPath: "/agent1/project_mutated",
+            coverage: CoverageSummary(percent: 80, filesWithoutCoverage: ["/agent1/project_mutated/Sources/Gone.swift"]),
+            mutantsDiscovered: 5,
+            mutantsToTest: 5,
+            project: tree
+        )
+        state.resumeState = try ResumeState.make(
+            path: resultsPath,
+            lines: recorded,
+            file: XCTUnwrap(state.resumeState).file
+        )
+        state.projectCoverage = .make(percent: 80, filesWithoutCoverage: ["/project_mutated/Sources/Gone.swift"])
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+        let posted = recordNotifications(named: [.resumePlanned])
+
+        _ = try await sut.run(with: state)
+
+        let summary = try XCTUnwrap(posted().first?.object as? ResumeSummary)
+        XCTAssertNil(summary.coverageChange)
     }
 
     // The reporter gets every outcome the report covers, so the Xcode format warns of the kept survivor too. Only the

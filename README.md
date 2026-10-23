@@ -302,6 +302,13 @@ does `swift-mutator report` of the file.
   - mutants in a file that changed, and mutations that changed;
   - mutants whose place and operator appear more than once in a file, as they share a switch ID;
   - mutants never tested, including any that discovery finds for the first time.
+- **Coverage.** Each session gathers coverage again, unless `--skip-coverage` is given, and
+  discovers mutants by it. A result whose mutant this session no longer discovers is dropped,
+  neither kept nor tested. SwiftMutator warns of that, and of a session that discovers more or fewer
+  mutants than the last one, or has coverage the last one didn't, or the reverse. It names the
+  coverage change when that can explain the count:
+  `⚠️ 412 earlier results no longer count, as this session doesn't discover their mutants: coverage
+  couldn't be gathered then, and is now.`
 - **Stopping again.** A resumed run stops as any run does. Its summary counts what it tested apart
   from what it kept, `⏹ Stopped by SIGINT after testing 197 of the 1399 mutants left: 1295 of 2497
   have results.`, and ends with the command that continues it, as often as needed.
@@ -337,6 +344,7 @@ doesn't end with `Nothing was copied or removed.`
 | SwiftMutator, the toolchain or the SDK changed | Refused, unless `--force-resume` is given |
 | Project files changed, were added or were removed | Refused, unless a `--resume-ignoring` glob matches each one |
 | Another SwiftMutator holds the file, because its run is still going | Refused, naming the process and host that wrote the file's last session |
+| Coverage was gathered in one session only, or this session discovers other mutants | Goes ahead, and warns: `⚠️ 412 earlier results no longer count, as this session doesn't discover their mutants: coverage couldn't be gathered then, and is now.` |
 
 A run of a test plan (`run-without-mutating`) can't be resumed, nor can a results file written
 before `--resume` existed, as it records no project files. `-o` can't name the results file itself.

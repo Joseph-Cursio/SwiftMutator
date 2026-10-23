@@ -142,23 +142,37 @@ final class Logger {
         }
     }
 
-    /// How many of a resumed run's results still hold, and how many mutants are left to test and why; then each change
-    /// no result depends on, and what `--force-resume` and `--resume-ignoring` let through. The progress bar or the
-    /// progress lines then count only the mutants left to test.
+    /// How many of a resumed run's results still hold, and how many mutants are left to test and why; then how its
+    /// discovery differs from the last session's, each change no result depends on, and what `--force-resume` and
+    /// `--resume-ignoring` let through. The progress bar or the progress lines then count only the mutants left.
     func resumePlanned(_ summary: ResumeSummary) {
         numberOfMutationPoints = summary.toTest
         let resuming = "♻️ Resuming the run in \(summary.path.bold): "
+        let reused = summary.reused == 1 ? "1 result still holds" : "\(summary.reused) results still hold"
         if summary.toTest == 0 {
-            let reused = summary.reused == 1 ? "its only result still holds" : "all \(summary.reused) results still hold"
-            print(resuming + "\(reused), so nothing is left to test.")
+            var held = summary.reused == 1 ? "its only result still holds" : "all \(summary.reused) results still hold"
+            if summary.noLongerDiscovered > 0 {
+                // Not all the file's results: some no longer count.
+                held = reused
+            }
+            print(resuming + "\(held), so nothing is left to test.")
         } else {
             let reasons = ResumePlan.Reason.allCases.compactMap { reason in
                 summary.retestedBecause[reason].flatMap { $0 > 0 ? Self.retested($0, because: reason) : nil }
             }
-            let reused = summary.reused == 1 ? "1 result still holds" : "\(summary.reused) results still hold"
             let left = summary.toTest == 1 ? "1 mutant is" : "\(summary.toTest) mutants are"
             let why = reasons.isEmpty ? "" : " (\(reasons.joined(separator: ", ")))"
             print(resuming + "\(reused), so \(left) left to test\(why).")
+        }
+        if let discoveryChange = Self.discoveryChange(summary) {
+            print("⚠️ \(discoveryChange)")
+        } else if let coverageChange = summary.coverageChange {
+            // Gathered in both sessions, and the mutants are as many as before, so only said.
+            let change = "\(coverageChange)"
+            print(
+                "ℹ️ \(change.prefix(1).uppercased() + change.dropFirst()), "
+                    + "but every earlier result's mutant is still discovered."
+            )
         }
         for notice in summary.notices {
             print("ℹ️ \(notice)")
@@ -179,6 +193,42 @@ final class Logger {
                     + named.joined(separator: ", ") + (others > 0 ? ", and \(others) more" : "")
             )
         }
+    }
+
+    /// "412 earlier results no longer count, as this session doesn't discover their mutants: coverage couldn't be
+    /// gathered then, and is now.": how a resumed run's discovery differs from the last session's, and the coverage
+    /// change that may explain it; nil if nothing shows it does. Based on the counts, as discovery can change while
+    /// coverage looks the same: xcodebuild can lose regions without a word, and `--force-resume` lets a SwiftMutator
+    /// that discovers differently through.
+    private static func discoveryChange(_ summary: ResumeSummary) -> String? {
+        let lost = summary.noLongerDiscovered
+        if lost > 0 {
+            let because = reason(summary.coverageChange, if: \.canLeaveOutMutants)
+            return lost == 1
+                ? "1 earlier result no longer counts, as this session doesn't discover its mutant\(because)."
+                : "\(lost) earlier results no longer count, as this session doesn't discover their mutants\(because)."
+        }
+        if summary.discovered != summary.discoveredBefore {
+            let more = summary.discovered > summary.discoveredBefore
+            let because = reason(summary.coverageChange, if: more ? \.canBringInMutants : \.canLeaveOutMutants)
+            let mutants = summary.discovered == 1 ? "1 mutant" : "\(summary.discovered) mutants"
+            return "This session discovers \(mutants), and the last one discovered \(summary.discoveredBefore)"
+                + "\(because)."
+        }
+        if let change = summary.coverageChange, change.isGatheredInOneSessionOnly {
+            return "This session discovers as many mutants as the last one, although \(change)."
+        }
+        return nil
+    }
+
+    /// ": coverage couldn't be gathered then, and is now": `change`, if it `fits` the way discovery changed; empty if
+    /// there is none, or it would push the count the other way, as losing coverage can't leave out a mutant.
+    private static func reason(
+        _ change: ResumeCheck.CoverageChange?,
+        if fits: KeyPath<ResumeCheck.CoverageChange, Bool>
+    ) -> String {
+        guard let change, change[keyPath: fits] else { return "" }
+        return ": \(change)"
     }
 
     /// "5 build errors": how many mutants are tested again for `reason`.

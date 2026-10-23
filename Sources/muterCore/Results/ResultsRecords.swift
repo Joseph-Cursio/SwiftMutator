@@ -84,6 +84,14 @@ struct CoverageSummary: Codable, Equatable {
     let filesWithoutCoverage: [String]
 }
 
+extension CoverageSummary {
+    /// The summary of `coverage`; nil when the run has none, as when coverage couldn't be gathered.
+    init?(_ coverage: Coverage) {
+        guard coverage != .null else { return nil }
+        self.init(percent: coverage.percent, filesWithoutCoverage: coverage.filesWithoutCoverage)
+    }
+}
+
 /// A session's first line: where its results came from, and what they were tested with. Written once the baseline
 /// passes, so a run whose baseline fails leaves no results file, and a resumed one adds no session to its file. A
 /// resumed session with nothing left to test runs no baseline, and writes it at once.
@@ -161,7 +169,6 @@ extension ResultsHeader {
         waived: [String]? = nil,
         forced: [String]? = nil
     ) {
-        let coverage = state.projectCoverage
         self.init(
             formatVersion: session == 1 ? ResultsCoding.formatVersion : ResultsCoding.resumedFormatVersion,
             session: session,
@@ -175,9 +182,7 @@ extension ResultsHeader {
             projectPath: state.projectDirectoryURL.path,
             mutatedProjectPath: state.mutatedProjectDirectoryURL.path,
             logDirectory: logDirectory,
-            coverage: coverage == .null
-                ? nil
-                : CoverageSummary(percent: coverage.percent, filesWithoutCoverage: coverage.filesWithoutCoverage),
+            coverage: CoverageSummary(state.projectCoverage),
             newVersion: state.newVersion,
             baselineSeconds: baselineSeconds,
             testRunSeconds: testRunSeconds,
