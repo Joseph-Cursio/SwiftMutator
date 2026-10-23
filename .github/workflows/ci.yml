@@ -114,10 +114,13 @@ jobs:
 
   # Non-blocking (continue-on-error): SwiftMutator doesn't compile on Linux yet,
   # and some unit tests assume macOS, so this job is expected to fail for now. It
-  # shows how far a Linux build gets without failing the workflow. #130 tracks
-  # making it pass; then drop continue-on-error so it blocks like the macOS job.
+  # shows how far a Linux build gets without failing the workflow. Not on pull
+  # requests, where a failure every PR shares would hide one of its own: it runs
+  # on pushes to main and by hand. #130 tracks making it pass; then run it on
+  # pull requests and drop continue-on-error, so it blocks like the macOS job.
   linux-unit-tests:
     name: Unit tests (Linux, Swift 6.4, non-blocking)
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     # The official image: Swift 6.4 on Ubuntu 24.04.
     container: swift:6.4-noble
