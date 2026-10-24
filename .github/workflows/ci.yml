@@ -112,6 +112,26 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  # Lints Sources and Tests with the rules in .swiftlint.yml, which also says whether a warning fails the job.
+  # SwiftLint's own image, its version pinned, so that CI and a Mac with the same version find the same violations.
+  # On Linux: no Swift build is needed, and the job starts at once.
+  swiftlint:
+    name: SwiftLint
+    runs-on: ubuntu-latest
+    container: ghcr.io/realm/swiftlint:0.65.1
+    timeout-minutes: 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Lint
+        # Each violation is also shown as an annotation on the pull request's files.
+        run: |
+          swiftlint version
+          swiftlint lint --reporter github-actions-logging
+
   # Non-blocking (continue-on-error): SwiftMutator doesn't compile on Linux yet,
   # and some unit tests assume macOS, so this job is expected to fail for now. It
   # shows how far a Linux build gets without failing the workflow. Not on pull
