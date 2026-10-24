@@ -176,13 +176,28 @@ extension XCTestCase {
         return directory
     }
 
-    /// Starts `arguments[0]` with `arguments`, without closing any descriptor the test has open.
+    /// Starts `arguments[0]` with `arguments`, without closing any descriptor the test has open, in a process group of
+    /// its own, as each test process SwiftMutator starts is.
+    ///
+    /// Not in the test process's group: on CI runners every process is in launchd's session, so a process of that group
+    /// that launchd adopted, such as the `sleep` of a killed `sh`, counted as holding the group to its session. When it
+    /// exited, the group was left orphaned, and since it held stopped processes, the system sent the whole group SIGHUP,
+    /// which ended the test run.
     func spawn(_ arguments: String...) throws -> pid_t {
         var child: pid_t = 0
         let argumentVector = arguments.map { strdup($0) } + [nil]
         defer { argumentVector.forEach { free($0) } }
         var environment: [UnsafeMutablePointer<CChar>?] = [nil]
-        let status = posix_spawn(&child, arguments[0], nil, nil, argumentVector, &environment)
+        #if os(macOS)
+        var attributes: posix_spawnattr_t?
+        #else
+        var attributes = posix_spawnattr_t()
+        #endif
+        posix_spawnattr_init(&attributes)
+        defer { posix_spawnattr_destroy(&attributes) }
+        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETPGROUP))
+        posix_spawnattr_setpgroup(&attributes, 0)
+        let status = posix_spawn(&child, arguments[0], nil, &attributes, argumentVector, &environment)
         guard status == 0 else { throw POSIXError(POSIXErrorCode(rawValue: status) ?? .EPERM) }
         return child
     }
