@@ -13,7 +13,9 @@ final class InterruptionAcceptanceTests: XCTestCase {
         /// In each mutant's run, as `mutants`, once worker 1 has filled its clone with files, so that removing the
         /// clone keeps a stopping SwiftMutator busy for a while.
         case mutantsWithALargeWorkerClone
-        /// Nowhere: each mutant's run takes 3 seconds, as `hang` does, and passes.
+        /// Nowhere: each mutant's run takes 3 seconds, in a `sleep` its shell waits for, and passes. Not in the
+        /// background, as `hang`'s: on Linux, the test command starts with SIGCHLD blocked, and dash's `wait` for a
+        /// background job then misses its end.
         case slowMutants
     }
 
@@ -29,8 +31,7 @@ final class InterruptionAcceptanceTests: XCTestCase {
         }
         slow() {
             echo $$ > "$INTERRUPT_TEST_MARKERS/sh.$$"
-            /bin/sleep 3 & echo $! > "$INTERRUPT_TEST_MARKERS/sleep.$!"
-            wait
+            /bin/sh -c 'echo $$ > "$INTERRUPT_TEST_MARKERS/sleep.$$"; exec /bin/sleep 3'
             exit 0
         }
         fill() { mkdir "$1" && cd "$1" && /usr/bin/seq -f "file%g" 2000 | /usr/bin/xargs /usr/bin/touch; }

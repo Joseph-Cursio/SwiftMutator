@@ -180,12 +180,18 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
     }
 
     /// Ends SwiftMutator by `signal`, as its default action would have, so that a shell sees it die of the signal, and
-    /// a script or loop running it stops too. Sent to the process, not this thread: from a Dispatch thread, `raise()`
-    /// left the signal pending, and the fallback ran instead in 44 of 45 lab runs.
+    /// a script or loop running it stops too. Raised on this thread once it no longer blocks the signal, as a Dispatch
+    /// thread does: blocked, `raise()` left the signal pending, and the fallback ran instead in 44 of 45 lab runs. Sent
+    /// to the process alone, on Linux SIGQUIT went to libdispatch's signalfd, and the fallback ran in 20 of 20.
     static func exit(by signal: Int32) -> Never {
         fflush(stdout)
         fflush(stderr)
         Foundation.signal(signal, SIG_DFL)
+        var unblocking = sigset_t()
+        sigemptyset(&unblocking)
+        sigaddset(&unblocking, signal)
+        pthread_sigmask(SIG_UNBLOCK, &unblocking, nil)
+        raise(signal)
         kill(getpid(), signal)
         for _ in 0..<100 { usleep(10_000) } // up to 1 second, for delivery to a thread that doesn't block it
         _exit(128 + signal)
