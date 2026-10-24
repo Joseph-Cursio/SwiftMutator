@@ -13,7 +13,7 @@ final class InterruptionAcceptanceTests: XCTestCase {
         /// In each mutant's run, as `mutants`, once worker 1 has filled its clone with files, so that removing the
         /// clone keeps a stopping SwiftMutator busy for a while.
         case mutantsWithALargeWorkerClone
-        /// Nowhere: each mutant's run takes 1.5 seconds, as `hang` does, and passes.
+        /// Nowhere: each mutant's run takes 3 seconds, as `hang` does, and passes.
         case slowMutants
     }
 
@@ -29,7 +29,7 @@ final class InterruptionAcceptanceTests: XCTestCase {
         }
         slow() {
             echo $$ > "$INTERRUPT_TEST_MARKERS/sh.$$"
-            /bin/sleep 1.5 & echo $! > "$INTERRUPT_TEST_MARKERS/sleep.$!"
+            /bin/sleep 3 & echo $! > "$INTERRUPT_TEST_MARKERS/sleep.$!"
             wait
             exit 0
         }
@@ -275,7 +275,7 @@ final class InterruptionAcceptanceTests: XCTestCase {
     // it SIGCONT. Its tests are suspended with it, so they don't end meanwhile, and their time limit doesn't count the
     // time: SwiftMutator suspended alone, a test that had ended could be recorded as a timeout once it continued.
     func test_ctrlZ_suspendsTheTestsToo_andTheirTimeLimitDoesntCountTheTime() throws {
-        try setTimeLimit(3)
+        try setTimeLimit(5)
         let mutator = try startSwiftMutator(hangingIn: .slowMutants)
         guard waitUntilHanging(runs: 2, in: mutator) else { return }
 
@@ -285,7 +285,7 @@ final class InterruptionAcceptanceTests: XCTestCase {
         XCTAssertTrue(suspended, "SwiftMutator wasn't suspended")
         let testProcesses = shells.union(sleepers)
         XCTAssertTrue(waitUntil(within: 2) { testProcesses.allSatisfy(self.isStopped) }, "its tests run on")
-        Thread.sleep(forTimeInterval: 4) // past the time limit, and past the end of the tests, had they run on
+        Thread.sleep(forTimeInterval: 6) // past the time limit, and past the end of the tests, had they run on
         XCTAssertEqual(testProcesses.filter { !self.isStopped($0) }.sorted(), [], "its tests ran on")
 
         signalGroup(of: mutator, SIGCONT)
@@ -302,7 +302,7 @@ final class InterruptionAcceptanceTests: XCTestCase {
         for mutant in mutants {
             XCTAssertEqual(mutant["outcome"] as? String, "passed", "\(mutant)")
             let seconds = try XCTUnwrap(mutant["durationSeconds"] as? Double)
-            XCTAssertLessThan(seconds, 3, "the time suspended counted: \(mutant)")
+            XCTAssertLessThan(seconds, 5, "the time suspended counted: \(mutant)")
         }
     }
 

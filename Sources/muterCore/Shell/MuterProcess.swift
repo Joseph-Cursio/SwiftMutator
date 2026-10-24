@@ -98,12 +98,8 @@ extension MuterProcess {
         guard processIdentifier > 0 else { return false }
         var info = siginfo_t()
         guard waitid(P_PID, id_t(processIdentifier), &info, WEXITED | WNOHANG | WNOWAIT) == 0 else { return false }
-        // With WNOHANG, a child that is still running leaves `info` zeroed.
-        #if canImport(Darwin)
-        return info.si_pid == processIdentifier
-        #else
-        return info._sifields._sigchld.si_pid == processIdentifier
-        #endif
+        // With WNOHANG, a child that is still running leaves `si_signo` 0 (POSIX).
+        return info.si_signo == SIGCHLD
     }
 
     /// `terminateTree()` on a GCD thread, for a caller that shouldn't wait while the tree is listed, such
