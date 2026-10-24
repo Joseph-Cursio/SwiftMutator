@@ -1139,11 +1139,19 @@ final class MutationTestingDelegateTests: MuterTestCase {
     func test_aRunASignalEnded_isCancelled_whenMutationTestingStopsWithinTheWait() async throws {
         current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
         let schemata = try MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1))
+        // The wait lasts until the run is cancelled, and the test cancels it once the wait has begun. With the real
+        // 0.25 s wait, a slow CI runner sometimes cancelled the run after the wait had ended.
+        let waits = Waits()
+        current.sleep = { nanoseconds in
+            waits.append(nanoseconds)
+            try await Task.sleep(nanoseconds: 10_000_000_000)
+        }
 
         for timeLimit in [nil, 60] as [TimeInterval?] {
             let testProcess = ScriptedProcessSpy([.dieOf(signal: SIGTERM, after: 0)])
             current.process = { testProcess }
             let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], testSuiteTimeOut: timeLimit)
+            let waitsBefore = waits.all.count
 
             let run = Task { [sut] in
                 await sut.runTestSuite(
@@ -1153,18 +1161,32 @@ final class MutationTestingDelegateTests: MuterTestCase {
                 )
             }
             let deadline = Date().addingTimeInterval(5)
-            while !testProcess.waitUntilExitCalled, Date() < deadline {
+            while waits.all.count == waitsBefore, Date() < deadline {
                 try await Task.sleep(nanoseconds: 10_000_000)
             }
-            try await Task.sleep(nanoseconds: 50_000_000)
             run.cancel()
             let result = await run.value
 
             let description = "time limit: \(String(describing: timeLimit))"
+            XCTAssertEqual(waits.all.count, waitsBefore + 1, "it didn't wait; \(description)")
             XCTAssertEqual(result.ending, .cancelled, description)
             XCTAssertNil(result.exitStatus, description)
             // The process had exited, and the system may have given its ID to another process.
             XCTAssertEqual(testProcess.terminateTreeCallCount, 0, description)
+        }
+        XCTAssertEqual(waits.all, Array(repeating: MutationTestingDelegate.outsideSignalWait, count: 2))
+    }
+
+    // The test above has a wait of its own. The real one ends as soon as its task is cancelled.
+    func test_theRealWait_endsWhenItsTaskIsCancelled() async {
+        let wait = Task { try await World().sleep(10_000_000_000) }
+        wait.cancel()
+
+        do {
+            try await wait.value
+            XCTFail("it ended without a CancellationError")
+        } catch {
+            XCTAssertTrue(error is CancellationError, "\(error)")
         }
     }
 
@@ -1281,5 +1303,17 @@ final class MutationTestingDelegateTests: MuterTestCase {
         while processes.filter(\.waitUntilExitCalled).count < count, Date() < deadline {
             Thread.sleep(forTimeInterval: 0.01)
         }
+    }
+}
+
+/// The waits a run asked for, in nanoseconds, recorded from any thread.
+private final class Waits: @unchecked Sendable { // `list` is behind `lock`
+    private let lock = NSLock()
+    private var list: [UInt64] = []
+
+    var all: [UInt64] { lock.withLock { list } }
+
+    func append(_ nanoseconds: UInt64) {
+        lock.withLock { list.append(nanoseconds) }
     }
 }
