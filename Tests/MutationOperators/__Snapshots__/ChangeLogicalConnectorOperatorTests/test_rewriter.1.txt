@@ -4,7 +4,7 @@
 
 func someCode() -> Bool {
   if __SwiftMutator_755928456a7ae94e.environment[
-    "sampleWithLogicalOperators_ChangeLogicalConnector_6_18_101"] != nil
+    "sampleWithLogicalOperators_755928456a7ae94e_ChangeLogicalConnector_6_18_101"] != nil
   {
     return false || false
   } else {
@@ -14,7 +14,7 @@ func someCode() -> Bool {
 
 func someOtherCode() -> Bool {
   if __SwiftMutator_755928456a7ae94e.environment[
-    "sampleWithLogicalOperators_ChangeLogicalConnector_10_17_160"] != nil
+    "sampleWithLogicalOperators_755928456a7ae94e_ChangeLogicalConnector_10_17_160"] != nil
   {
     return true && true
   } else {
@@ -25,7 +25,7 @@ func someOtherCode() -> Bool {
 func isEnabledToShow() -> Bool {
   // バルーンの表示判定
   if __SwiftMutator_755928456a7ae94e.environment[
-    "sampleWithLogicalOperators_ChangeLogicalConnector_15_18_256"] != nil
+    "sampleWithLogicalOperators_755928456a7ae94e_ChangeLogicalConnector_15_18_256"] != nil
   {
     // バルーンの表示判定
     return false || false

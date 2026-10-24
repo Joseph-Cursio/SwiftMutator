@@ -92,6 +92,26 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         }
     }
 
+    // The two copies have a mutant at one place. Their switch IDs named the file alone, so testing either mutant
+    // switched on both.
+    func test_givesFilesWithTheSameNameSwitchIDsOfTheirOwn() async throws {
+        let paths = try makeSourceFiles(at: ["First/Module.swift", "Second/Module.swift"])
+        state.sourceFileCandidates = paths
+
+        let result = try await sut.run(with: state)
+        let change = try XCTUnwrap(result.first)
+
+        guard case let .mutationMappingsDiscovered(mappings) = change else {
+            return XCTFail("Expected mappings, got \(change)")
+        }
+
+        let ids = mappings.flatMap(\.mutationSchemata).map(\.id)
+        XCTAssertEqual(ids.count, 2)
+        XCTAssertEqual(Set(ids).count, 2, "\(ids)")
+        XCTAssertTrue(ids[0].hasPrefix("Module_\("First/Module.swift".stableHash)_"), ids[0])
+        XCTAssertTrue(ids[1].hasPrefix("Module_\("Second/Module.swift".stableHash)_"), ids[1])
+    }
+
     func test_returnsFilesInPathOrder() async throws {
         // Mutants are tested in this order, so it has to be the same on every run for two runs to be
         // compared mutant by mutant. Discovery finishes files in whatever order its threads do.
@@ -109,12 +129,13 @@ final class DiscoverMutationPointsTests: MuterTestCase {
     }
 
     /// Writes a file with one mutant (`value < 0`) at each of `relativePaths`, under a new directory
-    /// removed when the test finishes, and returns the files' paths.
+    /// removed when the test finishes, which stands for the mutated project, and returns the files' paths.
     private func makeSourceFiles(at relativePaths: [String]) throws -> [String] {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .path
         addTeardownBlock { try? FileManager.default.removeItem(atPath: root) }
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: root)
 
         return try relativePaths.map { relativePath in
             let path = "\(root)/\(relativePath)"

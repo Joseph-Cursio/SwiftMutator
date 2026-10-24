@@ -19,7 +19,8 @@ struct DiscoverMutationPoints: MutationStep {
             forOperators: state.mutationOperatorList,
             inFilesAt: state.sourceFileCandidates,
             configuration: state.muterConfiguration,
-            coverage: state.projectCoverage
+            coverage: state.projectCoverage,
+            projectRoot: state.mutatedProjectDirectoryURL
         )
 
         guard discovered.mappings.count >= 1 else {
@@ -53,7 +54,8 @@ private extension DiscoverMutationPoints {
         forOperators operators: MutationOperatorList,
         inFilesAt filePaths: [String],
         configuration: MuterConfiguration,
-        coverage: Coverage
+        coverage: Coverage,
+        projectRoot: URL
     ) -> DiscoveredFiles {
         // Process files in parallel batches for better performance on large codebases
         // Uses autoreleasepool per file to prevent memory accumulation
@@ -89,7 +91,8 @@ private extension DiscoverMutationPoints {
                             forOperators: operators,
                             inFile: sourceCode,
                             configuration: configuration,
-                            coverage: coverage.coverage(ofFile: path)
+                            coverage: coverage.coverage(ofFile: path),
+                            projectRoot: projectRoot
                         )
 
                         if !schemataMappings.isEmpty {
@@ -111,7 +114,8 @@ private extension DiscoverMutationPoints {
         forOperators operators: MutationOperatorList,
         inFile sourceCode: PreparedSourceCode,
         configuration: MuterConfiguration,
-        coverage: FileCoverage
+        coverage: FileCoverage,
+        projectRoot: URL
     ) -> [SchemataMutationMapping] {
         let source = sourceCode.source.code
 
@@ -123,6 +127,7 @@ private extension DiscoverMutationPoints {
             )
 
             visitor.sourceCodePreparationChange = sourceCode.changes
+            visitor.projectRoot = projectRoot
 
             visitor.walk(source)
 

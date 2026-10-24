@@ -13,7 +13,7 @@
 // https://mandoc.bsd.lv/mdoc/intro/escaping.html
 extension String {
   func escapedMacroArgument() -> String {
-    if __SwiftMutator_5a76df4b5c48a331.environment["sampleWithFailuresParsing_ChangeLogicalConnector_55_24_2310"] != nil {
+    if __SwiftMutator_5a76df4b5c48a331.environment["sampleWithFailuresParsing_5a76df4b5c48a331_ChangeLogicalConnector_55_24_2310"] != nil {
     var escaped = ""
     var containsBlankCharacter = false
 

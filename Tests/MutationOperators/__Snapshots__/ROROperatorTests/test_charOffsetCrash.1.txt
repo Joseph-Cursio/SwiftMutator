@@ -1,4 +1,6 @@
-if __SwiftMutator_5915ae76dd16886a.environment["file_RelationalOperatorReplacement_1_10_9"] != nil {
+if __SwiftMutator_5915ae76dd16886a.environment[
+  "file_5915ae76dd16886a_RelationalOperatorReplacement_1_10_9"] != nil
+{
   if value != "バルーンの表示判定" {
 
   }

@@ -1,9 +1,9 @@
 import Foundation
 
 /// What identifies a mutant across runs: where it is and what it does there. Never its position in the jobs, which
-/// moving one file shifts for every later mutant, and not `MutationSchema.id`, which names the file only, so two
-/// same-named files share it, and counts an offset into the file as SwiftMutator prepared it, which changes with any
-/// edit above the mutant and with the header and import SwiftMutator inserts.
+/// moving one file shifts for every later mutant, and not `MutationSchema.id`, which counts an offset into the file as
+/// SwiftMutator prepared it, which changes with any edit above the mutant and with the header and import SwiftMutator
+/// inserts.
 struct MutantKey: Hashable, Codable, CustomStringConvertible {
     /// Relative to the mutated project's root; absolute if outside it (`RepoRelativePath`).
     let path: String

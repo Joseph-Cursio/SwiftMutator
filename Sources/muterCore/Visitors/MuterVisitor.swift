@@ -1,3 +1,4 @@
+import Foundation
 import SwiftParser
 import SwiftSyntax
 
@@ -37,6 +38,9 @@ class MuterVisitor: SyntaxAnyVisitor {
     let coverage: FileCoverage
 
     var sourceCodePreparationChange: MutationSourceCodePreparationChange = .null
+    /// The mutated project's folder, which each mutant's switch ID gives its file's path from (`MutationSchema.id`).
+    /// Discovery sets it; a test of one file can leave it out.
+    var projectRoot: URL?
 
     private(set) var schemataMappings: SchemataMutationMapping
 
@@ -258,7 +262,8 @@ class MuterVisitor: SyntaxAnyVisitor {
                 mutatedSyntax: mutation
             ),
             position: position,
-            snapshot: snapshot
+            snapshot: snapshot,
+            under: projectRoot
         )
     }
 }

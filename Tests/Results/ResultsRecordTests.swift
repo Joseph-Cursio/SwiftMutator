@@ -67,7 +67,7 @@ final class ResultsRecordTests: XCTestCase {
                 #""mutationOperatorId":"RelationalOperatorReplacement","occurrence":0,"outcome":"failed","#,
                 #""path":"Packages/Core/Sources/Core/ExecutableTargetDetector.swift","session":1,"#,
                 #""snapshot":{"after":"<","before":">","description":"changed > to <"},"#,
-                #""switchID":"ExecutableTargetDetector_RelationalOperatorReplacement_73_22_3361","#,
+                #""switchID":"ExecutableTargetDetector_1202e16ea88d5e02_RelationalOperatorReplacement_73_22_3361","#,
                 #""utf8Offset":3361,"worker":2}"#,
             ].joined()
         )
@@ -212,7 +212,7 @@ final class ResultsRecordTests: XCTestCase {
                 occurrence: 1,
                 utf8Offset: 3361,
                 mutationOperatorId: .ror,
-                switchID: "Sum_RelationalOperatorReplacement_73_22_3361",
+                switchID: "Sum_670192af8b34c2a4_RelationalOperatorReplacement_73_22_3361",
                 snapshot: .make(before: ">", after: "<", description: "changed > to <"),
                 outcome: .failed,
                 endedBy: .exited,
@@ -479,7 +479,8 @@ private extension ResultsRecordTests {
             filePath: "/project_mutated/Sources/Sum.swift",
             mutationOperatorId: .ror,
             position: MutationPosition(utf8Offset: 3361, line: 73, column: 22),
-            snapshot: .make(before: ">", after: "<", description: "changed > to <")
+            snapshot: .make(before: ">", after: "<", description: "changed > to <"),
+            under: mutatedRoot
         )
     }
 
@@ -521,7 +522,7 @@ private extension ResultsRecordTests {
             occurrence: 0,
             utf8Offset: 3361,
             mutationOperatorId: .ror,
-            switchID: "ExecutableTargetDetector_RelationalOperatorReplacement_73_22_3361",
+            switchID: "ExecutableTargetDetector_1202e16ea88d5e02_RelationalOperatorReplacement_73_22_3361",
             snapshot: snapshot,
             outcome: outcome,
             endedBy: .exited,

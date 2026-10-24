@@ -411,14 +411,16 @@ extension MutationSchema {
         mutationOperatorId: MutationOperator.Id = .ror,
         syntaxMutation: String = "",
         position: MutationPosition = .null,
-        snapshot: MutationOperator.Snapshot = .null
+        snapshot: MutationOperator.Snapshot = .null,
+        under projectRoot: URL? = nil
     ) throws -> MutationSchema {
         try MutationSchema(
             filePath: filePath,
             mutationOperatorId: mutationOperatorId,
             syntaxMutation: sourceCode(syntaxMutation).statements,
             position: position,
-            snapshot: snapshot
+            snapshot: snapshot,
+            under: projectRoot
         )
     }
 }
