@@ -28,6 +28,7 @@ final class InterruptionsTests: MuterTestCase {
         XCTAssertEqual(InterruptionRecord.name(of: SIGINT), "SIGINT")
         XCTAssertEqual(InterruptionRecord.name(of: SIGTERM), "SIGTERM")
         XCTAssertEqual(InterruptionRecord.name(of: SIGHUP), "SIGHUP")
+        XCTAssertEqual(InterruptionRecord.name(of: SIGQUIT), "SIGQUIT")
         XCTAssertEqual(InterruptionRecord.name(of: SIGUSR1), "signal \(SIGUSR1)")
     }
 
@@ -40,7 +41,7 @@ final class InterruptionsTests: MuterTestCase {
 
         XCTAssertNil(ended.signal)
         XCTAssertThrowsError(try ended.result.get()) { XCTAssertTrue($0 is WorkError, "\($0)") }
-        XCTAssertEqual(observer.observed, [SIGINT, SIGTERM, SIGHUP])
+        XCTAssertEqual(observer.observed, [SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGTSTP])
         XCTAssertTrue(observer.stopped, "each signal has its earlier disposition back")
         XCTAssertEqual(events.all, [])
         XCTAssertEqual(said.all, [])
@@ -95,8 +96,9 @@ final class InterruptionsTests: MuterTestCase {
         XCTAssertEqual(current.interruption.signal, SIGTERM)
     }
 
-    func test_aSecondSignal_killsDescendants_andExitsByTheFirst() throws {
+    func test_aSecondSignal_killsDescendants_endsTheResults_andExitsByTheFirst() throws {
         let exited = exited
+        endingTheResultsAtOnce()
         // Work that ignores cancellation, as an in-process copy of the project does.
         let running = Running(makeInterruptions()) { exited.wait() }
         waitUntilObserving()
@@ -105,7 +107,7 @@ final class InterruptionsTests: MuterTestCase {
         XCTAssertTrue(observer.send(SIGINT))
         let ended = try XCTUnwrap(running.wait())
 
-        XCTAssertEqual(Array(events.all.prefix(3)), ["killed", "killed", "exited by SIGTERM"])
+        XCTAssertEqual(Array(events.all.prefix(4)), ["killed", "killed", "ended the results", "exited by SIGTERM"])
         XCTAssertEqual(ended.signal, SIGTERM)
         XCTAssertEqual(said.all.last, "⏹ Stopping at once. SwiftMutator removes worker copies it leaves behind when it next runs.")
     }
@@ -131,18 +133,101 @@ final class InterruptionsTests: MuterTestCase {
         XCTAssertEqual(ended.signal, SIGHUP)
     }
 
-    func test_afterTheGracePeriod_killsDescendants_andExitsBySignal() throws {
+    func test_afterTheGracePeriod_killsDescendants_endsTheResults_andExitsBySignal() throws {
         let exited = exited
+        endingTheResultsAtOnce()
         let running = Running(makeInterruptions(gracePeriod: 0.05)) { exited.wait() }
         waitUntilObserving()
 
         XCTAssertTrue(observer.send(SIGINT))
         let ended = try XCTUnwrap(running.wait(within: 2))
 
-        XCTAssertEqual(Array(events.all.prefix(3)), ["killed", "killed", "exited by SIGINT"])
+        XCTAssertEqual(Array(events.all.prefix(4)), ["killed", "killed", "ended the results", "exited by SIGINT"])
         XCTAssertEqual(ended.signal, SIGINT)
         XCTAssertEqual(said.all.count, 2)
         XCTAssertTrue(said.all.last?.contains("so it is stopping at once") == true, "\(said.all)")
+    }
+
+    // Ctrl-\ sends SIGQUIT, which reaches SwiftMutator alone. Its default action would leave every test process
+    // running, and no end line.
+    func test_aSIGQUIT_stopsAtOnce_killingDescendants_andEndingTheResults() throws {
+        let exited = exited
+        endingTheResultsAtOnce()
+        let running = Running(makeInterruptions()) { exited.wait() }
+        waitUntilObserving()
+
+        XCTAssertTrue(observer.send(SIGQUIT))
+        let ended = try XCTUnwrap(running.wait())
+
+        XCTAssertEqual(Array(events.all.prefix(3)), ["killed", "ended the results", "exited by SIGQUIT"])
+        XCTAssertEqual(ended.signal, SIGQUIT)
+        XCTAssertEqual(said.all.count, 1)
+        XCTAssertTrue(said.all.first?.hasPrefix("⏹ Stopping at once.") == true, "\(said.all)")
+    }
+
+    func test_aSIGQUIT_whileStopping_exitsByTheFirstSignal() throws {
+        let exited = exited
+        let running = Running(makeInterruptions()) { exited.wait() }
+        waitUntilObserving()
+
+        XCTAssertTrue(observer.send(SIGHUP))
+        XCTAssertTrue(observer.send(SIGQUIT))
+        let ended = try XCTUnwrap(running.wait())
+
+        XCTAssertEqual(Array(events.all.prefix(3)), ["killed", "killed", "exited by SIGHUP"])
+        XCTAssertEqual(ended.signal, SIGHUP)
+    }
+
+    // Once the work has ended, as when the results file is already closed, there's nothing to end.
+    func test_withNothingToEnd_stoppingAtOnceStillExits() throws {
+        let exited = exited
+        current.interruption.beforeStoppingAtOnce(nil)
+        let running = Running(makeInterruptions()) { exited.wait() }
+        waitUntilObserving()
+
+        XCTAssertTrue(observer.send(SIGQUIT))
+        _ = try XCTUnwrap(running.wait())
+
+        XCTAssertEqual(Array(events.all.prefix(2)), ["killed", "exited by SIGQUIT"])
+    }
+
+    // Ctrl-Z reaches SwiftMutator alone: its test processes lead process groups of their own. They are suspended with
+    // it, and no time limit counts the time.
+    func test_aSIGTSTP_suspendsSwiftMutatorWithItsDescendants_withoutCountingTheTime() throws {
+        let uptime = Clock()
+        current.suspensions = Suspensions(uptime: { uptime.nanoseconds })
+        let finish = Gate()
+        let running = Running(makeInterruptions(suspend: { [events] in
+            events.append("suspended")
+            uptime.advance(by: 5_000_000_000)
+        })) { finish.wait() }
+        waitUntilObserving()
+        let before = current.suspensions.activeNanoseconds
+
+        XCTAssertTrue(observer.send(SIGTSTP))
+        finish.open()
+        let ended = try XCTUnwrap(running.wait())
+
+        XCTAssertEqual(events.all, ["suspended"])
+        XCTAssertEqual(current.suspensions.activeNanoseconds, before, "the time suspended counted")
+        XCTAssertNil(ended.signal)
+        XCTAssertNoThrow(try ended.result.get())
+        XCTAssertEqual(said.all, [])
+        XCTAssertTrue(observer.stopped)
+    }
+
+    // It is about to end, and the grace period would count the time.
+    func test_aSIGTSTP_whileStopping_isIgnored() throws {
+        let running = Running(makeInterruptions(suspend: { [events] in events.append("suspended") })) {
+            try await Task.sleep(nanoseconds: 10_000_000_000)
+        }
+        waitUntilObserving()
+
+        XCTAssertTrue(observer.send(SIGINT))
+        XCTAssertTrue(observer.send(SIGTSTP))
+        _ = try XCTUnwrap(running.wait())
+
+        XCTAssertFalse(events.all.contains("suspended"), "\(events.all)")
     }
 
     // Steps start processes one after another, and no cancellation reaches the ones that block: killing one would only
@@ -223,7 +308,7 @@ final class InterruptionsTests: MuterTestCase {
         let ended = try XCTUnwrap(running.wait())
 
         XCTAssertNil(ended.signal)
-        XCTAssertEqual(observer.observed, [SIGINT, SIGTERM])
+        XCTAssertEqual(observer.observed, [SIGINT, SIGTERM, SIGQUIT, SIGTSTP])
         XCTAssertEqual(events.all, [])
         XCTAssertEqual(said.all, [])
     }
@@ -231,13 +316,18 @@ final class InterruptionsTests: MuterTestCase {
     // MARK: - Helpers
 
     /// Long grace periods and sweep intervals by default, so that only a test about them sees them.
-    private func makeInterruptions(gracePeriod: TimeInterval = 60, sweepInterval: TimeInterval = 60) -> Interruptions {
+    private func makeInterruptions(
+        gracePeriod: TimeInterval = 60,
+        sweepInterval: TimeInterval = 60,
+        suspend: @escaping @Sendable () -> Void = {}
+    ) -> Interruptions {
         let events = events
         let said = said
         let exited = exited
         return Interruptions(
             observer: observer,
             killDescendants: { events.append("killed") },
+            suspend: suspend,
             exit: { signal in
                 events.append("exited by \(InterruptionRecord.name(of: signal))")
                 exited.open()
@@ -246,6 +336,12 @@ final class InterruptionsTests: MuterTestCase {
             gracePeriod: gracePeriod,
             sweepInterval: sweepInterval
         )
+    }
+
+    /// Has stopping at once record "ended the results", as mutation testing writes its end line then.
+    private func endingTheResultsAtOnce() {
+        let events = events
+        current.interruption.beforeStoppingAtOnce { events.append("ended the results") }
     }
 
     /// A signal sent before `run` observes signals goes nowhere.
@@ -280,6 +376,18 @@ private final class Events: @unchecked Sendable { // `list` is behind `lock`
 
     func count(of event: String) -> Int {
         all.filter { $0 == event }.count
+    }
+}
+
+/// A clock a test moves, in nanoseconds, read from any thread.
+private final class Clock: @unchecked Sendable { // `now` is behind `lock`
+    private let lock = NSLock()
+    private var now: UInt64 = 1_000_000_000
+
+    var nanoseconds: UInt64 { lock.withLock { now } }
+
+    func advance(by nanoseconds: UInt64) {
+        lock.withLock { now += nanoseconds }
     }
 }
 

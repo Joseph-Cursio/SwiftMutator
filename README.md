@@ -257,11 +257,19 @@ the results file starts only after both.
   report from `results.jsonl` in any format. If no mutant had finished, there is no partial report
   either.
 - **Stopping at once.** Press Ctrl-C again, or send any second SIGINT, SIGTERM or SIGHUP, to stop at
-  once. SwiftMutator does the same by itself if stopping takes more than 30 seconds. It still kills
-  every process it started and exits by the first signal, but the end line and the partial report
-  are there only if it had already written them, and worker clones and their active-mutant files
-  can be left behind. A SIGHUP after a first SIGHUP is ignored, because zsh sends two when its
-  terminal closes: closing a terminal stops a run the same way as one Ctrl-C.
+  once. Ctrl-\\ (SIGQUIT) stops at once even as the first signal. SwiftMutator does the same by
+  itself if stopping takes more than 30 seconds. It still kills every process it started, ends
+  `results.jsonl` with an `end` line whose `detail` names the first signal, unless it had already
+  written one, and exits by the first signal. But the partial report is there only if it had
+  already written it, and worker clones and their active-mutant files can be left behind. A SIGHUP
+  after a first SIGHUP is ignored, because zsh sends two when its terminal closes: closing a
+  terminal stops a run the same way as one Ctrl-C.
+- **Suspending.** Ctrl-Z suspends SwiftMutator with every process it started, which the terminal's
+  Ctrl-Z doesn't reach: each leads a process group of its own. `fg` or `bg` continues them all. No
+  time limit counts the time suspended, and no test run's duration includes it, though a test that
+  measures time itself can still see it pass. Under xcodebuild, a simulator runs the tests in a
+  process of its own, which SwiftMutator didn't start, and doesn't suspend. A run that is
+  stopping isn't suspended: it is about to end.
 - **Leftovers.** The next `run` removes `<project>_mutated` and any worker clones and active-mutant
   files an earlier run left behind, such as one stopped at once, killed with SIGKILL, or crashed.
   SwiftMutator can't handle SIGKILL or a crash itself, so once its tests start, it starts a watcher,

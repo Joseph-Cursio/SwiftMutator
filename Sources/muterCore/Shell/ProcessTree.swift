@@ -1,6 +1,8 @@
 import Foundation
 
-/// A process and its descendants.
+/// A process and its descendants. Under xcodebuild, a simulator runs the tests in a process it starts itself, the
+/// test host or `xctest`, which isn't a descendant of xcodebuild. Killing xcodebuild is enough: the simulator then ends
+/// that process within 0.2 seconds, hosted or not, even with its main thread blocked (Xcode 27.1, iOS 26.5 and 27.0).
 enum ProcessTree {
     /// How many times `terminate` and `terminateDescendants` list a tree, at most, while they stop it.
     static let maximumListings = 10
@@ -43,6 +45,22 @@ enum ProcessTree {
     static func killDescendantsOfThisProcess() {
         terminateDescendants(of: getpid(), descendants: descendants(of:)) { pid, signal in
             kill(pid, signal)
+        }
+    }
+
+    /// Suspends SwiftMutator, as Ctrl-Z would have, with every process it started: each leads a process group of its
+    /// own, so a terminal's Ctrl-Z reaches SwiftMutator alone. Returns once SwiftMutator is continued, as by `fg` or
+    /// `bg`, having continued them too.
+    static func suspendThisProcessAndItsDescendants() {
+        let me = getpid()
+        _ = stopDescendants(of: me, descendants: descendants(of:)) { pid, signal in kill(pid, signal) }
+        // SIGSTOP, not SIGTSTP: SwiftMutator observes SIGTSTP, so it would only come back here. The rest of this
+        // process stops with this thread.
+        kill(me, SIGSTOP)
+        // Listed again: a process stopped above may have ended since, its ID given to another. None of them started
+        // a process while stopped.
+        for pid in descendants(of: me) {
+            kill(pid, SIGCONT)
         }
     }
 

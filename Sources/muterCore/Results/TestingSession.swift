@@ -2,8 +2,8 @@ import Foundation
 
 /// What one session of mutation testing keeps as it goes: what it writes to its results file, each mutant's outcome,
 /// tested or kept from an earlier session, and the worker clones it made. Only the task that runs the mutants and
-/// records their outcomes uses it, so it needs no lock.
-final class TestingSession {
+/// records their outcomes uses it, except for its results file, which a stop at once ends from another thread.
+final class TestingSession: @unchecked Sendable { // `file`, `mutantLines` and `ended` are behind `writing`
     /// 1 for a run's first session; a resumed one is the next after the last its results file holds.
     let number: Int
     /// When mutation testing started, which its test duration is measured from.
@@ -16,10 +16,13 @@ final class TestingSession {
     /// Whether the baseline passed, and the timed test run after it, if any, ended, so the results have started. Until
     /// then, mutation testing that stops has nothing to report, and posts no early end: an abort says why.
     var baselinePassed = false
-    /// nil until the header is written, and for good if the file couldn't be created.
-    var results: ResultsRecording?
-    /// How many tested mutants the session recorded, each in a line of its own unless a write failed.
-    var recorded = 0
+    /// Held while a line is written to the results file: a stop at once writes the end line from another thread
+    /// (`end(waitingAtMost:_:)`), between two lines, never inside one, and counts only the lines before it.
+    private let writing = NSLock()
+    private var file: ResultsRecording?
+    private var mutantLines = 0
+    /// Whether the session has ended its file, with an end line unless a write failed, so that nothing more is written.
+    private var ended = false
     /// How many of `outcomes` are earlier sessions' results that a resumed session kept rather than tested again.
     var reused = 0
     /// The jobs, by index, whose result an earlier session recorded as a build error, which a resumed session tests
@@ -38,6 +41,51 @@ final class TestingSession {
         self.number = number
         self.startedAt = startedAt
         self.earlierTestDuration = earlierTestDuration
+    }
+
+    /// nil until the header is written, and for good if the file couldn't be created.
+    var results: ResultsRecording? { writing.withLock { file } }
+    /// How many tested mutants the session recorded, each in a line of its own unless a write failed.
+    var recorded: Int { writing.withLock { mutantLines } }
+
+    /// Makes `file` the session's results file, which its header is written to first.
+    func startResults(in file: ResultsRecording) {
+        writing.withLock { self.file = file }
+    }
+
+    /// Appends `line` to the results file, and counts it in `recorded` if it `isAMutant`, written or not. Returns
+    /// whether the append worked, or nil if nothing was written: there is no file, a write failed before, or the
+    /// session has ended.
+    func append(_ line: () -> some Encodable, isAMutant: Bool = false) -> Bool? {
+        writing.withLock {
+            if isAMutant { mutantLines += 1 }
+            guard let file, file.writeError == nil, !ended else { return nil }
+            return file.append(line())
+        }
+    }
+
+    /// Writes the end line `makeEnd` makes from `recorded`, unless the session has ended, and closes the file. Returns
+    /// what `append` would.
+    @discardableResult
+    func end(_ makeEnd: (_ recorded: Int) -> ResultsEnd) -> Bool? {
+        writing.withLock { endLocked(makeEnd) }
+    }
+
+    /// `end`, from another thread, as SwiftMutator stops at once. Writes nothing if a line has been under way for
+    /// `timeout` seconds, as on a disk that has stopped answering: SwiftMutator must still stop.
+    func end(waitingAtMost timeout: TimeInterval, _ makeEnd: (_ recorded: Int) -> ResultsEnd) {
+        guard writing.lock(before: Date().addingTimeInterval(timeout)) else { return }
+        defer { writing.unlock() }
+        endLocked(makeEnd)
+    }
+
+    /// While `writing` is held. Without a file there's nothing to end, as before the header.
+    private func endLocked(_ makeEnd: (_ recorded: Int) -> ResultsEnd) -> Bool? {
+        guard let file, !ended else { return nil }
+        ended = true
+        defer { file.close() }
+        guard file.writeError == nil else { return nil }
+        return file.append(makeEnd(mutantLines))
     }
 
     /// The outcomes, tested and kept alike, in job order.

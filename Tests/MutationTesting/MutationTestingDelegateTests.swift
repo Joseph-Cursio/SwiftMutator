@@ -818,6 +818,22 @@ final class MutationTestingDelegateTests: MuterTestCase {
         XCTAssertEqual(testProcess.terminateTreeCallCount, 1, file: file, line: line)
     }
 
+    // SwiftMutator stopped by a SIGSTOP, which it can't handle, while its tests ran on and ended: once it continues,
+    // their exit and their time limit come together. A time limit that comes first may not make it a timeout.
+    func test_whenTheTimeLimitComesForAProcessThatHasExited_thenTheRunEndsByItsExit() async throws {
+        let testProcess = ScriptedProcessSpy([.write("\(passedTestLine)\n", after: 0.5)])
+        testProcess.hasExitedUnnoticed = true
+        current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
+        let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], testSuiteTimeOut: 0.1)
+
+        let result = try await runMutantsTests(on: testProcess, using: configuration)
+
+        XCTAssertEqual(result.outcome, .passed)
+        XCTAssertEqual(result.ending, .exited)
+        XCTAssertEqual(result.exitStatus, 0)
+        XCTAssertEqual(testProcess.terminateTreeCallCount, 0)
+    }
+
     // MARK: - Stopping at the first failed test
 
     private let passedTestLine = "✔ Test passes() passed after 0.001 seconds."

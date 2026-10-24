@@ -380,6 +380,55 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(earlyEnds.map(\.detail), ["SIGTERM"])
     }
 
+    // A second signal, Ctrl-\ or the grace period ends SwiftMutator wherever mutation testing is. Here it goes on, as
+    // it can't once SwiftMutator has exited: no line follows the end line.
+    func test_stoppingAtOnce_writesAnInterruptedEndLine_countingTheLinesBeforeIt() async throws {
+        state.mutationMapping = try (1...3).map { try makeSchemataMapping(file: "Sources/File\($0).swift", line: $0) }
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed, .failed]
+        ioDelegate.whileRunningMutant = { number in
+            if number == 1 {
+                XCTAssertTrue(current.interruption.record(SIGINT))
+                current.interruption.stoppingAtOnce()
+            }
+        }
+        let unavailable = recordNotifications(named: [.resultsFileUnavailable])
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(try resultsFiles.kinds(), ["header", "mutant", "end"])
+        let end = try XCTUnwrap(resultsFiles.records(ResultsEnd.self).first)
+        XCTAssertEqual(end.reason, .interrupted)
+        XCTAssertEqual(end.detail, "SIGINT")
+        XCTAssertEqual(end.recorded, 1)
+        XCTAssertEqual(resultsFiles.files.map(\.isClosed), [true])
+        XCTAssertEqual(unavailable().count, 0, "a line not written once the session has ended is no failure")
+    }
+
+    // Removing the worker clones, after the end line, can take seconds.
+    func test_stoppingAtOnce_afterTheEndLine_writesNothing() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+
+        _ = try await sut.run(with: state)
+        current.interruption.stoppingAtOnce()
+
+        XCTAssertEqual(try resultsFiles.kinds(), ["header", "mutant", "mutant", "end"])
+        XCTAssertEqual(try resultsFiles.records(ResultsEnd.self).map(\.reason), [.finished])
+    }
+
+    // Before the header there's no session in the file to end, as when the baseline is still running.
+    func test_stoppingAtOnce_beforeTheHeader_writesNothing() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+        ioDelegate.whileRunningBaseline = { _ in
+            XCTAssertTrue(current.interruption.record(SIGTERM))
+            current.interruption.stoppingAtOnce()
+        }
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(try resultsFiles.kinds().filter { $0 == "end" }.count, 1)
+        XCTAssertEqual(try resultsFiles.records(ResultsEnd.self).map(\.reason), [.finished])
+    }
+
     // Stopping the run kills the clones' builds, which then fail, but no clone was at fault.
     func test_aCancelledWorkerBuild_endsInterrupted() async throws {
         state.muterConfiguration = MuterConfiguration(

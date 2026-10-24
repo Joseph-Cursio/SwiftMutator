@@ -44,6 +44,9 @@ struct PerformMutationTesting: MutationStep {
         return max(testRunSeconds * multiplier, minimumTestRunTimeout)
     }
 
+    /// How long stopping at once waits to write the end line while a line is being written, in seconds.
+    static let endLineWaitAtOnce: TimeInterval = 2
+
     /// Clones the mutated project for each extra parallel worker, and removes the clones afterwards.
     /// Injected so tests don't touch the disk.
     private let makeWorkerDirectories: (_ mutatedProject: URL, _ count: Int) throws -> [URL]
@@ -91,6 +94,10 @@ struct PerformMutationTesting: MutationStep {
         // A resumed file's lock goes before the clones are removed, as a first session's goes at its end line: also
         // when the baseline failed, which writes nothing to the file.
         defer { resume?.file.close() }
+        // Stopping at once ends SwiftMutator wherever mutation testing is, so the end line is written then: `report`
+        // would otherwise take the run for one that is still running, or was killed.
+        interruption.beforeStoppingAtOnce { [self] in endResultsAtOnce(of: session) }
+        defer { interruption.beforeStoppingAtOnce(nil) }
 
         do {
             try await performMutationTesting(using: state, session: session)
@@ -645,9 +652,9 @@ private extension PerformMutationTesting {
                 log: MutationTestLog.keptFileName(for: mutationPoint),
                 fileSHA256: state.projectTree?.files[key.path]
             ),
-            in: session
+            in: session,
+            isAMutant: true
         )
-        session.recorded += 1
         session.outcomes[finished.index] = outcome
 
         let mutationLog = MutationTestLog(
@@ -720,7 +727,7 @@ private extension PerformMutationTesting {
         state: AnyMutationTestState
     ) {
         if let resume = state.resumeState {
-            session.results = resume.file
+            session.startResults(in: resume.file)
             guard write(header(), in: session) else { return }
             // Without it, the file would still stand by the earlier results this session doesn't keep.
             if !retired.isEmpty, !write(ResultsRetired(session: session.number, keys: retired), in: session) {
@@ -733,7 +740,7 @@ private extension PerformMutationTesting {
         guard !loggingDirectory.isEmpty else { return }
         do {
             let results = try resultsFiles.create(in: loggingDirectory)
-            session.results = results
+            session.startResults(in: results)
             if write(header(), in: session) {
                 notificationCenter.post(name: .resultsFileCreated, object: results.path)
             }
@@ -742,22 +749,16 @@ private extension PerformMutationTesting {
         }
     }
 
-    /// Appends `line` to the session's results file, if it has one. After a failed write no line is written, or even
-    /// built, and the failure is said once.
+    /// Appends `line` to the session's results file, if it has one, and counts it in the session's `recorded` if it
+    /// `isAMutant`. After a failed write, or once the session has ended, no line is written, or even built, and the
+    /// failure is said once.
     @discardableResult
-    func write<Line: Encodable>(_ line: @autoclosure () -> Line, in session: TestingSession) -> Bool {
-        guard let results = session.results, results.writeError == nil else { return false }
-        if results.append(line()) {
-            return true
-        }
-        if !session.saidResultsUnwritable {
-            session.saidResultsUnwritable = true
-            notificationCenter.post(
-                name: .resultsFileUnavailable,
-                object: results.writeError.map { "\($0)" } ?? "a write to \(results.path) failed"
-            )
-        }
-        return false
+    func write<Line: Encodable>(
+        _ line: @autoclosure () -> Line,
+        in session: TestingSession,
+        isAMutant: Bool = false
+    ) -> Bool {
+        sayingAFailure(session.append(line, isAMutant: isAMutant), in: session)
     }
 
     /// Writes the session's end line, and closes its results file, which releases the file's lock.
@@ -767,18 +768,55 @@ private extension PerformMutationTesting {
         detail: String? = nil,
         testDuration: TimeInterval
     ) {
-        write(
-            ResultsEnd(
-                session: session.number,
-                endedAt: now(),
-                reason: reason,
-                detail: detail,
-                testDurationSeconds: testDuration,
-                recorded: session.recorded
-            ),
-            in: session
+        let written = session.end { recorded in
+            endLine(of: session, reason, detail: detail, testDuration: testDuration, recorded: recorded)
+        }
+        sayingAFailure(written, in: session)
+    }
+
+    /// Writes the end line of an interrupted session, from the thread that stops SwiftMutator at once, by a second
+    /// signal, Ctrl-\ or the grace period: mutation testing never gets to write its own.
+    func endResultsAtOnce(of session: TestingSession) {
+        session.end(waitingAtMost: Self.endLineWaitAtOnce) { recorded in
+            endLine(
+                of: session,
+                .interrupted,
+                detail: interruption.signal.map(InterruptionRecord.name(of:)),
+                testDuration: now().timeIntervalSince(session.startedAt),
+                recorded: recorded
+            )
+        }
+    }
+
+    func endLine(
+        of session: TestingSession,
+        _ reason: ResultsEnd.Reason,
+        detail: String?,
+        testDuration: TimeInterval,
+        recorded: Int
+    ) -> ResultsEnd {
+        ResultsEnd(
+            session: session.number,
+            endedAt: now(),
+            reason: reason,
+            detail: detail,
+            testDurationSeconds: testDuration,
+            recorded: recorded
         )
-        session.results?.close()
+    }
+
+    /// Whether `written`, what `TestingSession.append` returned, says the line was written. A failure is said once.
+    @discardableResult
+    func sayingAFailure(_ written: Bool?, in session: TestingSession) -> Bool {
+        guard let written else { return false }
+        if !written, !session.saidResultsUnwritable, let results = session.results {
+            session.saidResultsUnwritable = true
+            notificationCenter.post(
+                name: .resultsFileUnavailable,
+                object: results.writeError.map { "\($0)" } ?? "a write to \(results.path) failed"
+            )
+        }
+        return written
     }
 }
 

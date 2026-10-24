@@ -25,6 +25,17 @@ final class TestRunEnding: @unchecked Sendable { // all state is behind `lock`
         }
     }
 
+    /// Records that `process` ran past its time limit, and returns whether it did, for the caller to kill it. A process
+    /// that has exited, though Foundation hasn't yet said so, is recorded as exited instead: when SwiftMutator was
+    /// stopped, as by a SIGSTOP, while its tests ran on, its time limit and its exit come together once it continues.
+    func recordTimeLimit(of process: MuterProcess) -> Bool {
+        guard !process.hasExited() else {
+            _ = record(.exited)
+            return false
+        }
+        return record(.timedOut)
+    }
+
     /// Why the run ended, or nil if nothing has ended it yet.
     var reason: Reason? { lock.withLock { recorded } }
 

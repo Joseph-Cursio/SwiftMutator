@@ -48,6 +48,14 @@ final class ScriptedProcessSpy: MuterProcess, @unchecked Sendable { // shared st
         self.exitNoticedAfter = exitNoticedAfter
     }
 
+    /// What `hasExited()` says: true for a process that exited while SwiftMutator was stopped, as by a SIGSTOP, which
+    /// Foundation notices only once SwiftMutator continues. Here it is noticed once the script has played.
+    var hasExitedUnnoticed = false
+
+    func hasExited() -> Bool {
+        hasExitedUnnoticed
+    }
+
     var waitUntilExitCalled: Bool { lock.withLock { waited } }
     var terminateTreeCallCount: Int { lock.withLock { killCount } }
 

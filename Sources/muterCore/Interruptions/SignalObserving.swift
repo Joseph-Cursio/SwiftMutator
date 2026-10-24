@@ -1,6 +1,7 @@
 import Foundation
 
-/// Hears the signals that stop a run, in place of their default action, which would end SwiftMutator at once.
+/// Hears the signals that stop or suspend a run, in place of their default action, which would end SwiftMutator at
+/// once, or suspend it without its test processes.
 protocol SignalObserving: AnyObject {
     /// Calls `handler` on `queue` for each of `signals` this process receives, until `stop()`, and ignores them
     /// meanwhile. A signal that was ignored (SIG_IGN) when this was called is left alone. Returns the signals it

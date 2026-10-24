@@ -13,6 +13,10 @@ final class InterruptionAcceptanceTests: XCTestCase {
         /// In each mutant's run, as `mutants`, once worker 1 has filled its clone with files, so that removing the
         /// clone keeps a stopping SwiftMutator busy for a while.
         case mutantsWithALargeWorkerClone
+        /// Nowhere: each mutant's run takes 3 seconds, in a `sleep` its shell waits for, and passes. Not in the
+        /// background, as `hang`'s: on Linux, the test command starts with SIGCHLD blocked, and dash's `wait` for a
+        /// background job then misses its end.
+        case slowMutants
     }
 
     /// Where the test command hangs, it writes down its own ID, starts a `sleep` whose odd length makes one left
@@ -25,10 +29,16 @@ final class InterruptionAcceptanceTests: XCTestCase {
             /bin/sleep 60.7 & echo $! > "$INTERRUPT_TEST_MARKERS/sleep.$!"
             wait
         }
+        slow() {
+            echo $$ > "$INTERRUPT_TEST_MARKERS/sh.$$"
+            /bin/sh -c 'echo $$ > "$INTERRUPT_TEST_MARKERS/sleep.$$"; exec /bin/sleep 3'
+            exit 0
+        }
         fill() { mkdir "$1" && cd "$1" && /usr/bin/seq -f "file%g" 2000 | /usr/bin/xargs /usr/bin/touch; }
         worker=$(pwd -P)
         case "$INTERRUPT_TEST_PHASE:$0" in
             coverage:--enable-code-coverage) hang;;
+            slowMutants:*) [ -s "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE" ] && slow;;
             baseline:*) [ -s "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE" ] || hang;;
             mutantsWithALargeWorkerClone:*)
                 case "$worker" in *_worker1) [ -d "$worker/files" ] || (fill "$worker/files");; esac;;
@@ -197,6 +207,41 @@ final class InterruptionAcceptanceTests: XCTestCase {
         XCTAssertTrue(errors.contains("Stopping at once"), errors)
     }
 
+    // Both signals come at once, so the second most likely stops SwiftMutator before mutation testing has ended: the
+    // end line is then written as it stops at once.
+    func test_aSecondSignalAtOnce_stillEndsTheResults_withTheFirstSignal() throws {
+        let mutator = try startSwiftMutator(hangingIn: .mutants)
+        guard waitUntilHanging(runs: 2, in: mutator) else { return }
+
+        signalProcess(mutator, SIGTERM)
+        signalProcess(mutator, SIGINT)
+
+        guard waitUntil(within: 15, { !mutator.isRunning }) else {
+            return XCTFail("SwiftMutator was still running after 15 s")
+        }
+        assertNoTestProcessIsLeft()
+        let signal = mutator.terminationReason == .uncaughtSignal ? mutator.terminationStatus : 0
+        XCTAssertTrue([SIGTERM, SIGINT].contains(signal), describe(mutator))
+        try assertTheResultsEnd(interruptedBy: signal == SIGTERM ? "SIGTERM" : "SIGINT")
+        let errors = contents(of: standardError)
+        XCTAssertTrue(errors.contains("Stopping at once"), errors)
+    }
+
+    // Ctrl-\ sends SIGQUIT to the terminal's foreground process group, which holds SwiftMutator alone.
+    func test_ctrlBackslash_stopsAtOnce_leavingNoTestProcess_andEndsTheResults() throws {
+        let mutator = try startSwiftMutator(hangingIn: .mutants)
+        guard waitUntilHanging(runs: 2, in: mutator) else { return }
+
+        signalGroup(of: mutator, SIGQUIT)
+
+        assertDied(mutator, by: SIGQUIT)
+        assertNoTestProcessIsLeft()
+        try assertTheResultsEnd(interruptedBy: "SIGQUIT")
+        let errors = contents(of: standardError)
+        XCTAssertTrue(errors.contains("Stopping at once"), errors)
+        XCTAssertFalse(errors.contains("Stopping (SIGQUIT)"), errors)
+    }
+
     // When its terminal closes, zsh sends the job SIGHUP twice, about a millisecond apart. The second comes here once
     // SwiftMutator has said it is stopping, so that it is handled on its own, while a large worker clone is removed.
     func test_aRepeatedHangup_stillStopsCleanly_andDiesBySIGHUP() throws {
@@ -225,6 +270,61 @@ final class InterruptionAcceptanceTests: XCTestCase {
         }
         XCTAssertFalse(exists("project_mutated_worker1"), "the worker clone is removed")
         guard repeated else { throw XCTSkip("SwiftMutator stopped before a second SIGHUP could reach it") }
+    }
+
+    // Ctrl-Z sends SIGTSTP to the terminal's foreground process group, which holds SwiftMutator alone, and `fg` sends
+    // it SIGCONT. Its tests are suspended with it, so they don't end meanwhile, and their time limit doesn't count the
+    // time: SwiftMutator suspended alone, a test that had ended could be recorded as a timeout once it continued.
+    func test_ctrlZ_suspendsTheTestsToo_andTheirTimeLimitDoesntCountTheTime() throws {
+        try setTimeLimit(5)
+        let mutator = try startSwiftMutator(hangingIn: .slowMutants)
+        guard waitUntilHanging(runs: 2, in: mutator) else { return }
+
+        signalGroup(of: mutator, SIGTSTP)
+
+        let suspended = waitUntil(within: 5) { self.isStopped(mutator.processIdentifier) }
+        XCTAssertTrue(suspended, "SwiftMutator wasn't suspended")
+        let testProcesses = shells.union(sleepers)
+        XCTAssertTrue(waitUntil(within: 2) { testProcesses.allSatisfy(self.isStopped) }, "its tests run on")
+        Thread.sleep(forTimeInterval: 6) // past the time limit, and past the end of the tests, had they run on
+        XCTAssertEqual(testProcesses.filter { !self.isStopped($0) }.sorted(), [], "its tests ran on")
+
+        signalGroup(of: mutator, SIGCONT)
+
+        guard waitUntil(within: 30, { !mutator.isRunning }) else {
+            return XCTFail("SwiftMutator was still running after 30 s: \(contents(of: standardError))")
+        }
+        XCTAssertEqual(mutator.terminationReason, .exit, describe(mutator))
+        assertNoTestProcessIsLeft()
+        let files = resultsFiles()
+        XCTAssertEqual(files.count, 1, "\(files)")
+        let mutants = try files.flatMap(records(in:)).filter { $0["kind"] as? String == "mutant" }
+        XCTAssertGreaterThanOrEqual(mutants.count, 2)
+        for mutant in mutants {
+            XCTAssertEqual(mutant["outcome"] as? String, "passed", "\(mutant)")
+            let seconds = try XCTUnwrap(mutant["durationSeconds"] as? Double)
+            XCTAssertLessThan(seconds, 5, "the time suspended counted: \(mutant)")
+        }
+    }
+
+    // `kill %1` sends a suspended job SIGTERM, then SIGCONT, without which it couldn't stop.
+    func test_aSuspendedRun_stopsCleanly_onceContinued() throws {
+        let mutator = try startSwiftMutator(hangingIn: .mutants)
+        guard waitUntilHanging(runs: 2, in: mutator) else { return }
+        signalGroup(of: mutator, SIGTSTP)
+        let suspended = waitUntil(within: 5) { self.isStopped(mutator.processIdentifier) }
+        XCTAssertTrue(suspended, "SwiftMutator wasn't suspended")
+
+        signalGroup(of: mutator, SIGTERM)
+        signalGroup(of: mutator, SIGCONT)
+
+        assertDied(mutator, by: SIGTERM)
+        assertNoTestProcessIsLeft()
+        let files = resultsFiles()
+        XCTAssertEqual(files.count, 1, "\(files)")
+        if let file = files.first {
+            XCTAssertEqual(try records(in: file).last?["detail"] as? String, "SIGTERM")
+        }
     }
 
     // `nohup` starts SwiftMutator with SIGHUP ignored, so that a run outlives the terminal it started in.
@@ -324,6 +424,32 @@ final class InterruptionAcceptanceTests: XCTestCase {
         kill(pid, signal)
     }
 
+    /// Sets the project's `mutationTestTimeout` to `seconds`.
+    private func setTimeLimit(_ seconds: Int) throws {
+        let configuration = project.appendingPathComponent("muter.conf.yml")
+        let text = try String(contentsOf: configuration, encoding: .utf8)
+        XCTAssertTrue(text.contains("mutationTestTimeout: 600"))
+        try text.replacingOccurrences(of: "mutationTestTimeout: 600", with: "mutationTestTimeout: \(seconds)")
+            .write(to: configuration, atomically: true, encoding: .utf8)
+    }
+
+    /// Whether the process with this ID is stopped, as by SIGSTOP or SIGTSTP. A process that is gone isn't.
+    private func isStopped(_ pid: Int32) -> Bool {
+        #if os(macOS)
+        var name: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        guard sysctl(&name, UInt32(name.count), &info, &size, nil, 0) == 0, size > 0 else { return false }
+        return info.kp_proc.p_stat == SSTOP
+        #else
+        // proc(5): the state follows the name, which is in parentheses.
+        guard let stat = try? String(contentsOfFile: "/proc/\(pid)/stat", encoding: .utf8),
+              let end = stat.lastIndex(of: ")")
+        else { return false }
+        return stat[stat.index(after: end)...].trimmingCharacters(in: .whitespaces).hasPrefix("T")
+        #endif
+    }
+
     /// That SwiftMutator ended within `timeout` seconds, killed by `signal`, as its default action would have, so that
     /// a shell sees it die of the signal.
     private func assertDied(
@@ -382,6 +508,22 @@ final class InterruptionAcceptanceTests: XCTestCase {
         guard kill(pid, 0) == -1, errno == ESRCH else { return false }
         confirmedGone.insert(pid)
         return true
+    }
+
+    /// That the run wrote one results file, whose one end line, its last, says a signal named `signal` interrupted it.
+    private func assertTheResultsEnd(
+        interruptedBy signal: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let files = resultsFiles()
+        XCTAssertEqual(files.count, 1, "\(files)", file: file, line: line)
+        guard let results = files.first else { return }
+        let lines = try records(in: results)
+        XCTAssertEqual(lines.filter { $0["kind"] as? String == "end" }.count, 1, "\(lines)", file: file, line: line)
+        XCTAssertEqual(lines.last?["kind"] as? String, "end", file: file, line: line)
+        XCTAssertEqual(lines.last?["reason"] as? String, "interrupted", file: file, line: line)
+        XCTAssertEqual(lines.last?["detail"] as? String, signal, file: file, line: line)
     }
 
     /// Each results file the run wrote, in `project_muter_logs/<run>/`.

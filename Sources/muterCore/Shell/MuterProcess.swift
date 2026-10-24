@@ -51,6 +51,9 @@ protocol MuterProcess: AnyObject {
     /// Stop, then SIGKILL, this process and every transitive descendant (default impl: `ProcessTree.terminate`).
     /// Declared here so it dynamically dispatches to conformers/test doubles rather than binding statically.
     func terminateTree()
+
+    /// Whether the process has exited, though Foundation may not have reaped it yet. Declared here for test doubles.
+    func hasExited() -> Bool
 }
 
 extension MuterProcess {
@@ -87,6 +90,16 @@ extension MuterProcess {
         ProcessTree.terminate(root: processIdentifier, descendants: ProcessTree.descendants(of:)) { pid, signal in
             kill(pid, signal)
         }
+    }
+
+    /// Asks the kernel, without reaping the process: Foundation still reaps it, and reads how it ended. A process
+    /// that never launched, or isn't SwiftMutator's child, hasn't exited.
+    func hasExited() -> Bool {
+        guard processIdentifier > 0 else { return false }
+        var info = siginfo_t()
+        guard waitid(P_PID, id_t(processIdentifier), &info, WEXITED | WNOHANG | WNOWAIT) == 0 else { return false }
+        // With WNOHANG, a child that is still running leaves `si_signo` 0 (POSIX).
+        return info.si_signo == SIGCHLD
     }
 
     /// `terminateTree()` on a GCD thread, for a caller that shouldn't wait while the tree is listed, such
