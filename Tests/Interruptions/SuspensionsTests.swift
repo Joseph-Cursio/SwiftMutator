@@ -53,23 +53,30 @@ final class SuspensionsTests: XCTestCase {
         XCTAssertLessThan(slept, 2)
     }
 
+    // On the test's own clock: on the system's, a slow CI runner began the suspension after the work had run.
     func test_workAfterATime_ignoresTheTimeSuspended() {
-        let sut = Suspensions()
+        let uptime = Clock(nanoseconds: 1_000_000_000) // not 0, where a look that didn't count from `start` would pass
+        let sut = Suspensions(uptime: { uptime.nanoseconds })
         let done = expectation(description: "the work ran")
-        let start = Date()
-        let ranAfter = Clock(nanoseconds: 0)
+        let ranAt = Clock(nanoseconds: 0)
 
         sut.after(0.2, on: .global()) {
-            ranAfter.advance(by: UInt64(Date().timeIntervalSince(start) * 1_000_000_000))
+            ranAt.advance(by: uptime.nanoseconds)
             done.fulfill()
         }
-        Thread.sleep(forTimeInterval: 0.05)
+        uptime.advance(by: 50_000_000)
         sut.begin()
-        Thread.sleep(forTimeInterval: 0.4)
+        uptime.advance(by: 400_000_000)
         sut.end()
+        // Its looks find 0.05 s gone until the test moves the clock on. The first is due 0.2 s of real time after the
+        // work was asked for, within this sleep.
+        Thread.sleep(forTimeInterval: 0.5)
+        XCTAssertEqual(ranAt.nanoseconds, 0, "it counted the time suspended")
+        uptime.advance(by: 150_000_000)
 
         wait(for: [done], timeout: 5)
-        XCTAssertGreaterThanOrEqual(ranAfter.nanoseconds, 600_000_000)
+        // 0.05 s before the suspension, 0.4 s in it, and 0.15 s after it.
+        XCTAssertEqual(ranAt.nanoseconds, 1_600_000_000)
     }
 }
 
