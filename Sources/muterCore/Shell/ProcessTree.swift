@@ -4,8 +4,31 @@ import Foundation
 /// test host or `xctest`, which isn't a descendant of xcodebuild. Killing xcodebuild is enough: the simulator then ends
 /// that process within 0.2 seconds, hosted or not, even with its main thread blocked (Xcode 27.1, iOS 26.5 and 27.0).
 enum ProcessTree {
-    /// How many times `terminate` and `terminateDescendants` list a tree, at most, while they stop it.
+    /// How many times a stop lists a tree, at most: `terminate`'s, `terminateDescendants`', and a suspension's.
     static let maximumListings = 10
+
+    /// How long a suspension's stop waits after a round of SIGSTOPs before it lists the tree again and checks that they
+    /// held. On macOS a SIGSTOP sent while a process execs can be lost, and the process runs on: of 400 sent 0–3 ms
+    /// after `/bin/sh` started (macOS 27), 62 didn't hold, each seen running again within 2 ms, and each second SIGSTOP
+    /// held. A process stops only once it is done starting a child, too. Stopping a shell that kept starting
+    /// `/bin/sleep 30 &` by listing again at once, with no second stop, left a process sent SIGSTOP running 100 ms
+    /// later in 223 of 600 tries, and a child never listed in 19, most of them started by a shell whose own stop was
+    /// lost. With this pause, a new listing and a second SIGSTOP for whatever still ran, in none of 600.
+    static let settlingMicroseconds: useconds_t = 20_000
+
+    /// What a stop does after each round of SIGSTOPs, before it lists the tree again: it pauses, then stops again each
+    /// process it stopped that isn't stopped or ended. A suspension settles, since its processes must stay stopped. A
+    /// kill doesn't: its SIGKILLs follow the stops at once, and a pause would hold up every kill of a run, and a second
+    /// signal's stop at once behind the sweep under way.
+    struct Settling {
+        var pause: () -> Void = ProcessTree.settle
+        var isStoppedOrEnded: (Int32) -> Bool = ProcessTree.isStoppedOrEnded(_:)
+    }
+
+    /// The pause after a round of SIGSTOPs.
+    static func settle() {
+        usleep(settlingMicroseconds)
+    }
 
     /// Stops `root` and every descendant, parents first, and lists them again until a listing finds
     /// nothing new. Then it SIGKILLs them all, root last. Killed from one listing, a running `swift test`
@@ -53,7 +76,9 @@ enum ProcessTree {
     /// `bg`, having continued them too.
     static func suspendThisProcessAndItsDescendants() {
         let me = getpid()
-        _ = stopDescendants(of: me, descendants: descendants(of:)) { pid, signal in kill(pid, signal) }
+        _ = stopDescendants(of: me, descendants: descendants(of:), settling: Settling()) { pid, signal in
+            kill(pid, signal)
+        }
         // SIGSTOP, not SIGTSTP: SwiftMutator observes SIGTSTP, so it would only come back here. The rest of this
         // process stops with this thread.
         kill(me, SIGSTOP)
@@ -65,21 +90,53 @@ enum ProcessTree {
     }
 
     /// SIGSTOPs each descendant of `root` a listing names, and lists them again until a listing finds nothing
-    /// new or `maximumListings` pass. Returns the processes it stopped, parents first. Never signals `root`.
-    private static func stopDescendants(
+    /// new or `maximumListings` pass. With `settling`, a round's stops must hold too: after each round it pauses, and
+    /// stops again what still runs before it lists again. Returns the processes it stopped, parents first. Never
+    /// signals `root`.
+    static func stopDescendants(
         of root: Int32,
         descendants: (Int32) -> [Int32],
+        settling: Settling? = nil,
         signal send: (_ pid: Int32, _ signal: Int32) -> Void
     ) -> [Int32] {
         var stopped: [Int32] = []
         var seen: Set<Int32> = [root]
+        var stoppedAgain = false
         for _ in 0..<maximumListings {
             let fresh = descendants(root).filter { seen.insert($0).inserted }
-            guard !fresh.isEmpty else { break }
+            guard !fresh.isEmpty || stoppedAgain else { break }
             fresh.forEach { send($0, SIGSTOP) }
             stopped += fresh
+            guard let settling else { continue }
+            // Checked at once, a stop that didn't hold could still show as stopped, and a child that a process was
+            // starting as its stop came could be missing from the next listing.
+            settling.pause()
+            let runningOn = stopped.filter { !settling.isStoppedOrEnded($0) }
+            runningOn.forEach { send($0, SIGSTOP) }
+            stoppedAgain = !runningOn.isEmpty
         }
         return stopped
+    }
+
+    /// Whether the process with this ID is stopped, or has ended: a zombie, or gone.
+    static func isStoppedOrEnded(_ pid: Int32) -> Bool {
+        #if os(macOS)
+        var name: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        // No such process leaves `size` 0.
+        guard sysctl(&name, UInt32(name.count), &info, &size, nil, 0) == 0, size > 0 else { return true }
+        return [SSTOP, SZOMB].contains(Int32(info.kp_proc.p_stat))
+        #else
+        // proc(5): the state is the first field after the command, which is in parentheses and may hold spaces and
+        // parentheses itself.
+        guard let stat = try? String(contentsOfFile: "/proc/\(pid)/stat", encoding: .utf8),
+              let commandEnd = stat.lastIndex(of: ")"),
+              let state = stat[stat.index(after: commandEnd)...].split(separator: " ").first
+        else { return true }
+        // Stopped ("T", or "t" while traced), a zombie, or being reaped ("X", or "x" before Linux 3.14).
+        return ["T", "t", "Z", "X", "x"].contains(state)
+        #endif
     }
 
     /// Every transitive child of `root`, each parent before its children.
