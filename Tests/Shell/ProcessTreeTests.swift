@@ -51,6 +51,23 @@ final class ProcessTreeTests: XCTestCase {
         XCTAssertLessThan(shell, shellsSleeper, "a parent comes before its children")
     }
 
+    // How a stop tells the processes whose stop didn't hold, to stop them again. Started by `spawn`, which Foundation
+    // doesn't reap, the sleeper stays a zombie once killed, until the test reaps it.
+    func test_isStoppedOrEnded_isFalseOnlyWhileAProcessRuns() throws {
+        let pid = try spawn("/bin/sleep", "61.34")
+
+        XCTAssertFalse(ProcessTree.isStoppedOrEnded(pid), "running")
+        kill(pid, SIGSTOP)
+        XCTAssertTrue(waitUntil(within: 2) { ProcessTree.isStoppedOrEnded(pid) }, "stopped")
+        kill(pid, SIGCONT)
+        XCTAssertTrue(waitUntil(within: 2) { !ProcessTree.isStoppedOrEnded(pid) }, "continued")
+        kill(pid, SIGKILL)
+        XCTAssertTrue(waitUntil(within: 2) { ProcessTree.isStoppedOrEnded(pid) }, "a zombie")
+        XCTAssertEqual(kill(pid, 0), 0, "reaped already")
+        waitpid(pid, nil, 0)
+        XCTAssertTrue(ProcessTree.isStoppedOrEnded(pid), "gone")
+    }
+
     func test_descendants_ofAProcessWithNoChildren_isEmpty() throws {
         let sleeper = Foundation.Process()
         sleeper.executableURL = URL(fileURLWithPath: "/bin/sleep")

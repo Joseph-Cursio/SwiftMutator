@@ -1,8 +1,9 @@
 @testable import muterCore
 import XCTest
 
-/// `ProcessTree.terminate` and `terminateDescendants` with made-up listings. They record the signals they
-/// would send instead of sending them; `ProcessTreeTests` kills a real tree.
+/// `ProcessTree.terminate` and `terminateDescendants` with made-up listings, and the stop a suspension makes, with
+/// made-up states too. They record the signals they would send instead of sending them; `ProcessTreeTests` kills a real
+/// tree.
 final class ProcessTreeTerminateTests: XCTestCase {
     func test_terminate_stopsTheWholeTreeTopDownBeforeKillingIt() {
         let run = terminate(root: 1, listings: [[2, 3], [2, 3]])
@@ -89,6 +90,55 @@ final class ProcessTreeTerminateTests: XCTestCase {
         }
     }
 
+    // MARK: - A suspension's stop: each round's stops must hold, since its processes stay stopped
+
+    // A stop checked at once could show as held though it wasn't, and a child its process was starting could be
+    // missing from a listing straight after. Each round of stops is followed by a pause, then the checks and a new
+    // listing.
+    func test_aSuspensionsStop_checksItsStops_andListsAgain_afterAPause() {
+        let run = stopToSuspend(listings: [[2], [2, 4], [2, 4]])
+
+        XCTAssertEqual(run.steps, [
+            "list", "(2, STOP)", "pause", "check 2",
+            "list", "(4, STOP)", "pause", "check 2", "check 4",
+            "list",
+        ])
+        XCTAssertEqual(run.stopped, [2, 4])
+    }
+
+    // On macOS, a SIGSTOP sent while a process execs can be lost, and the process runs on.
+    func test_aSuspensionsStop_stopsAProcessAgain_whenItsStopDidntHold() {
+        let run = stopToSuspend(listings: [[2]], stopsThatDontHold: [2: 1])
+
+        XCTAssertEqual(run.steps, [
+            "list", "(2, STOP)", "pause", "check 2", "(2, STOP)",
+            "list", "pause", "check 2",
+            "list",
+        ])
+    }
+
+    func test_aSuspensionsStop_givesUpOnAStopThatDoesntHold_afterTenListings() {
+        // Held at the 100th check, so that a stop with no bound would end rather than hang the test.
+        let run = stopToSuspend(listings: [[2]], stopsThatDontHold: [2: 100])
+
+        XCTAssertEqual(run.listings, ProcessTree.maximumListings)
+        XCTAssertEqual(run.sent, Array(repeating: Sent(2, SIGSTOP), count: ProcessTree.maximumListings + 1))
+    }
+
+    // With no test process under way, a suspension doesn't wait.
+    func test_aSuspensionsStop_ofNoDescendant_neitherSignalsNorPauses() {
+        let run = stopToSuspend(listings: [[]])
+
+        XCTAssertEqual(run.steps, ["list"])
+    }
+
+    // The root is SwiftMutator itself, which stops itself last, once its descendants are stopped.
+    func test_aSuspensionsStop_ignoresTheRootIfListed() {
+        let run = stopToSuspend(listings: [[1, 2], [2, 1]])
+
+        XCTAssertEqual(run.sent, [Sent(2, SIGSTOP)])
+    }
+
     // MARK: - Helpers
 
     /// A signal `terminate` sent to a process.
@@ -145,6 +195,44 @@ final class ProcessTreeTerminateTests: XCTestCase {
             file: file,
             line: line
         )
+    }
+
+    /// What a suspension's stop of root 1's descendants did, with them listed as `listings`, one listing each time it
+    /// asks, then the last one again. A process in `stopsThatDontHold` shows as running for that many checks; every
+    /// other shows as stopped.
+    private func stopToSuspend(
+        listings: [[Int32]],
+        stopsThatDontHold: [Int32: Int] = [:],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> (sent: [Sent], listings: Int, steps: [String], stopped: [Int32]) {
+        var sent: [Sent] = []
+        var listingCount = 0
+        var steps: [String] = []
+        var running = stopsThatDontHold
+        let settling = ProcessTree.Settling(
+            pause: { steps.append("pause") },
+            isStoppedOrEnded: { pid in
+                steps.append("check \(pid)")
+                guard let checks = running[pid], checks > 0 else { return true }
+                running[pid] = checks - 1
+                return false
+            }
+        )
+        let stopped = ProcessTree.stopDescendants(
+            of: 1,
+            descendants: { parent in
+                XCTAssertEqual(parent, 1, "lists only the root's descendants", file: file, line: line)
+                listingCount += 1
+                steps.append("list")
+                return listings[min(listingCount, listings.count) - 1]
+            },
+            settling: settling
+        ) { pid, signal in
+            sent.append(Sent(pid, signal))
+            steps.append(Sent(pid, signal).description)
+        }
+        return (sent, listingCount, steps, stopped)
     }
 
     private func record(
