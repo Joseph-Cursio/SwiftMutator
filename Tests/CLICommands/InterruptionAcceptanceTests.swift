@@ -284,7 +284,12 @@ final class InterruptionAcceptanceTests: XCTestCase {
 
         let suspended = waitUntil(within: 5) { self.isStopped(mutator.processIdentifier) }
         XCTAssertTrue(suspended, "SwiftMutator wasn't suspended")
-        let testProcesses = shells.union(sleepers)
+        // Each run's processes last 3 s from when they write themselves down, so those written down less than 2.9 s
+        // before SwiftMutator was seen suspended were running when it stopped them. An older one may have ended just
+        // before, as when the second worker's first run started 3 s after the first's, and an ended process isn't
+        // stopped.
+        let testProcesses = testProcesses(writtenDownWithin: 2.9, before: Date())
+        XCTAssertFalse(testProcesses.isEmpty, "no test was under way")
         XCTAssertTrue(waitUntil(within: 2) { testProcesses.allSatisfy(self.isStopped) }, "its tests run on")
         Thread.sleep(forTimeInterval: 6) // past the time limit, and past the end of the tests, had they run on
         XCTAssertEqual(testProcesses.filter { !self.isStopped($0) }.sorted(), [], "its tests ran on")
@@ -500,6 +505,18 @@ final class InterruptionAcceptanceTests: XCTestCase {
                 sleepers.insert(pid)
             }
         }
+    }
+
+    /// The processes the test command wrote down less than `seconds` before `moment`, by their files' times.
+    private func testProcesses(writtenDownWithin seconds: TimeInterval, before moment: Date) -> Set<Int32> {
+        recordMarkers()
+        let writtenDown = { (kind: String, pid: Int32) -> Bool in
+            let file = self.markers.appendingPathComponent("\(kind).\(pid)").path
+            guard let time = try? FileManager.default.attributesOfItem(atPath: file)[.modificationDate] as? Date
+            else { return false }
+            return moment.timeIntervalSince(time) < seconds
+        }
+        return shells.filter { writtenDown("sh", $0) }.union(sleepers.filter { writtenDown("sleep", $0) })
     }
 
     /// Whether no process has this ID.
