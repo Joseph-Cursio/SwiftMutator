@@ -84,7 +84,7 @@ final class MutantEnvironmentCacheTests: MuterTestCase {
         """)
 
         XCTAssertTrue(
-            rewritten.contains(#"\#(cacheName).environment["Sample_RelationalOperatorReplacement_"#),
+            rewritten.contains(#"\#(cacheName).environment["Sample_c6ec652bc78cf45e_RelationalOperatorReplacement_"#),
             rewritten
         )
         XCTAssertTrue(rewritten.contains(#"] != nil"#), rewritten)

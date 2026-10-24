@@ -4,11 +4,11 @@
 
 func someCode(_ a: Bool, _ b: Bool) -> Bool {
   if __SwiftMutator_f9848bd2ed9970c6.environment[
-    "sampleWithNestedTernaryOperator_SwapTernary_6_40_143"] != nil
+    "sampleWithNestedTernaryOperator_f9848bd2ed9970c6_SwapTernary_6_40_143"] != nil
   {
     return a ? false : b ? true : false
   } else if __SwiftMutator_f9848bd2ed9970c6.environment[
-    "sampleWithNestedTernaryOperator_SwapTernary_6_33_136"] != nil
+    "sampleWithNestedTernaryOperator_f9848bd2ed9970c6_SwapTernary_6_33_136"] != nil
   {
     return a ? b ? false : true : false
   } else {

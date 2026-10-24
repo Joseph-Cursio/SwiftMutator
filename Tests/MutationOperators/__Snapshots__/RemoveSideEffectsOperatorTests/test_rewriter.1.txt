@@ -1,7 +1,7 @@
 struct Example {
   func containsSideEffect() -> Int {
     if __SwiftMutator_b772dfa836344677.environment[
-      "sampleWithSideEffects_RemoveSideEffects_3_27_80"] != nil
+      "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_3_27_80"] != nil
     {
       return 1
     } else {
@@ -12,7 +12,7 @@ struct Example {
 
   func containsSideEffect() -> Int {
     if __SwiftMutator_b772dfa836344677.environment[
-      "sampleWithSideEffects_RemoveSideEffects_10_27_186"] != nil
+      "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_10_27_186"] != nil
     {
       print("something")
     } else {
@@ -28,7 +28,7 @@ struct Example {
 
   func causesAnotherSideEffect() {
     if __SwiftMutator_b772dfa836344677.environment[
-      "sampleWithSideEffects_RemoveSideEffects_20_62_423"] != nil
+      "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_20_62_423"] != nil
     {
       let key = "some key"
       let value = aFunctionThatReturnsAValue()
@@ -52,7 +52,7 @@ struct Example {
 
   func containsAVoidFunctionCallThatSpansManyLine() {
     if __SwiftMutator_b772dfa836344677.environment[
-      "sampleWithSideEffects_RemoveSideEffects_39_6_906"] != nil
+      "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_39_6_906"] != nil
     {
     } else {
       functionCall(
@@ -66,7 +66,7 @@ struct Example {
   func sideEffectsInsideLoopsAndGuard() {
     guard true else {
       if __SwiftMutator_b772dfa836344677.environment[
-        "sampleWithSideEffects_RemoveSideEffects_44_19_994"] != nil
+        "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_44_19_994"] != nil
       {
         return
       } else {
@@ -76,7 +76,7 @@ struct Example {
     }
     while true {
       if __SwiftMutator_b772dfa836344677.environment[
-        "sampleWithSideEffects_RemoveSideEffects_48_19_1049"] != nil
+        "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_48_19_1049"] != nil
       {
       } else {
         sideEffect()
@@ -85,7 +85,7 @@ struct Example {
 
     for item in items {
       if __SwiftMutator_b772dfa836344677.environment[
-        "sampleWithSideEffects_RemoveSideEffects_52_19_1099"] != nil
+        "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_52_19_1099"] != nil
       {
       } else {
         sideEffect()
@@ -94,7 +94,7 @@ struct Example {
 
     repeat {
       if __SwiftMutator_b772dfa836344677.environment[
-        "sampleWithSideEffects_RemoveSideEffects_56_19_1138"] != nil
+        "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_56_19_1138"] != nil
       {
       } else {
         sideEffect()

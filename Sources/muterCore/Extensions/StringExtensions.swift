@@ -27,6 +27,12 @@ extension String {
     var nilIfEmpty: String? {
         !isEmpty ? self : nil
     }
+
+    /// FNV-1a of the UTF-8 bytes, in hex: unlike `hashValue`, the same in every process and on every machine.
+    var stableHash: String {
+        let hash = utf8.reduce(UInt64(0xCBF2_9CE4_8422_2325)) { ($0 ^ UInt64($1)) &* 0x0000_0100_0000_01B3 }
+        return String(hash, radix: 16)
+    }
 }
 
 extension String {

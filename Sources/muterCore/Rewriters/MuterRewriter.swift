@@ -16,11 +16,7 @@ final class MuterRewriter: SyntaxRewriter {
     /// cache is internal, so each file of a module needs a name of its own, and a module can't hold two files of the
     /// same name. The name doesn't depend on where the project is, so the rewritten code is the same on every machine.
     static func environmentCacheName(forFileAt path: String) -> String {
-        // FNV-1a, which unlike `hashValue` is the same in every process.
-        let hash = URL(fileURLWithPath: path).lastPathComponent.utf8.reduce(UInt64(0xCBF2_9CE4_8422_2325)) {
-            ($0 ^ UInt64($1)) &* 0x0000_0100_0000_01B3
-        }
-        return "__SwiftMutator_" + String(hash, radix: 16)
+        "__SwiftMutator_" + URL(fileURLWithPath: path).lastPathComponent.stableHash
     }
 
     /// Appends the environment cache to a file that received switches. It goes at the end, so no
