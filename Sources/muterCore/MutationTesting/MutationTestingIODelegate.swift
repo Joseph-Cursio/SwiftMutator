@@ -69,6 +69,8 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
     private var notificationCenter: NotificationCenter
     @Dependency(\.process)
     private var process: ProcessFactory
+    @Dependency(\.sleep)
+    private var sleep: Sleep
     @Dependency(\.testingTimeOutExecutor)
     private var testingTimeOutExecutor: TestingTimeoutExecutorFactory
     @Dependency(\.writeFile)
@@ -257,7 +259,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         // as a crash, which counts as killed. Only a run that seems to have died of such a signal waits: SwiftMutator's
         // own kills end a run for another reason. A cancellation in the wait throws, and the run reads as cancelled.
         if ending.reason == .exited, Self.mayHaveEndedByAnOutsideSignal(process) {
-            try await Task.sleep(nanoseconds: Self.outsideSignalWait)
+            try await sleep(Self.outsideSignalWait)
         }
 
         // withTimeLimit returns whichever of its tasks finishes first, which needn't be what ended the run.
