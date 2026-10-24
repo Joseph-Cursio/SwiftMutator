@@ -41,7 +41,7 @@ final class InterruptionsTests: MuterTestCase {
 
         XCTAssertNil(ended.signal)
         XCTAssertThrowsError(try ended.result.get()) { XCTAssertTrue($0 is WorkError, "\($0)") }
-        XCTAssertEqual(observer.observed, [SIGINT, SIGTERM, SIGHUP, SIGQUIT])
+        XCTAssertEqual(observer.observed, [SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGTSTP])
         XCTAssertTrue(observer.stopped, "each signal has its earlier disposition back")
         XCTAssertEqual(events.all, [])
         XCTAssertEqual(said.all, [])
@@ -191,6 +191,45 @@ final class InterruptionsTests: MuterTestCase {
         XCTAssertEqual(Array(events.all.prefix(2)), ["killed", "exited by SIGQUIT"])
     }
 
+    // Ctrl-Z reaches SwiftMutator alone: its test processes lead process groups of their own. They are suspended with
+    // it, and no time limit counts the time.
+    func test_aSIGTSTP_suspendsSwiftMutatorWithItsDescendants_withoutCountingTheTime() throws {
+        let uptime = Clock()
+        current.suspensions = Suspensions(uptime: { uptime.nanoseconds })
+        let finish = Gate()
+        let running = Running(makeInterruptions(suspend: { [events] in
+            events.append("suspended")
+            uptime.advance(by: 5_000_000_000)
+        })) { finish.wait() }
+        waitUntilObserving()
+        let before = current.suspensions.activeNanoseconds
+
+        XCTAssertTrue(observer.send(SIGTSTP))
+        finish.open()
+        let ended = try XCTUnwrap(running.wait())
+
+        XCTAssertEqual(events.all, ["suspended"])
+        XCTAssertEqual(current.suspensions.activeNanoseconds, before, "the time suspended counted")
+        XCTAssertNil(ended.signal)
+        XCTAssertNoThrow(try ended.result.get())
+        XCTAssertEqual(said.all, [])
+        XCTAssertTrue(observer.stopped)
+    }
+
+    // It is about to end, and the grace period would count the time.
+    func test_aSIGTSTP_whileStopping_isIgnored() throws {
+        let running = Running(makeInterruptions(suspend: { [events] in events.append("suspended") })) {
+            try await Task.sleep(nanoseconds: 10_000_000_000)
+        }
+        waitUntilObserving()
+
+        XCTAssertTrue(observer.send(SIGINT))
+        XCTAssertTrue(observer.send(SIGTSTP))
+        _ = try XCTUnwrap(running.wait())
+
+        XCTAssertFalse(events.all.contains("suspended"), "\(events.all)")
+    }
+
     // Steps start processes one after another, and no cancellation reaches the ones that block: killing one would only
     // let the next start.
     func test_afterTheFirstSignal_killsDescendantsUntilTheWorkEnds() throws {
@@ -269,7 +308,7 @@ final class InterruptionsTests: MuterTestCase {
         let ended = try XCTUnwrap(running.wait())
 
         XCTAssertNil(ended.signal)
-        XCTAssertEqual(observer.observed, [SIGINT, SIGTERM, SIGQUIT])
+        XCTAssertEqual(observer.observed, [SIGINT, SIGTERM, SIGQUIT, SIGTSTP])
         XCTAssertEqual(events.all, [])
         XCTAssertEqual(said.all, [])
     }
@@ -277,13 +316,18 @@ final class InterruptionsTests: MuterTestCase {
     // MARK: - Helpers
 
     /// Long grace periods and sweep intervals by default, so that only a test about them sees them.
-    private func makeInterruptions(gracePeriod: TimeInterval = 60, sweepInterval: TimeInterval = 60) -> Interruptions {
+    private func makeInterruptions(
+        gracePeriod: TimeInterval = 60,
+        sweepInterval: TimeInterval = 60,
+        suspend: @escaping @Sendable () -> Void = {}
+    ) -> Interruptions {
         let events = events
         let said = said
         let exited = exited
         return Interruptions(
             observer: observer,
             killDescendants: { events.append("killed") },
+            suspend: suspend,
             exit: { signal in
                 events.append("exited by \(InterruptionRecord.name(of: signal))")
                 exited.open()
@@ -332,6 +376,18 @@ private final class Events: @unchecked Sendable { // `list` is behind `lock`
 
     func count(of event: String) -> Int {
         all.filter { $0 == event }.count
+    }
+}
+
+/// A clock a test moves, in nanoseconds, read from any thread.
+private final class Clock: @unchecked Sendable { // `now` is behind `lock`
+    private let lock = NSLock()
+    private var now: UInt64 = 1_000_000_000
+
+    var nanoseconds: UInt64 { lock.withLock { now } }
+
+    func advance(by nanoseconds: UInt64) {
+        lock.withLock { now += nanoseconds }
     }
 }
 

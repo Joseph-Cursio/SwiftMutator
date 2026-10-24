@@ -264,6 +264,11 @@ the results file starts only after both.
   already written it, and worker clones and their active-mutant files can be left behind. A SIGHUP
   after a first SIGHUP is ignored, because zsh sends two when its terminal closes: closing a
   terminal stops a run the same way as one Ctrl-C.
+- **Suspending.** Ctrl-Z suspends SwiftMutator with every process it started, which the terminal's
+  Ctrl-Z doesn't reach: each leads a process group of its own. `fg` or `bg` continues them all. No
+  time limit counts the time suspended, and no test run's duration includes it, though a test that
+  measures time itself can still see it pass. A run that is stopping isn't suspended: it is about
+  to end.
 - **Leftovers.** The next `run` removes `<project>_mutated` and any worker clones and active-mutant
   files an earlier run left behind, such as one stopped at once, killed with SIGKILL, or crashed.
   SwiftMutator can't handle SIGKILL or a crash itself, so once its tests start, it starts a watcher,

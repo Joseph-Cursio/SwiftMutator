@@ -46,6 +46,22 @@ enum ProcessTree {
         }
     }
 
+    /// Suspends SwiftMutator, as Ctrl-Z would have, with every process it started: each leads a process group of its
+    /// own, so a terminal's Ctrl-Z reaches SwiftMutator alone. Returns once SwiftMutator is continued, as by `fg` or
+    /// `bg`, having continued them too.
+    static func suspendThisProcessAndItsDescendants() {
+        let me = getpid()
+        _ = stopDescendants(of: me, descendants: descendants(of:)) { pid, signal in kill(pid, signal) }
+        // SIGSTOP, not SIGTSTP: SwiftMutator observes SIGTSTP, so it would only come back here. The rest of this
+        // process stops with this thread.
+        kill(me, SIGSTOP)
+        // Listed again: a process stopped above may have ended since, its ID given to another. None of them started
+        // a process while stopped.
+        for pid in descendants(of: me) {
+            kill(pid, SIGCONT)
+        }
+    }
+
     /// SIGSTOPs each descendant of `root` a listing names, and lists them again until a listing finds nothing
     /// new or `maximumListings` pass. Returns the processes it stopped, parents first. Never signals `root`.
     private static func stopDescendants(

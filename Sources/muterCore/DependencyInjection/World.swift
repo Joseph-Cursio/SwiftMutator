@@ -64,7 +64,8 @@ struct World {
     var projectCoverage: ProjectCoverage = BuildSystem.coverage
     var server: Server = URLSession.shared
     var now: Now = Date.init
-    var instant: Instant = DispatchTime.now
+    /// The monotonic clock, which stands still while SwiftMutator is suspended (`suspensions`).
+    var instant: Instant = { current.suspensions.instant }
     var testingTimeOutExecutor: TestingTimeoutExecutorFactory = { TestingTimeoutExecutor() }
     var provenance: ProvenanceProbe = { Provenance.probe($0) }
     var resultsFiles: ResultsFileOpening = ResultsFile.Opener()
@@ -75,6 +76,8 @@ struct World {
     var commandLineArguments: [String] = Array(CommandLine.arguments.dropFirst())
     /// The signal that stopped this run, if one did.
     var interruption = InterruptionRecord()
+    /// The time SwiftMutator spent suspended by Ctrl-Z, which no time limit counts.
+    var suspensions = Suspensions()
 }
 
 extension World {

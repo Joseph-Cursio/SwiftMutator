@@ -35,14 +35,15 @@ final class InterruptionRecord: @unchecked Sendable { // `first` and `atOnce` ar
     }
 }
 
-/// Runs a command's work so that SIGINT, SIGTERM and SIGHUP stop it cleanly, and SIGQUIT at once. Each process
-/// SwiftMutator starts leads a process group of its own, so a terminal's Ctrl-C reaches SwiftMutator alone, and
-/// stopping them is up to it.
+/// Runs a command's work so that SIGINT, SIGTERM and SIGHUP stop it cleanly, SIGQUIT at once, and SIGTSTP suspends
+/// it. Each process SwiftMutator starts leads a process group of its own, so a terminal's Ctrl-C or Ctrl-Z reaches
+/// SwiftMutator alone, and stopping or suspending them is up to it.
 final class Interruptions: @unchecked Sendable { // `timers` is touched only on `queue`
     static let stoppingSignals = [SIGINT, SIGTERM, SIGHUP]
     /// Ctrl-\ sends SIGQUIT, whose default action, as a SIGKILL does, would leave test processes running, and no end
-    /// line.
-    static let observedSignals = stoppingSignals + [SIGQUIT]
+    /// line. Ctrl-Z sends SIGTSTP, whose default action would suspend SwiftMutator while its tests ran on: once it
+    /// continued, every time limit that had passed would fire at once, even for tests that had ended.
+    static let observedSignals = stoppingSignals + [SIGQUIT, SIGTSTP]
 
     /// How the work ended, and the signal that stopped it, if one came while it ran.
     struct Ended {
@@ -54,8 +55,11 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
     private var record: InterruptionRecord
     @Dependency(\.standardOutIsATerminal)
     private var standardOutIsATerminal: Bool
+    @Dependency(\.suspensions)
+    private var suspensions: Suspensions
     private let observer: SignalObserving
     private let killDescendants: @Sendable () -> Void
+    private let suspend: @Sendable () -> Void
     private let exit: @Sendable (Int32) -> Void
     private let say: @Sendable (String) -> Void
     private let gracePeriod: TimeInterval
@@ -68,6 +72,7 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
     init(
         observer: SignalObserving = DispatchSignalObserver(),
         killDescendants: @escaping @Sendable () -> Void = { ProcessTree.killDescendantsOfThisProcess() },
+        suspend: @escaping @Sendable () -> Void = { ProcessTree.suspendThisProcessAndItsDescendants() },
         exit: @escaping @Sendable (Int32) -> Void = { Interruptions.exit(by: $0) },
         say: @escaping @Sendable (String) -> Void = { fputs($0 + "\n", stderr) },
         gracePeriod: TimeInterval = 30,
@@ -75,6 +80,7 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
     ) {
         self.observer = observer
         self.killDescendants = killDescendants
+        self.suspend = suspend
         self.exit = exit
         self.say = say
         self.gracePeriod = gracePeriod
@@ -89,7 +95,11 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
     func run(_ work: @escaping @Sendable () async throws -> Void) async -> Ended {
         let task = Task { try await work() }
         observer.start(observing: Self.observedSignals, on: queue) { [self] signal in
-            received(signal, stopping: task)
+            if signal == SIGTSTP {
+                suspendUnlessStopping()
+            } else {
+                received(signal, stopping: task)
+            }
         }
         let result = await task.result
         // On the queue, so that no handler is under way. Once a signal came, the observer stays, so that a second one
@@ -129,6 +139,16 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
                 saying: "⏹ SwiftMutator hasn't stopped after \(Int(gracePeriod)) seconds, so it is stopping at once."
             )
         }
+    }
+
+    /// On `queue`, which waits here while SwiftMutator is suspended: a signal meanwhile is handled once it continues.
+    /// No time limit counts the time suspended. A run that is stopping isn't suspended: it is about to end, and its
+    /// grace period would count the time.
+    private func suspendUnlessStopping() {
+        guard record.signal == nil else { return }
+        suspensions.begin()
+        suspend()
+        suspensions.end()
     }
 
     /// On `queue`. Kills every process SwiftMutator started, has mutation testing write its end line, and ends

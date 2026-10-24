@@ -27,6 +27,25 @@ final class TestingTimeoutExecutorTests: MuterTestCase {
         await fulfillment(of: [expect], timeout: 5)
     }
 
+    // Ctrl-Z suspends the tests with SwiftMutator, so the time suspended doesn't count toward their limit.
+    func test_theTimeSuspended_doesntCount() async throws {
+        let suspensions = current.suspensions
+        suspensions.begin()
+        Task {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            suspensions.end()
+        }
+
+        let outcome: String = try await sut.withTimeLimit(0.2) {
+            try await Task.sleep(nanoseconds: 300_000_000)
+            return "finished"
+        } timeoutHandler: {
+            "timed out"
+        }
+
+        XCTAssertEqual(outcome, "finished")
+    }
+
     // The limit was cut to whole seconds before it became nanoseconds, so a limit under a second
     // was no limit at all: the time-out fired at once.
     func test_aFractionalTimeLimitKeepsItsFraction() async throws {

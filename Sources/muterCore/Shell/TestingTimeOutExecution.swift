@@ -15,13 +15,19 @@ enum TestingExecutionResult {
     case stoppedAtFirstFailure
 }
 
+/// A time limit counts only the time SwiftMutator wasn't suspended in, by Ctrl-Z: its test processes are suspended
+/// with it.
 struct TestingTimeoutExecutor: TestingTimeoutExecution {
+    @Dependency(\.suspensions)
+    private var suspensions: Suspensions
+
     func withTimeLimit<T>(
         _ timeLimit: TimeInterval,
         _ body: @escaping @Sendable () async throws -> T,
         timeoutHandler: @escaping @Sendable () async throws -> T
     ) async throws -> T {
-        try await withThrowingTaskGroup(of: T.self) { group in
+        let suspensions = suspensions
+        return try await withThrowingTaskGroup(of: T.self) { group in
             defer {
                 group.cancelAll()
             }
@@ -30,7 +36,7 @@ struct TestingTimeoutExecutor: TestingTimeoutExecution {
                 // If sleep() returns instead of throwing a CancellationError, that means
                 // the timeout was reached before this task could be cancelled, so call
                 // the timeout handler.
-                try await Task.sleep(nanoseconds: UInt64(timeLimit * 1_000_000_000))
+                try await suspensions.sleep(for: timeLimit)
                 return try await timeoutHandler()
             }
 

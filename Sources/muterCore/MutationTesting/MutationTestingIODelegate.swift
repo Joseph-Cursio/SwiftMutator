@@ -245,7 +245,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             _ = try await testingTimeOutExecutor().withTimeLimit(timeout, run) {
                 // Kill the whole process tree, not just the launched command — see terminateTree(). Only if
                 // nothing ended the run first: its process may have just exited, or been stopped at a failed test.
-                if ending.record(.timedOut) { process.terminateTree() }
+                if ending.recordTimeLimit(of: process) { process.terminateTree() }
                 return .timeout
             }
         } else {

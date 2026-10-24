@@ -60,9 +60,11 @@ extension Foundation.Process {
         // would never return.
         do { try run() } catch { return nil }
         if let timeLimit {
+            // Not counting the time SwiftMutator was suspended, by Ctrl-Z, with the command.
+            @Dependency(\.suspensions) var suspensions: Suspensions
             // The whole tree, not just the command: the test processes `swift test` starts would go on running.
-            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + timeLimit) {
-                if ending.record(.timedOut) { self.terminateTree() }
+            suspensions.after(timeLimit, on: .global(qos: .userInitiated)) {
+                if ending.recordTimeLimit(of: self) { self.terminateTree() }
             }
         }
         // Read while the command runs: one that filled the pipe would never exit.
