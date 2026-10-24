@@ -32,6 +32,8 @@ typealias TestingTimeoutExecutorFactory = () -> TestingTimeoutExecution
 typealias ProvenanceProbe = (MuterConfiguration) -> Provenance
 /// The files in a project, relative to it, or nil if it can't list them.
 typealias ProjectFileListing = (URL) -> [String]?
+/// Waits that many nanoseconds, or throws a CancellationError once the task is cancelled.
+typealias Sleep = (UInt64) async throws -> Void
 
 struct World {
     var notificationCenter: NotificationCenter = .default
@@ -78,6 +80,8 @@ struct World {
     var interruption = InterruptionRecord()
     /// The time SwiftMutator spent suspended by Ctrl-Z, which no time limit counts.
     var suspensions = Suspensions()
+    /// A wait on the system's uptime clock, which counts the time suspended, unlike `suspensions.sleep(for:)`.
+    var sleep: Sleep = { try await Task.sleep(nanoseconds: $0) }
 }
 
 extension World {
