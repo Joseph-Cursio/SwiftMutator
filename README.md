@@ -267,8 +267,9 @@ the results file starts only after both.
 - **Suspending.** Ctrl-Z suspends SwiftMutator with every process it started, which the terminal's
   Ctrl-Z doesn't reach: each leads a process group of its own. `fg` or `bg` continues them all. No
   time limit counts the time suspended, and no test run's duration includes it, though a test that
-  measures time itself can still see it pass. A run that is stopping isn't suspended: it is about
-  to end.
+  measures time itself can still see it pass. Under xcodebuild, a simulator runs the tests in a
+  process of its own, which SwiftMutator didn't start, and doesn't suspend. A run that is
+  stopping isn't suspended: it is about to end.
 - **Leftovers.** The next `run` removes `<project>_mutated` and any worker clones and active-mutant
   files an earlier run left behind, such as one stopped at once, killed with SIGKILL, or crashed.
   SwiftMutator can't handle SIGKILL or a crash itself, so once its tests start, it starts a watcher,

@@ -1,6 +1,8 @@
 import Foundation
 
-/// A process and its descendants.
+/// A process and its descendants. Under xcodebuild, a simulator runs the tests in a process it starts itself, the
+/// test host or `xctest`, which isn't a descendant of xcodebuild. Killing xcodebuild is enough: the simulator then ends
+/// that process within 0.2 seconds, hosted or not, even with its main thread blocked (Xcode 27.1, iOS 26.5 and 27.0).
 enum ProcessTree {
     /// How many times `terminate` and `terminateDescendants` list a tree, at most, while they stop it.
     static let maximumListings = 10
