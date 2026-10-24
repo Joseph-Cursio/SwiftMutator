@@ -54,12 +54,7 @@ final class InterruptionsTests: MuterTestCase {
         let started = Gate()
         let events = events
         let running = Running(makeInterruptions()) {
-            try await withTaskCancellationHandler {
-                started.open()
-                try await Task.sleep(nanoseconds: 10_000_000_000)
-            } onCancel: {
-                events.append("cancelled")
-            }
+            try await waitUntilCancelled(opening: started) { events.append("cancelled") }
         }
         XCTAssertTrue(started.wait())
         waitUntilObserving()
@@ -79,10 +74,7 @@ final class InterruptionsTests: MuterTestCase {
         let started = Gate()
         let events = events
         let running = Running(makeInterruptions()) {
-            try await withTaskCancellationHandler {
-                started.open()
-                try await Task.sleep(nanoseconds: 10_000_000_000)
-            } onCancel: {
+            try await waitUntilCancelled(opening: started) {
                 events.append(current.interruption.signal.map(InterruptionRecord.name(of:)) ?? "no signal")
             }
         }
@@ -362,6 +354,52 @@ final class InterruptionsTests: MuterTestCase {
 }
 
 private struct WorkError: Error {}
+
+/// Work that runs until its task is cancelled: it opens `started` once `onCancel` is in place, then waits until
+/// `onCancel` has run, and throws CancellationError. Only the handler ends the wait. Work that saw the cancellation
+/// another way, as Task.sleep does, could end before `cancel()` ran the handler, and the handler would never run:
+/// `cancel()` sets the task's cancelled flag before it takes the lock under which it runs the handlers then in place,
+/// and work that ends meanwhile removes its own (Swift 6.2–6.4). Gives up after 10 seconds, so the work ends however
+/// the test goes.
+private func waitUntilCancelled(opening started: Gate, onCancel: @escaping @Sendable () -> Void) async throws {
+    let resumption = Resumption()
+    DispatchQueue.global().asyncAfter(deadline: .now() + 10) { resumption.resume() }
+    await withTaskCancellationHandler {
+        await withCheckedContinuation { continuation in
+            resumption.set(continuation)
+            started.open()
+        }
+    } onCancel: {
+        onCancel()
+        resumption.resume()
+    }
+    try Task.checkCancellation()
+}
+
+/// A continuation that `resume()` resumes, once, whether it was set before or after.
+private final class Resumption: @unchecked Sendable { // `continuation` and `resumed` are behind `lock`
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var resumed = false
+
+    func set(_ newContinuation: CheckedContinuation<Void, Never>) {
+        let alreadyResumed = lock.withLock { () -> Bool in
+            if resumed { return true }
+            continuation = newContinuation
+            return false
+        }
+        if alreadyResumed { newContinuation.resume() }
+    }
+
+    func resume() {
+        let waiting = lock.withLock { () -> CheckedContinuation<Void, Never>? in
+            resumed = true
+            defer { continuation = nil }
+            return continuation
+        }
+        waiting?.resume()
+    }
+}
 
 /// Strings appended from any thread, in order.
 private final class Events: @unchecked Sendable { // `list` is behind `lock`
