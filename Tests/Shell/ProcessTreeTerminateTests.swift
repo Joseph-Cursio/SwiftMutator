@@ -227,11 +227,12 @@ final class ProcessTreeTerminateTests: XCTestCase {
                 steps.append("list")
                 return listings[min(listingCount, listings.count) - 1]
             },
-            settling: settling
-        ) { pid, signal in
-            sent.append(Sent(pid, signal))
-            steps.append(Sent(pid, signal).description)
-        }
+            settling: settling,
+            signal: { pid, signal in
+                sent.append(Sent(pid, signal))
+                steps.append(Sent(pid, signal).description)
+            }
+        )
         return (sent, listingCount, steps, stopped)
     }
 
