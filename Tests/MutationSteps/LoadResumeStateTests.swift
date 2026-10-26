@@ -39,7 +39,7 @@ final class LoadResumeStateTests: MuterTestCase {
         current.fileManager = FileManager.default
         current.resultsFiles = ResultsFile.Opener()
         current.listProjectFiles = { [unowned self] directory in
-            self.listed.append(directory)
+            listed.append(directory)
             return nil
         }
     }

@@ -125,7 +125,7 @@ final class PerformMutationTestingTests: MuterTestCase {
 
         XCTAssertEqual(
             ioDelegate.methodCalls,
-            ["benchmarkTests(using:savingResultsIntoFileNamed:)",]
+            ["benchmarkTests(using:savingResultsIntoFileNamed:)", ]
         )
     }
 

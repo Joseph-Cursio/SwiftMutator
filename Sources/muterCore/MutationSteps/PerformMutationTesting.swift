@@ -493,6 +493,9 @@ private extension PerformMutationTesting {
         var buildErrors = 0
         notificationCenter.post(name: .mutantRunsStarted, object: nil)
 
+        // The worker job loop and its inline cancellation handling genuinely span >30 lines; pulling the body
+        // into a helper would split apart a tight loop-and-catch, so the length is disabled for this closure.
+        // swiftlint:disable:next closure_body_length
         try await withThrowingTaskGroup(of: FinishedRun.self) { group in
             // The position in `indices` of the next job to start.
             var next = 0

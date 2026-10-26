@@ -66,7 +66,8 @@ extension TestSuiteOutcome {
     /// xcodebuild collects diagnostics and relaunches the runner for each remaining test, which can take
     /// several times as long as the baseline run the limit is derived from.
     private static func outcomeOfStoppedRun(_ testLog: String, failedTestLinesAreReliable: Bool) -> TestSuiteOutcome {
-        let showsFailedTestLine = failedTestLinesAreReliable && FailedTestLine.first(inLog: testLog) != nil
+        let firstFailedTestLine = FailedTestLine.first(inLog: testLog)
+        let showsFailedTestLine = failedTestLinesAreReliable && firstFailedTestLine != nil
         if logContainsTestFailure(testLog) || logContainsFailedTestCase(testLog) || showsFailedTestLine {
             return .failed
         } else if logContainsCrash(testLog) {

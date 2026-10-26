@@ -5,7 +5,7 @@ enum ChangeLogicalConnectorOperator {
         convenience init(
             configuration: MuterConfiguration? = nil,
             sourceCodeInfo: SourceCodeInfo,
-            coverage: FileCoverage = .none
+            coverage: FileCoverage = .empty
         ) {
             self.init(
                 configuration: configuration,

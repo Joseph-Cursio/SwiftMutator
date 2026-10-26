@@ -77,7 +77,7 @@ final class FunctionsCoverage {
     }
 
     func coverage(ofFile filePath: FilePath) -> FileCoverage {
-        coverage[filePath.canonicalPath] ?? .none
+        coverage[filePath.canonicalPath] ?? .empty
     }
 
     /// Code that never ran, or that an inactive `#if` kept out of the build.
@@ -99,5 +99,5 @@ extension FunctionsCoverage: Nullable {
 struct FileCoverage: Equatable {
     let functions: [[Region]]
 
-    static let none = FileCoverage(functions: [])
+    static let empty = FileCoverage(functions: [])
 }

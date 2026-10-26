@@ -27,6 +27,10 @@ Repositories/UninitializedApp/muter.conf.json
 *_muter_logs
 .swiftpm
 /.claude/
+# SwiftLint writes transient `.swiftlint.yml.<timestamp>.backup` snapshots when it edits a
+# config (e.g. `swiftlint --fix`). They are disposable, never tracked.
+.swiftlint.yml.*.backup
+.swiftlint.yml.backup
 
 
 ### macOS ###

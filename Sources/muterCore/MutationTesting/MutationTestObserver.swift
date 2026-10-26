@@ -74,6 +74,9 @@ final class MutationTestObserver {
     private var resultsFilePath: String?
     private let runOptions: Run.Options
 
+    /// The notification observers `start()` registers, retained so `deinit` removes exactly those.
+    private var registeredObservers = [NSObjectProtocol]()
+
     private var notificationHandlerMappings: [(name: Notification.Name, handler: (Notification) -> Void)] {
         [
             (name: .muterLaunched, handler: handleMuterLaunched),
@@ -128,17 +131,21 @@ final class MutationTestObserver {
         )
 
         for (name, handler) in notificationHandlerMappings {
-            _ = notificationCenter.addObserver(
-                forName: name,
-                object: nil,
-                queue: nil,
-                using: handler
+            registeredObservers.append(
+                notificationCenter.addObserver(
+                    forName: name,
+                    object: nil,
+                    queue: nil,
+                    using: handler
+                )
             )
         }
     }
 
     deinit {
-        notificationCenter.removeObserver(self)
+        for observer in registeredObservers {
+            notificationCenter.removeObserver(observer)
+        }
     }
 }
 
