@@ -311,12 +311,16 @@ final class ProjectTreeTests: XCTestCase {
         for (name, list) in listings {
             let tree = fingerprint(list: list)
 
-            XCTAssertEqual(tree.files.keys.sorted(), [
-                "Docs/rules/rule.md",
-                "Sources/rules",
-                "link.txt",
-                "notes.txt",
-            ], name)
+            XCTAssertEqual(
+                tree.files.keys.sorted(),
+                [
+                    "Docs/rules/rule.md",
+                    "Sources/rules",
+                    "link.txt",
+                    "notes.txt",
+                ],
+                name
+            )
             XCTAssertEqual(tree.files["Sources/rules"], "link:" + sha256("../Docs/rules"), name)
             XCTAssertEqual(tree.files["link.txt"], "link:" + sha256("notes.txt"), name)
             XCTAssertNotEqual(tree.files["link.txt"], tree.files["notes.txt"], name)

@@ -18,11 +18,11 @@ class FileManagerSpy: Spy, FileSystemManager {
 
     private var fileContentsQueue: Queue<Data> = .init()
     var fileContentsToReturn: Data? {
-        set {
-            newValue.map { fileContentsQueue.enqueue($0) }
-        }
         get {
             fileContentsQueue.dequeue()
+        }
+        set {
+            newValue.map { fileContentsQueue.enqueue($0) }
         }
     }
 

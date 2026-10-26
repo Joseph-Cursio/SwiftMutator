@@ -1,5 +1,6 @@
 excluded:
   - .build
+  - Tests/fixtures
 
 included:
   - Sources
@@ -153,6 +154,24 @@ only_rules:
   - expiring_todo
   - multiline_parameters_brackets
   - vertical_parameter_alignment
+  - class_delegate_protocol
+  - closure_body_length
+  - comma
+  - computed_accessors_order
+  - contains_over_first_not_nil
+  - discarded_notification_center_observer
+  - discouraged_none_name
+  - file_header
+  - multiline_arguments
+  - redundant_self
+  - trailing_newline
 
 trailing_comma:
   mandatory_comma: true
+
+analyzer_rules:
+  - capture_variable
+  - explicit_self
+  - typesafe_array_init
+  - unused_declaration
+  - unused_import
