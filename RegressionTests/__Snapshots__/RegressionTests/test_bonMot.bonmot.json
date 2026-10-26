@@ -4,21 +4,6 @@
       "appliedOperators" : [
         {
           "mutationPoint" : {
-            "mutationOperatorId" : "RemoveSideEffects",
-            "position" : {
-              "column" : 41,
-              "line" : 63
-            }
-          },
-          "mutationSnapshot" : {
-            "after" : "removed line",
-            "before" : "varSelf.add(other: theOther)",
-            "description" : "removed line"
-          },
-          "testSuiteOutcome" : "passed"
-        },
-        {
-          "mutationPoint" : {
             "mutationOperatorId" : "SwapTernary",
             "position" : {
               "column" : 123,
@@ -49,7 +34,7 @@
         }
       ],
       "fileName" : "ContextualAlternates.swift",
-      "mutationScore" : 33
+      "mutationScore" : 50
     },
     {
       "appliedOperators" : [
@@ -199,21 +184,6 @@
       "appliedOperators" : [
         {
           "mutationPoint" : {
-            "mutationOperatorId" : "RemoveSideEffects",
-            "position" : {
-              "column" : 41,
-              "line" : 204
-            }
-          },
-          "mutationSnapshot" : {
-            "after" : "removed line",
-            "before" : "varSelf.add(other: theOther)",
-            "description" : "removed line"
-          },
-          "testSuiteOutcome" : "passed"
-        },
-        {
-          "mutationPoint" : {
             "mutationOperatorId" : "SwapTernary",
             "position" : {
               "column" : 96,
@@ -274,7 +244,7 @@
         }
       ],
       "fileName" : "StylisticAlternates.swift",
-      "mutationScore" : 60
+      "mutationScore" : 75
     },
     {
       "appliedOperators" : [
@@ -648,51 +618,6 @@
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
-              "column" : 29,
-              "line" : 146
-            }
-          },
-          "mutationSnapshot" : {
-            "after" : "removed line",
-            "before" : "super.awakeFromNib()",
-            "description" : "removed line"
-          },
-          "testSuiteOutcome" : "passed"
-        },
-        {
-          "mutationPoint" : {
-            "mutationOperatorId" : "RemoveSideEffects",
-            "position" : {
-              "column" : 25,
-              "line" : 147
-            }
-          },
-          "mutationSnapshot" : {
-            "after" : "removed line",
-            "before" : "setupObservers()",
-            "description" : "removed line"
-          },
-          "testSuiteOutcome" : "passed"
-        },
-        {
-          "mutationPoint" : {
-            "mutationOperatorId" : "RemoveSideEffects",
-            "position" : {
-              "column" : 25,
-              "line" : 148
-            }
-          },
-          "mutationSnapshot" : {
-            "after" : "removed line",
-            "before" : "updateConstant()",
-            "description" : "removed line"
-          },
-          "testSuiteOutcome" : "passed"
-        },
-        {
-          "mutationPoint" : {
-            "mutationOperatorId" : "RemoveSideEffects",
-            "position" : {
               "column" : 109,
               "line" : 153
             }
@@ -721,7 +646,7 @@
         }
       ],
       "fileName" : "TextAlignmentConstraint.swift",
-      "mutationScore" : 42
+      "mutationScore" : 75
     },
     {
       "appliedOperators" : [
@@ -1108,8 +1033,8 @@
       "mutationScore" : 0
     }
   ],
-  "globalMutationScore" : 42,
+  "globalMutationScore" : 45,
   "numberOfKilledMutants" : 28,
   "projectCodeCoverage" : 78,
-  "totalAppliedMutationOperators" : 66
+  "totalAppliedMutationOperators" : 61
 }
