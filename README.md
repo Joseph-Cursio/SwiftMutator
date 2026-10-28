@@ -10,7 +10,47 @@ code, such as `==` becoming `!=` or a call being removed, and runs your tests ag
 A mutant your tests don't catch shows a behavior your tests don't check. The mutation score is
 the share of mutants caught.
 
-## Why a separate project
+## Also look at swift-mutation-testing
+
+If you're choosing a mutation tester for Swift, take a good look at
+[swift-mutation-testing](https://github.com/ericodx/swift-mutation-testing) too. It isn't a fork
+of Muter, and it's actively maintained: in October 2026 it had a new release most weeks, and each
+of the four issues this project's maintainer reported to it
+([#125](https://github.com/ericodx/swift-mutation-testing/issues/125),
+[#135](https://github.com/ericodx/swift-mutation-testing/issues/135),
+[#187](https://github.com/ericodx/swift-mutation-testing/issues/187),
+[#188](https://github.com/ericodx/swift-mutation-testing/issues/188)) was closed within about a
+day, three of them with a fix. It has things SwiftMutator doesn't, among them:
+
+- a check, as each mutant is tested, that its code actually ran. A mutant no test reaches is
+  reported as "no coverage" and counts against the score, and a kill whose code never ran is tested
+  again. SwiftMutator instead skips the code that one coverage run, before mutating, shows no test
+  reaching, and leaves those mutants out of its score;
+- seven mutation operators, against SwiftMutator's four. Its default run uses three of them:
+  logical operators, negated conditions and swapped ternaries. So by default it doesn't replace
+  relational operators, as in `==` becoming `!=`, or remove calls, which SwiftMutator does;
+  `--operator-tier experimental` runs all seven;
+- on SwiftPM packages, recovery from mutants that don't compile, without giving up its shared
+  build;
+- a quality gate for CI: a minimum score, and no new survivors against a committed baseline;
+- SARIF, SonarQube, Markdown and Stryker-compatible JSON reports.
+
+SwiftMutator differs in how it keeps tests apart. Each of its workers tests in its own full
+copy of the project, `.git` included. swift-mutation-testing tests in a sandbox whose unchanged
+files are links to your project's files, so a test that rewrites one in place, such as a fixture,
+changes your project, and a test that runs `git` can fail. On a package, its workers share that
+sandbox, so tests that write files there at fixed paths can give false kills. In both tools,
+workers share the temporary directory and `UserDefaults`
+([#92](https://github.com/Joseph-Cursio/SwiftMutator/issues/92)).
+
+swift-mutation-testing needs macOS 15 or later, and installs with Homebrew.
+[Docs/smt-trial-2026-10.md](Docs/smt-trial-2026-10.md) compares the two tools as they were on
+21 October 2026, on two packages. On the mutants both made, they gave the same verdict 97% of the
+time. On the larger package, SwiftMutator was 6.6 times as fast, mostly because
+swift-mutation-testing built 918 of its mutants one at a time; its v1.6.4, of 27 October, builds
+fewer that way. On the small package, swift-mutation-testing was faster.
+
+## Why a fork of Muter
 
 Muter's last release is 16 (September 2023). On current toolchains its `main` branch reports a
 0% score for SwiftPM projects ([muter#307](https://github.com/muter-mutation-testing/muter/issues/307)),
