@@ -81,19 +81,22 @@ final class RunEvents: @unchecked Sendable { // `observers` and `nextObserver` a
         lock.withLock { observers.removeAll { $0.key == key } }
     }
 
-    /// An observer's registration. Cancelling it, or letting it go, stops the observer's events.
-    final class Subscription {
-        private let cancelling: () -> Void
+    /// An observer's registration. Cancelling it, from any thread, or letting it go, stops the observer's events.
+    final class Subscription: @unchecked Sendable { // `isCancelled` is behind `lock`
+        private let lock = NSLock()
+        private let cancelling: @Sendable () -> Void
         private var isCancelled = false
 
-        fileprivate init(cancelling: @escaping () -> Void) {
+        fileprivate init(cancelling: @escaping @Sendable () -> Void) {
             self.cancelling = cancelling
         }
 
         func cancel() {
-            guard !isCancelled else { return }
-            isCancelled = true
-            cancelling()
+            let cancelsNow = lock.withLock {
+                defer { isCancelled = true }
+                return !isCancelled
+            }
+            if cancelsNow { cancelling() }
         }
 
         deinit {
