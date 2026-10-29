@@ -66,8 +66,6 @@ final class ScriptedProcessSpy: MuterProcess, @unchecked Sendable { // shared st
         }
     }
 
-    func waitUntilExit() {}
-
     /// Plays the script until it ends or the process is killed.
     private func play() {
         for step in script {

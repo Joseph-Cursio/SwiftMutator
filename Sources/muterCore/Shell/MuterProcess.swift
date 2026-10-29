@@ -40,9 +40,9 @@ protocol MuterProcess: AnyObject {
     /// every process it started, and the result says it timed out. Waiting for it holds no thread.
     func runCommand(url: String, arguments args: [String], timeLimit: TimeInterval?) async -> CommandResult?
 
+    /// Starts the process. Its `terminationHandler`, set before, says when it has exited: there is no
+    /// `waitUntilExit()`, which would hold a thread of Swift concurrency's pool until then.
     func run() throws
-
-    func waitUntilExit()
 
     func terminate()
 

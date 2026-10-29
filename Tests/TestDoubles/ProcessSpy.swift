@@ -40,7 +40,6 @@ final class ProcessSpy: MuterProcess {
     /// What the process writes to its `standardOutput` before it exits, such as a test command's log.
     /// Separate from `stdoutToBeReturned`, which is what `runProcess` returns.
     var outputWrittenBeforeExit = Data()
-    func waitUntilExit() {}
 
     /// Each process `runProcess` was asked for, its executable first, in order.
     private(set) var processesRun: [[String]] = []
