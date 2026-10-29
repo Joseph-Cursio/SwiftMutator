@@ -15,8 +15,8 @@ enum MutationSwitch {
             return originalSyntax
         }
 
-        var schemata = mutationSchemata
-        let firstSchema = schemata.removeFirst()
+        var mutants = Array(zip(mutationSchemata, branches(switchingOn: mutationSchemata, of: originalSyntax)))
+        let (firstSchema, firstStatements) = mutants.removeFirst()
 
         var previousElseBody = IfExprSyntax.ElseBody(
             CodeBlockSyntax(
@@ -29,7 +29,7 @@ enum MutationSwitch {
             )
         )
 
-        for schema in schemata {
+        for (schema, statements) in mutants {
             let elseBody = IfExprSyntax.ElseBody(
                 IfExprSyntax(
                     ifKeyword: .keyword(.if)
@@ -40,10 +40,10 @@ enum MutationSwitch {
                         readingFrom: environmentCacheName
                     ),
                     body: CodeBlockSyntax(
-                        statements: schema.syntaxMutation,
+                        statements: statements,
                         rightBrace: closingBrace(
-                            of: schema.syntaxMutation,
-                            indentedLike: schema.syntaxMutation,
+                            of: statements,
+                            indentedLike: statements,
                             onALineStartingWith: firstLineStart()
                         )
                     ),
@@ -66,9 +66,9 @@ enum MutationSwitch {
                 readingFrom: environmentCacheName
             ),
             body: CodeBlockSyntax(
-                statements: firstSchema.syntaxMutation,
+                statements: firstStatements,
                 rightBrace: closingBrace(
-                    of: firstSchema.syntaxMutation,
+                    of: firstStatements,
                     indentedLike: originalSyntax,
                     onALineStartingWith: firstLineStart()
                 )
@@ -102,6 +102,42 @@ enum MutationSwitch {
         }
         let text = textBefore.reversed().joined()
         return startOfLastLine(in: text) ?? startOfLastLine(in: "\n" + text) ?? .newline
+    }
+
+    /// The statements of each mutant's branch: its copy of `original`, without the copy's `#sourceLocation`
+    /// directives.
+    ///
+    /// Each mutant's branch holds a copy of the list and the original's branch holds the list, so the compiler
+    /// read each of the list's directives once per branch. It takes a directive that opens a location again, but
+    /// not a `#sourceLocation()` that closes one when none is open: after the first branch closed it, every later
+    /// branch failed to compile, the original's among them, which fails the build every mutant shares. Without
+    /// the copies' directives the compiler reads the list's directives once, in the original's branch, which
+    /// starts in the location the original does. Code after a dropped directive in a mutant's branch takes the
+    /// location in effect where the switch starts, so `#fileID` or `#line` there can differ from the original's.
+    ///
+    /// A mutant that removes a statement removes the directives in it, so `original` tells which there are.
+    /// swift-syntax parses a directive in an `#if` clause of a type's members as unexpected text, which a copy
+    /// can't drop. Dropping the others could leave it closing a location none opens, so then every copy keeps
+    /// its directives, as before.
+    private static func branches(
+        switchingOn schemata: MutationSchemata,
+        of original: CodeBlockItemListSyntax
+    ) -> [CodeBlockItemListSyntax] {
+        let copies = schemata.map(\.syntaxMutation)
+        let directives = original.tokens(viewMode: .sourceAccurate).filter { $0.tokenKind == .poundSourceLocation }
+        guard !directives.isEmpty, directives.allSatisfy(startsAStatementOrMember) else {
+            return copies
+        }
+        return copies.map { SourceLocationRemover().rewrite($0).cast(CodeBlockItemListSyntax.self) }
+    }
+
+    /// Whether the `#sourceLocation` token `directive` starts a statement or a member, which `SourceLocationRemover`
+    /// can drop.
+    private static func startsAStatementOrMember(_ directive: TokenSyntax) -> Bool {
+        guard let parent = directive.parent?.as(PoundSourceLocationSyntax.self)?.parent else {
+            return false
+        }
+        return parent.is(CodeBlockItemSyntax.self) || parent.is(MemberBlockItemSyntax.self)
     }
 
     /// The `}` that closes a branch holding `statements`, with the leading trivia of `original`.
@@ -256,5 +292,59 @@ enum MutationSwitch {
                 trailingComma: nil
             ),
         ])
+    }
+}
+
+/// Drops the `#sourceLocation` directives of a mutant's copy of a statement list, at any depth: from its
+/// statement lists, a `case` body's among them, and from the member lists of the types it declares.
+private final class SourceLocationRemover: SyntaxRewriter {
+    override func visit(_ node: CodeBlockItemListSyntax) -> CodeBlockItemListSyntax {
+        super.visit(Self.dropping(from: node) { $0.item.is(PoundSourceLocationSyntax.self) })
+    }
+
+    override func visit(_ node: MemberBlockItemListSyntax) -> MemberBlockItemListSyntax {
+        super.visit(Self.dropping(from: node) { $0.decl.is(PoundSourceLocationSyntax.self) })
+    }
+
+    /// A `case` that held nothing but directives compiles, though one with no statement doesn't. `do {}` does
+    /// nothing, as the `case` did, and unlike `break` it compiles in a result builder too. It takes the
+    /// directives' place and their trivia, so a `//` comment on the `case` line ends before it.
+    override func visit(_ node: SwitchCaseSyntax) -> SwitchCaseSyntax {
+        let directives = node.statements
+        guard let first = directives.first, directives.allSatisfy({ $0.item.is(PoundSourceLocationSyntax.self) }) else {
+            return super.visit(node)
+        }
+        let after = directives.dropFirst().reduce(first.trailingTrivia) { $0 + $1.leadingTrivia + $1.trailingTrivia }
+        let doNothing = DoStmtSyntax(
+            doKeyword: .keyword(.do, leadingTrivia: first.leadingTrivia, trailingTrivia: .space),
+            body: CodeBlockSyntax(statements: [], rightBrace: .rightBraceToken(trailingTrivia: after))
+        )
+        return super.visit(node.with(\.statements, [CodeBlockItemSyntax(item: .stmt(StmtSyntax(doNothing)))]))
+    }
+
+    /// `list` without the directives `isDirective` picks. Each directive's trivia goes to the element after it, or
+    /// to the one before it at the end of the list, so the lines and comments stay as they were: a block comment
+    /// after a directive can run onto the next line, and code can follow it there.
+    private static func dropping<List: SyntaxCollection>(
+        from list: List,
+        directives isDirective: (List.Element) -> Bool
+    ) -> List {
+        guard list.contains(where: isDirective) else {
+            return list
+        }
+        var kept: [List.Element] = []
+        var trivia = Trivia()
+        for element in list {
+            if isDirective(element) {
+                trivia += element.leadingTrivia + element.trailingTrivia
+            } else {
+                kept.append(trivia.isEmpty ? element : element.with(\.leadingTrivia, trivia + element.leadingTrivia))
+                trivia = []
+            }
+        }
+        if !trivia.isEmpty, let last = kept.popLast() {
+            kept.append(last.with(\.trailingTrivia, last.trailingTrivia + trivia))
+        }
+        return List(kept)
     }
 }
