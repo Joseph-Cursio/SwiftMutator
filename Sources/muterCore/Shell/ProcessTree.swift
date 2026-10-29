@@ -64,7 +64,8 @@ enum ProcessTree {
     }
 
     /// SIGKILLs every process SwiftMutator started, and every process those started, but not SwiftMutator:
-    /// for a run that is stopping, whose blocking steps (coverage, `cp`, `find`, `which`) no cancellation reaches.
+    /// for a run that is stopping, whose steps' commands (coverage, `cp`, `find`, `which`) no cancellation reaches,
+    /// as waiting for a command ignores cancellation.
     static func killDescendantsOfThisProcess() {
         terminateDescendants(of: getpid(), descendants: descendants(of:)) { pid, signal in
             kill(pid, signal)
