@@ -14,7 +14,7 @@ protocol ResultsRecording: AnyObject {
 }
 
 /// Makes a run's results file.
-protocol ResultsFileOpening {
+protocol ResultsFileOpening: Sendable {
     /// A new file in `directory`: `results.jsonl`, or `results-2.jsonl` … `results-99.jsonl` if the folder has one
     /// already. Never an existing file.
     func create(in directory: String) throws -> ResultsRecording

@@ -1,6 +1,6 @@
 import Foundation
 
-public protocol FileSystemManager {
+public protocol FileSystemManager: Sendable {
     var currentDirectoryPath: String { get }
     var temporaryDirectory: URL { get }
     var delegate: FileManagerDelegate? { get set }
@@ -36,6 +36,10 @@ public protocol FileSystemManager {
 
     func contents(atPath path: String, sortedByDate order: ComparisonResult) throws -> [String]
 }
+
+/// Foundation documents the shared FileManager, the only one SwiftMutator uses, as safe to call from any thread. Its
+/// delegate is the exception, which the project copy sets for the length of the copy, before any worker starts.
+extension FileManager: @retroactive @unchecked Sendable {}
 
 extension FileManager: FileSystemManager {
     public func contents(

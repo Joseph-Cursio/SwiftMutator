@@ -13,7 +13,7 @@ final class MutationTestObserver {
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
     @Dependency(\.flushStandardOut)
-    private var flushStdOut: () -> Void
+    private var flushStdOut: Flush
     @Dependency(\.events)
     private var events: RunEvents
     @Dependency(\.commandLineArguments)

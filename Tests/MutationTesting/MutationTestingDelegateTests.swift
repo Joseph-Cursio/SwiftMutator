@@ -17,7 +17,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
     }
 
     func test_testProcessForXcodeBuild() async throws {
-        current.process = MuterProcessFactory.makeProcess
+        current.process = { MuterProcessFactory.makeProcess() }
 
         let configuration = MuterConfiguration(
             executable: "/tmp/xcodebuild",
@@ -50,7 +50,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
     }
 
     func test_testProcessForSwiftBuild() async throws {
-        current.process = MuterProcessFactory.makeProcess
+        current.process = { MuterProcessFactory.makeProcess() }
 
         let configuration = MuterConfiguration(
             executable: "/tmp/swift",
@@ -90,7 +90,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
     // variable of each mutant's own made every run recompile every manifest. A worker's runs, its baseline
     // included, get one environment, whether or not they stop at their first failed test.
     func test_swiftTest_baselineAndEveryMutantGetTheSameEnvironment() async throws {
-        current.process = MuterProcessFactory.makeProcess
+        current.process = { MuterProcessFactory.makeProcess() }
         let mutantA = try MutationSchema.make(filePath: "/path/Sample.swift", position: .init(line: 1))
         let mutantB = try MutationSchema.make(filePath: "/path/Other.swift", position: .init(line: 2))
 
@@ -135,7 +135,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
     // A baseline names the file too, empty, so tests that can't read it fail the baseline rather than let every
     // mutant survive.
     func test_swiftTest_aBaselineNamesNoMutant() async throws {
-        current.process = MuterProcessFactory.makeProcess
+        current.process = { MuterProcessFactory.makeProcess() }
         let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"])
 
         let testProcess = try await sut.testProcess(
@@ -152,7 +152,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
     // Workers test mutants at once, each in its own folder, so each names its mutant in a file of its own.
     func test_swiftTest_eachWorkerHasItsOwnActiveMutantFile() async throws {
-        current.process = MuterProcessFactory.makeProcess
+        current.process = { MuterProcessFactory.makeProcess() }
         let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"])
         let schemata = try MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1))
 
@@ -174,7 +174,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
     // A worker's folder is a whole copy of the project, `.git` included, so a test that lists the package's hidden
     // files, or needs a clean `git status`, would see a file written in it.
     func test_swiftTest_theActiveMutantFileIsBesideTheWorkersFolder_neverInIt() async throws {
-        current.process = MuterProcessFactory.makeProcess
+        current.process = { MuterProcessFactory.makeProcess() }
         let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"])
 
         for folder in [nil, URL(fileURLWithPath: "/runs/p_mutated_worker1")] {
@@ -197,7 +197,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
     // A wrapper script counts as `swift test` with `buildSystem: swift`, and its runs switch mutants on as it does.
     func test_aWrapperDeclaredSwiftUsesTheActiveMutantFile() async throws {
-        current.process = MuterProcessFactory.makeProcess
+        current.process = { MuterProcessFactory.makeProcess() }
         let configuration = MuterConfiguration(executable: "/tmp/run-tests.sh", arguments: ["test"], buildSystem: .swift)
         let schemata = try MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1))
 
@@ -217,7 +217,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
     // SwiftMutator can't tell whether a wrapper's tests can read a file on this machine: it may run them in
     // Docker or over ssh. xcodebuild passes variables on to a simulator's test host.
     func test_otherTestCommands_stillSwitchTheMutantOnThroughItsOwnVariable() async throws {
-        current.process = MuterProcessFactory.makeProcess
+        current.process = { MuterProcessFactory.makeProcess() }
         let schemata = try MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1))
 
         for executable in ["/tmp/xcodebuild", "/tmp/run-tests.sh"] {

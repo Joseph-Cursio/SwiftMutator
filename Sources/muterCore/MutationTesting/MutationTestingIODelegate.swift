@@ -3,7 +3,7 @@ import Foundation
 // A pure-Swift async injection seam (an I/O *dependency*), not an Objective-C delegate, so the
 // `class_delegate_protocol` expectation of a `class`/`@objc`-based protocol does not apply here.
 // swiftlint:disable:next class_delegate_protocol
-protocol MutationTestingIODelegate {
+protocol MutationTestingIODelegate: Sendable {
     /// Runs the test command with `schemata` switched on. Its output goes to `fileName`, a path relative to the
     /// current directory or an absolute one, whose folder is made if need be. The file is removed once its log has
     /// been read back, so only a run stopped before that leaves it.

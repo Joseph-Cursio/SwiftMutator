@@ -20,7 +20,7 @@ final class MutantActivationProcessTests: MuterTestCase {
     func test_aWorkersBaselineAndMutantsShareOneEnvironment_andEachReadsItsOwnMutant() async throws {
         // MuterTestCase.setUp() replaces `current` after setUpWithError(), so these are set here. The
         // active-mutant file is written for real, beside the worker's folder, which is inside this test's folder.
-        current.process = MuterProcessFactory.makeProcess
+        current.process = { MuterProcessFactory.makeProcess() }
         current.writeFile = World().writeFile
         current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
 

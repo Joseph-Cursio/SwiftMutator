@@ -4,7 +4,7 @@ import FoundationNetworking
 import Foundation
 import Version
 
-protocol Server {
+protocol Server: Sendable {
     func data(from url: URL) async throws -> (Data, URLResponse)
 }
 

@@ -1,7 +1,8 @@
 import Foundation
 @testable import muterCore
 
-final class ProcessSpy: MuterProcess {
+// A test sets it up, then the code under test uses it from one task at a time, so it needs no lock.
+final class ProcessSpy: MuterProcess, @unchecked Sendable {
     var processIdentifier: Int32 { 0 }
     var terminationStatus: Int32 = 0
     var terminationReason: Foundation.Process.TerminationReason = .exit

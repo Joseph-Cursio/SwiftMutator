@@ -13,23 +13,23 @@ typealias PreparedSourceCode = (
     source: SourceCodeInfo,
     changes: MutationSourceCodePreparationChange
 )
-typealias SourceCodePreparation = (String) -> PreparedSourceCode?
-typealias ProcessFactory = () -> Process
-typealias Flush = () -> Void
-typealias Printer = (String) -> Void
-typealias WriteFile = (String, String) throws -> Void
-typealias LoadSourceCode = (String) -> SourceCodeInfo?
-typealias ProjectCoverage = (BuildSystem) -> BuildSystemCoverage?
-typealias Now = () -> Date
-typealias Instant = () -> DispatchTime
-typealias TestingTimeoutExecutorFactory = () -> TestingTimeoutExecution
-typealias ProvenanceProbe = (MuterConfiguration) async -> Provenance
+typealias SourceCodePreparation = @Sendable (String) -> PreparedSourceCode?
+typealias ProcessFactory = @Sendable () -> Process
+typealias Flush = @Sendable () -> Void
+typealias Printer = @Sendable (String) -> Void
+typealias WriteFile = @Sendable (String, String) throws -> Void
+typealias LoadSourceCode = @Sendable (String) -> SourceCodeInfo?
+typealias ProjectCoverage = @Sendable (BuildSystem) -> BuildSystemCoverage?
+typealias Now = @Sendable () -> Date
+typealias Instant = @Sendable () -> DispatchTime
+typealias TestingTimeoutExecutorFactory = @Sendable () -> TestingTimeoutExecution
+typealias ProvenanceProbe = @Sendable (MuterConfiguration) async -> Provenance
 /// The files in a project, relative to it, or nil if it can't list them.
-typealias ProjectFileListing = (URL) async -> [String]?
+typealias ProjectFileListing = @Sendable (URL) async -> [String]?
 /// Waits that many nanoseconds, or throws a CancellationError once the task is cancelled.
-typealias Sleep = (UInt64) async throws -> Void
+typealias Sleep = @Sendable (UInt64) async throws -> Void
 
-struct World {
+struct World: Sendable {
     /// What happens during the run, for its observer to report.
     var events = RunEvents()
     var fileManager: FileSystemManager = FileManager.default
@@ -47,20 +47,20 @@ struct World {
     )
 
     var ioDelegate: MutationTestingIODelegate = MutationTestingDelegate()
-    var process: ProcessFactory = MuterProcessFactory.makeProcess
-    var prepareCode: SourceCodePreparation = PrepareSourceCode().prepareSourceCode
+    var process: ProcessFactory = { MuterProcessFactory.makeProcess() }
+    var prepareCode: SourceCodePreparation = { PrepareSourceCode().prepareSourceCode($0) }
     var writeFile: WriteFile = { try $0.write(toFile: $1, atomically: true, encoding: .utf8) }
     var loadSourceCode: LoadSourceCode = { sourceCode(fromFileAt: $0) }
-    var projectCoverage: ProjectCoverage = BuildSystem.coverage
+    var projectCoverage: ProjectCoverage = { BuildSystem.coverage(for: $0) }
     var server: Server = URLSession.shared
-    var now: Now = Date.init
+    var now: Now = { Date() }
     /// The monotonic clock, which stands still while SwiftMutator is suspended (`suspensions`).
     var instant: Instant = { current.suspensions.instant }
     var testingTimeOutExecutor: TestingTimeoutExecutorFactory = { TestingTimeoutExecutor() }
     var provenance: ProvenanceProbe = { await Provenance.probe($0) }
     var resultsFiles: ResultsFileOpening = ResultsFile.Opener()
     var mutatedProjectLocker: MutatedProjectLocking = MutatedProjectLock.Locker()
-    var listProjectFiles: ProjectFileListing = GitFileListing.list(in:)
+    var listProjectFiles: ProjectFileListing = { await GitFileListing.list(in: $0) }
     /// SwiftMutator's command-line arguments, after the executable: what a results file's header records, and what the
     /// command that continues a stopped run repeats.
     var commandLineArguments: [String] = Array(CommandLine.arguments.dropFirst())

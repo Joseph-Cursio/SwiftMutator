@@ -1,7 +1,8 @@
 import Foundation
 @testable import muterCore
 
-class FileManagerSpy: Spy, FileSystemManager {
+// A test sets it up, then the code under test uses it from one task at a time, so it needs no lock.
+final class FileManagerSpy: Spy, FileSystemManager, @unchecked Sendable {
 
     private(set) var methodCalls: [String] = []
     private(set) var paths: [String] = []

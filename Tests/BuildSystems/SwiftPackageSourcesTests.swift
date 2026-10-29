@@ -324,7 +324,7 @@ final class SwiftPackageSourcesTests: MuterTestCase {
         let files = await SwiftPackageSources.files(
             inProjectAt: link,
             testedBy: MuterConfiguration(executable: swift, arguments: ["test"]),
-            process: MuterProcessFactory.makeProcess
+            process: { MuterProcessFactory.makeProcess() }
         )
 
         XCTAssertEqual(files, .success([
