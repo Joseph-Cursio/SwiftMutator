@@ -3,11 +3,38 @@ import FoundationNetworking
 #endif
 import Foundation
 
+/// SwiftMutator's dependencies. Steps, signal handlers, time limits and GCD queues read them from any thread, so they
+/// are behind a lock. Only tests replace them, so only a debug build can.
 #if DEBUG
-var current = World()
+var current: World {
+    get { worldBox.world }
+    set { worldBox.world = newValue }
+}
 #else
-let current = World()
+var current: World { worldBox.world }
 #endif
+
+private let worldBox = WorldBox()
+
+private final class WorldBox: @unchecked Sendable { // `stored` is behind `lock`
+    private let lock = NSLock()
+    private var stored = World()
+
+    var world: World {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
+    }
+
+    /// One dependency, without copying the whole world.
+    func read<T>(_ keyPath: KeyPath<World, T>) -> T {
+        lock.withLock { stored[keyPath: keyPath] }
+    }
+}
+
+/// `current[keyPath: keyPath]`, read under the world's lock.
+func dependency<T>(_ keyPath: KeyPath<World, T>) -> T {
+    worldBox.read(keyPath)
+}
 
 typealias PreparedSourceCode = (
     source: SourceCodeInfo,
