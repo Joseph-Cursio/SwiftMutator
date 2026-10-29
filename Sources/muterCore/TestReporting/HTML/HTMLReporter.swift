@@ -1,7 +1,7 @@
 import Foundation
 import Plot
 
-final class HTMLReporter: Reporter {
+struct HTMLReporter: Reporter {
     @Dependency(\.now)
     private var now: Now
 

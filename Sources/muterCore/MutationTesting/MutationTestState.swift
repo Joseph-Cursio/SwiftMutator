@@ -65,7 +65,7 @@ final class MutationTestState: AnyMutationTestState {
 }
 
 extension MutationTestState {
-    enum Change: Equatable {
+    enum Change: Equatable, Sendable {
         case newVersionAvaiable(String)
         case configurationParsed(MuterConfiguration)
         case projectDirectoryUrlDiscovered(URL)

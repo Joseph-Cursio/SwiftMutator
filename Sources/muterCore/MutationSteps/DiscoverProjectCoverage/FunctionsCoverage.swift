@@ -1,19 +1,22 @@
 import Foundation
 
-final class FunctionsCoverage {
+final class FunctionsCoverage: Sendable {
     /// Keyed by canonical path, since llvm-cov may spell a file's path differently from SwiftMutator.
-    private var coverage: [String: FileCoverage] = [:]
+    private let coverage: [String: FileCoverage]
 
-    private init() {}
+    private init() {
+        coverage = [:]
+    }
 
     init(from coverageData: LLVMCoverage) {
         guard let data = coverageData.data.first else {
+            coverage = [:]
             return
         }
 
         var functionsByFile: [String: [Function]] = [:]
         for function in data.functions {
-            let regions = function.regions.include(isSource)
+            let regions = function.regions.include(Self.isSource)
             guard let filename = function.filenames.first,
                   !regions.isEmpty
             else {
@@ -72,7 +75,7 @@ final class FunctionsCoverage {
 
     /// Code, or code an inactive `#if` kept out of the build. Gap and expansion regions describe whitespace and macro
     /// expansions rather than source a mutant could sit in.
-    private func isSource(_ region: Region) -> Bool {
+    private static func isSource(_ region: Region) -> Bool {
         region.kind == .code || region.kind == .skipped
     }
 
@@ -92,7 +95,7 @@ extension FunctionsCoverage: Equatable {
 }
 
 extension FunctionsCoverage: Nullable {
-    static var null: FunctionsCoverage = .init()
+    static let null: FunctionsCoverage = .init()
 }
 
 /// The regions llvm-cov reports in a file, by function, in its order: a function's first region is its whole body.

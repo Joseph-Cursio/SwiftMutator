@@ -1,8 +1,10 @@
 import Foundation
 
 /// What a resumed run carries from its results file to mutation testing. `file` stays open and locked until
-/// SwiftMutator exits or mutation testing ends it, so no other run writes to the file meanwhile.
-final class ResumeState: Equatable {
+/// SwiftMutator exits or mutation testing ends it, so no other run writes to the file meanwhile. The steps run one
+/// after another, so one step at a time uses `file`: `LoadResumeState` opens it, and mutation testing writes to it
+/// only through `TestingSession`, behind its lock, and closes it once the session is over.
+final class ResumeState: Equatable, @unchecked Sendable { // `file` is used by one step at a time
     /// The results file, found from what `--resume` named.
     let path: String
     /// The file, open to append the session to.

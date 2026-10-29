@@ -2,7 +2,7 @@ import Foundation
 
 extension MuterConfiguration {
     /// Tried in order. The last makes a configuration from anything.
-    private static let generators: [([URL]) async -> MuterConfiguration?] = [
+    private static let generators: [@Sendable ([URL]) async -> MuterConfiguration?] = [
         generateXcodeProjectConfiguration,
         generateXcodeWorkspaceConfiguration,
         generateSPMConfiguration,

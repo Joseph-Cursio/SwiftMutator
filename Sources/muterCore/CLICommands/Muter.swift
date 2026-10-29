@@ -1,7 +1,7 @@
 import ArgumentParser
 
 struct MuterCommand: AsyncParsableCommand {
-    static var configuration = CommandConfiguration(
+    static let configuration = CommandConfiguration(
         commandName: "swift-mutator",
         abstract: "🔎 Automated mutation testing for Swift, based on Muter 🕳️",
         version: version,

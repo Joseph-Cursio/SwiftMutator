@@ -172,7 +172,7 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         ioDelegate.whileRunningTestsWithoutBuilding = { withUnsafeCurrentTask { $0?.cancel() } }
         let sent = recordEvents(named: [.mutationTestingEndedEarly])
 
-        let result = await Task { [sut, state] in try await sut.run(with: state) }.result
+        let result = await sut.runInItsOwnTask(with: state)
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         XCTAssertEqual(sent().count, 0)
@@ -528,7 +528,7 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
             if let earlyEnd = event.object as? EarlyEnd { earlyEnds.append(earlyEnd) }
         }
 
-        let result = await Task { [sut, state] in try await sut.run(with: state) }.result
+        let result = await sut.runInItsOwnTask(with: state)
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         let earlyEnd = try XCTUnwrap(earlyEnds.first)
@@ -572,7 +572,7 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
             if let earlyEnd = event.object as? EarlyEnd { earlyEnds.append(earlyEnd) }
         }
 
-        let result = await Task { [sut, state] in try await sut.run(with: state) }.result
+        let result = await sut.runInItsOwnTask(with: state)
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         let end = try XCTUnwrap(resultsFiles.records(ResultsEnd.self).first)

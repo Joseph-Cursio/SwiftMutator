@@ -2,12 +2,15 @@ import Foundation
 
 /// Runs work in a task of its own that `cancel()` cancels from anywhere. From a task group's child task, such as a
 /// worker clone's build, `withUnsafeCurrentTask` would cancel only that child.
-final class CancellableTask<Success>: @unchecked Sendable { // `task` is behind `lock`
+final class CancellableTask<Success: Sendable>: @unchecked Sendable { // `task` is behind `lock`
     private let lock = NSLock()
     private let started = DispatchSemaphore(value: 0)
     private var task: Task<Success, Error>?
 
+    /// Returns only once the task has ended, however it ends, so `work`, and what it holds, is used only by the task
+    /// while the caller waits.
     func run(_ work: @escaping () async throws -> Success) async -> Result<Success, Error> {
+        nonisolated(unsafe) let work = work // only the task calls it, while `run` waits
         let task = Task { try await work() }
         lock.withLock { self.task = task }
         started.signal()

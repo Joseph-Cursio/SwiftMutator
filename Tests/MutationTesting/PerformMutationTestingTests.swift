@@ -624,7 +624,7 @@ final class PerformMutationTestingTests: MuterTestCase {
 
     /// Runs mutation testing in a task of its own, so a test that cancels it mid-run doesn't cancel itself.
     private func runInItsOwnTask() async -> Result<[MutationTestState.Change], Error> {
-        await Task { [sut, state] in try await sut.run(with: state) }.result
+        await sut.runInItsOwnTask(with: state)
     }
 
     /// Cancels mutation testing when it sends `name`, from the task that sends it.

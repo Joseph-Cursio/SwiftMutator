@@ -367,7 +367,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
             if number == 1 { withUnsafeCurrentTask { $0?.cancel() } }
         }
 
-        let result = await Task { [sut, state] in try await sut.run(with: state) }.result
+        let result = await sut.runInItsOwnTask(with: state)
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         XCTAssertEqual(try resultsFiles.kinds(), ["header", "mutant", "end"])
@@ -393,7 +393,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
             if let earlyEnd = event.object as? EarlyEnd { earlyEnds.append(earlyEnd) }
         }
 
-        let result = await Task { [sut, state] in try await sut.run(with: state) }.result
+        let result = await sut.runInItsOwnTask(with: state)
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         let end = try XCTUnwrap(resultsFiles.records(ResultsEnd.self).first)
@@ -497,7 +497,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         // Both mutants start at once; the run still under way when the first is recorded is not recorded.
         whenSent(.newMutationTestOutcomeAvailable) { _ in withUnsafeCurrentTask { $0?.cancel() } }
 
-        let result = await Task { [state] in try await removals.sut.run(with: state) }.result
+        let result = await removals.sut.runInItsOwnTask(with: state)
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         XCTAssertEqual(removals.kindsAtEach(), [["header", "mutant", "end"]])
@@ -520,7 +520,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         }
         whenSent(.newMutationTestOutcomeAvailable) { _ in withUnsafeCurrentTask { $0?.cancel() } }
 
-        let result = await Task { [state] in try await sut.run(with: state) }.result
+        let result = await sut.runInItsOwnTask(with: state)
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         XCTAssertEqual(events, ["early end sent after the end line", "clones removed"])

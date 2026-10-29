@@ -1,5 +1,8 @@
 @testable import muterCore
-import Rainbow
+// Rainbow predates Swift concurrency, and its settings are static vars that nothing guards: `@preconcurrency` lets
+// these tests change them unchecked. That's safe because XCTest runs these tests one at a time on the main thread, and
+// each report reads the settings on that thread as it's made.
+@preconcurrency import Rainbow
 import TestingExtensions
 import XCTest
 

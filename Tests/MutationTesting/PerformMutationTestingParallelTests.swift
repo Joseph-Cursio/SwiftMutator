@@ -440,7 +440,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         )
         ioDelegate.testSuiteOutcomes = [.passed]
 
-        let result = await Task { [state] in try await sut.run(with: state) }.result
+        let result = await sut.runInItsOwnTask(with: state)
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         XCTAssertEqual(ioDelegate.builtWorkerDirectories, [])
@@ -685,7 +685,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
 
     /// Runs mutation testing in a task of its own, so a test that cancels it mid-run doesn't cancel itself.
     private func runInItsOwnTask() async -> Result<[MutationTestState.Change], Error> {
-        await Task { [sut, state] in try await sut.run(with: state) }.result
+        await sut.runInItsOwnTask(with: state)
     }
 
     /// Cancels mutation testing whenever it sends `name`, from the task that sends it; returns how often it did.

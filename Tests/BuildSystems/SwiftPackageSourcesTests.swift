@@ -166,7 +166,7 @@ final class SwiftPackageSourcesTests: MuterTestCase {
         let files = await SwiftPackageSources.files(
             inProjectAt: "/project",
             testedBy: MuterConfiguration(executable: "/usr/bin/env", arguments: ["swift", "test"], buildSystem: .swift),
-            process: { self.process }
+            process: { [process] in process }
         )
 
         XCTAssertEqual(files, .failure(.notSwift("/usr/bin/env")))
@@ -338,7 +338,7 @@ final class SwiftPackageSourcesTests: MuterTestCase {
         await SwiftPackageSources.files(
             inProjectAt: root,
             testedBy: MuterConfiguration(executable: swift, arguments: arguments),
-            process: { self.process }
+            process: { [process] in process }
         )
     }
 

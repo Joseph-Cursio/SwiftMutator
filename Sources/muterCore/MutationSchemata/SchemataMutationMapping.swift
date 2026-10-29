@@ -27,7 +27,9 @@ struct CodeBlockKey: Hashable {
     }
 }
 
-final class SchemataMutationMapping {
+/// A file's mutants, by the code block each one rewrites. A value rather than a class, so that discovery's tasks can
+/// each build their file's and hand it back, and nothing after discovery can change one that another step holds.
+struct SchemataMutationMapping: Sendable {
     let filePath: String
     fileprivate var mappings: [CodeBlockKey: MutationSchemata]
     // Preserves the code-block text for each key so `codeBlocks` / `description` keep reporting source.
@@ -61,7 +63,7 @@ final class SchemataMutationMapping {
         URL(fileURLWithPath: filePath).lastPathComponent
     }
 
-    convenience init(
+    init(
         filePath: String = ""
     ) {
         self.init(
@@ -81,7 +83,7 @@ final class SchemataMutationMapping {
         self.codeBlockText = codeBlockText
     }
 
-    func add(
+    mutating func add(
         _ codeBlockSyntax: CodeBlockItemListSyntax,
         _ schemata: MutationSchema
     ) {
@@ -90,7 +92,7 @@ final class SchemataMutationMapping {
         mappings[key, default: []].append(schemata)
     }
 
-    func add(
+    mutating func add(
         _ codeBlockSyntax: CodeBlockItemListSyntax,
         _ schemata: MutationSchemata
     ) {
@@ -112,7 +114,7 @@ final class SchemataMutationMapping {
     /// view into `_ConditionalContent<…>` while the mutant branches keep the original type, and the
     /// shared build of every mutant fails. The nested mutants go rather than being misreported; the
     /// body's own mutants stay. `source` must be the tree the mappings were discovered in.
-    func dropNestedSchemataInOpaqueBodies(of source: SourceFileSyntax) {
+    mutating func dropNestedSchemataInOpaqueBodies(of source: SourceFileSyntax) {
         let lists = CodeBlockListCollector.lists(in: source)
         let opaqueBodies = lists.filter { mappings[CodeBlockKey($0)] != nil && $0.isOpaqueNonBuilderBody }
 
@@ -126,7 +128,7 @@ final class SchemataMutationMapping {
     }
 
     // Key-based add for merging two mappings without reconstructing a syntax node from text.
-    fileprivate func add(
+    fileprivate mutating func add(
         _ key: CodeBlockKey,
         text: String,
         _ schemata: MutationSchemata
@@ -142,7 +144,7 @@ extension SchemataMutationMapping: Codable {
         case mappings
     }
 
-    convenience init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         let schematas = try container.decode([MutationSchema].self, forKey: .mappings)
@@ -184,7 +186,7 @@ func + (
     lhs: SchemataMutationMapping,
     rhs: SchemataMutationMapping
 ) -> SchemataMutationMapping {
-    let result = SchemataMutationMapping(
+    var result = SchemataMutationMapping(
         filePath: lhs.filePath
     )
 

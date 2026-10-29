@@ -96,7 +96,9 @@ struct PerformMutationTesting: MutationStep {
         defer { resume?.file.close() }
         // Stopping at once ends SwiftMutator wherever mutation testing is, so the end line is written then: `report`
         // would otherwise take the run for one that is still running, or was killed.
-        interruption.beforeStoppingAtOnce { [self] in endResultsAtOnce(of: session) }
+        interruption.beforeStoppingAtOnce { [interruption, now] in
+            Self.endResultsAtOnce(of: session, stoppedBy: interruption, now: now)
+        }
         defer { interruption.beforeStoppingAtOnce(nil) }
 
         do {
@@ -501,7 +503,8 @@ private extension PerformMutationTesting {
                 let job = jobs[index]
                 let directory = directories[worker]
                 let fileName = testOutput(named: logFileName(forJobAt: index, job), state: state)
-                let started = group.addTaskUnlessCancelled {
+                // A worker's task is given the values and the two dependencies it uses, not the step.
+                let started = group.addTaskUnlessCancelled { [ioDelegate, instant] in
                     let launched = instant()
                     let run = await ioDelegate.runTestSuite(
                         withSchemata: job.schema,
@@ -509,7 +512,12 @@ private extension PerformMutationTesting {
                         savingResultsIntoFileNamed: fileName,
                         workingDirectory: directory
                     )
-                    return FinishedRun(index: index, worker: worker, run: run, seconds: seconds(since: launched))
+                    return FinishedRun(
+                        index: index,
+                        worker: worker,
+                        run: run,
+                        seconds: Self.seconds(from: launched, to: instant())
+                    )
                 }
                 guard started else { throw CancellationError() }
             }
@@ -548,12 +556,15 @@ private extension PerformMutationTesting {
     /// project, so the configuration isn't what's wrong. A run stopped meanwhile blames no clone:
     /// stopping kills the builds under way, which then fail.
     func buildWorkerDirectories(_ clones: [URL], using state: AnyMutationTestState) async throws {
+        let configuration = state.muterConfiguration
         let runs = await withTaskGroup(of: (worker: Int, outcome: TestSuiteOutcome, testLog: String).self) { group in
             for (index, clone) in clones.enumerated() {
-                group.addTask {
+                let fileName = testOutput(named: "baseline run worker \(index + 1)", state: state)
+                // A clone's build is given the values and the dependency it uses, not the step or the state.
+                group.addTask { [ioDelegate] in
                     let run = await ioDelegate.benchmarkTests(
-                        using: state.muterConfiguration,
-                        savingResultsIntoFileNamed: testOutput(named: "baseline run worker \(index + 1)", state: state),
+                        using: configuration,
+                        savingResultsIntoFileNamed: fileName,
                         workingDirectory: clone
                     )
                     return (index + 1, run.outcome, run.testLog)
@@ -606,7 +617,11 @@ private extension PerformMutationTesting {
 
     /// The seconds from `start` to now, on the monotonic clock.
     func seconds(since start: DispatchTime) -> TimeInterval {
-        let end = instant()
+        Self.seconds(from: start, to: instant())
+    }
+
+    /// The seconds from `start` to `end`, two readings of the monotonic clock; none if `end` is the earlier.
+    static func seconds(from start: DispatchTime, to end: DispatchTime) -> TimeInterval {
         guard end >= start else { return 0 }
         return Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000_000
     }
@@ -767,35 +782,45 @@ private extension PerformMutationTesting {
         testDuration: TimeInterval
     ) {
         let written = session.end { recorded in
-            endLine(of: session, reason, detail: detail, testDuration: testDuration, recorded: recorded)
+            Self.endLine(
+                of: session,
+                reason,
+                detail: detail,
+                testDuration: testDuration,
+                recorded: recorded,
+                endedAt: now()
+            )
         }
         sayingAFailure(written, in: session)
     }
 
     /// Writes the end line of an interrupted session, from the thread that stops SwiftMutator at once, by a second
-    /// signal, Ctrl-\ or the grace period: mutation testing never gets to write its own.
-    func endResultsAtOnce(of session: TestingSession) {
-        session.end(waitingAtMost: Self.endLineWaitAtOnce) { recorded in
+    /// signal, Ctrl-\ or the grace period: mutation testing never gets to write its own. Static, so that thread is
+    /// given the session and the two dependencies it reads, not the step.
+    static func endResultsAtOnce(of session: TestingSession, stoppedBy interruption: InterruptionRecord, now: Now) {
+        session.end(waitingAtMost: endLineWaitAtOnce) { recorded in
             endLine(
                 of: session,
                 .interrupted,
                 detail: interruption.signal.map(InterruptionRecord.name(of:)),
                 testDuration: now().timeIntervalSince(session.startedAt),
-                recorded: recorded
+                recorded: recorded,
+                endedAt: now()
             )
         }
     }
 
-    func endLine(
+    static func endLine(
         of session: TestingSession,
         _ reason: ResultsEnd.Reason,
         detail: String?,
         testDuration: TimeInterval,
-        recorded: Int
+        recorded: Int,
+        endedAt: Date
     ) -> ResultsEnd {
         ResultsEnd(
             session: session.number,
-            endedAt: now(),
+            endedAt: endedAt,
             reason: reason,
             detail: detail,
             testDurationSeconds: testDuration,

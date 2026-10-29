@@ -70,8 +70,7 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
 
     func test_whenStepSucceeds_thenSendsAnEventWithNoReason() async throws {
         state.muterConfiguration = MuterConfiguration(executable: "/path/to/swift", arguments: [])
-        let coverage = CoverageStub { .success(.make(percent: 80)) }
-        current.projectCoverage = { _ in coverage }
+        current.projectCoverage = { _ in CoverageStub { .success(.make(percent: 80)) } }
 
         let expectation = expectation(forEvent: .projectCoverageDiscoveryFinished) { $0.object == nil }
 
@@ -88,8 +87,7 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
         let results: [Result<Coverage, CoverageError>] = [.success(.make(percent: 80)), .failure(.noBuildDirectory)]
 
         for result in results {
-            let coverage = CoverageStub(output: "Test run passed\n") { result }
-            current.projectCoverage = { _ in coverage }
+            current.projectCoverage = { _ in CoverageStub(output: "Test run passed\n") { result } }
             _ = try await sut.run(with: state)
         }
 
@@ -100,13 +98,11 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
     // A state that bypasses the handler has no log folder, and a run that couldn't be started printed nothing.
     func test_withoutALogFolder_orACoverageRun_nothingIsKept() async throws {
         state.muterConfiguration = MuterConfiguration(executable: "/path/to/swift", arguments: [])
-        let ran = CoverageStub(output: "Test run passed\n") { .success(.make()) }
-        current.projectCoverage = { _ in ran }
+        current.projectCoverage = { _ in CoverageStub(output: "Test run passed\n") { .success(.make()) } }
         _ = try await sut.run(with: state)
 
         state.loggingDirectory = "/logs"
-        let didNotRun = CoverageStub(output: nil) { .failure(.couldNotRun("/path/to/swift")) }
-        current.projectCoverage = { _ in didNotRun }
+        current.projectCoverage = { _ in CoverageStub(output: nil) { .failure(.couldNotRun("/path/to/swift")) } }
         _ = try await sut.run(with: state)
 
         XCTAssertFalse(fileManager.methodCalls.contains("createFile(atPath:contents:attributes:)"))
@@ -116,8 +112,9 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
     func test_whenStepFails_whereTheOutputIsKept_isPosted() async throws {
         state.muterConfiguration = MuterConfiguration(executable: "/path/to/swift", arguments: [])
         state.loggingDirectory = "/logs"
-        let coverage = CoverageStub(output: "error: Build failed\n") { .failure(.runFailed(status: 1, error: nil)) }
-        current.projectCoverage = { _ in coverage }
+        current.projectCoverage = { _ in
+            CoverageStub(output: "error: Build failed\n") { .failure(.runFailed(status: 1, error: nil)) }
+        }
 
         let expectation = expectation(forEvent: .projectCoverageDiscoveryFinished) {
             ($0.object as? CoverageFailure) == CoverageFailure(
@@ -136,8 +133,9 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
     func test_aCoverageRunPastItsTimeLimit_goesOnWithoutCoverage() async throws {
         state.muterConfiguration = MuterConfiguration(executable: "/path/to/swift", arguments: [], buildTimeout: 900)
         state.loggingDirectory = "/logs"
-        let coverage = CoverageStub(output: "◇ Test hangs() started.\n") { .failure(.timedOut(after: 900)) }
-        current.projectCoverage = { _ in coverage }
+        current.projectCoverage = { _ in
+            CoverageStub(output: "◇ Test hangs() started.\n") { .failure(.timedOut(after: 900)) }
+        }
 
         let expectation = expectation(forEvent: .projectCoverageDiscoveryFinished) {
             ($0.object as? CoverageFailure) == CoverageFailure(
@@ -162,10 +160,11 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
             count: 1,
             firstLine: nil
         )
-        let coverage = CoverageStub(output: "✘ Test sum() recorded an issue\n") {
-            .success(.make(percent: 80, testsFailedWithCoverageOn: failedTests))
+        current.projectCoverage = { _ in
+            CoverageStub(output: "✘ Test sum() recorded an issue\n") {
+                .success(.make(percent: 80, testsFailedWithCoverageOn: failedTests))
+            }
         }
-        current.projectCoverage = { _ in coverage }
 
         let expectation = expectation(forEvent: .projectCoverageTestsFailed) {
             ($0.object as? TestsFailedWithCoverage)
@@ -180,8 +179,7 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
 
     func test_whenEveryTestPassed_noFailedTestIsSent() async throws {
         state.muterConfiguration = MuterConfiguration(executable: "/path/to/swift", arguments: [])
-        let coverage = CoverageStub { .success(.make(percent: 80)) }
-        current.projectCoverage = { _ in coverage }
+        current.projectCoverage = { _ in CoverageStub { .success(.make(percent: 80)) } }
         let failed = expectation(forEvent: .projectCoverageTestsFailed)
         failed.isInverted = true
 
@@ -198,15 +196,16 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
             executable: "/path/to/xcodebuild",
             arguments: []
         )
-        let coverage = CoverageStub {
-            withUnsafeCurrentTask { $0?.cancel() }
-            return .failure(.build)
+        current.projectCoverage = { _ in
+            CoverageStub {
+                withUnsafeCurrentTask { $0?.cancel() }
+                return .failure(.build)
+            }
         }
-        current.projectCoverage = { _ in coverage }
         let finished = expectation(forEvent: .projectCoverageDiscoveryFinished)
         finished.isInverted = true
 
-        let result = await Task { [sut, state] in try await sut.run(with: state) }.result
+        let result = await sut.runInItsOwnTask(with: state)
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         // It would have been sent before the run returned.
@@ -218,13 +217,14 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
     func test_aCancelledCoverageRun_keepsWhatItPrinted() async throws {
         state.muterConfiguration = MuterConfiguration(executable: "/path/to/swift", arguments: [])
         state.loggingDirectory = "/logs"
-        let coverage = CoverageStub(output: "◇ Test hangs() started.\n") {
-            withUnsafeCurrentTask { $0?.cancel() }
-            return .failure(.runFailed(status: 1, error: nil))
+        current.projectCoverage = { _ in
+            CoverageStub(output: "◇ Test hangs() started.\n") {
+                withUnsafeCurrentTask { $0?.cancel() }
+                return .failure(.runFailed(status: 1, error: nil))
+            }
         }
-        current.projectCoverage = { _ in coverage }
 
-        let result = await Task { [sut, state] in try await sut.run(with: state) }.result
+        let result = await sut.runInItsOwnTask(with: state)
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         XCTAssertEqual(fileManager.paths, ["/logs/coverage run.log"])

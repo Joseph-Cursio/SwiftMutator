@@ -100,7 +100,7 @@ final class ApplySchemataTests: MuterTestCase {
         let source = try sourceCode("func deep(_ value: Int) -> Bool {\n    return value > 0\n}\n")
         let function = try XCTUnwrap(source.statements.first?.item.as(FunctionDeclSyntax.self))
         let body = try XCTUnwrap(function.body).statements
-        let mapping = SchemataMutationMapping(filePath: path)
+        var mapping = SchemataMutationMapping(filePath: path)
         for index in 1 ... 5_000 {
             try mapping.add(body, .make(
                 filePath: path,

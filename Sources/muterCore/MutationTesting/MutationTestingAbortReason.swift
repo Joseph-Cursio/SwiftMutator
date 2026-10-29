@@ -1,6 +1,6 @@
 import Foundation
 
-public enum MutationTestingAbortReason: Equatable {
+public enum MutationTestingAbortReason: Equatable, Sendable {
     /// `mutatedFilePaths` are the files Muter rewrote to insert mutants. A compile error in one of
     /// them points at Muter's own rewriting rather than at the user's configuration, so the message
     /// needs them to tell the two apart.

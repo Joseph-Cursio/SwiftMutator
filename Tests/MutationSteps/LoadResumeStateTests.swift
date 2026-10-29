@@ -11,7 +11,7 @@ final class LoadResumeStateTests: MuterTestCase {
     private var project = ""
     private var logs = ""
     /// The folders the project's files were listed in.
-    private var listed: [URL] = []
+    private let listed = Locked<[URL]>([])
 
     private var resultsPath: String {
         "\(logs)/results.jsonl"
@@ -38,8 +38,8 @@ final class LoadResumeStateTests: MuterTestCase {
         // Real files: the spy's contentsOfDirectory can't tell a folder from a file, and the real opener locks them.
         current.fileManager = FileManager.default
         current.resultsFiles = ResultsFile.Opener()
-        current.listProjectFiles = { [unowned self] directory in
-            listed.append(directory)
+        current.listProjectFiles = { [listed] directory in
+            listed.change { $0.append(directory) }
             return nil
         }
     }
@@ -91,7 +91,7 @@ final class LoadResumeStateTests: MuterTestCase {
         XCTAssertEqual(loaded.provenance, .fixture)
         XCTAssertEqual(loaded.forced, [])
         XCTAssertEqual(loaded.notices, [])
-        XCTAssertEqual(listed, [state.projectDirectoryURL], "the project itself is listed: there is no copy yet")
+        XCTAssertEqual(listed.value, [state.projectDirectoryURL], "the project itself is listed: there is no copy yet")
     }
 
     // Every reason is found before the copy, so one message says all there is to fix, and the file's lock goes with it.
@@ -102,7 +102,8 @@ final class LoadResumeStateTests: MuterTestCase {
             arguments: ["test"],
             testSuiteTimeOut: 120
         )
-        current.provenance = { _ in self.provenance(toolchain: "Apple Swift version 6.5") }
+        let changed = provenance(toolchain: "Apple Swift version 6.5")
+        current.provenance = { _ in changed }
         try write(["README.md": "a changed readme"], in: project)
 
         await assertRefused(
@@ -205,12 +206,13 @@ final class LoadResumeStateTests: MuterTestCase {
     // A `swift --version` that stopping the run killed says nothing, which would read as a toolchain change.
     func test_aKilledProbe_throwsCancellation_notARefusal() async throws {
         try await writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
+        let saidNothing = provenance(toolchain: nil)
         current.provenance = { _ in
             withUnsafeCurrentTask { $0?.cancel() }
-            return self.provenance(toolchain: nil)
+            return saidNothing
         }
 
-        let result = await Task { [sut, state] in try await sut.run(with: state) }.result
+        let result = await sut.runInItsOwnTask(with: state)
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         XCTAssertNil(state.resumeState)
