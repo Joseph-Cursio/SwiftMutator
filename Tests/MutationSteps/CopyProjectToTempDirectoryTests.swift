@@ -124,10 +124,8 @@ final class CopyProjectToTempDirectoryTests: MuterTestCase {
         state.mutatedProjectDirectoryURL = URL(string: "/tmp/projectName")!
         fileManager.pathsVanishingDuringCopy = ["/some/projectName/.build/a.lock", "/some/projectName/.build/b.lock"]
         var reported: [String]?
-        let token = notificationCenter.addObserver(
-            forName: .projectCopySkippedVanishedFiles, object: nil, queue: nil
-        ) { reported = $0.object as? [String] }
-        defer { notificationCenter.removeObserver(token) }
+        let token = runEvents.observe(.projectCopySkippedVanishedFiles) { reported = $0.object as? [String] }
+        defer { token.cancel() }
 
         _ = try await sut.run(with: state)
 
@@ -138,10 +136,8 @@ final class CopyProjectToTempDirectoryTests: MuterTestCase {
         state.projectDirectoryURL = URL(string: "/some/projectName")!
         state.mutatedProjectDirectoryURL = URL(string: "/tmp/projectName")!
         var reported = false
-        let token = notificationCenter.addObserver(
-            forName: .projectCopySkippedVanishedFiles, object: nil, queue: nil
-        ) { _ in reported = true }
-        defer { notificationCenter.removeObserver(token) }
+        let token = runEvents.observe(.projectCopySkippedVanishedFiles) { _ in reported = true }
+        defer { token.cancel() }
 
         _ = try await sut.run(with: state)
 

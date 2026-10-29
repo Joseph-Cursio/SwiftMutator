@@ -363,7 +363,7 @@ final class Logger {
     }
 
     /// A mutant's result, once it is saved: its line, when standard output isn't a terminal. A resumed run's kept
-    /// results are posted before the baseline's log, which starts the lines, so only the mutants this session tests are
+    /// results are sent before the baseline's log, which starts the lines, so only the mutants this session tests are
     /// counted, as the bar counts them.
     func newMutationTestOutcomeAvailable(mutation: MutationTestOutcome.Mutation) {
         if let line = progressLines?.line(after: mutation, at: now()) {

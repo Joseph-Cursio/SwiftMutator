@@ -2,8 +2,8 @@ import Foundation
 import Pathos
 
 struct DiscoverSourceFiles: MutationStep {
-    @Dependency(\.notificationCenter)
-    private var notificationCenter: NotificationCenter
+    @Dependency(\.events)
+    private var events: RunEvents
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
     @Dependency(\.process)
@@ -14,10 +14,7 @@ struct DiscoverSourceFiles: MutationStep {
     func run(
         with state: AnyMutationTestState
     ) async throws -> [MutationTestState.Change] {
-        notificationCenter.post(
-            name: .sourceFileDiscoveryStarted,
-            object: nil
-        )
+        events.send(.sourceFileDiscoveryStarted)
 
         let sourceFileCandidates = state.filesToMutate.isEmpty
             ? discoverSourceFiles(
@@ -35,10 +32,7 @@ struct DiscoverSourceFiles: MutationStep {
             ? .noSourceFilesDiscovered
             : .noSourceFilesOnExclusiveList
 
-        notificationCenter.post(
-            name: .sourceFileDiscoveryFinished,
-            object: sourceFileCandidates
-        )
+        events.send(.sourceFileDiscoveryFinished(sourceFileCandidates))
 
         if !sourceFileCandidates.isEmpty {
             return [.sourceFileCandidatesDiscovered(sourceFileCandidates)]
@@ -81,7 +75,7 @@ private extension DiscoverSourceFiles {
             case let .failure(failure):
                 // A describe that stopping the run killed reads as failed, and no warning is due.
                 try Task.checkCancellation()
-                notificationCenter.post(name: .packageSourceFilesUnavailable, object: failure.reason)
+                events.send(.packageSourceFilesUnavailable(reason: failure.reason))
             }
         }
 

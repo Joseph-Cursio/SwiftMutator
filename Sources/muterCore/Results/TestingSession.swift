@@ -14,7 +14,7 @@ final class TestingSession: @unchecked Sendable { // `file`, `mutantLines` and `
     /// Each job's key, in job order, known before the baseline runs.
     var keys: [MutantKey] = []
     /// Whether the baseline passed, and the timed test run after it, if any, ended, so the results have started. Until
-    /// then, mutation testing that stops has nothing to report, and posts no early end: an abort says why.
+    /// then, mutation testing that stops has nothing to report, and sends no early end: an abort says why.
     var baselinePassed = false
     /// Held while a line is written to the results file: a stop at once writes the end line from another thread
     /// (`end(waitingAtMost:_:)`), between two lines, never inside one, and counts only the lines before it.

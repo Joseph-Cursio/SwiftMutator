@@ -5,8 +5,8 @@ import Foundation
 struct LoadMuterTestPlan: MutationStep {
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
-    @Dependency(\.notificationCenter)
-    private var notificationCenter: NotificationCenter
+    @Dependency(\.events)
+    private var events: RunEvents
 
     func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
         guard let testPlanPath = state.runOptions.testPlanURL?.path else {
@@ -19,7 +19,7 @@ struct LoadMuterTestPlan: MutationStep {
 
         let testPlan = try JSONDecoder().decode(MuterTestPlan.self, from: testPlanData)
 
-        notificationCenter.post(name: .muterMutationTestPlanLoaded, object: nil)
+        events.send(.muterMutationTestPlanLoaded)
 
         return [
             .tempDirectoryUrlCreated(URL(fileURLWithPath: testPlan.mutatedProjectPath)),

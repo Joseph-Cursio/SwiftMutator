@@ -1,8 +1,8 @@
 import Foundation
 
 struct CreateMuterTestPlan: MutationStep {
-    @Dependency(\.notificationCenter)
-    private var notificationCenter: NotificationCenter
+    @Dependency(\.events)
+    private var events: RunEvents
     @Dependency(\.writeFile)
     private var writeFile: WriteFile
 
@@ -28,10 +28,7 @@ struct CreateMuterTestPlan: MutationStep {
             jsonUrl.path
         )
 
-        notificationCenter.post(
-            name: .testPlanFileCreated,
-            object: jsonUrl.path
-        )
+        events.send(.testPlanFileCreated(path: jsonUrl.path))
 
         return []
     }

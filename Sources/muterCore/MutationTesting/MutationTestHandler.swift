@@ -1,8 +1,8 @@
 import Foundation
 
 final class MutationTestHandler {
-    @Dependency(\.notificationCenter)
-    private var notificationCenter
+    @Dependency(\.events)
+    private var events: RunEvents
 
     private lazy var observer: MutationTestObserver = .init(runOptions: options)
 
@@ -45,7 +45,7 @@ final class MutationTestHandler {
     }
 
     private func notifyMuterLaunched() {
-        notificationCenter.post(name: .muterLaunched, object: nil)
+        events.send(.muterLaunched)
     }
 
     private func runMutationsSteps() async throws {

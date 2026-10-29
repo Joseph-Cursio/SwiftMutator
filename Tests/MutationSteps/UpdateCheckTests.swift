@@ -13,11 +13,7 @@ final class UpdateCheckTests: MuterTestCase {
     private lazy var sut = UpdateCheck(currentVersion: currentVersion)
 
     func test_notificationStarted() async throws {
-        let expect = expectation(
-            forNotification: .updateCheckStarted,
-            object: nil,
-            notificationCenter: notificationCenter
-        )
+        let expect = expectation(forEvent: .updateCheckStarted)
 
         _ = try await sut.run(with: state)
 
@@ -36,12 +32,8 @@ final class UpdateCheckTests: MuterTestCase {
     func test_newVersionAvailable() async throws {
         server.dataToBeReturned = createReleaseJsonData("9.9.9")
 
-        let expect = expectation(
-            forNotification: .updateCheckFinished,
-            object: nil,
-            notificationCenter: notificationCenter
-        ) { notification in
-            let newVersion = notification.object as? String
+        let expect = expectation(forEvent: .updateCheckFinished) { event in
+            let newVersion = event.object as? String
             XCTAssertEqual(newVersion, "9.9.9")
             return true
         }
@@ -56,12 +48,8 @@ final class UpdateCheckTests: MuterTestCase {
     func test_noNewVersion() async throws {
         server.dataToBeReturned = createReleaseJsonData("0.0.0")
 
-        let expect = expectation(
-            forNotification: .updateCheckFinished,
-            object: nil,
-            notificationCenter: notificationCenter
-        ) { notification in
-            let newVersion = notification.object as? String
+        let expect = expectation(forEvent: .updateCheckFinished) { event in
+            let newVersion = event.object as? String
             XCTAssertNil(newVersion)
             return true
         }
@@ -77,17 +65,13 @@ final class UpdateCheckTests: MuterTestCase {
     func test_aCancelledCheck_saysNothingAboutVersions() async throws {
         server.errorToBeThrown = URLError(.cancelled)
         server.whileFetching = { withUnsafeCurrentTask { $0?.cancel() } }
-        let finished = expectation(
-            forNotification: .updateCheckFinished,
-            object: nil,
-            notificationCenter: notificationCenter
-        )
+        let finished = expectation(forEvent: .updateCheckFinished)
         finished.isInverted = true
 
         let result = await Task { [sut, state] in try await sut.run(with: state) }.result
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        // It would have been posted before the run returned.
+        // It would have been sent before the run returned.
         await fulfillment(of: [finished], timeout: 0.1)
     }
 

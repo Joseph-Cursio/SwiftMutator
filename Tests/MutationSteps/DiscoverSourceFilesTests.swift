@@ -302,10 +302,8 @@ final class DiscoverSourceFilesTests: MuterTestCase {
         let project = try makeTemporaryDirectory()
         try makeFiles(["Sources/App.swift"], in: project)
         var warnings: [String] = []
-        let observer = notificationCenter.addObserver(
-            forName: .packageSourceFilesUnavailable, object: nil, queue: nil
-        ) { warnings.append($0.object as? String ?? "") }
-        defer { notificationCenter.removeObserver(observer) }
+        let observer = runEvents.observe(.packageSourceFilesUnavailable) { warnings.append($0.object as? String ?? "") }
+        defer { observer.cancel() }
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: project, isDirectory: true)
 
         for configuration in [
@@ -347,10 +345,8 @@ final class DiscoverSourceFilesTests: MuterTestCase {
             return CommandResult(status: 9, endedBySignal: true, output: "", errors: "")
         }
         var warnings: [String] = []
-        let observer = notificationCenter.addObserver(
-            forName: .packageSourceFilesUnavailable, object: nil, queue: nil
-        ) { warnings.append($0.object as? String ?? "") }
-        defer { notificationCenter.removeObserver(observer) }
+        let observer = runEvents.observe(.packageSourceFilesUnavailable) { warnings.append($0.object as? String ?? "") }
+        defer { observer.cancel() }
         var listed = false
         current.listProjectFiles = { _ in
             listed = true
@@ -532,10 +528,8 @@ final class DiscoverSourceFilesTests: MuterTestCase {
             CommandResult(status: 1, endedBySignal: false, output: "", errors: "error: invalid manifest\n")
         }
         var warnings: [String] = []
-        let observer = notificationCenter.addObserver(
-            forName: .packageSourceFilesUnavailable, object: nil, queue: nil
-        ) { warnings.append($0.object as? String ?? "") }
-        defer { notificationCenter.removeObserver(observer) }
+        let observer = runEvents.observe(.packageSourceFilesUnavailable) { warnings.append($0.object as? String ?? "") }
+        defer { observer.cancel() }
 
         state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: project, isDirectory: true)

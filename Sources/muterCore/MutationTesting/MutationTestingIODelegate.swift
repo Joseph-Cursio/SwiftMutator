@@ -68,8 +68,6 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
     private var fileManager: FileSystemManager
     @Dependency(\.mutatedProjectLocker)
     private var mutatedProjectLocker: MutatedProjectLocking
-    @Dependency(\.notificationCenter)
-    private var notificationCenter: NotificationCenter
     @Dependency(\.process)
     private var process: ProcessFactory
     @Dependency(\.sleep)

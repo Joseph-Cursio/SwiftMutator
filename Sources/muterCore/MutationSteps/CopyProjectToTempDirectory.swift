@@ -3,8 +3,8 @@ import Foundation
 class CopyProjectToTempDirectory: MutationStep {
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
-    @Dependency(\.notificationCenter)
-    private var notificationCenter: NotificationCenter
+    @Dependency(\.events)
+    private var events: RunEvents
     @Dependency(\.process)
     private var process: ProcessFactory
 
@@ -16,10 +16,7 @@ class CopyProjectToTempDirectory: MutationStep {
         with state: AnyMutationTestState
     ) async throws -> [MutationTestState.Change] {
         do {
-            notificationCenter.post(
-                name: .projectCopyStarted,
-                object: nil
-            )
+            events.send(.projectCopyStarted)
 
             // The project is live while it is copied: build tools create and
             // delete lock and temporary files under `.build` at any moment, and
@@ -41,18 +38,12 @@ class CopyProjectToTempDirectory: MutationStep {
             }
 
             if !tolerance.skippedPaths.isEmpty {
-                notificationCenter.post(
-                    name: .projectCopySkippedVanishedFiles,
-                    object: tolerance.skippedPaths
-                )
+                events.send(.projectCopySkippedVanishedFiles(tolerance.skippedPaths))
             }
 
             await discardModuleCaches(in: state.mutatedProjectDirectoryURL)
 
-            notificationCenter.post(
-                name: .projectCopyFinished,
-                object: state.mutatedProjectDirectoryURL.path
-            )
+            events.send(.projectCopyFinished(destinationPath: state.mutatedProjectDirectoryURL.path))
 
             return []
         } catch {

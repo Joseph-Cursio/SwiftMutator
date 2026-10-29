@@ -16,7 +16,7 @@ final class MutationTestObserverTests: MuterTestCase {
     func test_flushesStdoutWhenUsingAnXcodeReporter() {
         options = .make(reportFormat: .xcode)
 
-        sut.handleNewMutationTestOutcomeAvailable(notification: .make())
+        sut.handle(.newMutationTestOutcomeAvailable(.passedMutant))
 
         XCTAssertTrue(flushStandardOut.flushHandlerWasCalled)
     }
@@ -24,7 +24,7 @@ final class MutationTestObserverTests: MuterTestCase {
     func test_doesntFlushStdoutWhenUsingAJsonReporter() {
         options = .make(reportFormat: .json)
 
-        sut.handleNewMutationTestOutcomeAvailable(notification: .make())
+        sut.handle(.newMutationTestOutcomeAvailable(.passedMutant))
 
         XCTAssertFalse(flushStandardOut.flushHandlerWasCalled)
     }
@@ -32,7 +32,7 @@ final class MutationTestObserverTests: MuterTestCase {
     func test_doesntFlushStdoutWhenUsingAPlainTextReporter() {
         options = .make(reportFormat: .plain)
 
-        sut.handleNewMutationTestOutcomeAvailable(notification: .make())
+        sut.handle(.newMutationTestOutcomeAvailable(.passedMutant))
 
         XCTAssertFalse(flushStandardOut.flushHandlerWasCalled)
     }
@@ -41,8 +41,8 @@ final class MutationTestObserverTests: MuterTestCase {
     func test_discovery_withoutVerbose_listsNothing() {
         sut.start()
 
-        notificationCenter.post(name: .sourceFileDiscoveryFinished, object: ["/p/a.swift"])
-        notificationCenter.post(name: .mutationsDiscoveryFinished, object: [SchemataMutationMapping]())
+        runEvents.send(.sourceFileDiscoveryFinished(["/p/a.swift"]))
+        runEvents.send(.mutationsDiscoveryFinished([SchemataMutationMapping]()))
 
         XCTAssertEqual(printer.linesPassed, [
             "✅ In total, SwiftMutator discovered 1 Swift files",
@@ -55,8 +55,8 @@ final class MutationTestObserverTests: MuterTestCase {
         options = .make(verbose: true)
         sut.start()
 
-        notificationCenter.post(name: .sourceFileDiscoveryFinished, object: ["/p/a.swift"])
-        notificationCenter.post(name: .mutationsDiscoveryFinished, object: [SchemataMutationMapping]())
+        runEvents.send(.sourceFileDiscoveryFinished(["/p/a.swift"]))
+        runEvents.send(.mutationsDiscoveryFinished([SchemataMutationMapping]()))
 
         XCTAssertEqual(printer.linesPassed, [
             "✅ In total, SwiftMutator discovered 1 Swift files\n\n" + "a.swift".bold,
@@ -67,7 +67,7 @@ final class MutationTestObserverTests: MuterTestCase {
     func test_whyThePackagesSourceFilesCouldntBeListed_reachesTheLogger() {
         sut.start()
 
-        notificationCenter.post(name: .packageSourceFilesUnavailable, object: "/usr/bin/swift couldn't be started")
+        runEvents.send(.packageSourceFilesUnavailable(reason: "/usr/bin/swift couldn't be started"))
 
         XCTAssertEqual(printer.linesPassed.count, 1)
         XCTAssertTrue(
@@ -82,11 +82,10 @@ final class MutationTestObserverTests: MuterTestCase {
     func test_whyCoverageFailed_reachesTheLogger() {
         sut.start()
 
-        notificationCenter.post(
-            name: .projectCoverageDiscoveryFinished,
-            object: CoverageFailure(reason: "llvm-cov failed", log: "/logs/coverage run.log")
+        runEvents.send(
+            .projectCoverageDiscoveryFinished(CoverageFailure(reason: "llvm-cov failed", log: "/logs/coverage run.log"))
         )
-        notificationCenter.post(name: .projectCoverageDiscoveryFinished, object: nil)
+        runEvents.send(.projectCoverageDiscoveryFinished(nil))
 
         XCTAssertEqual(printer.linesPassed.count, 1)
         XCTAssertTrue(
@@ -100,12 +99,11 @@ final class MutationTestObserverTests: MuterTestCase {
     func test_testsThatFailedWithCoverageOn_reachTheLogger() {
         sut.start()
 
-        notificationCenter.post(
-            name: .projectCoverageTestsFailed,
-            object: TestsFailedWithCoverage(
+        runEvents.send(
+            .projectCoverageTestsFailed(TestsFailedWithCoverage(
                 tests: .init(tests: [.init(name: "sum()", location: nil)], count: 1, firstLine: nil),
                 log: nil
-            )
+            ))
         )
 
         XCTAssertEqual(printer.linesPassed, [
@@ -124,10 +122,7 @@ final class MutationTestObserverTests: MuterTestCase {
         sut.start()
         let loggingDirectory = sut.loggingDirectory
 
-        notificationCenter.post(
-            name: .baselineTestFailed,
-            object: MutationTestLog.make(testLog: "error: no such module 'Calc'")
-        )
+        runEvents.send(.baselineTestFailed(MutationTestLog.make(testLog: "error: no such module 'Calc'")))
 
         XCTAssertTrue(loggingDirectory.hasPrefix("/project_muter_logs/"), loggingDirectory)
         XCTAssertEqual(fileManager.paths.last, "\(loggingDirectory)/baseline run.log")
@@ -146,21 +141,19 @@ final class MutationTestObserverTests: MuterTestCase {
         )
         let keptFileName = "RemoveSideEffects @ file2.swift-5-6 9c3e04a1d8f2b7e6 (#2).log"
 
-        notificationCenter.post(
-            name: .newTestLogAvailable,
-            object: MutationTestLog.make(
+        runEvents.send(
+            .newTestLogAvailable(MutationTestLog.make(
                 testLog: "Executed 3 tests, with 0 failures",
                 timePerBuildTestCycle: 1,
                 remainingMutationPointsCount: 1
-            )
+            ))
         )
-        notificationCenter.post(
-            name: .newTestLogAvailable,
-            object: MutationTestLog.make(
+        runEvents.send(
+            .newTestLogAvailable(MutationTestLog.make(
                 mutationPoint: mutationPoint,
                 testLog: "Executed 3 tests, with 1 failure",
                 keptFileName: keptFileName
-            )
+            ))
         )
 
         XCTAssertEqual(fileManager.paths.suffix(2), [
@@ -173,7 +166,7 @@ final class MutationTestObserverTests: MuterTestCase {
     func test_stopAtFirstFailureTurnedOff_isPrinted() {
         sut.start()
 
-        notificationCenter.post(name: .stopAtFirstFailureTurnedOff, object: "the reason")
+        runEvents.send(.stopAtFirstFailureTurnedOff(reason: "the reason"))
 
         XCTAssertEqual(
             printer.linesPassed.last,
@@ -184,9 +177,8 @@ final class MutationTestObserverTests: MuterTestCase {
     func test_resumePlanned_reachesTheLogger() {
         sut.start()
 
-        notificationCenter.post(
-            name: .resumePlanned,
-            object: ResumeSummary.make(path: "/logs/results.jsonl", reused: 3, toTest: 1, retestedBecause: [.buildError: 1])
+        runEvents.send(
+            .resumePlanned(ResumeSummary.make(path: "/logs/results.jsonl", reused: 3, toTest: 1, retestedBecause: [.buildError: 1]))
         )
 
         XCTAssertEqual(
@@ -196,45 +188,37 @@ final class MutationTestObserverTests: MuterTestCase {
         )
     }
 
-    // The time left is the rate since the mutants started, which the Logger only knows from this notification. Without
+    // The time left is the rate since the mutants started, which the Logger only knows from this event. Without
     // it, the bar would show its first estimate until 100%.
     func test_mutantRunsStarted_reachesTheLogger() {
         var milliseconds: UInt64 = 1_000_000
         current.instant = { DispatchTime(uptimeNanoseconds: milliseconds * 1_000_000) }
         sut.start()
-        notificationCenter.post(
-            name: .resumePlanned,
-            object: ResumeSummary.make(reused: 0, toTest: 10, retestedBecause: [.notRecorded: 10])
-        )
+        runEvents.send(.resumePlanned(ResumeSummary.make(reused: 0, toTest: 10, retestedBecause: [.notRecorded: 10])))
         // 10 mutants, 120 s each, on one worker.
-        notificationCenter.post(
-            name: .newTestLogAvailable,
-            object: MutationTestLog.make(timePerBuildTestCycle: 120, remainingMutationPointsCount: 10)
+        runEvents.send(
+            .newTestLogAvailable(MutationTestLog.make(timePerBuildTestCycle: 120, remainingMutationPointsCount: 10))
         )
 
-        notificationCenter.post(name: .mutantRunsStarted, object: nil)
+        runEvents.send(.mutantRunsStarted)
         milliseconds += 60_000
-        notificationCenter.post(name: .newTestLogAvailable, object: MutationTestLog.make(mutationPoint: .make()))
+        runEvents.send(.newTestLogAvailable(MutationTestLog.make(mutationPoint: .make())))
 
         let draw = printer.linesPassed.last { $0.contains("ETC:") } ?? ""
         // 60 s a mutant, and 9 left. The first estimate would say 20 min.
         XCTAssertTrue(draw.hasSuffix("ETC: 9 min"), draw)
     }
 
-    // Without a terminal, each mutant's result is a line of progress, which the Logger only gets from this notification.
+    // Without a terminal, each mutant's result is a line of progress, which the Logger only gets from this event.
     func test_aMutantsOutcome_reachesTheLogger_forItsLineOfProgress() {
         current.standardOutIsATerminal = false
         sut.start()
-        notificationCenter.post(
-            name: .resumePlanned,
-            object: ResumeSummary.make(reused: 0, toTest: 2, retestedBecause: [.notRecorded: 2])
-        )
-        notificationCenter.post(
-            name: .newTestLogAvailable,
-            object: MutationTestLog.make(timePerBuildTestCycle: 60, remainingMutationPointsCount: 2)
+        runEvents.send(.resumePlanned(ResumeSummary.make(reused: 0, toTest: 2, retestedBecause: [.notRecorded: 2])))
+        runEvents.send(
+            .newTestLogAvailable(MutationTestLog.make(timePerBuildTestCycle: 60, remainingMutationPointsCount: 2))
         )
 
-        notificationCenter.post(name: .newMutationTestOutcomeAvailable, object: MutationTestOutcome.Mutation.make())
+        runEvents.send(.newMutationTestOutcomeAvailable(MutationTestOutcome.Mutation.make()))
 
         let line = printer.linesPassed.last ?? ""
         XCTAssertTrue(line.hasPrefix("[02:42:00] 1 of 2 (50%) | 1 survived | "), line)
@@ -243,14 +227,14 @@ final class MutationTestObserverTests: MuterTestCase {
     func test_resultsFileCreated_isLogged_andNamedAtTheEnd() {
         sut.start()
 
-        notificationCenter.post(name: .resultsFileCreated, object: "/logs/results.jsonl")
+        runEvents.send(.resultsFileCreated(path: "/logs/results.jsonl"))
 
         XCTAssertEqual(
             printer.linesPassed.last,
             "💾 SwiftMutator saves each mutant's result as it finishes, in \("/logs/results.jsonl".bold)"
         )
 
-        notificationCenter.post(name: .mutationTestingFinished, object: MutationTestOutcome.make())
+        runEvents.send(.mutationTestingFinished(MutationTestOutcome.make()))
 
         XCTAssertEqual(printer.linesPassed.last, "💾 Each mutant's result is in \("/logs/results.jsonl".bold)")
     }
@@ -259,11 +243,8 @@ final class MutationTestObserverTests: MuterTestCase {
     func test_aResultsFileThatCouldNotBeWritten_isNotNamedAtTheEnd() {
         sut.start()
 
-        notificationCenter.post(name: .resultsFileCreated, object: "/logs/results.jsonl")
-        notificationCenter.post(
-            name: .resultsFileUnavailable,
-            object: "can't write to /logs/results.jsonl: No space left on device"
-        )
+        runEvents.send(.resultsFileCreated(path: "/logs/results.jsonl"))
+        runEvents.send(.resultsFileUnavailable(reason: "can't write to /logs/results.jsonl: No space left on device"))
 
         XCTAssertEqual(
             printer.linesPassed.last,
@@ -272,7 +253,7 @@ final class MutationTestObserverTests: MuterTestCase {
                 + "The report at the end doesn't depend on it."
         )
 
-        notificationCenter.post(name: .mutationTestingFinished, object: MutationTestOutcome.make())
+        runEvents.send(.mutationTestingFinished(MutationTestOutcome.make()))
 
         XCTAssertFalse(printer.linesPassed.contains { $0.hasPrefix("💾 Each mutant's result") }, "\(printer.linesPassed)")
     }
@@ -283,7 +264,7 @@ final class MutationTestObserverTests: MuterTestCase {
         sut.start()
         fileManager.fileExistsToReturn = [true]
 
-        notificationCenter.post(name: .mutationTestingFinished, object: outcome)
+        runEvents.send(.mutationTestingFinished(outcome))
 
         XCTAssertEqual(
             fileManager.methodCalls.suffix(3),
@@ -299,7 +280,7 @@ final class MutationTestObserverTests: MuterTestCase {
         let outcome = MutationTestOutcome.make(mutations: [.make(testSuiteOutcome: .failed), .make()])
         sut.start()
 
-        notificationCenter.post(name: .mutationTestingFinished, object: outcome)
+        runEvents.send(.mutationTestingFinished(outcome))
 
         XCTAssertFalse(
             fileManager.methodCalls.contains("createFile(atPath:contents:attributes:)"),
@@ -316,9 +297,9 @@ final class MutationTestObserverTests: MuterTestCase {
     func test_finished_passesTheSuspectWarningToTheLogger() {
         options = .make(reportURL: URL(fileURLWithPath: "/out/report.txt"))
         sut.start()
-        notificationCenter.post(name: .resultsFileCreated, object: "/logs/results.jsonl")
+        runEvents.send(.resultsFileCreated(path: "/logs/results.jsonl"))
 
-        notificationCenter.post(name: .mutationTestingFinished, object: MutationTestOutcome.withSuspectTests)
+        runEvents.send(.mutationTestingFinished(MutationTestOutcome.withSuspectTests))
 
         XCTAssertEqual(printer.linesPassed.suffix(3), [
             "📝 Report generated: \("/out/report.txt".bold)",
@@ -335,7 +316,7 @@ final class MutationTestObserverTests: MuterTestCase {
         let earlyEnd = EarlyEnd.make(tested: [.failed, .passed])
         sut.start()
 
-        notificationCenter.post(name: .mutationTestingEndedEarly, object: earlyEnd)
+        runEvents.send(.mutationTestingEndedEarly(earlyEnd))
 
         XCTAssertEqual(fileManager.paths.last, "/out/report.partial.txt")
         XCTAssertEqual(fileManager.contents, Data(PlainTextReporter().report(from: earlyEnd.outcome).utf8))
@@ -347,7 +328,7 @@ final class MutationTestObserverTests: MuterTestCase {
         let earlyEnd = EarlyEnd.make(tested: [.failed, .passed])
         sut.start()
 
-        notificationCenter.post(name: .mutationTestingEndedEarly, object: earlyEnd)
+        runEvents.send(.mutationTestingEndedEarly(earlyEnd))
 
         XCTAssertEqual(fileManager.paths.last, "/out/report.partial.json")
         let written = try JSONSerialization.jsonObject(with: XCTUnwrap(fileManager.contents)) as? NSDictionary
@@ -362,7 +343,7 @@ final class MutationTestObserverTests: MuterTestCase {
     func test_anEarlyEndWithoutARequestedReport_writesNoPartialReport() {
         sut.start()
 
-        notificationCenter.post(name: .mutationTestingEndedEarly, object: EarlyEnd.make(tested: [.failed, .passed]))
+        runEvents.send(.mutationTestingEndedEarly(EarlyEnd.make(tested: [.failed, .passed])))
 
         XCTAssertFalse(fileManager.methodCalls.contains("createFile(atPath:contents:attributes:)"))
         XCTAssertEqual(
@@ -375,7 +356,7 @@ final class MutationTestObserverTests: MuterTestCase {
         options = .make(reportURL: URL(fileURLWithPath: "/out/report.txt"))
         sut.start()
 
-        notificationCenter.post(name: .mutationTestingEndedEarly, object: EarlyEnd.make(tested: []))
+        runEvents.send(.mutationTestingEndedEarly(EarlyEnd.make(tested: [])))
 
         XCTAssertFalse(fileManager.methodCalls.contains("createFile(atPath:contents:attributes:)"))
         XCTAssertEqual(standardError.linesPassed, ["⏹ Stopped by a signal before any of 4 mutants finished."])
@@ -385,13 +366,10 @@ final class MutationTestObserverTests: MuterTestCase {
         current.commandLineArguments = ["run", "-o", "/out/report.txt"]
         options = .make(reportURL: URL(fileURLWithPath: "/out/report.txt"))
         sut.start()
-        notificationCenter.post(name: .resultsFileCreated, object: "/logs/results.jsonl")
+        runEvents.send(.resultsFileCreated(path: "/logs/results.jsonl"))
         let printedBefore = printer.linesPassed
 
-        notificationCenter.post(
-            name: .mutationTestingEndedEarly,
-            object: EarlyEnd.make(detail: "SIGINT", tested: [.failed, .passed])
-        )
+        runEvents.send(.mutationTestingEndedEarly(EarlyEnd.make(detail: "SIGINT", tested: [.failed, .passed])))
 
         XCTAssertEqual(standardError.linesPassed, [
             "⏹ Stopped by SIGINT after testing 2 of 4 mutants. Mutation score so far: 50%.",
@@ -408,9 +386,9 @@ final class MutationTestObserverTests: MuterTestCase {
         current.commandLineArguments = ["--skip-coverage", "--format", "json", "--operators", "RelationalOperatorReplacement"]
         options = .make(reportFormat: .json, mutationOperatorsList: [.ror], skipCoverage: true)
         sut.start()
-        notificationCenter.post(name: .resultsFileCreated, object: "/logs/Oct 6, 2026 at 9:12 AM/results.jsonl")
+        runEvents.send(.resultsFileCreated(path: "/logs/Oct 6, 2026 at 9:12 AM/results.jsonl"))
 
-        notificationCenter.post(name: .mutationTestingEndedEarly, object: EarlyEnd.make(tested: [.failed]))
+        runEvents.send(.mutationTestingEndedEarly(EarlyEnd.make(tested: [.failed])))
 
         XCTAssertEqual(
             standardError.linesPassed.last,
@@ -424,12 +402,9 @@ final class MutationTestObserverTests: MuterTestCase {
         current.commandLineArguments = ["run-without-mutating", "muter-mappings.json"]
         options = .make(testPlanURL: URL(fileURLWithPath: "/project/muter-mappings.json"))
         sut.start()
-        notificationCenter.post(name: .resultsFileCreated, object: "/logs/results.jsonl")
+        runEvents.send(.resultsFileCreated(path: "/logs/results.jsonl"))
 
-        notificationCenter.post(
-            name: .mutationTestingEndedEarly,
-            object: EarlyEnd.make(detail: "SIGINT", tested: [.failed, .passed])
-        )
+        runEvents.send(.mutationTestingEndedEarly(EarlyEnd.make(detail: "SIGINT", tested: [.failed, .passed])))
 
         XCTAssertEqual(standardError.linesPassed, [
             "⏹ Stopped by SIGINT after testing 2 of 4 mutants. Mutation score so far: 50%.",
@@ -441,10 +416,10 @@ final class MutationTestObserverTests: MuterTestCase {
     // The file lacks every result after the failed write.
     func test_anEarlyEnd_doesNotNameAResultsFileThatCouldNotBeWritten() {
         sut.start()
-        notificationCenter.post(name: .resultsFileCreated, object: "/logs/results.jsonl")
-        notificationCenter.post(name: .resultsFileUnavailable, object: "No space left on device")
+        runEvents.send(.resultsFileCreated(path: "/logs/results.jsonl"))
+        runEvents.send(.resultsFileUnavailable(reason: "No space left on device"))
 
-        notificationCenter.post(name: .mutationTestingEndedEarly, object: EarlyEnd.make(tested: [.failed]))
+        runEvents.send(.mutationTestingEndedEarly(EarlyEnd.make(tested: [.failed])))
 
         XCTAssertEqual(
             standardError.linesPassed,
@@ -453,20 +428,16 @@ final class MutationTestObserverTests: MuterTestCase {
     }
 }
 
-private extension Notification {
-    static func make() -> Notification {
-        Notification(
-            name: .newMutationTestOutcomeAvailable,
-            object: MutationTestOutcome.Mutation.make(
-                testSuiteOutcome: .passed,
-                point: .make(
-                    mutationOperatorId: .ror,
-                    filePath: "some/path",
-                    position: .firstPosition
-                ),
-                snapshot: .null
+private extension MutationTestOutcome.Mutation {
+    static var passedMutant: Self {
+        .make(
+            testSuiteOutcome: .passed,
+            point: .make(
+                mutationOperatorId: .ror,
+                filePath: "some/path",
+                position: .firstPosition
             ),
-            userInfo: nil
+            snapshot: .null
         )
     }
 }

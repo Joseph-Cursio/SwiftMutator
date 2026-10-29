@@ -3,8 +3,6 @@ import Foundation
 struct BuildForTesting: MutationStep {
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
-    @Dependency(\.notificationCenter)
-    private var notificationCenter: NotificationCenter
     @Dependency(\.process)
     private var process: ProcessFactory
     

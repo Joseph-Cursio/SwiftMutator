@@ -36,7 +36,8 @@ typealias ProjectFileListing = (URL) async -> [String]?
 typealias Sleep = (UInt64) async throws -> Void
 
 struct World {
-    var notificationCenter: NotificationCenter = .default
+    /// What happens during the run, for its observer to report.
+    var events = RunEvents()
     var fileManager: FileSystemManager = FileManager.default
     var flushStandardOut: Flush = { fflush(stdout) }
     var logger: Logger = .init()
