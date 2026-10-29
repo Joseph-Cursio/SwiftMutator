@@ -249,14 +249,10 @@ extension MutationTestObserver {
 
     private func writeTestLog(_ mutationTestLog: MutationTestLog) {
         _ = fileManager.createFile(
-            atPath: "\(loggingDirectory)/\(logFileName(from: mutationTestLog.mutationPoint))",
+            atPath: "\(loggingDirectory)/\(mutationTestLog.keptFileName)",
             contents: mutationTestLog.testLog.data(using: .utf8),
             attributes: nil
         )
-    }
-
-    func logFileName(from mutationPoint: MutationPoint?) -> String {
-        MutationTestLog.keptFileName(for: mutationPoint)
     }
 
     func handleResultsFileCreated(notification: Notification) {

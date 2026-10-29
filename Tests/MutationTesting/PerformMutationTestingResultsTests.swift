@@ -165,9 +165,32 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(mutants.map(\.utf8Offset), [30, 70])
         XCTAssertEqual(mutants.map(\.snapshot), schemata.map(\.snapshot))
         XCTAssertEqual(mutants.map(\.log), [
-            "RelationalOperatorReplacement @ Sum.swift-3-5.log",
-            "RelationalOperatorReplacement @ Product.swift-7-5.log",
+            "RelationalOperatorReplacement @ Sum.swift-3-5 670192af8b34c2a4.log",
+            "RelationalOperatorReplacement @ Product.swift-7-5 b1e0a12406c79b08.log",
         ])
+    }
+
+    // Two same-named files with a mutant at one place, and a mutant discovered twice at another: each keeps a log of
+    // its own, under the name its line gives.
+    func test_eachMutantKeepsALogOfItsOwn_namedByItsLine() async throws {
+        let app = try makeSchemataMapping(file: "Sources/App/Check.swift", line: 3)
+        state.mutationMapping = try [app, makeSchemataMapping(file: "Sources/Tool/Check.swift", line: 3), app]
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed, .failed]
+        let posted = recordNotifications(named: [.newTestLogAvailable])
+
+        _ = try await sut.run(with: state)
+
+        let mutants = try resultsFiles.records(MutantResult.self)
+        XCTAssertEqual(mutants.map(\.log), [
+            "RelationalOperatorReplacement @ Check.swift-3-5 24bcdd71ccc09bff.log",
+            "RelationalOperatorReplacement @ Check.swift-3-5 d7fac045dd38392a.log",
+            "RelationalOperatorReplacement @ Check.swift-3-5 24bcdd71ccc09bff (#2).log",
+        ])
+        let kept = posted()
+            .compactMap { $0.object as? MutationTestLog }
+            .filter { $0.mutationPoint != nil }
+            .map(\.keptFileName)
+        XCTAssertEqual(kept, mutants.map(\.log))
     }
 
     // The hash of the file as the copy held it before discovery rewrote it, so a later run can tell whether the
@@ -219,11 +242,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
             let schema = try XCTUnwrap(schemata.first { $0.filePath == "/project_mutated/\(mutant.path)" })
             XCTAssertEqual(mutant.utf8Offset, schema.position.utf8Offset, "\(mutant.key)")
             XCTAssertEqual(mutant.switchID, schema.id, "\(mutant.key)")
-            XCTAssertEqual(
-                mutant.log,
-                "RelationalOperatorReplacement @ File\(mutant.line).swift-\(mutant.line)-5.log",
-                "\(mutant.key)"
-            )
+            XCTAssertEqual(mutant.log, MutationTestLog.keptFileName(for: mutant.key), "\(mutant.key)")
         }
         XCTAssertEqual(Set(mutants.map(\.worker)), [0, 1])
         // Each line names the worker whose folder its mutant ran in.

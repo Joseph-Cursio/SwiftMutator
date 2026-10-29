@@ -151,6 +151,22 @@ final class ReportCommandAcceptanceTests: XCTestCase {
         XCTAssertTrue(kept.contains("baseline run.log"), "\(kept)")
     }
 
+    // The name a mutant's results line gives is the file its log was kept in, and no two mutants share one.
+    func test_eachMutantsLine_namesALogOfItsOwnThatTheFolderKept() throws {
+        let run = try runSwiftMutator(["run", "--skip-update-check", "--skip-coverage"])
+
+        XCTAssertEqual(run.status, 0, run.standardError)
+        let folder = try onlyLogFolder()
+        let lines = try contents(of: folder.appendingPathComponent("results.jsonl"))
+            .split(separator: "\n")
+            .compactMap { try JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
+        let logs = lines.filter { $0["kind"] as? String == "mutant" }.compactMap { $0["log"] as? String }
+        XCTAssertEqual(logs.count, 4, "\(lines)")
+        XCTAssertEqual(Set(logs).count, logs.count, "\(logs)")
+        let kept = Set(try FileManager.default.contentsOfDirectory(atPath: folder.path))
+        XCTAssertTrue(Set(logs).isSubset(of: kept), "\(logs) not all in \(kept)")
+    }
+
     func test_report_withoutOutputPath_printsOnlyTheReport() throws {
         let runReport = root.appendingPathComponent("run.json")
         let run = try runSwiftMutator(["run", "--skip-update-check", "--skip-coverage", "-f", "json", "-o", runReport.path])
