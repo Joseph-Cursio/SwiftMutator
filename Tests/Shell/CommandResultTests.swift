@@ -4,14 +4,14 @@ import XCTest
 /// Those with a time limit run real processes, and kill every one they start however a test ends.
 final class CommandResultTests: XCTestCase {
     private var directory: URL!
-    private var launched: [Foundation.Process] = []
+    private let launched = Locked<[Foundation.Process]>([])
 
     override func setUpWithError() throws {
         try super.setUpWithError()
 
         directory = try URL(fileURLWithPath: makeTemporaryDirectory())
         // Added after the folder's own teardown block, so it runs before that one.
-        addTeardownBlock { [unowned self] in killEveryLaunchedProcess() }
+        addTeardownBlock { [launched] in Self.killEveryLaunchedProcess(launched.value) }
     }
 
     // Through the protocol, as the coverage step runs it, so `Foundation.Process`'s own is the one run.
@@ -41,7 +41,7 @@ final class CommandResultTests: XCTestCase {
     // Standard output is read while the command runs, so one that writes more than a pipe holds still ends.
     func test_aCommand_thatWritesMuchToStandardOutput_stillEnds() async {
         let process = Foundation.Process()
-        launched.append(process)
+        launched.change { $0.append(process) }
         let result = await endingWithin(30) {
             await process.runCommand(url: "/usr/bin/head", arguments: ["-c", "1000000", "/dev/zero"])
         }
@@ -97,7 +97,7 @@ final class CommandResultTests: XCTestCase {
         XCTAssertEqual(result?.output, "started\n")
         XCTAssertEqual(result?.succeeded, false)
         let sleeper = try XCTUnwrap(pid(writtenTo: "sleeper"))
-        XCTAssertTrue(waitUntil(within: 2) { isGone(sleeper) }, "the command's child is still running")
+        XCTAssertTrue(Self.waitUntil(within: 2) { isGone(sleeper) }, "the command's child is still running")
     }
 
     func test_aCommandWithinItsTimeLimit_endsAsWithoutOne() async {
@@ -135,7 +135,7 @@ final class CommandResultTests: XCTestCase {
     private func runCommand(_ script: String, timeLimit: TimeInterval) async -> CommandResult? {
         let process = Foundation.Process()
         process.currentDirectoryURL = directory
-        launched.append(process)
+        launched.change { $0.append(process) }
         let ended = await endingWithin(10) {
             await process.runCommand(url: "/bin/sh", arguments: ["-c", script], timeLimit: timeLimit)
         }
@@ -163,7 +163,7 @@ final class CommandResultTests: XCTestCase {
     /// Kills each launched process's process group until no process is left in it. Foundation.Process
     /// starts each launched process in a group of its own, and a shell's background jobs stay in it. A
     /// group found empty is never signalled again: the system may give its ID to another process.
-    private func killEveryLaunchedProcess() {
+    private static func killEveryLaunchedProcess(_ launched: [Foundation.Process]) {
         var groups = Set(launched.map(\.processIdentifier).filter { $0 > 1 }) // kill(-1) signals everything
         let groupsEmptied = waitUntil(within: 5) {
             groups = groups.filter { kill(-$0, SIGKILL) == 0 || errno != ESRCH }
@@ -183,7 +183,7 @@ final class CommandResultTests: XCTestCase {
     }
 
     /// Polls `condition` until it holds or `timeout` seconds pass, and returns whether it held.
-    private func waitUntil(within timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
+    private static func waitUntil(within timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while !condition() {
             guard Date() < deadline else { return false }

@@ -91,7 +91,9 @@ final class MutationTestHandlerTests: MuterTestCase {
         givenThereAreNoFailuresInAnyOfItSteps()
         stepSpy1.whileRunning = { withUnsafeCurrentTask { $0?.cancel() } }
 
-        let result = await Task { [sut] in try await sut.run() }.result
+        // The test waits for the task, so until it ends only the task uses the handler, its steps and its state.
+        nonisolated(unsafe) let handler = sut
+        let result = await Task { try await handler.run() }.result
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         XCTAssertEqual(stepSpy1.methodCalls, ["run(with:)"])

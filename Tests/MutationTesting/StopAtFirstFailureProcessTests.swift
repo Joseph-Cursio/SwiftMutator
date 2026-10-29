@@ -6,8 +6,7 @@ import XCTest
 final class StopAtFirstFailureProcessTests: MuterTestCase {
     private let sut = MutationTestingDelegate()
     private var directory: URL!
-    private let lock = NSLock()
-    private var launched: [Foundation.Process] = []
+    private let launched = Locked<[Foundation.Process]>([])
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -16,7 +15,7 @@ final class StopAtFirstFailureProcessTests: MuterTestCase {
         // Test logs are written to the current directory; keep them in the folder removed afterwards.
         fileManager.currentDirectoryPathToReturn = directory.path
         // Added after the folder's own teardown block, so it runs before that one.
-        addTeardownBlock { [unowned self] in killEveryLaunchedProcess() }
+        addTeardownBlock { [launched] in Self.killEveryLaunchedProcess(launched.value) }
     }
 
     func test_aRealTestCommandIsStoppedAtItsFirstFailedTestAndLeavesNothingRunning() async throws {
@@ -34,7 +33,7 @@ final class StopAtFirstFailureProcessTests: MuterTestCase {
         XCTAssertEqual(result.outcome, .failed, result.testLog)
         XCTAssertLessThan(Date().timeIntervalSince(started), 10)
         let child = try XCTUnwrap(pid(writtenTo: "child.pid"))
-        XCTAssertTrue(waitUntil(within: 2) { isGone(child) }, "the test command's child is still running")
+        XCTAssertTrue(Self.waitUntil(within: 2) { isGone(child) }, "the test command's child is still running")
     }
 
     func test_aRealTestCommandThatPassesRunsToItsEnd() async throws {
@@ -66,7 +65,7 @@ final class StopAtFirstFailureProcessTests: MuterTestCase {
     func test_aRealRun_recordsItsTestProcessInTheMutatedProjectsLock() async throws {
         _ = try await runMutantsTests(using: testCommand(running: "exit 0"))
 
-        let pid = try XCTUnwrap(lock.withLock { launched.first }?.processIdentifier)
+        let pid = try XCTUnwrap(launched.value.first?.processIdentifier)
         XCTAssertEqual(mutatedProjectLocker.testProcesses, ["started \(pid)", "ended \(pid)"])
     }
 
@@ -98,10 +97,10 @@ final class StopAtFirstFailureProcessTests: MuterTestCase {
     private func runMutantsTests(
         using configuration: MuterConfiguration
     ) async throws -> TestRun {
-        current.process = { [unowned self] in
+        current.process = { [launched] in
             let process = MuterProcessFactory.makeProcess()
             if let launchable = process as? Foundation.Process {
-                lock.withLock { launched.append(launchable) }
+                launched.change { $0.append(launchable) }
             }
             return process
         }
@@ -122,8 +121,8 @@ final class StopAtFirstFailureProcessTests: MuterTestCase {
     /// Kills each launched process's process group until no process is left in it. Foundation.Process
     /// starts each launched process in a group of its own, and a shell's background jobs stay in it. A
     /// group found empty is never signalled again: the system may give its ID to another process.
-    private func killEveryLaunchedProcess() {
-        var groups = Set(lock.withLock { launched }.map(\.processIdentifier).filter { $0 > 1 }) // kill(-1) signals everything
+    private static func killEveryLaunchedProcess(_ launched: [Foundation.Process]) {
+        var groups = Set(launched.map(\.processIdentifier).filter { $0 > 1 }) // kill(-1) signals everything
         let groupsEmptied = waitUntil(within: 5) {
             groups = groups.filter { kill(-$0, SIGKILL) == 0 || errno != ESRCH }
             return groups.isEmpty
@@ -142,7 +141,7 @@ final class StopAtFirstFailureProcessTests: MuterTestCase {
     }
 
     /// Polls `condition` until it holds or `timeout` seconds pass, and returns whether it held.
-    private func waitUntil(within timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
+    private static func waitUntil(within timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while !condition() {
             guard Date() < deadline else { return false }

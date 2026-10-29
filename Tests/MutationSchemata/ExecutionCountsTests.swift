@@ -242,7 +242,7 @@ final class ExecutionCountsTests: XCTestCase {
             [10, 5, 11, 17, 1],
         ]
 
-        let walked = try executionCounts(in: """
+        let walked = try Self.executionCounts(in: """
         import Foundation
 
         public func first(_ xs: [Int]) -> Int {
@@ -274,7 +274,7 @@ final class ExecutionCountsTests: XCTestCase {
             [8, 6, 13, 2, 1], [8, 13, 8, 18, negative], [9, 11, 9, 16, 3], [9, 17, 11, 6, 2], [11, 6, 13, 2, 1],
         ]
 
-        let walked = try executionCounts(in: """
+        let walked = try Self.executionCounts(in: """
         import Foundation
 
         public func drain(_ n: Int, _ log: inout [String]) {
@@ -302,7 +302,7 @@ final class ExecutionCountsTests: XCTestCase {
         let finished = expectation(description: "walked")
 
         let thread = Thread {
-            _ = try? self.executionCounts(in: source, coverage: .llvmCov([[[1, 50, 3, 2, 1]]]))
+            _ = try? Self.executionCounts(in: source, coverage: .llvmCov([[[1, 50, 3, 2, 1]]]))
             finished.fulfill()
         }
         thread.stackSize = 512 * 1024
@@ -342,7 +342,7 @@ final class ExecutionCountsTests: XCTestCase {
     // A type's property whose value is a closure is made with each instance, but the count of the code that makes it
     // can read 0 though it ran, as for a struct's memberwise init: the closure was made if it was called.
     func test_aPropertysClosure_wasMadeIfItWasCalled() throws {
-        let walked = try executionCounts(in: """
+        let walked = try Self.executionCounts(in: """
         public struct Rule {
             let check: (Int) -> Bool = { $0 > 7 ? true : false }
             var name: String
@@ -357,10 +357,10 @@ final class ExecutionCountsTests: XCTestCase {
     }
 
     private func counts(in source: String, coverage: FileCoverage) throws -> [[Int]] {
-        try counts(of: executionCounts(in: source, coverage: coverage))
+        try counts(of: Self.executionCounts(in: source, coverage: coverage))
     }
 
-    private func executionCounts(in source: String, coverage: FileCoverage) throws -> ExecutionCounts {
+    private static func executionCounts(in source: String, coverage: FileCoverage) throws -> ExecutionCounts {
         let tree = Parser.parse(source: source)
         let converter = SourceLocationConverter(fileName: "/path/to/file", tree: tree)
         return ExecutionCounts(coverage: coverage, source: tree) { position in

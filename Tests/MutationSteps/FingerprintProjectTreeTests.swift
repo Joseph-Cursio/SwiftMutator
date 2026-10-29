@@ -66,7 +66,7 @@ final class FingerprintProjectTreeTests: MuterTestCase {
             return nil
         }
 
-        let result = await Task { [sut, state] in try await sut.run(with: state) }.result
+        let result = await sut.runInItsOwnTask(with: state)
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         XCTAssertNil(state.projectTree)

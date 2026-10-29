@@ -49,18 +49,17 @@ final class TestRunEndingTests: XCTestCase {
     func test_concurrentRecords_haveOneWinner() {
         let ending = TestRunEnding()
         let reasons: [TestRunEnding.Reason] = [.exited, .timedOut, .cancelled, .failedTest(line: "✘ Test a() …")]
-        let lock = NSLock()
-        var winners: [TestRunEnding.Reason] = []
+        let winners = Locked<[TestRunEnding.Reason]>([])
 
         DispatchQueue.concurrentPerform(iterations: 100) { index in
             let reason = reasons[index % reasons.count]
             if ending.record(reason) {
-                lock.withLock { winners.append(reason) }
+                winners.change { $0.append(reason) }
             }
         }
 
-        XCTAssertEqual(winners.count, 1)
-        XCTAssertEqual(ending.reason, winners.first)
+        XCTAssertEqual(winners.value.count, 1)
+        XCTAssertEqual(ending.reason, winners.value.first)
     }
 
     func test_executionResult_followsTheReason() throws {

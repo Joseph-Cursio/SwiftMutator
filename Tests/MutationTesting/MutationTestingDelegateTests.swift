@@ -676,7 +676,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
         let runsEnded = processes.indices.map { index in
             let runEnded = expectation(description: "run \(index) ended")
-            Task {
+            Task { [sut] in
                 _ = await sut.runTestSuite(
                     withSchemata: schemata,
                     using: configuration,
@@ -730,7 +730,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
         )
 
         let runEnded = expectation(description: "the run ended")
-        let run = Task {
+        let run = Task { [sut] in
             _ = await sut.runTestSuite(
                 withSchemata: schemata,
                 using: configuration,
