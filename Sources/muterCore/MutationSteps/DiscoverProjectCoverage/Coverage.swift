@@ -1,6 +1,6 @@
 import Foundation
 
-final class Coverage {
+final class Coverage: Sendable {
     let percent: Int
     let filesWithoutCoverage: [FilePath]
     let functionsCoverage: FunctionsCoverage
