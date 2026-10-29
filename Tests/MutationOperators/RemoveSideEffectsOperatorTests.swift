@@ -37,7 +37,7 @@ final class RemoveSideEffectsOperatorTests: MuterTestCase {
     private func assertMutationPositions(
         _ actual: SchemataMutationMapping,
         _ expected: [MutationPosition],
-        file: StaticString = #file,
+        file: StaticString = #filePath,
         line: UInt = #line
     ) {
         let actualSorted = actual.mutationSchemata.map(\.position).sorted()

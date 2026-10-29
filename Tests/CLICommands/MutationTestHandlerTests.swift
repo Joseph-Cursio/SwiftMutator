@@ -326,7 +326,7 @@ final class MutationTestHandlerTests: MuterTestCase {
     private func assertStepsDoesNotContain(
         _ steps: [MutationStep],
         _ step: MutationStep.Type,
-        file: StaticString = #file,
+        file: StaticString = #filePath,
         line: UInt = #line
     ) {
         XCTAssertFalse(
