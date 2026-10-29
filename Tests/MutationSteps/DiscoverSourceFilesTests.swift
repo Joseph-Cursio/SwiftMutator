@@ -270,6 +270,174 @@ final class DiscoverSourceFilesTests: MuterTestCase {
         ])
     }
 
+    // Describe is asked for only when the build system is swift, by the executable's name or by `buildSystem:`, so not
+    // even `swift` is asked when `buildSystem:` says otherwise. For any other build system the walk is no fallback, and
+    // nothing is said.
+    func test_aProjectNotTestedWithSwift_isWalked_withoutAWarning() async throws {
+        current.fileManager = FileManager.default
+        let project = try makeTemporaryDirectory()
+        try makeFiles(["Sources/App.swift"], in: project)
+        var warnings: [String] = []
+        let observer = notificationCenter.addObserver(
+            forName: .packageSourceFilesUnavailable, object: nil, queue: nil
+        ) { warnings.append($0.object as? String ?? "") }
+        defer { notificationCenter.removeObserver(observer) }
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: project, isDirectory: true)
+
+        for configuration in [
+            MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"]),
+            MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"], buildSystem: .xcodebuild),
+        ] {
+            state.muterConfiguration = configuration
+
+            let result = try await sut.run(with: state)
+
+            XCTAssertEqual(result, [.sourceFileCandidatesDiscovered(["\(project)/Sources/App.swift"])])
+        }
+        XCTAssertEqual(process.commandsRun, [])
+        XCTAssertEqual(warnings, [])
+    }
+
+    // Stopping the run kills describe, which then reads as failed: no warning is due, and the project isn't walked.
+    func test_aDescribeTheStopKilled_throwsCancellation() async throws {
+        current.fileManager = FileManager.default
+        let project = try makeTemporaryDirectory()
+        try makeFiles(["Sources/Lib/Lib.swift"], in: project)
+        process.commandResult = { _ in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return CommandResult(status: 9, endedBySignal: true, output: "", errors: "")
+        }
+        var warnings: [String] = []
+        let observer = notificationCenter.addObserver(
+            forName: .packageSourceFilesUnavailable, object: nil, queue: nil
+        ) { warnings.append($0.object as? String ?? "") }
+        defer { notificationCenter.removeObserver(observer) }
+        var listed = false
+        current.listProjectFiles = { _ in
+            listed = true
+            return nil
+        }
+
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: project, isDirectory: true)
+
+        let result = await Task { [sut, state] in try await sut.run(with: state) }.result
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(warnings, [])
+        XCTAssertFalse(listed)
+    }
+
+    // An example app's files, and a tool's in a hidden folder, are in no target, so no test could kill their mutants.
+    func test_aSwiftPMProject_onlyTheFilesItsTargetsCompile() async throws {
+        current.fileManager = FileManager.default
+        let project = try makeTemporaryDirectory()
+        try makeFiles(
+            [
+                "Sources/Lib/Lib.swift",
+                "Tests/LibTests/LibTests.swift",
+                "ExampleCode/Example.swift",
+                ".swiftinfer/Inferred.swift",
+            ],
+            in: project
+        )
+        describing(project, as: [
+            target("library", path: "Sources/Lib", sources: ["Lib.swift"]),
+            target("test", path: "Tests/LibTests", sources: ["LibTests.swift"]),
+        ])
+        let describedIn = workingDirectoriesOfDescribe()
+        let workingDirectory = FileManager.default.currentDirectoryPath
+
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: project, isDirectory: true)
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result, [.sourceFileCandidatesDiscovered(["\(project)/Sources/Lib/Lib.swift"])])
+        XCTAssertEqual(process.commandsRun, [
+            ["/usr/bin/swift", "package", "--package-path", project, "describe", "--type", "json"],
+        ])
+        // As the coverage run and the tests are.
+        XCTAssertEqual(describedIn.paths, [project.canonicalPath])
+        XCTAssertEqual(FileManager.default.currentDirectoryPath, workingDirectory)
+    }
+
+    // The tests are those of the package the test command names, not of the tools' package at the project's root.
+    func test_aSwiftPMProject_thePackageTheTestCommandNames() async throws {
+        current.fileManager = FileManager.default
+        let project = try makeTemporaryDirectory()
+        try makeFiles(["Sources/Tool/main.swift", "Packages/App/Sources/App/App.swift"], in: project)
+        describing(project + "/Packages/App", as: [target("library", path: "Sources/App", sources: ["App.swift"])])
+
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift",
+            arguments: ["test", "--package-path", "Packages/App"]
+        )
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: project, isDirectory: true)
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result, [.sourceFileCandidatesDiscovered(["\(project)/Packages/App/Sources/App/App.swift"])])
+    }
+
+    // A test helper target under `Tests` is a library, so the default list still leaves it out.
+    func test_aSwiftPMProject_theExcludeListAndCoverageStillApply() async throws {
+        current.fileManager = FileManager.default
+        let project = try makeTemporaryDirectory()
+        try makeFiles(
+            [
+                "Sources/Lib/Lib.swift",
+                "Sources/Lib/Generated.swift",
+                "Sources/Lib/Uncovered.swift",
+                "Tests/Support/Stub.swift",
+            ],
+            in: project
+        )
+        describing(project, as: [
+            target("library", path: "Sources/Lib", sources: ["Generated.swift", "Lib.swift", "Uncovered.swift"]),
+            target("library", path: "Tests/Support", sources: ["Stub.swift"]),
+        ])
+
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift",
+            arguments: ["test"],
+            excludeList: ["Generated.swift"]
+        )
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: project, isDirectory: true)
+        state.projectCoverage = Coverage.make(filesWithoutCoverage: ["Sources/Lib/Uncovered.swift"])
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result, [.sourceFileCandidatesDiscovered(["\(project)/Sources/Lib/Lib.swift"])])
+    }
+
+    func test_aSwiftPMProject_thatCantBeDescribed_everyFileInTheProject_andAWarning() async throws {
+        current.fileManager = FileManager.default
+        let project = try makeTemporaryDirectory()
+        try makeFiles(["Sources/Lib/Lib.swift", "ExampleCode/Example.swift"], in: project)
+        process.commandResult = { _ in
+            CommandResult(status: 1, endedBySignal: false, output: "", errors: "error: invalid manifest\n")
+        }
+        var warnings: [String] = []
+        let observer = notificationCenter.addObserver(
+            forName: .packageSourceFilesUnavailable, object: nil, queue: nil
+        ) { warnings.append($0.object as? String ?? "") }
+        defer { notificationCenter.removeObserver(observer) }
+
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: project, isDirectory: true)
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result, [
+            .sourceFileCandidatesDiscovered([
+                "\(project)/ExampleCode/Example.swift",
+                "\(project)/Sources/Lib/Lib.swift",
+            ]),
+        ])
+        XCTAssertEqual(warnings, ["`swift package describe` failed for \(project): error: invalid manifest"])
+    }
+
     func test_whenDoesntDiscoverFilesInProjectDirectory() async throws {
         state.mutatedProjectDirectoryURL = URL(
             fileURLWithPath: "\(filsToDiscoverPath)/Directory4",
@@ -430,6 +598,39 @@ final class DiscoverSourceFilesTests: MuterTestCase {
             )
             FileManager.default.createFile(atPath: path, contents: Data())
         }
+    }
+
+    /// Answers `swift package describe` of the package at `path` with `targets`.
+    private func describing(_ path: String, as targets: [String]) {
+        let description = """
+        {"name": "Project", "path": "\(path)", "dependencies": [], "targets": [\(targets.joined(separator: ", "))]}
+        """
+        process.commandResult = { command in
+            command.contains(path) && command.contains("describe")
+                ? CommandResult(status: 0, endedBySignal: false, output: description, errors: "")
+                : nil
+        }
+    }
+
+    /// The working directory, with its links resolved, of each describe the process spy answers, which it then
+    /// answers as before.
+    private func workingDirectoriesOfDescribe() -> WorkingDirectories {
+        let recorded = WorkingDirectories()
+        let answer = process.commandResult
+        process.commandResult = { command in
+            recorded.paths.append(FileManager.default.currentDirectoryPath.canonicalPath)
+            return answer(command)
+        }
+        return recorded
+    }
+
+    private final class WorkingDirectories {
+        var paths: [String] = []
+    }
+
+    private func target(_ type: String, path: String, sources: [String]) -> String {
+        let sources = sources.map { "\"\($0)\"" }.joined(separator: ", ")
+        return #"{"name": "Target", "type": "\#(type)", "path": "\#(path)", "sources": [\#(sources)]}"#
     }
 
     private func makeProjectWithCoveredAndUncoveredFiles(in directory: String) throws {

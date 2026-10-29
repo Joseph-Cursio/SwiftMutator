@@ -25,6 +25,9 @@ extension Notification.Name {
     static let projectCoverageTestsFailed = Notification.Name("projectCoverageTestsFailed")
 
     static let sourceFileDiscoveryStarted = Notification.Name("sourceFileDiscoveryStarted")
+    /// The object is why the Swift files a SwiftPM package's targets compile couldn't be listed, so discovery looks in
+    /// the whole project.
+    static let packageSourceFilesUnavailable = Notification.Name("packageSourceFilesUnavailable")
     static let sourceFileDiscoveryFinished = Notification.Name("sourceFileDiscoveryFinished")
 
     static let mutationsDiscoveryStarted = Notification.Name("mutationsDiscoveryStarted")
@@ -93,6 +96,7 @@ final class MutationTestObserver {
             (name: .projectCoverageTestsFailed, handler: handleProjectCoverageTestsFailed),
 
             (name: .sourceFileDiscoveryStarted, handler: handleSourceFileDiscoveryStarted),
+            (name: .packageSourceFilesUnavailable, handler: handlePackageSourceFilesUnavailable),
             (name: .sourceFileDiscoveryFinished, handler: handleSourceFileDiscoveryFinished),
 
             (name: .mutationsDiscoveryStarted, handler: handleMutationsDiscoveryStarted),
@@ -189,6 +193,10 @@ extension MutationTestObserver {
 
     func handleSourceFileDiscoveryStarted(notification: Notification) {
         logger.sourceFileDiscoveryStarted()
+    }
+
+    func handlePackageSourceFilesUnavailable(notification: Notification) {
+        (notification.object as? String).map(logger.packageSourceFilesUnavailable)
     }
 
     func handleSourceFileDiscoveryFinished(notification: Notification) {

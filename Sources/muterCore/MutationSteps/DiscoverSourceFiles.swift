@@ -6,6 +6,8 @@ struct DiscoverSourceFiles: MutationStep {
     private var notificationCenter: NotificationCenter
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
+    @Dependency(\.process)
+    private var process: ProcessFactory
 
     func run(
         with state: AnyMutationTestState
@@ -17,6 +19,7 @@ struct DiscoverSourceFiles: MutationStep {
 
         let sourceFileCandidates = state.filesToMutate.isEmpty
             ? discoverSourceFiles(
+                among: try candidatePaths(in: state),
                 inDirectoryAt: state.mutatedProjectDirectoryURL.path,
                 excludingPathsIn: state.muterConfiguration.excludeFileList,
                 ignoringFilesWithoutCoverage: state.projectCoverage.filesWithoutCoverage
@@ -64,14 +67,48 @@ private extension DiscoverSourceFiles {
         ]
     }
 
+    /// The paths in the mutated project, relative to it, that discovery picks from. For a SwiftPM project, the Swift
+    /// files its targets compile, and those of the local packages in it that it depends on, as `swift package describe`
+    /// gives them. Otherwise, or if that fails, every path in the project.
+    private func candidatePaths(in state: AnyMutationTestState) throws -> [FilePath] {
+        let rootPath = state.mutatedProjectDirectoryURL.path
+        if state.muterConfiguration.buildSystem == .swift {
+            switch packageSourceFiles(inProjectAt: rootPath, testedBy: state.muterConfiguration) {
+            case let .success(files):
+                return files
+            case let .failure(failure):
+                // A describe that stopping the run killed reads as failed, and no warning is due.
+                try Task.checkCancellation()
+                notificationCenter.post(name: .packageSourceFilesUnavailable, object: failure.reason)
+            }
+        }
+
+        return fileManager.subpaths(atPath: rootPath) ?? []
+    }
+
+    /// `SwiftPackageSources.files`, run in the mutated project at `rootPath`, as the coverage run and the tests are:
+    /// a relative `executable` or `--package-path` is relative to it.
+    private func packageSourceFiles(
+        inProjectAt rootPath: FilePath,
+        testedBy configuration: MuterConfiguration
+    ) -> Result<[FilePath], SwiftPackageSources.Failure> {
+        let currentDirectoryPath = fileManager.currentDirectoryPath
+        fileManager.changeCurrentDirectoryPath(rootPath)
+        defer {
+            fileManager.changeCurrentDirectoryPath(currentDirectoryPath)
+        }
+
+        return SwiftPackageSources.files(inProjectAt: rootPath, testedBy: configuration, process: process)
+    }
+
     private func discoverSourceFiles(
+        among candidatePaths: [FilePath],
         inDirectoryAt rootPath: FilePath,
         excludingPathsIn providedExcludeList: [FilePath],
         ignoringFilesWithoutCoverage filesWithoutCoverage: [FilePath]
     ) -> [FilePath] {
         let excludeList = providedExcludeList + defaultExcludeList
-        let subpaths = (fileManager.subpaths(atPath: rootPath) ?? [])
-            .map { "./" + $0 }
+        let subpaths = candidatePaths.map { "./" + $0 }
 
         return includeSwiftFiles(
             from: subpaths

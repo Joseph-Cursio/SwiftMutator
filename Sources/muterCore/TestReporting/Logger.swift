@@ -115,6 +115,19 @@ final class Logger {
         printMessage("🔎 Discovering Swift files which SwiftMutator will analyze...")
     }
 
+    /// Why the Swift files a SwiftPM package's targets compile couldn't be listed, and what discovery does instead.
+    func packageSourceFilesUnavailable(reason: String) {
+        // SwiftPM's errors often end in one.
+        let reason = reason.hasSuffix(".") ? String(reason.dropLast()) : reason
+        print(
+            """
+            ⚠️ SwiftMutator couldn't tell which files the package's targets compile: \(reason).
+            It looks at every Swift file in the project instead, so a file no target builds may get mutants no test \
+            can kill. \("exclude".bold) can leave such files out.
+            """
+        )
+    }
+
     /// How many Swift files there are to analyze, and with `verbose`, each one's name: hundreds of lines on a large
     /// project.
     func sourceFileDiscoveryFinished(sourceFileCandidates: [String], verbose: Bool = false) {
@@ -213,8 +226,9 @@ final class Logger {
     /// "412 earlier results no longer count, as this session doesn't discover their mutants: coverage couldn't be
     /// gathered then, and is now.": how a resumed run's discovery differs from the last session's, and the coverage
     /// change that may explain it; nil if nothing shows it does. Based on the counts, as discovery can change while
-    /// coverage looks the same: xcodebuild can lose regions without a word, and `--force-resume` lets a SwiftMutator
-    /// that discovers differently through.
+    /// coverage looks the same: xcodebuild can lose regions without a word, `--force-resume` lets a SwiftMutator that
+    /// discovers differently through, and the files discovery picks from come from `swift package describe`, which
+    /// may work in one session only.
     private static func discoveryChange(_ summary: ResumeSummary) -> String? {
         let lost = summary.noLongerDiscovered
         if lost > 0 {
