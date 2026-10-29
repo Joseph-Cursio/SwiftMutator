@@ -59,6 +59,9 @@ final class ConfigurationGenerationTests: MuterTestCase {
             generatedConfiguration.testCommandArguments
                 .first { $0.contains("platform=iOS Simulator,name=iPhone") }
         )
+        // The first generator that knows the project makes its configuration, so the package's, after it, doesn't
+        // run its `which swift`.
+        XCTAssertFalse(process.processesRun.contains(["/usr/bin/which", "swift"]), "\(process.processesRun)")
     }
 
     func test_iosProject() async {
