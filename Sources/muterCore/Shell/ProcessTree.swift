@@ -180,8 +180,9 @@ enum ProcessTree {
         let pipe = Pipe()
         listing.standardOutput = pipe
         guard (try? listing.run()) != nil else { return [] }
-        listing.waitUntilExit()
+        // Read before waiting: a listing of a few thousand processes overfills the pipe, and `ps` would never exit.
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        listing.waitUntilExit()
         guard let text = String(data: data, encoding: .utf8) else { return [] }
 
         var childrenByParent: [Int32: [Int32]] = [:]
