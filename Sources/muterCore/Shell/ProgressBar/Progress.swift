@@ -31,11 +31,13 @@ struct ProgressBar {
     let count: Int
     let configuration: [ProgressElementType]?
 
-    static var defaultConfiguration: [ProgressElementType] = [
-        ProgressIndex(),
-        ProgressBarLine(),
-        ProgressTimeEstimates(),
-    ]
+    static var defaultConfiguration: [ProgressElementType] {
+        [
+            ProgressIndex(),
+            ProgressBarLine(),
+            ProgressTimeEstimates(),
+        ]
+    }
 
     var printer: ProgressBarPrinter
 

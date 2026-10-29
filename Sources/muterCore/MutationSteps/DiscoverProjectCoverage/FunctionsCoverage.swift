@@ -92,7 +92,7 @@ extension FunctionsCoverage: Equatable {
 }
 
 extension FunctionsCoverage: Nullable {
-    static var null: FunctionsCoverage = .init()
+    static let null: FunctionsCoverage = .init()
 }
 
 /// The regions llvm-cov reports in a file, by function, in its order: a function's first region is its whole body.

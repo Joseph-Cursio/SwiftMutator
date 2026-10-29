@@ -5,7 +5,7 @@ typealias VisitorInitializer = (MuterConfiguration?, SourceCodeInfo, FileCoverag
 typealias MutationOperatorList = [MutationOperator.Id]
 
 extension [MutationOperator.Id] {
-    static var allOperators = MutationOperator.Id.allCases
+    static let allOperators = MutationOperator.Id.allCases
 }
 
 enum MutationOperator {

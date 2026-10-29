@@ -59,53 +59,60 @@ final class MutationTestHandler {
     }
 }
 
+/// Each list is made afresh for each handler, so no two runs share a step.
 private extension [MutationStep] {
-    static let allSteps: [MutationStep] = [
-        UpdateCheck(),
-        LoadConfiguration(),
-        // Before the last run's copy is removed, which a run still writing the results file is testing in.
-        LoadResumeState(),
-        CreateMutatedProjectDirectoryURL(),
-        // Before the last run's copy and clones are removed, which another run of the project may still be testing in.
-        LockMutatedProject(),
-        PreviousRunCleanUp(),
-        CopyProjectToTempDirectory(),
-        FingerprintProjectTree(),
-        DiscoverProjectCoverage(),
-        DiscoverSourceFiles(),
-        DiscoverMutationPoints(),
-        CreateMuterTestPlan(),
-        ApplySchemata(),
-        BuildForTesting(),
-        ProjectMappings(),
-        PerformMutationTesting(),
-    ]
+    static var allSteps: [MutationStep] {
+        [
+            UpdateCheck(),
+            LoadConfiguration(),
+            // Before the last run's copy is removed, which a run still writing the results file is testing in.
+            LoadResumeState(),
+            CreateMutatedProjectDirectoryURL(),
+            // Before the last run's copy and clones are removed, which another run of the project may still be testing in.
+            LockMutatedProject(),
+            PreviousRunCleanUp(),
+            CopyProjectToTempDirectory(),
+            FingerprintProjectTree(),
+            DiscoverProjectCoverage(),
+            DiscoverSourceFiles(),
+            DiscoverMutationPoints(),
+            CreateMuterTestPlan(),
+            ApplySchemata(),
+            BuildForTesting(),
+            ProjectMappings(),
+            PerformMutationTesting(),
+        ]
+    }
 
-    static let testPlanSteps: [MutationStep] = [
-        UpdateCheck(),
-        LoadConfiguration(),
-        LoadMuterTestPlan(),
-        // Before anything in the mutated project the plan names is read, which another run may be rewriting.
-        LockMutatedProject(),
-        CheckTestPlanCode(),
-        BuildForTesting(),
-        ProjectMappings(),
-        PerformMutationTesting(),
-    ]
+    static var testPlanSteps: [MutationStep] {
+        [
+            UpdateCheck(),
+            LoadConfiguration(),
+            LoadMuterTestPlan(),
+            // Before anything in the mutated project the plan names is read, which another run may be rewriting.
+            LockMutatedProject(),
+            CheckTestPlanCode(),
+            BuildForTesting(),
+            ProjectMappings(),
+            PerformMutationTesting(),
+        ]
+    }
 
-    static let createTestPlanSteps: [MutationStep] = [
-        UpdateCheck(),
-        LoadConfiguration(),
-        CreateMutatedProjectDirectoryURL(),
-        LockMutatedProject(),
-        PreviousRunCleanUp(),
-        CopyProjectToTempDirectory(),
-        DiscoverProjectCoverage(),
-        DiscoverSourceFiles(),
-        DiscoverMutationPoints(),
-        ApplySchemata(),
-        CreateMuterTestPlan(),
-    ]
+    static var createTestPlanSteps: [MutationStep] {
+        [
+            UpdateCheck(),
+            LoadConfiguration(),
+            CreateMutatedProjectDirectoryURL(),
+            LockMutatedProject(),
+            PreviousRunCleanUp(),
+            CopyProjectToTempDirectory(),
+            DiscoverProjectCoverage(),
+            DiscoverSourceFiles(),
+            DiscoverMutationPoints(),
+            ApplySchemata(),
+            CreateMuterTestPlan(),
+        ]
+    }
 
     func filtering(with options: Run.Options) -> [MutationStep] {
         var copy: [any MutationStep] = self
