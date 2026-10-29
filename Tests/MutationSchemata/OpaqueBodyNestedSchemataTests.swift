@@ -78,8 +78,10 @@ final class OpaqueBodyNestedSchemataTests: MuterTestCase {
     /// The lines of the mutants left after discovery's per-file pruning.
     private func keptMutantLines(in text: String) -> [Int] {
         let source = SourceCodeInfo(path: "/path/to/Row.swift", code: Parser.parse(source: text))
-        let mappings = generateSchemataMappings(for: source)
-        mappings.forEach { $0.dropNestedSchemataInOpaqueBodies(of: source.code) }
+        var mappings = generateSchemataMappings(for: source)
+        for index in mappings.indices {
+            mappings[index].dropNestedSchemataInOpaqueBodies(of: source.code)
+        }
 
         return Set(mappings.flatMap(\.mutationSchemata).map(\.position.line)).sorted()
     }

@@ -391,7 +391,7 @@ extension SchemataMutationMapping {
         filePath: String = "",
         _ mappings: SchemataMutationMappings...
     ) throws -> SchemataMutationMapping {
-        let schemataMutationMapping = SchemataMutationMapping(filePath: filePath)
+        var schemataMutationMapping = SchemataMutationMapping(filePath: filePath)
 
         for (source, schemata) in mappings {
             let codeBlockSyntax = try sourceCode(source).statements

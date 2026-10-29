@@ -52,7 +52,7 @@ final class SchemataMutationMappingTests: XCTestCase {
     // Blocks are kept by key, whose order varies from one process to the next, so they're put in source order: eight
     // in their order by chance would be one run in 40,320.
     func test_repeatsInSeveralBlocks_comeInTheBlocksSourceOrder() throws {
-        let mapping = SchemataMutationMapping(filePath: path)
+        var mapping = SchemataMutationMapping(filePath: path)
         // The last block first. Each block's leading spaces put its first statement at an offset of its own.
         for number in (1 ... 8).reversed() {
             let block = try sourceCode(String(repeating: " ", count: number) + "let block\(number) = \(number)")

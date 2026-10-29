@@ -118,8 +118,10 @@ private extension DiscoverMutationPoints {
 
         // Pruning has to see every operator's mutants for the file at once: an outer mutant from
         // one operator conflicts with a nested one from another.
-        let merged = mappings.mergeByFilePath()
-        merged.forEach { $0.dropNestedSchemataInOpaqueBodies(of: source) }
+        var merged = mappings.mergeByFilePath()
+        for index in merged.indices {
+            merged[index].dropNestedSchemataInOpaqueBodies(of: source)
+        }
         return merged.filter { !$0.isEmpty }
     }
 
