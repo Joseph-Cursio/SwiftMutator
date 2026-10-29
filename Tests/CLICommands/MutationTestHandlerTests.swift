@@ -109,7 +109,9 @@ final class MutationTestHandlerTests: MuterTestCase {
 
         try await sut.run()
 
-        let loggingDirectory = try XCTUnwrap(fileManager.paths.first)
+        // The logs' root first, then the run's folder in it.
+        XCTAssertEqual(fileManager.paths.first, "/project_muter_logs")
+        let loggingDirectory = try XCTUnwrap(fileManager.paths.dropFirst().first)
         XCTAssertTrue(loggingDirectory.hasPrefix("/project_muter_logs/"), loggingDirectory)
         XCTAssertEqual(firstStep.loggingDirectories, [loggingDirectory])
         XCTAssertEqual(state.loggingDirectory, loggingDirectory)

@@ -5,9 +5,9 @@ SwiftMutator saves each mutant's result as soon as its test run finishes, as one
 ## Where it is
 
 - `<project>_muter_logs/<run>/results.jsonl`, next to your project, beside the run's kept logs. For example, `SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM/results.jsonl`.
-- The run's folder is named to the minute. If a run that started in the same minute already has a `results.jsonl` there, the file is `results-2.jsonl`, then `results-3.jsonl`, up to `results-99.jsonl`. An existing file is never overwritten.
+- The run's folder is named for the minute it started in. A run that starts in a minute that already has a folder gets one of its own, the same name followed by ` (2)`, then ` (3)` and so on, so a folder holds one run's logs. Should a folder already have a `results.jsonl`, the file is `results-2.jsonl`, then `results-3.jsonl`, up to `results-99.jsonl`. An existing file is never overwritten.
 - SwiftMutator prints the path when it creates the file ("SwiftMutator saves each mutant's result as it finishes, in …"). After the report it prints it again ("Each mutant's result is in …"), if every line was written. When mutation testing stops early, it prints it on standard error instead ("Each tested mutant's result is in …"), on the same condition. If a mutant has a result, the command that makes a report from the file follows it, with the path quoted for the shell: "Full report: swift-mutator report '…/results.jsonl'". Then comes the command that continues the run, which repeats SwiftMutator's own arguments but for an earlier `--resume` and `--force-resume`: "Continue: swift-mutator run … --resume '…/results.jsonl'". A run of a test plan can't be resumed, and gets no Continue line.
-- `run --resume` adds a session to the file it continues, which stays where it is, in the first session's log folder. The new session prints the file's path as it starts testing, as a first session does. Its kept logs go to a log folder of its own, named for the minute it started in. So a later session's folder holds no results file: give `report` and `--resume` the file, or the first session's folder. A session that starts in the same minute as the one before shares its folder, and a mutant it tests again replaces that one's kept log.
+- `run --resume` adds a session to the file it continues, which stays where it is, in the first session's log folder. The new session prints the file's path as it starts testing, as a first session does. Its kept logs go to a log folder of its own, named for the minute it started in as any run's is, followed by ` (2)`, ` (3)` and so on if that minute already has one. So a later session's folder holds no results file: give `report` and `--resume` the file, or the first session's folder.
 - It is always written, and there's no option to turn it off. A line takes about 0.5–1 KB, so a run of 2,500 mutants writes an estimated 2–3 MB, beside well over a gigabyte of logs. The header's list of the project's files adds about 140 bytes a file: about 205 KB for a project of 1,450 files.
 - `run` and `run-without-mutating` write one. `mutate-without-running` tests no mutants and writes none.
 
@@ -55,7 +55,7 @@ The header's `project` lists five files here. A real one lists every file in the
 | `usingTestPlan` | Bool | Whether the run tested a test plan (`run-without-mutating`) |
 | `projectPath` | String | Your project |
 | `mutatedProjectPath` | String | The mutated copy that SwiftMutator tested. Each mutant's `path` is relative to it. |
-| `logDirectory` | String | The session's log folder, which holds its kept logs. A resumed session has a folder of its own, unless it started in the same minute as the session before, and adds to the file in the first session's folder. |
+| `logDirectory` | String | The session's log folder, which holds its kept logs. A resumed session has a folder of its own, and adds to the file in the first session's folder. |
 | `coverage` | `{percent, filesWithoutCoverage}` | The project's coverage, as the report shows it. Left out when the run has none: coverage was skipped, isn't supported for the test command, or couldn't be gathered. |
 | `newVersion` | String | The newer SwiftMutator version the update check found, or `""` |
 | `baselineSeconds` | Double | How long the baseline test run took, build included. Left out by a resumed session with nothing left to test, which runs no baseline. |
@@ -200,7 +200,7 @@ It only reads the results file: it mutates nothing, prints no banner and makes n
 - **`<results>`** is a results file, or a run's log folder, `<project>_muter_logs/<run>/`, that holds one.
   - In a folder, only the names a run gives its results file count: `results.jsonl`, and `results-2.jsonl` up to `results-99.jsonl`.
   - A folder with none is refused.
-  - So is a folder with several, one for each run that started in that minute. The error names them in the order the runs started in, so you can pass the one you want.
+  - So is a folder with several, one for each run that started in that minute, as a folder from before each run got its own can hold. The error names them in the order the runs started in, so you can pass the one you want.
   - A path that isn't a folder is read as a results file.
 - **`-f`** chooses the format, as in `run`: `plain` (the default), `json`, `html` or `xcode`.
 - **`-o`** saves the report at that path, replacing any file there.

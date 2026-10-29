@@ -104,10 +104,10 @@ final class MutationTestObserverTests: MuterTestCase {
 
     // A failing baseline's log is the only record of why the run stopped: the abort message points the
     // user at the logs folder.
-    func test_whenTheBaselineFails_itsLogIsWrittenToTheLoggingDirectory() throws {
+    func test_whenTheBaselineFails_itsLogIsWrittenToTheLoggingDirectory() {
         fileManager.currentDirectoryPathToReturn = "/project"
         sut.start()
-        let loggingDirectory = try XCTUnwrap(fileManager.paths.first)
+        let loggingDirectory = sut.loggingDirectory
 
         notificationCenter.post(
             name: .baselineTestFailed,
@@ -120,10 +120,10 @@ final class MutationTestObserverTests: MuterTestCase {
     }
 
     // The name is the one the mutant's results line gives as its log.
-    func test_eachTestLogIsWrittenToTheLoggingDirectory_underTheNameItCarries() throws {
+    func test_eachTestLogIsWrittenToTheLoggingDirectory_underTheNameItCarries() {
         fileManager.currentDirectoryPathToReturn = "/project"
         sut.start()
-        let loggingDirectory = try XCTUnwrap(fileManager.paths.first)
+        let loggingDirectory = sut.loggingDirectory
         let mutationPoint = MutationPoint(
             mutationOperatorId: .removeSideEffects,
             filePath: "/project/Sources/file2.swift",

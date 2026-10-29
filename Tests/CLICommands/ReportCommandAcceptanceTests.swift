@@ -95,7 +95,7 @@ final class ReportCommandAcceptanceTests: XCTestCase {
 
     func test_report_rebuildsTheRunsOwnReport_inEachFormat() throws {
         for format in ["plain", "json", "html", "xcode"] {
-            // One results file in the log folder, which a second run in the same minute would add to.
+            // One log folder, which a second run would add another beside.
             try? FileManager.default.removeItem(at: logs)
             let runReport = root.appendingPathComponent("run.\(format)")
             let rebuiltReport = root.appendingPathComponent("rebuilt.\(format)")
