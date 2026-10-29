@@ -4,6 +4,21 @@
       "appliedOperators" : [
         {
           "mutationPoint" : {
+            "mutationOperatorId" : "RelationalOperatorReplacement",
+            "position" : {
+              "column" : 23,
+              "line" : 88
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "!=",
+            "before" : "==",
+            "description" : "changed == to !="
+          },
+          "testSuiteOutcome" : "runtimeError"
+        },
+        {
+          "mutationPoint" : {
             "mutationOperatorId" : "ChangeLogicalConnector",
             "position" : {
               "column" : 30,
@@ -21,38 +36,8 @@
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
-              "column" : 23,
-              "line" : 88
-            }
-          },
-          "mutationSnapshot" : {
-            "after" : "!=",
-            "before" : "==",
-            "description" : "changed == to !="
-          },
-          "testSuiteOutcome" : "runtimeError"
-        },
-        {
-          "mutationPoint" : {
-            "mutationOperatorId" : "RelationalOperatorReplacement",
-            "position" : {
               "column" : 46,
               "line" : 88
-            }
-          },
-          "mutationSnapshot" : {
-            "after" : ">",
-            "before" : "<",
-            "description" : "changed < to >"
-          },
-          "testSuiteOutcome" : "failed"
-        },
-        {
-          "mutationPoint" : {
-            "mutationOperatorId" : "RelationalOperatorReplacement",
-            "position" : {
-              "column" : 29,
-              "line" : 92
             }
           },
           "mutationSnapshot" : {
@@ -74,6 +59,21 @@
             "after" : "removed line",
             "before" : "result.append(element)",
             "description" : "removed line"
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "mutationPoint" : {
+            "mutationOperatorId" : "RelationalOperatorReplacement",
+            "position" : {
+              "column" : 29,
+              "line" : 92
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : ">",
+            "before" : "<",
+            "description" : "changed < to >"
           },
           "testSuiteOutcome" : "failed"
         }
@@ -115,6 +115,21 @@
         },
         {
           "mutationPoint" : {
+            "mutationOperatorId" : "SwapTernary",
+            "position" : {
+              "column" : 73,
+              "line" : 180
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "s == .minus ? 1 :  -1",
+            "before" : "s == .minus ? -1 : 1",
+            "description" : "swapped ternary operator"
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
               "column" : 38,
@@ -125,6 +140,21 @@
             "after" : "<",
             "before" : ">",
             "description" : "changed > to <"
+          },
+          "testSuiteOutcome" : "runtimeError"
+        },
+        {
+          "mutationPoint" : {
+            "mutationOperatorId" : "SwapTernary",
+            "position" : {
+              "column" : 52,
+              "line" : 204
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "e > 0 ? \"\" :  \"+\"",
+            "before" : "e > 0 ? \"+\" : \"\"",
+            "description" : "swapped ternary operator"
           },
           "testSuiteOutcome" : "runtimeError"
         },
@@ -142,21 +172,6 @@
             "description" : "changed == to !="
           },
           "testSuiteOutcome" : "runtimeError"
-        },
-        {
-          "mutationPoint" : {
-            "mutationOperatorId" : "RelationalOperatorReplacement",
-            "position" : {
-              "column" : 106,
-              "line" : 282
-            }
-          },
-          "mutationSnapshot" : {
-            "after" : "!=",
-            "before" : "==",
-            "description" : "changed == to !="
-          },
-          "testSuiteOutcome" : "failed"
         },
         {
           "mutationPoint" : {
@@ -190,33 +205,18 @@
         },
         {
           "mutationPoint" : {
-            "mutationOperatorId" : "SwapTernary",
+            "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
-              "column" : 73,
-              "line" : 180
+              "column" : 106,
+              "line" : 282
             }
           },
           "mutationSnapshot" : {
-            "after" : "s == .minus ? 1 :  -1",
-            "before" : "s == .minus ? -1 : 1",
-            "description" : "swapped ternary operator"
+            "after" : "!=",
+            "before" : "==",
+            "description" : "changed == to !="
           },
           "testSuiteOutcome" : "failed"
-        },
-        {
-          "mutationPoint" : {
-            "mutationOperatorId" : "SwapTernary",
-            "position" : {
-              "column" : 52,
-              "line" : 204
-            }
-          },
-          "mutationSnapshot" : {
-            "after" : "e > 0 ? \"\" :  \"+\"",
-            "before" : "e > 0 ? \"+\" : \"\"",
-            "description" : "swapped ternary operator"
-          },
-          "testSuiteOutcome" : "runtimeError"
         }
       ],
       "fileName" : "StringParsing.swift",
