@@ -273,6 +273,57 @@ final class RewriterTests: MuterTestCase {
         }
     }
 
+    // Each mutant's branch held a copy of the list's directives, and a `#sourceLocation()` in a copy could close a
+    // location none had opened: test_theGeneratedCodeBuildsAroundSourceLocationDirectives compiles such files. Only
+    // the original's branch keeps them now, at any depth: in a closure, a type, a `case`, a list with a switch of
+    // its own, and a list whose first mutant removes the statement that holds one.
+    func test_keepsEachSourceLocationDirectiveInTheOriginalsBranchAlone() throws {
+        let code = """
+        func record(_ log: (() -> Void) -> Void, _ note: () -> Void) {
+            do {
+                log {
+        #sourceLocation()
+                }
+                note()
+            }
+        }
+        func located(_ items: [Int]) -> Int {
+            let count = items.count > 1 ? 1 : 2; #sourceLocation(file: "Located.swift.gyb", line: 1)
+            let run = { () -> Int in
+        #sourceLocation()
+                return count
+            }
+            struct Box {
+                let value = 1
+        #sourceLocation(file: "Located.swift.gyb", line: 10)
+            }
+            switch count {
+            case 1:
+        #sourceLocation()
+            default:
+                return 0
+            }
+            if count > 0 {
+                let other = count < 5 ? 3 : 4
+        #sourceLocation(file: "Located.swift.gyb", line: 20)
+                return other + run() + Box().value
+            }
+            return count
+        }
+        """
+        let rewritten = try rewrite(code)
+
+        XCTAssertFalse(Parser.parse(source: rewritten).hasError, rewritten)
+        XCTAssertEqual(
+            rewritten.components(separatedBy: "#sourceLocation").count,
+            code.components(separatedBy: "#sourceLocation").count,
+            rewritten
+        )
+        // A `case` that held nothing but a directive must still hold a statement, on the directive's line.
+        XCTAssertTrue(rewritten.contains("case 1:\ndo {}\n    default:"), rewritten)
+        XCTAssertTrue(rewritten.contains("case 1:\n#sourceLocation()\n    default:"), rewritten)
+    }
+
     private func rewrite(_ code: String) throws -> String {
         let source = SourceCodeInfo(path: "/path/to/file.swift", code: Parser.parse(source: code))
         let mapping = try XCTUnwrap(generateSchemataMappings(for: source).first)
