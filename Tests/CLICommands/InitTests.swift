@@ -28,4 +28,20 @@ final class InitTests: MuterTestCase {
         XCTAssertTrue(printer.linesPassed.contains { $0.contains("You are running version") }, "\(printer.linesPassed)")
         XCTAssertEqual(printer.linesPassed.last, "💾 Configuration file created at: \(directory!)/muter.conf.yml")
     }
+
+    // A folder it can't write to: it says so, rather than that it created the file.
+    func test_whenTheFileCantBeWritten_itSaysSo_andThrows() async throws {
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: directory)
+        addTeardownBlock { [directory] in
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: directory!)
+        }
+
+        do {
+            try await sut.run()
+            XCTFail("init said it created \(directory!)/muter.conf.yml")
+        } catch {
+            XCTAssertEqual("\(error)", "SwiftMutator could not write \(directory!)/muter.conf.yml.")
+        }
+        XCTAssertFalse(printer.linesPassed.contains { $0.contains("Configuration file created") })
+    }
 }
