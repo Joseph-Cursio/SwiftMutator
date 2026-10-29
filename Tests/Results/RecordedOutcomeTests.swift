@@ -37,10 +37,12 @@ final class RecordedOutcomeTests: MuterTestCase {
         super.setUp()
 
         // Each mutant finishes at a time of its own, and the test duration isn't a whole number of milliseconds.
-        var calls = 0.0
+        let calls = Locked(0.0)
         current.now = {
-            calls += 1
-            return ResultsHeader.fixedStart.addingTimeInterval(calls * 1.234_567)
+            calls.change { count in
+                count += 1
+                return ResultsHeader.fixedStart.addingTimeInterval(count * 1.234_567)
+            }
         }
     }
 

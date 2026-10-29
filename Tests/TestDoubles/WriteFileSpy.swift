@@ -2,7 +2,7 @@ import Foundation
 
 /// Takes a lock: test runs started at once, as parallel workers' are, each write their active-mutant file
 /// through it, from several threads.
-final class WriteFileSpy {
+final class WriteFileSpy: @unchecked Sendable { // its state is behind `lock`
     private let lock = NSLock()
     private var called = false
     private var content: String?

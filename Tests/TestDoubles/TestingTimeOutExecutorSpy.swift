@@ -1,7 +1,8 @@
 import Foundation
 @testable import muterCore
 
-final class TestingTimeOutExecutorSpy: TestingTimeoutExecution {
+// A test sets it up, then the code under test uses it from one task at a time, so it needs no lock.
+final class TestingTimeOutExecutorSpy: TestingTimeoutExecution, @unchecked Sendable {
 
     private(set) var withTimeLimitCalled = false
     private(set) var timeLimitPassed: TimeInterval = 0

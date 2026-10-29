@@ -347,9 +347,9 @@ final class DiscoverSourceFilesTests: MuterTestCase {
         var warnings: [String] = []
         let observer = runEvents.observe(.packageSourceFilesUnavailable) { warnings.append($0.object as? String ?? "") }
         defer { observer.cancel() }
-        var listed = false
+        let listed = Locked(false)
         current.listProjectFiles = { _ in
-            listed = true
+            listed.change { $0 = true }
             return nil
         }
 
@@ -360,7 +360,7 @@ final class DiscoverSourceFilesTests: MuterTestCase {
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         XCTAssertEqual(warnings, [])
-        XCTAssertFalse(listed)
+        XCTAssertFalse(listed.value)
     }
 
     // Derived data in the project, which holds the packages it depends on, is usually ignored. The project's own
@@ -380,9 +380,9 @@ final class DiscoverSourceFilesTests: MuterTestCase {
             ],
             in: copy
         )
-        var listed: [URL] = []
+        let listed = Locked<[URL]>([])
         current.listProjectFiles = { url in
-            listed.append(url)
+            listed.change { $0.append(url) }
             return [
                 "Sources/App.swift",
                 "Sources/model.swift",
@@ -405,7 +405,7 @@ final class DiscoverSourceFilesTests: MuterTestCase {
                 "\(copy)/Sources/Untracked.swift",
             ]),
         ])
-        XCTAssertEqual(listed, [URL(fileURLWithPath: "/project", isDirectory: true)])
+        XCTAssertEqual(listed.value, [URL(fileURLWithPath: "/project", isDirectory: true)])
     }
 
     // An example app's files, and a tool's in a hidden folder, are in no target, so no test could kill their mutants.
@@ -469,9 +469,9 @@ final class DiscoverSourceFilesTests: MuterTestCase {
         describing(project, as: [
             target("library", path: "Sources/Lib", sources: ["Generated/Strings.swift", "Lib.swift"]),
         ])
-        var asked = false
+        let asked = Locked(false)
         current.listProjectFiles = { _ in
-            asked = true
+            asked.change { $0 = true }
             return ["Sources/Lib/Lib.swift"]
         }
 
@@ -486,7 +486,7 @@ final class DiscoverSourceFilesTests: MuterTestCase {
                 "\(project)/Sources/Lib/Lib.swift",
             ]),
         ])
-        XCTAssertFalse(asked)
+        XCTAssertFalse(asked.value)
     }
 
     // A test helper target under `Tests` is a library, so the default list still leaves it out.

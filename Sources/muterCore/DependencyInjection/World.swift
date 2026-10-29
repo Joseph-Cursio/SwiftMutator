@@ -3,39 +3,60 @@ import FoundationNetworking
 #endif
 import Foundation
 
+/// SwiftMutator's dependencies. Steps, signal handlers, time limits and GCD queues read them from any thread, so they
+/// are behind a lock. Only tests replace them, so only a debug build can.
 #if DEBUG
-var current = World()
+var current: World {
+    get { worldBox.world }
+    set { worldBox.world = newValue }
+}
 #else
-let current = World()
+var current: World { worldBox.world }
 #endif
 
-typealias ProgressBarInitializer = (
-    Int,
-    [ProgressElementType]?,
-    ProgressBarPrinter?
-) -> ProgressBar
+private let worldBox = WorldBox()
+
+private final class WorldBox: @unchecked Sendable { // `stored` is behind `lock`
+    private let lock = NSLock()
+    private var stored = World()
+
+    var world: World {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
+    }
+
+    /// One dependency, without copying the whole world.
+    func read<T>(_ keyPath: KeyPath<World, T>) -> T {
+        lock.withLock { stored[keyPath: keyPath] }
+    }
+}
+
+/// `current[keyPath: keyPath]`, read under the world's lock.
+func dependency<T>(_ keyPath: KeyPath<World, T>) -> T {
+    worldBox.read(keyPath)
+}
 
 typealias PreparedSourceCode = (
     source: SourceCodeInfo,
     changes: MutationSourceCodePreparationChange
 )
-typealias SourceCodePreparation = (String) -> PreparedSourceCode?
-typealias ProcessFactory = () -> Process
-typealias Flush = () -> Void
-typealias Printer = (String) -> Void
-typealias WriteFile = (String, String) throws -> Void
-typealias LoadSourceCode = (String) -> SourceCodeInfo?
-typealias ProjectCoverage = (BuildSystem) -> BuildSystemCoverage?
-typealias Now = () -> Date
-typealias Instant = () -> DispatchTime
-typealias TestingTimeoutExecutorFactory = () -> TestingTimeoutExecution
-typealias ProvenanceProbe = (MuterConfiguration) async -> Provenance
+typealias SourceCodePreparation = @Sendable (String) -> PreparedSourceCode?
+typealias ProcessFactory = @Sendable () -> Process
+typealias Flush = @Sendable () -> Void
+typealias Printer = @Sendable (String) -> Void
+typealias WriteFile = @Sendable (String, String) throws -> Void
+typealias LoadSourceCode = @Sendable (String) -> SourceCodeInfo?
+typealias ProjectCoverage = @Sendable (BuildSystem) -> BuildSystemCoverage?
+typealias Now = @Sendable () -> Date
+typealias Instant = @Sendable () -> DispatchTime
+typealias TestingTimeoutExecutorFactory = @Sendable () -> TestingTimeoutExecution
+typealias ProvenanceProbe = @Sendable (MuterConfiguration) async -> Provenance
 /// The files in a project, relative to it, or nil if it can't list them.
-typealias ProjectFileListing = (URL) async -> [String]?
+typealias ProjectFileListing = @Sendable (URL) async -> [String]?
 /// Waits that many nanoseconds, or throws a CancellationError once the task is cancelled.
-typealias Sleep = (UInt64) async throws -> Void
+typealias Sleep = @Sendable (UInt64) async throws -> Void
 
-struct World {
+struct World: Sendable {
     /// What happens during the run, for its observer to report.
     var events = RunEvents()
     var fileManager: FileSystemManager = FileManager.default
@@ -51,29 +72,22 @@ struct World {
         isatty: isatty(STDOUT_FILENO) != 0,
         term: ProcessInfo.processInfo.environment["TERM"]
     )
-    var progressBar: ProgressBarInitializer = {
-        ProgressBar(
-            count: $0,
-            configuration: $1,
-            printer: $2
-        )
-    }
 
     var ioDelegate: MutationTestingIODelegate = MutationTestingDelegate()
-    var process: ProcessFactory = MuterProcessFactory.makeProcess
-    var prepareCode: SourceCodePreparation = PrepareSourceCode().prepareSourceCode
+    var process: ProcessFactory = { MuterProcessFactory.makeProcess() }
+    var prepareCode: SourceCodePreparation = { PrepareSourceCode().prepareSourceCode($0) }
     var writeFile: WriteFile = { try $0.write(toFile: $1, atomically: true, encoding: .utf8) }
     var loadSourceCode: LoadSourceCode = { sourceCode(fromFileAt: $0) }
-    var projectCoverage: ProjectCoverage = BuildSystem.coverage
+    var projectCoverage: ProjectCoverage = { BuildSystem.coverage(for: $0) }
     var server: Server = URLSession.shared
-    var now: Now = Date.init
+    var now: Now = { Date() }
     /// The monotonic clock, which stands still while SwiftMutator is suspended (`suspensions`).
     var instant: Instant = { current.suspensions.instant }
     var testingTimeOutExecutor: TestingTimeoutExecutorFactory = { TestingTimeoutExecutor() }
     var provenance: ProvenanceProbe = { await Provenance.probe($0) }
     var resultsFiles: ResultsFileOpening = ResultsFile.Opener()
     var mutatedProjectLocker: MutatedProjectLocking = MutatedProjectLock.Locker()
-    var listProjectFiles: ProjectFileListing = GitFileListing.list(in:)
+    var listProjectFiles: ProjectFileListing = { await GitFileListing.list(in: $0) }
     /// SwiftMutator's command-line arguments, after the executable: what a results file's header records, and what the
     /// command that continues a stopped run repeats.
     var commandLineArguments: [String] = Array(CommandLine.arguments.dropFirst())

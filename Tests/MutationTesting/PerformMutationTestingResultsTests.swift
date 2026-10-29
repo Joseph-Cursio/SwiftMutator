@@ -34,9 +34,9 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
 
     func test_theHeaderIsWrittenOnceTheBaselinePasses_withEffectiveTimeoutWorkersAndCounts() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
-        var probed: [MuterConfiguration] = []
+        let probed = Locked<[MuterConfiguration]>([])
         current.provenance = { configuration in
-            probed.append(configuration)
+            probed.change { $0.append(configuration) }
             return .fixture
         }
         var linesAtTheBaselinesLog: [String]?
@@ -57,7 +57,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(header.session, 1)
         XCTAssertEqual(header.startedAt, current.now())
         XCTAssertEqual(header.provenance, .fixture)
-        XCTAssertEqual(probed, [state.muterConfiguration], "the configuration as loaded is probed, once")
+        XCTAssertEqual(probed.value, [state.muterConfiguration], "the configuration as loaded is probed, once")
         XCTAssertEqual(header.configuration, state.muterConfiguration)
         XCTAssertEqual(header.logDirectory, "/logs")
         XCTAssertEqual(header.mutatedProjectPath, "/project_mutated")
@@ -141,10 +141,12 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
     func test_aMutantLineCarriesKeyPathOutcomeEndingDurationAndWorker() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .timeout, .passed]
         ioDelegate.mutantRunEndings = [.timedOut, .exited]
-        var ticks: UInt64 = 0
+        let ticks = Locked<UInt64>(0)
         current.instant = {
-            ticks += 1
-            return DispatchTime(uptimeNanoseconds: ticks * 1_500_000_000)
+            ticks.change { count in
+                count += 1
+                return DispatchTime(uptimeNanoseconds: count * 1_500_000_000)
+            }
         }
         let schemata = state.mutationMapping.flatMap(\.mutationSchemata)
 
@@ -313,10 +315,12 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
 
     func test_aFinishedRun_endsWithAnEndLine_whoseDurationIsTheOutcomes() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
-        var calls = 0.0
+        let calls = Locked(0.0)
         current.now = {
-            calls += 1
-            return ResultsHeader.fixedStart.addingTimeInterval(calls * 2.5)
+            calls.change { count in
+                count += 1
+                return ResultsHeader.fixedStart.addingTimeInterval(count * 2.5)
+            }
         }
 
         let changes = try await sut.run(with: state)

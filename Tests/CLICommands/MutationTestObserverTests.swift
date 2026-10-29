@@ -191,8 +191,8 @@ final class MutationTestObserverTests: MuterTestCase {
     // The time left is the rate since the mutants started, which the Logger only knows from this event. Without
     // it, the bar would show its first estimate until 100%.
     func test_mutantRunsStarted_reachesTheLogger() {
-        var milliseconds: UInt64 = 1_000_000
-        current.instant = { DispatchTime(uptimeNanoseconds: milliseconds * 1_000_000) }
+        let milliseconds = Locked<UInt64>(1_000_000)
+        current.instant = { DispatchTime(uptimeNanoseconds: milliseconds.value * 1_000_000) }
         sut.start()
         runEvents.send(.resumePlanned(ResumeSummary.make(reused: 0, toTest: 10, retestedBecause: [.notRecorded: 10])))
         // 10 mutants, 120 s each, on one worker.
@@ -201,7 +201,7 @@ final class MutationTestObserverTests: MuterTestCase {
         )
 
         runEvents.send(.mutantRunsStarted)
-        milliseconds += 60_000
+        milliseconds.change { $0 += 60_000 }
         runEvents.send(.newTestLogAvailable(MutationTestLog.make(mutationPoint: .make())))
 
         let draw = printer.linesPassed.last { $0.contains("ETC:") } ?? ""

@@ -543,10 +543,12 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
     // The report covers the whole run, so its duration does too; the end line keeps each session's apart.
     func test_theOutcomesDuration_addsEarlierSessions_whileTheEndLineHasThisOnesOnly() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
-        var calls = 0.0
+        let calls = Locked(0.0)
         current.now = {
-            calls += 1
-            return ResultsHeader.fixedStart.addingTimeInterval(calls * 2.5)
+            calls.change { count in
+                count += 1
+                return ResultsHeader.fixedStart.addingTimeInterval(count * 2.5)
+            }
         }
 
         let changes = try await sut.run(with: state)
@@ -581,9 +583,9 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
     // What was checked before the copy is what is recorded, and the provenance isn't probed again.
     func test_forcedWaivedAndProvenance_comeFromTheResumeState() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
-        var probed = 0
+        let probed = Locked(0)
         current.provenance = { _ in
-            probed += 1
+            probed.change { $0 += 1 }
             return .fixture
         }
 
@@ -593,17 +595,19 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         XCTAssertEqual(header.provenance, checkedProvenance)
         XCTAssertEqual(header.forced, ["toolchain.testCommandVersion"])
         XCTAssertEqual(header.waived, ["README.md"])
-        XCTAssertEqual(probed, 0)
+        XCTAssertEqual(probed.value, 0)
     }
 
     // `swift-mutator report` reads the whole file: the stopped run's lines, then this session's. The kept results come
     // from the earlier session's lines, and the rest from this one's.
     func test_aResumedReport_equalsTheReportFromTheFile() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
-        var calls = 0.0
+        let calls = Locked(0.0)
         current.now = {
-            calls += 1
-            return ResultsHeader.fixedStart.addingTimeInterval(calls * 2.5)
+            calls.change { count in
+                count += 1
+                return ResultsHeader.fixedStart.addingTimeInterval(count * 2.5)
+            }
         }
 
         let changes = try await sut.run(with: state)

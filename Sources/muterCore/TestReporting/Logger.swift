@@ -1,6 +1,8 @@
 import Foundation
 
-final class Logger {
+/// Its state changes only as the run's events arrive, which one task sends in order and `RunEvents` delivers on that
+/// task's thread, so it needs no lock.
+final class Logger: @unchecked Sendable {
     @Dependency(\.printer)
     private var printer: Printer
     @Dependency(\.errorPrinter)

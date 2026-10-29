@@ -321,7 +321,10 @@ final class ProjectTreeTests: XCTestCase {
         try git("init", in: project)
         try git("add", ".", in: project)
 
-        let listings: [(String, ProjectFileListing)] = [("listed by git", GitFileListing.list(in:)), ("walked", { _ in nil })]
+        let listings: [(String, ProjectFileListing)] = [
+            ("listed by git", { await GitFileListing.list(in: $0) }),
+            ("walked", { _ in nil }),
+        ]
         for (name, list) in listings {
             let tree = await fingerprint(list: list)
 
@@ -473,7 +476,7 @@ private extension ProjectTreeTests {
     func fingerprint(
         hashingIn hashingRoot: String? = nil,
         excluding excluded: [String] = [],
-        list: ProjectFileListing = GitFileListing.list(in:)
+        list: ProjectFileListing = { await GitFileListing.list(in: $0) }
     ) async -> ProjectTree {
         await ProjectTree.fingerprint(
             listingIn: projectURL,

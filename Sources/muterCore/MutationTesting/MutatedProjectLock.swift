@@ -2,7 +2,7 @@ import Foundation
 
 /// Locks the mutated project a run uses, so that no other SwiftMutator run removes it, copies a project into it, or
 /// replaces or removes its worker clones meanwhile.
-protocol MutatedProjectLocking {
+protocol MutatedProjectLocking: Sendable {
     /// The lock on `mutatedProject`, which needn't exist yet, held until it is released or goes.
     /// Refused while another SwiftMutator process holds it.
     func lock(_ mutatedProject: URL) throws -> MutatedProjectLock
