@@ -25,6 +25,16 @@ final class TestRunEnding: @unchecked Sendable { // all state is behind `lock`
         }
     }
 
+    /// A `terminationHandler` that records the exit, then opens `exited`: whatever waits for the latch finds the run
+    /// ended by its exit, and nothing kills the process after. Set it before `run()`, as a process can exit before
+    /// `run()` returns.
+    func recordingExit(opening exited: Latch) -> @Sendable (Foundation.Process) -> Void {
+        { [self] _ in
+            _ = record(.exited)
+            exited.open()
+        }
+    }
+
     /// Records that `process` ran past its time limit, and returns whether it did, for the caller to kill it. A process
     /// that has exited, though Foundation hasn't yet said so, is recorded as exited instead: when SwiftMutator was
     /// stopped, as by a SIGSTOP, while its tests ran on, its time limit and its exit come together once it continues.

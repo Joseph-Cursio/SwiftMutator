@@ -307,10 +307,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         // run that ended by itself as stopped. Waiting for the handler holds no thread, unlike `waitUntilExit()`, which
         // also notices the exit up to about 60 ms later.
         let exited = Latch()
-        process.terminationHandler = { _ in
-            _ = ending.record(.exited)
-            exited.open()
-        }
+        process.terminationHandler = ending.recordingExit(opening: exited)
         try process.run()
         locker.testProcessStarted(process.processIdentifier)
         defer { locker.testProcessEnded(process.processIdentifier) }

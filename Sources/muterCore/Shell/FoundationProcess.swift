@@ -37,10 +37,7 @@ extension Foundation.Process {
         // whose ID the system may give to another process. Waiting for the handler holds no thread.
         let ending = TestRunEnding()
         let exited = Latch()
-        terminationHandler = { _ in
-            _ = ending.record(.exited)
-            exited.open()
-        }
+        terminationHandler = ending.recordingExit(opening: exited)
         // Not `try?` then a read: a command that can't be started leaves the pipe open at this end, so the read
         // would never return.
         do { try run() } catch { return nil }
