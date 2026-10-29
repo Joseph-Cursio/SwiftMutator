@@ -128,6 +128,23 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         XCTAssertEqual(mappings.map(\.filePath), paths)
     }
 
+    // Only a few files are walked at once, and the next starts as one ends, so every file is walked once however many
+    // there are.
+    func test_discoversEveryFile_whenThereAreMoreThanAreWalkedAtOnce() async throws {
+        let paths = try makeSourceFiles(at: (1 ... 25).map { "Module/File\($0).swift" })
+        state.sourceFileCandidates = paths
+
+        let result = try await sut.run(with: state)
+        let change = try XCTUnwrap(result.first)
+
+        guard case let .mutationMappingsDiscovered(mappings) = change else {
+            return XCTFail("Expected mappings, got \(change)")
+        }
+
+        XCTAssertEqual(mappings.map(\.filePath), paths.sorted())
+        XCTAssertEqual(mappings.map(\.count), Array(repeating: 1, count: paths.count))
+    }
+
     /// Writes a file with one mutant (`value < 0`) at each of `relativePaths`, under a new directory
     /// removed when the test finishes, which stands for the mutated project, and returns the files' paths.
     private func makeSourceFiles(at relativePaths: [String]) throws -> [String] {
