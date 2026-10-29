@@ -39,10 +39,47 @@ final class SchemataBuilderTests: MuterTestCase {
         let actualMutationSwitch = MutationSwitch.apply(
             mutationSchemata: mutationSchemata,
             with: originalSyntax,
+            onALineStartingWith: .newline,
             readingEnvironmentFrom: MuterRewriter.environmentCacheName(forFileAt: "/path/to/file")
         )
 
         AssertSnapshot(formatCode(actualMutationSwitch.description))
+    }
+
+    func test_startOfTheFirstLineOfAList() throws {
+        let file = try sourceCode("""
+          print(1)
+        func check(_ values: [Int]) -> String {
+        \tlet text = \"""
+        \t  Big: \\(values.filter { $0 > 1 }.count)
+        \t\"""
+        \treturn text
+        }
+        """)
+
+        XCTAssertEqual(try startOfTheFirstLine(of: "print", in: file), "\n  ", "the file's first line")
+        XCTAssertEqual(try startOfTheFirstLine(of: "let", in: file), "\n\t")
+        XCTAssertEqual(try startOfTheFirstLine(of: "$0", in: file), "\n\t  ", "in the string's text, not in trivia")
+        for lineBreak in ["\r\n", "\r"] {
+            let other = try sourceCode("func check() {\(lineBreak)  let value = 1\(lineBreak)}")
+            XCTAssertEqual(try startOfTheFirstLine(of: "let", in: other), lineBreak + "  ", "the file's own line break")
+        }
+    }
+
+    /// The text of `MutationSwitch.startOfTheFirstLine(of:)` for the statement list around the first token
+    /// spelled `text` in `file`.
+    private func startOfTheFirstLine(of text: String, in file: SourceFileSyntax) throws -> String {
+        MutationSwitch.startOfTheFirstLine(of: try list(startingWith: text, in: file)).description
+    }
+
+    /// The statement list around the first token spelled `text` in `file`.
+    private func list(startingWith text: String, in file: SourceFileSyntax) throws -> CodeBlockItemListSyntax {
+        let token = try XCTUnwrap(file.tokens(viewMode: .sourceAccurate).first { $0.text == text }, text)
+        var node: Syntax? = Syntax(token)
+        while let current = node, !current.is(CodeBlockItemListSyntax.self) {
+            node = current.parent
+        }
+        return try XCTUnwrap(node?.as(CodeBlockItemListSyntax.self), text)
     }
 
     private func makeMutationSchemata(

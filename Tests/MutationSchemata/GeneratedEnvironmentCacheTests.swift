@@ -97,6 +97,64 @@ final class GeneratedEnvironmentCacheTests: MuterTestCase {
         XCTAssertEqual(try run(program, adding: [identifier: "YES"]).output, "mutant\n", "the mutant's own variable")
     }
 
+    /// Inside a multi-line string every line after a line feed, an interpolation's code too, must start with the
+    /// indentation of the closing `"""`. A switch in a closure there whose last line ends in a `//` comment or
+    /// `#endif` starts each `}` on a line of its own, and that line's indentation must be enough (#90): for a chain
+    /// of branches, for a string inside another's interpolation, which needs more, and with each file's line
+    /// endings. The program's own mutant isn't the point: `compileMutatedCheck` throws if the generated code doesn't
+    /// compile.
+    func test_theGeneratedCodeBuildsInAClosureInsideAMultiLineString() throws {
+        let summary = """
+        func summary(_ items: [Int]) -> String {
+            \"""
+            Count: \\(items.filter { let limit = 1
+                return $0 > limit // the big ones
+            }.count)
+            Small: \\(items.filter { $0 < 9 // the small ones
+            }.count)
+            \"""
+        }
+        """
+        _ = try compileMutatedCheck(alongside: [
+            "Summary.swift": summary,
+            "SummaryCRLF.swift": summary
+                .replacingOccurrences(of: "summary", with: "summaryCRLF")
+                .replacingOccurrences(of: "\n", with: "\r\n"),
+            "SummaryCR.swift": summary
+                .replacingOccurrences(of: "summary", with: "summaryCR")
+                .replacingOccurrences(of: "\n", with: "\r"),
+            // The line after a lone carriage return isn't checked, so the code there can start at column 0.
+            "Noted.swift": """
+            func noted(_ items: [Int]) -> String {
+                \"""
+                Noted: \\(items.filter { let limit = 1 /* a note\r*/ return $0 > limit // the big ones
+                }.count)
+                \"""
+            }
+            """,
+            "Shapes.swift": """
+            func shapes(_ items: [Int]) -> String {
+                \"""
+                Middle: \\(items.filter { $0 > 1 && $0 < 9 // three mutants, so a chain of branches
+                }.count)
+                Nested: \\(items.map { item in \"""
+                        \\(item > 1 ? "big" : "small"): \\(items.filter { $0 > item // in the inner string
+                        }.count)
+                        \""" // its closing delimiter
+                }.joined())
+                Debug: \\(items.map { item in let big = item > 1
+                    #if DEBUG
+                    return big ? "big" : "small"
+                    #else
+                    return big ? "large" : "little"
+                    #endif
+                }.joined())
+                \"""
+            }
+            """,
+        ])
+    }
+
     // MARK: - Helpers
 
     private struct Run {
