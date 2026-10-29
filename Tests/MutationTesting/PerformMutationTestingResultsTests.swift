@@ -120,7 +120,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(ioDelegate.methodCalls, ["benchmarkTests(using:savingResultsIntoFileNamed:)"], "no timed run")
     }
 
-    func test_eachMutantsLineIsWrittenBeforeItsNotifications() async throws {
+    func test_eachMutantsLineIsWrittenBeforeItsEvents() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
         var mutantLinesAtEachOutcome: [Int] = []
         var mutantLinesAtEachLog: [Int] = []

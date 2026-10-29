@@ -68,7 +68,7 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
         await fulfillment(of: [expectation], timeout: 2)
     }
 
-    func test_whenStepSucceeds_thenPostNotificationWithNoReason() async throws {
+    func test_whenStepSucceeds_thenSendsAnEventWithNoReason() async throws {
         state.muterConfiguration = MuterConfiguration(executable: "/path/to/swift", arguments: [])
         let coverage = CoverageStub { .success(.make(percent: 80)) }
         current.projectCoverage = { _ in coverage }

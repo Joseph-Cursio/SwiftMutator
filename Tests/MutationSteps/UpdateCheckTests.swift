@@ -12,7 +12,7 @@ final class UpdateCheckTests: MuterTestCase {
 
     private lazy var sut = UpdateCheck(currentVersion: currentVersion)
 
-    func test_notificationStarted() async throws {
+    func test_saysTheCheckStarted() async throws {
         let expect = expectation(forEvent: .updateCheckStarted)
 
         _ = try await sut.run(with: state)

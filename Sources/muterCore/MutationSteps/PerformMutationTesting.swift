@@ -110,7 +110,7 @@ struct PerformMutationTesting: MutationStep {
                 : ResultsEnd.detail(for: error)
             let thisSession = now().timeIntervalSince(session.startedAt)
             endResults(of: session, reason, detail: detail, testDuration: thisSession)
-            postEarlyEnd(
+            sendEarlyEnd(
                 of: session,
                 reason,
                 detail: detail,
@@ -378,7 +378,7 @@ private extension PerformMutationTesting {
     /// Sends what mutation testing that stopped early tested, and the results a resumed session kept, for the partial
     /// report and the summary, once the baseline has passed. Before then there is nothing to report, and an abort says
     /// why.
-    func postEarlyEnd(
+    func sendEarlyEnd(
         of session: TestingSession,
         _ reason: ResultsEnd.Reason,
         detail: String?,

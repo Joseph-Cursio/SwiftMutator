@@ -427,7 +427,7 @@ final class LoggerTests: MuterTestCase {
         ])
     }
 
-    // Each count is of the mutants this session tests, as the bar's is: a resumed run's kept results are posted before
+    // Each count is of the mutants this session tests, as the bar's is: a resumed run's kept results are sent before
     // the baseline's log, and get no line.
     func test_withoutATerminal_aResumesKeptResults_getNoLine_andArentCounted() {
         current.standardOutIsATerminal = false

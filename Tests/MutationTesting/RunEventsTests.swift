@@ -73,10 +73,10 @@ final class RunEventsTests: MuterTestCase {
     }
 
     // Observing the run's events used to keep the observer alive for good, as NotificationCenter kept its handlers.
-    func test_theMutationTestObserver_isFreed_andStopsObserving() {
+    func test_theMutationTestObserver_isFreed_andHandlesNoMoreEvents() {
         var observer: MutationTestObserver? = MutationTestObserver(runOptions: .make())
         observer?.start()
-        weak var freed = observer
+        weak let freed = observer
 
         observer = nil
         runEvents.send(.mutationTestingStarted)
