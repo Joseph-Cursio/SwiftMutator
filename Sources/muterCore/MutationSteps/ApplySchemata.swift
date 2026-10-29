@@ -23,13 +23,13 @@ struct ApplySchemata: MutationStep {
                 continue
             }
 
-            let rewriter = MuterRewriter(mutationMap)
-
-            let newFile = rewriter.visit(sourceCode)
+            let newFile = await Self.onAStackOfItsOwn {
+                MuterRewriter(mutationMap).visit(sourceCode).description
+            }
 
             do {
                 try writeFile(
-                    newFile.description,
+                    newFile,
                     mutationMap.filePath
                 )
             } catch {
@@ -38,6 +38,25 @@ struct ApplySchemata: MutationStep {
         }
 
         return []
+    }
+
+    /// The bytes of stack a file's rewrite gets: room for tens of thousands of mutants in one list, where swiftc
+    /// itself stops somewhere between 4,000 and 8,000.
+    private static let rewriteStackSize = 64 << 20
+
+    /// Runs `work` on a thread of its own, with a stack of `rewriteStackSize` bytes. Each mutant of a list is an
+    /// `else if` inside the one before, and walking the rewritten file, as writing it out does, recurses once per
+    /// level. The threads Swift concurrency runs this step on have stacks of about 512 KiB, which ran out at about
+    /// 520 mutants in one list in a debug build, or about 4,500 in a release one: the run died with a bus error
+    /// after discovery.
+    private static func onAStackOfItsOwn<Value>(_ work: @escaping () -> Value) async -> Value {
+        await withCheckedContinuation { continuation in
+            let thread = Thread {
+                continuation.resume(returning: work())
+            }
+            thread.stackSize = rewriteStackSize
+            thread.start()
+        }
     }
 
     private func loadSourceCode(from path: String) -> SourceFileSyntax? {
