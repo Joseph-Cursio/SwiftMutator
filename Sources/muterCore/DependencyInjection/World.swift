@@ -29,7 +29,7 @@ typealias ProjectCoverage = (BuildSystem) -> BuildSystemCoverage?
 typealias Now = () -> Date
 typealias Instant = () -> DispatchTime
 typealias TestingTimeoutExecutorFactory = () -> TestingTimeoutExecution
-typealias ProvenanceProbe = (MuterConfiguration) -> Provenance
+typealias ProvenanceProbe = (MuterConfiguration) async -> Provenance
 /// The files in a project, relative to it, or nil if it can't list them.
 typealias ProjectFileListing = (URL) -> [String]?
 /// Waits that many nanoseconds, or throws a CancellationError once the task is cancelled.
@@ -69,7 +69,7 @@ struct World {
     /// The monotonic clock, which stands still while SwiftMutator is suspended (`suspensions`).
     var instant: Instant = { current.suspensions.instant }
     var testingTimeOutExecutor: TestingTimeoutExecutorFactory = { TestingTimeoutExecutor() }
-    var provenance: ProvenanceProbe = { Provenance.probe($0) }
+    var provenance: ProvenanceProbe = { await Provenance.probe($0) }
     var resultsFiles: ResultsFileOpening = ResultsFile.Opener()
     var mutatedProjectLocker: MutatedProjectLocking = MutatedProjectLock.Locker()
     var listProjectFiles: ProjectFileListing = GitFileListing.list(in:)

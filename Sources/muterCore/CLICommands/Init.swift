@@ -42,9 +42,10 @@ public struct Init: AsyncParsableCommand {
         notificationCenter.post(name: .muterLaunched, object: nil)
 
         let directoryContents = fileManager.subpaths(atPath: directory) ?? []
+        let configuration = await MuterConfiguration(from: directoryContents)
         fileManager.createFile(
             atPath: "\(directory)/\(MuterConfiguration.fileNameWithExtension)",
-            contents: MuterConfiguration(from: directoryContents).asData,
+            contents: configuration.asData,
             attributes: nil
         )
 

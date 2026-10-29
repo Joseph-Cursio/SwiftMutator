@@ -176,8 +176,8 @@ private extension PerformMutationTesting {
             // the retired line of mutants no longer discovered, if any, and the end line `run(with:)` writes.
             if plan.toRun.isEmpty {
                 session.baselinePassed = true
-                startResults(
-                    header(
+                await startResults(
+                    await header(
                         of: session,
                         plan,
                         state: state,
@@ -270,8 +270,8 @@ private extension PerformMutationTesting {
         session.baselinePassed = true
 
         // Before the baseline's log, which starts the progress bar or lines, so the results file's path comes first.
-        startResults(
-            header(
+        await startResults(
+            await header(
                 of: session,
                 plan,
                 state: state,
@@ -318,8 +318,14 @@ private extension PerformMutationTesting {
         baselineSeconds: Double?,
         testRunSeconds: Double? = nil,
         workers: Int
-    ) -> ResultsHeader {
+    ) async -> ResultsHeader {
         let resume = state.resumeState
+        // A resume's was probed before the copy, and what was checked is what is recorded.
+        let sessionProvenance = if let recorded = resume?.provenance {
+            recorded
+        } else {
+            await provenance(state.muterConfiguration)
+        }
         return ResultsHeader(
             session: session.number,
             startedAt: session.startedAt,
@@ -331,8 +337,7 @@ private extension PerformMutationTesting {
             workers: workers,
             mutantsDiscovered: session.keys.count,
             mutantsToTest: plan.toRun.count,
-            // A resume's was probed before the copy, and what was checked is what is recorded.
-            provenance: resume?.provenance ?? provenance(state.muterConfiguration),
+            provenance: sessionProvenance,
             mutantsReused: resume == nil ? nil : plan.reused.count,
             waived: resume == nil ? nil : state.resumeWaived,
             forced: resume?.forced
@@ -724,14 +729,15 @@ private extension PerformMutationTesting {
     /// which it opened before the copy, and announces the file once both are written. It is attached to the session
     /// only now: before its header, no line of the session's would belong to one.
     func startResults(
-        _ header: @autoclosure () -> ResultsHeader,
+        _ header: @autoclosure () async -> ResultsHeader,
         retiring retired: [MutantKey],
         in session: TestingSession,
         state: AnyMutationTestState
-    ) {
+    ) async {
         if let resume = state.resumeState {
             session.startResults(in: resume.file)
-            guard write(header(), in: session) else { return }
+            let headerLine = await header()
+            guard write(headerLine, in: session) else { return }
             // Without it, the file would still stand by the earlier results this session doesn't keep.
             if !retired.isEmpty, !write(ResultsRetired(session: session.number, keys: retired), in: session) {
                 return
@@ -744,7 +750,8 @@ private extension PerformMutationTesting {
         do {
             let results = try resultsFiles.create(in: loggingDirectory)
             session.startResults(in: results)
-            if write(header(), in: session) {
+            let headerLine = await header()
+            if write(headerLine, in: session) {
                 notificationCenter.post(name: .resultsFileCreated, object: results.path)
             }
         } catch {

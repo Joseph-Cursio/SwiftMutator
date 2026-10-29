@@ -27,8 +27,8 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
 
     func run(
         with configuration: MuterConfiguration
-    ) -> Result<Coverage, CoverageError> {
-        guard let testRun = runTestsWithCoverageEnabled(using: configuration) else {
+    ) async -> Result<Coverage, CoverageError> {
+        guard let testRun = await runTestsWithCoverageEnabled(using: configuration) else {
             return .failure(.build)
         }
         let log = Self.log(of: testRun)
@@ -37,11 +37,13 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
             return .failure(.timedOut(after: timeLimit))
         }
         guard testRun.succeeded else {
-            return Self.failedTestsToKeep(in: testRun, log: log)
-                .flatMap { coverage(configuration, printedBy: testRun, failedTests: $0) }
+            switch Self.failedTestsToKeep(in: testRun, log: log) {
+            case let .success(failedTests): return await coverage(configuration, printedBy: testRun, failedTests: failedTests)
+            case let .failure(error): return .failure(error)
+            }
         }
 
-        return coverage(configuration, printedBy: testRun, failedTests: nil)
+        return await coverage(configuration, printedBy: testRun, failedTests: nil)
     }
 
     /// The coverage in the result bundle whose path `testRun` printed, of a run in which `failedTests` failed: xccov's
@@ -52,15 +54,15 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
         _ configuration: MuterConfiguration,
         printedBy testRun: CommandResult,
         failedTests: FailedTestLine.FailedTests?
-    ) -> Result<Coverage, CoverageError> {
+    ) async -> Result<Coverage, CoverageError> {
         guard let resultBundle = resultBundle(printedBy: testRun),
-              let report = runXccov(with: resultBundle).flatMap(CoverageReport.init(json:))
+              let report = await runXccov(with: resultBundle).flatMap(CoverageReport.init(json:))
         else {
             return .failure(.build)
         }
         let projectRoot = fileManager.currentDirectoryPath
         let derivedData = report.derivedData(resultBundle: resultBundle)
-        let export = { self.export(configuration, builtProducts: report.builtProducts, derivedData: derivedData) }
+        let export = { await self.export(configuration, builtProducts: report.builtProducts, derivedData: derivedData) }
 
         switch Self.coverage(
             of: report,
@@ -73,12 +75,12 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
                 Coverage(
                     percent: lines.percent,
                     filesWithoutCoverage: lines.filesWithoutCoverage,
-                    functionsCoverage: Self.functionsCoverage(of: export()),
+                    functionsCoverage: Self.functionsCoverage(of: await export()),
                     testsFailedWithCoverageOn: failedTests
                 )
             )
         case .failure(.noProjectFilesInXccovReport):
-            return export().flatMap { export in
+            return await export().flatMap { export in
                 Self.coverage(
                     fromExport: export,
                     projectRoot: projectRoot,
@@ -135,20 +137,20 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
         _ configuration: MuterConfiguration,
         builtProducts: [String],
         derivedData: [String]
-    ) -> Result<Data, CoverageError> {
+    ) async -> Result<Data, CoverageError> {
         let binaries = builtProducts.flatMap(binaries(of:))
         guard !binaries.isEmpty else {
             return .failure(.noBuiltProducts)
         }
-        let buildFolders = buildFolders(configuration, derivedData: derivedData)
+        let buildFolders = await buildFolders(configuration, derivedData: derivedData)
         guard !buildFolders.isEmpty else {
             return .failure(.noXcodeBuildFolder)
         }
-        guard let profile = testProfileData(at: buildFolders) else {
+        guard let profile = await testProfileData(at: buildFolders) else {
             return .failure(.noProfileData(atPath: buildFolders.joined(separator: " or ")))
         }
 
-        return regionsExport(of: binaries, profile: profile)
+        return await regionsExport(of: binaries, profile: profile)
     }
 
     /// The folders that can hold the coverage run's profile, the newest of which is the run's: `Build` in each of
@@ -157,8 +159,8 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
     /// files when its Build Location setting is Custom or Shared Folder, which can leave an earlier run's profile in
     /// the derived data. A Swift package's scheme has no `BUILD_DIR`: `-showBuildSettings` prints no settings for it,
     /// saying "Supported platforms for the buildables in the current scheme is empty".
-    private func buildFolders(_ configuration: MuterConfiguration, derivedData: [String]) -> [String] {
-        (derivedData.map { $0 + "/Build" } + [buildDirectory(configuration)].compactMap { $0 })
+    private func buildFolders(_ configuration: MuterConfiguration, derivedData: [String]) async -> [String] {
+        (derivedData.map { $0 + "/Build" } + [await buildDirectory(configuration)].compactMap { $0 })
             .reduce(into: []) { folders, folder in
                 if !folders.contains(folder) { folders.append(folder) }
             }
@@ -168,15 +170,15 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
     /// architecture makes, only for an architecture named, and then fails for a binary built only for another, as one
     /// for an Intel Mac's destination is. So one is named only if the export fails for want of it: this Mac's, whose
     /// code the tests ran.
-    private func regionsExport(of binaries: [String], profile: String) -> Result<Data, CoverageError> {
+    private func regionsExport(of binaries: [String], profile: String) async -> Result<Data, CoverageError> {
         // xcodebuild runs only on macOS, where xcrun runs the selected Xcode's llvm-cov.
         let llvmCov = (executable: "/usr/bin/xcrun", arguments: ["llvm-cov"])
-        let export = llvmCovExport(of: binaries, profile: profile, llvmCov: llvmCov)
+        let export = await llvmCovExport(of: binaries, profile: profile, llvmCov: llvmCov)
         guard case let .failure(.llvmCovFailed(message)) = export, message.contains("universal binary") else {
             return export
         }
 
-        return llvmCovExport(of: binaries, profile: profile, llvmCov: llvmCov, architecture: architecture)
+        return await llvmCovExport(of: binaries, profile: profile, llvmCov: llvmCov, architecture: architecture)
     }
 
     /// The binaries that hold the code of `product`, one the coverage run built: the product, unless it doesn't exist,
@@ -195,24 +197,25 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
     /// `BUILD_DIR` moved the products out of the derived data. xcodebuild prints each setting indented, once per
     /// target. With `BUILD_DIR=…` among the arguments, it first echoes that as given, under "Build settings from
     /// command line:", so the search starts at the first target's block.
-    func buildDirectory(_ configuration: MuterConfiguration) -> String? {
-        process().runProcess(
+    func buildDirectory(_ configuration: MuterConfiguration) async -> String? {
+        let settings: String? = await process().runProcess(
             url: configuration.testCommandExecutable,
             arguments: configuration.testCommandArguments + ["-showBuildSettings"]
         )
-        .map { (settings: String) in
-            settings.range(of: "Build settings for action").map { String(settings[$0.lowerBound...]) } ?? settings
-        }
-        .flatMap { $0.firstCaptureOf(#"^\s*BUILD_DIR = (.+)$"#, options: .anchorsMatchLines) }
-        .map(\.trimmed)
-        .flatMap(\.nilIfEmpty)
-        .flatMap { URL(fileURLWithPath: $0).deletingLastPathComponent().path }
+        return settings
+            .map { settings in
+                settings.range(of: "Build settings for action").map { String(settings[$0.lowerBound...]) } ?? settings
+            }
+            .flatMap { $0.firstCaptureOf(#"^\s*BUILD_DIR = (.+)$"#, options: .anchorsMatchLines) }
+            .map(\.trimmed)
+            .flatMap(\.nilIfEmpty)
+            .flatMap { URL(fileURLWithPath: $0).deletingLastPathComponent().path }
     }
 
     private func runTestsWithCoverageEnabled(
         using configuration: MuterConfiguration
-    ) -> CommandResult? {
-        process().runCommand(
+    ) async -> CommandResult? {
+        await process().runCommand(
             url: configuration.testCommandExecutable,
             arguments: configuration.enableCoverageArguments,
             timeLimit: configuration.buildTimeout
@@ -226,8 +229,8 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
             .flatMap(\.nilIfEmpty)
     }
 
-    private func runXccov(with result: String) -> Data? {
-        process().runProcess(
+    private func runXccov(with result: String) async -> Data? {
+        await process().runProcess(
             url: process().which("xcrun") ?? "",
             arguments: ["xccov", "view", "--report", "--json", result]
         )

@@ -34,7 +34,7 @@ struct LoadResumeState: MutationStep {
             )
         }
         do {
-            return try [.resumeStateLoaded(check(file, at: path, against: state))]
+            return try await [.resumeStateLoaded(check(file, at: path, against: state))]
         } catch {
             // The lock goes with a refusal, or a file that can't be resumed, rather than when SwiftMutator exits.
             file.close()
@@ -48,7 +48,7 @@ struct LoadResumeState: MutationStep {
         _ file: ResultsRecording,
         at path: String,
         against state: AnyMutationTestState
-    ) throws -> ResumeState {
+    ) async throws -> ResumeState {
         let options = state.runOptions
         guard let data = fileManager.contents(atPath: path) else {
             throw ResultsFileError.unreadable(path: path)
@@ -59,7 +59,7 @@ struct LoadResumeState: MutationStep {
             throw ResultsFileError.notAResultsFile(path: path)
         }
         // Asked in the project, where swiftly finds the same `.swift-version` as in the copy.
-        let current = provenance(state.muterConfiguration)
+        let current = await provenance(state.muterConfiguration)
         let tree = ProjectTree.fingerprint(
             listingIn: state.projectDirectoryURL,
             hashingIn: state.projectDirectoryURL,

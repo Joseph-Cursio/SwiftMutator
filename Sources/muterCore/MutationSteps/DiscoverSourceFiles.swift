@@ -21,7 +21,7 @@ struct DiscoverSourceFiles: MutationStep {
 
         let sourceFileCandidates = state.filesToMutate.isEmpty
             ? discoverSourceFiles(
-                among: try candidatePaths(in: state),
+                among: try await candidatePaths(in: state),
                 inDirectoryAt: state.mutatedProjectDirectoryURL.path,
                 excludingPathsIn: state.muterConfiguration.excludeFileList,
                 ignoringFilesWithoutCoverage: state.projectCoverage.filesWithoutCoverage
@@ -72,10 +72,10 @@ private extension DiscoverSourceFiles {
     /// The paths in the mutated project, relative to it, that discovery picks from. For a SwiftPM project, the Swift
     /// files its targets compile, and those of the local packages in it that it depends on, as `swift package describe`
     /// gives them. Otherwise, or if that fails, every path in the project that isn't hidden or ignored.
-    private func candidatePaths(in state: AnyMutationTestState) throws -> [FilePath] {
+    private func candidatePaths(in state: AnyMutationTestState) async throws -> [FilePath] {
         let rootPath = state.mutatedProjectDirectoryURL.path
         if state.muterConfiguration.buildSystem == .swift {
-            switch packageSourceFiles(inProjectAt: rootPath, testedBy: state.muterConfiguration) {
+            switch await packageSourceFiles(inProjectAt: rootPath, testedBy: state.muterConfiguration) {
             case let .success(files):
                 return files
             case let .failure(failure):
@@ -93,14 +93,14 @@ private extension DiscoverSourceFiles {
     private func packageSourceFiles(
         inProjectAt rootPath: FilePath,
         testedBy configuration: MuterConfiguration
-    ) -> Result<[FilePath], SwiftPackageSources.Failure> {
+    ) async -> Result<[FilePath], SwiftPackageSources.Failure> {
         let currentDirectoryPath = fileManager.currentDirectoryPath
         fileManager.changeCurrentDirectoryPath(rootPath)
         defer {
             fileManager.changeCurrentDirectoryPath(currentDirectoryPath)
         }
 
-        return SwiftPackageSources.files(inProjectAt: rootPath, testedBy: configuration, process: process)
+        return await SwiftPackageSources.files(inProjectAt: rootPath, testedBy: configuration, process: process)
     }
 
     /// Every path in the mutated project at `rootPath`, relative to it, but those in a hidden folder or hidden

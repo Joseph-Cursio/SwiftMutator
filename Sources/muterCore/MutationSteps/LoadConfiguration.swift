@@ -38,9 +38,10 @@ struct LoadConfiguration: MutationStep {
                 )
             }
 
+            let resolved = try await withResolvedExecutable(configuration)
             return [
                 .projectDirectoryUrlDiscovered(URL(fileURLWithPath: fileManager.currentDirectoryPath)),
-                .configurationParsed(try withResolvedExecutable(configuration)),
+                .configurationParsed(resolved),
             ]
         } catch let error as MuterError {
             throw error
@@ -59,7 +60,7 @@ struct LoadConfiguration: MutationStep {
     /// project root — gives every later step an executable it can actually launch.
     private func withResolvedExecutable(
         _ configuration: MuterConfiguration
-    ) throws -> MuterConfiguration {
+    ) async throws -> MuterConfiguration {
         let executable = configuration.testCommandExecutable
         guard !executable.contains("/") else {
             return configuration
@@ -67,7 +68,7 @@ struct LoadConfiguration: MutationStep {
 
         // Reported verbatim rather than as a `configurationParsingError`: the file parsed fine, so framing
         // this as a parsing or FileManager problem would send the user looking in the wrong place.
-        guard let resolved = process().which(executable) else {
+        guard let resolved = await process().which(executable) else {
             throw MuterError.literal(
                 reason: """
                 SwiftMutator could not find "\(executable)" on your PATH.

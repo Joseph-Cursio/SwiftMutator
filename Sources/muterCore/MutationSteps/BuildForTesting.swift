@@ -28,7 +28,7 @@ struct BuildForTesting: MutationStep {
 
         do {
             let buildDirectory = try buildDirectory(state.muterConfiguration)
-            try runBuildForTestingCommand(state.muterConfiguration)
+            try await runBuildForTestingCommand(state.muterConfiguration)
             let tempDebugURL = createTestContetsUrl(state.mutatedProjectDirectoryURL)
             try copyBuildArtifactsAtPath(buildDirectory, to: tempDebugURL.path)
 
@@ -46,9 +46,9 @@ struct BuildForTesting: MutationStep {
 
     private func runBuildForTestingCommand(
         _ configuration: MuterConfiguration
-    ) throws {
+    ) async throws {
         let buildProcess = process()
-        guard let output: String = buildProcess.runProcess(
+        guard let output: String = await buildProcess.runProcess(
             url: configuration.testCommandExecutable,
             arguments: configuration.buildForTestingArguments
         ).flatMap(\.nilIfEmpty)

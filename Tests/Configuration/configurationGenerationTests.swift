@@ -2,7 +2,7 @@
 import XCTest
 
 final class ConfigurationGenerationTests: MuterTestCase {
-    func test_swiftPackageManagerProject() {
+    func test_swiftPackageManagerProject() async {
         let projectDirectoryContents = [
             "/some/path/Package.swift",
             "/some/path/Package@swift-5.11.swift",
@@ -12,7 +12,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
 
         process.stdoutToBeReturned = which("swift")
 
-        let generatedConfiguration = MuterConfiguration(from: projectDirectoryContents)
+        let generatedConfiguration = await MuterConfiguration(from: projectDirectoryContents)
 
         XCTAssertEqual(
             generatedConfiguration,
@@ -25,7 +25,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
     }
 
     #if !os(Linux)
-    func test_xcodeProject() {
+    func test_xcodeProject() async {
         let projectDirectoryContents = [
             "/some/path/Package.swift",
             "/some/path/main.swift",
@@ -35,7 +35,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
         process.stdoutToBeReturned = simCtl()
         process.stdoutToBeReturned = which("xcodebuild")
 
-        let generatedConfiguration = MuterConfiguration(from: projectDirectoryContents)
+        let generatedConfiguration = await MuterConfiguration(from: projectDirectoryContents)
 
         let expectedConfiguration = MuterConfiguration(
             executable: "/path/to/xcodebuild",
@@ -61,7 +61,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
         )
     }
 
-    func test_iosProject() {
+    func test_iosProject() async {
         let projectDirectoryContents = [
             "\(fixturesDirectory)/XcodeProjectFiles/iOSApp.xcodeproj",
             "/some/path/AppDelegate.swift",
@@ -70,7 +70,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
         process.stdoutToBeReturned = simCtl()
         process.stdoutToBeReturned = which("xcodebuild")
 
-        let generatedConfiguration = MuterConfiguration(from: projectDirectoryContents)
+        let generatedConfiguration = await MuterConfiguration(from: projectDirectoryContents)
 
         let expectedConfiguration = MuterConfiguration(
             executable: "/path/to/xcodebuild",
@@ -96,7 +96,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
         )
     }
 
-    func test_xcodeWorkspace() {
+    func test_xcodeWorkspace() async {
         let projectDirectoryContents = [
             "\(fixturesDirectory)/XcodeProjectFiles/iOSApp.xcodeproj",
             "\(fixturesDirectory)/XcodeProjectFiles/iOSApp.xcodeproj/project.xcworkspace",
@@ -107,7 +107,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
         process.stdoutToBeReturned = simCtl()
         process.stdoutToBeReturned = which("xcodebuild")
 
-        let generatedConfiguration = MuterConfiguration(from: projectDirectoryContents)
+        let generatedConfiguration = await MuterConfiguration(from: projectDirectoryContents)
 
         let expectedConfiguration = MuterConfiguration(
             executable: "/path/to/xcodebuild",
@@ -133,7 +133,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
         )
     }
 
-    func test_macOSProject() {
+    func test_macOSProject() async {
         let projectDirectoryContents = [
             "\(fixturesDirectory)/XcodeProjectFiles/CocoaApp.xcodeproj",
             "/some/path/AppDelegate.swift",
@@ -142,7 +142,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
         process.stdoutToBeReturned = macOSDescitionation()
         process.stdoutToBeReturned = which("xcodebuild")
 
-        let generatedConfiguration = MuterConfiguration(from: projectDirectoryContents)
+        let generatedConfiguration = await MuterConfiguration(from: projectDirectoryContents)
 
         XCTAssertEqual(
             generatedConfiguration,
@@ -161,7 +161,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
         )
     }
 
-    func test_iosWorkspace() {
+    func test_iosWorkspace() async {
         let projectDirectoryContents = [
             "\(fixturesDirectory)/XcodeProjectFiles/iOSApp.xcodeproj",
             "/some/path/iOSApp.xcworkspace", // does not need to be a real file - just needs to share a name
@@ -171,7 +171,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
         process.stdoutToBeReturned = simCtl()
         process.stdoutToBeReturned = which("xcodebuild")
 
-        let generatedConfiguration = MuterConfiguration(from: projectDirectoryContents)
+        let generatedConfiguration = await MuterConfiguration(from: projectDirectoryContents)
 
         let expectedConfiguration = MuterConfiguration(
             executable: "/path/to/xcodebuild",
@@ -197,7 +197,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
         )
     }
 
-    func test_macOSWorkspace() {
+    func test_macOSWorkspace() async {
         let projectDirectoryContents = [
             "\(fixturesDirectory)/XcodeProjectFiles/CocoaApp.xcodeproj",
             "/some/path/CocoaApp.xcworkspace", // does not need to be a real file - just needs to share a name
@@ -207,7 +207,7 @@ final class ConfigurationGenerationTests: MuterTestCase {
         process.stdoutToBeReturned = macOSDescitionation()
         process.stdoutToBeReturned = which("xcodebuild")
 
-        let generatedConfiguration = MuterConfiguration(from: projectDirectoryContents)
+        let generatedConfiguration = await MuterConfiguration(from: projectDirectoryContents)
 
         XCTAssertEqual(
             generatedConfiguration,
@@ -227,8 +227,8 @@ final class ConfigurationGenerationTests: MuterTestCase {
     }
     #endif
 
-    func test_unsupportedProject() {
-        let generatedConfiguration = MuterConfiguration(from: ["/some/path/main.swift"])
+    func test_unsupportedProject() async {
+        let generatedConfiguration = await MuterConfiguration(from: ["/some/path/main.swift"])
         XCTAssertEqual(
             generatedConfiguration,
             MuterConfiguration(executable: "", arguments: [])
