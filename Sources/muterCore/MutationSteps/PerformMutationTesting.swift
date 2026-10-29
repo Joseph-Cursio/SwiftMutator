@@ -49,11 +49,11 @@ struct PerformMutationTesting: MutationStep {
 
     /// Clones the mutated project for each extra parallel worker, and removes the clones afterwards.
     /// Injected so tests don't touch the disk.
-    private let makeWorkerDirectories: (_ mutatedProject: URL, _ count: Int) throws -> [URL]
+    private let makeWorkerDirectories: (_ mutatedProject: URL, _ count: Int) async throws -> [URL]
     private let removeWorkerDirectories: (_ directories: [URL]) -> Void
 
     init(
-        makeWorkerDirectories: @escaping (URL, Int) throws -> [URL] = PerformMutationTesting.cloneMutatedProject,
+        makeWorkerDirectories: @escaping (URL, Int) async throws -> [URL] = PerformMutationTesting.cloneMutatedProject,
         removeWorkerDirectories: @escaping ([URL]) -> Void = PerformMutationTesting.removeClones
     ) {
         self.makeWorkerDirectories = makeWorkerDirectories
@@ -485,7 +485,7 @@ private extension PerformMutationTesting {
         try Task.checkCancellation()
         let clones: [URL]
         do {
-            clones = try makeWorkerDirectories(state.mutatedProjectDirectoryURL, workers - 1)
+            clones = try await makeWorkerDirectories(state.mutatedProjectDirectoryURL, workers - 1)
         } catch {
             // Stopping the run kills a `cp` under way, which then fails.
             try Task.checkCancellation()
@@ -833,10 +833,12 @@ private extension PerformMutationTesting {
 extension PerformMutationTesting {
     struct WorkerDirectoryError: Error, CustomStringConvertible {
         let clone: URL
-        let status: Int32
+        /// cp's exit status, or nil if it couldn't be started.
+        let status: Int32?
 
         var description: String {
-            "SwiftMutator could not clone the mutated project to \(clone.path) for a parallel worker (cp exited \(status))."
+            let copy = status.map { "cp exited \($0)" } ?? "cp could not be started"
+            return "SwiftMutator could not clone the mutated project to \(clone.path) for a parallel worker (\(copy))."
         }
     }
 
@@ -846,8 +848,8 @@ extension PerformMutationTesting {
     /// about one baseline build of time, and much of the clone's build directory is rewritten rather
     /// than shared. Its copied Clang module caches record the mutated project's path, so they're
     /// discarded first, as `CopyProjectToTempDirectory` does for the mutated project itself.
-    static func cloneMutatedProject(_ project: URL, count: Int) throws -> [URL] {
-        try cloneMutatedProject(project, count: count, copying: copyProject(_:to:))
+    static func cloneMutatedProject(_ project: URL, count: Int) async throws -> [URL] {
+        try await cloneMutatedProject(project, count: count, copying: copyProject(_:to:))
     }
 
     /// `copy` copies the project to one clone. If one fails, the clones made before it are removed, and so is whatever
@@ -855,8 +857,8 @@ extension PerformMutationTesting {
     static func cloneMutatedProject(
         _ project: URL,
         count: Int,
-        copying copy: (_ project: URL, _ clone: URL) throws -> Void
-    ) throws -> [URL] {
+        copying copy: (_ project: URL, _ clone: URL) async throws -> Void
+    ) async throws -> [URL] {
         guard count > 0 else { return [] }
         var clones: [URL] = []
         do {
@@ -865,7 +867,7 @@ extension PerformMutationTesting {
                     .appendingPathComponent("\(project.lastPathComponent)_worker\(index)")
                 try? FileManager.default.removeItem(at: clone)
                 clones.append(clone) // before the copy, which can fail partway through
-                try copy(project, clone)
+                try await copy(project, clone)
                 discardModuleCaches(in: clone)
             }
             return clones
@@ -875,15 +877,11 @@ extension PerformMutationTesting {
         }
     }
 
-    private static func copyProject(_ project: URL, to clone: URL) throws {
+    private static func copyProject(_ project: URL, to clone: URL) async throws {
         #if os(macOS)
-        let copy = Foundation.Process()
-        copy.executableURL = URL(fileURLWithPath: "/bin/cp")
-        copy.arguments = ["-c", "-R", project.path, clone.path]
-        try copy.run()
-        copy.waitUntilExit()
-        guard copy.terminationStatus == 0 else {
-            throw WorkerDirectoryError(clone: clone, status: copy.terminationStatus)
+        let copy = await Foundation.Process().runCommand(url: "/bin/cp", arguments: ["-c", "-R", project.path, clone.path])
+        guard let copy, copy.status == 0 else {
+            throw WorkerDirectoryError(clone: clone, status: copy?.status)
         }
         #else
         try FileManager.default.copyItem(at: project, to: clone)

@@ -525,7 +525,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
 
     // Clang module caches record the path they were built under, so the clone's own build would fail
     // on the ones copied from the mutated project.
-    func test_cloningTheMutatedProject_discardsItsModuleCaches() throws {
+    func test_cloningTheMutatedProject_discardsItsModuleCaches() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         let project = root.appendingPathComponent("project_mutated")
@@ -543,7 +543,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
             try Data().write(to: url)
         }
 
-        let clones = try PerformMutationTesting.cloneMutatedProject(project, count: 1)
+        let clones = try await PerformMutationTesting.cloneMutatedProject(project, count: 1)
 
         XCTAssertEqual(clones.map(\.path), [root.appendingPathComponent("project_mutated_worker1").path])
         let clone = try XCTUnwrap(clones.first)
@@ -558,7 +558,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
     }
 
     // Nothing else would remove them until a later parallel run replaced them.
-    func test_whenCloningTheSecondWorkerFails_theFirstCloneAndTheSecondsPartialCopyAreRemoved() throws {
+    func test_whenCloningTheSecondWorkerFails_theFirstCloneAndTheSecondsPartialCopyAreRemoved() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         let project = root.appendingPathComponent("project_mutated")
@@ -569,8 +569,8 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         try Data("let answer = 42".utf8).write(to: source)
         let failingClone = root.appendingPathComponent("project_mutated_worker2")
 
-        XCTAssertThrowsError(
-            try PerformMutationTesting.cloneMutatedProject(project, count: 3) { project, clone in
+        do {
+            _ = try await PerformMutationTesting.cloneMutatedProject(project, count: 3) { project, clone in
                 guard clone.path == failingClone.path else {
                     return try FileManager.default.copyItem(at: project, to: clone)
                 }
@@ -579,7 +579,8 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
                 try Data().write(to: clone.appendingPathComponent("partial.o"))
                 throw PerformMutationTesting.WorkerDirectoryError(clone: clone, status: 1)
             }
-        ) { error in
+            XCTFail("the clones were made")
+        } catch {
             XCTAssertEqual((error as? PerformMutationTesting.WorkerDirectoryError)?.clone.path, failingClone.path)
         }
 
