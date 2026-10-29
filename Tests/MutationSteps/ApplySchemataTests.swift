@@ -91,6 +91,32 @@ final class ApplySchemataTests: MuterTestCase {
         }
     }
 
+    // Each mutant of a list is an `else if` inside the one before, and writing the file out recursed once per
+    // level. The threads Swift concurrency runs this step on have stacks of about 512 KiB, which ran out at about
+    // 520 mutants in one list in a debug build, and the run died with a bus error after discovery. 5,000 is past a
+    // release build's limit too.
+    func test_writesAListWithMoreMutantsThanAConcurrencyThreadsStackHolds() async throws {
+        let path = "/path/to/Deep.swift"
+        let source = try sourceCode("func deep(_ value: Int) -> Bool {\n    return value > 0\n}\n")
+        let function = try XCTUnwrap(source.statements.first?.item.as(FunctionDeclSyntax.self))
+        let body = try XCTUnwrap(function.body).statements
+        let mapping = SchemataMutationMapping(filePath: path)
+        for index in 1 ... 5_000 {
+            try mapping.add(body, .make(
+                filePath: path,
+                syntaxMutation: "\n    return value > \(index)\n",
+                position: MutationPosition(utf8Offset: index, line: index)
+            ))
+        }
+        state.sourceCodeByFilePath[path] = source
+        state.mutationMapping = [mapping]
+
+        _ = try await sut.run(with: state)
+
+        let written = try XCTUnwrap(writeFile.contentPassed)
+        XCTAssertEqual(written.components(separatedBy: "] != nil {").count - 1, 5_000)
+    }
+
     func test_handlesEmptyMutationMapping() async throws {
         state.mutationMapping = []
         state.sourceCodeByFilePath = [:]
