@@ -64,6 +64,21 @@ final class MutationTestObserverTests: MuterTestCase {
         ])
     }
 
+    func test_whyThePackagesSourceFilesCouldntBeListed_reachesTheLogger() {
+        sut.start()
+
+        notificationCenter.post(name: .packageSourceFilesUnavailable, object: "/usr/bin/swift couldn't be started")
+
+        XCTAssertEqual(printer.linesPassed.count, 1)
+        XCTAssertTrue(
+            printer.linesPassed.first?.hasPrefix(
+                "⚠️ SwiftMutator couldn't tell which files the package's targets compile: "
+                    + "/usr/bin/swift couldn't be started.\n"
+            ) == true,
+            "\(printer.linesPassed)"
+        )
+    }
+
     func test_whyCoverageFailed_reachesTheLogger() {
         sut.start()
 

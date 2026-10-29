@@ -230,6 +230,20 @@ final class LoggerTests: MuterTestCase {
         ])
     }
 
+    // SwiftPM's errors often end in a full stop, which isn't doubled.
+    func test_packageSourceFilesUnavailable_saysWhyAndWhatDiscoveryDoesInstead() {
+        sut.packageSourceFilesUnavailable(reason: "`swift package describe` failed for /p: error: invalid manifest.")
+
+        XCTAssertEqual(printer.linesPassed, [
+            """
+            ⚠️ SwiftMutator couldn't tell which files the package's targets compile: `swift package describe` failed \
+            for /p: error: invalid manifest.
+            It looks at every Swift file in the project that isn't hidden or ignored instead, so a file no target \
+            builds may get mutants no test can kill. \("exclude".bold) can leave such files out.
+            """,
+        ])
+    }
+
     func test_projectCopySkippedVanishedFiles_listsUpToFivePaths() {
         sut.projectCopySkippedVanishedFiles((1 ... 7).map { "/p/f\($0).lock" })
 

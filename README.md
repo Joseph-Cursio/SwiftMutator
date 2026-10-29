@@ -369,8 +369,9 @@ does `swift-mutator report` of the file.
 - **Coverage.** Each session gathers coverage again, unless `--skip-coverage` is given, and
   discovers mutants by it. A result whose mutant this session no longer discovers is dropped,
   neither kept nor tested. SwiftMutator warns of that, and of a session that discovers more or fewer
-  mutants than the last one, or has coverage the last one didn't, or the reverse. It names the
-  coverage change when that can explain the count:
+  mutants than the last one, or has coverage the last one didn't, or the reverse. Discovery can also
+  change when `swift package describe` works in one session only, or git lists the project in one
+  only. SwiftMutator names the coverage change when that can explain the count:
   `⚠️ 412 earlier results no longer count, as this session doesn't discover their mutants: coverage
   couldn't be gathered then, and is now.`
 - **Stopping again.** A resumed run stops as any run does. Its summary counts what it tested apart
