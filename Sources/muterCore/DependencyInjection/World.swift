@@ -9,12 +9,6 @@ var current = World()
 let current = World()
 #endif
 
-typealias ProgressBarInitializer = (
-    Int,
-    [ProgressElementType]?,
-    ProgressBarPrinter?
-) -> ProgressBar
-
 typealias PreparedSourceCode = (
     source: SourceCodeInfo,
     changes: MutationSourceCodePreparationChange
@@ -51,13 +45,6 @@ struct World {
         isatty: isatty(STDOUT_FILENO) != 0,
         term: ProcessInfo.processInfo.environment["TERM"]
     )
-    var progressBar: ProgressBarInitializer = {
-        ProgressBar(
-            count: $0,
-            configuration: $1,
-            printer: $2
-        )
-    }
 
     var ioDelegate: MutationTestingIODelegate = MutationTestingDelegate()
     var process: ProcessFactory = MuterProcessFactory.makeProcess
