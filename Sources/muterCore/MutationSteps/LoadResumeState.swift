@@ -60,7 +60,7 @@ struct LoadResumeState: MutationStep {
         }
         // Asked in the project, where swiftly finds the same `.swift-version` as in the copy.
         let current = await provenance(state.muterConfiguration)
-        let tree = ProjectTree.fingerprint(
+        let tree = await ProjectTree.fingerprint(
             listingIn: state.projectDirectoryURL,
             hashingIn: state.projectDirectoryURL,
             excluding: ProjectTree.excludedPaths(options, under: state.projectDirectoryURL)

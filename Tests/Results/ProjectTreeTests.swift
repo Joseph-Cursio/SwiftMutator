@@ -10,7 +10,7 @@ final class ProjectTreeTests: XCTestCase {
         project = try makeTemporaryDirectory()
     }
 
-    func test_listsTrackedAndUntrackedFiles_butNotIgnoredOnes() throws {
+    func test_listsTrackedAndUntrackedFiles_butNotIgnoredOnes() async throws {
         try write([
             ".gitignore": "*.log\nbuild/\n",
             "README.md": "readme",
@@ -22,7 +22,7 @@ final class ProjectTreeTests: XCTestCase {
         try git("init", in: project)
         try git("add", ".gitignore", "README.md", "Sources", in: project)
 
-        let tree = fingerprint()
+        let tree = await fingerprint()
 
         XCTAssertEqual(tree.listedBy, .git)
         XCTAssertEqual(tree.files.keys.sorted(), [".gitignore", "README.md", "Sources/Sum/Sum.swift", "notes.txt"])
@@ -30,7 +30,7 @@ final class ProjectTreeTests: XCTestCase {
         XCTAssertEqual(tree.files["notes.txt"], digest(of: "notes.txt"))
     }
 
-    func test_aTrackedFileThatIsIgnored_isStillListed() throws {
+    func test_aTrackedFileThatIsIgnored_isStillListed() async throws {
         try write([
             ".gitignore": "Tests/Fixtures/*.json\n",
             "Tests/Fixtures/tracked.json": "{}",
@@ -40,10 +40,11 @@ final class ProjectTreeTests: XCTestCase {
         try git("add", ".gitignore", in: project)
         try git("add", "-f", "Tests/Fixtures/tracked.json", in: project)
 
-        XCTAssertEqual(fingerprint().files.keys.sorted(), [".gitignore", "Tests/Fixtures/tracked.json"])
+        let result = await fingerprint().files.keys.sorted()
+        XCTAssertEqual(result, [".gitignore", "Tests/Fixtures/tracked.json"])
     }
 
-    func test_alwaysAddsSwiftAndPackageFiles_evenWhenIgnored() throws {
+    func test_alwaysAddsSwiftAndPackageFiles_evenWhenIgnored() async throws {
         try write([
             ".gitignore": "*\n",
             "Package.swift": "manifest",
@@ -60,7 +61,8 @@ final class ProjectTreeTests: XCTestCase {
         ])
         try git("init", in: project)
 
-        XCTAssertEqual(fingerprint().files.keys.sorted(), [
+        let result = await fingerprint().files.keys.sorted()
+        XCTAssertEqual(result, [
             ".swift-version",
             "App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
             "App.xcworkspace/xcshareddata/swiftpm/Package.resolved",
@@ -72,7 +74,7 @@ final class ProjectTreeTests: XCTestCase {
         ])
     }
 
-    func test_prunesBuildGitSwiftPMDerivedDataAndXcuserdata_atAnyDepth() throws {
+    func test_prunesBuildGitSwiftPMDerivedDataAndXcuserdata_atAnyDepth() async throws {
         try write([
             "Sources/Sum.swift": "kept",
             "Sub/muter-mappings.json": "kept: only the root's is SwiftMutator's",
@@ -92,13 +94,15 @@ final class ProjectTreeTests: XCTestCase {
         try git("add", "-f", ".", in: project)
         let kept = ["Sources/Sum.swift", "Sub/muter-mappings.json"]
 
-        XCTAssertEqual(fingerprint().files.keys.sorted(), kept, "listed by git")
-        XCTAssertEqual(fingerprint(list: { _ in nil }).files.keys.sorted(), kept, "walked")
+        let listed = await fingerprint().files.keys.sorted()
+        XCTAssertEqual(listed, kept, "listed by git")
+        let walked = await fingerprint(list: { _ in nil }).files.keys.sorted()
+        XCTAssertEqual(walked, kept, "walked")
         XCTAssertTrue(ProjectTree.isPruned(".git/config"))
         XCTAssertTrue(ProjectTree.isPruned("Sub/.git/HEAD"))
     }
 
-    func test_leavesOutTheExcludedReportAndItsPartialSibling() throws {
+    func test_leavesOutTheExcludedReportAndItsPartialSibling() async throws {
         let folders = try makeDirectoryWithSymbolicLink()
         project = folders.directory
         try write(["Sources/Sum.swift": "sum", "report.txt": "report", "report.partial.txt": "partial report"])
@@ -106,7 +110,7 @@ final class ProjectTreeTests: XCTestCase {
         let options = Run.Options.make(reportURL: URL(fileURLWithPath: "\(folders.link)/report.txt"))
 
         let excluded = ProjectTree.reportPaths(options, under: projectURL)
-        let tree = fingerprint(excluding: excluded, list: { _ in nil })
+        let tree = await fingerprint(excluding: excluded, list: { _ in nil })
 
         XCTAssertEqual(excluded, ["report.txt", "report.partial.txt"])
         XCTAssertEqual(tree.files.keys.sorted(), ["Sources/Sum.swift"])
@@ -141,7 +145,7 @@ final class ProjectTreeTests: XCTestCase {
         XCTAssertEqual(ProjectTree.excludedPaths(.make(configurationURL: outside), under: projectURL), [])
     }
 
-    func test_doesNotDescendIntoAnIgnoredNestedCheckout() throws {
+    func test_doesNotDescendIntoAnIgnoredNestedCheckout() async throws {
         try write([
             ".gitignore": "/.claude/\n",
             "Sources/Sum.swift": "sum",
@@ -152,14 +156,15 @@ final class ProjectTreeTests: XCTestCase {
         try git("init", in: project)
         try git("add", ".gitignore", "Sources", in: project)
 
-        XCTAssertEqual(fingerprint().files.keys.sorted(), [
+        let result = await fingerprint().files.keys.sorted()
+        XCTAssertEqual(result, [
             ".claude/notes/Draft.swift",
             ".gitignore",
             "Sources/Sum.swift",
         ])
     }
 
-    func test_listsANestedRepository_throughItsOwnListing() throws {
+    func test_listsANestedRepository_throughItsOwnListing() async throws {
         try write([
             "Sources/Sum.swift": "sum",
             "vendor/lib/a.json": "a fixture",
@@ -171,15 +176,17 @@ final class ProjectTreeTests: XCTestCase {
         try git("init", in: "\(project)/vendor/lib")
         try git("add", "a.json", in: "\(project)/vendor/lib")
 
-        XCTAssertEqual(GitFileListing.list(in: projectURL)?.contains("vendor/lib/a.json"), true)
-        XCTAssertEqual(fingerprint().files.keys.sorted(), [
+        let listing = await GitFileListing.list(in: projectURL)
+        XCTAssertEqual(listing?.contains("vendor/lib/a.json"), true)
+        let fingerprinted = await fingerprint().files.keys.sorted()
+        XCTAssertEqual(fingerprinted, [
             "Sources/Sum.swift",
             "vendor/lib/.gitignore",
             "vendor/lib/a.json",
         ])
     }
 
-    func test_aProjectNestedInARepository_listsItsTrackedFiles() throws {
+    func test_aProjectNestedInARepository_listsItsTrackedFiles() async throws {
         // The repository ignores SwiftMutator's copies: git, asked about the copy, lists nothing in it.
         let repository = project
         project = "\(repository)/proj"
@@ -196,7 +203,7 @@ final class ProjectTreeTests: XCTestCase {
         try git("add", "-f", "proj/Tests/Fixtures/f.json", in: repository)
         try FileManager.default.copyItem(atPath: project, toPath: copy)
 
-        let tree = fingerprint(hashingIn: copy)
+        let tree = await fingerprint(hashingIn: copy)
 
         XCTAssertEqual(tree.listedBy, .git)
         XCTAssertEqual(tree.files.keys.sorted(), [
@@ -205,13 +212,14 @@ final class ProjectTreeTests: XCTestCase {
             "Tests/Fixtures/f.json",
             "notes.txt",
         ])
-        XCTAssertNil(GitFileListing.list(in: URL(fileURLWithPath: copy)), "why the project is listed, not the copy")
+        let result = await GitFileListing.list(in: URL(fileURLWithPath: copy))
+        XCTAssertNil(result, "why the project is listed, not the copy")
     }
 
     // A run started from a git hook inherits what git exports to it: a relative GIT_INDEX_FILE, -c settings as
     // GIT_CONFIG_PARAMETERS, and GIT_DIR=.git after `git --git-dir=.git commit`. In a nested project that GIT_DIR names
     // a folder that isn't there, and the files the repository tracks would be walked as if it had none.
-    func test_aListingInAGitHook_leavesOutTheRepositoryVariablesItInherits() throws {
+    func test_aListingInAGitHook_leavesOutTheRepositoryVariablesItInherits() async throws {
         let repository = project
         project = "\(repository)/proj"
         try write([".gitignore": "Tests/Fixtures/*.json\n", "Sources/Lib/A.swift": "a", "Tests/Fixtures/f.json": "{}"])
@@ -222,8 +230,9 @@ final class ProjectTreeTests: XCTestCase {
         setEnvironment("GIT_INDEX_FILE", to: ".git/index")
         setEnvironment("GIT_CONFIG_PARAMETERS", to: "'user.name'='Me'")
 
+        let result = await GitFileListing.list(in: projectURL)
         XCTAssertEqual(
-            GitFileListing.list(in: projectURL),
+            result,
             [".gitignore", "Sources/Lib/A.swift", "Tests/Fixtures/f.json"]
         )
         XCTAssertEqual(
@@ -239,7 +248,7 @@ final class ProjectTreeTests: XCTestCase {
 
     // What only the user's global excludes ignore, such as a tool's settings, isn't a project file: listed, it would
     // refuse a resume each time the tool rewrote it.
-    func test_theUsersGlobalExcludes_areKept() throws {
+    func test_theUsersGlobalExcludes_areKept() async throws {
         try write(["Sources/Sum.swift": "sum", "README.md": "readme", "settings.local.json": "a tool's"])
         let configuration = try makeTemporaryDirectory()
         try Data("settings.local.json\n".utf8).write(to: URL(fileURLWithPath: "\(configuration)/ignore"))
@@ -248,12 +257,13 @@ final class ProjectTreeTests: XCTestCase {
         setEnvironment("GIT_CONFIG_GLOBAL", to: "\(configuration)/config")
         try git("init", in: project)
 
-        XCTAssertEqual(GitFileListing.list(in: projectURL), ["README.md", "Sources/Sum.swift"])
+        let result = await GitFileListing.list(in: projectURL)
+        XCTAssertEqual(result, ["README.md", "Sources/Sum.swift"])
     }
 
     // A project with no repository of its own, in a folder its enclosing repository ignores: git lists none of its
     // untracked files, and only the files forced in, so it is walked.
-    func test_aProjectInAFolderItsRepositoryIgnores_isWalked() throws {
+    func test_aProjectInAFolderItsRepositoryIgnores_isWalked() async throws {
         let repository = project
         project = "\(repository)/scratch/Pkg"
         try write([
@@ -266,18 +276,21 @@ final class ProjectTreeTests: XCTestCase {
         try git("add", ".gitignore", in: repository)
         let everyFile = ["Sources/Pkg/A.swift", "Tests/Fixtures/input.json", "muter.conf.yml"]
 
-        let tree = fingerprint()
+        let tree = await fingerprint()
 
-        XCTAssertNil(GitFileListing.list(in: projectURL))
+        let listing = await GitFileListing.list(in: projectURL)
+        XCTAssertNil(listing)
         XCTAssertEqual(tree.listedBy, .walk)
         XCTAssertEqual(tree.files.keys.sorted(), everyFile)
 
         try git("add", "-f", "scratch/Pkg/Sources/Pkg/A.swift", in: repository)
-        XCTAssertNil(GitFileListing.list(in: projectURL), "a file forced in leaves the rest unlisted")
-        XCTAssertEqual(fingerprint().files.keys.sorted(), everyFile)
+        let listingWithAFileForcedIn = await GitFileListing.list(in: projectURL)
+        XCTAssertNil(listingWithAFileForcedIn, "a file forced in leaves the rest unlisted")
+        let fingerprinted = await fingerprint().files.keys.sorted()
+        XCTAssertEqual(fingerprinted, everyFile)
     }
 
-    func test_withoutGit_walksEveryFile() throws {
+    func test_withoutGit_walksEveryFile() async throws {
         try write([
             "Sources/Sum.swift": "sum",
             "notes.txt": "notes",
@@ -286,9 +299,10 @@ final class ProjectTreeTests: XCTestCase {
             "Nested/Sources/Lib.swift": "lib",
         ])
 
-        let tree = fingerprint()
+        let tree = await fingerprint()
 
-        XCTAssertNil(GitFileListing.list(in: projectURL), "not in a repository: git fails")
+        let result = await GitFileListing.list(in: projectURL)
+        XCTAssertNil(result, "not in a repository: git fails")
         XCTAssertEqual(tree.listedBy, .walk)
         XCTAssertEqual(tree.files.keys.sorted(), [
             "Nested/Sources/Lib.swift",
@@ -298,7 +312,7 @@ final class ProjectTreeTests: XCTestCase {
         ])
     }
 
-    func test_aSymbolicLinkIsHashedByWhereItPoints() throws {
+    func test_aSymbolicLinkIsHashedByWhereItPoints() async throws {
         try write(["Docs/rules/rule.md": "a rule", "notes.txt": "notes"])
         let manager = FileManager.default
         try manager.createDirectory(atPath: "\(project)/Sources", withIntermediateDirectories: true)
@@ -309,7 +323,7 @@ final class ProjectTreeTests: XCTestCase {
 
         let listings: [(String, ProjectFileListing)] = [("listed by git", GitFileListing.list(in:)), ("walked", { _ in nil })]
         for (name, list) in listings {
-            let tree = fingerprint(list: list)
+            let tree = await fingerprint(list: list)
 
             XCTAssertEqual(
                 tree.files.keys.sorted(),
@@ -330,7 +344,7 @@ final class ProjectTreeTests: XCTestCase {
     // SwiftMutator copies only the project, beside it, so `../Core` names the same folder from the project and the
     // copy, and every session builds whatever that folder holds then. Each local package the manifests name with a
     // literal path, theirs in turn, and those Xcode references, is listed and hashed where it is.
-    func test_localPackagesOutsideTheProject_areFingerprintedWhereTheyAre() throws {
+    func test_localPackagesOutsideTheProject_areFingerprintedWhereTheyAre() async throws {
         let root = project
         project = "\(root)/App"
         try write([
@@ -363,7 +377,7 @@ final class ProjectTreeTests: XCTestCase {
         let copy = "\(project)_mutated"
         try FileManager.default.copyItem(atPath: project, toPath: copy)
 
-        let tree = fingerprint(list: { _ in nil })
+        let tree = await fingerprint(list: { _ in nil })
 
         XCTAssertEqual(tree.files.keys.sorted(), [
             "../Base/Package.swift",
@@ -378,16 +392,18 @@ final class ProjectTreeTests: XCTestCase {
             "Sources/App/App.swift",
         ])
         XCTAssertEqual(tree.files["../Core/Sources/Core/Core.swift"], sha256("core"))
-        XCTAssertEqual(fingerprint(hashingIn: copy, list: { _ in nil }), tree, "the copy builds the same folders")
+        let inTheCopy = await fingerprint(hashingIn: copy, list: { _ in nil })
+        XCTAssertEqual(inTheCopy, tree, "the copy builds the same folders")
 
         try write(["Core/Sources/Core/Core.swift": "changed"], in: root)
+        let changes = await fingerprint(list: { _ in nil }).changes(since: tree)
         XCTAssertEqual(
-            fingerprint(list: { _ in nil }).changes(since: tree),
+            changes,
             [.init(path: "../Core/Sources/Core/Core.swift", kind: .changed)]
         )
     }
 
-    func test_listsTheProjectButHashesTheCopy() throws {
+    func test_listsTheProjectButHashesTheCopy() async throws {
         try write(["Sources/Sum.swift": "sum", "notes.txt": "notes", "Gone.txt": "only in the project"])
         try git("init", in: project)
         try git("add", ".", in: project)
@@ -397,22 +413,23 @@ final class ProjectTreeTests: XCTestCase {
         try Data("changed in the copy".utf8).write(to: URL(fileURLWithPath: "\(copy)/Sources/Sum.swift"))
         try FileManager.default.removeItem(atPath: "\(copy)/Gone.txt")
 
-        let tree = fingerprint(hashingIn: copy)
+        let tree = await fingerprint(hashingIn: copy)
 
         XCTAssertEqual(tree.files.keys.sorted(), ["Sources/Sum.swift", "notes.txt"])
         XCTAssertEqual(tree.files["Sources/Sum.swift"], sha256("changed in the copy"))
     }
 
-    func test_treeHash_doesNotDependOnListingOrder() throws {
+    func test_treeHash_doesNotDependOnListingOrder() async throws {
         try write(["a.txt": "a", "b.txt": "b"])
 
-        let forwards = fingerprint(list: { _ in ["a.txt", "b.txt"] })
-        let backwards = fingerprint(list: { _ in ["b.txt", "a.txt"] })
+        let forwards = await fingerprint(list: { _ in ["a.txt", "b.txt"] })
+        let backwards = await fingerprint(list: { _ in ["b.txt", "a.txt"] })
 
         XCTAssertEqual(forwards, backwards)
         XCTAssertEqual(forwards.treeSHA256, sha256("a.txt\0\(sha256("a"))\nb.txt\0\(sha256("b"))\n"))
         try write(["b.txt": "changed"])
-        XCTAssertNotEqual(fingerprint(list: { _ in ["a.txt", "b.txt"] }).treeSHA256, forwards.treeSHA256)
+        let result = await fingerprint(list: { _ in ["a.txt", "b.txt"] }).treeSHA256
+        XCTAssertNotEqual(result, forwards.treeSHA256)
     }
 
     func test_changes_nameChangedAddedAndRemoved_ignoringBothSessionsExclusions() {
@@ -433,7 +450,7 @@ final class ProjectTreeTests: XCTestCase {
         XCTAssertEqual(now.changes(since: now), [])
     }
 
-    func test_partition_starMatchesSlash_andDotSlashIsDropped() {
+    func test_partition_starMatchesSlash_andDotSlashIsDropped() async {
         let changes: [ProjectTree.FileChange] = [
             .init(path: "Docs/rules/rule.md", kind: .changed),
             .init(path: "README.md", kind: .changed),
@@ -457,8 +474,8 @@ private extension ProjectTreeTests {
         hashingIn hashingRoot: String? = nil,
         excluding excluded: [String] = [],
         list: ProjectFileListing = GitFileListing.list(in:)
-    ) -> ProjectTree {
-        ProjectTree.fingerprint(
+    ) async -> ProjectTree {
+        await ProjectTree.fingerprint(
             listingIn: projectURL,
             hashingIn: URL(fileURLWithPath: hashingRoot ?? project),
             excluding: excluded,

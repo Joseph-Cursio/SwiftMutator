@@ -51,15 +51,15 @@ extension ProjectTree {
         hashingIn hashingRoot: URL,
         excluding excluded: [String],
         list: ProjectFileListing
-    ) -> ProjectTree {
-        let listed = list(listingRoot)
+    ) async -> ProjectTree {
+        let listed = await list(listingRoot)
         let paths = self.paths(listed: listed, under: hashingRoot).subtracting(excluded)
         var files: [String: String] = [:]
         for path in paths {
             files[path] = digest(of: hashingRoot.appendingPathComponent(path))
         }
         for dependency in LocalPackageDependencies.outside(listingRoot, manifests: paths) {
-            for path in self.paths(listed: list(dependency.url), under: dependency.url) {
+            for path in self.paths(listed: await list(dependency.url), under: dependency.url) {
                 files[dependency.relativePath + "/" + path] = digest(of: dependency.url.appendingPathComponent(path))
             }
         }
@@ -249,9 +249,9 @@ enum GitFileListing {
     /// `git ls-files` on `directory`, or nil if git fails (no repository, git missing, killed), or if `directory` is in
     /// a folder its repository ignores. A folder entry (a submodule, or an untracked nested repository listed as
     /// `dir/`) is replaced by its own listing, prefixed; failing that, by a walk. Depth 4 at most.
-    static func list(in directory: URL) -> [String]? {
-        guard !isIgnoredByItsRepository(directory) else { return nil }
-        return list(in: directory, depth: 0)
+    static func list(in directory: URL) async -> [String]? {
+        guard await !isIgnoredByItsRepository(directory) else { return nil }
+        return await list(in: directory, depth: 0)
     }
 
     /// The environment git runs in: `environment` without the variables that name a repository, as a hook's does,
@@ -272,18 +272,18 @@ enum GitFileListing {
 
     /// Whether `directory` lies below its repository's top level, in a folder the repository ignores. git lists none of
     /// the untracked files there, and a listing of only the files forced in would leave out every test fixture.
-    private static func isIgnoredByItsRepository(_ directory: URL) -> Bool {
+    private static func isIgnoredByItsRepository(_ directory: URL) async -> Bool {
         // At the top level `.` reads as ignored when the repository ignores everything, though git lists what it
         // tracks.
-        guard let prefix = run(["rev-parse", "--show-prefix"], in: directory), prefix.status == 0,
-              !String(decoding: prefix.output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard let prefix = await run(["rev-parse", "--show-prefix"], in: directory), prefix.status == 0,
+              !prefix.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { return false }
         // Without --no-index, a folder that holds a file forced in doesn't read as ignored.
-        return run(["check-ignore", "-q", "--no-index", "."], in: directory)?.status == 0
+        return await run(["check-ignore", "-q", "--no-index", "."], in: directory)?.status == 0
     }
 
-    private static func list(in directory: URL, depth: Int) -> [String]? {
-        guard let entries = listing(in: directory) else { return nil }
+    private static func list(in directory: URL, depth: Int) async -> [String]? {
+        guard let entries = await listing(in: directory) else { return nil }
         var files: [String] = []
         for entry in entries {
             let path = entry.hasSuffix("/") ? String(entry.dropLast()) : entry
@@ -292,37 +292,31 @@ enum GitFileListing {
                 files.append(entry)
                 continue
             }
-            let listing = depth < maximumDepth ? list(in: folder, depth: depth + 1) : nil
+            let listing = depth < maximumDepth ? await list(in: folder, depth: depth + 1) : nil
             let inside = listing ?? ProjectTree.walk(folder, keeping: { _ in true }, skippingCheckouts: false)
             files += inside.map { path + "/" + $0 }
         }
         return files
     }
 
-    private static func listing(in directory: URL) -> [String]? {
-        guard let git = run(["ls-files", "-z", "--cached", "--others", "--exclude-standard"], in: directory),
+    private static func listing(in directory: URL) async -> [String]? {
+        guard let git = await run(["ls-files", "-z", "--cached", "--others", "--exclude-standard"], in: directory),
               git.status == 0
         else { return nil }
-        let entries = Set(git.output.split(separator: 0).map { String(decoding: $0, as: UTF8.self) })
+        let entries = Set(git.output.split(separator: "\0").map(String.init))
         // The folder is a submodule that isn't checked out: its files aren't git's to list, so it is walked.
         guard !entries.contains("./"), !entries.contains(".") else { return nil }
         return entries.sorted()
     }
 
     /// git with `arguments`, in `directory`: its exit status and output, or nil if it didn't run or was killed.
-    private static func run(_ arguments: [String], in directory: URL) -> (status: Int32, output: Data)? {
+    private static func run(_ arguments: [String], in directory: URL) async -> (status: Int32, output: String)? {
         let git = Foundation.Process()
-        git.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        git.arguments = ["-C", directory.path] + arguments
         git.environment = environment(ProcessInfo.processInfo.environment)
-        let output = Pipe()
-        git.standardOutput = output
-        git.standardError = FileHandle.nullDevice
-        do { try git.run() } catch { return nil } // terminationStatus of a process that never ran raises
-        let data = (try? output.fileHandleForReading.readToEnd()) ?? Data() // before waiting: a listing overfills a pipe
-        git.waitUntilExit()
-        guard git.terminationReason == .exit else { return nil }
-        return (git.terminationStatus, data)
+        guard let result = await git.runCommand(url: "/usr/bin/git", arguments: ["-C", directory.path] + arguments),
+              !result.endedBySignal
+        else { return nil }
+        return (result.status, result.output)
     }
 
     /// A folder, not a symbolic link to one: git lists a link as a file of its own.

@@ -85,7 +85,7 @@ private extension DiscoverSourceFiles {
             }
         }
 
-        return pathsNotHiddenOrIgnored(in: rootPath, listedIn: state.projectDirectoryURL)
+        return await pathsNotHiddenOrIgnored(in: rootPath, listedIn: state.projectDirectoryURL)
     }
 
     /// `SwiftPackageSources.files`, run in the mutated project at `rootPath`, as the coverage run and the tests are:
@@ -110,10 +110,10 @@ private extension DiscoverSourceFiles {
     /// left out for being ignored. A listed path that isn't on disk matches one that is whatever their case: on a disk
     /// that ignores it, as macOS's does, a file renamed only in case, without `git mv`, is listed by its old name. On a
     /// disk that doesn't, an ignored file whose path differs from a listed one's only in case is still left out.
-    private func pathsNotHiddenOrIgnored(in rootPath: FilePath, listedIn projectURL: URL) -> [FilePath] {
+    private func pathsNotHiddenOrIgnored(in rootPath: FilePath, listedIn projectURL: URL) async -> [FilePath] {
         let paths = (fileManager.subpaths(atPath: rootPath) ?? [])
             .filter { !$0.split(separator: "/").contains { $0.hasPrefix(".") } }
-        guard let listed = listProjectFiles(projectURL) else {
+        guard let listed = await listProjectFiles(projectURL) else {
             return paths
         }
 
