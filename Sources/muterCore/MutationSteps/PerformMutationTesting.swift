@@ -641,9 +641,8 @@ private extension PerformMutationTesting {
             state: state,
             killingTests: .init(failures, endedBy: finished.run.ending)
         )
-        let mutationPoint = outcome.point
-
         let key = session.keys[finished.index]
+        let log = MutationTestLog.keptFileName(for: key)
         write(
             MutantResult(
                 key: key,
@@ -652,7 +651,7 @@ private extension PerformMutationTesting {
                 failures: failures,
                 session: session.number,
                 finishedAt: now(),
-                log: MutationTestLog.keptFileName(for: mutationPoint),
+                log: log,
                 fileSHA256: state.projectTree?.files[key.path]
             ),
             in: session,
@@ -661,10 +660,11 @@ private extension PerformMutationTesting {
         session.outcomes[finished.index] = outcome
 
         let mutationLog = MutationTestLog(
-            mutationPoint: mutationPoint,
+            mutationPoint: outcome.point,
             testLog: finished.run.testLog,
             timePerBuildTestCycle: .none,
-            remainingMutationPointsCount: .none
+            remainingMutationPointsCount: .none,
+            keptFileName: log
         )
 
         notificationCenter.post(

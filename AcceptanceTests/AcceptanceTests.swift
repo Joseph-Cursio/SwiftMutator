@@ -57,11 +57,12 @@ final class AcceptanceTests: XCTestCase {
 
         XCTAssertTrue(output.contains(messages.appliedMutationOperatorsHeader))
 
+        // Each mutant's name ends with the hash of its file's path in the project, `ExampleApp/<file>`.
         let expectedLogFiles = [
             "baseline run.log",
-            "ChangeLogicalConnector @ Module2.swift-2-17.log",
-            "RelationalOperatorReplacement @ Module.swift-4-7.log",
-            "RemoveSideEffects @ ViewController.swift-5-28.log"
+            "ChangeLogicalConnector @ Module2.swift-2-17 3f9a9afeaa09cfa4.log",
+            "RelationalOperatorReplacement @ Module.swift-4-7 89c8e1703ab7a754.log",
+            "RemoveSideEffects @ ViewController.swift-5-28 4d7bb557ed045e7d.log",
         ]
 
         let numberOfEmptyLogFiles = try expectedLogFiles

@@ -102,44 +102,12 @@ final class MutationTestObserverTests: MuterTestCase {
         ])
     }
 
-    func test_logFileNameUsingAPlainTextReporter() {
-        options = .make(reportFormat: .plain)
-
-        XCTAssertEqual(sut.logFileName(from: nil), "baseline run.log")
-    }
-
-    func test_logFileNameUsingAXcodeReporter() {
-        options = .make(reportFormat: .xcode)
-
-        let mutationPoint1 = MutationPoint(
-            mutationOperatorId: .ror,
-            filePath: "~/user/file.swift",
-            position: .firstPosition
-        )
-
-        let mutationPoint2 = MutationPoint(
-            mutationOperatorId: .removeSideEffects,
-            filePath: "~/user/file2.swift",
-            position: MutationPosition(utf8Offset: 2, line: 5, column: 6)
-        )
-
-        XCTAssertEqual(
-            sut.logFileName(from: mutationPoint1),
-            "RelationalOperatorReplacement @ file.swift-0-0.log"
-        )
-
-        XCTAssertEqual(
-            sut.logFileName(from: mutationPoint2),
-            "RemoveSideEffects @ file2.swift-5-6.log"
-        )
-    }
-
     // A failing baseline's log is the only record of why the run stopped: the abort message points the
     // user at the logs folder.
-    func test_whenTheBaselineFails_itsLogIsWrittenToTheLoggingDirectory() throws {
+    func test_whenTheBaselineFails_itsLogIsWrittenToTheLoggingDirectory() {
         fileManager.currentDirectoryPathToReturn = "/project"
         sut.start()
-        let loggingDirectory = try XCTUnwrap(fileManager.paths.first)
+        let loggingDirectory = sut.loggingDirectory
 
         notificationCenter.post(
             name: .baselineTestFailed,
@@ -151,15 +119,17 @@ final class MutationTestObserverTests: MuterTestCase {
         XCTAssertEqual(fileManager.contents, Data("error: no such module 'Calc'".utf8))
     }
 
-    func test_eachTestLogIsWrittenToTheLoggingDirectory_namedAfterItsMutant() throws {
+    // The name is the one the mutant's results line gives as its log.
+    func test_eachTestLogIsWrittenToTheLoggingDirectory_underTheNameItCarries() {
         fileManager.currentDirectoryPathToReturn = "/project"
         sut.start()
-        let loggingDirectory = try XCTUnwrap(fileManager.paths.first)
+        let loggingDirectory = sut.loggingDirectory
         let mutationPoint = MutationPoint(
             mutationOperatorId: .removeSideEffects,
             filePath: "/project/Sources/file2.swift",
             position: MutationPosition(utf8Offset: 2, line: 5, column: 6)
         )
+        let keptFileName = "RemoveSideEffects @ file2.swift-5-6 9c3e04a1d8f2b7e6 (#2).log"
 
         notificationCenter.post(
             name: .newTestLogAvailable,
@@ -171,12 +141,16 @@ final class MutationTestObserverTests: MuterTestCase {
         )
         notificationCenter.post(
             name: .newTestLogAvailable,
-            object: MutationTestLog.make(mutationPoint: mutationPoint, testLog: "Executed 3 tests, with 1 failure")
+            object: MutationTestLog.make(
+                mutationPoint: mutationPoint,
+                testLog: "Executed 3 tests, with 1 failure",
+                keptFileName: keptFileName
+            )
         )
 
         XCTAssertEqual(fileManager.paths.suffix(2), [
             "\(loggingDirectory)/baseline run.log",
-            "\(loggingDirectory)/RemoveSideEffects @ file2.swift-5-6.log",
+            "\(loggingDirectory)/\(keptFileName)",
         ])
         XCTAssertEqual(fileManager.contents, Data("Executed 3 tests, with 1 failure".utf8))
     }

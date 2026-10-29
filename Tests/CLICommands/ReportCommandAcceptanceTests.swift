@@ -95,7 +95,7 @@ final class ReportCommandAcceptanceTests: XCTestCase {
 
     func test_report_rebuildsTheRunsOwnReport_inEachFormat() throws {
         for format in ["plain", "json", "html", "xcode"] {
-            // One results file in the log folder, which a second run in the same minute would add to.
+            // One log folder, which a second run would add another beside.
             try? FileManager.default.removeItem(at: logs)
             let runReport = root.appendingPathComponent("run.\(format)")
             let rebuiltReport = root.appendingPathComponent("rebuilt.\(format)")
@@ -149,6 +149,22 @@ final class ReportCommandAcceptanceTests: XCTestCase {
         let kept = try FileManager.default.contentsOfDirectory(atPath: onlyLogFolder().path)
         XCTAssertFalse(kept.contains("running"), "\(kept)")
         XCTAssertTrue(kept.contains("baseline run.log"), "\(kept)")
+    }
+
+    // The name a mutant's results line gives is the file its log was kept in, and no two mutants share one.
+    func test_eachMutantsLine_namesALogOfItsOwnThatTheFolderKept() throws {
+        let run = try runSwiftMutator(["run", "--skip-update-check", "--skip-coverage"])
+
+        XCTAssertEqual(run.status, 0, run.standardError)
+        let folder = try onlyLogFolder()
+        let lines = try contents(of: folder.appendingPathComponent("results.jsonl"))
+            .split(separator: "\n")
+            .compactMap { try JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
+        let logs = lines.filter { $0["kind"] as? String == "mutant" }.compactMap { $0["log"] as? String }
+        XCTAssertEqual(logs.count, 4, "\(lines)")
+        XCTAssertEqual(Set(logs).count, logs.count, "\(logs)")
+        let kept = Set(try FileManager.default.contentsOfDirectory(atPath: folder.path))
+        XCTAssertTrue(Set(logs).isSubset(of: kept), "\(logs) not all in \(kept)")
     }
 
     func test_report_withoutOutputPath_printsOnlyTheReport() throws {

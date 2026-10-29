@@ -496,7 +496,8 @@ extension MutationTestLog {
         timePerBuildTestCycle: TimeInterval? = nil,
         remainingMutationPointsCount: Int? = nil,
         workers: Int = 1,
-        testRunSeconds: TimeInterval? = nil
+        testRunSeconds: TimeInterval? = nil,
+        keptFileName: String = MutationTestLog.baselineFileName
     ) -> MutationTestLog {
         MutationTestLog(
             mutationPoint: mutationPoint,
@@ -504,7 +505,8 @@ extension MutationTestLog {
             timePerBuildTestCycle: timePerBuildTestCycle,
             remainingMutationPointsCount: remainingMutationPointsCount,
             workers: workers,
-            testRunSeconds: testRunSeconds
+            testRunSeconds: testRunSeconds,
+            keptFileName: keptFileName
         )
     }
 }

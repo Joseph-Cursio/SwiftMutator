@@ -15,8 +15,8 @@ protocol ResultsRecording: AnyObject {
 
 /// Makes a run's results file.
 protocol ResultsFileOpening {
-    /// A new file in `directory`: `results.jsonl`, or `results-2.jsonl` … `results-99.jsonl` if a run that started
-    /// in the same minute has one there. Never an existing file.
+    /// A new file in `directory`: `results.jsonl`, or `results-2.jsonl` … `results-99.jsonl` if the folder has one
+    /// already. Never an existing file.
     func create(in directory: String) throws -> ResultsRecording
     /// The results file at `path`, opened to append another session and locked. Nothing is written until the first
     /// line is appended, and a last line cut off as it was written is ended just before it, so it stays a line of its
@@ -35,7 +35,8 @@ enum ResultsFileError: Error, Equatable, CustomStringConvertible {
     case newerFormat(path: String, version: Int)
     /// A log folder holds no results file to make a report from.
     case noResultsFile(folder: String)
-    /// A log folder holds a results file for each of several runs that started in the same minute.
+    /// A log folder holds a results file for each of several runs that started in the same minute, as a folder did
+    /// before each run got one of its own.
     case severalResultsFiles(folder: String, names: [String])
 
     var description: String {
@@ -70,7 +71,7 @@ final class ResultsFile: ResultsRecording {
             var path = directory
             for name in ResultsFile.fileNames {
                 path = (directory as NSString).appendingPathComponent(name)
-                // O_EXCL: a run that started in the same minute keeps its file.
+                // O_EXCL: a file already there is kept.
                 let descriptor = open(path, O_WRONLY | O_CREAT | O_EXCL | O_APPEND | O_CLOEXEC, 0o644)
                 guard descriptor >= 0 else {
                     let code = errno
