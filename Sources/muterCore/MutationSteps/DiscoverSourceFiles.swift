@@ -8,6 +8,8 @@ struct DiscoverSourceFiles: MutationStep {
     private var fileManager: FileSystemManager
     @Dependency(\.process)
     private var process: ProcessFactory
+    @Dependency(\.listProjectFiles)
+    private var listProjectFiles: ProjectFileListing
 
     func run(
         with state: AnyMutationTestState
@@ -69,7 +71,7 @@ private extension DiscoverSourceFiles {
 
     /// The paths in the mutated project, relative to it, that discovery picks from. For a SwiftPM project, the Swift
     /// files its targets compile, and those of the local packages in it that it depends on, as `swift package describe`
-    /// gives them. Otherwise, or if that fails, every path in the project.
+    /// gives them. Otherwise, or if that fails, every path in the project that isn't hidden or ignored.
     private func candidatePaths(in state: AnyMutationTestState) throws -> [FilePath] {
         let rootPath = state.mutatedProjectDirectoryURL.path
         if state.muterConfiguration.buildSystem == .swift {
@@ -83,7 +85,7 @@ private extension DiscoverSourceFiles {
             }
         }
 
-        return fileManager.subpaths(atPath: rootPath) ?? []
+        return pathsNotHiddenOrIgnored(in: rootPath, listedIn: state.projectDirectoryURL)
     }
 
     /// `SwiftPackageSources.files`, run in the mutated project at `rootPath`, as the coverage run and the tests are:
@@ -99,6 +101,26 @@ private extension DiscoverSourceFiles {
         }
 
         return SwiftPackageSources.files(inProjectAt: rootPath, testedBy: configuration, process: process)
+    }
+
+    /// Every path in the mutated project at `rootPath`, relative to it, but those in a hidden folder or hidden
+    /// themselves, as a tool's `.swiftinfer` folder is, and those git ignores, as derived data often is. These are
+    /// the project's paths that git lists, if it lists the project at `projectURL`: the listing comes from the project,
+    /// not its copy, which a repository that ignores SwiftMutator's copies lists nothing in. Without git, none is
+    /// left out for being ignored. A listed path that isn't on disk matches one that is whatever their case: on a disk
+    /// that ignores it, as macOS's does, a file renamed only in case, without `git mv`, is listed by its old name. On a
+    /// disk that doesn't, an ignored file whose path differs from a listed one's only in case is still left out.
+    private func pathsNotHiddenOrIgnored(in rootPath: FilePath, listedIn projectURL: URL) -> [FilePath] {
+        let paths = (fileManager.subpaths(atPath: rootPath) ?? [])
+            .filter { !$0.split(separator: "/").contains { $0.hasPrefix(".") } }
+        guard let listed = listProjectFiles(projectURL) else {
+            return paths
+        }
+
+        let notIgnored = Set(listed)
+        let onDisk = Set(paths)
+        let renamedInCase = Set(listed.filter { !onDisk.contains($0) }.map { $0.lowercased() })
+        return paths.filter { notIgnored.contains($0) || renamedInCase.contains($0.lowercased()) }
     }
 
     private func discoverSourceFiles(

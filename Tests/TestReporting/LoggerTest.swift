@@ -238,8 +238,8 @@ final class LoggerTests: MuterTestCase {
             """
             ⚠️ SwiftMutator couldn't tell which files the package's targets compile: `swift package describe` failed \
             for /p: error: invalid manifest.
-            It looks at every Swift file in the project instead, so a file no target builds may get mutants no test \
-            can kill. \("exclude".bold) can leave such files out.
+            It looks at every Swift file in the project that isn't hidden or ignored instead, so a file no target \
+            builds may get mutants no test can kill. \("exclude".bold) can leave such files out.
             """,
         ])
     }

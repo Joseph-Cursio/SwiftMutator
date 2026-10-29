@@ -122,8 +122,8 @@ final class Logger {
         print(
             """
             ⚠️ SwiftMutator couldn't tell which files the package's targets compile: \(reason).
-            It looks at every Swift file in the project instead, so a file no target builds may get mutants no test \
-            can kill. \("exclude".bold) can leave such files out.
+            It looks at every Swift file in the project that isn't hidden or ignored instead, so a file no target \
+            builds may get mutants no test can kill. \("exclude".bold) can leave such files out.
             """
         )
     }
@@ -227,8 +227,8 @@ final class Logger {
     /// gathered then, and is now.": how a resumed run's discovery differs from the last session's, and the coverage
     /// change that may explain it; nil if nothing shows it does. Based on the counts, as discovery can change while
     /// coverage looks the same: xcodebuild can lose regions without a word, `--force-resume` lets a SwiftMutator that
-    /// discovers differently through, and the files discovery picks from come from `swift package describe`, which
-    /// may work in one session only.
+    /// discovers differently through, and the files discovery picks from come from `swift package describe` or git,
+    /// which may work in one session only.
     private static func discoveryChange(_ summary: ResumeSummary) -> String? {
         let lost = summary.noLongerDiscovered
         if lost > 0 {
