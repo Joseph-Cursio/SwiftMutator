@@ -178,9 +178,9 @@ final class LoggerTests: MuterTestCase {
     // Off a terminal, standard output is block-buffered, so a log file would get each line late, or not at all after a
     // crash, and after anything later on standard error. On a terminal it is flushed at each line anyway.
     func test_withoutATerminal_eachLineIsFlushedAsItIsPrinted() {
-        var written: [String] = []
-        current.printer = { written.append($0) }
-        current.flushStandardOut = { written.append("(flushed)") }
+        let written = Locked<[String]>([])
+        current.printer = { line in written.change { $0.append(line) } }
+        current.flushStandardOut = { written.change { $0.append("(flushed)") } }
 
         current.standardOutIsATerminal = false
         sut.print("a line")
@@ -188,25 +188,30 @@ final class LoggerTests: MuterTestCase {
         current.standardOutIsATerminal = true
         sut.print("on a terminal")
 
-        XCTAssertEqual(written, ["a line", "(flushed)", "another", "(flushed)", "on a terminal"])
+        XCTAssertEqual(written.value, ["a line", "(flushed)", "another", "(flushed)", "on a terminal"])
     }
 
     // The lines `tail -f` follows most: the first, and each mutant's.
     func test_withoutATerminal_eachProgressLine_isFlushed() {
         current.standardOutIsATerminal = false
-        var written: [String] = []
-        current.printer = { written.append($0) }
-        current.flushStandardOut = { written.append("(flushed)") }
+        let written = Locked<[String]>([])
+        current.printer = { line in written.change { $0.append(line) } }
+        current.flushStandardOut = { written.change { $0.append("(flushed)") } }
         sut.resumePlanned(.make(reused: 0, toTest: 1, retestedBecause: [.notRecorded: 1]))
         sut.newMutationTestLogAvailable(
             mutationTestLog: .make(timePerBuildTestCycle: 60, remainingMutationPointsCount: 1)
         )
-        XCTAssertTrue(written.suffix(2) == ["[02:42:00] 0 of 1 (0%) | 1 min left", "(flushed)"], "\(written)")
+        XCTAssertTrue(
+            written.value.suffix(2) == ["[02:42:00] 0 of 1 (0%) | 1 min left", "(flushed)"], "\(written.value)"
+        )
 
         sut.newMutationTestOutcomeAvailable(mutation: .make(testSuiteOutcome: .failed))
 
-        XCTAssertTrue(written.last == "(flushed)", "\(written)")
-        XCTAssertTrue(written.dropLast().last?.hasPrefix("[02:42:00] 1 of 1 (100%) | 1 killed | ") == true, "\(written)")
+        XCTAssertTrue(written.value.last == "(flushed)", "\(written.value)")
+        XCTAssertTrue(
+            written.value.dropLast().last?.hasPrefix("[02:42:00] 1 of 1 (100%) | 1 killed | ") == true,
+            "\(written.value)"
+        )
     }
 
     // Each file's name, then how many mutants each file with any has, take hundreds of lines on a large project: 830, a
@@ -313,8 +318,8 @@ final class LoggerTests: MuterTestCase {
     // The estimate is the rate since the mutants started, not the time since the bar was last drawn times the mutants
     // left, which swung by a factor of 100 when parallel workers finished mutants in bursts.
     func test_theBarsTimeLeft_followsTheRateSinceTheMutantsStarted() throws {
-        var milliseconds: UInt64 = 1_000_000
-        current.instant = { DispatchTime(uptimeNanoseconds: milliseconds * 1_000_000) }
+        let milliseconds = Locked<UInt64>(1_000_000)
+        current.instant = { DispatchTime(uptimeNanoseconds: milliseconds.value * 1_000_000) }
         try sut.mutationsDiscoveryFinished(mutations: (0 ..< 10).map { _ in try makeSchemataMapping() })
         func lastDraw() -> String { printer.linesPassed.last { $0.contains("ETC:") } ?? "" }
 
@@ -324,19 +329,19 @@ final class LoggerTests: MuterTestCase {
         )
         XCTAssertTrue(lastDraw().hasSuffix("ETC: 10 min"), lastDraw())
         // Building the worker clones isn't time spent on mutants.
-        milliseconds += 300_000
+        milliseconds.change { $0 += 300_000 }
         sut.mutantRunsStarted()
         // A worker finishes a mutant, 239.8 s in. The other is still on its first, so the first estimate counts down:
         // 600 - 239.8 s.
-        milliseconds += 239_800
+        milliseconds.change { $0 += 239_800 }
         sut.newMutationTestLogAvailable(mutationTestLog: .make(mutationPoint: .make()))
         XCTAssertTrue(lastDraw().hasSuffix("ETC: 7 min"), lastDraw())
         // The other finishes too, 240 s in: 120 s a mutant, and 8 left.
-        milliseconds += 200
+        milliseconds.change { $0 += 200 }
         sut.newMutationTestLogAvailable(mutationTestLog: .make(mutationPoint: .make()))
         XCTAssertTrue(lastDraw().hasSuffix("ETC: 16 min"), lastDraw())
         // One more, 60 s later: 100 s a mutant, and 7 left.
-        milliseconds += 60_000
+        milliseconds.change { $0 += 60_000 }
         sut.newMutationTestLogAvailable(mutationTestLog: .make(mutationPoint: .make()))
         XCTAssertTrue(lastDraw().hasSuffix("ETC: 12 min"), lastDraw())
     }
@@ -359,8 +364,8 @@ final class LoggerTests: MuterTestCase {
     // takes another row, which a redraw doesn't move up over, so it's left behind on screen. The second line was up to
     // 95 columns wide.
     func test_theProgressBar_fitsIn80Columns() {
-        var milliseconds: UInt64 = 1_000_000
-        current.instant = { DispatchTime(uptimeNanoseconds: milliseconds * 1_000_000) }
+        let milliseconds = Locked<UInt64>(1_000_000)
+        current.instant = { DispatchTime(uptimeNanoseconds: milliseconds.value * 1_000_000) }
         sut.resumePlanned(.make(reused: 0, toTest: 2000, retestedBecause: [.notRecorded: 2000]))
 
         // 2,000 mutants, 46 s each, on one worker: "ETC: 25 h 34 min" at first.
@@ -369,7 +374,7 @@ final class LoggerTests: MuterTestCase {
         )
         sut.mutantRunsStarted()
         for _ in 0 ..< 2000 {
-            milliseconds += 46000
+            milliseconds.change { $0 += 46000 }
             sut.newMutationTestLogAvailable(mutationTestLog: .make(mutationPoint: .make()))
         }
 
@@ -387,11 +392,11 @@ final class LoggerTests: MuterTestCase {
     // came to and the mutant.
     func test_withoutATerminal_eachMutantGetsALine_inPlaceOfTheProgressBar() throws {
         current.standardOutIsATerminal = false
-        var seconds: UInt64 = 0
+        let seconds = Locked<UInt64>(0)
         let start = current.now()
         // 7 h 16 min 10 s on, so the times of day pad 0, 1 and 9 with a 0, but not 10.
-        current.now = { start.addingTimeInterval(TimeInterval(seconds) + 26170) }
-        current.instant = { DispatchTime(uptimeNanoseconds: (1 + seconds) * 1_000_000_000) }
+        current.now = { start.addingTimeInterval(TimeInterval(seconds.value) + 26170) }
+        current.instant = { DispatchTime(uptimeNanoseconds: (1 + seconds.value) * 1_000_000_000) }
         try sut.mutationsDiscoveryFinished(mutations: (0 ..< 3).map { _ in try makeSchemataMapping() })
         let printedBefore = printer.linesPassed.count
         let killed = MutationTestOutcome.Mutation.make(
@@ -412,7 +417,7 @@ final class LoggerTests: MuterTestCase {
         sut.mutantRunsStarted()
         // A minute each. As in a run, each mutant's result comes before its log.
         for mutant in [killed, survived, killed] {
-            seconds += 60
+            seconds.change { $0 += 60 }
             sut.newMutationTestOutcomeAvailable(mutation: mutant)
             sut.newMutationTestLogAvailable(mutationTestLog: .make(mutationPoint: mutant.point))
         }
@@ -481,8 +486,8 @@ final class LoggerTests: MuterTestCase {
     // A burst of finished mutants redraws the bar once: it's drawn at most every tenth of a second, by the injected
     // clock, so the time between draws can be tested.
     func test_theProgressBar_isRedrawnAtMostEveryTenthOfASecond() throws {
-        var nanoseconds: UInt64 = 1
-        current.instant = { DispatchTime(uptimeNanoseconds: nanoseconds) }
+        let nanoseconds = Locked<UInt64>(1)
+        current.instant = { DispatchTime(uptimeNanoseconds: nanoseconds.value) }
         try sut.mutationsDiscoveryFinished(mutations: (0 ..< 5).map { _ in try makeSchemataMapping() })
         var draws: [Int] = []
         func drawn() -> Int { printer.linesPassed.filter { $0.contains("Percentage complete:") }.count }
@@ -491,7 +496,7 @@ final class LoggerTests: MuterTestCase {
         draws.append(drawn())
         sut.newMutationTestLogAvailable(mutationTestLog: .make(mutationPoint: .make()))
         draws.append(drawn())
-        nanoseconds += 150_000_000
+        nanoseconds.change { $0 += 150_000_000 }
         sut.newMutationTestLogAvailable(mutationTestLog: .make(mutationPoint: .make()))
         draws.append(drawn())
 
@@ -502,10 +507,12 @@ final class LoggerTests: MuterTestCase {
     // reaches 100% with the last one. It counted from 1, which put it one mutant ahead, never drew the last mutant,
     // and never showed the first estimate, which only a bar at 0 shows.
     func test_theProgressBar_countsTheMutantsTested_fromNoneToAll() throws {
-        var nanoseconds: UInt64 = 1
+        let nanoseconds = Locked<UInt64>(1)
         current.instant = {
-            nanoseconds += 200_000_000
-            return DispatchTime(uptimeNanoseconds: nanoseconds)
+            nanoseconds.change { time in
+                time += 200_000_000
+                return DispatchTime(uptimeNanoseconds: time)
+            }
         }
         try sut.mutationsDiscoveryFinished(mutations: (0 ..< 3).map { _ in try makeSchemataMapping() })
 

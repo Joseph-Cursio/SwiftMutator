@@ -722,11 +722,11 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
     /// Makes the timed test run take `seconds` by the injected clock. Every baseline and mutant run takes time too, so
     /// a limit taken from anything but the timed run alone comes out wrong.
     private func timeTheTestRun(seconds: UInt64) {
-        var nanoseconds: UInt64 = 1
-        current.instant = { DispatchTime(uptimeNanoseconds: nanoseconds) }
-        ioDelegate.whileRunningBaseline = { _ in nanoseconds += 100_000_000_000 }
-        ioDelegate.whileRunningTestsWithoutBuilding = { nanoseconds += seconds * 1_000_000_000 }
-        ioDelegate.whileRunningMutant = { _ in nanoseconds += 7_000_000_000 }
+        let nanoseconds = Locked<UInt64>(1)
+        current.instant = { DispatchTime(uptimeNanoseconds: nanoseconds.value) }
+        ioDelegate.whileRunningBaseline = { _ in nanoseconds.change { $0 += 100_000_000_000 } }
+        ioDelegate.whileRunningTestsWithoutBuilding = { nanoseconds.change { $0 += seconds * 1_000_000_000 } }
+        ioDelegate.whileRunningMutant = { _ in nanoseconds.change { $0 += 7_000_000_000 } }
     }
 
     private func makeSchemataMapping(line: Int) throws -> SchemataMutationMapping {

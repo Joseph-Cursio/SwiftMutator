@@ -660,9 +660,8 @@ final class MutationTestingDelegateTests: MuterTestCase {
         let threadCount = ProcessInfo.processInfo.activeProcessorCount
         // They run well past the probe's time limit: one that gave up first would free its thread.
         let processes = (0..<threadCount + 2).map { _ in ScriptedProcessSpy([.runUntilKilled], deadline: 20) }
-        let lock = NSLock()
-        var unlaunched = processes[...]
-        current.process = { lock.withLock { unlaunched.removeFirst() } }
+        let unlaunched = Locked(processes[...])
+        current.process = { unlaunched.change { $0.removeFirst() } }
         current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
 
         let configuration = MuterConfiguration(

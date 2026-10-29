@@ -34,16 +34,16 @@ final class FingerprintProjectTreeTests: MuterTestCase {
             ],
             in: copy
         )
-        var listed: [URL] = []
+        let listed = Locked<[URL]>([])
         current.listProjectFiles = { directory in
-            listed.append(directory)
+            listed.change { $0.append(directory) }
             return ["README.md", "Sources/Sum.swift", "mutation-report.txt", "muter.conf.yml"]
         }
 
         let changes = try await sut.run(with: state)
         state.apply(changes)
 
-        XCTAssertEqual(listed, [state.projectDirectoryURL])
+        XCTAssertEqual(listed.value, [state.projectDirectoryURL])
         let files = try [
             "README.md": XCTUnwrap(FileDigest.sha256(of: Data("readme".utf8))),
             "Sources/Sum.swift": XCTUnwrap(FileDigest.sha256(of: Data("as copied".utf8))),

@@ -129,9 +129,9 @@ final class LoadResumeStateTests: MuterTestCase {
     func test_aToolchainChange_isLetThroughByForce_andRecordedAsForced() async throws {
         try await writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
         let changed = provenance(toolchain: "Apple Swift version 6.5")
-        var probed: [MuterConfiguration] = []
+        let probed = Locked<[MuterConfiguration]>([])
         current.provenance = { configuration in
-            probed.append(configuration)
+            probed.change { $0.append(configuration) }
             return changed
         }
         resume(resultsPath, forcing: true)
@@ -142,7 +142,7 @@ final class LoadResumeStateTests: MuterTestCase {
         let loaded = try XCTUnwrap(state.resumeState)
         XCTAssertEqual(loaded.forced, ["toolchain.testCommandVersion"])
         XCTAssertEqual(loaded.provenance, changed, "the header records what was checked")
-        XCTAssertEqual(probed, [configuration], "probed once, with the configuration as loaded")
+        XCTAssertEqual(probed.value, [configuration], "probed once, with the configuration as loaded")
     }
 
     func test_aChangedFileAGlobMatches_isLetThrough() async throws {
