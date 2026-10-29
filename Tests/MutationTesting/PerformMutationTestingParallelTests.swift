@@ -588,6 +588,24 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "let answer = 42", "the project is intact")
     }
 
+    // cp's own message says why, such as a full disk, which its exit status alone doesn't.
+    func test_whenCpFails_theCloneFailureSaysWhatCpSaid() async throws {
+        #if os(macOS)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let missingProject = root.appendingPathComponent("project_mutated")
+
+        do {
+            _ = try await PerformMutationTesting.cloneMutatedProject(missingProject, count: 1)
+            XCTFail("a project that doesn't exist was cloned")
+        } catch let error as PerformMutationTesting.WorkerDirectoryError {
+            XCTAssertEqual(error.status, 1)
+            XCTAssertEqual(error.error, "cp: \(missingProject.path): No such file or directory")
+            XCTAssertTrue(error.description.hasSuffix("(cp exited 1): cp: \(missingProject.path): No such file or directory."))
+        }
+        #endif
+    }
+
     func test_removeClones_removesEveryCloneGiven_andTheActiveMutantFileBesideIt() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }

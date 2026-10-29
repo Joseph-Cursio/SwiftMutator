@@ -838,10 +838,13 @@ extension PerformMutationTesting {
         let clone: URL
         /// cp's exit status, or nil if it couldn't be started.
         let status: Int32?
+        /// The first line cp wrote to standard error, such as why a file couldn't be copied.
+        var error: String?
 
         var description: String {
             let copy = status.map { "cp exited \($0)" } ?? "cp could not be started"
-            return "SwiftMutator could not clone the mutated project to \(clone.path) for a parallel worker (\(copy))."
+            let why = error.map { ": \($0)" } ?? ""
+            return "SwiftMutator could not clone the mutated project to \(clone.path) for a parallel worker (\(copy))\(why)."
         }
     }
 
@@ -884,7 +887,8 @@ extension PerformMutationTesting {
         #if os(macOS)
         let copy = await Foundation.Process().runCommand(url: "/bin/cp", arguments: ["-c", "-R", project.path, clone.path])
         guard let copy, copy.status == 0 else {
-            throw WorkerDirectoryError(clone: clone, status: copy?.status)
+            let error = copy?.errors.split(separator: "\n").first.map(String.init)
+            throw WorkerDirectoryError(clone: clone, status: copy?.status, error: error)
         }
         #else
         try FileManager.default.copyItem(at: project, to: clone)
