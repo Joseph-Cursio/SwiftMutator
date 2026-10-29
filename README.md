@@ -167,7 +167,9 @@ swift-mutator report "../SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM" -f 
   in `run`. Without `-o` the report goes to standard output alone, so `-f json > report.json` gives
   valid JSON.
 - **A finished run** gets its own report back, in any format. Only what depends on when and where a
-  report is made can differ, such as the time in the HTML report's footer.
+  report is made can differ, such as the time in the HTML report's footer. A run by an older
+  SwiftMutator, which tested a file's mutants by operator and put line 10 before line 9, gets them
+  in line order.
 - **A run that was stopped, crashed or is still going** gets a report of the mutants it has tested.
 - **On standard error** it says how many of the run's mutants the report covers, how the run ended,
   and where it saved the report. A run that stopped on its fifth build error in a row, for example,

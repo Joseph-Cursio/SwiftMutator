@@ -41,8 +41,16 @@ final class SchemataMutationMapping {
         mappings.isEmpty
     }
 
+    /// The file's mutants in the order mutation testing runs them (`JobOrder.InFile`). Repeats of one place and
+    /// operator keep the order discovery found them in, which their occurrences number: blocks in source order, and
+    /// each block's mutants as they were added.
     var mutationSchemata: MutationSchemata {
-        Array(mappings.values).reduce([], +).sorted()
+        mappings.keys
+            .sorted { ($0.offset, $0.text) < ($1.offset, $1.text) }
+            .flatMap { mappings[$0] ?? [] }
+            .enumerated()
+            .sorted { ($0.element.orderInFile, $0.offset) < ($1.element.orderInFile, $1.offset) }
+            .map(\.element)
     }
 
     var codeBlocks: [String] {

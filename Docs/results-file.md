@@ -209,9 +209,9 @@ It only reads the results file: it mutates nothing, prints no banner and makes n
 
 ### What the report holds
 
-The report is made from each mutant's last line (see [Reading it](#reading-it)) and the last header. The mutants come in the order the run tested and reported them, not the order they finished in. `report` works that order out from each line's `path`, `switchID` and `occurrence`, the way discovery sorted them.
+The report is made from each mutant's last line (see [Reading it](#reading-it)) and the last header. The mutants come in the order the run tested and reported them, not the order they finished in. `report` works that order out the way discovery sorted them: files by their path in the mutated project (`path` under the header's `mutatedProjectPath`, or `path` itself for a file outside it), then each file's mutants by `line` and `column` as numbers, then by `mutationOperatorId`, and repeats of one place and operator by `occurrence`. Never by `utf8Offset`, which a resumed session's kept result holds as the session that tested it counted it.
 
-- **A finished run** gets back the report it made itself, in every format. The header holds the project paths, the coverage and the update notice the report shows, and the end line holds its exact test duration. Only what depends on when and where a report is made can differ:
+- **A finished run** gets back the report it made itself, in every format, unless it is from before that order (below). The header holds the project paths, the coverage and the update notice the report shows, and the end line holds its exact test duration. Only what depends on when and where a report is made can differ:
   1. **The HTML footer** gives the time the report was made.
   2. **The Xcode format's warnings**, one for each survivor, come in the order the run tested the mutants. A run with several workers prints them as its mutants finish. The warnings are the same, and so is the summary.
   3. **The plain report's colours** are added when standard output is a terminal, unless `NO_COLOR` is set. The same rule applies to `run` and `report`, so the reports match when both write to a terminal, or neither does.
@@ -220,6 +220,7 @@ The report is made from each mutant's last line (see [Reading it](#reading-it)) 
 - **A run with no end line**, which is still going, was killed or crashed, gets a report of the mutants it tested. The test duration runs from the header's `startedAt` to the last mutant's `finishedAt`.
 - **A run stopped before any mutant finished** has no `mutant` lines, and gets an empty report: `Report of 0 of 2497 mutants`.
 - **Lines that don't read** are skipped, as a reader should skip them, and the status says which.
+- **A run by a SwiftMutator from before that order**, which sorted each file's mutants by `switchID` as text, gets them in line order. Its report listed them by operator, and line 10 before line 9.
 
 **Killing tests.** The report names each mutant's tests from its line's `killedBy`, `failedTestCount` and `endedBy`. It works out the Killing Tests summary, the suspect tests and the score without them from those lines alone, the way the run does (see [Killing tests and suspect tests](../README.md#killing-tests-and-suspect-tests)). So a run and its `report` name the same tests and the same suspects.
 

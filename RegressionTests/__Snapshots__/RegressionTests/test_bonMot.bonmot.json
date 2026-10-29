@@ -76,21 +76,6 @@
       "appliedOperators" : [
         {
           "mutationPoint" : {
-            "mutationOperatorId" : "ChangeLogicalConnector",
-            "position" : {
-              "column" : 60,
-              "line" : 72
-            }
-          },
-          "mutationSnapshot" : {
-            "after" : "||",
-            "before" : "&&",
-            "description" : "changed && to ||"
-          },
-          "testSuiteOutcome" : "passed"
-        },
-        {
-          "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
               "column" : 97,
@@ -103,6 +88,21 @@
             "description" : "removed line"
           },
           "testSuiteOutcome" : "failed"
+        },
+        {
+          "mutationPoint" : {
+            "mutationOperatorId" : "ChangeLogicalConnector",
+            "position" : {
+              "column" : 60,
+              "line" : 72
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "||",
+            "before" : "&&",
+            "description" : "changed && to ||"
+          },
+          "testSuiteOutcome" : "passed"
         },
         {
           "mutationPoint" : {
@@ -288,6 +288,21 @@
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
+              "column" : 26,
+              "line" : 94
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "removed line",
+            "before" : "\/\/ Fix an issue where shrinking or growing text would stay the same width, but add whitespace. setNeedsDisplay()",
+            "description" : "removed line"
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "mutationPoint" : {
+            "mutationOperatorId" : "RemoveSideEffects",
+            "position" : {
               "column" : 59,
               "line" : 109
             }
@@ -373,21 +388,6 @@
             "description" : "removed line"
           },
           "testSuiteOutcome" : "passed"
-        },
-        {
-          "mutationPoint" : {
-            "mutationOperatorId" : "RemoveSideEffects",
-            "position" : {
-              "column" : 26,
-              "line" : 94
-            }
-          },
-          "mutationSnapshot" : {
-            "after" : "removed line",
-            "before" : "\/\/ Fix an issue where shrinking or growing text would stay the same width, but add whitespace. setNeedsDisplay()",
-            "description" : "removed line"
-          },
-          "testSuiteOutcome" : "passed"
         }
       ],
       "fileName" : "AdaptableTextContainer.swift",
@@ -412,21 +412,6 @@
         },
         {
           "mutationPoint" : {
-            "mutationOperatorId" : "RelationalOperatorReplacement",
-            "position" : {
-              "column" : 30,
-              "line" : 133
-            }
-          },
-          "mutationSnapshot" : {
-            "after" : ">",
-            "before" : "<",
-            "description" : "changed < to >"
-          },
-          "testSuiteOutcome" : "passed"
-        },
-        {
-          "mutationPoint" : {
             "mutationOperatorId" : "SwapTernary",
             "position" : {
               "column" : 90,
@@ -437,6 +422,21 @@
             "after" : "font = pointSize > size ? font :  font.fontWithSameAttributes(named: fontName)",
             "before" : "font = pointSize > size ? font.fontWithSameAttributes(named: fontName) : font",
             "description" : "swapped ternary operator"
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "mutationPoint" : {
+            "mutationOperatorId" : "RelationalOperatorReplacement",
+            "position" : {
+              "column" : 30,
+              "line" : 133
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : ">",
+            "before" : "<",
+            "description" : "changed < to >"
           },
           "testSuiteOutcome" : "passed"
         },
@@ -652,21 +652,6 @@
       "appliedOperators" : [
         {
           "mutationPoint" : {
-            "mutationOperatorId" : "RelationalOperatorReplacement",
-            "position" : {
-              "column" : 28,
-              "line" : 59
-            }
-          },
-          "mutationSnapshot" : {
-            "after" : "!=",
-            "before" : "==",
-            "description" : "changed == to !="
-          },
-          "testSuiteOutcome" : "passed"
-        },
-        {
-          "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
               "column" : 25,
@@ -707,6 +692,21 @@
             "after" : "removed line",
             "before" : "\/\/ Notify all of the view controllers window.rootViewController?.notifyContainedAdaptiveContentSizeContainers()",
             "description" : "removed line"
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "mutationPoint" : {
+            "mutationOperatorId" : "RelationalOperatorReplacement",
+            "position" : {
+              "column" : 28,
+              "line" : 59
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "!=",
+            "before" : "==",
+            "description" : "changed == to !="
           },
           "testSuiteOutcome" : "passed"
         },
@@ -767,21 +767,6 @@
     },
     {
       "appliedOperators" : [
-        {
-          "mutationPoint" : {
-            "mutationOperatorId" : "ChangeLogicalConnector",
-            "position" : {
-              "column" : 42,
-              "line" : 291
-            }
-          },
-          "mutationSnapshot" : {
-            "after" : "||",
-            "before" : "&&",
-            "description" : "changed && to ||"
-          },
-          "testSuiteOutcome" : "failed"
-        },
         {
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
@@ -859,6 +844,21 @@
         },
         {
           "mutationPoint" : {
+            "mutationOperatorId" : "SwapTernary",
+            "position" : {
+              "column" : 103,
+              "line" : 268
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "options.contains(.doNotWrapXML) ? \"<\\(XMLBuilder.internalTopLevelElement)>\\(string)<\/\\(XMLBuilder.internalTopLevelElement)>\" :  string",
+            "before" : "options.contains(.doNotWrapXML) ? string : \"<\\(XMLBuilder.internalTopLevelElement)>\\(string)<\/\\(XMLBuilder.internalTopLevelElement)>\"",
+            "description" : "swapped ternary operator"
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
               "column" : 37,
@@ -869,6 +869,21 @@
             "after" : "!=",
             "before" : "==",
             "description" : "changed == to !="
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "mutationPoint" : {
+            "mutationOperatorId" : "ChangeLogicalConnector",
+            "position" : {
+              "column" : 42,
+              "line" : 291
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "||",
+            "before" : "&&",
+            "description" : "changed && to ||"
           },
           "testSuiteOutcome" : "failed"
         },
@@ -889,16 +904,16 @@
         },
         {
           "mutationPoint" : {
-            "mutationOperatorId" : "RelationalOperatorReplacement",
+            "mutationOperatorId" : "SwapTernary",
             "position" : {
-              "column" : 27,
-              "line" : 308
+              "column" : 76,
+              "line" : 293
             }
           },
           "mutationSnapshot" : {
-            "after" : "==",
-            "before" : "!=",
-            "description" : "changed != to =="
+            "after" : "shiftColumn ? 0 :  shiftSize",
+            "before" : "shiftColumn ? shiftSize : 0",
+            "description" : "swapped ternary operator"
           },
           "testSuiteOutcome" : "failed"
         },
@@ -907,7 +922,7 @@
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
               "column" : 27,
-              "line" : 355
+              "line" : 308
             }
           },
           "mutationSnapshot" : {
@@ -979,31 +994,16 @@
         },
         {
           "mutationPoint" : {
-            "mutationOperatorId" : "SwapTernary",
+            "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
-              "column" : 103,
-              "line" : 268
+              "column" : 27,
+              "line" : 355
             }
           },
           "mutationSnapshot" : {
-            "after" : "options.contains(.doNotWrapXML) ? \"<\\(XMLBuilder.internalTopLevelElement)>\\(string)<\/\\(XMLBuilder.internalTopLevelElement)>\" :  string",
-            "before" : "options.contains(.doNotWrapXML) ? string : \"<\\(XMLBuilder.internalTopLevelElement)>\\(string)<\/\\(XMLBuilder.internalTopLevelElement)>\"",
-            "description" : "swapped ternary operator"
-          },
-          "testSuiteOutcome" : "failed"
-        },
-        {
-          "mutationPoint" : {
-            "mutationOperatorId" : "SwapTernary",
-            "position" : {
-              "column" : 76,
-              "line" : 293
-            }
-          },
-          "mutationSnapshot" : {
-            "after" : "shiftColumn ? 0 :  shiftSize",
-            "before" : "shiftColumn ? shiftSize : 0",
-            "description" : "swapped ternary operator"
+            "after" : "==",
+            "before" : "!=",
+            "description" : "changed != to =="
           },
           "testSuiteOutcome" : "failed"
         }

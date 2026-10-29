@@ -128,12 +128,10 @@ extension MutationSchema: CustomStringConvertible, CustomDebugStringConvertible 
     }
 }
 
-extension MutationSchema: Comparable {
-    static func < (
-        lhs: MutationSchema,
-        rhs: MutationSchema
-    ) -> Bool {
-        lhs.id < rhs.id
+extension MutationSchema {
+    /// Where the mutant comes among its file's in mutation testing's jobs.
+    var orderInFile: JobOrder.InFile {
+        JobOrder.InFile(line: position.line, column: position.column, mutationOperatorId: mutationOperatorId)
     }
 }
 

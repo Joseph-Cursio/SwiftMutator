@@ -46,7 +46,7 @@ final class MuterVisitorTests: MuterTestCase {
         let ids = mappings.first?.mutationSchemata.map(\.mutationOperatorId)
         XCTAssertEqual(
             ids,
-            [.ror, .removeSideEffects, .swapTernary]
+            [.removeSideEffects, .ror, .swapTernary]
         )
     }
 
@@ -197,8 +197,7 @@ final class MuterVisitorTests: MuterTestCase {
             regionsWithoutCoverage: [.make(lineStart: 3, columnStart: 48, lineEnd: 6, columnEnd: 2)]
         )
 
-        // A set: mutants are in their IDs' text order, which puts line 10 before line 9.
-        XCTAssertEqual(Set(mutants(in: mappings)), ["RemoveSideEffects@9", "RemoveSideEffects@10"])
+        XCTAssertEqual(mutants(in: mappings), ["RemoveSideEffects@9", "RemoveSideEffects@10"])
     }
 
     // RemoveSideEffects replaces the body's whole statement list to remove one statement, so it's the statement that

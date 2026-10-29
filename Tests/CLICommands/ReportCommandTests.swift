@@ -8,8 +8,8 @@ final class ReportCommandTests: MuterTestCase {
     private var directory = ""
     private var resultsPath: String { "\(directory)/results.jsonl" }
 
-    /// Discovery puts Alpha.swift first, and Zeta.swift's line 10 before its line 9, as switch IDs compare as text;
-    /// the run wrote them in the order they finished in.
+    /// Discovery puts Alpha.swift first, and Zeta.swift's line 9 before its line 10, though as text, as in a switch ID,
+    /// 10 comes first; the run wrote them in the order they finished in.
     private let zeta9 = MutantResult.make(path: "Sources/Zeta.swift", line: 9, outcome: .passed)
     private let alpha3 = MutantResult.make(path: "Sources/Alpha.swift", line: 3, outcome: .failed)
     private let zeta10 = MutantResult.make(path: "Sources/Zeta.swift", line: 10, outcome: .passed)
@@ -19,8 +19,8 @@ final class ReportCommandTests: MuterTestCase {
         MutationTestOutcome(
             mutations: [
                 mutation("Sources/Alpha.swift", line: 3, .failed),
-                mutation("Sources/Zeta.swift", line: 10, .passed),
                 mutation("Sources/Zeta.swift", line: 9, .passed),
+                mutation("Sources/Zeta.swift", line: 10, .passed),
             ],
             coverage: .null,
             testDuration: 100.5,
@@ -116,8 +116,8 @@ final class ReportCommandTests: MuterTestCase {
     func test_theXcodeFormat_warnsOfEachSurvivor_inJobOrder_thenGivesItsSummary() async throws {
         try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
         let warnings = [
-            "/project/Sources/Zeta.swift:10:22: warning: Your test suite did not kill this mutant: changed > to <",
             "/project/Sources/Zeta.swift:9:22: warning: Your test suite did not kill this mutant: changed > to <",
+            "/project/Sources/Zeta.swift:10:22: warning: Your test suite did not kill this mutant: changed > to <",
         ]
         let summary = """
         Mutation score: 33

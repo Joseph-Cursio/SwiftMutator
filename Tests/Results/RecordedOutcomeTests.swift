@@ -22,9 +22,9 @@ final class RecordedOutcomeTests: MuterTestCase {
         state.newVersion = "9.9.9"
         state.projectCoverage = .make(percent: 78, filesWithoutCoverage: ["/project_mutated/Sources/Untested.swift"])
         state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
-        // Discovery sorts files by path, and each file's mutants by switch ID, which compares as text, so the jobs
-        // are A/Util.swift:3, B/Util.swift:12, B/Util.swift:3, Zeta.swift:10, Zeta.swift:9: neither the order of
-        // their lines nor the order given here. Both Util.swift files share their switch IDs' file name.
+        // Discovery sorts files by path, and each file's mutants by line as a number, so the jobs are A/Util.swift:3,
+        // B/Util.swift:3, B/Util.swift:12, Zeta.swift:9, Zeta.swift:10: not the order given here, and not the order
+        // of their switch IDs, in which 12 comes before 3. Both Util.swift files share their switch IDs' file name.
         state.mutationMapping = try [
             makeMapping("/project_mutated/Sources/Zeta.swift", lines: [9, 10]),
             makeMapping("/project_mutated/Sources/B/Util.swift", lines: [3, 12]),
@@ -114,13 +114,13 @@ final class RecordedOutcomeTests: MuterTestCase {
 
         XCTAssertEqual(rebuilt.mutations.map(label), [
             "/project_mutated/Sources/A/Util.swift:3",
-            "/project_mutated/Sources/B/Util.swift:12",
             "/project_mutated/Sources/B/Util.swift:3",
+            "/project_mutated/Sources/B/Util.swift:12",
+            "/project_mutated/Sources/Zeta.swift:9",
+            "/project_mutated/Sources/Zeta.swift:9",
             "/project_mutated/Sources/Zeta.swift:10",
-            "/project_mutated/Sources/Zeta.swift:9",
-            "/project_mutated/Sources/Zeta.swift:9",
         ])
-        XCTAssertEqual(rebuilt.mutations.map(\.testSuiteOutcome), [.failed, .failed, .failed, .failed, .failed, .passed])
+        XCTAssertEqual(rebuilt.mutations.map(\.testSuiteOutcome), [.failed, .failed, .failed, .failed, .passed, .failed])
     }
 
     func test_theReportFromAnAbortedRunsFile_equalsItsPartialReport() async throws {
@@ -172,7 +172,7 @@ final class RecordedOutcomeTests: MuterTestCase {
 
         XCTAssertEqual(rebuilt.mutations.map(label), [
             "/project_mutated/Sources/A/Util.swift:3",
-            "/project_mutated/Sources/Zeta.swift:10",
+            "/project_mutated/Sources/Zeta.swift:9",
         ])
         XCTAssertEqual(rebuilt.testDuration, 62.5)
     }
@@ -518,8 +518,16 @@ final class JobOrderTests: MuterTestCase {
         let keys = MutantKey.keys(for: jobs, under: mutatedProject)
         XCTAssertEqual(Set(jobs.map(\.filePath)).count, 5, "\(jobs.map(\.filePath))")
         let zetaLines = jobs.filter { $0.fileName == "Zeta.swift" && $0.mutationOperatorId == .ror }.map(\.position.line)
-        XCTAssertEqual(zetaLines, [10, 9], "a switch ID's line compares as text")
-        let orders = zip(jobs, keys).map { JobOrder(filePath: $0.filePath, switchID: $0.id, occurrence: $1.occurrence) }
+        XCTAssertEqual(zetaLines, [9, 10], "lines compare as numbers, not as the text of a switch ID")
+        // In line order whatever the operator, not each operator's mutants in turn.
+        for file in Set(jobs.map(\.filePath)) {
+            let places = jobs.filter { $0.filePath == file }.map { [$0.position.line, $0.position.column] }
+            XCTAssertEqual(places, places.sorted { $0.lexicographicallyPrecedes($1) }, file)
+        }
+        XCTAssertGreaterThan(Set(jobs.map(\.mutationOperatorId)).count, 1)
+        let orders = zip(jobs, keys).map { job, key in
+            JobOrder(filePath: job.filePath, inFile: job.orderInFile, occurrence: key.occurrence)
+        }
 
         for shuffled in [Array(orders.reversed()), orders.shuffled(), orders.shuffled()] {
             XCTAssertEqual(shuffled.sorted(), orders)
@@ -533,6 +541,28 @@ final class JobOrderTests: MuterTestCase {
         XCTAssertEqual(rebuilt.mutations.map(\.point), jobs.map {
             MutationPoint(mutationOperatorId: $0.mutationOperatorId, filePath: $0.filePath, position: $0.position)
         })
+    }
+
+    // A resumed session keeps an earlier session's result as it was recorded, with an offset that counts the header
+    // and import SwiftMutator inserted then. When the import gained an access level since, as another file of the
+    // module did, the offset moved but the line and column didn't, and the run tested the two mutants at this place
+    // by operator.
+    func test_aKeptResultsOlderOffset_doesNotMoveIt() throws {
+        let kept = MutantResult.make(line: 9, column: 5, utf8Offset: 120, mutationOperatorId: .swapTernary)
+        let tested = MutantResult.make(
+            session: 2,
+            line: 9,
+            column: 5,
+            utf8Offset: 129,
+            mutationOperatorId: .removeSideEffects
+        )
+        let encoder = ResultsCoding.encoder
+        let lines: [any Encodable] = [ResultsHeader.make(), kept, ResultsHeader.make(session: 2), tested]
+        let file = try lines.map { try encoder.encode($0) }.reduce(Data()) { $0 + $1 + Data("\n".utf8) }
+
+        let rebuilt = try RecordedResults.read(file, path: "/logs/results.jsonl").mutationTestOutcome()
+
+        XCTAssertEqual(rebuilt.mutations.map(\.point.mutationOperatorId), [.removeSideEffects, .swapTernary])
     }
 
     /// The jobs mutation testing makes from what discovery finds in the fixture files and `sources`.
