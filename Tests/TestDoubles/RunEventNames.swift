@@ -30,7 +30,6 @@ extension RunEvent {
         case baselineTestFailed
         case resultsFileCreated
         case resultsFileUnavailable
-        case configurationFileCreated
         case testPlanFileCreated
         case muterMutationTestPlanLoaded
     }
@@ -62,7 +61,6 @@ extension RunEvent {
         case .baselineTestFailed: .baselineTestFailed
         case .resultsFileCreated: .resultsFileCreated
         case .resultsFileUnavailable: .resultsFileUnavailable
-        case .configurationFileCreated: .configurationFileCreated
         case .testPlanFileCreated: .testPlanFileCreated
         case .muterMutationTestPlanLoaded: .muterMutationTestPlanLoaded
         }
@@ -92,7 +90,6 @@ extension RunEvent {
         case let .baselineTestFailed(mutationTestLog): mutationTestLog
         case let .resultsFileCreated(path): path
         case let .resultsFileUnavailable(reason): reason
-        case let .configurationFileCreated(path): path
         case let .testPlanFileCreated(path): path
         }
     }

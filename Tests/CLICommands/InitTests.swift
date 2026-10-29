@@ -20,4 +20,12 @@ final class InitTests: MuterTestCase {
             return
         }
     }
+
+    // No run observes init, so nothing it sent was ever said: it printed nothing at all.
+    func test_saysWhereItCreatedTheConfigurationFile() async throws {
+        try await sut.run()
+
+        XCTAssertTrue(printer.linesPassed.contains { $0.contains("You are running version") }, "\(printer.linesPassed)")
+        XCTAssertEqual(printer.linesPassed.last, "💾 Configuration file created at: \(directory!)/muter.conf.yml")
+    }
 }

@@ -33,18 +33,17 @@ public struct Init: AsyncParsableCommand {
         )
     }
 
+    /// Writes a configuration file for the project in `directory`, and says so: no run observes it, so it tells the
+    /// Logger itself.
     public mutating func run() async throws {
-        @Dependency(\.events) var events: RunEvents
-        events.send(.muterLaunched)
+        @Dependency(\.logger) var logger: Logger
+        logger.launched()
 
         let directoryContents = fileManager.subpaths(atPath: directory) ?? []
         let configuration = await MuterConfiguration(from: directoryContents)
-        fileManager.createFile(
-            atPath: "\(directory)/\(MuterConfiguration.fileNameWithExtension)",
-            contents: configuration.asData,
-            attributes: nil
-        )
+        let path = "\(directory)/\(MuterConfiguration.fileNameWithExtension)"
+        fileManager.createFile(atPath: path, contents: configuration.asData, attributes: nil)
 
-        events.send(.configurationFileCreated(path: "\(directory)/\(MuterConfiguration.fileNameWithExtension)"))
+        logger.configurationFileCreated(atPath: path)
     }
 }
