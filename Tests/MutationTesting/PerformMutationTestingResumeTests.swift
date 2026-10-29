@@ -94,7 +94,7 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
     func test_aResumedSession_isTheNextNumber_withAFormat2Header_inTheSameFile() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
         var announced: [String] = []
-        whenPosted(.resultsFileCreated) { announced.append(($0.object as? String) ?? "") }
+        whenSent(.resultsFileCreated) { announced.append(($0.object as? String) ?? "") }
 
         _ = try await sut.run(with: state)
 
@@ -142,13 +142,13 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
             file: resultsFiles.openForResume(at: resultsPath)
         )
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
-        var posted: [Notification.Name] = []
-        whenPosted(.resultsFileCreated) { posted.append($0.name) }
-        whenPosted(.resultsFileUnavailable) { posted.append($0.name) }
+        var sent: [RunEvent.Name] = []
+        whenSent(.resultsFileCreated) { sent.append($0.name) }
+        whenSent(.resultsFileUnavailable) { sent.append($0.name) }
 
         _ = try await sut.run(with: state)
 
-        XCTAssertEqual(posted, [.resultsFileUnavailable])
+        XCTAssertEqual(sent, [.resultsFileUnavailable])
         XCTAssertEqual(try resultsFiles.kinds(), ["header"])
     }
 
@@ -164,18 +164,18 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         XCTAssertEqual(resultsFiles.files.map(\.isClosed), [true])
     }
 
-    // So is a stop during the timed test run after the baseline: the session hasn't started its results, so it posts
+    // So is a stop during the timed test run after the baseline: the session hasn't started its results, so it sends
     // no early end, which could only say that none of the mutants has a result, although two have.
     func test_aStopDuringTheTimedTestRun_writesNothingToTheResumedFile_andPostsNoEarlyEnd() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
         ioDelegate.timedTestRunOutcome = .buildError
         ioDelegate.whileRunningTestsWithoutBuilding = { withUnsafeCurrentTask { $0?.cancel() } }
-        let posted = recordNotifications(named: [.mutationTestingEndedEarly])
+        let sent = recordEvents(named: [.mutationTestingEndedEarly])
 
         let result = await Task { [sut, state] in try await sut.run(with: state) }.result
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        XCTAssertEqual(posted().count, 0)
+        XCTAssertEqual(sent().count, 0)
         XCTAssertEqual(resultsFiles.lines, [])
         XCTAssertEqual(resultsFiles.files.map(\.isClosed), [true])
     }
@@ -297,11 +297,11 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
             file: XCTUnwrap(state.resumeState).file
         )
         ioDelegate.testSuiteOutcomes = []
-        let posted = recordNotifications(named: [.mutationTestingStarted, .newTestLogAvailable])
+        let sent = recordEvents(named: [.mutationTestingStarted, .newTestLogAvailable])
 
         let changes = try await sut.run(with: state)
 
-        XCTAssertEqual(posted().map(\.name), [], "no baseline notice, and no progress bar")
+        XCTAssertEqual(sent().map(\.name), [], "no baseline notice, and no progress bar")
         XCTAssertEqual(ioDelegate.methodCalls, [], "no baseline, and no mutant")
         XCTAssertEqual(clonedCounts, [])
         XCTAssertEqual(try resultsFiles.kinds(), ["header", "end"])
@@ -392,16 +392,16 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
     // What is reused and why the rest is tested is said first, and the progress bar counts only what is left.
     func test_theProgressTotalIsWhatIsLeft() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
-        let posted = recordNotifications(named: [.resumePlanned, .mutationTestingStarted, .newTestLogAvailable])
+        let sent = recordEvents(named: [.resumePlanned, .mutationTestingStarted, .newTestLogAvailable])
 
         _ = try await sut.run(with: state)
 
         XCTAssertEqual(
-            posted().prefix(3).map(\.name),
+            sent().prefix(3).map(\.name),
             [.resumePlanned, .mutationTestingStarted, .newTestLogAvailable]
         )
         XCTAssertEqual(
-            posted().first?.object as? ResumeSummary,
+            sent().first?.object as? ResumeSummary,
             ResumeSummary(
                 path: resultsPath,
                 reused: 2,
@@ -415,7 +415,7 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
                 notices: ["mutationTestWorkers was 4 and is 1 now, which no result depends on."]
             )
         )
-        let baselineLog = try XCTUnwrap(posted().dropFirst(2).first?.object as? MutationTestLog)
+        let baselineLog = try XCTUnwrap(sent().dropFirst(2).first?.object as? MutationTestLog)
         XCTAssertNil(baselineLog.mutationPoint)
         XCTAssertEqual(baselineLog.remainingMutationPointsCount, 2)
     }
@@ -425,11 +425,11 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
     func test_theSummary_countsTheResultsNoLongerDiscovered_andSaysHowCoverageChanged() async throws {
         state.projectCoverage = .make(percent: 80, filesWithoutCoverage: ["/project_mutated/Sources/Gone.swift"])
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
-        let posted = recordNotifications(named: [.resumePlanned])
+        let sent = recordEvents(named: [.resumePlanned])
 
         _ = try await sut.run(with: state)
 
-        let summary = try XCTUnwrap(posted().first?.object as? ResumeSummary)
+        let summary = try XCTUnwrap(sent().first?.object as? ResumeSummary)
         XCTAssertEqual(summary.noLongerDiscovered, 1)
         XCTAssertEqual(summary.discoveredBefore, 5)
         XCTAssertEqual(summary.discovered, 4)
@@ -447,11 +447,11 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         )
         state.projectCoverage = .make(percent: 80, filesWithoutCoverage: ["/project_mutated/Sources/Gone.swift"])
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
-        let posted = recordNotifications(named: [.resumePlanned])
+        let sent = recordEvents(named: [.resumePlanned])
 
         _ = try await sut.run(with: state)
 
-        let summary = try XCTUnwrap(posted().first?.object as? ResumeSummary)
+        let summary = try XCTUnwrap(sent().first?.object as? ResumeSummary)
         XCTAssertNil(summary.coverageChange)
         XCTAssertEqual(summary.noLongerDiscovered, 1)
     }
@@ -474,26 +474,26 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         )
         state.projectCoverage = .make(percent: 80, filesWithoutCoverage: ["/project_mutated/Sources/Gone.swift"])
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
-        let posted = recordNotifications(named: [.resumePlanned])
+        let sent = recordEvents(named: [.resumePlanned])
 
         _ = try await sut.run(with: state)
 
-        let summary = try XCTUnwrap(posted().first?.object as? ResumeSummary)
+        let summary = try XCTUnwrap(sent().first?.object as? ResumeSummary)
         XCTAssertNil(summary.coverageChange)
     }
 
     // The reporter gets every outcome the report covers, so the Xcode format warns of the kept survivor too. Only the
-    // tested mutants post a log, which moves the progress bar and is kept in the session's log folder.
-    func test_reusedOutcomesReachTheXcodeReporter_butNoTestLogIsPosted() async throws {
+    // tested mutants send a log, which moves the progress bar and is kept in the session's log folder.
+    func test_reusedOutcomesReachTheXcodeReporter_butNoTestLogIsSent() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
-        let outcomes = recordNotifications(named: [.newMutationTestOutcomeAvailable])
-        let testLogs = recordNotifications(named: [.newTestLogAvailable])
+        let outcomes = recordEvents(named: [.newMutationTestOutcomeAvailable])
+        let testLogs = recordEvents(named: [.newTestLogAvailable])
 
         _ = try await sut.run(with: state)
 
-        let posted = outcomes().compactMap { $0.object as? MutationTestOutcome.Mutation }
-        XCTAssertEqual(posted.map(\.point.position.line), [7, 3, 4, 8], "the kept ones first, then each as it is tested")
-        XCTAssertEqual(posted.map(\.testSuiteOutcome), [.passed, .failed, .failed, .passed])
+        let sent = outcomes().compactMap { $0.object as? MutationTestOutcome.Mutation }
+        XCTAssertEqual(sent.map(\.point.position.line), [7, 3, 4, 8], "the kept ones first, then each as it is tested")
+        XCTAssertEqual(sent.map(\.testSuiteOutcome), [.passed, .failed, .failed, .passed])
         XCTAssertEqual(
             testLogs().map { ($0.object as? MutationTestLog)?.mutationPoint?.position.line },
             [nil, 4, 8],
@@ -501,16 +501,16 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         )
     }
 
-    // The progress lines count each outcome posted after the baseline's log, which starts them, so the kept results
+    // The progress lines count each outcome sent after the baseline's log, which starts them, so the kept results
     // come before it. After it, each tested mutant's outcome comes before its log.
     func test_keptOutcomes_comeBeforeTheBaselinesLog() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
-        let posted = recordNotifications(named: [.newMutationTestOutcomeAvailable, .newTestLogAvailable])
+        let sent = recordEvents(named: [.newMutationTestOutcomeAvailable, .newTestLogAvailable])
 
         _ = try await sut.run(with: state)
 
         XCTAssertEqual(
-            posted().map { $0.name == .newTestLogAvailable ? "log" : "outcome" },
+            sent().map { $0.name == .newTestLogAvailable ? "log" : "outcome" },
             ["outcome", "outcome", "log", "outcome", "log", "outcome", "log"]
         )
     }
@@ -524,8 +524,8 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
             if number == 1 { withUnsafeCurrentTask { $0?.cancel() } }
         }
         var earlyEnds: [EarlyEnd] = []
-        whenPosted(.mutationTestingEndedEarly) { notification in
-            if let earlyEnd = notification.object as? EarlyEnd { earlyEnds.append(earlyEnd) }
+        whenSent(.mutationTestingEndedEarly) { event in
+            if let earlyEnd = event.object as? EarlyEnd { earlyEnds.append(earlyEnd) }
         }
 
         let result = await Task { [sut, state] in try await sut.run(with: state) }.result
@@ -566,8 +566,8 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
             if number == 1 { withUnsafeCurrentTask { $0?.cancel() } }
         }
         var earlyEnds: [EarlyEnd] = []
-        whenPosted(.mutationTestingEndedEarly) { notification in
-            if let earlyEnd = notification.object as? EarlyEnd { earlyEnds.append(earlyEnd) }
+        whenSent(.mutationTestingEndedEarly) { event in
+            if let earlyEnd = event.object as? EarlyEnd { earlyEnds.append(earlyEnd) }
         }
 
         let result = await Task { [sut, state] in try await sut.run(with: state) }.result
@@ -619,19 +619,19 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
 }
 
 private extension PerformMutationTestingResumeTests {
-    /// The notifications posted with any of `names` so far, in order.
-    func recordNotifications(named names: [Notification.Name]) -> () -> [Notification] {
-        var posted: [Notification] = []
+    /// The events sent with any of `names` so far, in order.
+    func recordEvents(named names: [RunEvent.Name]) -> () -> [RunEvent] {
+        var sent: [RunEvent] = []
         for name in names {
-            whenPosted(name) { posted.append($0) }
+            whenSent(name) { sent.append($0) }
         }
-        return { posted }
+        return { sent }
     }
 
-    /// Calls `handler` with each notification posted with `name`, from the task that posts it, until the test ends.
-    func whenPosted(_ name: Notification.Name, _ handler: @escaping (Notification) -> Void) {
-        let observer = notificationCenter.addObserver(forName: name, object: nil, queue: nil, using: handler)
-        addTeardownBlock { [notificationCenter] in notificationCenter.removeObserver(observer) }
+    /// Calls `handler` with each event sent with `name`, from the task that sends it, until the test ends.
+    func whenSent(_ name: RunEvent.Name, _ handler: @escaping (RunEvent) -> Void) {
+        let observer = runEvents.observe(name, handler)
+        addTeardownBlock { observer.cancel() }
     }
 
     /// The stopped run's record of the mutant `makeSchemataMapping(file:line:)` makes, as it wrote it, naming

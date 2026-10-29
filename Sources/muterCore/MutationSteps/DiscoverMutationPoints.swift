@@ -2,18 +2,15 @@ import Foundation
 import SwiftSyntax
 
 struct DiscoverMutationPoints: MutationStep {
-    @Dependency(\.notificationCenter)
-    private var notificationCenter: NotificationCenter
+    @Dependency(\.events)
+    private var events: RunEvents
     @Dependency(\.prepareCode)
     var prepareSourceCode: SourceCodePreparation
 
     func run(
         with state: AnyMutationTestState
     ) async throws -> [MutationTestState.Change] {
-        notificationCenter.post(
-            name: .mutationsDiscoveryStarted,
-            object: nil
-        )
+        events.send(.mutationsDiscoveryStarted)
 
         let discovered = await discoverMutationPoints(
             forOperators: state.mutationOperatorList,
@@ -29,10 +26,7 @@ struct DiscoverMutationPoints: MutationStep {
 
         let mappings = discovered.mergeByFilePath()
 
-        notificationCenter.post(
-            name: .mutationsDiscoveryFinished,
-            object: mappings
-        )
+        events.send(.mutationsDiscoveryFinished(mappings))
 
         return [
             .mutationMappingsDiscovered(mappings),

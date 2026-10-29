@@ -9,12 +9,8 @@ final class CreateMuterTestPlanTests: MuterTestCase {
     func test_step() async throws {
         let state = makeState()
 
-        let expect = expectation(
-            forNotification: .testPlanFileCreated,
-            object: nil,
-            notificationCenter: notificationCenter
-        ) { notification in
-            let path = notification.object as? String
+        let expect = expectation(forEvent: .testPlanFileCreated) { event in
+            let path = event.object as? String
             XCTAssertEqual(path, "/path/to/project/muter-mappings.json")
             return true
         }

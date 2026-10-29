@@ -5,8 +5,6 @@ import SwiftSyntax
 struct ApplySchemata: MutationStep {
     @Dependency(\.writeFile)
     private var writeFile: WriteFile
-    @Dependency(\.notificationCenter)
-    private var notificationCenter: NotificationCenter
 
     func run(
         with state: AnyMutationTestState

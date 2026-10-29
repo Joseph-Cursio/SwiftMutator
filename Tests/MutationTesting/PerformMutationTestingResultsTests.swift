@@ -40,12 +40,12 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
             return .fixture
         }
         var linesAtTheBaselinesLog: [String]?
-        whenPosted(.newTestLogAvailable) { notification in
-            if (notification.object as? MutationTestLog)?.mutationPoint == nil {
+        whenSent(.newTestLogAvailable) { event in
+            if (event.object as? MutationTestLog)?.mutationPoint == nil {
                 linesAtTheBaselinesLog = self.resultsFiles.lines
             }
         }
-        let posted = recordNotifications(named: [.resultsFileCreated, .newTestLogAvailable])
+        let sent = recordEvents(named: [.resultsFileCreated, .newTestLogAvailable])
 
         _ = try await sut.run(with: state)
 
@@ -71,8 +71,8 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(header.mutantsToTest, 2)
         // Before the baseline's log, which starts the progress bar, so the file's path is printed first.
         XCTAssertEqual(linesAtTheBaselinesLog?.count, 1)
-        XCTAssertEqual(posted().prefix(2).map(\.name), [.resultsFileCreated, .newTestLogAvailable])
-        XCTAssertEqual(posted().first?.object as? String, "/logs/results.jsonl")
+        XCTAssertEqual(sent().prefix(2).map(\.name), [.resultsFileCreated, .newTestLogAvailable])
+        XCTAssertEqual(sent().first?.object as? String, "/logs/results.jsonl")
     }
 
     func test_theHeaderRecordsTheProjectTree() async throws {
@@ -120,15 +120,15 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(ioDelegate.methodCalls, ["benchmarkTests(using:savingResultsIntoFileNamed:)"], "no timed run")
     }
 
-    func test_eachMutantsLineIsWrittenBeforeItsNotifications() async throws {
+    func test_eachMutantsLineIsWrittenBeforeItsEvents() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
         var mutantLinesAtEachOutcome: [Int] = []
         var mutantLinesAtEachLog: [Int] = []
-        whenPosted(.newMutationTestOutcomeAvailable) { _ in
+        whenSent(.newMutationTestOutcomeAvailable) { _ in
             mutantLinesAtEachOutcome.append((try? self.resultsFiles.records(MutantResult.self).count) ?? -1)
         }
-        whenPosted(.newTestLogAvailable) { notification in
-            guard (notification.object as? MutationTestLog)?.mutationPoint != nil else { return }
+        whenSent(.newTestLogAvailable) { event in
+            guard (event.object as? MutationTestLog)?.mutationPoint != nil else { return }
             mutantLinesAtEachLog.append((try? self.resultsFiles.records(MutantResult.self).count) ?? -1)
         }
 
@@ -176,7 +176,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         let app = try makeSchemataMapping(file: "Sources/App/Check.swift", line: 3)
         state.mutationMapping = try [app, makeSchemataMapping(file: "Sources/Tool/Check.swift", line: 3), app]
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed, .failed]
-        let posted = recordNotifications(named: [.newTestLogAvailable])
+        let sent = recordEvents(named: [.newTestLogAvailable])
 
         _ = try await sut.run(with: state)
 
@@ -186,7 +186,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
             "RelationalOperatorReplacement @ Check.swift-3-5 d7fac045dd38392a.log",
             "RelationalOperatorReplacement @ Check.swift-3-5 24bcdd71ccc09bff (#2).log",
         ])
-        let kept = posted()
+        let kept = sent()
             .compactMap { $0.object as? MutationTestLog }
             .filter { $0.mutationPoint != nil }
             .map(\.keptFileName)
@@ -385,8 +385,8 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
             }
         }
         var earlyEnds: [EarlyEnd] = []
-        whenPosted(.mutationTestingEndedEarly) { notification in
-            if let earlyEnd = notification.object as? EarlyEnd { earlyEnds.append(earlyEnd) }
+        whenSent(.mutationTestingEndedEarly) { event in
+            if let earlyEnd = event.object as? EarlyEnd { earlyEnds.append(earlyEnd) }
         }
 
         let result = await Task { [sut, state] in try await sut.run(with: state) }.result
@@ -410,7 +410,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
                 current.interruption.stoppingAtOnce()
             }
         }
-        let unavailable = recordNotifications(named: [.resultsFileUnavailable])
+        let unavailable = recordEvents(named: [.resultsFileUnavailable])
 
         _ = try await sut.run(with: state)
 
@@ -491,7 +491,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
         let removals = removingClonesRecordsTheResultsLines()
         // Both mutants start at once; the run still under way when the first is recorded is not recorded.
-        whenPosted(.newMutationTestOutcomeAvailable) { _ in withUnsafeCurrentTask { $0?.cancel() } }
+        whenSent(.newMutationTestOutcomeAvailable) { _ in withUnsafeCurrentTask { $0?.cancel() } }
 
         let result = await Task { [state] in try await removals.sut.run(with: state) }.result
 
@@ -511,27 +511,27 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
             makeWorkerDirectories: { [workerClone] _, count in Array(repeating: workerClone, count: count) },
             removeWorkerDirectories: { _ in events.append("clones removed") }
         )
-        whenPosted(.mutationTestingEndedEarly) { [resultsFiles] _ in
-            events.append("early end posted after the \((try? resultsFiles.kinds().last) ?? "no") line")
+        whenSent(.mutationTestingEndedEarly) { [resultsFiles] _ in
+            events.append("early end sent after the \((try? resultsFiles.kinds().last) ?? "no") line")
         }
-        whenPosted(.newMutationTestOutcomeAvailable) { _ in withUnsafeCurrentTask { $0?.cancel() } }
+        whenSent(.newMutationTestOutcomeAvailable) { _ in withUnsafeCurrentTask { $0?.cancel() } }
 
         let result = await Task { [state] in try await sut.run(with: state) }.result
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        XCTAssertEqual(events, ["early end posted after the end line", "clones removed"])
+        XCTAssertEqual(events, ["early end sent after the end line", "clones removed"])
     }
 
     func test_whenTheResultsFileCannotBeCreated_theRunGoesOn_andSaysSo() async throws {
         resultsFiles.errorToThrow = ResultsFileError.cannotOpen(path: "/logs/results.jsonl", errno: EACCES)
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
         ioDelegate.mutantTestLogs = [killingLog]
-        let posted = recordNotifications(named: [.resultsFileCreated, .resultsFileUnavailable])
+        let sent = recordEvents(named: [.resultsFileCreated, .resultsFileUnavailable])
 
         let changes = try await sut.run(with: state)
 
-        XCTAssertEqual(posted().map(\.name), [.resultsFileUnavailable])
-        XCTAssertEqual(posted().first?.object as? String, "can't open /logs/results.jsonl: Permission denied")
+        XCTAssertEqual(sent().map(\.name), [.resultsFileUnavailable])
+        XCTAssertEqual(sent().first?.object as? String, "can't open /logs/results.jsonl: Permission denied")
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
             return XCTFail("Expected an outcome, got \(changes)")
         }
@@ -545,13 +545,13 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         resultsFiles.failFromLine = 2
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
         ioDelegate.mutantTestLogs = [killingLog, killingLog]
-        let posted = recordNotifications(named: [.resultsFileUnavailable])
+        let sent = recordEvents(named: [.resultsFileUnavailable])
 
         let changes = try await sut.run(with: state)
 
-        XCTAssertEqual(posted().count, 1)
+        XCTAssertEqual(sent().count, 1)
         XCTAssertEqual(
-            posted().first?.object as? String,
+            sent().first?.object as? String,
             "can't write to /logs/results.jsonl: No space left on device"
         )
         XCTAssertEqual(try resultsFiles.kinds(), ["header"])
@@ -566,11 +566,11 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
     func test_whenTheHeaderCannotBeWritten_theFileIsNotAnnounced_andTheRunGoesOn() async throws {
         resultsFiles.failFromLine = 1
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
-        let posted = recordNotifications(named: [.resultsFileCreated, .resultsFileUnavailable])
+        let sent = recordEvents(named: [.resultsFileCreated, .resultsFileUnavailable])
 
         let changes = try await sut.run(with: state)
 
-        XCTAssertEqual(posted().map(\.name), [.resultsFileUnavailable])
+        XCTAssertEqual(sent().map(\.name), [.resultsFileUnavailable])
         XCTAssertEqual(resultsFiles.lines, [])
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
             return XCTFail("Expected an outcome, got \(changes)")
@@ -582,12 +582,12 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         state.loggingDirectory = ""
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
         ioDelegate.mutantTestLogs = [killingLog]
-        let posted = recordNotifications(named: [.resultsFileCreated, .resultsFileUnavailable])
+        let sent = recordEvents(named: [.resultsFileCreated, .resultsFileUnavailable])
 
         let changes = try await sut.run(with: state)
 
         XCTAssertEqual(resultsFiles.directories, [])
-        XCTAssertEqual(posted().count, 0)
+        XCTAssertEqual(sent().count, 0)
         XCTAssertEqual(
             try XCTUnwrap(outcome(of: changes)).mutations.first?.killingTests,
             sumKilled,
@@ -612,13 +612,13 @@ private extension PerformMutationTestingResultsTests {
         return outcome
     }
 
-    /// Records every notification posted with one of `names`, in order, until the test ends.
-    func recordNotifications(named names: [Notification.Name]) -> () -> [Notification] {
-        var posted: [Notification] = []
+    /// Records every event sent with one of `names`, in order, until the test ends.
+    func recordEvents(named names: [RunEvent.Name]) -> () -> [RunEvent] {
+        var sent: [RunEvent] = []
         for name in names {
-            whenPosted(name) { posted.append($0) }
+            whenSent(name) { sent.append($0) }
         }
-        return { posted }
+        return { sent }
     }
 
     /// Mutation testing whose worker clone is `workerClone`, and whose clone removal records the kinds of the results
@@ -635,10 +635,10 @@ private extension PerformMutationTestingResultsTests {
         return (sut, { kindsAtEach })
     }
 
-    /// Calls `handler` with each notification posted with `name`, from the task that posts it, until the test ends.
-    func whenPosted(_ name: Notification.Name, _ handler: @escaping (Notification) -> Void) {
-        let observer = notificationCenter.addObserver(forName: name, object: nil, queue: nil, using: handler)
-        addTeardownBlock { [notificationCenter] in notificationCenter.removeObserver(observer) }
+    /// Calls `handler` with each event sent with `name`, from the task that sends it, until the test ends.
+    func whenSent(_ name: RunEvent.Name, _ handler: @escaping (RunEvent) -> Void) {
+        let observer = runEvents.observe(name, handler)
+        addTeardownBlock { observer.cancel() }
     }
 
     /// A tree of `files`, each a path relative to the project and its hash.

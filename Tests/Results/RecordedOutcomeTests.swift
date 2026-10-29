@@ -465,13 +465,13 @@ private extension RecordedOutcomeTests {
         "\(mutation.point.filePath):\(mutation.point.position.line)"
     }
 
-    /// Every early end posted from now on, in order.
+    /// Every early end sent from now on, in order.
     func recordEarlyEnds() -> () -> [EarlyEnd] {
         var earlyEnds: [EarlyEnd] = []
-        let observer = notificationCenter.addObserver(forName: .mutationTestingEndedEarly, object: nil, queue: nil) {
+        let observer = runEvents.observe(.mutationTestingEndedEarly) {
             if let earlyEnd = $0.object as? EarlyEnd { earlyEnds.append(earlyEnd) }
         }
-        addTeardownBlock { [notificationCenter] in notificationCenter.removeObserver(observer) }
+        addTeardownBlock { observer.cancel() }
         return { earlyEnds }
     }
 }

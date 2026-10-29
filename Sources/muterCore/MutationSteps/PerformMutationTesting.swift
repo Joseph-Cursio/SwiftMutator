@@ -4,8 +4,8 @@ import SwiftSyntax
 struct PerformMutationTesting: MutationStep {
     @Dependency(\.ioDelegate)
     private var ioDelegate: MutationTestingIODelegate
-    @Dependency(\.notificationCenter)
-    private var notificationCenter: NotificationCenter
+    @Dependency(\.events)
+    private var events: RunEvents
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
     @Dependency(\.now)
@@ -61,7 +61,7 @@ struct PerformMutationTesting: MutationStep {
     }
 
     /// Tests every mutant, writing each one's result to the run's results file as it finishes, between a header
-    /// and an end line that says how mutation testing ended. Mutation testing that stops early then posts what it
+    /// and an end line that says how mutation testing ended. Mutation testing that stops early then sends what it
     /// tested. Worker clones are removed last. A resumed run adds its session to the stopped run's results file, tests
     /// only the mutants without a recorded result that still holds, and reports the results it keeps with the ones it
     /// tests, in job order; its test duration adds the earlier sessions'.
@@ -75,7 +75,7 @@ struct PerformMutationTesting: MutationStep {
             startedAt: now(),
             earlierTestDuration: resume?.recorded.testDuration ?? 0
         )
-        // After the end line and anything posted about an early end: removing large clones can take seconds, and a
+        // After the end line and anything sent about an early end: removing large clones can take seconds, and a
         // second signal in that time exits at once. A clone left behind is removed when SwiftMutator next runs.
         // The mutated project is kept, for a look after the run, but not the active-mutant file beside it, which
         // goes first: it takes no time.
@@ -110,7 +110,7 @@ struct PerformMutationTesting: MutationStep {
                 : ResultsEnd.detail(for: error)
             let thisSession = now().timeIntervalSince(session.startedAt)
             endResults(of: session, reason, detail: detail, testDuration: thisSession)
-            postEarlyEnd(
+            sendEarlyEnd(
                 of: session,
                 reason,
                 detail: detail,
@@ -130,10 +130,7 @@ struct PerformMutationTesting: MutationStep {
             newVersion: state.newVersion
         )
 
-        notificationCenter.post(
-            name: .mutationTestingFinished,
-            object: mutationTestOutcome
-        )
+        events.send(.mutationTestingFinished(mutationTestOutcome))
 
         return [.mutationTestOutcomeGenerated(mutationTestOutcome)]
     }
@@ -162,15 +159,14 @@ private extension PerformMutationTesting {
             session.earlierBuildErrors = Set(
                 plan.toRun.filter { resume.recorded.latest[session.keys[$0]]?.outcome == .buildError }
             )
-            notificationCenter.post(
-                name: .resumePlanned,
-                object: ResumeSummary(
+            events.send(
+                .resumePlanned(ResumeSummary(
                     resume,
                     plan,
                     waived: state.resumeWaived,
                     coverage: state.projectCoverage,
                     in: state.mutatedProjectDirectoryURL
-                )
+                ))
             )
             // With every result kept there is nothing to test, so no baseline and no clones: the session is a header,
             // the retired line of mutants no longer discovered, if any, and the end line `run(with:)` writes.
@@ -194,14 +190,14 @@ private extension PerformMutationTesting {
             }
         }
 
-        notificationCenter.post(name: .mutationTestingStarted, object: nil)
+        events.send(.mutationTestingStarted)
 
         // Only an explicit `true` asked for it, so only that is worth saying, and before the baseline run,
         // which can take minutes. Not a configuration error: the same configuration may be used with
         // another test command.
         if state.muterConfiguration.stopAtFirstFailure == true,
            let reason = state.muterConfiguration.stopAtFirstFailureUnsupportedReason {
-            notificationCenter.post(name: .stopAtFirstFailureTurnedOff, object: reason)
+            events.send(.stopAtFirstFailureTurnedOff(reason: reason))
         }
 
         let initialTime = Date()
@@ -220,16 +216,15 @@ private extension PerformMutationTesting {
 
         guard testSuiteOutcome == .passed else {
             // A failing baseline is exactly when the user needs its output on disk, and nothing else
-            // records it. It gets its own notification rather than `.newTestLogAvailable`, which also
+            // records it. It gets its own event rather than `.newTestLogAvailable`, which also
             // announces that a baseline was successfully determined and starts the progress bar or lines.
-            notificationCenter.post(
-                name: .baselineTestFailed,
-                object: MutationTestLog(
+            events.send(
+                .baselineTestFailed(MutationTestLog(
                     mutationPoint: .none,
                     testLog: testLog,
                     timePerBuildTestCycle: timePerBuildTestCycle,
                     remainingMutationPointsCount: .none
-                )
+                ))
             )
 
             throw MuterError.mutationTestingAborted(
@@ -244,14 +239,12 @@ private extension PerformMutationTesting {
         // A passing run can't show a failed test, so these tests print text shaped like one. Under a mutant it
         // could stop the run, or count a timed-out run killed, although every test passed, so such lines don't
         // count for this run. Checked whether or not runs stop at their first failed test, but worth a notice
-        // only if they do, posted before the baseline's log, which starts the progress bar or lines. Worker clones'
+        // only if they do, sent before the baseline's log, which starts the progress bar or lines. Worker clones'
         // baselines keep the configuration as it was: a baseline is never stopped, and has no time limit.
         if let lookalike = FailedTestLine.first(inLog: testLog) {
             if muterConfiguration.stopsAtFirstFailure {
-                notificationCenter.post(
-                    name: .stopAtFirstFailureTurnedOff,
-                    object: "the baseline run passed but printed a line that looks like a failed test:\n  \(lookalike)"
-                )
+                let reason = "the baseline run passed but printed a line that looks like a failed test:\n  \(lookalike)"
+                events.send(.stopAtFirstFailureTurnedOff(reason: reason))
             }
             muterConfiguration = muterConfiguration.withUnreliableFailedTestLines()
         }
@@ -287,16 +280,15 @@ private extension PerformMutationTesting {
         keepReused(plan, of: jobs, in: session, state: state)
 
         // The first estimate of the time left: every mutant to test, spread over the workers.
-        notificationCenter.post(
-            name: .newTestLogAvailable,
-            object: MutationTestLog(
+        events.send(
+            .newTestLogAvailable(MutationTestLog(
                 mutationPoint: .none,
                 testLog: testLog,
                 timePerBuildTestCycle: timePerBuildTestCycle,
                 remainingMutationPointsCount: plan.toRun.count,
                 workers: workers,
                 testRunSeconds: testRunSeconds
-            )
+            ))
         )
 
         if workers > 1 {
@@ -346,7 +338,7 @@ private extension PerformMutationTesting {
 
     /// Keeps each of `plan`'s reused results' outcomes in `session` by job index, built from its job as `record` builds
     /// a tested one's, with the tests its line names, and sends it to the reporter, so the Xcode format warns of every
-    /// survivor. Never posts a test log, and comes before the baseline's log, so no progress bar or lines count it.
+    /// survivor. Never sends a test log, and comes before the baseline's log, so no progress bar or lines count it.
     func keepReused(
         _ plan: ResumePlan,
         of jobs: [MutantJob],
@@ -357,7 +349,7 @@ private extension PerformMutationTesting {
             let outcome = Self.outcome(result.outcome, of: jobs[index], state: state, killingTests: .init(result))
             session.outcomes[index] = outcome
             session.reused += 1
-            notificationCenter.post(name: .newMutationTestOutcomeAvailable, object: outcome)
+            events.send(.newMutationTestOutcomeAvailable(outcome))
         }
     }
 
@@ -383,10 +375,10 @@ private extension PerformMutationTesting {
         )
     }
 
-    /// Posts what mutation testing that stopped early tested, and the results a resumed session kept, for the partial
+    /// Sends what mutation testing that stopped early tested, and the results a resumed session kept, for the partial
     /// report and the summary, once the baseline has passed. Before then there is nothing to report, and an abort says
     /// why.
-    func postEarlyEnd(
+    func sendEarlyEnd(
         of session: TestingSession,
         _ reason: ResultsEnd.Reason,
         detail: String?,
@@ -394,9 +386,8 @@ private extension PerformMutationTesting {
         testDuration: TimeInterval
     ) {
         guard session.baselinePassed else { return }
-        notificationCenter.post(
-            name: .mutationTestingEndedEarly,
-            object: EarlyEnd(
+        events.send(
+            .mutationTestingEndedEarly(EarlyEnd(
                 reason: reason,
                 detail: detail,
                 outcome: MutationTestOutcome(
@@ -407,7 +398,7 @@ private extension PerformMutationTesting {
                 ),
                 discovered: session.keys.count,
                 reused: session.reused
-            )
+            ))
         )
     }
 
@@ -432,7 +423,7 @@ private extension PerformMutationTesting {
         session: TestingSession
     ) async throws {
         var buildErrors = 0
-        notificationCenter.post(name: .mutantRunsStarted, object: nil)
+        events.send(.mutantRunsStarted)
 
         for index in indices {
             let job = jobs[index]
@@ -470,7 +461,7 @@ private extension PerformMutationTesting {
     /// `swift test` locks the package's build directory, so two runs can't share one. Every mutant is
     /// switched on per run: under `swift test` by the worker's active-mutant file, written just before the run
     /// (see `MutationTestingDelegate.testProcess`), so the clones' code never needs rewriting. Outcomes are
-    /// recorded, and their notifications posted, as they finish. The clones are kept in `session`, and
+    /// recorded, and their events sent, as they finish. The clones are kept in `session`, and
     /// `run(with:)` removes them once the end line is written. Once mutation testing is cancelled, no clone
     /// is made, no mutant starts, and none that returns is recorded.
     func testMutationsInParallel(
@@ -496,7 +487,7 @@ private extension PerformMutationTesting {
         let directories = [state.mutatedProjectDirectoryURL] + clones
 
         var buildErrors = 0
-        notificationCenter.post(name: .mutantRunsStarted, object: nil)
+        events.send(.mutantRunsStarted)
 
         // The worker job loop and its inline cancellation handling genuinely span >30 lines; pulling the body
         // into a helper would split apart a tight loop-and-catch, so the length is disabled for this closure.
@@ -621,7 +612,7 @@ private extension PerformMutationTesting {
     }
 
     /// Writes `finished`'s result, the run of `job`'s mutant, to the results file, keeps its outcome in `session`,
-    /// posts its notifications, and aborts after `buildErrorsThreshold` build errors in a row, not counting a mutant
+    /// sends its events, and aborts after `buildErrorsThreshold` build errors in a row, not counting a mutant
     /// that an earlier session recorded as one (`TestingSession.earlierBuildErrors`). The result is written first, so
     /// it is on disk before anything else happens, and the outcome is kept before the abort, so mutation testing that
     /// stops there still has it. `configuration` is the effective one, whose baseline may have made failed-test lines
@@ -672,15 +663,9 @@ private extension PerformMutationTesting {
             keptFileName: log
         )
 
-        notificationCenter.post(
-            name: .newMutationTestOutcomeAvailable,
-            object: outcome
-        )
+        events.send(.newMutationTestOutcomeAvailable(outcome))
 
-        notificationCenter.post(
-            name: .newTestLogAvailable,
-            object: mutationLog
-        )
+        events.send(.newTestLogAvailable(mutationLog))
 
         if finished.run.outcome != .buildError {
             buildErrors = 0
@@ -745,7 +730,7 @@ private extension PerformMutationTesting {
             if !retired.isEmpty, !write(ResultsRetired(session: session.number, keys: retired), in: session) {
                 return
             }
-            notificationCenter.post(name: .resultsFileCreated, object: resume.path)
+            events.send(.resultsFileCreated(path: resume.path))
             return
         }
         let loggingDirectory = state.loggingDirectory
@@ -755,10 +740,10 @@ private extension PerformMutationTesting {
             let results = try resultsFiles.create(in: loggingDirectory)
             session.startResults(in: results)
             if write(headerLine, in: session) {
-                notificationCenter.post(name: .resultsFileCreated, object: results.path)
+                events.send(.resultsFileCreated(path: results.path))
             }
         } catch {
-            notificationCenter.post(name: .resultsFileUnavailable, object: "\(error)")
+            events.send(.resultsFileUnavailable(reason: "\(error)"))
         }
     }
 
@@ -824,10 +809,8 @@ private extension PerformMutationTesting {
         guard let written else { return false }
         if !written, !session.saidResultsUnwritable, let results = session.results {
             session.saidResultsUnwritable = true
-            notificationCenter.post(
-                name: .resultsFileUnavailable,
-                object: results.writeError.map { "\($0)" } ?? "a write to \(results.path) failed"
-            )
+            let reason = results.writeError.map { "\($0)" } ?? "a write to \(results.path) failed"
+            events.send(.resultsFileUnavailable(reason: reason))
         }
         return written
     }

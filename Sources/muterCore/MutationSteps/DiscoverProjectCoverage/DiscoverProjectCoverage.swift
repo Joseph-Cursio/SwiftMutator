@@ -1,8 +1,8 @@
 import Foundation
 
 final class DiscoverProjectCoverage: MutationStep {
-    @Dependency(\.notificationCenter)
-    private var notificationCenter: NotificationCenter
+    @Dependency(\.events)
+    private var events: RunEvents
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
     @Dependency(\.projectCoverage)
@@ -21,10 +21,7 @@ final class DiscoverProjectCoverage: MutationStep {
             return [.projectCoverage(.null)]
         }
 
-        notificationCenter.post(
-            name: .projectCoverageDiscoveryStarted,
-            object: nil
-        )
+        events.send(.projectCoverageDiscoveryStarted)
 
         let currentDirectoryPath = fileManager.currentDirectoryPath
         fileManager.changeCurrentDirectoryPath(state.mutatedProjectDirectoryURL.path)
@@ -42,22 +39,13 @@ final class DiscoverProjectCoverage: MutationStep {
         switch result {
         case let .success(coverage):
             if let failedTests = coverage.testsFailedWithCoverageOn {
-                notificationCenter.post(
-                    name: .projectCoverageTestsFailed,
-                    object: TestsFailedWithCoverage(tests: failedTests, log: log)
-                )
+                events.send(.projectCoverageTestsFailed(TestsFailedWithCoverage(tests: failedTests, log: log)))
             }
-            notificationCenter.post(
-                name: .projectCoverageDiscoveryFinished,
-                object: nil
-            )
+            events.send(.projectCoverageDiscoveryFinished(nil))
 
             return [.projectCoverage(coverage)]
         case let .failure(error):
-            notificationCenter.post(
-                name: .projectCoverageDiscoveryFinished,
-                object: CoverageFailure(reason: error.reason, log: log)
-            )
+            events.send(.projectCoverageDiscoveryFinished(CoverageFailure(reason: error.reason, log: log)))
 
             return [.projectCoverage(.null)]
         }

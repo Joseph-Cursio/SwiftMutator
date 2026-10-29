@@ -10,48 +10,42 @@ public struct Init: AsyncParsableCommand {
 
     private let directory: String
     private let fileManager: FileManager
-    private let notificationCenter: NotificationCenter
 
     public init(
         directory: String = FileManager.default.currentDirectoryPath,
-        fileManager: FileManager = FileManager.default,
-        notificationCenter: NotificationCenter = .default
+        fileManager: FileManager = FileManager.default
     ) {
         self.directory = directory
         self.fileManager = fileManager
-        self.notificationCenter = notificationCenter
     }
 
     public init(from decoder: Decoder) throws {
         self.init(
             directory: FileManager.default.currentDirectoryPath,
-            fileManager: .default,
-            notificationCenter: .default
+            fileManager: .default
         )
     }
 
     public init() {
         self.init(
             directory: FileManager.default.currentDirectoryPath,
-            fileManager: .default,
-            notificationCenter: .default
+            fileManager: .default
         )
     }
 
+    /// Writes a configuration file for the project in `directory`, and says so: no run observes it, so it tells the
+    /// Logger itself.
     public mutating func run() async throws {
-        notificationCenter.post(name: .muterLaunched, object: nil)
+        @Dependency(\.logger) var logger: Logger
+        logger.launched()
 
         let directoryContents = fileManager.subpaths(atPath: directory) ?? []
         let configuration = await MuterConfiguration(from: directoryContents)
-        fileManager.createFile(
-            atPath: "\(directory)/\(MuterConfiguration.fileNameWithExtension)",
-            contents: configuration.asData,
-            attributes: nil
-        )
+        let path = "\(directory)/\(MuterConfiguration.fileNameWithExtension)"
+        guard fileManager.createFile(atPath: path, contents: configuration.asData, attributes: nil) else {
+            throw MuterError.literal(reason: "SwiftMutator could not write \(path).")
+        }
 
-        notificationCenter.post(
-            name: .configurationFileCreated,
-            object: "\(directory)/\(MuterConfiguration.fileNameWithExtension)"
-        )
+        logger.configurationFileCreated(atPath: path)
     }
 }

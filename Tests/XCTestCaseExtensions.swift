@@ -3,7 +3,7 @@ import TestingExtensions
 import XCTest
 
 class MuterTestCase: XCTestCase {
-    private(set) var notificationCenter: NotificationCenter = .init()
+    private(set) var runEvents = RunEvents()
     private(set) var fileManager = FileManagerSpy()
     private(set) var ioDelegate = MutationTestingDelegateSpy()
     private(set) var prepareCode = SourceCodePreparationSub()
@@ -40,7 +40,7 @@ class MuterTestCase: XCTestCase {
 
     private func setup() {
         current = World(
-            notificationCenter: notificationCenter,
+            events: runEvents,
             fileManager: fileManager,
             flushStandardOut: flushStandardOut.flush,
             printer: printer.print,

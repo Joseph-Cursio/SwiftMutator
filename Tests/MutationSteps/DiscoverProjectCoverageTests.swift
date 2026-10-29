@@ -7,17 +7,13 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
 
     private lazy var sut = DiscoverProjectCoverage()
 
-    func test_whenStepStarts_shouldFireNotification() async throws {
+    func test_whenStepStarts_shouldSendAnEvent() async throws {
         state.muterConfiguration = MuterConfiguration(
             executable: "/path/to/xcodebuild",
             arguments: ["arg0", "arg1"]
         )
 
-        let expectation = expectation(
-            forNotification: .projectCoverageDiscoveryStarted,
-            object: nil,
-            notificationCenter: notificationCenter
-        )
+        let expectation = expectation(forEvent: .projectCoverageDiscoveryStarted)
 
         _ = try await sut.run(with: state)
 
@@ -55,7 +51,7 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
         )
     }
 
-    func test_whenStepFails_thenPostNotification() async throws {
+    func test_whenStepFails_thenSendsAnEvent() async throws {
         state.muterConfiguration = MuterConfiguration(
             executable: "/path/to/xcodebuild",
             arguments: []
@@ -65,27 +61,19 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
 
         // Why it failed, for the message that says so. This state has no log folder to keep the output in.
         let reason = "the coverage run failed (exit status 65) without naming a failed test or an error"
-        let expectation = expectation(
-            forNotification: .projectCoverageDiscoveryFinished,
-            object: nil,
-            notificationCenter: notificationCenter
-        ) { ($0.object as? CoverageFailure) == CoverageFailure(reason: reason, log: nil) }
+        let expectation = expectation(forEvent: .projectCoverageDiscoveryFinished) { ($0.object as? CoverageFailure) == CoverageFailure(reason: reason, log: nil) }
 
         _ = try await sut.run(with: state)
 
         await fulfillment(of: [expectation], timeout: 2)
     }
 
-    func test_whenStepSucceeds_thenPostNotificationWithNoReason() async throws {
+    func test_whenStepSucceeds_thenSendsAnEventWithNoReason() async throws {
         state.muterConfiguration = MuterConfiguration(executable: "/path/to/swift", arguments: [])
         let coverage = CoverageStub { .success(.make(percent: 80)) }
         current.projectCoverage = { _ in coverage }
 
-        let expectation = expectation(
-            forNotification: .projectCoverageDiscoveryFinished,
-            object: nil,
-            notificationCenter: notificationCenter
-        ) { $0.object == nil }
+        let expectation = expectation(forEvent: .projectCoverageDiscoveryFinished) { $0.object == nil }
 
         let result = try await sut.run(with: state)
 
@@ -131,11 +119,7 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
         let coverage = CoverageStub(output: "error: Build failed\n") { .failure(.runFailed(status: 1, error: nil)) }
         current.projectCoverage = { _ in coverage }
 
-        let expectation = expectation(
-            forNotification: .projectCoverageDiscoveryFinished,
-            object: nil,
-            notificationCenter: notificationCenter
-        ) {
+        let expectation = expectation(forEvent: .projectCoverageDiscoveryFinished) {
             ($0.object as? CoverageFailure) == CoverageFailure(
                 reason: CoverageError.runFailed(status: 1, error: nil).reason,
                 log: "/logs/coverage run.log"
@@ -155,11 +139,7 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
         let coverage = CoverageStub(output: "◇ Test hangs() started.\n") { .failure(.timedOut(after: 900)) }
         current.projectCoverage = { _ in coverage }
 
-        let expectation = expectation(
-            forNotification: .projectCoverageDiscoveryFinished,
-            object: nil,
-            notificationCenter: notificationCenter
-        ) {
+        let expectation = expectation(forEvent: .projectCoverageDiscoveryFinished) {
             ($0.object as? CoverageFailure) == CoverageFailure(
                 reason: "the tests with coverage on didn't end within 900 s (buildTimeout), so SwiftMutator stopped them",
                 log: "/logs/coverage run.log"
@@ -173,7 +153,7 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
         XCTAssertEqual(fileManager.contents, Data("◇ Test hangs() started.\n".utf8))
     }
 
-    // Coverage gathered although tests failed is posted with them, for the warning that names them.
+    // Coverage gathered although tests failed is sent with them, for the warning that names them.
     func test_testsThatFailedWithCoverageOn_arePosted_withWhereTheOutputIsKept() async throws {
         state.muterConfiguration = MuterConfiguration(executable: "/path/to/swift", arguments: [])
         state.loggingDirectory = "/logs"
@@ -187,11 +167,7 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
         }
         current.projectCoverage = { _ in coverage }
 
-        let expectation = expectation(
-            forNotification: .projectCoverageTestsFailed,
-            object: nil,
-            notificationCenter: notificationCenter
-        ) {
+        let expectation = expectation(forEvent: .projectCoverageTestsFailed) {
             ($0.object as? TestsFailedWithCoverage)
                 == TestsFailedWithCoverage(tests: failedTests, log: "/logs/coverage run.log")
         }
@@ -202,20 +178,16 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
         XCTAssertEqual(result, [.projectCoverage(.make(percent: 80, testsFailedWithCoverageOn: failedTests))])
     }
 
-    func test_whenEveryTestPassed_noFailedTestIsPosted() async throws {
+    func test_whenEveryTestPassed_noFailedTestIsSent() async throws {
         state.muterConfiguration = MuterConfiguration(executable: "/path/to/swift", arguments: [])
         let coverage = CoverageStub { .success(.make(percent: 80)) }
         current.projectCoverage = { _ in coverage }
-        let failed = expectation(
-            forNotification: .projectCoverageTestsFailed,
-            object: nil,
-            notificationCenter: notificationCenter
-        )
+        let failed = expectation(forEvent: .projectCoverageTestsFailed)
         failed.isInverted = true
 
         _ = try await sut.run(with: state)
 
-        // It would have been posted before the run returned.
+        // It would have been sent before the run returned.
         await fulfillment(of: [failed], timeout: 0.1)
     }
 
@@ -231,17 +203,13 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
             return .failure(.build)
         }
         current.projectCoverage = { _ in coverage }
-        let finished = expectation(
-            forNotification: .projectCoverageDiscoveryFinished,
-            object: nil,
-            notificationCenter: notificationCenter
-        )
+        let finished = expectation(forEvent: .projectCoverageDiscoveryFinished)
         finished.isInverted = true
 
         let result = await Task { [sut, state] in try await sut.run(with: state) }.result
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        // It would have been posted before the run returned.
+        // It would have been sent before the run returned.
         await fulfillment(of: [finished], timeout: 0.1)
     }
 

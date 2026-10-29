@@ -102,7 +102,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         )
         ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
         var atTheStart: [[Int]] = []
-        whenPosted(.mutantRunsStarted) { [unowned self] _ in
+        whenSent(.mutantRunsStarted) { [unowned self] _ in
             let mutantRuns = ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count
             atTheStart.append([ioDelegate.builtWorkerDirectories.count, mutantRuns])
         }
@@ -197,7 +197,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
             if number == 0 { _ = lastRunStarted.wait(timeout: .now() + 5) }
             if number == 3 { lastRunStarted.signal() }
         }
-        let finishedLines = linesOfPostedOutcomes()
+        let finishedLines = linesOfSentOutcomes()
 
         let result = try await sut.run(with: state)
 
@@ -227,8 +227,8 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         )
         ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
         var baselineLogs: [MutationTestLog] = []
-        whenPosted(.newTestLogAvailable) { notification in
-            if let log = notification.object as? MutationTestLog, log.mutationPoint == nil {
+        whenSent(.newTestLogAvailable) { event in
+            if let log = event.object as? MutationTestLog, log.mutationPoint == nil {
                 baselineLogs.append(log)
             }
         }
@@ -245,8 +245,8 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
         timeTheTestRun(seconds: 12)
         var baselineLogs: [MutationTestLog] = []
-        whenPosted(.newTestLogAvailable) { notification in
-            if let log = notification.object as? MutationTestLog, log.mutationPoint == nil {
+        whenSent(.newTestLogAvailable) { event in
+            if let log = event.object as? MutationTestLog, log.mutationPoint == nil {
                 baselineLogs.append(log)
             }
         }
@@ -363,7 +363,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         state.mutationMapping = try (1...6).map { try makeSchemataMapping(line: $0) }
         // The baseline, the worker clone's build, then every mutant, in case cancelling doesn't stop them.
         ioDelegate.testSuiteOutcomes = [.passed, .passed] + Array(repeating: .failed, count: 6)
-        let recorded = cancelMutationTesting(whenPosted: .newMutationTestOutcomeAvailable)
+        let recorded = cancelMutationTesting(whenSent: .newMutationTestOutcomeAvailable)
 
         let result = await runInItsOwnTask()
 
@@ -381,7 +381,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
             executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
         )
         ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
-        let recorded = cancelMutationTesting(whenPosted: .newMutationTestOutcomeAvailable)
+        let recorded = cancelMutationTesting(whenSent: .newMutationTestOutcomeAvailable)
 
         let result = await runInItsOwnTask()
 
@@ -397,8 +397,8 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
             executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
         )
         ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
-        // The baseline's log is the last thing posted before the worker clones are made.
-        _ = cancelMutationTesting(whenPosted: .newTestLogAvailable)
+        // The baseline's log is the last thing sent before the worker clones are made.
+        _ = cancelMutationTesting(whenSent: .newTestLogAvailable)
 
         let result = await runInItsOwnTask()
 
@@ -464,8 +464,8 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
             if number == 3 { _ = firstRunRecorded.wait(timeout: .now() + 5) }
         }
         var recordedLines: [Int] = []
-        whenPosted(.newMutationTestOutcomeAvailable) { notification in
-            guard let mutation = notification.object as? MutationTestOutcome.Mutation else { return }
+        whenSent(.newMutationTestOutcomeAvailable) { event in
+            guard let mutation = event.object as? MutationTestOutcome.Mutation else { return }
             recordedLines.append(mutation.point.position.line)
             if recordedLines.count == 2 { thirdMutantRecorded.signal() }
             if recordedLines.count == 3 {
@@ -474,8 +474,8 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
             }
         }
         var earlyEnds: [EarlyEnd] = []
-        whenPosted(.mutationTestingEndedEarly) { notification in
-            (notification.object as? EarlyEnd).map { earlyEnds.append($0) }
+        whenSent(.mutationTestingEndedEarly) { event in
+            (event.object as? EarlyEnd).map { earlyEnds.append($0) }
         }
 
         let result = await runInItsOwnTask()
@@ -649,7 +649,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
             executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
         )
         ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
-        _ = cancelMutationTesting(whenPosted: .newMutationTestOutcomeAvailable)
+        _ = cancelMutationTesting(whenSent: .newMutationTestOutcomeAvailable)
 
         let result = await runInItsOwnTask()
 
@@ -688,34 +688,32 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         await Task { [sut, state] in try await sut.run(with: state) }.result
     }
 
-    /// Cancels mutation testing whenever it posts `name`, from the task that posts it; returns how often it did.
-    private func cancelMutationTesting(whenPosted name: Notification.Name) -> () -> Int {
+    /// Cancels mutation testing whenever it sends `name`, from the task that sends it; returns how often it did.
+    private func cancelMutationTesting(whenSent name: RunEvent.Name) -> () -> Int {
         var count = 0
-        let observer = notificationCenter.addObserver(forName: name, object: nil, queue: nil) { _ in
+        let observer = runEvents.observe(name) { _ in
             count += 1
             withUnsafeCurrentTask { $0?.cancel() }
         }
-        addTeardownBlock { [notificationCenter] in notificationCenter.removeObserver(observer) }
+        addTeardownBlock { observer.cancel() }
         return { count }
     }
 
-    /// Calls `handler` with each notification posted with `name`, from the task that posts it, until the test ends.
-    private func whenPosted(_ name: Notification.Name, _ handler: @escaping (Notification) -> Void) {
-        let observer = notificationCenter.addObserver(forName: name, object: nil, queue: nil, using: handler)
-        addTeardownBlock { [notificationCenter] in notificationCenter.removeObserver(observer) }
+    /// Calls `handler` with each event sent with `name`, from the task that sends it, until the test ends.
+    private func whenSent(_ name: RunEvent.Name, _ handler: @escaping (RunEvent) -> Void) {
+        let observer = runEvents.observe(name, handler)
+        addTeardownBlock { observer.cancel() }
     }
 
-    /// The line of each mutant whose outcome is posted, in the order they're posted, until the test ends.
-    private func linesOfPostedOutcomes() -> () -> [Int] {
+    /// The line of each mutant whose outcome is sent, in the order they're sent, until the test ends.
+    private func linesOfSentOutcomes() -> () -> [Int] {
         var lines: [Int] = []
-        let observer = notificationCenter.addObserver(
-            forName: .newMutationTestOutcomeAvailable, object: nil, queue: nil
-        ) { notification in
-            if let mutation = notification.object as? MutationTestOutcome.Mutation {
+        let observer = runEvents.observe(.newMutationTestOutcomeAvailable) { event in
+            if let mutation = event.object as? MutationTestOutcome.Mutation {
                 lines.append(mutation.point.position.line)
             }
         }
-        addTeardownBlock { [notificationCenter] in notificationCenter.removeObserver(observer) }
+        addTeardownBlock { observer.cancel() }
         return { lines }
     }
 

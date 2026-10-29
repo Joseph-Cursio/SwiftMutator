@@ -30,8 +30,8 @@ extension URLSession: Server {}
 private let url = "https://api.github.com/repos/Joseph-Cursio/SwiftMutator/releases?per_page=1"
 
 struct UpdateCheck: MutationStep {
-    @Dependency(\.notificationCenter)
-    private var notificationCenter: NotificationCenter
+    @Dependency(\.events)
+    private var events: RunEvents
     @Dependency(\.server)
     private var server: Server
 
@@ -48,7 +48,7 @@ struct UpdateCheck: MutationStep {
             return []
         }
 
-        notificationCenter.post(name: .updateCheckStarted, object: nil)
+        events.send(.updateCheckStarted)
 
         do {
             let (data, _) = try await server.data(from: releaseURL)
@@ -56,13 +56,13 @@ struct UpdateCheck: MutationStep {
             guard let newVersion = try? muterLatestVersion(data),
                   currentVersion < newVersion
             else {
-                notificationCenter.post(name: .updateCheckFinished, object: nil)
+                events.send(.updateCheckFinished(newVersion: nil))
                 return []
             }
 
             let latestVersion = newVersion.description
 
-            notificationCenter.post(name: .updateCheckFinished, object: latestVersion)
+            events.send(.updateCheckFinished(newVersion: latestVersion))
 
             return [
                 .newVersionAvaiable(latestVersion)
@@ -70,7 +70,7 @@ struct UpdateCheck: MutationStep {
         } catch {
             // A request cancelled because the run is stopping says nothing about versions.
             try Task.checkCancellation()
-            notificationCenter.post(name: .updateCheckFinished, object: nil)
+            events.send(.updateCheckFinished(newVersion: nil))
             return []
         }
     }

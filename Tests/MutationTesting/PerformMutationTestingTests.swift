@@ -100,11 +100,11 @@ final class PerformMutationTestingTests: MuterTestCase {
     // sets, so the estimate was always 0 minutes.
     func test_theBaselinesLog_countsTheMutantsToTest() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
-        let posted = recordNotifications(named: [.newTestLogAvailable])
+        let sent = recordEvents(named: [.newTestLogAvailable])
 
         _ = try await sut.run(with: state)
 
-        let baselineLog = try XCTUnwrap(posted().first?.object as? MutationTestLog)
+        let baselineLog = try XCTUnwrap(sent().first?.object as? MutationTestLog)
         XCTAssertNil(baselineLog.mutationPoint)
         XCTAssertEqual(baselineLog.remainingMutationPointsCount, 2)
     }
@@ -172,21 +172,13 @@ final class PerformMutationTestingTests: MuterTestCase {
 
         // The baseline's output is the only evidence of why Muter can't start, and nothing else records
         // it — so it has to be published even though the run is about to be aborted.
-        let expect = expectation(
-            forNotification: .baselineTestFailed,
-            object: nil,
-            notificationCenter: notificationCenter
-        ) { notification in
-            (notification.object as? MutationTestLog)?.mutationPoint == nil
+        let expect = expectation(forEvent: .baselineTestFailed) { event in
+            (event.object as? MutationTestLog)?.mutationPoint == nil
         }
 
         // …and not as `.newTestLogAvailable`, which announces "Determined baseline for mutation
         // testing" and starts the progress bar — neither of which happened.
-        let announcedSuccess = expectation(
-            forNotification: .newTestLogAvailable,
-            object: nil,
-            notificationCenter: notificationCenter
-        )
+        let announcedSuccess = expectation(forEvent: .newTestLogAvailable)
         announcedSuccess.isInverted = true
 
         try await assertThrowsMuterError(
@@ -249,14 +241,14 @@ final class PerformMutationTestingTests: MuterTestCase {
     func test_whenTooManyBuildErrorsAbort_whatWasTestedIsPosted_inJobOrder() async throws {
         state.mutationMapping = try Array(repeating: makeSchemataMapping(), count: 6)
         ioDelegate.testSuiteOutcomes = [.passed, .failed] + Array(repeating: .buildError, count: 5)
-        let posted = recordNotifications(named: [.mutationTestingEndedEarly])
+        let sent = recordEvents(named: [.mutationTestingEndedEarly])
 
         await assertThrowsMuterError(
             try await sut.run(with: state),
             .mutationTestingAborted(reason: .tooManyBuildErrors)
         )
 
-        let earlyEnds = posted().compactMap { $0.object as? EarlyEnd }
+        let earlyEnds = sent().compactMap { $0.object as? EarlyEnd }
         XCTAssertEqual(earlyEnds.count, 1)
         let earlyEnd = try XCTUnwrap(earlyEnds.first)
         XCTAssertEqual(earlyEnd.reason, .aborted)
@@ -271,43 +263,43 @@ final class PerformMutationTestingTests: MuterTestCase {
     // Nothing was tested, and the abort says why.
     func test_aFailedBaseline_postsNoEarlyEnd() async throws {
         ioDelegate.testSuiteOutcomes = [.failed]
-        let posted = recordNotifications(named: [.mutationTestingEndedEarly])
+        let sent = recordEvents(named: [.mutationTestingEndedEarly])
 
         await assertThrowsMuterError(try await sut.run(with: state)) { _ in }
 
-        XCTAssertEqual(posted().count, 0)
+        XCTAssertEqual(sent().count, 0)
     }
 
     func test_aFinishedRun_postsNoEarlyEnd() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
-        let posted = recordNotifications(named: [.mutationTestingEndedEarly])
+        let sent = recordEvents(named: [.mutationTestingEndedEarly])
 
         _ = try await sut.run(with: state)
 
-        XCTAssertEqual(posted().count, 0)
+        XCTAssertEqual(sent().count, 0)
     }
 
     // The jobs and their keys are there before the baseline runs, so only its passing tells a stop that has something
-    // to report from one that hasn't. A stop during the baseline posts no early end; one just after it passed posts
+    // to report from one that hasn't. A stop during the baseline sends no early end; one just after it passed sends
     // one, with nothing tested yet and every mutant discovered.
     func test_anEarlyEnd_isPostedOnlyOnceTheBaselinePassed() async throws {
         ioDelegate.testSuiteOutcomes = [.buildError, .passed]
         ioDelegate.whileRunningBaseline = { _ in withUnsafeCurrentTask { $0?.cancel() } }
-        let posted = recordNotifications(named: [.mutationTestingEndedEarly])
+        let sent = recordEvents(named: [.mutationTestingEndedEarly])
 
         let stoppedDuringTheBaseline = await runInItsOwnTask()
 
         XCTAssertThrowsError(try stoppedDuringTheBaseline.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        XCTAssertEqual(posted().count, 0)
+        XCTAssertEqual(sent().count, 0)
 
         ioDelegate.whileRunningBaseline = nil
-        // The baseline's log is the last thing posted before the first mutant.
-        cancelMutationTesting(whenPosted: .newTestLogAvailable)
+        // The baseline's log is the last thing sent before the first mutant.
+        cancelMutationTesting(whenSent: .newTestLogAvailable)
 
         let stoppedOnceItPassed = await runInItsOwnTask()
 
         XCTAssertThrowsError(try stoppedOnceItPassed.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        let earlyEnds = posted().compactMap { $0.object as? EarlyEnd }
+        let earlyEnds = sent().compactMap { $0.object as? EarlyEnd }
         XCTAssertEqual(earlyEnds.count, 1)
         let earlyEnd = try XCTUnwrap(earlyEnds.first)
         XCTAssertEqual(earlyEnd.reason, .interrupted)
@@ -392,12 +384,12 @@ final class PerformMutationTestingTests: MuterTestCase {
         ioDelegate.whileRunningMutant = { number in
             if number == 1 { withUnsafeCurrentTask { $0?.cancel() } }
         }
-        let posted = recordNotifications(named: [.newMutationTestOutcomeAvailable])
+        let sent = recordEvents(named: [.newMutationTestOutcomeAvailable])
 
         let result = await runInItsOwnTask()
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        XCTAssertEqual(posted().count, 1)
+        XCTAssertEqual(sent().count, 1)
         XCTAssertEqual(ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count, 2)
     }
 
@@ -408,13 +400,13 @@ final class PerformMutationTestingTests: MuterTestCase {
         ioDelegate.testSuiteOutcomes = [.passed, .runtimeError, .failed]
         ioDelegate.mutantRunEndings = [.exited]
         ioDelegate.whileRunningMutant = { _ in withUnsafeCurrentTask { $0?.cancel() } }
-        let posted = recordNotifications(named: [.newMutationTestOutcomeAvailable, .newTestLogAvailable])
+        let sent = recordEvents(named: [.newMutationTestOutcomeAvailable, .newTestLogAvailable])
 
         let result = await runInItsOwnTask()
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         // Only the baseline's log.
-        XCTAssertEqual(posted().map(\.name), [.newTestLogAvailable])
+        XCTAssertEqual(sent().map(\.name), [.newTestLogAvailable])
         XCTAssertEqual(ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count, 1)
     }
 
@@ -422,12 +414,10 @@ final class PerformMutationTestingTests: MuterTestCase {
     func test_theMutantRunsStart_beforeTheFirstMutantsRun() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
         var mutantRunsAtTheStart: [Int] = []
-        let observer = notificationCenter.addObserver(
-            forName: .mutantRunsStarted, object: nil, queue: nil
-        ) { [unowned self] _ in
+        let observer = runEvents.observe(.mutantRunsStarted) { [unowned self] _ in
             mutantRunsAtTheStart.append(ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count)
         }
-        defer { notificationCenter.removeObserver(observer) }
+        defer { observer.cancel() }
 
         _ = try await sut.run(with: state)
 
@@ -442,12 +432,12 @@ final class PerformMutationTestingTests: MuterTestCase {
         ioDelegate.whileRunningBaseline = { worker in
             if worker == 0 { withUnsafeCurrentTask { $0?.cancel() } }
         }
-        let posted = recordNotifications(named: [.baselineTestFailed])
+        let sent = recordEvents(named: [.baselineTestFailed])
 
         let result = await runInItsOwnTask()
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        XCTAssertEqual(posted().count, 0)
+        XCTAssertEqual(sent().count, 0)
         XCTAssertEqual(resultsFiles.directories, [])
     }
 
@@ -460,20 +450,20 @@ final class PerformMutationTestingTests: MuterTestCase {
         // Stopping the run kills the timed run, which then fails.
         ioDelegate.timedTestRunOutcome = .buildError
         ioDelegate.whileRunningTestsWithoutBuilding = { withUnsafeCurrentTask { $0?.cancel() } }
-        let posted = recordNotifications(named: [.mutationTestingEndedEarly, .newTestLogAvailable])
+        let sent = recordEvents(named: [.mutationTestingEndedEarly, .newTestLogAvailable])
 
         let result = await runInItsOwnTask()
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        XCTAssertEqual(posted().map(\.name), [])
+        XCTAssertEqual(sent().map(\.name), [])
         XCTAssertEqual(resultsFiles.directories, [])
         XCTAssertEqual(ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count, 0)
     }
 
     func test_whenCancelledBeforeTheFirstMutant_noneRuns() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
-        // The baseline's log is the last thing posted before the first mutant.
-        cancelMutationTesting(whenPosted: .newTestLogAvailable)
+        // The baseline's log is the last thing sent before the first mutant.
+        cancelMutationTesting(whenSent: .newTestLogAvailable)
 
         let result = await runInItsOwnTask()
 
@@ -510,18 +500,18 @@ final class PerformMutationTestingTests: MuterTestCase {
         ✔ Test run with 1 test in 0 suites passed after 0.001 seconds.
         """
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
-        let posted = recordNotifications(named: [.stopAtFirstFailureTurnedOff, .newTestLogAvailable])
+        let sent = recordEvents(named: [.stopAtFirstFailureTurnedOff, .newTestLogAvailable])
 
         _ = try await sut.run(with: state)
 
         XCTAssertEqual(ioDelegate.configurations.map(\.stopsAtFirstFailure), [false, false])
         XCTAssertEqual(ioDelegate.configurations.map(\.failedTestLinesAreReliable), [false, false])
-        let notices = posted().filter { $0.name == .stopAtFirstFailureTurnedOff }
+        let notices = sent().filter { $0.name == .stopAtFirstFailureTurnedOff }
         XCTAssertEqual(notices.count, 1)
         let reason = try XCTUnwrap(notices.first?.object as? String)
         XCTAssertTrue(reason.hasSuffix("\n  \(lookalike)"), reason)
         // Before the baseline's log, which starts the progress bar.
-        XCTAssertEqual(posted().first?.name, .stopAtFirstFailureTurnedOff)
+        XCTAssertEqual(sent().first?.name, .stopAtFirstFailureTurnedOff)
     }
 
     // The line would also count a mutant whose run reaches the time limit after printing it as killed.
@@ -535,13 +525,13 @@ final class PerformMutationTestingTests: MuterTestCase {
         ✔ Test run with 1 test in 0 suites passed after 0.001 seconds.
         """
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
-        let posted = recordNotifications(named: [.stopAtFirstFailureTurnedOff])
+        let sent = recordEvents(named: [.stopAtFirstFailureTurnedOff])
 
         _ = try await sut.run(with: state)
 
         XCTAssertEqual(ioDelegate.configurations.map(\.failedTestLinesAreReliable), [false, false])
         // Runs weren't going to stop at a failed test, so nothing changed that is worth a notice.
-        XCTAssertEqual(posted().count, 0)
+        XCTAssertEqual(sent().count, 0)
     }
 
     // With the key unset: stopping at the first failed test is the default.
@@ -553,13 +543,13 @@ final class PerformMutationTestingTests: MuterTestCase {
         ✔ Test run with 1 test in 0 suites passed after 0.001 seconds.
         """
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
-        let posted = recordNotifications(named: [.stopAtFirstFailureTurnedOff])
+        let sent = recordEvents(named: [.stopAtFirstFailureTurnedOff])
 
         _ = try await sut.run(with: state)
 
         XCTAssertEqual(ioDelegate.configurations.map(\.stopsAtFirstFailure), [true, true])
         XCTAssertEqual(ioDelegate.configurations.map(\.failedTestLinesAreReliable), [true, true])
-        XCTAssertEqual(posted().count, 0)
+        XCTAssertEqual(sent().count, 0)
     }
 
     func test_whenStopAtFirstFailureIsSetForXcodebuild_thenANoticeSaysItIsOff() async throws {
@@ -568,13 +558,13 @@ final class PerformMutationTestingTests: MuterTestCase {
         )
         state.muterConfiguration = configuration
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
-        let posted = recordNotifications(
+        let sent = recordEvents(
             named: [.mutationTestingStarted, .stopAtFirstFailureTurnedOff, .newTestLogAvailable]
         )
 
         _ = try await sut.run(with: state)
 
-        let names = posted().map(\.name)
+        let names = sent().map(\.name)
         XCTAssertEqual(names.filter { $0 == .stopAtFirstFailureTurnedOff }.count, 1)
         // With the start of mutation testing, before the baseline's log starts the progress bar.
         XCTAssertEqual(
@@ -582,7 +572,7 @@ final class PerformMutationTestingTests: MuterTestCase {
             [.mutationTestingStarted, .stopAtFirstFailureTurnedOff, .newTestLogAvailable]
         )
         let reason = try XCTUnwrap(configuration.stopAtFirstFailureUnsupportedReason)
-        let notice = posted().first { $0.name == .stopAtFirstFailureTurnedOff }
+        let notice = sent().first { $0.name == .stopAtFirstFailureTurnedOff }
         XCTAssertEqual(notice?.object as? String, reason)
         XCTAssertEqual(ioDelegate.configurations.map(\.stopsAtFirstFailure), [false, false])
     }
@@ -595,19 +585,19 @@ final class PerformMutationTestingTests: MuterTestCase {
         )
         state.muterConfiguration = configuration
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
-        let posted = recordNotifications(named: [.stopAtFirstFailureTurnedOff])
+        let sent = recordEvents(named: [.stopAtFirstFailureTurnedOff])
 
         _ = try await sut.run(with: state)
 
-        XCTAssertEqual(posted().count, 1)
-        let reason = try XCTUnwrap(posted().first?.object as? String)
+        XCTAssertEqual(sent().count, 1)
+        let reason = try XCTUnwrap(sent().first?.object as? String)
         XCTAssertEqual(reason, configuration.stopAtFirstFailureUnsupportedReason)
         XCTAssertTrue(reason.contains("--repeat-until"), reason)
         XCTAssertEqual(ioDelegate.configurations.map(\.stopsAtFirstFailure), [false, false])
     }
 
-    func test_whenStopAtFirstFailureIsUnset_thenNoNoticeIsPosted() async throws {
-        let posted = recordNotifications(named: [.stopAtFirstFailureTurnedOff])
+    func test_whenStopAtFirstFailureIsUnset_thenNoNoticeIsSent() async throws {
+        let sent = recordEvents(named: [.stopAtFirstFailureTurnedOff])
 
         // Only an explicit `true` asks for it, so a test command that can't use it is worth a notice only then.
         for stopAtFirstFailure in [nil, false] as [Bool?] {
@@ -619,17 +609,17 @@ final class PerformMutationTestingTests: MuterTestCase {
             _ = try await sut.run(with: state)
         }
 
-        XCTAssertEqual(posted().count, 0)
+        XCTAssertEqual(sent().count, 0)
     }
 
-    /// Records every notification posted with one of `names`, in order, until the test ends.
-    private func recordNotifications(named names: [Notification.Name]) -> () -> [Notification] {
-        var posted: [Notification] = []
+    /// Records every event sent with one of `names`, in order, until the test ends.
+    private func recordEvents(named names: [RunEvent.Name]) -> () -> [RunEvent] {
+        var sent: [RunEvent] = []
         let tokens = names.map { name in
-            notificationCenter.addObserver(forName: name, object: nil, queue: nil) { posted.append($0) }
+            runEvents.observe(name) { sent.append($0) }
         }
-        addTeardownBlock { [notificationCenter] in tokens.forEach(notificationCenter.removeObserver) }
-        return { posted }
+        addTeardownBlock { tokens.forEach { $0.cancel() } }
+        return { sent }
     }
 
     /// Runs mutation testing in a task of its own, so a test that cancels it mid-run doesn't cancel itself.
@@ -637,12 +627,12 @@ final class PerformMutationTestingTests: MuterTestCase {
         await Task { [sut, state] in try await sut.run(with: state) }.result
     }
 
-    /// Cancels mutation testing when it posts `name`, from the task that posts it.
-    private func cancelMutationTesting(whenPosted name: Notification.Name) {
-        let observer = notificationCenter.addObserver(forName: name, object: nil, queue: nil) { _ in
+    /// Cancels mutation testing when it sends `name`, from the task that sends it.
+    private func cancelMutationTesting(whenSent name: RunEvent.Name) {
+        let observer = runEvents.observe(name) { _ in
             withUnsafeCurrentTask { $0?.cancel() }
         }
-        addTeardownBlock { [notificationCenter] in notificationCenter.removeObserver(observer) }
+        addTeardownBlock { observer.cancel() }
     }
 
     private func makeSchemataMapping() throws -> SchemataMutationMapping {
