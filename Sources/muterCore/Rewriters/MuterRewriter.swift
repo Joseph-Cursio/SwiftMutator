@@ -86,6 +86,7 @@ final class MuterRewriter: SyntaxRewriter {
         return MutationSwitch.apply(
             mutationSchemata: mutationSchemata,
             with: childrenRewritten,
+            onALineStartingWith: MutationSwitch.startOfTheFirstLine(of: node),
             readingEnvironmentFrom: environmentCacheName
         )
     }
