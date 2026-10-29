@@ -23,6 +23,9 @@ final class Latch: @unchecked Sendable { // `isOpen`, `waiters` and `nextWaiter`
     /// Whether the latch has opened.
     var hasOpened: Bool { lock.withLock { isOpen } }
 
+    /// How many tasks wait for the latch to open.
+    var waiterCount: Int { lock.withLock { waiters.count } }
+
     /// Returns once the latch opens, at once if it has. Ignores cancellation, as `waitUntilExit()` does: whoever
     /// cancels the wait for a process kills the process, and this returns once it is gone.
     func wait() async {
