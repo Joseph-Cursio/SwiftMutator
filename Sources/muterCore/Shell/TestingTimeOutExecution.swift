@@ -1,7 +1,9 @@
 import Foundation
 
 protocol TestingTimeoutExecution {
-    func withTimeLimit<T>(
+    /// Runs `body`, and `timeoutHandler` once `timeLimit` seconds have passed, and returns what the first of them to end
+    /// returns. Each runs in a task of its own, so what it returns must be Sendable.
+    func withTimeLimit<T: Sendable>(
         _ timeLimit: TimeInterval,
         _ body: @escaping @Sendable () async throws -> T,
         timeoutHandler: @escaping @Sendable () async throws -> T
@@ -21,7 +23,7 @@ struct TestingTimeoutExecutor: TestingTimeoutExecution {
     @Dependency(\.suspensions)
     private var suspensions: Suspensions
 
-    func withTimeLimit<T>(
+    func withTimeLimit<T: Sendable>(
         _ timeLimit: TimeInterval,
         _ body: @escaping @Sendable () async throws -> T,
         timeoutHandler: @escaping @Sendable () async throws -> T

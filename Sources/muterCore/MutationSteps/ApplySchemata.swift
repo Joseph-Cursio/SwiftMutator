@@ -46,8 +46,8 @@ struct ApplySchemata: MutationStep {
     /// `else if` inside the one before, and walking the rewritten file, as writing it out does, recurses once per
     /// level. The threads Swift concurrency runs this step on have stacks of about 512 KiB, which ran out at about
     /// 520 mutants in one list in a debug build, or about 4,500 in a release one: the run died with a bus error
-    /// after discovery.
-    private static func onAStackOfItsOwn<Value>(_ work: @escaping () -> Value) async -> Value {
+    /// after discovery. `work` and what it returns cross to that thread and back, so they are Sendable.
+    private static func onAStackOfItsOwn<Value: Sendable>(_ work: @escaping @Sendable () -> Value) async -> Value {
         await withCheckedContinuation { continuation in
             let thread = Thread {
                 continuation.resume(returning: work())

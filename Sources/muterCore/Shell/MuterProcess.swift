@@ -17,7 +17,10 @@ struct CommandResult: Equatable {
     var succeeded: Bool { !timedOut && !endedBySignal && status == 0 }
 }
 
-protocol MuterProcess: AnyObject {
+/// Sendable: once a process runs, its time limit, its first failed test and its task's cancellation each kill it from a
+/// task or thread of their own, and Foundation calls its `terminationHandler` on another. They only read it: it is set
+/// up before `run()`. `Foundation.Process` is Sendable itself.
+protocol MuterProcess: AnyObject, Sendable {
     var processIdentifier: Int32 { get }
     var terminationStatus: Int32 { get }
     /// Whether the process exited or died of a signal; `terminationStatus` is then its exit code or that signal.
