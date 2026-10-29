@@ -1,8 +1,8 @@
 import Foundation
 @testable import muterCore
 
-/// A test command that plays `script` while it's waited for, as a real one runs: it writes its output
-/// over time, and can run until it's killed. `terminateTree()` kills it: it stops where it is and dies of
+/// A test command that plays `script` once it runs, on a thread of its own, as a real one runs: it writes its
+/// output over time, and can run until it's killed. `terminateTree()` kills it: it stops where it is and dies of
 /// SIGKILL, so its status is 9. When it exits it calls `terminationHandler`, as Foundation does once it
 /// reaps a process. Several runs can use these at once, from any thread.
 final class ScriptedProcessSpy: MuterProcess, @unchecked Sendable { // shared state is behind `lock`
@@ -31,21 +31,17 @@ final class ScriptedProcessSpy: MuterProcess, @unchecked Sendable { // shared st
 
     private let script: [Step]
     private let deadline: TimeInterval
-    private let exitNoticedAfter: TimeInterval
     /// Signalled once for each kill.
     private let kills = DispatchSemaphore(value: 0)
     private let lock = NSLock()
     private var status: Int32 = 0
     private var reason: Foundation.Process.TerminationReason = .exit
-    private var waited = false
+    private var started = false
     private var killCount = 0
 
-    /// `exitNoticedAfter` is how long after it exits `waitUntilExit()` returns: Foundation's notices an
-    /// exit up to about 60 ms after it reaps the process.
-    init(_ script: [Step], deadline: TimeInterval = 5, exitNoticedAfter: TimeInterval = 0) {
+    init(_ script: [Step], deadline: TimeInterval = 5) {
         self.script = script
         self.deadline = deadline
-        self.exitNoticedAfter = exitNoticedAfter
     }
 
     /// What `hasExited()` says: true for a process that exited while SwiftMutator was stopped, as by a SIGSTOP, which
@@ -56,18 +52,21 @@ final class ScriptedProcessSpy: MuterProcess, @unchecked Sendable { // shared st
         hasExitedUnnoticed
     }
 
-    var waitUntilExitCalled: Bool { lock.withLock { waited } }
+    /// Whether it was run, and so plays its script.
+    var hasStarted: Bool { lock.withLock { started } }
     var terminateTreeCallCount: Int { lock.withLock { killCount } }
 
-    func run() throws {}
-
-    func waitUntilExit() {
-        lock.withLock { waited = true }
-        play()
-        // This isn't a Foundation.Process, so the handler gets a stand-in.
-        terminationHandler?(Foundation.Process())
-        Thread.sleep(forTimeInterval: exitNoticedAfter)
+    func run() throws {
+        lock.withLock { started = true }
+        let handler = terminationHandler
+        Thread.detachNewThread { [self] in
+            play()
+            // This isn't a Foundation.Process, so the handler gets a stand-in.
+            handler?(Foundation.Process())
+        }
     }
+
+    func waitUntilExit() {}
 
     /// Plays the script until it ends or the process is killed.
     private func play() {

@@ -67,20 +67,6 @@ extension MuterProcess {
         runCommand(url: url, arguments: args, timeLimit: nil)
     }
 
-    /// Waits for this process to exit on a GCD thread. `waitUntilExit()` blocks its thread until then,
-    /// and Swift concurrency has only about as many threads as the machine has cores: test runs waiting
-    /// on them could hold every one, and nothing else could run, not even a run's time limit. Ignores
-    /// cancellation, as `waitUntilExit()` does: `terminationStatus` may be read only after exit. So
-    /// whoever cancels a run kills its process, and this returns once the process is gone.
-    func exited() async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            DispatchQueue.global(qos: .userInitiated).async {
-                self.waitUntilExit()
-                continuation.resume()
-            }
-        }
-    }
-
     /// SIGKILL this process and every transitive descendant. `interrupt()`/`terminate()` signal only
     /// the launched command (`swift test` / `xcodebuild`), not the test-runner grandchildren it spawns
     /// (`swiftpm-testing-helper`, `xctest`); those survive, keep spinning at ~100% CPU, and accumulate
