@@ -15,7 +15,7 @@ struct DiscoverMutationPoints: MutationStep {
             object: nil
         )
 
-        let discovered = discoverMutationPoints(
+        let discovered = await discoverMutationPoints(
             forOperators: state.mutationOperatorList,
             inFilesAt: state.sourceFileCandidates,
             configuration: state.muterConfiguration,
@@ -23,11 +23,11 @@ struct DiscoverMutationPoints: MutationStep {
             projectRoot: state.mutatedProjectDirectoryURL
         )
 
-        guard discovered.mappings.count >= 1 else {
+        guard discovered.count >= 1 else {
             throw MuterError.noMutationPointsDiscovered
         }
 
-        let mappings = discovered.mappings.mergeByFilePath()
+        let mappings = discovered.mergeByFilePath()
 
         notificationCenter.post(
             name: .mutationsDiscoveryFinished,
@@ -44,70 +44,52 @@ struct DiscoverMutationPoints: MutationStep {
 }
 
 private extension DiscoverMutationPoints {
-
-    // Batch size for parallel processing - balances memory usage vs. parallelism
-    static let batchSize = 50
-    // Max concurrent tasks to limit memory pressure
+    /// How many files are parsed and walked at once, which bounds the syntax trees held in memory.
     static let maxConcurrency = 8
 
+    /// Each file's mutation points, from a task group that keeps `maxConcurrency` files in flight, in no set order:
+    /// `mergeByFilePath()` sorts them.
     func discoverMutationPoints(
         forOperators operators: MutationOperatorList,
         inFilesAt filePaths: [String],
         configuration: MuterConfiguration,
         coverage: Coverage,
         projectRoot: URL
-    ) -> DiscoveredFiles {
-        // Process files in parallel batches for better performance on large codebases
-        // Uses autoreleasepool per file to prevent memory accumulation
-        let discoveredFiles = DiscoveredFiles()
-        let swiftFiles = filePaths.filter(pathContainsDotSwift)
+    ) async -> [SchemataMutationMapping] {
+        var swiftFiles = filePaths.filter(pathContainsDotSwift).makeIterator()
 
-        // Process in batches to limit memory pressure
-        let batches = swiftFiles.chunked(into: Self.batchSize)
-
-        for batch in batches {
-            // Process batch concurrently using DispatchGroup
-            let group = DispatchGroup()
-            let queue = DispatchQueue(label: "muter.discovery", attributes: .concurrent)
-            let semaphore = DispatchSemaphore(value: Self.maxConcurrency)
-            let lock = NSLock()
-
-            for path in batch {
-                group.enter()
-                semaphore.wait()
-
-                queue.async {
-                    defer {
-                        semaphore.signal()
-                        group.leave()
-                    }
-
+        return await withTaskGroup(of: [SchemataMutationMapping].self) { group in
+            func discoverNext() {
+                guard let path = swiftFiles.next() else { return }
+                group.addTask {
+                    // What reading the file autoreleased is freed once the file is done, not whenever the thread's
+                    // pool drains.
                     autoreleasepool {
-                        guard let sourceCode = self.prepareSourceCode(path) else {
-                            return
+                        guard let sourceCode = prepareSourceCode(path) else {
+                            return []
                         }
 
-                        let schemataMappings = self.discoverNewSchemataMappings(
+                        return discoverNewSchemataMappings(
                             forOperators: operators,
                             inFile: sourceCode,
                             configuration: configuration,
                             coverage: coverage.coverage(ofFile: path),
                             projectRoot: projectRoot
                         )
-
-                        if !schemataMappings.isEmpty {
-                            lock.lock()
-                            discoveredFiles.mappings.append(contentsOf: schemataMappings)
-                            lock.unlock()
-                        }
                     }
                 }
             }
 
-            group.wait()
+            for _ in 0..<Self.maxConcurrency {
+                discoverNext()
+            }
+            var discovered: [SchemataMutationMapping] = []
+            while let mappings = await group.next() {
+                discovered += mappings
+                discoverNext()
+            }
+            return discovered
         }
-
-        return discoveredFiles
     }
 
     func discoverNewSchemataMappings(
@@ -151,8 +133,4 @@ private extension DiscoverMutationPoints {
         let url = URL(fileURLWithPath: filePath)
         return url.lastPathComponent.contains(".swift")
     }
-}
-
-private class DiscoveredFiles {
-    var mappings: [SchemataMutationMapping] = []
 }

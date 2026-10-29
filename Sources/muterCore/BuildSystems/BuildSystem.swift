@@ -33,9 +33,9 @@ protocol BuildSystemCoverage: AnyObject {
 
     func run(
         with configuration: MuterConfiguration
-    ) -> Result<Coverage, CoverageError>
+    ) async -> Result<Coverage, CoverageError>
 
-    func buildDirectory(_ configuration: MuterConfiguration) -> String?
+    func buildDirectory(_ configuration: MuterConfiguration) async -> String?
 }
 
 extension BuildSystemCoverage {
@@ -43,16 +43,19 @@ extension BuildSystemCoverage {
     /// `ProfileData/<device>/Coverage.profdata`, and leaves the other destinations' in place, as it does other build
     /// locations'. `find` lists them in no set order, and `llvm-cov` reads a stale one without failing: every function
     /// added since then counts as never run, so its mutants would be skipped.
-    func testProfileData(at paths: [String]) -> String? {
-        let profiles = paths
-            .flatMap { (process().find(atPath: $0, byName: "*.profdata") ?? "").components(separatedBy: "\n") }
-            .map(\.trimmed)
-            .filter { !$0.isEmpty }
+    func testProfileData(at paths: [String]) async -> String? {
+        var profiles: [String] = []
+        for path in paths {
+            profiles += (await process().find(atPath: path, byName: "*.profdata") ?? "")
+                .components(separatedBy: "\n")
+                .map(\.trimmed)
+                .filter { !$0.isEmpty }
+        }
         guard profiles.count > 1 else {
             return profiles.first
         }
 
-        return process().runProcess(url: "/bin/ls", arguments: ["-t"] + profiles)
+        return await process().runProcess(url: "/bin/ls", arguments: ["-t"] + profiles)
             .flatMap { $0.components(separatedBy: "\n").first?.trimmed.nilIfEmpty }
     }
 
@@ -67,9 +70,9 @@ extension BuildSystemCoverage {
         profile: String,
         llvmCov: (executable: String, arguments: [String]),
         architecture: String? = nil
-    ) -> Result<Data, CoverageError> {
+    ) async -> Result<Data, CoverageError> {
         let objectArguments = Array(objects.prefix(1)) + objects.dropFirst().flatMap { ["-object", $0] }
-        guard let export = process().runCommand(
+        guard let export = await process().runCommand(
             url: llvmCov.executable,
             arguments: llvmCov.arguments + ["export"] + objectArguments + ["-instr-profile", profile]
                 + (architecture.map { ["-arch", $0] } ?? [])

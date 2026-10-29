@@ -62,7 +62,7 @@ enum SwiftPackageSources {
         inProjectAt root: FilePath,
         testedBy configuration: MuterConfiguration,
         process: ProcessFactory
-    ) -> Result<[FilePath], Failure> {
+    ) async -> Result<[FilePath], Failure> {
         let swift = configuration.testCommandExecutable
         guard (swift as NSString).lastPathComponent == "swift" else {
             return .failure(.notSwift(swift))
@@ -89,7 +89,7 @@ enum SwiftPackageSources {
             }
             let description: Description
             let path = package.isEmpty ? root : root + "/" + package
-            switch describe(path, with: swift, options: options, process: process) {
+            switch await describe(path, with: swift, options: options, process: process) {
             case let .success(packageDescription):
                 description = packageDescription
             case let .failure(failure):
@@ -139,9 +139,9 @@ enum SwiftPackageSources {
         with swift: String,
         options: [String],
         process: ProcessFactory
-    ) -> Result<Description, Failure> {
+    ) async -> Result<Description, Failure> {
         // `--package-path` is an option of `swift package`, not of `describe`.
-        guard let described = process().runCommand(
+        guard let described = await process().runCommand(
             url: swift,
             arguments: ["package", "--package-path", packagePath] + options + ["describe", "--type", "json"]
         ) else {

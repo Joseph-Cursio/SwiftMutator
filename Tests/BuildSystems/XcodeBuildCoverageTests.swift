@@ -12,8 +12,8 @@ final class XcodeBuildCoverageTests: MuterTestCase {
         coverageThreshold: coverageThreshold
     )
 
-    func test_whenUsesSupportedBuildSystem_shouldRunWithCoverage() {
-        _ = sut.run(with: muterConfiguration)
+    func test_whenUsesSupportedBuildSystem_shouldRunWithCoverage() async {
+        _ = await sut.run(with: muterConfiguration)
 
         XCTAssertEqual(process.commandsRun, [
             [
@@ -24,11 +24,11 @@ final class XcodeBuildCoverageTests: MuterTestCase {
         XCTAssertEqual(process.timeLimits, [nil])
     }
 
-    func test_whenRunWithCoverageSucceeds_thenRunXcovCommand() {
+    func test_whenRunWithCoverageSucceeds_thenRunXcovCommand() async {
         answerTheCoverageRun(printing: "something\nsomething\npath/to/testResult.xcresult")
         process.stdoutToBeReturned = "/path/to/xcrun"
 
-        _ = sut.run(with: muterConfiguration)
+        _ = await sut.run(with: muterConfiguration)
 
         XCTAssertEqual(process.executableURL?.path, "/path/to/xcrun")
         XCTAssertEqual(
@@ -38,13 +38,13 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     }
 
     // Files are named by their path in the project, the working directory, as SwiftPM's coverage names them.
-    func test_whenXcovSucceeds_thenReturnFilsWithoutCoverage() throws {
+    func test_whenXcovSucceeds_thenReturnFilsWithoutCoverage() async throws {
         answerTheCoverageRun(printing: "something\nsomething\npath/to/testResult.xcresult")
         process.stdoutToBeReturned = "/path/to/xcrun"
         process.stdoutToBeReturned = coverageData
         fileManager.currentDirectoryPathToReturn = "/project"
 
-        let coverage = try XCTUnwrap(sut.run(with: muterConfiguration).get())
+        let coverage = try await sut.run(with: muterConfiguration).get()
 
         XCTAssertEqual(
             coverage,
@@ -57,7 +57,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
 
     // A percentage, as SwiftPM's is: xccov's share of a file's lines, from 0 to 1, was compared with it, so any
     // threshold of 1 or more left out every file.
-    func test_theCoverageThreshold_isAPercentage() throws {
+    func test_theCoverageThreshold_isAPercentage() async throws {
         answerTheCoverageRun(printing: "something\nsomething\npath/to/testResult.xcresult")
         process.stdoutToBeReturned = "/path/to/xcrun"
         process.stdoutToBeReturned = coverageData
@@ -65,7 +65,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
 
         coverageThreshold = 10
 
-        let coverage = try XCTUnwrap(sut.run(with: muterConfiguration).get())
+        let coverage = try await sut.run(with: muterConfiguration).get()
 
         XCTAssertEqual(
             coverage,
@@ -79,20 +79,21 @@ final class XcodeBuildCoverageTests: MuterTestCase {
         )
     }
 
-    func test_anUnreadableReport_givesNoCoverage() {
+    func test_anUnreadableReport_givesNoCoverage() async {
         answerTheCoverageRun(printing: "path/to/testResult.xcresult\n")
         process.stdoutToBeReturned = "/path/to/xcrun"
         process.stdoutToBeReturned = "not json"
 
-        XCTAssertEqual(sut.run(with: muterConfiguration), .failure(.build))
+        let result = await sut.run(with: muterConfiguration)
+        XCTAssertEqual(result, .failure(.build))
     }
 
-    func test_whenXcodeSelectFails_shouldNotRunXccov() {
+    func test_whenXcodeSelectFails_shouldNotRunXccov() async {
         answerTheCoverageRun(printing: "something\nsomething\npath/to/testResult.xcresult")
         process.stdoutToBeReturned = "/path/to/xcrun"
         process.stdoutToBeReturned = ""
 
-        _ = sut.run(with: muterConfiguration)
+        _ = await sut.run(with: muterConfiguration)
 
         XCTAssertFalse(
             process.executableURL?.path.contains("xccov")
@@ -101,18 +102,19 @@ final class XcodeBuildCoverageTests: MuterTestCase {
 
     // Killed at `buildTimeout`, the run gives no coverage, even if it had printed where its result bundle is. What it
     // printed is kept.
-    func test_aCoverageRunPastItsTimeLimit_givesNoCoverage() {
+    func test_aCoverageRunPastItsTimeLimit_givesNoCoverage() async {
         answerTheCoverageRun(printing: "path/to/testResult.xcresult\n", status: 9, timedOut: true)
         let limited = MuterConfiguration(executable: "/path/to/xcodebuild", arguments: [], buildTimeout: 900)
 
-        XCTAssertEqual(sut.run(with: limited), .failure(.timedOut(after: 900)))
+        let result = await sut.run(with: limited)
+        XCTAssertEqual(result, .failure(.timedOut(after: 900)))
         XCTAssertEqual(process.timeLimits, [900])
         XCTAssertNil(process.executableURL, "xccov ran")
         XCTAssertEqual(sut.coverageRunOutput, "path/to/testResult.xcresult\n")
     }
 
     // What the run printed is kept in the run's log folder, as SwiftPM's is, standard error from a line of its own.
-    func test_theCoverageRunsOutput_isKept_standardOutputThenStandardError() {
+    func test_theCoverageRunsOutput_isKept_standardOutputThenStandardError() async {
         XCTAssertNil(sut.coverageRunOutput)
         process.commandResult = { _ in
             CommandResult(
@@ -123,7 +125,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             )
         }
 
-        _ = sut.run(with: muterConfiguration)
+        _ = await sut.run(with: muterConfiguration)
 
         XCTAssertEqual(sut.coverageRunOutput, "Testing started\nFailing tests:\n\tsFails()\n")
     }
@@ -132,7 +134,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
 
     // Every test process leaves what it counted in the result bundle, a failed test's too, so the coverage is kept, and
     // says which tests failed. In this real run, a Swift Testing test and an XCTest test failed.
-    func test_failedTests_withoutACrash_keepTheCoverage_andAreNamed() throws {
+    func test_failedTests_withoutACrash_keepTheCoverage_andAreNamed() async throws {
         answerTheCoverageRun(
             printing: loadFixture("TestLogsForParsing/coverageRun_xcodebuild_testFailed.log"),
             status: 65
@@ -141,7 +143,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
         process.stdoutToBeReturned = coverageData
         fileManager.currentDirectoryPathToReturn = "/project"
 
-        let coverage = try sut.run(with: muterConfiguration).get()
+        let coverage = try await sut.run(with: muterConfiguration).get()
 
         XCTAssertEqual(process.arguments, [
             "xccov", "view", "--report", "--json",
@@ -158,7 +160,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     // so the code they would have run would read as never run. In these real runs, an XCTest test crashed, and Xcode
     // said it restarted, while two other tests failed; and a Swift Testing test crashed, which Xcode says nothing of,
     // but its run and the test, started twice, never ended.
-    func test_aCrashedTestProcess_givesNoCoverage_andIsNamed() {
+    func test_aCrashedTestProcess_givesNoCoverage_andIsNamed() async {
         let runs = [
             (
                 log: "coverageRun_xcodebuild_testCrashed.log",
@@ -175,7 +177,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
         for run in runs {
             answerTheCoverageRun(printing: loadFixture("TestLogsForParsing/\(run.log)"), status: 65)
 
-            let result = sut.run(with: muterConfiguration)
+            let result = await sut.run(with: muterConfiguration)
             guard case let .failure(.testProcessRelaunched(named, failedTests)) = result else {
                 XCTFail("not a relaunched test process: \(run.log)")
                 continue
@@ -190,21 +192,23 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     // in this real run, where an XCTest test crashed. With no failed test named, a crash can't be ruled out. Its
     // standard error, on a Mac whose simulators are out of date, logs a method named `…:error:`, which is no error. A
     // build that fails names no failed test either, and its first error says why.
-    func test_aFailedRun_thatNamesNoFailedTest_givesNoCoverage() {
+    func test_aFailedRun_thatNamesNoFailedTest_givesNoCoverage() async {
         answerTheCoverageRun(
             printing: loadFixture("TestLogsForParsing/coverageRun_xcodebuild_parallel_testCrashed.log"),
             errors: simulatorsOutOfDate + "Failing tests:\n\tCTests.test_z_crash()\n\n** TEST FAILED **\n",
             status: 65
         )
-        XCTAssertEqual(sut.run(with: muterConfiguration), .failure(.runFailed(status: 65, error: nil)))
+        let crashed = await sut.run(with: muterConfiguration)
+        XCTAssertEqual(crashed, .failure(.runFailed(status: 65, error: nil)))
 
         answerTheCoverageRun(
             printing: "/project/App/Model.swift:3:9: error: cannot find 'x' in scope\n\n** TEST FAILED **\n",
             errors: simulatorsOutOfDate,
             status: 65
         )
+        let compileError = await sut.run(with: muterConfiguration)
         XCTAssertEqual(
-            sut.run(with: muterConfiguration),
+            compileError,
             .failure(.runFailed(status: 65, error: "/project/App/Model.swift:3:9: error: cannot find 'x' in scope"))
         )
 
@@ -213,8 +217,9 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             errors: simulatorsOutOfDate + "xcodebuild: error: Unknown build action 'tset'.\n",
             status: 64
         )
+        let unknownAction = await sut.run(with: muterConfiguration)
         XCTAssertEqual(
-            sut.run(with: muterConfiguration),
+            unknownAction,
             .failure(.runFailed(status: 64, error: "xcodebuild: error: Unknown build action 'tset'."))
         )
 
@@ -223,8 +228,9 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             errors: simulatorsOutOfDate,
             status: 65
         )
+        let missingHeader = await sut.run(with: muterConfiguration)
         XCTAssertEqual(
-            sut.run(with: muterConfiguration),
+            missingHeader,
             .failure(.runFailed(
                 status: 65,
                 error: "/project/App/Bridge.m:1:9: fatal error: 'Missing.h' file not found"
@@ -234,12 +240,13 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     }
 
     // xcodebuild itself was stopped, which says nothing of the tests.
-    func test_aCoverageRunEndedByASignal_givesNoCoverage() {
+    func test_aCoverageRunEndedByASignal_givesNoCoverage() async {
         process.commandResult = { _ in
             CommandResult(status: 15, endedBySignal: true, output: "path/to/testResult.xcresult\n", errors: "")
         }
 
-        XCTAssertEqual(sut.run(with: muterConfiguration), .failure(.endedBySignal(15)))
+        let result = await sut.run(with: muterConfiguration)
+        XCTAssertEqual(result, .failure(.endedBySignal(15)))
         XCTAssertNil(process.executableURL, "xccov ran")
     }
 
@@ -274,7 +281,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
 
     // xcodebuild -showBuildSettings indents each setting and repeats them for every target. The folder above
     // `Build/Products` holds both the test bundles and `ProfileData`.
-    func test_buildDirectory_isTheFolderAboveTheBuildDirSetting() {
+    func test_buildDirectory_isTheFolderAboveTheBuildDirSetting() async {
         process.stdoutToBeReturned = """
         Build settings for action test and target AppTests:
             ALWAYS_SEARCH_USER_PATHS = NO
@@ -285,21 +292,23 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             BUILD_DIR = /Users/me/My Projects/DerivedData/Build/Products
         """
 
-        XCTAssertEqual(sut.buildDirectory(muterConfiguration), "/Users/me/My Projects/DerivedData/Build")
+        let result = await sut.buildDirectory(muterConfiguration)
+        XCTAssertEqual(result, "/Users/me/My Projects/DerivedData/Build")
         XCTAssertEqual(process.arguments, ["-showBuildSettings"])
     }
 
-    func test_buildDirectory_skipsSettingsWhoseNameEndsInBuildDir() {
+    func test_buildDirectory_skipsSettingsWhoseNameEndsInBuildDir() async {
         process.stdoutToBeReturned = """
             CONFIGURATION_BUILD_DIR = /DerivedData/Build/Products/Debug
             BUILD_DIR = /DerivedData/Build/Products
         """
 
-        XCTAssertEqual(sut.buildDirectory(muterConfiguration), "/DerivedData/Build")
+        let result = await sut.buildDirectory(muterConfiguration)
+        XCTAssertEqual(result, "/DerivedData/Build")
     }
 
     // With `BUILD_DIR=…` among the arguments, xcodebuild first echoes it as given, before any target's block.
-    func test_buildDirectory_skipsTheEchoOfTheCommandLineSettings() {
+    func test_buildDirectory_skipsTheEchoOfTheCommandLineSettings() async {
         process.stdoutToBeReturned = """
         Build settings from command line:
             BUILD_DIR = $(SRCROOT)/out
@@ -308,16 +317,18 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             BUILD_DIR = /proj/out/Products
         """
 
-        XCTAssertEqual(sut.buildDirectory(muterConfiguration), "/proj/out")
+        let result = await sut.buildDirectory(muterConfiguration)
+        XCTAssertEqual(result, "/proj/out")
     }
 
     // Xcode keeps a profile per run destination and leaves the others' in place. `find` lists them in no set order,
     // and a stale one reads every function added since as never run, so their mutants would be skipped.
-    func test_testProfileData_isTheNewestProfile() {
+    func test_testProfileData_isTheNewestProfile() async {
         process.stdoutToBeReturned = "/Build/ProfileData/OLD/Coverage.profdata\n/Build/ProfileData/NEW/Coverage.profdata\n"
         process.stdoutToBeReturned = "/Build/ProfileData/NEW/Coverage.profdata\n/Build/ProfileData/OLD/Coverage.profdata\n"
 
-        XCTAssertEqual(sut.testProfileData(at: ["/Build"]), "/Build/ProfileData/NEW/Coverage.profdata")
+        let result = await sut.testProfileData(at: ["/Build"])
+        XCTAssertEqual(result, "/Build/ProfileData/NEW/Coverage.profdata")
         XCTAssertEqual(process.executableURL?.path, "/bin/ls")
         XCTAssertEqual(
             process.arguments,
@@ -325,26 +336,28 @@ final class XcodeBuildCoverageTests: MuterTestCase {
         )
     }
 
-    func test_testProfileData_withOneProfile_isThatProfile() {
+    func test_testProfileData_withOneProfile_isThatProfile() async {
         process.stdoutToBeReturned = "/Build/ProfileData/MAC/Coverage.profdata\n"
 
-        XCTAssertEqual(sut.testProfileData(at: ["/Build"]), "/Build/ProfileData/MAC/Coverage.profdata")
+        let result = await sut.testProfileData(at: ["/Build"])
+        XCTAssertEqual(result, "/Build/ProfileData/MAC/Coverage.profdata")
         XCTAssertEqual(process.executableURL?.path, "/usr/bin/find")
     }
 
-    func test_buildDirectory_isNilWithoutTheSetting() {
+    func test_buildDirectory_isNilWithoutTheSetting() async {
         process.stdoutToBeReturned = "    SYMROOT = /DerivedData/Build/Products"
 
-        XCTAssertNil(sut.buildDirectory(muterConfiguration))
+        let result = await sut.buildDirectory(muterConfiguration)
+        XCTAssertNil(result)
     }
 
     // MARK: - Regions
 
     // xccov's report has no regions, so which code no test ran comes from llvm-cov's export.
-    func test_functionCoverage() throws {
+    func test_functionCoverage() async throws {
         answerWithACoverageRun(report: Data(coverageData.utf8), existing: [true, false, false])
 
-        let coverage = try sut.run(with: muterConfiguration).get()
+        let coverage = try await sut.run(with: muterConfiguration).get()
 
         XCTAssertEqual(
             coverage.functionsCoverage.regionsForFile("/path/to/file.swift"), [
@@ -367,10 +380,10 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     // Hosted tests and UI tests run the app's code, which only the app's binary maps, and each test bundle maps only
     // the code linked into it. So one export reads every product the run built: the first by name, then each other as
     // an object.
-    func test_everyProductTheRunBuilt_isExported_inOneCall() {
+    func test_everyProductTheRunBuilt_isExported_inOneCall() async {
         answerWithACoverageRun(report: appReport, existing: [true, false, true, false, true, false])
 
-        _ = sut.run(with: muterConfiguration)
+        _ = await sut.run(with: muterConfiguration)
 
         XCTAssertEqual(process.commandsRun.count, 2)
         XCTAssertEqual(process.commandsRun.last, [
@@ -381,10 +394,10 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     }
 
     // In a Debug build, an app's executable only loads `<App>.debug.dylib`, which holds the app's code.
-    func test_anAppsDebugDylib_isExported_afterTheApp() {
+    func test_anAppsDebugDylib_isExported_afterTheApp() async {
         answerWithACoverageRun(report: appReport, existing: [true, true, true, false, true, false])
 
-        _ = sut.run(with: muterConfiguration)
+        _ = await sut.run(with: muterConfiguration)
 
         XCTAssertEqual(process.commandsRun.last?.dropFirst(3).prefix(5), [
             app, "-object", app + ".debug.dylib", "-object", appTests,
@@ -396,7 +409,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
 
     // xccov lists a package's library as a framework that isn't built when the library is linked into its tests, and
     // llvm-cov fails on a file that doesn't exist.
-    func test_aProductThatDoesntExist_isLeftOut() {
+    func test_aProductThatDoesntExist_isLeftOut() async {
         let library = debug + "/PackageFrameworks/Core_3124CAE0_PackageProduct.framework/Core_3124CAE0_PackageProduct"
         let tests = debug + "/CoreTests.xctest/Contents/MacOS/CoreTests"
         answerWithACoverageRun(
@@ -411,7 +424,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             existing: [false, true, false]
         )
 
-        _ = sut.run(with: muterConfiguration)
+        _ = await sut.run(with: muterConfiguration)
 
         XCTAssertEqual(process.commandsRun.last, [
             "/usr/bin/xcrun", "llvm-cov", "export", tests, "-instr-profile", profile,
@@ -421,7 +434,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
 
     // Without regions, xccov's lines still say which files no test ran: when llvm-cov fails, or no product it lists
     // exists.
-    func test_withoutRegions_xccovsCoverageIsStillGiven() throws {
+    func test_withoutRegions_xccovsCoverageIsStillGiven() async throws {
         let xccovs = Coverage.make(percent: 10, filesWithoutCoverage: ["Sources/file1.swift"])
         answerWithACoverageRun(
             report: Data(coverageData.utf8),
@@ -429,19 +442,21 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             export: { _ in self.result(status: 1, errors: "error: failed to load coverage: 'Project': No such file\n") }
         )
 
-        XCTAssertEqual(try sut.run(with: muterConfiguration).get(), xccovs)
+        let whenLLVMCovFails = try await sut.run(with: muterConfiguration).get()
+        XCTAssertEqual(whenLLVMCovFails, xccovs)
         XCTAssertEqual(process.commandsRun.last?.prefix(3), ["/usr/bin/xcrun", "llvm-cov", "export"])
 
         answerWithACoverageRun(report: Data(coverageData.utf8), existing: [false, false])
 
-        XCTAssertEqual(try sut.run(with: muterConfiguration).get(), xccovs)
+        let withoutAProduct = try await sut.run(with: muterConfiguration).get()
+        XCTAssertEqual(withoutAProduct, xccovs)
         XCTAssertEqual(process.commandsRun.count, 3, "llvm-cov ran without a product")
     }
 
     // A build for every architecture, as `ONLY_ACTIVE_ARCH=NO` makes, gives universal binaries, which llvm-cov reads
     // only for an architecture named, as in this real export, where it warned first. This Mac's is named then, not
     // from the start: llvm-cov would then fail for a binary built only for another, as for an Intel Mac's destination.
-    func test_aUniversalBinary_isReadForThisMacsArchitecture() throws {
+    func test_aUniversalBinary_isReadForThisMacsArchitecture() async throws {
         let sut = XcodeBuildCoverage(architecture: "arm64")
         let universal = result(status: 1, errors: """
         warning: App: profile data may be out of date - object is newer
@@ -453,7 +468,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             command.contains("-arch") ? self.result(output: self.loadFixture("llvmCovExport.json")) : universal
         }
 
-        let coverage = try sut.run(with: muterConfiguration).get()
+        let coverage = try await sut.run(with: muterConfiguration).get()
 
         let export = [
             "/usr/bin/xcrun", "llvm-cov", "export", app, "-object", app + ".debug.dylib", "-instr-profile", profile,
@@ -463,7 +478,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     }
 
     // Why llvm-cov failed is the first line that says so, not a warning before it.
-    func test_whyLLVMCovFailed_isItsFirstError() {
+    func test_whyLLVMCovFailed_isItsFirstError() async {
         process.commandResult = { _ in
             self.result(
                 status: 1,
@@ -471,8 +486,9 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             )
         }
 
+        let result = await sut.llvmCovExport(of: [app], profile: profile, llvmCov: ("/usr/bin/xcrun", ["llvm-cov"]))
         XCTAssertEqual(
-            sut.llvmCovExport(of: [app], profile: profile, llvmCov: ("/usr/bin/xcrun", ["llvm-cov"])),
+            result,
             .failure(.llvmCovFailed("error: malformed coverage data"))
         )
     }
@@ -709,12 +725,12 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     // library's code. So the files, lines and regions all come from llvm-cov's export of that bundle, as on SwiftPM, in
     // this real run's, where `neverCalled()` and the files `Untested.swift` and `Other.swift` never ran. The library
     // has no binary of its own, and `-showBuildSettings` prints nothing for a package's scheme.
-    func test_aPackage_getsItsCoverage_fromLLVMCovsExportOfItsTests() throws {
+    func test_aPackage_getsItsCoverage_fromLLVMCovsExportOfItsTests() async throws {
         answerWithACoverageRun(report: packageReport, existing: [false, true, false], buildSettings: "") { _ in
             self.result(output: self.loadFixture("llvmCovExport_xcodebuildPackage.json"))
         }
 
-        let coverage = try sut.run(with: muterConfiguration).get()
+        let coverage = try await sut.run(with: muterConfiguration).get()
 
         XCTAssertEqual(coverage.percent, 20)
         XCTAssertEqual(coverage.filesWithoutCoverage, ["Sources/Calc/Untested.swift", "Sources/Other/Other.swift"])
@@ -730,7 +746,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     // Xcode builds the products of a package whose folder isn't named after it, as SwiftMutator's copy of a project
     // isn't, in derived data named after the folder, and keeps the result bundle and the profile in derived data named
     // after the package, with the same hash, as in this real run.
-    func test_aPackagesProfile_isInTheDerivedDataOfItsResultBundle_notOfItsProducts() {
+    func test_aPackagesProfile_isInTheDerivedDataOfItsResultBundle_notOfItsProducts() async throws {
         let products = "/DerivedData/PkgProbe_mutated-heuxeczqnwuysrfhawjcixylzvcq/Build/Products/Debug"
         let packageProfile = "/DerivedData/PkgProbe-heuxeczqnwuysrfhawjcixylzvcq/Build/ProfileData/MAC/"
             + "Coverage.profdata"
@@ -744,7 +760,8 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             self.result(output: self.loadFixture("llvmCovExport_xcodebuildPackage.json"))
         }
 
-        XCTAssertEqual(try sut.run(with: muterConfiguration).get().percent, 20)
+        let result = try await sut.run(with: muterConfiguration).get().percent
+        XCTAssertEqual(result, 20)
         XCTAssertEqual(profilesLookedFor, [
             "/DerivedData/PkgProbe-heuxeczqnwuysrfhawjcixylzvcq/Build",
             "/DerivedData/PkgProbe_mutated-heuxeczqnwuysrfhawjcixylzvcq/Build",
@@ -758,7 +775,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
 
     // `-resultBundlePath` moves the result bundle out of the derived data, and `SYMROOT` or `BUILD_DIR` the products,
     // but neither moves the profile.
-    func test_theDerivedData_isFoundFromEitherTheResultBundle_orTheProducts() {
+    func test_theDerivedData_isFoundFromEitherTheResultBundle_orTheProducts() async {
         answerWithACoverageRun(
             report: packageReport,
             existing: [false, true, false],
@@ -766,7 +783,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             buildSettings: ""
         )
 
-        _ = sut.run(with: muterConfiguration)
+        _ = await sut.run(with: muterConfiguration)
 
         XCTAssertEqual(profilesLookedFor, ["/DerivedData/Build"])
 
@@ -776,7 +793,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             buildSettings: ""
         )
 
-        _ = sut.run(with: muterConfiguration)
+        _ = await sut.run(with: muterConfiguration)
 
         XCTAssertEqual(profilesLookedFor.last, "/DerivedData/Build")
         XCTAssertEqual(profilesLookedFor.count, 2)
@@ -784,7 +801,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
 
     // With both moved, only `-showBuildSettings` can say where the build is, and for a package's scheme it says
     // nothing.
-    func test_withNeitherInTheDerivedData_theProfile_isLookedForAboveBuildDir_ifThereIsOne() throws {
+    func test_withNeitherInTheDerivedData_theProfile_isLookedForAboveBuildDir_ifThereIsOne() async throws {
         let packageReport = packageReport(in: "/project/out/Debug")
         let testsExport: (([String]) -> CommandResult?) = { _ in
             self.result(output: self.loadFixture("llvmCovExport_xcodebuildPackage.json"))
@@ -798,7 +815,8 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             export: testsExport
         )
 
-        XCTAssertEqual(try sut.run(with: muterConfiguration).get().percent, 20)
+        let percent = try await sut.run(with: muterConfiguration).get().percent
+        XCTAssertEqual(percent, 20)
         XCTAssertEqual(profilesLookedFor, ["/project"])
 
         answerWithACoverageRun(
@@ -810,7 +828,8 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             export: testsExport
         )
 
-        XCTAssertEqual(sut.run(with: muterConfiguration), .failure(.noXcodeBuildFolder))
+        let withoutBuildDir = await sut.run(with: muterConfiguration)
+        XCTAssertEqual(withoutBuildDir, .failure(.noXcodeBuildFolder))
         XCTAssertEqual(process.arguments, ["-showBuildSettings"])
         XCTAssertEqual(process.commandsRun.filter { $0.contains("llvm-cov") }.count, 1, "llvm-cov ran without a build")
     }
@@ -818,7 +837,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     // With Xcode's Build Location set to Custom, relative to the workspace, as here, or to Shared Folder, the products
     // and the profile go with the build's intermediate files, and the result bundle stays in derived data, which can
     // hold the profile of a run from before the setting changed. The newest profile is the run's.
-    func test_theNewestProfile_inAnyBuildFolder_isTheRuns() {
+    func test_theNewestProfile_inAnyBuildFolder_isTheRuns() async {
         let fresh = "/project/Build/Intermediates.noindex/CodeCoverage/ProfileData/MAC/Coverage.profdata"
         let app = "/project/Build/Products/Debug/App.app/Contents/MacOS/App"
         answerWithACoverageRun(
@@ -834,7 +853,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             profiles: [profile + "\n", fresh + "\n", fresh + "\n" + profile + "\n"]
         )
 
-        _ = sut.run(with: muterConfiguration)
+        _ = await sut.run(with: muterConfiguration)
 
         XCTAssertEqual(profilesLookedFor, ["/DerivedData/Build", "/project/Build"])
         XCTAssertEqual(process.arguments, ["-t", profile, fresh])
@@ -844,7 +863,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     // A package's test target can have a `path` of its own, outside a `Tests` folder, and xccov names its files. Nor do
     // the files in derived data count, which `-derivedDataPath` can put in the project: those of the packages it
     // depends on, which its tests' bundle holds too, and those the build generates.
-    func test_aPackagesTestFiles_andDerivedData_areLeftOut_whereverTheyAre() throws {
+    func test_aPackagesTestFiles_andDerivedData_areLeftOut_whereverTheyAre() async throws {
         let derivedData = "/project/DerivedData"
         let tests = derivedData + "/Build/Products/Debug/CalcSpecs.xctest/Contents/MacOS/CalcSpecs"
         answerWithACoverageRun(
@@ -877,14 +896,14 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             ]), as: UTF8.self))
         }
 
-        let coverage = try sut.run(with: muterConfiguration).get()
+        let coverage = try await sut.run(with: muterConfiguration).get()
 
         XCTAssertEqual(coverage.percent, 50)
         XCTAssertEqual(coverage.filesWithoutCoverage, [])
     }
 
     // The coverage of a run in which tests failed is kept, as an app's is, and they are named.
-    func test_aPackagesFailedTests_keepItsCoverage_andAreNamed() throws {
+    func test_aPackagesFailedTests_keepItsCoverage_andAreNamed() async throws {
         answerWithACoverageRun(
             report: packageReport,
             existing: [false, true, false],
@@ -895,7 +914,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             self.result(output: self.loadFixture("llvmCovExport_xcodebuildPackage.json"))
         }
 
-        let coverage = try sut.run(with: muterConfiguration).get()
+        let coverage = try await sut.run(with: muterConfiguration).get()
 
         XCTAssertEqual(coverage.percent, 20)
         XCTAssertEqual(
@@ -906,7 +925,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
 
     // Without llvm-cov's export, a package has no coverage, as xccov's report says nothing of it, and the reason is
     // what kept the export from being had.
-    func test_aPackageWhoseExportCantBeHad_givesNoCoverage_andSaysWhy() {
+    func test_aPackageWhoseExportCantBeHad_givesNoCoverage_andSaysWhy() async {
         // Without a product, `find` never runs, and its answer is left for the next run, so that one comes last.
         typealias Export = ([String]) -> CommandResult?
         let runs: [(existing: [Bool], profiles: [String]?, export: Export?, error: CoverageError)] = [
@@ -932,7 +951,8 @@ final class XcodeBuildCoverageTests: MuterTestCase {
                 export: run.export
             )
 
-            XCTAssertEqual(sut.run(with: muterConfiguration), .failure(run.error))
+            let result = await sut.run(with: muterConfiguration)
+            XCTAssertEqual(result, .failure(run.error))
         }
     }
 

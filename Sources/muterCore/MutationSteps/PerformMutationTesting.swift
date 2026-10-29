@@ -49,11 +49,11 @@ struct PerformMutationTesting: MutationStep {
 
     /// Clones the mutated project for each extra parallel worker, and removes the clones afterwards.
     /// Injected so tests don't touch the disk.
-    private let makeWorkerDirectories: (_ mutatedProject: URL, _ count: Int) throws -> [URL]
+    private let makeWorkerDirectories: (_ mutatedProject: URL, _ count: Int) async throws -> [URL]
     private let removeWorkerDirectories: (_ directories: [URL]) -> Void
 
     init(
-        makeWorkerDirectories: @escaping (URL, Int) throws -> [URL] = PerformMutationTesting.cloneMutatedProject,
+        makeWorkerDirectories: @escaping (URL, Int) async throws -> [URL] = PerformMutationTesting.cloneMutatedProject,
         removeWorkerDirectories: @escaping ([URL]) -> Void = PerformMutationTesting.removeClones
     ) {
         self.makeWorkerDirectories = makeWorkerDirectories
@@ -176,8 +176,8 @@ private extension PerformMutationTesting {
             // the retired line of mutants no longer discovered, if any, and the end line `run(with:)` writes.
             if plan.toRun.isEmpty {
                 session.baselinePassed = true
-                startResults(
-                    header(
+                await startResults(
+                    await header(
                         of: session,
                         plan,
                         state: state,
@@ -270,8 +270,8 @@ private extension PerformMutationTesting {
         session.baselinePassed = true
 
         // Before the baseline's log, which starts the progress bar or lines, so the results file's path comes first.
-        startResults(
-            header(
+        await startResults(
+            await header(
                 of: session,
                 plan,
                 state: state,
@@ -318,8 +318,14 @@ private extension PerformMutationTesting {
         baselineSeconds: Double?,
         testRunSeconds: Double? = nil,
         workers: Int
-    ) -> ResultsHeader {
+    ) async -> ResultsHeader {
         let resume = state.resumeState
+        // A resume's was probed before the copy, and what was checked is what is recorded.
+        let sessionProvenance = if let recorded = resume?.provenance {
+            recorded
+        } else {
+            await provenance(state.muterConfiguration)
+        }
         return ResultsHeader(
             session: session.number,
             startedAt: session.startedAt,
@@ -331,8 +337,7 @@ private extension PerformMutationTesting {
             workers: workers,
             mutantsDiscovered: session.keys.count,
             mutantsToTest: plan.toRun.count,
-            // A resume's was probed before the copy, and what was checked is what is recorded.
-            provenance: resume?.provenance ?? provenance(state.muterConfiguration),
+            provenance: sessionProvenance,
             mutantsReused: resume == nil ? nil : plan.reused.count,
             waived: resume == nil ? nil : state.resumeWaived,
             forced: resume?.forced
@@ -480,7 +485,7 @@ private extension PerformMutationTesting {
         try Task.checkCancellation()
         let clones: [URL]
         do {
-            clones = try makeWorkerDirectories(state.mutatedProjectDirectoryURL, workers - 1)
+            clones = try await makeWorkerDirectories(state.mutatedProjectDirectoryURL, workers - 1)
         } catch {
             // Stopping the run kills a `cp` under way, which then fails.
             try Task.checkCancellation()
@@ -723,15 +728,19 @@ private extension PerformMutationTesting {
     /// A resumed run instead writes `header`, then a `retired` line of the `retiring` keys, to the stopped run's file,
     /// which it opened before the copy, and announces the file once both are written. It is attached to the session
     /// only now: before its header, no line of the session's would belong to one.
+    ///
+    /// `header` probes the toolchain, so it is made before the file is the session's, when a stop at once could write
+    /// the end line first, and then written at once.
     func startResults(
-        _ header: @autoclosure () -> ResultsHeader,
+        _ header: @autoclosure () async -> ResultsHeader,
         retiring retired: [MutantKey],
         in session: TestingSession,
         state: AnyMutationTestState
-    ) {
+    ) async {
         if let resume = state.resumeState {
+            let headerLine = await header()
             session.startResults(in: resume.file)
-            guard write(header(), in: session) else { return }
+            guard write(headerLine, in: session) else { return }
             // Without it, the file would still stand by the earlier results this session doesn't keep.
             if !retired.isEmpty, !write(ResultsRetired(session: session.number, keys: retired), in: session) {
                 return
@@ -741,10 +750,11 @@ private extension PerformMutationTesting {
         }
         let loggingDirectory = state.loggingDirectory
         guard !loggingDirectory.isEmpty else { return }
+        let headerLine = await header()
         do {
             let results = try resultsFiles.create(in: loggingDirectory)
             session.startResults(in: results)
-            if write(header(), in: session) {
+            if write(headerLine, in: session) {
                 notificationCenter.post(name: .resultsFileCreated, object: results.path)
             }
         } catch {
@@ -826,10 +836,15 @@ private extension PerformMutationTesting {
 extension PerformMutationTesting {
     struct WorkerDirectoryError: Error, CustomStringConvertible {
         let clone: URL
-        let status: Int32
+        /// cp's exit status, or nil if it couldn't be started.
+        let status: Int32?
+        /// The first line cp wrote to standard error, such as why a file couldn't be copied.
+        var error: String?
 
         var description: String {
-            "SwiftMutator could not clone the mutated project to \(clone.path) for a parallel worker (cp exited \(status))."
+            let copy = status.map { "cp exited \($0)" } ?? "cp could not be started"
+            let why = error.map { ": \($0)" } ?? ""
+            return "SwiftMutator could not clone the mutated project to \(clone.path) for a parallel worker (\(copy))\(why)."
         }
     }
 
@@ -839,8 +854,8 @@ extension PerformMutationTesting {
     /// about one baseline build of time, and much of the clone's build directory is rewritten rather
     /// than shared. Its copied Clang module caches record the mutated project's path, so they're
     /// discarded first, as `CopyProjectToTempDirectory` does for the mutated project itself.
-    static func cloneMutatedProject(_ project: URL, count: Int) throws -> [URL] {
-        try cloneMutatedProject(project, count: count, copying: copyProject(_:to:))
+    static func cloneMutatedProject(_ project: URL, count: Int) async throws -> [URL] {
+        try await cloneMutatedProject(project, count: count, copying: copyProject(_:to:))
     }
 
     /// `copy` copies the project to one clone. If one fails, the clones made before it are removed, and so is whatever
@@ -848,8 +863,8 @@ extension PerformMutationTesting {
     static func cloneMutatedProject(
         _ project: URL,
         count: Int,
-        copying copy: (_ project: URL, _ clone: URL) throws -> Void
-    ) throws -> [URL] {
+        copying copy: (_ project: URL, _ clone: URL) async throws -> Void
+    ) async throws -> [URL] {
         guard count > 0 else { return [] }
         var clones: [URL] = []
         do {
@@ -858,7 +873,7 @@ extension PerformMutationTesting {
                     .appendingPathComponent("\(project.lastPathComponent)_worker\(index)")
                 try? FileManager.default.removeItem(at: clone)
                 clones.append(clone) // before the copy, which can fail partway through
-                try copy(project, clone)
+                try await copy(project, clone)
                 discardModuleCaches(in: clone)
             }
             return clones
@@ -868,15 +883,12 @@ extension PerformMutationTesting {
         }
     }
 
-    private static func copyProject(_ project: URL, to clone: URL) throws {
+    private static func copyProject(_ project: URL, to clone: URL) async throws {
         #if os(macOS)
-        let copy = Foundation.Process()
-        copy.executableURL = URL(fileURLWithPath: "/bin/cp")
-        copy.arguments = ["-c", "-R", project.path, clone.path]
-        try copy.run()
-        copy.waitUntilExit()
-        guard copy.terminationStatus == 0 else {
-            throw WorkerDirectoryError(clone: clone, status: copy.terminationStatus)
+        let copy = await Foundation.Process().runCommand(url: "/bin/cp", arguments: ["-c", "-R", project.path, clone.path])
+        guard let copy, copy.status == 0 else {
+            let error = copy?.errors.split(separator: "\n").first.map(String.init)
+            throw WorkerDirectoryError(clone: clone, status: copy?.status, error: error)
         }
         #else
         try FileManager.default.copyItem(at: project, to: clone)

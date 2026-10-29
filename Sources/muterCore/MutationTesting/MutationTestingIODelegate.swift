@@ -302,10 +302,12 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         ending: TestRunEnding,
         recordingIn locker: MutatedProjectLocking
     ) async throws {
-        // Foundation calls this as soon as it reaps the process, while waitUntilExit() notices the exit up to
-        // about 60 ms later. Recording the exit here closes that gap: in it, the follower or the time limit
-        // could kill a process that had exited, and report a run that ended by itself as stopped.
-        process.terminationHandler = { _ in _ = ending.record(.exited) }
+        // Foundation calls this as soon as it reaps the process, which can be before `run()` returns. The exit is
+        // recorded first, so neither the follower nor the time limit kills a process that has exited, and reports a
+        // run that ended by itself as stopped. Waiting for the handler holds no thread, unlike `waitUntilExit()`, which
+        // also notices the exit up to about 60 ms later.
+        let exited = Latch()
+        process.terminationHandler = ending.recordingExit(opening: exited)
         try process.run()
         locker.testProcessStarted(process.processIdentifier)
         defer { locker.testProcessEnded(process.processIdentifier) }
@@ -319,9 +321,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
                         process.terminateTree()
                     }
                 }
-                await process.exited()
-                // For a process that doesn't call terminationHandler, such as a test double.
-                _ = ending.record(.exited)
+                await exited.wait()
                 // Stops the follower if it is still watching. The group waits for it, so it never outlives the run.
                 group.cancelAll()
             }

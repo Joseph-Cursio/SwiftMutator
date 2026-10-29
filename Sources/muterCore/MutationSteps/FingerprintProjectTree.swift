@@ -11,7 +11,7 @@ struct FingerprintProjectTree: MutationStep {
     private var listProjectFiles: ProjectFileListing
 
     func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
-        let tree = ProjectTree.fingerprint(
+        let tree = await ProjectTree.fingerprint(
             listingIn: state.projectDirectoryURL,
             hashingIn: state.mutatedProjectDirectoryURL,
             // The last session's too: its report may still be in the project, under another name.

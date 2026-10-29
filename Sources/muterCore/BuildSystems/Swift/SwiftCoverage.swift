@@ -37,10 +37,10 @@ final class SwiftCoverage: BuildSystemCoverage {
 
     func run(
         with configuration: MuterConfiguration
-    ) -> Result<Coverage, CoverageError> {
+    ) async -> Result<Coverage, CoverageError> {
         let executable = configuration.testCommandExecutable
         // Only the coverage run builds and runs tests, so only it has a time limit.
-        guard let testRun = process().runCommand(
+        guard let testRun = await process().runCommand(
             url: executable,
             arguments: configuration.enableCoverageArguments,
             timeLimit: configuration.buildTimeout
@@ -55,11 +55,13 @@ final class SwiftCoverage: BuildSystemCoverage {
             return .failure(.timedOut(after: timeLimit))
         }
         guard testRun.succeeded else {
-            return Self.failedTestsToMerge(in: testRun, log: log)
-                .flatMap { coverage(configuration, failedTests: $0) }
+            switch Self.failedTestsToMerge(in: testRun, log: log) {
+            case let .success(failedTests): return await coverage(configuration, failedTests: failedTests)
+            case let .failure(error): return .failure(error)
+            }
         }
 
-        return coverage(configuration, failedTests: nil)
+        return await coverage(configuration, failedTests: nil)
     }
 
     /// The coverage of the build the coverage run used, exported from every test bundle in it. After a run in which
@@ -67,12 +69,12 @@ final class SwiftCoverage: BuildSystemCoverage {
     private func coverage(
         _ configuration: MuterConfiguration,
         failedTests: FailedTestLine.FailedTests?
-    ) -> Result<Coverage, CoverageError> {
-        guard let binPath = buildDirectory(configuration) else {
+    ) async -> Result<Coverage, CoverageError> {
+        guard let binPath = await buildDirectory(configuration) else {
             return .failure(.noBuildDirectory)
         }
         let profile = binPath + "/codecov/default.profdata"
-        if failedTests != nil, let error = mergeProfiles(
+        if failedTests != nil, let error = await mergeProfiles(
             in: binPath + "/codecov",
             into: profile,
             testCommand: configuration.testCommandExecutable
@@ -82,12 +84,12 @@ final class SwiftCoverage: BuildSystemCoverage {
         guard fileManager.fileExists(atPath: profile) else {
             return .failure(.noProfileData(atPath: profile))
         }
-        let bundles = testBundles(in: binPath, testTargets: testTargets(configuration))
+        let bundles = await testBundles(in: binPath, testTargets: testTargets(configuration))
         guard !bundles.isEmpty else {
             return .failure(.noTestBundles(inDirectory: binPath))
         }
 
-        return llvmCovExport(
+        return await llvmCovExport(
             of: bundles,
             profile: profile,
             llvmCov: llvmTool("llvm-cov", nextTo: configuration.testCommandExecutable)
@@ -131,7 +133,7 @@ final class SwiftCoverage: BuildSystemCoverage {
     /// Merges the profiles the test processes left in `codecov`, one each, into `profile`, as SwiftPM does when every
     /// test passes. Swift Testing's are named `Swift Testing<signature>.<pid>.profraw`, with a space. `testCommand`,
     /// the test command's executable, says where llvm-profdata is.
-    private func mergeProfiles(in codecov: String, into profile: String, testCommand: String) -> CoverageError? {
+    private func mergeProfiles(in codecov: String, into profile: String, testCommand: String) async -> CoverageError? {
         let profiles = ((try? fileManager.contentsOfDirectory(atPath: codecov)) ?? [])
             .filter { $0.hasSuffix(".profraw") }
             .sorted()
@@ -140,7 +142,7 @@ final class SwiftCoverage: BuildSystemCoverage {
             return .noProfileData(atPath: codecov)
         }
         let llvmProfdata = llvmTool("llvm-profdata", nextTo: testCommand)
-        guard let merge = process().runCommand(
+        guard let merge = await process().runCommand(
             url: llvmProfdata.executable,
             arguments: llvmProfdata.arguments + ["merge", "-sparse"] + profiles + ["-o", profile]
         ) else {
@@ -152,8 +154,8 @@ final class SwiftCoverage: BuildSystemCoverage {
 
     /// The build the coverage run used, from `swift test <arguments> --show-codecov-path`, which follows the run's own
     /// arguments, such as `--scratch-path`, and prints `<build>/codecov/<package>.json`.
-    func buildDirectory(_ configuration: MuterConfiguration) -> String? {
-        guard let result = process().runCommand(
+    func buildDirectory(_ configuration: MuterConfiguration) async -> String? {
+        guard let result = await process().runCommand(
             url: configuration.testCommandExecutable,
             arguments: configuration.testCommandArguments + ["--show-codecov-path"]
         ),
@@ -208,8 +210,8 @@ final class SwiftCoverage: BuildSystemCoverage {
     }
 
     /// The package's test targets, from `swift package describe`, or nil if it can't say.
-    private func testTargets(_ configuration: MuterConfiguration) -> Set<String>? {
-        guard let described = process().runCommand(
+    private func testTargets(_ configuration: MuterConfiguration) async -> Set<String>? {
+        guard let described = await process().runCommand(
             url: configuration.testCommandExecutable,
             arguments: ["package", "describe", "--type", "json"]
         ),

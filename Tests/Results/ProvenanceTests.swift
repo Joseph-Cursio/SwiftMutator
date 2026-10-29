@@ -15,7 +15,7 @@ final class ProvenanceTests: XCTestCase {
     Build version 27A266a
     """
 
-    func test_asksSwiftAndXcodebuildForTheirVersion() {
+    func test_asksSwiftAndXcodebuildForTheirVersion() async {
         var asked: [[String]] = []
         var hashed: [URL] = []
         let output: (String, [String]) -> String? = { executable, arguments in
@@ -28,14 +28,14 @@ final class ProvenanceTests: XCTestCase {
             return "9f2c"
         }
 
-        let swift = Provenance.probe(
+        let swift = await Provenance.probe(
             MuterConfiguration(executable: "/Users/me/.swiftly/bin/swift", arguments: ["test"]),
             executable: swiftMutator,
             environment: [:],
             output: output,
             sha256: sha256
         )
-        let xcodebuild = Provenance.probe(
+        let xcodebuild = await Provenance.probe(
             MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test", "-scheme", "Sum"]),
             executable: swiftMutator,
             environment: [:],
@@ -54,9 +54,9 @@ final class ProvenanceTests: XCTestCase {
         XCTAssertEqual(hashed, [swiftMutator, swiftMutator], "only SwiftMutator's own executable is hashed")
     }
 
-    func test_aVersionCommandThatSaysNothing_recordsNoVersion() {
+    func test_aVersionCommandThatSaysNothing_recordsNoVersion() async {
         for said in [nil, "", " \n"] {
-            let provenance = Provenance.probe(
+            let provenance = await Provenance.probe(
                 MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"]),
                 executable: nil,
                 environment: [:],
@@ -67,14 +67,14 @@ final class ProvenanceTests: XCTestCase {
         }
     }
 
-    func test_aWrapperExecutableIsHashed_notRun() throws {
+    func test_aWrapperExecutableIsHashed_notRun() async throws {
         let directory = try makeTemporaryDirectory()
         let wrapper = "\(directory)/test-with-sdk.sh"
         try Data("abc".utf8).write(to: URL(fileURLWithPath: wrapper))
         var ran: [String] = []
 
         // Even when `buildSystem` says it runs `swift test`: a wrapper could do anything when run.
-        let provenance = Provenance.probe(
+        let provenance = await Provenance.probe(
             MuterConfiguration(executable: wrapper, arguments: ["test"], buildSystem: .swift),
             executable: nil,
             environment: [:],
@@ -92,8 +92,8 @@ final class ProvenanceTests: XCTestCase {
         )
     }
 
-    func test_keepsOnlySDKROOTDeveloperDirAndToolchains_andLeavesOutUnsetOnes() throws {
-        let provenance = Provenance.probe(
+    func test_keepsOnlySDKROOTDeveloperDirAndToolchains_andLeavesOutUnsetOnes() async throws {
+        let provenance = await Provenance.probe(
             MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"]),
             executable: nil,
             environment: [
@@ -118,12 +118,12 @@ final class ProvenanceTests: XCTestCase {
         )
     }
 
-    func test_recordsTheExecutablesHash() throws {
+    func test_recordsTheExecutablesHash() async throws {
         let directory = try makeTemporaryDirectory()
         let executable = URL(fileURLWithPath: "\(directory)/swift-mutator")
         try Data("abc".utf8).write(to: executable)
 
-        let provenance = Provenance.probe(
+        let provenance = await Provenance.probe(
             MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"]),
             executable: executable,
             environment: [:],
@@ -137,13 +137,13 @@ final class ProvenanceTests: XCTestCase {
         ))
     }
 
-    func test_aMissingExecutable_hasNoHash() throws {
+    func test_aMissingExecutable_hasNoHash() async throws {
         let directory = try makeTemporaryDirectory()
         let missing = URL(fileURLWithPath: "\(directory)/swift-mutator")
         let wrapper = MuterConfiguration(executable: "\(directory)/test-with-sdk.sh", arguments: ["test"])
 
-        let deleted = Provenance.probe(wrapper, executable: missing, environment: [:], output: { _, _ in nil })
-        let unknown = Provenance.probe(wrapper, executable: nil, environment: [:], output: { _, _ in nil })
+        let deleted = await Provenance.probe(wrapper, executable: missing, environment: [:], output: { _, _ in nil })
+        let unknown = await Provenance.probe(wrapper, executable: nil, environment: [:], output: { _, _ in nil })
 
         XCTAssertEqual(
             deleted.swiftMutator,
@@ -157,10 +157,10 @@ final class ProvenanceTests: XCTestCase {
         XCTAssertNil(FileDigest.sha256(of: URL(fileURLWithPath: directory)), "a folder has no hash")
     }
 
-    func test_withoutATestCommand_asksNothing_andHashesNothing() {
+    func test_withoutATestCommand_asksNothing_andHashesNothing() async {
         var asked: [String] = []
 
-        let provenance = Provenance.probe(
+        let provenance = await Provenance.probe(
             MuterConfiguration(),
             executable: nil,
             environment: [:],
@@ -180,8 +180,8 @@ final class ProvenanceTests: XCTestCase {
     }
 
     // The arguments are the ones the command that continues a stopped run repeats: by default, this process's.
-    func test_recordsThisProcess_itsHost_andItsArguments() {
-        let provenance = Provenance.probe(
+    func test_recordsThisProcess_itsHost_andItsArguments() async {
+        let provenance = await Provenance.probe(
             MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"]),
             executable: nil,
             environment: [:],

@@ -1,48 +1,51 @@
 import Foundation
 
 extension MuterConfiguration {
-    private static let generators = [
+    /// Tried in order. The last makes a configuration from anything.
+    private static let generators: [([URL]) async -> MuterConfiguration?] = [
         generateXcodeProjectConfiguration,
         generateXcodeWorkspaceConfiguration,
         generateSPMConfiguration,
         generateEmptyConfiguration,
     ]
 
-    init(from directoryContents: [FilePath]) {
+    /// The configuration the first generator that knows the project in `directoryContents` makes.
+    init(from directoryContents: [FilePath]) async {
         let directoryContents = directoryContents.map(URL.init(fileURLWithPath:))
-        let generatedConfiguration = MuterConfiguration
-            .generators
-            .compactMap { $0(directoryContents) }
-            .first!
-
-        self = generatedConfiguration
+        for generate in MuterConfiguration.generators {
+            if let generatedConfiguration = await generate(directoryContents) {
+                self = generatedConfiguration
+                return
+            }
+        }
+        self = MuterConfiguration(executable: "", arguments: [], excludeList: [])
     }
 }
 
 private extension MuterConfiguration {
-    static func generateXcodeProjectConfiguration(from directoryContents: [URL]) -> MuterConfiguration? {
+    static func generateXcodeProjectConfiguration(from directoryContents: [URL]) async -> MuterConfiguration? {
         guard !directoryContainsXcodeWorkspace(directoryContents),
               let index = directoryContents.firstIndex(where: { $0.lastPathComponent.contains(".xcodeproj") }),
-              let arguments = arguments(forProjectFileAt: directoryContents[index], isWorkSpace: false)
+              let arguments = await arguments(forProjectFileAt: directoryContents[index], isWorkSpace: false)
         else {
             return nil
         }
 
-        return MuterConfiguration(
+        return await MuterConfiguration(
             executable: executablePath("xcodebuild"),
             arguments: arguments
         )
     }
 
-    static func generateXcodeWorkspaceConfiguration(from directoryContents: [URL]) -> MuterConfiguration? {
+    static func generateXcodeWorkspaceConfiguration(from directoryContents: [URL]) async -> MuterConfiguration? {
         guard directoryContainsXcodeWorkspace(directoryContents),
               let index = directoryContents.firstIndex(where: { $0.lastPathComponent.contains(".xcodeproj") }),
-              let arguments = arguments(forProjectFileAt: directoryContents[index], isWorkSpace: true)
+              let arguments = await arguments(forProjectFileAt: directoryContents[index], isWorkSpace: true)
         else {
             return nil
         }
 
-        return MuterConfiguration(
+        return await MuterConfiguration(
             executable: executablePath("xcodebuild"),
             arguments: arguments
         )
@@ -59,7 +62,7 @@ private extension MuterConfiguration {
     static func arguments(
         forProjectFileAt url: URL,
         isWorkSpace: Bool
-    ) -> [String]? {
+    ) async -> [String]? {
         guard let projectFile = try? String(
             contentsOf: url.appendingPathComponent("project.pbxproj"),
             encoding: .utf8
@@ -77,21 +80,21 @@ private extension MuterConfiguration {
         ]
 
         let destination = projectFile.contains("SDKROOT = iphoneos") ?
-            ["-destination", "platform=iOS Simulator,name=\(iosDestination())"] :
-            ["-destination", macOSDestionation(defaultArguments)]
+            ["-destination", "platform=iOS Simulator,name=\(await iosDestination())"] :
+            ["-destination", await macOSDestionation(defaultArguments)]
 
         return defaultArguments + destination + ["test"]
     }
 
-    private static func executablePath(_ exec: String) -> String {
-        current.process().which(exec) ?? ""
+    private static func executablePath(_ exec: String) async -> String {
+        await current.process().which(exec) ?? ""
     }
 }
 
 private extension MuterConfiguration {
-    static func generateSPMConfiguration(from directoryContents: [URL]) -> MuterConfiguration? {
+    static func generateSPMConfiguration(from directoryContents: [URL]) async -> MuterConfiguration? {
         if directoryContents.contains(where: { $0.lastPathComponent == "Package.swift" }) {
-            return MuterConfiguration(
+            return await MuterConfiguration(
                 executable: executablePath("swift"),
                 arguments: ["test"],
                 excludeList: swiftPackageManifestFiles(from: directoryContents)
@@ -129,9 +132,9 @@ private extension MuterConfiguration {
         }
     }
 
-    private static func iosDestination() -> String {
+    private static func iosDestination() async -> String {
         let process = current.process()
-        guard let simulatorsListOutput: Data = process.runProcess(
+        guard let simulatorsListOutput: Data = await process.runProcess(
             url: "/usr/bin/xcrun",
             arguments: ["simctl", "list", "--json"]
         )
@@ -161,9 +164,9 @@ private extension MuterConfiguration {
         }
     }
 
-    private static func macOSDestionation(_ projectArguments: [String]) -> String {
+    private static func macOSDestionation(_ projectArguments: [String]) async -> String {
         let process = current.process()
-        guard let destinationsOutput: String = process.runProcess(
+        guard let destinationsOutput: String = await process.runProcess(
             url: "/usr/bin/xcodebuild",
             arguments: projectArguments + ["-showdestinations"]
         )

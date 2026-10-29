@@ -6,7 +6,7 @@ final class SwiftPackageSourcesTests: MuterTestCase {
     private var arguments = ["test"]
 
     // As `swift package describe --type json` gives each type of target, from a package that has one of each.
-    func test_listsTheSwiftFilesOfEveryTarget_butTestsPluginsAndSnippets() {
+    func test_listsTheSwiftFilesOfEveryTarget_butTestsPluginsAndSnippets() async {
         let targets = [
             target("executable", path: "Sources/Tool", sources: ["main.swift"]),
             target("macro", path: "Sources/Macros", sources: ["Macros.swift"]),
@@ -18,7 +18,7 @@ final class SwiftPackageSourcesTests: MuterTestCase {
         ]
         describing(["/project": targets])
 
-        let files = files(in: "/project")
+        let files = await files(in: "/project")
 
         XCTAssertEqual(files, .success([
             "Sources/Lib/Lib.swift",
@@ -31,16 +31,17 @@ final class SwiftPackageSourcesTests: MuterTestCase {
         ])
     }
 
-    func test_aTargetAtItsPackagesRoot() {
+    func test_aTargetAtItsPackagesRoot() async {
         describing(["/project": [target("library", path: ".", sources: ["Root.swift"])]])
 
-        XCTAssertEqual(files(in: "/project"), .success(["Root.swift"]))
+        let result = await files(in: "/project")
+        XCTAssertEqual(result, .success(["Root.swift"]))
     }
 
     // A local package in the project that the package depends on is built with it, and its files are copied with the
     // project, so its own local packages are described too. One outside the project isn't copied, even if its path
     // starts with the project's, and a package from a repository has no path.
-    func test_theLocalPackagesInTheProject_thatThePackageDependsOn_areListedToo() {
+    func test_theLocalPackagesInTheProject_thatThePackageDependsOn_areListedToo() async {
         describing(
             [
                 "/project": [target("library", path: "Sources/App", sources: ["App.swift"])],
@@ -58,7 +59,8 @@ final class SwiftPackageSourcesTests: MuterTestCase {
             ]
         )
 
-        XCTAssertEqual(files(in: "/project"), .success([
+        let result = await files(in: "/project")
+        XCTAssertEqual(result, .success([
             "Packages/Core/Sources/Core/Core.swift",
             "Packages/Util/Sources/Util/Util.swift",
             "Sources/App/App.swift",
@@ -70,7 +72,7 @@ final class SwiftPackageSourcesTests: MuterTestCase {
 
     // The tests are those of the package the test command names, run from the project's folder, which may hold another
     // package, such as one for the project's tools.
-    func test_thePackageTheTestCommandNames_isDescribed() {
+    func test_thePackageTheTestCommandNames_isDescribed() async {
         describing([
             "/project": [target("executable", path: "Sources/Tool", sources: ["main.swift"])],
             "/project/Packages/App": [target("library", path: "Sources/App", sources: ["App.swift"])],
@@ -84,11 +86,12 @@ final class SwiftPackageSourcesTests: MuterTestCase {
         for given in givenPaths {
             arguments = ["test"] + given + ["--parallel"]
 
-            XCTAssertEqual(files(in: "/project"), .success(["Packages/App/Sources/App/App.swift"]), "\(given)")
+            let result = await files(in: "/project")
+            XCTAssertEqual(result, .success(["Packages/App/Sources/App/App.swift"]), "\(given)")
         }
     }
 
-    func test_thePackageTheTestCommandNames_canBeTheProjectsOwn() {
+    func test_thePackageTheTestCommandNames_canBeTheProjectsOwn() async {
         describing(["/project": [target("library", path: "Sources/Lib", sources: ["Lib.swift"])]])
 
         let givenPaths = [
@@ -100,14 +103,15 @@ final class SwiftPackageSourcesTests: MuterTestCase {
         for given in givenPaths {
             arguments = ["test"] + given
 
-            XCTAssertEqual(files(in: "/project"), .success(["Sources/Lib/Lib.swift"]), "\(given)")
+            let result = await files(in: "/project")
+            XCTAssertEqual(result, .success(["Sources/Lib/Lib.swift"]), "\(given)")
         }
         XCTAssertEqual(Set(process.commandsRun.compactMap { $0.dropFirst(3).first }), ["/project"])
     }
 
     // A package in a folder of the project, which holds the tests, can depend on the one at its root: its files are
     // built and tested too.
-    func test_thePackageAtTheProjectsRoot_isListed_whenTheTestedPackageDependsOnIt() {
+    func test_thePackageAtTheProjectsRoot_isListed_whenTheTestedPackageDependsOnIt() async {
         arguments = ["test", "--package-path", "Integration"]
         describing(
             [
@@ -120,16 +124,17 @@ final class SwiftPackageSourcesTests: MuterTestCase {
             dependencies: ["/project/Integration": ["/project"]]
         )
 
-        XCTAssertEqual(files(in: "/project"), .success([
+        let result = await files(in: "/project")
+        XCTAssertEqual(result, .success([
             "Integration/Sources/Glue/Glue.swift",
             "Sources/Core/Core.swift",
         ]))
     }
 
-    func test_aPackageTheTestCommandNamesOutsideTheProject_isNotDescribed() {
+    func test_aPackageTheTestCommandNamesOutsideTheProject_isNotDescribed() async {
         arguments = ["test", "--package-path", "../Elsewhere"]
 
-        let files = files(in: "/project")
+        let files = await files(in: "/project")
 
         XCTAssertEqual(files, .failure(.packageOutsideProject("../Elsewhere")))
         XCTAssertEqual(files.failure?.reason, "the package the test command names, ../Elsewhere, isn't in the project")
@@ -138,14 +143,15 @@ final class SwiftPackageSourcesTests: MuterTestCase {
 
     // Where the tests can't use the sandbox, as in a container, nor can describe compile the manifest in one. The flags
     // the manifest is compiled with can add or take out targets in `#if` blocks.
-    func test_theTestCommandsSandboxAndManifestOptions_areForwarded() {
+    func test_theTestCommandsSandboxAndManifestOptions_areForwarded() async {
         arguments = [
             "test", "-Xmanifest", "-DWITH_EXTRA", "--disable-sandbox", "--filter", "AppTests",
             "-Xbuild-tools-swiftc=-DTOOLS", "-Xswiftc", "-DNOT_FOR_THE_MANIFEST",
         ]
         describing(["/project": [target("library", path: "Sources/App", sources: ["App.swift"])]])
 
-        XCTAssertEqual(files(in: "/project"), .success(["Sources/App/App.swift"]))
+        let result = await files(in: "/project")
+        XCTAssertEqual(result, .success(["Sources/App/App.swift"]))
         XCTAssertEqual(process.commandsRun, [
             [
                 swift, "package", "--package-path", "/project",
@@ -156,8 +162,8 @@ final class SwiftPackageSourcesTests: MuterTestCase {
     }
 
     // A wrapper may run anything with describe's arguments, even the tests.
-    func test_aTestCommandThatIsntSwift_isNotAskedToDescribe() {
-        let files = SwiftPackageSources.files(
+    func test_aTestCommandThatIsntSwift_isNotAskedToDescribe() async {
+        let files = await SwiftPackageSources.files(
             inProjectAt: "/project",
             testedBy: MuterConfiguration(executable: "/usr/bin/env", arguments: ["swift", "test"], buildSystem: .swift),
             process: { self.process }
@@ -170,22 +176,22 @@ final class SwiftPackageSourcesTests: MuterTestCase {
 
     // Without a manifest in the folder it's given, SwiftPM describes the first package in the folders above, whose
     // targets' paths are relative to it.
-    func test_aPackageThatSwiftPMFoundAboveTheFolder_isRefused() {
+    func test_aPackageThatSwiftPMFoundAboveTheFolder_isRefused() async {
         let elsewhere = description(path: "/", targets: [target("library", path: "Sources/X", sources: [])])
         process.commandResult = { _ in self.result(output: elsewhere) }
 
-        let files = files(in: "/project")
+        let files = await files(in: "/project")
 
         XCTAssertEqual(files, .failure(.noPackage(packagePath: "/project")))
         XCTAssertEqual(files.failure?.reason, "there's no Package.swift in /project")
     }
 
-    func test_aPackageThatCantBeDescribed_failsWithTheErrorDescribeGave() {
+    func test_aPackageThatCantBeDescribed_failsWithTheErrorDescribeGave() async {
         process.commandResult = { _ in
             self.result(status: 1, errors: "warning: an old cache\nerror: Could not find Package.swift in /project\n")
         }
 
-        let files = files(in: "/project")
+        let files = await files(in: "/project")
 
         XCTAssertEqual(
             files,
@@ -198,31 +204,32 @@ final class SwiftPackageSourcesTests: MuterTestCase {
     }
 
     // Its files are built with the package, so listing the package's alone would leave them out.
-    func test_aLocalPackageThatCantBeDescribed_failsTheWholeListing() {
+    func test_aLocalPackageThatCantBeDescribed_failsTheWholeListing() async {
         describing(
             ["/project": [target("library", path: "Sources/App", sources: ["App.swift"])]],
             dependencies: ["/project": ["/project/Packages/Core"]]
         )
 
+        let result = await files(in: "/project")
         XCTAssertEqual(
-            files(in: "/project"),
+            result,
             .failure(.describeFailed(packagePath: "/project/Packages/Core", error: ""))
         )
     }
 
-    func test_whenDescribeCantBeStarted() {
-        let files = files(in: "/project")
+    func test_whenDescribeCantBeStarted() async {
+        let files = await files(in: "/project")
 
         XCTAssertEqual(files, .failure(.couldNotRun(swift)))
         XCTAssertEqual(files.failure?.reason, "/path/to/swift couldn't be started")
     }
 
     // Such as a description without the dependencies, which would otherwise leave the local packages out unsaid.
-    func test_whenWhatDescribePrintedCantBeRead() {
+    func test_whenWhatDescribePrintedCantBeRead() async {
         for output in ["Fetching https://example.com/dependency\n", #"{"path": "/project", "targets": []}"#] {
             process.commandResult = { _ in self.result(output: output) }
 
-            let files = files(in: "/project")
+            let files = await files(in: "/project")
 
             XCTAssertEqual(files, .failure(.unreadableDescription(packagePath: "/project")), output)
             XCTAssertEqual(
@@ -234,7 +241,7 @@ final class SwiftPackageSourcesTests: MuterTestCase {
 
     // describe lists a target's files through a link to a folder. Mutated through it, a file outside the project would
     // be rewritten where it is, and one two targets share would be mutated twice. A link to a file is replaced.
-    func test_filesThroughALinkToAFolder_areListedWhereTheyAre_andThoseOutsideTheProjectAreLeftOut() throws {
+    func test_filesThroughALinkToAFolder_areListedWhereTheyAre_andThoseOutsideTheProjectAreLeftOut() async throws {
         let (directory, link) = try makeDirectoryWithSymbolicLink()
         let project = directory + "/Project"
         try makeFiles(
@@ -263,7 +270,8 @@ final class SwiftPackageSourcesTests: MuterTestCase {
             ]))
         }
 
-        XCTAssertEqual(files(in: projectThroughLink), .success([
+        let result = await files(in: projectThroughLink)
+        XCTAssertEqual(result, .success([
             "Common/Common.swift",
             "Sources/Lib/Lib.swift",
             "Sources/Lib/Linked.swift",
@@ -272,7 +280,7 @@ final class SwiftPackageSourcesTests: MuterTestCase {
 
     // SwiftPM's own description of a package on disk, whose local package's path it gives with links resolved, and the
     // project's through a link, as a project in `/tmp` is.
-    func test_aRealPackage() throws {
+    func test_aRealPackage() async throws {
         let swift = "/usr/bin/swift"
         try XCTSkipUnless(FileManager.default.isExecutableFile(atPath: swift), "no \(swift)")
         let (directory, link) = try makeDirectoryWithSymbolicLink()
@@ -313,7 +321,7 @@ final class SwiftPackageSourcesTests: MuterTestCase {
             files: ["Sources/Core/Core.swift", "Tests/CoreTests/CoreTests.swift"]
         )
 
-        let files = SwiftPackageSources.files(
+        let files = await SwiftPackageSources.files(
             inProjectAt: link,
             testedBy: MuterConfiguration(executable: swift, arguments: ["test"]),
             process: MuterProcessFactory.makeProcess
@@ -326,8 +334,8 @@ final class SwiftPackageSourcesTests: MuterTestCase {
         ]))
     }
 
-    private func files(in root: FilePath) -> Result<[FilePath], SwiftPackageSources.Failure> {
-        SwiftPackageSources.files(
+    private func files(in root: FilePath) async -> Result<[FilePath], SwiftPackageSources.Failure> {
+        await SwiftPackageSources.files(
             inProjectAt: root,
             testedBy: MuterConfiguration(executable: swift, arguments: arguments),
             process: { self.process }

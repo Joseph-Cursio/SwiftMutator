@@ -21,7 +21,7 @@ struct DiscoverSourceFiles: MutationStep {
 
         let sourceFileCandidates = state.filesToMutate.isEmpty
             ? discoverSourceFiles(
-                among: try candidatePaths(in: state),
+                among: try await candidatePaths(in: state),
                 inDirectoryAt: state.mutatedProjectDirectoryURL.path,
                 excludingPathsIn: state.muterConfiguration.excludeFileList,
                 ignoringFilesWithoutCoverage: state.projectCoverage.filesWithoutCoverage
@@ -72,10 +72,10 @@ private extension DiscoverSourceFiles {
     /// The paths in the mutated project, relative to it, that discovery picks from. For a SwiftPM project, the Swift
     /// files its targets compile, and those of the local packages in it that it depends on, as `swift package describe`
     /// gives them. Otherwise, or if that fails, every path in the project that isn't hidden or ignored.
-    private func candidatePaths(in state: AnyMutationTestState) throws -> [FilePath] {
+    private func candidatePaths(in state: AnyMutationTestState) async throws -> [FilePath] {
         let rootPath = state.mutatedProjectDirectoryURL.path
         if state.muterConfiguration.buildSystem == .swift {
-            switch packageSourceFiles(inProjectAt: rootPath, testedBy: state.muterConfiguration) {
+            switch await packageSourceFiles(inProjectAt: rootPath, testedBy: state.muterConfiguration) {
             case let .success(files):
                 return files
             case let .failure(failure):
@@ -85,7 +85,7 @@ private extension DiscoverSourceFiles {
             }
         }
 
-        return pathsNotHiddenOrIgnored(in: rootPath, listedIn: state.projectDirectoryURL)
+        return await pathsNotHiddenOrIgnored(in: rootPath, listedIn: state.projectDirectoryURL)
     }
 
     /// `SwiftPackageSources.files`, run in the mutated project at `rootPath`, as the coverage run and the tests are:
@@ -93,14 +93,14 @@ private extension DiscoverSourceFiles {
     private func packageSourceFiles(
         inProjectAt rootPath: FilePath,
         testedBy configuration: MuterConfiguration
-    ) -> Result<[FilePath], SwiftPackageSources.Failure> {
+    ) async -> Result<[FilePath], SwiftPackageSources.Failure> {
         let currentDirectoryPath = fileManager.currentDirectoryPath
         fileManager.changeCurrentDirectoryPath(rootPath)
         defer {
             fileManager.changeCurrentDirectoryPath(currentDirectoryPath)
         }
 
-        return SwiftPackageSources.files(inProjectAt: rootPath, testedBy: configuration, process: process)
+        return await SwiftPackageSources.files(inProjectAt: rootPath, testedBy: configuration, process: process)
     }
 
     /// Every path in the mutated project at `rootPath`, relative to it, but those in a hidden folder or hidden
@@ -110,10 +110,10 @@ private extension DiscoverSourceFiles {
     /// left out for being ignored. A listed path that isn't on disk matches one that is whatever their case: on a disk
     /// that ignores it, as macOS's does, a file renamed only in case, without `git mv`, is listed by its old name. On a
     /// disk that doesn't, an ignored file whose path differs from a listed one's only in case is still left out.
-    private func pathsNotHiddenOrIgnored(in rootPath: FilePath, listedIn projectURL: URL) -> [FilePath] {
+    private func pathsNotHiddenOrIgnored(in rootPath: FilePath, listedIn projectURL: URL) async -> [FilePath] {
         let paths = (fileManager.subpaths(atPath: rootPath) ?? [])
             .filter { !$0.split(separator: "/").contains { $0.hasPrefix(".") } }
-        guard let listed = listProjectFiles(projectURL) else {
+        guard let listed = await listProjectFiles(projectURL) else {
             return paths
         }
 

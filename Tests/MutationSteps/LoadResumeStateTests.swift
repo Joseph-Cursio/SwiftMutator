@@ -47,7 +47,7 @@ final class LoadResumeStateTests: MuterTestCase {
     // A run still writing the file holds its lock. The refusal comes before anything is removed or copied, and names
     // the process that wrote the file's last session, which is likely the one that holds it.
     func test_aLockedFile_isRefused_namingTheLastSessionsProcessAndHost() async throws {
-        try writeResults(
+        try await writeResults(
             ResultsHeader.make(project: projectTree(), provenance: provenance(process: 1200, host: "laptop.local")),
             ResultsEnd.make(),
             ResultsHeader.make(
@@ -73,8 +73,9 @@ final class LoadResumeStateTests: MuterTestCase {
     }
 
     func test_aLogFolder_findsItsResultsFile() async throws {
-        let header = ResultsHeader.make(project: projectTree())
-        let mutant = MutantResult.make(path: "Sources/Sum.swift", fileSHA256: projectTree().files["Sources/Sum.swift"])
+        let tree = await projectTree()
+        let header = ResultsHeader.make(project: tree)
+        let mutant = MutantResult.make(path: "Sources/Sum.swift", fileSHA256: tree.files["Sources/Sum.swift"])
         try writeResults(header, mutant, ResultsEnd.make(recorded: 1))
         resume(logs)
 
@@ -95,7 +96,7 @@ final class LoadResumeStateTests: MuterTestCase {
 
     // Every reason is found before the copy, so one message says all there is to fix, and the file's lock goes with it.
     func test_everyRefusal_comesTogether_beforeTheCopy() async throws {
-        try writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
+        try await writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
         state.muterConfiguration = MuterConfiguration(
             executable: "/usr/bin/swift",
             arguments: ["test"],
@@ -126,7 +127,7 @@ final class LoadResumeStateTests: MuterTestCase {
     }
 
     func test_aToolchainChange_isLetThroughByForce_andRecordedAsForced() async throws {
-        try writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
+        try await writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
         let changed = provenance(toolchain: "Apple Swift version 6.5")
         var probed: [MuterConfiguration] = []
         current.provenance = { configuration in
@@ -145,7 +146,7 @@ final class LoadResumeStateTests: MuterTestCase {
     }
 
     func test_aChangedFileAGlobMatches_isLetThrough() async throws {
-        try writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
+        try await writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
         try write(["README.md": "a changed readme", "Docs/notes.txt": "new notes"], in: project)
         resume(resultsPath, ignoring: ["README.md", "*.txt"])
 
@@ -161,7 +162,7 @@ final class LoadResumeStateTests: MuterTestCase {
     // result depends on goes ahead, and is said, without --resume-ignoring.
     func test_aWorkersChangeInMuterConfYml_goesAhead_andIsSaid() async throws {
         try write(["muter.conf.yml": "mutationTestWorkers: 1\n"], in: project)
-        try writeResults(
+        try await writeResults(
             ResultsHeader.make(
                 project: projectTree(),
                 configuration: MuterConfiguration(
@@ -189,7 +190,7 @@ final class LoadResumeStateTests: MuterTestCase {
 
     // Saving the report there would replace every result the resume keeps.
     func test_aReportPathThatIsTheResultsFile_isRefused() async throws {
-        try writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
+        try await writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
         resume(resultsPath, reportURL: URL(fileURLWithPath: resultsPath))
 
         await assertRefused(
@@ -203,7 +204,7 @@ final class LoadResumeStateTests: MuterTestCase {
 
     // A `swift --version` that stopping the run killed says nothing, which would read as a toolchain change.
     func test_aKilledProbe_throwsCancellation_notARefusal() async throws {
-        try writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
+        try await writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
         current.provenance = { _ in
             withUnsafeCurrentTask { $0?.cancel() }
             return self.provenance(toolchain: nil)
@@ -216,7 +217,7 @@ final class LoadResumeStateTests: MuterTestCase {
     }
 
     func test_aNewerFormat_passesItsErrorThrough() async throws {
-        try writeResults(ResultsHeader.make(formatVersion: 3, project: projectTree()))
+        try await writeResults(ResultsHeader.make(formatVersion: 3, project: projectTree()))
 
         await AssertThrowsError(try await sut.run(with: state)) { error in
             XCTAssertEqual(error as? ResultsFileError, .newerFormat(path: self.resultsPath, version: 3))
@@ -246,8 +247,8 @@ private extension LoadResumeStateTests {
     }
 
     /// The project's files as they are now.
-    func projectTree() -> ProjectTree {
-        ProjectTree.fingerprint(
+    func projectTree() async -> ProjectTree {
+        await ProjectTree.fingerprint(
             listingIn: URL(fileURLWithPath: project),
             hashingIn: URL(fileURLWithPath: project),
             excluding: [],

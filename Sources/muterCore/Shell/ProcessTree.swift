@@ -64,7 +64,8 @@ enum ProcessTree {
     }
 
     /// SIGKILLs every process SwiftMutator started, and every process those started, but not SwiftMutator:
-    /// for a run that is stopping, whose blocking steps (coverage, `cp`, `find`, `which`) no cancellation reaches.
+    /// for a run that is stopping, whose steps' commands (coverage, `cp`, `find`, `which`) no cancellation reaches,
+    /// as waiting for a command ignores cancellation.
     static func killDescendantsOfThisProcess() {
         terminateDescendants(of: getpid(), descendants: descendants(of:)) { pid, signal in
             kill(pid, signal)
@@ -180,8 +181,9 @@ enum ProcessTree {
         let pipe = Pipe()
         listing.standardOutput = pipe
         guard (try? listing.run()) != nil else { return [] }
-        listing.waitUntilExit()
+        // Read before waiting: a listing of a few thousand processes overfills the pipe, and `ps` would never exit.
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        listing.waitUntilExit()
         guard let text = String(data: data, encoding: .utf8) else { return [] }
 
         var childrenByParent: [Int32: [Int32]] = [:]

@@ -33,7 +33,7 @@ final class DiscoverProjectCoverage: MutationStep {
             fileManager.changeCurrentDirectoryPath(currentDirectoryPath)
         }
 
-        let result = coverage.run(with: state.muterConfiguration)
+        let result = await coverage.run(with: state.muterConfiguration)
         // Kept as the baseline's output is, even from a stopped run: what it printed can show which test hung.
         let log = coverage.coverageRunOutput.flatMap { fileManager.keepLog($0, named: Self.logFileName, state: state) }
         // Stopping the run kills the coverage run, which then fails, but mutation testing won't go on without it.

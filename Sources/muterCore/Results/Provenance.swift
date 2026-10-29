@@ -44,11 +44,11 @@ extension Provenance {
         _ configuration: MuterConfiguration,
         executable: URL? = Bundle.main.executableURL?.resolvingSymlinksInPath(),
         environment: [String: String] = ProcessInfo.processInfo.environment,
-        output: (String, [String]) -> String? = { current.process().runProcess(url: $0, arguments: $1) },
+        output: (String, [String]) async -> String? = { await current.process().runProcess(url: $0, arguments: $1) },
         sha256: (URL) -> String? = FileDigest.sha256(of:),
         arguments: [String] = current.commandLineArguments
-    ) -> Provenance {
-        Provenance(
+    ) async -> Provenance {
+        await Provenance(
             swiftMutator: Build(
                 version: version,
                 executablePath: executable?.path,
@@ -91,12 +91,12 @@ private extension Provenance.Toolchain {
     init(
         testCommand: String,
         environment: [String: String],
-        output: (String, [String]) -> String?,
+        output: (String, [String]) async -> String?,
         sha256: (URL) -> String?
-    ) {
+    ) async {
         let name = (testCommand as NSString).lastPathComponent
         if let arguments = Self.versionArguments[name] {
-            self.init(
+            await self.init(
                 testCommandVersion: output(testCommand, arguments)?.trimmed.nilIfEmpty,
                 testExecutableSHA256: nil,
                 environment: environment

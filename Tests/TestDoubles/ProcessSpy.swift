@@ -24,22 +24,22 @@ final class ProcessSpy: MuterProcess {
     /// Set to simulate a process that can't be launched at all — what `Foundation.Process.run()` throws
     /// when `executableURL` names a file that doesn't exist.
     var runError: Error?
+    /// Exits at once: writes `outputWrittenBeforeExit`, then calls `terminationHandler`, as Foundation does once it
+    /// reaps a process, which can be before `run()` returns. A process that can't be launched calls neither.
     func run() throws {
         runCalled = true
 
         if let runError {
             throw runError
         }
+        try? (standardOutput as? FileHandle)?.write(contentsOf: outputWrittenBeforeExit)
+        // This isn't a Foundation.Process, so the handler gets a stand-in.
+        terminationHandler?(Foundation.Process())
     }
 
-    var waitUntilExitCalled = false
     /// What the process writes to its `standardOutput` before it exits, such as a test command's log.
     /// Separate from `stdoutToBeReturned`, which is what `runProcess` returns.
     var outputWrittenBeforeExit = Data()
-    func waitUntilExit() {
-        waitUntilExitCalled = true
-        try? (standardOutput as? FileHandle)?.write(contentsOf: outputWrittenBeforeExit)
-    }
 
     /// Each process `runProcess` was asked for, its executable first, in order.
     private(set) var processesRun: [[String]] = []

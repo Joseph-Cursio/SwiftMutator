@@ -102,13 +102,16 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
             }
         }
         let result = await task.result
-        // On the queue, so that no handler is under way. Once a signal came, the observer stays, so that a second one
-        // still ends SwiftMutator at once.
-        let signal: Int32? = queue.sync {
-            timers.forEach { $0.cancel() }
-            timers = []
-            if record.signal == nil { observer.stop() }
-            return record.signal
+        // On the queue, so that no handler is under way, and awaited rather than waited for: a handler can take a
+        // while, writing to a standard error nobody reads, or letting a suspension settle. Once a signal came, the
+        // observer stays, so that a second one still ends SwiftMutator at once.
+        let signal: Int32? = await withCheckedContinuation { continuation in
+            queue.async { [self] in
+                timers.forEach { $0.cancel() }
+                timers = []
+                if record.signal == nil { observer.stop() }
+                continuation.resume(returning: record.signal)
+            }
         }
         if signal != nil { killDescendants() } // whatever started after the last sweep
         return Ended(result: result, signal: signal)

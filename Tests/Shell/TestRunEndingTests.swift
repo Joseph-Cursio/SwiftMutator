@@ -22,6 +22,30 @@ final class TestRunEndingTests: XCTestCase {
         XCTAssertEqual(ending.reason, .exited)
     }
 
+    // Whatever waits for the latch then finds the run ended by its exit, so neither the follower nor the time limit,
+    // which act on what is recorded, kills a process that has exited.
+    func test_theTerminationHandler_recordsTheExit_andOpensTheLatch() {
+        let ending = TestRunEnding()
+        let exited = Latch()
+
+        ending.recordingExit(opening: exited)(Foundation.Process())
+
+        XCTAssertEqual(ending.reason, .exited)
+        XCTAssertTrue(exited.hasOpened)
+    }
+
+    // A run its time limit ended still lets its waiter go once the killed process exits.
+    func test_theTerminationHandler_afterTheTimeLimit_keepsTheTimeout_andOpensTheLatch() {
+        let ending = TestRunEnding()
+        let exited = Latch()
+        XCTAssertTrue(ending.record(.timedOut))
+
+        ending.recordingExit(opening: exited)(Foundation.Process())
+
+        XCTAssertEqual(ending.reason, .timedOut)
+        XCTAssertTrue(exited.hasOpened)
+    }
+
     func test_concurrentRecords_haveOneWinner() {
         let ending = TestRunEnding()
         let reasons: [TestRunEnding.Reason] = [.exited, .timedOut, .cancelled, .failedTest(line: "✘ Test a() …")]

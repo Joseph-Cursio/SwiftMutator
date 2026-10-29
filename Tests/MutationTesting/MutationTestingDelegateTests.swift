@@ -435,7 +435,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
             await sut.runTestSuite(withSchemata: schemata, using: configuration, savingResultsIntoFileNamed: file)
         }
         let deadline = Date().addingTimeInterval(5)
-        while !testProcess.waitUntilExitCalled, Date() < deadline {
+        while !testProcess.hasStarted, Date() < deadline {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
         run.cancel()
@@ -688,7 +688,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
             return runEnded
         }
         // Each run waits once its process is launched; if waiting holds a thread, these hold every one.
-        waitUntil(threadCount, of: processes, areWaitedForWithin: 5)
+        waitUntil(threadCount, of: processes, startWithin: 5)
 
         let probe = expectation(description: "a task started after the runs ran")
         Task { probe.fulfill() }
@@ -739,7 +739,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
             )
             runEnded.fulfill()
         }
-        waitUntil(1, of: [testProcess], areWaitedForWithin: 5)
+        waitUntil(1, of: [testProcess], startWithin: 5)
         let cancelled = Date()
         run.cancel()
         // Longer than the process's own deadline, so a run that isn't stopped still ends within it.
@@ -978,15 +978,13 @@ final class MutationTestingDelegateTests: MuterTestCase {
         XCTAssertEqual(testProcess.terminateTreeCallCount, 1)
     }
 
-    // Foundation reaps a process up to about 60 ms before waitUntilExit() returns. A run whose last test
-    // failed just before it exited was stopped in that gap: a process that had exited was killed, and its
-    // whole log got a note saying the tests after the failure did not run.
+    // A run whose last test failed just before it exited ends by its exit, with its log as written. When runs waited
+    // with waitUntilExit(), which notices an exit up to about 60 ms after Foundation reaps the process, such a run was
+    // stopped in that gap: a process that had exited was killed, and its whole log got a note saying the tests after
+    // the failure did not run. The exit is now recorded as Foundation reaps the process (`TestRunEndingTests`).
     func test_whenTheLogShowsAFailedTestAfterTheProcessExited_thenTheRunIsNotStopped() async throws {
-        // Written while the follower waits between reads, so it reads the line only after the exit.
-        let testProcess = ScriptedProcessSpy(
-            [.write("\(failedTestLine)\n\(failedRunSummary)\n", after: 0.05)],
-            exitNoticedAfter: 0.5
-        )
+        // Written while the follower waits between reads.
+        let testProcess = ScriptedProcessSpy([.write("\(failedTestLine)\n\(failedRunSummary)\n", after: 0.05)])
         current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
 
         let result = try await runMutantsTests(on: testProcess, using: stoppingConfiguration)
@@ -994,20 +992,6 @@ final class MutationTestingDelegateTests: MuterTestCase {
         XCTAssertEqual(result.outcome, .failed)
         XCTAssertEqual(testProcess.terminateTreeCallCount, 0)
         XCTAssertFalse(result.testLog.contains("[SwiftMutator]"), result.testLog)
-    }
-
-    // In the same gap, a time limit that fired just after the process exited killed it, and reported a run
-    // that passed as timed out.
-    func test_whenTheTimeLimitFiresAfterTheProcessExitedButBeforeWaitingEnds_thenNothingIsKilled() async throws {
-        let summary = "✔ Test run with 1 test in 1 suite passed after 0.001 seconds.\n"
-        let testProcess = ScriptedProcessSpy([.write(summary, after: 0)], exitNoticedAfter: 0.5)
-        current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
-        let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], testSuiteTimeOut: 0.2)
-
-        let result = try await runMutantsTests(on: testProcess, using: configuration)
-
-        XCTAssertEqual(result.outcome, .passed, result.testLog)
-        XCTAssertEqual(testProcess.terminateTreeCallCount, 0)
     }
 
     // A passing baseline printed a line shaped like a failed test, so a timed-out run showing it may only
@@ -1091,7 +1075,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
                 )
             }
             let deadline = Date().addingTimeInterval(5)
-            while !testProcess.waitUntilExitCalled, Date() < deadline {
+            while !testProcess.hasStarted, Date() < deadline {
                 try await Task.sleep(nanoseconds: 10_000_000)
             }
             run.cancel()
@@ -1297,10 +1281,10 @@ final class MutationTestingDelegateTests: MuterTestCase {
         return await run.value
     }
 
-    /// Returns once `count` of `processes` are being waited for, or after `timeout` seconds.
-    private func waitUntil(_ count: Int, of processes: [ScriptedProcessSpy], areWaitedForWithin timeout: TimeInterval) {
+    /// Returns once `count` of `processes` have started, or after `timeout` seconds.
+    private func waitUntil(_ count: Int, of processes: [ScriptedProcessSpy], startWithin timeout: TimeInterval) {
         let deadline = Date().addingTimeInterval(timeout)
-        while processes.filter(\.waitUntilExitCalled).count < count, Date() < deadline {
+        while processes.filter(\.hasStarted).count < count, Date() < deadline {
             Thread.sleep(forTimeInterval: 0.01)
         }
     }

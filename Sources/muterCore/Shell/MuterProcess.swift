@@ -33,16 +33,16 @@ protocol MuterProcess: AnyObject {
     func runProcess(
         url: String,
         arguments args: [String]
-    ) -> Data?
+    ) async -> Data?
 
     /// Runs `url` with `arguments` to its end, for its exit status and what it wrote to standard output and standard
     /// error, or nil if it couldn't be started. Past `timeLimit` seconds, if there is one, it kills the command and
-    /// every process it started, and the result says it timed out.
-    func runCommand(url: String, arguments args: [String], timeLimit: TimeInterval?) -> CommandResult?
+    /// every process it started, and the result says it timed out. Waiting for it holds no thread.
+    func runCommand(url: String, arguments args: [String], timeLimit: TimeInterval?) async -> CommandResult?
 
+    /// Starts the process. Its `terminationHandler`, set before, says when it has exited: there is no
+    /// `waitUntilExit()`, which would hold a thread of Swift concurrency's pool until then.
     func run() throws
-
-    func waitUntilExit()
 
     func terminate()
 
@@ -58,27 +58,13 @@ protocol MuterProcess: AnyObject {
 
 extension MuterProcess {
     /// For test doubles that never run a command this way: as if it couldn't be started. `Foundation.Process` runs it.
-    func runCommand(url: String, arguments args: [String], timeLimit: TimeInterval?) -> CommandResult? {
+    func runCommand(url: String, arguments args: [String], timeLimit: TimeInterval?) async -> CommandResult? {
         nil
     }
 
     /// `runCommand` with no time limit.
-    func runCommand(url: String, arguments args: [String]) -> CommandResult? {
-        runCommand(url: url, arguments: args, timeLimit: nil)
-    }
-
-    /// Waits for this process to exit on a GCD thread. `waitUntilExit()` blocks its thread until then,
-    /// and Swift concurrency has only about as many threads as the machine has cores: test runs waiting
-    /// on them could hold every one, and nothing else could run, not even a run's time limit. Ignores
-    /// cancellation, as `waitUntilExit()` does: `terminationStatus` may be read only after exit. So
-    /// whoever cancels a run kills its process, and this returns once the process is gone.
-    func exited() async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            DispatchQueue.global(qos: .userInitiated).async {
-                self.waitUntilExit()
-                continuation.resume()
-            }
-        }
+    func runCommand(url: String, arguments args: [String]) async -> CommandResult? {
+        await runCommand(url: url, arguments: args, timeLimit: nil)
     }
 
     /// SIGKILL this process and every transitive descendant. `interrupt()`/`terminate()` signal only
@@ -113,8 +99,8 @@ extension MuterProcess {
     func runProcess(
         url: String,
         arguments: [String]
-    ) -> String? {
-        guard let output: Data = runProcess(url: url, arguments: arguments) else {
+    ) async -> String? {
+        guard let output: Data = await runProcess(url: url, arguments: arguments) else {
             return nil
         }
 
@@ -124,8 +110,8 @@ extension MuterProcess {
     func find(
         atPath path: String,
         byName name: String
-    ) -> String? {
-        runProcess(
+    ) async -> String? {
+        await runProcess(
             url: "/usr/bin/find",
             arguments: [path, "-name", name]
         )
@@ -136,17 +122,17 @@ extension MuterProcess {
     func find(
         atPath path: String,
         byNames names: [String]
-    ) -> String? {
+    ) async -> String? {
         let alternatives = names.flatMap { ["-o", "-name", $0] }.dropFirst()
-        return runProcess(
+        return await runProcess(
             url: "/usr/bin/find",
             arguments: [path, "("] + alternatives + [")"]
         )
         .flatMap(\.nilIfEmpty)
     }
 
-    func which(_ application: String) -> String? {
-        runProcess(
+    func which(_ application: String) async -> String? {
+        await runProcess(
             url: "/usr/bin/which",
             arguments: [application]
         )

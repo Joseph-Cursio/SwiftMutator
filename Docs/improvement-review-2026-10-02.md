@@ -43,6 +43,7 @@ This started as a ranked review of SwiftMutator on 2 October 2026, at commit `4b
   - A mutant switch in a closure inside a multi-line string's interpolation. When a branch's last line ends in a `//` comment or `#endif`, its `}` starts on a new line (PR #53). That line had only the statement list's leading trivia, which is empty when the first statement shares the `{` line, so the brace started at column 0. Each line of a multi-line string that follows a line feed, an interpolation's code too, must start with the closing `"""`'s indentation, so the file didn't compile and the build every mutant shares failed. The brace's line now starts like the branch's last line, or like the list's first line for a branch on one line, whose indentation can be the string's text rather than trivia. It takes that line's spaces and tabs and its line break, so a CRLF file keeps its line endings. A brace after a lone carriage return goes unchecked, like the line it copies ([#90]).
   - `#sourceLocation` directives in a statement list with mutants. Each mutant's branch holds a copy of the list, so the compiler read each directive once per branch. It takes a `#sourceLocation(file:line:)` that opens a location again, but not a `#sourceLocation()` that closes one when none is open. So after the first branch closed the location, every later branch failed to compile, the original's among them, and with it the build every mutant shares. The copies now drop their directives, at any depth: in closures, in `case` bodies, where a `case` left with no statement gets a `do {}`, and in the types they declare. A dropped directive's comments and line breaks stay. The compiler reads the list's directives once, in the original's branch. That branch now starts in the original's location: a copy that opened one used to leave it open there, in the baseline too. Code after a dropped directive in a mutant's branch takes the location in effect where the switch starts, so a test that checks `#fileID` or `#line` there can kill that mutant. swift-syntax parses a directive in an `#if` clause of a type's members as unexpected text, which can't be dropped, so a list that holds one keeps every copy's directives, as before.
   - A crash with many mutants in one statement list. Each mutant of a list is an `else if` inside the one before, and writing the rewritten file out recursed once per level. That ran on one of Swift concurrency's threads, whose stack is about 512 KiB, so about 520 mutants in one list in a debug build, or 4,500 in a release one, ended the run with a bus error after discovery. Each file is now rewritten on a thread of its own with a 64 MiB stack. Such a list is still slow to build, since each branch holds a copy of it: 400 mutants in a 200-line list came to 81,000 lines and 44 s of build. swiftc itself compiled 4,000 levels of `else if` and crashed on 8,000.
+  - Waits that held a thread of Swift concurrency's pool. A test run waited for its process with `waitUntilExit()` on a GCD thread, which reviewers of PR #36 saw never return for a process without a `terminationHandler`. Commands (the coverage run, `swift package describe`, build-for-testing, `which`, `find`, the toolchain probe), the git listing and the worker clones' `cp` waited on a thread of the pool itself, for minutes in a coverage run, and discovery waited there on a semaphore for each file. Each process's `terminationHandler`, set before it runs, now records its exit and opens a latch that the run awaits without holding a thread, and discovery walks eight files at once in a task group. `runProcess` no longer hangs on a command that can't be started, and on Linux a long `ps` listing no longer deadlocks a kill ([#91], part of [#101]).
 
   Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#61, which are in the PRs themselves.
 - **Section numbers are the original ones,** so references in PRs and notes still work. A missing number is a finished section.
@@ -213,10 +214,6 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
 
 ## Open bugs
 
-- **Waiting for a test process can hang** ([#91]). `exited()` (`MuterProcess.swift:62-69`) calls `waitUntilExit()` on a GCD thread.
-  - Reviewers of PR #36 saw that call never return, but only for a process without a `terminationHandler`.
-  - Every test process now has one, and the hang hasn't been seen in SwiftMutator.
-  - Having `exited()` resume from the handler (`MutationTestingIODelegate.swift:294`) would be sturdier.
 - **Workers share the user's `UserDefaults`** ([#92]). Tests that write fixed keys in `UserDefaults.standard` can overwrite each other's values across workers. That gave SwiftProjectLint 4 false kills on 2 October.
   - No SwiftMutator-side fix is known. `CFFIXED_USER_HOME` doesn't isolate `UserDefaults` on macOS 27, and it also moves `NSHomeDirectory()`, which breaks the swiftly proxy.
   - The fix belongs in the project's tests (see [Outside this repo](#outside-this-repo)).
@@ -282,15 +279,10 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
     - `make release` runs `Scripts/shipIt.sh`, which hashes Muter's release archive and builds a Homebrew formula for Muter.
     - `Scripts/bump_version.py` and the `homebrew-formulae` submodule point at Muter too.
   - The update check calls GitHub's API on every run that isn't given `--skip-update-check` (`swift-quality` passes it). SwiftMutator has no releases, so the check can never find one. Cut a release, or make the check opt-in ([#121]).
-- **Swift 6 readiness** ([#101]). Since PR #36, waiting for a test process no longer blocks a pool thread. Left:
+- **Swift 6 readiness** ([#101]). No blocking wait is reached from async code any more, but for removing the worker clones at the very end of a run, in a `defer`, and the moment SwiftMutator waits to exit by a signal. Left:
   - global mutable dependency injection (`World.swift:6-10`);
-  - other blocking waits reached from async steps:
-    - discovery's semaphore and group waits;
-    - `waitUntilExit` in `FoundationProcess.swift:29` and `:54` (`runProcess`, and `runCommand`, which the coverage step uses);
-    - the clone's `cp`;
-    - the `git` listing;
   - an untyped NotificationCenter bus;
-  - Swift 5 language mode: the package's tools version is 5.9.
+  - Swift 5 language mode: the package's tools version is 5.9. With `-strict-concurrency=complete`, `Sources/` gives 38 diagnostics and the tests 264, 146 of them references to `current`.
 - **Better relational-operator mutants** ([#102]). Today `<` and `>` are swapped, which almost any test kills. Boundary mutants (`<` → `<=`, `>` → `>=`, and so on) would expose missing edge-case tests.
   - Done in place, the count stays at 218 here.
   - As a separate operator, they would add 218 mutants, about 7–15 min.

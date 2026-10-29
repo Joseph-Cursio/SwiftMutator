@@ -47,7 +47,7 @@ class CopyProjectToTempDirectory: MutationStep {
                 )
             }
 
-            discardModuleCaches(in: state.mutatedProjectDirectoryURL)
+            await discardModuleCaches(in: state.mutatedProjectDirectoryURL)
 
             notificationCenter.post(
                 name: .projectCopyFinished,
@@ -67,8 +67,8 @@ class CopyProjectToTempDirectory: MutationStep {
     /// copy fails with `precompiled file … was compiled with module cache path …` followed by
     /// `missing required module 'SwiftShims'`. Discarding them keeps the rest of the build directory
     /// warm — the compiler rebuilds the caches in place on the next compile.
-    private func discardModuleCaches(in directory: URL) {
-        let caches = process()
+    private func discardModuleCaches(in directory: URL) async {
+        let caches = await process()
             .find(atPath: directory.path, byNames: Self.moduleCacheDirectoryNames)?
             .split(separator: "\n")
             .map(String.init) ?? []
