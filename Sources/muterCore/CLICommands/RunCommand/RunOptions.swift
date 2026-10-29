@@ -3,7 +3,8 @@ import Foundation
 typealias ReportOptions = (reporter: Reporter, path: String?)
 
 extension Run {
-    struct Options {
+    /// Sendable: the command makes them, and the run's work reads them in a task of its own (`Interruptions.run`).
+    struct Options: Sendable {
         let reportOptions: ReportOptions
         let filesToMutate: [String]
         let mutationOperatorsList: MutationOperatorList

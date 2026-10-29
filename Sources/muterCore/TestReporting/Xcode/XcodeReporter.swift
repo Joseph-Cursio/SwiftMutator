@@ -1,4 +1,4 @@
-final class XcodeReporter: Reporter {
+struct XcodeReporter: Reporter {
     @Dependency(\.logger)
     private var logger: Logger
 

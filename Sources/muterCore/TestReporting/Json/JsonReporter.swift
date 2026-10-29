@@ -1,6 +1,6 @@
 import Foundation
 
-final class JsonReporter: Reporter {
+struct JsonReporter: Reporter {
     func report(from outcome: MutationTestOutcome) -> String {
         let report = MuterTestReport(from: outcome)
         let encoder = JSONEncoder()

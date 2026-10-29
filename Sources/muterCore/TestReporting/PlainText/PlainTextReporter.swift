@@ -1,6 +1,6 @@
 import Foundation
 
-final class PlainTextReporter: Reporter {
+struct PlainTextReporter: Reporter {
     func report(from outcome: MutationTestOutcome) -> String {
         let report = MuterTestReport(from: outcome)
         let appliedMutationsMessage = """
