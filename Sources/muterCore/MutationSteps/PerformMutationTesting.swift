@@ -728,6 +728,9 @@ private extension PerformMutationTesting {
     /// A resumed run instead writes `header`, then a `retired` line of the `retiring` keys, to the stopped run's file,
     /// which it opened before the copy, and announces the file once both are written. It is attached to the session
     /// only now: before its header, no line of the session's would belong to one.
+    ///
+    /// `header` probes the toolchain, so it is made before the file is the session's, when a stop at once could write
+    /// the end line first, and then written at once.
     func startResults(
         _ header: @autoclosure () async -> ResultsHeader,
         retiring retired: [MutantKey],
@@ -735,8 +738,8 @@ private extension PerformMutationTesting {
         state: AnyMutationTestState
     ) async {
         if let resume = state.resumeState {
-            session.startResults(in: resume.file)
             let headerLine = await header()
+            session.startResults(in: resume.file)
             guard write(headerLine, in: session) else { return }
             // Without it, the file would still stand by the earlier results this session doesn't keep.
             if !retired.isEmpty, !write(ResultsRetired(session: session.number, keys: retired), in: session) {
@@ -747,10 +750,10 @@ private extension PerformMutationTesting {
         }
         let loggingDirectory = state.loggingDirectory
         guard !loggingDirectory.isEmpty else { return }
+        let headerLine = await header()
         do {
             let results = try resultsFiles.create(in: loggingDirectory)
             session.startResults(in: results)
-            let headerLine = await header()
             if write(headerLine, in: session) {
                 notificationCenter.post(name: .resultsFileCreated, object: results.path)
             }
