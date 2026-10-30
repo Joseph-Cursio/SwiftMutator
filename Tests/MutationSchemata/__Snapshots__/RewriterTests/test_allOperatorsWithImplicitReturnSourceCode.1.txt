@@ -381,9 +381,9 @@ public enum Enum {
 
   public func kerning(for something: String?) -> CGFloat {
     switch self {
-    case let .a(value):
+    case .a(let value):
       return value
-    case let .b(value):
+    case .b(let value):
       if __SwiftMutator_c132952c484be782.environment[
         "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_146_26_3366"] != nil
       {
