@@ -6,15 +6,15 @@ import PackageDescription
 let package = Package(
     name: "SwiftMutator",
     platforms: [
-        .macOS(.v12),
+        .macOS(.v13),
     ],
     products: [
         .executable(name: "swift-mutator", targets: ["muter", "muterCore"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.6.1"),
-        .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "601.0.0"),
-        .package(url: "https://github.com/swiftlang/swift-format.git", from: "601.0.0"),
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "603.0.0"),
+        .package(url: "https://github.com/swiftlang/swift-format.git", from: "603.0.0"),
         .package(url: "https://github.com/onevcat/Rainbow.git", from: "4.2.0"),
         .package(url: "https://github.com/dduan/Pathos.git", from: "0.4.2"),
         .package(url: "https://github.com/johnsundell/plot.git", from: "0.14.0"),
