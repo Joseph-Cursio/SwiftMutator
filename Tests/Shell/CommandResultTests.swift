@@ -1,12 +1,6 @@
 @testable import muterCore
 import XCTest
 
-#if os(Linux)
-private let foundationHearsOfAnExitOnlyOnceEveryDescendantHasEnded = true
-#else
-private let foundationHearsOfAnExitOnlyOnceEveryDescendantHasEnded = false
-#endif
-
 /// Those with a time limit run real processes, and kill every one they start however a test ends.
 final class CommandResultTests: XCTestCase {
     private var directory: URL!
@@ -114,11 +108,9 @@ final class CommandResultTests: XCTestCase {
     }
 
     // A process whose parent exited before the kill escapes it, and holds standard output open for as long as it runs.
-    // After the kill, the output is waited for only briefly.
+    // After the kill, the output is waited for only briefly. On Linux it holds back Foundation's notice of the exit
+    // too, which the kernel's is not.
     func test_aCommandPastItsTimeLimit_ends_evenIfAProcessThatEscapedTheKillHoldsItsOutput() async throws {
-        // swift-corelibs-foundation hears of an exit when a socket it gives the command closes, and every descendant
-        // inherits that socket: the escaped process holds it, so the exit isn't heard until the teardown kills it.
-        try XCTSkipIf(foundationHearsOfAnExitOnlyOnceEveryDescendantHasEnded, "the exit isn't heard while it runs")
         let started = Date()
         let result = await runCommand(
             "echo started; (/bin/sleep 30.18 & echo $! > escaped); /bin/sleep 30.19",
@@ -127,6 +119,8 @@ final class CommandResultTests: XCTestCase {
 
         XCTAssertLessThan(Date().timeIntervalSince(started), 10)
         XCTAssertEqual(result?.timedOut, true)
+        XCTAssertEqual(result?.endedBySignal, true)
+        XCTAssertEqual(result?.status, SIGKILL)
         XCTAssertEqual(result?.output, "started\n")
         // Only the teardown, which kills the command's process group, ends it.
         let escaped = try XCTUnwrap(pid(writtenTo: "escaped"))

@@ -78,15 +78,36 @@ final class StopAtFirstFailureProcessTests: MuterTestCase {
         XCTAssertEqual(result.outcome, .runtimeError)
     }
 
+    // A process whose parent exited before the kill escapes it. On Linux it holds back Foundation's notice of the
+    // exit, which the kernel's is not, so the run ends with its test command all the same. The sleeps' odd lengths
+    // make them easy to find if they're left behind.
+    func test_aRealRunPastItsTimeLimit_ends_evenIfAProcessThatEscapedTheKillIsStillRunning() async throws {
+        let configuration = testCommand(
+            running: "echo started; (/bin/sleep 30.1818 & echo $! > escaped); /bin/sleep 30.1919",
+            timeLimit: 0.5
+        )
+
+        let started = Date()
+        let result = try await runMutantsTests(using: configuration)
+
+        XCTAssertLessThan(Date().timeIntervalSince(started), 10, "the run waited for the escaped process")
+        XCTAssertEqual(result.ending, .timedOut, result.testLog)
+        XCTAssertEqual(result.outcome, .timeout, result.testLog)
+        XCTAssertTrue(result.testLog.hasPrefix("started\n"), result.testLog)
+        // Only the teardown, which kills the test command's process group, ends it.
+        let escaped = try XCTUnwrap(pid(writtenTo: "escaped"))
+        XCTAssertFalse(isGone(escaped), "nothing escaped the kill")
+    }
+
     // MARK: - Helpers
 
     /// `/bin/sh` running `script` as a mutant's test command, which may stop at its first failed test.
     /// `buildSystem: swift` makes it stand for `swift test`, which adds `--skip-build`; sh takes that as `$0`.
-    private func testCommand(running script: String) -> MuterConfiguration {
+    private func testCommand(running script: String, timeLimit: TimeInterval = 60) -> MuterConfiguration {
         MuterConfiguration(
             executable: "/bin/sh",
             arguments: ["-c", script],
-            testSuiteTimeOut: 60,
+            testSuiteTimeOut: timeLimit,
             buildSystem: .swift,
             stopAtFirstFailure: true
         )

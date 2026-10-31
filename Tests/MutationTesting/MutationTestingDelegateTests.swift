@@ -1233,12 +1233,10 @@ final class MutationTestingDelegateTests: MuterTestCase {
         ]
 
         for ending in endings {
-            let process = ProcessSpy()
-            process.terminationReason = ending.reason
-            process.terminationStatus = ending.status
-
             XCTAssertEqual(
-                MutationTestingDelegate.mayHaveEndedByAnOutsideSignal(process),
+                MutationTestingDelegate.mayHaveEndedByAnOutsideSignal(
+                    ProcessExit(status: ending.status, reason: ending.reason)
+                ),
                 ending.mayBe,
                 "\(ending.reason == .exit ? "exit" : "signal") \(ending.status)"
             )
