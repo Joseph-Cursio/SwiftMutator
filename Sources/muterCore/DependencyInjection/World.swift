@@ -1,5 +1,8 @@
 #if os(Linux)
 import FoundationNetworking
+// Glibc declares `stdout` and `stderr` as mutable globals, which Swift 6 won't let a `@Sendable` closure read unless
+// the import is `@preconcurrency`. Neither is reassigned once the process is running.
+@preconcurrency import Glibc
 #endif
 import Foundation
 

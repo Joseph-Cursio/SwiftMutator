@@ -1,3 +1,8 @@
+#if os(Linux)
+// Glibc declares `stderr` as a mutable global, which Swift 6 won't let a `@Sendable` closure read unless the import is
+// `@preconcurrency`. It isn't reassigned once the process is running.
+@preconcurrency import Glibc
+#endif
 import Foundation
 
 /// The signal that stopped this run, if one did, and what to do before SwiftMutator stops at once. `Interruptions`

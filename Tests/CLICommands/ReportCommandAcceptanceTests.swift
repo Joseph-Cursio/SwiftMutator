@@ -1,3 +1,6 @@
+#if os(Linux)
+import Glibc
+#endif
 import XCTest
 
 /// Runs the built `swift-mutator` on a two-file project whose test command is a shell script, in each report format,
@@ -237,8 +240,13 @@ final class ReportCommandAcceptanceTests: XCTestCase {
     private func stop(_ process: Foundation.Process) {
         let pid = process.processIdentifier
         guard pid > 1 else { return }
+        #if os(Linux)
+        Glibc.kill(-pid, SIGKILL)
+        Glibc.kill(pid, SIGKILL)
+        #else
         Darwin.kill(-pid, SIGKILL)
         Darwin.kill(pid, SIGKILL)
+        #endif
         process.waitUntilExit()
     }
 

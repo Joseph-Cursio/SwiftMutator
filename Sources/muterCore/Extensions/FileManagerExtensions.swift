@@ -37,9 +37,11 @@ public protocol FileSystemManager: Sendable {
     func contents(atPath path: String, sortedByDate order: ComparisonResult) throws -> [String]
 }
 
+#if !os(Linux) // FoundationEssentials already makes it `Sendable`.
 /// Foundation documents the shared FileManager, the only one SwiftMutator uses, as safe to call from any thread. Its
 /// delegate is the exception, which the project copy sets for the length of the copy, before any worker starts.
 extension FileManager: @retroactive @unchecked Sendable {}
+#endif
 
 extension FileManager: FileSystemManager {
     public func contents(
