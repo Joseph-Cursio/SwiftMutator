@@ -760,6 +760,30 @@ final class SwiftCoverageTests: MuterTestCase {
         // 8 of 16 lines; a file with no lines to run isn't one without coverage.
         XCTAssertEqual(coverage.percent, 50)
         XCTAssertEqual(coverage.filesWithoutCoverage, ["Sources/Core/Untested.swift"])
+        // Discovery keeps only these, whether the tests ran them or not.
+        XCTAssertEqual(coverage.filesInCoverage, [
+            "Sources/Core/Declarations.swift", "Sources/Core/Shared.swift", "Sources/Core/Untested.swift",
+        ])
+    }
+
+    // A file named through a link and by its own path, as two binaries can name it, is in coverage once.
+    func test_aFileNamedTwice_isInCoverageOnce() throws {
+        let directory = try makeTemporaryDirectory()
+        let link = directory + "-link"
+        try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: directory)
+        defer { try? FileManager.default.removeItem(atPath: link) }
+
+        let coverage = try SwiftCoverage.coverage(
+            fromExport: export(files: [
+                file(directory + "/B.swift", count: 2, covered: 1),
+                file(link + "/B.swift", count: 2, covered: 1),
+                file(directory + "/A.swift", count: 2, covered: 0),
+            ]),
+            projectRoot: directory,
+            coverageThreshold: 0
+        ).get()
+
+        XCTAssertEqual(coverage.filesInCoverage, ["A.swift", "B.swift"])
     }
 
     func test_filesAtOrBelowTheThreshold_haveNoCoverage() throws {

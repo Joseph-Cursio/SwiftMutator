@@ -88,7 +88,8 @@ extension BuildSystemCoverage {
     }
 
     /// The coverage of the project's own source files in `export`, llvm-cov's JSON: the share of their lines the tests
-    /// ran, the files at or below `coverageThreshold`, by their path in the project, and the regions no test ran.
+    /// ran, the files at or below `coverageThreshold` and every file the export names, by their path in the project,
+    /// and the regions no test ran.
     /// The export also covers test files and dependencies, which don't count, and gives absolute paths. Nor do the
     /// files in `buildFolders` or `testFiles` count, as `ProjectSourceFiles` takes them.
     static func coverage(
@@ -130,9 +131,16 @@ extension BuildSystemCoverage {
                 percent: lines > 0 ? coveredLines * 100 / lines : 0,
                 filesWithoutCoverage: filesWithoutCoverage,
                 functionsCoverage: FunctionsCoverage(from: coverage),
+                filesInCoverage: filesInCoverage(of: coverage, projectFiles: projectFiles),
                 testsFailedWithCoverageOn: testsFailedWithCoverageOn
             )
         )
+    }
+
+    /// The project's own source files that `export`, llvm-cov's, names, by their path in the project, as `projectFiles`
+    /// takes them, once each and in order.
+    static func filesInCoverage(of export: LLVMCoverage, projectFiles: ProjectSourceFiles) -> [FilePath] {
+        Set((export.data.first?.files ?? []).compactMap { projectFiles.pathInProject($0.filename) }).sorted()
     }
 }
 

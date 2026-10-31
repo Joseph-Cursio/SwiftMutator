@@ -520,6 +520,84 @@ final class DiscoverSourceFilesTests: MuterTestCase {
         XCTAssertEqual(result, [.sourceFileCandidatesDiscovered(["\(project)/Sources/Lib/Lib.swift"])])
     }
 
+    // An xcodebuild project's example app is in no target the tests build, and a local package its app links is in
+    // one, which coverage names by its path in the project or in full, as the coverage tools do.
+    func test_aProjectWithCoverage_onlyTheFilesTheCoverageNames() async throws {
+        current.fileManager = FileManager.default
+        let project = try makeTemporaryDirectory()
+        try makeFiles(
+            ["App/Model.swift", "App/Untested.swift", "ExampleApp/Example.swift", "Packages/Core/Parser.swift"],
+            in: project
+        )
+
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: project, isDirectory: true)
+        state.projectCoverage = Coverage.make(
+            filesWithoutCoverage: ["App/Untested.swift"],
+            filesInCoverage: ["App/Model.swift", "App/Untested.swift", "\(project)/Packages/Core/Parser.swift"]
+        )
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result, [
+            .sourceFileCandidatesDiscovered([
+                "\(project)/App/Model.swift",
+                "\(project)/Packages/Core/Parser.swift",
+            ]),
+        ])
+    }
+
+    // describe lists an example executable's files, but no test bundle links it, so its coverage names none of them.
+    func test_aSwiftPMProject_withCoverage_onlyTheFilesItsTargetsCompile_thatTheCoverageNames() async throws {
+        current.fileManager = FileManager.default
+        let project = try makeTemporaryDirectory()
+        try makeFiles(["Sources/Lib/Lib.swift", "Sources/Demo/main.swift"], in: project)
+        describing(project, as: [
+            target("library", path: "Sources/Lib", sources: ["Lib.swift"]),
+            target("executable", path: "Sources/Demo", sources: ["main.swift"]),
+        ])
+
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: project, isDirectory: true)
+        state.projectCoverage = Coverage.make(filesInCoverage: ["Sources/Lib/Lib.swift"])
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result, [.sourceFileCandidatesDiscovered(["\(project)/Sources/Lib/Lib.swift"])])
+    }
+
+    // Skipped, or failed, coverage can't say which files the tests' binaries hold.
+    func test_withoutCoverage_noFileIsLeftOut_forBeingOutsideIt() async throws {
+        current.fileManager = FileManager.default
+        let project = try makeTemporaryDirectory()
+        try makeFiles(["App/Model.swift", "ExampleApp/Example.swift"], in: project)
+
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: project, isDirectory: true)
+        state.projectCoverage = .null
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result, [
+            .sourceFileCandidatesDiscovered(["\(project)/App/Model.swift", "\(project)/ExampleApp/Example.swift"]),
+        ])
+    }
+
+    // The files a run is told to mutate are mutated, as those without coverage are.
+    func test_theFilesToMutate_areMutated_thoughTheCoverageDoesntNameThem() async throws {
+        current.fileManager = FileManager.default
+        let project = try makeTemporaryDirectory()
+        try makeFiles(["App/Model.swift", "ExampleApp/Example.swift"], in: project)
+
+        state.filesToMutate = ["ExampleApp/Example.swift"]
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: project, isDirectory: true)
+        state.projectCoverage = Coverage.make(filesInCoverage: ["App/Model.swift"])
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result, [.sourceFileCandidatesDiscovered(["\(project)/ExampleApp/Example.swift"])])
+    }
+
     func test_aSwiftPMProject_thatCantBeDescribed_everyFileInTheProject_andAWarning() async throws {
         current.fileManager = FileManager.default
         let project = try makeTemporaryDirectory()
