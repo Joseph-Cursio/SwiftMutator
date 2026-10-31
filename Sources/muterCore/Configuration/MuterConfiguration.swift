@@ -254,6 +254,13 @@ extension MuterConfiguration {
     
     private var defaultDerivedData: String { "DerivedData" }
 
+    /// The test command's arguments for a run on the build the baseline made: a mutant's, or the one that times them
+    /// with no mutant on. For SwiftPM they skip the build, and add `--quiet` unless `arguments` already set how much
+    /// to print. `swift test` passes it on to Swift Testing, as the direct runs' script passes it to its helper (see
+    /// `DirectTestRun`), which then prints no line for each test or suite that starts or passes: on SwiftProjectLint,
+    /// more than 10,000 of a surviving mutant's 12,500 lines. It still prints every line SwiftMutator reads: each
+    /// recorded issue, the run's summary, the tests' own output, and SwiftPM's lines for a crash. XCTest's output
+    /// doesn't change.
     func testWithoutBuildArguments(with testRunFile: String) -> [String] {
         let arguments = testCommandArguments
         switch buildSystem {
@@ -269,11 +276,15 @@ extension MuterConfiguration {
                 testRunFile,
             ]
         case .swift:
-            return arguments + ["--skip-build"]
+            let setsVerbosity = arguments.contains { Self.verbosityOptions.contains($0) }
+            return arguments + ["--skip-build"] + (setsVerbosity ? [] : ["--quiet"])
         case .unknown:
             return arguments
         }
     }
+
+    /// `swift test`'s options that say how much it, and Swift Testing, print.
+    private static let verbosityOptions: Set = ["-q", "--quiet", "-v", "--verbose", "--very-verbose", "--vv"]
 
     private func indexOfArgument(_ arg: String) -> Int? {
         testCommandArguments.firstIndex(of: arg)

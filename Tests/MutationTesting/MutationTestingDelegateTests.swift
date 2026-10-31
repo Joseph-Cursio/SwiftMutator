@@ -77,7 +77,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
         XCTAssertEqual(writeFile.contentPassed, schemata.id)
         XCTAssertEqual(writeFile.pathPassed, activeMutantFile)
         XCTAssertEqual(testProcess.environment?[isMuterRunningKey], isMuterRunningValue)
-        XCTAssertEqual(testProcess.arguments, ["test", "--skip-build"])
+        XCTAssertEqual(testProcess.arguments, ["test", "--skip-build", "--quiet"])
         XCTAssertEqual(testProcess.executableURL?.path, "/tmp/swift")
     }
 
@@ -636,7 +636,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
         _ = await sut.runTestsWithoutBuilding(using: configuration, savingResultsIntoFileNamed: "logFileName")
 
-        XCTAssertEqual(process.arguments, ["test", "--skip-build"])
+        XCTAssertEqual(process.arguments, ["test", "--skip-build", "--quiet"])
         XCTAssertEqual(writeFile.contentPassed, "")
         XCTAssertEqual(writeFile.pathPassed, "\(outputFolder!)\(activeMutantFileSuffix)")
         XCTAssertFalse(testingTimeOutExecutor.withTimeLimitCalled)
