@@ -3,17 +3,21 @@ import Foundation
 struct MutationTestOutcome {
     let mutations: [Mutation]
     let coverage: Coverage
+    /// Whether the run skipped coverage (`--skip-coverage`), so a `.null` coverage wasn't a failure to gather it.
+    let coverageSkipped: Bool
     let testDuration: TimeInterval
     let newVersion: String
 
     init(
         mutations: [Mutation] = [],
         coverage: Coverage = .null,
+        coverageSkipped: Bool = false,
         testDuration: TimeInterval = 0,
         newVersion: String = ""
     ) {
         self.mutations = mutations
         self.coverage = coverage
+        self.coverageSkipped = coverageSkipped
         self.testDuration = testDuration
         self.newVersion = newVersion
     }

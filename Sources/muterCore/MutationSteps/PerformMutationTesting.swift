@@ -128,6 +128,7 @@ struct PerformMutationTesting: MutationStep {
         let mutationTestOutcome = MutationTestOutcome(
             mutations: session.outcomesInJobOrder,
             coverage: state.projectCoverage,
+            coverageSkipped: state.runOptions.skipCoverage,
             testDuration: session.earlierTestDuration + thisSession,
             newVersion: state.newVersion
         )
@@ -395,6 +396,7 @@ private extension PerformMutationTesting {
                 outcome: MutationTestOutcome(
                     mutations: session.outcomesInJobOrder,
                     coverage: state.projectCoverage,
+                    coverageSkipped: state.runOptions.skipCoverage,
                     testDuration: testDuration,
                     newVersion: state.newVersion
                 ),

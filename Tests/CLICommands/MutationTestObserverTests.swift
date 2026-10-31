@@ -1,5 +1,7 @@
 @testable import muterCore
-import Rainbow
+// Rainbow's settings are static vars that nothing guards: `@preconcurrency` lets these tests change them unchecked,
+// which is safe because XCTest runs these tests one at a time on the main thread.
+@preconcurrency import Rainbow
 import XCTest
 
 final class MutationTestObserverTests: MuterTestCase {
@@ -271,8 +273,28 @@ final class MutationTestObserverTests: MuterTestCase {
             ["fileExists(atPath:)", "removeItem(atPath:)", "createFile(atPath:contents:attributes:)"]
         )
         XCTAssertEqual(fileManager.paths.suffix(2), ["/out/report.txt", "/out/report.txt"])
-        XCTAssertEqual(fileManager.contents, Data(PlainTextReporter().report(from: outcome).utf8))
+        XCTAssertEqual(fileManager.contents, Data(PlainTextReporter().report(from: outcome).raw.utf8))
         XCTAssertEqual(printer.linesPassed.last, "📝 Report generated: \("/out/report.txt".bold)")
+    }
+
+    // Rainbow colours the plain report when standard output is a terminal, wherever the report goes: the file gets it
+    // without the codes, and the terminal, without `-o`, with them.
+    func test_aFinishedRunInATerminal_savesItsReportWithoutColourCodes() throws {
+        let (outputTarget, enabled) = (Rainbow.outputTarget, Rainbow.enabled)
+        Rainbow.outputTarget = .console
+        Rainbow.enabled = true
+        defer { (Rainbow.outputTarget, Rainbow.enabled) = (outputTarget, enabled) }
+        options = .make(reportURL: URL(fileURLWithPath: "/out/report.txt"))
+        let outcome = MutationTestOutcome.make(mutations: [.make(testSuiteOutcome: .failed), .make()])
+        let colouredReport = PlainTextReporter().report(from: outcome)
+        sut.start()
+
+        runEvents.send(.mutationTestingFinished(outcome))
+
+        XCTAssertTrue(colouredReport.contains("\u{1B}["))
+        let saved = try XCTUnwrap(fileManager.contents.flatMap { String(data: $0, encoding: .utf8) })
+        XCTAssertFalse(saved.contains("\u{1B}"), saved)
+        XCTAssertEqual(saved, colouredReport.raw)
     }
 
     // Without `-o` the report is printed, and there is no file to save it to.
@@ -319,7 +341,7 @@ final class MutationTestObserverTests: MuterTestCase {
         runEvents.send(.mutationTestingEndedEarly(earlyEnd))
 
         XCTAssertEqual(fileManager.paths.last, "/out/report.partial.txt")
-        XCTAssertEqual(fileManager.contents, Data(PlainTextReporter().report(from: earlyEnd.outcome).utf8))
+        XCTAssertEqual(fileManager.contents, Data(PlainTextReporter().report(from: earlyEnd.outcome).raw.utf8))
         XCTAssertFalse(fileManager.paths.contains("/out/report.txt"), "\(fileManager.paths)")
     }
 

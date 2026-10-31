@@ -27,6 +27,19 @@ final class ReportWriterTests: XCTestCase {
         XCTAssertEqual(try String(contentsOfFile: path, encoding: .utf8), "the report")
     }
 
+    // The plain report is coloured whenever standard output is a terminal, even when it goes to a file.
+    func test_savesTheReportWithoutColourCodes() throws {
+        let path = "\(directory)/report.txt"
+        let coloured = "Mutation Score of Test Suite: \u{1B}[1m\u{1B}[0m\u{1B}[32m80%\u{1B}[0m\n\u{1B}[31mfailed\u{1B}[0m"
+
+        XCTAssertTrue(ReportWriter.save(coloured, to: path, using: FileManager.default))
+
+        XCTAssertEqual(
+            try String(contentsOfFile: path, encoding: .utf8),
+            "Mutation Score of Test Suite: 80%\nfailed"
+        )
+    }
+
     func test_saysWhenItCannotSave() {
         let path = "\(directory)/missing/report.txt"
 

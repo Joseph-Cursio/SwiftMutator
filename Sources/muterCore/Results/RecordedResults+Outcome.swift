@@ -44,8 +44,8 @@ extension JobOrder {
 
 extension RecordedResults {
     /// The outcome the run would have reported had it ended now: each mutant's last record, in the order the run
-    /// tested them, under the latest session's project paths, coverage and update notice, with every session's test
-    /// duration. For a finished run, exactly the outcome its own report was made from.
+    /// tested them, under the latest session's project paths, coverage (or whether it skipped it) and update notice,
+    /// with every session's test duration. For a finished run, exactly the outcome its own report was made from.
     func mutationTestOutcome() -> MutationTestOutcome {
         // `read` refuses a file without a header.
         guard let header = headers.last else { return MutationTestOutcome() }
@@ -73,6 +73,7 @@ extension RecordedResults {
             coverage: header.coverage.map {
                 Coverage(percent: $0.percent, filesWithoutCoverage: $0.filesWithoutCoverage)
             } ?? .null,
+            coverageSkipped: header.skipCoverage,
             testDuration: testDuration,
             newVersion: header.newVersion
         )
