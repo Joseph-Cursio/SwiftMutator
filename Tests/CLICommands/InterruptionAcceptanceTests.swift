@@ -34,7 +34,7 @@ final class InterruptionAcceptanceTests: XCTestCase {
             /bin/sh -c 'echo $$ > "$INTERRUPT_TEST_MARKERS/sleep.$$"; exec /bin/sleep 3'
             exit 0
         }
-        fill() { mkdir "$1" && cd "$1" && /usr/bin/seq -f "file%g" 2000 | /usr/bin/xargs /usr/bin/touch; }
+        fill() { mkdir "$1" && cd "$1" && /usr/bin/seq -f "file%g" 10000 | /usr/bin/xargs /usr/bin/touch; }
         worker=$(pwd -P)
         case "$INTERRUPT_TEST_PHASE:$0" in
             coverage:--enable-code-coverage) hang;;
@@ -184,7 +184,10 @@ final class InterruptionAcceptanceTests: XCTestCase {
     }
 
     // The second signal comes once SwiftMutator has said it is stopping, so that the signals' order is certain, while
-    // it removes a large worker clone, as when a second Ctrl-C comes in a large project.
+    // it removes a large worker clone, as when a second Ctrl-C comes in a large project. It comes while SwiftMutator is
+    // held with SIGSTOP and the clone is still there, so that it is handled before the stop ends: sent once the stop
+    // had ended, it would race SwiftMutator's own exit by SIGTERM, which says nothing, as it did on CI. Continued,
+    // SwiftMutator hears the waiting signal at once, well before it can finish removing the clone.
     func test_aSecondSignal_exitsByTheFirst_leavingNoTestProcess() throws {
         let mutator = try startSwiftMutator(hangingIn: .mutantsWithALargeWorkerClone)
         guard waitUntilHanging(runs: 2, in: mutator) else { return }
@@ -194,12 +197,17 @@ final class InterruptionAcceptanceTests: XCTestCase {
             self.contents(of: self.standardError).contains("Stopping (SIGTERM)") || !mutator.isRunning
         }
         XCTAssertTrue(stopping, "SwiftMutator didn't say it was stopping")
-        guard mutator.isRunning else {
+        if mutator.isRunning { signalProcess(mutator, SIGSTOP) }
+        let held = waitUntil(within: 5) { self.isStopped(mutator.processIdentifier) || !mutator.isRunning }
+        XCTAssertTrue(held, "SwiftMutator wasn't held")
+        guard mutator.isRunning, exists("project_mutated_worker1") else {
+            if mutator.isRunning { signalProcess(mutator, SIGCONT) }
             assertDied(mutator, by: SIGTERM)
             assertNoTestProcessIsLeft()
-            throw XCTSkip("SwiftMutator stopped before a second signal could reach it")
+            throw XCTSkip("SwiftMutator had removed the worker clone before a second signal could reach it")
         }
         signalProcess(mutator, SIGINT)
+        signalProcess(mutator, SIGCONT)
 
         assertDied(mutator, by: SIGTERM)
         assertNoTestProcessIsLeft()
