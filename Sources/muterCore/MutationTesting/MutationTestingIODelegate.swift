@@ -306,7 +306,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         // also notices the exit up to about 60 ms later.
         let exited = Latch()
         process.terminationHandler = ending.recordingExit(opening: exited)
-        try process.run()
+        try process.runWithNoSignalBlocked()
         locker.testProcessStarted(process.processIdentifier)
         defer { locker.testProcessEnded(process.processIdentifier) }
         await withTaskCancellationHandler {

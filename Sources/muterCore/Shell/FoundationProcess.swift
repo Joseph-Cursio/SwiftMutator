@@ -40,7 +40,7 @@ extension Foundation.Process {
         terminationHandler = ending.recordingExit(opening: exited)
         // Not `try?` then a read: a command that can't be started leaves the pipe open at this end, so the read
         // would never return.
-        do { try run() } catch { return nil }
+        do { try runWithNoSignalBlocked() } catch { return nil }
         if let timeLimit {
             // Not counting the time SwiftMutator was suspended, by Ctrl-Z, with the command.
             @Dependency(\.suspensions) var suspensions: Suspensions

@@ -130,3 +130,10 @@ private extension DiscoverMutationPoints {
         return url.lastPathComponent.contains(".swift")
     }
 }
+
+#if !canImport(ObjectiveC)
+/// Without the Objective-C runtime nothing is autoreleased, so there is no pool to drain.
+private func autoreleasepool<Result>(invoking body: () throws -> Result) rethrows -> Result {
+    try body()
+}
+#endif

@@ -91,9 +91,19 @@ final class FileManagerSpy: Spy, FileSystemManager, @unchecked Sendable {
         }
         for path in pathsVanishingDuringCopy {
             let vanished = NSError(domain: NSPOSIXErrorDomain, code: Int(ENOENT))
+            #if os(Linux)
+            // Linux's `copyItem` asks the delegate only in the URL form, and FoundationEssentials makes it required.
+            let proceed = delegate?.fileManager(
+                .default,
+                shouldProceedAfterError: vanished,
+                copyingItemAt: URL(fileURLWithPath: path),
+                to: URL(fileURLWithPath: dstPath)
+            ) ?? false
+            #else
             let proceed = delegate?.fileManager?(
                 .default, shouldProceedAfterError: vanished, copyingItemAtPath: path, toPath: dstPath
             ) ?? false
+            #endif
             if !proceed {
                 throw vanished
             }

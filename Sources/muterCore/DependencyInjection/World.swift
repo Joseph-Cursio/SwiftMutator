@@ -1,5 +1,8 @@
 #if os(Linux)
 import FoundationNetworking
+// Glibc declares `stdout` and `stderr` as mutable globals, which Swift 6 won't let a `@Sendable` closure read unless
+// the import is `@preconcurrency`. Neither is reassigned once the process is running.
+@preconcurrency import Glibc
 #endif
 import Foundation
 
@@ -59,7 +62,13 @@ typealias Sleep = @Sendable (UInt64) async throws -> Void
 struct World: Sendable {
     /// What happens during the run, for its observer to report.
     var events = RunEvents()
+    #if os(Linux)
+    /// One of its own: FoundationEssentials traps when the shared FileManager is given a delegate, as the project
+    /// copy gives this one.
+    var fileManager: FileSystemManager = FileManager()
+    #else
     var fileManager: FileSystemManager = FileManager.default
+    #endif
     var flushStandardOut: Flush = { fflush(stdout) }
     var logger: Logger = .init()
     var printer: Printer = { print($0) }

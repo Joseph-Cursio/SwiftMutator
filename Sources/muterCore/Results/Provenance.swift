@@ -1,5 +1,7 @@
 #if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
 #endif
 import Foundation
 
@@ -116,9 +118,8 @@ enum FileDigest {
     /// How much of a file is hashed at a time, so a large executable is never all in memory.
     private static let chunkSize = 1 << 20
 
-    /// The hex SHA-256 of a file's bytes, or nil if it can't be read, or there is no CryptoKit.
+    /// The hex SHA-256 of a file's bytes, or nil if it can't be read.
     static func sha256(of url: URL) -> String? {
-        #if canImport(CryptoKit)
         guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? handle.close() }
         var hasher = SHA256()
@@ -130,23 +131,14 @@ enum FileDigest {
             return nil
         }
         return hex(hasher.finalize())
-        #else
-        return nil
-        #endif
     }
 
-    /// The hex SHA-256 of `data`, or nil if there is no CryptoKit.
-    static func sha256(of data: Data) -> String? {
-        #if canImport(CryptoKit)
-        return hex(SHA256.hash(data: data))
-        #else
-        return nil
-        #endif
+    /// The hex SHA-256 of `data`.
+    static func sha256(of data: Data) -> String {
+        hex(SHA256.hash(data: data))
     }
 
-    #if canImport(CryptoKit)
     private static func hex(_ digest: SHA256.Digest) -> String {
         digest.map { String(format: "%02x", $0) }.joined()
     }
-    #endif
 }

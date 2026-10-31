@@ -74,7 +74,13 @@ class CopyProjectToTempDirectory: MutationStep {
 /// enumerated them. Every other error, a permission failure included, still
 /// stops the copy.
 final class VanishedFileTolerance: NSObject, FileManagerDelegate {
+    #if os(Linux)
+    /// FoundationEssentials makes the delegate `Sendable`. The file manager calls it synchronously on the copying
+    /// thread, and the paths are read only once the copy has returned.
+    nonisolated(unsafe) private(set) var skippedPaths: [String] = []
+    #else
     private(set) var skippedPaths: [String] = []
+    #endif
 
     func fileManager(
         _ fileManager: FileManager,
@@ -82,11 +88,15 @@ final class VanishedFileTolerance: NSObject, FileManagerDelegate {
         copyingItemAtPath srcPath: String,
         toPath dstPath: String
     ) -> Bool {
+        shouldProceed(afterError: error, copying: srcPath)
+    }
+
+    private func shouldProceed(afterError error: Error, copying path: String) -> Bool {
         guard Self.isNoSuchFile(error) else {
             return false
         }
 
-        skippedPaths.append(srcPath)
+        skippedPaths.append(path)
         return true
     }
 
@@ -106,3 +116,95 @@ final class VanishedFileTolerance: NSObject, FileManagerDelegate {
         }
     }
 }
+
+#if os(Linux)
+/// FoundationEssentials gives `FileManagerDelegate` no default implementations, so the rest of it is spelled out with
+/// Darwin's defaults: every item is handled, and any other error stops the operation. Its `copyItem` asks only the URL
+/// forms, so a file that vanishes is tolerated there too.
+extension VanishedFileTolerance {
+    func fileManager(
+        _ fileManager: FileManager,
+        shouldProceedAfterError error: Error,
+        copyingItemAt srcURL: URL,
+        to dstURL: URL
+    ) -> Bool {
+        shouldProceed(afterError: error, copying: srcURL.path)
+    }
+
+    func fileManager(_ fileManager: FileManager, shouldCopyItemAtPath srcPath: String, toPath dstPath: String) -> Bool {
+        true
+    }
+
+    func fileManager(_ fileManager: FileManager, shouldCopyItemAt srcURL: URL, to dstURL: URL) -> Bool {
+        true
+    }
+
+    func fileManager(_ fileManager: FileManager, shouldMoveItemAtPath srcPath: String, toPath dstPath: String) -> Bool {
+        true
+    }
+
+    func fileManager(_ fileManager: FileManager, shouldMoveItemAt srcURL: URL, to dstURL: URL) -> Bool {
+        true
+    }
+
+    func fileManager(
+        _ fileManager: FileManager,
+        shouldProceedAfterError error: Error,
+        movingItemAtPath srcPath: String,
+        toPath dstPath: String
+    ) -> Bool {
+        false
+    }
+
+    func fileManager(
+        _ fileManager: FileManager,
+        shouldProceedAfterError error: Error,
+        movingItemAt srcURL: URL,
+        to dstURL: URL
+    ) -> Bool {
+        false
+    }
+
+    func fileManager(_ fileManager: FileManager, shouldLinkItemAtPath srcPath: String, toPath dstPath: String) -> Bool {
+        true
+    }
+
+    func fileManager(_ fileManager: FileManager, shouldLinkItemAt srcURL: URL, to dstURL: URL) -> Bool {
+        true
+    }
+
+    func fileManager(
+        _ fileManager: FileManager,
+        shouldProceedAfterError error: Error,
+        linkingItemAtPath srcPath: String,
+        toPath dstPath: String
+    ) -> Bool {
+        false
+    }
+
+    func fileManager(
+        _ fileManager: FileManager,
+        shouldProceedAfterError error: Error,
+        linkingItemAt srcURL: URL,
+        to dstURL: URL
+    ) -> Bool {
+        false
+    }
+
+    func fileManager(_ fileManager: FileManager, shouldRemoveItemAtPath path: String) -> Bool {
+        true
+    }
+
+    func fileManager(_ fileManager: FileManager, shouldRemoveItemAt URL: URL) -> Bool {
+        true
+    }
+
+    func fileManager(_ fileManager: FileManager, shouldProceedAfterError error: Error, removingItemAtPath path: String) -> Bool {
+        false
+    }
+
+    func fileManager(_ fileManager: FileManager, shouldProceedAfterError error: Error, removingItemAt URL: URL) -> Bool {
+        false
+    }
+}
+#endif

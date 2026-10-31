@@ -1,3 +1,6 @@
+#if os(Linux)
+import Glibc
+#endif
 import XCTest
 
 /// Runs the built `swift-mutator` on a two-file project whose test command is a shell script, in each report format,
@@ -43,9 +46,7 @@ final class ReportCommandAcceptanceTests: XCTestCase {
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        let products = try XCTUnwrap(Bundle.allBundles.first { $0.bundlePath.hasSuffix(".xctest") })
-            .bundleURL
-            .deletingLastPathComponent()
+        let products = try XCTUnwrap(BuildProducts.folder)
         swiftMutator = products.appendingPathComponent("swift-mutator")
         guard FileManager.default.isExecutableFile(atPath: swiftMutator.path) else {
             throw XCTSkip("No swift-mutator next to the test bundle, which `swift test` builds")
@@ -237,8 +238,13 @@ final class ReportCommandAcceptanceTests: XCTestCase {
     private func stop(_ process: Foundation.Process) {
         let pid = process.processIdentifier
         guard pid > 1 else { return }
+        #if os(Linux)
+        Glibc.kill(-pid, SIGKILL)
+        Glibc.kill(pid, SIGKILL)
+        #else
         Darwin.kill(-pid, SIGKILL)
         Darwin.kill(pid, SIGKILL)
+        #endif
         process.waitUntilExit()
     }
 

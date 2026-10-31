@@ -1,5 +1,7 @@
 #if canImport(CryptoKit)
 import CryptoKit
+#else
+import Crypto
 #endif
 @testable import muterCore
 import XCTest
@@ -196,7 +198,6 @@ final class ProvenanceTests: XCTestCase {
         XCTAssertFalse(provenance.host.contains("\0"), provenance.host)
     }
 
-    #if canImport(CryptoKit)
     func test_sha256_ofAFileLargerThanOneRead_isTheWholeFilesHash() throws {
         let directory = try makeTemporaryDirectory()
         let file = URL(fileURLWithPath: "\(directory)/large")
@@ -208,5 +209,4 @@ final class ProvenanceTests: XCTestCase {
             SHA256.hash(data: contents).map { String(format: "%02x", $0) }.joined()
         )
     }
-    #endif
 }

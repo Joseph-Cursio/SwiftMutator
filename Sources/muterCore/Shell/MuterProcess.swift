@@ -65,6 +65,23 @@ extension MuterProcess {
         nil
     }
 
+    /// `run()`, so that the command starts with no signal blocked, as Darwin's Foundation starts it. On Linux a process
+    /// keeps the signal mask of the thread that started it, and libdispatch's threads block nearly every signal: a
+    /// test command started from one would not end by its own `kill -TERM $$` until it next waited for a child. The
+    /// mask is cleared on this thread only while the command starts. A signal SwiftMutator observes that arrives just
+    /// then can reach this thread, which ignores it, rather than libdispatch: it is missed, as by a run between its
+    /// signal handlers.
+    func runWithNoSignalBlocked() throws {
+        #if os(Linux)
+        var none = sigset_t()
+        sigemptyset(&none)
+        var previous = sigset_t()
+        pthread_sigmask(SIG_SETMASK, &none, &previous)
+        defer { pthread_sigmask(SIG_SETMASK, &previous, nil) }
+        #endif
+        try run()
+    }
+
     /// `runCommand` with no time limit.
     func runCommand(url: String, arguments args: [String]) async -> CommandResult? {
         await runCommand(url: url, arguments: args, timeLimit: nil)
