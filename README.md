@@ -164,6 +164,32 @@ was for SwiftPM: `0.5` means 0.5%, so write `50` for half. The options are docum
 | `stopAtFirstFailure` | Stop a mutant's test run at its first failed test, or at a test process's crash, either of which already decides that it is killed (SwiftPM projects only; never the baseline; default true) |
 | `buildTimeout` | Seconds before the coverage run, which builds your project and runs its tests with coverage on, is stopped. Mutation testing then goes on without coverage, as after any coverage failure. For now it limits only the coverage run, not the baseline or other builds (default: no limit) |
 
+### Workers and release mode
+
+Measured on SwiftProjectLint's whole repo, 2,463 mutants, on an 18-core Mac, with
+`--skip-coverage` and one run per setting
+([Docs/release-and-workers-2026-10.md](Docs/release-and-workers-2026-10.md)):
+
+- **`mutationTestWorkers`** (default 1). 2 workers took 39 min, 3 took 30, 4 took 27, 6 took 24
+  and 8 took 24. Each worker past the first adds a clone and its build, and every test run slows
+  as the load rises, so the gain falls off fast; two runs with 4 workers differed by 13%. On that
+  machine 4 was a safe choice, and 6 or 8 helped a little; a machine with fewer cores will do best
+  with fewer. More workers also make false kills from tests that share state outside the project
+  more likely, such as `UserDefaults`
+  ([#92](https://github.com/Joseph-Cursio/SwiftMutator/issues/92)): with 8 workers they killed 9
+  mutants that most runs didn't.
+- **Release-mode tests.** With `arguments: [test, -c, release, -Xswiftc, -enable-testing]` the same
+  run took 19 min instead of 27, with about the same verdicts. `-enable-testing` keeps
+  `@testable import` working. The tests ran 2.8 times as fast, but the builds took longer and setup
+  went from 2 min to 10, so with 4 workers it pays off only above about 1,250 mutants, and above
+  more with more workers. With coverage on, the coverage run is also built in release, which
+  wasn't measured.
+  - Tests that look for a product in `.build/debug` fail the baseline in release mode, which stops
+    the run. Link `.build/debug` to the release products, or find the product another way.
+  - Release mode can also lose kills without any warning: an `assert` or `assertionFailure` isn't
+    evaluated, and code and tests under `#if DEBUG` drop out. `precondition` is still checked. If
+    your code relies on them, compare a release run's survivors with a debug run's.
+
 ## Results file
 
 SwiftMutator saves each mutant's result as soon as it is tested, as one line of JSON in
@@ -386,8 +412,10 @@ the first session's log folder. The report at the end covers every mutant, kept 
 does `swift-mutator report` of the file.
 
 - **What it saves.** The copy, the build, the baseline and the worker clones are made again. On
-  SwiftProjectLint's 2,497 mutants they take 5–9% of a run, so resuming a run stopped halfway should
-  save about 33–46 minutes, roughly 46% of a new run. On a small project they are most of the run:
+  SwiftProjectLint's 2,497 mutants on 6 October, on an 8-core Mac, they took 5–9% of a run, so
+  resuming a run stopped halfway should have saved about 33–46 minutes, roughly 46% of a new run.
+  On 31 October, on an 18-core Mac, a whole 4-worker run took 27 minutes with 2 of setup, so it
+  would save about 12. On a small project they are most of the run:
   for lab runs of 43 and 151 mutants, the estimate is 12–18%.
 - **What it keeps.** A result is kept when discovery finds its mutant again in the same file, at the
   same place, with the same operator and the same change (`snapshot`), and the file's SHA-256 hasn't

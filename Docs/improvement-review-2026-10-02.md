@@ -51,6 +51,7 @@ This started as a ranked review of SwiftMutator on 2 October 2026, at commit `4b
   - Colour codes in report files, and a skipped coverage run reported as failed. Run from a terminal, the plain report is coloured wherever it goes, so `-f plain -o report.txt`, a stopped run's partial report and `report -o` saved the codes in the file. Every report is now saved without them, and one printed to a terminal keeps its colour. A run given `--skip-coverage` said SwiftMutator "could not gather coverage data". It now says "Coverage skipped (--skip-coverage)", and so does a report `report` makes from its results file, whose header records the flag; a coverage run that failed still says it could not gather it (§3, [#95]).
 
   - Mutants that silently weren't applied ([#110]). A file with mutants that couldn't be read was skipped, and a rewrite that matched no statement list left it unchanged, so the mutants were tested with no switch in the code and survived; twice before, every mutant had. `CheckMutantSwitches` now reads each rewritten file back after `ApplySchemata`, and a test plan's before `run-without-mutating`, and stops the run naming every mutant whose ID isn't in its file as a quoted string; an unreadable file stops `ApplySchemata`. Under xcodebuild, a `muter.xctestrun` that couldn't be written (`try?`) left the last mutant's file, so a run could test that mutant and record the verdict for this one; it now aborts mutation testing (`mutantNotSwitchedOn`). `report` exits 255, as the run did, for a run that stopped on an error.
+  - Release-mode tests and the worker count, measured (§1.5, [#70]). On SwiftProjectLint's whole repo, 2,463 mutants on an 18-core Mac with `--skip-coverage`, 4 workers took 26.6 min. Release mode (`-c release -Xswiftc -enable-testing`) took 18.9 min with about the same verdicts: the tests ran 2.8 times as fast, but setup went from 2.3 min to 10.2, so with 4 workers it pays off only above about 1,250 mutants. It needed `.build/debug` linked to the release products, where the project's CLITests look for the `CLI` binary. 2, 3, 6 and 8 workers took 39.2, 30.1, 24.4 and 23.6 min, one run each, where two 4-worker runs differed by 13%. The score was 76.3–76.6% throughout, but with 8 workers tests of `UserDefaults` killed 9 mutants that most runs called survivors ([#92]). The README now advises on both; [Docs/release-and-workers-2026-10.md](release-and-workers-2026-10.md) has the numbers.
 
   Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#61, which are in the PRs themselves.
 - **Section numbers are the original ones,** so references in PRs and notes still work. A missing number is a finished section.
@@ -69,6 +70,8 @@ SwiftProjectLint at `c2082e5d`, the whole repo: 2,497 mutants in 302 files, 4 wo
 
 The machine has 4 performance cores and 4 efficiency cores, and 24 GB of RAM. With 4 workers the load averaged about 28.
 
+On 31 October, on an 18-core Mac and with SwiftMutator at `9af0b47c`, the same commit took 26.6 min with 4 workers: 2,463 mutants, as two files were excluded (15 mutants) and discovery now leaves out files no target compiles, of which 1,879 were killed, 575 survived and 9 timed out. Mutants took 2.4 s on average, 6.9 s for a survivor and 0.8 s for a kill, and setup took 2.3 min ([release-and-workers-2026-10.md](release-and-workers-2026-10.md)). The estimates below still use the 6 October figures.
+
 ---
 
 ## 1. Speed
@@ -79,7 +82,6 @@ The machine has 4 performance cores and 4 efficiency cores, and 24 GB of RAM. Wi
 | 1.2 | Stop crash-only runs early, and run quietly | Under a minute; quiet running saves disk, not time | S |
 | 1.3 | Skip the mutants that no test reaches (about 6%) | About 11 min | M |
 | 1.4 | Do less work per run: reuse unchanged results, `--since`, `--shard` | A small change runs in about 8–12 min instead of 91; two machines run the whole repo 1.9× faster | M |
-| 1.5 | Try release-mode tests, and tune the worker count | Unmeasured; up to about 9–18 min for the worker count | S |
 
 ### 1.1 Time before the test helper starts
 
@@ -135,14 +137,6 @@ The results file and `--resume` built most of the base for this. PR #38 added st
   - `report` reads one results file (`Report.swift:12-13`), so it needs to learn to merge them.
 - **`--sample N --seed S`** ([#75]). Run a random subset for trend checks. 500 mutants take about 23 min and give the score to ±3.4 points (95% confidence).
 - `--since`, `--shard` and `--sample` change which mutants run. So each one must be recorded in the results file's header and compared by the resume check (`ResumeCheck.swift:91-98`). Otherwise a resume could reuse results from a different selection.
-
-### 1.5 Experiments
-
-- **Release-mode tests** ([#70]). Try `arguments:` with `-c release -Xswiftc -enable-testing`.
-  - Since PR #42, most of each mutant's 8.1 s is test work, so release mode has more to act on than when this was first proposed.
-  - The project's build and the clones' builds get slower, which adds to the setup.
-  - Unmeasured.
-- **Worker count** ([#70]). Try 2, 3, 4 and 6 workers. Each worker's Swift Testing run is already parallel, so expect 10–20% at most, about 9–18 min. Since fail-fast the workers no longer run in step, so only a measurement can settle it.
 
 ---
 
