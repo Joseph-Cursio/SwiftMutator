@@ -18,6 +18,8 @@ struct PerformMutationTesting: MutationStep {
     private var provenance: ProvenanceProbe
     @Dependency(\.interruption)
     private var interruption: InterruptionRecord
+    @Dependency(\.directTestRun)
+    private var directTestRun: DirectTestRunProbe
 
     private let buildErrorsThreshold: Int = 5
 
@@ -254,9 +256,18 @@ private extension PerformMutationTesting {
 
         // A clone costs a copy and about a baseline build, so there are never more workers than mutants to test.
         let workers = min(muterConfiguration.workerCount, plan.toRun.count)
-        let testRunSeconds = muterConfiguration.testSuiteTimeout == nil && muterConfiguration.buildSystem == .swift
-            ? try await timeTestRun(using: muterConfiguration, state: state)
-            : nil
+        var testRunSeconds: TimeInterval?
+        if muterConfiguration.buildSystem == .swift {
+            let direct = try await runningTestBundlesDirectly(muterConfiguration, baselineLog: testLog, state: state)
+            muterConfiguration = direct.configuration
+            // The run that checked the direct runs is a mutant's run with no mutant on, which needn't run again.
+            if muterConfiguration.testSuiteTimeout == nil {
+                testRunSeconds = direct.seconds
+                if testRunSeconds == nil {
+                    testRunSeconds = try await timeTestRun(using: muterConfiguration, state: state)
+                }
+            }
+        }
         let configuration = muterConfiguration.withDefaultTestSuiteTimeout(
             testRunSeconds.map { Self.defaultTimeout(testRunSeconds: $0, workers: workers) }
                 ?? max(timePerBuildTestCycle * Self.defaultTimeoutMultiplier, Self.minimumDefaultTimeout)
@@ -597,6 +608,48 @@ private extension PerformMutationTesting {
     /// 9, which counts as killed. Such a run is never recorded.
     static func throwIfCancelled(_ run: TestRun) throws {
         if run.ending == .cancelled || Task.isCancelled { throw CancellationError() }
+    }
+
+    /// `configuration` with mutants' tests run without `swift test`, if a run of them with no mutant on, once the
+    /// baseline has built the project, passes and runs the tests the baseline's log shows, with how long it took. Else
+    /// `configuration` as it is, and why, unless it isn't worth saying. A run that fails the check keeps its log.
+    func runningTestBundlesDirectly(
+        _ configuration: MuterConfiguration,
+        baselineLog: String,
+        state: AnyMutationTestState
+    ) async throws -> (configuration: MuterConfiguration, seconds: TimeInterval?) {
+        let notDirect = { (reason: String) in
+            events.send(.testBundlesNotRunDirectly(reason: reason))
+            return (configuration, TimeInterval?.none)
+        }
+        let direct: DirectTestRun
+        switch await directTestRun(configuration, state.mutatedProjectDirectoryURL) {
+        case let .success(probed):
+            direct = probed
+        case let .failure(unavailable):
+            try Task.checkCancellation()
+            return unavailable.reason.map(notDirect) ?? (configuration, nil)
+        }
+        try Task.checkCancellation()
+        if DirectTestRun.ranXCTestTests(in: baselineLog) {
+            return notDirect("the baseline ran XCTest tests, which only `swift test` runs")
+        }
+
+        let directConfiguration = configuration.withDirectTestRun(direct)
+        let start = instant()
+        let (outcome, testLog) = await ioDelegate.runTestsWithoutBuilding(
+            using: directConfiguration,
+            savingResultsIntoFileNamed: testOutput(named: "direct test run", state: state)
+        )
+        // Stopping the run kills this run too, which then fails, but that says nothing about the project's tests.
+        try Task.checkCancellation()
+        let seconds = seconds(since: start)
+        if let reason = DirectTestRun.whyNot(baselineLog: baselineLog, outcome: outcome, log: testLog) {
+            fileManager.keepLog(testLog, named: "direct test run.log", state: state)
+            return notDirect(reason + " (its log is direct test run.log)")
+        }
+        fileManager.keepLog(testLog, named: "timed test run.log", state: state)
+        return (directConfiguration, seconds)
     }
 
     /// How long a mutant's test command takes with no mutant on, once the baseline has built the project, or nil if

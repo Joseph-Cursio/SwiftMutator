@@ -151,7 +151,7 @@ final class ResultsRecordTests: XCTestCase {
         for key in [
             "coverage", "baselineSeconds", "testRunSeconds", "timeoutSeconds", "executablePath", "executableSHA256",
             "testCommandVersion", "testExecutableSHA256", "mutationTestTimeout", "buildSystem", "project",
-            "mutantsReused", "waived", "forced",
+            "mutantsReused", "waived", "forced", "testBundlesRunDirectly",
         ] {
             XCTAssertFalse(header.contains("\"\(key)\""), "\(key) in \(header)")
         }

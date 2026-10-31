@@ -70,6 +70,7 @@ The header's `project` lists five files here. A real one lists every file in the
 | `project` | Object | Your project's files, each one's SHA-256, as SwiftMutator copied them, before it prepared any for mutation. See [below](#project). Left out by `run-without-mutating`, which copies nothing. |
 | `mutantsReused` | Int | Only in a resumed session: how many earlier sessions' results it kept rather than tested again |
 | `waived` | [String] | Only in a resumed session: the project files that changed since the last session and that `--resume-ignoring` let through, by their paths relative to the project, or `[]` |
+| `testBundlesRunDirectly` | Bool | Only when the session's mutants ran their test bundles directly, with `swiftpm-testing-helper`, rather than through `swift test`: `true` |
 | `forced` | [String] | Only in a resumed session: the `provenance` values that changed since the last session and that `--force-resume` let through, by name (`swiftMutator.executableSHA256`, `toolchain.testCommandVersion`, `toolchain.testExecutableSHA256` or `toolchain.environment`), or `[]` |
 
 #### Provenance

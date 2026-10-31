@@ -87,6 +87,8 @@ extension MutationTestObserver {
             logger.mutantRunsStarted()
         case let .stopAtFirstFailureTurnedOff(reason):
             logger.stopAtFirstFailureTurnedOff(reason: reason)
+        case let .testBundlesNotRunDirectly(reason):
+            logger.testBundlesNotRunDirectly(reason: reason)
         case let .mutationTestingFinished(outcome):
             mutationTestingFinished(outcome)
         case let .mutationTestingEndedEarly(earlyEnd):

@@ -39,6 +39,10 @@ struct MuterConfiguration: Equatable, Codable {
     /// then neither stops a mutant's run nor counts a timed-out run killed. A `var` only so
     /// `withUnreliableFailedTestLines` can copy `self` and change just this field.
     private(set) var failedTestLinesAreReliable = true
+    /// How a mutant's run starts the test bundles without `swift test`. Not a configuration key: set once a run of
+    /// them with no mutant on has matched the baseline (see `DirectTestRun`). A `var` only so `withDirectTestRun` can
+    /// copy `self` and change just this field.
+    private(set) var directTestRun: DirectTestRun?
 
     var buildSystem: BuildSystem {
         if let explicitBuildSystem, explicitBuildSystem != .unknown {
@@ -148,6 +152,13 @@ struct MuterConfiguration: Equatable, Codable {
     func withUnreliableFailedTestLines() -> MuterConfiguration {
         var copy = self
         copy.failedTestLinesAreReliable = false
+        return copy
+    }
+
+    /// This configuration with mutants' test runs starting the test bundles as `directTestRun` says.
+    func withDirectTestRun(_ directTestRun: DirectTestRun) -> MuterConfiguration {
+        var copy = self
+        copy.directTestRun = directTestRun
         return copy
     }
 

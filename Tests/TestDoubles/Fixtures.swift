@@ -464,6 +464,13 @@ func configurationWithEveryFieldSet(
         stopAtFirstFailure: false,
         buildTimeout: 600
     )
+    .withDirectTestRun(DirectTestRun(
+        helper: "/toolchain/usr/libexec/swift/pm/swiftpm-testing-helper",
+        productsFolder: ".build/out/Products/Debug",
+        bundles: ["CoreTests"],
+        platformDeveloperFolder: "/Platforms/MacOSX.platform/Developer",
+        arguments: ["--skip-build"]
+    ))
     return failedTestLinesAreReliable ? configuration : configuration.withUnreliableFailedTestLines()
 }
 

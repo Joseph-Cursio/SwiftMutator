@@ -23,6 +23,7 @@ extension RunEvent {
         case mutationTestingStarted
         case mutantRunsStarted
         case stopAtFirstFailureTurnedOff
+        case testBundlesNotRunDirectly
         case mutationTestingFinished
         case mutationTestingEndedEarly
         case newMutationTestOutcomeAvailable
@@ -54,6 +55,7 @@ extension RunEvent {
         case .mutationTestingStarted: .mutationTestingStarted
         case .mutantRunsStarted: .mutantRunsStarted
         case .stopAtFirstFailureTurnedOff: .stopAtFirstFailureTurnedOff
+        case .testBundlesNotRunDirectly: .testBundlesNotRunDirectly
         case .mutationTestingFinished: .mutationTestingFinished
         case .mutationTestingEndedEarly: .mutationTestingEndedEarly
         case .newMutationTestOutcomeAvailable: .newMutationTestOutcomeAvailable
@@ -83,6 +85,7 @@ extension RunEvent {
         case let .mutationsDiscoveryFinished(mappings): mappings
         case let .resumePlanned(summary): summary
         case let .stopAtFirstFailureTurnedOff(reason): reason
+        case let .testBundlesNotRunDirectly(reason): reason
         case let .mutationTestingFinished(outcome): outcome
         case let .mutationTestingEndedEarly(earlyEnd): earlyEnd
         case let .newMutationTestOutcomeAvailable(mutation): mutation

@@ -394,7 +394,8 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         skippingBuild: Bool? = nil
     ) async throws -> Process {
         // A mutant's run skips the build the baseline did, and so does the run that times one with no mutant on.
-        let testCommandArguments = (skippingBuild ?? (schemata != .null))
+        let skipsBuild = skippingBuild ?? (schemata != .null)
+        let testCommandArguments = skipsBuild
             ? configuration.testWithoutBuildArguments(with: muterTestRunFileName)
             : configuration.testCommandArguments
 
@@ -434,8 +435,14 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             process.environment?["SIMCTL_CHILD_\(schemata.id)"] = "YES"
         }
 
-        process.arguments = testCommandArguments
-        process.executableURL = URL(fileURLWithPath: configuration.testCommandExecutable)
+        if skipsBuild, let direct = configuration.directTestRun {
+            let folder = workingDirectory ?? URL(fileURLWithPath: fileManager.currentDirectoryPath)
+            process.arguments = ["-c", direct.script(in: folder)]
+            process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        } else {
+            process.arguments = testCommandArguments
+            process.executableURL = URL(fileURLWithPath: configuration.testCommandExecutable)
+        }
         if let workingDirectory {
             process.currentDirectoryURL = workingDirectory
         }
