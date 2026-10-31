@@ -146,6 +146,8 @@ struct ResultsHeader: Codable, Equatable {
     /// Only in a resumed session: the build and toolchain differences `--force-resume` let through, by their names in
     /// `provenance`.
     let forced: [String]?
+    /// Only when mutants' tests ran without `swift test`, each test bundle started directly (see `DirectTestRun`).
+    var testBundlesRunDirectly: Bool?
 }
 
 extension ResultsHeader {
@@ -196,7 +198,8 @@ extension ResultsHeader {
             project: state.projectTree,
             mutantsReused: mutantsReused,
             waived: waived,
-            forced: forced
+            forced: forced,
+            testBundlesRunDirectly: configuration.directTestRun == nil ? nil : true
         )
     }
 }

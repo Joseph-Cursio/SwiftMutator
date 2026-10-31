@@ -302,6 +302,10 @@ final class Logger: @unchecked Sendable {
         print("⚠️ stopAtFirstFailure is off for this run, so every mutant's tests run to the end: \(reason)")
     }
 
+    func testBundlesNotRunDirectly(reason: String) {
+        print("ℹ️ Each mutant's tests run through `swift test`, which takes about a second longer per mutant: \(reason)")
+    }
+
     func resultsFileCreated(atPath path: String) {
         print("💾 SwiftMutator saves each mutant's result as it finishes, in \(path.bold)")
     }

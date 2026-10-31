@@ -54,6 +54,9 @@ typealias Now = @Sendable () -> Date
 typealias Instant = @Sendable () -> DispatchTime
 typealias TestingTimeoutExecutorFactory = @Sendable () -> TestingTimeoutExecution
 typealias ProvenanceProbe = @Sendable (MuterConfiguration) async -> Provenance
+/// How a project's test bundles can be run without `swift test`, or why they can't.
+typealias DirectTestRunProbe = @Sendable (MuterConfiguration, _ project: URL) async
+    -> Result<DirectTestRun, DirectTestRun.Unavailable>
 /// The files in a project, relative to it, or nil if it can't list them.
 typealias ProjectFileListing = @Sendable (URL) async -> [String]?
 /// Waits that many nanoseconds, or throws a CancellationError once the task is cancelled.
@@ -94,6 +97,7 @@ struct World: Sendable {
     var instant: Instant = { current.suspensions.instant }
     var testingTimeOutExecutor: TestingTimeoutExecutorFactory = { TestingTimeoutExecutor() }
     var provenance: ProvenanceProbe = { await Provenance.probe($0) }
+    var directTestRun: DirectTestRunProbe = { await DirectTestRun.probe($0, in: $1) }
     var resultsFiles: ResultsFileOpening = ResultsFile.Opener()
     var mutatedProjectLocker: MutatedProjectLocking = MutatedProjectLock.Locker()
     var listProjectFiles: ProjectFileListing = { await GitFileListing.list(in: $0) }

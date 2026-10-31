@@ -35,6 +35,11 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     /// How the timed run of the test command without its build ends. Not taken from `testSuiteOutcomes`, which
     /// scripts the baselines and the mutants.
     var timedTestRunOutcome: TestSuiteOutcome = .passed
+    /// How each run of the test command without its build ends, and what it prints, in the order they're run; once
+    /// empty, `timedTestRunOutcome` and "timed test run log".
+    var testRunsWithoutBuilding: [(outcome: TestSuiteOutcome, log: String)] = []
+    /// The configuration each run of the test command without its build was given.
+    private(set) var configurationsWithoutBuilding: [MuterConfiguration] = []
     /// Called just before the timed run of the test command without its build returns, so a test can move its clock.
     var whileRunningTestsWithoutBuilding: (() -> Void)?
     private var mutantRunCount = 0
@@ -132,8 +137,11 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     ) {
         methodCalls.append(#function)
         testLogs.append(fileName)
+        configurationsWithoutBuilding.append(configuration)
         whileRunningTestsWithoutBuilding?()
-        return (timedTestRunOutcome, "timed test run log")
+        return testRunsWithoutBuilding.isEmpty
+            ? (timedTestRunOutcome, "timed test run log")
+            : testRunsWithoutBuilding.removeFirst()
     }
 
     func switchOn(schemata: MutationSchema, for testRun: XCTestRun, at path: URL) throws {

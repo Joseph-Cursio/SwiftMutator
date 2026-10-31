@@ -179,11 +179,15 @@ final class SwiftCoverage: BuildSystemCoverage {
     /// paths, and its functions would read as never run at lines that now hold other code. So when any bundle is named
     /// after one of `testTargets`, only those are kept. The native build system names its one bundle after the package.
     private func testBundles(in binPath: String, testTargets: Set<String>?) -> [String] {
+        testBundleFiles(in: binPath, testTargets: testTargets).map { "\(binPath)/\($0.file)" }
+    }
+
+    /// The test bundles in `binPath` that `testBundles(in:testTargets:)` keeps, by name and file in the folder, in
+    /// name order.
+    func testBundleFiles(in binPath: String, testTargets: Set<String>?) -> [(name: String, file: String)] {
         let bundles = testBundles(among: (try? fileManager.contentsOfDirectory(atPath: binPath)) ?? [])
         let ofTestTargets = bundles.filter { testTargets?.contains($0.name) ?? false }
-        return (ofTestTargets.isEmpty ? bundles : ofTestTargets)
-            .sorted { $0.name < $1.name }
-            .map { "\(binPath)/\($0.file)" }
+        return (ofTestTargets.isEmpty ? bundles : ofTestTargets).sorted { $0.name < $1.name }
     }
 
     /// Each test bundle among `files`, those in a build folder, by its name and the file in the folder that llvm-cov
@@ -210,7 +214,7 @@ final class SwiftCoverage: BuildSystemCoverage {
     }
 
     /// The package's test targets, from `swift package describe`, or nil if it can't say.
-    private func testTargets(_ configuration: MuterConfiguration) async -> Set<String>? {
+    func testTargets(_ configuration: MuterConfiguration) async -> Set<String>? {
         guard let described = await process().runCommand(
             url: configuration.testCommandExecutable,
             arguments: ["package", "describe", "--type", "json"]

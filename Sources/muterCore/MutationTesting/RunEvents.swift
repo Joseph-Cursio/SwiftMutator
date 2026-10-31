@@ -35,6 +35,8 @@ enum RunEvent {
     /// the first mutant's run.
     case mutantRunsStarted
     case stopAtFirstFailureTurnedOff(reason: String)
+    /// Each mutant's tests run through `swift test`, as the bundles can't be run directly (see `DirectTestRun`).
+    case testBundlesNotRunDirectly(reason: String)
     case mutationTestingFinished(MutationTestOutcome)
     /// What mutation testing tested before it stopped early, once the baseline passed.
     case mutationTestingEndedEarly(EarlyEnd)

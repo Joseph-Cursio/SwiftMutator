@@ -56,6 +56,8 @@ class MuterTestCase: XCTestCase {
             instant: { DispatchTime(uptimeNanoseconds: 1) },
             testingTimeOutExecutor: { [testingTimeOutExecutor] in testingTimeOutExecutor },
             provenance: { _ in .fixture },
+            // Never the real build's: a test of direct runs gives its own.
+            directTestRun: { _, _ in .failure(.init(reason: nil)) },
             resultsFiles: resultsFiles,
             mutatedProjectLocker: mutatedProjectLocker,
             // Never the test runner's own.

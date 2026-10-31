@@ -73,10 +73,19 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   to read that file; other wrappers and `xcodebuild` keep a variable per mutant. A SwiftPM test
   plan made by an older SwiftMutator is refused: make it again with
   `swift-mutator mutate-without-running`.
+- **Test bundles run directly:** on macOS, a SwiftPM project's mutants don't go through
+  `swift test`, which spends about a second of each run loading the package and planning the build
+  it skips. Each test bundle runs with SwiftPM's own `swiftpm-testing-helper`, from the toolchain of
+  the `swift` in `executable`, given the same arguments and variables `swift test --skip-build`
+  gives it, so `--filter` and `--skip` still apply. Before the mutants, one such run with no mutant
+  on must pass and run as many Swift Testing tests in each bundle as the baseline did; it is the
+  run the default timeout is based on. Otherwise, and when the baseline ran XCTest tests, which only
+  `swift test` runs, or the build is outside the project, mutants run `swift test` as before, and a
+  line says why. A wrapper `executable`, and Linux, always run `swift test`.
 - **A default timeout:** without `mutationTestTimeout`, a mutant's test run stops after a limit
   based on how long your tests take, so a mutant that loops forever can't hang the run. For a
-  SwiftPM project, SwiftMutator times one run of `swift test … --skip-build` with no mutant on,
-  just after the baseline, and allows 5× that, once more for each worker beyond the first, and at
+  SwiftPM project, SwiftMutator times one run of a mutant's test command with no mutant on,
+  the test bundles run directly or `swift test … --skip-build`, just after the baseline, and allows 5× that, once more for each worker beyond the first, and at
   least 20 s. For another build system, or when that run fails, it allows 3× the baseline, build
   included, and at least 10 s. A timeout counts as a survivor, so if your tests set limits of their
   own, such as Swift Testing's `.timeLimit`, which is at least a minute, set `mutationTestTimeout`
