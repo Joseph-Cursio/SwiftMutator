@@ -142,8 +142,12 @@ jobs:
     name: Unit tests (Linux, Swift 6.4, non-blocking)
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    # The official image: Swift 6.4 on Ubuntu 24.04.
-    container: swift:6.4-noble
+    # The official image: Swift 6.4 on Ubuntu 24.04. With an init as PID 1: Actions
+    # starts the container with `tail -f /dev/null` there, which never reaps the
+    # orphans a killed test leaves, so the process tests saw them as still running.
+    container:
+      image: swift:6.4-noble
+      options: --init
     timeout-minutes: 45
     continue-on-error: true
     env:
