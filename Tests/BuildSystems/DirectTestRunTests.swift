@@ -16,13 +16,18 @@ final class DirectTestRunTests: MuterTestCase {
         worker = directory.appendingPathComponent("it's a project")
         try FileManager.default.createDirectory(at: worker, withIntermediateDirectories: true)
         // Stands for swiftpm-testing-helper: says what it was given, then runs its bundle's "tests". The bundle's
-        // executable is its second argument. A bundle that waits gives a stopped run time to stop before it ends.
+        // executable is its second argument. A bundle that waits gives a stopped run time to stop before it ends. One
+        // named for `UserDefaults` says what its domain, its process's name, holds, then writes to it.
         helper = directory.appendingPathComponent("swiftpm-testing-helper")
         try """
         #!/bin/sh
         printf 'ran:'; printf ' %s' "$@"; printf '\\n'
         printf 'colour=%s\\n' "$NO_COLOR"
+        printf 'as=%s\\n' "$(basename "$0")"
         case "$2" in
+          *UserDefaults)
+            printf 'held=%s\\n' "$(defaults read "$(basename "$0")" sharedKey 2>/dev/null)"
+            defaults write "$(basename "$0")" sharedKey "written by $(basename "$0")" ;;
           *Crashes) kill -USR1 $$ ;;
           *Interrupted) kill -INT $$ ;;
           *Fails) echo "✘ Test run with 1 test in 1 suite failed after 0.1 seconds with 1 issue."; exit 1 ;;
@@ -48,6 +53,63 @@ final class DirectTestRunTests: MuterTestCase {
         })
         XCTAssertTrue(run.testLog.contains("colour=1\n"), run.testLog)
         XCTAssertEqual(run.outcome, .passed)
+    }
+
+    // A process with no bundle identifier keeps its `UserDefaults` in a domain named after its executable's file, so
+    // the link gives each worker's tests their own (#92).
+    func test_aMutantsRun_startsTheHelperThroughTheWorkersOwnLink() async throws {
+        let run = try await runAMutant(bundles: ["CoreTests"])
+
+        XCTAssertTrue(run.testLog.contains("as=it's a project.swiftpm-testing-helper\n"), run.testLog)
+        let link = DirectTestRun.helperLink(forWorkerIn: worker)
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: link.path), helper.path)
+    }
+
+    // A mutant whose tests write a fixed key could otherwise fail the runs after it in that folder, and another worker's.
+    func test_eachRunStartsWithEmptyDefaults_thatNoOtherWorkerShares() async throws {
+        let otherWorker = directory.appendingPathComponent("it's a project_worker1")
+        try FileManager.default.createDirectory(at: otherWorker, withIntermediateDirectories: true)
+        addTeardownBlock { [worker] in
+            DirectTestRun.removeOwnDefaults(forWorkerIn: worker!)
+            DirectTestRun.removeOwnDefaults(forWorkerIn: otherWorker)
+        }
+
+        let first = try await runAMutant(bundles: ["UserDefaults"])
+        let second = try await runAMutant(bundles: ["UserDefaults"])
+        let other = try await runAMutant(bundles: ["UserDefaults"], in: otherWorker)
+
+        XCTAssertTrue(first.testLog.contains("held=\n"), first.testLog)
+        XCTAssertTrue(second.testLog.contains("held=\n"), second.testLog)
+        XCTAssertTrue(other.testLog.contains("held=\n"), other.testLog)
+        // What the last run wrote stays until the next run in that folder, or the end of mutation testing.
+        let domain = DirectTestRun.defaultsDomain(forWorkerIn: otherWorker)
+        XCTAssertEqual(try defaults("read", domain, "sharedKey"), "written by \(domain)\n")
+    }
+
+    // Nothing of the folder's is left in the user's preferences, and the helper the link led to stays.
+    func test_removeOwnDefaults_removesTheLinkAndTheDomain_butNotTheHelper() async throws {
+        _ = try await runAMutant(bundles: ["UserDefaults"])
+        let domain = DirectTestRun.defaultsDomain(forWorkerIn: worker)
+        XCTAssertEqual(try defaults("read", domain, "sharedKey"), "written by \(domain)\n")
+
+        DirectTestRun.removeOwnDefaults(forWorkerIn: worker)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: DirectTestRun.helperLink(forWorkerIn: worker).path))
+        XCTAssertEqual(try defaults("read", domain), "")
+        let preferences = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Preferences")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: preferences.appendingPathComponent(domain + ".plist").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: helper.path))
+    }
+
+    // A folder whose helper couldn't be linked ran the helper itself, whose domain other `swift test` runs share.
+    func test_removeOwnDefaults_touchesNoDomainWithoutALink() {
+        let domain = DirectTestRun.defaultsDomain(forWorkerIn: worker)
+        XCTAssertNoThrow(try defaults("write", domain, "sharedKey", "kept"))
+        addTeardownBlock { DirectTestRun.removeDefaultsDomain(domain) }
+
+        DirectTestRun.removeOwnDefaults(forWorkerIn: worker)
+
+        XCTAssertEqual(try defaults("read", domain, "sharedKey"), "kept\n")
     }
 
     // Under `swift test` the other bundles still run, and its line for the crash is what scoring reads.
@@ -217,6 +279,22 @@ final class DirectTestRunTests: MuterTestCase {
 
     // MARK: - Helpers
 
+    /// What `defaults` printed with `arguments`, run as the tests' helpers would, outside this process: reading the
+    /// domains here would leave a copy of them that is written back to disk when the tests end.
+    @discardableResult
+    private func defaults(_ arguments: String...) throws -> String {
+        let process = Foundation.Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
+        process.arguments = arguments
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return String(decoding: data, as: UTF8.self)
+    }
+
     private func makeDirectTestRun(bundles: [String], testFiles: [String: [String]] = [:]) -> DirectTestRun {
         DirectTestRun(
             helper: helper.path,
@@ -234,7 +312,8 @@ final class DirectTestRunTests: MuterTestCase {
     private func runAMutant(
         bundles: [String],
         testFiles: [String: [String]] = [:],
-        stoppingAtFirstFailure: Bool = false
+        stoppingAtFirstFailure: Bool = false,
+        in folder: URL? = nil
     ) async throws -> TestRun {
         current.process = { MuterProcessFactory.makeProcess() }
         current.writeFile = World().writeFile
@@ -247,12 +326,13 @@ final class DirectTestRunTests: MuterTestCase {
             stopAtFirstFailure: stoppingAtFirstFailure
         ).withDirectTestRun(makeDirectTestRun(bundles: bundles, testFiles: testFiles))
         let mutant = try MutationSchema.make(filePath: "/path/Sample.swift", position: .init(line: 1))
-        let run = Task { [sut, worker] in
+        let workingDirectory = folder ?? worker!
+        let run = Task { [sut] in
             await sut.runTestSuite(
                 withSchemata: mutant,
                 using: configuration,
                 savingResultsIntoFileNamed: "\(UUID().uuidString).log",
-                workingDirectory: worker!
+                workingDirectory: workingDirectory
             )
         }
         let deadline = Task {

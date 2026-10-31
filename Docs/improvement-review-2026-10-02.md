@@ -219,9 +219,9 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
 
 ## Open bugs
 
-- **Workers share the user's `UserDefaults`** ([#92]). Tests that write fixed keys in `UserDefaults.standard` can overwrite each other's values across workers. That gave SwiftProjectLint 4 false kills on 2 October.
-  - No SwiftMutator-side fix is known. `CFFIXED_USER_HOME` doesn't isolate `UserDefaults` on macOS 27, and it also moves `NSHomeDirectory()`, which breaks the swiftly proxy.
-  - The fix belongs in the project's tests (see [Outside this repo](#outside-this-repo)).
+- **Workers share the user's `UserDefaults`** ([#92]). Tests that write fixed keys in `UserDefaults.standard` can overwrite each other's values across workers. That gave SwiftProjectLint 4 false kills on 2 October, and 9 with 8 workers on 31 October ([release-and-workers-2026-10.md](release-and-workers-2026-10.md)).
+  - Fixed for direct runs on macOS. The helper has no bundle identifier, so its domain is named after its executable's file. Each worker now starts it through its own link, `<folder>.swiftpm-testing-helper`, whose domain the script empties before each run. With that, SwiftProjectLint's 8-worker run on 31 October had no kills by `UserDefaults` tests that the other runs didn't have, and took 24.5 minutes, against 23.6. `CFFIXED_USER_HOME` doesn't isolate `UserDefaults` on macOS 27, and it also moves `NSHomeDirectory()`, which breaks the swiftly proxy; a changed `argv[0]` doesn't either.
+  - Left: `swift test` runs (Linux, XCTest projects, the baselines), fixed `UserDefaults(suiteName:)` suites, the keychain, temporary paths and ports. The fix for those belongs in the project's tests (see [Outside this repo](#outside-this-repo)).
 
 ---
 
@@ -372,7 +372,7 @@ Added on 21 October, from a comparison with swift-mutation-testing v1.6.3 (`937f
   - `everyFormatRendersTheSameBytesForAnyArrivalOrder` renders a reference report once, then compares each shuffled render against it. `HTMLFormatter` prints the current time to the minute (`Generated … at h:mm a`), so when a minute boundary falls between the reference and a later render, the test fails whatever the mutant.
     - On 6 October that gave 3 false kills, and named the wrong killing test for a fourth mutant.
     - Fix: let `HTMLFormatter` take its date, for example `init(now: @escaping () -> Date = { .now })`, and pass a fixed one in the test. Or leave the timestamp line out of the comparison.
-  - Several App tests write fixed `UserDefaults.standard` keys, such as `enabledLintRules` and `uec.harness.flag`. Under 4 workers they interfere with each other (see [Open bugs](#open-bugs)).
+  - Several App tests write fixed `UserDefaults.standard` keys, such as `enabledLintRules` and `uec.harness.flag`. Under 4 workers they interfered with each other (see [Open bugs](#open-bugs)); direct runs on macOS now keep each worker's apart, but `swift test` runs don't.
     - Fix: give `ContentViewModel` an injected `UserDefaults`, and give `@AppStorage` a `store:`.
     - Each test should create its store with a unique suite name, such as a UUID, and remove that domain afterwards. A fixed suite name would still be shared by all 4 workers.
 

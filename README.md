@@ -40,8 +40,9 @@ copy of the project, `.git` included. swift-mutation-testing tests in a sandbox 
 files are links to your project's files, so a test that rewrites one in place, such as a fixture,
 changes your project, and a test that runs `git` can fail. On a package, its workers share that
 sandbox, so tests that write files there at fixed paths can give false kills. In both tools,
-workers share the temporary directory and `UserDefaults`
-([#92](https://github.com/Joseph-Cursio/SwiftMutator/issues/92)).
+workers share the temporary directory. On macOS, SwiftMutator gives each worker's directly run
+tests their own `UserDefaults` (see Test bundles run directly); swift-mutation-testing's workers
+share them ([#92](https://github.com/Joseph-Cursio/SwiftMutator/issues/92)).
 
 swift-mutation-testing needs macOS 15 or later, and installs with Homebrew.
 [Docs/smt-trial-2026-10.md](Docs/smt-trial-2026-10.md) compares the two tools as they were on
@@ -82,6 +83,20 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   run the default timeout is based on. Otherwise, and when the baseline ran XCTest tests, which only
   `swift test` runs, or the build is outside the project, mutants run `swift test` as before, and a
   line says why. A wrapper `executable`, and Linux, always run `swift test`.
+  - **Each worker's own `UserDefaults`.** The helper has no bundle identifier, so its tests keep
+    `UserDefaults.standard`, and `@AppStorage` without a `store:`, in a domain named after the
+    helper's file, which every worker shared, and every other `swift test` run on the Mac too. A test
+    that wrote a fixed key could then fail another worker's tests and kill a mutant they don't check
+    ([#92](https://github.com/Joseph-Cursio/SwiftMutator/issues/92)). Direct runs start the helper
+    through a link beside the worker's folder, such as
+    `MyPackage_mutated_worker1.swiftpm-testing-helper`, which makes that the domain, and empty it
+    before each mutant's run, so no mutant sees what an earlier one wrote. The links and domains go
+    at the end of the run.
+  - **Still shared:** what the baselines and `swift test` runs write, a suite you open with a fixed
+    `UserDefaults(suiteName:)`, the keychain, fixed temporary paths and ports. The fix for those
+    belongs in your tests: give each test its own store, for example a suite named with a UUID that
+    the test removes afterwards. Until then, `mutationTestWorkers: 1` avoids it, at the cost of
+    speed.
 - **A default timeout:** without `mutationTestTimeout`, a mutant's test run stops after a limit
   based on how long your tests take, so a mutant that loops forever can't hang the run. For a
   SwiftPM project, SwiftMutator times one run of a mutant's test command with no mutant on,
