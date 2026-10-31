@@ -64,7 +64,7 @@ The header's `project` lists five files here. A real one lists every file in the
 | `timeoutIsDefault` | Bool | Whether `mutationTestTimeout` wasn't set, so `timeoutSeconds` is the default |
 | `workers` | Int | How many mutants were tested at once: `mutationTestWorkers`, but never more than the mutants to test, so 0 in a resumed session with nothing left to test |
 | `stopsAtFirstFailure` | Bool | Whether a mutant's test run stopped at its first failed test |
-| `failedTestLinesAreReliable` | Bool | False when the passing baseline printed a line that looks like a failed test. Such lines then don't show that a mutant was killed, so no mutant line has `killedBy`. |
+| `failedTestLinesAreReliable` | Bool | False when the passing baseline printed a line that looks like a failed test or a crash. Such lines then don't show that a mutant was killed, so no mutant line has `killedBy`. |
 | `mutantsDiscovered` | Int | How many mutants the run found |
 | `mutantsToTest` | Int | How many of them it set out to test: all of them in a run's first session, and fewer in a resumed one, which tests only those without an earlier result that still holds. It is written before any mutant is tested, so it says nothing about how many were: that is the number of `mutant` lines, or the end line's `recorded`. |
 | `project` | Object | Your project's files, each one's SHA-256, as SwiftMutator copied them, before it prepared any for mutation. See [below](#project). Left out by `run-without-mutating`, which copies nothing. |
@@ -119,7 +119,7 @@ SwiftMutator lists your project's files right after it copies the project, and h
 | `utf8Offset` | Int | The mutant's offset in the file as SwiftMutator prepared it, which has lines SwiftMutator added at the top |
 | `snapshot` | `{before, after, description}` | The code before and after the mutation, as the report shows it |
 | `outcome` | String | `failed` (killed: a test failed), `runtimeError` (killed: the tests crashed), `passed` (survived), `timeout` (stopped at the time limit without showing a failure) or `buildError` |
-| `endedBy` | String | How the test run ended: `exited` by itself; `timedOut`, stopped at the time limit; `stoppedAtFailedTest`, stopped at its first failed test (`stopAtFirstFailure`); or `couldNotRun`, when its log couldn't be opened or its command couldn't start, and `outcome` is `buildError`. A cancelled run is never written, as its outcome says nothing about the mutant. |
+| `endedBy` | String | How the test run ended: `exited` by itself; `timedOut`, stopped at the time limit; `stoppedAtFailedTest`, stopped at its first failed test (`stopAtFirstFailure`); `stoppedAtCrash`, stopped at a test process's crash before any failed test, also by `stopAtFirstFailure`, with `outcome` `runtimeError`; or `couldNotRun`, when its log couldn't be opened or its command couldn't start, and `outcome` is `buildError`. A cancelled run is never written, as its outcome says nothing about the mutant. |
 | `exitStatus` | Int | Only for `exited`: the exit code, or the number of the signal that ended it |
 | `durationSeconds` | Double | From the start of the mutant's test run to its outcome, to the millisecond |
 | `worker` | Int | Where it ran: 0 is the mutated project, and n is its clone `<project>_mutated_worker<n>` |

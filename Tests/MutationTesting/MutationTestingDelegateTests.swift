@@ -303,6 +303,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
             helper: "/toolchain/usr/libexec/swift/pm/swiftpm-testing-helper",
             productsFolder: ".build/out/Products/Debug",
             bundles: ["CoreTests"],
+            testFiles: [:],
             platformDeveloperFolder: "/Platforms/MacOSX.platform/Developer",
             arguments: ["--skip-build"]
         ))

@@ -16,6 +16,9 @@ struct DirectTestRun: Equatable, Sendable {
     let productsFolder: String
     /// The test bundles' names, in name order.
     let bundles: [String]
+    /// The names of each bundle's test files, without `.swift`, from its test target's sources, for
+    /// `bundles(forMutantIn:)`.
+    let testFiles: [String: [String]]
     /// The macOS platform's `Developer` folder, whose frameworks the test bundles load XCTest and Swift Testing from.
     let platformDeveloperFolder: String
     /// What follows `test` in a mutant's `swift test` command, `--skip-build` included. `swift test` passes its own
@@ -30,21 +33,22 @@ struct DirectTestRun: Equatable, Sendable {
 }
 
 extension DirectTestRun {
-    /// The `/bin/sh` script that runs each bundle in `folder`, the mutated project or a worker's clone, and exits 1 if
-    /// any helper failed. A helper killed by a signal is reported as `swift test` reports it, with a line that
-    /// `TestSuiteOutcome` reads as a crash. Every bundle runs, as under `swift test`, unless the run is stopped. A
-    /// helper ended by SIGINT, SIGTERM or SIGHUP ends the script at once, with its status, so that a signal from outside
+    /// The `/bin/sh` script that runs each bundle in `folder`, the mutated project or a worker's clone, in the order
+    /// `bundles(forMutantIn: filePath)` gives, and exits 1 if any helper failed. A helper killed by a signal is reported
+    /// as `swift test` reports it, with a line that `TestSuiteOutcome` reads as a crash, and that stops a run that stops
+    /// at its first failure (`CrashLine`). Every bundle runs, as under `swift test`, unless the run is stopped. A helper
+    /// ended by SIGINT, SIGTERM or SIGHUP ends the script at once, with its status, so that a signal from outside
     /// SwiftMutator reads as one (`MutationTestingDelegate.mayHaveEndedByAnOutsideSignal`), not as a crash.
     ///
     /// The script sets `environment(in:)` itself: macOS drops every `DYLD_` variable from the environment of a
     /// protected binary such as `/bin/sh` as it starts, so they would never reach the helpers otherwise.
-    func script(in folder: URL) -> String {
+    func script(in folder: URL, forMutantIn filePath: String? = nil) -> String {
         let exports = environment(in: folder).sorted { $0.key < $1.key }.map { name, value in
             "export \(name)=\(Logger.shellQuoted(value))"
         }
         let products = folder.appendingPathComponent(productsFolder).path
         let passedOn = arguments.map(Logger.shellQuoted).joined(separator: " ")
-        let runs = bundles.map { bundle in
+        let runs = bundles(forMutantIn: filePath).map { bundle in
             let executable = Logger.shellQuoted("\(products)/\(bundle).xctest/Contents/MacOS/\(bundle)")
             let process = Logger.shellQuoted("\(helper) --test-bundle-path \(products)/\(bundle).xctest")
             return """
@@ -59,6 +63,29 @@ extension DirectTestRun {
                 """
         }
         return (exports + ["failed=0"] + runs + ["exit $failed"]).joined(separator: "\n")
+    }
+
+    /// The bundles in the order a mutant in `filePath` runs them: first those with a test file named after the mutated
+    /// file, such as `FooTests.swift` or `FooParsingTests.swift` for `Foo.swift`, then the rest, each in name order. A
+    /// run stopped at its first failed test or crash ends sooner when the bundle that kills the mutant comes first.
+    /// Which bundles run, and so the verdict, don't change: only how long a killed mutant takes. With no `filePath`, as
+    /// for a run with no mutant on, name order.
+    func bundles(forMutantIn filePath: String?) -> [String] {
+        guard let filePath else { return bundles }
+        let name = URL(fileURLWithPath: filePath).deletingPathExtension().lastPathComponent
+        let first = bundles.filter { bundle in
+            testFiles[bundle, default: []].contains { Self.isTestFile($0, of: name) }
+        }
+        return first + bundles.filter { !first.contains($0) }
+    }
+
+    /// Whether `testFile`, a test file's name without `.swift`, is named after the source file `name`: `name`, then
+    /// more words or none, ending `Tests` or `Test`. `FormatterTests` isn't named after `Format`.
+    static func isTestFile(_ testFile: String, of name: String) -> Bool {
+        guard !name.isEmpty, testFile.hasPrefix(name), testFile.hasSuffix("Tests") || testFile.hasSuffix("Test") else {
+            return false
+        }
+        return testFile.dropFirst(name.count).first?.isUppercase ?? false
     }
 
     /// The variables `swift test` sets for its test processes in `folder`: where the bundles find their frameworks and
@@ -154,7 +181,8 @@ extension DirectTestRun {
             guard products.hasPrefix(projectPath + "/") else {
                 return .failure(Unavailable(reason: "the build, in \(products), is outside the project"))
             }
-            let bundles = await coverage.testBundleFiles(in: products, testTargets: coverage.testTargets(configuration))
+            let testTargets = await coverage.testTargetSources(configuration)
+            let bundles = coverage.testBundleFiles(in: products, testTargets: testTargets.map { Set($0.keys) })
             guard !bundles.isEmpty else {
                 return .failure(Unavailable(reason: "there is no test bundle in \(products)"))
             }
@@ -162,6 +190,10 @@ extension DirectTestRun {
                 helper: helper,
                 productsFolder: String(products.dropFirst(projectPath.count + 1)),
                 bundles: bundles.map(\.name),
+                // Swift Build names each bundle after its test target.
+                testFiles: (testTargets ?? [:]).mapValues { sources in
+                    sources.map { URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent }
+                },
                 platformDeveloperFolder: platform + "/Developer",
                 arguments: Array(configuration.testWithoutBuildArguments(with: "").dropFirst())
             ))

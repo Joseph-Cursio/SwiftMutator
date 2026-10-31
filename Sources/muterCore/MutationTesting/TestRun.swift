@@ -10,6 +10,8 @@ struct TestRun: Equatable {
         case timedOut
         /// SwiftMutator stopped it at its first failed test (`stopAtFirstFailure`).
         case stoppedAtFailedTest
+        /// SwiftMutator stopped it at a test process's crash, before any failed test (`stopAtFirstFailure`).
+        case stoppedAtCrash
         /// Its task was cancelled, so `outcome` says nothing about the mutant.
         case cancelled
         /// Its log couldn't be opened or read, or its command couldn't start; `testLog` says why.
@@ -31,6 +33,7 @@ extension TestRun.Ending {
         case .exited, nil: self = .exited
         case .timedOut: self = .timedOut
         case .failedTest: self = .stoppedAtFailedTest
+        case .crashed: self = .stoppedAtCrash
         case .cancelled: self = .cancelled
         }
     }

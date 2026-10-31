@@ -241,14 +241,15 @@ private extension PerformMutationTesting {
         }
 
         var muterConfiguration = state.muterConfiguration
-        // A passing run can't show a failed test, so these tests print text shaped like one. Under a mutant it
-        // could stop the run, or count a timed-out run killed, although every test passed, so such lines don't
-        // count for this run. Checked whether or not runs stop at their first failed test, but worth a notice
+        // A passing run can't show a failed test or a crash, so these tests print text shaped like one. Under a
+        // mutant it could stop the run, or count a timed-out run killed, although every test passed, so such lines
+        // don't count for this run. Checked whether or not runs stop at their first failed test, but worth a notice
         // only if they do, sent before the baseline's log, which starts the progress bar or lines. Worker clones'
         // baselines keep the configuration as it was: a baseline is never stopped, and has no time limit.
-        if let lookalike = FailedTestLine.first(inLog: testLog) {
+        if let lookalike = FailedTestLine.first(inLog: testLog) ?? CrashLine.first(inLog: testLog) {
             if muterConfiguration.stopsAtFirstFailure {
-                let reason = "the baseline run passed but printed a line that looks like a failed test:\n  \(lookalike)"
+                let reason = "the baseline run passed but printed a line that looks like a failed test or a crash:\n  "
+                    + lookalike
                 events.send(.stopAtFirstFailureTurnedOff(reason: reason))
             }
             muterConfiguration = muterConfiguration.withUnreliableFailedTestLines()

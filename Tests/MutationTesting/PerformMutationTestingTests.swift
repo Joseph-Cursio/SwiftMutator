@@ -538,6 +538,27 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(sent().first?.name, .stopAtFirstFailureTurnedOff)
     }
 
+    // A run also stops at a crash's line, so one a passing baseline prints turns stopping off too.
+    func test_whenThePassingBaselinePrintsACrashLikeLine_thenMutantsRunWithStoppingOff() async throws {
+        let lookalike = "error: Process '/p/Tests.xctest' exited with unexpected signal code 5"
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], stopAtFirstFailure: true
+        )
+        ioDelegate.baselineTestLog = """
+        ◇ Test run started.
+        \(lookalike)
+        ✔ Test run with 1 test in 0 suites passed after 0.001 seconds.
+        """
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        let sent = recordEvents(named: [.stopAtFirstFailureTurnedOff])
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.configurations.map(\.stopsAtFirstFailure), [false, false])
+        let reason = try XCTUnwrap(sent().first?.object as? String)
+        XCTAssertTrue(reason.hasSuffix("looks like a failed test or a crash:\n  \(lookalike)"), reason)
+    }
+
     // The line would also count a mutant whose run reaches the time limit after printing it as killed.
     func test_whenThePassingBaselinePrintsAFailureLikeLineWithoutStopping_thenItStillDoesNotCount() async throws {
         state.muterConfiguration = MuterConfiguration(

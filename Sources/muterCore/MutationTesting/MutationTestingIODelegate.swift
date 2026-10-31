@@ -280,6 +280,8 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         )
         if case let .failedTest(line) = ending.reason {
             testExecutionLog += Self.noteForRunStopped(at: line, after: testExecutionLog)
+        } else if case let .crashed(line) = ending.reason {
+            testExecutionLog += Self.noteForRunStopped(atCrash: line, after: testExecutionLog)
         }
 
         let endedBy = TestRun.Ending(ending.reason)
@@ -291,7 +293,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         )
     }
 
-    /// Launches `process` and waits for it to exit. With a follower, stops it at the first failed test its
+    /// Launches `process` and waits for it to exit. With a follower, stops it at the first failed test or crash its
     /// log shows. Cancelling the calling task kills the process tree: waiting ignores cancellation, so the
     /// run would otherwise go on until its tests ended. While it runs, it is recorded in the mutated project's
     /// lock, so that if SwiftMutator dies first, killed or crashed, it is killed too (see `MutatedProjectLock`).
@@ -315,9 +317,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             await withTaskGroup(of: Void.self) { group in
                 if let follower {
                     group.addTask {
-                        guard let line = await follower.firstFailedTestLine(),
-                              ending.record(.failedTest(line: line))
-                        else { return }
+                        guard let stop = await follower.firstStop(), ending.record(stop) else { return }
                         process.terminateTree()
                     }
                 }
@@ -356,12 +356,25 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
     /// the run is classified, so it can't change the outcome. Its lines start with `[SwiftMutator]`, so
     /// `FailedTestLine` doesn't match them if the log is read again.
     static func noteForRunStopped(at failedTestLine: String, after log: String) -> String {
+        note(
+            stopped: "at its first failed test (stopAtFirstFailure); the tests after it",
+            at: failedTestLine,
+            after: log
+        )
+    }
+
+    /// The note that ends the log of a run stopped at a crash, as `noteForRunStopped(at:after:)` does.
+    static func noteForRunStopped(atCrash crashLine: String, after log: String) -> String {
+        note(stopped: "at a crash (stopAtFirstFailure); the test bundles after it", at: crashLine, after: log)
+    }
+
+    private static func note(stopped how: String, at line: String, after log: String) -> String {
         // The run was killed wherever its output was, often partway through a line.
         let lineBreak = log.isEmpty || log.hasSuffix("\n") ? "" : "\n"
         return lineBreak + """
 
-            [SwiftMutator] Stopped this test run at its first failed test (stopAtFirstFailure); the tests after it did not run.
-            [SwiftMutator] The line that stopped it: \(failedTestLine)
+            [SwiftMutator] Stopped this test run \(how) did not run.
+            [SwiftMutator] The line that stopped it: \(line)
 
             """
     }
@@ -437,7 +450,8 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
 
         if skipsBuild, let direct = configuration.directTestRun {
             let folder = workingDirectory ?? URL(fileURLWithPath: fileManager.currentDirectoryPath)
-            process.arguments = ["-c", direct.script(in: folder)]
+            let mutantFile = schemata == .null ? nil : schemata.filePath
+            process.arguments = ["-c", direct.script(in: folder, forMutantIn: mutantFile)]
             process.executableURL = URL(fileURLWithPath: "/bin/sh")
         } else {
             process.arguments = testCommandArguments

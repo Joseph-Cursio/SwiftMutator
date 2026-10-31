@@ -156,7 +156,7 @@ was for SwiftPM: `0.5` means 0.5%, so write `50` for half. The options are docum
 |---|---|
 | `mutationTestWorkers` | How many mutants to test at once (SwiftPM projects only; default 1) |
 | `mutationTestTimeout` | Seconds before a mutant's test run is stopped (default: based on a timed test run; see above) |
-| `stopAtFirstFailure` | Stop a mutant's test run at its first failed test, which already decides that it is killed (SwiftPM projects only; never the baseline; default true) |
+| `stopAtFirstFailure` | Stop a mutant's test run at its first failed test, or at a test process's crash, either of which already decides that it is killed (SwiftPM projects only; never the baseline; default true) |
 | `buildTimeout` | Seconds before the coverage run, which builds your project and runs its tests with coverage on, is stopped. Mutation testing then goes on without coverage, as after any coverage failure. For now it limits only the coverage run, not the baseline or other builds (default: no limit) |
 
 ## Results file

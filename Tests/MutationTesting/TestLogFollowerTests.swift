@@ -79,7 +79,10 @@ final class TestLogFollowerTests: XCTestCase {
         try write("✘ Test sum() recorded an issue at SumTests.swift:3:5: Expectation failed\n✔ Test later() passed.\n")
 
         let line = await following.value
-        XCTAssertEqual(line, "✘ Test sum() recorded an issue at SumTests.swift:3:5: Expectation failed")
+        XCTAssertEqual(
+            line,
+            .failedTest(line: "✘ Test sum() recorded an issue at SumTests.swift:3:5: Expectation failed")
+        )
     }
 
     func test_findsALineWrittenInTwoPieces() async throws {
@@ -90,7 +93,7 @@ final class TestLogFollowerTests: XCTestCase {
         try write("led (0.048 seconds).\n")
 
         let line = await following.value
-        XCTAssertEqual(line, "Test Case '-[BTests.BXCTests testIncrement]' failed (0.048 seconds).")
+        XCTAssertEqual(line, .failedTest(line: "Test Case '-[BTests.BXCTests testIncrement]' failed (0.048 seconds)."))
     }
 
     func test_findsAFailedTestLineAfterMoreOutputThanOneRead() async throws {
@@ -100,7 +103,10 @@ final class TestLogFollowerTests: XCTestCase {
 
         let line = await follow().value
 
-        XCTAssertEqual(line, "✘ Test sum() recorded an issue at SumTests.swift:3:5: Expectation failed")
+        XCTAssertEqual(
+            line,
+            .failedTest(line: "✘ Test sum() recorded an issue at SumTests.swift:3:5: Expectation failed")
+        )
     }
 
     func test_returnsTheLineWithoutColourCodes() async throws {
@@ -109,7 +115,7 @@ final class TestLogFollowerTests: XCTestCase {
 
         let line = await follow().value
 
-        XCTAssertEqual(line, "✘ Test sum() recorded an issue at SumTests.swift:3:5: x")
+        XCTAssertEqual(line, .failedTest(line: "✘ Test sum() recorded an issue at SumTests.swift:3:5: x"))
     }
 
     func test_keepsWatchingPastKnownIssuesWarningsAndPasses_untilCancelled() async throws {
@@ -128,6 +134,34 @@ final class TestLogFollowerTests: XCTestCase {
         let elapsed = Date().timeIntervalSince(started)
         XCTAssertGreaterThanOrEqual(elapsed, 0.3, "it stopped watching before it was cancelled")
         XCTAssertLessThan(elapsed, 3, "it kept watching after it was cancelled")
+    }
+
+    func test_findsACrashLine_beforeAnyFailedTestLine() async throws {
+        let crash = "error: Process '/p/CoreTests.xctest' exited with unexpected signal code 5"
+        try write("✔ Test run with 2 tests in 1 suite passed after 0.1 seconds.\n\(crash)\n")
+
+        let line = await follow().value
+
+        XCTAssertEqual(line, .crashed(line: crash))
+    }
+
+    // Whichever comes first in the log stops the run; a failed test then decides the outcome.
+    func test_aFailedTestLineBeforeACrashLine_isWhatItFinds() async throws {
+        let failed = "✘ Test sum() recorded an issue at SumTests.swift:3:5: Expectation failed"
+        try write("\(failed)\nerror: Process '/p/CoreTests.xctest' exited with unexpected signal code 5\n")
+
+        let line = await follow().value
+
+        XCTAssertEqual(line, .failedTest(line: failed))
+    }
+
+    // A test process stopped from outside isn't a crash: its run waits for SwiftMutator's own signal instead.
+    func test_keepsWatchingPastAProcessEndedByAStoppingSignal() async throws {
+        try write("error: Process '/p/CoreTests.xctest' exited with unexpected signal code 2\n")
+
+        let line = await follow(cancellingAfter: 0.3).value
+
+        XCTAssertNil(line)
     }
 
     func test_returnsNilWhenTheLogCannotBeOpened() async {
@@ -152,7 +186,7 @@ final class TestLogFollowerTests: XCTestCase {
         let follower = TestLogFollower(logFileUrl: url ?? logFileUrl, pollInterval: pollInterval)
         let returned = XCTestExpectation(description: "the follower returned")
         let following = Task {
-            let line = await follower.firstFailedTestLine()
+            let line = await follower.firstStop()
             returned.fulfill()
             return line
         }
@@ -169,13 +203,13 @@ final class TestLogFollowerTests: XCTestCase {
 
     /// A follower `follow` started.
     private struct Following {
-        let task: Task<String?, Never>
+        let task: Task<TestRunEnding.Reason?, Never>
         let returned: XCTestExpectation
         let waitLimit: TimeInterval
 
         /// What the follower returned. Waits at most `waitLimit` seconds, as cancelling the follower ends it
         /// only if it checks for cancellation: one that doesn't fails the test instead of hanging it.
-        var value: String? {
+        var value: TestRunEnding.Reason? {
             get async {
                 guard await XCTWaiter().fulfillment(of: [returned], timeout: waitLimit) == .completed else {
                     XCTFail("the follower ignored its cancellation")

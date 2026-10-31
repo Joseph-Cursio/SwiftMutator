@@ -42,6 +42,12 @@ extension TestSuiteOutcome {
         if timeoutExecution == .stoppedAtFirstFailure {
             return .failed
         }
+        // Stopped at a test process's crash (stopAtFirstFailure), before any failed test: as a finished run with that
+        // crash and no failed test would be. Only a test process that died of a crash's signal stops a run
+        // (`CrashLine`).
+        if timeoutExecution == .stoppedAtCrash {
+            return .runtimeError
+        }
 
         if timeoutExecution == .timeout {
             return outcomeOfStoppedRun(testLog, failedTestLinesAreReliable: failedTestLinesAreReliable)
