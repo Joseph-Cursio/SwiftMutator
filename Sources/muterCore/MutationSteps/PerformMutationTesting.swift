@@ -443,11 +443,19 @@ private extension PerformMutationTesting {
         for index in indices {
             let job = jobs[index]
             try Task.checkCancellation()
-            try? await ioDelegate.switchOn(
-                schemata: job.schema,
-                for: state.projectXCTestRun,
-                at: state.mutatedProjectDirectoryURL
-            )
+            // A `muter.xctestrun` that couldn't be written still switches on the mutant before this one, whose
+            // verdict an xcodebuild run would record for this one.
+            do {
+                try await ioDelegate.switchOn(
+                    schemata: job.schema,
+                    for: state.projectXCTestRun,
+                    at: state.mutatedProjectDirectoryURL
+                )
+            } catch {
+                throw MuterError.mutationTestingAborted(
+                    reason: .mutantNotSwitchedOn(id: job.schema.id, description: error.localizedDescription)
+                )
+            }
 
             let launched = instant()
             let run = await ioDelegate.runTestSuite(

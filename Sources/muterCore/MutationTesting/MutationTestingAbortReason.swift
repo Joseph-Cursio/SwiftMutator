@@ -9,6 +9,9 @@ public enum MutationTestingAbortReason: Equatable, Sendable {
     /// failed the same build-and-test run.
     case workerBaselineTestFailed(worker: Int, directory: String, log: String)
     case tooManyBuildErrors
+    /// The mutant `id`'s run couldn't be told to switch it on: under xcodebuild, its `muter.xctestrun` couldn't be
+    /// written, as `description` says. The file left by the run before would have switched that run's mutant on.
+    case mutantNotSwitchedOn(id: String, description: String)
     case unknownError(description: String)
 }
 
@@ -39,6 +42,14 @@ extension MutationTestingAbortReason: CustomStringConvertible {
             SwiftMutator noticed the last 5 attempts to apply a mutation operator resulted in a build error within your code base.
             This is considered unlikely and abnormal. If you can reproduce this, please consider filing an issue at
             https://github.com/muter-mutation-testing/muter/issues/
+            """
+
+        case let .mutantNotSwitchedOn(id, description):
+            return """
+            SwiftMutator could not switch on mutant \(id) for its test run, and stopped rather than record a verdict \
+            for code the run may not have tested.
+
+            \(description)
             """
 
         case let .unknownError(error):

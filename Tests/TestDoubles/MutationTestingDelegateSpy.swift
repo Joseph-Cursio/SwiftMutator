@@ -42,6 +42,8 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     private(set) var configurationsWithoutBuilding: [MuterConfiguration] = []
     /// Called just before the timed run of the test command without its build returns, so a test can move its clock.
     var whileRunningTestsWithoutBuilding: (() -> Void)?
+    /// What `switchOn` throws, once a test has set it: as if `muter.xctestrun` couldn't be written.
+    var switchOnError: Error?
     private var mutantRunCount = 0
 
     func backupFile(at path: String, using swapFilePaths: [FilePath: FilePath]) {
@@ -149,6 +151,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
         schematas.append(schemata)
         testRuns.append(testRun)
         testRunPaths.append(path)
+        if let switchOnError { throw switchOnError }
     }
 
     func restoreFile(at path: String, using swapFilePaths: [FilePath: FilePath]) {

@@ -95,6 +95,14 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   test runs. SwiftMutator exports the coverage of every bundle at once, leaves out the files no
   test runs and skips the mutants in code no test runs. If coverage can't be gathered, it says
   why, and tests every mutant as before. `--skip-coverage` turns the step off.
+- **No silent survivors from missing switches:** a mutant whose switch isn't in the code would run
+  the original code, pass its tests and count as a survivor. After rewriting the copy, SwiftMutator
+  reads each rewritten file back and checks that it holds every one of its mutants' IDs as a quoted
+  string, and `run-without-mutating` checks a test plan's code the same way, as it may have been
+  edited by hand. A gap stops the run before any test, naming the files and mutants, as does a file
+  with mutants that can't be read. Under xcodebuild, a mutant whose `muter.xctestrun` can't be
+  written stops mutation testing, since the file left by the run before would switch that mutant
+  on. These prove a switch is there, not that a run switched it on.
 - **Logging through the injected printer**, so log output can be captured and tested.
 
 Fixes that apply to Muter are offered upstream too.
@@ -184,6 +192,9 @@ swift-mutator report "../SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM" -f 
   and where it saved the report. A run that stopped on its fifth build error in a row, for example,
   gives `Report of 1103 of 2497 mutants, from …: the run stopped on an error (tooManyBuildErrors).`
 - **It exits with status 1** when the file can't be read or isn't a results file.
+- **It exits with status 255** once the report is made of a run that stopped on an error, the status
+  the run itself exited with, so a script that checks the report fails as one that checked the run
+  would.
 
 [Reports from the file](Docs/results-file.md#reports-from-the-file) has the details.
 

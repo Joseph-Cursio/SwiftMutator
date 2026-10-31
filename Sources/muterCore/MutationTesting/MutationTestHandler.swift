@@ -78,6 +78,7 @@ private extension [MutationStep] {
             DiscoverMutationPoints(),
             CreateMuterTestPlan(),
             ApplySchemata(),
+            CheckMutantSwitches(),
             BuildForTesting(),
             ProjectMappings(),
             PerformMutationTesting(),
@@ -92,6 +93,7 @@ private extension [MutationStep] {
             // Before anything in the mutated project the plan names is read, which another run may be rewriting.
             LockMutatedProject(),
             CheckTestPlanCode(),
+            CheckMutantSwitches(),
             BuildForTesting(),
             ProjectMappings(),
             PerformMutationTesting(),
@@ -110,6 +112,7 @@ private extension [MutationStep] {
             DiscoverSourceFiles(),
             DiscoverMutationPoints(),
             ApplySchemata(),
+            CheckMutantSwitches(),
             CreateMuterTestPlan(),
         ]
     }

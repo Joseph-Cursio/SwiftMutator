@@ -341,6 +341,8 @@ struct ResultsEnd: Codable, Equatable {
             return "workerBaselineTestFailed(worker: \(worker))"
         case .tooManyBuildErrors:
             return "tooManyBuildErrors"
+        case .mutantNotSwitchedOn:
+            return "mutantNotSwitchedOn"
         case .unknownError:
             return "unknownError"
         }

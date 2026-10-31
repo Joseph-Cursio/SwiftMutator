@@ -159,7 +159,7 @@ A session that `--resume` adds no longer stands by some of the earlier sessions'
 | `session` | Int | The session it ends, as in its header |
 | `endedAt` | Date | |
 | `reason` | String | `finished`; `aborted`, stopped by an error; or `interrupted`, stopped by a signal |
-| `detail` | String | Only when mutation testing stopped early. When `interrupted`: the signal that stopped it, `SIGINT` (Ctrl-C), `SIGTERM` or `SIGHUP`, so a Ctrl-C can be told apart from a `kill` or a closed terminal. When `aborted`: a short code for why. `tooManyBuildErrors` means 5 build errors in a row. `workerBaselineTestFailed(worker: n)` means a worker clone's baseline run didn't pass. Any other error gives its type's name. It is never a log. |
+| `detail` | String | Only when mutation testing stopped early. When `interrupted`: the signal that stopped it, `SIGINT` (Ctrl-C), `SIGTERM` or `SIGHUP`, so a Ctrl-C can be told apart from a `kill` or a closed terminal. When `aborted`: a short code for why. `tooManyBuildErrors` means 5 build errors in a row. `workerBaselineTestFailed(worker: n)` means a worker clone's baseline run didn't pass. `mutantNotSwitchedOn` means a mutant's run couldn't be told to switch it on: under xcodebuild, its `muter.xctestrun` couldn't be written. Any other error gives its type's name. It is never a log. |
 | `testDurationSeconds` | Double | How long the session's mutation testing took. For a run's first session, the duration the report shows, before rounding. A resumed run's report shows every session's added up. |
 | `recorded` | Int | How many `mutant` lines the session wrote |
 
@@ -256,7 +256,8 @@ The report doesn't say whether the run finished. The status on standard error do
 
 ### Exit status
 
-- **0** when the report was made, an empty one included.
+- **0** when the report was made, an empty one included, unless the run stopped on an error.
+- **255** when the report was made of a run that stopped on an error, its last session's end line `aborted`: the status the run itself exited with, so a script that checks the report fails as one that checked the run would. The report and the status come first, as for any other run.
 - **1** with `Error: …` on standard error, when:
   - the path is missing or can't be read;
   - the file isn't a results file, because it has no header line;
