@@ -132,9 +132,9 @@ jobs:
           swiftlint version
           swiftlint lint --reporter github-actions-logging
 
-  # Non-blocking (continue-on-error): SwiftMutator doesn't compile on Linux yet,
-  # and some unit tests assume macOS, so this job is expected to fail for now. It
-  # shows how far a Linux build gets without failing the workflow. Not on pull
+  # Non-blocking (continue-on-error): SwiftMutator builds on Linux and its unit
+  # suite runs, but it hasn't passed here long enough to block a merge. It shows
+  # what fails on Linux without failing the workflow. Not on pull
   # requests, where a failure every PR shares would hide one of its own: it runs
   # on pushes to main and by hand. #130 tracks making it pass; then run it on
   # pull requests and drop continue-on-error, so it blocks like the macOS job.

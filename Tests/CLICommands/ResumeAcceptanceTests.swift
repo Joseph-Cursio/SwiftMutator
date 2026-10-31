@@ -74,9 +74,7 @@ final class ResumeAcceptanceTests: XCTestCase {
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        let products = try XCTUnwrap(Bundle.allBundles.first { $0.bundlePath.hasSuffix(".xctest") })
-            .bundleURL
-            .deletingLastPathComponent()
+        let products = try XCTUnwrap(BuildProducts.folder)
         swiftMutator = products.appendingPathComponent("swift-mutator")
         guard FileManager.default.isExecutableFile(atPath: swiftMutator.path) else {
             throw XCTSkip("No swift-mutator next to the test bundle, which `swift test` builds")
