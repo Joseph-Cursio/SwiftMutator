@@ -21,7 +21,8 @@ struct DiscoverSourceFiles: MutationStep {
                 among: try await candidatePaths(in: state),
                 inDirectoryAt: state.mutatedProjectDirectoryURL.path,
                 excludingPathsIn: state.muterConfiguration.excludeFileList,
-                ignoringFilesWithoutCoverage: state.projectCoverage.filesWithoutCoverage
+                ignoringFilesWithoutCoverage: state.projectCoverage.filesWithoutCoverage,
+                keepingOnly: state.projectCoverage.filesInCoverage
             )
             : findFilesToMutate(
                 files: state.filesToMutate,
@@ -121,7 +122,8 @@ private extension DiscoverSourceFiles {
         among candidatePaths: [FilePath],
         inDirectoryAt rootPath: FilePath,
         excludingPathsIn providedExcludeList: [FilePath],
-        ignoringFilesWithoutCoverage filesWithoutCoverage: [FilePath]
+        ignoringFilesWithoutCoverage filesWithoutCoverage: [FilePath],
+        keepingOnly filesInCoverage: [FilePath]?
     ) -> [FilePath] {
         let excludeList = providedExcludeList + defaultExcludeList
         let subpaths = candidatePaths.map { "./" + $0 }
@@ -134,7 +136,10 @@ private extension DiscoverSourceFiles {
         )
         // Only Swift files are checked against coverage: each check resolves the path on disk, and a
         // project holds far more files than Swift sources.
-        .exclude(filesWithoutCoverageList(filesWithoutCoverage, root: rootPath))
+        .exclude(anyOf(filesWithoutCoverage, root: rootPath))
+        // A file the coverage data doesn't name has no code in any binary the tests ran, as an example app's or an
+        // unused target's hasn't, so no test could kill its mutants. Without coverage, none is left out for this.
+        .include(filesInCoverage.map { anyOf($0, root: rootPath) } ?? { _ in true })
     }
 
     /// Whether a path, given as `./` and its path in the project, is left out: it contains an entry with no `*`, such as
@@ -151,9 +156,9 @@ private extension DiscoverSourceFiles {
         }
     }
 
-    /// Matches by canonical path, since the coverage tools may spell a file's path differently. A relative path, as
-    /// SwiftPM's coverage gives one, is relative to the project at `root`.
-    private func filesWithoutCoverageList(
+    /// Whether a path is one of `list`, the coverage's. Matches by canonical path, since the coverage tools may spell a
+    /// file's path differently. A relative path, as SwiftPM's coverage gives one, is relative to the project at `root`.
+    private func anyOf(
         _ list: [FilePath],
         root: FilePath
     ) -> (FilePath) -> Bool {

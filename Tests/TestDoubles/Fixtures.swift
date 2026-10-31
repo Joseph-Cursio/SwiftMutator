@@ -295,12 +295,14 @@ extension Coverage {
         percent: Int = 0,
         filesWithoutCoverage: [FilePath] = [],
         functionsCoverage: FunctionsCoverage = .null,
+        filesInCoverage: [FilePath]? = nil,
         testsFailedWithCoverageOn: FailedTestLine.FailedTests? = nil
     ) -> Coverage {
         Coverage(
             percent: percent,
             filesWithoutCoverage: filesWithoutCoverage,
             functionsCoverage: functionsCoverage,
+            filesInCoverage: filesInCoverage,
             testsFailedWithCoverageOn: testsFailedWithCoverageOn
         )
     }

@@ -432,6 +432,39 @@ final class XcodeBuildCoverageTests: MuterTestCase {
         XCTAssertEqual(fileManager.fileExistsAtPath, [library, tests, tests + ".debug.dylib"])
     }
 
+    // xccov's report of an app can leave out a local package the app links, whose code llvm-cov's export of the app
+    // maps; and the export, the code of a target whose binary isn't where xccov says. So the files in coverage are
+    // those either names, but for test files and those outside the project.
+    func test_theFilesInCoverage_areThoseXccovOrLLVMCovNames() async throws {
+        answerWithACoverageRun(
+            report: report(
+                target(
+                    "App.app",
+                    buildProductPath: app,
+                    files: [file("/project/App/Model.swift", executable: 10, covered: 5)]
+                ),
+                target("Widget.appex", files: [file("/project/Widget/Widget.swift", executable: 4, covered: 0)]),
+                target("AppTests.xctest", buildProductPath: appTests, files: [
+                    file("/project/AppTests/ModelChecks.swift", executable: 8, covered: 8),
+                ])
+            ),
+            existing: [true, false, true, false]
+        ) { _ in
+            self.result(output: String(decoding: self.export(files: [
+                self.exportedFile("/project/App/Model.swift", count: 10, covered: 5),
+                self.exportedFile("/project/Packages/Core/Sources/Core/Parser.swift", count: 6, covered: 3),
+                self.exportedFile("/project/AppTests/ModelChecks.swift", count: 8, covered: 8),
+                self.exportedFile("/DerivedData/SourcePackages/checkouts/Dep/Sources/Dep.swift", count: 3, covered: 0),
+            ]), as: UTF8.self))
+        }
+
+        let coverage = try await sut.run(with: muterConfiguration).get()
+
+        XCTAssertEqual(coverage.filesInCoverage, [
+            "App/Model.swift", "Packages/Core/Sources/Core/Parser.swift", "Widget/Widget.swift",
+        ])
+    }
+
     // Without regions, xccov's lines still say which files no test ran: when llvm-cov fails, or no product it lists
     // exists.
     func test_withoutRegions_xccovsCoverageIsStillGiven() async throws {
@@ -444,6 +477,8 @@ final class XcodeBuildCoverageTests: MuterTestCase {
 
         let whenLLVMCovFails = try await sut.run(with: muterConfiguration).get()
         XCTAssertEqual(whenLLVMCovFails, xccovs)
+        // xccov's report alone can leave out files the binaries hold, so discovery leaves none out for this.
+        XCTAssertNil(whenLLVMCovFails.filesInCoverage)
         XCTAssertEqual(process.commandsRun.last?.prefix(3), ["/usr/bin/xcrun", "llvm-cov", "export"])
 
         answerWithACoverageRun(report: Data(coverageData.utf8), existing: [false, false])
@@ -734,6 +769,9 @@ final class XcodeBuildCoverageTests: MuterTestCase {
 
         XCTAssertEqual(coverage.percent, 20)
         XCTAssertEqual(coverage.filesWithoutCoverage, ["Sources/Calc/Untested.swift", "Sources/Other/Other.swift"])
+        XCTAssertEqual(coverage.filesInCoverage, [
+            "Sources/Calc/Calc.swift", "Sources/Calc/Untested.swift", "Sources/Other/Other.swift",
+        ])
         let neverRun = coverage.functionsCoverage.regionsForFile("/project/Sources/Calc/Calc.swift")
         XCTAssertEqual(neverRun.map { [$0.lineStart, $0.lineEnd] }, [[5, 10], [6, 6], [6, 8], [8, 9]])
         XCTAssertNil(coverage.testsFailedWithCoverageOn)

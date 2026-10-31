@@ -47,9 +47,11 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
     }
 
     /// The coverage in the result bundle whose path `testRun` printed, of a run in which `failedTests` failed: xccov's
-    /// lines, and llvm-cov's regions. xccov's report of a Swift package tested through xcodebuild names only the tests'
-    /// files: their bundle holds the library's code, which xccov counts for no target. So then the lines come from
-    /// llvm-cov's export too, as SwiftPM's do.
+    /// lines, and llvm-cov's regions. The files in coverage are those either names: xccov's report can leave out the
+    /// local packages whose code an app links, which llvm-cov's export of the app's binary names, and the export leaves
+    /// out a target whose binary isn't where xccov says. xccov's report of a Swift package tested through xcodebuild
+    /// names only the tests' files: their bundle holds the library's code, which xccov counts for no target. So then
+    /// the lines and files come from llvm-cov's export too, as SwiftPM's do.
     private func coverage(
         _ configuration: MuterConfiguration,
         printedBy testRun: CommandResult,
@@ -71,11 +73,18 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
             coverageThreshold: configuration.coverageThreshold
         ) {
         case let .success(lines):
+            let projectFiles = ProjectSourceFiles(
+                root: projectRoot,
+                buildFolders: derivedData,
+                testFiles: report.testFiles
+            )
+            let regions = Self.regions(of: await export(), projectFiles: projectFiles)
             return .success(
                 Coverage(
                     percent: lines.percent,
                     filesWithoutCoverage: lines.filesWithoutCoverage,
-                    functionsCoverage: Self.functionsCoverage(of: await export()),
+                    functionsCoverage: regions.functionsCoverage,
+                    filesInCoverage: regions.files.map { Set($0 + lines.files).sorted() },
                     testsFailedWithCoverageOn: failedTests
                 )
             )
@@ -119,16 +128,20 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
         return .success(failedTests)
     }
 
-    /// Which code no test ran, which xccov's report can't say, having no regions: from `export`, llvm-cov's. `.null` if
-    /// that couldn't be had, and the report's lines still say which files no test ran.
-    private static func functionsCoverage(of export: Result<Data, CoverageError>) -> FunctionsCoverage {
+    /// Which code no test ran, which xccov's report can't say, having no regions, and the project's files that have
+    /// code in the binaries, as `projectFiles` takes them: from `export`, llvm-cov's. `.null` and nil if that couldn't
+    /// be had, and the report's lines still say which files no test ran.
+    private static func regions(
+        of export: Result<Data, CoverageError>,
+        projectFiles: ProjectSourceFiles
+    ) -> (functionsCoverage: FunctionsCoverage, files: [FilePath]?) {
         guard case let .success(export) = export,
               let coverage = try? JSONDecoder().decode(LLVMCoverage.self, from: export)
         else {
-            return .null
+            return (.null, nil)
         }
 
-        return FunctionsCoverage(from: coverage)
+        return (FunctionsCoverage(from: coverage), filesInCoverage(of: coverage, projectFiles: projectFiles))
     }
 
     /// One `llvm-cov export` of `builtProducts`, the binary of each product the coverage run built that exists, with
@@ -236,8 +249,9 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
         )
     }
 
-    /// The share of the project's lines the tests ran, and the files without coverage, by their path in the project.
-    typealias LineCoverage = (percent: Int, filesWithoutCoverage: [FilePath])
+    /// The share of the project's lines the tests ran, the files without coverage, and every file the report names, by
+    /// their path in the project.
+    typealias LineCoverage = (percent: Int, filesWithoutCoverage: [FilePath], files: [FilePath])
 
     /// The coverage of the project's own source files in `report`, xccov's JSON: the share of their lines the tests
     /// ran, and the files at or below `coverageThreshold`, by their path in the project. Only targets other than tests
@@ -297,7 +311,7 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
             .map(\.key)
 
         let percent = lines > 0 ? coveredLines * 100 / lines : 0
-        return .success((percent: percent, filesWithoutCoverage: filesWithoutCoverage))
+        return .success((percent: percent, filesWithoutCoverage: filesWithoutCoverage, files: files.map(\.key)))
     }
 }
 
