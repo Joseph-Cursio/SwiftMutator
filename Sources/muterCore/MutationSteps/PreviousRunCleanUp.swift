@@ -13,22 +13,26 @@ struct PreviousRunCleanUp: MutationStep {
         }
 
         // A run stopped at once (a second Ctrl-C, SIGKILL, a crash) leaves its worker clones, even once `_mutated` is
-        // gone, and the active-mutant files beside its folders.
+        // gone, and the active-mutant files and helper links beside its folders. A link's tests' `UserDefaults` go
+        // with it.
         let parent = mutated.deletingLastPathComponent().path
         let leftovers = ((try? fileManager.contentsOfDirectory(atPath: parent)) ?? [])
             .filter { Self.isLeftover($0, of: mutated.lastPathComponent) }
             .sorted()
         for name in leftovers {
             try remove((parent as NSString).appendingPathComponent(name))
+            if name.hasSuffix(DirectTestRun.helperLinkSuffix) {
+                DirectTestRun.removeDefaultsDomain(name)
+            }
         }
         return []
     }
 
-    /// A worker clone, or the active-mutant file beside the mutated project or a clone, as
-    /// `MutationTestingDelegate.activeMutantFile(forWorkerIn:)` names it.
+    /// A worker clone, or the active-mutant file or helper link beside the mutated project or a clone, as
+    /// `MutationTestingDelegate.activeMutantFile(forWorkerIn:)` and `DirectTestRun.helperLink(forWorkerIn:)` name them.
     static func isLeftover(_ name: String, of mutatedName: String) -> Bool {
-        let suffix = MutationTestingDelegate.activeMutantFileSuffix
-        guard name.hasSuffix(suffix) else { return isWorkerClone(name, of: mutatedName) }
+        let suffixes = [MutationTestingDelegate.activeMutantFileSuffix, DirectTestRun.helperLinkSuffix]
+        guard let suffix = suffixes.first(where: name.hasSuffix) else { return isWorkerClone(name, of: mutatedName) }
         let folder = String(name.dropLast(suffix.count))
         return folder == mutatedName || isWorkerClone(folder, of: mutatedName)
     }

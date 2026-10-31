@@ -620,16 +620,20 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
             )
             try Data("object \(index)".utf8).write(to: object)
             try Data().write(to: root.appendingPathComponent("project_mutated_worker\(index).active-mutant"))
+            try FileManager.default.createSymbolicLink(
+                at: DirectTestRun.helperLink(forWorkerIn: clone), withDestinationURL: URL(fileURLWithPath: "/bin/sh")
+            )
             return clone
         }
 
         PerformMutationTesting.removeClones(clones)
 
-        // The mutated project's own file goes at the end of the run.
+        // The mutated project's own file goes at the end of the run. The links go, not what they lead to.
         XCTAssertEqual(
             try FileManager.default.contentsOfDirectory(atPath: root.path).sorted(),
             ["project_mutated", "project_mutated.active-mutant"]
         )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: "/bin/sh"))
     }
 
     // The mutated project is kept after the run, for a look, but not the active-mutant file beside it.

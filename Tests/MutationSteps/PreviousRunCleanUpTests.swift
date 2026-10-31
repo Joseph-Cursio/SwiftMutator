@@ -111,6 +111,26 @@ final class PreviousRunCleanUpTests: MuterTestCase {
         )
     }
 
+    // The links direct runs start the helper through, so that each folder's tests have their own `UserDefaults`.
+    func test_removesTheHelperLinksAnEarlierRunLeft_andNoOthers() async throws {
+        fileManager.fileExistsToReturn = [false]
+        fileManager.contentsOfDirectoryToReturn = [
+            "x_mutated.swiftpm-testing-helper",
+            "x_mutated_worker3.swiftpm-testing-helper",
+            "x_mutated_workerfoo.swiftpm-testing-helper",
+            "y_mutated.swiftpm-testing-helper",
+            "swiftpm-testing-helper",
+        ]
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/some/x_mutated")
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(
+            fileManager.paths,
+            ["/some/x_mutated.swiftpm-testing-helper", "/some/x_mutated_worker3.swiftpm-testing-helper"]
+        )
+    }
+
     // Another run of the project may hold it, and a run that removed it could lock a new file while that one held the
     // old.
     func test_keepsTheMutatedProjectsLockFile() async throws {

@@ -79,14 +79,15 @@ struct PerformMutationTesting: MutationStep {
         )
         // After the end line and anything sent about an early end: removing large clones can take seconds, and a
         // second signal in that time exits at once. A clone left behind is removed when SwiftMutator next runs.
-        // The mutated project is kept, for a look after the run, but not the active-mutant file beside it, which
-        // goes first: it takes no time.
+        // The mutated project is kept, for a look after the run, but not the active-mutant file beside it, nor the
+        // helper link and the tests' `UserDefaults` of direct runs, which go first: they take no time.
         defer {
             if state.muterConfiguration.buildSystem == .swift {
                 let activeMutantFile = MutationTestingDelegate.activeMutantFile(
                     forWorkerIn: state.mutatedProjectDirectoryURL
                 )
                 try? fileManager.removeItem(atPath: activeMutantFile.path)
+                DirectTestRun.removeOwnDefaults(forWorkerIn: state.mutatedProjectDirectoryURL)
             }
             removeTestOutputFolderIfEmpty(state)
             if !session.clones.isEmpty {
@@ -981,13 +982,15 @@ extension PerformMutationTesting {
         }
     }
 
-    /// Removes each clone, and the active-mutant file beside it, on a thread of its own: one large clone takes a
+    /// Removes each clone, the active-mutant file and helper link beside it, and its tests' `UserDefaults`, on a
+    /// thread of its own: one large clone takes a
     /// fraction of a second or more to remove, and a run that is stopping does this last, when a second signal exits
     /// at once and leaves the rest behind.
     static func removeClones(_ directories: [URL]) {
         DispatchQueue.concurrentPerform(iterations: directories.count) { index in
             let clone = directories[index]
             try? FileManager.default.removeItem(at: MutationTestingDelegate.activeMutantFile(forWorkerIn: clone))
+            DirectTestRun.removeOwnDefaults(forWorkerIn: clone)
             try? FileManager.default.removeItem(at: clone)
         }
     }

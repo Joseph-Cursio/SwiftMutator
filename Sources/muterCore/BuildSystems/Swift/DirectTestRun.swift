@@ -42,17 +42,33 @@ extension DirectTestRun {
     ///
     /// The script sets `environment(in:)` itself: macOS drops every `DYLD_` variable from the environment of a
     /// protected binary such as `/bin/sh` as it starts, so they would never reach the helpers otherwise.
+    ///
+    /// It starts each helper through `helperLink(forWorkerIn: folder)`, which it makes, so the tests' `UserDefaults`
+    /// are the folder's own (see `defaultsDomain(forWorkerIn:)`). It empties them first, so that a mutant's run sees
+    /// none of what an earlier run in that folder wrote, as a mutant's changes could fail the runs after it. `defaults`
+    /// does that, in about 5 ms, rather than SwiftMutator, whose own copy of the domain would be written back to disk
+    /// when it exits. If the link can't be made, it starts the helper itself and leaves its domain, which other
+    /// `swift test` runs share, alone.
     func script(in folder: URL, forMutantIn filePath: String? = nil) -> String {
         let exports = environment(in: folder).sorted { $0.key < $1.key }.map { name, value in
             "export \(name)=\(Logger.shellQuoted(value))"
         }
+        let link = Logger.shellQuoted(Self.helperLink(forWorkerIn: folder).path)
+        let startHelper = """
+            helper=\(link)
+            if ln -sf \(Logger.shellQuoted(helper)) "$helper" 2>/dev/null; then
+              /usr/bin/defaults delete \(Logger.shellQuoted(Self.defaultsDomain(forWorkerIn: folder))) >/dev/null 2>&1
+            else
+              helper=\(Logger.shellQuoted(helper))
+            fi
+            """
         let products = folder.appendingPathComponent(productsFolder).path
         let passedOn = arguments.map(Logger.shellQuoted).joined(separator: " ")
         let runs = bundles(forMutantIn: filePath).map { bundle in
             let executable = Logger.shellQuoted("\(products)/\(bundle).xctest/Contents/MacOS/\(bundle)")
             let process = Logger.shellQuoted("\(helper) --test-bundle-path \(products)/\(bundle).xctest")
             return """
-                \(Logger.shellQuoted(helper)) --test-bundle-path \(executable) \(passedOn) \(executable) \
+                "$helper" --test-bundle-path \(executable) \(passedOn) \(executable) \
                 --testing-library swift-testing
                 status=$?
                 case $status in 129|130|143) exit $status ;; esac
@@ -62,7 +78,7 @@ extension DirectTestRun {
                 [ $status -eq 0 ] || failed=1
                 """
         }
-        return (exports + ["failed=0"] + runs + ["exit $failed"]).joined(separator: "\n")
+        return (exports + [startHelper, "failed=0"] + runs + ["exit $failed"]).joined(separator: "\n")
     }
 
     /// The bundles in the order a mutant in `filePath` runs them: first those with a test file named after the mutated
@@ -100,6 +116,52 @@ extension DirectTestRun {
             "DYLD_LIBRARY_PATH": "\(products):\(platformDeveloperFolder)/usr/lib",
             "NO_COLOR": "1",
         ]
+    }
+}
+
+extension DirectTestRun {
+    /// Ends the name of the link to the helper, beside a worker's folder.
+    static let helperLinkSuffix = ".swiftpm-testing-helper"
+
+    /// The link `script(in:)` starts the helpers through for a worker's folder, the mutated project or a clone:
+    /// `<folder>.swiftpm-testing-helper`, beside it, as the active-mutant file is. A process with no bundle
+    /// identifier, as the helper is, keeps its `UserDefaults` in a domain named after its executable's file, which a
+    /// link sets but a changed `argv[0]` doesn't. So each worker's tests get a domain of their own, where every worker
+    /// once shared the helper's, and with it every other `swift test` run on the Mac: tests that wrote a fixed key there
+    /// could fail another worker's tests, and kill mutants they don't check (#92).
+    static func helperLink(forWorkerIn folder: URL) -> URL {
+        folder.deletingLastPathComponent().appendingPathComponent(folder.lastPathComponent + helperLinkSuffix)
+    }
+
+    /// The `UserDefaults` domain of the tests run directly in `folder`: the name of its helper link.
+    static func defaultsDomain(forWorkerIn folder: URL) -> String {
+        helperLink(forWorkerIn: folder).lastPathComponent
+    }
+
+    /// Removes the helper link beside `folder` and its tests' `UserDefaults`, once SwiftMutator is done with the folder.
+    static func removeOwnDefaults(forWorkerIn folder: URL) {
+        let link = helperLink(forWorkerIn: folder)
+        guard (try? FileManager.default.destinationOfSymbolicLink(atPath: link.path)) != nil else { return }
+        try? FileManager.default.removeItem(at: link)
+        removeDefaultsDomain(defaultsDomain(forWorkerIn: folder))
+    }
+
+    /// Removes `domain`, one of SwiftMutator's own, and the file in the user's preferences that held it. `defaults`
+    /// empties it, as SwiftMutator itself would write its copy back to disk when it exits, and the file left empty then
+    /// goes. Waits at most `timeLimit` seconds for `defaults`, which leaves the domain in place if it takes longer.
+    static func removeDefaultsDomain(_ domain: String, timeLimit: TimeInterval = 5) {
+        #if os(macOS)
+        let delete = Foundation.Process()
+        delete.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
+        delete.arguments = ["delete", domain]
+        delete.standardOutput = FileHandle.nullDevice
+        delete.standardError = FileHandle.nullDevice
+        let exited = DispatchSemaphore(value: 0)
+        delete.terminationHandler = { _ in exited.signal() }
+        guard (try? delete.run()) != nil, exited.wait(timeout: .now() + timeLimit) == .success else { return }
+        let file = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Preferences/\(domain).plist")
+        try? FileManager.default.removeItem(at: file)
+        #endif
     }
 }
 
