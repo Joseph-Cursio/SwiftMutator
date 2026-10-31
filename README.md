@@ -94,7 +94,12 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   test target, which Muter's coverage step can't read, so it tested every mutant, even in code no
   test runs. SwiftMutator exports the coverage of every bundle at once, leaves out the files no
   test runs and skips the mutants in code no test runs. If coverage can't be gathered, it says
-  why, and tests every mutant as before. `--skip-coverage` turns the step off.
+  why, and tests every mutant as before. `--skip-coverage` turns the step off. On SwiftPM, coverage
+  builds with flags of its own, so the baseline after it builds again without them. That costs
+  less than it sounds: SwiftMutator's copy of the project is at a new path, so its first build is
+  a full one anyway. On SwiftProjectLint the coverage step took about 82 s, and the baseline with
+  the timed run after it about 80 s, of which about 5–15 s was owed to coverage's flags. Building coverage in a clone of
+  the copy instead saved that, but copying and removing the clone cost more, about 18 s.
 - **No silent survivors from missing switches:** a mutant whose switch isn't in the code would run
   the original code, pass its tests and count as a survivor. After rewriting the copy, SwiftMutator
   reads each rewritten file back and checks that it holds every one of its mutants' IDs as a quoted
