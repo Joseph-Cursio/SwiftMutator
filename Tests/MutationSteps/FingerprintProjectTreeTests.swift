@@ -44,9 +44,9 @@ final class FingerprintProjectTreeTests: MuterTestCase {
         state.apply(changes)
 
         XCTAssertEqual(listed.value, [state.projectDirectoryURL])
-        let files = try [
-            "README.md": XCTUnwrap(FileDigest.sha256(of: Data("readme".utf8))),
-            "Sources/Sum.swift": XCTUnwrap(FileDigest.sha256(of: Data("as copied".utf8))),
+        let files = [
+            "README.md": FileDigest.sha256(of: Data("readme".utf8)),
+            "Sources/Sum.swift": FileDigest.sha256(of: Data("as copied".utf8)),
         ]
         let tree = ProjectTree(
             listedBy: .git,
@@ -123,7 +123,7 @@ final class FingerprintProjectTreeTests: MuterTestCase {
     func test_onResume_theRecordedReportPaths_arentChanges() async throws {
         try write(["README.md": "readme", "old-report.txt": "the last session's report"], in: copy)
         current.listProjectFiles = { _ in ["README.md", "old-report.txt"] }
-        let files = ["README.md": try XCTUnwrap(FileDigest.sha256(of: Data("readme".utf8)))]
+        let files = ["README.md": FileDigest.sha256(of: Data("readme".utf8))]
         try resume(
             ProjectTree(
                 listedBy: .git,
@@ -155,7 +155,7 @@ private extension FingerprintProjectTreeTests {
     /// The tree of `files`, each a path relative to the project and its contents, as listed by git, and as a run that
     /// loads the project's own configuration records it.
     func projectTree(of files: [String: String]) throws -> ProjectTree {
-        let hashes = try files.mapValues { try XCTUnwrap(FileDigest.sha256(of: Data($0.utf8))) }
+        let hashes = files.mapValues { FileDigest.sha256(of: Data($0.utf8)) }
         return ProjectTree(
             listedBy: .git,
             files: hashes,

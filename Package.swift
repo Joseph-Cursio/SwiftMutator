@@ -22,6 +22,8 @@ let package = Package(
         .package(url: "https://github.com/jpsim/Yams.git", from: "6.1.0"),
         .package(url: "https://github.com/pointfreeco/swift-snapshot-testing.git", from: "1.18.7"),
         .package(url: "https://github.com/mxcl/Version.git", from: "2.2.0"),
+        // CryptoKit's API where there is no CryptoKit, for the SHA-256 of results files and project trees.
+        .package(url: "https://github.com/apple/swift-crypto.git", from: "5.0.0"),
     ],
     targets: [
         .executableTarget(
@@ -39,6 +41,7 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Yams", package: "yams"),
                 .product(name: "Version", package: "Version"),
+                .product(name: "Crypto", package: "swift-crypto", condition: .when(platforms: [.linux])),
             ],
             path: "Sources/muterCore"
         ),

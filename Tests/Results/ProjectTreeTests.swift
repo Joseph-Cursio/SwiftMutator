@@ -504,7 +504,7 @@ private extension ProjectTreeTests {
     }
 
     func sha256(_ text: String) -> String {
-        FileDigest.sha256(of: Data(text.utf8)) ?? ""
+        FileDigest.sha256(of: Data(text.utf8))
     }
 
     /// Sets the environment variable `name` to `value` until the test ends.

@@ -173,13 +173,13 @@ extension ProjectTree {
         }
     }
 
-    /// SHA-256 over every "path\0hash\n", sorted by the paths' bytes; empty without CryptoKit.
+    /// SHA-256 over every "path\0hash\n", sorted by the paths' bytes.
     static func treeHash(of files: [String: String]) -> String {
         let lines = files.keys
             .sorted { $0.utf8.lexicographicallyPrecedes($1.utf8) }
             .map { "\($0)\0\(files[$0] ?? "")\n" }
             .joined()
-        return FileDigest.sha256(of: Data(lines.utf8)) ?? ""
+        return FileDigest.sha256(of: Data(lines.utf8))
     }
 }
 
@@ -192,7 +192,7 @@ private extension ProjectTree {
             return FileDigest.sha256(of: url)
         case .typeSymbolicLink?:
             return (try? FileManager.default.destinationOfSymbolicLink(atPath: url.path))
-                .flatMap { FileDigest.sha256(of: Data($0.utf8)) }
+                .map { FileDigest.sha256(of: Data($0.utf8)) }
                 .map { "link:" + $0 }
         default:
             return nil
