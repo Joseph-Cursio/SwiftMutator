@@ -21,7 +21,7 @@ struct PlainTextReporter: Reporter {
             for: report.globalMutationScore,
             appliedTo: "\(report.globalMutationScore)%"
         )
-        let projectCoverageMessage = coverageMessage(from: report)
+        let projectCoverageMessage = coverageMessage(from: report, skipped: outcome.coverageSkipped)
         let mutationScoreMessage = "Mutation Score of Test Suite: ".bold + "\(coloredGlobalScore)"
         let mutationScoresMessage = """
         --------------------
@@ -76,8 +76,13 @@ struct PlainTextReporter: Reporter {
             + "\nSuspect tests: \(summary.suspects.count) (\(summary.suspectNames)); see Killing Tests above"
     }
 
-    private func coverageMessage(from report: MuterTestReport) -> String {
-        report.projectCodeCoverage.map { "Code Coverage of your project: \($0)%" }
-            ?? "SwiftMutator could not gather coverage data from your project"
+    /// The project's coverage; without it, whether `--skip-coverage` skipped it or SwiftMutator failed to gather it.
+    private func coverageMessage(from report: MuterTestReport, skipped: Bool) -> String {
+        if let coverage = report.projectCodeCoverage {
+            return "Code Coverage of your project: \(coverage)%"
+        }
+        return skipped
+            ? "Coverage skipped (--skip-coverage)"
+            : "SwiftMutator could not gather coverage data from your project"
     }
 }

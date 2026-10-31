@@ -162,6 +162,26 @@ final class RecordedOutcomeTests: MuterTestCase {
         try assertTheResultsFileRebuilds(earlyEnd.outcome)
     }
 
+    // A stopped run's partial report says it skipped coverage, as a finished run's report does.
+    func test_thePartialReportOfARunThatSkippedCoverage_saysSo() async throws {
+        state.runOptions = .make(skipCoverage: true)
+        state.projectCoverage = .null
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed, .failed]
+        ioDelegate.mutantRunEndings = [.exited, .exited, .cancelled]
+        ioDelegate.whileRunningMutant = { number in
+            if number == 2 { withUnsafeCurrentTask { $0?.cancel() } }
+        }
+        let earlyEnds = recordEarlyEnds()
+
+        _ = await sut.runInItsOwnTask(with: state)
+
+        let earlyEnd = try XCTUnwrap(earlyEnds().first)
+        XCTAssertTrue(earlyEnd.outcome.coverageSkipped)
+        let report = PlainTextReporter().report(from: earlyEnd.outcome)
+        XCTAssertTrue(report.contains("\nCoverage skipped (--skip-coverage)\n"), report)
+        try assertTheResultsFileRebuilds(earlyEnd.outcome)
+    }
+
     // A run that was killed, or crashed, or is still running.
     func test_aFileWithoutAnEndLine_reportsItsMutants_overTheTimeToTheLastOne() throws {
         let jobs = fixtureJobs()
@@ -274,14 +294,39 @@ final class RecordedOutcomeTests: MuterTestCase {
     func test_aRunWithoutCoverage_reportsNone() throws {
         let jobs = fixtureJobs()
 
-        let rebuilt = try rebuild(ResultsHeader.make(coverage: nil), mutantResult(jobs[0].schema, jobs[0].key))
+        let rebuilt = try rebuild(
+            ResultsHeader.make(coverage: nil, skipCoverage: false),
+            mutantResult(jobs[0].schema, jobs[0].key)
+        )
 
         XCTAssertEqual(rebuilt.mutations.map(label), ["/project_mutated/Sources/A/Util.swift:3"])
         XCTAssertEqual(rebuilt.coverage, .null)
+        XCTAssertFalse(rebuilt.coverageSkipped)
         XCTAssertNil(MuterTestReport(from: rebuilt).projectCodeCoverage)
-        XCTAssertTrue(
-            PlainTextReporter().report(from: rebuilt).contains("SwiftMutator could not gather coverage data")
-        )
+        let report = PlainTextReporter().report(from: rebuilt)
+        XCTAssertTrue(report.contains("\nSwiftMutator could not gather coverage data from your project\n"), report)
+        XCTAssertFalse(report.contains("Coverage skipped"), report)
+    }
+
+    // `--skip-coverage` leaves a run without coverage, as failing to gather it does, but neither its report nor the one
+    // made from its file says SwiftMutator failed.
+    func test_aRunThatSkippedCoverage_saysSo_asDoesTheReportFromItsFile() async throws {
+        state.runOptions = .make(skipCoverage: true)
+        state.projectCoverage = .null
+        // The baseline, then the five mutants.
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed, .passed, .passed, .passed]
+
+        let changes = try await sut.run(with: state)
+
+        guard case let .mutationTestOutcomeGenerated(runOutcome)? = changes.first else {
+            return XCTFail("Expected an outcome, got \(changes)")
+        }
+        XCTAssertTrue(runOutcome.coverageSkipped)
+        XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.skipCoverage), [true])
+        let report = PlainTextReporter().report(from: runOutcome)
+        XCTAssertTrue(report.contains("\nCoverage skipped (--skip-coverage)\n"), report)
+        XCTAssertFalse(report.contains("could not gather coverage data"), report)
+        try assertTheResultsFileRebuilds(runOutcome)
     }
 
     // Discovery sorts the absolute paths, so a file outside the mutated project keeps its place among them: here
@@ -387,6 +432,7 @@ private extension RecordedOutcomeTests {
             XCTAssertEqual(rebuilt.testDuration, expected.testDuration, order, file: file, line: line)
             XCTAssertEqual(rebuilt.newVersion, expected.newVersion, order, file: file, line: line)
             XCTAssertEqual(rebuilt.coverage, expected.coverage, order, file: file, line: line)
+            XCTAssertEqual(rebuilt.coverageSkipped, expected.coverageSkipped, order, file: file, line: line)
             try assertEveryFormatsReport(of: rebuilt, equals: expected, order, file: file, line: line)
         }
     }

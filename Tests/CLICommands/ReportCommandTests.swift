@@ -14,7 +14,7 @@ final class ReportCommandTests: MuterTestCase {
     private let alpha3 = MutantResult.make(path: "Sources/Alpha.swift", line: 3, outcome: .failed)
     private let zeta10 = MutantResult.make(path: "Sources/Zeta.swift", line: 10, outcome: .passed)
 
-    /// The outcome the run reported.
+    /// The outcome the run reported: `ResultsHeader.make()` records a run that skipped coverage.
     private var expected: MutationTestOutcome {
         MutationTestOutcome(
             mutations: [
@@ -23,6 +23,7 @@ final class ReportCommandTests: MuterTestCase {
                 mutation("Sources/Zeta.swift", line: 10, .passed),
             ],
             coverage: .null,
+            coverageSkipped: true,
             testDuration: 100.5,
             newVersion: ""
         )
@@ -232,6 +233,7 @@ final class ReportCommandTests: MuterTestCase {
 
         let soFar = MutationTestOutcome(
             mutations: [mutation("Sources/Alpha.swift", line: 3, .failed)],
+            coverageSkipped: true,
             testDuration: 31.25
         )
         XCTAssertEqual(printer.linesPassed, [PlainTextReporter().report(from: soFar)])
@@ -258,6 +260,7 @@ final class ReportCommandTests: MuterTestCase {
                 mutation(path, line: 3, .failed, killingTests: .init(tests: [timing], count: 1, isComplete: true))
             } + [mutation("Sources/Zeta.swift", line: 9, .passed)],
             coverage: .null,
+            coverageSkipped: true,
             testDuration: 100.5,
             newVersion: ""
         )
