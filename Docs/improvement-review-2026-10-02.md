@@ -50,6 +50,8 @@ This started as a ranked review of SwiftMutator on 2 October 2026, at commit `4b
   - Swift 5 language mode. The package's tools version was 5.9, so the compiler checked nothing for data races. It is 6.0 now, and every target builds in Swift 6 language mode, where a race the compiler can see is an error. No static state is mutable, the values a step hands on are `Sendable` (a file's mutation mapping is now a value, not a class), and mutation testing's tasks capture only what they use. Where the compiler can't see that something is safe, a comment says why: a resume state's results file, used by one step at a time, and tests that wait for a step they run in a task of their own. Two blocking waits stay on purpose: removing the worker clones at the very end of a run, in a `defer`, and the moment SwiftMutator waits to exit by a signal ([#101]).
   - Colour codes in report files, and a skipped coverage run reported as failed. Run from a terminal, the plain report is coloured wherever it goes, so `-f plain -o report.txt`, a stopped run's partial report and `report -o` saved the codes in the file. Every report is now saved without them, and one printed to a terminal keeps its colour. A run given `--skip-coverage` said SwiftMutator "could not gather coverage data". It now says "Coverage skipped (--skip-coverage)", and so does a report `report` makes from its results file, whose header records the flag; a coverage run that failed still says it could not gather it (§3, [#95]).
 
+  - Mutants that silently weren't applied ([#110]). A file with mutants that couldn't be read was skipped, and a rewrite that matched no statement list left it unchanged, so the mutants were tested with no switch in the code and survived; twice before, every mutant had. `CheckMutantSwitches` now reads each rewritten file back after `ApplySchemata`, and a test plan's before `run-without-mutating`, and stops the run naming every mutant whose ID isn't in its file as a quoted string; an unreadable file stops `ApplySchemata`. Under xcodebuild, a `muter.xctestrun` that couldn't be written (`try?`) left the last mutant's file, so a run could test that mutant and record the verdict for this one; it now aborts mutation testing (`mutantNotSwitchedOn`). `report` exits 255, as the run did, for a run that stopped on an error.
+
   Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#61, which are in the PRs themselves.
 - **Section numbers are the original ones,** so references in PRs and notes still work. A missing number is a finished section.
 
@@ -245,7 +247,7 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
 - **Exit codes** ([#96]). Add `--fail-under <pct>` or `scoreThreshold:`, with distinct exit codes for "below threshold", "timeouts", "baseline failed" and "aborted".
   - Today a finished run exits 0 whatever its score.
   - A stop by signal ends SwiftMutator by that same signal, so a shell reports 128 + its number (130, 143 or 129). A wrapper that reads the wait status sees a signal, not an exit code.
-  - Every other failure of a run exits 255, a refused resume included. A usage error exits 64, and `report` exits 1 when it can't read its file.
+  - Every other failure of a run exits 255, a refused resume included. A usage error exits 64, and `report` exits 1 when it can't read its file, and 255, once the report is made, for a run that stopped on an error ([#110]).
 - **Log storage** ([#97]).
   - Each mutant's log is still written twice: by the test process, to `running/` in the run's log folder, and again under its kept name (`MutationTestObserver.swift:100-102`, `:124-130`). The first copy goes once it's read back (`MutationTestingIODelegate.swift`), where it used to stay in `_mutated` until the next run, and tests could see it. Write it once.
   - Kept logs are never removed. On this machine, SwiftProjectLint's log folder holds 15 runs and 2.4 GB.
@@ -334,7 +336,6 @@ Added on 21 October, from a comparison with swift-mutation-testing v1.6.3 (`937f
   - xcodebuild mutant runs keep only `-destination` of the user's arguments ([#123]).
 - **Verdicts and runs.**
   - Recording whether each mutant's code ran: no-coverage verdicts, integrity warnings and reruns of kills whose code never ran ([#109]).
-  - Failing loudly when a mutant isn't applied or switched on ([#110]).
   - Parallel SwiftPM runs by default, keeping one writable copy per worker. swift-mutation-testing's shared folder gives false kills (ericodx/swift-mutation-testing#187, [#116]).
   - Time limits for the build, coverage and baseline, and the baseline's failing tests named ([#117]).
   - Keeping the Mac awake during a run ([#118]).

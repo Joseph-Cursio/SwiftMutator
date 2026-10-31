@@ -435,6 +435,12 @@ final class ResultsRecordTests: XCTestCase {
         )
         XCTAssertEqual(
             ResultsEnd.detail(
+                for: MuterError.mutationTestingAborted(reason: .mutantNotSwitchedOn(id: "Calc_1", description: "full"))
+            ),
+            "mutantNotSwitchedOn"
+        )
+        XCTAssertEqual(
+            ResultsEnd.detail(
                 for: MuterError.mutationTestingAborted(
                     reason: .workerBaselineTestFailed(worker: 2, directory: "/project_mutated_worker2", log: "the log")
                 )

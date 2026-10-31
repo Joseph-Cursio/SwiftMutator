@@ -5,6 +5,17 @@ import XCTest
 final class MutationTestingAbortReasonTests: MuterTestCase {
     private let mutatedFilePath = "/project/Sources/Calc/Calc.swift"
 
+    func test_whenAMutantCannotBeSwitchedOn_thenNameItAndWhy() {
+        let description = MutationTestingAbortReason.mutantNotSwitchedOn(
+            id: "Calc_ab12_RelationalOperatorReplacement_8_24_190",
+            description: "The file “muter.xctestrun” couldn’t be saved."
+        ).description
+
+        XCTAssertTrue(description.contains("mutant Calc_ab12_RelationalOperatorReplacement_8_24_190"), description)
+        XCTAssertTrue(description.contains("couldn’t be saved"), description)
+        XCTAssertTrue(description.contains("rather than record a verdict"), description)
+    }
+
     func test_whenAWorkerClonesBaselineFailed_thenNameTheWorkerAndSuggestOneWorker() {
         let description = MutationTestingAbortReason.workerBaselineTestFailed(
             worker: 2,

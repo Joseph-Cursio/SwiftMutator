@@ -16,8 +16,16 @@ struct Report: AsyncParsableCommand {
 
     init() {}
 
+    /// The status `report` exits with, once the report is made, for a run that stopped on an error: the one the run
+    /// itself exited with (`RunCommand.run(with:)`), so a script that checks the report fails as one that checked the
+    /// run would. A run that finished, was interrupted, or has no end line yet exits 0.
+    static let stoppedOnAnError = ExitCode(-1)
+
     func run() async throws {
-        try ResultsReport(format: reportOptions.reportFormat, outputPath: reportOptions.reportURL?.path)
+        let recorded = try ResultsReport(format: reportOptions.reportFormat, outputPath: reportOptions.reportURL?.path)
             .make(from: results.path)
+        if recorded.stoppedOnAnError {
+            throw Self.stoppedOnAnError
+        }
     }
 }

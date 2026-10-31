@@ -24,8 +24,9 @@ struct ResultsReport {
     /// Makes the report from the results file `path` names: the file itself, or a run's log folder that holds it.
     /// Standard output holds the report alone (and, in the Xcode format, its warnings), so `-f json > report.json` is
     /// valid JSON; what the file holds, the report's warning of suspect tests, and where the report went, are said on
-    /// standard error.
-    func make(from path: String) throws {
+    /// standard error. Gives what the file holds, which says how the run ended.
+    @discardableResult
+    func make(from path: String) throws -> RecordedResults {
         let file = try ResultsFile.find(at: path, using: fileManager)
         if let outputPath {
             try checkSaving(to: outputPath, from: file)
@@ -56,6 +57,7 @@ struct ResultsReport {
         if let outputPath {
             errorPrinter("Report saved to \(outputPath)")
         }
+        return recorded
     }
 
     /// Refuses an `outputPath` that saving the report at would destroy, before anything is printed: saving replaces

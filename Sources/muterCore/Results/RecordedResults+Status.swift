@@ -21,6 +21,11 @@ extension RecordedResults {
         return lines
     }
 
+    /// Whether the run stopped on an error, as its last session's end line says: `report` then exits as the run did.
+    var stoppedOnAnError: Bool {
+        sessions.last?.end?.reason == .aborted
+    }
+
     /// How `session` ended, from its end line.
     private static func ending(of session: Session) -> String {
         guard let end = session.end else {

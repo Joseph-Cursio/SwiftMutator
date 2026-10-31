@@ -261,6 +261,53 @@ final class MutationTestingDelegateTests: MuterTestCase {
         XCTAssertTrue(result.testLog.contains(error.localizedDescription), result.testLog)
     }
 
+    // The test bundles run directly, through `/bin/sh`, read the mutant from the same file as `swift test` does:
+    // the script inherits the variable that names it, and adds only its own.
+    func test_whenTheTestBundlesRunDirectly_theMutantIsStillSwitchedOnThroughTheActiveMutantFile() async throws {
+        current.process = { MuterProcessFactory.makeProcess() }
+        let schemata = try MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1))
+
+        let testProcess = try await sut.testProcess(
+            with: directRunConfiguration(),
+            schemata: schemata,
+            and: FileHandle(fileDescriptor: 0)
+        )
+
+        let activeMutantFile = "\(outputFolder!)\(activeMutantFileSuffix)"
+        XCTAssertEqual(testProcess.executableURL?.path, "/bin/sh")
+        XCTAssertEqual(testProcess.environment?[activeMutantFileKey], activeMutantFile)
+        XCTAssertEqual(writeFile.contentPassed, schemata.id)
+        XCTAssertEqual(writeFile.pathPassed, activeMutantFile)
+        let script = try XCTUnwrap(testProcess.arguments?.last)
+        XCTAssertFalse(script.contains(activeMutantFileKey), script)
+    }
+
+    // As through `swift test`: a run whose mutant couldn't be named is never a verdict.
+    func test_whenTheTestBundlesRunDirectly_andTheActiveMutantFileCannotBeWritten_thenTheyAreNotRun() async throws {
+        writeFile.errorToThrow = CocoaError(.fileWriteNoPermission)
+
+        let result = try await sut.runTestSuite(
+            withSchemata: MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1)),
+            using: directRunConfiguration(),
+            savingResultsIntoFileNamed: "logFileName"
+        )
+
+        XCTAssertEqual(result.outcome, .buildError)
+        XCTAssertEqual(result.ending, .couldNotRun)
+        XCTAssertFalse(process.runCalled)
+    }
+
+    /// A `swift test` configuration whose mutants run the test bundles directly.
+    private func directRunConfiguration() -> MuterConfiguration {
+        MuterConfiguration(executable: "/tmp/swift", arguments: ["test"]).withDirectTestRun(DirectTestRun(
+            helper: "/toolchain/usr/libexec/swift/pm/swiftpm-testing-helper",
+            productsFolder: ".build/out/Products/Debug",
+            bundles: ["CoreTests"],
+            platformDeveloperFolder: "/Platforms/MacOSX.platform/Developer",
+            arguments: ["--skip-build"]
+        ))
+    }
+
     func test_makeProcess_doesNotSetMuterRunningMarker() {
         // The shared factory (used for build-for-testing too) must NOT carry IS_MUTER_RUNNING — on
         // some projects it makes xcodebuild skip writing build-request.json, breaking BuildForTesting.

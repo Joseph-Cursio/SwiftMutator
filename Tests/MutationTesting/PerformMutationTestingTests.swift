@@ -237,6 +237,30 @@ final class PerformMutationTestingTests: MuterTestCase {
         ])
     }
 
+    // A `muter.xctestrun` that couldn't be written still switches on the mutant before. The run stops before the
+    // mutant's tests run, rather than record that mutant's verdict for this one, and what it tested is reported.
+    func test_whenAMutantCannotBeSwitchedOn_thenMutationTestingStops_beforeItsTestsRun() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed]
+        let error = CocoaError(.fileWriteOutOfSpace)
+        ioDelegate.switchOnError = error
+        let sent = recordEvents(named: [.mutationTestingEndedEarly])
+        let id = try XCTUnwrap(state.mutationMapping.first?.mutationSchemata.first).id
+
+        await assertThrowsMuterError(
+            try await sut.run(with: state),
+            .mutationTestingAborted(reason: .mutantNotSwitchedOn(id: id, description: error.localizedDescription))
+        )
+
+        XCTAssertEqual(ioDelegate.methodCalls, [
+            "benchmarkTests(using:savingResultsIntoFileNamed:)",
+            "switchOn(schemata:for:at:)",
+        ])
+        let earlyEnd = try XCTUnwrap(sent().compactMap { $0.object as? EarlyEnd }.first)
+        XCTAssertEqual(earlyEnd.reason, .aborted)
+        XCTAssertEqual(earlyEnd.detail, "mutantNotSwitchedOn")
+        XCTAssertEqual(earlyEnd.outcome.mutations, [])
+    }
+
     // What an abort tested makes the partial report, the build error that ended it included.
     func test_whenTooManyBuildErrorsAbort_whatWasTestedIsPosted_inJobOrder() async throws {
         state.mutationMapping = try Array(repeating: makeSchemataMapping(), count: 6)

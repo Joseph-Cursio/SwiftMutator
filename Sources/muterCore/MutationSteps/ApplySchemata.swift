@@ -17,8 +17,11 @@ struct ApplySchemata: MutationStep {
                 sourceCode = cached
             } else if let parsed = loadSourceCode(from: mutationMap.filePath) {
                 sourceCode = parsed
-            } else {
+            } else if mutationMap.isEmpty {
                 continue
+            } else {
+                // Its mutants would still be tested, with no switch in the code: every one would survive.
+                throw MuterError.literal(reason: Self.couldNotRead(mutationMap))
             }
 
             let newFile = await Self.onAStackOfItsOwn {
@@ -36,6 +39,16 @@ struct ApplySchemata: MutationStep {
         }
 
         return []
+    }
+
+    /// Why a file with mutants that can't be read, or isn't UTF-8, stops the run.
+    static func couldNotRead(_ mapping: SchemataMutationMapping) -> String {
+        let count = mapping.mutationSchemata.count
+        return """
+        SwiftMutator could not read \(mapping.filePath), or it isn't UTF-8, so it could not insert the \
+        \(count == 1 ? "switch of the mutant" : "switches of the \(count) mutants") it found there. Their tests would run without them, and every \
+        one would survive.
+        """
     }
 
     /// The bytes of stack a file's rewrite gets: room for tens of thousands of mutants in one list, where swiftc

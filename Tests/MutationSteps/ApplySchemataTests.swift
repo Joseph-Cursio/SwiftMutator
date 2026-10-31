@@ -65,6 +65,24 @@ final class ApplySchemataTests: MuterTestCase {
         XCTAssertEqual(result.count, 0)
     }
 
+    // Its mutants would still be tested, with no switch in the code, and every one would survive.
+    func test_whenAFileWithMutantsCannotBeRead_thenThrowErrorNamingTheFile() async throws {
+        let path = "/nonexistent/path/to/Missing.swift"
+        let source = try sourceCode("func check(_ value: Int) -> Bool {\n    return value > 1\n}\n")
+        let mapping = try XCTUnwrap(generateSchemataMappings(for: SourceCodeInfo(path: path, code: source)).first)
+        state.sourceCodeByFilePath = [:]
+        state.mutationMapping = [mapping]
+
+        try await assertThrowsMuterError(
+            await sut.run(with: state),
+            .literal(reason: ApplySchemata.couldNotRead(mapping))
+        )
+        let reason = ApplySchemata.couldNotRead(mapping)
+        XCTAssertTrue(reason.contains(path), reason)
+        XCTAssertTrue(reason.contains("every one would survive"), reason)
+        XCTAssertFalse(writeFile.writeFileCalled)
+    }
+
     // Production never caches source (`DiscoverMutationPoints` passes an empty
     // dictionary), so this is the path every real run takes. The schemata are
     // keyed by syntax nodes from the tree discovery parsed; a freshly parsed
