@@ -184,16 +184,19 @@ class MuterVisitor: SyntaxAnyVisitor {
         // The incremental parse reuses every statement after the edit, so the edit must be exact
         // and in UTF-8 bytes: the replaced text's bytes, replaced by the mutation's.
         let utf8 = codeBlockDescription.utf8
+        let bytes = utf8.distance(from: utf8.startIndex, to: range.lowerBound)
+            ..< utf8.distance(from: utf8.startIndex, to: range.upperBound)
         let edit = SourceEdit(
-            range: AbsolutePosition(utf8Offset: utf8.distance(from: utf8.startIndex, to: range.lowerBound))
-                ..< AbsolutePosition(utf8Offset: utf8.distance(from: utf8.startIndex, to: range.upperBound)),
+            range: AbsolutePosition(utf8Offset: bytes.lowerBound) ..< AbsolutePosition(utf8Offset: bytes.upperBound),
             replacement: mutationDescription
         )
 
-        let codeBlockWithMutation = codeBlockDescription.replacingCharacters(
-            in: range,
-            with: mutationDescription
-        )
+        // The text gets the same edit, byte for byte. A combining mark that starts the next name joins the space
+        // before it into one character, and Linux's `replacingCharacters(in:with:)` widens the range to whole
+        // characters: `a && \u{064B}x` became `a ||  \u{064B}x`.
+        var codeBlockBytes = Array(utf8)
+        codeBlockBytes.replaceSubrange(bytes, with: mutationDescription.utf8)
+        let codeBlockWithMutation = String(decoding: codeBlockBytes, as: UTF8.self)
 
         let parseTransition = IncrementalParseTransition(
             previousIncrementalParseResult: .init(tree: codeBlockTree, lookaheadRanges: .init()),
