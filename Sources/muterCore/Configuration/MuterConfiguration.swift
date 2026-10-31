@@ -35,8 +35,8 @@ struct MuterConfiguration: Equatable, Codable {
     /// decides that the mutant is killed. nil leaves it to the default; see `stopsAtFirstFailure`.
     let stopAtFirstFailure: Bool?
     /// Whether a line `FailedTestLine` matches shows a failed test. Not a configuration key: false once a
-    /// passing baseline has printed such a line, as its tests print text shaped like a failure. Such a line
-    /// then neither stops a mutant's run nor counts a timed-out run killed. A `var` only so
+    /// passing baseline has printed such a line, or one `CrashLine` matches, as its tests print text shaped like a
+    /// failure. Such a line then neither stops a mutant's run nor counts a timed-out run killed. A `var` only so
     /// `withUnreliableFailedTestLines` can copy `self` and change just this field.
     private(set) var failedTestLinesAreReliable = true
     /// How a mutant's run starts the test bundles without `swift test`. Not a configuration key: set once a run of

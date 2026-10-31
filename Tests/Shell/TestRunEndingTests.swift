@@ -84,7 +84,9 @@ final class TestRunEndingTests: XCTestCase {
 
     func test_concurrentRecords_haveOneWinner() {
         let ending = TestRunEnding()
-        let reasons: [TestRunEnding.Reason] = [.exited, .timedOut, .cancelled, .failedTest(line: "✘ Test a() …")]
+        let reasons: [TestRunEnding.Reason] = [
+            .exited, .timedOut, .cancelled, .failedTest(line: "✘ Test a() …"), .crashed(line: "error: …"),
+        ]
         let winners = Locked<[TestRunEnding.Reason]>([])
 
         DispatchQueue.concurrentPerform(iterations: 100) { index in
@@ -102,6 +104,7 @@ final class TestRunEndingTests: XCTestCase {
         XCTAssertEqual(try ending(.exited).executionResult(), .success)
         XCTAssertEqual(try ending(.timedOut).executionResult(), .timeout)
         XCTAssertEqual(try ending(.failedTest(line: "✘ Test a() …")).executionResult(), .stoppedAtFirstFailure)
+        XCTAssertEqual(try ending(.crashed(line: "error: …")).executionResult(), .stoppedAtCrash)
         XCTAssertThrowsError(try ending(.cancelled).executionResult()) { error in
             XCTAssertTrue(error is CancellationError, "\(error)")
         }

@@ -215,6 +215,12 @@ final class SwiftCoverage: BuildSystemCoverage {
 
     /// The package's test targets, from `swift package describe`, or nil if it can't say.
     func testTargets(_ configuration: MuterConfiguration) async -> Set<String>? {
+        await testTargetSources(configuration).map { Set($0.keys) }
+    }
+
+    /// The package's test targets, each with its source files' paths in the target's folder, from `swift package
+    /// describe`, or nil if it can't say.
+    func testTargetSources(_ configuration: MuterConfiguration) async -> [String: [String]]? {
         guard let described = await process().runCommand(
             url: configuration.testCommandExecutable,
             arguments: ["package", "describe", "--type", "json"]
@@ -225,7 +231,10 @@ final class SwiftCoverage: BuildSystemCoverage {
             return nil
         }
 
-        return Set(package.targets.filter { $0.type == "test" }.map(\.name))
+        return Dictionary(
+            package.targets.filter { $0.type == "test" }.map { ($0.name, $0.sources ?? []) },
+            uniquingKeysWith: { first, _ in first }
+        )
     }
 
     private struct PackageDescription: Decodable {
@@ -234,6 +243,7 @@ final class SwiftCoverage: BuildSystemCoverage {
         struct Target: Decodable {
             let name: String
             let type: String
+            let sources: [String]?
         }
     }
 

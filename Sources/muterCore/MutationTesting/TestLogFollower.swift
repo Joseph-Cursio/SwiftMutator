@@ -42,7 +42,7 @@ struct LogLineBuffer {
 }
 
 /// Follows a test command's log while the command writes it, and finds the first line that shows a failed
-/// test. It only reads: the command writes the log itself, as its standard output and error.
+/// test or a crash. It only reads: the command writes the log itself, as its standard output and error.
 struct TestLogFollower {
     /// The most it reads at once.
     static let readSize = 65_536
@@ -51,16 +51,22 @@ struct TestLogFollower {
     /// How long it waits for more output once it has read everything written so far.
     var pollInterval: TimeInterval = 0.1
 
-    /// The first line that shows a failed test, without colour codes. Nil once the calling task is
-    /// cancelled, or if the log can't be opened: the run then goes to its end.
-    func firstFailedTestLine() async -> String? {
+    /// The first line that shows a failed test (`FailedTestLine`) or a crash (`CrashLine`), without colour codes, as
+    /// the reason to stop the run. Nil once the calling task is cancelled, or if the log can't be opened: the run then
+    /// goes to its end.
+    func firstStop() async -> TestRunEnding.Reason? {
         guard let reader = try? FileHandle(forReadingFrom: logFileUrl) else { return nil }
         defer { try? reader.close() }
         var lines = LogLineBuffer()
         while !Task.isCancelled {
             if let bytes = try? reader.read(upToCount: Self.readSize), !bytes.isEmpty {
-                if let line = lines.append(bytes).first(where: FailedTestLine.matches) {
-                    return FailedTestLine.withoutColours(line)
+                for line in lines.append(bytes) {
+                    if FailedTestLine.matches(line) {
+                        return .failedTest(line: FailedTestLine.withoutColours(line))
+                    }
+                    if CrashLine.matches(line) {
+                        return .crashed(line: FailedTestLine.withoutColours(line))
+                    }
                 }
                 continue
             }

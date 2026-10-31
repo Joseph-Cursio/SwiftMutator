@@ -127,6 +127,18 @@ final class TestSuiteResultParsingTests: MuterTestCase {
         XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .runtimeError)
     }
 
+    // Stopped at the crash, before any test failed and before any summary: the crash decides it.
+    func test_runStoppedAtACrash_isARuntimeError() {
+        let contents = """
+        ✔ Test run with 2 tests in 1 suite passed after 0.1 seconds.
+        error: Process '/p/CoreTests.xctest' exited with unexpected signal code 5
+        """
+        XCTAssertEqual(
+            TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .stoppedAtCrash),
+            .runtimeError
+        )
+    }
+
     func test_stoppedRunWhoseLogShowsATestFailure_isFailed() {
         // Stopped after a test failed but before any suite summary was printed.
         var contents = loadLogFile(named: "timeout_xcodebuildFailedTestCase.log")

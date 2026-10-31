@@ -72,6 +72,24 @@ final class SwiftCoverageTests: MuterTestCase {
         ])
     }
 
+    // The probe orders a mutant's test bundles by their test files.
+    func test_testTargetSources_givesEachTestTargetsFiles() async {
+        process.commandResult = { _ in
+            self.result(output: """
+                {"name": "Project", "targets": [
+                  {"name": "CoreTests", "type": "test", "sources": ["FooTests.swift", "Bar/BarTests.swift"]},
+                  {"name": "AppTests", "type": "test"},
+                  {"name": "Core", "type": "library", "sources": ["Foo.swift"]}
+                ]}
+                """)
+        }
+
+        let sources = await sut.testTargetSources(muterConfiguration)
+
+        XCTAssertEqual(sources, ["CoreTests": ["FooTests.swift", "Bar/BarTests.swift"], "AppTests": []])
+        XCTAssertEqual(process.commandsRun, [["/path/to/swift", "package", "describe", "--type", "json"]])
+    }
+
     // The native build system makes one bundle for the whole package.
     func test_aSingleTestBundle_isExportedAlone() async {
         answerWithACoverageRun(bundles: ["ProjectPackageTests.xctest"])

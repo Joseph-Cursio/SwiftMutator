@@ -15,6 +15,8 @@ enum TestingExecutionResult {
     case timeout
     /// Stopped at its first failed test (`stopAtFirstFailure`).
     case stoppedAtFirstFailure
+    /// Stopped at a test process's crash, before any failed test (`stopAtFirstFailure`).
+    case stoppedAtCrash
 }
 
 /// A time limit counts only the time SwiftMutator wasn't suspended in, by Ctrl-Z: its test processes are suspended

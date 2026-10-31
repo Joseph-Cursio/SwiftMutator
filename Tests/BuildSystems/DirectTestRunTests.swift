@@ -16,7 +16,7 @@ final class DirectTestRunTests: MuterTestCase {
         worker = directory.appendingPathComponent("it's a project")
         try FileManager.default.createDirectory(at: worker, withIntermediateDirectories: true)
         // Stands for swiftpm-testing-helper: says what it was given, then runs its bundle's "tests". The bundle's
-        // executable is its second argument.
+        // executable is its second argument. A bundle that waits gives a stopped run time to stop before it ends.
         helper = directory.appendingPathComponent("swiftpm-testing-helper")
         try """
         #!/bin/sh
@@ -26,6 +26,8 @@ final class DirectTestRunTests: MuterTestCase {
           *Crashes) kill -USR1 $$ ;;
           *Interrupted) kill -INT $$ ;;
           *Fails) echo "✘ Test run with 1 test in 1 suite failed after 0.1 seconds with 1 issue."; exit 1 ;;
+          *FailsThenWaits) echo "✘ Test sample() recorded an issue at SampleTests.swift:3:5: x"; sleep 10; exit 1 ;;
+          *Waits) sleep 10 ;;
         esac
         echo "✔ Test run with 2 tests in 1 suite passed after 0.1 seconds."
         """.write(to: helper, atomically: true, encoding: .utf8)
@@ -69,6 +71,33 @@ final class DirectTestRunTests: MuterTestCase {
         XCTAssertFalse(run.testLog.contains("signal code"), run.testLog)
     }
 
+    // Stopped as at a failed test, so the bundles after the crash don't run, and scored as the crash it is.
+    func test_aRunStoppingAtItsFirstFailure_stopsAtACrash_asARuntimeError() async throws {
+        let started = Date()
+        let run = try await runAMutant(bundles: ["Crashes", "Waits"], stoppingAtFirstFailure: true)
+
+        XCTAssertLessThan(Date().timeIntervalSince(started), 5, "the bundle after the crash ran to its end")
+        XCTAssertEqual(run.ending, .stoppedAtCrash)
+        XCTAssertEqual(run.outcome, .runtimeError)
+        XCTAssertFalse(run.testLog.contains("passed after"), run.testLog)
+        XCTAssertTrue(run.testLog.contains("[SwiftMutator] Stopped this test run at a crash"), run.testLog)
+    }
+
+    // The bundle with the mutated file's tests runs first, so it stops the run before the others start.
+    func test_aMutantsRun_startsWithTheBundleThatHasItsFilesTests() async throws {
+        let run = try await runAMutant(
+            bundles: ["AppTests", "FailsThenWaits"],
+            testFiles: ["AppTests": ["AppTests"], "FailsThenWaits": ["Helpers", "SampleTests"]],
+            stoppingAtFirstFailure: true
+        )
+
+        let ran = run.testLog.split(separator: "\n").filter { $0.hasPrefix("ran:") }
+        XCTAssertEqual(ran.count, 1, run.testLog)
+        XCTAssertTrue(ran.first?.hasSuffix("/FailsThenWaits --testing-library swift-testing") ?? false, run.testLog)
+        XCTAssertEqual(run.ending, .stoppedAtFailedTest)
+        XCTAssertEqual(run.outcome, .failed)
+    }
+
     func test_aBundleWithAFailedTest_killsTheMutant_whicheverBundleComesLast() async throws {
         let run = try await runAMutant(bundles: ["Fails", "CoreTests"])
 
@@ -104,6 +133,57 @@ final class DirectTestRunTests: MuterTestCase {
         ])
     }
 
+    // MARK: - Bundle order
+
+    func test_bundles_putFirstThoseWithATestFileNamedAfterTheMutatedFile_eachInNameOrder() {
+        let direct = makeDirectTestRun(bundles: ["AppTests", "CLITests", "CoreTests", "UITests"], testFiles: [
+            "AppTests": ["ContentViewTests"],
+            "CLITests": ["CSVFormatterTests", "JSONFormatterTests"],
+            "CoreTests": ["CSVFormatterEscapingTests"],
+        ])
+
+        XCTAssertEqual(
+            direct.bundles(forMutantIn: "/project/Sources/Core/Export/CSVFormatter.swift"),
+            ["CLITests", "CoreTests", "AppTests", "UITests"]
+        )
+        XCTAssertEqual(
+            direct.bundles(forMutantIn: "/project/Sources/App/ContentView.swift"),
+            ["AppTests", "CLITests", "CoreTests", "UITests"]
+        )
+        XCTAssertEqual(
+            direct.bundles(forMutantIn: "/project/Sources/Core/Unmatched.swift"),
+            ["AppTests", "CLITests", "CoreTests", "UITests"]
+        )
+        XCTAssertEqual(direct.bundles(forMutantIn: nil), ["AppTests", "CLITests", "CoreTests", "UITests"])
+    }
+
+    // A run with no mutant on keeps name order, as the check's run did.
+    func test_theScript_runsTheBundlesInTheMutantsOrder() {
+        let direct = makeDirectTestRun(bundles: ["AppTests", "CoreTests"], testFiles: ["CoreTests": ["SampleTests"]])
+        let bundlesRun = { (script: String) in
+            script.split(separator: "\n").compactMap { line in
+                line.range(of: #"MacOS/[A-Za-z]+'"#, options: .regularExpression).map { line[$0] }
+            }
+        }
+
+        XCTAssertEqual(
+            bundlesRun(direct.script(in: worker, forMutantIn: "/p/Sample.swift")),
+            ["MacOS/CoreTests'", "MacOS/AppTests'"]
+        )
+        XCTAssertEqual(bundlesRun(direct.script(in: worker)), ["MacOS/AppTests'", "MacOS/CoreTests'"])
+    }
+
+    func test_isTestFile_takesTheNameThenMoreWordsOrNone_endingTests() {
+        XCTAssertTrue(DirectTestRun.isTestFile("CSVFormatterTests", of: "CSVFormatter"))
+        XCTAssertTrue(DirectTestRun.isTestFile("CSVFormatterEscapingTests", of: "CSVFormatter"))
+        XCTAssertTrue(DirectTestRun.isTestFile("CSVFormatterTest", of: "CSVFormatter"))
+        XCTAssertFalse(DirectTestRun.isTestFile("CSVFormatterTests", of: "CSVFormat"))
+        XCTAssertFalse(DirectTestRun.isTestFile("CSVFormatter", of: "CSVFormatter"))
+        XCTAssertFalse(DirectTestRun.isTestFile("CSVFormatterHelpers", of: "CSVFormatter"))
+        XCTAssertFalse(DirectTestRun.isTestFile("JSONFormatterTests", of: "CSVFormatter"))
+        XCTAssertFalse(DirectTestRun.isTestFile("Tests", of: ""))
+    }
+
     // MARK: - Checks
 
     func test_whyNot_acceptsARunOfTheBaselinesTestsInEachBundle_inAnyOrder() {
@@ -137,29 +217,35 @@ final class DirectTestRunTests: MuterTestCase {
 
     // MARK: - Helpers
 
-    private func makeDirectTestRun(bundles: [String]) -> DirectTestRun {
+    private func makeDirectTestRun(bundles: [String], testFiles: [String: [String]] = [:]) -> DirectTestRun {
         DirectTestRun(
             helper: helper.path,
             productsFolder: ".build/out/Products/Debug",
             bundles: bundles,
+            testFiles: testFiles,
             platformDeveloperFolder: "/Developer",
             arguments: ["--skip-build", "--filter", "Core"]
         )
     }
 
-    /// Runs a mutant's tests in the worker's folder, as a worker runs them, with the bundles run directly. Cancels the
-    /// run after 30 seconds, which kills its processes, so a run that never ends fails the test instead of hanging it.
-    private func runAMutant(bundles: [String]) async throws -> TestRun {
+    /// Runs the tests of a mutant in `Sample.swift` in the worker's folder, as a worker runs them, with the bundles run
+    /// directly. Cancels the run after 30 seconds, which kills its processes, so a run that never ends fails the test
+    /// instead of hanging it.
+    private func runAMutant(
+        bundles: [String],
+        testFiles: [String: [String]] = [:],
+        stoppingAtFirstFailure: Bool = false
+    ) async throws -> TestRun {
         current.process = { MuterProcessFactory.makeProcess() }
         current.writeFile = World().writeFile
         current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
-        // Not stopped at the first failed test, so every bundle runs.
+        // Unless stopped at the first failed test or crash, every bundle runs.
         let configuration = MuterConfiguration(
             executable: "/usr/bin/swift",
             arguments: ["test", "--filter", "Core"],
             testSuiteTimeOut: 60,
-            stopAtFirstFailure: false
-        ).withDirectTestRun(makeDirectTestRun(bundles: bundles))
+            stopAtFirstFailure: stoppingAtFirstFailure
+        ).withDirectTestRun(makeDirectTestRun(bundles: bundles, testFiles: testFiles))
         let mutant = try MutationSchema.make(filePath: "/path/Sample.swift", position: .init(line: 1))
         let run = Task { [sut, worker] in
             await sut.runTestSuite(
