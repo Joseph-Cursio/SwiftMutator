@@ -259,7 +259,8 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         // command milliseconds before SwiftMutator's own signal stops mutation testing; the run would be recorded first,
         // as a crash, which counts as killed. Only a run that seems to have died of such a signal waits: SwiftMutator's
         // own kills end a run for another reason. A cancellation in the wait throws, and the run reads as cancelled.
-        if ending.reason == .exited, Self.mayHaveEndedByAnOutsideSignal(process) {
+        let exit = ending.exit(of: process)
+        if ending.reason == .exited, Self.mayHaveEndedByAnOutsideSignal(exit) {
             try await sleep(Self.outsideSignalWait)
         }
 
@@ -273,7 +274,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         try? FileManager.default.removeItem(at: logFileUrl)
         let testResult = TestSuiteOutcome.from(
             testLog: testExecutionLog,
-            terminationStatus: process.terminationStatus,
+            terminationStatus: exit.status,
             timeoutExecution: executionResult,
             failedTestLinesAreReliable: failedTestLinesAreReliable
         )
@@ -286,7 +287,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             outcome: testResult,
             testLog: testExecutionLog,
             ending: endedBy,
-            exitStatus: endedBy == .exited ? process.terminationStatus : nil
+            exitStatus: endedBy == .exited ? exit.status : nil
         )
     }
 
@@ -303,10 +304,11 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         // Foundation calls this as soon as it reaps the process, which can be before `run()` returns. The exit is
         // recorded first, so neither the follower nor the time limit kills a process that has exited, and reports a
         // run that ended by itself as stopped. Waiting for the handler holds no thread, unlike `waitUntilExit()`, which
-        // also notices the exit up to about 60 ms later.
+        // also notices the exit up to about 60 ms later. On Linux the kernel's report of the exit can come long before.
         let exited = Latch()
         process.terminationHandler = ending.recordingExit(opening: exited)
         try process.runWithNoSignalBlocked()
+        process.watchForExit(recordingIn: ending, opening: exited)
         locker.testProcessStarted(process.processIdentifier)
         defer { locker.testProcessEnded(process.processIdentifier) }
         await withTaskCancellationHandler {
@@ -335,16 +337,16 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
     /// 8 of 15 such runs were recorded as killed.
     static let outsideSignalWait: UInt64 = 250_000_000
 
-    /// Whether `process`, which has exited, may have ended by a stopping signal sent from outside SwiftMutator:
+    /// Whether a test process that ended as `exit` says may have ended by a stopping signal sent from outside SwiftMutator:
     /// SIGINT, SIGTERM or SIGHUP. An ordinary test failure exits 1, a crash dies of another signal, and SwiftMutator's
     /// own SIGKILL ends a run for another reason, so none of them wait.
-    static func mayHaveEndedByAnOutsideSignal(_ process: Process) -> Bool {
-        switch process.terminationReason {
+    static func mayHaveEndedByAnOutsideSignal(_ exit: ProcessExit) -> Bool {
+        switch exit.reason {
         case .uncaughtSignal:
-            return [SIGINT, SIGTERM, SIGHUP].contains(process.terminationStatus)
+            return [SIGINT, SIGTERM, SIGHUP].contains(exit.status)
         // swiftly's proxy, and shells, pass a child's signal on as its number or 128 + it.
         case .exit:
-            return [2, 15, 129, 130, 143].contains(process.terminationStatus)
+            return [2, 15, 129, 130, 143].contains(exit.status)
         @unknown default:
             return false
         }

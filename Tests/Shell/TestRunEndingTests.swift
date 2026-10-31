@@ -46,6 +46,42 @@ final class TestRunEndingTests: XCTestCase {
         XCTAssertTrue(exited.hasOpened)
     }
 
+    // As the kernel reports it, before Foundation reaps the process, which on Linux can be long after.
+    func test_anExitTheKernelReports_isRecorded_opensTheLatch_andGivesTheStatus() {
+        let ending = TestRunEnding()
+        let exited = Latch()
+        let process = ProcessSpy()
+        process.terminationStatus = 0
+
+        ending.recordExit(ProcessExit(status: SIGKILL, reason: .uncaughtSignal), opening: exited)
+
+        XCTAssertEqual(ending.reason, .exited)
+        XCTAssertTrue(exited.hasOpened)
+        XCTAssertEqual(ending.exit(of: process), ProcessExit(status: SIGKILL, reason: .uncaughtSignal))
+    }
+
+    func test_anExitTheKernelReports_afterTheTimeLimit_keepsTheTimeout() {
+        let ending = TestRunEnding()
+        let exited = Latch()
+        XCTAssertTrue(ending.record(.timedOut))
+
+        ending.recordExit(ProcessExit(status: SIGKILL, reason: .uncaughtSignal), opening: exited)
+
+        XCTAssertEqual(ending.reason, .timedOut)
+        XCTAssertTrue(exited.hasOpened)
+    }
+
+    // Foundation has reaped the process, so its status can be read.
+    func test_withNoExitTheKernelReported_theStatusIsFoundations() {
+        let ending = TestRunEnding()
+        let process = ProcessSpy()
+        process.terminationStatus = 3
+
+        ending.recordingExit(opening: Latch())(Foundation.Process())
+
+        XCTAssertEqual(ending.exit(of: process), ProcessExit(status: 3, reason: .exit))
+    }
+
     func test_concurrentRecords_haveOneWinner() {
         let ending = TestRunEnding()
         let reasons: [TestRunEnding.Reason] = [.exited, .timedOut, .cancelled, .failedTest(line: "✘ Test a() …")]

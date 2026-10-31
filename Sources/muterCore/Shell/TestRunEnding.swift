@@ -15,6 +15,7 @@ final class TestRunEnding: @unchecked Sendable { // all state is behind `lock`
 
     private let lock = NSLock()
     private var recorded: Reason?
+    private var reportedExit: ProcessExit?
 
     /// Records `reason` unless the run already ended for another, and returns whether it did.
     func record(_ reason: Reason) -> Bool {
@@ -33,6 +34,24 @@ final class TestRunEnding: @unchecked Sendable { // all state is behind `lock`
             _ = record(.exited)
             exited.open()
         }
+    }
+
+    /// Records the exit as the kernel reports it, before Foundation has reaped the process, then opens `exited`, as
+    /// the `terminationHandler` does once Foundation has.
+    func recordExit(_ exit: ProcessExit, opening exited: Latch) {
+        lock.withLock {
+            if recorded == nil { recorded = .exited }
+            reportedExit = exit
+        }
+        exited.open()
+    }
+
+    /// How `process` ended, once the latch its exit opens has opened: as the kernel reported it, if it did, or else
+    /// as Foundation did when it reaped the process. Never read from `process` before then: on Linux,
+    /// `terminationStatus` traps until Foundation has reaped it.
+    func exit(of process: MuterProcess) -> ProcessExit {
+        lock.withLock { reportedExit }
+            ?? ProcessExit(status: process.terminationStatus, reason: process.terminationReason)
     }
 
     /// Records that `process` ran past its time limit, and returns whether it did, for the caller to kill it. A process

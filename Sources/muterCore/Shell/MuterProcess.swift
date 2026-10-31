@@ -17,6 +17,13 @@ struct CommandResult: Equatable {
     var succeeded: Bool { !timedOut && !endedBySignal && status == 0 }
 }
 
+/// How a process ended: its exit code, or the signal that killed it, as `terminationStatus` and `terminationReason`
+/// say once Foundation has reaped it.
+struct ProcessExit: Equatable {
+    let status: Int32
+    let reason: Foundation.Process.TerminationReason
+}
+
 /// Sendable: once a process runs, its time limit, its first failed test and its task's cancellation each kill it from a
 /// task or thread of their own, and Foundation calls its `terminationHandler` on another. They only read it: it is set
 /// up before `run()`. `Foundation.Process` is Sendable itself.
@@ -80,6 +87,32 @@ extension MuterProcess {
         defer { pthread_sigmask(SIG_SETMASK, &previous, nil) }
         #endif
         try run()
+    }
+
+    /// Records the process's exit in `ending`, and opens `exited`, as soon as the kernel reports it, once the process
+    /// runs. Foundation's `terminationHandler` does both too, once Foundation reaps the process. On Darwin that is at
+    /// once, so this does nothing. swift-corelibs-foundation hears of an exit only when a socket it gives the process
+    /// closes, and every process the process starts inherits that socket: one that outlives it, as one that escaped a
+    /// time limit's kill, holds the exit back for as long as it runs, and `terminationStatus` traps until then. The
+    /// process isn't reaped here, so Foundation still reaps it, and its ID isn't given to another process before then.
+    func watchForExit(recordingIn ending: TestRunEnding, opening exited: Latch) {
+        #if os(Linux)
+        let pid = processIdentifier
+        guard pid > 0 else { return }
+        // A thread of its own, which waits as long as the process runs, as Foundation's would.
+        Thread.detachNewThread {
+            var info = siginfo_t()
+            var result: Int32
+            repeat {
+                result = waitid(P_PID, id_t(pid), &info, WEXITED | WNOWAIT)
+            } while result == -1 && errno == EINTR
+            // ECHILD: Foundation reaped it first, and its handler records the exit.
+            guard result == 0, info.si_signo == SIGCHLD else { return }
+            let status = info._sifields._sigchld.si_status
+            let reason: Foundation.Process.TerminationReason = info.si_code == Int32(CLD_EXITED) ? .exit : .uncaughtSignal
+            ending.recordExit(ProcessExit(status: status, reason: reason), opening: exited)
+        }
+        #endif
     }
 
     /// `runCommand` with no time limit.
