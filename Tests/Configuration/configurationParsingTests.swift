@@ -167,6 +167,23 @@ final class ConfigurationParsingTests: MuterTestCase {
         XCTAssertFalse(configuration.withUnreliableFailedTestLines().stopsAtFirstFailure)
     }
 
+    // Swift Testing then prints no line for each test that starts or passes; a verbosity the arguments set is kept.
+    func test_testWithoutBuildArguments_forSwiftPM_skipTheBuild_quietly_unlessTheArgumentsSetAVerbosity() {
+        let quiet = { (arguments: [String]) in
+            MuterConfiguration(executable: "/usr/bin/swift", arguments: arguments).testWithoutBuildArguments(with: "")
+        }
+
+        XCTAssertEqual(quiet(["test", "--filter", "Core"]), ["test", "--filter", "Core", "--skip-build", "--quiet"])
+        for verbosity in ["-q", "--quiet", "-v", "--verbose", "--very-verbose", "--vv"] {
+            XCTAssertEqual(quiet(["test", verbosity]), ["test", verbosity, "--skip-build"], verbosity)
+        }
+        // xcodebuild has its own arguments for a run without building.
+        let xcode = MuterConfiguration(
+            executable: "/usr/bin/xcodebuild", arguments: ["test", "-destination", "platform=macOS"]
+        )
+        XCTAssertFalse(xcode.testWithoutBuildArguments(with: "run.xctestrun").contains("--quiet"))
+    }
+
     func test_asData_writesStopAtFirstFailureOnlyWhenSet() throws {
         // Left out while unset, so `init` and the JSON-to-YAML migration write the same files as before.
         let unset = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])

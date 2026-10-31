@@ -173,6 +173,12 @@ Each test run writes its output to `running/` in the log folder while it runs, n
 project or a worker clone, where your tests would see it. Once SwiftMutator has read it back, the
 log folder keeps its own copy, such as `baseline run.log`, and the file in `running/` goes.
 
+A SwiftPM mutant's run adds `--quiet`, so Swift Testing prints no line for each test or suite that
+starts or passes. Its log keeps each recorded issue, the run's summary, your tests' own output and
+any crash; on SwiftProjectLint a survivor's log went from about 960 KB to about 2 KB. Put `-v` or
+`--verbose` in `arguments` for full logs. Baselines run with `arguments` as they are, and XCTest's
+output doesn't change.
+
 `swift-mutator report` makes a run's report from its results file, in any format. The log folder
 is beside the project, not in it, so from the project's folder, where `run` is run:
 
