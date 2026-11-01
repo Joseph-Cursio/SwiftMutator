@@ -21,6 +21,13 @@ final class SinceReportingTests: MuterTestCase {
         ])
     }
 
+    // A resumed session's command gives the merge base itself, which is said as git abbreviates it.
+    func test_theConsole_abbreviatesARefThatIsTheMergeBase() {
+        Logger().changesSelected(.make(ref: ChangeSelection.make().mergeBase))
+
+        XCTAssertEqual(printer.linesPassed, ["🌿 0 Swift files changed since the merge base of ba5e000 and HEAD (ba5e000)."])
+    }
+
     func test_theConsole_namesTheRepositoriesOfTheirOwn_whoseChangesArentCompared() {
         Logger().changesSelected(.make(files: [], foldersNotCompared: ["Packages/Local"]))
 
@@ -82,7 +89,7 @@ final class SinceReportingTests: MuterTestCase {
             "That run mutated only what changed since the merge base of origin/main and HEAD (ba5e000), so this "
                 + "run's other mutants have no earlier result."
         )
-        XCTAssertNil(ResumeSummary.selectionChange(from: selection, to: selection.named("ba5e000")))
+        XCTAssertNil(ResumeSummary.selectionChange(from: selection, to: selection.named("ba5e000", commit: selection.mergeBase)))
         XCTAssertNil(ResumeSummary.selectionChange(from: nil, to: nil))
 
         Logger().resumePlanned(.make(noLongerDiscovered: 2400, isReuse: true, selectionChange: "This run mutates only…"))

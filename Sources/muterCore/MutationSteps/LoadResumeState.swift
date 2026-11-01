@@ -46,7 +46,8 @@ struct LoadResumeState: MutationStep {
             // The command that continues a run names its merge base, which the run's reports go on calling by its ref.
             if let recorded = resume.lastHeader.since, let selection = state.changeSelection,
                recorded.mergeBase == selection.mergeBase {
-                return [.resumeStateLoaded(resume), .changesSelected(selection.named(recorded.ref))]
+                let named = selection.named(recorded.ref, commit: recorded.commit)
+                return [.resumeStateLoaded(resume), .changesSelected(named)]
             }
             return [.resumeStateLoaded(resume)]
         } catch {

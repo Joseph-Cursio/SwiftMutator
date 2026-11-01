@@ -230,12 +230,13 @@ final class LoadResumeStateTests: MuterTestCase {
     func test_aResumedSinceRun_keepsTheFirstSessionsRef() async throws {
         let recorded = ChangeSelection.make(ref: "origin/main")
         try await writeResults(ResultsHeader.make(project: projectTree(), since: recorded), ResultsEnd.make())
-        state.apply([.changesSelected(.make(ref: recorded.mergeBase))])
+        state.apply([.changesSelected(.make(ref: recorded.mergeBase, commit: recorded.mergeBase))])
 
         let changes = try await sut.run(with: state)
         state.apply(changes)
 
         XCTAssertEqual(state.changeSelection?.ref, "origin/main")
+        XCTAssertEqual(state.changeSelection?.commit, recorded.commit)
         XCTAssertEqual(state.changeSelection?.mergeBase, recorded.mergeBase)
     }
 }

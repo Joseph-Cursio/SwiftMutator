@@ -35,8 +35,9 @@ struct ChangeSelection: Codable, Equatable, Sendable {
         self.foldersNotCompared = foldersNotCompared.isEmpty ? nil : foldersNotCompared
     }
 
-    /// The same choice, under `ref`: a resumed session's, whose command names the merge base, keeps the first one's.
-    func named(_ ref: String) -> ChangeSelection {
+    /// The same choice, from `ref`, which named `commit`: a resumed session's, whose command names the merge base, keeps
+    /// the first one's.
+    func named(_ ref: String, commit: String) -> ChangeSelection {
         ChangeSelection(
             ref: ref,
             commit: commit,
@@ -56,6 +57,11 @@ struct ChangeSelection: Codable, Equatable, Sendable {
     /// `mergeBase`'s first 7 characters, as git abbreviates a commit.
     var shortMergeBase: String {
         String(mergeBase.prefix(7))
+    }
+
+    /// The ref as said: abbreviated when it is the merge base itself, as a resumed session's command gives it.
+    var shownRef: String {
+        ref == mergeBase ? shortMergeBase : ref
     }
 }
 

@@ -1,7 +1,8 @@
 @testable import muterCore
 import XCTest
 
-/// Real folders and a real git, with commits made under a fixed identity and without the user's hooks or signing.
+/// Real folders and a real git. The fixtures are made without the user's or the system's git settings, under a fixed
+/// identity; the selection's own git calls see them, as a user's run would.
 final class GitChangesTests: XCTestCase {
     private var repository = ""
 
@@ -134,6 +135,32 @@ final class GitChangesTests: XCTestCase {
     }
 
     // Its markers wouldn't build, and git compares it as an ordinary change.
+    // Outside a repository is one failure that exits 128; a repository another user owns is another, which git explains.
+    func test_onlyNotBeingInARepository_readsAsSuch() async throws {
+        let project = URL(fileURLWithPath: "/project")
+        func select(_ errors: String) async -> Result<ChangeSelection, ChangeSelectionError> {
+            await GitChanges.select(since: "main", changedLines: false, in: project) { _, _ in
+                CommandResult(status: 128, endedBySignal: false, output: "", errors: errors)
+            }
+        }
+
+        let outside = await select("fatal: not a git repository (or any of the parent directories): .git\n")
+        XCTAssertEqual(outside, .failure(.notARepository(project: "/project")))
+        let owned = await select("fatal: detected dubious ownership in repository at '/project'\n")
+        XCTAssertEqual(owned, .failure(.gitFailed(
+            arguments: ["rev-parse", "--is-inside-work-tree"],
+            errors: "fatal: detected dubious ownership in repository at '/project'\n"
+        )))
+    }
+
+    // GIT_DIFF_OPTS would add context lines to the -U0 diff, which would read as changed.
+    func test_gitDiffOpts_isLeftOutOfGitsEnvironment() {
+        let environment = GitFileListing.environment(["GIT_DIFF_OPTS": "--unified=3", "HOME": "/Users/me"])
+
+        XCTAssertNil(environment["GIT_DIFF_OPTS"])
+        XCTAssertEqual(environment["HOME"], "/Users/me")
+    }
+
     func test_aFileWithMergeConflicts_isRefused() async throws {
         try write(["A.swift": lines(1...3)])
         try commit("start")
@@ -143,7 +170,7 @@ final class GitChangesTests: XCTestCase {
         try git("checkout", "-q", "main")
         try write(["A.swift": "line 1\nline 2 on main\nline 3\n"])
         try commit("main")
-        _ = try? run(["-c", "user.name=Test", "-c", "user.email=test@example.com", "merge", "-q", "other"], expecting: 1)
+        _ = try? run(["-c", "user.name=Test", "-c", "user.email=test@example.com", "merge", "-q", "--no-ff", "other"], expecting: 1)
 
         let result = await GitChanges.select(since: "HEAD", changedLines: false, in: url(""))
 
@@ -153,6 +180,10 @@ final class GitChangesTests: XCTestCase {
     // git gives a file renamed only in case, without `git mv`, its old name; discovery lists the disk's.
     func test_aFileRenamedOnlyInCase_isChosenByItsNameOnDisk() async throws {
         try write(["Sources/Parser.swift": lines(1...3)])
+        try XCTSkipUnless(
+            FileManager.default.fileExists(atPath: url("Sources/PARSER.swift").path),
+            "on a disk that tells names apart by case, git sees a removed file and a new one"
+        )
         try commit("start")
         try FileManager.default.moveItem(at: url("Sources/Parser.swift"), to: url("Sources/parser.swift"))
         try write(["Sources/parser.swift": lines(1...3, changing: [2])])
@@ -167,13 +198,13 @@ final class GitChangesTests: XCTestCase {
     func test_aRepositoryOfItsOwn_isNamed_andNoneOfItsFilesChosen() async throws {
         try write(["A.swift": "a"])
         try commit("start")
-        try write(["Packages/Local/Sources/L.swift": "l"])
-        try run(["-C", url("Packages/Local").path, "init", "-q"], expecting: 0)
+        try write(["LocalPackage/Sources/L.swift": "l"])
+        try run(["-C", url("LocalPackage").path, "init", "-q"], expecting: 0)
 
         let selection = try await select(since: "HEAD")
 
         XCTAssertEqual(selection.files, [])
-        XCTAssertEqual(selection.foldersNotCompared, ["Packages/Local"])
+        XCTAssertEqual(selection.foldersNotCompared, ["LocalPackage"])
     }
 
     // Not git's to compare: it holds a path, not the code it leads to.
@@ -240,7 +271,11 @@ private extension GitChangesTests {
         let git = Foundation.Process()
         git.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         git.arguments = ["-C", repository] + arguments
-        git.environment = GitFileListing.environment(ProcessInfo.processInfo.environment)
+        // None of the user's or the system's settings, hooks or templates in the fixtures' setup.
+        var environment = GitFileListing.environment(ProcessInfo.processInfo.environment)
+        environment["GIT_CONFIG_GLOBAL"] = "/dev/null"
+        environment["GIT_CONFIG_NOSYSTEM"] = "1"
+        git.environment = environment
         let output = Pipe()
         git.standardOutput = output
         git.standardError = FileHandle.nullDevice

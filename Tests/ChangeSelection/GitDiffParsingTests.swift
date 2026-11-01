@@ -60,6 +60,17 @@ final class GitDiffParsingTests: XCTestCase {
         XCTAssertEqual(hunks.deletionsAfter, [9, 0])
     }
 
+    // A file with CRLF line endings: each line of code ends in a carriage return, the headers don't.
+    func test_hunks_ofAFileWithCarriageReturns_areAllRead() {
+        let output = "--- a/A.swift\n+++ b/A.swift\n@@ -1 +1 @@\n-a\r\n+A\r\n@@ -6 +6 @@ e\n-f\r\n+F\r\n"
+            + "@@ -9 +8,0 @@\n-i\r\n"
+
+        let hunks = GitDiffParsing.hunks(ofUnifiedDiff: output)
+
+        XCTAssertEqual(hunks.lines, [LineRange(first: 1, last: 1), LineRange(first: 6, last: 6)])
+        XCTAssertEqual(hunks.deletionsAfter, [8])
+    }
+
     // Removed and added lines start with - and +, so a line of code that looks like a header isn't read as one.
     func test_hunks_ignoreCodeThatLooksLikeAHeader() {
         let output = """

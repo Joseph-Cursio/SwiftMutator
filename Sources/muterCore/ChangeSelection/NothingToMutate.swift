@@ -23,7 +23,7 @@ struct NothingToMutate: Error, Equatable, CustomStringConvertible {
     let selection: ChangeSelection
 
     var description: String {
-        let since = "since the merge base of \(selection.ref) and HEAD (\(selection.shortMergeBase))"
+        let since = "since the merge base of \(selection.shownRef) and HEAD (\(selection.shortMergeBase))"
         let why: String
         switch reason {
         case .noSwiftFileChanged:

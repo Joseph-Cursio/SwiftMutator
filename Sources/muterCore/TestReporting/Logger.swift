@@ -59,7 +59,7 @@ final class Logger: @unchecked Sendable {
     func changesSelected(_ selection: ChangeSelection, verbose: Bool = false) {
         let count = selection.files.count == 1 ? "1 Swift file" : "\(selection.files.count) Swift files"
         let lines = selection.changedLines ? ", of which only the changed lines are mutated" : ""
-        let changed = "🌿 \(count) changed since the merge base of \(selection.ref) and HEAD "
+        let changed = "🌿 \(count) changed since the merge base of \(selection.shownRef) and HEAD "
             + "(\(selection.shortMergeBase))\(lines)."
         if verbose, !selection.files.isEmpty {
             print("\(changed)\n\n\(selection.files.map(\.path).joined(separator: "\n").bold)")

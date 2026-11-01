@@ -141,9 +141,12 @@ private struct Repository {
 
     /// The commit `ref` names and its merge base with HEAD.
     func mergeBase(of ref: String) async throws -> (commit: String, mergeBase: String) {
-        // Outside a repository git exits 128; in a repository's own folder, or a bare one, it says false.
-        let inside = try await run(["rev-parse", "--is-inside-work-tree"])
-        guard inside.status == 0 || inside.status == 128 else { throw failure(inside, ["rev-parse"]) }
+        // Outside a repository git exits 128 and says so; in a repository's own folder, or a bare one, it says false.
+        // Any other failure, such as a repository another user owns, is git's to explain.
+        let arguments = ["rev-parse", "--is-inside-work-tree"]
+        let inside = try await run(arguments)
+        let outside = inside.status == 128 && inside.errors.contains("not a git repository")
+        guard inside.status == 0 || outside else { throw failure(inside, arguments) }
         guard inside.status == 0, inside.output.trimmingCharacters(in: .whitespacesAndNewlines) == "true",
               await !GitFileListing.isIgnoredByItsRepository(project)
         else { throw ChangeSelectionError.notARepository(project: project.path) }
@@ -158,10 +161,10 @@ private struct Repository {
         guard resolved.status == 0 else { throw ChangeSelectionError.unknownRef(ref) }
         let commit = resolved.output.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        let arguments = ["merge-base", commit, "HEAD"]
-        let base = try await run(arguments)
+        let mergeBase = ["merge-base", commit, "HEAD"]
+        let base = try await run(mergeBase)
         guard base.status == 0 else {
-            throw base.status == 1 ? ChangeSelectionError.noMergeBase(ref: ref) : failure(base, arguments)
+            throw base.status == 1 ? ChangeSelectionError.noMergeBase(ref: ref) : failure(base, mergeBase)
         }
         return (commit, base.output.trimmingCharacters(in: .whitespacesAndNewlines))
     }
