@@ -11,13 +11,16 @@ enum RemoveSideEffectsOperator {
             "NSConditionLock",
         ]
 
-        private lazy var untestedFunctionNames: [String] = [
+        /// The calls a statement is never removed for, whatever `excludeCalls` adds.
+        static let alwaysExcludedCalls = [
             "print",
             "fatalError",
             "preconditionFailure",
             "exit",
             "abort",
-        ] + (configuration?.excludeCallList ?? [])
+        ]
+
+        private lazy var untestedFunctionNames: [String] = Self.alwaysExcludedCalls + (configuration?.excludeCallList ?? [])
 
         convenience init(
             configuration: MuterConfiguration? = nil,
