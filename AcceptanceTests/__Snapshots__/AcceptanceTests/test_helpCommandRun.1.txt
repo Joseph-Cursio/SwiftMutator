@@ -28,7 +28,7 @@ OPTIONS:
                           mutationTestWorkers. Only SwiftPM projects test more
                           than one.
   --timeout <seconds>     Seconds before a mutant's test run is stopped, in
-                          place of mutationTestTimeout.
+                          place of mutationTestTimeout. At most a day, 86400.
   -f, --format <format>   The report format: plain, json, html, xcode
   -o, --output <output>   Output file for the report to be saved.
   --resume <results>      Continue a stopped run from its results file, or the

@@ -78,10 +78,12 @@ final class RunCommandTests: XCTestCase {
     func test_workersBelowOne_andATimeoutNotAboveZero_areUsageErrors() {
         assertUsageError(["run", "--workers", "0"], "--workers must be at least 1.")
         assertUsageError(["run", "--workers=-2"], "--workers must be at least 1.")
-        assertUsageError(["run", "--timeout", "0"], "--timeout must be a number of seconds above 0.")
-        assertUsageError(["run", "--timeout=-5"], "--timeout must be a number of seconds above 0.")
-        assertUsageError(["run", "--timeout", "inf"], "--timeout must be a number of seconds above 0.")
-        assertUsageError(["run", "--timeout", "nan"], "--timeout must be a number of seconds above 0.")
+        assertUsageError(["run", "--timeout", "0"], "--timeout must be a number of seconds above 0, and at most a day (86400).")
+        assertUsageError(["run", "--timeout=-5"], "--timeout must be a number of seconds above 0, and at most a day (86400).")
+        assertUsageError(["run", "--timeout", "inf"], "--timeout must be a number of seconds above 0, and at most a day (86400).")
+        assertUsageError(["run", "--timeout", "nan"], "--timeout must be a number of seconds above 0, and at most a day (86400).")
+        assertUsageError(["run", "--timeout", "86401"], "--timeout must be a number of seconds above 0, and at most a day (86400).")
+        XCTAssertNoThrow(try MuterCommand.parseAsRoot(["run", "--timeout", "86400"]))
     }
 
     // --since chooses the files itself, and --changed-lines only narrows what it chose.

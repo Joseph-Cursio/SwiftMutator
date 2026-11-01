@@ -181,8 +181,8 @@ was for SwiftPM: `0.5` means 0.5%, so write `50` for half. The options are docum
 
 `--workers N` and `--timeout S`, on `run` and `run-without-mutating`, set `mutationTestWorkers`
 and `mutationTestTimeout` for one run, in place of the file's
-([#73](https://github.com/Joseph-Cursio/SwiftMutator/issues/73)). They must be at least 1 and
-above 0. The run records and compares them as it does the keys: a resume with another
+([#73](https://github.com/Joseph-Cursio/SwiftMutator/issues/73)). `--workers` must be at least 1,
+and `--timeout` above 0 and at most a day, 86,400 seconds. The run records and compares them as it does the keys: a resume with another
 `--timeout` is refused, and another `--workers` only said. A run that tests several mutants at
 once says so, and one that uses fewer workers than asked says why:
 
