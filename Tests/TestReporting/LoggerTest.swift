@@ -661,8 +661,8 @@ final class LoggerTests: MuterTestCase {
         XCTAssertEqual(printer.linesPassed, [
             "♻️ Reusing the results in \("/logs/results.jsonl".bold): 0 results still hold, "
                 + "so 3 mutants are left to test (1 timeout, 2 as other project files changed).",
-            "⚠️ 2 project files other than tests changed since that run, so every mutant is tested again: "
-                + "Package.resolved (changed), Docs/[a].md (added). If they can't change any test's result: "
+            "⚠️ 2 project files other than tests changed since that run's results were tested, so they are tested "
+                + "again: Package.resolved (changed), Docs/[a].md (added). If they can't change any test's result: "
                 + "--reuse-ignoring 'Package.resolved' --reuse-ignoring 'Docs/\\[a].md'",
             "⚠️ Results are reused although the toolchain's environment changed (--force-reuse).",
             "⚠️ Results are reused although 1 project file changed (--reuse-ignoring): notes.txt",

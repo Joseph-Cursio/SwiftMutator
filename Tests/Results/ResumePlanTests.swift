@@ -235,7 +235,7 @@ final class ResumePlanTests: XCTestCase {
             recorded: records,
             reusing: changes(
                 added: ["Tests/SumTests/OtherTests.swift"],
-                sources: ["Tests/SumTests/OtherTests.swift": "@Test func moved() {}"]
+                sources: ["Tests/SumTests/OtherTests.swift": "import Testing\n@Test func moved() {}"]
             )
         )
 
@@ -338,7 +338,9 @@ final class ResumePlanTests: XCTestCase {
         for path in changed + added {
             current[path] = "ffff"
         }
-        let sources = sources.merging(["Tests/SumTests/SumTests.swift": "@Test func adds() {}"]) { first, _ in first }
+        let sources = sources.merging(["Tests/SumTests/SumTests.swift": "import Testing\n@Test func adds() {}"]) { first, _ in
+            first
+        }
         return [1: ReuseChanges(from: tree(files), to: tree(current), waiving: globs, readSource: { sources[$0] })]
     }
 

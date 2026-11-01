@@ -304,7 +304,16 @@ private extension PerformMutationTesting {
             state: state
         )
         keepReused(reused, of: jobs, in: session, state: state)
-        guard !plan.toRun.isEmpty else { return }
+        // A reuse with nothing left to test ran the baseline only to check the changed project, so it keeps its log
+        // without the one that starts the progress bar or lines.
+        guard !plan.toRun.isEmpty else {
+            _ = fileManager.createFile(
+                atPath: (state.loggingDirectory as NSString).appendingPathComponent(MutationTestLog.baselineFileName),
+                contents: testLog.data(using: .utf8),
+                attributes: nil
+            )
+            return
+        }
 
         // The first estimate of the time left: every mutant to test, spread over the workers.
         events.send(
@@ -377,7 +386,9 @@ private extension PerformMutationTesting {
                 in: 1,
                 utf8Offset: schema.position.utf8Offset,
                 switchID: schema.id,
-                despiteChanges: !state.resumeWaived.isEmpty || !resume.forced.isEmpty
+                // What this run let through since the session that tested it, not since another session.
+                despiteChanges: state.reuseChanges?[entry.value.session]?.waived.isEmpty == false
+                    || !resume.forced.isEmpty
             )
         }
     }

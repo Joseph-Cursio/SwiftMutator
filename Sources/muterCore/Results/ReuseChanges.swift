@@ -40,19 +40,24 @@ extension ReuseChanges {
     ) {
         let changes = current.changes(since: recorded)
             .filter { !($0.path.hasPrefix("../") && Self.isInTestFolder($0.path)) }
-        // A removed file's text is gone, so a removed `…Tests.swift` outside a test folder counts as another file.
-        let testPaths = Set(changes.filter { change in
-            Self.isTestFile(change.path) { change.kind == .removed ? nil : readSource($0) }
-        }.map(\.path))
+        let testPaths = Set(changes.filter { $0.kind != .removed && Self.isTestFile($0.path, readSource: readSource) }
+            .map(\.path))
         let testFiles = changes.filter { testPaths.contains($0.path) }
-        let split = changes.filter { !testPaths.contains($0.path) }.partition(by: globs)
+        // A removed file's text is gone, so nothing shows whether it was a test or a fixture. One that may have been
+        // either counts as another file, which no glob lets through.
+        let others = changes.filter { !testPaths.contains($0.path) }
+        let mayHaveBeenATest = { (change: ProjectTree.FileChange) in
+            change.kind == .removed && change.path.hasSuffix(".swift")
+                && (Self.isInTestFolder(change.path) || change.path.hasSuffix("Tests.swift"))
+        }
+        let split = others.filter { !mayHaveBeenATest($0) }.partition(by: globs)
         var sources: [String: String] = [:]
         if !testFiles.isEmpty {
             for path in current.files.keys where path.hasSuffix(".swift") && Self.isTestFile(path, readSource: readSource) {
                 sources[path] = readSource(path)
             }
         }
-        otherFiles = split.unwaived
+        otherFiles = (others.filter(mayHaveBeenATest) + split.unwaived).sorted { $0.path < $1.path }
         waived = split.waived.map(\.path)
         self.testFiles = testFiles
         testSources = sources
@@ -62,16 +67,17 @@ extension ReuseChanges {
         currentPathsByName = Self.pathsByName(current.files)
     }
 
-    /// Whether `path`, relative to the project, is a test file: a Swift file in a test folder, one named `Tests` or
-    /// ending in `Tests`, such as `MyAppTests`, or one outside them whose name ends in `Tests.swift` and that imports
-    /// Testing or XCTest, as `readSource` shows. A test's fixtures and resources aren't: a test file can't name what it
-    /// reads from them, so their changes count as other files'. Nor is a package manifest outside a test folder.
+    /// Whether `path`, relative to the project, is a test file: a Swift file that imports Testing or XCTest, as
+    /// `readSource` shows, in a test folder, one named `Tests` or ending in `Tests`, such as `MyAppTests`, or outside
+    /// them if its name ends in `Tests.swift`. A test's fixtures and resources aren't, Swift ones included, nor are
+    /// helpers that import neither: a test file can't name what it reads from them, so their changes count as other
+    /// files'.
     static func isTestFile(_ path: String, readSource: (String) -> String?) -> Bool {
-        guard path.hasSuffix(".swift") else { return false }
-        if isInTestFolder(path) {
-            return true
+        guard path.hasSuffix(".swift"), isInTestFolder(path) || path.hasSuffix("Tests.swift"),
+              let text = readSource(path)
+        else {
+            return false
         }
-        guard path.hasSuffix("Tests.swift"), let text = readSource(path) else { return false }
         return text.range(of: #"(?m)^\s*(@testable\s+)?import\s+(Testing|XCTest)\b"#, options: .regularExpression) != nil
     }
 
@@ -104,7 +110,10 @@ extension ReuseChanges {
         if changedTexts.contains(where: { $0.map { name.isNamed(in: $0) } ?? true }) {
             return false
         }
-        let changedTypes = testFiles.map { (($0.path as NSString).lastPathComponent as NSString).deletingPathExtension }
+        // A file's type is its name's, up to a `+`: `ParsingTests+Helpers.swift` extends `ParsingTests`.
+        let changedTypes = testFiles.map { change in
+            String((change.path as NSString).lastPathComponent.prefix { $0 != "+" && $0 != "." })
+        }
         return !changedTypes.contains { Searched.containsIdentifier($0, in: text) }
     }
 

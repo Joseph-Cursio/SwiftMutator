@@ -240,9 +240,10 @@ final class Logger: @unchecked Sendable {
         }
     }
 
-    /// "2 project files other than tests changed since that run, so every mutant is tested again: Package.resolved
-    /// (changed), README.md (changed). If they can't change any test's result: --reuse-ignoring 'Package.resolved' …":
-    /// what made a reuse test every mutant again; nil if nothing did.
+    /// "2 project files other than tests changed since that run's results were tested, so they are tested again:
+    /// Package.resolved (changed), README.md (changed). If they can't change any test's result: --reuse-ignoring
+    /// 'Package.resolved' …": what made a reuse test results again whatever they were; nil if nothing did. A file that
+    /// changed after one session of the earlier run, and before the next, makes it test only the first one's.
     private static func otherFilesChanged(_ summary: ResumeSummary) -> String? {
         let changes = summary.otherFilesChanged
         guard !changes.isEmpty else { return nil }
@@ -254,8 +255,9 @@ final class Logger: @unchecked Sendable {
         let flags = named.map { "--reuse-ignoring " + shellQuoted(ResumeRefusal.glob(matching: $0.path)) }
             .joined(separator: " ")
             + (others > 0 ? ", plus globs for the other \(others)" : "")
-        return "\(changes.count) project file\(one ? "" : "s") other than tests changed since that run, so every "
-            + "mutant is tested again: \(files). If \(one ? "it" : "they") can't change any test's result: \(flags)"
+        return "\(changes.count) project file\(one ? "" : "s") other than tests changed since that run's results were "
+            + "tested, so they are tested again: \(files). If \(one ? "it" : "they") can't change any test's result: "
+            + flags
     }
 
     /// "412 earlier results no longer count, as this session doesn't discover their mutants: coverage couldn't be

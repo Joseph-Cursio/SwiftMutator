@@ -14,37 +14,39 @@ final class ReuseChangesTests: XCTestCase {
     private static let sources = [
         "Tests/SumTests/SumTests.swift": "import Testing\n@Test func addsTwoNumbers() { #expect(add(1, 1) == 2) }",
         "Tests/SumTests/ProductTests.swift": "import Testing\n@Test func multiplies() {}",
-        "Tests/SumTests/Helpers.swift": "func expectSum(_ a: Int) { #expect(a > 0) }",
+        "Tests/SumTests/Helpers.swift": "import Testing\nfunc expectSum(_ a: Int) { #expect(a > 0) }",
     ]
 
-    func test_isTestFile_takesSwiftFilesInTestFolders_andTestsFilesThatImportATestLibrary() {
+    func test_isTestFile_takesSwiftFilesThatImportATestLibrary_inTestFoldersOrNamedTests() {
         // A folder named Tests, or ending in Tests as an Xcode test target's does, holds tests and their helpers.
         let readSource = { (path: String) -> String? in
-            path.contains("Imports") ? "@testable import Sum\nimport XCTest\n" : "import Foundation\n"
+            path.contains("Fixture") || path.contains("Plain") ? "import Foundation\n" : "@testable import Sum\nimport XCTest\n"
         }
         for path in [
             "Tests/SumTests/SumTests.swift",
             "Tests/SumTests/Helpers.swift",
             "MyAppTests/Mocks/MockClient.swift",
             "Packages/Core/Tests/CoreTests/Helpers.swift",
-            "Tests/Fixtures/SamplePackage/Package.swift",
             "Sources/App/ImportsTests.swift",
         ] {
             XCTAssertTrue(ReuseChanges.isTestFile(path, readSource: readSource), path)
         }
-        // Fixtures and resources, which a test can't name, manifests outside a test folder, and production code named
-        // like a test, which other code calls.
+        // Fixtures and resources, Swift ones included, and helpers that import no test library, which a test can't
+        // name; files outside test folders, but for those named like a test that are one.
         for path in [
             "Tests/SumTests/Fixtures/input.json",
+            "Tests/SumTests/Fixtures/Example.swift",
+            "Tests/SumTests/PlainHelpers.swift",
             "Tests/App.xcodeproj/project.pbxproj",
             "Sources/Sum.swift",
             "Package.swift",
             "README.md",
-            "Sources/Rules/MissingTests.swift",
+            "Sources/Rules/PlainTests.swift",
             "TestsHelpers/Mock.swift",
         ] {
             XCTAssertFalse(ReuseChanges.isTestFile(path, readSource: readSource), path)
         }
+        XCTAssertFalse(ReuseChanges.isTestFile("Tests/SumTests/SumTests.swift", readSource: { _ in nil }), "unreadable")
     }
 
     func test_init_splitsTestFilesFromOthers_andGlobsWaiveOnlyTheOthers() {
@@ -123,32 +125,46 @@ final class ReuseChangesTests: XCTestCase {
     }
 
     func test_aKillDoesntHold_whenItsTestsFileNamesAChangedTestFilesType() {
-        // A helper type, named as its file is, that the test uses.
-        let sources = Self.sources.merging([
-            "Tests/SumTests/SumTests.swift": "@Test func addsTwoNumbers() { #expect(SumMock().sum == 2) }",
-            "Tests/SumTests/SumMock.swift": "struct SumMock { var sum = 2 }",
-        ]) { $1 }
-        let changes = ReuseChanges(
-            from: tree(Self.recorded.merging(["Tests/SumTests/SumMock.swift": "0007"]) { $1 }),
-            to: tree(Self.recorded.merging(["Tests/SumTests/SumMock.swift": "ffff"]) { $1 }),
-            waiving: [],
-            readSource: { sources[$0] }
-        )
+        // A helper type, named as its file is, that the test uses, or that a `Type+Helpers.swift` file extends.
+        for helper in ["SumMock.swift", "SumMock+Values.swift"] {
+            let path = "Tests/SumTests/\(helper)"
+            let sources = Self.sources.merging([
+                "Tests/SumTests/SumTests.swift": "import Testing\n@Test func addsTwoNumbers() { #expect(SumMock().sum == 2) }",
+                path: "import Testing\nstruct SumMock { var sum = 2 }",
+            ]) { $1 }
+            let changes = ReuseChanges(
+                from: tree(Self.recorded.merging([path: "0007"]) { $1 }),
+                to: tree(Self.recorded.merging([path: "ffff"]) { $1 }),
+                waiving: [],
+                readSource: { sources[$0] }
+            )
 
-        XCTAssertFalse(changes.killHolds(kill(by: ("addsTwoNumbers()", "SumTests.swift:1:33"))))
+            XCTAssertFalse(changes.killHolds(kill(by: ("addsTwoNumbers()", "SumTests.swift:2:33"))), helper)
+        }
     }
 
-    func test_aKillHolds_whenAnyOneOfItsNamedTestsHolds_evenOnceATestFileIsRemoved() {
+    func test_aKillHolds_whenAnyOneOfItsNamedTestsHolds() {
         // Every named test really failed, so one that is unchanged, and still declared, fails again.
-        var current = Self.recorded
-        current["Tests/SumTests/ProductTests.swift"] = nil
-        let changes = reuse(to: current)
+        let changes = changedTest("Tests/SumTests/ProductTests.swift", now: "@Test func multiplies() { #expect(true) }")
 
         XCTAssertTrue(changes.killHolds(kill(
             by: ("multiplies()", "ProductTests.swift:2:7"),
             ("addsTwoNumbers()", "SumTests.swift:2:32")
         )))
         XCTAssertFalse(changes.killHolds(kill(by: ("multiplies()", "ProductTests.swift:2:7"))))
+    }
+
+    // Its text is gone, so nothing shows whether it was a test or a fixture: every result is tested again, and no
+    // glob lets it through.
+    func test_aRemovedSwiftFileThatMayHaveBeenATest_isAnotherFile_thatNoGlobLetsThrough() {
+        var current = Self.recorded
+        current["Tests/SumTests/ProductTests.swift"] = nil
+
+        let changes = reuse(to: current, waiving: ["*"])
+
+        XCTAssertEqual(changes.otherFiles, [.init(path: "Tests/SumTests/ProductTests.swift", kind: .removed)])
+        XCTAssertEqual(changes.testFiles, [])
+        XCTAssertEqual(changes.waived, [])
     }
 
     func test_aKillDoesntHold_whenItsTestsFileIsntOneUnchangedFileInBothTrees() {
@@ -166,7 +182,7 @@ final class ReuseChangesTests: XCTestCase {
                 from: tree(recorded),
                 to: tree(current),
                 waiving: [],
-                readSource: { Self.sources[$0] ?? "@Test func addsTwoNumbers() {}" }
+                readSource: { Self.sources[$0] ?? "import Testing\n@Test func addsTwoNumbers() {}" }
             )
 
             XCTAssertFalse(changes.killHolds(kill(by: ("addsTwoNumbers()", "\(file):2:32"))), file)
@@ -176,6 +192,7 @@ final class ReuseChangesTests: XCTestCase {
     func test_displayNamesAndSuites_areFoundAsTheirDeclarationsHaveThem() {
         let sources = Self.sources.merging([
             "Tests/SumTests/SumTests.swift": """
+            import Testing
             @Suite("Sums") struct SumTests {
                 @Test("Adds two numbers") func adds() {}
                 @Test(arguments: [1]) func add(_ a: Int) {}
@@ -204,7 +221,8 @@ final class ReuseChangesTests: XCTestCase {
         XCTAssertFalse(changes.killHolds(MutantResult.make(outcome: .failed, killedBy: nil)))
     }
 
-    func test_anUnreadableChangedTestFile_namesEveryTest() {
+    // Nothing shows it is a test, so it is another file.
+    func test_anUnreadableChangedTestFile_isAnotherFile() {
         let changes = ReuseChanges(
             from: tree(Self.recorded),
             to: tree(Self.recorded.merging(["Tests/SumTests/ProductTests.swift": "ffff"]) { $1 }),
@@ -212,7 +230,7 @@ final class ReuseChangesTests: XCTestCase {
             readSource: { $0 == "Tests/SumTests/ProductTests.swift" ? nil : Self.sources[$0] }
         )
 
-        XCTAssertFalse(changes.killHolds(kill(by: ("addsTwoNumbers()", "SumTests.swift:2:32"))))
+        XCTAssertEqual(changes.otherFiles, [.init(path: "Tests/SumTests/ProductTests.swift", kind: .changed)])
     }
 
     func test_isEmpty_onlyWithNoChangeAtAll_letThroughOrNot() {
@@ -231,9 +249,9 @@ private extension ReuseChangesTests {
         ReuseChanges(from: tree(Self.recorded), to: tree(current), waiving: globs, readSource: { Self.sources[$0] })
     }
 
-    /// The changes of a reuse after the test file at `path` changed to `text`.
+    /// The changes of a reuse after the test file at `path` changed to `text`, which imports Testing.
     func changedTest(_ path: String, now text: String) -> ReuseChanges {
-        let sources = Self.sources.merging([path: text]) { $1 }
+        let sources = Self.sources.merging([path: "import Testing\n" + text]) { $1 }
         return ReuseChanges(
             from: tree(Self.recorded),
             to: tree(Self.recorded.merging([path: "ffff"]) { $1 }),

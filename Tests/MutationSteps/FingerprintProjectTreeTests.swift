@@ -124,7 +124,8 @@ final class FingerprintProjectTreeTests: MuterTestCase {
     func test_onReuse_eachSessionsChanges_areHandedToTheState_testFilesReadFromTheCopy() async throws {
         let first = ["README.md": "readme", "Sources/Sum.swift": "sum", "Tests/SumTests/SumTests.swift": "old tests"]
         let second = first.merging(["README.md": "a changed readme"]) { $1 }
-        let now = second.merging(["Tests/SumTests/SumTests.swift": "@Test func adds() {}", "notes.txt": "new"]) { $1 }
+        let tests = "import Testing\n@Test func adds() {}"
+        let now = second.merging(["Tests/SumTests/SumTests.swift": tests, "notes.txt": "new"]) { $1 }
         try write(now, in: copy)
         current.listProjectFiles = { _ in Array(now.keys) }
         state.runOptions = .make(reuseURL: URL(fileURLWithPath: resultsPath), resumeIgnoring: ["*.txt"])
@@ -146,7 +147,7 @@ final class FingerprintProjectTreeTests: MuterTestCase {
         for session in [1, 2] {
             XCTAssertEqual(changes[session]?.waived, ["notes.txt"])
             XCTAssertEqual(changes[session]?.testFiles, [.init(path: "Tests/SumTests/SumTests.swift", kind: .changed)])
-            XCTAssertEqual(changes[session]?.testSources, ["Tests/SumTests/SumTests.swift": "@Test func adds() {}"])
+            XCTAssertEqual(changes[session]?.testSources, ["Tests/SumTests/SumTests.swift": tests])
         }
         XCTAssertEqual(state.resumeWaived, ["notes.txt"])
         XCTAssertNotNil(state.projectTree)
