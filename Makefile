@@ -40,7 +40,17 @@ acceptance-test: build
 regression-test: build
 	@./RegressionTests/runRegressionTests.sh
 
+# Whole runs on a pinned SwiftProjectLint, checked mutant by mutant: about 3.5 hours (AcceptanceTests/slow/README.md).
+slow-acceptance-test:
+	@./AcceptanceTests/slow/slow-acceptance.sh
+
+slow-acceptance-reference:
+	@./AcceptanceTests/slow/slow-acceptance.sh --reference $(or $(RUNS),5)
+
+slow-acceptance-selftest:
+	@python3 -I AcceptanceTests/slow/test_verdicts.py
+
 mutation-test: clean
 	swift-mutator
 
-.PHONY: build clean test run install uninstall release
+.PHONY: build clean test run install uninstall release slow-acceptance-test slow-acceptance-reference slow-acceptance-selftest
