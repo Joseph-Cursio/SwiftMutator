@@ -57,6 +57,7 @@ final class OperatorTests: MuterTestCase {
         let help = Operator.helpMessage(columns: 200)
         XCTAssertTrue(help.contains(MutationOperator.Id.description), help)
         XCTAssertTrue(help.contains("For all operators use: all"), help)
+        XCTAssertTrue(help.contains("Available operators are: "), help)
     }
 
     // The tables say what the operators change: each of their swaps, and no other.
@@ -117,6 +118,18 @@ final class OperatorTests: MuterTestCase {
             XCTAssertEqual(removal.components(separatedBy: statement).count - 1, 1, statement)
         }
         XCTAssertEqual(removal.components(separatedBy: "view.results = self.results").count - 1, 2)
+        // Each example's heading says what it mutates.
+        let headings = [
+            "Mutating a Logical AND",
+            "Mutating an explicitly discarded return result",
+            "Mutating a void function call",
+            "Mutating an equality check",
+            "Mutating a ternary expression",
+        ]
+        let all = MutationOperator.Id.allCases.map(\.documentation.raw).joined()
+        for heading in headings {
+            XCTAssertTrue(all.contains(heading), heading)
+        }
     }
 }
 
