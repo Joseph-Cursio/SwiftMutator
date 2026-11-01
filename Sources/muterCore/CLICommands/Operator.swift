@@ -20,6 +20,7 @@ public struct Operator: AsyncParsableCommand {
     public init() {}
 
     public mutating func run() async throws {
+        @Dependency(\.printer) var print: Printer
         if `operator`.trimmed == "all" {
             return print(MutationOperator.Id.allCases.map(\.documentation).joined(separator: "\n\n"))
         }
@@ -32,7 +33,8 @@ public struct Operator: AsyncParsableCommand {
     }
 }
 
-private extension MutationOperator.Id {
+extension MutationOperator.Id {
+    /// What `swift-mutator operator` prints for the operator.
     var documentation: String {
         switch self {
         case .logicalOperator:
@@ -103,8 +105,8 @@ private extension MutationOperator.Id {
                 • A line contains a function call which is explicitly discarding a return result.
                 • A line contains a function call and doesn't save the result of the function call into a named variable or constant (i.e. a line implicitly discards a return result or doesn't produce one).
                 • A line does not contain a call to \("print".onCodeEscape), \("exit".onCodeEscape), \("fatalError"
-                .onCodeEscape),\("abort".onCodeEscape), or any function listed in \("muter.conf.yml"
-                .onCodeEscape) under the \("excludeCalls".onCodeEscape) key.
+                .onCodeEscape), \("preconditionFailure".onCodeEscape), \("abort".onCodeEscape), or any function listed in \(
+                    "muter.conf.yml".onCodeEscape) under the \("excludeCalls".onCodeEscape) key.
             The purpose of this operator is to highlight how your tests respond to the absence of expected side effects.
 
             \("Mutating an explicitly discarded return result".bold)
