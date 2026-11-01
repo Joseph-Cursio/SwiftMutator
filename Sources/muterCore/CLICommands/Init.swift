@@ -42,7 +42,7 @@ public struct Init: AsyncParsableCommand {
         let directoryContents = fileManager.subpaths(atPath: directory) ?? []
         let configuration = await MuterConfiguration(from: directoryContents)
         let path = "\(directory)/\(MuterConfiguration.fileNameWithExtension)"
-        guard fileManager.createFile(atPath: path, contents: configuration.asData, attributes: nil) else {
+        guard fileManager.createFile(atPath: path, contents: try configuration.asData, attributes: nil) else {
             throw MuterError.literal(reason: "SwiftMutator could not write \(path).")
         }
 

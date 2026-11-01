@@ -3,17 +3,17 @@ import TestingExtensions
 import XCTest
 
 final class ROROperatorTests: MuterTestCase {
-    private lazy var sourceWithConditionalLogic = sourceCode(
-        fromFileAt: "\(mutationExamplesDirectory)/NegateConditionals/sampleWithConditionalOperators.swift"
-    )!
+    private lazy var sourceWithConditionalLogic = fixtureSource(
+        at: "\(mutationExamplesDirectory)/NegateConditionals/sampleWithConditionalOperators.swift"
+    )
 
-    private lazy var sourceWithoutMutableCode = sourceCode(
-        fromFileAt: "\(fixturesDirectory)/sourceWithoutMutableCode.swift"
-    )!
+    private lazy var sourceWithoutMutableCode = fixtureSource(
+        at: "\(fixturesDirectory)/sourceWithoutMutableCode.swift"
+    )
 
-    private lazy var conditionalConformanceConstraints = sourceCode(
-        fromFileAt: "\(mutationExamplesDirectory)/NegateConditionals/conditionalConformanceConstraints.swift"
-    )!
+    private lazy var conditionalConformanceConstraints = fixtureSource(
+        at: "\(mutationExamplesDirectory)/NegateConditionals/conditionalConformanceConstraints.swift"
+    )
 
     func test_visitor() throws {
         let visitor = ROROperator.Visitor(

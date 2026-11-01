@@ -136,7 +136,7 @@ struct LoadConfiguration: MutationStep {
 
         _ = fileManager.createFile(
             atPath: "\(path.pathWithoutFileName)/\(MuterConfiguration.fileNameWithExtension)",
-            contents: configuration.asData,
+            contents: try configuration.asData,
             attributes: nil
         )
     }

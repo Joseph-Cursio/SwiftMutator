@@ -133,6 +133,7 @@ final class ExecutionCounts {
     private var expressionDepth = 0
     private static let deepestExpression = 200
 
+    // swiftlint:disable cyclomatic_complexity - mirrors the compiler's SILProfiler, branch for branch
     init(
         coverage: FileCoverage,
         source: SourceFileSyntax,
@@ -291,6 +292,7 @@ final class ExecutionCounts {
             }
         }
     }
+    // swiftlint:enable cyclomatic_complexity
 
     private func isInRegionWhoseCountsSayNothing(_ index: Int) -> Bool {
         guard !regions[index].isFixed, let parent = regions[index].parent else {
@@ -466,6 +468,7 @@ final class ExecutionCounts {
         return count
     }
 
+    // swiftlint:disable cyclomatic_complexity - mirrors the compiler's SILProfiler, branch for branch
     private func walk(statement: Syntax, from count: Int?) -> Int? {
         if let labeled = statement.as(LabeledStmtSyntax.self) {
             return walk(statement: Syntax(labeled.statement), from: count)
@@ -544,6 +547,7 @@ final class ExecutionCounts {
         }
         return walk(expression: statement, from: count)
     }
+    // swiftlint:enable cyclomatic_complexity
 
     /// Walks the expressions in `node` in order, and returns the count after them.
     private func walk(expression node: Syntax, from count: Int?) -> Int? {
@@ -634,6 +638,7 @@ final class ExecutionCounts {
         return found
     }
 
+    // swiftlint:disable cyclomatic_complexity - mirrors the compiler's SILProfiler, branch for branch
     /// An unfolded sequence of terms. The right-hand side of `&&`, `||` or `??` is a closure of its own, with a region
     /// of its own, and is left to its own walk, along with the terms after it up to the next ternary or assignment, a
     /// little more than it. So are those after an operator a project declared, which may take a closure too, or bind
@@ -711,6 +716,7 @@ final class ExecutionCounts {
         }
         return count
     }
+    // swiftlint:enable cyclomatic_complexity
 
     /// Walks the conditions of an `if`, `guard` or `while`, and returns the count after them. Swift counts the code in
     /// an `if`'s or `guard`'s conditions as the code before it, though a condition after the first runs only when the

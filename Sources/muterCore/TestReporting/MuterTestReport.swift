@@ -64,7 +64,7 @@ extension MuterTestReport {
 private extension TimeInterval {
     func formatted() -> String {
         let time = Int(self)
-        let ms = Int(truncatingRemainder(dividingBy: 1) * 1000)
+        let milliseconds = Int(truncatingRemainder(dividingBy: 1) * 1000)
         let seconds = time % 60
         let minutes = (time / 60) % 60
         let hours = (time / 3600)
@@ -74,7 +74,7 @@ private extension TimeInterval {
             hours,
             minutes,
             seconds,
-            ms
+            milliseconds
         )
 
     }

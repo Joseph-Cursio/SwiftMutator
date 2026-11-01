@@ -28,11 +28,11 @@ extension Run {
         let resumeURL: URL?
         /// The results file, or the log folder that holds it, of the earlier run whose results `--reuse` starts from.
         let reuseURL: URL?
-        /// `--resume-ignoring`'s globs, or `--reuse-ignoring`'s: project files that changed, whose changes a resume or a
-        /// reuse lets through. A reuse never lets a test file's through.
+        /// `--resume-ignoring`'s globs, or `--reuse-ignoring`'s: project files that changed, whose changes a resume or
+        /// a reuse lets through. A reuse never lets a test file's through.
         let resumeIgnoring: [String]
-        /// `--force-resume`, or `--force-reuse`: a resume or a reuse lets a changed SwiftMutator build, toolchain or SDK
-        /// through.
+        /// `--force-resume`, or `--force-reuse`: a resume or a reuse lets a changed SwiftMutator build, toolchain or
+        /// SDK through.
         let forceResume: Bool
         var isUsingTestPlan: Bool {
             testPlanURL != nil

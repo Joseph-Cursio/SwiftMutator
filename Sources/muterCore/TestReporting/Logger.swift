@@ -182,7 +182,8 @@ final class Logger: @unchecked Sendable {
             filesSummary[mutation.fileName, default: 0] += mutation.mutationSchemata.count
         }
 
-        let discovered = "✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants in \(numberOfFiles) files"
+        let discovered = "✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants "
+            + "in \(numberOfFiles) files"
         guard verbose else {
             print(discovered)
             return
@@ -400,8 +401,9 @@ final class Logger: @unchecked Sendable {
 
             let estimate = SimpleTimeEstimate(
                 firstEstimate: Self.initialEstimate(
-                    remaining: mutationTestLog.remainingMutationPointsCount!,
-                    cycle: mutationTestLog.testRunSeconds ?? mutationTestLog.timePerBuildTestCycle!,
+                    // The baseline's log carries both.
+                    remaining: mutationTestLog.remainingMutationPointsCount ?? numberOfMutationPoints,
+                    cycle: mutationTestLog.testRunSeconds ?? mutationTestLog.timePerBuildTestCycle ?? 0,
                     workers: mutationTestLog.workers
                 ),
                 workers: mutationTestLog.workers,
@@ -449,10 +451,10 @@ final class Logger: @unchecked Sendable {
         return Double(now.uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000_000
     }
 
-    /// The time left with `tested` of `total` mutants tested on `workers` workers, `elapsed` seconds after they started.
-    /// Until as many mutants have finished as there are workers, about one each, a rate would count the mutants still
-    /// running as if none had started, so the `firstEstimate` counts down. After that, it is the time per mutant so far
-    /// times the mutants left.
+    /// The time left with `tested` of `total` mutants tested on `workers` workers, `elapsed` seconds after they
+    /// started. Until as many mutants have finished as there are workers, about one each, a rate would count the
+    /// mutants still running as if none had started, so the `firstEstimate` counts down. After that, it is the time per
+    /// mutant so far times the mutants left.
     static func secondsLeft(
         tested: Int,
         of total: Int,
@@ -469,8 +471,8 @@ final class Logger: @unchecked Sendable {
     }
 
     /// The time left before any mutant has finished. Each worker tests its share of the `remaining` mutants, a `cycle`
-    /// for each, while the others test theirs, so the largest share sets it. The cycle is the timed test run, which skips
-    /// the build as a mutant's run does, or else the baseline, build included.
+    /// for each, while the others test theirs, so the largest share sets it. The cycle is the timed test run, which
+    /// skips the build as a mutant's run does, or else the baseline, build included.
     static func initialEstimate(remaining: Int, cycle: TimeInterval, workers: Int) -> TimeInterval {
         let largestShare = ceil(Double(remaining) / Double(max(workers, 1)))
         return largestShare * cycle
@@ -552,7 +554,8 @@ final class Logger: @unchecked Sendable {
         guard results > 0 else {
             return "⏹ Stopped \(stoppedBy) before any of \(earlyEnd.discovered) mutants finished."
         }
-        let score = "Mutation score so far: \(mutationScore(from: earlyEnd.outcome.mutations.map(\.testSuiteOutcome)))%."
+        let score = "Mutation score so far: "
+            + "\(mutationScore(from: earlyEnd.outcome.mutations.map(\.testSuiteOutcome)))%."
         let tested = results - earlyEnd.reused
         guard earlyEnd.reused > 0 else {
             return "⏹ Stopped \(stoppedBy) after testing \(tested) of \(earlyEnd.discovered) mutants. " + score

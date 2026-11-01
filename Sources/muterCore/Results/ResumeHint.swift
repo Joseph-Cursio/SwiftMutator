@@ -5,13 +5,13 @@ enum ResumeHint {
     /// `swift-mutator`, then `arguments` without an earlier `--resume` and its value, or `--force-resume`, then
     /// `--resume` and `resultsFile`, each quoted only where a shell would split it.
     ///
-    /// A resumed session's results file is the one this run continues, or the log folder that holds it, so `resultsFile`
-    /// replaces it. The header of a session `--force-resume` let through records the build and toolchain it ran with,
-    /// so the next session needs no force. `--resume-ignoring` stays: changed files a session's results don't depend
-    /// on are as likely to change again before the next one.
+    /// A resumed session's results file is the one this run continues, or the log folder that holds it, so
+    /// `resultsFile` replaces it. The header of a session `--force-resume` let through records the build and toolchain
+    /// it ran with, so the next session needs no force. `--resume-ignoring` stays: changed files a session's results
+    /// don't depend on are as likely to change again before the next one.
     ///
-    /// A run that reused an earlier run's results wrote `resultsFile` itself, so `--reuse` and its value go, and so does
-    /// `--force-reuse`: its header records the build as it tested with it. Each `--reuse-ignoring` becomes a
+    /// A run that reused an earlier run's results wrote `resultsFile` itself, so `--reuse` and its value go, and so
+    /// does `--force-reuse`: its header records the build as it tested with it. Each `--reuse-ignoring` becomes a
     /// `--resume-ignoring` with the same glob, for the same reason `--resume-ignoring` stays.
     ///
     /// `--since`'s ref is replaced by `sinceMergeBase`, the commit the run compared the working tree with: a branch

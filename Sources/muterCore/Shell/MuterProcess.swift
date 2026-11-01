@@ -109,7 +109,9 @@ extension MuterProcess {
             // ECHILD: Foundation reaped it first, and its handler records the exit.
             guard result == 0, info.si_signo == SIGCHLD else { return }
             let status = info._sifields._sigchld.si_status
-            let reason: Foundation.Process.TerminationReason = info.si_code == Int32(CLD_EXITED) ? .exit : .uncaughtSignal
+            let reason: Foundation.Process.TerminationReason = info.si_code == Int32(CLD_EXITED)
+                ? .exit
+                : .uncaughtSignal
             ending.recordExit(ProcessExit(status: status, reason: reason), opening: exited)
         }
         #endif

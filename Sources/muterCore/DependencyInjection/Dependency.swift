@@ -6,8 +6,7 @@ import Foundation
 struct Dependency<T> {
     private let keyPath: KeyPath<World, T> & Sendable
     var wrappedValue: T {
-        get { dependency(keyPath) }
-        set {}
+        dependency(keyPath)
     }
 
     init(_ keyPath: KeyPath<World, T> & Sendable) {

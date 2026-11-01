@@ -618,7 +618,9 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         } catch let error as PerformMutationTesting.WorkerDirectoryError {
             XCTAssertEqual(error.status, 1)
             XCTAssertEqual(error.error, "cp: \(missingProject.path): No such file or directory")
-            XCTAssertTrue(error.description.hasSuffix("(cp exited 1): cp: \(missingProject.path): No such file or directory."))
+            XCTAssertTrue(
+                error.description.hasSuffix("(cp exited 1): cp: \(missingProject.path): No such file or directory.")
+            )
         }
         #endif
     }

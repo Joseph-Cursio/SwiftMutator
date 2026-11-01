@@ -23,7 +23,8 @@ final class FailedTestLineTests: XCTestCase {
             // With ANSI codes on, the SF Symbols symbol's trailing space is inside the colour code.
             "\(escape)[91m\(sfSymbolsCross) \(escape)[0m Test a() recorded an issue at A.swift:1:1: x",
             // Tag colour dots between the symbol and the test.
-            "\(escape)[91m✘\(escape)[0m \(escape)[38;5;208m●\(escape)[96m●\(escape)[0m Test a() recorded an issue at A.swift:1:1: x",
+            "\(escape)[91m✘\(escape)[0m \(escape)[38;5;208m●\(escape)[96m●\(escape)[0m "
+                + "Test a() recorded an issue at A.swift:1:1: x",
         ])
     }
 
@@ -61,7 +62,8 @@ final class FailedTestLineTests: XCTestCase {
         assertNoMatch([
             "Test Case '-[BTests.BXCTests testIncrement]' passed (0.001 seconds).",
             "Test Case '-[BTests.BXCTests testIncrement]' started.",
-            "/a/BXCTests.swift:7: error: -[BTests.BXCTests testIncrement] : XCTAssertEqual failed: (\"0\") is not equal to (\"2\")",
+            "/a/BXCTests.swift:7: error: -[BTests.BXCTests testIncrement] : "
+                + "XCTAssertEqual failed: (\"0\") is not equal to (\"2\")",
             "Test Suite 'All tests' failed at 2026-10-02 13:16:00.000.",
             "  Test Case '-[A.B c]' failed (0.1 seconds).",
         ])
@@ -129,12 +131,16 @@ final class FailedTestLineTests: XCTestCase {
 
     func test_failedTest_namesASwiftTestingTest_andItsLocation() {
         XCTAssertEqual(
-            FailedTestLine.failedTest(in: "✘ Test sum() recorded an issue at SumTests.swift:12:5: Expectation failed: (sum → 3) == 4"),
+            FailedTestLine.failedTest(
+                in: "✘ Test sum() recorded an issue at SumTests.swift:12:5: Expectation failed: (sum → 3) == 4"
+            ),
             FailedTest(name: "sum()", location: "SumTests.swift:12:5")
         )
         // The location is the one right after "recorded an issue", not one the issue's description mentions.
         XCTAssertEqual(
-            FailedTestLine.failedTest(in: "✘ Test sum() recorded an issue at SumTests.swift:12:5: Caught error at Other.swift:1:1: x"),
+            FailedTestLine.failedTest(
+                in: "✘ Test sum() recorded an issue at SumTests.swift:12:5: Caught error at Other.swift:1:1: x"
+            ),
             FailedTest(name: "sum()", location: "SumTests.swift:12:5")
         )
         XCTAssertEqual(
@@ -152,11 +158,15 @@ final class FailedTestLineTests: XCTestCase {
 
     func test_failedTest_namesAParameterizedTest_andFindsItsLocationAfterTheArguments() {
         XCTAssertEqual(
-            FailedTestLine.failedTest(in: "✘ Test sum(of:) recorded an issue with 1 argument of → 5 at A.swift:3:5: Expectation failed"),
+            FailedTestLine.failedTest(
+                in: "✘ Test sum(of:) recorded an issue with 1 argument of → 5 at A.swift:3:5: Expectation failed"
+            ),
             FailedTest(name: "sum(of:)", location: "A.swift:3:5")
         )
         XCTAssertEqual(
-            FailedTestLine.failedTest(in: "✘ Test sum(a:b:) recorded an issue with 2 arguments a → 1, b → 2 at A.swift:3:5: x"),
+            FailedTestLine.failedTest(
+                in: "✘ Test sum(a:b:) recorded an issue with 2 arguments a → 1, b → 2 at A.swift:3:5: x"
+            ),
             FailedTest(name: "sum(a:b:)", location: "A.swift:3:5")
         )
         // An argument can contain " at " and ": " itself.
@@ -171,7 +181,9 @@ final class FailedTestLineTests: XCTestCase {
 
     func test_failedTest_namesASuitesOwnIssue() {
         XCTAssertEqual(
-            FailedTestLine.failedTest(in: "✘ Suite \"Parsing\" recorded an issue at ParserTests.swift:4:1: Caught error: x"),
+            FailedTestLine.failedTest(
+                in: "✘ Suite \"Parsing\" recorded an issue at ParserTests.swift:4:1: Caught error: x"
+            ),
             FailedTest(name: "Suite \"Parsing\"", location: "ParserTests.swift:4:1")
         )
         XCTAssertEqual(
@@ -204,7 +216,8 @@ final class FailedTestLineTests: XCTestCase {
             "\(sfSymbolsCross) Test a() recorded an issue at A.swift:1:1: x",
             "\(sfSymbolsCross)  Test a() recorded an issue at A.swift:1:1: x",
             "\(escape)[91m\(sfSymbolsCross) \(escape)[0m Test a() recorded an issue at A.swift:1:1: x",
-            "\(escape)[91m✘\(escape)[0m \(escape)[38;5;208m●\(escape)[96m●\(escape)[0m Test a() recorded an issue at A.swift:1:1: x",
+            "\(escape)[91m✘\(escape)[0m \(escape)[38;5;208m●\(escape)[96m●\(escape)[0m "
+                + "Test a() recorded an issue at A.swift:1:1: x",
         ] {
             XCTAssertEqual(
                 FailedTestLine.failedTest(in: text),
@@ -292,7 +305,8 @@ final class FailedTestLineTests: XCTestCase {
 
     // A multi-line string argument goes on past the issue's line, and the location follows it, as in this real log.
     func test_failedTests_findsTheLocationAfterArgumentsThatSpanLines() {
-        let firstLine = "✘ Test \"No issue for an implicit return\" recorded an issue with 1 argument source → \"var doubled: [Int] {"
+        let firstLine = "✘ Test \"No issue for an implicit return\" recorded an issue with 1 argument source → "
+            + "\"var doubled: [Int] {"
         let log = """
         \(firstLine)
             items.map { $0 * 2 }
@@ -309,7 +323,12 @@ final class FailedTestLineTests: XCTestCase {
         XCTAssertEqual(
             FailedTestLine.failedTests(inLog: log),
             FailedTests(
-                tests: [FailedTest(name: "\"No issue for an implicit return\"", location: "MapUsedForSideEffectsVisitorTests.swift:105:9")],
+                tests: [
+                    FailedTest(
+                        name: "\"No issue for an implicit return\"",
+                        location: "MapUsedForSideEffectsVisitorTests.swift:105:9"
+                    ),
+                ],
                 count: 1,
                 firstLine: firstLine
             )
@@ -361,7 +380,8 @@ final class FailedTestLineTests: XCTestCase {
 
     func test_failedTests_ofAStoppedRun_isTheLineThatStoppedIt() {
         let stoppingLine = "✘ Test a() recorded an issue at A.swift:1:1: x"
-        let killedLog = "◇ Test run started.\n\(escape)[91m✘\(escape)[0m Test a() recorded an issue at A.swift:1:1: x\n◇ Test b() sta"
+        let killedLog = "◇ Test run started.\n"
+            + "\(escape)[91m✘\(escape)[0m Test a() recorded an issue at A.swift:1:1: x\n◇ Test b() sta"
         let log = killedLog + MutationTestingDelegate.noteForRunStopped(at: stoppingLine, after: killedLog)
 
         XCTAssertEqual(
@@ -372,19 +392,24 @@ final class FailedTestLineTests: XCTestCase {
 
     func test_failedTests_ofTheLogFixtures() {
         XCTAssertEqual(
-            FailedTestLine.failedTests(inLog: loadLogFile(named: "testRunWithFailures_swiftTesting_multipleIssues.log")).tests,
+            FailedTestLine.failedTests(
+                inLog: loadLogFile(named: "testRunWithFailures_swiftTesting_multipleIssues.log")
+            ).tests,
             [
                 FailedTest(name: "addition()", location: "MathTests.swift:8:5"),
                 FailedTest(name: "subtraction()", location: "MathTests.swift:14:5"),
             ]
         )
 
-        let xctestFailures = FailedTestLine.failedTests(inLog: loadLogFile(named: "testRunWithFailures_withoutTestFailedFooter.log"))
+        let xctestFailures = FailedTestLine.failedTests(
+            inLog: loadLogFile(named: "testRunWithFailures_withoutTestFailedFooter.log")
+        )
         XCTAssertEqual(xctestFailures.count, 8)
         XCTAssertEqual(
             xctestFailures.tests.first,
             FailedTest(
-                name: "-[muterTests.MutationTestingSpec performMutationTesting, performs mutation test for every mutation operator]",
+                name: "-[muterTests.MutationTestingSpec performMutationTesting, "
+                    + "performs mutation test for every mutation operator]",
                 location: nil
             )
         )

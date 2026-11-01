@@ -22,7 +22,10 @@ struct RunArguments: ParsableArguments {
 
     @Flag(
         name: [.customLong("verbose")],
-        help: "Lists how many mutants are in each file that has any, and the Swift files found, if the command looks for them."
+        help: ArgumentHelp(
+            "Lists how many mutants are in each file that has any, and the Swift files found, if the command "
+                + "looks for them."
+        )
     )
     var verbose: Bool = false
 }

@@ -4,8 +4,9 @@ import Foundation
 /// for the job with its key only if that key's place and operator appear once in this run's discovery, it isn't a
 /// build error, its file's hash is this run's, and its mutation is the job's. A run that reuses an earlier run's
 /// results (`--reuse`) keeps one only if, as well, it isn't a timeout, and what changed since leaves it standing
-/// (`ReuseChanges`). Every other job is tested, counted by why. A mutant's `switchID` and `utf8Offset` are never compared: both count the header and import SwiftMutator
-/// inserts, so they change with how it prepares the file, and an edit of the file changes its hash anyway.
+/// (`ReuseChanges`). Every other job is tested, counted by why. A mutant's `switchID` and `utf8Offset` are never
+/// compared: both count the header and import SwiftMutator inserts, so they change with how it prepares the file, and
+/// an edit of the file changes its hash anyway.
 struct ResumePlan: Equatable {
     /// Why a job is tested.
     enum Reason: String, CaseIterable {

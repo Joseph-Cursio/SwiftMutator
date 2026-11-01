@@ -449,6 +449,14 @@ extension MutationSchema {
     }
 }
 
+/// The fixture at `path`, read and parsed. Every test that reads one expects it to be there.
+func fixtureSource(at path: String) -> SourceCodeInfo {
+    guard let source = muterCore.sourceCode(fromFileAt: path) else {
+        fatalError("Unable to read the fixture at \(path)")
+    }
+    return source
+}
+
 func sourceCode(
     _ source: String
 ) throws -> SourceFileSyntax {

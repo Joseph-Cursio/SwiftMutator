@@ -7,10 +7,6 @@ final class ApplySchemataTests: MuterTestCase {
     private let state = MutationTestState()
     private let sut = ApplySchemata()
 
-    override func setUp() {
-        super.setUp()
-    }
-
     // MARK: - Lazy Loading Tests
 
     func test_appliesSchemataWithCachedSourceCode() async throws {

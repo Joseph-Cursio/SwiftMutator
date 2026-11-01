@@ -3,6 +3,8 @@ import SwiftParser
 import TestingExtensions
 import XCTest
 
+// swiftlint:disable file_length - a test for each kind of code the visitor meets, until they're split by operator
+// swiftlint:disable:next type_body_length
 final class MuterVisitorTests: MuterTestCase {
     private var samplePath: String!
 

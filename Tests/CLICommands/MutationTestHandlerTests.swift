@@ -27,7 +27,7 @@ final class MutationTestHandlerTests: MuterTestCase {
             XCTAssertEqual(self.stepSpy3.methodCalls, ["run(with:)"])
         }
 
-        let assertThatSharesTheSameStateAcrossAllOfTheSteps = {
+        let assertThatAllStepsShareTheState = {
             XCTAssertTrue(self.stepSpy1.states.first === expectedState)
             XCTAssertTrue(self.stepSpy2.states.first === expectedState)
             XCTAssertTrue(self.stepSpy3.states.first === expectedState)
@@ -39,7 +39,7 @@ final class MutationTestHandlerTests: MuterTestCase {
         }
 
         assertThatRunsAllItsSteps()
-        assertThatSharesTheSameStateAcrossAllOfTheSteps()
+        assertThatAllStepsShareTheState()
         assertThatReturnsSuccess()
     }
 
@@ -63,20 +63,20 @@ final class MutationTestHandlerTests: MuterTestCase {
             XCTAssertFalse(reason.isEmpty)
         }
 
-        let assertThatWontRunAnySubsequentStepsAfterTheFailingStep = {
+        let assertThatNoStepRunsAfterTheFailingOne = {
             XCTAssertEqual(self.stepSpy1.methodCalls, ["run(with:)"])
             XCTAssertEqual(self.stepSpy2.methodCalls, ["run(with:)"])
             XCTAssertTrue(self.stepSpy3.methodCalls.isEmpty)
         }
 
-        let assertThatWontShareTheStateWithAnySubsequentStepsAfterTheFailingStep = {
+        let assertThatNoLaterStepGetsTheState = {
             XCTAssertTrue(self.stepSpy1.states.first === self.state)
             XCTAssertTrue(self.stepSpy2.states.first === self.state)
             XCTAssertTrue(self.stepSpy3.states.isEmpty)
         }
 
-        assertThatWontRunAnySubsequentStepsAfterTheFailingStep()
-        assertThatWontShareTheStateWithAnySubsequentStepsAfterTheFailingStep()
+        assertThatNoStepRunsAfterTheFailingOne()
+        assertThatNoLaterStepGetsTheState()
     }
 
     private func givenThereIsAFailureInOneOfItsSteps() {

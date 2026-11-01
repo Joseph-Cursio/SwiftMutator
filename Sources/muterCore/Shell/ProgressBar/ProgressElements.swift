@@ -26,8 +26,6 @@ struct ProgressBarLine: ProgressElementType {
 
 /// the index element e.g. "2 of 3"
 struct ProgressIndex: ProgressElementType {
-    init() {}
-
     func value(_ progressBar: ProgressBar) -> String {
         "\(progressBar.element) of \(progressBar.count)"
     }
@@ -52,8 +50,6 @@ struct ProgressPercent: ProgressElementType {
 
 /// the time estimates e.g. "ETA: 00:00:02 (at 1.00 it/s)"
 struct ProgressTimeEstimates: ProgressElementType {
-    init() {}
-
     func value(_ progressBar: ProgressBar) -> String {
         let totalTime = getTimeOfDay() - progressBar.startTime
 
@@ -74,17 +70,15 @@ struct ProgressTimeEstimates: ProgressElementType {
         let seconds = Double(duration % 60)
         let minutes = Double((duration / 60) % 60)
         let hours = Double(duration / 3600)
-        return "\(hours.format(0, minimumIntegerPartLength: 2)):\(minutes.format(0, minimumIntegerPartLength: 2)):\(seconds.format(0, minimumIntegerPartLength: 2))"
+        return "\(hours.format(0, minimumIntegerPartLength: 2)):"
+            + "\(minutes.format(0, minimumIntegerPartLength: 2)):"
+            + "\(seconds.format(0, minimumIntegerPartLength: 2))"
     }
 }
 
 /// an arbitrary string that can be added to the progress bar.
 struct ProgressString: ProgressElementType {
     let string: String
-
-    init(string: String) {
-        self.string = string
-    }
 
     func value(_: ProgressBar) -> String {
         string

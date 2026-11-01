@@ -494,7 +494,10 @@ private extension ProjectTreeTests {
     func write(_ files: [String: String], in folder: String? = nil) throws {
         for (path, contents) in files {
             let file = URL(fileURLWithPath: "\(folder ?? project)/\(path)")
-            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(
+                at: file.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
             try Data(contents.utf8).write(to: file)
         }
     }

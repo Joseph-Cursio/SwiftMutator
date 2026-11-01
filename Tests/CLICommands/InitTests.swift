@@ -2,7 +2,7 @@
 import XCTest
 
 final class InitTests: MuterTestCase {
-    private var directory: String!
+    private var directory = ""
     private lazy var sut = Init(directory: directory)
 
     override func setUpWithError() throws {
@@ -13,8 +13,8 @@ final class InitTests: MuterTestCase {
 
     func test_createsAConfigurationFileNamedMuterConfYmlWithPlaceholderValuesInASpecifiedDirectory() async throws {
         try await sut.run()
-        guard let contents = FileManager.default.contents(atPath: "\(directory!)/muter.conf.yml"),
-              let _ = try? MuterConfiguration(from: contents)
+        guard let contents = FileManager.default.contents(atPath: "\(directory)/muter.conf.yml"),
+              (try? MuterConfiguration(from: contents)) != nil
         else {
             XCTFail("Expected a valid configuration file to be written")
             return
@@ -26,7 +26,7 @@ final class InitTests: MuterTestCase {
         try await sut.run()
 
         XCTAssertTrue(printer.linesPassed.contains { $0.contains("You are running version") }, "\(printer.linesPassed)")
-        XCTAssertEqual(printer.linesPassed.last, "💾 Configuration file created at: \(directory!)/muter.conf.yml")
+        XCTAssertEqual(printer.linesPassed.last, "💾 Configuration file created at: \(directory)/muter.conf.yml")
     }
 
     // A folder it can't write to: it says so, rather than that it created the file.
@@ -34,14 +34,14 @@ final class InitTests: MuterTestCase {
         try XCTSkipIf(geteuid() == 0, "root writes to a folder whatever its permissions, as in a CI container")
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: directory)
         addTeardownBlock { [directory] in
-            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: directory!)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: directory)
         }
 
         do {
             try await sut.run()
-            XCTFail("init said it created \(directory!)/muter.conf.yml")
+            XCTFail("init said it created \(directory)/muter.conf.yml")
         } catch {
-            XCTAssertEqual("\(error)", "SwiftMutator could not write \(directory!)/muter.conf.yml.")
+            XCTAssertEqual("\(error)", "SwiftMutator could not write \(directory)/muter.conf.yml.")
         }
         XCTAssertFalse(printer.linesPassed.contains { $0.contains("Configuration file created") })
     }

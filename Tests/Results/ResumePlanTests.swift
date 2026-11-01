@@ -30,7 +30,10 @@ final class ResumePlanTests: XCTestCase {
 
         let plan = plan(keys, recorded: records)
 
-        XCTAssertEqual(plan.reused, Dictionary(uniqueKeysWithValues: records.enumerated().map { ($0.offset, $0.element) }))
+        XCTAssertEqual(
+            plan.reused,
+            Dictionary(uniqueKeysWithValues: records.enumerated().map { ($0.offset, $0.element) })
+        )
         XCTAssertEqual(plan.toRun, [])
         XCTAssertEqual(plan.retestedBecause, [:])
         XCTAssertEqual(plan.retired, [])
@@ -224,8 +227,16 @@ final class ResumePlanTests: XCTestCase {
         let records = [
             record(of: keys[0], outcome: .passed),
             record(of: keys[1], outcome: .failed, killedBy: [.init(name: "adds()", location: "SumTests.swift:1:12")]),
-            record(of: keys[2], outcome: .runtimeError, killedBy: [.init(name: "moved()", location: "SumTests.swift:9:5")]),
-            record(of: keys[3], outcome: .failed, killedBy: [.init(name: "-[SumTests.SumTests testAdds]", location: nil)]),
+            record(
+                of: keys[2],
+                outcome: .runtimeError,
+                killedBy: [.init(name: "moved()", location: "SumTests.swift:9:5")]
+            ),
+            record(
+                of: keys[3],
+                outcome: .failed,
+                killedBy: [.init(name: "-[SumTests.SumTests testAdds]", location: nil)]
+            ),
             record(of: keys[4], outcome: .buildError),
             record(of: keys[5], outcome: .failed, fileSHA256: "0ld"),
         ]
@@ -338,7 +349,9 @@ final class ResumePlanTests: XCTestCase {
         for path in changed + added {
             current[path] = "ffff"
         }
-        let sources = sources.merging(["Tests/SumTests/SumTests.swift": "import Testing\n@Test func adds() {}"]) { first, _ in
+        let sources = sources.merging(
+            ["Tests/SumTests/SumTests.swift": "import Testing\n@Test func adds() {}"]
+        ) { first, _ in
             first
         }
         return [1: ReuseChanges(from: tree(files), to: tree(current), waiving: globs, readSource: { sources[$0] })]

@@ -199,7 +199,13 @@ enum ResumeCheck {
                 difference("since.changedLines", recorded.changedLines, current.changedLines),
             ].compactMap { $0 }
         default:
-            return [Difference(name: "since", was: recorded.flatMap { json($0.ref) }, isNow: current.flatMap { json($0.ref) })]
+            return [
+                Difference(
+                    name: "since",
+                    was: recorded.flatMap { json($0.ref) },
+                    isNow: current.flatMap { json($0.ref) }
+                ),
+            ]
         }
     }
 

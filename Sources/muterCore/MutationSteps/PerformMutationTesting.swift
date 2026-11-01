@@ -133,7 +133,10 @@ struct PerformMutationTesting: MutationStep {
 
         let mutationTestOutcome = MutationTestOutcome(
             mutations: session.outcomesInJobOrder,
-            coverage: state.projectCoverage.limited(to: state.changeSelection, inCopyAt: state.mutatedProjectDirectoryURL),
+            coverage: state.projectCoverage.limited(
+                to: state.changeSelection,
+                inCopyAt: state.mutatedProjectDirectoryURL
+            ),
             coverageSkipped: state.runOptions.skipCoverage,
             testDuration: session.earlierTestDuration + thisSession,
             newVersion: state.newVersion,
@@ -269,7 +272,8 @@ private extension PerformMutationTesting {
         // A clone costs a copy and about a baseline build, so there are never more workers than mutants to test.
         let workers = min(muterConfiguration.workerCount, plan.toRun.count)
         if !plan.toRun.isEmpty {
-            events.send(.workersChosen(WorkerChoice(muterConfiguration, used: workers, mutantsToTest: plan.toRun.count)))
+            let choice = WorkerChoice(muterConfiguration, used: workers, mutantsToTest: plan.toRun.count)
+            events.send(.workersChosen(choice))
         }
         var testRunSeconds: TimeInterval?
         // A reuse with nothing left to test ran the baseline only to see that the changed tests pass.
@@ -892,8 +896,8 @@ private extension PerformMutationTesting {
         }
     }
 
-    /// Copies each of the `reused` results' kept logs from the folder of the session that recorded it in `resume`'s file
-    /// into `loggingDirectory`, under the same name, which its new line names. A log that isn't there any more, or
+    /// Copies each of the `reused` results' kept logs from the folder of the session that recorded it in `resume`'s
+    /// file into `loggingDirectory`, under the same name, which its new line names. A log that isn't there any more, or
     /// can't be copied, is left out: the result doesn't depend on it.
     func copyLogs(of reused: [MutantResult], from resume: ResumeState, into loggingDirectory: String) {
         let folders = Dictionary(
@@ -1000,7 +1004,8 @@ extension PerformMutationTesting {
         var description: String {
             let copy = status.map { "cp exited \($0)" } ?? "cp could not be started"
             let why = error.map { ": \($0)" } ?? ""
-            return "SwiftMutator could not clone the mutated project to \(clone.path) for a parallel worker (\(copy))\(why)."
+            return "SwiftMutator could not clone the mutated project to \(clone.path) "
+                + "for a parallel worker (\(copy))\(why)."
         }
     }
 
@@ -1041,7 +1046,10 @@ extension PerformMutationTesting {
 
     private static func copyProject(_ project: URL, to clone: URL) async throws {
         #if os(macOS)
-        let copy = await Foundation.Process().runCommand(url: "/bin/cp", arguments: ["-c", "-R", project.path, clone.path])
+        let copy = await Foundation.Process().runCommand(
+            url: "/bin/cp",
+            arguments: ["-c", "-R", project.path, clone.path]
+        )
         guard let copy, copy.status == 0 else {
             let error = copy?.errors.split(separator: "\n").first.map(String.init)
             throw WorkerDirectoryError(clone: clone, status: copy?.status, error: error)
@@ -1052,7 +1060,10 @@ extension PerformMutationTesting {
     }
 
     static func discardModuleCaches(in directory: URL) {
-        guard let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: [.isDirectoryKey])
+        guard let enumerator = FileManager.default.enumerator(
+            at: directory,
+            includingPropertiesForKeys: [.isDirectoryKey]
+        )
         else { return }
 
         for case let url as URL in enumerator

@@ -193,7 +193,10 @@ private struct Repository {
     }
 
     /// The lines of `paths`, one file's, or a renamed one's two, that differ from `mergeBase`.
-    func hunks(of paths: [String], since mergeBase: String) async throws -> (lines: [LineRange], deletionsAfter: [Int]) {
+    func hunks(
+        of paths: [String],
+        since mergeBase: String
+    ) async throws -> (lines: [LineRange], deletionsAfter: [Int]) {
         let diff = try await output(
             ["--literal-pathspecs", "diff", "-U0", "-a", "--inter-hunk-context=0", "--diff-algorithm=myers"]
                 + GitChanges.diffOptions + [mergeBase, "--"] + paths

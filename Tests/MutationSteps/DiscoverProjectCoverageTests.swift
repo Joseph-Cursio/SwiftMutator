@@ -61,7 +61,9 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
 
         // Why it failed, for the message that says so. This state has no log folder to keep the output in.
         let reason = "the coverage run failed (exit status 65) without naming a failed test or an error"
-        let expectation = expectation(forEvent: .projectCoverageDiscoveryFinished) { ($0.object as? CoverageFailure) == CoverageFailure(reason: reason, log: nil) }
+        let expectation = expectation(forEvent: .projectCoverageDiscoveryFinished) {
+            ($0.object as? CoverageFailure) == CoverageFailure(reason: reason, log: nil)
+        }
 
         _ = try await sut.run(with: state)
 
@@ -139,7 +141,8 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
 
         let expectation = expectation(forEvent: .projectCoverageDiscoveryFinished) {
             ($0.object as? CoverageFailure) == CoverageFailure(
-                reason: "the tests with coverage on didn't end within 900 s (buildTimeout), so SwiftMutator stopped them",
+                reason: "the tests with coverage on didn't end within 900 s (buildTimeout), "
+                    + "so SwiftMutator stopped them",
                 log: "/logs/coverage run.log"
             )
         }

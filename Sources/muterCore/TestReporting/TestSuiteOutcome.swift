@@ -129,7 +129,9 @@ extension TestSuiteOutcome {
     }
 
     private static var testFailureRegEx: NSRegularExpression {
-        NSRegularExpression.regexWithPattern(#"test\(s\)? failed|with ([1-9][0-9]*) (failure|issue)|with ([1-9][0-9]*) tests? failed"#)
+        NSRegularExpression.regexWithPattern(
+            #"test\(s\)? failed|with ([1-9][0-9]*) (failure|issue)|with ([1-9][0-9]*) tests? failed"#
+        )
     }
 
     private static func terminationStatusIsSuccess(_ terminationStatus: Int32) -> Bool {
