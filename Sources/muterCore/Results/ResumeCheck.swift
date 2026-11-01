@@ -21,6 +21,8 @@ enum ResumeCheck {
         let skipCoverage: Bool
         let usingTestPlan: Bool
         let provenance: Provenance
+        /// What `--since` chose; nil without it.
+        var since: ChangeSelection?
     }
 
     /// A value the recorded session had and this run has, each as sorted-keys JSON. nil is a configuration key that
@@ -91,7 +93,12 @@ enum ResumeCheck {
     /// SwiftMutator's version and path, which its SHA-256 covers; the process, host and arguments; and the effective
     /// `timeoutSeconds`, `stopsAtFirstFailure` and `failedTestLinesAreReliable`, which follow from the configuration,
     /// the baseline and the timed test run. Only the build and toolchain differences are ever `forced`.
-    static func compare(_ recorded: ResultsHeader, with current: Current, forcing: Bool) -> Verdict {
+    ///
+    /// A resume compares what `--since` compares the working tree with too: the merge base, and `--changed-lines`. A
+    /// `reusing` run doesn't: a result holds whichever other mutants are tested, and it keeps only those of the
+    /// mutants it discovers.
+    static func compare(_ recorded: ResultsHeader, with current: Current, forcing: Bool, reusing: Bool = false)
+        -> Verdict {
         var verdict = Verdict()
         for difference in configurationDifferences(recorded.configuration, current.configuration) {
             if keysThatDontAffectOutcomes.contains(difference.name) {
@@ -103,6 +110,9 @@ enum ResumeCheck {
             }
         }
         verdict.refusals += selectionDifferences(recorded, current).map(ResumeRefusal.selectionChanged)
+        if !reusing {
+            verdict.refusals += sinceDifferences(recorded.since, current.since).map(ResumeRefusal.selectionChanged)
+        }
         if recorded.usingTestPlan || current.usingTestPlan {
             verdict.refusals.append(.testPlanRun)
         } else if recorded.project == nil {
@@ -173,6 +183,24 @@ enum ResumeCheck {
             difference("filesToMutate", Set(recorded.filesToMutate).sorted(), Set(current.filesToMutate).sorted()),
             difference("skipCoverage", recorded.skipCoverage, current.skipCoverage),
         ].compactMap { $0 }
+    }
+
+    /// The differences in what `--since` compares the working tree with, by their keys in the header's `since`: its
+    /// merge base, and `--changed-lines`. Not the ref as given, as one that moved since names another merge base; nor
+    /// the files and lines it chose, which follow from the working tree: a changed file is compared as the project's
+    /// files are, and its mutants tested again, and a mutant no longer chosen is a mutant no longer discovered.
+    private static func sinceDifferences(_ recorded: ChangeSelection?, _ current: ChangeSelection?) -> [Difference] {
+        switch (recorded, current) {
+        case (nil, nil):
+            return []
+        case let (recorded?, current?):
+            return [
+                difference("since.mergeBase", recorded.mergeBase, current.mergeBase),
+                difference("since.changedLines", recorded.changedLines, current.changedLines),
+            ].compactMap { $0 }
+        default:
+            return [Difference(name: "since", was: recorded.flatMap { json($0.ref) }, isNow: current.flatMap { json($0.ref) })]
+        }
     }
 
     /// The differences in what identifies the SwiftMutator build, the toolchain and the SDK, named by their keys in
@@ -277,7 +305,8 @@ extension ResumeCheck.Current {
             filesToMutate: state.filesToMutate,
             skipCoverage: state.runOptions.skipCoverage,
             usingTestPlan: state.runOptions.isUsingTestPlan,
-            provenance: provenance
+            provenance: provenance,
+            since: state.changeSelection
         )
     }
 }

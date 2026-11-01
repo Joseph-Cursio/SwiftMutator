@@ -73,10 +73,12 @@ extension RecordedResults {
             mutations: mutations,
             coverage: header.coverage.map {
                 Coverage(percent: $0.percent, filesWithoutCoverage: $0.filesWithoutCoverage)
+                    .limited(to: header.since, inCopyAt: mutatedProjectDirectory)
             } ?? .null,
             coverageSkipped: header.skipCoverage,
             testDuration: testDuration,
-            newVersion: header.newVersion
+            newVersion: header.newVersion,
+            since: header.since
         )
     }
 }

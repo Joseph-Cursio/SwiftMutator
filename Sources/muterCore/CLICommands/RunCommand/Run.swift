@@ -23,6 +23,22 @@ struct Run: RunCommand {
     )
     var operators: [MutationOperator.Id] = MutationOperator.Id.allCases
 
+    @Option(
+        name: .customLong("since"),
+        help: ArgumentHelp(
+            "Only mutate the Swift files changed since the merge base of this git ref and HEAD: committed, "
+                + "uncommitted, and new files git doesn't ignore. The excludes and the coverage filter still apply.",
+            valueName: "ref"
+        )
+    )
+    var since: String?
+
+    @Flag(
+        name: .customLong("changed-lines"),
+        help: "With --since, only mutate code on the lines the change added or changed."
+    )
+    var changedLines = false
+
     @OptionGroup var options: RunArguments
     @OptionGroup var reportOptions: ReportArguments
 
@@ -86,6 +102,8 @@ struct Run: RunCommand {
     var runOptions: Run.Options {
         Run.Options(
             filesToMutate: filesToMutate,
+            since: since,
+            changedLinesOnly: changedLines,
             reportFormat: reportOptions.reportFormat,
             reportURL: reportOptions.reportURL,
             mutationOperatorsList: !operators.isEmpty ? operators : .allOperators,
@@ -107,8 +125,18 @@ struct Run: RunCommand {
 
     /// `--resume` continues a run's own results file and `--reuse` starts a new one, so only one can be given.
     /// `--resume-ignoring` and `--force-resume` only say what a resume may reuse, and `--reuse-ignoring` and
-    /// `--force-reuse` what a reuse may.
+    /// `--force-reuse` what a reuse may. `--since` chooses the files itself, and `--changed-lines` narrows its choice.
     func validate() throws {
+        if since != nil, !filesToMutate.isEmpty {
+            throw ValidationError("--since and --files-to-mutate can't be given together.")
+        }
+        if since == nil, changedLines {
+            throw ValidationError("--changed-lines only applies with --since.")
+        }
+        // No ref starts with a dash, and git would read one that did as an option.
+        if since?.hasPrefix("-") == true {
+            throw ValidationError("--since takes a git ref, such as main or origin/main, not an option.")
+        }
         if resume != nil, reuse != nil {
             throw ValidationError("--resume and --reuse can't be given together.")
         }

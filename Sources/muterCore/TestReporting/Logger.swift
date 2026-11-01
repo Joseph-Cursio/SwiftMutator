@@ -55,6 +55,27 @@ final class Logger: @unchecked Sendable {
         }
     }
 
+    /// How many Swift files changed since `--since`'s merge base, and with `verbose`, their paths.
+    func changesSelected(_ selection: ChangeSelection, verbose: Bool = false) {
+        let count = selection.files.count == 1 ? "1 Swift file" : "\(selection.files.count) Swift files"
+        let lines = selection.changedLines ? ", of which only the changed lines are mutated" : ""
+        let changed = "🌿 \(count) changed since the merge base of \(selection.shownRef) and HEAD "
+            + "(\(selection.shortMergeBase))\(lines)."
+        if verbose, !selection.files.isEmpty {
+            print("\(changed)\n\n\(selection.files.map(\.path).joined(separator: "\n").bold)")
+        } else {
+            print(changed)
+        }
+        if let folders = selection.foldersNotCompared {
+            let named = folders.prefix(5).joined(separator: ", ") + (folders.count > 5 ? ", …" : "")
+            print(
+                "⚠️ git doesn't compare what is in \(folders.count == 1 ? "a folder" : "folders") that "
+                    + "\(folders.count == 1 ? "is a repository" : "are repositories") of its own, so none of "
+                    + "\(folders.count == 1 ? "its" : "their") files is mutated: \(named)."
+            )
+        }
+    }
+
     func projectCopyStarted() {
         print("✂️ Copying your project to a temporary directory for testing...")
     }
@@ -198,7 +219,9 @@ final class Logger: @unchecked Sendable {
             let why = reasons.isEmpty ? "" : " (\(reasons.joined(separator: ", ")))"
             print(resuming + "\(reused), so \(left) left to test\(why).")
         }
-        if let discoveryChange = Self.discoveryChange(summary) {
+        if let selectionChange = summary.selectionChange {
+            print("ℹ️ \(selectionChange)")
+        } else if let discoveryChange = Self.discoveryChange(summary) {
             print("⚠️ \(discoveryChange)")
         } else if let coverageChange = summary.coverageChange {
             // Gathered in both sessions, and the mutants are as many as before, so only said.

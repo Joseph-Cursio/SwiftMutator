@@ -459,13 +459,84 @@ final class ResumeCheckTests: XCTestCase {
         return ResumeCheck.coverageChange(from: recorded, in: copy, to: current, in: copy)
     }
 
+    // MARK: - --since
+
+    private static let selected = ChangeSelection.make(
+        changedLines: true,
+        files: [ChangedFile(path: "Sources/Sum.swift", lines: [LineRange(first: 3, last: 4)], sha256: "ab12")]
+    )
+
+    func test_theSameMergeBase_resumes_whateverTheRefIsCalled() {
+        let recorded = header(of: current(since: Self.selected))
+        let renamed = ChangeSelection.make(ref: "ba5e000", changedLines: true, files: Self.selected.files)
+
+        XCTAssertEqual(check(current(since: renamed), recorded: recorded), ResumeCheck.Verdict())
+    }
+
+    func test_sinceGivenOnOneSideOnly_refuses() {
+        let verdict = check(current(since: Self.selected))
+
+        let difference = ResumeCheck.Difference(name: "since", was: nil, isNow: #""main""#)
+        XCTAssertEqual(verdict.refusals, [.selectionChanged(difference)])
+        XCTAssertEqual(
+            "\(ResumeRefusal.selectionChanged(difference))",
+            #"since was not set and is "main" now. A change to which mutants are tested needs a new run."#
+        )
+        XCTAssertEqual(
+            check(current(), recorded: header(of: current(since: Self.selected))).refusals,
+            [.selectionChanged(.init(name: "since", was: #""main""#, isNow: nil))]
+        )
+    }
+
+    // A ref that moved, as origin/main does after a fetch, names another merge base, and so other changes.
+    func test_anotherMergeBase_orChangedLinesTurnedOn_refuses() {
+        let recorded = header(of: current(since: .make(files: Self.selected.files)))
+        let moved = ChangeSelection.make(mergeBase: "fee1000000000000000000000000000000000000", changedLines: true)
+
+        let verdict = check(current(since: moved), recorded: recorded)
+
+        XCTAssertEqual(verdict.refusals, [
+            .selectionChanged(.init(
+                name: "since.mergeBase",
+                was: #""ba5e000000000000000000000000000000000000""#,
+                isNow: #""fee1000000000000000000000000000000000000""#
+            )),
+            .selectionChanged(.init(name: "since.changedLines", was: "false", isNow: "true")),
+        ])
+    }
+
+    // The files and lines follow from the working tree: a changed file is compared as the project's files are, and its
+    // mutants are tested again; a mutant no longer chosen is one no longer discovered.
+    func test_otherFilesOrLines_fromTheSameMergeBase_resume() {
+        let recorded = header(of: current(since: Self.selected))
+        let edited = ChangeSelection.make(changedLines: true, files: [
+            ChangedFile(path: "Sources/Product.swift", sha256: "ef56"),
+            ChangedFile(path: "Sources/Sum.swift", lines: [LineRange(first: 3, last: 5)], deletionsAfter: [9], sha256: "ff"),
+        ])
+
+        XCTAssertEqual(check(current(since: edited), recorded: recorded).refusals, [])
+    }
+
+    // A reuse keeps a result only for a mutant it discovers, which holds whatever else is tested.
+    func test_aReuse_doesntCompareWhatSinceChose_eitherWay() {
+        let moved = ChangeSelection.make(mergeBase: "fee1000000000000000000000000000000000000")
+
+        XCTAssertEqual(check(current(), recorded: header(of: current(since: Self.selected)), reusing: true).refusals, [])
+        XCTAssertEqual(check(current(since: Self.selected), recorded: header(of: current()), reusing: true).refusals, [])
+        XCTAssertEqual(
+            check(current(since: moved), recorded: header(of: current(since: Self.selected)), reusing: true).refusals,
+            []
+        )
+    }
+
     private func current(
         configuration: MuterConfiguration? = nil,
         operators: [String] = ["RelationalOperatorReplacement"],
         filesToMutate: [String] = [],
         skipCoverage: Bool = true,
         usingTestPlan: Bool = false,
-        provenance: Provenance = .fixture
+        provenance: Provenance = .fixture,
+        since: ChangeSelection? = nil
     ) -> ResumeCheck.Current {
         ResumeCheck.Current(
             configuration: configuration ?? swift,
@@ -473,7 +544,8 @@ final class ResumeCheckTests: XCTestCase {
             filesToMutate: filesToMutate,
             skipCoverage: skipCoverage,
             usingTestPlan: usingTestPlan,
-            provenance: provenance
+            provenance: provenance,
+            since: since
         )
     }
 
@@ -486,7 +558,8 @@ final class ResumeCheckTests: XCTestCase {
             operators: current.operators,
             filesToMutate: current.filesToMutate,
             skipCoverage: current.skipCoverage,
-            usingTestPlan: current.usingTestPlan
+            usingTestPlan: current.usingTestPlan,
+            since: current.since
         )
     }
 
@@ -494,9 +567,10 @@ final class ResumeCheckTests: XCTestCase {
     private func check(
         _ current: ResumeCheck.Current,
         recorded: ResultsHeader? = nil,
-        forcing: Bool = false
+        forcing: Bool = false,
+        reusing: Bool = false
     ) -> ResumeCheck.Verdict {
-        ResumeCheck.compare(recorded ?? header(of: self.current()), with: current, forcing: forcing)
+        ResumeCheck.compare(recorded ?? header(of: self.current()), with: current, forcing: forcing, reusing: reusing)
     }
 
     private func provenance(

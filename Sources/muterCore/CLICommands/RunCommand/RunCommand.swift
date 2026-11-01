@@ -23,19 +23,20 @@ extension RunCommand {
             // too, even when an abort came first.
             Interruptions.exit(by: signal)
         }
-        if case .failure = ended.result {
+        if case let .failure(error) = ended.result, !(error is NothingToMutate) {
             Foundation.exit(-1)
         }
     }
 
     func validate() throws {}
 
-    /// What a run command prints when its work failed with `error`. A refused resume, and a run refused because another
-    /// is using the project's copy, are printed as they are: refusing is an expected outcome, and its message says what
-    /// to do. Anything else comes inside the banner that asks for a bug report.
+    /// What a run command prints when its work failed with `error`. A refused resume, a run refused because another
+    /// is using the project's copy, a `--since` that git couldn't answer, and one with nothing to mutate, which isn't a
+    /// failure, are printed as they are: each is an expected outcome, and its message says what to do. Anything else
+    /// comes inside the banner that asks for a bug report.
     static func message(showing error: Error) -> String {
         switch error {
-        case is ResumeRefused, MutatedProjectLockError.inUse:
+        case is ResumeRefused, MutatedProjectLockError.inUse, is ChangeSelectionError, is NothingToMutate:
             return "\(error)"
         default:
             break

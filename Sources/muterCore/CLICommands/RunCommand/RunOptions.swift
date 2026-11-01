@@ -7,6 +7,10 @@ extension Run {
     struct Options: Sendable {
         let reportOptions: ReportOptions
         let filesToMutate: [String]
+        /// `--since`'s git ref: only the Swift files changed since its merge base with HEAD are mutated.
+        let since: String?
+        /// `--changed-lines`: of those, only the code on the lines the change added or changed.
+        let changedLinesOnly: Bool
         let mutationOperatorsList: MutationOperatorList
         let skipCoverage: Bool
         let skipUpdateCheck: Bool
@@ -42,6 +46,8 @@ extension Run {
 
         init(
             filesToMutate: [String] = [],
+            since: String? = nil,
+            changedLinesOnly: Bool = false,
             reportFormat: ReportFormat = .plain,
             reportURL: URL? = nil,
             mutationOperatorsList: MutationOperatorList = .allOperators,
@@ -56,6 +62,8 @@ extension Run {
             resumeIgnoring: [String] = [],
             forceResume: Bool = false
         ) {
+            self.since = since
+            self.changedLinesOnly = changedLinesOnly
             self.skipCoverage = skipCoverage
             self.skipUpdateCheck = skipUpdateCheck
             self.verbose = verbose
@@ -85,6 +93,8 @@ extension Run {
 extension Run.Options: Equatable {
     static func == (lhs: Run.Options, rhs: Run.Options) -> Bool {
         lhs.filesToMutate == rhs.filesToMutate &&
+            lhs.since == rhs.since &&
+            lhs.changedLinesOnly == rhs.changedLinesOnly &&
             lhs.mutationOperatorsList == rhs.mutationOperatorsList &&
             lhs.skipCoverage == rhs.skipCoverage &&
             lhs.skipUpdateCheck == rhs.skipUpdateCheck &&
@@ -105,6 +115,8 @@ extension Run.Options: Nullable {
     static var null: Run.Options {
         .init(
             filesToMutate: [],
+            since: nil,
+            changedLinesOnly: false,
             reportFormat: .plain,
             reportURL: nil,
             mutationOperatorsList: [],

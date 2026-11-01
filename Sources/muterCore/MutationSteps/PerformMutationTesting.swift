@@ -133,10 +133,11 @@ struct PerformMutationTesting: MutationStep {
 
         let mutationTestOutcome = MutationTestOutcome(
             mutations: session.outcomesInJobOrder,
-            coverage: state.projectCoverage,
+            coverage: state.projectCoverage.limited(to: state.changeSelection, inCopyAt: state.mutatedProjectDirectoryURL),
             coverageSkipped: state.runOptions.skipCoverage,
             testDuration: session.earlierTestDuration + thisSession,
-            newVersion: state.newVersion
+            newVersion: state.newVersion,
+            since: state.changeSelection
         )
 
         events.send(.mutationTestingFinished(mutationTestOutcome))
@@ -177,7 +178,8 @@ private extension PerformMutationTesting {
                     waived: state.resumeWaived,
                     coverage: state.projectCoverage,
                     in: state.mutatedProjectDirectoryURL,
-                    reusing: resume.isReuse ? state.reuseChanges : nil
+                    reusing: resume.isReuse ? state.reuseChanges : nil,
+                    since: state.changeSelection
                 ))
             )
             // With every result kept there is nothing to test, so no baseline and no clones: the session is a header,
@@ -457,10 +459,14 @@ private extension PerformMutationTesting {
                 detail: detail,
                 outcome: MutationTestOutcome(
                     mutations: session.outcomesInJobOrder,
-                    coverage: state.projectCoverage,
+                    coverage: state.projectCoverage.limited(
+                        to: state.changeSelection,
+                        inCopyAt: state.mutatedProjectDirectoryURL
+                    ),
                     coverageSkipped: state.runOptions.skipCoverage,
                     testDuration: testDuration,
-                    newVersion: state.newVersion
+                    newVersion: state.newVersion,
+                    since: state.changeSelection
                 ),
                 discovered: session.keys.count,
                 reused: session.reused

@@ -26,7 +26,10 @@ class TokenAwareVisitor: MuterVisitor {
             ),
             with: node,
             at: position,
-            snapshot: snapshot
+            snapshot: snapshot,
+            // The node is the operator alone, as the tree isn't folded: an operand on another line is the expression's,
+            // and a change to it is a change to what the operator compares or joins.
+            spanning: node.parent?.parent?.as(SequenceExprSyntax.self)
         )
 
         return super.visit(node)

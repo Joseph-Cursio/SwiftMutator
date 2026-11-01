@@ -31,6 +31,9 @@ struct ResumeSummary: Equatable {
     var otherFilesChanged: [ProjectTree.FileChange] = []
     /// How many test files a reuse found changed, added or removed.
     var testFilesChanged = 0
+    /// Only in a reuse whose `--since` choice differs from the earlier run's: why the two discover other mutants, which
+    /// is then said in place of a warning that they do.
+    var selectionChange: String?
 
     /// How many mutants this run discovered: each is either kept or tested.
     var discovered: Int {
@@ -47,7 +50,8 @@ extension ResumeSummary {
         waived: [String],
         coverage: Coverage,
         in mutatedProject: URL,
-        reusing changes: [Int: ReuseChanges]? = nil
+        reusing changes: [Int: ReuseChanges]? = nil,
+        since selection: ChangeSelection? = nil
     ) {
         let all = changes.map { Array($0.values) } ?? []
         let otherFiles = Dictionary(all.flatMap(\.otherFiles).map { ($0.path, $0) }, uniquingKeysWith: { _, last in last })
@@ -70,7 +74,29 @@ extension ResumeSummary {
             waived: waived,
             notices: resume.notices,
             otherFilesChanged: otherFiles.values.sorted { $0.path < $1.path },
-            testFilesChanged: testFiles.count
+            testFilesChanged: testFiles.count,
+            selectionChange: resume.isReuse ? Self.selectionChange(from: resume.lastHeader.since, to: selection) : nil
         )
+    }
+
+    /// Why a reuse whose `--since` choice is `current` discovers other mutants than the earlier run, whose choice was
+    /// `earlier`; nil when the two chose the same, or neither chose.
+    static func selectionChange(from earlier: ChangeSelection?, to current: ChangeSelection?) -> String? {
+        func same(_ one: ChangeSelection, _ other: ChangeSelection) -> Bool {
+            one.mergeBase == other.mergeBase && one.changedLines == other.changedLines
+                && one.files.map(\.path) == other.files.map(\.path)
+        }
+        switch (earlier, current) {
+        case (nil, nil):
+            return nil
+        case let (earlier?, current?) where same(earlier, current):
+            return nil
+        case let (_, current?):
+            return "This run mutates only what changed since the merge base of \(current.ref) and HEAD "
+                + "(\(current.shortMergeBase)), so no earlier result of another mutant is reused."
+        case let (earlier?, nil):
+            return "That run mutated only what changed since the merge base of \(earlier.ref) and HEAD "
+                + "(\(earlier.shortMergeBase)), so this run's other mutants have no earlier result."
+        }
     }
 }

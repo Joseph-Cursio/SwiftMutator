@@ -9,6 +9,12 @@ OPTIONS:
   --operators <operators> The list of mutant operators to be used:
                           RelationalOperatorReplacement, RemoveSideEffects,
                           ChangeLogicalConnector, SwapTernary
+  --since <ref>           Only mutate the Swift files changed since the merge
+                          base of this git ref and HEAD: committed,
+                          uncommitted, and new files git doesn't ignore. The
+                          excludes and the coverage filter still apply.
+  --changed-lines         With --since, only mutate code on the lines the
+                          change added or changed.
   -c, --configuration <configuration>
                           The path to the configuration file.
   --skip-coverage         Skips the step in which SwiftMutator runs your

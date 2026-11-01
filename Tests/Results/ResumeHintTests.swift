@@ -132,4 +132,22 @@ final class ResumeHintTests: XCTestCase {
         XCTAssertEqual(options.resumeURL?.path, "/logs/results.jsonl")
         XCTAssertTrue(options.skipCoverage)
     }
+
+    // A ref that moved since, as origin/main does after a fetch, would choose other files: the merge base doesn't move.
+    func test_sincesRef_becomesTheMergeBase_inEitherSpelling() {
+        let base = "ba5e000000000000000000000000000000000000"
+
+        XCTAssertEqual(
+            ResumeHint.command(
+                continuing: ["run", "--since", "origin/main", "--changed-lines"],
+                from: "/logs/results.jsonl",
+                since: base
+            ),
+            "swift-mutator run --since \(base) --changed-lines --resume '/logs/results.jsonl'"
+        )
+        XCTAssertEqual(
+            ResumeHint.command(continuing: ["run", "--since=origin/main"], from: "/logs/results.jsonl", since: base),
+            "swift-mutator run --since=\(base) --resume '/logs/results.jsonl'"
+        )
+    }
 }

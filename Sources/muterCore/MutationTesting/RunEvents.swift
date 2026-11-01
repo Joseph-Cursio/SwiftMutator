@@ -8,6 +8,9 @@ enum RunEvent {
     /// The newer version available, or nil if there is none or the check failed.
     case updateCheckFinished(newVersion: String?)
 
+    /// What `--since` chose, before anything is copied.
+    case changesSelected(ChangeSelection)
+
     case projectCopyStarted
     /// The paths that vanished while the project was being copied, as a build tool's temporary files do.
     case projectCopySkippedVanishedFiles([String])

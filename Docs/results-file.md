@@ -6,7 +6,7 @@ SwiftMutator saves each mutant's result as soon as its test run finishes, as one
 
 - `<project>_muter_logs/<run>/results.jsonl`, next to your project, beside the run's kept logs. For example, `SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM/results.jsonl`.
 - The run's folder is named for the minute it started in. A run that starts in a minute that already has a folder gets one of its own, the same name followed by ` (2)`, then ` (3)` and so on, so a folder holds one run's logs. Should a folder already have a `results.jsonl`, the file is `results-2.jsonl`, then `results-3.jsonl`, up to `results-99.jsonl`. An existing file is never overwritten.
-- SwiftMutator prints the path when it creates the file ("SwiftMutator saves each mutant's result as it finishes, in …"). After the report it prints it again ("Each mutant's result is in …"), if every line was written. When mutation testing stops early, it prints it on standard error instead ("Each tested mutant's result is in …"), on the same condition. If a mutant has a result, the command that makes a report from the file follows it, with the path quoted for the shell: "Full report: swift-mutator report '…/results.jsonl'". Then comes the command that continues the run, which repeats SwiftMutator's own arguments but for an earlier `--resume`, `--reuse`, `--force-resume` and `--force-reuse`, with each `--reuse-ignoring` as a `--resume-ignoring`: "Continue: swift-mutator run … --resume '…/results.jsonl'". A run of a test plan can't be resumed, and gets no Continue line.
+- SwiftMutator prints the path when it creates the file ("SwiftMutator saves each mutant's result as it finishes, in …"). After the report it prints it again ("Each mutant's result is in …"), if every line was written. When mutation testing stops early, it prints it on standard error instead ("Each tested mutant's result is in …"), on the same condition. If a mutant has a result, the command that makes a report from the file follows it, with the path quoted for the shell: "Full report: swift-mutator report '…/results.jsonl'". Then comes the command that continues the run, which repeats SwiftMutator's own arguments but for an earlier `--resume`, `--reuse`, `--force-resume` and `--force-reuse`, with each `--reuse-ignoring` as a `--resume-ignoring`, and `--since`'s ref as the merge base it chose: "Continue: swift-mutator run … --resume '…/results.jsonl'". A run of a test plan can't be resumed, and gets no Continue line.
 - `run --reuse` only reads the earlier run's file, and writes one of its own in its own log folder, as a first session does.
 - `run --resume` adds a session to the file it continues, which stays where it is, in the first session's log folder. The new session prints the file's path as it starts testing, as a first session does. Its kept logs go to a log folder of its own, named for the minute it started in as any run's is, followed by ` (2)`, ` (3)` and so on if that minute already has one. So a later session's folder holds no results file: give `report` and `--resume` the file, or the first session's folder.
 - It is always written, and there's no option to turn it off. A line takes about 0.5–1 KB, so a run of 2,500 mutants writes an estimated 2–3 MB, beside well over a gigabyte of logs. The header's list of the project's files adds about 140 bytes a file: about 205 KB for a project of 1,450 files.
@@ -73,6 +73,7 @@ The header's `project` lists five files here. A real one lists every file in the
 | `waived` | [String] | Only in a resumed session: the project files that changed since the last session and that `--resume-ignoring` let through, by their paths relative to the project, or `[]`. In a session that `--reuse` starts, those that `--reuse-ignoring` let through since any of the earlier run's sessions. |
 | `testBundlesRunDirectly` | Bool | Only when the session's mutants ran their test bundles directly, with `swiftpm-testing-helper`, rather than through `swift test`: `true` |
 | `reusedFrom` | String | Only in a session that `--reuse` starts: the earlier run's results file |
+| `since` | Object | Only in a session run with `--since`: what it chose, below |
 | `forced` | [String] | Only in a resumed session, or one that `--reuse` starts: the `provenance` values that changed since the last session and that `--force-resume` or `--force-reuse` let through, by name (`swiftMutator.executableSHA256`, `toolchain.testCommandVersion`, `toolchain.testExecutableSHA256` or `toolchain.environment`), or `[]` |
 
 #### Provenance
@@ -106,6 +107,21 @@ SwiftMutator lists your project's files right after it copies the project, and h
 - **Never listed:** anything in a `.build`, `.git`, `.swiftpm`, `DerivedData` or `xcuserdata` folder at any depth, and `.DS_Store` files. Nor are the files SwiftMutator itself writes at the project's root: `muter-mappings.json` and `muter.xctestrun`, and `.swiftmutator-active-mutant`, which earlier versions wrote there.
 - **Not followed:** with `listedBy` `git`, the walk that adds Swift files skips any folder that holds a `.git` entry, such as a worktree or a clone git ignores.
 - **Outside the project:** the local packages your `Package.swift` files name with `.package(path:)`, and your Xcode projects with a local package reference, each by a literal path, and the ones those name in turn. SwiftMutator copies only your project, beside it, so every session builds whatever they hold then. Their files are listed and hashed the same way, where they are. A path a manifest computes isn't followed, and other files outside the project that a build or a test reads, such as sources an Xcode project references there, aren't listed.
+
+#### `since`
+
+What `--since` chose, as it compared the working tree with the merge base before anything was copied:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `ref` | String | The ref as given. A resumed session, whose Continue line names the merge base, keeps the first session's. |
+| `commit` | String | The commit the ref named |
+| `mergeBase` | String | The merge base of that commit and HEAD, which the working tree was compared with |
+| `changedLines` | Bool | Whether `--changed-lines` was given, so only the mutants on changed lines were tested |
+| `files` | [Object] | Each Swift file that changed, before the excludes and the coverage filter: its `path` in the project as the disk spells it, its `sha256` as it was compared, which the copy's had to equal, and, with `--changed-lines`, the `lines` added or changed, as `[first, last]` pairs, and `deletionsAfter`, each line after which lines were only removed (0 is the file's start). A file new to the change has neither, as all of it changed. |
+| `foldersNotCompared` | [String] | Only when there are some: the folders in the project that are repositories of their own, submodules or not, whose changes git doesn't compare here, so none of their files was chosen |
+
+A resume compares `mergeBase` and `changedLines`, and whether either session has a `since` at all. The files and lines follow from the working tree: a file changed since is compared as any project file is.
 
 ### `mutant`
 

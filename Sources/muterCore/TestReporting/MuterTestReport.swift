@@ -13,6 +13,8 @@ struct MuterTestReport {
     /// The tests that failed for the most killed mutants, and which are suspect. nil when no mutant a failed test
     /// killed has its tests recorded, and then left out of the JSON.
     let killingTestSummary: KillingTestSummary?
+    /// What `--since` chose, when it did; left out of the JSON otherwise.
+    let since: SinceScope?
 
     init(from outcome: MutationTestOutcome = .init()) {
         let summary = KillingTestSummary(of: outcome.mutations)
@@ -24,6 +26,26 @@ struct MuterTestReport {
         projectCodeCoverage = outcome.coverage == .null ? nil : outcome.coverage.percent
         fileReports = MuterTestReport.fileReports(from: outcome, suspects: summary?.suspectIdentities ?? [])
         timeElapsed = outcome.testDuration.formatted()
+        since = outcome.since.map(SinceScope.init)
+    }
+}
+
+/// The part of the project a `--since` run mutated, as its reports say.
+struct SinceScope: Codable, Equatable {
+    let ref: String
+    let mergeBase: String
+    let changedLines: Bool
+
+    init(_ selection: ChangeSelection) {
+        ref = selection.ref
+        mergeBase = selection.mergeBase
+        changedLines = selection.changedLines
+    }
+
+    /// "Only the code changed since the merge base of main and HEAD (abc1234) was mutated."
+    var sentence: String {
+        "Only the \(changedLines ? "lines" : "files") changed since the merge base of \(ref) and HEAD "
+            + "(\(mergeBase.prefix(7))) were mutated."
     }
 }
 
@@ -227,5 +249,6 @@ extension MuterTestReport: Codable {
         case fileReports
         case timeElapsed
         case killingTestSummary
+        case since
     }
 }

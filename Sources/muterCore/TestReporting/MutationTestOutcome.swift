@@ -7,19 +7,23 @@ struct MutationTestOutcome {
     let coverageSkipped: Bool
     let testDuration: TimeInterval
     let newVersion: String
+    /// What `--since` chose; nil without it.
+    let since: ChangeSelection?
 
     init(
         mutations: [Mutation] = [],
         coverage: Coverage = .null,
         coverageSkipped: Bool = false,
         testDuration: TimeInterval = 0,
-        newVersion: String = ""
+        newVersion: String = "",
+        since: ChangeSelection? = nil
     ) {
         self.mutations = mutations
         self.coverage = coverage
         self.coverageSkipped = coverageSkipped
         self.testDuration = testDuration
         self.newVersion = newVersion
+        self.since = since
     }
 }
 

@@ -53,6 +53,32 @@ final class RunCommandTests: XCTestCase {
         XCTAssertNotEqual(Run.Options.make(resumeIgnoring: ["README.md"]), .make())
         XCTAssertNotEqual(Run.Options.make(forceResume: true), .make())
         XCTAssertNotEqual(Run.Options.make(verbose: true), .make())
+        XCTAssertNotEqual(Run.Options.make(since: "main"), .make())
+        XCTAssertNotEqual(Run.Options.make(since: "main", changedLinesOnly: true), .make(since: "main"))
+    }
+
+    // --since chooses the files itself, and --changed-lines only narrows what it chose.
+    func test_sinceOptions_needEachOther_andNotFilesToMutate() {
+        assertUsageError(["run", "--changed-lines"], "--changed-lines only applies with --since.")
+        assertUsageError(
+            ["run", "--since", "main", "--files-to-mutate", "A.swift"],
+            "--since and --files-to-mutate can't be given together."
+        )
+        assertUsageError(["run", "--since=--all"], "--since takes a git ref, such as main or origin/main, not an option.")
+    }
+
+    func test_sinceOptions_reachTheRunOptions_andTheHelp() throws {
+        let options = try XCTUnwrap(MuterCommand.parseAsRoot(["run", "--since", "origin/main", "--changed-lines"]) as? Run)
+            .runOptions
+        XCTAssertEqual(options.since, "origin/main")
+        XCTAssertTrue(options.changedLinesOnly)
+        let plain = try XCTUnwrap(MuterCommand.parseAsRoot(["run"]) as? Run).runOptions
+        XCTAssertNil(plain.since)
+        XCTAssertFalse(plain.changedLinesOnly)
+        let help = Run.helpMessage(columns: 200)
+        XCTAssertTrue(help.contains("\n  --since <ref>"), help)
+        XCTAssertTrue(help.contains("\n  --changed-lines"), help)
+        XCTAssertTrue(help.contains("merge base of this git ref and HEAD"), help)
     }
 
     // They only say what a resume may reuse, so without one they're a mistake, which ArgumentParser shows with the
@@ -172,6 +198,14 @@ final class RunCommandTests: XCTestCase {
         XCTAssertTrue(other.contains("SwiftMutator has encountered an error"), other)
         XCTAssertTrue(other.contains("\(MuterError.noSourceFilesDiscovered)"), other)
         XCTAssertTrue(other.contains("please open an issue"), other)
+    }
+
+    // git couldn't answer, or there is nothing to mutate: each says what happened, and neither is a bug.
+    func test_sinceOutcomes_areShownWithoutTheBugReportBanner() {
+        let unknown = ChangeSelectionError.unknownRef("origin/main")
+        XCTAssertEqual(Run.message(showing: unknown), "\(unknown)")
+        let nothing = NothingToMutate(reason: .noSwiftFileChanged, selection: .make())
+        XCTAssertEqual(Run.message(showing: nothing), "\(nothing)")
     }
 }
 

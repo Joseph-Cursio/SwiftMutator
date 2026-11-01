@@ -255,9 +255,10 @@ enum GitFileListing {
     }
 
     /// The environment git runs in: `environment` without the variables that name a repository, as a hook's does,
-    /// so `-C` alone says which one; and without optional locks, so a listing never refreshes the user's index.
+    /// so `-C` alone says which one; without `GIT_DIFF_OPTS`, which would add context to `--since`'s `-U0` diffs; and
+    /// without optional locks, so a listing never refreshes the user's index.
     static func environment(_ environment: [String: String]) -> [String: String] {
-        var environment = environment.filter { !repositoryVariables.contains($0.key) }
+        var environment = environment.filter { !repositoryVariables.contains($0.key) && $0.key != "GIT_DIFF_OPTS" }
         environment["GIT_OPTIONAL_LOCKS"] = "0"
         return environment
     }
@@ -272,7 +273,7 @@ enum GitFileListing {
 
     /// Whether `directory` lies below its repository's top level, in a folder the repository ignores. git lists none of
     /// the untracked files there, and a listing of only the files forced in would leave out every test fixture.
-    private static func isIgnoredByItsRepository(_ directory: URL) async -> Bool {
+    static func isIgnoredByItsRepository(_ directory: URL) async -> Bool {
         // At the top level `.` reads as ignored when the repository ignores everything, though git lists what it
         // tracks.
         guard let prefix = await run(["rev-parse", "--show-prefix"], in: directory), prefix.status == 0,
@@ -311,12 +312,17 @@ enum GitFileListing {
 
     /// git with `arguments`, in `directory`: its exit status and output, or nil if it didn't run or was killed.
     private static func run(_ arguments: [String], in directory: URL) async -> (status: Int32, output: String)? {
+        await git(arguments, in: directory).map { ($0.status, $0.output) }
+    }
+
+    /// git with `arguments`, in `directory`, in `environment(_:)`: how it ended, or nil if it didn't run or was killed.
+    static func git(_ arguments: [String], in directory: URL) async -> CommandResult? {
         let git = Foundation.Process()
         git.environment = environment(ProcessInfo.processInfo.environment)
         guard let result = await git.runCommand(url: "/usr/bin/git", arguments: ["-C", directory.path] + arguments),
               !result.endedBySignal
         else { return nil }
-        return (result.status, result.output)
+        return result
     }
 
     /// A folder, not a symbolic link to one: git lists a link as a file of its own.

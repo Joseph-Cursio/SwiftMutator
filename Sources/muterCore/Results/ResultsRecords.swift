@@ -153,6 +153,8 @@ struct ResultsHeader: Codable, Equatable {
     /// Only in a session that reuses an earlier run's results (`--reuse`): that run's results file. The results it
     /// kept follow the header, each with its `reusedFrom`.
     var reusedFrom: String?
+    /// Only in a session run with `--since`: the files, and with `--changed-lines` the lines, it chose.
+    var since: ChangeSelection?
 }
 
 extension ResultsHeader {
@@ -207,7 +209,8 @@ extension ResultsHeader {
             waived: waived,
             forced: forced,
             testBundlesRunDirectly: configuration.directTestRun == nil ? nil : true,
-            reusedFrom: reusedFrom
+            reusedFrom: reusedFrom,
+            since: state.changeSelection
         )
     }
 }
