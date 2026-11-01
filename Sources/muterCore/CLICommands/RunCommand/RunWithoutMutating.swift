@@ -8,6 +8,7 @@ struct RunWithoutMutating: RunCommand {
     )
 
     @OptionGroup var options: RunArguments
+    @OptionGroup var testing: TestingArguments
     @OptionGroup var reportOptions: ReportArguments
 
     @Argument(
@@ -26,7 +27,9 @@ struct RunWithoutMutating: RunCommand {
             skipUpdateCheck: options.skipUpdateCheck,
             verbose: options.verbose,
             configurationURL: options.configurationURL,
-            testPlanURL: testPlanURL
+            testPlanURL: testPlanURL,
+            workers: testing.workers,
+            timeout: testing.timeout
         )
     }
 

@@ -219,6 +219,23 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         XCTAssertEqual(clonedCounts, [1], "two mutants need one clone, not seven")
     }
 
+    // Said, with why fewer than asked for, once the baseline has passed.
+    func test_theWorkersUsed_areSaid() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 8
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
+        var choices: [WorkerChoice] = []
+        let subscription = runEvents.observe(.workersChosen) { event in
+            if case let .workersChosen(choice) = event { choices.append(choice) }
+        }
+        defer { subscription.cancel() }
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(choices, [WorkerChoice(asked: 8, used: 2, isSwiftPM: true, mutantsToTest: 2)])
+    }
+
     // The progress bar's first estimate spreads the mutants over the workers that test them, which are never more
     // than the mutants.
     func test_theBaselinesLog_namesTheWorkersThatTestTheMutants() async throws {

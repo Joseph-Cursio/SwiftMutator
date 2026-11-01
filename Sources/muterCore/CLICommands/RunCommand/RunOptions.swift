@@ -19,6 +19,10 @@ extension Run {
         let verbose: Bool
         let configurationURL: URL?
         let testPlanURL: URL?
+        /// `--workers`: how many mutants to test at once, in place of `mutationTestWorkers`.
+        let workers: Int?
+        /// `--timeout`: seconds before a mutant's test run is stopped, in place of `mutationTestTimeout`.
+        let timeout: Double?
         let createTestPlan: Bool
         /// The results file, or the log folder that holds it, of the run that `--resume` continues.
         let resumeURL: URL?
@@ -56,6 +60,8 @@ extension Run {
             verbose: Bool = false,
             configurationURL: URL?,
             testPlanURL: URL? = nil,
+            workers: Int? = nil,
+            timeout: Double? = nil,
             createTestPlan: Bool = false,
             resumeURL: URL? = nil,
             reuseURL: URL? = nil,
@@ -71,6 +77,8 @@ extension Run {
             self.mutationOperatorsList = mutationOperatorsList
             self.configurationURL = configurationURL
             self.testPlanURL = testPlanURL
+            self.workers = workers
+            self.timeout = timeout
             self.resumeURL = resumeURL
             self.reuseURL = reuseURL
             self.resumeIgnoring = resumeIgnoring
@@ -101,6 +109,8 @@ extension Run.Options: Equatable {
             lhs.verbose == rhs.verbose &&
             lhs.configurationURL == rhs.configurationURL &&
             lhs.testPlanURL == rhs.testPlanURL &&
+            lhs.workers == rhs.workers &&
+            lhs.timeout == rhs.timeout &&
             lhs.createTestPlan == rhs.createTestPlan &&
             lhs.resumeURL == rhs.resumeURL &&
             lhs.reuseURL == rhs.reuseURL &&
@@ -125,6 +135,8 @@ extension Run.Options: Nullable {
             verbose: false,
             configurationURL: nil,
             testPlanURL: nil,
+            workers: nil,
+            timeout: nil,
             createTestPlan: false,
             resumeURL: nil,
             reuseURL: nil,

@@ -57,6 +57,33 @@ final class RunCommandTests: XCTestCase {
         XCTAssertNotEqual(Run.Options.make(since: "main", changedLinesOnly: true), .make(since: "main"))
     }
 
+    // For one run, in place of the configuration's keys, on each command that tests mutants.
+    func test_workersAndTimeout_reachTheRunOptions_ofEachCommandThatTests() throws {
+        let run = try XCTUnwrap(MuterCommand.parseAsRoot(["run", "--workers", "4", "--timeout", "90"]) as? Run)
+        XCTAssertEqual(run.runOptions.workers, 4)
+        XCTAssertEqual(run.runOptions.timeout, 90)
+        let plan = try MuterCommand.parseAsRoot(["run-without-mutating", "--workers", "2", "--timeout", "12.5", "plan.json"])
+        XCTAssertEqual(try XCTUnwrap(plan as? RunWithoutMutating).runOptions.workers, 2)
+        XCTAssertEqual(try XCTUnwrap(plan as? RunWithoutMutating).runOptions.timeout, 12.5)
+        let plain = try XCTUnwrap(MuterCommand.parseAsRoot(["run"]) as? Run).runOptions
+        XCTAssertNil(plain.workers)
+        XCTAssertNil(plain.timeout)
+        XCTAssertNotEqual(Run.Options.make(workers: 2), .make())
+        XCTAssertNotEqual(Run.Options.make(timeout: 30), .make())
+        let help = Run.helpMessage(columns: 200)
+        XCTAssertTrue(help.contains("\n  --workers <count>"), help)
+        XCTAssertTrue(help.contains("\n  --timeout <seconds>"), help)
+    }
+
+    func test_workersBelowOne_andATimeoutNotAboveZero_areUsageErrors() {
+        assertUsageError(["run", "--workers", "0"], "--workers must be at least 1.")
+        assertUsageError(["run", "--workers=-2"], "--workers must be at least 1.")
+        assertUsageError(["run", "--timeout", "0"], "--timeout must be a number of seconds above 0.")
+        assertUsageError(["run", "--timeout=-5"], "--timeout must be a number of seconds above 0.")
+        assertUsageError(["run", "--timeout", "inf"], "--timeout must be a number of seconds above 0.")
+        assertUsageError(["run", "--timeout", "nan"], "--timeout must be a number of seconds above 0.")
+    }
+
     // --since chooses the files itself, and --changed-lines only narrows what it chose.
     func test_sinceOptions_needEachOther_andNotFilesToMutate() {
         assertUsageError(["run", "--changed-lines"], "--changed-lines only applies with --since.")

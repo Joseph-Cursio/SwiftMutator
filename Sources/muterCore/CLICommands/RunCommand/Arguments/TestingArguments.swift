@@ -1,0 +1,33 @@
+import ArgumentParser
+import Foundation
+
+/// How mutants are tested, for the commands that test them: each in place of its configuration key for this run.
+struct TestingArguments: ParsableArguments {
+    @Option(
+        name: .customLong("workers"),
+        help: ArgumentHelp(
+            "How many mutants to test at once, in place of mutationTestWorkers. Only SwiftPM projects test more than "
+                + "one.",
+            valueName: "count"
+        )
+    )
+    var workers: Int?
+
+    @Option(
+        name: .customLong("timeout"),
+        help: ArgumentHelp(
+            "Seconds before a mutant's test run is stopped, in place of mutationTestTimeout.",
+            valueName: "seconds"
+        )
+    )
+    var timeout: Double?
+
+    func validate() throws {
+        if let workers, workers < 1 {
+            throw ValidationError("--workers must be at least 1.")
+        }
+        if let timeout, !(timeout > 0 && timeout.isFinite) {
+            throw ValidationError("--timeout must be a number of seconds above 0.")
+        }
+    }
+}

@@ -23,6 +23,7 @@ extension RunEvent {
         case resumePlanned
         case mutationTestingStarted
         case mutantRunsStarted
+        case workersChosen
         case stopAtFirstFailureTurnedOff
         case testBundlesNotRunDirectly
         case mutationTestingFinished
@@ -56,6 +57,7 @@ extension RunEvent {
         case .resumePlanned: .resumePlanned
         case .mutationTestingStarted: .mutationTestingStarted
         case .mutantRunsStarted: .mutantRunsStarted
+        case .workersChosen: .workersChosen
         case .stopAtFirstFailureTurnedOff: .stopAtFirstFailureTurnedOff
         case .testBundlesNotRunDirectly: .testBundlesNotRunDirectly
         case .mutationTestingFinished: .mutationTestingFinished
@@ -87,6 +89,7 @@ extension RunEvent {
         case let .sourceFileDiscoveryFinished(sourceFileCandidates): sourceFileCandidates
         case let .mutationsDiscoveryFinished(mappings): mappings
         case let .resumePlanned(summary): summary
+        case let .workersChosen(choice): choice
         case let .stopAtFirstFailureTurnedOff(reason): reason
         case let .testBundlesNotRunDirectly(reason): reason
         case let .mutationTestingFinished(outcome): outcome

@@ -49,7 +49,7 @@ The header's `project` lists five files here. A real one lists every file in the
 | `session` | Int | 1 for a run's first session, then one more for each session `--resume` adds to the file |
 | `startedAt` | Date | When mutation testing started. The run's test duration is measured from here. |
 | `provenance` | Object | The SwiftMutator build and toolchain the run used. See [below](#provenance). |
-| `configuration` | Object | The configuration as `muter.conf.yml` set it, under its own keys (`executable`, `arguments`, `exclude`, …). An `executable` given as a bare name, such as `swift`, is resolved to its full path. Optional settings that weren't set, such as `mutationTestTimeout`, are left out. |
+| `configuration` | Object | The configuration as `muter.conf.yml` set it, under its own keys (`executable`, `arguments`, `exclude`, …), with `--workers` and `--timeout`, when given, as `mutationTestWorkers` and `mutationTestTimeout`. An `executable` given as a bare name, such as `swift`, is resolved to its full path. Optional settings that weren't set, such as `mutationTestTimeout`, are left out. |
 | `operators` | [String] | The mutation operators used, by name, sorted |
 | `filesToMutate` | [String] | The files given with `--files-to-mutate`, or `[]` |
 | `skipCoverage` | Bool | Whether `--skip-coverage` was given |

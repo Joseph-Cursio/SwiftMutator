@@ -268,6 +268,9 @@ private extension PerformMutationTesting {
 
         // A clone costs a copy and about a baseline build, so there are never more workers than mutants to test.
         let workers = min(muterConfiguration.workerCount, plan.toRun.count)
+        if !plan.toRun.isEmpty {
+            events.send(.workersChosen(WorkerChoice(muterConfiguration, used: workers, mutantsToTest: plan.toRun.count)))
+        }
         var testRunSeconds: TimeInterval?
         // A reuse with nothing left to test ran the baseline only to see that the changed tests pass.
         if muterConfiguration.buildSystem == .swift, !plan.toRun.isEmpty {

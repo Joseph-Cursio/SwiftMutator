@@ -179,6 +179,18 @@ was for SwiftPM: `0.5` means 0.5%, so write `50` for half. The options are docum
 | `stopAtFirstFailure` | Stop a mutant's test run at its first failed test, or at a test process's crash, either of which already decides that it is killed (SwiftPM projects only; never the baseline; default true) |
 | `buildTimeout` | Seconds before the coverage run, which builds your project and runs its tests with coverage on, is stopped. Mutation testing then goes on without coverage, as after any coverage failure. For now it limits only the coverage run, not the baseline or other builds (default: no limit) |
 
+`--workers N` and `--timeout S`, on `run` and `run-without-mutating`, set `mutationTestWorkers`
+and `mutationTestTimeout` for one run, in place of the file's
+([#73](https://github.com/Joseph-Cursio/SwiftMutator/issues/73)). They must be at least 1 and
+above 0. The run records and compares them as it does the keys: a resume with another
+`--timeout` is refused, and another `--workers` only said. A run that tests several mutants at
+once says so, and one that uses fewer workers than asked says why:
+
+```
+👷 Testing 3 mutants at a time, though 4 workers were asked for: only 3 are left to test.
+👷 Testing one mutant at a time, though 4 workers were asked for: only SwiftPM projects test more than one at once.
+```
+
 ### Workers and release mode
 
 Measured on SwiftProjectLint's whole repo, 2,463 mutants, on an 18-core Mac, with
