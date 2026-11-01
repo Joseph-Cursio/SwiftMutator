@@ -245,7 +245,10 @@ swift-mutator run --since origin/main --changed-lines -o report.txt
   its own in the project, such as a local package with its own `.git`, aren't seen, and
   SwiftMutator names those folders. A symbolic link to a Swift file is never chosen. A file renamed
   only in case, without `git mv`, is followed by its name on disk.
-- **Measured** on SwiftProjectLint ([Docs/since-2026-11.md](Docs/since-2026-11.md)): MEASUREMENT.
+- **Measured** on SwiftProjectLint, with 4 workers
+  ([Docs/since-2026-11.md](Docs/since-2026-11.md)): a four-file pull request took 2.7 min by
+  whole files and 50 s by changed lines, against 27.3 min for the whole project, with every verdict
+  the full run's. A change to tests alone ended in 1 s, with nothing copied.
 
 ## Results file
 
