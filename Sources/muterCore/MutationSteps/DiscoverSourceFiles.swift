@@ -16,9 +16,13 @@ struct DiscoverSourceFiles: MutationStep {
     ) async throws -> [MutationTestState.Change] {
         events.send(.sourceFileDiscoveryStarted)
 
+        var listed = state.candidatePaths
+        if listed == nil, state.filesToMutate.isEmpty {
+            listed = try await candidatePaths(in: state)
+        }
         let sourceFileCandidates = state.filesToMutate.isEmpty
             ? discoverSourceFiles(
-                among: try await candidatePaths(in: state),
+                among: (listed ?? []).filter(isChosen(by: state)),
                 inDirectoryAt: state.mutatedProjectDirectoryURL.path,
                 excludingPathsIn: state.muterConfiguration.excludeFileList,
                 ignoringFilesWithoutCoverage: state.projectCoverage.filesWithoutCoverage,
@@ -35,6 +39,9 @@ struct DiscoverSourceFiles: MutationStep {
 
         events.send(.sourceFileDiscoveryFinished(sourceFileCandidates))
 
+        if let selection = state.changeSelection {
+            try check(sourceFileCandidates, against: selection, in: state)
+        }
         if !sourceFileCandidates.isEmpty {
             return [.sourceFileCandidatesDiscovered(sourceFileCandidates)]
         } else {
@@ -44,30 +51,40 @@ struct DiscoverSourceFiles: MutationStep {
 }
 
 private extension DiscoverSourceFiles {
-    /// Package manifests, versioned (`Package@swift-6.0.swift`) or not, are never mutated: every `swift test`
-    /// run in a worker folder has one environment, so SwiftPM reuses the baseline's cached manifest and a
-    /// mutant in one would never switch on.
-    private var defaultExcludeList: [FilePath] {
-        [
-            "/.swiftpm/",
-            "/.build/",
-            "/Build/",
-            "/Carthage/",
-            "/muter_tmp/",
-            "/Pods/",
-            "/Spec/",
-            "/Tests/",
-            "Tests.swift",
-            "/fastlane/",
-            "/Package.swift",
-            "/Package@swift-",
-        ]
+    /// With `--since`, whether a path in the project is one of the files it chose; without, every path is.
+    func isChosen(by state: AnyMutationTestState) -> (FilePath) -> Bool {
+        guard let selection = state.changeSelection else { return { _ in true } }
+        let chosen = Set(selection.files.map(\.path))
+        return { chosen.contains($0.precomposedStringWithCanonicalMapping) }
     }
 
+    /// That `--since` left a file to mutate, and that each is as git compared it: the copy is made after, and the lines
+    /// of a file changed in between would be wrong.
+    func check(_ candidates: [FilePath], against selection: ChangeSelection, in state: AnyMutationTestState) throws {
+        guard !candidates.isEmpty else {
+            let isExcluded = SourceFileExcludes.matcher(state.muterConfiguration.excludeFileList)
+            let count = selection.files.filter { !isExcluded($0.path) }.count
+            throw NothingToMutate(reason: .noFileDiscovered(count: count), selection: selection)
+        }
+        for candidate in candidates {
+            let path = RepoRelativePath.of(candidate, under: state.mutatedProjectDirectoryURL)
+                .precomposedStringWithCanonicalMapping
+            guard let file = selection.file(at: path) else { continue }
+            if let copied = state.projectTree?.files[path], copied != file.sha256 {
+                throw ChangeSelectionError.changedDuringTheRun(path: path)
+            }
+        }
+    }
+}
+
+private extension DiscoverSourceFiles {
+}
+
+extension DiscoverSourceFiles {
     /// The paths in the mutated project, relative to it, that discovery picks from. For a SwiftPM project, the Swift
     /// files its targets compile, and those of the local packages in it that it depends on, as `swift package describe`
     /// gives them. Otherwise, or if that fails, every path in the project that isn't hidden or ignored.
-    private func candidatePaths(in state: AnyMutationTestState) async throws -> [FilePath] {
+    func candidatePaths(in state: AnyMutationTestState) async throws -> [FilePath] {
         let rootPath = state.mutatedProjectDirectoryURL.path
         if state.muterConfiguration.buildSystem == .swift {
             switch await packageSourceFiles(inProjectAt: rootPath, testedBy: state.muterConfiguration) {
@@ -83,6 +100,9 @@ private extension DiscoverSourceFiles {
         return await pathsNotHiddenOrIgnored(in: rootPath, listedIn: state.projectDirectoryURL)
     }
 
+}
+
+private extension DiscoverSourceFiles {
     /// `SwiftPackageSources.files`, run in the mutated project at `rootPath`, as the coverage run and the tests are:
     /// a relative `executable` or `--package-path` is relative to it.
     private func packageSourceFiles(
@@ -125,13 +145,11 @@ private extension DiscoverSourceFiles {
         ignoringFilesWithoutCoverage filesWithoutCoverage: [FilePath],
         keepingOnly filesInCoverage: [FilePath]?
     ) -> [FilePath] {
-        let excludeList = providedExcludeList + defaultExcludeList
-        let subpaths = candidatePaths.map { "./" + $0 }
+        let isExcluded = SourceFileExcludes.matcher(providedExcludeList)
 
         return includeSwiftFiles(
-            from: subpaths
-                .exclude(pathsContainingItems(from: excludeList))
-                .map { String($0.dropFirst(2)) }
+            from: candidatePaths
+                .exclude(isExcluded)
                 .map { append(root: rootPath, to: $0) }
         )
         // Only Swift files are checked against coverage: each check resolves the path on disk, and a
@@ -140,20 +158,6 @@ private extension DiscoverSourceFiles {
         // A file the coverage data doesn't name has no code in any binary the tests ran, as an example app's or an
         // unused target's hasn't, so no test could kill its mutants. Without coverage, none is left out for this.
         .include(filesInCoverage.map { anyOf($0, root: rootPath) } ?? { _ in true })
-    }
-
-    /// Whether a path, given as `./` and its path in the project, is left out: it contains an entry with no `*`, such as
-    /// `/Generated/`, or an entry with one, such as `Sources/**/Generated/*.swift`, matches it.
-    private func pathsContainingItems(
-        from excludeList: [FilePath]
-    ) -> (FilePath) -> Bool {
-        let fragments = excludeList.filter { !$0.contains("*") }
-        let globs = excludeList.filter { $0.contains("*") }.map(ExcludeGlob.init)
-
-        return { path in
-            let pathInProject = String(path.dropFirst(2))
-            return fragments.contains { path.contains($0) } || globs.contains { $0.matches(pathInProject) }
-        }
     }
 
     /// Whether a path is one of `list`, the coverage's. Matches by canonical path, since the coverage tools may spell a

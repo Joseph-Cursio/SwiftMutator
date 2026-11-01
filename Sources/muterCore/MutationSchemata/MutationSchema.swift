@@ -14,6 +14,9 @@ struct MutationSchema {
     let syntaxMutation: CodeBlockItemListSyntax
     let position: MutationPosition
     let snapshot: MutationOperator.Snapshot
+    /// The lines of the code the mutant changes, in the original file, which `--changed-lines` checks against the
+    /// change's; nil when not known, as in a test plan, which doesn't record them.
+    var lines: ClosedRange<Int>?
 
     var fileName: String {
         URL(fileURLWithPath: filePath).lastPathComponent

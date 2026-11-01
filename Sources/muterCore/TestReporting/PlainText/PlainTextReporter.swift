@@ -40,7 +40,7 @@ struct PlainTextReporter: Reporter {
             report.numberOfKilledMutants
         ).
         \(mutationScoreMessage)\(suspectScoreLines(from: report))
-        \(projectCoverageMessage)
+        \(projectCoverageMessage)\(report.since.map { "\n" + $0.sentence } ?? "")
 
         \(generateMutationScoresCLITable(from: report.fileReports).description)
         """

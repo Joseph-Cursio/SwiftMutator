@@ -136,6 +136,15 @@ class MuterVisitor: SyntaxAnyVisitor {
         )
     }
 
+    /// The lines `node`'s code is on, without the comments and blank lines around it, as the original file numbers
+    /// them.
+    private func lines(of node: SyntaxProtocol) -> ClosedRange<Int> {
+        let first = locationConverter.location(for: node.positionAfterSkippingLeadingTrivia).line
+        let last = locationConverter.location(for: node.endPositionBeforeTrailingTrivia).line
+        let offset = sourceCodePreparationChange.newLines
+        return (first - offset)...max(first, last) - offset
+    }
+
     private func mutationPosition(
         for sourceLocation: SourceLocation
     ) -> MutationPosition {
@@ -212,13 +221,15 @@ class MuterVisitor: SyntaxAnyVisitor {
     }
 
     /// Adds the mutant that replaces `syntax` with `mutation`. `changed` is the node the mutant changes, when that
-    /// isn't `syntax` itself, as RemoveSideEffects replaces a body's statement list to remove one statement.
+    /// isn't `syntax` itself, as RemoveSideEffects replaces a body's statement list to remove one statement. `span` is
+    /// the code whose lines `--changed-lines` checks, when that is more than `changed`, as an operator's operands are.
     func add(
         mutation: SyntaxProtocol,
         with syntax: SyntaxProtocol,
         at position: MutationPosition,
         snapshot: MutationOperator.Snapshot,
-        changing changed: SyntaxProtocol? = nil
+        changing changed: SyntaxProtocol? = nil,
+        spanning span: SyntaxProtocol? = nil
     ) {
         guard !isDisabled else {
             return
@@ -238,12 +249,13 @@ class MuterVisitor: SyntaxAnyVisitor {
             return
         }
 
-        let schemata = makeSchemata(
+        var schemata = makeSchemata(
             with: syntax,
             mutation: mutation,
             at: position,
             for: snapshot
         )
+        schemata.lines = lines(of: span ?? changed ?? syntax)
 
         schemataMappings.add(
             syntax.codeBlockItemListSyntax,

@@ -42,7 +42,13 @@ struct LoadResumeState: MutationStep {
             )
         }
         do {
-            return try await [.resumeStateLoaded(check(file, at: path, against: state))]
+            let resume = try await check(file, at: path, against: state)
+            // The command that continues a run names its merge base, which the run's reports go on calling by its ref.
+            if let recorded = resume.lastHeader.since, let selection = state.changeSelection,
+               recorded.mergeBase == selection.mergeBase {
+                return [.resumeStateLoaded(resume), .changesSelected(selection.named(recorded.ref))]
+            }
+            return [.resumeStateLoaded(resume)]
         } catch {
             // The lock goes with a refusal, or a file that can't be resumed, rather than when SwiftMutator exits.
             file.close()
@@ -85,7 +91,8 @@ struct LoadResumeState: MutationStep {
         let verdict = ResumeCheck.compare(
             lastHeader,
             with: ResumeCheck.Current(state: state, provenance: current),
-            forcing: options.forceResume
+            forcing: options.forceResume,
+            reusing: file == nil
         )
         var reasons = verdict.refusals
         if let reportPath = options.reportOptions.path, ResultsFile.isSameFile(reportPath, path) {

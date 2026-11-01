@@ -127,6 +127,15 @@ struct SchemataMutationMapping: Sendable {
         }
     }
 
+    /// Keeps only the mutants `isKept` keeps, and the blocks left with any.
+    mutating func keepOnly(_ isKept: (MutationSchema) -> Bool) {
+        for (key, schemata) in mappings {
+            let kept = schemata.filter(isKept)
+            mappings[key] = kept.isEmpty ? nil : kept
+            if kept.isEmpty { codeBlockText[key] = nil }
+        }
+    }
+
     // Key-based add for merging two mappings without reconstructing a syntax node from text.
     fileprivate mutating func add(
         _ key: CodeBlockKey,

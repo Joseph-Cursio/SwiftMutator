@@ -8,6 +8,7 @@ extension RunEvent {
         case muterLaunched
         case updateCheckStarted
         case updateCheckFinished
+        case changesSelected
         case projectCopyStarted
         case projectCopySkippedVanishedFiles
         case projectCopyFinished
@@ -40,6 +41,7 @@ extension RunEvent {
         case .muterLaunched: .muterLaunched
         case .updateCheckStarted: .updateCheckStarted
         case .updateCheckFinished: .updateCheckFinished
+        case .changesSelected: .changesSelected
         case .projectCopyStarted: .projectCopyStarted
         case .projectCopySkippedVanishedFiles: .projectCopySkippedVanishedFiles
         case .projectCopyFinished: .projectCopyFinished
@@ -76,6 +78,7 @@ extension RunEvent {
              .muterMutationTestPlanLoaded:
             nil
         case let .updateCheckFinished(newVersion): newVersion
+        case let .changesSelected(selection): selection
         case let .projectCopySkippedVanishedFiles(paths): paths
         case let .projectCopyFinished(destinationPath): destinationPath
         case let .projectCoverageDiscoveryFinished(failure): failure

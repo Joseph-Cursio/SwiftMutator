@@ -65,6 +65,8 @@ private extension [MutationStep] {
         [
             UpdateCheck(),
             LoadConfiguration(),
+            // Before a resume is checked, which compares what it chose, and before anything is copied.
+            SelectChangedCode(),
             // Before the last run's copy is removed, which a run still writing the results file is testing in.
             LoadResumeState(),
             CreateMutatedProjectDirectoryURL(),
@@ -73,6 +75,8 @@ private extension [MutationStep] {
             PreviousRunCleanUp(),
             CopyProjectToTempDirectory(),
             FingerprintProjectTree(),
+            // Before the coverage run, which runs the whole test suite.
+            ListChangedSources(),
             DiscoverProjectCoverage(),
             DiscoverSourceFiles(),
             DiscoverMutationPoints(),
@@ -142,6 +146,10 @@ private extension [MutationStep] {
 
         if options.continuedFrom == nil {
             copy.removeAll { $0 is LoadResumeState }
+        }
+
+        if options.since == nil {
+            copy.removeAll { $0 is SelectChangedCode || $0 is ListChangedSources }
         }
 
         return copy

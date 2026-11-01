@@ -48,7 +48,7 @@ enum ResumeRefusal: Equatable, CustomStringConvertible {
     case inUse(lastProcess: Int32?, lastHost: String?)
     /// A configuration key that some outcome depends on.
     case configurationChanged(ResumeCheck.Difference)
-    /// `operators`, `filesToMutate` or `skipCoverage`: which mutants are tested.
+    /// `operators`, `filesToMutate`, `skipCoverage` or what `--since` chose: which mutants are tested.
     case selectionChanged(ResumeCheck.Difference)
     /// What identifies the SwiftMutator build, the toolchain or the SDK, which `--force-resume` lets through.
     case needsForce(ResumeCheck.Difference)

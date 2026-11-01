@@ -59,6 +59,8 @@ typealias DirectTestRunProbe = @Sendable (MuterConfiguration, _ project: URL) as
     -> Result<DirectTestRun, DirectTestRun.Unavailable>
 /// The files in a project, relative to it, or nil if it can't list them.
 typealias ProjectFileListing = @Sendable (URL) async -> [String]?
+/// `--since`'s choice: the ref, whether only changed lines count, and the project.
+typealias ChangeSelectionProbe = @Sendable (String, Bool, URL) async -> Result<ChangeSelection, ChangeSelectionError>
 /// Waits that many nanoseconds, or throws a CancellationError once the task is cancelled.
 typealias Sleep = @Sendable (UInt64) async throws -> Void
 
@@ -101,6 +103,7 @@ struct World: Sendable {
     var resultsFiles: ResultsFileOpening = ResultsFile.Opener()
     var mutatedProjectLocker: MutatedProjectLocking = MutatedProjectLock.Locker()
     var listProjectFiles: ProjectFileListing = { await GitFileListing.list(in: $0) }
+    var selectChanges: ChangeSelectionProbe = { await GitChanges.select(since: $0, changedLines: $1, in: $2) }
     /// SwiftMutator's command-line arguments, after the executable: what a results file's header records, and what the
     /// command that continues a stopped run repeats.
     var commandLineArguments: [String] = Array(CommandLine.arguments.dropFirst())

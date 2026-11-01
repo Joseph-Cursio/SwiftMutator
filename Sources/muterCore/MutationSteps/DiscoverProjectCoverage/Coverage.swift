@@ -44,6 +44,25 @@ extension Coverage: Equatable {
     }
 }
 
+extension Coverage {
+    /// The coverage a `--since` run reports: of the files without coverage, only those `selection` chose, as the others
+    /// weren't the run's to test. The files are named by their paths in the copy at `copy`, or in the project. Without
+    /// a selection, all of them.
+    func limited(to selection: ChangeSelection?, inCopyAt copy: URL) -> Coverage {
+        guard let selection else { return self }
+        let chosen = Set(selection.files.map(\.path))
+        return Coverage(
+            percent: percent,
+            filesWithoutCoverage: filesWithoutCoverage.filter {
+                chosen.contains(RepoRelativePath.of($0, under: copy).precomposedStringWithCanonicalMapping)
+            },
+            functionsCoverage: functionsCoverage,
+            filesInCoverage: filesInCoverage,
+            testsFailedWithCoverageOn: testsFailedWithCoverageOn
+        )
+    }
+}
+
 extension Coverage: Nullable {
     static var null: Coverage {
         Coverage(

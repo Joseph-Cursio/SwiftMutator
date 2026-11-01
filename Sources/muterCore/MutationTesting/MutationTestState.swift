@@ -34,6 +34,11 @@ protocol AnyMutationTestState: AnyObject {
     /// What changed since each session of the run `--reuse` starts from, by session; nil unless the run reuses one. A
     /// session that recorded no project files has none.
     var reuseChanges: [Int: ReuseChanges]? { get }
+    /// The files, and with `--changed-lines` the lines, that `--since` chose; nil without `--since`.
+    var changeSelection: ChangeSelection? { get }
+    /// The paths in the mutated project, relative to it, that discovery picks from, once listed before coverage is
+    /// gathered, as a `--since` run lists them; nil until then, when discovery lists them itself.
+    var candidatePaths: [FilePath]? { get }
 
     func apply(_ stateChanges: [MutationTestState.Change])
 }
@@ -60,6 +65,8 @@ final class MutationTestState: AnyMutationTestState {
     var resumeState: ResumeState?
     var resumeWaived: [String] = []
     var reuseChanges: [Int: ReuseChanges]?
+    var changeSelection: ChangeSelection?
+    var candidatePaths: [FilePath]?
 
     init() {}
 
@@ -89,6 +96,8 @@ extension MutationTestState {
         case resumeStateLoaded(ResumeState)
         case projectChangesWaived([String])
         case reuseChangesFound([Int: ReuseChanges])
+        case changesSelected(ChangeSelection)
+        case candidatePathsListed([FilePath])
     }
 }
 
@@ -130,6 +139,10 @@ extension MutationTestState {
                 resumeWaived = paths
             case let .reuseChangesFound(changes):
                 reuseChanges = changes
+            case let .changesSelected(selection):
+                changeSelection = selection
+            case let .candidatePathsListed(paths):
+                candidatePaths = paths
             }
         }
     }

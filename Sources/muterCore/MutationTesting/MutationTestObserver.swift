@@ -22,6 +22,8 @@ final class MutationTestObserver {
     private(set) var loggingDirectory: String = ""
     /// The run's results file, while every result has been written to it.
     private var resultsFilePath: String?
+    /// The merge base `--since` compared the working tree with, which the command that continues the run names.
+    private var sinceMergeBase: String?
     private let runOptions: Run.Options
 
     /// The observer's registration with the run's events, from `start()`; it ends when the observer does.
@@ -52,6 +54,10 @@ extension MutationTestObserver {
             logger.updateCheckStarted()
         case let .updateCheckFinished(newVersion):
             logger.updateCheckFinished(newVersion: newVersion)
+
+        case let .changesSelected(selection):
+            sinceMergeBase = selection.mergeBase
+            logger.changesSelected(selection, verbose: runOptions.verbose)
 
         case .projectCopyStarted:
             logger.projectCopyStarted()
@@ -161,7 +167,9 @@ extension MutationTestObserver {
         // A run from a test plan can't be resumed: ResumeCheck refuses it.
         let continueCommand = runOptions.isUsingTestPlan
             ? nil
-            : resultsFilePath.map { ResumeHint.command(continuing: commandLineArguments, from: $0) }
+            : resultsFilePath.map {
+                ResumeHint.command(continuing: commandLineArguments, from: $0, since: sinceMergeBase)
+            }
         logger.mutationTestingEndedEarly(
             earlyEnd,
             partialReport: partialReport,

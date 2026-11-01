@@ -205,6 +205,48 @@ Measured on SwiftProjectLint's whole repo, 2,463 mutants, on an 18-core Mac, wit
     evaluated, and code and tests under `#if DEBUG` drop out. `precondition` is still checked. If
     your code relies on them, compare a release run's survivors with a debug run's.
 
+## Mutating only what a branch changed
+
+`run --since <ref>` mutates only the Swift files that changed since the merge base of the git ref
+and HEAD, as a pull request shows them
+([#72](https://github.com/Joseph-Cursio/SwiftMutator/issues/72)). `--changed-lines` narrows that
+to the mutants on the lines the change added or changed.
+
+```
+swift-mutator run --since origin/main --changed-lines -o report.txt
+🌿 5 Swift files changed since the merge base of origin/main and HEAD (3f9c2e1), of which only the changed lines are mutated.
+```
+
+- **What counts as changed.** The working tree is compared with the merge base, so commits on the
+  branch, uncommitted changes, and new files git doesn't ignore all count. Changes the base branch
+  made after the branch left it don't. A removed file has nothing to mutate.
+- **The usual filters still apply.** Of the changed files, the excludes, both default and
+  configured, leave out tests, manifests and what `exclude` names. Then, as in any run, only what
+  the package's targets compile is mutated, and the coverage filter applies.
+- **`--changed-lines`** keeps a mutant when its code is on a line the change added or changed, or
+  lost lines from its middle. That is the whole statement for a removed statement, the whole
+  ternary for a swapped one, and the whole expression for an operator, so an edit to an operand on
+  another line counts. Removing lines between two statements selects neither.
+- **Nothing to mutate isn't a failure.** When no Swift file changed, or the filters leave none, or
+  no mutant is on a changed line, SwiftMutator says which, writes no report or results file, and
+  exits with 0, so a CI job on a change to docs or tests passes. A ref git doesn't know, no common
+  history, or unresolved merge conflicts fail the run before anything is copied.
+- **In CI**, the base branch's history has to be there: a shallow clone has no merge base. With
+  `actions/checkout`, set `fetch-depth: 0`, and compare with `origin/<base>`.
+- **Resuming.** The results file's header records what `--since` chose. A resume compares its merge
+  base and `--changed-lines`, and the Continue line names the merge base, so a ref that moved since,
+  as `origin/main` does after a fetch, still resumes. Files changed meanwhile are compared as in any
+  resume. `--reuse` keeps an earlier run's results for the mutants this run chose, whatever that
+  run chose.
+- **The reports say so.** The plain and HTML reports say which ref the mutated code changed since,
+  and the JSON report gives it as `since`. Of the files without coverage, they list only the
+  changed ones.
+- **Limits.** git compares only this repository, so changes inside a submodule or a repository of
+  its own in the project, such as a local package with its own `.git`, aren't seen, and
+  SwiftMutator names those folders. A symbolic link to a Swift file is never chosen. A file renamed
+  only in case, without `git mv`, is followed by its name on disk.
+- **Measured** on SwiftProjectLint ([Docs/since-2026-11.md](Docs/since-2026-11.md)): MEASUREMENT.
+
 ## Results file
 
 SwiftMutator saves each mutant's result as soon as it is tested, as one line of JSON in
@@ -479,6 +521,7 @@ doesn't end with `Nothing was copied or removed.`
 |---|---|
 | A configuration key changed, other than `mutationTestWorkers`, `stopAtFirstFailure` and `buildTimeout` | Refused: start a new run |
 | `--operators`, `--files-to-mutate` or `--skip-coverage` changed | Refused: start a new run |
+| `--since`'s merge base or `--changed-lines` changed, or `--since` given in one session only | Refused: start a new run. `--reuse` doesn't compare them |
 | `mutationTestWorkers`, `stopAtFirstFailure` or `buildTimeout` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
 | SwiftMutator, the toolchain or the SDK changed | Refused, unless `--force-resume` is given |
 | Project files changed, were added or were removed | Refused, unless a `--resume-ignoring` glob matches each one |

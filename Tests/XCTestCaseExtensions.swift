@@ -60,6 +60,8 @@ class MuterTestCase: XCTestCase {
             directTestRun: { _, _ in .failure(.init(reason: nil)) },
             resultsFiles: resultsFiles,
             mutatedProjectLocker: mutatedProjectLocker,
+            // Never git in the checkout the tests run in: a test of --since gives its own.
+            selectChanges: { _, _, _ in .failure(.gitFailed(arguments: [], errors: "not stubbed")) },
             // Never the test runner's own.
             commandLineArguments: ["run"]
         )

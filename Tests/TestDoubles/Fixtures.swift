@@ -91,7 +91,8 @@ extension ResumeSummary {
         notices: [String] = [],
         isReuse: Bool = false,
         otherFilesChanged: [ProjectTree.FileChange] = [],
-        testFilesChanged: Int = 0
+        testFilesChanged: Int = 0,
+        selectionChange: String? = nil
     ) -> ResumeSummary {
         ResumeSummary(
             path: path,
@@ -107,7 +108,8 @@ extension ResumeSummary {
             waived: waived,
             notices: notices,
             otherFilesChanged: otherFilesChanged,
-            testFilesChanged: testFilesChanged
+            testFilesChanged: testFilesChanged,
+            selectionChange: selectionChange
         )
     }
 }
@@ -365,6 +367,8 @@ extension FileCoverage {
 extension Run.Options {
     static func make(
         filesToMutate: [String] = [],
+        since: String? = nil,
+        changedLinesOnly: Bool = false,
         reportFormat: ReportFormat = .plain,
         reportURL: URL? = nil,
         mutationOperatorsList: MutationOperatorList = [],
@@ -381,6 +385,8 @@ extension Run.Options {
     ) -> Self {
         .init(
             filesToMutate: filesToMutate,
+            since: since,
+            changedLinesOnly: changedLinesOnly,
             reportFormat: reportFormat,
             reportURL: reportURL,
             mutationOperatorsList: mutationOperatorsList,
@@ -579,7 +585,8 @@ extension ResultsHeader {
         waived: [String]? = nil,
         forced: [String]? = nil,
         logDirectory: String = "/project_muter_logs/run",
-        reusedFrom: String? = nil
+        reusedFrom: String? = nil,
+        since: ChangeSelection? = nil
     ) -> ResultsHeader {
         ResultsHeader(
             formatVersion: formatVersion,
@@ -609,7 +616,28 @@ extension ResultsHeader {
             mutantsReused: mutantsReused,
             waived: waived,
             forced: forced,
-            reusedFrom: reusedFrom
+            reusedFrom: reusedFrom,
+            since: since
+        )
+    }
+}
+
+extension ChangeSelection {
+    static func make(
+        ref: String = "main",
+        commit: String = "c0ffee0000000000000000000000000000000000",
+        mergeBase: String = "ba5e000000000000000000000000000000000000",
+        changedLines: Bool = false,
+        files: [ChangedFile] = [],
+        foldersNotCompared: [String] = []
+    ) -> ChangeSelection {
+        ChangeSelection(
+            ref: ref,
+            commit: commit,
+            mergeBase: mergeBase,
+            changedLines: changedLines,
+            files: files,
+            foldersNotCompared: foldersNotCompared
         )
     }
 }

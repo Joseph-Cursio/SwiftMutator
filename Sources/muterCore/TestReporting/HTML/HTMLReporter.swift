@@ -113,6 +113,17 @@ extension Node where Context: HTML.BodyContext {
                     )
                 )
             },
+            .unwrap(testReport.since) { since in
+                .div(
+                    .class("header-item"),
+                    .div(
+                        .class("box"),
+                        .style("background-color: #8e44ad"),
+                        .p(.class("small"), .text((since.changedLines ? "Lines" : "Files") + " changed since")),
+                        .h1(.text(since.ref))
+                    )
+                )
+            },
             .div(
                 .class("header-item"),
                 .div(

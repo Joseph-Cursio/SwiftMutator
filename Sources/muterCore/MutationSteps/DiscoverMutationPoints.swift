@@ -12,15 +12,25 @@ struct DiscoverMutationPoints: MutationStep {
     ) async throws -> [MutationTestState.Change] {
         events.send(.mutationsDiscoveryStarted)
 
-        let discovered = await discoverMutationPoints(
+        let all = await discoverMutationPoints(
             forOperators: state.mutationOperatorList,
             inFilesAt: state.sourceFileCandidates,
             configuration: state.muterConfiguration,
             coverage: state.projectCoverage,
             projectRoot: state.mutatedProjectDirectoryURL
         )
+        let discovered = state.changeSelection.map {
+            Self.mutants(of: all, onLinesChangedIn: $0, under: state.mutatedProjectDirectoryURL)
+        } ?? all
 
         guard discovered.count >= 1 else {
+            // A change can touch only code no operator mutates, as declarations: nothing to mutate, not a failure.
+            if let selection = state.changeSelection {
+                let reason: NothingToMutate.Reason = all.isEmpty
+                    ? .noMutantInChangedFiles(count: state.sourceFileCandidates.count)
+                    : .noMutantOnChangedLines
+                throw NothingToMutate(reason: reason, selection: selection)
+            }
             throw MuterError.noMutationPointsDiscovered
         }
 
@@ -123,6 +133,22 @@ private extension DiscoverMutationPoints {
             merged[index].dropNestedSchemataInOpaqueBodies(of: source)
         }
         return merged.filter { !$0.isEmpty }
+    }
+
+    /// With `--changed-lines`, of each file's mutants, those on lines `selection` says changed; without, all of them.
+    /// After the pruning, so a full run's mutants are kept, never ones a full run would have pruned.
+    static func mutants(
+        of mappings: [SchemataMutationMapping],
+        onLinesChangedIn selection: ChangeSelection,
+        under projectRoot: URL
+    ) -> [SchemataMutationMapping] {
+        guard selection.changedLines else { return mappings }
+        return mappings.compactMap { mapping in
+            let file = selection.file(at: RepoRelativePath.of(mapping.filePath, under: projectRoot))
+            var kept = mapping
+            kept.keepOnly { file?.isChanged($0.lines ?? $0.position.line...$0.position.line) ?? false }
+            return kept.isEmpty ? nil : kept
+        }
     }
 
     func pathContainsDotSwift(_ filePath: String) -> Bool {
