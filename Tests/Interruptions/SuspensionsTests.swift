@@ -78,6 +78,15 @@ final class SuspensionsTests: XCTestCase {
         // 0.05 s before the suspension, 0.4 s in it, and 0.15 s after it.
         XCTAssertEqual(ranAt.nanoseconds, 1_600_000_000)
     }
+
+    // A time limit of centuries, as a huge --timeout gives, is one that never comes: the conversion saturates rather
+    // than trapping at the first mutant.
+    func test_aHugeTimeLimit_saturates() {
+        XCTAssertEqual(Suspensions.nanoseconds(1.5), 1_500_000_000)
+        XCTAssertEqual(Suspensions.nanoseconds(-3), 0)
+        XCTAssertEqual(Suspensions.nanoseconds(1e11), UInt64.max)
+        XCTAssertEqual(Suspensions.nanoseconds(1e300), UInt64.max)
+    }
 }
 
 /// A clock a test moves, read from any thread.

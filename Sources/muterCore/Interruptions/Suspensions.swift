@@ -59,12 +59,20 @@ final class Suspensions: @unchecked Sendable { // `total` and `since` are behind
         @Sendable func check() {
             let elapsed = activeNanoseconds - start
             guard elapsed < limit else { return work() }
-            queue.asyncAfter(deadline: .now() + .nanoseconds(Int(limit - elapsed)), execute: check)
+            queue.asyncAfter(deadline: .now() + .nanoseconds(Self.int(limit - elapsed)), execute: check)
         }
-        queue.asyncAfter(deadline: .now() + .nanoseconds(Int(limit)), execute: check)
+        queue.asyncAfter(deadline: .now() + .nanoseconds(Self.int(limit)), execute: check)
     }
 
-    private static func nanoseconds(_ seconds: TimeInterval) -> UInt64 {
-        UInt64(max(seconds, 0) * 1_000_000_000)
+    /// `seconds` in nanoseconds, at most `UInt64.max`: a time limit of centuries, as a huge `--timeout` or
+    /// `mutationTestTimeout` gives, is one that never comes, not a value that can't be converted.
+    static func nanoseconds(_ seconds: TimeInterval) -> UInt64 {
+        let nanoseconds = max(seconds, 0) * 1_000_000_000
+        return nanoseconds >= Double(UInt64.max) ? UInt64.max : UInt64(nanoseconds)
+    }
+
+    /// `nanoseconds`, at most `Int.max`, which a dispatch deadline takes.
+    private static func int(_ nanoseconds: UInt64) -> Int {
+        Int(min(nanoseconds, UInt64(Int.max)))
     }
 }

@@ -31,8 +31,8 @@ extension MutationTestingAbortReason: CustomStringConvertible {
 
             Your tests may not tolerate running alongside a copy of themselves, for example if they share \
             files outside the project, ports, user defaults or the keychain. Or the workers' builds ran out \
-            of disk space or memory. Set mutationTestWorkers to 1 in your \(MuterConfiguration.fileNameWithExtension) \
-            to test one mutant at a time.
+            of disk space or memory. Run with --workers 1, or set mutationTestWorkers to 1 in your \
+            \(MuterConfiguration.fileNameWithExtension), to test one mutant at a time.
 
             \(Self.baselineTestFailedEvidence(log: log))
             """
