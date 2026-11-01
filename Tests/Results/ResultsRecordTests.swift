@@ -17,7 +17,12 @@ final class ResultsRecordTests: XCTestCase {
     // A reused result goes into the reusing session's file in its job's place, as tested where it was, with where that
     // was. Changes let through by a later session of its file, by an earlier reuse or by the reusing session mark it.
     func test_aReusedResult_takesTheNewSessionAndPlace_andSaysWhereItWasTested() {
-        let tested = MutantResult.make(session: 1, utf8Offset: 3361, outcome: .failed, killedBy: [.init(name: "sum()", location: nil)])
+        let tested = MutantResult.make(
+            session: 1,
+            utf8Offset: 3361,
+            outcome: .failed,
+            killedBy: [.init(name: "sum()", location: nil)]
+        )
 
         let copy = tested.reused(
             from: "/logs/a/results.jsonl",
@@ -31,12 +36,21 @@ final class ResultsRecordTests: XCTestCase {
         XCTAssertEqual(copy.session, 1)
         XCTAssertEqual(copy.utf8Offset, 4000)
         XCTAssertEqual(copy.switchID, "Sum_new")
-        XCTAssertEqual(copy.reusedFrom, ReusedFrom(resultsFile: "/logs/a/results.jsonl", session: 1, despiteChanges: false))
+        XCTAssertEqual(
+            copy.reusedFrom,
+            ReusedFrom(resultsFile: "/logs/a/results.jsonl", session: 1, despiteChanges: false)
+        )
         var unmarked = copy
         unmarked.reusedFrom = nil
         XCTAssertEqual(
             unmarked,
-            MutantResult.make(session: 1, utf8Offset: 4000, switchID: "Sum_new", outcome: .failed, killedBy: tested.killedBy)
+            MutantResult.make(
+                session: 1,
+                utf8Offset: 4000,
+                switchID: "Sum_new",
+                outcome: .failed,
+                killedBy: tested.killedBy
+            )
         )
 
         let waivedLater = tested.reused(
@@ -58,7 +72,10 @@ final class ResultsRecordTests: XCTestCase {
             switchID: "Sum_newer",
             despiteChanges: false
         )
-        XCTAssertEqual(again.reusedFrom, ReusedFrom(resultsFile: "/logs/a/results.jsonl", session: 1, despiteChanges: true))
+        XCTAssertEqual(
+            again.reusedFrom,
+            ReusedFrom(resultsFile: "/logs/a/results.jsonl", session: 1, despiteChanges: true)
+        )
     }
 
     // A result tested here has no `reusedFrom`, and one kept without any change let through has no `despiteChanges`.
@@ -66,7 +83,9 @@ final class ResultsRecordTests: XCTestCase {
         let tested = try XCTUnwrap(String(data: ResultsCoding.encoder.encode(MutantResult.make()), encoding: .utf8))
         XCTAssertFalse(tested.contains("reusedFrom"))
 
-        let reused = MutantResult.make(reusedFrom: ReusedFrom(resultsFile: "/r.jsonl", session: 1, despiteChanges: false))
+        let reused = MutantResult.make(
+            reusedFrom: ReusedFrom(resultsFile: "/r.jsonl", session: 1, despiteChanges: false)
+        )
         let line = try XCTUnwrap(String(data: ResultsCoding.encoder.encode(reused), encoding: .utf8))
         XCTAssertTrue(line.contains(#""reusedFrom":{"resultsFile":"/r.jsonl","session":1}"#), line)
         XCTAssertEqual(try ResultsCoding.decoder.decode(MutantResult.self, from: Data(line.utf8)), reused)
@@ -283,7 +302,8 @@ final class ResultsRecordTests: XCTestCase {
                     FailedTestLine.FailedTest(name: "product()", location: "ProductTests.swift:8:9"),
                 ],
                 failedTestCount: 2,
-                firstFailedTestLine: "✘ Test sum() recorded an issue at SumTests.swift:12:5: Expectation failed: sum(1, 2) == 3",
+                firstFailedTestLine: "✘ Test sum() recorded an issue at SumTests.swift:12:5: "
+                    + "Expectation failed: sum(1, 2) == 3",
                 log: "RelationalOperatorReplacement @ Sum.swift-73-22.log",
                 fileSHA256: nil
             )
@@ -294,7 +314,9 @@ final class ResultsRecordTests: XCTestCase {
         let log = "✘ Test sum() recorded an issue at SumTests.swift:12:5: Caught error\nFatal error: boom"
 
         let crash = try makeRecord(from: TestRun(outcome: .runtimeError, testLog: log, ending: .exited, exitStatus: 5))
-        let timeout = try makeRecord(from: TestRun(outcome: .timeout, testLog: "◇ Test run started.", ending: .timedOut))
+        let timeout = try makeRecord(
+            from: TestRun(outcome: .timeout, testLog: "◇ Test run started.", ending: .timedOut)
+        )
 
         XCTAssertEqual(crash.killedBy, [FailedTestLine.FailedTest(name: "sum()", location: "SumTests.swift:12:5")])
         XCTAssertEqual(crash.failedTestCount, 1)
@@ -396,7 +418,10 @@ final class ResultsRecordTests: XCTestCase {
                 projectPath: "/project",
                 mutatedProjectPath: "/project_mutated",
                 logDirectory: "/project_muter_logs/run",
-                coverage: CoverageSummary(percent: 87, filesWithoutCoverage: ["/project_mutated/Sources/Untested.swift"]),
+                coverage: CoverageSummary(
+                    percent: 87,
+                    filesWithoutCoverage: ["/project_mutated/Sources/Untested.swift"]
+                ),
                 newVersion: "9.9.9",
                 baselineSeconds: 32.125,
                 testRunSeconds: 10.75,
@@ -507,7 +532,9 @@ final class ResultsRecordTests: XCTestCase {
         )
         XCTAssertEqual(
             ResultsEnd.detail(
-                for: MuterError.mutationTestingAborted(reason: .baselineTestFailed(log: "the log", mutatedFilePaths: []))
+                for: MuterError.mutationTestingAborted(
+                    reason: .baselineTestFailed(log: "the log", mutatedFilePaths: [])
+                )
             ),
             "baselineTestFailed"
         )

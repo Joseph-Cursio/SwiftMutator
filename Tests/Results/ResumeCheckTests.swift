@@ -84,7 +84,15 @@ final class ResumeCheckTests: XCTestCase {
 
         XCTAssertEqual(
             verdict.refusals.compactMap(configurationKey),
-            ["arguments", "buildSystem", "coverageThreshold", "exclude", "excludeCalls", "executable", "mutationTestTimeout"]
+            [
+                "arguments",
+                "buildSystem",
+                "coverageThreshold",
+                "exclude",
+                "excludeCalls",
+                "executable",
+                "mutationTestTimeout",
+            ]
         )
         XCTAssertEqual(verdict.refusals.count, 7)
         XCTAssertEqual(
@@ -166,7 +174,11 @@ final class ResumeCheckTests: XCTestCase {
 
     func test_needsForce_saysWhatChangedAndThatForceLetsItThrough() {
         XCTAssertEqual(
-            "\(ResumeRefusal.needsForce(.init(name: "toolchain.testCommandVersion", was: #""6.3.3""#, isNow: #""6.4""#)))",
+            String(
+                describing: ResumeRefusal.needsForce(
+                    .init(name: "toolchain.testCommandVersion", was: #""6.3.3""#, isNow: #""6.4""#)
+                )
+            ),
             #"The toolchain (toolchain.testCommandVersion) was "6.3.3" and is "6.4" now. "#
                 + "--force-resume reuses the results anyway."
         )
@@ -213,7 +225,10 @@ final class ResumeCheckTests: XCTestCase {
 
         XCTAssertEqual(check(same, recorded: header(of: same)), ResumeCheck.Verdict())
 
-        let edited = current(configuration: wrapper, provenance: provenance(testCommandVersion: nil, testExecutableSHA256: "88bb"))
+        let edited = current(
+            configuration: wrapper,
+            provenance: provenance(testCommandVersion: nil, testExecutableSHA256: "88bb")
+        )
         XCTAssertEqual(
             check(edited, recorded: header(of: same)).refusals,
             [.needsForce(.init(name: "toolchain.testExecutableSHA256", was: #""77aa""#, isNow: #""88bb""#))]
@@ -255,7 +270,9 @@ final class ResumeCheckTests: XCTestCase {
             verdict.refusals,
             [
                 .configurationChanged(.init(name: "arguments", was: #"["test"]"#, isNow: #"["test","--parallel"]"#)),
-                .selectionChanged(.init(name: "operators", was: #"["RelationalOperatorReplacement"]"#, isNow: #"["SwapTernary"]"#)),
+                .selectionChanged(
+                    .init(name: "operators", was: #"["RelationalOperatorReplacement"]"#, isNow: #"["SwapTernary"]"#)
+                ),
             ]
         )
         XCTAssertEqual(verdict.forced, ["swiftMutator.executableSHA256"])
@@ -294,7 +311,10 @@ final class ResumeCheckTests: XCTestCase {
         let recorded = header(of: current(filesToMutate: ["Sources/Sum.swift", "Sources/Product.swift"]))
 
         XCTAssertEqual(
-            check(current(filesToMutate: ["Sources/Product.swift", "Sources/Sum.swift", "Sources/Sum.swift"]), recorded: recorded),
+            check(
+                current(filesToMutate: ["Sources/Product.swift", "Sources/Sum.swift", "Sources/Sum.swift"]),
+                recorded: recorded
+            ),
             ResumeCheck.Verdict()
         )
     }
@@ -511,7 +531,12 @@ final class ResumeCheckTests: XCTestCase {
         let recorded = header(of: current(since: Self.selected))
         let edited = ChangeSelection.make(changedLines: true, files: [
             ChangedFile(path: "Sources/Product.swift", sha256: "ef56"),
-            ChangedFile(path: "Sources/Sum.swift", lines: [LineRange(first: 3, last: 5)], deletionsAfter: [9], sha256: "ff"),
+            ChangedFile(
+                path: "Sources/Sum.swift",
+                lines: [LineRange(first: 3, last: 5)],
+                deletionsAfter: [9],
+                sha256: "ff"
+            ),
         ])
 
         XCTAssertEqual(check(current(since: edited), recorded: recorded).refusals, [])
@@ -521,8 +546,14 @@ final class ResumeCheckTests: XCTestCase {
     func test_aReuse_doesntCompareWhatSinceChose_eitherWay() {
         let moved = ChangeSelection.make(mergeBase: "fee1000000000000000000000000000000000000")
 
-        XCTAssertEqual(check(current(), recorded: header(of: current(since: Self.selected)), reusing: true).refusals, [])
-        XCTAssertEqual(check(current(since: Self.selected), recorded: header(of: current()), reusing: true).refusals, [])
+        XCTAssertEqual(
+            check(current(), recorded: header(of: current(since: Self.selected)), reusing: true).refusals,
+            []
+        )
+        XCTAssertEqual(
+            check(current(since: Self.selected), recorded: header(of: current()), reusing: true).refusals,
+            []
+        )
         XCTAssertEqual(
             check(current(since: moved), recorded: header(of: current(since: Self.selected)), reusing: true).refusals,
             []
@@ -550,7 +581,10 @@ final class ResumeCheckTests: XCTestCase {
     }
 
     /// The header a session of `current` wrote.
-    private func header(of current: ResumeCheck.Current, project: ProjectTree? = ResumeCheckTests.tree) -> ResultsHeader {
+    private func header(
+        of current: ResumeCheck.Current,
+        project: ProjectTree? = ResumeCheckTests.tree
+    ) -> ResultsHeader {
         ResultsHeader.make(
             project: project,
             provenance: current.provenance,

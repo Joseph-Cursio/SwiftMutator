@@ -135,7 +135,8 @@ final class GitChangesTests: XCTestCase {
     }
 
     // Its markers wouldn't build, and git compares it as an ordinary change.
-    // Outside a repository is one failure that exits 128; a repository another user owns is another, which git explains.
+    // Outside a repository is one failure that exits 128; a repository another user owns is another, which git
+    // explains.
     func test_onlyNotBeingInARepository_readsAsSuch() async throws {
         let project = URL(fileURLWithPath: "/project")
         func select(_ errors: String) async -> Result<ChangeSelection, ChangeSelectionError> {
@@ -170,7 +171,10 @@ final class GitChangesTests: XCTestCase {
         try git("checkout", "-q", "main")
         try write(["A.swift": "line 1\nline 2 on main\nline 3\n"])
         try commit("main")
-        _ = try? run(["-c", "user.name=Test", "-c", "user.email=test@example.com", "merge", "-q", "--no-ff", "other"], expecting: 1)
+        _ = try? run(
+            ["-c", "user.name=Test", "-c", "user.email=test@example.com", "merge", "-q", "--no-ff", "other"],
+            expecting: 1
+        )
 
         let result = await GitChanges.select(since: "HEAD", changedLines: false, in: url(""))
 

@@ -135,7 +135,7 @@ extension Node where Context: HTML.BodyContext {
             )
         )
     }
-    
+
     static func themeToggle() -> Self {
         .div(
             .button(.id("theme-toggle"), .class("theme-toggle"))

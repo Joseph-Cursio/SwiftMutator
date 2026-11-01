@@ -463,7 +463,10 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         recorded[0] = ResultsHeader.make(
             projectPath: "/agent1/project",
             mutatedProjectPath: "/agent1/project_mutated",
-            coverage: CoverageSummary(percent: 80, filesWithoutCoverage: ["/agent1/project_mutated/Sources/Gone.swift"]),
+            coverage: CoverageSummary(
+                percent: 80,
+                filesWithoutCoverage: ["/agent1/project_mutated/Sources/Gone.swift"]
+            ),
             mutantsDiscovered: 5,
             mutantsToTest: 5,
             project: tree

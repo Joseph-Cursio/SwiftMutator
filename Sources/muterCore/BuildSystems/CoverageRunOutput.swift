@@ -14,12 +14,12 @@ extension BuildSystemCoverage {
         text.split(separator: "\n").first.map { String($0).trimmed } ?? ""
     }
 
-    /// The first line of `log` that reports an error, without colour codes: one that starts with `error: `, as SwiftPM's
-    /// and llvm-cov's do, or says `: error: `, as the compiler's `File.swift:3:9: error: …` and `xcodebuild: error: …`
-    /// do, or `fatal error: ` in their place, as clang's can. SwiftPM prints build errors to standard error under
-    /// either build system, but a line in standard output counts too. Other lines can say `error:` without reporting
-    /// one, as xcodebuild's log of a method named `…ForDeveloperDir:error:` does on a Mac whose simulators are out of
-    /// date.
+    /// The first line of `log` that reports an error, without colour codes: one that starts with `error: `, as
+    /// SwiftPM's and llvm-cov's do, or says `: error: `, as the compiler's `File.swift:3:9: error: …` and
+    /// `xcodebuild: error: …` do, or `fatal error: ` in their place, as clang's can. SwiftPM prints build errors to
+    /// standard error under either build system, but a line in standard output counts too. Other lines can say
+    /// `error:` without reporting one, as xcodebuild's log of a method named `…ForDeveloperDir:error:` does on a Mac
+    /// whose simulators are out of date.
     static func firstError(in log: String) -> String? {
         log.split(whereSeparator: \.isNewline)
             .lazy

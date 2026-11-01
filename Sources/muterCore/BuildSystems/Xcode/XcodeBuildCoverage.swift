@@ -38,7 +38,8 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
         }
         guard testRun.succeeded else {
             switch Self.failedTestsToKeep(in: testRun, log: log) {
-            case let .success(failedTests): return await coverage(configuration, printedBy: testRun, failedTests: failedTests)
+            case let .success(failedTests):
+                return await coverage(configuration, printedBy: testRun, failedTests: failedTests)
             case let .failure(error): return .failure(error)
             }
         }

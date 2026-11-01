@@ -83,7 +83,8 @@ final class ResumeHintTests: XCTestCase {
 
         XCTAssertEqual(
             command,
-            "swift-mutator run --resume-ignoring README.md '--resume-ignoring=Docs/*' --resume '/logs/new/results.jsonl'"
+            "swift-mutator run --resume-ignoring README.md '--resume-ignoring=Docs/*' "
+                + "--resume '/logs/new/results.jsonl'"
         )
         let options = try XCTUnwrap(
             MuterCommand.parseAsRoot(Array(wordsAShellReads(in: command).dropFirst())) as? Run

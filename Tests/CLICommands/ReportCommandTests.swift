@@ -39,7 +39,8 @@ final class ReportCommandTests: MuterTestCase {
     override func setUp() {
         super.setUp()
 
-        // Real files: the spy's createFile always succeeds, and its contentsOfDirectory can't tell a folder from a file.
+        // Real files: the spy's createFile always succeeds, and its contentsOfDirectory can't tell a folder from a
+        // file.
         current.fileManager = FileManager.default
     }
 

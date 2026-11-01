@@ -105,26 +105,27 @@ private extension DiscoverMutationPoints {
     ) -> [SchemataMutationMapping] {
         let source = sourceCode.source.code
 
-        let mappings: [SchemataMutationMapping] = operators.accumulate(into: []) { newSchemataMappings, mutationOperatorId in
-            let visitor = mutationOperatorId.visitor(
-                configuration,
-                sourceCode.source,
-                coverage
-            )
+        let mappings: [SchemataMutationMapping] = operators
+            .accumulate(into: []) { newSchemataMappings, mutationOperatorId in
+                let visitor = mutationOperatorId.visitor(
+                    configuration,
+                    sourceCode.source,
+                    coverage
+                )
 
-            visitor.sourceCodePreparationChange = sourceCode.changes
-            visitor.projectRoot = projectRoot
+                visitor.sourceCodePreparationChange = sourceCode.changes
+                visitor.projectRoot = projectRoot
 
-            visitor.walk(source)
+                visitor.walk(source)
 
-            let schemataMapping = visitor.schemataMappings
+                let schemataMapping = visitor.schemataMappings
 
-            if !schemataMapping.isEmpty {
-                return newSchemataMappings + [schemataMapping]
-            } else {
-                return newSchemataMappings
+                if !schemataMapping.isEmpty {
+                    return newSchemataMappings + [schemataMapping]
+                } else {
+                    return newSchemataMappings
+                }
             }
-        }
 
         // Pruning has to see every operator's mutants for the file at once: an outer mutant from
         // one operator conflicts with a nested one from another.

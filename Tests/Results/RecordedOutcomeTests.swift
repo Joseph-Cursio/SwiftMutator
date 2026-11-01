@@ -101,7 +101,13 @@ final class RecordedOutcomeTests: MuterTestCase {
         let jobs = fixtureJobs()
         // Each repeat of a place and operator comes in the order it was found, which its occurrence numbers.
         let repeated = try makeMapping("/project_mutated/Sources/Zeta.swift", lines: [9]).mutationSchemata
-        let repeatKey = MutantKey(path: "Sources/Zeta.swift", mutationOperatorId: .ror, line: 9, column: 5, occurrence: 1)
+        let repeatKey = MutantKey(
+            path: "Sources/Zeta.swift",
+            mutationOperatorId: .ror,
+            line: 9,
+            column: 5,
+            occurrence: 1
+        )
         let records = jobs.map { mutantResult($0.schema, $0.key) }
 
         let rebuilt = try rebuild(
@@ -122,7 +128,10 @@ final class RecordedOutcomeTests: MuterTestCase {
             "/project_mutated/Sources/Zeta.swift:9",
             "/project_mutated/Sources/Zeta.swift:10",
         ])
-        XCTAssertEqual(rebuilt.mutations.map(\.testSuiteOutcome), [.failed, .failed, .failed, .failed, .passed, .failed])
+        XCTAssertEqual(
+            rebuilt.mutations.map(\.testSuiteOutcome),
+            [.failed, .failed, .failed, .failed, .passed, .failed]
+        )
     }
 
     func test_theReportFromAnAbortedRunsFile_equalsItsPartialReport() async throws {
@@ -566,7 +575,9 @@ final class JobOrderTests: MuterTestCase {
         let jobs = try await discoveredJobs()
         let keys = MutantKey.keys(for: jobs, under: mutatedProject)
         XCTAssertEqual(Set(jobs.map(\.filePath)).count, 5, "\(jobs.map(\.filePath))")
-        let zetaLines = jobs.filter { $0.fileName == "Zeta.swift" && $0.mutationOperatorId == .ror }.map(\.position.line)
+        let zetaLines = jobs
+            .filter { $0.fileName == "Zeta.swift" && $0.mutationOperatorId == .ror }
+            .map(\.position.line)
         XCTAssertEqual(zetaLines, [9, 10], "lines compare as numbers, not as the text of a switch ID")
         // In line order whatever the operator, not each operator's mutants in turn.
         for file in Set(jobs.map(\.filePath)) {

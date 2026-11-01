@@ -3,7 +3,7 @@ import TestingExtensions
 import XCTest
 
 final class MutationTestingDelegateTests: MuterTestCase {
-    private var outputFolder: String!
+    private var outputFolder = ""
     private var outputFolderURL: URL { URL(fileURLWithPath: outputFolder) }
 
     private let sut = MutationTestingDelegate()
@@ -70,7 +70,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
         // SwiftPM keys its cache of compiled package manifests on the whole environment, so the mutant is
         // named in a file the environment names, rather than in a variable of its own.
-        let activeMutantFile = "\(outputFolder!)\(activeMutantFileSuffix)"
+        let activeMutantFile = "\(outputFolder)\(activeMutantFileSuffix)"
         XCTAssertNil(testProcess.environment?[schemata.id])
         XCTAssertNil(testProcess.environment?["SIMCTL_CHILD_\(schemata.id)"])
         XCTAssertEqual(testProcess.environment?[activeMutantFileKey], activeMutantFile)
@@ -144,7 +144,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
             and: FileHandle(fileDescriptor: 0)
         )
 
-        let activeMutantFile = "\(outputFolder!)\(activeMutantFileSuffix)"
+        let activeMutantFile = "\(outputFolder)\(activeMutantFileSuffix)"
         XCTAssertEqual(writeFile.contentPassed, "")
         XCTAssertEqual(writeFile.pathPassed, activeMutantFile)
         XCTAssertEqual(testProcess.environment?[activeMutantFileKey], activeMutantFile)
@@ -198,7 +198,11 @@ final class MutationTestingDelegateTests: MuterTestCase {
     // A wrapper script counts as `swift test` with `buildSystem: swift`, and its runs switch mutants on as it does.
     func test_aWrapperDeclaredSwiftUsesTheActiveMutantFile() async throws {
         current.process = { MuterProcessFactory.makeProcess() }
-        let configuration = MuterConfiguration(executable: "/tmp/run-tests.sh", arguments: ["test"], buildSystem: .swift)
+        let configuration = MuterConfiguration(
+            executable: "/tmp/run-tests.sh",
+            arguments: ["test"],
+            buildSystem: .swift
+        )
         let schemata = try MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1))
 
         let testProcess = try await sut.testProcess(
@@ -207,7 +211,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
             and: FileHandle(fileDescriptor: 0)
         )
 
-        let activeMutantFile = "\(outputFolder!)\(activeMutantFileSuffix)"
+        let activeMutantFile = "\(outputFolder)\(activeMutantFileSuffix)"
         XCTAssertEqual(writeFile.contentPassed, schemata.id)
         XCTAssertEqual(writeFile.pathPassed, activeMutantFile)
         XCTAssertEqual(testProcess.environment?[activeMutantFileKey], activeMutantFile)
@@ -273,7 +277,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
             and: FileHandle(fileDescriptor: 0)
         )
 
-        let activeMutantFile = "\(outputFolder!)\(activeMutantFileSuffix)"
+        let activeMutantFile = "\(outputFolder)\(activeMutantFileSuffix)"
         XCTAssertEqual(testProcess.executableURL?.path, "/bin/sh")
         XCTAssertEqual(testProcess.environment?[activeMutantFileKey], activeMutantFile)
         XCTAssertEqual(writeFile.contentPassed, schemata.id)
@@ -601,7 +605,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
         XCTAssertTrue(result.testLog.contains("swift"), result.testLog)
         XCTAssertTrue(result.testLog.contains("test --filter CalcTests"), result.testLog)
         XCTAssertTrue(result.testLog.contains("doesn't exist"), result.testLog)
-        XCTAssertTrue(result.testLog.contains("working directory: \(outputFolder!)"), result.testLog)
+        XCTAssertTrue(result.testLog.contains("working directory: \(outputFolder)"), result.testLog)
     }
 
     // A parallel worker's clone is built by this run, so it must not skip the build, must run in the
@@ -638,7 +642,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
         XCTAssertEqual(process.arguments, ["test", "--skip-build", "--quiet"])
         XCTAssertEqual(writeFile.contentPassed, "")
-        XCTAssertEqual(writeFile.pathPassed, "\(outputFolder!)\(activeMutantFileSuffix)")
+        XCTAssertEqual(writeFile.pathPassed, "\(outputFolder)\(activeMutantFileSuffix)")
         XCTAssertFalse(testingTimeOutExecutor.withTimeLimitCalled)
     }
 
@@ -895,7 +899,9 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
     // Any failed test kills a mutant, so the tests after it can't change its outcome.
     func test_whenAMutantsRunShowsAFailedTest_thenItIsStoppedThereAndCountsAsKilled() async throws {
-        let testProcess = ScriptedProcessSpy([.write("\(passedTestLine)\n\(failedTestLine)\n", after: 0), .runUntilKilled])
+        let testProcess = ScriptedProcessSpy(
+            [.write("\(passedTestLine)\n\(failedTestLine)\n", after: 0), .runUntilKilled]
+        )
         current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
 
         let started = Date()
@@ -967,11 +973,21 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
     func test_whenStopAtFirstFailureIsOff_thenAFailingRunGoesToTheEnd() async throws {
         let configurations = [
-            MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], testSuiteTimeOut: 60, stopAtFirstFailure: false),
+            MuterConfiguration(
+                executable: "/tmp/swift",
+                arguments: ["test"],
+                testSuiteTimeOut: 60,
+                stopAtFirstFailure: false
+            ),
             // On by default, but a wrapper script counts as `swift test` only with `buildSystem: swift`.
             MuterConfiguration(executable: "/tmp/run-tests.sh", arguments: ["test"], testSuiteTimeOut: 60),
             // Switched on, but xcodebuild runs can't be stopped.
-            MuterConfiguration(executable: "/tmp/xcodebuild", arguments: ["test"], testSuiteTimeOut: 60, stopAtFirstFailure: true),
+            MuterConfiguration(
+                executable: "/tmp/xcodebuild",
+                arguments: ["test"],
+                testSuiteTimeOut: 60,
+                stopAtFirstFailure: true
+            ),
         ]
         current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
 
@@ -983,7 +999,8 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
             let result = try await runMutantsTests(on: testProcess, using: configuration)
 
-            let description = "\(configuration.testCommandExecutable), \(String(describing: configuration.stopAtFirstFailure))"
+            let description = "\(configuration.testCommandExecutable), "
+                + "\(String(describing: configuration.stopAtFirstFailure))"
             XCTAssertEqual(testProcess.terminateTreeCallCount, 0, description)
             XCTAssertEqual(result.outcome, .failed, description)
             XCTAssertTrue(result.testLog.contains(failedRunSummary), "\(description): \(result.testLog)")
@@ -1112,7 +1129,11 @@ final class MutationTestingDelegateTests: MuterTestCase {
             // Gives up after 5 seconds, so the run ends even if cancelling it doesn't kill its process.
             let testProcess = ScriptedProcessSpy([.runUntilKilled])
             current.process = { testProcess }
-            let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], testSuiteTimeOut: timeLimit)
+            let configuration = MuterConfiguration(
+                executable: "/tmp/swift",
+                arguments: ["test"],
+                testSuiteTimeOut: timeLimit
+            )
 
             let run = Task { [sut] in
                 await sut.runTestSuite(
@@ -1156,7 +1177,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
               executable: swift
               arguments: test --filter CalcTests
-              working directory: \(outputFolder!)
+              working directory: \(outputFolder)
 
             The file "swift" doesn't exist.
             """)
@@ -1181,7 +1202,11 @@ final class MutationTestingDelegateTests: MuterTestCase {
         for timeLimit in [nil, 60] as [TimeInterval?] {
             let testProcess = ScriptedProcessSpy([.dieOf(signal: SIGTERM, after: 0)])
             current.process = { testProcess }
-            let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], testSuiteTimeOut: timeLimit)
+            let configuration = MuterConfiguration(
+                executable: "/tmp/swift",
+                arguments: ["test"],
+                testSuiteTimeOut: timeLimit
+            )
             let waitsBefore = waits.all.count
 
             let run = Task { [sut] in
@@ -1228,7 +1253,11 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
         for timeLimit in [nil, 60] as [TimeInterval?] {
             let testProcess = ScriptedProcessSpy([.dieOf(signal: SIGTERM, after: 0)])
-            let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], testSuiteTimeOut: timeLimit)
+            let configuration = MuterConfiguration(
+                executable: "/tmp/swift",
+                arguments: ["test"],
+                testSuiteTimeOut: timeLimit
+            )
 
             // The clock Task.sleep waits on.
             let started = DispatchTime.now()

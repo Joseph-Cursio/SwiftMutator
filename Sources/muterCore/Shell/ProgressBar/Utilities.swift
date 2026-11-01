@@ -5,9 +5,9 @@ import Darwin.C
 #endif
 
 func getTimeOfDay() -> Double {
-    var tv = timeval()
-    gettimeofday(&tv, nil)
-    return Double(tv.tv_sec) + Double(tv.tv_usec) / 1000000
+    var time = timeval()
+    gettimeofday(&time, nil)
+    return Double(time.tv_sec) + Double(time.tv_usec) / 1000000
 }
 
 extension Double {

@@ -103,7 +103,11 @@ final class OperatorTests: MuterTestCase {
     // Each example's code before and after differs by the operator's change.
     func test_eachExample_showsTheOperatorsChange() {
         let swaps: [(MutationOperator.Id, before: String, after: String)] = [
-            (.logicalOperator, "return meetsMinimumLength && passwordsMatch", "return meetsMinimumLength || passwordsMatch"),
+            (
+                .logicalOperator,
+                "return meetsMinimumLength && passwordsMatch",
+                "return meetsMinimumLength || passwordsMatch"
+            ),
             (.ror, "if myValue == 50 {", "if myValue != 50 {"),
             (.swapTernary, #"return a ? "true" : "false""#, #"return a ? "false" : "true""#),
         ]

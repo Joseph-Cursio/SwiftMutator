@@ -259,7 +259,13 @@ struct MutantResult: Codable, Equatable {
     var reusedFrom: ReusedFrom?
 
     var key: MutantKey {
-        MutantKey(path: path, mutationOperatorId: mutationOperatorId, line: line, column: column, occurrence: occurrence)
+        MutantKey(
+            path: path,
+            mutationOperatorId: mutationOperatorId,
+            line: line,
+            column: column,
+            occurrence: occurrence
+        )
     }
 }
 
@@ -334,10 +340,10 @@ struct ReusedFrom: Codable, Equatable {
 
 extension MutantResult {
     /// `self`, recorded in the results file at `resultsFile` whose headers are `headers`, as the session `session`
-    /// that reuses it writes it for the job at `utf8Offset` with `switchID`: the job's place in the file as SwiftMutator
-    /// now prepares it, so the new file's report is the run's. The rest, how it was tested, is as recorded, and
-    /// `reusedFrom` says where, and whether changes were let through since: by the sessions after its own, by an earlier
-    /// reuse, or by the reusing session (`despiteChanges`).
+    /// that reuses it writes it for the job at `utf8Offset` with `switchID`: the job's place in the file as
+    /// SwiftMutator now prepares it, so the new file's report is the run's. The rest, how it was tested, is as
+    /// recorded, and `reusedFrom` says where, and whether changes were let through since: by the sessions after its
+    /// own, by an earlier reuse, or by the reusing session (`despiteChanges`).
     func reused(
         from resultsFile: String,
         headers: [ResultsHeader],

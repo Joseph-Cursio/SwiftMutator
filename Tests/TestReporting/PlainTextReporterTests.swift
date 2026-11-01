@@ -43,7 +43,9 @@ final class PlainTextReporterTests: ReporterTestCase {
 
     // Coverage that `--skip-coverage` skipped isn't coverage SwiftMutator failed to gather.
     func test_plainTextReporterWithSkippedCoverage() {
-        let plainText = PlainTextReporter().report(from: MutationTestOutcome(mutations: outcomes, coverageSkipped: true))
+        let plainText = PlainTextReporter().report(
+            from: MutationTestOutcome(mutations: outcomes, coverageSkipped: true)
+        )
 
         XCTAssertTrue(plainText.contains("\nCoverage skipped (--skip-coverage)\n"), plainText)
         XCTAssertFalse(plainText.contains("could not gather coverage data"), plainText)

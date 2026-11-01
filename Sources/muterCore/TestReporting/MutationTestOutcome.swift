@@ -42,8 +42,8 @@ extension MutationTestOutcome {
         /// the run tested, or kept from an earlier session of its own file.
         let reusedFrom: ReusedFrom?
 
-        /// `killingTests` and `reusedFrom` have no default: the run, `swift-mutator report` and `--resume` must each pass
-        /// theirs.
+        /// `killingTests` and `reusedFrom` have no default: the run, `swift-mutator report` and `--resume` must each
+        /// pass theirs.
         init(
             testSuiteOutcome: TestSuiteOutcome,
             mutationPoint: MutationPoint,

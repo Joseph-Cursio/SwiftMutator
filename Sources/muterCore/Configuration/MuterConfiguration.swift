@@ -25,8 +25,8 @@ struct MuterConfiguration: Equatable, Codable {
     /// How many mutants to test at once (`mutationTestWorkers:`). Each worker runs the test command in
     /// its own clone of the mutated project, because `swift test` locks the package's build directory.
     /// Each clone is built once before testing, so the paths compiled into its tests point into it.
-    /// Only SwiftPM projects run in parallel; nil or 1 tests one mutant at a time. A `var` only so `overriding` can copy
-    /// `self` and change just this field.
+    /// Only SwiftPM projects run in parallel; nil or 1 tests one mutant at a time. A `var` only so `overriding` can
+    /// copy `self` and change just this field.
     private(set) var mutationTestWorkers: Int?
     /// Optional explicit build system from the `buildSystem:` config key. When set it overrides the
     /// executable-basename heuristic — needed when `executable` is a wrapper script (e.g. one that
@@ -207,17 +207,18 @@ extension MuterConfiguration {
 
 extension MuterConfiguration {
     var asData: Data {
-        let encoder = YAMLEncoder()
-        return (try! encoder.encode(self)).data(using: .utf8)!
+        get throws {
+            Data(try YAMLEncoder().encode(self).utf8)
+        }
     }
 }
 
 extension MuterConfiguration {
     /// Coverage counts each run of a piece of code by loading its counter and storing one more, so code that runs on
-    /// two threads at once loses runs: Swift Testing runs tests in parallel, and a test can run code concurrently itself.
-    /// A count worked out from two others, such as the code after a `guard`, then reads 0 though the code ran, and its
-    /// mutants are left out. Atomic counters keep every run. On SwiftProjectLint they made the coverage run's tests take
-    /// 9.3 s rather than 7.2 s; running the tests one at a time took 11.4 s and still lost counts.
+    /// two threads at once loses runs: Swift Testing runs tests in parallel, and a test can run code concurrently
+    /// itself. A count worked out from two others, such as the code after a `guard`, then reads 0 though the code ran,
+    /// and its mutants are left out. Atomic counters keep every run. On SwiftProjectLint they made the coverage run's
+    /// tests take 9.3 s rather than 7.2 s; running the tests one at a time took 11.4 s and still lost counts.
     static let atomicCoverageCountersFlags = ["-Xllvm", "-instrprof-atomic-counter-update-all"]
 
     var enableCoverageArguments: [String] {
@@ -261,7 +262,7 @@ extension MuterConfiguration {
 
         return testCommandArguments[index + 1]
     }
-    
+
     private var defaultDerivedData: String { "DerivedData" }
 
     /// The test command's arguments for a run on the build the baseline made: a mutant's, or the one that times them
@@ -308,16 +309,16 @@ extension MuterConfiguration {
         guard derivedDataArgumentIndex() == nil else {
             return testCommandArguments
         }
-        
+
         guard let testArgsIndex = indexOfArgument("test") else {
             return testCommandArguments
         }
-        
+
         var args = testCommandArguments
         args.remove(at: testArgsIndex)
         args.append("-derivedDataPath")
         args.append(defaultDerivedData)
-        
+
         return args
     }
 }

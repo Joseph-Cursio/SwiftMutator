@@ -119,7 +119,7 @@ final class LoadConfigurationTests: MuterTestCase {
 
     func test_whenExecutableIsABareCommandName_thenItIsResolvedToItsPathLocation() async throws {
         fileManager.fileExistsToReturn = [false, true]
-        fileManager.fileContentsToReturn = MuterConfiguration(
+        fileManager.fileContentsToReturn = try MuterConfiguration(
             executable: "swift",
             arguments: ["test"]
         ).asData
@@ -142,7 +142,7 @@ final class LoadConfigurationTests: MuterTestCase {
 
     func test_whenExecutableIsABareCommandName_thenMutationTestWorkersIsKept() async throws {
         fileManager.fileExistsToReturn = [false, true]
-        fileManager.fileContentsToReturn = MuterConfiguration(
+        fileManager.fileContentsToReturn = try MuterConfiguration(
             executable: "swift",
             arguments: ["test"],
             mutationTestWorkers: 4
@@ -163,7 +163,7 @@ final class LoadConfigurationTests: MuterTestCase {
 
     func test_whenExecutableIsAnAbsolutePath_thenItIsLeftAlone() async throws {
         fileManager.fileExistsToReturn = [false, true]
-        fileManager.fileContentsToReturn = MuterConfiguration(
+        fileManager.fileContentsToReturn = try MuterConfiguration(
             executable: "/opt/homebrew/bin/swift",
             arguments: ["test"]
         ).asData
@@ -181,7 +181,7 @@ final class LoadConfigurationTests: MuterTestCase {
 
     func test_whenExecutableIsNotOnPath_thenFailWithAnActionableError() async throws {
         fileManager.fileExistsToReturn = [false, true]
-        fileManager.fileContentsToReturn = MuterConfiguration(
+        fileManager.fileContentsToReturn = try MuterConfiguration(
             executable: "swiftly",
             arguments: ["test"]
         ).asData

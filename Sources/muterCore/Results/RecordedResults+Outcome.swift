@@ -60,7 +60,11 @@ extension RecordedResults {
                     mutationPoint: MutationPoint(
                         mutationOperatorId: record.mutationOperatorId,
                         filePath: order.filePath,
-                        position: MutationPosition(utf8Offset: record.utf8Offset, line: record.line, column: record.column)
+                        position: MutationPosition(
+                            utf8Offset: record.utf8Offset,
+                            line: record.line,
+                            column: record.column
+                        )
                     ),
                     mutationSnapshot: record.snapshot,
                     originalProjectDirectoryUrl: projectDirectory,

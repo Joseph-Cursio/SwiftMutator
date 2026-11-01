@@ -34,8 +34,8 @@ final class MutationTestObserver {
     }
 
     /// Creates the run's log folder, and observes the run's events.
-    func start() {
-        loggingDirectory = createLoggingDirectory(
+    func start() throws {
+        loggingDirectory = try createLoggingDirectory(
             forProjectAt: fileManager.currentDirectoryPath,
             fileManager: fileManager
         )

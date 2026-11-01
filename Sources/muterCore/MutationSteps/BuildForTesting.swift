@@ -5,7 +5,7 @@ struct BuildForTesting: MutationStep {
     private var fileManager: FileSystemManager
     @Dependency(\.process)
     private var process: ProcessFactory
-    
+
     private let testContentsFolder = "TestContents"
     private let buildDirectory = "Build/Products/"
 

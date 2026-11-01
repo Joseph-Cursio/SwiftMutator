@@ -76,7 +76,10 @@ final class CommandResultTests: XCTestCase {
     func test_aProcess_givesWhatItWroteToStandardOutput_andItsExitStatus() async {
         let process = Foundation.Process()
 
-        let output: String? = await process.runProcess(url: "/bin/sh", arguments: ["-c", "echo out; echo err >&2; exit 3"])
+        let output: String? = await process.runProcess(
+            url: "/bin/sh",
+            arguments: ["-c", "echo out; echo err >&2; exit 3"]
+        )
 
         XCTAssertEqual(output, "out\n")
         XCTAssertEqual(process.terminationStatus, 3)

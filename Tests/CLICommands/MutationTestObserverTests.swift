@@ -40,8 +40,8 @@ final class MutationTestObserverTests: MuterTestCase {
     }
 
     // Without --verbose, the Logger says how many Swift files and mutants it found, and lists none.
-    func test_discovery_withoutVerbose_listsNothing() {
-        sut.start()
+    func test_discovery_withoutVerbose_listsNothing() throws {
+        try sut.start()
 
         runEvents.send(.sourceFileDiscoveryFinished(["/p/a.swift"]))
         runEvents.send(.mutationsDiscoveryFinished([SchemataMutationMapping]()))
@@ -53,9 +53,9 @@ final class MutationTestObserverTests: MuterTestCase {
     }
 
     // --verbose reaches the Logger, which then lists each Swift file it found, and how many mutants each file has.
-    func test_discovery_withVerbose_listsEachFile() {
+    func test_discovery_withVerbose_listsEachFile() throws {
         options = .make(verbose: true)
-        sut.start()
+        try sut.start()
 
         runEvents.send(.sourceFileDiscoveryFinished(["/p/a.swift"]))
         runEvents.send(.mutationsDiscoveryFinished([SchemataMutationMapping]()))
@@ -66,8 +66,8 @@ final class MutationTestObserverTests: MuterTestCase {
         ])
     }
 
-    func test_whyThePackagesSourceFilesCouldntBeListed_reachesTheLogger() {
-        sut.start()
+    func test_whyThePackagesSourceFilesCouldntBeListed_reachesTheLogger() throws {
+        try sut.start()
 
         runEvents.send(.packageSourceFilesUnavailable(reason: "/usr/bin/swift couldn't be started"))
 
@@ -81,8 +81,8 @@ final class MutationTestObserverTests: MuterTestCase {
         )
     }
 
-    func test_whyCoverageFailed_reachesTheLogger() {
-        sut.start()
+    func test_whyCoverageFailed_reachesTheLogger() throws {
+        try sut.start()
 
         runEvents.send(
             .projectCoverageDiscoveryFinished(CoverageFailure(reason: "llvm-cov failed", log: "/logs/coverage run.log"))
@@ -98,8 +98,8 @@ final class MutationTestObserverTests: MuterTestCase {
         )
     }
 
-    func test_testsThatFailedWithCoverageOn_reachTheLogger() {
-        sut.start()
+    func test_testsThatFailedWithCoverageOn_reachTheLogger() throws {
+        try sut.start()
 
         runEvents.send(
             .projectCoverageTestsFailed(TestsFailedWithCoverage(
@@ -119,9 +119,9 @@ final class MutationTestObserverTests: MuterTestCase {
 
     // A failing baseline's log is the only record of why the run stopped: the abort message points the
     // user at the logs folder.
-    func test_whenTheBaselineFails_itsLogIsWrittenToTheLoggingDirectory() {
+    func test_whenTheBaselineFails_itsLogIsWrittenToTheLoggingDirectory() throws {
         fileManager.currentDirectoryPathToReturn = "/project"
-        sut.start()
+        try sut.start()
         let loggingDirectory = sut.loggingDirectory
 
         runEvents.send(.baselineTestFailed(MutationTestLog.make(testLog: "error: no such module 'Calc'")))
@@ -132,9 +132,9 @@ final class MutationTestObserverTests: MuterTestCase {
     }
 
     // The name is the one the mutant's results line gives as its log.
-    func test_eachTestLogIsWrittenToTheLoggingDirectory_underTheNameItCarries() {
+    func test_eachTestLogIsWrittenToTheLoggingDirectory_underTheNameItCarries() throws {
         fileManager.currentDirectoryPathToReturn = "/project"
-        sut.start()
+        try sut.start()
         let loggingDirectory = sut.loggingDirectory
         let mutationPoint = MutationPoint(
             mutationOperatorId: .removeSideEffects,
@@ -165,8 +165,8 @@ final class MutationTestObserverTests: MuterTestCase {
         XCTAssertEqual(fileManager.contents, Data("Executed 3 tests, with 1 failure".utf8))
     }
 
-    func test_stopAtFirstFailureTurnedOff_isPrinted() {
-        sut.start()
+    func test_stopAtFirstFailureTurnedOff_isPrinted() throws {
+        try sut.start()
 
         runEvents.send(.stopAtFirstFailureTurnedOff(reason: "the reason"))
 
@@ -176,11 +176,18 @@ final class MutationTestObserverTests: MuterTestCase {
         )
     }
 
-    func test_resumePlanned_reachesTheLogger() {
-        sut.start()
+    func test_resumePlanned_reachesTheLogger() throws {
+        try sut.start()
 
         runEvents.send(
-            .resumePlanned(ResumeSummary.make(path: "/logs/results.jsonl", reused: 3, toTest: 1, retestedBecause: [.buildError: 1]))
+            .resumePlanned(
+                ResumeSummary.make(
+                    path: "/logs/results.jsonl",
+                    reused: 3,
+                    toTest: 1,
+                    retestedBecause: [.buildError: 1]
+                )
+            )
         )
 
         XCTAssertEqual(
@@ -192,10 +199,10 @@ final class MutationTestObserverTests: MuterTestCase {
 
     // The time left is the rate since the mutants started, which the Logger only knows from this event. Without
     // it, the bar would show its first estimate until 100%.
-    func test_mutantRunsStarted_reachesTheLogger() {
+    func test_mutantRunsStarted_reachesTheLogger() throws {
         let milliseconds = Locked<UInt64>(1_000_000)
         current.instant = { DispatchTime(uptimeNanoseconds: milliseconds.value * 1_000_000) }
-        sut.start()
+        try sut.start()
         runEvents.send(.resumePlanned(ResumeSummary.make(reused: 0, toTest: 10, retestedBecause: [.notRecorded: 10])))
         // 10 mutants, 120 s each, on one worker.
         runEvents.send(
@@ -212,9 +219,9 @@ final class MutationTestObserverTests: MuterTestCase {
     }
 
     // Without a terminal, each mutant's result is a line of progress, which the Logger only gets from this event.
-    func test_aMutantsOutcome_reachesTheLogger_forItsLineOfProgress() {
+    func test_aMutantsOutcome_reachesTheLogger_forItsLineOfProgress() throws {
         current.standardOutIsATerminal = false
-        sut.start()
+        try sut.start()
         runEvents.send(.resumePlanned(ResumeSummary.make(reused: 0, toTest: 2, retestedBecause: [.notRecorded: 2])))
         runEvents.send(
             .newTestLogAvailable(MutationTestLog.make(timePerBuildTestCycle: 60, remainingMutationPointsCount: 2))
@@ -226,8 +233,8 @@ final class MutationTestObserverTests: MuterTestCase {
         XCTAssertTrue(line.hasPrefix("[02:42:00] 1 of 2 (50%) | 1 survived | "), line)
     }
 
-    func test_resultsFileCreated_isLogged_andNamedAtTheEnd() {
-        sut.start()
+    func test_resultsFileCreated_isLogged_andNamedAtTheEnd() throws {
+        try sut.start()
 
         runEvents.send(.resultsFileCreated(path: "/logs/results.jsonl"))
 
@@ -242,8 +249,8 @@ final class MutationTestObserverTests: MuterTestCase {
     }
 
     // The file then lacks every result after the failed write, which the warning said.
-    func test_aResultsFileThatCouldNotBeWritten_isNotNamedAtTheEnd() {
-        sut.start()
+    func test_aResultsFileThatCouldNotBeWritten_isNotNamedAtTheEnd() throws {
+        try sut.start()
 
         runEvents.send(.resultsFileCreated(path: "/logs/results.jsonl"))
         runEvents.send(.resultsFileUnavailable(reason: "can't write to /logs/results.jsonl: No space left on device"))
@@ -257,13 +264,16 @@ final class MutationTestObserverTests: MuterTestCase {
 
         runEvents.send(.mutationTestingFinished(MutationTestOutcome.make()))
 
-        XCTAssertFalse(printer.linesPassed.contains { $0.hasPrefix("💾 Each mutant's result") }, "\(printer.linesPassed)")
+        XCTAssertFalse(
+            printer.linesPassed.contains { $0.hasPrefix("💾 Each mutant's result") },
+            "\(printer.linesPassed)"
+        )
     }
 
-    func test_aFinishedRun_savesItsReportAtTheRequestedPath_replacingAnOldOne() {
+    func test_aFinishedRun_savesItsReportAtTheRequestedPath_replacingAnOldOne() throws {
         options = .make(reportURL: URL(fileURLWithPath: "/out/report.txt"))
         let outcome = MutationTestOutcome.make(mutations: [.make(testSuiteOutcome: .failed), .make()])
-        sut.start()
+        try sut.start()
         fileManager.fileExistsToReturn = [true]
 
         runEvents.send(.mutationTestingFinished(outcome))
@@ -287,7 +297,7 @@ final class MutationTestObserverTests: MuterTestCase {
         options = .make(reportURL: URL(fileURLWithPath: "/out/report.txt"))
         let outcome = MutationTestOutcome.make(mutations: [.make(testSuiteOutcome: .failed), .make()])
         let colouredReport = PlainTextReporter().report(from: outcome)
-        sut.start()
+        try sut.start()
 
         runEvents.send(.mutationTestingFinished(outcome))
 
@@ -298,9 +308,9 @@ final class MutationTestObserverTests: MuterTestCase {
     }
 
     // Without `-o` the report is printed, and there is no file to save it to.
-    func test_aFinishedRunWithoutARequestedReport_savesNothing() {
+    func test_aFinishedRunWithoutARequestedReport_savesNothing() throws {
         let outcome = MutationTestOutcome.make(mutations: [.make(testSuiteOutcome: .failed), .make()])
-        sut.start()
+        try sut.start()
 
         runEvents.send(.mutationTestingFinished(outcome))
 
@@ -316,9 +326,9 @@ final class MutationTestObserverTests: MuterTestCase {
 
     // The warning the report gives of the run's suspect tests, after where the report went and before the results
     // file's line.
-    func test_finished_passesTheSuspectWarningToTheLogger() {
+    func test_finished_passesTheSuspectWarningToTheLogger() throws {
         options = .make(reportURL: URL(fileURLWithPath: "/out/report.txt"))
-        sut.start()
+        try sut.start()
         runEvents.send(.resultsFileCreated(path: "/logs/results.jsonl"))
 
         runEvents.send(.mutationTestingFinished(MutationTestOutcome.withSuspectTests))
@@ -333,10 +343,10 @@ final class MutationTestObserverTests: MuterTestCase {
     }
 
     // A complete report from an earlier run is never replaced by a partial one.
-    func test_anEarlyEnd_writesThePartialReportBesideTheRequestedOne() {
+    func test_anEarlyEnd_writesThePartialReportBesideTheRequestedOne() throws {
         options = .make(reportURL: URL(fileURLWithPath: "/out/report.txt"))
         let earlyEnd = EarlyEnd.make(tested: [.failed, .passed])
-        sut.start()
+        try sut.start()
 
         runEvents.send(.mutationTestingEndedEarly(earlyEnd))
 
@@ -348,7 +358,7 @@ final class MutationTestObserverTests: MuterTestCase {
     func test_anEarlyEnd_writesThePartialReportInTheRequestedFormat() throws {
         options = .make(reportFormat: .json, reportURL: URL(fileURLWithPath: "/out/report.json"))
         let earlyEnd = EarlyEnd.make(tested: [.failed, .passed])
-        sut.start()
+        try sut.start()
 
         runEvents.send(.mutationTestingEndedEarly(earlyEnd))
 
@@ -362,8 +372,8 @@ final class MutationTestObserverTests: MuterTestCase {
     }
 
     // Without `-o`, the summary and the results file say what was tested.
-    func test_anEarlyEndWithoutARequestedReport_writesNoPartialReport() {
-        sut.start()
+    func test_anEarlyEndWithoutARequestedReport_writesNoPartialReport() throws {
+        try sut.start()
 
         runEvents.send(.mutationTestingEndedEarly(EarlyEnd.make(tested: [.failed, .passed])))
 
@@ -374,9 +384,9 @@ final class MutationTestObserverTests: MuterTestCase {
         )
     }
 
-    func test_anEarlyEndWithNothingTested_writesNoReport() {
+    func test_anEarlyEndWithNothingTested_writesNoReport() throws {
         options = .make(reportURL: URL(fileURLWithPath: "/out/report.txt"))
-        sut.start()
+        try sut.start()
 
         runEvents.send(.mutationTestingEndedEarly(EarlyEnd.make(tested: [])))
 
@@ -384,10 +394,10 @@ final class MutationTestObserverTests: MuterTestCase {
         XCTAssertEqual(standardError.linesPassed, ["⏹ Stopped by a signal before any of 4 mutants finished."])
     }
 
-    func test_anEarlyEnd_printsItsSummaryToStandardError_namingTheResultsFile() {
+    func test_anEarlyEnd_printsItsSummaryToStandardError_namingTheResultsFile() throws {
         current.commandLineArguments = ["run", "-o", "/out/report.txt"]
         options = .make(reportURL: URL(fileURLWithPath: "/out/report.txt"))
-        sut.start()
+        try sut.start()
         runEvents.send(.resultsFileCreated(path: "/logs/results.jsonl"))
         let printedBefore = printer.linesPassed
 
@@ -404,10 +414,12 @@ final class MutationTestObserverTests: MuterTestCase {
     }
 
     // The command repeats the arguments SwiftMutator was started with, so the run goes on as it was asked to.
-    func test_continueCommand_comesFromTheCommandLine() {
-        current.commandLineArguments = ["--skip-coverage", "--format", "json", "--operators", "RelationalOperatorReplacement"]
+    func test_continueCommand_comesFromTheCommandLine() throws {
+        current.commandLineArguments = [
+            "--skip-coverage", "--format", "json", "--operators", "RelationalOperatorReplacement",
+        ]
         options = .make(reportFormat: .json, mutationOperatorsList: [.ror], skipCoverage: true)
-        sut.start()
+        try sut.start()
         runEvents.send(.resultsFileCreated(path: "/logs/Oct 6, 2026 at 9:12 AM/results.jsonl"))
 
         runEvents.send(.mutationTestingEndedEarly(EarlyEnd.make(tested: [.failed])))
@@ -420,10 +432,10 @@ final class MutationTestObserverTests: MuterTestCase {
     }
 
     // A run from a test plan can't be resumed: its results file still makes a report.
-    func test_aTestPlanRun_getsNoContinueLine() {
+    func test_aTestPlanRun_getsNoContinueLine() throws {
         current.commandLineArguments = ["run-without-mutating", "muter-mappings.json"]
         options = .make(testPlanURL: URL(fileURLWithPath: "/project/muter-mappings.json"))
-        sut.start()
+        try sut.start()
         runEvents.send(.resultsFileCreated(path: "/logs/results.jsonl"))
 
         runEvents.send(.mutationTestingEndedEarly(EarlyEnd.make(detail: "SIGINT", tested: [.failed, .passed])))
@@ -436,8 +448,8 @@ final class MutationTestObserverTests: MuterTestCase {
     }
 
     // The file lacks every result after the failed write.
-    func test_anEarlyEnd_doesNotNameAResultsFileThatCouldNotBeWritten() {
-        sut.start()
+    func test_anEarlyEnd_doesNotNameAResultsFileThatCouldNotBeWritten() throws {
+        try sut.start()
         runEvents.send(.resultsFileCreated(path: "/logs/results.jsonl"))
         runEvents.send(.resultsFileUnavailable(reason: "No space left on device"))
 

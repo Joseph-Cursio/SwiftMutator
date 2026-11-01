@@ -65,12 +65,14 @@ final class DirectTestRunTests: MuterTestCase {
         XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: link.path), helper.path)
     }
 
-    // A mutant whose tests write a fixed key could otherwise fail the runs after it in that folder, and another worker's.
+    // A mutant whose tests write a fixed key could otherwise fail the runs after it in that folder, and another
+    // worker's.
     func test_eachRunStartsWithEmptyDefaults_thatNoOtherWorkerShares() async throws {
         let otherWorker = directory.appendingPathComponent("it's a project_worker1")
         try FileManager.default.createDirectory(at: otherWorker, withIntermediateDirectories: true)
-        addTeardownBlock { [worker] in
-            DirectTestRun.removeOwnDefaults(forWorkerIn: worker!)
+        let worker = try XCTUnwrap(worker)
+        addTeardownBlock {
+            DirectTestRun.removeOwnDefaults(forWorkerIn: worker)
             DirectTestRun.removeOwnDefaults(forWorkerIn: otherWorker)
         }
 
@@ -97,7 +99,9 @@ final class DirectTestRunTests: MuterTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: DirectTestRun.helperLink(forWorkerIn: worker).path))
         XCTAssertEqual(try defaults("read", domain), "")
         let preferences = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Preferences")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: preferences.appendingPathComponent(domain + ".plist").path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: preferences.appendingPathComponent(domain + ".plist").path)
+        )
         XCTAssertTrue(FileManager.default.fileExists(atPath: helper.path))
     }
 
@@ -326,7 +330,7 @@ final class DirectTestRunTests: MuterTestCase {
             stopAtFirstFailure: stoppingAtFirstFailure
         ).withDirectTestRun(makeDirectTestRun(bundles: bundles, testFiles: testFiles))
         let mutant = try MutationSchema.make(filePath: "/path/Sample.swift", position: .init(line: 1))
-        let workingDirectory = folder ?? worker!
+        let workingDirectory = try folder ?? XCTUnwrap(worker)
         let run = Task { [sut] in
             await sut.runTestSuite(
                 withSchemata: mutant,

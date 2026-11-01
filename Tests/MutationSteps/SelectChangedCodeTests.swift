@@ -38,7 +38,10 @@ final class SelectChangedCodeTests: MuterTestCase {
         stubSelection(.success(selection))
 
         await AssertThrowsError(try await SelectChangedCode().run(with: state)) { error in
-            XCTAssertEqual(error as? NothingToMutate, NothingToMutate(reason: .noSwiftFileChanged, selection: selection))
+            XCTAssertEqual(
+                error as? NothingToMutate,
+                NothingToMutate(reason: .noSwiftFileChanged, selection: selection)
+            )
         }
     }
 
@@ -80,7 +83,10 @@ final class SelectChangedCodeTests: MuterTestCase {
         XCTAssertFalse(steps.contains { $0 is SelectChangedCode || $0 is ListChangedSources })
         let withSince = MutationTestHandler(options: .make(since: "main", skipCoverage: true)).steps
         let names = withSince.map { "\(type(of: $0))" }
-        XCTAssertEqual(names.firstIndex(of: "SelectChangedCode"), names.firstIndex(of: "LoadConfiguration").map { $0 + 1 })
+        XCTAssertEqual(
+            names.firstIndex(of: "SelectChangedCode"),
+            names.firstIndex(of: "LoadConfiguration").map { $0 + 1 }
+        )
         XCTAssertLessThan(
             try XCTUnwrap(names.firstIndex(of: "SelectChangedCode")),
             try XCTUnwrap(names.firstIndex(of: "CopyProjectToTempDirectory"))
@@ -92,12 +98,13 @@ final class SelectChangedCodeTests: MuterTestCase {
 
         XCTAssertEqual(
             "\(NothingToMutate(reason: .noSwiftFileChanged, selection: selection))",
-            "ℹ️ No Swift file changed since the merge base of origin/main and HEAD (ba5e000), so there is nothing to mutate."
+            "ℹ️ No Swift file changed since the merge base of origin/main and HEAD (ba5e000), so there is nothing "
+                + "to mutate."
         )
         XCTAssertEqual(
             "\(NothingToMutate(reason: .everyFileExcluded(count: 2), selection: selection))",
-            "ℹ️ 2 Swift files changed since the merge base of origin/main and HEAD (ba5e000), and the excludes leave out "
-                + "every one, so there is nothing to mutate."
+            "ℹ️ 2 Swift files changed since the merge base of origin/main and HEAD (ba5e000), and the excludes "
+                + "leave out every one, so there is nothing to mutate."
         )
         XCTAssertEqual(
             "\(NothingToMutate(reason: .noMutantOnChangedLines, selection: selection))",
@@ -179,7 +186,10 @@ final class DiscoverSourceFilesSinceTests: MuterTestCase {
         state.apply([.changesSelected(selection)])
 
         await AssertThrowsError(try await DiscoverSourceFiles().run(with: state)) { error in
-            XCTAssertEqual(error as? NothingToMutate, NothingToMutate(reason: .noFileDiscovered(count: 1), selection: selection))
+            XCTAssertEqual(
+                error as? NothingToMutate,
+                NothingToMutate(reason: .noFileDiscovered(count: 1), selection: selection)
+            )
         }
     }
 
@@ -192,10 +202,16 @@ final class DiscoverSourceFilesSinceTests: MuterTestCase {
         state.apply([.changesSelected(selection)])
 
         await AssertThrowsError(try await ListChangedSources().run(with: state)) { error in
-            XCTAssertEqual(error as? NothingToMutate, NothingToMutate(reason: .noTargetCompiles(count: 1), selection: selection))
+            XCTAssertEqual(
+                error as? NothingToMutate,
+                NothingToMutate(reason: .noTargetCompiles(count: 1), selection: selection)
+            )
         }
         let steps = MutationTestHandler(options: .make(since: "main")).steps.map { "\(type(of: $0))" }
-        XCTAssertEqual(steps.firstIndex(of: "ListChangedSources"), steps.firstIndex(of: "DiscoverProjectCoverage").map { $0 - 1 })
+        XCTAssertEqual(
+            steps.firstIndex(of: "ListChangedSources"),
+            steps.firstIndex(of: "DiscoverProjectCoverage").map { $0 - 1 }
+        )
     }
 
     func test_listingBeforeCoverage_isWhatDiscoveryPicksFrom() async throws {

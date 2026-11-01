@@ -4,8 +4,8 @@ import Foundation
 /// tested or kept from an earlier session, and the worker clones it made. Only the task that runs the mutants and
 /// records their outcomes uses it, except for its results file, which a stop at once ends from another thread.
 final class TestingSession: @unchecked Sendable { // `file`, `mutantLines` and `ended` are behind `writing`
-    /// 1 for a run's first session, as for one that reuses an earlier run's results; a resumed one is the next after the
-    /// last its results file holds.
+    /// 1 for a run's first session, as for one that reuses an earlier run's results; a resumed one is the next after
+    /// the last its results file holds.
     let number: Int
     /// When mutation testing started, which its test duration is measured from.
     let startedAt: Date
