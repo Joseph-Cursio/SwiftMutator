@@ -517,6 +517,72 @@ error, with status 64.
   can also change the results of mutants elsewhere: a test file, a fixture a test reads, or a source
   file the mutated code calls. Waive only files that no test's result depends on.
 
+## Reusing an earlier run
+
+`run --reuse` starts a new run from an earlier run's results, so a run after a small change tests
+only what the change can affect ([#71](https://github.com/Joseph-Cursio/SwiftMutator/issues/71)).
+It takes the earlier run's results file, or the log folder that holds it, finished or not, and
+writes a results file of its own in its own log folder: the earlier file is only read.
+
+```
+swift-mutator run --skip-coverage -o report.txt --reuse '/…/Oct 31, 2026 at 7:08 PM/results.jsonl'
+♻️ Reusing the results in /…/results.jsonl: 1816 results still hold, so 647 mutants are left to test (9 timeouts, 638 as test files changed).
+ℹ️ 1 test file changed, so every survivor is tested again, and every kill that no unchanged test still holds.
+```
+
+It checks the earlier run as a resume does (see [When a resume is refused](#when-a-resume-is-refused)),
+with `--force-reuse` for `--force-resume`. Changed project files never refuse it. Instead they decide
+which results it keeps, for each result by what changed since the session that tested it:
+
+- **What it keeps.** A result that a resume would keep: same file, place, operator and change, and
+  the file's SHA-256 unchanged. Then:
+  - **A timeout** is always tested again: it may have been the load the earlier run was under.
+  - **A changed file other than a test file**, such as another source file, `Package.resolved` or a
+    fixture, can change any mutant's result, so every result tested before the change is tested
+    again. SwiftMutator names the files, with the `--reuse-ignoring` flags that would let them
+    through.
+  - **Changed test files** test every survivor again, as a changed test can kill it. A kill is kept
+    if one of the tests that killed it still holds: its issue was recorded in a test file that is the
+    same, unchanged, in both runs (Swift Testing names it, by its name alone, which must be the only
+    file of that name), that file still declares the test, no changed test file names the test, and
+    the file doesn't name the type of a changed test file, by its file's name up to any `+`, as
+    `ParsingTests+Helpers.swift` extends `ParsingTests`. A kill by XCTest
+    tests, whose lines name no file, is tested again.
+  - Anything else is kept.
+- **Test files** are the Swift files that import Testing or XCTest, in a folder named `Tests` or
+  ending in `Tests`, such as `MyAppTests`, or outside them if their names end in `Tests.swift`. A
+  test's fixtures and resources aren't test files, Swift ones included, nor are helpers that import
+  neither, as a test file can't name what it reads from them, so their changes count as other files'.
+  So does a removed Swift file in a test folder, or named like a test, as nothing shows what it was,
+  and no glob lets its removal through. A local package's own tests, outside the project, are left
+  out: the project never builds them. In an Xcode project, adding or removing a test file changes
+  `project.pbxproj`, which isn't a test file, so every result is tested again.
+- **`--reuse-ignoring <glob>`** lets changes to files other than test files through, as
+  `--resume-ignoring` does for a resume. It never lets a test file's change through.
+- **The baseline** runs whenever anything changed, even when every result is kept, so a changed test
+  that now fails stops the run. Only with no change at all, and nothing to test, does it run none.
+- **The new file** starts with the results it keeps, each with `reusedFrom`, which says where it was
+  tested ([Mutant](Docs/results-file.md#mutant)), and their logs are copied into the new log folder.
+  So the new file stands alone: `swift-mutator report` of it gives the run's own report, and a later
+  `--reuse` or `--resume` of it works as of any run's. A stopped reuse continues with
+  `--resume` of the new file, which its Continue line names, with each `--reuse-ignoring` as a
+  `--resume-ignoring`. Stopped before its baseline passed, it has no file yet: run the same
+  `--reuse` command again.
+- **The reports mark reused results.** The plain and HTML reports add a Reused column, with "yes",
+  or "yes, despite changes" for a result that `--reuse-ignoring`, `--force-reuse` or their resume
+  counterparts let a change through for since it was tested; a waiver marks only the results tested
+  before the change it let through. The JSON report gives each its
+  `reusedFrom`. The Xcode format doesn't mark them.
+- **Run a full run now and then**, for example weekly. A result can depend on code the rules above
+  can't see changed, such as a test helper whose type isn't named after its file, and the timeouts'
+  load differs from run to run.
+- **What it saved on SwiftProjectLint**, with 4 workers: with nothing changed, 4.2 min against
+  27.3 min for a full run; after one test file changed, 19.0 min against 26.6 min, as it tests every
+  survivor again. Every result it kept matched a full run's
+  ([Docs/reuse-2026-10.md](Docs/reuse-2026-10.md)).
+- **Same machine.** The configuration's `executable` and `arguments` are compared exactly, as for a
+  resume, so a results file from another Mac, with other paths, is refused.
+
 ## Development
 
 `make test` runs the unit tests (the `muterTests` target). CI runs them on every pull request

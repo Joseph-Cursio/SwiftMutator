@@ -168,8 +168,80 @@ final class ResumePlanTests: XCTestCase {
             plan.retestedBecause,
             [.notRecorded: 2, .buildError: 1, .fileChanged: 1, .mutationChanged: 1, .repeated: 2]
         )
-        XCTAssertEqual(Set(plan.retestedBecause.keys), Set(ResumePlan.Reason.allCases))
+        // Every reason but a reuse's.
+        XCTAssertEqual(
+            Set(plan.retestedBecause.keys),
+            Set(ResumePlan.Reason.allCases).subtracting([.timedOut, .otherFileChanged, .testsChanged])
+        )
         XCTAssertEqual(plan.retestedBecause.values.reduce(0, +), plan.toRun.count)
+    }
+
+    func test_aReuse_retestsTimeouts_evenWithNothingChanged() {
+        // A timeout may be the load the earlier run was under; a resume of the same run keeps it.
+        let keys = [key(line: 1), key(line: 2), key(line: 3)]
+        let records = [
+            record(of: keys[0], outcome: .timeout, endedBy: .timedOut),
+            record(of: keys[1], outcome: .passed),
+            record(of: keys[2], outcome: .failed),
+        ]
+
+        let plan = plan(keys, recorded: records, reusing: changes())
+
+        XCTAssertEqual(plan.reused, [1: records[1], 2: records[2]])
+        XCTAssertEqual(plan.toRun, [0])
+        XCTAssertEqual(plan.retestedBecause, [.timedOut: 1])
+    }
+
+    func test_aReuse_retestsEveryResult_onceAFileOtherThanATestChanged() {
+        let keys = [key(line: 1), key("Sources/Product.swift", line: 2)]
+        let records = [record(of: keys[0], outcome: .passed), record(of: keys[1], outcome: .failed)]
+
+        let plan = plan(keys, recorded: records, reusing: changes(added: ["Package.resolved"]))
+
+        XCTAssertEqual(plan.reused, [:])
+        XCTAssertEqual(plan.toRun, [0, 1])
+        XCTAssertEqual(plan.retestedBecause, [.otherFileChanged: 2])
+        XCTAssertEqual(plan.retired, [keys[1], keys[0]])
+    }
+
+    func test_aReuse_keepsEveryResult_whenAGlobLetEveryOtherChangeThrough() {
+        let keys = [key(line: 1), key(line: 2)]
+        let records = [record(of: keys[0], outcome: .passed), record(of: keys[1], outcome: .failed)]
+
+        let plan = plan(
+            keys,
+            recorded: records,
+            reusing: changes(added: ["README.md"], waiving: ["README.md"])
+        )
+
+        XCTAssertEqual(plan.reused, [0: records[0], 1: records[1]])
+        XCTAssertEqual(plan.toRun, [])
+    }
+
+    func test_aReuse_afterATestFileChanged_retestsSurvivors_andKillsNoUnchangedTestHolds() {
+        // A build error and a changed file's mutant are tested again for their own reasons first.
+        let keys = (1...5).map { key(line: $0) } + [key("Sources/Product.swift", line: 6)]
+        let records = [
+            record(of: keys[0], outcome: .passed),
+            record(of: keys[1], outcome: .failed, killedBy: [.init(name: "adds()", location: "SumTests.swift:1:12")]),
+            record(of: keys[2], outcome: .runtimeError, killedBy: [.init(name: "moved()", location: "SumTests.swift:9:5")]),
+            record(of: keys[3], outcome: .failed, killedBy: [.init(name: "-[SumTests.SumTests testAdds]", location: nil)]),
+            record(of: keys[4], outcome: .buildError),
+            record(of: keys[5], outcome: .failed, fileSHA256: "0ld"),
+        ]
+
+        let plan = plan(
+            keys,
+            recorded: records,
+            reusing: changes(
+                added: ["Tests/SumTests/OtherTests.swift"],
+                sources: ["Tests/SumTests/OtherTests.swift": "import Testing\n@Test func moved() {}"]
+            )
+        )
+
+        XCTAssertEqual(plan.reused, [1: records[1]])
+        XCTAssertEqual(plan.toRun, [0, 2, 3, 4, 5])
+        XCTAssertEqual(plan.retestedBecause, [.testsChanged: 3, .buildError: 1, .fileChanged: 1])
     }
 
     func test_retiresEveryRecordedKeyItDoesntKeep_includingOnesNoLongerDiscovered_whichItCounts() {
@@ -217,9 +289,17 @@ final class ResumePlanTests: XCTestCase {
         of key: MutantKey,
         outcome: TestSuiteOutcome = .failed,
         endedBy: TestRun.Ending = .exited,
-        snapshot: MutationOperator.Snapshot = mutation
+        snapshot: MutationOperator.Snapshot = mutation,
+        killedBy: [FailedTestLine.FailedTest]? = nil
     ) -> MutantResult {
-        record(of: key, outcome: outcome, endedBy: endedBy, snapshot: snapshot, fileSHA256: Self.hashes[key.path])
+        record(
+            of: key,
+            outcome: outcome,
+            endedBy: endedBy,
+            snapshot: snapshot,
+            fileSHA256: Self.hashes[key.path],
+            killedBy: killedBy
+        )
     }
 
     /// A result recorded for `key`'s mutant, tested in a file whose hash was `fileSHA256`.
@@ -228,7 +308,8 @@ final class ResumePlanTests: XCTestCase {
         outcome: TestSuiteOutcome = .failed,
         endedBy: TestRun.Ending = .exited,
         snapshot: MutationOperator.Snapshot = mutation,
-        fileSHA256: String?
+        fileSHA256: String?,
+        killedBy: [FailedTestLine.FailedTest]? = nil
     ) -> MutantResult {
         MutantResult.make(
             path: key.path,
@@ -239,8 +320,32 @@ final class ResumePlanTests: XCTestCase {
             snapshot: snapshot,
             outcome: outcome,
             endedBy: endedBy,
+            killedBy: killedBy,
             fileSHA256: fileSHA256
         )
+    }
+
+    /// A reuse's changes since session 1, from a tree that holds this run's `hashes` and `SumTests.swift`, to one with
+    /// `changed` files' hashes changed, `added` added and `removed` removed, with `sources` as the test files' text.
+    private func changes(
+        changed: [String] = [],
+        added: [String] = [],
+        waiving globs: [String] = [],
+        sources: [String: String] = [:]
+    ) -> [Int: ReuseChanges] {
+        let files = Self.hashes.merging(["Tests/SumTests/SumTests.swift": "0001"]) { $1 }
+        var current = files
+        for path in changed + added {
+            current[path] = "ffff"
+        }
+        let sources = sources.merging(["Tests/SumTests/SumTests.swift": "import Testing\n@Test func adds() {}"]) { first, _ in
+            first
+        }
+        return [1: ReuseChanges(from: tree(files), to: tree(current), waiving: globs, readSource: { sources[$0] })]
+    }
+
+    private func tree(_ files: [String: String]) -> ProjectTree {
+        ProjectTree(listedBy: .git, files: files, excluded: [], treeSHA256: ProjectTree.treeHash(of: files))
     }
 
     /// The plan for jobs with `keys`, each making `mutation` unless `snapshots` says otherwise.
@@ -248,13 +353,15 @@ final class ResumePlanTests: XCTestCase {
         _ keys: [MutantKey],
         recorded records: [MutantResult],
         snapshots: [MutationOperator.Snapshot]? = nil,
-        fileHashes: [String: String] = hashes
+        fileHashes: [String: String] = hashes,
+        reusing changes: [Int: ReuseChanges]? = nil
     ) -> ResumePlan {
         ResumePlan.make(
             keys: keys,
             snapshots: snapshots ?? keys.map { _ in Self.mutation },
             recorded: Dictionary(uniqueKeysWithValues: records.map { ($0.key, $0) }),
-            fileHashes: fileHashes
+            fileHashes: fileHashes,
+            reusing: changes
         )
     }
 }

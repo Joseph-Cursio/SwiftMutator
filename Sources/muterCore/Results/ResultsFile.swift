@@ -9,8 +9,20 @@ protocol ResultsRecording: AnyObject {
     /// the line survives SwiftMutator being killed, and an OS crash.
     @discardableResult
     func append(_ line: some Encodable) -> Bool
+    /// Appends each of `lines` as a line of its own, as `append` does, but written out together and synchronized once:
+    /// once this returns true, they all survive. After a failure, any of them may be missing.
+    @discardableResult
+    func append<Line: Encodable>(contentsOf lines: [Line]) -> Bool
     /// Closes the file, which releases its lock.
     func close()
+}
+
+extension ResultsRecording {
+    /// One `append` after another, for a file with no faster way.
+    @discardableResult
+    func append<Line: Encodable>(contentsOf lines: [Line]) -> Bool {
+        lines.allSatisfy { append($0) }
+    }
 }
 
 /// Makes a run's results file.
@@ -146,6 +158,30 @@ final class ResultsFile: ResultsRecording {
             return true
         } catch {
             // The line may be half written, and nothing may follow it on the same line.
+            writeError = error
+            return false
+        }
+    }
+
+    @discardableResult
+    func append<Line: Encodable>(contentsOf lines: [Line]) -> Bool {
+        guard writeError == nil, descriptor >= 0 else { return false }
+        guard !lines.isEmpty else { return true }
+        do {
+            if endsLastLineFirst {
+                try endLastLine()
+                endsLastLineFirst = false
+            }
+            var data = Data()
+            for line in lines {
+                data.append(try encoder.encode(line))
+                data.append(UInt8(ascii: "\n"))
+            }
+            try writeAll(data)
+            try synchronizeToDisk()
+            return true
+        } catch {
+            // The lines may be half written, and nothing may follow them on the same line.
             writeError = error
             return false
         }

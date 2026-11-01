@@ -53,6 +53,33 @@ struct Run: RunCommand {
     )
     var forceResume = false
 
+    @Option(
+        name: .customLong("reuse"),
+        help: ArgumentHelp(
+            "Start a new run from an earlier run's results file, or the log folder that holds it, finished or not. "
+                + "Only mutants without a result that still holds are tested, and the new run writes a results file "
+                + "of its own.",
+            valueName: "results"
+        )
+    )
+    var reuse: URL?
+
+    @Option(
+        name: .customLong("reuse-ignoring"),
+        help: ArgumentHelp(
+            "With --reuse, reuse results although project files matching this glob changed; * also matches /. "
+                + "Test files are never waived. Repeatable.",
+            valueName: "glob"
+        )
+    )
+    var reuseIgnoring: [String] = []
+
+    @Flag(
+        name: .customLong("force-reuse"),
+        help: "With --reuse, reuse results although SwiftMutator, the toolchain or the SDK changed."
+    )
+    var forceReuse = false
+
     init() {}
 
     /// The options the command line gives the run.
@@ -67,8 +94,10 @@ struct Run: RunCommand {
             verbose: options.verbose,
             configurationURL: options.configurationURL,
             resumeURL: resume,
-            resumeIgnoring: resumeIgnoring,
-            forceResume: forceResume
+            reuseURL: reuse,
+            // Only one of each pair can be given: `validate()` ties each to its own option.
+            resumeIgnoring: resume == nil ? reuseIgnoring : resumeIgnoring,
+            forceResume: resume == nil ? forceReuse : forceResume
         )
     }
 
@@ -76,14 +105,28 @@ struct Run: RunCommand {
         try await run(with: runOptions)
     }
 
-    /// `--resume-ignoring` and `--force-resume` only say what a resume may reuse.
+    /// `--resume` continues a run's own results file and `--reuse` starts a new one, so only one can be given.
+    /// `--resume-ignoring` and `--force-resume` only say what a resume may reuse, and `--reuse-ignoring` and
+    /// `--force-reuse` what a reuse may.
     func validate() throws {
-        guard resume == nil else { return }
-        if !resumeIgnoring.isEmpty {
-            throw ValidationError("--resume-ignoring only applies with --resume.")
+        if resume != nil, reuse != nil {
+            throw ValidationError("--resume and --reuse can't be given together.")
         }
-        if forceResume {
-            throw ValidationError("--force-resume only applies with --resume.")
+        if resume == nil {
+            if !resumeIgnoring.isEmpty {
+                throw ValidationError("--resume-ignoring only applies with --resume.")
+            }
+            if forceResume {
+                throw ValidationError("--force-resume only applies with --resume.")
+            }
+        }
+        if reuse == nil {
+            if !reuseIgnoring.isEmpty {
+                throw ValidationError("--reuse-ignoring only applies with --reuse.")
+            }
+            if forceReuse {
+                throw ValidationError("--force-reuse only applies with --reuse.")
+            }
         }
     }
 }

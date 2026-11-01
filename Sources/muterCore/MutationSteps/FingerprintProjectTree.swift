@@ -6,6 +6,9 @@ import Foundation
 ///
 /// A resumed run compares the copy with the last session's files too. `LoadResumeState` compared the project before the
 /// copy, so this only finds what changed while it was copied, and hands on the changes `--resume-ignoring` let through.
+/// A run that reuses an earlier run's results instead hands on every change since each of that run's sessions, split by
+/// what it can make wrong (`ReuseChanges`), which decides which of the session's results it keeps: a session that
+/// resumed the run may have let changes through that its earlier results weren't tested with.
 struct FingerprintProjectTree: MutationStep {
     @Dependency(\.listProjectFiles)
     private var listProjectFiles: ProjectFileListing
@@ -23,6 +26,31 @@ struct FingerprintProjectTree: MutationStep {
         try Task.checkCancellation()
         guard let resume = state.resumeState, let recorded = resume.lastHeader.project else {
             return [.projectTreeFingerprinted(tree)]
+        }
+        if resume.isReuse {
+            var sources: [String: String?] = [:]
+            let readSource = { (path: String) -> String? in
+                if let read = sources[path] {
+                    return read
+                }
+                // A local package outside the project isn't copied: its files were hashed where they are.
+                let root = path.hasPrefix("../") ? state.projectDirectoryURL : state.mutatedProjectDirectoryURL
+                let read = try? String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+                sources[path] = read
+                return read
+            }
+            var changes: [Int: ReuseChanges] = [:]
+            for header in resume.recorded.headers {
+                guard let sessionTree = header.project else { continue }
+                changes[header.session] = ReuseChanges(
+                    from: sessionTree,
+                    to: tree,
+                    waiving: state.runOptions.resumeIgnoring,
+                    readSource: readSource
+                )
+            }
+            let waived = Set(changes.values.flatMap(\.waived)).sorted()
+            return [.projectTreeFingerprinted(tree), .projectChangesWaived(waived), .reuseChangesFound(changes)]
         }
         let split = tree.changes(since: recorded).partition(by: state.runOptions.resumeIgnoring)
         guard split.unwaived.isEmpty else {

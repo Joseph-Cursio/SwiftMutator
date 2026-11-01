@@ -105,6 +105,16 @@ final class HTMLReportTests: MuterTestCase {
         AssertSnapshot(html)
     }
 
+    func test_aReusedResult_isMarkedInAReusedColumn() {
+        let reused = ReusedFrom(resultsFile: "/logs/results.jsonl", session: 1, despiteChanges: true)
+        let html = sut.report(from: .make(mutations: [.make(testSuiteOutcome: .passed, reusedFrom: reused), .make()]))
+
+        XCTAssertTrue(html.contains("<th>Reused</th>"))
+        XCTAssertTrue(html.contains("<td>yes, despite changes</td>"))
+        XCTAssertTrue(html.contains("<td>-</td>"))
+        XCTAssertFalse(sut.report(from: .make(mutations: [.make()])).contains("<th>Reused</th>"))
+    }
+
     func test_withoutSuspectTests_theReportHasNoWarningNorOtherScore() {
         let html = sut.report(from: .withKillingTests)
 

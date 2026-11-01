@@ -59,7 +59,8 @@ private extension RegressionSnapshotKeysTests {
                     mutationSnapshot: MutationOperator.Snapshot(before: ">", after: "<", description: "changed > to <"),
                     originalProjectDirectoryUrl: URL(fileURLWithPath: "/project"),
                     mutatedProjectDirectoryURL: URL(fileURLWithPath: "/project_mutated"),
-                    killingTests: namingKillingTests ? killingTests[outcome] : nil
+                    killingTests: namingKillingTests ? killingTests[outcome] : nil,
+                    reusedFrom: nil
                 )
             }
         }

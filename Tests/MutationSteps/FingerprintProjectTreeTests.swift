@@ -119,6 +119,40 @@ final class FingerprintProjectTreeTests: MuterTestCase {
         XCTAssertEqual(state.projectTree?.files.keys.sorted(), ["README.md", "Sources/Sum.swift", "notes.txt"])
     }
 
+    // A reuse is never refused for changed files: each session's changes since its own tree decide which of its
+    // results it keeps. A session that resumed the run after a waived change has another tree than the first.
+    func test_onReuse_eachSessionsChanges_areHandedToTheState_testFilesReadFromTheCopy() async throws {
+        let first = ["README.md": "readme", "Sources/Sum.swift": "sum", "Tests/SumTests/SumTests.swift": "old tests"]
+        let second = first.merging(["README.md": "a changed readme"]) { $1 }
+        let tests = "import Testing\n@Test func adds() {}"
+        let now = second.merging(["Tests/SumTests/SumTests.swift": tests, "notes.txt": "new"]) { $1 }
+        try write(now, in: copy)
+        current.listProjectFiles = { _ in Array(now.keys) }
+        state.runOptions = .make(reuseURL: URL(fileURLWithPath: resultsPath), resumeIgnoring: ["*.txt"])
+        state.resumeState = try ResumeState.make(
+            path: resultsPath,
+            lines: [
+                ResultsHeader.make(project: projectTree(of: first)),
+                ResultsHeader.make(formatVersion: 2, session: 2, project: projectTree(of: second), waived: ["README.md"]),
+            ],
+            file: nil
+        )
+
+        state.apply(try await sut.run(with: state))
+
+        let changes = try XCTUnwrap(state.reuseChanges)
+        XCTAssertEqual(changes.keys.sorted(), [1, 2])
+        XCTAssertEqual(changes[1]?.otherFiles, [.init(path: "README.md", kind: .changed)])
+        XCTAssertEqual(changes[2]?.otherFiles, [])
+        for session in [1, 2] {
+            XCTAssertEqual(changes[session]?.waived, ["notes.txt"])
+            XCTAssertEqual(changes[session]?.testFiles, [.init(path: "Tests/SumTests/SumTests.swift", kind: .changed)])
+            XCTAssertEqual(changes[session]?.testSources, ["Tests/SumTests/SumTests.swift": tests])
+        }
+        XCTAssertEqual(state.resumeWaived, ["notes.txt"])
+        XCTAssertNotNil(state.projectTree)
+    }
+
     // The last session's report is still in the project, although this run writes its report elsewhere, or none.
     func test_onResume_theRecordedReportPaths_arentChanges() async throws {
         try write(["README.md": "readme", "old-report.txt": "the last session's report"], in: copy)

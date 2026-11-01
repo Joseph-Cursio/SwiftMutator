@@ -234,7 +234,8 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
                 mutationSnapshot: .make(before: ">", after: "<", description: "changed > to <"),
                 originalProjectDirectoryUrl: state.projectDirectoryURL,
                 mutatedProjectDirectoryURL: state.mutatedProjectDirectoryURL,
-                killingTests: nil
+                killingTests: nil,
+                reusedFrom: nil
             )
         )
     }

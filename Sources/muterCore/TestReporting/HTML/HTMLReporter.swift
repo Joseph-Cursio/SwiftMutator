@@ -221,6 +221,7 @@ extension Node where Context: HTML.BodyContext {
             }
         }
         let showsKillingTests = fileReports.showsKillingTests
+        let showsReuse = fileReports.showsReuse
 
         return .table(
             .id("applied-operators"),
@@ -230,7 +231,8 @@ extension Node where Context: HTML.BodyContext {
                     .th("Applied Mutation Operator"),
                     .th("Changes"),
                     .th("Mutation Test Result"),
-                    .if(showsKillingTests, .th("Killed By"))
+                    .if(showsKillingTests, .th("Killed By")),
+                    .if(showsReuse, .th("Reused"))
                 )
             ),
             .tbody(
@@ -248,7 +250,8 @@ extension Node where Context: HTML.BodyContext {
                         .td(
                             .raw("\(report.appliedOperator.testSuiteOutcome.asIcon)")
                         ),
-                        .if(showsKillingTests, .td(.class("left-aligned"), .killedBy(report.appliedOperator)))
+                        .if(showsKillingTests, .td(.class("left-aligned"), .killedBy(report.appliedOperator))),
+                        .if(showsReuse, .td(.text(report.appliedOperator.reusedCell)))
                     )
                 }
             )

@@ -140,7 +140,7 @@ private extension [MutationStep] {
             copy.removeAll { $0 is UpdateCheck }
         }
 
-        if options.resumeURL == nil {
+        if options.continuedFrom == nil {
             copy.removeAll { $0 is LoadResumeState }
         }
 

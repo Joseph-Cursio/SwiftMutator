@@ -227,8 +227,70 @@ final class LoadResumeStateTests: MuterTestCase {
     }
 }
 
+extension LoadResumeStateTests {
+    // A reuse writes a file of its own, so it neither opens the earlier one to append nor locks it: a run still writing
+    // it doesn't stop it. Changed files don't refuse it, but decide what it keeps once the copy is fingerprinted, so
+    // the project isn't listed here.
+    func test_aReuse_readsTheFileWithoutLockingIt_andChangedFilesDontRefuseIt() async throws {
+        let header = ResultsHeader.make(project: await projectTree())
+        try writeResults(header, ResultsEnd.make())
+        try write(["README.md": "a changed readme"], in: project)
+        let running = try ResultsFile.Opener().openForResume(at: resultsPath)
+        defer { running.close() }
+        reuse(logs)
+
+        let changes = try await sut.run(with: state)
+        state.apply(changes)
+
+        let loaded = try XCTUnwrap(state.resumeState)
+        XCTAssertTrue(loaded.isReuse)
+        XCTAssertNil(loaded.file)
+        XCTAssertEqual(loaded.path, resultsPath)
+        XCTAssertEqual(loaded.lastHeader, header)
+        XCTAssertEqual(listed.value, [])
+    }
+
+    // What a reuse can't take, it refuses as a resume does, naming its own flags.
+    func test_aReuse_isRefusedAsAResumeIs_namingForceReuse() async throws {
+        try await writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
+        let changed = provenance(toolchain: "Apple Swift version 6.5")
+        current.provenance = { _ in changed }
+        reuse(resultsPath, reportURL: URL(fileURLWithPath: resultsPath))
+
+        await AssertThrowsError(try await sut.run(with: state)) { error in
+            let refused = error as? ResumeRefused
+            XCTAssertEqual(refused?.isReuse, true)
+            XCTAssertEqual(refused?.reasons.count, 2)
+            let message = refused.map { "\($0)" } ?? ""
+            XCTAssertTrue(message.hasPrefix("SwiftMutator won't reuse the results in "), message)
+            XCTAssertTrue(message.contains("--force-reuse reuses the results anyway."), message)
+            XCTAssertFalse(message.contains("--force-resume"), message)
+            XCTAssertTrue(message.contains("is the results file itself"), message)
+        }
+        XCTAssertNil(state.resumeState)
+
+        current.provenance = { _ in .fixture }
+        reuse(resultsPath, forcing: true)
+        current.provenance = { _ in changed }
+        let changes = try await sut.run(with: state)
+        state.apply(changes)
+        XCTAssertEqual(state.resumeState?.forced, ["toolchain.testCommandVersion"])
+    }
+}
+
 private extension LoadResumeStateTests {
     /// Resumes the run whose results `target` names: the file itself, or its log folder.
+    func reuse(_ target: String, ignoring globs: [String] = [], forcing: Bool = false, reportURL: URL? = nil) {
+        state.runOptions = .make(
+            reportURL: reportURL,
+            mutationOperatorsList: [.ror],
+            skipCoverage: true,
+            reuseURL: URL(fileURLWithPath: target),
+            resumeIgnoring: globs,
+            forceResume: forcing
+        )
+    }
+
     func resume(_ target: String, ignoring globs: [String] = [], forcing: Bool = false, reportURL: URL? = nil) {
         state.runOptions = .make(
             reportURL: reportURL,
