@@ -42,7 +42,7 @@ The remove side effects operator will remove code it determines is causing a sid
 It will determine your code is causing a side effect based on a few rules:
     • A line contains a function call which is explicitly discarding a return result.
     • A line contains a function call and doesn't save the result of the function call into a named variable or constant (i.e. a line implicitly discards a return result or doesn't produce one).
-    • A line does not contain a call to print, exit, fatalError,abort, or any function listed in muter.conf.yml under the excludeCalls key.
+    • A line does not contain a call to print, exit, fatalError, preconditionFailure, abort, or any function listed in muter.conf.yml under the excludeCalls key.
 The purpose of this operator is to highlight how your tests respond to the absence of expected side effects.
 
 Mutating an explicitly discarded return result
@@ -120,7 +120,7 @@ The swap ternary operator will swap ternary operators in your code based on this
 The purpose of this operator is to highlight how your tests respond to changes in logic.
 A well-engineered test suite will be able to fail clearly in response to different logical constraints.
 
-Mutation a ternary expression
+Mutating a ternary expression
 
 func stringify(_ a: Bool -> String {
     return a ? "true" : "false"

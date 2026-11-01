@@ -11,7 +11,7 @@ public struct Operator: AsyncParsableCommand {
 
     @Argument(
         help: """
-            Avaiable operators are: \(MutationOperator.Id.description)
+            Available operators are: \(MutationOperator.Id.description)
             For all operators use: \("all".italic)
         """
     )
@@ -236,7 +236,7 @@ extension MutationOperator.Id {
             The purpose of this operator is to highlight how your tests respond to changes in logic.
             A well-engineered test suite will be able to fail clearly in response to different logical constraints.
 
-            \("Mutation a ternary expression".bold)
+            \("Mutating a ternary expression".bold)
 
             \(
                 """

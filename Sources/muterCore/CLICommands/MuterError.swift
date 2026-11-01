@@ -50,7 +50,7 @@ extension MuterError: CustomStringConvertible {
             """
         case .noSourceFilesOnExclusiveList:
             return """
-            SwiftMutator wasn't able to discover on list provided by the `files-to-mutate` flag.
+            SwiftMutator wasn't able to discover any Swift file on the list provided by the `--files-to-mutate` flag.
 
             Please check the list of files and try again.
             """

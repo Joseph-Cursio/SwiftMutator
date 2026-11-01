@@ -3,7 +3,7 @@ OVERVIEW: Describes a given mutation operator.
 USAGE: swift-mutator operator <operator>
 
 ARGUMENTS:
-  <operator>                  Avaiable operators are:
+  <operator>                  Available operators are:
                           RelationalOperatorReplacement, RemoveSideEffects,
                           ChangeLogicalConnector, SwapTernary
                               For all operators use: all
