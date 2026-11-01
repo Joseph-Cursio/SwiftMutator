@@ -39,6 +39,7 @@ struct LoadConfiguration: MutationStep {
             }
 
             let resolved = try await withResolvedExecutable(configuration)
+                .overriding(workers: state.runOptions.workers, timeout: state.runOptions.timeout)
             return [
                 .projectDirectoryUrlDiscovered(URL(fileURLWithPath: fileManager.currentDirectoryPath)),
                 .configurationParsed(resolved),

@@ -91,6 +91,8 @@ extension MutationTestObserver {
             logger.mutationTestingStarted()
         case .mutantRunsStarted:
             logger.mutantRunsStarted()
+        case let .workersChosen(choice):
+            choice.sentence.map(logger.print)
         case let .stopAtFirstFailureTurnedOff(reason):
             logger.stopAtFirstFailureTurnedOff(reason: reason)
         case let .testBundlesNotRunDirectly(reason):

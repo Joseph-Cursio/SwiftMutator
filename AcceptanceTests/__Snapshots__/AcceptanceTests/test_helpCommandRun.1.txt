@@ -24,6 +24,11 @@ OPTIONS:
   --verbose               Lists how many mutants are in each file that has any,
                           and the Swift files found, if the command looks for
                           them.
+  --workers <count>       How many mutants to test at once, in place of
+                          mutationTestWorkers. Only SwiftPM projects test more
+                          than one.
+  --timeout <seconds>     Seconds before a mutant's test run is stopped, in
+                          place of mutationTestTimeout. At most a day, 86400.
   -f, --format <format>   The report format: plain, json, html, xcode
   -o, --output <output>   Output file for the report to be saved.
   --resume <results>      Continue a stopped run from its results file, or the

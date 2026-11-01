@@ -25,6 +25,7 @@ final class MutationTestingAbortReasonTests: MuterTestCase {
 
         XCTAssertTrue(description.contains("parallel worker 2, at /project_mutated_worker2"), description)
         XCTAssertTrue(description.contains("mutationTestWorkers to 1"), description)
+        XCTAssertTrue(description.contains("--workers 1"), description)
         XCTAssertTrue(description.contains("FixtureTests test_roundTrip"), description)
         XCTAssertFalse(
             description.contains("misconfiguring"),

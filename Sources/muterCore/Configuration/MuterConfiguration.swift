@@ -25,8 +25,9 @@ struct MuterConfiguration: Equatable, Codable {
     /// How many mutants to test at once (`mutationTestWorkers:`). Each worker runs the test command in
     /// its own clone of the mutated project, because `swift test` locks the package's build directory.
     /// Each clone is built once before testing, so the paths compiled into its tests point into it.
-    /// Only SwiftPM projects run in parallel; nil or 1 tests one mutant at a time.
-    let mutationTestWorkers: Int?
+    /// Only SwiftPM projects run in parallel; nil or 1 tests one mutant at a time. A `var` only so `overriding` can copy
+    /// `self` and change just this field.
+    private(set) var mutationTestWorkers: Int?
     /// Optional explicit build system from the `buildSystem:` config key. When set it overrides the
     /// executable-basename heuristic — needed when `executable` is a wrapper script (e.g. one that
     /// restores env / forwards SIMCTL_CHILD_ vars) whose filename isn't literally `xcodebuild`/`swift`.
@@ -159,6 +160,15 @@ struct MuterConfiguration: Equatable, Codable {
     func withDirectTestRun(_ directTestRun: DirectTestRun) -> MuterConfiguration {
         var copy = self
         copy.directTestRun = directTestRun
+        return copy
+    }
+
+    /// This configuration with `--workers`' and `--timeout`'s values, when given, in place of `mutationTestWorkers` and
+    /// `mutationTestTimeout`: a run records and compares them as it does the keys.
+    func overriding(workers: Int?, timeout: Double?) -> MuterConfiguration {
+        var copy = self
+        if let workers { copy.mutationTestWorkers = workers }
+        if let timeout { copy.testSuiteTimeout = timeout }
         return copy
     }
 

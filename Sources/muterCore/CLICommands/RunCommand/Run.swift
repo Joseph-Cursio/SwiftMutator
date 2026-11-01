@@ -40,6 +40,7 @@ struct Run: RunCommand {
     var changedLines = false
 
     @OptionGroup var options: RunArguments
+    @OptionGroup var testing: TestingArguments
     @OptionGroup var reportOptions: ReportArguments
 
     // After the option groups, so they come last in the help. Not in `RunArguments`, which other commands share.
@@ -111,6 +112,8 @@ struct Run: RunCommand {
             skipUpdateCheck: options.skipUpdateCheck,
             verbose: options.verbose,
             configurationURL: options.configurationURL,
+            workers: testing.workers,
+            timeout: testing.timeout,
             resumeURL: resume,
             reuseURL: reuse,
             // Only one of each pair can be given: `validate()` ties each to its own option.
