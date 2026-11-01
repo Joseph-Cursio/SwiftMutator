@@ -196,9 +196,10 @@ only_rules:
 trailing_comma:
   mandatory_comma: true
 
+# Run only by `swiftlint analyze`, which needs a verbose build's compiler log; CI doesn't run it yet. explicit_self is
+# left out: it wants the `self.` that redundant_self, above, removes.
 analyzer_rules:
   - capture_variable
-  - explicit_self
   - typesafe_array_init
   - unused_declaration
   - unused_import
