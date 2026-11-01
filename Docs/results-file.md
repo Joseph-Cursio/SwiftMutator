@@ -1,12 +1,13 @@
 # The results file
 
-SwiftMutator saves each mutant's result as soon as its test run finishes, as one line of JSON in the run's log folder. A run that is stopped, killed or crashes keeps every result it finished, and you can read a run's results while it is still going. The report at the end is written as before and doesn't depend on this file. `swift-mutator report` makes a run's report from the file, in any format, at any time: see [Reports from the file](#reports-from-the-file). `swift-mutator run --resume` continues a stopped run from it, testing only the mutants without a result that still holds: see [Resuming a run](../README.md#resuming-a-run).
+SwiftMutator saves each mutant's result as soon as its test run finishes, as one line of JSON in the run's log folder. A run that is stopped, killed or crashes keeps every result it finished, and you can read a run's results while it is still going. The report at the end is written as before and doesn't depend on this file. `swift-mutator report` makes a run's report from the file, in any format, at any time: see [Reports from the file](#reports-from-the-file). `swift-mutator run --resume` continues a stopped run from it, testing only the mutants without a result that still holds: see [Resuming a run](../README.md#resuming-a-run). `swift-mutator run --reuse` starts a new run from it, with a file of its own: see [Reusing an earlier run](../README.md#reusing-an-earlier-run).
 
 ## Where it is
 
 - `<project>_muter_logs/<run>/results.jsonl`, next to your project, beside the run's kept logs. For example, `SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM/results.jsonl`.
 - The run's folder is named for the minute it started in. A run that starts in a minute that already has a folder gets one of its own, the same name followed by ` (2)`, then ` (3)` and so on, so a folder holds one run's logs. Should a folder already have a `results.jsonl`, the file is `results-2.jsonl`, then `results-3.jsonl`, up to `results-99.jsonl`. An existing file is never overwritten.
-- SwiftMutator prints the path when it creates the file ("SwiftMutator saves each mutant's result as it finishes, in …"). After the report it prints it again ("Each mutant's result is in …"), if every line was written. When mutation testing stops early, it prints it on standard error instead ("Each tested mutant's result is in …"), on the same condition. If a mutant has a result, the command that makes a report from the file follows it, with the path quoted for the shell: "Full report: swift-mutator report '…/results.jsonl'". Then comes the command that continues the run, which repeats SwiftMutator's own arguments but for an earlier `--resume` and `--force-resume`: "Continue: swift-mutator run … --resume '…/results.jsonl'". A run of a test plan can't be resumed, and gets no Continue line.
+- SwiftMutator prints the path when it creates the file ("SwiftMutator saves each mutant's result as it finishes, in …"). After the report it prints it again ("Each mutant's result is in …"), if every line was written. When mutation testing stops early, it prints it on standard error instead ("Each tested mutant's result is in …"), on the same condition. If a mutant has a result, the command that makes a report from the file follows it, with the path quoted for the shell: "Full report: swift-mutator report '…/results.jsonl'". Then comes the command that continues the run, which repeats SwiftMutator's own arguments but for an earlier `--resume`, `--reuse`, `--force-resume` and `--force-reuse`, with each `--reuse-ignoring` as a `--resume-ignoring`: "Continue: swift-mutator run … --resume '…/results.jsonl'". A run of a test plan can't be resumed, and gets no Continue line.
+- `run --reuse` only reads the earlier run's file, and writes one of its own in its own log folder, as a first session does.
 - `run --resume` adds a session to the file it continues, which stays where it is, in the first session's log folder. The new session prints the file's path as it starts testing, as a first session does. Its kept logs go to a log folder of its own, named for the minute it started in as any run's is, followed by ` (2)`, ` (3)` and so on if that minute already has one. So a later session's folder holds no results file: give `report` and `--resume` the file, or the first session's folder.
 - It is always written, and there's no option to turn it off. A line takes about 0.5–1 KB, so a run of 2,500 mutants writes an estimated 2–3 MB, beside well over a gigabyte of logs. The header's list of the project's files adds about 140 bytes a file: about 205 KB for a project of 1,450 files.
 - `run` and `run-without-mutating` write one. `mutate-without-running` tests no mutants and writes none.
@@ -15,9 +16,9 @@ SwiftMutator saves each mutant's result as soon as its test run finishes, as one
 
 The file is [JSON Lines](https://jsonlines.org): UTF-8, one JSON object per line, each line ending in a line break. Every object has a `kind`:
 
-1. **`header`**, once per session. A run's first session writes it when the baseline test run has passed, before the first mutant is tested, so a run whose baseline fails writes no file. A run that `--resume` continues adds a session to the same file, which starts with a header of its own on the same condition, so one whose baseline fails adds nothing. One with nothing left to test runs no baseline, and writes its header at once.
+1. **`header`**, once per session. A run's first session writes it when the baseline test run has passed, before the first mutant is tested, so a run whose baseline fails writes no file. A run that `--resume` continues adds a session to the same file, which starts with a header of its own on the same condition, so one whose baseline fails adds nothing. One with nothing left to test runs no baseline, and writes its header at once, as does a run that `--reuse` starts with nothing left to test and nothing changed since the earlier run.
 2. **`retired`**, only in a resumed session, right after its header: the earlier results it no longer stands by. See [below](#retired).
-3. **`mutant`**, one for each tested mutant, written as its test run finishes. With several workers, mutants finish in a different order from the one they started in.
+3. **`mutant`**, one for each tested mutant, written as its test run finishes. With several workers, mutants finish in a different order from the one they started in. A run that `--reuse` starts first writes one for each result it keeps from the earlier run, right after its header, each with `reusedFrom`.
 4. **`end`**, last in each session. It is written when mutation testing stops: when it finishes, when an error stops it, and when Ctrl-C (SIGINT), SIGTERM or SIGHUP stops it (see [Stopping a run](../README.md#stopping-a-run)). A run that is killed with SIGKILL or crashes has no end line. Nor does one stopped at once, by a second signal or after 30 seconds of stopping, unless it had already written the end line.
 
 Here is a header, three of a run's mutant lines, and the end line of a run that stopped after 1,103 mutants:
@@ -68,10 +69,11 @@ The header's `project` lists five files here. A real one lists every file in the
 | `mutantsDiscovered` | Int | How many mutants the run found |
 | `mutantsToTest` | Int | How many of them it set out to test: all of them in a run's first session, and fewer in a resumed one, which tests only those without an earlier result that still holds. It is written before any mutant is tested, so it says nothing about how many were: that is the number of `mutant` lines, or the end line's `recorded`. |
 | `project` | Object | Your project's files, each one's SHA-256, as SwiftMutator copied them, before it prepared any for mutation. See [below](#project). Left out by `run-without-mutating`, which copies nothing. |
-| `mutantsReused` | Int | Only in a resumed session: how many earlier sessions' results it kept rather than tested again |
-| `waived` | [String] | Only in a resumed session: the project files that changed since the last session and that `--resume-ignoring` let through, by their paths relative to the project, or `[]` |
+| `mutantsReused` | Int | Only in a resumed session: how many earlier sessions' results it kept rather than tested again. In a session that `--reuse` starts, how many of the earlier run's results it kept. |
+| `waived` | [String] | Only in a resumed session: the project files that changed since the last session and that `--resume-ignoring` let through, by their paths relative to the project, or `[]`. In a session that `--reuse` starts, those that `--reuse-ignoring` let through since any of the earlier run's sessions. |
 | `testBundlesRunDirectly` | Bool | Only when the session's mutants ran their test bundles directly, with `swiftpm-testing-helper`, rather than through `swift test`: `true` |
-| `forced` | [String] | Only in a resumed session: the `provenance` values that changed since the last session and that `--force-resume` let through, by name (`swiftMutator.executableSHA256`, `toolchain.testCommandVersion`, `toolchain.testExecutableSHA256` or `toolchain.environment`), or `[]` |
+| `reusedFrom` | String | Only in a session that `--reuse` starts: the earlier run's results file |
+| `forced` | [String] | Only in a resumed session, or one that `--reuse` starts: the `provenance` values that changed since the last session and that `--force-resume` or `--force-reuse` let through, by name (`swiftMutator.executableSHA256`, `toolchain.testCommandVersion`, `toolchain.testExecutableSHA256` or `toolchain.environment`), or `[]` |
 
 #### Provenance
 
@@ -110,7 +112,7 @@ SwiftMutator lists your project's files right after it copies the project, and h
 | Key | Type | Meaning |
 |---|---|---|
 | `kind` | `"mutant"` | |
-| `session` | Int | The session that tested it, as in its header |
+| `session` | Int | The session that tested it, as in its header; for a result with `reusedFrom`, the session that reused it |
 | `path` | String | The mutant's file, relative to `mutatedProjectPath`. The mutated copy has your project's layout, so this is also the file's path in your project. It is absolute if the file is outside the copy. |
 | `line`, `column` | Int | Where the mutant is in the original file |
 | `occurrence` | Int | 0, or n for the nth repeat in the run of the same `path`, operator, `line` and `column` |
@@ -129,6 +131,7 @@ SwiftMutator lists your project's files right after it copies the project, and h
 | `firstFailedTestLine` | String | With `killedBy`: the first line that shows a failed test, without colour codes, cut to 500 characters. Left out when no line does. |
 | `log` | String | The name of the mutant's kept log in its session's `logDirectory`: `<operator> @ <file name>-<line>-<column> <path hash>.log`, with ` (#2)`, ` (#3)` and so on before `.log` for a repeat. The hash is of `path`, as `switchID`'s is. So each mutant of a session keeps a log of its own, same-named files' mutants and repeats included. In results files whose log names have no hash, such mutants share a name, and only the last one tested kept its log. |
 | `fileSHA256` | String | The SHA-256 of the mutant's file as SwiftMutator copied it, before it prepared it for mutation: the file's entry in the header's `project.files`. Left out when the header has no `project`, or the file isn't in it. |
+| `reusedFrom` | `{resultsFile, session, despiteChanges}` | Only for a result that a session `--reuse` started kept rather than tested: the results file and session that tested it, and `despiteChanges` true when `--reuse-ignoring`, `--force-reuse`, `--resume-ignoring` or `--force-resume` let a change through since. Each of those sessions' headers says which (`waived`, `forced`). Everything else is as it was tested, but for `session`, `utf8Offset` and `switchID`, which are the reusing session's, and `log`, which names a copy of the log in its `logDirectory`. A result reused again keeps where it was first tested. |
 
 #### `killedBy`
 
@@ -161,7 +164,7 @@ A session that `--resume` adds no longer stands by some of the earlier sessions'
 | `reason` | String | `finished`; `aborted`, stopped by an error; or `interrupted`, stopped by a signal |
 | `detail` | String | Only when mutation testing stopped early. When `interrupted`: the signal that stopped it, `SIGINT` (Ctrl-C), `SIGTERM` or `SIGHUP`, so a Ctrl-C can be told apart from a `kill` or a closed terminal. When `aborted`: a short code for why. `tooManyBuildErrors` means 5 build errors in a row. `workerBaselineTestFailed(worker: n)` means a worker clone's baseline run didn't pass. `mutantNotSwitchedOn` means a mutant's run couldn't be told to switch it on: under xcodebuild, its `muter.xctestrun` couldn't be written. Any other error gives its type's name. It is never a log. |
 | `testDurationSeconds` | Double | How long the session's mutation testing took. For a run's first session, the duration the report shows, before rounding. A resumed run's report shows every session's added up. |
-| `recorded` | Int | How many `mutant` lines the session wrote |
+| `recorded` | Int | How many `mutant` lines the session wrote, those with `reusedFrom` included |
 
 ## How it is written
 
@@ -183,7 +186,7 @@ A session that `--resume` adds no longer stands by some of the earlier sessions'
 
 New keys and new kinds of line are added without changing `formatVersion`, so a reader that skips what it doesn't know keeps working. `formatVersion` changes only for a change that an older reader would misread. A reader should refuse a file whose header has a `formatVersion` it doesn't know.
 
-- **Format 1** is a run's first session.
+- **Format 1** is a run's first session, also one that `--reuse` starts. A SwiftMutator from before `--reuse` reads the results such a session kept as tested in it.
 - **Format 2** is a resumed session. Its file can hold `retired` lines, and a reader that skipped them would report results the run no longer stands by, so a SwiftMutator from before `--resume` refuses the file. A file that was never resumed stays in format 1, which those read.
 
 ## Reports from the file
@@ -321,10 +324,10 @@ jq -c 'select(.kind == "end")' results.jsonl
 
 Plain `jq` stops at the first line that doesn't parse, such as a cut-off last line, after printing what the lines before it gave. The three recipes below read each line as text and skip any that doesn't parse (`fromjson?`), so they also work on a file from a run that was killed. They follow sessions too, so they work on a file that `run --resume` added sessions to.
 
-The progress of a run: how many mutants its last session has tested, of those it set out to test. A resumed session adds how many results it kept, and so how many of the run's mutants have one:
+The progress of a run: how many mutants its last session has tested, of those it set out to test. A resumed session, or one that `--reuse` started, adds how many results it kept, and so how many of the run's mutants have one:
 
 ```bash
-jq -nR '[inputs | fromjson?] | (map(select(.kind == "header")) | last) as $header | (map(select(.kind == "mutant" and .session == $header.session)) | length) as $tested | "\($tested) of \($header.mutantsToTest) tested" + if $header | has("mutantsReused") then ", and \($header.mutantsReused) results kept from earlier sessions: \($tested + $header.mutantsReused) of \($header.mutantsDiscovered) mutants have results" else "" end' results.jsonl
+jq -nR '[inputs | fromjson?] | (map(select(.kind == "header")) | last) as $header | (map(select(.kind == "mutant" and .session == $header.session and (has("reusedFrom") | not))) | length) as $tested | "\($tested) of \($header.mutantsToTest) tested" + if $header | has("mutantsReused") then ", and \($header.mutantsReused) results kept from earlier sessions: \($tested + $header.mutantsReused) of \($header.mutantsDiscovered) mutants have results" else "" end' results.jsonl
 ```
 
 The score so far, worked out as the report works it out: from each mutant's line that counts (see [Reading it](#reading-it)), killed (`failed` and `runtimeError`) divided by everything but `buildError`, then times 100 and rounded down, or -1 when no mutant has a result. Keep that order: multiplying first can give a score 1 higher than the report's, such as 29 rather than 28 for 29 killed out of 100.

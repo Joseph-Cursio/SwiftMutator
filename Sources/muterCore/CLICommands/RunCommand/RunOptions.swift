@@ -18,12 +18,26 @@ extension Run {
         let createTestPlan: Bool
         /// The results file, or the log folder that holds it, of the run that `--resume` continues.
         let resumeURL: URL?
-        /// `--resume-ignoring`'s globs: project files that changed, whose changes a resume lets through.
+        /// The results file, or the log folder that holds it, of the earlier run whose results `--reuse` starts from.
+        let reuseURL: URL?
+        /// `--resume-ignoring`'s globs, or `--reuse-ignoring`'s: project files that changed, whose changes a resume or a
+        /// reuse lets through. A reuse never lets a test file's through.
         let resumeIgnoring: [String]
-        /// `--force-resume`: a resume lets a changed SwiftMutator build, toolchain or SDK through.
+        /// `--force-resume`, or `--force-reuse`: a resume or a reuse lets a changed SwiftMutator build, toolchain or SDK
+        /// through.
         let forceResume: Bool
         var isUsingTestPlan: Bool {
             testPlanURL != nil
+        }
+
+        /// The results file, or its log folder, whose results this run starts from: the one it resumes or reuses.
+        var continuedFrom: URL? {
+            resumeURL ?? reuseURL
+        }
+
+        /// Whether the run starts a results file of its own from an earlier run's (`--reuse`).
+        var isReuse: Bool {
+            resumeURL == nil && reuseURL != nil
         }
 
         init(
@@ -38,6 +52,7 @@ extension Run {
             testPlanURL: URL? = nil,
             createTestPlan: Bool = false,
             resumeURL: URL? = nil,
+            reuseURL: URL? = nil,
             resumeIgnoring: [String] = [],
             forceResume: Bool = false
         ) {
@@ -49,6 +64,7 @@ extension Run {
             self.configurationURL = configurationURL
             self.testPlanURL = testPlanURL
             self.resumeURL = resumeURL
+            self.reuseURL = reuseURL
             self.resumeIgnoring = resumeIgnoring
             self.forceResume = forceResume
 
@@ -77,6 +93,7 @@ extension Run.Options: Equatable {
             lhs.testPlanURL == rhs.testPlanURL &&
             lhs.createTestPlan == rhs.createTestPlan &&
             lhs.resumeURL == rhs.resumeURL &&
+            lhs.reuseURL == rhs.reuseURL &&
             lhs.resumeIgnoring == rhs.resumeIgnoring &&
             lhs.forceResume == rhs.forceResume &&
             lhs.reportOptions.path == rhs.reportOptions.path &&
@@ -98,6 +115,7 @@ extension Run.Options: Nullable {
             testPlanURL: nil,
             createTestPlan: false,
             resumeURL: nil,
+            reuseURL: nil,
             resumeIgnoring: [],
             forceResume: false
         )

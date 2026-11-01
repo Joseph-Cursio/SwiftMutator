@@ -25,10 +25,15 @@ protocol AnyMutationTestState: AnyObject {
     /// The project's files as the copy held them before discovery rewrote it; nil until the copy is fingerprinted,
     /// and for good in a run that tests a test plan.
     var projectTree: ProjectTree? { get }
-    /// The stopped run that `--resume` continues; nil when the run isn't resumed.
+    /// The stopped run that `--resume` continues, or the earlier run whose results `--reuse` starts from; nil when the
+    /// run does neither.
     var resumeState: ResumeState? { get }
-    /// The changed project files that `--resume-ignoring` let through, by their paths relative to the project.
+    /// The changed project files that `--resume-ignoring` or `--reuse-ignoring` let through, by their paths relative to
+    /// the project.
     var resumeWaived: [String] { get }
+    /// What changed since each session of the run `--reuse` starts from, by session; nil unless the run reuses one. A
+    /// session that recorded no project files has none.
+    var reuseChanges: [Int: ReuseChanges]? { get }
 
     func apply(_ stateChanges: [MutationTestState.Change])
 }
@@ -54,6 +59,7 @@ final class MutationTestState: AnyMutationTestState {
     var projectTree: ProjectTree?
     var resumeState: ResumeState?
     var resumeWaived: [String] = []
+    var reuseChanges: [Int: ReuseChanges]?
 
     init() {}
 
@@ -82,6 +88,7 @@ extension MutationTestState {
         case projectTreeFingerprinted(ProjectTree)
         case resumeStateLoaded(ResumeState)
         case projectChangesWaived([String])
+        case reuseChangesFound([Int: ReuseChanges])
     }
 }
 
@@ -121,6 +128,8 @@ extension MutationTestState {
                 self.resumeState = resumeState
             case let .projectChangesWaived(paths):
                 resumeWaived = paths
+            case let .reuseChangesFound(changes):
+                reuseChanges = changes
             }
         }
     }

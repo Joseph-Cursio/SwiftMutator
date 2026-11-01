@@ -1,11 +1,21 @@
 import Foundation
 
-/// Why SwiftMutator won't resume the run in a results file: every reason it found, in one message.
+/// Why SwiftMutator won't resume the run in a results file, or reuse its results: every reason it found, in one
+/// message.
 struct ResumeRefused: Error, Equatable, CustomStringConvertible {
     let path: String
     let reasons: [ResumeRefusal]
     /// Whether it was refused before the project was copied and the last copy removed, which the message then says.
     let beforeTheCopy: Bool
+    /// Whether `--reuse` asked for the results, rather than `--resume`, which the message's flags then name.
+    let isReuse: Bool
+
+    init(path: String, reasons: [ResumeRefusal], beforeTheCopy: Bool, isReuse: Bool = false) {
+        self.path = path
+        self.reasons = reasons
+        self.beforeTheCopy = beforeTheCopy
+        self.isReuse = isReuse
+    }
 
     var description: String {
         let file = Logger.shellQuoted(path)
@@ -14,12 +24,13 @@ struct ResumeRefused: Error, Equatable, CustomStringConvertible {
             // The run isn't in question, only who has its file.
             lines = ["SwiftMutator won't resume the run in \(file): \(only)"]
         } else {
+            let refusal = isReuse ? "reuse the results in" : "resume the run in"
             lines = [
-                "SwiftMutator won't resume the run in \(file), so that no result is reused that this run might not "
+                "SwiftMutator won't \(refusal) \(file), so that no result is reused that this run might not "
                     + "reproduce:",
             ]
             for reason in reasons {
-                let reasonLines = "\(reason)".components(separatedBy: "\n")
+                let reasonLines = reason.describe(reusing: isReuse).components(separatedBy: "\n")
                 lines.append("  - " + (reasonLines.first ?? ""))
                 lines += reasonLines.dropFirst().map { "    " + $0 }
             }
@@ -53,6 +64,12 @@ enum ResumeRefusal: Equatable, CustomStringConvertible {
     static let changedFilesNamed = 10
 
     var description: String {
+        describe(reusing: false)
+    }
+
+    /// The reason, naming `--reuse`'s flags if `reusing`, and `--resume`'s otherwise.
+    func describe(reusing: Bool) -> String {
+        let continuing = reusing ? "reused" : "resumed"
         switch self {
         case let .inUse(process, host):
             var writer = process.map { " by process \($0)" } ?? ""
@@ -72,11 +89,11 @@ enum ResumeRefusal: Equatable, CustomStringConvertible {
             let change = difference.was == nil && difference.isNow == nil
                 ? "is unknown, so it may have changed"
                 : difference.change(absent: "unknown")
-            return "\(subject) \(change). --force-resume reuses the results anyway."
+            return "\(subject) \(change). \(reusing ? "--force-reuse" : "--force-resume") reuses the results anyway."
         case let .filesChanged(changes):
             return Self.describe(changes)
         case .testPlanRun:
-            return "A run that tests a test plan (run-without-mutating) can't be resumed."
+            return "A run that tests a test plan (run-without-mutating) can't be \(continuing)."
         case .noProjectTree:
             return "The file's last session recorded no project files, as SwiftMutator didn't before --resume, "
                 + "so nothing shows that they haven't changed. A new run is needed."

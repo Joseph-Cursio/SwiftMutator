@@ -129,6 +129,25 @@ final class JsonReporterTests: ReporterTestCase {
 }
 
 extension JsonReporterTests {
+    // Where a reused result was tested; a result this run tested has no such key, and reads back without one.
+    func test_aReusedResult_saysWhereItWasTested_andReadsBack() throws {
+        let reused = ReusedFrom(resultsFile: "/logs/results.jsonl", session: 2, despiteChanges: true)
+        let outcome = MutationTestOutcome.make(mutations: [.make(testSuiteOutcome: .passed, reusedFrom: reused), .make()])
+        let json = JsonReporter().report(from: outcome)
+
+        let report = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        let fileReports = try XCTUnwrap(report["fileReports"] as? [[String: Any]])
+        let operators = try fileReports.flatMap { try XCTUnwrap($0["appliedOperators"] as? [[String: Any]]) }
+        let marks = operators.compactMap { $0["reusedFrom"] as? [String: Any] }
+        XCTAssertEqual(marks.count, 1)
+        XCTAssertEqual(marks.first?["resultsFile"] as? String, "/logs/results.jsonl")
+        XCTAssertEqual(marks.first?["session"] as? Int, 2)
+        XCTAssertEqual(marks.first?["despiteChanges"] as? Bool, true)
+
+        let decoded = try JSONDecoder().decode(MuterTestReport.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded.fileReports.flatMap(\.appliedOperators).compactMap(\.reusedFrom), [reused])
+    }
+
     func test_aSuspectOnlyKill_isMarked_andTheSummaryGivesTheScoreWithoutThem() throws {
         let json = JsonReporter().report(from: .withSuspectTests)
 

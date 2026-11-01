@@ -14,6 +14,64 @@ final class ResultsRecordTests: XCTestCase {
         XCTAssertEqual(try decode(MutantResult.self, from: line(record)), record)
     }
 
+    // A reused result goes into the reusing session's file in its job's place, as tested where it was, with where that
+    // was. Changes let through by a later session of its file, by an earlier reuse or by the reusing session mark it.
+    func test_aReusedResult_takesTheNewSessionAndPlace_andSaysWhereItWasTested() {
+        let tested = MutantResult.make(session: 1, utf8Offset: 3361, outcome: .failed, killedBy: [.init(name: "sum()", location: nil)])
+
+        let copy = tested.reused(
+            from: "/logs/a/results.jsonl",
+            headers: [.make(session: 1)],
+            in: 1,
+            utf8Offset: 4000,
+            switchID: "Sum_new",
+            despiteChanges: false
+        )
+
+        XCTAssertEqual(copy.session, 1)
+        XCTAssertEqual(copy.utf8Offset, 4000)
+        XCTAssertEqual(copy.switchID, "Sum_new")
+        XCTAssertEqual(copy.reusedFrom, ReusedFrom(resultsFile: "/logs/a/results.jsonl", session: 1, despiteChanges: false))
+        var unmarked = copy
+        unmarked.reusedFrom = nil
+        XCTAssertEqual(
+            unmarked,
+            MutantResult.make(session: 1, utf8Offset: 4000, switchID: "Sum_new", outcome: .failed, killedBy: tested.killedBy)
+        )
+
+        let waivedLater = tested.reused(
+            from: "/logs/a/results.jsonl",
+            headers: [.make(session: 1), .make(formatVersion: 2, session: 2, waived: ["README.md"])],
+            in: 1,
+            utf8Offset: 4000,
+            switchID: "Sum_new",
+            despiteChanges: false
+        )
+        XCTAssertEqual(waivedLater.reusedFrom?.despiteChanges, true)
+
+        // Reused again, it still says where it was tested, and that changes were let through on the way.
+        let again = waivedLater.reused(
+            from: "/logs/b/results.jsonl",
+            headers: [.make(session: 1)],
+            in: 1,
+            utf8Offset: 4100,
+            switchID: "Sum_newer",
+            despiteChanges: false
+        )
+        XCTAssertEqual(again.reusedFrom, ReusedFrom(resultsFile: "/logs/a/results.jsonl", session: 1, despiteChanges: true))
+    }
+
+    // A result tested here has no `reusedFrom`, and one kept without any change let through has no `despiteChanges`.
+    func test_reusedFrom_isLeftOutWhenNil_andDespiteChangesUnlessTrue() throws {
+        let tested = try XCTUnwrap(String(data: ResultsCoding.encoder.encode(MutantResult.make()), encoding: .utf8))
+        XCTAssertFalse(tested.contains("reusedFrom"))
+
+        let reused = MutantResult.make(reusedFrom: ReusedFrom(resultsFile: "/r.jsonl", session: 1, despiteChanges: false))
+        let line = try XCTUnwrap(String(data: ResultsCoding.encoder.encode(reused), encoding: .utf8))
+        XCTAssertTrue(line.contains(#""reusedFrom":{"resultsFile":"/r.jsonl","session":1}"#), line)
+        XCTAssertEqual(try ResultsCoding.decoder.decode(MutantResult.self, from: Data(line.utf8)), reused)
+    }
+
     func test_aHeaderAndAnEndRecordRoundTrip() throws {
         let header = makeHeader()
         let headerWithoutAProject = makeHeader(project: nil)

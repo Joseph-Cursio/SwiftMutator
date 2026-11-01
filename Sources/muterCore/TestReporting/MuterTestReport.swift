@@ -112,6 +112,9 @@ extension MuterTestReport {
         /// true when only suspect tests were recorded failing for it (`KillingTestSummary.isSuspectOnlyKill`), and
         /// otherwise nil, so left out of the JSON.
         let killedOnlyBySuspectTests: Bool?
+        /// Where it was tested, for a result the run reused from an earlier run (`--reuse`); left out of the JSON when
+        /// nil.
+        let reusedFrom: ReusedFrom?
 
         enum CodingKeys: String, CodingKey {
             case mutationPoint
@@ -119,6 +122,7 @@ extension MuterTestReport {
             case mutationSnapshot
             case killingTests
             case killedOnlyBySuspectTests
+            case reusedFrom
         }
 
         init(
@@ -126,13 +130,15 @@ extension MuterTestReport {
             mutationSnapshot: MutationOperator.Snapshot,
             testSuiteOutcome: TestSuiteOutcome,
             killingTests: MutationTestOutcome.KillingTests? = nil,
-            killedOnlyBySuspectTests: Bool? = nil
+            killedOnlyBySuspectTests: Bool? = nil,
+            reusedFrom: ReusedFrom? = nil
         ) {
             self.mutationPoint = mutationPoint
             self.mutationSnapshot = mutationSnapshot
             self.testSuiteOutcome = testSuiteOutcome
             self.killingTests = killingTests
             self.killedOnlyBySuspectTests = killedOnlyBySuspectTests
+            self.reusedFrom = reusedFrom
         }
 
         public init(from decoder: Decoder) throws {
@@ -147,6 +153,7 @@ extension MuterTestReport {
             // A report written before reports named killing tests has none.
             killingTests = try container.decodeIfPresent(MutationTestOutcome.KillingTests.self, forKey: .killingTests)
             killedOnlyBySuspectTests = try container.decodeIfPresent(Bool.self, forKey: .killedOnlyBySuspectTests)
+            reusedFrom = try container.decodeIfPresent(ReusedFrom.self, forKey: .reusedFrom)
         }
     }
 }
@@ -175,7 +182,8 @@ private extension MuterTestReport {
                             testSuiteOutcome: $0.testSuiteOutcome,
                             killingTests: $0.killingTests,
                             killedOnlyBySuspectTests: KillingTestSummary.isSuspectOnlyKill($0, suspects: suspects)
-                                ? true : nil
+                                ? true : nil,
+                            reusedFrom: $0.reusedFrom
                         )
                     }
 

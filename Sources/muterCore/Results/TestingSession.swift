@@ -4,7 +4,8 @@ import Foundation
 /// tested or kept from an earlier session, and the worker clones it made. Only the task that runs the mutants and
 /// records their outcomes uses it, except for its results file, which a stop at once ends from another thread.
 final class TestingSession: @unchecked Sendable { // `file`, `mutantLines` and `ended` are behind `writing`
-    /// 1 for a run's first session; a resumed one is the next after the last its results file holds.
+    /// 1 for a run's first session, as for one that reuses an earlier run's results; a resumed one is the next after the
+    /// last its results file holds.
     let number: Int
     /// When mutation testing started, which its test duration is measured from.
     let startedAt: Date
@@ -23,7 +24,8 @@ final class TestingSession: @unchecked Sendable { // `file`, `mutantLines` and `
     private var mutantLines = 0
     /// Whether the session has ended its file, with an end line unless a write failed, so that nothing more is written.
     private var ended = false
-    /// How many of `outcomes` are earlier sessions' results that a resumed session kept rather than tested again.
+    /// How many of `outcomes` are earlier sessions' results that a resumed session kept rather than tested again, or an
+    /// earlier run's that a session reusing them kept.
     var reused = 0
     /// The jobs, by index, whose result an earlier session recorded as a build error, which a resumed session tests
     /// again. It tests them one after another, where the first session tested other mutants between them, so one that
@@ -45,7 +47,8 @@ final class TestingSession: @unchecked Sendable { // `file`, `mutantLines` and `
 
     /// nil until the header is written, and for good if the file couldn't be created.
     var results: ResultsRecording? { writing.withLock { file } }
-    /// How many tested mutants the session recorded, each in a line of its own unless a write failed.
+    /// How many mutants the session recorded, tested or kept from an earlier run, each in a line of its own unless a
+    /// write failed.
     var recorded: Int { writing.withLock { mutantLines } }
 
     /// Makes `file` the session's results file, which its header is written to first.
@@ -61,6 +64,16 @@ final class TestingSession: @unchecked Sendable { // `file`, `mutantLines` and `
             if isAMutant { mutantLines += 1 }
             guard let file, file.writeError == nil, !ended else { return nil }
             return file.append(line())
+        }
+    }
+
+    /// Appends the mutant lines `lines` to the results file together, as `append` does for one, and counts them in
+    /// `recorded`: a session that reuses an earlier run's results writes those it keeps.
+    func append(contentsOf lines: [MutantResult]) -> Bool? {
+        writing.withLock {
+            mutantLines += lines.count
+            guard let file, file.writeError == nil, !ended else { return nil }
+            return file.append(contentsOf: lines)
         }
     }
 

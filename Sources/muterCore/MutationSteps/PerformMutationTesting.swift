@@ -66,16 +66,19 @@ struct PerformMutationTesting: MutationStep {
     /// and an end line that says how mutation testing ended. Mutation testing that stops early then sends what it
     /// tested. Worker clones are removed last. A resumed run adds its session to the stopped run's results file, tests
     /// only the mutants without a recorded result that still holds, and reports the results it keeps with the ones it
-    /// tests, in job order; its test duration adds the earlier sessions'.
+    /// tests, in job order; its test duration adds the earlier sessions'. A run that reuses an earlier run's results
+    /// does the same in a results file of its own, which starts with the results it keeps; its test duration is its
+    /// own.
     func run(
         with state: AnyMutationTestState
     ) async throws -> [MutationTestState.Change] {
         fileManager.changeCurrentDirectoryPath(state.mutatedProjectDirectoryURL.path)
         let resume = state.resumeState
+        let resumed = resume.flatMap { $0.isReuse ? nil : $0 }
         let session = TestingSession(
-            number: (resume?.lastSession ?? 0) + 1,
+            number: (resumed?.lastSession ?? 0) + 1,
             startedAt: now(),
-            earlierTestDuration: resume?.recorded.testDuration ?? 0
+            earlierTestDuration: resumed?.recorded.testDuration ?? 0
         )
         // After the end line and anything sent about an early end: removing large clones can take seconds, and a
         // second signal in that time exits at once. A clone left behind is removed when SwiftMutator next runs.
@@ -96,7 +99,7 @@ struct PerformMutationTesting: MutationStep {
         }
         // A resumed file's lock goes before the clones are removed, as a first session's goes at its end line: also
         // when the baseline failed, which writes nothing to the file.
-        defer { resume?.file.close() }
+        defer { resume?.file?.close() }
         // Stopping at once ends SwiftMutator wherever mutation testing is, so the end line is written then: `report`
         // would otherwise take the run for one that is still running, or was killed.
         interruption.beforeStoppingAtOnce { [interruption, now] in
@@ -157,9 +160,11 @@ private extension PerformMutationTesting {
                 keys: session.keys,
                 snapshots: jobs.map(\.schema.snapshot),
                 recorded: resume.recorded.latest,
-                fileHashes: state.projectTree?.files ?? [:]
+                fileHashes: state.projectTree?.files ?? [:],
+                reusing: resume.isReuse ? state.reuseChanges : nil
             )
         } ?? .everything(jobs.count)
+        let reused = keptResults(plan, of: jobs, state: state)
 
         if let resume = state.resumeState {
             session.earlierBuildErrors = Set(
@@ -171,12 +176,14 @@ private extension PerformMutationTesting {
                     plan,
                     waived: state.resumeWaived,
                     coverage: state.projectCoverage,
-                    in: state.mutatedProjectDirectoryURL
+                    in: state.mutatedProjectDirectoryURL,
+                    reusing: resume.isReuse ? state.reuseChanges : nil
                 ))
             )
             // With every result kept there is nothing to test, so no baseline and no clones: the session is a header,
-            // the retired line of mutants no longer discovered, if any, and the end line `run(with:)` writes.
-            if plan.toRun.isEmpty {
+            // the retired line of mutants no longer discovered, if any, and the end line `run(with:)` writes. A reuse
+            // after any change still runs the baseline, below: a changed test that now fails would otherwise go unseen.
+            if plan.toRun.isEmpty, !resume.isReuse || state.reuseChanges?.values.allSatisfy(\.isEmpty) != false {
                 session.baselinePassed = true
                 await startResults(
                     await header(
@@ -188,10 +195,11 @@ private extension PerformMutationTesting {
                         workers: 0
                     ),
                     retiring: plan.retired,
+                    copying: reused,
                     in: session,
                     state: state
                 )
-                keepReused(plan, of: jobs, in: session, state: state)
+                keepReused(reused, of: jobs, in: session, state: state)
                 return
             }
         }
@@ -259,7 +267,8 @@ private extension PerformMutationTesting {
         // A clone costs a copy and about a baseline build, so there are never more workers than mutants to test.
         let workers = min(muterConfiguration.workerCount, plan.toRun.count)
         var testRunSeconds: TimeInterval?
-        if muterConfiguration.buildSystem == .swift {
+        // A reuse with nothing left to test ran the baseline only to see that the changed tests pass.
+        if muterConfiguration.buildSystem == .swift, !plan.toRun.isEmpty {
             let direct = try await runningTestBundlesDirectly(muterConfiguration, baselineLog: testLog, state: state)
             muterConfiguration = direct.configuration
             // The run that checked the direct runs is a mutant's run with no mutant on, which needn't run again.
@@ -290,10 +299,12 @@ private extension PerformMutationTesting {
                 workers: workers
             ),
             retiring: plan.retired,
+            copying: reused,
             in: session,
             state: state
         )
-        keepReused(plan, of: jobs, in: session, state: state)
+        keepReused(reused, of: jobs, in: session, state: state)
+        guard !plan.toRun.isEmpty else { return }
 
         // The first estimate of the time left: every mutant to test, spread over the workers.
         events.send(
@@ -348,21 +359,46 @@ private extension PerformMutationTesting {
             provenance: sessionProvenance,
             mutantsReused: resume == nil ? nil : plan.reused.count,
             waived: resume == nil ? nil : state.resumeWaived,
-            forced: resume?.forced
+            forced: resume?.forced,
+            reusedFrom: resume?.isReuse == true ? resume?.path : nil
         )
     }
 
-    /// Keeps each of `plan`'s reused results' outcomes in `session` by job index, built from its job as `record` builds
-    /// a tested one's, with the tests its line names, and sends it to the reporter, so the Xcode format warns of every
+    /// The results `plan` keeps, by job index: as recorded for a resume, and for a reuse as the new results file
+    /// records them (`MutantResult.reused`), each in its job's place, with where it was tested and what was let
+    /// through since.
+    func keptResults(_ plan: ResumePlan, of jobs: [MutantJob], state: AnyMutationTestState) -> [Int: MutantResult] {
+        guard let resume = state.resumeState, resume.isReuse else { return plan.reused }
+        return plan.reused.reduce(into: [:]) { kept, entry in
+            let schema = jobs[entry.key].schema
+            kept[entry.key] = entry.value.reused(
+                from: resume.path,
+                headers: resume.recorded.headers,
+                in: 1,
+                utf8Offset: schema.position.utf8Offset,
+                switchID: schema.id,
+                despiteChanges: !state.resumeWaived.isEmpty || !resume.forced.isEmpty
+            )
+        }
+    }
+
+    /// Keeps each of the `reused` results' outcomes in `session` by job index, built from its job as `record` builds a
+    /// tested one's, with the tests its line names, and sends it to the reporter, so the Xcode format warns of every
     /// survivor. Never sends a test log, and comes before the baseline's log, so no progress bar or lines count it.
     func keepReused(
-        _ plan: ResumePlan,
+        _ reused: [Int: MutantResult],
         of jobs: [MutantJob],
         in session: TestingSession,
         state: AnyMutationTestState
     ) {
-        for (index, result) in plan.reused.sorted(by: { $0.key < $1.key }) {
-            let outcome = Self.outcome(result.outcome, of: jobs[index], state: state, killingTests: .init(result))
+        for (index, result) in reused.sorted(by: { $0.key < $1.key }) {
+            let outcome = Self.outcome(
+                result.outcome,
+                of: jobs[index],
+                state: state,
+                killingTests: .init(result),
+                reusedFrom: result.reusedFrom
+            )
             session.outcomes[index] = outcome
             session.reused += 1
             events.send(.newMutationTestOutcomeAvailable(outcome))
@@ -375,7 +411,8 @@ private extension PerformMutationTesting {
         _ testSuiteOutcome: TestSuiteOutcome,
         of job: MutantJob,
         state: AnyMutationTestState,
-        killingTests: MutationTestOutcome.KillingTests?
+        killingTests: MutationTestOutcome.KillingTests?,
+        reusedFrom: ReusedFrom? = nil
     ) -> MutationTestOutcome.Mutation {
         MutationTestOutcome.Mutation(
             testSuiteOutcome: testSuiteOutcome,
@@ -387,7 +424,8 @@ private extension PerformMutationTesting {
             mutationSnapshot: job.schema.snapshot,
             originalProjectDirectoryUrl: state.projectDirectoryURL,
             mutatedProjectDirectoryURL: state.mutatedProjectDirectoryURL,
-            killingTests: killingTests
+            killingTests: killingTests,
+            reusedFrom: reusedFrom
         )
     }
 
@@ -792,19 +830,22 @@ private extension PerformMutationTesting {
     ///
     /// A resumed run instead writes `header`, then a `retired` line of the `retiring` keys, to the stopped run's file,
     /// which it opened before the copy, and announces the file once both are written. It is attached to the session
-    /// only now: before its header, no line of the session's would belong to one.
+    /// only now: before its header, no line of the session's would belong to one. A run that reuses an earlier run's
+    /// results writes a new file, as a first session does, with the `copying` results after its header, all at once,
+    /// and copies their logs into its log folder, before it announces the file.
     ///
     /// `header` probes the toolchain, so it is made before the file is the session's, when a stop at once could write
     /// the end line first, and then written at once.
     func startResults(
         _ header: @autoclosure () async -> ResultsHeader,
         retiring retired: [MutantKey],
+        copying reused: [Int: MutantResult],
         in session: TestingSession,
         state: AnyMutationTestState
     ) async {
-        if let resume = state.resumeState {
+        if let resume = state.resumeState, let file = resume.file {
             let headerLine = await header()
-            session.startResults(in: resume.file)
+            session.startResults(in: file)
             guard write(headerLine, in: session) else { return }
             // Without it, the file would still stand by the earlier results this session doesn't keep.
             if !retired.isEmpty, !write(ResultsRetired(session: session.number, keys: retired), in: session) {
@@ -819,11 +860,33 @@ private extension PerformMutationTesting {
         do {
             let results = try resultsFiles.create(in: loggingDirectory)
             session.startResults(in: results)
-            if write(headerLine, in: session) {
-                events.send(.resultsFileCreated(path: results.path))
+            guard write(headerLine, in: session) else { return }
+            if let resume = state.resumeState, resume.isReuse {
+                let lines = reused.sorted { $0.key < $1.key }.map(\.value)
+                guard sayingAFailure(session.append(contentsOf: lines), in: session) else { return }
+                copyLogs(of: lines, from: resume, into: loggingDirectory)
             }
+            events.send(.resultsFileCreated(path: results.path))
         } catch {
             events.send(.resultsFileUnavailable(reason: "\(error)"))
+        }
+    }
+
+    /// Copies each of the `reused` results' kept logs from the folder of the session that recorded it in `resume`'s file
+    /// into `loggingDirectory`, under the same name, which its new line names. A log that isn't there any more, or
+    /// can't be copied, is left out: the result doesn't depend on it.
+    func copyLogs(of reused: [MutantResult], from resume: ResumeState, into loggingDirectory: String) {
+        let folders = Dictionary(
+            resume.recorded.headers.map { ($0.session, $0.logDirectory) },
+            uniquingKeysWith: { _, last in last }
+        )
+        for result in reused {
+            guard let recorded = resume.recorded.latest[result.key], let folder = folders[recorded.session] else {
+                continue
+            }
+            let source = (folder as NSString).appendingPathComponent(recorded.log)
+            let destination = (loggingDirectory as NSString).appendingPathComponent(result.log)
+            try? fileManager.copyItem(atPath: source, toPath: destination)
         }
     }
 

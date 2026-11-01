@@ -505,7 +505,8 @@ private extension RecordedOutcomeTests {
             mutationSnapshot: schema.snapshot,
             originalProjectDirectoryUrl: URL(fileURLWithPath: project),
             mutatedProjectDirectoryURL: URL(fileURLWithPath: project + "_mutated"),
-            killingTests: killingTests
+            killingTests: killingTests,
+            reusedFrom: nil
         )
     }
 

@@ -9,19 +9,38 @@ enum ResumeHint {
     /// replaces it. The header of a session `--force-resume` let through records the build and toolchain it ran with,
     /// so the next session needs no force. `--resume-ignoring` stays: changed files a session's results don't depend
     /// on are as likely to change again before the next one.
+    ///
+    /// A run that reused an earlier run's results wrote `resultsFile` itself, so `--reuse` and its value go, and so does
+    /// `--force-reuse`: its header records the build as it tested with it. Each `--reuse-ignoring` becomes a
+    /// `--resume-ignoring` with the same glob, for the same reason `--resume-ignoring` stays.
     static func command(continuing arguments: [String], from resultsFile: String) -> String {
         var kept: [String] = []
         var skipsValue = false
+        var waives = false
         for argument in arguments {
             if skipsValue {
                 skipsValue = false
                 continue
             }
-            if argument == "--resume" {
+            if waives {
+                waives = false
+                kept += ["--resume-ignoring", argument]
+                continue
+            }
+            if argument == "--resume" || argument == "--reuse" {
                 skipsValue = true
                 continue
             }
-            if argument.hasPrefix("--resume=") || argument == "--force-resume" {
+            if argument == "--reuse-ignoring" {
+                waives = true
+                continue
+            }
+            if argument.hasPrefix("--reuse-ignoring=") {
+                kept.append("--resume-ignoring=" + argument.dropFirst("--reuse-ignoring=".count))
+                continue
+            }
+            if ["--resume=", "--reuse="].contains(where: argument.hasPrefix)
+                || ["--force-resume", "--force-reuse"].contains(argument) {
                 continue
             }
             kept.append(argument)

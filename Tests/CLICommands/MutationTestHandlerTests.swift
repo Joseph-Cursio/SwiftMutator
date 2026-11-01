@@ -157,6 +157,14 @@ final class MutationTestHandlerTests: MuterTestCase {
         XCTAssertTypeEqual(sut.steps[safe: 14], PerformMutationTesting.self)
     }
 
+    // A reuse loads the earlier run's results file where a resume does, so it's refused as early.
+    func test_steps_whenReusing_loadTheEarlierRunsResults_whereAResumeDoes() {
+        let reusing = MutationTestHandler(options: .make(reuseURL: URL(fileURLWithPath: "/logs/results.jsonl")))
+        let resuming = MutationTestHandler(options: .make(resumeURL: URL(fileURLWithPath: "/logs/results.jsonl")))
+
+        XCTAssertEqual(reusing.steps.map { "\(type(of: $0))" }, resuming.steps.map { "\(type(of: $0))" })
+    }
+
     // A run still writing the results file tests in the copy that cleaning up removes, and a refused resume should
     // leave everything as it was.
     func test_loadResumeState_comesBeforeCleanUpAndCopy() throws {

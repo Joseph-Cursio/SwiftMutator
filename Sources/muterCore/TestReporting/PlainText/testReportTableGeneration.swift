@@ -9,12 +9,14 @@ func generateAppliedMutationOperatorsCLITable(
     var fileNames = [CLITable.Row]()
     var mutationTestResults = [CLITable.Row]()
     var killedBy = [CLITable.Row]()
+    var reused = [CLITable.Row]()
 
-    for (fileName, appliedMutation, testResult, killers) in fileReports.flatMap(operatorsToTableRows) {
+    for (fileName, appliedMutation, testResult, killers, reuse) in fileReports.flatMap(operatorsToTableRows) {
         fileNames.append(fileName)
         appliedMutations.append(appliedMutation)
         mutationTestResults.append(testResult)
         killedBy.append(killers)
+        reused.append(reuse)
     }
 
     mutationTestResults = coloringFunction(mutationTestResults)
@@ -26,10 +28,18 @@ func generateAppliedMutationOperatorsCLITable(
     ]
     // Only when some killed mutant recorded its tests, so a report without them is as it was.
     let killedByColumn = CLITable.Column(title: "Killed By", rows: killedBy)
-    return CLITable(padding: 3, columns: fileReports.showsKillingTests ? columns + [killedByColumn] : columns)
+    // Only when some result was reused from an earlier run, so a report without any is as it was.
+    let reusedColumn = CLITable.Column(title: "Reused", rows: reused)
+    return CLITable(
+        padding: 3,
+        columns: columns
+            + (fileReports.showsKillingTests ? [killedByColumn] : [])
+            + (fileReports.showsReuse ? [reusedColumn] : [])
+    )
 }
 
 private func operatorsToTableRows(fileReport: MuterTestReport.FileReport) -> [(
+    CLITable.Row,
     CLITable.Row,
     CLITable.Row,
     CLITable.Row,
@@ -40,7 +50,8 @@ private func operatorsToTableRows(fileReport: MuterTestReport.FileReport) -> [(
             CLITable.Row(value: "\(fileReport.fileName):\($0.mutationPoint.position.line)"),
             CLITable.Row(value: $0.mutationPoint.mutationOperatorId.rawValue),
             CLITable.Row(value: $0.testSuiteOutcome.asMutationTestOutcome),
-            CLITable.Row(value: $0.killedByCell)
+            CLITable.Row(value: $0.killedByCell),
+            CLITable.Row(value: $0.reusedCell)
         )
     }
 }
@@ -72,10 +83,25 @@ extension MuterTestReport.AppliedMutationOperator {
     }
 }
 
+extension MuterTestReport.AppliedMutationOperator {
+    /// What the plain and HTML reports' Reused column shows: "yes" for a result reused from an earlier run, and
+    /// "yes, despite changes" for one that changes were let through for since it was tested (`--reuse-ignoring`,
+    /// `--force-reuse`, or their `--resume` counterparts); "-" for one this run tested. Never empty, as `killedByCell`.
+    var reusedCell: String {
+        guard let reusedFrom else { return "-" }
+        return reusedFrom.keptDespiteChanges ? "yes, despite changes" : "yes"
+    }
+}
+
 extension [MuterTestReport.FileReport] {
     /// Whether some killed mutant recorded its tests, so the reports show a Killed By column.
     var showsKillingTests: Bool {
         contains { report in report.appliedOperators.contains { $0.killedByTests != nil } }
+    }
+
+    /// Whether some result was reused from an earlier run, so the reports show a Reused column.
+    var showsReuse: Bool {
+        contains { report in report.appliedOperators.contains { $0.reusedFrom != nil } }
     }
 }
 

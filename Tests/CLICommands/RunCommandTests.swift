@@ -49,6 +49,7 @@ final class RunCommandTests: XCTestCase {
     func test_runOptionsEquality_coversEveryField() {
         XCTAssertNotEqual(Run.Options.make(createTestPlan: true), .make())
         XCTAssertNotEqual(Run.Options.make(resumeURL: URL(fileURLWithPath: "/logs/results.jsonl")), .make())
+        XCTAssertNotEqual(Run.Options.make(reuseURL: URL(fileURLWithPath: "/logs/results.jsonl")), .make())
         XCTAssertNotEqual(Run.Options.make(resumeIgnoring: ["README.md"]), .make())
         XCTAssertNotEqual(Run.Options.make(forceResume: true), .make())
         XCTAssertNotEqual(Run.Options.make(verbose: true), .make())
@@ -63,6 +64,36 @@ final class RunCommandTests: XCTestCase {
     func test_forceResumeWithoutResume_isAUsageError() {
         assertUsageError(["run", "--force-resume"], "--force-resume only applies with --resume.")
         assertUsageError(["--force-resume", "--skip-coverage"], "--force-resume only applies with --resume.")
+    }
+
+    // Each pair says what its own option may reuse: a resume's waivers would let test files' changes through, which a
+    // reuse's never do.
+    func test_reuseOptions_onlyApplyWithReuse_andNotWithResume() {
+        assertUsageError(["run", "--reuse-ignoring", "README.md"], "--reuse-ignoring only applies with --reuse.")
+        assertUsageError(["run", "--force-reuse"], "--force-reuse only applies with --reuse.")
+        assertUsageError(
+            ["run", "--resume", "/logs/a.jsonl", "--reuse", "/logs/b.jsonl"],
+            "--resume and --reuse can't be given together."
+        )
+        assertUsageError(
+            ["run", "--reuse", "/logs/results.jsonl", "--resume-ignoring", "README.md"],
+            "--resume-ignoring only applies with --resume."
+        )
+        assertUsageError(["run", "--reuse", "/logs/results.jsonl", "--force-resume"], "--force-resume only applies with --resume.")
+    }
+
+    func test_reuseOptions_reachTheRunOptions() throws {
+        let command = try MuterCommand.parseAsRoot([
+            "run", "--reuse", "/logs/results.jsonl", "--reuse-ignoring", "README.md", "--force-reuse",
+        ])
+
+        let options = try XCTUnwrap(command as? Run).runOptions
+        XCTAssertNil(options.resumeURL)
+        XCTAssertEqual(options.reuseURL?.path, "/logs/results.jsonl")
+        XCTAssertEqual(options.continuedFrom?.path, "/logs/results.jsonl")
+        XCTAssertTrue(options.isReuse)
+        XCTAssertEqual(options.resumeIgnoring, ["README.md"])
+        XCTAssertTrue(options.forceResume)
     }
 
     func test_resumeOptions_reachTheRunOptions() throws {
@@ -85,6 +116,8 @@ final class RunCommandTests: XCTestCase {
         let options = try XCTUnwrap(MuterCommand.parseAsRoot(["run"]) as? Run).runOptions
 
         XCTAssertNil(options.resumeURL)
+        XCTAssertNil(options.reuseURL)
+        XCTAssertFalse(options.isReuse)
         XCTAssertEqual(options.resumeIgnoring, [])
         XCTAssertFalse(options.forceResume)
     }
@@ -93,13 +126,18 @@ final class RunCommandTests: XCTestCase {
     func test_runHelp_namesTheResumeOptions() {
         let help = Run.helpMessage(columns: 200)
 
-        XCTAssertTrue(
-            help.contains("[--resume <results>] [--resume-ignoring <glob> ...] [--force-resume]"),
-            help
-        )
+        // With as many options as `run` has, the usage line says only `<options>`, and the list names each.
+        for option in ["--resume <results>", "--resume-ignoring <glob>", "--force-resume"] {
+            XCTAssertTrue(help.contains("\n  \(option)"), option)
+        }
         XCTAssertTrue(help.contains("Continue a stopped run from its results file"), help)
         XCTAssertTrue(help.contains("* also matches /. Repeatable."), help)
         XCTAssertTrue(help.contains("reuse results although SwiftMutator, the toolchain or the SDK changed."), help)
+        for option in ["--reuse <results>", "--reuse-ignoring <glob>", "--force-reuse"] {
+            XCTAssertTrue(help.contains("\n  \(option)"), option)
+        }
+        XCTAssertTrue(help.contains("Start a new run from an earlier run's results file"), help)
+        XCTAssertTrue(help.contains("Test files are never waived."), help)
     }
 
     // Each command that runs mutation testing takes it, as it takes --skip-coverage.
@@ -111,7 +149,7 @@ final class RunCommandTests: XCTestCase {
         let runPlan = try MuterCommand.parseAsRoot(["run-without-mutating", "--verbose", "plan.json"])
         XCTAssertTrue(try XCTUnwrap(runPlan as? RunWithoutMutating).runOptions.verbose)
         let help = Run.helpMessage(columns: 200)
-        XCTAssertTrue(help.contains("[--skip-update-check] [--verbose]"), help)
+        XCTAssertTrue(help.contains("\n  --verbose "), help)
         let verbose = "Lists how many mutants are in each file that has any, and the Swift files found, if the "
             + "command looks for them."
         XCTAssertTrue(help.contains(verbose), help)

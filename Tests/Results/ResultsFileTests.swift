@@ -165,6 +165,29 @@ final class ResultsFileTests: XCTestCase {
         XCTAssertEqual(calls, ["write", "fsync", "write", "fsync"])
     }
 
+    // A reuse writes the results it keeps, thousands of them, together: one write and one sync, each a line of its own.
+    func test_appendContentsOf_writesTheLinesTogether_andSynchronizesOnce() throws {
+        var calls: [String] = []
+        let file = try makeFile(
+            writeBytes: { descriptor, bytes, count in
+                calls.append("write")
+                return write(descriptor, bytes, count)
+            },
+            synchronize: { descriptor in
+                calls.append("fsync")
+                return fsync(descriptor)
+            }
+        )
+        let other = MutantResult.make(line: 80)
+
+        XCTAssertTrue(file.append(contentsOf: [mutant, other]))
+
+        XCTAssertEqual(calls, ["write", "fsync"])
+        XCTAssertEqual(try contents(of: file.path), try line(mutant) + line(other))
+        XCTAssertTrue(file.append(contentsOf: [MutantResult]()))
+        XCTAssertEqual(calls, ["write", "fsync"], "nothing to write, so nothing is written")
+    }
+
     func test_aShortOrInterruptedWriteOrSync_isCompleted() throws {
         var writes = 0
         var syncs = 0

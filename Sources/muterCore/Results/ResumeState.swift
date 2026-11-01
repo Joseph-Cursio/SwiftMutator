@@ -1,14 +1,16 @@
 import Foundation
 
-/// What a resumed run carries from its results file to mutation testing. `file` stays open and locked until
-/// SwiftMutator exits or mutation testing ends it, so no other run writes to the file meanwhile. The steps run one
-/// after another, so one step at a time uses `file`: `LoadResumeState` opens it, and mutation testing writes to it
-/// only through `TestingSession`, behind its lock, and closes it once the session is over.
+/// What a resumed run carries from its results file to mutation testing, or a run that reuses an earlier run's results
+/// (`--reuse`). A resume's `file` stays open and locked until SwiftMutator exits or mutation testing ends it, so no
+/// other run writes to the file meanwhile. The steps run one after another, so one step at a time uses `file`:
+/// `LoadResumeState` opens it, and mutation testing writes to it only through `TestingSession`, behind its lock, and
+/// closes it once the session is over. A reuse reads its file once and keeps nothing open: the new run writes a results
+/// file of its own.
 final class ResumeState: Equatable, @unchecked Sendable { // `file` is used by one step at a time
-    /// The results file, found from what `--resume` named.
+    /// The results file, found from what `--resume` or `--reuse` named.
     let path: String
-    /// The file, open to append the session to.
-    let file: ResultsRecording
+    /// A resume's file, open to append the session to; nil for a reuse.
+    let file: ResultsRecording?
     /// What the file recorded when the run started.
     let recorded: RecordedResults
     /// The header of the file's last session, which this run was compared with.
@@ -22,7 +24,7 @@ final class ResumeState: Equatable, @unchecked Sendable { // `file` is used by o
 
     init(
         path: String,
-        file: ResultsRecording,
+        file: ResultsRecording?,
         recorded: RecordedResults,
         lastHeader: ResultsHeader,
         provenance: Provenance,
@@ -38,7 +40,12 @@ final class ResumeState: Equatable, @unchecked Sendable { // `file` is used by o
         self.notices = notices
     }
 
-    /// The number of the file's last session; this run's is the next.
+    /// Whether the run reuses the file's results in a results file of its own, rather than resuming the file's run.
+    var isReuse: Bool {
+        file == nil
+    }
+
+    /// The number of the file's last session; a resumed run's is the next.
     var lastSession: Int {
         recorded.headers.map(\.session).max() ?? 0
     }

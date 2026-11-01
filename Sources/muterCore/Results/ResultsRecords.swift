@@ -139,22 +139,28 @@ struct ResultsHeader: Codable, Equatable {
     /// The project's files, as the mutated copy held them before discovery rewrote it. Absent when the run tested a
     /// test plan, which copies nothing.
     let project: ProjectTree?
-    /// Only in a resumed session: how many earlier results it kept rather than tested again.
+    /// Only in a resumed session, or one that reuses an earlier run's results: how many earlier results it kept rather
+    /// than tested again.
     let mutantsReused: Int?
-    /// Only in a resumed session: the changed project files `--resume-ignoring` let through, by their paths.
+    /// Only in a resumed session, or one that reuses: the changed project files `--resume-ignoring` or
+    /// `--reuse-ignoring` let through, by their paths.
     let waived: [String]?
-    /// Only in a resumed session: the build and toolchain differences `--force-resume` let through, by their names in
-    /// `provenance`.
+    /// Only in a resumed session, or one that reuses: the build and toolchain differences `--force-resume` or
+    /// `--force-reuse` let through, by their names in `provenance`.
     let forced: [String]?
     /// Only when mutants' tests ran without `swift test`, each test bundle started directly (see `DirectTestRun`).
     var testBundlesRunDirectly: Bool?
+    /// Only in a session that reuses an earlier run's results (`--reuse`): that run's results file. The results it
+    /// kept follow the header, each with its `reusedFrom`.
+    var reusedFrom: String?
 }
 
 extension ResultsHeader {
     /// The header of a session that tests `state`'s mutants with `configuration`, the effective configuration: the
     /// default time limit applied, and failed-test lines judged by the baseline. `logDirectory` is the session's. A
     /// session after the first is a resumed one, in `ResultsCoding.resumedFormatVersion`, which says what it reused,
-    /// and what `--resume-ignoring` and `--force-resume` let through.
+    /// and what `--resume-ignoring` and `--force-resume` let through. A session that reuses an earlier run's results
+    /// is a first session, which says the same, and the file it reused from.
     init(
         session: Int,
         startedAt: Date,
@@ -169,7 +175,8 @@ extension ResultsHeader {
         provenance: Provenance,
         mutantsReused: Int? = nil,
         waived: [String]? = nil,
-        forced: [String]? = nil
+        forced: [String]? = nil,
+        reusedFrom: String? = nil
     ) {
         self.init(
             formatVersion: session == 1 ? ResultsCoding.formatVersion : ResultsCoding.resumedFormatVersion,
@@ -199,7 +206,8 @@ extension ResultsHeader {
             mutantsReused: mutantsReused,
             waived: waived,
             forced: forced,
-            testBundlesRunDirectly: configuration.directTestRun == nil ? nil : true
+            testBundlesRunDirectly: configuration.directTestRun == nil ? nil : true,
+            reusedFrom: reusedFrom
         )
     }
 }
@@ -242,6 +250,10 @@ struct MutantResult: Codable, Equatable {
     let log: String
     /// SHA-256 of the mutant's original file.
     let fileSHA256: String?
+    /// Only for a result a session reused from an earlier run's results file (`--reuse`) rather than tested: where it
+    /// was tested. Its `session` is the reusing session's, and its `log` names the copy of its log in that session's
+    /// `logDirectory`.
+    var reusedFrom: ReusedFrom?
 
     var key: MutantKey {
         MutantKey(path: path, mutationOperatorId: mutationOperatorId, line: line, column: column, occurrence: occurrence)
@@ -294,6 +306,78 @@ extension MutantResult {
     }
 }
 
+/// Where a result that a session reused from an earlier run's results file (`--reuse`) was tested, and whether changes
+/// were let through on the way: by the reusing session, by any session that resumed the run after it was tested, or by
+/// an earlier reuse of it. Each of those sessions' headers says which (`waived`, `forced`).
+struct ReusedFrom: Codable, Equatable {
+    /// The results file it was tested in, and the session there that tested it.
+    let resultsFile: String
+    let session: Int
+    /// true if `--resume-ignoring`, `--reuse-ignoring`, `--force-resume` or `--force-reuse` let a change through since
+    /// it was tested, which the reports mark; absent otherwise.
+    let despiteChanges: Bool?
+
+    init(resultsFile: String, session: Int, despiteChanges: Bool) {
+        self.resultsFile = resultsFile
+        self.session = session
+        self.despiteChanges = despiteChanges ? true : nil
+    }
+
+    /// Whether a change was let through since it was tested.
+    var keptDespiteChanges: Bool {
+        despiteChanges == true
+    }
+}
+
+extension MutantResult {
+    /// `self`, recorded in the results file at `resultsFile` whose headers are `headers`, as the session `session`
+    /// that reuses it writes it for the job at `utf8Offset` with `switchID`: the job's place in the file as SwiftMutator
+    /// now prepares it, so the new file's report is the run's. The rest, how it was tested, is as recorded, and
+    /// `reusedFrom` says where, and whether changes were let through since: by the sessions after its own, by an earlier
+    /// reuse, or by the reusing session (`despiteChanges`).
+    func reused(
+        from resultsFile: String,
+        headers: [ResultsHeader],
+        in session: Int,
+        utf8Offset: Int,
+        switchID: String,
+        despiteChanges: Bool
+    ) -> MutantResult {
+        let later = headers.filter { $0.session > self.session }
+        let origin = reusedFrom
+        let letThrough = despiteChanges || origin?.keptDespiteChanges == true
+            || later.contains { !($0.waived ?? []).isEmpty || !($0.forced ?? []).isEmpty }
+        var copy = MutantResult(
+            session: session,
+            path: path,
+            line: line,
+            column: column,
+            occurrence: occurrence,
+            utf8Offset: utf8Offset,
+            mutationOperatorId: mutationOperatorId,
+            switchID: switchID,
+            snapshot: snapshot,
+            outcome: outcome,
+            endedBy: endedBy,
+            exitStatus: exitStatus,
+            durationSeconds: durationSeconds,
+            worker: worker,
+            finishedAt: finishedAt,
+            killedBy: killedBy,
+            failedTestCount: failedTestCount,
+            firstFailedTestLine: firstFailedTestLine,
+            log: log,
+            fileSHA256: fileSHA256
+        )
+        copy.reusedFrom = ReusedFrom(
+            resultsFile: origin?.resultsFile ?? resultsFile,
+            session: origin?.session ?? self.session,
+            despiteChanges: letThrough
+        )
+        return copy
+    }
+}
+
 /// The keys of earlier sessions' results that a resumed session no longer stands by: those of the mutants it tests
 /// again, and of those its discovery no longer finds. A reader drops each key's records before this line; a mutant
 /// line after it records the key again.
@@ -322,7 +406,8 @@ struct ResultsEnd: Codable, Equatable {
     /// How long this session's mutation testing took. For a first session, exactly its `MutationTestOutcome`'s
     /// `testDuration`; a resumed session's outcome adds the earlier sessions'.
     let testDurationSeconds: Double
-    /// How many mutant lines the session wrote.
+    /// How many mutant lines the session wrote: those of the mutants it tested, and in a session that reuses an earlier
+    /// run's results, those of the results it kept, which have `reusedFrom`.
     let recorded: Int
 
     /// A short code for why mutation testing stopped with `error`, never a log: the abort reason's name, the worker

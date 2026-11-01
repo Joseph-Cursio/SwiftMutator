@@ -70,6 +70,30 @@ final class ResumeHintTests: XCTestCase {
         XCTAssertFalse(options.forceResume)
     }
 
+    // A run that reused an earlier run's results wrote a results file of its own, which the next session continues: its
+    // header records the files and the build it tested, and its waivers go on as a resume's.
+    func test_aReusingRun_resumesItsOwnFile_withItsWaiversAsAResumes() throws {
+        let command = ResumeHint.command(
+            continuing: [
+                "run", "--reuse", "/logs/old/results.jsonl", "--force-reuse",
+                "--reuse-ignoring", "README.md", "--reuse-ignoring=Docs/*", "--reuse=/logs/older",
+            ],
+            from: "/logs/new/results.jsonl"
+        )
+
+        XCTAssertEqual(
+            command,
+            "swift-mutator run --resume-ignoring README.md '--resume-ignoring=Docs/*' --resume '/logs/new/results.jsonl'"
+        )
+        let options = try XCTUnwrap(
+            MuterCommand.parseAsRoot(Array(wordsAShellReads(in: command).dropFirst())) as? Run
+        ).runOptions
+        XCTAssertEqual(options.resumeURL?.path, "/logs/new/results.jsonl")
+        XCTAssertNil(options.reuseURL)
+        XCTAssertEqual(options.resumeIgnoring, ["README.md", "Docs/*"])
+        XCTAssertFalse(options.forceResume)
+    }
+
     // Arguments are repeated as they were typed where a shell reads them as they are, so the command stays readable.
     func test_quotesOnlyArgumentsAShellWouldSplit() throws {
         let plain = [

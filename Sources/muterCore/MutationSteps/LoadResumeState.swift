@@ -6,6 +6,11 @@ import Foundation
 /// SwiftMutator build or toolchain that `--force-resume` didn't let through, an `-o` that would replace the file, and
 /// changed project files that no `--resume-ignoring` glob matches. The project's files are fingerprinted in the
 /// project itself, as there is no copy yet; `FingerprintProjectTree` checks the copy again.
+///
+/// For `--reuse` it reads the earlier run's results file once, without a lock: the new run writes a file of its own,
+/// and a run of the same project still writing it holds the project's copy, which `LockMutatedProject` refuses. The
+/// same checks apply, with `--force-reuse` for `--force-resume`, except changed files: they don't refuse a reuse, but
+/// decide which results it keeps, once `FingerprintProjectTree` has listed them in the copy.
 struct LoadResumeState: MutationStep {
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
@@ -17,8 +22,11 @@ struct LoadResumeState: MutationStep {
     private var listProjectFiles: ProjectFileListing
 
     func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
-        guard let resumeURL = state.runOptions.resumeURL else { return [] }
-        let path = try ResultsFile.find(at: resumeURL.path, using: fileManager)
+        guard let continuedURL = state.runOptions.continuedFrom else { return [] }
+        let path = try ResultsFile.find(at: continuedURL.path, using: fileManager)
+        if state.runOptions.isReuse {
+            return try await [.resumeStateLoaded(check(nil, at: path, against: state))]
+        }
         let file: ResultsRecording
         do {
             file = try resultsFiles.openForResume(at: path)
@@ -43,9 +51,9 @@ struct LoadResumeState: MutationStep {
     }
 
     /// The resume of the run that `file`, at `path`, recorded, once it is checked against `state`'s run: refused unless
-    /// this run would reproduce the recorded results.
+    /// this run would reproduce the recorded results. A reuse has no `file`.
     private func check(
-        _ file: ResultsRecording,
+        _ file: ResultsRecording?,
         at path: String,
         against state: AnyMutationTestState
     ) async throws -> ResumeState {
@@ -60,13 +68,17 @@ struct LoadResumeState: MutationStep {
         }
         // Asked in the project, where swiftly finds the same `.swift-version` as in the copy.
         let current = await provenance(state.muterConfiguration)
-        let tree = await ProjectTree.fingerprint(
-            listingIn: state.projectDirectoryURL,
-            hashingIn: state.projectDirectoryURL,
-            excluding: ProjectTree.excludedPaths(options, under: state.projectDirectoryURL)
-                + (lastHeader.project?.excluded ?? []),
-            list: listProjectFiles
-        )
+        // Only a resume refuses changed files, so only a resume fingerprints the project here.
+        var tree: ProjectTree?
+        if file != nil {
+            tree = await ProjectTree.fingerprint(
+                listingIn: state.projectDirectoryURL,
+                hashingIn: state.projectDirectoryURL,
+                excluding: ProjectTree.excludedPaths(options, under: state.projectDirectoryURL)
+                    + (lastHeader.project?.excluded ?? []),
+                list: listProjectFiles
+            )
+        }
         // A probe or a git that stopping the run killed would read as a changed toolchain, or as removed files.
         try Task.checkCancellation()
 
@@ -79,14 +91,14 @@ struct LoadResumeState: MutationStep {
         if let reportPath = options.reportOptions.path, ResultsFile.isSameFile(reportPath, path) {
             reasons.append(.reportWouldReplaceTheResultsFile(reportPath))
         }
-        if let recordedTree = lastHeader.project {
+        if let recordedTree = lastHeader.project, let tree {
             let unwaived = tree.changes(since: recordedTree).partition(by: options.resumeIgnoring).unwaived
             if !unwaived.isEmpty {
                 reasons.append(.filesChanged(unwaived))
             }
         }
         guard reasons.isEmpty else {
-            throw ResumeRefused(path: path, reasons: reasons, beforeTheCopy: true)
+            throw ResumeRefused(path: path, reasons: reasons, beforeTheCopy: true, isReuse: file == nil)
         }
         return ResumeState(
             path: path,

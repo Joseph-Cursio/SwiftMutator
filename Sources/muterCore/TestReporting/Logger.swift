@@ -174,10 +174,14 @@ final class Logger: @unchecked Sendable {
 
     /// How many of a resumed run's results still hold, and how many mutants are left to test and why; then how its
     /// discovery differs from the last session's, each change no result depends on, and what `--force-resume` and
-    /// `--resume-ignoring` let through. The progress bar or the progress lines then count only the mutants left.
+    /// `--resume-ignoring` let through. A run that reuses an earlier run's results says the same, with `--reuse`'s
+    /// flags, and names the changed files other than tests that make it test every mutant again. The progress bar or
+    /// the progress lines then count only the mutants left.
     func resumePlanned(_ summary: ResumeSummary) {
         numberOfMutationPoints = summary.toTest
-        let resuming = "♻️ Resuming the run in \(summary.path.bold): "
+        let resuming = summary.isReuse
+            ? "♻️ Reusing the results in \(summary.path.bold): "
+            : "♻️ Resuming the run in \(summary.path.bold): "
         let reused = summary.reused == 1 ? "1 result still holds" : "\(summary.reused) results still hold"
         if summary.toTest == 0 {
             var held = summary.reused == 1 ? "its only result still holds" : "all \(summary.reused) results still hold"
@@ -207,22 +211,51 @@ final class Logger: @unchecked Sendable {
         for notice in summary.notices {
             print("ℹ️ \(notice)")
         }
+        if let otherFiles = Self.otherFilesChanged(summary) {
+            print("⚠️ \(otherFiles)")
+        } else if summary.testFilesChanged > 0 {
+            let files = summary.testFilesChanged == 1 ? "1 test file" : "\(summary.testFilesChanged) test files"
+            print(
+                "ℹ️ \(files) changed, so every survivor is tested again, and every kill that no unchanged test "
+                    + "still holds."
+            )
+        }
+        let force = summary.isReuse ? "--force-reuse" : "--force-resume"
+        let ignoring = summary.isReuse ? "--reuse-ignoring" : "--resume-ignoring"
         if !summary.forced.isEmpty {
             let subjects = summary.forced.map { name in
                 let subject = ResumeCheck.subject(of: name)
                 return subject.hasPrefix("The ") ? "the " + subject.dropFirst(4) : subject
             }
-            print("⚠️ Results are reused although \(Self.listed(subjects)) changed (--force-resume).")
+            print("⚠️ Results are reused although \(Self.listed(subjects)) changed (\(force)).")
         }
         if !summary.waived.isEmpty {
             let named = summary.waived.prefix(ResumeRefusal.changedFilesNamed)
             let others = summary.waived.count - named.count
             let files = summary.waived.count == 1 ? "1 project file" : "\(summary.waived.count) project files"
             print(
-                "⚠️ Results are reused although \(files) changed (--resume-ignoring): "
+                "⚠️ Results are reused although \(files) changed (\(ignoring)): "
                     + named.joined(separator: ", ") + (others > 0 ? ", and \(others) more" : "")
             )
         }
+    }
+
+    /// "2 project files other than tests changed since that run, so every mutant is tested again: Package.resolved
+    /// (changed), README.md (changed). If they can't change any test's result: --reuse-ignoring 'Package.resolved' …":
+    /// what made a reuse test every mutant again; nil if nothing did.
+    private static func otherFilesChanged(_ summary: ResumeSummary) -> String? {
+        let changes = summary.otherFilesChanged
+        guard !changes.isEmpty else { return nil }
+        let named = changes.prefix(ResumeRefusal.changedFilesNamed)
+        let others = changes.count - named.count
+        let one = changes.count == 1
+        let files = named.map { "\($0.path) (\($0.kind.rawValue))" }.joined(separator: ", ")
+            + (others > 0 ? ", and \(others) more" : "")
+        let flags = named.map { "--reuse-ignoring " + shellQuoted(ResumeRefusal.glob(matching: $0.path)) }
+            .joined(separator: " ")
+            + (others > 0 ? ", plus globs for the other \(others)" : "")
+        return "\(changes.count) project file\(one ? "" : "s") other than tests changed since that run, so every "
+            + "mutant is tested again: \(files). If \(one ? "it" : "they") can't change any test's result: \(flags)"
     }
 
     /// "412 earlier results no longer count, as this session doesn't discover their mutants: coverage couldn't be
@@ -276,6 +309,12 @@ final class Logger: @unchecked Sendable {
             return "\(count) changed mutation\(one ? "" : "s")"
         case .repeated:
             return "\(count) repeated in \(one ? "its" : "their") file"
+        case .timedOut:
+            return "\(count) timeout\(one ? "" : "s")"
+        case .otherFileChanged:
+            return "\(count) as other project files changed"
+        case .testsChanged:
+            return "\(count) as test files changed"
         }
     }
 

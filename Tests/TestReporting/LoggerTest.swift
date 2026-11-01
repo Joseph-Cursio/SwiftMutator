@@ -640,6 +640,40 @@ final class LoggerTests: MuterTestCase {
         ])
     }
 
+    // A reuse says what a resume does, with its own flags, and why it tests what it tests again: a changed file other
+    // than a test, with the globs that would let it through, or changed test files.
+    func test_reusePlanned_namesItsFlags_andWhatMadeItTestAgain() {
+        sut.resumePlanned(
+            .make(
+                reused: 0,
+                toTest: 3,
+                retestedBecause: [.otherFileChanged: 2, .timedOut: 1],
+                forced: ["toolchain.environment"],
+                waived: ["notes.txt"],
+                isReuse: true,
+                otherFilesChanged: [.init(path: "Package.resolved", kind: .changed), .init(path: "Docs/[a].md", kind: .added)]
+            )
+        )
+        sut.resumePlanned(
+            .make(reused: 5, toTest: 2, retestedBecause: [.testsChanged: 2], isReuse: true, testFilesChanged: 1)
+        )
+
+        XCTAssertEqual(printer.linesPassed, [
+            "♻️ Reusing the results in \("/logs/results.jsonl".bold): 0 results still hold, "
+                + "so 3 mutants are left to test (1 timeout, 2 as other project files changed).",
+            "⚠️ 2 project files other than tests changed since that run, so every mutant is tested again: "
+                + "Package.resolved (changed), Docs/[a].md (added). If they can't change any test's result: "
+                + "--reuse-ignoring 'Package.resolved' --reuse-ignoring 'Docs/\\[a].md'",
+            "⚠️ Results are reused although the toolchain's environment changed (--force-reuse).",
+            "⚠️ Results are reused although 1 project file changed (--reuse-ignoring): notes.txt",
+            "♻️ Reusing the results in \("/logs/results.jsonl".bold): 5 results still hold, "
+                + "so 2 mutants are left to test (2 as test files changed).",
+            "ℹ️ 1 test file changed, so every survivor is tested again, and every kill that no unchanged test still "
+                + "holds.",
+        ])
+        XCTAssertEqual(sut.numberOfMutationPoints, 2)
+    }
+
     // An earlier result whose mutant this session doesn't discover is dropped without a test, so how many is a warning,
     // with why when coverage says, whether or not anything is left to test; and not "all" the results still hold.
     func test_resumePlanned_warnsOfEarlierResultsNoLongerDiscovered_inBothBranches() {

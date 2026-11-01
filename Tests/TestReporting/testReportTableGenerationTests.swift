@@ -109,6 +109,22 @@ final class TestReportTableGenerationTests: MuterTestCase {
         XCTAssertEqual(cells, ["timing() (suspect only)", "timing() (+1) (suspect only)", "timing() (+1)"])
     }
 
+    // Only once some result was reused from an earlier run, so a report without any is as it was.
+    func test_aReusedResult_isMarkedInAReusedColumn_andOneKeptDespiteChangesSaysSo() {
+        let reused = ReusedFrom(resultsFile: "/logs/results.jsonl", session: 1, despiteChanges: false)
+        let despite = ReusedFrom(resultsFile: "/logs/results.jsonl", session: 2, despiteChanges: true)
+
+        let table = operatorsTable([
+            .make(testSuiteOutcome: .passed, reusedFrom: reused),
+            .make(testSuiteOutcome: .passed, reusedFrom: despite),
+            .make(testSuiteOutcome: .passed),
+        ])
+
+        XCTAssertEqual(table.columns.last?.title, "Reused")
+        XCTAssertEqual(table.columns.last?.rows.map(\.value), ["yes", "yes, despite changes", "-"])
+        XCTAssertFalse(operatorsTable([.make(testSuiteOutcome: .passed)]).columns.contains { $0.title == "Reused" })
+    }
+
     func test_aLongTestName_isCutTo60Characters() {
         let sixtyCharacters = String(repeating: "a", count: 58) + "()"
         let sixtyOneCharacters = String(repeating: "b", count: 59) + "()"

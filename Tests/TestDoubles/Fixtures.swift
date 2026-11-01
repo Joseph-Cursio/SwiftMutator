@@ -18,14 +18,16 @@ extension MuterTestReport.AppliedMutationOperator {
         mutationSnapshot: MutationOperator.Snapshot = .make(),
         testSuiteOutcome: TestSuiteOutcome = .passed,
         killingTests: MutationTestOutcome.KillingTests? = nil,
-        killedOnlyBySuspectTests: Bool? = nil
+        killedOnlyBySuspectTests: Bool? = nil,
+        reusedFrom: ReusedFrom? = nil
     ) -> Self {
         Self(
             mutationPoint: mutationPoint,
             mutationSnapshot: mutationSnapshot,
             testSuiteOutcome: testSuiteOutcome,
             killingTests: killingTests,
-            killedOnlyBySuspectTests: killedOnlyBySuspectTests
+            killedOnlyBySuspectTests: killedOnlyBySuspectTests,
+            reusedFrom: reusedFrom
         )
     }
 }
@@ -86,10 +88,14 @@ extension ResumeSummary {
         coverageChange: ResumeCheck.CoverageChange? = nil,
         forced: [String] = [],
         waived: [String] = [],
-        notices: [String] = []
+        notices: [String] = [],
+        isReuse: Bool = false,
+        otherFilesChanged: [ProjectTree.FileChange] = [],
+        testFilesChanged: Int = 0
     ) -> ResumeSummary {
         ResumeSummary(
             path: path,
+            isReuse: isReuse,
             reused: reused,
             toTest: toTest,
             retestedBecause: retestedBecause,
@@ -99,7 +105,9 @@ extension ResumeSummary {
             coverageChange: coverageChange,
             forced: forced,
             waived: waived,
-            notices: notices
+            notices: notices,
+            otherFilesChanged: otherFilesChanged,
+            testFilesChanged: testFilesChanged
         )
     }
 }
@@ -111,7 +119,8 @@ extension MutationTestOutcome.Mutation {
         snapshot: MutationOperator.Snapshot = .null,
         originalProjectDirectoryUrl: URL = URL(fileURLWithPath: ""),
         mutatedProjectDirectoryURL: URL = URL(fileURLWithPath: ""),
-        killingTests: MutationTestOutcome.KillingTests? = nil
+        killingTests: MutationTestOutcome.KillingTests? = nil,
+        reusedFrom: ReusedFrom? = nil
     ) -> Self {
         Self(
             testSuiteOutcome: testSuiteOutcome,
@@ -119,7 +128,8 @@ extension MutationTestOutcome.Mutation {
             mutationSnapshot: snapshot,
             originalProjectDirectoryUrl: originalProjectDirectoryUrl,
             mutatedProjectDirectoryURL: mutatedProjectDirectoryURL,
-            killingTests: killingTests
+            killingTests: killingTests,
+            reusedFrom: reusedFrom
         )
     }
 }
@@ -365,6 +375,7 @@ extension Run.Options {
         testPlanURL: URL? = nil,
         createTestPlan: Bool = false,
         resumeURL: URL? = nil,
+        reuseURL: URL? = nil,
         resumeIgnoring: [String] = [],
         forceResume: Bool = false
     ) -> Self {
@@ -380,6 +391,7 @@ extension Run.Options {
             testPlanURL: testPlanURL,
             createTestPlan: createTestPlan,
             resumeURL: resumeURL,
+            reuseURL: reuseURL,
             resumeIgnoring: resumeIgnoring,
             forceResume: forceResume
         )
@@ -565,7 +577,9 @@ extension ResultsHeader {
         usingTestPlan: Bool = false,
         mutantsReused: Int? = nil,
         waived: [String]? = nil,
-        forced: [String]? = nil
+        forced: [String]? = nil,
+        logDirectory: String = "/project_muter_logs/run",
+        reusedFrom: String? = nil
     ) -> ResultsHeader {
         ResultsHeader(
             formatVersion: formatVersion,
@@ -579,7 +593,7 @@ extension ResultsHeader {
             usingTestPlan: usingTestPlan,
             projectPath: projectPath,
             mutatedProjectPath: mutatedProjectPath,
-            logDirectory: "/project_muter_logs/run",
+            logDirectory: logDirectory,
             coverage: coverage,
             newVersion: newVersion,
             baselineSeconds: 32.125,
@@ -594,7 +608,8 @@ extension ResultsHeader {
             project: project,
             mutantsReused: mutantsReused,
             waived: waived,
-            forced: forced
+            forced: forced,
+            reusedFrom: reusedFrom
         )
     }
 }
@@ -615,7 +630,8 @@ extension MutantResult {
         finishedAt: Date = ResultsHeader.fixedStart.addingTimeInterval(31.25),
         killedBy: [FailedTestLine.FailedTest]? = nil,
         failedTestCount: Int? = nil,
-        fileSHA256: String? = nil
+        fileSHA256: String? = nil,
+        reusedFrom: ReusedFrom? = nil
     ) -> MutantResult {
         MutantResult(
             session: session,
@@ -637,7 +653,8 @@ extension MutantResult {
             failedTestCount: failedTestCount ?? killedBy?.count,
             firstFailedTestLine: nil,
             log: "\(mutationOperatorId.rawValue) @ Sum.swift-\(line)-\(column).log",
-            fileSHA256: fileSHA256
+            fileSHA256: fileSHA256,
+            reusedFrom: reusedFrom
         )
     }
 }
@@ -671,11 +688,11 @@ func resultsFileData(_ lines: [any Encodable]) throws -> Data {
 }
 
 extension ResumeState {
-    /// The resume of the results file at `path`, which holds `lines`, opened as `file`.
+    /// The resume of the results file at `path`, which holds `lines`, opened as `file`; a reuse of it without one.
     static func make(
         path: String = "/project_muter_logs/session 1/results.jsonl",
         lines: [any Encodable],
-        file: ResultsRecording,
+        file: ResultsRecording?,
         provenance: Provenance = .fixture,
         forced: [String] = [],
         notices: [String] = []

@@ -34,20 +34,26 @@ extension MutationTestOutcome {
         /// The tests its run's log showed failing, as its results line records them. nil when none were recorded: a
         /// survivor, a build error, or a session whose failed-test lines weren't reliable.
         let killingTests: KillingTests?
+        /// Where it was tested, for a result a run reused from an earlier run's results file (`--reuse`); nil for one
+        /// the run tested, or kept from an earlier session of its own file.
+        let reusedFrom: ReusedFrom?
 
-        /// `killingTests` has no default: the run, `swift-mutator report` and `--resume` must each pass theirs.
+        /// `killingTests` and `reusedFrom` have no default: the run, `swift-mutator report` and `--resume` must each pass
+        /// theirs.
         init(
             testSuiteOutcome: TestSuiteOutcome,
             mutationPoint: MutationPoint,
             mutationSnapshot: MutationOperator.Snapshot,
             originalProjectDirectoryUrl: URL,
             mutatedProjectDirectoryURL: URL,
-            killingTests: KillingTests?
+            killingTests: KillingTests?,
+            reusedFrom: ReusedFrom?
         ) {
             self.testSuiteOutcome = testSuiteOutcome
             point = mutationPoint
             snapshot = mutationSnapshot
             self.killingTests = killingTests
+            self.reusedFrom = reusedFrom
 
             let splitTempFilePath = mutationPoint.filePath.split(separator: "/")
             let tempProjectDirectoryName = mutatedProjectDirectoryURL.lastPathComponent
