@@ -52,7 +52,8 @@ final class MutationTestingAbortReasonTests: MuterTestCase {
         XCTAssertTrue(description.contains("bug in Muter's own rewriting"), description)
         XCTAssertFalse(
             description.contains("misconfiguring"),
-            "A mutant that doesn't compile is Muter's fault, so the message must not point at the user's configuration:\n\(description)"
+            "A mutant that doesn't compile is Muter's fault, so the message must not point at the user's "
+                + "configuration:\n\(description)"
         )
     }
 

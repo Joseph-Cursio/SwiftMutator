@@ -202,7 +202,11 @@ enum SwiftPackageSources {
 
     /// `source`, relative to the project at `root`, with the links in its folders resolved, or nil if they lead
     /// outside the project. A link to the file itself is kept: the mutated file replaces it in the project's copy.
-    private static func projectPath(ofSource source: FilePath, in root: FilePath, canonicalRoot: FilePath) -> FilePath? {
+    private static func projectPath(
+        ofSource source: FilePath,
+        in root: FilePath,
+        canonicalRoot: FilePath
+    ) -> FilePath? {
         let absolute = (root + "/" + source) as NSString
         return relativePath(
             absolute.deletingLastPathComponent.canonicalPath + "/" + absolute.lastPathComponent,

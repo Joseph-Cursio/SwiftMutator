@@ -47,7 +47,9 @@ final class MuterErrorTests: XCTestCase {
     func test_aFailedCopy_saysWhatToTry_andWhatToReport() {
         let description = MuterError.projectCopyFailed(reason: Self.reason).description
 
-        XCTAssertTrue(description.hasPrefix("SwiftMutator was unable to create a temporary directory, or was unable to copy"))
+        XCTAssertTrue(
+            description.hasPrefix("SwiftMutator was unable to create a temporary directory, or was unable to copy")
+        )
         XCTAssertTrue(description.contains("Try running SwiftMutator again"), description)
         XCTAssertTrue(description.hasSuffix("FileManager error: \(Self.reason)"), description)
     }
@@ -55,7 +57,10 @@ final class MuterErrorTests: XCTestCase {
     // Excludes are the likeliest reason nothing was found, so the message points at them.
     func test_nothingToMutate_pointsAtTheExcludes_orTheFilesToMutate() {
         for error in [MuterError.noSourceFilesDiscovered, .noMutationPointsDiscovered] {
-            XCTAssertTrue(error.description.contains("wasn't able to discover any code it could mutation test"), "\(error)")
+            XCTAssertTrue(
+                error.description.contains("wasn't able to discover any code it could mutation test"),
+                "\(error)"
+            )
             XCTAssertTrue(error.description.contains("excluding a directory that contains your code"), "\(error)")
         }
         XCTAssertEqual(
@@ -129,7 +134,8 @@ private extension MuterError {
         case let .configurationParsingError(reason), let .projectCopyFailed(reason), let .literal(reason),
              let .removeProjectFromPreviousRunFailed(reason), let .createTempDirectoryUrlFailed(reason):
             reason
-        case .noSourceFilesDiscovered, .noSourceFilesOnExclusiveList, .noMutationPointsDiscovered, .mutationTestingAborted:
+        case .noSourceFilesDiscovered, .noSourceFilesOnExclusiveList, .noMutationPointsDiscovered,
+             .mutationTestingAborted:
             nil
         }
     }

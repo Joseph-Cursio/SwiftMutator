@@ -35,8 +35,8 @@ struct ChangeSelection: Codable, Equatable, Sendable {
         self.foldersNotCompared = foldersNotCompared.isEmpty ? nil : foldersNotCompared
     }
 
-    /// The same choice, from `ref`, which named `commit`: a resumed session's, whose command names the merge base, keeps
-    /// the first one's.
+    /// The same choice, from `ref`, which named `commit`: a resumed session's, whose command names the merge base,
+    /// keeps the first one's.
     func named(_ ref: String, commit: String) -> ChangeSelection {
         ChangeSelection(
             ref: ref,

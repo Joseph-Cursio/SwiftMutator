@@ -14,15 +14,15 @@ final class SchemataBuilderTests: MuterTestCase {
     func test_schemataMerging() throws {
         let codeBlock = try sourceCode("return 1").statements
 
-        var x = SchemataMutationMapping()
-        try x.add(codeBlock, .make(filePath: ""))
-        try x.add(codeBlock, .make())
+        var first = SchemataMutationMapping()
+        try first.add(codeBlock, .make(filePath: ""))
+        try first.add(codeBlock, .make())
 
-        var y = SchemataMutationMapping()
-        try y.add(codeBlock, .make())
-        try y.add(codeBlock, .make())
+        var second = SchemataMutationMapping()
+        try second.add(codeBlock, .make())
+        try second.add(codeBlock, .make())
 
-        let actualMappings = x + y
+        let actualMappings = first + second
 
         XCTAssertEqual(actualMappings.codeBlocks, ["return 1"])
         XCTAssertEqual(actualMappings.mutationSchemata.count, 4)

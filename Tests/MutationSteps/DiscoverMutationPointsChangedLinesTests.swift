@@ -64,7 +64,10 @@ final class DiscoverMutationPointsChangedLinesTests: MuterTestCase {
         let selection = try prepare(changing: [LineRange(first: 6, last: 6)])
 
         await AssertThrowsError(try await DiscoverMutationPoints().run(with: state)) { error in
-            XCTAssertEqual(error as? NothingToMutate, NothingToMutate(reason: .noMutantOnChangedLines, selection: selection))
+            XCTAssertEqual(
+                error as? NothingToMutate,
+                NothingToMutate(reason: .noMutantOnChangedLines, selection: selection)
+            )
         }
     }
 

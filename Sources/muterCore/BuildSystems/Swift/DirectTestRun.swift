@@ -34,11 +34,12 @@ struct DirectTestRun: Equatable, Sendable {
 
 extension DirectTestRun {
     /// The `/bin/sh` script that runs each bundle in `folder`, the mutated project or a worker's clone, in the order
-    /// `bundles(forMutantIn: filePath)` gives, and exits 1 if any helper failed. A helper killed by a signal is reported
-    /// as `swift test` reports it, with a line that `TestSuiteOutcome` reads as a crash, and that stops a run that stops
-    /// at its first failure (`CrashLine`). Every bundle runs, as under `swift test`, unless the run is stopped. A helper
-    /// ended by SIGINT, SIGTERM or SIGHUP ends the script at once, with its status, so that a signal from outside
-    /// SwiftMutator reads as one (`MutationTestingDelegate.mayHaveEndedByAnOutsideSignal`), not as a crash.
+    /// `bundles(forMutantIn: filePath)` gives, and exits 1 if any helper failed. A helper killed by a signal is
+    /// reported as `swift test` reports it, with a line that `TestSuiteOutcome` reads as a crash, and that stops a run
+    /// that stops at its first failure (`CrashLine`). Every bundle runs, as under `swift test`, unless the run is
+    /// stopped. A helper ended by SIGINT, SIGTERM or SIGHUP ends the script at once, with its status, so that a signal
+    /// from outside SwiftMutator reads as one (`MutationTestingDelegate.mayHaveEndedByAnOutsideSignal`), not as a
+    /// crash.
     ///
     /// The script sets `environment(in:)` itself: macOS drops every `DYLD_` variable from the environment of a
     /// protected binary such as `/bin/sh` as it starts, so they would never reach the helpers otherwise.
@@ -127,8 +128,8 @@ extension DirectTestRun {
     /// `<folder>.swiftpm-testing-helper`, beside it, as the active-mutant file is. A process with no bundle
     /// identifier, as the helper is, keeps its `UserDefaults` in a domain named after its executable's file, which a
     /// link sets but a changed `argv[0]` doesn't. So each worker's tests get a domain of their own, where every worker
-    /// once shared the helper's, and with it every other `swift test` run on the Mac: tests that wrote a fixed key there
-    /// could fail another worker's tests, and kill mutants they don't check (#92).
+    /// once shared the helper's, and with it every other `swift test` run on the Mac: tests that wrote a fixed key
+    /// there could fail another worker's tests, and kill mutants they don't check (#92).
     static func helperLink(forWorkerIn folder: URL) -> URL {
         folder.deletingLastPathComponent().appendingPathComponent(folder.lastPathComponent + helperLinkSuffix)
     }
@@ -138,7 +139,8 @@ extension DirectTestRun {
         helperLink(forWorkerIn: folder).lastPathComponent
     }
 
-    /// Removes the helper link beside `folder` and its tests' `UserDefaults`, once SwiftMutator is done with the folder.
+    /// Removes the helper link beside `folder` and its tests' `UserDefaults`, once SwiftMutator is done with the
+    /// folder.
     static func removeOwnDefaults(forWorkerIn folder: URL) {
         let link = helperLink(forWorkerIn: folder)
         guard (try? FileManager.default.destinationOfSymbolicLink(atPath: link.path)) != nil else { return }
@@ -207,7 +209,10 @@ extension DirectTestRun {
 extension DirectTestRun {
     /// How `configuration`'s test command would run the bundles of `project`, the mutated project, once its baseline
     /// has built them.
-    static func probe(_ configuration: MuterConfiguration, in project: URL) async -> Result<DirectTestRun, Unavailable> {
+    static func probe(
+        _ configuration: MuterConfiguration,
+        in project: URL
+    ) async -> Result<DirectTestRun, Unavailable> {
         #if os(macOS)
         await Prober().probe(configuration, in: project)
         #else
@@ -279,11 +284,11 @@ extension DirectTestRun {
         }
 
         private struct TargetInfo: Decodable {
-            let paths: Paths
+            let paths: TargetPaths
+        }
 
-            struct Paths: Decodable {
-                let runtimeResourcePath: String
-            }
+        private struct TargetPaths: Decodable {
+            let runtimeResourcePath: String
         }
 
         /// What `executable` printed, trimmed, if it succeeded and printed anything.

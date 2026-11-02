@@ -28,12 +28,13 @@ func sourceCode(fromFileAt path: String) -> SourceCodeInfo? {
 /// The timestamp is to the minute. A run that starts in a minute that already
 /// has a folder, such as a session resumed at once, gets `<timestamp> (2)`, then
 /// `(3)` and so on: sharing one, its kept logs would replace the earlier run's.
+/// Throws if either folder can't be made, which ends the run before any step.
 func createLoggingDirectory(
     forProjectAt projectDirectory: String,
     fileManager: FileSystemManager = FileManager.default,
     locale: Locale = .autoupdatingCurrent,
     timestamp: () -> Date = Date.init
-) -> String {
+) throws -> String {
     let formatter = DateFormatter()
     formatter.locale = locale
     formatter.dateFormat = "MMM d, yyyy 'at' h:mm a"
@@ -43,8 +44,12 @@ func createLoggingDirectory(
     let project = projectDirectory as NSString
     let logsRoot = (project.deletingLastPathComponent as NSString)
         .appendingPathComponent(project.lastPathComponent + "_muter_logs")
-    try! fileManager.createDirectory(atPath: logsRoot, withIntermediateDirectories: true, attributes: nil)
-    return try! claimFolder(named: formatter.string(from: timestamp()), in: logsRoot, fileManager: fileManager)
+    do {
+        try fileManager.createDirectory(atPath: logsRoot, withIntermediateDirectories: true, attributes: nil)
+        return try claimFolder(named: formatter.string(from: timestamp()), in: logsRoot, fileManager: fileManager)
+    } catch {
+        throw MuterError.literal(reason: "SwiftMutator could not create its log folder in \(logsRoot): \(error)")
+    }
 }
 
 /// Makes `name` in `folder`, or the first of `name (2)`, `name (3)` and so on

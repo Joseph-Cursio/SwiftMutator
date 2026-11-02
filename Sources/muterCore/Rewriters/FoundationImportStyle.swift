@@ -13,10 +13,10 @@ enum FoundationImportStyle {
     // Discovery prepares files concurrently, and every file in a module would otherwise rescan it.
     nonisolated(unsafe) private static var cache: [String: String?] = [:]
 
-    private static let explicitImport = try! NSRegularExpression(
-        pattern: #"^[ \t]*(internal|package|fileprivate|private)[ \t]+import[ \t]+"#
+    private static let explicitImport = NSRegularExpression.regexWithPattern(
+        #"^[ \t]*(internal|package|fileprivate|private)[ \t]+import[ \t]+"#
             + #"(?:(?:class|struct|enum|protocol|func|var|let|typealias)[ \t]+)?Foundation(?:\.\w+)?[ \t]*(?://.*)?$"#,
-        options: .anchorsMatchLines
+        .anchorsMatchLines
     )
 
     static func accessLevel(forFileAt path: String) -> String? {
@@ -52,7 +52,10 @@ enum FoundationImportStyle {
         for case let relative as String in enumerator {
             guard relative.hasSuffix(".swift"),
                   !(relative as NSString).pathComponents.contains(where: { $0.hasPrefix(".build") }),
-                  let text = try? String(contentsOfFile: (module as NSString).appendingPathComponent(relative), encoding: .utf8)
+                  let text = try? String(
+                      contentsOfFile: (module as NSString).appendingPathComponent(relative),
+                      encoding: .utf8
+                  )
             else {
                 continue
             }

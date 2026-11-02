@@ -2,7 +2,7 @@
 import XCTest
 
 final class FileOperationTests: XCTestCase {
-    func test_createsALoggingDirectory() {
+    func test_createsALoggingDirectory() throws {
         let fileManagerSpy = FileManagerSpy()
         let timestamp = DateComponents(
             calendar: .init(identifier: .gregorian),
@@ -12,12 +12,13 @@ final class FileOperationTests: XCTestCase {
             hour: 2,
             minute: 42
         )
+        let date = try XCTUnwrap(timestamp.date)
 
-        let loggingDirectory = createLoggingDirectory(
+        let loggingDirectory = try createLoggingDirectory(
             forProjectAt: "~/some/path",
             fileManager: fileManagerSpy,
             locale: Locale(identifier: "en_US"),
-            timestamp: { timestamp.date! }
+            timestamp: { date }
         )
 
         XCTAssertEqual(loggingDirectory, "~/some/path_muter_logs/May 10, 2019 at 2:42 AM")
@@ -39,13 +40,17 @@ final class FileOperationTests: XCTestCase {
         let project = try makeTemporaryDirectory() + "/App"
         let minute = Date(timeIntervalSince1970: 1_791_000_000)
         let create = {
-            createLoggingDirectory(forProjectAt: project, locale: Locale(identifier: "en_US"), timestamp: { minute })
+            try createLoggingDirectory(
+                forProjectAt: project,
+                locale: Locale(identifier: "en_US"),
+                timestamp: { minute }
+            )
         }
 
-        let first = create()
+        let first = try create()
         try Data("first run's log".utf8).write(to: URL(fileURLWithPath: "\(first)/baseline run.log"))
-        let second = create()
-        let third = create()
+        let second = try create()
+        let third = try create()
 
         let name = (first as NSString).lastPathComponent
         XCTAssertEqual(first, "\(project)_muter_logs/\(name)")
@@ -67,22 +72,26 @@ final class FileOperationTests: XCTestCase {
         let project = try makeTemporaryDirectory() + "/App"
         let minute = Date(timeIntervalSince1970: 1_791_000_000)
         let create = {
-            createLoggingDirectory(forProjectAt: project, locale: Locale(identifier: "en_US"), timestamp: { minute })
+            try createLoggingDirectory(
+                forProjectAt: project,
+                locale: Locale(identifier: "en_US"),
+                timestamp: { minute }
+            )
         }
-        let first = create()
+        let first = try create()
         try FileManager.default.removeItem(atPath: first)
         try Data().write(to: URL(fileURLWithPath: first))
 
-        XCTAssertEqual(create(), "\(first) (2)")
+        XCTAssertEqual(try create(), "\(first) (2)")
     }
 
     // Logs go next to the project, like the `_mutated` copy, never inside it:
     // a `muter_logs` folder in the project is picked up by the next project
     // copy and shows up as untracked files in the user's repository.
-    func test_loggingDirectoryIsASiblingOfTheProject() {
+    func test_loggingDirectoryIsASiblingOfTheProject() throws {
         let fileManagerSpy = FileManagerSpy()
 
-        let loggingDirectory = createLoggingDirectory(
+        let loggingDirectory = try createLoggingDirectory(
             forProjectAt: "/Users/me/projects/App/",
             fileManager: fileManagerSpy,
             locale: Locale(identifier: "en_US"),

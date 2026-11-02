@@ -72,10 +72,26 @@ final class RunEventsTests: MuterTestCase {
         withExtendedLifetime(subscription) {}
     }
 
+    // Observers such as `Logger` and `MutationTestObserver` keep state with no lock of their own, so a second sender
+    // waits for the event under way.
+    func test_eventsSentFromManyThreads_areHandledOneAtATime() {
+        let events = RunEvents()
+        let handling = OverlapCounter()
+        let subscription = events.observe { _ in handling.handle() }
+
+        DispatchQueue.concurrentPerform(iterations: 200) { _ in
+            events.send(.mutantRunsStarted)
+        }
+
+        XCTAssertEqual(handling.handled, 200)
+        XCTAssertEqual(handling.overlaps, 0)
+        withExtendedLifetime(subscription) {}
+    }
+
     // Observing the run's events used to keep the observer alive for good, as NotificationCenter kept its handlers.
-    func test_theMutationTestObserver_isFreed_andHandlesNoMoreEvents() {
+    func test_theMutationTestObserver_isFreed_andHandlesNoMoreEvents() throws {
         var observer: MutationTestObserver? = MutationTestObserver(runOptions: .make())
-        observer?.start()
+        try observer?.start()
         weak let freed = observer
 
         observer = nil
@@ -83,5 +99,29 @@ final class RunEventsTests: MuterTestCase {
 
         XCTAssertNil(freed)
         XCTAssertEqual(printer.linesPassed, [])
+    }
+}
+
+/// Counts the events an observer handles, and how many of them began while another was being handled.
+private final class OverlapCounter: @unchecked Sendable { // every `var` is behind `lock`
+    private let lock = NSLock()
+    private var active = 0
+    private var handledCount = 0
+    private var overlapCount = 0
+
+    var handled: Int { lock.withLock { handledCount } }
+    var overlaps: Int { lock.withLock { overlapCount } }
+
+    func handle() {
+        lock.withLock {
+            if active > 0 { overlapCount += 1 }
+            active += 1
+        }
+        // Long enough for another sender to arrive meanwhile.
+        Thread.sleep(forTimeInterval: 0.000_1)
+        lock.withLock {
+            active -= 1
+            handledCount += 1
+        }
     }
 }

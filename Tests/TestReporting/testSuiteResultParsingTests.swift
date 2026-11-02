@@ -97,10 +97,16 @@ final class TestSuiteResultParsingTests: MuterTestCase {
         Test Suite 'All tests' started at 2026-10-02 09:55:30.877.
         Test Case '-[ExampleTests.ExampleTests testHangs]' started.
         """
-        XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .timeout)
+        XCTAssertEqual(
+            TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout),
+            .timeout
+        )
 
         contents = loadLogFile(named: "testRunWithoutFailures_withTestSucceededFooter.log")
-        XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .timeout)
+        XCTAssertEqual(
+            TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout),
+            .timeout
+        )
 
         // Stopping the run kills the test process with SIGKILL first, and `swift test` may report
         // that before it is killed too. That's our own kill, not a crash.
@@ -108,23 +114,35 @@ final class TestSuiteResultParsingTests: MuterTestCase {
         Test Case '-[ExampleTests.ExampleTests testHangs]' started.
         error: Process '/path/to/xctest /path/to/ExamplePackageTests.xctest' exited with unexpected signal code 9
         """
-        XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .timeout)
+        XCTAssertEqual(
+            TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout),
+            .timeout
+        )
     }
 
     func test_stoppedRunWhoseLogShowsACrash_isARuntimeError() {
         // Stopped while xcodebuild was relaunching the runner after the crash.
         var contents = loadLogFile(named: "timeout_xcodebuildCrash.log")
-        XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .runtimeError)
+        XCTAssertEqual(
+            TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout),
+            .runtimeError
+        )
 
         contents = loadLogFile(named: "runtimeError_fatalError.log")
-        XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .runtimeError)
+        XCTAssertEqual(
+            TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout),
+            .runtimeError
+        )
 
         // SwiftPM's report of a test process killed by a signal, with no Swift runtime message.
         contents = """
         Test Case '-[BonMotTests.XMLTagStyleBuilderTests testComposition]' started.
         error: Process '/path/to/xctest /path/to/BonMotPackageTests.xctest' exited with unexpected signal code 11
         """
-        XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .runtimeError)
+        XCTAssertEqual(
+            TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout),
+            .runtimeError
+        )
     }
 
     // Stopped at the crash, before any test failed and before any summary: the crash decides it.
@@ -142,14 +160,24 @@ final class TestSuiteResultParsingTests: MuterTestCase {
     func test_stoppedRunWhoseLogShowsATestFailure_isFailed() {
         // Stopped after a test failed but before any suite summary was printed.
         var contents = loadLogFile(named: "timeout_xcodebuildFailedTestCase.log")
-        XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .failed)
+        XCTAssertEqual(
+            TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout),
+            .failed
+        )
 
         contents = loadLogFile(named: "testRunWithFailures_swiftTesting.log")
-        XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .failed)
+        XCTAssertEqual(
+            TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout),
+            .failed
+        )
 
         // As for a finished run, a test failure outranks a crash.
-        contents = loadLogFile(named: "timeout_xcodebuildFailedTestCase.log") + loadLogFile(named: "timeout_xcodebuildCrash.log")
-        XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .failed)
+        contents = loadLogFile(named: "timeout_xcodebuildFailedTestCase.log")
+            + loadLogFile(named: "timeout_xcodebuildCrash.log")
+        XCTAssertEqual(
+            TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout),
+            .failed
+        )
     }
 
     func test_stoppedRunWhoseLogShowsARecordedSwiftTestingIssue_isFailed() {
@@ -184,7 +212,10 @@ final class TestSuiteResultParsingTests: MuterTestCase {
         ⚠︎ Test recordsWarning() recorded a warning at CTests.swift:35:21: Issue recorded
         ◇ Test hangs() started.
         """
-        XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .timeout)
+        XCTAssertEqual(
+            TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout),
+            .timeout
+        )
     }
 
     func test_stoppedRunWhoseRecordedIssueLineIsUnreliable_isATimeout() {
@@ -204,7 +235,10 @@ final class TestSuiteResultParsingTests: MuterTestCase {
             ),
             .timeout
         )
-        XCTAssertEqual(TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout), .failed)
+        XCTAssertEqual(
+            TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .timeout),
+            .failed
+        )
     }
 
     // MARK: - Runs stopped at their first failed test
@@ -223,7 +257,11 @@ final class TestSuiteResultParsingTests: MuterTestCase {
             "SumTests.swift:12: Fatal error: Index out of range",
         ] {
             XCTAssertEqual(
-                TestSuiteOutcome.from(testLog: contents, terminationStatus: 9, timeoutExecution: .stoppedAtFirstFailure),
+                TestSuiteOutcome.from(
+                    testLog: contents,
+                    terminationStatus: 9,
+                    timeoutExecution: .stoppedAtFirstFailure
+                ),
                 .failed,
                 contents
             )

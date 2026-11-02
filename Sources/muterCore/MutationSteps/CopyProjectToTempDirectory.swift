@@ -199,11 +199,19 @@ extension VanishedFileTolerance {
         true
     }
 
-    func fileManager(_ fileManager: FileManager, shouldProceedAfterError error: Error, removingItemAtPath path: String) -> Bool {
+    func fileManager(
+        _ fileManager: FileManager,
+        shouldProceedAfterError error: Error,
+        removingItemAtPath path: String
+    ) -> Bool {
         false
     }
 
-    func fileManager(_ fileManager: FileManager, shouldProceedAfterError error: Error, removingItemAt URL: URL) -> Bool {
+    func fileManager(
+        _ fileManager: FileManager,
+        shouldProceedAfterError error: Error,
+        removingItemAt URL: URL
+    ) -> Bool {
         false
     }
 }

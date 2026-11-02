@@ -252,7 +252,10 @@ final class SwiftPackageSourcesTests: MuterTestCase {
         try fileManager.createSymbolicLink(atPath: project + "/Sources/Lib/Common", withDestinationPath: "../../Common")
         try fileManager.createDirectory(atPath: project + "/Sources/App", withIntermediateDirectories: true)
         try fileManager.createSymbolicLink(atPath: project + "/Sources/App/Common", withDestinationPath: "../../Common")
-        try fileManager.createSymbolicLink(atPath: project + "/Sources/Lib/Shared", withDestinationPath: "../../../Shared")
+        try fileManager.createSymbolicLink(
+            atPath: project + "/Sources/Lib/Shared",
+            withDestinationPath: "../../../Shared"
+        )
         try fileManager.createSymbolicLink(
             atPath: project + "/Sources/Lib/Linked.swift",
             withDestinationPath: "../../../Shared/Shared.swift"

@@ -101,7 +101,10 @@ final class InterruptionsTests: MuterTestCase {
 
         XCTAssertEqual(Array(events.all.prefix(4)), ["killed", "killed", "ended the results", "exited by SIGTERM"])
         XCTAssertEqual(ended.signal, SIGTERM)
-        XCTAssertEqual(said.all.last, "⏹ Stopping at once. SwiftMutator removes worker copies it leaves behind when it next runs.")
+        XCTAssertEqual(
+            said.all.last,
+            "⏹ Stopping at once. SwiftMutator removes worker copies it leaves behind when it next runs."
+        )
     }
 
     // When its terminal closes, zsh sends the job SIGHUP twice, about a millisecond apart. Nobody is left to ask for a
@@ -339,7 +342,12 @@ final class InterruptionsTests: MuterTestCase {
     /// A signal sent before `run` observes signals goes nowhere.
     private func waitUntilObserving(file: StaticString = #filePath, line: UInt = #line) {
         let observer = observer
-        XCTAssertTrue(Self.waitUntil(within: 5) { !observer.observed.isEmpty }, "never observed", file: file, line: line)
+        XCTAssertTrue(
+            Self.waitUntil(within: 5) { !observer.observed.isEmpty },
+            "never observed",
+            file: file,
+            line: line
+        )
     }
 
     /// Polls `condition` until it holds or `timeout` seconds pass, and returns whether it held.

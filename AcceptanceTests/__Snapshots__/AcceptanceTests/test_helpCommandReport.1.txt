@@ -1,14 +1,23 @@
-OVERVIEW: Builds a report from a run's results file.
+OVERVIEW: Builds a report from a run's results file, or from its shards'
+results files merged.
 
-USAGE: swift-mutator report <results> [--format <format>] [--output <output>]
+USAGE: swift-mutator report <results> ... [--format <format>] [--output <output>] [--force-merge] [--merge-ignoring <glob> ...]
 
 ARGUMENTS:
   <results>               A run's results file, or the run's log folder in
-                          <project>_muter_logs that holds it.
+                          <project>_muter_logs that holds it. Several, one for
+                          each shard of a run --shard split, are merged into
+                          one report.
 
 OPTIONS:
   -f, --format <format>   The report format: plain, json, html, xcode
   -o, --output <output>   Output file for the report to be saved.
+  --force-merge           Merge shards' results although their SwiftMutator
+                          build, toolchain or SDK differ. With one file, it
+                          does nothing.
+  --merge-ignoring <glob> Merge shards' results although project files matching
+                          this glob differ between them; * also matches /.
+                          Repeatable. With one file, it does nothing.
   --version               Show the version.
   -h, --help              Show help information.
 

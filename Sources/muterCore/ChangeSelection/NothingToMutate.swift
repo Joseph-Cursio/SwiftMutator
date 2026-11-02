@@ -34,7 +34,8 @@ struct NothingToMutate: Error, Equatable, CustomStringConvertible {
             why = "\(files(count)) changed \(since), and no target compiles \(count == 1 ? "it" : "any of them")"
         case let .noFileDiscovered(count):
             why = "\(files(count)) changed \(since), and discovery leaves out \(count == 1 ? "it" : "every one"): "
-                + "no target compiles \(count == 1 ? "it" : "them"), or the tests don't cover \(count == 1 ? "it" : "them")"
+                + "no target compiles \(count == 1 ? "it" : "them"), "
+                + "or the tests don't cover \(count == 1 ? "it" : "them")"
         case let .noMutantInChangedFiles(count):
             why = "\(files(count)) changed \(since), and no operator mutates any code in "
                 + (count == 1 ? "it" : "them")

@@ -20,7 +20,8 @@ enum RemoveSideEffectsOperator {
             "abort",
         ]
 
-        private lazy var untestedFunctionNames: [String] = Self.alwaysExcludedCalls + (configuration?.excludeCallList ?? [])
+        private lazy var untestedFunctionNames: [String] = Self.alwaysExcludedCalls
+            + (configuration?.excludeCallList ?? [])
 
         convenience init(
             configuration: MuterConfiguration? = nil,
@@ -206,16 +207,9 @@ enum RemoveSideEffectsOperator {
                 RepeatStmtSyntax.self,
                 DoStmtSyntax.self,
             ]
-            let syntaxNodes = node.statements.map(\.item._syntaxNode)
-            for item in syntaxNodes {
-                for s in skippableNodes {
-                    if item.is(s) {
-                        return true
-                    }
-                }
+            return node.statements.contains { statement in
+                skippableNodes.contains { statement.item.is($0) }
             }
-
-            return false
         }
 
         private func statementsContainsConcurrencyTypes(_ statement: PatternBindingSyntax) -> Bool {

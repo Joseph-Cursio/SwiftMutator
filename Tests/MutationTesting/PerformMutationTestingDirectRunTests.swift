@@ -44,7 +44,9 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
     }
 
     func test_aRunThatMatchesTheBaseline_isTheTimedRun_andMutantsRunTheBundlesDirectly() async throws {
-        ioDelegate.testRunsWithoutBuilding = [(.passed, "✔ Test run with 12 tests in 3 suites passed after 0.4 seconds.")]
+        ioDelegate.testRunsWithoutBuilding = [
+            (.passed, "✔ Test run with 12 tests in 3 suites passed after 0.4 seconds."),
+        ]
         let sent = recordNotices()
 
         _ = try await sut.run(with: state)
@@ -62,7 +64,9 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
     }
 
     func test_aRunThatRunsOtherTests_leavesSwiftTest_andIsTimedAgain() async throws {
-        ioDelegate.testRunsWithoutBuilding = [(.passed, "✔ Test run with 9 tests in 3 suites passed after 0.4 seconds.")]
+        ioDelegate.testRunsWithoutBuilding = [
+            (.passed, "✔ Test run with 9 tests in 3 suites passed after 0.4 seconds."),
+        ]
         let sent = recordNotices()
 
         _ = try await sut.run(with: state)
@@ -123,7 +127,9 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
         state.muterConfiguration = MuterConfiguration(
             executable: "/usr/bin/swift", arguments: ["test"], testSuiteTimeOut: 42
         )
-        ioDelegate.testRunsWithoutBuilding = [(.passed, "✔ Test run with 12 tests in 3 suites passed after 0.4 seconds.")]
+        ioDelegate.testRunsWithoutBuilding = [
+            (.passed, "✔ Test run with 12 tests in 3 suites passed after 0.4 seconds."),
+        ]
 
         _ = try await sut.run(with: state)
 

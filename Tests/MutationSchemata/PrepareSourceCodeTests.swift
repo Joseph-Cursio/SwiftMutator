@@ -9,11 +9,11 @@ final class PrepareSourceCodeTests: MuterTestCase {
     override func setUpWithError() throws {
         try super.setUpWithError()
 
-        let contents = """
+        let contents = Data("""
         func foo() {
             true && false
         }
-        """.data(using: .utf8)
+        """.utf8)
 
         FileManager.default.createFile(
             atPath: outputFilePath,

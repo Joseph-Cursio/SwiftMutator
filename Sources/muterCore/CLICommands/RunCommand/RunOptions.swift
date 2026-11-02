@@ -11,6 +11,8 @@ extension Run {
         let since: String?
         /// `--changed-lines`: of those, only the code on the lines the change added or changed.
         let changedLinesOnly: Bool
+        /// `--shard`: of the mutants discovered, only those in this shard are tested.
+        let shard: Shard?
         let mutationOperatorsList: MutationOperatorList
         let skipCoverage: Bool
         let skipUpdateCheck: Bool
@@ -28,11 +30,11 @@ extension Run {
         let resumeURL: URL?
         /// The results file, or the log folder that holds it, of the earlier run whose results `--reuse` starts from.
         let reuseURL: URL?
-        /// `--resume-ignoring`'s globs, or `--reuse-ignoring`'s: project files that changed, whose changes a resume or a
-        /// reuse lets through. A reuse never lets a test file's through.
+        /// `--resume-ignoring`'s globs, or `--reuse-ignoring`'s: project files that changed, whose changes a resume or
+        /// a reuse lets through. A reuse never lets a test file's through.
         let resumeIgnoring: [String]
-        /// `--force-resume`, or `--force-reuse`: a resume or a reuse lets a changed SwiftMutator build, toolchain or SDK
-        /// through.
+        /// `--force-resume`, or `--force-reuse`: a resume or a reuse lets a changed SwiftMutator build, toolchain or
+        /// SDK through.
         let forceResume: Bool
         var isUsingTestPlan: Bool {
             testPlanURL != nil
@@ -52,6 +54,7 @@ extension Run {
             filesToMutate: [String] = [],
             since: String? = nil,
             changedLinesOnly: Bool = false,
+            shard: Shard? = nil,
             reportFormat: ReportFormat = .plain,
             reportURL: URL? = nil,
             mutationOperatorsList: MutationOperatorList = .allOperators,
@@ -70,6 +73,7 @@ extension Run {
         ) {
             self.since = since
             self.changedLinesOnly = changedLinesOnly
+            self.shard = shard
             self.skipCoverage = skipCoverage
             self.skipUpdateCheck = skipUpdateCheck
             self.verbose = verbose
@@ -103,6 +107,7 @@ extension Run.Options: Equatable {
         lhs.filesToMutate == rhs.filesToMutate &&
             lhs.since == rhs.since &&
             lhs.changedLinesOnly == rhs.changedLinesOnly &&
+            lhs.shard == rhs.shard &&
             lhs.mutationOperatorsList == rhs.mutationOperatorsList &&
             lhs.skipCoverage == rhs.skipCoverage &&
             lhs.skipUpdateCheck == rhs.skipUpdateCheck &&
@@ -127,6 +132,7 @@ extension Run.Options: Nullable {
             filesToMutate: [],
             since: nil,
             changedLinesOnly: false,
+            shard: nil,
             reportFormat: .plain,
             reportURL: nil,
             mutationOperatorsList: [],

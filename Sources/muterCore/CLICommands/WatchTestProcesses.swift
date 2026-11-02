@@ -1,12 +1,13 @@
 import ArgumentParser
 import Foundation
 
-/// The watcher `TestProcessWatcher` starts, which kills SwiftMutator's test processes if SwiftMutator dies first. Hidden:
-/// SwiftMutator starts it itself.
+/// The watcher `TestProcessWatcher` starts, which kills SwiftMutator's test processes if SwiftMutator dies first.
+/// Hidden: SwiftMutator starts it itself.
 struct WatchTestProcesses: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "watch-test-processes",
-        abstract: "Kills the test processes of a SwiftMutator run that dies before them. SwiftMutator starts it itself.",
+        abstract: "Kills the test processes of a SwiftMutator run that dies before them. "
+            + "SwiftMutator starts it itself.",
         shouldDisplay: false
     )
 

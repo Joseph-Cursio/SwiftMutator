@@ -93,7 +93,7 @@ struct LoadResumeState: MutationStep {
             lastHeader,
             with: ResumeCheck.Current(state: state, provenance: current),
             forcing: options.forceResume,
-            reusing: file == nil
+            for: file == nil ? .reuse : .resume
         )
         var reasons = verdict.refusals
         if let reportPath = options.reportOptions.path, ResultsFile.isSameFile(reportPath, path) {

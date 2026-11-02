@@ -34,8 +34,8 @@ final class MutationTestObserver {
     }
 
     /// Creates the run's log folder, and observes the run's events.
-    func start() {
-        loggingDirectory = createLoggingDirectory(
+    func start() throws {
+        loggingDirectory = try createLoggingDirectory(
             forProjectAt: fileManager.currentDirectoryPath,
             fileManager: fileManager
         )
@@ -84,6 +84,8 @@ extension MutationTestObserver {
             logger.mutationsDiscoveryStarted()
         case let .mutationsDiscoveryFinished(mappings):
             logger.mutationsDiscoveryFinished(mutations: mappings, verbose: runOptions.verbose)
+        case let .shardSelected(selection, mappings):
+            logger.mutationsDiscoveryFinished(mutations: mappings, verbose: runOptions.verbose, shard: selection)
 
         case let .resumePlanned(summary):
             logger.resumePlanned(summary)

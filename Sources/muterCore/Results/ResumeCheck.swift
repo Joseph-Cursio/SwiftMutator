@@ -12,7 +12,7 @@ enum ResumeCheck {
     ]
 
     /// What the resuming run would record in its header, of what a resume compares.
-    struct Current {
+    struct Current: Equatable {
         /// As loaded, as a header records it.
         let configuration: MuterConfiguration
         /// By name.
@@ -23,6 +23,8 @@ enum ResumeCheck {
         let provenance: Provenance
         /// What `--since` chose; nil without it.
         var since: ChangeSelection?
+        /// `--shard`; nil without it.
+        var shard: Shard?
     }
 
     /// A value the recorded session had and this run has, each as sorted-keys JSON. nil is a configuration key that
@@ -31,6 +33,17 @@ enum ResumeCheck {
         let name: String
         let was: String?
         let isNow: String?
+    }
+
+    /// What a recorded session is compared with the current one for, which decides what is compared.
+    enum Purpose {
+        /// `--resume`: everything.
+        case resume
+        /// `--reuse`: neither what `--since` chose nor the shard. A result holds whichever other mutants are tested,
+        /// and a reuse keeps only those of the mutants it discovers.
+        case reuse
+        /// Merging a split's shards (`report`): everything but the shard, in which shards differ.
+        case merge
     }
 
     struct Verdict: Equatable {
@@ -94,11 +107,14 @@ enum ResumeCheck {
     /// `timeoutSeconds`, `stopsAtFirstFailure` and `failedTestLinesAreReliable`, which follow from the configuration,
     /// the baseline and the timed test run. Only the build and toolchain differences are ever `forced`.
     ///
-    /// A resume compares what `--since` compares the working tree with too: the merge base, and `--changed-lines`. A
-    /// `reusing` run doesn't: a result holds whichever other mutants are tested, and it keeps only those of the
-    /// mutants it discovers.
-    static func compare(_ recorded: ResultsHeader, with current: Current, forcing: Bool, reusing: Bool = false)
-        -> Verdict {
+    /// A resume compares what `--since` compares the working tree with too: the merge base, and `--changed-lines`; and
+    /// the shard. What `purpose` leaves out isn't compared.
+    static func compare(
+        _ recorded: ResultsHeader,
+        with current: Current,
+        forcing: Bool,
+        for purpose: Purpose = .resume
+    ) -> Verdict {
         var verdict = Verdict()
         for difference in configurationDifferences(recorded.configuration, current.configuration) {
             if keysThatDontAffectOutcomes.contains(difference.name) {
@@ -110,8 +126,11 @@ enum ResumeCheck {
             }
         }
         verdict.refusals += selectionDifferences(recorded, current).map(ResumeRefusal.selectionChanged)
-        if !reusing {
+        if purpose != .reuse {
             verdict.refusals += sinceDifferences(recorded.since, current.since).map(ResumeRefusal.selectionChanged)
+        }
+        if purpose == .resume, let shard = shardDifference(recorded.shard, current.shard) {
+            verdict.refusals.append(.selectionChanged(shard))
         }
         if recorded.usingTestPlan || current.usingTestPlan {
             verdict.refusals.append(.testPlanRun)
@@ -199,8 +218,25 @@ enum ResumeCheck {
                 difference("since.changedLines", recorded.changedLines, current.changedLines),
             ].compactMap { $0 }
         default:
-            return [Difference(name: "since", was: recorded.flatMap { json($0.ref) }, isNow: current.flatMap { json($0.ref) })]
+            return [
+                Difference(
+                    name: "since",
+                    was: recorded.flatMap { json($0.ref) },
+                    isNow: current.flatMap { json($0.ref) }
+                ),
+            ]
         }
+    }
+
+    /// The difference in which shard is tested, by its `k/n`, which says all there is: which of the mutants discovered
+    /// are in a shard follows from their places alone.
+    private static func shardDifference(_ recorded: ShardSelection?, _ current: Shard?) -> Difference? {
+        guard recorded?.shard != current else { return nil }
+        return Difference(
+            name: "shard",
+            was: recorded.flatMap { json($0.shard.description) },
+            isNow: current.flatMap { json($0.description) }
+        )
     }
 
     /// The differences in what identifies the SwiftMutator build, the toolchain and the SDK, named by their keys in
@@ -306,7 +342,24 @@ extension ResumeCheck.Current {
             skipCoverage: state.runOptions.skipCoverage,
             usingTestPlan: state.runOptions.isUsingTestPlan,
             provenance: provenance,
-            since: state.changeSelection
+            since: state.changeSelection,
+            shard: state.runOptions.shard
+        )
+    }
+}
+
+extension ResumeCheck.Current {
+    /// What `header`'s session recorded, of what a resume compares: the shard the others are merged with.
+    init(header: ResultsHeader) {
+        self.init(
+            configuration: header.configuration,
+            operators: header.operators,
+            filesToMutate: header.filesToMutate,
+            skipCoverage: header.skipCoverage,
+            usingTestPlan: header.usingTestPlan,
+            provenance: header.provenance,
+            since: header.since,
+            shard: header.shard?.shard
         )
     }
 }

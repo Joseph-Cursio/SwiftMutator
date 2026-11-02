@@ -235,14 +235,15 @@ extension SchemataMutationMapping: CustomStringConvertible, CustomDebugStringCon
     var debugDescription: String { description }
 
     var description: String {
-        let description = mappings.keys.sorted().reduce(into: "") { accum, key in
+        let description = mappings.sorted { $0.key < $1.key }.reduce(into: "") { accum, entry in
+            let (key, schemata) = entry
             let source = (codeBlockText[key] ?? key.text)
                 .replacingOccurrences(of: "\n", with: "\\n")
                 .replacingOccurrences(of: "\"", with: "\\\"")
             accum +=
                 """
                 source: "\(source)",
-                schemata: \(mappings[key]!)
+                schemata: \(schemata)
                 """
         }
         return """

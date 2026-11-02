@@ -9,6 +9,7 @@ extension [MutationOperator.Id] {
 }
 
 enum MutationOperator {
+    // swiftlint:disable:next type_name - named in every operator and report as `MutationOperator.Id`
     enum Id: String, Codable, CaseIterable {
         case ror = "RelationalOperatorReplacement"
         case removeSideEffects = "RemoveSideEffects"

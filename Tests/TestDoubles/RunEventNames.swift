@@ -20,6 +20,7 @@ extension RunEvent {
         case sourceFileDiscoveryFinished
         case mutationsDiscoveryStarted
         case mutationsDiscoveryFinished
+        case shardSelected
         case resumePlanned
         case mutationTestingStarted
         case mutantRunsStarted
@@ -54,6 +55,7 @@ extension RunEvent {
         case .sourceFileDiscoveryFinished: .sourceFileDiscoveryFinished
         case .mutationsDiscoveryStarted: .mutationsDiscoveryStarted
         case .mutationsDiscoveryFinished: .mutationsDiscoveryFinished
+        case .shardSelected: .shardSelected
         case .resumePlanned: .resumePlanned
         case .mutationTestingStarted: .mutationTestingStarted
         case .mutantRunsStarted: .mutantRunsStarted
@@ -88,6 +90,7 @@ extension RunEvent {
         case let .packageSourceFilesUnavailable(reason): reason
         case let .sourceFileDiscoveryFinished(sourceFileCandidates): sourceFileCandidates
         case let .mutationsDiscoveryFinished(mappings): mappings
+        case let .shardSelected(selection, mappings): (selection, mappings)
         case let .resumePlanned(summary): summary
         case let .workersChosen(choice): choice
         case let .stopAtFirstFailureTurnedOff(reason): reason

@@ -89,13 +89,23 @@ final class CopyProjectToTempDirectoryTests: MuterTestCase {
 
         for error in missing {
             XCTAssertTrue(
-                tolerance.fileManager(.default, shouldProceedAfterError: error, copyingItemAtPath: "/src/x.lock", toPath: "/dst/x.lock"),
+                tolerance.fileManager(
+                    .default,
+                    shouldProceedAfterError: error,
+                    copyingItemAtPath: "/src/x.lock",
+                    toPath: "/dst/x.lock"
+                ),
                 "should skip \(error)"
             )
         }
         for error in fatal {
             XCTAssertFalse(
-                tolerance.fileManager(.default, shouldProceedAfterError: error, copyingItemAtPath: "/src/x", toPath: "/dst/x"),
+                tolerance.fileManager(
+                    .default,
+                    shouldProceedAfterError: error,
+                    copyingItemAtPath: "/src/x",
+                    toPath: "/dst/x"
+                ),
                 "should stop on \(error)"
             )
         }

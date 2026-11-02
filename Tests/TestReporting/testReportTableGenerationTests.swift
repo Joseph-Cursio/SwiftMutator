@@ -182,8 +182,9 @@ final class TestReportTableGenerationTests: MuterTestCase {
         let coloredRows = applyMutationTestResultsColor(to: rows)
 
         XCTAssertEqual(coloredRows.count, rows.count)
-        XCTAssertNotNil(coloredRows.first?.value.contains(rows.first!.value))
-        XCTAssertNotNil(coloredRows.last?.value.contains(rows.last!.value))
+        for (colored, row) in zip(coloredRows, rows) {
+            XCTAssertTrue(colored.value.contains(row.value), colored.value)
+        }
     }
 
     func test_coloringTestScore() {
@@ -197,8 +198,9 @@ final class TestReportTableGenerationTests: MuterTestCase {
         let coloredRows = applyMutationScoreColor(to: rows)
 
         XCTAssertEqual(coloredRows.count, rows.count)
-        XCTAssertNotNil(coloredRows.first?.value.contains(rows.first!.value))
-        XCTAssertNotNil(coloredRows.last?.value.contains(rows.last!.value))
+        for (colored, row) in zip(coloredRows, rows) {
+            XCTAssertTrue(colored.value.contains(row.value), colored.value)
+        }
     }
 
     private func operatorsTable(_ operators: [MuterTestReport.AppliedMutationOperator]) -> CLITable {

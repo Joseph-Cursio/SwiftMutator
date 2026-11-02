@@ -33,8 +33,7 @@ final class BuildForTestingTests: MuterTestCase {
 
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/temp")
 
-        do { _ = try await sut.run(with: state) }
-        catch {}
+        _ = try? await sut.run(with: state)
 
         XCTAssertTrue(fileManager.methodCalls.contains("changeCurrentDirectoryPath(_:)"))
         XCTAssertEqual(

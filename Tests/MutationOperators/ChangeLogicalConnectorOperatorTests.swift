@@ -3,13 +3,13 @@ import TestingExtensions
 import XCTest
 
 final class ChangeLogicalConnectorOperatorTests: MuterTestCase {
-    private lazy var sourceWithLogicalOperators = sourceCode(
-        fromFileAt: "\(fixturesDirectory)/MutationExamples/LogicalOperator/sampleWithLogicalOperators.swift"
-    )!
+    private lazy var sourceWithLogicalOperators = fixtureSource(
+        at: "\(fixturesDirectory)/MutationExamples/LogicalOperator/sampleWithLogicalOperators.swift"
+    )
 
-    private lazy var sampleWithFailuresParsing = sourceCode(
-        fromFileAt: "\(fixturesDirectory)/MutationExamples/LogicalOperator/sampleWithFailuresParsing.swift"
-    )!
+    private lazy var sampleWithFailuresParsing = fixtureSource(
+        at: "\(fixturesDirectory)/MutationExamples/LogicalOperator/sampleWithFailuresParsing.swift"
+    )
 
     func test_rewriter() throws {
         let visitor = ChangeLogicalConnectorOperator.Visitor(
@@ -157,7 +157,9 @@ final class ChangeLogicalConnectorOperatorTests: MuterTestCase {
     // character. TokenAwareVisitor's own range ended three characters after the start of `&& `, which
     // here is after the mark, so the mutant lost it: `a || x`, which does not compile.
     func test_keepsACombiningMarkThatStartsTheNameAfterTheConnector() throws {
-        let source = try sourceCode("func f(a: Bool, b: Bool) -> Bool {\n    let \u{064B}x = b\n    return a && \u{064B}x\n}")
+        let source = try sourceCode(
+            "func f(a: Bool, b: Bool) -> Bool {\n    let \u{064B}x = b\n    return a && \u{064B}x\n}"
+        )
         let visitor = ChangeLogicalConnectorOperator.Visitor(
             sourceCodeInfo: .init(path: "/path/to/file", code: source)
         )

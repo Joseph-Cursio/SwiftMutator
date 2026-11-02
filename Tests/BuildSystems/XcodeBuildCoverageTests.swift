@@ -18,7 +18,8 @@ final class XcodeBuildCoverageTests: MuterTestCase {
         XCTAssertEqual(process.commandsRun, [
             [
                 "/path/to/xcodebuild",
-                "OTHER_SWIFT_FLAGS=$(inherited) -Xllvm -instrprof-atomic-counter-update-all", "-enableCodeCoverage", "YES",
+                "OTHER_SWIFT_FLAGS=$(inherited) -Xllvm -instrprof-atomic-counter-update-all",
+                "-enableCodeCoverage", "YES",
             ],
         ])
         XCTAssertEqual(process.timeLimits, [nil])
@@ -324,8 +325,10 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     // Xcode keeps a profile per run destination and leaves the others' in place. `find` lists them in no set order,
     // and a stale one reads every function added since as never run, so their mutants would be skipped.
     func test_testProfileData_isTheNewestProfile() async {
-        process.stdoutToBeReturned = "/Build/ProfileData/OLD/Coverage.profdata\n/Build/ProfileData/NEW/Coverage.profdata\n"
-        process.stdoutToBeReturned = "/Build/ProfileData/NEW/Coverage.profdata\n/Build/ProfileData/OLD/Coverage.profdata\n"
+        process.stdoutToBeReturned = "/Build/ProfileData/OLD/Coverage.profdata\n"
+            + "/Build/ProfileData/NEW/Coverage.profdata\n"
+        process.stdoutToBeReturned = "/Build/ProfileData/NEW/Coverage.profdata\n"
+            + "/Build/ProfileData/OLD/Coverage.profdata\n"
 
         let result = await sut.testProfileData(at: ["/Build"])
         XCTAssertEqual(result, "/Build/ProfileData/NEW/Coverage.profdata")
@@ -745,7 +748,11 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     // xccov's report of a package tested through xcodebuild lists only its tests' files, as in this real run's, so its
     // lines say nothing of the project's coverage: rather than 0%, there is none, and `run` reads llvm-cov's export.
     func test_aReportOfNoneOfTheProjectsFiles_givesNoLines() {
-        let lines = XcodeBuildCoverage.coverage(fromReport: packageReport, projectRoot: "/project", coverageThreshold: 0)
+        let lines = XcodeBuildCoverage.coverage(
+            fromReport: packageReport,
+            projectRoot: "/project",
+            coverageThreshold: 0
+        )
 
         XCTAssertEqual(failure(of: lines), .noProjectFilesInXccovReport)
         XCTAssertEqual(

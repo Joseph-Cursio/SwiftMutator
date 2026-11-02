@@ -38,8 +38,6 @@ struct SimpleTimeEstimate: ProgressElementType {
 }
 
 struct ProgressOneIndexed: ProgressElementType {
-    init() {}
-
     func value(_ progressBar: ProgressBar) -> String {
         let index = progressBar.element + 1 > progressBar.count ?
             progressBar.element :

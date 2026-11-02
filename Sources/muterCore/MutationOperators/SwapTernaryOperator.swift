@@ -177,13 +177,7 @@ enum SwapTernaryOperator {
         }
 
         private func ternaryIndex(_ node: ExprListSyntax) -> Int? {
-            for (index, child) in node.allChildren.enumerated() {
-                if child.is(UnresolvedTernaryExprSyntax.self) {
-                    return index
-                }
-            }
-
-            return nil
+            node.allChildren.enumerated().first { $0.element.is(UnresolvedTernaryExprSyntax.self) }?.offset
         }
 
         private func cast(_ node: ExprListSyntax) -> [ExprSyntax] {

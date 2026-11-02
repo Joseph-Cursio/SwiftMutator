@@ -77,7 +77,9 @@ final class MutantActivationProcessTests: MuterTestCase {
             environment = lines.filter { !$0.hasPrefix(activeMutantPrefix) }
             activeMutant = lines.last { $0.hasPrefix(activeMutantPrefix) }
                 .map { String($0.dropFirst(activeMutantPrefix.count)) }
-            otherOutput = environment.filter { $0.range(of: "^[A-Za-z_][A-Za-z0-9_]*=", options: .regularExpression) == nil }
+            otherOutput = environment.filter {
+                $0.range(of: "^[A-Za-z_][A-Za-z0-9_]*=", options: .regularExpression) == nil
+            }
         }
 
         func linesThatDiffer(from other: Dump) -> [String] {

@@ -13,18 +13,10 @@ extension SyntaxProtocol {
     }
 
     var codeBlockItemListSyntax: CodeBlockItemListSyntax {
-        let syntax = Syntax(self)
-        if syntax.is(CodeBlockItemListSyntax.self) {
-            return syntax.as(CodeBlockItemListSyntax.self)!
+        // A source file's statements are a list, so every node in a file is in one.
+        guard var list = ancestorOrSelf(mapping: { $0.as(CodeBlockItemListSyntax.self) }) else {
+            preconditionFailure("\(self) is in no statement list")
         }
-
-        var parent = parent
-
-        while parent?.is(CodeBlockItemListSyntax.self) == false {
-            parent = parent?.parent
-        }
-
-        var list = parent!.as(CodeBlockItemListSyntax.self)!
         // `#if` is not a scope: a declaration in a clause is visible after `#endif`. Switching the
         // clause's own statements would put it inside the switch's `if` block, out of reach of the code
         // after `#endif`, so such a clause's mutants are switched in the list around the `#if`.
@@ -111,13 +103,7 @@ extension SyntaxProtocol {
 
 extension SyntaxChildren {
     var asArray: [Element] {
-        var result: [Element] = []
-
-        for el in self {
-            result.append(el)
-        }
-
-        return result
+        Array(self)
     }
 
     func containsSyntaxKind(_ syntax: (some SyntaxProtocol).Type) -> Bool {

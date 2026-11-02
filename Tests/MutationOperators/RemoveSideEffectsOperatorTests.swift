@@ -5,9 +5,9 @@ import TestingExtensions
 import XCTest
 
 final class RemoveSideEffectsOperatorTests: MuterTestCase {
-    private lazy var sourceWithSideEffects = sourceCode(
-        fromFileAt: "\(fixturesDirectory)/MutationExamples/SideEffect/sampleWithSideEffects.swift"
-    )!
+    private lazy var sourceWithSideEffects = fixtureSource(
+        at: "\(fixturesDirectory)/MutationExamples/SideEffect/sampleWithSideEffects.swift"
+    )
 
     func test_visitor() throws {
         let visitor = RemoveSideEffectsOperator.Visitor(

@@ -33,14 +33,14 @@ final class MutationTestHandler {
     }
 
     func run() async throws {
-        startObserver()
+        try startObserver()
         notifyMuterLaunched()
         try await runMutationsSteps()
     }
 
     /// Starts the observer, which creates the run's log folder, and hands that folder to the steps.
-    private func startObserver() {
-        observer.start()
+    private func startObserver() throws {
+        try observer.start()
         state.apply([.loggingDirectoryCreated(observer.loggingDirectory)])
     }
 
@@ -70,7 +70,8 @@ private extension [MutationStep] {
             // Before the last run's copy is removed, which a run still writing the results file is testing in.
             LoadResumeState(),
             CreateMutatedProjectDirectoryURL(),
-            // Before the last run's copy and clones are removed, which another run of the project may still be testing in.
+            // Before the last run's copy and clones are removed, which another run of the project may still be testing
+            // in.
             LockMutatedProject(),
             PreviousRunCleanUp(),
             CopyProjectToTempDirectory(),

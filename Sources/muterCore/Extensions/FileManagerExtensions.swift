@@ -55,7 +55,7 @@ extension FileManager: FileSystemManager {
         ) else {
             return []
         }
-        
+
         var files = [URL]()
         while let url = enumerator.nextObject() as? URL {
             files.append(url)

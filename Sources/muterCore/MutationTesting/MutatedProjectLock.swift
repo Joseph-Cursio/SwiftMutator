@@ -7,7 +7,8 @@ protocol MutatedProjectLocking: Sendable {
     /// Refused while another SwiftMutator process holds it.
     func lock(_ mutatedProject: URL) throws -> MutatedProjectLock
 
-    /// Records that `process`, a test process, has started, in the lock this SwiftMutator process holds, if it holds one.
+    /// Records that `process`, a test process, has started, in the lock this SwiftMutator process holds, if it holds
+    /// one.
     func testProcessStarted(_ process: Int32)
 
     /// Records that the test process `process` has ended, in the lock this SwiftMutator process holds, if it holds one.
@@ -45,9 +46,9 @@ enum MutatedProjectLockError: Error, Equatable, CustomStringConvertible {
 ///
 /// Below its record, the holder lists the test processes it is running, the same way, and tells a watcher of its own
 /// about them (`TestProcessWatcher`). Each leads a process group of its own, so if the holder dies first, killed with
-/// SIGKILL or crashed, nothing else ends them. The watcher then kills them at once. If the watcher has died too, the run
-/// that next takes the lock kills them, before it removes or uses the folders they run in: that run holds the lock, so
-/// the run that listed them has ended.
+/// SIGKILL or crashed, nothing else ends them. The watcher then kills them at once. If the watcher has died too, the
+/// run that next takes the lock kills them, before it removes or uses the folders they run in: that run holds the lock,
+/// so the run that listed them has ended.
 final class MutatedProjectLock: Equatable, @unchecked Sendable { // every `var` is behind `access`
     final class Locker: MutatedProjectLocking, @unchecked Sendable { // `held` is behind `access`
         private let access = NSLock()
@@ -111,8 +112,8 @@ final class MutatedProjectLock: Equatable, @unchecked Sendable { // every `var` 
     private var watcher: TestProcessWatcher?
     private var watcherStarted = false
 
-    /// Takes over `descriptor`, open on `path` and already locked, and records `holder` in it. `startWatcher` starts the
-    /// watcher of the holder's test processes, as the first starts.
+    /// Takes over `descriptor`, open on `path` and already locked, and records `holder` in it. `startWatcher` starts
+    /// the watcher of the holder's test processes, as the first starts.
     init(
         descriptor: Int32,
         path: String,

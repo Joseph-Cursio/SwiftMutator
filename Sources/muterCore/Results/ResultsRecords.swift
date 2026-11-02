@@ -155,6 +155,9 @@ struct ResultsHeader: Codable, Equatable {
     var reusedFrom: String?
     /// Only in a session run with `--since`: the files, and with `--changed-lines` the lines, it chose.
     var since: ChangeSelection?
+    /// Only in a session run with `--shard`: which shard it tested, and what discovery found in every shard.
+    /// `mutantsDiscovered` and `mutantsToTest` count this shard's mutants.
+    var shard: ShardSelection?
 }
 
 extension ResultsHeader {
@@ -210,7 +213,8 @@ extension ResultsHeader {
             forced: forced,
             testBundlesRunDirectly: configuration.directTestRun == nil ? nil : true,
             reusedFrom: reusedFrom,
-            since: state.changeSelection
+            since: state.changeSelection,
+            shard: state.shardSelection
         )
     }
 }
@@ -259,7 +263,13 @@ struct MutantResult: Codable, Equatable {
     var reusedFrom: ReusedFrom?
 
     var key: MutantKey {
-        MutantKey(path: path, mutationOperatorId: mutationOperatorId, line: line, column: column, occurrence: occurrence)
+        MutantKey(
+            path: path,
+            mutationOperatorId: mutationOperatorId,
+            line: line,
+            column: column,
+            occurrence: occurrence
+        )
     }
 }
 
@@ -334,10 +344,10 @@ struct ReusedFrom: Codable, Equatable {
 
 extension MutantResult {
     /// `self`, recorded in the results file at `resultsFile` whose headers are `headers`, as the session `session`
-    /// that reuses it writes it for the job at `utf8Offset` with `switchID`: the job's place in the file as SwiftMutator
-    /// now prepares it, so the new file's report is the run's. The rest, how it was tested, is as recorded, and
-    /// `reusedFrom` says where, and whether changes were let through since: by the sessions after its own, by an earlier
-    /// reuse, or by the reusing session (`despiteChanges`).
+    /// that reuses it writes it for the job at `utf8Offset` with `switchID`: the job's place in the file as
+    /// SwiftMutator now prepares it, so the new file's report is the run's. The rest, how it was tested, is as
+    /// recorded, and `reusedFrom` says where, and whether changes were let through since: by the sessions after its
+    /// own, by an earlier reuse, or by the reusing session (`despiteChanges`).
     func reused(
         from resultsFile: String,
         headers: [ResultsHeader],

@@ -132,7 +132,9 @@ extension JsonReporterTests {
     // Where a reused result was tested; a result this run tested has no such key, and reads back without one.
     func test_aReusedResult_saysWhereItWasTested_andReadsBack() throws {
         let reused = ReusedFrom(resultsFile: "/logs/results.jsonl", session: 2, despiteChanges: true)
-        let outcome = MutationTestOutcome.make(mutations: [.make(testSuiteOutcome: .passed, reusedFrom: reused), .make()])
+        let outcome = MutationTestOutcome.make(
+            mutations: [.make(testSuiteOutcome: .passed, reusedFrom: reused), .make()]
+        )
         let json = JsonReporter().report(from: outcome)
 
         let report = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])

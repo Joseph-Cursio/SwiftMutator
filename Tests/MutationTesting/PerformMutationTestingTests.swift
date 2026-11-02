@@ -466,7 +466,8 @@ final class PerformMutationTestingTests: MuterTestCase {
     }
 
     // The timed test run comes after the baseline but before the results start, so a stop during it, like one during
-    // the baseline, has nothing to report: no early end, no results file, and no baseline log to start the progress bar.
+    // the baseline, has nothing to report: no early end, no results file, and no baseline log to start the progress
+    // bar.
     func test_aStopDuringTheTimedTestRun_postsNoEarlyEnd_andStartsNoResults() async throws {
         state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
         state.loggingDirectory = "/logs"

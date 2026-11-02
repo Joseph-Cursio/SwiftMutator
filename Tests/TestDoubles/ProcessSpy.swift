@@ -6,7 +6,7 @@ final class ProcessSpy: MuterProcess, @unchecked Sendable {
     var processIdentifier: Int32 { 0 }
     var terminationStatus: Int32 = 0
     var terminationReason: Foundation.Process.TerminationReason = .exit
-    var terminationHandler: (@Sendable (Foundation.Process) -> Void)? = nil
+    var terminationHandler: (@Sendable (Foundation.Process) -> Void)?
     var environment: [String: String]?
     var arguments: [String]?
     var executableURL: URL?
@@ -50,7 +50,7 @@ final class ProcessSpy: MuterProcess, @unchecked Sendable {
         processesRun.append([url] + args)
 
         print("WARNING: Missing return for \(url) \(args.joined(separator: " "))")
-        
+
         return queue.dequeue()?.data(using: .utf8)
     }
 

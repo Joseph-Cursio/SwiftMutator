@@ -98,7 +98,9 @@ final class ResultsFileTests: XCTestCase {
     }
 
     func test_find_aFolderWithSeveral_isRefused_namingThemInOrder() throws {
-        let folder = try makeLogFolder(holding: ["results-10.jsonl", "results.jsonl", "baseline run.log", "results-2.jsonl"])
+        let folder = try makeLogFolder(
+            holding: ["results-10.jsonl", "results.jsonl", "baseline run.log", "results-2.jsonl"]
+        )
 
         XCTAssertThrowsError(try ResultsFile.find(at: folder, using: FileManager.default)) { error in
             XCTAssertEqual(

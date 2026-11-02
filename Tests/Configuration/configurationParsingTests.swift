@@ -187,7 +187,7 @@ final class ConfigurationParsingTests: MuterTestCase {
     func test_asData_writesStopAtFirstFailureOnlyWhenSet() throws {
         // Left out while unset, so `init` and the JSON-to-YAML migration write the same files as before.
         let unset = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
-        XCTAssertFalse(String(decoding: unset.asData, as: UTF8.self).contains("stopAtFirstFailure"))
+        XCTAssertFalse(try String(decoding: unset.asData, as: UTF8.self).contains("stopAtFirstFailure"))
 
         for value in [true, false] {
             let configuration = MuterConfiguration(
@@ -196,7 +196,9 @@ final class ConfigurationParsingTests: MuterTestCase {
                 stopAtFirstFailure: value
             )
 
-            XCTAssertTrue(String(decoding: configuration.asData, as: UTF8.self).contains("stopAtFirstFailure: \(value)"))
+            XCTAssertTrue(
+                try String(decoding: configuration.asData, as: UTF8.self).contains("stopAtFirstFailure: \(value)")
+            )
             XCTAssertEqual(try MuterConfiguration(from: configuration.asData), configuration)
         }
     }

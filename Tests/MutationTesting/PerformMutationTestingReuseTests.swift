@@ -23,7 +23,12 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
     /// What the earlier run recorded: a survivor and a kill that still hold, a build error and a timeout, which a reuse
     /// tests again, and a kill of a mutant this run no longer discovers.
     private lazy var recorded: [any Encodable] = [
-        ResultsHeader.make(mutantsDiscovered: 5, mutantsToTest: 5, project: tree, logDirectory: "/project_muter_logs/earlier"),
+        ResultsHeader.make(
+            mutantsDiscovered: 5,
+            mutantsToTest: 5,
+            project: tree,
+            logDirectory: "/project_muter_logs/earlier"
+        ),
         record(of: "Sources/Product.swift", line: 7, .passed, fileSHA256: "77e0"),
         record(of: "Sources/Gone.swift", line: 2, .failed, fileSHA256: "0b9d"),
         record(of: "Sources/Quotient.swift", line: 4, .buildError, fileSHA256: "3c4f"),
@@ -33,7 +38,9 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
     ]
 
     private lazy var sut = PerformMutationTesting(
-        makeWorkerDirectories: { _, count in Array(repeating: URL(fileURLWithPath: "/project_mutated_worker1"), count: count) },
+        makeWorkerDirectories: { _, count in
+            Array(repeating: URL(fileURLWithPath: "/project_mutated_worker1"), count: count)
+        },
         removeWorkerDirectories: { _ in }
     )
 
@@ -75,7 +82,10 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
         XCTAssertEqual(header.mutantsReused, 2)
         XCTAssertEqual(header.mutantsToTest, 2)
         let mutants = try resultsFiles.records(MutantResult.self)
-        XCTAssertEqual(mutants.map(\.path), ["Sources/Product.swift", "Sources/Sum.swift", "Sources/Quotient.swift", "Sources/Total.swift"])
+        XCTAssertEqual(
+            mutants.map(\.path),
+            ["Sources/Product.swift", "Sources/Sum.swift", "Sources/Quotient.swift", "Sources/Total.swift"]
+        )
         XCTAssertEqual(mutants.map(\.session), [1, 1, 1, 1])
         let origin = ReusedFrom(resultsFile: earlierPath, session: 1, despiteChanges: false)
         XCTAssertEqual(mutants.map(\.reusedFrom), [origin, origin, nil, nil])
@@ -148,7 +158,12 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
         XCTAssertEqual(kept.map(\.despiteChanges), [true, true])
         XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).first?.waived, ["README.md"])
 
-        state.resumeState = try ResumeState.make(path: earlierPath, lines: recorded, file: nil, forced: ["toolchain.environment"])
+        state.resumeState = try ResumeState.make(
+            path: earlierPath,
+            lines: recorded,
+            file: nil,
+            forced: ["toolchain.environment"]
+        )
         state.reuseChanges = [1: ReuseChanges(from: tree, to: tree, waiving: [], readSource: { _ in nil })]
         state.resumeWaived = []
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
@@ -171,7 +186,12 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
             ResultsHeader.make(project: tree, logDirectory: "/project_muter_logs/earlier"),
             record(of: "Sources/Product.swift", line: 7, .passed, fileSHA256: "77e0"),
             ResultsEnd.make(reason: .interrupted, recorded: 1),
-            ResultsHeader.make(formatVersion: 2, session: 2, project: changed, logDirectory: "/project_muter_logs/later"),
+            ResultsHeader.make(
+                formatVersion: 2,
+                session: 2,
+                project: changed,
+                logDirectory: "/project_muter_logs/later"
+            ),
             MutantResult.make(
                 session: 2,
                 path: "Sources/Sum.swift",
@@ -267,7 +287,12 @@ private extension PerformMutationTestingReuseTests {
     /// An earlier run whose every result this run keeps.
     func heldEverywhere() -> [any Encodable] {
         [
-            ResultsHeader.make(mutantsDiscovered: 4, mutantsToTest: 4, project: tree, logDirectory: "/project_muter_logs/earlier"),
+            ResultsHeader.make(
+                mutantsDiscovered: 4,
+                mutantsToTest: 4,
+                project: tree,
+                logDirectory: "/project_muter_logs/earlier"
+            ),
             record(of: "Sources/Product.swift", line: 7, .passed, fileSHA256: "77e0"),
             record(of: "Sources/Quotient.swift", line: 4, .passed, fileSHA256: "3c4f"),
             record(of: "Sources/Sum.swift", line: 3, .failed, fileSHA256: "5a1c", killedBy: [sumTest]),

@@ -200,7 +200,8 @@ final class SwiftCoverageTests: MuterTestCase {
             "error: Process '/p/.build/debug/ProjectPackageTests.xctest' exited with unexpected signal code 4",
             "error: Process '/p/.build/out/Products/Debug-linux/CoreTests-test-runner --testing-library swift-testing' "
                 + "exited with unexpected signal code 11",
-            "error: Process '/p/.build/out/Products/Debug-linux/AppTests-test-runner' exited with unexpected signal code 4",
+            "error: Process '/p/.build/out/Products/Debug-linux/AppTests-test-runner' "
+                + "exited with unexpected signal code 4",
             "\u{1B}[1;31merror: \u{1B}[0mExited with signal code 11",
             "error: a test process ended with an unknown Signal Code",
         ]
@@ -226,12 +227,16 @@ final class SwiftCoverageTests: MuterTestCase {
     }
 
     // SwiftPM prints no line for a test process ended by SIGKILL, SIGTERM or SIGINT, as the system's memory killer
-    // ends one, and it left no profile. In these real runs, CTests' XCTest process killed itself during its second test,
-    // and STTests' Swift Testing process too, while one of ATests' tests failed. What they started never ended.
+    // ends one, and it left no profile. In these real runs, CTests' XCTest process killed itself during its second
+    // test, and STTests' Swift Testing process too, while one of ATests' tests failed. What they started never ended.
     func test_aTestProcessThatStoppedBeforeItsTestsFinished_givesNoCoverage_andIsNamed() async {
         let runs = [
             (log: "coverageRun_testProcessesKilled_swiftBuild.log", bundle: "CTests.xctest", seconds: "0.045"),
-            (log: "coverageRun_testProcessesKilled_native.log", bundle: "KillProbePackageTests.xctest", seconds: "0.041"),
+            (
+                log: "coverageRun_testProcessesKilled_native.log",
+                bundle: "KillProbePackageTests.xctest",
+                seconds: "0.041"
+            ),
         ]
 
         for run in runs {
@@ -408,7 +413,9 @@ final class SwiftCoverageTests: MuterTestCase {
             testRun: result(status: 1, output: failedTestsOutput)
         )
 
-        _ = await sut.run(with: MuterConfiguration(executable: "/path/to/swift", arguments: ["test"], buildTimeout: 900))
+        _ = await sut.run(
+            with: MuterConfiguration(executable: "/path/to/swift", arguments: ["test"], buildTimeout: 900)
+        )
 
         XCTAssertTrue(process.commandsRun.first?.contains("--enable-code-coverage") == true)
         XCTAssertTrue(process.commandsRun.contains { $0.contains("llvm-profdata") })

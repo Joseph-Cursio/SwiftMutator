@@ -52,6 +52,10 @@ This started as a ranked review of SwiftMutator on 2 October 2026, at commit `4b
 
   - Mutants that silently weren't applied ([#110]). A file with mutants that couldn't be read was skipped, and a rewrite that matched no statement list left it unchanged, so the mutants were tested with no switch in the code and survived; twice before, every mutant had. `CheckMutantSwitches` now reads each rewritten file back after `ApplySchemata`, and a test plan's before `run-without-mutating`, and stops the run naming every mutant whose ID isn't in its file as a quoted string; an unreadable file stops `ApplySchemata`. Under xcodebuild, a `muter.xctestrun` that couldn't be written (`try?`) left the last mutant's file, so a run could test that mutant and record the verdict for this one; it now aborts mutation testing (`mutantNotSwitchedOn`). `report` exits 255, as the run did, for a run that stopped on an error.
   - Release-mode tests and the worker count, measured (§1.5, [#70]). On SwiftProjectLint's whole repo, 2,463 mutants on an 18-core Mac with `--skip-coverage`, 4 workers took 26.6 min. Release mode (`-c release -Xswiftc -enable-testing`) took 18.9 min with about the same verdicts: the tests ran 2.8 times as fast, but setup went from 2.3 min to 10.2, so with 4 workers it pays off only above about 1,250 mutants. It needed `.build/debug` linked to the release products, where the project's CLITests look for the `CLI` binary. 2, 3, 6 and 8 workers took 39.2, 30.1, 24.4 and 23.6 min, one run each, where two 4-worker runs differed by 13%. The score was 76.3–76.6% throughout, but with 8 workers tests of `UserDefaults` killed 9 mutants that most runs called survivors ([#92]). The README now advises on both; [Docs/release-and-workers-2026-10.md](release-and-workers-2026-10.md) has the numbers.
+  - Reuse across runs (§1.4, [#71], PR #175). `run --reuse <results>` starts a new run from an earlier run's results file, which it only reads. A changed project file no longer refuses it but decides per result: timeouts are always tested again, a changed file other than a test file retests every result unless `--reuse-ignoring` waives it, and a changed test file retests every survivor, keeping a kill when one of its killing tests still holds: among other checks, its file is unchanged and still declares it. On SwiftProjectLint `c2082e5d`, with 4 workers, a reuse with nothing changed took 4.2 min against the full run's 27.3, and one with a test file changed 19.0 min, 29% less. Every kept result matched the full runs' verdicts; [Docs/reuse-2026-10.md](reuse-2026-10.md) has the numbers.
+  - `--since <ref>` and `--changed-lines` (§1.4, [#72], PR #176). `run --since <ref>` mutates only the Swift files changed since the merge base of the ref and HEAD, uncommitted edits and new files included, and `--changed-lines` only the mutants on the lines the change added or changed. The excludes, the targets and coverage still apply, and a run with nothing to mutate exits 0. The header records the merge base and the changed files, and a resume compares the merge base and `--changed-lines`. On SwiftProjectLint `c2082e5d`, a 4-file change took 2.7 min for 31 mutants, exactly the full run's in those files, and 50 s for the 1 on changed lines; [Docs/since-2026-11.md](since-2026-11.md) has the numbers.
+  - `--workers N` and `--timeout S` (§1.4, [#73], PR #177). They set `mutationTestWorkers` and `mutationTestTimeout` for one run of `run` or `run-without-mutating`, so the header records them as the keys, and a resume refuses another `--timeout` but only says another `--workers`.
+  - `--shard k/n` (§1.4, [#74], PRs #182 and #183). A mutant's shard is SHA-256 of its place, its key without the occurrence, so a place's repeats stay in one shard and a shard's keys are the whole run's. Discovery keeps only the shard's mutants, after `--changed-lines`, so each shard's copy compiles only its own. A shard with no mutant exits 0. The header records the shard and every shard's mutant count, and a resume must give the same shard. `report` takes the shards' results files and merges them into the whole run's report, refusing files that aren't shards of one split, that a whole run's results couldn't be, or that test a mutant twice. It says which shards are missing, and exits 255 when the report is known to lack results. On a 13-mutant package, the merged JSON report matched a whole run's but for its time and fail-fast's `isComplete`.
 
   Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#61, which are in the PRs themselves.
 - **Section numbers are the original ones,** so references in PRs and notes still work. A missing number is a finished section.
@@ -81,7 +85,7 @@ On 31 October, on an 18-core Mac and with SwiftMutator at `9af0b47c`, the same c
 | 1.1 | Cut the time each mutant spends before its test helper starts | Up to about 14–20 min | M |
 | 1.2 | Stop crash-only runs early, and run quietly | Under a minute; quiet running saves disk, not time | S |
 | 1.3 | Skip the mutants that no test reaches (about 6%) | About 11 min | M |
-| 1.4 | Do less work per run: reuse unchanged results, `--since`, `--shard` | A small change runs in about 8–12 min instead of 91; two machines run the whole repo 1.9× faster | M |
+| 1.4 | Do less work per run: test a sample of the mutants | A 500-mutant sample runs in about 23 min instead of 91, with the score to ±3.4 points | S |
 
 ### 1.1 Time before the test helper starts
 
@@ -118,25 +122,11 @@ Coverage works with several test bundles since PR #60. On SwiftProjectLint `2043
 
 ### 1.4 Do less work per run
 
-The results file and `--resume` built most of the base for this. PR #38 added stable keys and provenance. PR #46 added each file's SHA-256, and reuse of a mutant's result when its file is unchanged. The estimates below include the 6.4 min of fixed setup.
-- **Reuse results across runs** ([#71]), as the PIT and Stryker mutation tools and `cargo-mutants --iterate` do.
-  - Today a changed project file refuses a resume. `--resume-ignoring` can waive that, but then test-file changes are ignored.
-  - **Still needed:**
-    - reuse a "killed" result if its file and its killing tests' files are unchanged, and a "survived" result only if no test file changed;
-    - start a new run from a finished one, rather than as a resume;
-    - run a full run on a schedule, for example weekly, so old results don't drift.
-  - **Estimate.** With 20 changed files, about 165 mutants run: 165 × 8.1 s / 4 + 382 s ≈ 12 min. If a test file changed, the 594 survivors and 9 timeouts run again too, as do the kills by tests in that file: at least 64 min.
-- **`--since <ref>`, with an optional `--changed-lines`** ([#72]). Mutate only the files, or the changed hunks, changed since a git ref.
-  - A 5-file change is about 41 mutants and takes about 8 min, of which 6.4 min is setup.
-  - Until then, passing the changed source files to `--files-to-mutate` (`Run.swift:10-11`) does the file-level part, for example from `git diff --name-only --relative <ref> -- '*.swift'`. Filter out tests and manifests first: `--files-to-mutate` skips the exclude list (`DiscoverSourceFiles.swift:29-32`), so a test file or `Package.swift` in the list would be mutated.
-- **CLI overrides** ([#73]). Add `--workers N` and `--timeout S`, so wrappers don't need a YAML file for each run.
-  - A changed `mutationTestWorkers` doesn't stop a resume, but a changed `mutationTestTimeout` does (`ResumeCheck.swift:48-56`).
-  - The effective limit worked out from the timed test run or the baseline isn't compared (`:41-45`), so a `--timeout` override must be recorded and compared as that key is.
-- **`--shard k/n`** ([#74]). Split the mutants deterministically by a hash of their key, so that two machines each run half.
-  - Each half takes about (5,438 − 382) / 2 + 382 s ≈ 48 min, which is 1.9× faster.
-  - `report` reads one results file (`Report.swift:12-13`), so it needs to learn to merge them.
-- **`--sample N --seed S`** ([#75]). Run a random subset for trend checks. 500 mutants take about 23 min and give the score to ±3.4 points (95% confidence).
-- `--since`, `--shard` and `--sample` change which mutants run. So each one must be recorded in the results file's header and compared by the resume check (`ResumeCheck.swift:91-98`). Otherwise a resume could reuse results from a different selection.
+Reuse across runs, `--since`, `--workers` and `--timeout`, and `--shard` are done (see Done). Left:
+- **`--sample N --seed S`** ([#75]). Run a random subset for trend checks. 500 mutants take about 23 min, with the 6.4 min of fixed setup, and give the score to ±3.4 points (95% confidence).
+  - It changes which mutants run, so it must be recorded in the results file's header and compared by `ResumeCheck.compare`, as `since` and `shard` are. Otherwise a resume could reuse results from a different selection.
+  - `--shard` shows the way. Its filter runs in discovery after `--changed-lines`, so the copy compiles only the mutants it keeps, and its header records how many there were in all. Ordering the places by a hash with the seed and keeping the first N would make a sample repeatable on any machine, and keep a place's repeats together.
+- **`--shard` on a real project** (no issue yet). The estimate of about (5,438 − 382) / 2 + 382 s ≈ 48 min for each of two shards, 1.9× faster than one run, hasn't been measured on SwiftProjectLint.
 
 ---
 
@@ -355,7 +345,7 @@ Added on 21 October, from a comparison with swift-mutation-testing v1.6.3 (`937f
 ## Suggested order
 
 1. **Unviable mutants** (§2.6, [#87]), so that one bad mutant can't cost a whole run.
-2. **`--since`, reuse and `--shard`** (§1.4: [#72], [#71] and [#74]), for runs on a change rather than the whole repo.
+2. **`--sample`** (§1.4, [#75]), for trend checks between full runs.
 
 ## Outside this repo
 

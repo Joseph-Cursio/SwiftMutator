@@ -132,7 +132,10 @@ final class ChangedFileTests: XCTestCase {
     }
 
     func test_aWholeFile_leavesOutItsLines() throws {
-        let json = try String(decoding: JSONEncoder().encode(ChangedFile(path: "New.swift", sha256: "ab")), as: UTF8.self)
+        let json = try String(
+            decoding: JSONEncoder().encode(ChangedFile(path: "New.swift", sha256: "ab")),
+            as: UTF8.self
+        )
 
         XCTAssertFalse(json.contains("lines"))
         XCTAssertFalse(json.contains("deletionsAfter"))

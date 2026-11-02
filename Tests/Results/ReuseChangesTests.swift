@@ -20,7 +20,9 @@ final class ReuseChangesTests: XCTestCase {
     func test_isTestFile_takesSwiftFilesThatImportATestLibrary_inTestFoldersOrNamedTests() {
         // A folder named Tests, or ending in Tests as an Xcode test target's does, holds tests and their helpers.
         let readSource = { (path: String) -> String? in
-            path.contains("Fixture") || path.contains("Plain") ? "import Foundation\n" : "@testable import Sum\nimport XCTest\n"
+            path.contains("Fixture") || path.contains("Plain")
+                ? "import Foundation\n"
+                : "@testable import Sum\nimport XCTest\n"
         }
         for path in [
             "Tests/SumTests/SumTests.swift",
@@ -51,7 +53,8 @@ final class ReuseChangesTests: XCTestCase {
 
     func test_init_splitsTestFilesFromOthers_andGlobsWaiveOnlyTheOthers() {
         // A glob that matches everything still can't let a test file's change through: that's what decides which
-        // results a reuse keeps. A local package's own tests aren't built by the project, so their changes are left out.
+        // results a reuse keeps. A local package's own tests aren't built by the project, so their changes are left
+        // out.
         let changes = reuse(
             to: Self.recorded.merging([
                 "Tests/SumTests/SumTests.swift": "ffff",
@@ -66,7 +69,10 @@ final class ReuseChangesTests: XCTestCase {
         XCTAssertEqual(changes.waived, ["README.md"])
         XCTAssertEqual(changes.otherFiles, [.init(path: "Sources/New.swift", kind: .added)])
 
-        let everything = reuse(to: Self.recorded.merging(["Tests/SumTests/SumTests.swift": "ffff"]) { $1 }, waiving: ["*"])
+        let everything = reuse(
+            to: Self.recorded.merging(["Tests/SumTests/SumTests.swift": "ffff"]) { $1 },
+            waiving: ["*"]
+        )
         XCTAssertEqual(everything.testFiles.count, 1)
         XCTAssertEqual(everything.waived, [])
         XCTAssertTrue(everything.otherFiles.isEmpty)
@@ -129,7 +135,8 @@ final class ReuseChangesTests: XCTestCase {
         for helper in ["SumMock.swift", "SumMock+Values.swift"] {
             let path = "Tests/SumTests/\(helper)"
             let sources = Self.sources.merging([
-                "Tests/SumTests/SumTests.swift": "import Testing\n@Test func addsTwoNumbers() { #expect(SumMock().sum == 2) }",
+                "Tests/SumTests/SumTests.swift": "import Testing\n"
+                    + "@Test func addsTwoNumbers() { #expect(SumMock().sum == 2) }",
                 path: "import Testing\nstruct SumMock { var sum = 2 }",
             ]) { $1 }
             let changes = ReuseChanges(

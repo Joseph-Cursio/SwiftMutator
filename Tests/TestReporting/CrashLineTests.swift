@@ -12,7 +12,8 @@ final class CrashLineTests: XCTestCase {
                 + "--testing-library swift-testing' exited with unexpected signal code 5",
             "error: Process '/Applications/Xcode.app/Contents/Developer/usr/bin/xctest /p/CTests.xctest' "
                 + "exited with unexpected signal code 11",
-            "error: Process '/p/.build/out/Products/Debug-linux/CoreTests-test-runner' exited with unexpected signal code 4",
+            "error: Process '/p/.build/out/Products/Debug-linux/CoreTests-test-runner' "
+                + "exited with unexpected signal code 4",
             // Older SwiftPM.
             "\(escape)[1;31merror: \(escape)[0mExited with signal code 11",
             "Exited with signal code 4",

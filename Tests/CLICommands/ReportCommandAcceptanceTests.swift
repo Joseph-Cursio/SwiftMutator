@@ -120,7 +120,10 @@ final class ReportCommandAcceptanceTests: XCTestCase {
                     ["Checks.swift": [["check()"], ["check()"]], "Bounds.swift": [nil, nil]]
                 )
             case "html":
-                XCTAssertEqual(try withoutFooter(contents(of: runReport)), try withoutFooter(contents(of: rebuiltReport)))
+                XCTAssertEqual(
+                    try withoutFooter(contents(of: runReport)),
+                    try withoutFooter(contents(of: rebuiltReport))
+                )
             default:
                 XCTAssertEqual(try contents(of: runReport), try contents(of: rebuiltReport), format)
             }
@@ -170,7 +173,9 @@ final class ReportCommandAcceptanceTests: XCTestCase {
 
     func test_report_withoutOutputPath_printsOnlyTheReport() throws {
         let runReport = root.appendingPathComponent("run.json")
-        let run = try runSwiftMutator(["run", "--skip-update-check", "--skip-coverage", "-f", "json", "-o", runReport.path])
+        let run = try runSwiftMutator(
+            ["run", "--skip-update-check", "--skip-coverage", "-f", "json", "-o", runReport.path]
+        )
         XCTAssertEqual(run.status, 0, run.standardError)
 
         let folder = try onlyLogFolder()

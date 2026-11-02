@@ -4,13 +4,13 @@ import TestingExtensions
 import XCTest
 
 final class SwapTernaryOperatorTests: MuterTestCase {
-    private lazy var sampleCode = sourceCode(
-        fromFileAt: "\(mutationExamplesDirectory)/TernaryOperator/sampleWithTernaryOperator.swift"
-    )!
+    private lazy var sampleCode = fixtureSource(
+        at: "\(mutationExamplesDirectory)/TernaryOperator/sampleWithTernaryOperator.swift"
+    )
 
-    private lazy var sampleNestedCode = sourceCode(
-        fromFileAt: "\(mutationExamplesDirectory)/TernaryOperator/sampleWithNestedTernaryOperator.swift"
-    )!
+    private lazy var sampleNestedCode = fixtureSource(
+        at: "\(mutationExamplesDirectory)/TernaryOperator/sampleWithNestedTernaryOperator.swift"
+    )
 
     func test_visitor() throws {
         let visitor = SwapTernaryOperator.Visitor(

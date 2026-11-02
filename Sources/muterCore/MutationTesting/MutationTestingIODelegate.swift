@@ -256,9 +256,10 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         }
 
         // A signal from outside SwiftMutator (killall, logout, a supervisor stopping the whole tree) can end the test
-        // command milliseconds before SwiftMutator's own signal stops mutation testing; the run would be recorded first,
-        // as a crash, which counts as killed. Only a run that seems to have died of such a signal waits: SwiftMutator's
-        // own kills end a run for another reason. A cancellation in the wait throws, and the run reads as cancelled.
+        // command milliseconds before SwiftMutator's own signal stops mutation testing; the run would be recorded
+        // first, as a crash, which counts as killed. Only a run that seems to have died of such a signal waits:
+        // SwiftMutator's own kills end a run for another reason. A cancellation in the wait throws, and the run reads
+        // as cancelled.
         let exit = ending.exit(of: process)
         if ending.reason == .exited, Self.mayHaveEndedByAnOutsideSignal(exit) {
             try await sleep(Self.outsideSignalWait)
@@ -337,9 +338,9 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
     /// 8 of 15 such runs were recorded as killed.
     static let outsideSignalWait: UInt64 = 250_000_000
 
-    /// Whether a test process that ended as `exit` says may have ended by a stopping signal sent from outside SwiftMutator:
-    /// SIGINT, SIGTERM or SIGHUP. An ordinary test failure exits 1, a crash dies of another signal, and SwiftMutator's
-    /// own SIGKILL ends a run for another reason, so none of them wait.
+    /// Whether a test process that ended as `exit` says may have ended by a stopping signal sent from outside
+    /// SwiftMutator: SIGINT, SIGTERM or SIGHUP. An ordinary test failure exits 1, a crash dies of another signal, and
+    /// SwiftMutator's own SIGKILL ends a run for another reason, so none of them wait.
     static func mayHaveEndedByAnOutsideSignal(_ exit: ProcessExit) -> Bool {
         switch exit.reason {
         case .uncaughtSignal:

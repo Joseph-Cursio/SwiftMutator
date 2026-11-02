@@ -428,7 +428,8 @@ final class LoggerTests: MuterTestCase {
             "[09:58:10] 0 of 3 (0%) | 30 min left",
             "[09:59:10] 1 of 3 (33%) | 1 killed | 2 min left | killed at Module.swift:4:7 (changed == to !=)",
             "[10:00:10] 2 of 3 (66%) | 1 killed, 1 survived | 1 min left | survived at View.swift:5:28 (removed line)",
-            "[10:01:10] 3 of 3 (100%) | 2 killed, 1 survived | 0 min left | killed at Module.swift:4:7 (changed == to !=)",
+            "[10:01:10] 3 of 3 (100%) | 2 killed, 1 survived | 0 min left | "
+                + "killed at Module.swift:4:7 (changed == to !=)",
         ])
     }
 
@@ -492,7 +493,9 @@ final class LoggerTests: MuterTestCase {
         var draws: [Int] = []
         func drawn() -> Int { printer.linesPassed.filter { $0.contains("Percentage complete:") }.count }
 
-        sut.newMutationTestLogAvailable(mutationTestLog: .make(timePerBuildTestCycle: 60, remainingMutationPointsCount: 5))
+        sut.newMutationTestLogAvailable(
+            mutationTestLog: .make(timePerBuildTestCycle: 60, remainingMutationPointsCount: 5)
+        )
         draws.append(drawn())
         sut.newMutationTestLogAvailable(mutationTestLog: .make(mutationPoint: .make()))
         draws.append(drawn())
@@ -651,7 +654,10 @@ final class LoggerTests: MuterTestCase {
                 forced: ["toolchain.environment"],
                 waived: ["notes.txt"],
                 isReuse: true,
-                otherFilesChanged: [.init(path: "Package.resolved", kind: .changed), .init(path: "Docs/[a].md", kind: .added)]
+                otherFilesChanged: [
+                    .init(path: "Package.resolved", kind: .changed),
+                    .init(path: "Docs/[a].md", kind: .added),
+                ]
             )
         )
         sut.resumePlanned(
@@ -749,9 +755,10 @@ final class LoggerTests: MuterTestCase {
         ])
     }
 
-    // Coverage only the last session had can't have left out a mutant this one discovers, and coverage only this one has
-    // can't bring one in, so neither is given as the reason the other way: a deleted file, which --resume-ignoring let
-    // through, took its results with it, or the stopped run had tested fewer. Any other way, coverage still says why.
+    // Coverage only the last session had can't have left out a mutant this one discovers, and coverage only this one
+    // has can't bring one in, so neither is given as the reason the other way: a deleted file, which --resume-ignoring
+    // let through, took its results with it, or the stopped run had tested fewer. Any other way, coverage still says
+    // why.
     func test_resumePlanned_givesACoverageChangeAsTheReason_onlyWhenItCanMoveTheCountThatWay() {
         sut.resumePlanned(
             .make(
@@ -822,7 +829,8 @@ final class LoggerTests: MuterTestCase {
                 + "so 2 mutants are left to test (2 never tested).",
             "⚠️ This session discovers as many mutants as the last one, "
                 + "although coverage couldn't be gathered then, and is now.",
-            "♻️ Resuming the run in \("/logs/results.jsonl".bold): all 4 results still hold, so nothing is left to test.",
+            "♻️ Resuming the run in \("/logs/results.jsonl".bold): all 4 results still hold, "
+                + "so nothing is left to test.",
             "ℹ️ Coverage was 78% and is 81% now, but every earlier result's mutant is still discovered.",
             "♻️ Resuming the run in \("/logs/results.jsonl".bold): 2 results still hold, "
                 + "so 2 mutants are left to test (2 never tested).",
@@ -865,8 +873,9 @@ final class LoggerTests: MuterTestCase {
         XCTAssertEqual(printer.linesPassed, [])
     }
 
-    // Log folders are named like `Oct 4, 2026 at 1:16 PM`, and a project's name can hold a quote: the command is printed
-    // so that it pastes into a shell whatever the path holds, and unbolded, so that no colour codes paste with it.
+    // Log folders are named like `Oct 4, 2026 at 1:16 PM`, and a project's name can hold a quote: the command is
+    // printed so that it pastes into a shell whatever the path holds, and unbolded, so that no colour codes paste with
+    // it.
     func test_mutationTestingEndedEarly_namesTheReportCommand_quotingItsPath() throws {
         let resultsFile = "/logs/Bob's project_muter_logs/Oct 4, 2026 at 1:16 PM/results.jsonl"
 

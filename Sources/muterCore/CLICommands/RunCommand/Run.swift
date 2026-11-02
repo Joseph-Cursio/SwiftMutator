@@ -39,6 +39,24 @@ struct Run: RunCommand {
     )
     var changedLines = false
 
+    @Option(
+        name: .customLong("shard"),
+        help: ArgumentHelp(
+            "Only test shard k of n, such as 1/2: n runs, on as many machines, test each mutant once between them. "
+                + "A mutant's shard follows from where it is. swift-mutator report merges their results files.",
+            valueName: "k/n"
+        ),
+        transform: { text in
+            guard let shard = Shard(text) else {
+                throw ValidationError(
+                    "give two whole numbers k/n with 1 ≤ k ≤ n ≤ \(Shard.largestCount), such as 1/2."
+                )
+            }
+            return shard
+        }
+    )
+    var shard: Shard?
+
     @OptionGroup var options: RunArguments
     @OptionGroup var testing: TestingArguments
     @OptionGroup var reportOptions: ReportArguments
@@ -105,6 +123,8 @@ struct Run: RunCommand {
             filesToMutate: filesToMutate,
             since: since,
             changedLinesOnly: changedLines,
+            // 1/1 is the whole run.
+            shard: shard?.count == 1 ? nil : shard,
             reportFormat: reportOptions.reportFormat,
             reportURL: reportOptions.reportURL,
             mutationOperatorsList: !operators.isEmpty ? operators : .allOperators,

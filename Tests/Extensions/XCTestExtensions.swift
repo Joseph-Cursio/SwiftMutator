@@ -64,6 +64,7 @@ public func XCTAssertTypeEqual(
     }
 }
 
+// swiftlint:disable:next identifier_name - capitalized like the XCTAssert functions it sits among
 public func AssertSnapshot(
     _ matching: String,
     file: StaticString = #filePath,
@@ -79,6 +80,7 @@ public func AssertSnapshot(
     )
 }
 
+// swiftlint:disable:next identifier_name - capitalized like XCTAssertThrowsError, which it stands in for
 public func AssertThrowsError(
     _ expression: @autoclosure () async throws -> some Any,
     _ message: @autoclosure () -> String = "",

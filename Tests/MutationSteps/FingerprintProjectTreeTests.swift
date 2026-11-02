@@ -133,7 +133,12 @@ final class FingerprintProjectTreeTests: MuterTestCase {
             path: resultsPath,
             lines: [
                 ResultsHeader.make(project: projectTree(of: first)),
-                ResultsHeader.make(formatVersion: 2, session: 2, project: projectTree(of: second), waived: ["README.md"]),
+                ResultsHeader.make(
+                    formatVersion: 2,
+                    session: 2,
+                    project: projectTree(of: second),
+                    waived: ["README.md"]
+                ),
             ],
             file: nil
         )
@@ -202,7 +207,10 @@ private extension FingerprintProjectTreeTests {
     func write(_ files: [String: String], in root: String) throws {
         for (path, contents) in files {
             let file = URL(fileURLWithPath: "\(root)/\(path)")
-            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(
+                at: file.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
             try Data(contents.utf8).write(to: file)
         }
     }

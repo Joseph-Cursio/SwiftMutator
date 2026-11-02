@@ -155,7 +155,11 @@ final class DiscoverSourceFilesTests: MuterTestCase {
         }
 
         state.mutatedProjectDirectoryURL = root
-        state.muterConfiguration = MuterConfiguration(executable: "", arguments: [], excludeList: ["Sources/**/*.swift"])
+        state.muterConfiguration = MuterConfiguration(
+            executable: "",
+            arguments: [],
+            excludeList: ["Sources/**/*.swift"]
+        )
 
         let result = try await sut.run(with: state)
 
@@ -277,7 +281,8 @@ final class DiscoverSourceFilesTests: MuterTestCase {
         ])
     }
 
-    // A tool's files in a hidden folder, as SwiftProjectLint's `.swiftinfer` holds, and a hidden file, are in no target.
+    // A tool's files in a hidden folder, as SwiftProjectLint's `.swiftinfer` holds, and a hidden file, are in no
+    // target.
     func test_hiddenFoldersAndFiles_areLeftOut() async throws {
         current.fileManager = FileManager.default
         let project = try makeTemporaryDirectory()

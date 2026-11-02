@@ -17,6 +17,7 @@ class MuterTestCase: XCTestCase {
     private(set) var resultsFiles = ResultsFilesSpy()
     private(set) var mutatedProjectLocker = MutatedProjectLockerSpy()
 
+    // Every field down to the minute is given, so there is always such a date.
     private let fixedNow = DateComponents(
         calendar: .init(identifier: .gregorian),
         year: 2021,
@@ -24,7 +25,7 @@ class MuterTestCase: XCTestCase {
         day: 20,
         hour: 2,
         minute: 42
-    ).date!
+    ).date ?? .distantPast
 
     override func setUp() {
         super.setUp()
@@ -185,8 +186,8 @@ extension XCTestCase {
     ///
     /// Not in the test process's group: on CI runners every process is in launchd's session, so a process of that group
     /// that launchd adopted, such as the `sleep` of a killed `sh`, counted as holding the group to its session. When it
-    /// exited, the group was left orphaned, and since it held stopped processes, the system sent the whole group SIGHUP,
-    /// which ended the test run.
+    /// exited, the group was left orphaned, and since it held stopped processes, the system sent the whole group
+    /// SIGHUP, which ended the test run.
     func spawn(_ arguments: String...) throws -> pid_t {
         var child: pid_t = 0
         let argumentVector = arguments.map { strdup($0) } + [nil]

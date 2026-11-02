@@ -351,7 +351,10 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         )
 
         XCTAssertEqual(try resultsFiles.kinds(), ["header"] + Array(repeating: "mutant", count: 5) + ["end"])
-        XCTAssertEqual(try resultsFiles.records(MutantResult.self).map(\.outcome), Array(repeating: .buildError, count: 5))
+        XCTAssertEqual(
+            try resultsFiles.records(MutantResult.self).map(\.outcome),
+            Array(repeating: .buildError, count: 5)
+        )
         let end = try XCTUnwrap(resultsFiles.records(ResultsEnd.self).first)
         XCTAssertEqual(end.reason, .aborted)
         XCTAssertEqual(end.detail, "tooManyBuildErrors")

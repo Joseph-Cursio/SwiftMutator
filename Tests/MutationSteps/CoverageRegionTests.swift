@@ -28,7 +28,9 @@ final class CoverageRegionTests: MuterTestCase {
     }
 
     func test_decodesKind() throws {
-        let json = Data("[[1, 2, 3, 4, 0, 0, 0, 3], [1, 2, 3, 4, 0, 0, 0, 2], [1, 2, 3, 4, 0], [1, 2, 3, 4, 0, 0, 0, 9]]".utf8)
+        let json = Data(
+            "[[1, 2, 3, 4, 0, 0, 0, 3], [1, 2, 3, 4, 0, 0, 0, 2], [1, 2, 3, 4, 0], [1, 2, 3, 4, 0, 0, 0, 9]]".utf8
+        )
 
         let kinds = try JSONDecoder().decode([Region].self, from: json).map(\.kind)
 

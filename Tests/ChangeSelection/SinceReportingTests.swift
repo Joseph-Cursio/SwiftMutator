@@ -12,7 +12,10 @@ final class SinceReportingTests: MuterTestCase {
 
     func test_theConsole_saysHowManyFilesChanged_andListsThemOnlyWhenVerbose() {
         Logger().changesSelected(selection)
-        Logger().changesSelected(.make(changedLines: true, files: [ChangedFile(path: "A.swift", sha256: "")]), verbose: true)
+        Logger().changesSelected(
+            .make(changedLines: true, files: [ChangedFile(path: "A.swift", sha256: "")]),
+            verbose: true
+        )
 
         XCTAssertEqual(printer.linesPassed, [
             "🌿 2 Swift files changed since the merge base of origin/main and HEAD (ba5e000).",
@@ -25,14 +28,20 @@ final class SinceReportingTests: MuterTestCase {
     func test_theConsole_abbreviatesARefThatIsTheMergeBase() {
         Logger().changesSelected(.make(ref: ChangeSelection.make().mergeBase))
 
-        XCTAssertEqual(printer.linesPassed, ["🌿 0 Swift files changed since the merge base of ba5e000 and HEAD (ba5e000)."])
+        XCTAssertEqual(
+            printer.linesPassed,
+            ["🌿 0 Swift files changed since the merge base of ba5e000 and HEAD (ba5e000)."]
+        )
     }
 
     func test_theConsole_namesTheRepositoriesOfTheirOwn_whoseChangesArentCompared() {
         Logger().changesSelected(.make(files: [], foldersNotCompared: ["Packages/Local"]))
 
-        XCTAssertEqual(printer.linesPassed.last, "⚠️ git doesn't compare what is in a folder that is a repository of its "
-            + "own, so none of its files is mutated: Packages/Local.")
+        XCTAssertEqual(
+            printer.linesPassed.last,
+            "⚠️ git doesn't compare what is in a folder that is a repository of its "
+                + "own, so none of its files is mutated: Packages/Local."
+        )
     }
 
     // The others weren't the run's to test, whichever spelling of the path the coverage tool gave.
@@ -89,10 +98,14 @@ final class SinceReportingTests: MuterTestCase {
             "That run mutated only what changed since the merge base of origin/main and HEAD (ba5e000), so this "
                 + "run's other mutants have no earlier result."
         )
-        XCTAssertNil(ResumeSummary.selectionChange(from: selection, to: selection.named("ba5e000", commit: selection.mergeBase)))
+        XCTAssertNil(
+            ResumeSummary.selectionChange(from: selection, to: selection.named("ba5e000", commit: selection.mergeBase))
+        )
         XCTAssertNil(ResumeSummary.selectionChange(from: nil, to: nil))
 
-        Logger().resumePlanned(.make(noLongerDiscovered: 2400, isReuse: true, selectionChange: "This run mutates only…"))
+        Logger().resumePlanned(
+            .make(noLongerDiscovered: 2400, isReuse: true, selectionChange: "This run mutates only…")
+        )
 
         XCTAssertTrue(printer.linesPassed.contains("ℹ️ This run mutates only…"), "\(printer.linesPassed)")
         XCTAssertFalse(printer.linesPassed.contains { $0.contains("no longer count") }, "\(printer.linesPassed)")

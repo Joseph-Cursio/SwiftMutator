@@ -43,7 +43,8 @@ enum FailedTestLine {
     /// Captures `Test` or `Suite`, the name, and what follows "recorded an issue".
     private static var swiftTestingIssueRegEx: NSRegularExpression {
         NSRegularExpression.regexWithPattern(
-            #"^[\x{2718}\x{100884}] +(?:\x{25CF}+ +)?(Test|Suite) (.+?) recorded an issue( at | with [0-9]+ arguments? |: )"#
+            #"^[\x{2718}\x{100884}] +(?:\x{25CF}+ +)?(Test|Suite) (.+?) recorded an issue"#
+                + #"( at | with [0-9]+ arguments? |: )"#
         )
     }
 

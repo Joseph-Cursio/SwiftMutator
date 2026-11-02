@@ -15,6 +15,8 @@ struct MuterTestReport {
     let killingTestSummary: KillingTestSummary?
     /// What `--since` chose, when it did; left out of the JSON otherwise.
     let since: SinceScope?
+    /// The shards of a `--shard` split the report covers, when it covers only some; left out of the JSON otherwise.
+    let shards: ShardScope?
 
     init(from outcome: MutationTestOutcome = .init()) {
         let summary = KillingTestSummary(of: outcome.mutations)
@@ -27,6 +29,7 @@ struct MuterTestReport {
         fileReports = MuterTestReport.fileReports(from: outcome, suspects: summary?.suspectIdentities ?? [])
         timeElapsed = outcome.testDuration.formatted()
         since = outcome.since.map(SinceScope.init)
+        shards = outcome.shards
     }
 }
 
@@ -49,6 +52,38 @@ struct SinceScope: Codable, Equatable {
     }
 }
 
+/// The shards of a `--shard` split a report covers, as it says: the one a run tested, or those `report` merged when
+/// some are missing.
+struct ShardScope: Codable, Equatable {
+    /// Sorted.
+    let indices: [Int]
+    let count: Int
+    /// How many mutants were discovered in every shard together.
+    let mutantsInAllShards: Int
+
+    init(indices: [Int], count: Int, mutantsInAllShards: Int) {
+        self.indices = indices.sorted()
+        self.count = count
+        self.mutantsInAllShards = mutantsInAllShards
+    }
+
+    /// The shard `selection` tested.
+    init(_ selection: ShardSelection) {
+        self.init(indices: [selection.index], count: selection.count, mutantsInAllShards: selection.mutantsInAllShards)
+    }
+
+    /// "shard 1 of 2", or "shards 1 and 3 of 4".
+    var named: String {
+        let indices = Logger.listed(indices.map(String.init))
+        return (self.indices.count == 1 ? "shard " : "shards ") + "\(indices) of \(count)"
+    }
+
+    /// "Only the mutants in shard 1 of 2 were tested, of 2463 discovered in every shard."
+    var sentence: String {
+        "Only the mutants in \(named) were tested, of \(mutantsInAllShards) discovered in every shard."
+    }
+}
+
 extension MuterTestReport {
     /// The summary, when it found suspect tests: what the reports warn of, beside the headline score.
     var suspectSummary: KillingTestSummary? {
@@ -64,7 +99,7 @@ extension MuterTestReport {
 private extension TimeInterval {
     func formatted() -> String {
         let time = Int(self)
-        let ms = Int(truncatingRemainder(dividingBy: 1) * 1000)
+        let milliseconds = Int(truncatingRemainder(dividingBy: 1) * 1000)
         let seconds = time % 60
         let minutes = (time / 60) % 60
         let hours = (time / 3600)
@@ -74,7 +109,7 @@ private extension TimeInterval {
             hours,
             minutes,
             seconds,
-            ms
+            milliseconds
         )
 
     }
@@ -250,5 +285,6 @@ extension MuterTestReport: Codable {
         case timeElapsed
         case killingTestSummary
         case since
+        case shards
     }
 }

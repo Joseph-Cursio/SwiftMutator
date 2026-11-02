@@ -53,7 +53,8 @@ extension ReuseChanges {
         let split = others.filter { !mayHaveBeenATest($0) }.partition(by: globs)
         var sources: [String: String] = [:]
         if !testFiles.isEmpty {
-            for path in current.files.keys where path.hasSuffix(".swift") && Self.isTestFile(path, readSource: readSource) {
+            for path in current.files.keys
+                where path.hasSuffix(".swift") && Self.isTestFile(path, readSource: readSource) {
                 sources[path] = readSource(path)
             }
         }
@@ -78,7 +79,10 @@ extension ReuseChanges {
         else {
             return false
         }
-        return text.range(of: #"(?m)^\s*(@testable\s+)?import\s+(Testing|XCTest)\b"#, options: .regularExpression) != nil
+        return text.range(
+            of: #"(?m)^\s*(@testable\s+)?import\s+(Testing|XCTest)\b"#,
+            options: .regularExpression
+        ) != nil
     }
 
     /// Whether `record`'s kill is still a kill after the test files' changes: at least one of the tests it names holds.

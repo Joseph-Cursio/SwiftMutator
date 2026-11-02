@@ -11,7 +11,13 @@ extension NSRegularExpression {
             return cached
         }
 
-        let regex = try! NSRegularExpression(pattern: pattern, options: options)
+        let regex: NSRegularExpression
+        do {
+            regex = try NSRegularExpression(pattern: pattern, options: options)
+        } catch {
+            // Every pattern is a literal in SwiftMutator's own code, so one that doesn't compile is a bug in it.
+            preconditionFailure("\(pattern) is not a valid regular expression: \(error)")
+        }
         currentThread.threadDictionary[cacheKey] = regex
 
         return regex

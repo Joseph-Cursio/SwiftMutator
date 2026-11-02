@@ -76,13 +76,13 @@ final class UpdateCheckTests: MuterTestCase {
     }
 
     private func createReleaseJsonData(_ version: String = "") -> Data {
-        """
+        Data("""
          [
             {
                  "tag_name": "\(version)"
             }
          ]
-        """.data(using: .utf8) ?? .init()
+        """.utf8)
     }
 }
 
