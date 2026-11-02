@@ -1,10 +1,11 @@
 import Foundation
 
-/// The results files of a split's shards (`run --shard`), merged into the results of the whole run. Each shard is
-/// checked against the one with the lowest index first, as a resume is checked against the run it continues, so that
-/// the report holds only results a whole run would give: what a resume compares, but for the shard itself, and the
-/// project's files, of which `--merge-ignoring` may let some through. A shard whose file isn't given is said, not
-/// refused, as a run still going is.
+/// The results files of a split's shards (`run --shard`), merged into the results of the whole run: one shard's file
+/// alone too, a merge of one, so that a CI job's glob that finds one file is judged as one that finds two. Each shard
+/// is checked against the one with the lowest index first, as a resume is checked against the run it continues, so
+/// that the report holds only results a whole run would give: what a resume compares, but for the shard itself, and
+/// the project's files, of which `--merge-ignoring` may let some through. A shard whose file isn't given, or whose run
+/// didn't finish, is said, not refused, as a run still going is; but `report` then fails.
 struct MergedShards {
     /// One shard's results file.
     struct Part {
@@ -87,13 +88,18 @@ extension MergedShards {
         return MergedShards(parts: parts, forced: forced.sorted(), waived: waived.sorted(), latest: latest)
     }
 
-    /// Each of `files` as a shard, by index; refused unless every one is a shard's, all of one split, none given twice.
+    /// Each of `files` as a shard, by index; refused unless every one is a shard's, whose counts hold together, all of
+    /// one split, none given twice.
     private static func shards(of files: [(path: String, recorded: RecordedResults)]) throws -> [Part] {
         var reasons: [MergeRefusal] = []
         var parts: [Part] = []
         for file in files {
             guard let header = file.recorded.headers.last, let selection = header.shard else {
                 reasons.append(.notAShard(path: file.path))
+                continue
+            }
+            guard selection.holdsTogether(withShardsMutants: header.mutantsDiscovered) else {
+                reasons.append(.inconsistentShard(path: file.path))
                 continue
             }
             parts.append(Part(path: file.path, recorded: file.recorded, header: header, selection: selection))
@@ -131,41 +137,67 @@ extension MergedShards {
         }
     }
 
-    /// Whether `report` exits as a run that stopped on an error does: a shard did, or the file of a shard that holds
-    /// mutants wasn't given, so a CI job that checks the merged report fails as one that checked a shard would.
-    var stoppedOnAnError: Bool {
-        parts.contains { $0.recorded.stoppedOnAnError } || absentShards.contains { $0.mutants > 0 }
+    /// Whether `report` exits as a run that stopped on an error does: when the report is known to lack results. A shard
+    /// stopped on an error; or has fewer results than mutants, as one that was interrupted or killed, or is still
+    /// running; or the file of a shard that holds mutants wasn't given. So a CI job that checks the report fails as one
+    /// that checked every shard's run would. Discoveries that differ only warn: each shard has its own mutants'
+    /// results.
+    var lacksResults: Bool {
+        parts.contains { $0.recorded.stoppedOnAnError || $0.recorded.latest.count < $0.header.mutantsDiscovered }
+            || absentShards.contains { $0.mutants > 0 }
+    }
+
+    /// The shards the report covers, when it covers only some: those given, unless every shard that holds mutants is.
+    var scope: ShardScope? {
+        guard absentShards.contains(where: { $0.mutants > 0 }) else { return nil }
+        return ShardScope(
+            indices: parts.map(\.shard.index),
+            count: reference.shard.count,
+            mutantsInAllShards: reference.selection.mutantsInAllShards
+        )
     }
 
     /// The outcome a whole run of the merged mutants would have reported: under the reference shard's project paths,
-    /// coverage and update notice, and with the longest shard's test duration, as the shards are meant to run at once.
+    /// coverage and update notice, and with the longest shard's test duration, as the shards are meant to run at once;
+    /// of the shards given, if some that hold mutants aren't.
     func mutationTestOutcome() -> MutationTestOutcome {
         MutationTestOutcome(
             records: latest.values,
             under: reference.header,
             testDuration: parts.map(\.recorded.testDuration).max() ?? 0,
-            shards: nil
+            shards: scope
         )
     }
 
     /// What `report` says on standard error of the merge: how many mutants it covers, each shard's file and how its run
-    /// ended, the shards whose files weren't given, and what may make the report differ from a whole run's.
+    /// ended, the shards whose files weren't given, and what may make the report differ from a whole run's. One shard's
+    /// file alone is said as any other file is, naming its shard.
     func statusLines() -> [String] {
         let count = reference.shard.count
-        let given = "merged from the results files of \(parts.count) of \(count) shards"
-        var lines = [
-            discoveriesAgree
-                ? "Report of \(latest.count) of \(reference.selection.mutantsInAllShards) mutants, \(given)."
-                : "Report of \(latest.count) mutants, \(given).",
-        ]
-        for part in parts {
-            let shard = "shard \(part.shard.index) of \(count)"
-            lines.append(
-                "\(shard.prefix(1).uppercased() + shard.dropFirst()), \(part.recorded.latest.count) of its "
-                    + "\(part.header.mutantsDiscovered) mutants, from \(part.path): \(part.recorded.ending)."
-            )
-            if let skipped = part.recorded.skippedLines {
-                lines.append("In \(shard)'s file: " + skipped.prefix(1).lowercased() + skipped.dropFirst())
+        var lines: [String]
+        if parts.count == 1 {
+            let only = reference
+            lines = [
+                "Report of \(only.recorded.latest.count) of \(Self.mutants(only.header.mutantsDiscovered)) in shard "
+                    + "\(only.shard.index) of \(count), from \(only.path): \(only.recorded.ending).",
+            ]
+            only.recorded.skippedLines.map { lines.append($0) }
+        } else {
+            let given = "merged from the results files of \(parts.count) of \(count) shards"
+            lines = [
+                discoveriesAgree
+                    ? "Report of \(latest.count) of \(Self.mutants(reference.selection.mutantsInAllShards)), \(given)."
+                    : "Report of \(Self.mutants(latest.count)), \(given).",
+            ]
+            for part in parts {
+                let shard = "shard \(part.shard.index) of \(count)"
+                lines.append(
+                    "\(shard.prefix(1).uppercased() + shard.dropFirst()), \(part.recorded.latest.count) of its "
+                        + "\(Self.mutants(part.header.mutantsDiscovered)), from \(part.path): \(part.recorded.ending)."
+                )
+                if let skipped = part.recorded.skippedLines {
+                    lines.append("In \(shard)'s file: " + skipped.prefix(1).lowercased() + skipped.dropFirst())
+                }
             }
         }
         for absent in absentShards {
@@ -173,14 +205,18 @@ extension MergedShards {
                 absent.mutants == 0
                     ? "Shard \(absent.index) of \(count) holds no mutant, so it has no results file."
                     : "No results file was given for shard \(absent.index) of \(count), which holds "
-                    + (absent.mutants == 1 ? "1 mutant." : "\(absent.mutants) mutants.")
+                    + "\(Self.mutants(absent.mutants))."
             )
         }
         if !discoveriesAgree {
-            let found = parts.map { "\($0.selection.mutantsInAllShards) in shard \($0.shard.index) of \(count)" }
+            let found = parts.enumerated().map { offset, part in
+                let mutants = offset == 0 ? "discovered \(Self.mutants(part.selection.mutantsInAllShards)) in all"
+                    : "\(part.selection.mutantsInAllShards)"
+                return "shard \(part.shard.index) of \(count)'s \(mutants)"
+            }
             lines.append(
-                "The shards discovered different mutants, \(Logger.listed(found)), so a mutant that some of them "
-                    + "didn't discover may have no result."
+                "The shards' runs didn't discover the same mutants: \(Logger.listed(found)), so a mutant that some "
+                    + "of them didn't discover may have no result."
             )
         }
         if !forced.isEmpty {
@@ -209,9 +245,33 @@ extension MergedShards {
         return lines
     }
 
+    /// "1 mutant", or "2 mutants".
+    private static func mutants(_ count: Int) -> String {
+        count == 1 ? "1 mutant" : "\(count) mutants"
+    }
+
     /// Whether the session `header` began kept results although changes were let through: `--force-resume` or
     /// `--force-reuse`, `--resume-ignoring` or `--reuse-ignoring`.
     private static func letChangesThrough(_ header: ResultsHeader) -> Bool {
         !(header.forced ?? []).isEmpty || !(header.waived ?? []).isEmpty
+    }
+}
+
+private extension ShardSelection {
+    /// Whether the counts hold together as every header SwiftMutator writes has them, the shard's own being `mutants`:
+    /// a header edited by hand may not, and then nothing shows what its shard holds.
+    func holdsTogether(withShardsMutants mutants: Int) -> Bool {
+        guard (1...Shard.largestCount).contains(count), (1...count).contains(index),
+              mutantsPerShard.count == count, mutantsPerShard.allSatisfy({ $0 >= 0 }),
+              mutantsPerShard[index - 1] == mutants
+        else { return false }
+        // Added up without trapping, as counts that large hold together no more than negative ones.
+        var total = 0
+        for shardsMutants in mutantsPerShard {
+            let (sum, overflowed) = total.addingReportingOverflow(shardsMutants)
+            guard !overflowed else { return false }
+            total = sum
+        }
+        return total == mutantsInAllShards
     }
 }

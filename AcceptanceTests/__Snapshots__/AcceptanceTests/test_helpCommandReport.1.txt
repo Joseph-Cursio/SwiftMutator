@@ -13,10 +13,11 @@ OPTIONS:
   -f, --format <format>   The report format: plain, json, html, xcode
   -o, --output <output>   Output file for the report to be saved.
   --force-merge           Merge shards' results although their SwiftMutator
-                          build, toolchain or SDK differ.
+                          build, toolchain or SDK differ. With one file, it
+                          does nothing.
   --merge-ignoring <glob> Merge shards' results although project files matching
                           this glob differ between them; * also matches /.
-                          Repeatable.
+                          Repeatable. With one file, it does nothing.
   --version               Show the version.
   -h, --help              Show help information.
 

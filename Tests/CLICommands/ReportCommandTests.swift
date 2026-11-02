@@ -354,22 +354,42 @@ final class ReportCommandTests: MuterTestCase {
         XCTAssertEqual(standardError.linesPassed, [
             "Report of 3 of 3 mutants, merged from the results files of 2 of 2 shards.",
             "Shard 1 of 2, 2 of its 2 mutants, from \(first): the run finished.",
-            "Shard 2 of 2, 1 of its 1 mutants, from \(second): the run finished.",
+            "Shard 2 of 2, 1 of its 1 mutant, from \(second): the run finished.",
         ])
     }
 
-    func test_oneShardsFile_isReportedAsTheShard() async throws {
+    // As a merge of one: a CI job's glob that finds only one shard's file fails as one that finds two of three would.
+    func test_oneShardsFile_isReportedAsTheShard_andLacksTheOthers() async throws {
         try write(shardHeader(1, mutantsDiscovered: 2), zeta9, alpha3, ResultsEnd.make(), to: resultsPath)
 
-        try await report(resultsPath)
+        await AssertThrowsError(try await report(resultsPath)) { error in
+            XCTAssertEqual(error as? ExitCode, Report.stoppedOnAnError)
+        }
 
         XCTAssertTrue(
             printer.linesPassed.first?.contains("Only the mutants in shard 1 of 2 were tested, of 3 discovered") == true
         )
-        XCTAssertEqual(
-            standardError.linesPassed,
-            ["Report of 2 of 2 mutants in shard 1 of 2, from \(resultsPath): the run finished."]
+        XCTAssertEqual(standardError.linesPassed, [
+            "Report of 2 of 2 mutants in shard 1 of 2, from \(resultsPath): the run finished.",
+            "No results file was given for shard 2 of 2, which holds 1 mutant.",
+        ])
+    }
+
+    // A small change can leave every other shard empty, and then one file is the whole run.
+    func test_oneShardsFile_whoseOthersAreEmpty_isTheWholeRunsReport() async throws {
+        try write(
+            shardHeader(1, mutantsDiscovered: 3, mutantsPerShard: [3, 0]),
+            zeta9,
+            alpha3,
+            zeta10,
+            ResultsEnd.make(),
+            to: resultsPath
         )
+
+        try await report(resultsPath, "--merge-ignoring", "*.md")
+
+        XCTAssertEqual(printer.linesPassed, [PlainTextReporter().report(from: expected)])
+        XCTAssertEqual(standardError.linesPassed.last, "Shard 2 of 2 holds no mutant, so it has no results file.")
     }
 
     // A CI job that checks the merged report fails, as the missing shard's own job may not have.
@@ -428,21 +448,15 @@ final class ReportCommandTests: MuterTestCase {
         )
     }
 
-    // They only say what a merge may let through, so with one file they're a mistake.
-    func test_mergeOptionsWithOneFile_areUsageErrors() {
-        for (arguments, message) in [
-            (["--force-merge"], "--force-merge only applies when several shards' results files are given."),
-            (
-                ["--merge-ignoring", "*.md"],
-                "--merge-ignoring only applies when several shards' results files are given."
-            ),
-        ] {
-            XCTAssertThrowsError(try MuterCommand.parseAsRoot(["report", "r.jsonl"] + arguments)) { error in
-                XCTAssertEqual(MuterCommand.exitCode(for: error), .validationFailure)
-                XCTAssertEqual(MuterCommand.message(for: error), message)
-            }
+    // How many files a CI job's glob finds is up to the shards, so a merge's flags are no mistake with one.
+    func test_mergeOptions_areAcceptedWithAnyNumberOfFiles() throws {
+        for files in [["r.jsonl"], ["1.jsonl", "2.jsonl"]] {
+            let arguments = ["report"] + files + ["--force-merge", "--merge-ignoring", "*.md"]
+            let command = try MuterCommand.parseAsRoot(arguments)
+            let report = try XCTUnwrap(command as? Report)
+            XCTAssertTrue(report.forceMerge)
+            XCTAssertEqual(report.mergeIgnoring, ["*.md"])
         }
-        XCTAssertNoThrow(try MuterCommand.parseAsRoot(["report", "1.jsonl", "2.jsonl", "--force-merge"]))
     }
 }
 

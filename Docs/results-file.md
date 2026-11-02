@@ -227,8 +227,10 @@ New keys and new kinds of line are added without changing `formatVersion`, so a 
 `swift-mutator report` makes a run's report from its results file, in any of the formats `run` writes:
 
 ```
-swift-mutator report <results> [-f plain|json|html|xcode] [-o <path>]
+swift-mutator report <results>… [-f plain|json|html|xcode] [-o <path>] [--force-merge] [--merge-ignoring <glob>]…
 ```
+
+One results file is reported as it is. The results files of a `run --shard` split's shards, one alone included, are merged first ([Shards](#shards)).
 
 It only reads the results file: it mutates nothing, prints no banner and makes no log folder. Reading takes no lock, so it can report on a run that is still writing the file.
 
@@ -277,8 +279,6 @@ The report doesn't say whether the run finished. The status on standard error do
   Report saved to /Users/me/code/report.html
   ```
 
-  The results file of one shard, from `run --shard`, is reported as any other, and its first line names the shard: `Report of 1228 of 1228 mutants in shard 1 of 2, from …`.
-
   How the run ended comes from the last session's end line:
 
   | End line | Status says |
@@ -295,7 +295,7 @@ The report doesn't say whether the run finished. The status on standard error do
 ### Exit status
 
 - **0** when the report was made, an empty one included, unless the run stopped on an error.
-- **255** when the report was made of a run that stopped on an error, its last session's end line `aborted`: the status the run itself exited with, so a script that checks the report fails as one that checked the run would. The report and the status come first, as for any other run. Merged shards exit with it too when any shard stopped on an error, or a shard that holds mutants has no file among those given ([Shards](#shards)).
+- **255** when the report was made of a run that stopped on an error, its last session's end line `aborted`: the status the run itself exited with, so a script that checks the report fails as one that checked the run would. The report and the status come first, as for any other run. Shards' files exit with it whenever the report is known to lack results ([Shards](#shards)).
 - **1** with `Error: …` on standard error, when:
   - the path is missing or can't be read;
   - the file isn't a results file, because it has no header line;
@@ -326,7 +326,9 @@ Given the results files of a split's shards, each run with `--shard k/n`, `repor
 swift-mutator report <results> <results>… [--force-merge] [--merge-ignoring <glob>]… [-f …] [-o …]
 ```
 
-Each is read as a single file is, and the last header of each must have a `shard`, all with the same `count`, and no `index` given twice. The shard with the lowest `index` given is the reference: each of the others is compared with it, by its last header, as a resume compares a run.
+One shard's file alone is a merge of one, so that a CI job's glob that finds one file is judged as one that finds two. `--force-merge` and `--merge-ignoring` are accepted with it, and do nothing.
+
+Each is read as a single file is, and the last header of each must have a `shard` whose counts hold together, as every header SwiftMutator writes has them: `count` from 1 to 1000, `index` from 1 to `count`, a `mutantsPerShard` entry for each shard, adding up to `mutantsInAllShards`, and the shard's own entry equal to the header's `mutantsDiscovered`. They must all have the same `count`, and no `index` may be given twice. The shard with the lowest `index` given is the reference: each of the others is compared with it, by its last header, as a resume compares a run.
 
 - **Compared:** every configuration key some outcome depends on; `operators`, `filesToMutate` and `skipCoverage`; `since`'s `mergeBase` and `changedLines`; and the SwiftMutator build, the toolchain and its environment. A difference in the build or the toolchain is let through by `--force-merge`, and nothing else is.
 - **The project's files** are compared path by path, as a resume compares them, with what each shard left out, its `-o` report and the configuration file, taken out of both. `--merge-ignoring` lets files that differ through, by glob, as `--resume-ignoring` does.
@@ -334,9 +336,9 @@ Each is read as a single file is, and the last header of each must have a `shard
 
 Every reason found is given at once, with exit status 1, and no report is made.
 
-The report is made from every shard's results, each its file's last line for the key, as for a single file. The mutants come in the order a whole run tests them, under the reference shard's `mutatedProjectPath`. The reference shard's last header gives the project paths, the coverage, `since` and the update notice. The test duration is the longest shard's, as the shards are meant to run at once, and each shard's adds up its own sessions. The report has no `shard`: it stands for the whole run.
+The report is made from every shard's results, each its file's last line for the key, as for a single file. The mutants come in the order a whole run tests them, under the reference shard's `mutatedProjectPath`. The reference shard's last header gives the project paths, the coverage, `since` and the update notice. The test duration is the longest shard's, as the shards are meant to run at once, and each shard's adds up its own sessions. When every shard that holds mutants is given, the report stands for the whole run, and has no `shards`. Otherwise its `shards` names the shards given, and the plain and HTML reports say that only their mutants were tested.
 
-Standard error says:
+Standard error says, for one shard's file alone, what it says of any file, naming the shard: `Report of 1228 of 1228 mutants in shard 1 of 2, from …: the run finished.` For several:
 
 ```
 Report of 2460 of 2463 mutants, merged from the results files of 2 of 2 shards.
@@ -344,12 +346,12 @@ Shard 1 of 2, 1228 of its 1228 mutants, from …/results.jsonl: the run finished
 Shard 2 of 2, 1232 of its 1235 mutants, from …/results.jsonl: the run was interrupted by SIGINT.
 ```
 
-- The first line's total is `mutantsInAllShards`. If the shards' `allKeysSHA256` differ, their discoveries did, as when coverage differed between the machines: the line gives no total, and another says how many each discovered.
+- The first line's total is `mutantsInAllShards`. If the shards' `allKeysSHA256` differ, their discoveries did, as when coverage differed between the machines: the line gives no total, and another says how many mutants in all each shard's run discovered.
 - A shard whose file isn't given is named with the mutants `mutantsPerShard` gives it: `No results file was given for shard 2 of 3, which holds 812 mutants.` A shard that holds none wrote no file, and is said to: `Shard 3 of 3 holds no mutant, so it has no results file.`
 - Lines skipped in a file are said for its shard.
 - What `--force-merge` and `--merge-ignoring` let through is said, as is a shard whose own sessions let changes through when it was resumed or reused, by their headers' `forced` or `waived`.
 
-`report` exits with 255 when any shard's last session stopped on an error, or a shard that holds mutants has no file among those given, so that a CI job that checks the merged report fails.
+`report` exits with 255 whenever the report is known to lack results: any shard's last session stopped on an error; a shard has fewer results than its header's `mutantsDiscovered`, as one that was interrupted, killed or is still running has; or a shard that holds mutants has no file among those given. So a CI job that checks the merged report fails as one that checked every shard's run would. Discoveries that differ only warn: each shard has its own mutants' results.
 
 ## `jq` recipes
 

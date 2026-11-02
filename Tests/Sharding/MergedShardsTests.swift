@@ -30,11 +30,11 @@ final class MergedShardsTests: XCTestCase {
         XCTAssertEqual(outcome.mutations.map(\.point.position.line), [5, 3, 9])
         XCTAssertEqual(outcome.testDuration, 55.5)
         XCTAssertNil(outcome.shards)
-        XCTAssertFalse(merged.stoppedOnAnError)
+        XCTAssertFalse(merged.lacksResults)
         XCTAssertEqual(merged.statusLines(), [
             "Report of 3 of 3 mutants, merged from the results files of 2 of 2 shards.",
             "Shard 1 of 2, 2 of its 2 mutants, from /a/results.jsonl: the run finished.",
-            "Shard 2 of 2, 1 of its 1 mutants, from /b/results.jsonl: the run finished.",
+            "Shard 2 of 2, 1 of its 1 mutant, from /b/results.jsonl: the run finished.",
         ])
     }
 
@@ -78,9 +78,40 @@ final class MergedShardsTests: XCTestCase {
         )
     }
 
+    // As a header edited by hand might be: nothing then shows what the shard holds, or which shards are missing.
+    func test_aShardWhoseCountsDontHoldTogether_isRefused() {
+        let reference = file("/a/results.jsonl", header(1))
+        let inconsistent = [
+            header(3),
+            header(1, count: 0, mutantsPerShard: []),
+            header(2, mutantsPerShard: [2]),
+            header(2, mutantsPerShard: [2, 2]),
+            header(2, mutantsDiscovered: 2),
+            header(2, mutantsInAllShards: -1, mutantsPerShard: [2, -3]),
+            // Holds together but for the cap.
+            header(2, count: 1001, mutantsInAllShards: 1, mutantsPerShard: [0, 1] + Array(repeating: 0, count: 999)),
+            header(2, mutantsInAllShards: 0, mutantsPerShard: [Int.max, 1]),
+            header(2, mutantsInAllShards: Int.max, mutantsPerShard: [Int.max, Int.max]),
+        ]
+        for header in inconsistent {
+            assertRefused(
+                [reference, file("/b/results.jsonl", header)],
+                [.inconsistentShard(path: "/b/results.jsonl")]
+            )
+        }
+        XCTAssertEqual(
+            MergeRefusal.inconsistentShard(path: "/b/results.jsonl").description,
+            "'/b/results.jsonl' records a shard whose counts don't hold together, as a header edited by hand might, so "
+                + "nothing shows what the shard holds."
+        )
+    }
+
     func test_shardsOfDifferentSplits_areRefused() {
         assertRefused(
-            [file("/a/results.jsonl", header(1)), file("/b/results.jsonl", header(2, count: 3))],
+            [
+                file("/a/results.jsonl", header(1)),
+                file("/b/results.jsonl", header(2, count: 3, mutantsPerShard: [1, 1, 1])),
+            ],
             [
                 .otherSplits([
                     MergeRefusal.ShardFile(path: "/a/results.jsonl", shard: Shard(index: 1, count: 2)),
@@ -235,34 +266,120 @@ final class MergedShardsTests: XCTestCase {
     // A shard with no mutant writes no results file; one whose file is missing leaves its mutants without results.
     func test_aShardWhoseFileIsntGiven_isSaid_andFailsTheReportOnlyIfItHoldsMutants() throws {
         let complete = try merge(
-            file("/a/results.jsonl", header(1, count: 3, mutantsPerShard: [2, 1, 0])),
-            file("/b/results.jsonl", header(2, count: 3, mutantsDiscovered: 1, mutantsPerShard: [2, 1, 0]))
+            file("/a/results.jsonl", header(1, count: 3, mutantsPerShard: [2, 1, 0]), sum3, sum9, end()),
+            file("/b/results.jsonl", header(2, count: 3, mutantsPerShard: [2, 1, 0]), alpha5, end())
         )
-        XCTAssertFalse(complete.stoppedOnAnError)
+        XCTAssertFalse(complete.lacksResults)
+        XCTAssertNil(complete.mutationTestOutcome().shards)
         XCTAssertEqual(complete.statusLines().last, "Shard 3 of 3 holds no mutant, so it has no results file.")
 
         let missing = try merge(
             file("/a/results.jsonl", header(1, count: 3, mutantsDiscovered: 1, mutantsPerShard: [1, 1, 1]), sum3),
             file("/c/results.jsonl", header(3, count: 3, mutantsDiscovered: 1, mutantsPerShard: [1, 1, 1]))
         )
-        XCTAssertTrue(missing.stoppedOnAnError)
+        XCTAssertTrue(missing.lacksResults)
+        XCTAssertEqual(
+            missing.mutationTestOutcome().shards,
+            ShardScope(indices: [1, 3], count: 3, mutantsInAllShards: 3)
+        )
         XCTAssertEqual(missing.statusLines(), [
             "Report of 1 of 3 mutants, merged from the results files of 2 of 3 shards.",
-            "Shard 1 of 3, 1 of its 1 mutants, from /a/results.jsonl: "
+            "Shard 1 of 3, 1 of its 1 mutant, from /a/results.jsonl: "
                 + "the run has no end line, so it is still running, or it was killed or crashed.",
-            "Shard 3 of 3, 0 of its 1 mutants, from /c/results.jsonl: "
+            "Shard 3 of 3, 0 of its 1 mutant, from /c/results.jsonl: "
                 + "the run has no end line, so it is still running, or it was killed or crashed.",
             "No results file was given for shard 2 of 3, which holds 1 mutant.",
         ])
     }
 
+    // A merge of one, so that a glob that finds one file is judged as one that finds two.
+    func test_oneShardsFileAlone_isSaidAsAnyFile_andLacksTheShardsNotGiven() throws {
+        let alone = try merge(file("/a/results.jsonl", header(1), sum3, sum9, end()))
+
+        XCTAssertTrue(alone.lacksResults)
+        XCTAssertEqual(
+            alone.mutationTestOutcome().shards,
+            ShardScope(indices: [1], count: 2, mutantsInAllShards: 3)
+        )
+        XCTAssertEqual(alone.statusLines(), [
+            "Report of 2 of 2 mutants in shard 1 of 2, from /a/results.jsonl: the run finished.",
+            "No results file was given for shard 2 of 2, which holds 1 mutant.",
+        ])
+
+        let others = try merge(file("/a/results.jsonl", header(1, mutantsPerShard: [3, 0]), sum3, sum9, alpha5, end()))
+        XCTAssertFalse(others.lacksResults)
+        XCTAssertNil(others.mutationTestOutcome().shards)
+    }
+
+    // Its own job failed, as killed by a CI timeout or cancelled: the report would score fewer mutants.
+    func test_aShardWithFewerResultsThanMutants_failsTheReport() throws {
+        let interrupted = try merge(
+            file("/a/results.jsonl", header(1), sum3, end(.interrupted, detail: "SIGTERM")),
+            file("/b/results.jsonl", header(2), alpha5, end())
+        )
+        XCTAssertTrue(interrupted.lacksResults)
+        XCTAssertEqual(
+            interrupted.statusLines()[1],
+            "Shard 1 of 2, 1 of its 2 mutants, from /a/results.jsonl: the run was interrupted by SIGTERM."
+        )
+
+        // Every mutant has its result, so how the run ended doesn't matter.
+        let tested = try merge(
+            file("/a/results.jsonl", header(1), sum3, sum9, end(.interrupted, detail: "SIGTERM")),
+            file("/b/results.jsonl", header(2), alpha5)
+        )
+        XCTAssertFalse(tested.lacksResults)
+    }
+
+    // Each file's last record of a key, as a single file's report takes it, and none of a key a later line retired.
+    func test_aResumedShard_givesItsLatestResults() throws {
+        let retested = MutantResult.make(session: 2, path: "Sources/Sum.swift", line: 9, outcome: .failed)
+        let merged = try merge(
+            file(
+                "/a/results.jsonl",
+                header(1),
+                sum3,
+                sum9,
+                end(.interrupted),
+                header(1, session: 2),
+                ResultsRetired(session: 2, keys: [sum9.key]),
+                retested,
+                end()
+            ),
+            file("/b/results.jsonl", header(2), alpha5, end())
+        )
+
+        XCTAssertFalse(merged.lacksResults)
+        XCTAssertEqual(merged.latest[sum9.key]?.outcome, .failed)
+        XCTAssertEqual(merged.mutationTestOutcome().mutations.map(\.testSuiteOutcome), [.failed, .failed, .failed])
+    }
+
+    // Where a shard's kept results were tested, so the merged report marks them as a whole run's would.
+    func test_aReusingShard_keepsWhereItsResultsWereTested() throws {
+        let kept = MutantResult.make(
+            path: "Sources/Sum.swift",
+            line: 3,
+            outcome: .failed,
+            reusedFrom: ReusedFrom(resultsFile: "/old/results.jsonl", session: 1, despiteChanges: false)
+        )
+        let merged = try merge(
+            file("/a/results.jsonl", header(1), kept, sum9, end()),
+            file("/b/results.jsonl", header(2), alpha5, end())
+        )
+
+        XCTAssertEqual(
+            merged.mutationTestOutcome().mutations.compactMap(\.reusedFrom),
+            [ReusedFrom(resultsFile: "/old/results.jsonl", session: 1, despiteChanges: false)]
+        )
+    }
+
     func test_aShardThatStoppedOnAnError_failsTheReport() throws {
         let merged = try merge(
             file("/a/results.jsonl", header(1), end(.aborted, detail: "tooManyBuildErrors")),
-            file("/b/results.jsonl", header(2, mutantsDiscovered: 1), end())
+            file("/b/results.jsonl", header(2), alpha5, end())
         )
 
-        XCTAssertTrue(merged.stoppedOnAnError)
+        XCTAssertTrue(merged.lacksResults)
         XCTAssertEqual(
             merged.statusLines()[1],
             "Shard 1 of 2, 0 of its 2 mutants, from /a/results.jsonl: the run stopped on an error (tooManyBuildErrors)."
@@ -279,12 +396,12 @@ final class MergedShardsTests: XCTestCase {
         XCTAssertFalse(merged.discoveriesAgree)
         XCTAssertEqual(
             merged.statusLines().first,
-            "Report of 1 mutants, merged from the results files of 2 of 2 shards."
+            "Report of 1 mutant, merged from the results files of 2 of 2 shards."
         )
         XCTAssertEqual(
             merged.statusLines().last,
-            "The shards discovered different mutants, 3 in shard 1 of 2 and 4 in shard 2 of 2, so a mutant that some "
-                + "of them didn't discover may have no result."
+            "The shards' runs didn't discover the same mutants: shard 1 of 2's discovered 3 mutants in all and shard "
+                + "2 of 2's 4, so a mutant that some of them didn't discover may have no result."
         )
     }
 
@@ -325,12 +442,13 @@ private extension MergedShardsTests {
         (path, records)
     }
 
-    /// The header of shard `index` of `count`, which holds `mutantsDiscovered` of the 3 mutants by default.
+    /// The header of shard `index` of `count`, which holds `mutantsDiscovered` of the 3 mutants: by default its share
+    /// of `mutantsPerShard`, which by default is 2 and 1 of 2 shards, and as even as can be of more.
     func header(
         _ index: Int,
         count: Int = 2,
         session: Int = 1,
-        mutantsDiscovered: Int = 2,
+        mutantsDiscovered: Int? = nil,
         mutatedProjectPath: String = "/project_mutated",
         operators: [String] = ["RelationalOperatorReplacement"],
         provenance: Provenance = .fixture,
@@ -340,23 +458,26 @@ private extension MergedShardsTests {
         mutantsPerShard: [Int]? = nil,
         allKeysSHA256: String = "a11"
     ) -> ResultsHeader {
-        .make(
+        let shard = ShardSelection.make(
+            index: index,
+            count: count,
+            mutantsInAllShards: mutantsInAllShards,
+            mutantsPerShard: mutantsPerShard ?? (count == 2 ? [2, 1] : nil),
+            allKeysSHA256: allKeysSHA256
+        )
+        let own = mutantsDiscovered
+            ?? (shard.mutantsPerShard.indices.contains(index - 1) ? shard.mutantsPerShard[index - 1] : 0)
+        return .make(
             formatVersion: session == 1 ? ResultsCoding.formatVersion : ResultsCoding.resumedFormatVersion,
             session: session,
             mutatedProjectPath: mutatedProjectPath,
-            mutantsDiscovered: mutantsDiscovered,
-            mutantsToTest: mutantsDiscovered,
+            mutantsDiscovered: own,
+            mutantsToTest: own,
             project: project,
             provenance: provenance,
             operators: operators,
             forced: forced,
-            shard: .make(
-                index: index,
-                count: count,
-                mutantsInAllShards: mutantsInAllShards,
-                mutantsPerShard: mutantsPerShard ?? (count == 2 ? [2, 1] : nil),
-                allKeysSHA256: allKeysSHA256
-            )
+            shard: shard
         )
     }
 

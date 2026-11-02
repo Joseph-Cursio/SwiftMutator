@@ -53,7 +53,7 @@ extension RecordedResults {
             records: latest.values,
             under: header,
             testDuration: testDuration,
-            shards: header.shard.map(ShardScope.init)
+            shards: header.shard?.scopeAlone
         )
     }
 }

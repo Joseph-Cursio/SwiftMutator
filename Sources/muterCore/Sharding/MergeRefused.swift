@@ -28,6 +28,8 @@ enum MergeRefusal: Equatable, CustomStringConvertible {
 
     /// The file's last session didn't test a shard.
     case notAShard(path: String)
+    /// The file's last session tested a shard whose counts don't hold together, as a header edited by hand may not.
+    case inconsistentShard(path: String)
     /// The files are shards of splits into different numbers of shards.
     case otherSplits([ShardFile])
     /// Several files are of one shard.
@@ -50,6 +52,9 @@ enum MergeRefusal: Equatable, CustomStringConvertible {
         case let .notAShard(path):
             return "\(Logger.shellQuoted(path)) isn't the results file of a shard (run --shard), so it can't be "
                 + "merged with others."
+        case let .inconsistentShard(path):
+            return "\(Logger.shellQuoted(path)) records a shard whose counts don't hold together, as a header edited "
+                + "by hand might, so nothing shows what the shard holds."
         case let .otherSplits(files):
             let shards = files.map { "\(Logger.shellQuoted($0.path)) is \(Self.named($0.shard))" }
             return "The files are shards of different splits: \(Logger.listed(shards))."

@@ -6,9 +6,8 @@ extension RecordedResults {
     func statusLines(path: String) -> [String] {
         // `read` refuses a file without a header.
         guard let last = sessions.last else { return [] }
-        let shard = last.header.shard.map { " in shard \($0.index) of \($0.count)" } ?? ""
         return [
-            "Report of \(latest.count) of \(last.header.mutantsDiscovered) mutants\(shard), from \(path): \(ending).",
+            "Report of \(latest.count) of \(last.header.mutantsDiscovered) mutants, from \(path): \(ending).",
         ] + [skippedLines].compactMap { $0 }
     }
 

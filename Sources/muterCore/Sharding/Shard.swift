@@ -92,6 +92,13 @@ struct ShardSelection: Codable, Equatable, Sendable {
     var shard: Shard {
         Shard(index: index, count: count)
     }
+
+    /// What a report of this shard's results alone covers: this shard, unless no other shard holds a mutant, when its
+    /// results are the whole run's. The run's own report and `report` of its file both say so.
+    var scopeAlone: ShardScope? {
+        let othersAreEmpty = mutantsPerShard.indices.allSatisfy { $0 == index - 1 || mutantsPerShard[$0] == 0 }
+        return othersAreEmpty ? nil : ShardScope(self)
+    }
 }
 
 extension ShardSelection {

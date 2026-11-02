@@ -23,8 +23,9 @@ struct ResultsReport {
     }
 
     /// Makes the report from the results files `paths` name: each the file itself, or a run's log folder that holds
-    /// it. One file is reported as it is; several, the shards of one split, are merged, `forcing` build and toolchain
-    /// differences through, and the project files `ignoring`'s globs match. Standard output holds the report alone
+    /// it. One file is reported as it is, unless it is a shard's; shards' files, the shards of one split, are merged,
+    /// one alone too, `forcing` build and toolchain differences through, and the project files `ignoring`'s globs
+    /// match. Standard output holds the report alone
     /// (and, in the Xcode format, its warnings), so `-f json > report.json` is valid JSON; what the files hold, the
     /// report's warning of suspect tests, and where the report went, are said on standard error. Gives whether
     /// `report` exits as a run that stopped on an error.
@@ -40,13 +41,13 @@ struct ResultsReport {
             }
             return (path: file, recorded: try RecordedResults.read(data, path: file))
         }
-        if read.count == 1, let only = read.first {
+        if read.count == 1, let only = read.first, only.recorded.headers.last?.shard == nil {
             try report(only.recorded.mutationTestOutcome(), saying: only.recorded.statusLines(path: only.path))
             return only.recorded.stoppedOnAnError
         }
         let merged = try MergedShards.merge(read, forcing: forcing, ignoring: ignoring)
         try report(merged.mutationTestOutcome(), saying: merged.statusLines())
-        return merged.stoppedOnAnError
+        return merged.lacksResults
     }
 
     /// Prints or saves the report of `outcome`, then says `status` and the rest on standard error.

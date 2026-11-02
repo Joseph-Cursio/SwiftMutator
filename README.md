@@ -310,18 +310,27 @@ swift-mutator run --shard 1/2
   - **What it refuses.** It checks each shard against shard 1, or the lowest one given, as a
     resume checks a run: the configuration, the operators, `--files-to-mutate`, `--skip-coverage`
     and `--since`, the SwiftMutator build and the toolchain, and the project's files. It refuses
-    files that aren't shards, shards of different splits, a shard given twice, and a mutant with a
-    result in two files. `--force-merge` lets a different build or toolchain through, and
-    `--merge-ignoring <glob>` project files that differ, such as a file one machine left in its
-    checkout. Each refusal says which.
+    files that aren't shards, shards of different splits, a shard given twice, a header whose
+    counts don't hold together, and a mutant with a result in two files. `--force-merge` lets a
+    different build or toolchain through, and `--merge-ignoring <glob>` project files that differ,
+    such as a file one machine left in its checkout. Each refusal says which.
   - **What it says.** On standard error, as for one file: how many mutants the report covers, and
-    how each shard's run ended. A shard whose file isn't given is named with the mutants it holds,
-    and makes `report` exit with 255, as a run that stopped on an error does, so a CI job that
-    checks the merged report fails. A shard that holds no mutant has no file, and is only said.
+    how each shard's run ended. A shard whose file isn't given is named with the mutants it holds.
+    A shard that holds no mutant has no file, and is only said.
+  - **When it fails.** It exits with 255, as for a run that stopped on an error, whenever the
+    report is known to lack results: a shard stopped on an error, has fewer results than mutants,
+    as when its job was cancelled or killed, or holds mutants but its file isn't given. So a CI job
+    that checks the merged report fails as one that checked every shard would.
+  - **One shard's file alone** is a merge of one, so a CI glob that finds one file is judged as one
+    that finds two: its report says it covers that shard, and `report` fails if the others hold
+    mutants. If they hold none, as in a small `--since` change, it is the whole run's report. The
+    merge flags are accepted with one file, and do nothing. With no file at all, every shard was
+    empty, and there is nothing to report.
   - **The report** is the whole run's: the mutants in the order a whole run tests them, the
     coverage and paths of the lowest shard given, and the longest shard's time, as the shards are
-    meant to run at once. If the machines' coverage differed, so that their discoveries did,
-    `report` says so: a mutant only some of them discovered may have no result.
+    meant to run at once. If some shards are missing, it says which ones it covers. If the
+    machines' coverage differed, so that their discoveries did, `report` says so: a mutant only
+    some of them discovered may have no result.
   - **Not yet:** a merged results file. `--reuse` takes one shard's file, which keeps the results
     of that shard's mutants only.
 - **In CI**, run the shards as a matrix, one job per shard, then merge them in a job after it.
@@ -330,7 +339,8 @@ swift-mutator run --shard 1/2
     checkout, and the run prints its path. Upload it, allowing for none, as an empty shard writes
     none.
   - The merging job downloads them, outside any checkout a later run uses, and gives them all to
-    `report`.
+    `report`. If none was written, as when every shard was empty, skip it: `report` given no file
+    is a usage error, with status 64.
   - A worked GitHub Actions recipe is [#124](https://github.com/Joseph-Cursio/SwiftMutator/issues/124).
 
 ## Results file
@@ -608,6 +618,7 @@ doesn't end with `Nothing was copied or removed.`
 | A configuration key changed, other than `mutationTestWorkers`, `stopAtFirstFailure` and `buildTimeout` | Refused: start a new run |
 | `--operators`, `--files-to-mutate` or `--skip-coverage` changed | Refused: start a new run |
 | `--since`'s merge base or `--changed-lines` changed, or `--since` given in one session only | Refused: start a new run. `--reuse` doesn't compare them |
+| `--shard` changed, or given in one session only | Refused: start a new run. `--reuse` doesn't compare it |
 | `mutationTestWorkers`, `stopAtFirstFailure` or `buildTimeout` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
 | SwiftMutator, the toolchain or the SDK changed | Refused, unless `--force-resume` is given |
 | Project files changed, were added or were removed | Refused, unless a `--resume-ignoring` glob matches each one |
