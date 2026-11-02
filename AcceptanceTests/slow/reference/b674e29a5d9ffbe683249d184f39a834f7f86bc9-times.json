@@ -1,6 +1,50 @@
 {
  "full": {
   "runs": 5,
-  "wall_s": 2882.0
+  "wall_s": 2775.0
+ },
+ "full-testchange": {
+  "runs": 1,
+  "wall_s": 2999.0
+ },
+ "no-stop": {
+  "runs": 1,
+  "wall_s": 6758.0
+ },
+ "release": {
+  "runs": 1,
+  "wall_s": 1304.0
+ },
+ "reuse-nochange": {
+  "runs": 1,
+  "wall_s": 713.0
+ },
+ "reuse-sourcechange": {
+  "runs": 1,
+  "wall_s": 87.0
+ },
+ "reuse-sourcechange-ignoring": {
+  "runs": 1,
+  "wall_s": 732.0
+ },
+ "reuse-testchange": {
+  "runs": 1,
+  "wall_s": 2222.0
+ },
+ "since": {
+  "runs": 1,
+  "wall_s": 219.0
+ },
+ "since-nothing": {
+  "runs": 1,
+  "wall_s": 0.0
+ },
+ "stop-resume": {
+  "runs": 1,
+  "wall_s": 1201.0
+ },
+ "stop-resume-continued": {
+  "runs": 1,
+  "wall_s": 1715.0
  }
 }

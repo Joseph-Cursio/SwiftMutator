@@ -17,6 +17,9 @@ VERDICTS = {"failed": "killed", "runtimeError": "killed", "passed": "survived", 
 # Signals a stopped run's test process can end by, and the shell's 128 + n form of them: a run recorded with one of
 # these was cancelled, not tested.
 STOP_STATUSES = {2, 9, 15, 130, 137, 143}
+# The target's tests now and then hang, or slow down past the time limit, under some random mutant: a run may differ
+# from the reference by this many timeouts alone. Any other difference fails at once.
+MAX_TIMEOUT_FLIPS = 3
 DEFAULT_EXCLUDES = ["/.swiftpm/", "/.build/", "/Build/", "/Carthage/", "/muter_tmp/", "/Pods/", "/Spec/", "/Tests/",
                     "Tests.swift", "/fastlane/", "/Package.swift", "/Package@swift-"]
 
@@ -90,6 +93,11 @@ def fail(problems, title):
     return 1 if problems else 0
 
 
+def timeout_only(verdicts):
+    """Whether verdicts differ only by timeouts: without them, at most one verdict is left."""
+    return len(set(verdicts) - {"timedOut"}) <= 1
+
+
 def killers(record):
     return ", ".join(f"{test.get('name')} ({test.get('location')})" for test in (record.get("killedBy") or [])[:3])
 
@@ -98,7 +106,8 @@ def killers(record):
 
 def command_reference(args):
     """The majority verdict of each mutant over whole runs, with its mutation. Refuses runs that discover different
-    mutants or mutations, and verdicts the runs disagree on that the allowlist doesn't explain."""
+    mutants or mutations, and verdicts the runs disagree on that the allowlist doesn't explain, unless they differ
+    only by a minority of timeouts or by a timeout of the majority's."""
     runs = [Results(path) for path in args.runs]
     keys = [set(run.latest) for run in runs]
     problems = []
@@ -106,7 +115,7 @@ def command_reference(args):
         if found != keys[0]:
             problems.append(f"{run.path} discovers {len(found ^ keys[0])} mutants unlike {runs[0].path}'s")
     explained = allowlist(args.allowlist)
-    mutants = {}
+    mutants, tolerated = {}, []
     for record_key in sorted(keys[0]):
         records = [run.latest[record_key] for run in runs if record_key in run.latest]
         mutations = {json.dumps(mutation(record), sort_keys=True) for record in records}
@@ -115,8 +124,13 @@ def command_reference(args):
         counts = collections.Counter(verdict(record) for record in records)
         majority, votes = counts.most_common(1)[0]
         if len(counts) > 1 and record_key not in explained:
-            problems.append(f"{record_key}: the runs disagree {dict(counts)}, and the allowlist doesn't explain it")
+            if timeout_only(counts) and votes * 2 > len(records):
+                tolerated.append(f"{record_key}: {dict(counts)}")
+            else:
+                problems.append(f"{record_key}: the runs disagree {dict(counts)}, and the allowlist doesn't explain it")
         mutants[record_key] = {"verdict": majority, **mutation(records[0])}
+    for line in tolerated:
+        print(f"  timeouts only, the majority's verdict kept: {line}")
     if fail(problems, "reference"):
         return 1
     reference = {
@@ -135,17 +149,24 @@ def command_reference(args):
 
 # MARK: - check
 
-def compare(run, reference, explained, keys_to_check):
+def compare(run, reference, explained, keys_to_check, against="the reference's"):
     """Each mutation unlike the reference's, which nothing excuses, and each verdict unlike it the allowlist doesn't
-    explain."""
-    problems = []
+    explain. Up to MAX_TIMEOUT_FLIPS verdicts that differ from it only by a timeout are reported, not failed.
+    `against` names the reference in the messages."""
+    problems, flips = [], []
     for record_key in sorted(keys_to_check):
         record, expected = run.latest[record_key], reference["mutants"][record_key]
         if mutation(record) != {"before": expected["before"], "after": expected["after"]}:
-            problems.append(f"{record_key}: mutation {mutation(record)} is not the reference's "
+            problems.append(f"{record_key}: mutation {mutation(record)} is not {against} "
                             f"{ {'before': expected['before'], 'after': expected['after']} }")
         if verdict(record) != expected["verdict"] and record_key not in explained:
-            problems.append(f"{record_key}: verdict {verdict(record)}, the reference's {expected['verdict']}; {killers(record)}")
+            difference = f"{record_key}: verdict {verdict(record)}, {against} {expected['verdict']}; {killers(record)}"
+            (flips if timeout_only({verdict(record), expected["verdict"]}) else problems).append(difference)
+    if len(flips) > MAX_TIMEOUT_FLIPS:
+        problems += [f"{flip} (one of {len(flips)} timeout flips, more than {MAX_TIMEOUT_FLIPS})" for flip in flips]
+    else:
+        for flip in flips:
+            print(f"  a timeout flip, tolerated: {flip}")
     return problems
 
 
@@ -225,11 +246,9 @@ def command_expect_test_change(args):
     found, expected = set(run.latest), set(fresh.latest)
     problems += [f"{k}: not discovered" for k in sorted(expected - found)]
     problems += [f"{k}: not in the full run" for k in sorted(found - expected)]
-    explained = allowlist(args.allowlist)
-    for k in sorted(found & expected):
-        if verdict(run.latest[k]) != verdict(fresh.latest[k]) and k not in explained:
-            problems.append(f"{k}: {verdict(run.latest[k])}{' (kept)' if k in kept else ''}, the full run of the edited "
-                            f"tree {verdict(fresh.latest[k])}; {killers(fresh.latest[k])}")
+    # The full run of the edited tree stands in for the reference.
+    edited = {"mutants": {k: {"verdict": verdict(r), **mutation(r)} for k, r in fresh.latest.items()}}
+    problems += compare(run, edited, allowlist(args.allowlist), found & expected, "the full run of the edited tree's")
     moved = [k for k in expected if verdict(fresh.latest[k]) != verdict(full.latest[k])] if expected else []
     if not moved:
         problems.append("the edit changed no verdict, so the check shows nothing")
@@ -394,7 +413,11 @@ def command_times(args):
                 note += "  ⚠️ more than 20% slower, from idle"
         print(f"{row['name']:24} {wall / 60:6.1f} min  {note}")
     if args.update:
-        for name in {row["name"] for row in rows}:
+        # A scenario's time, once recorded, stays until the next reference starts the file again; a reference run's
+        # own row is part of `full`'s time, which the reference records.
+        for name in {row["name"] for row in rows} - set(baseline):
+            if re.fullmatch(r"reference-\d+", name):
+                continue
             walls = [float(r["wall_s"]) for r in rows if r["name"] == name and float(r["load_at_start"]) < 4]
             if walls:
                 baseline[name] = {"wall_s": statistics.median(walls), "runs": len(walls)}

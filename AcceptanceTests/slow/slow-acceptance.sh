@@ -10,7 +10,10 @@
 # Everything happens in the work folder (by default ~/Library/Caches/SwiftMutatorSlowTier/<time>): a fresh clone of
 # the target, the configurations, the runs' logs and reports. Exits 1 if a check fails, 2 if the setup does.
 set -u -o pipefail
-set -m # Each background run gets a process group of its own, which keeps SIGINT's default action: see `run_stopped`.
+set -m # Each background run gets a process group of its own, which keeps SIGINT's default action: see `stop_when`.
+# Awake from start to end, the waits between runs included: once the Mac sleeps, a run goes on only in short dark
+# wakes, and its tests time out on the time spent asleep.
+if [ -z "${SLOW_TIER_AWAKE:-}" ]; then SLOW_TIER_AWAKE=1 exec caffeinate -i -s "$0" "$@"; fi
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(cd "$HERE/../.." && pwd)
@@ -322,6 +325,7 @@ reference() {
   verdicts reference "${runs[@]}" --pin "$PIN" --resolved-sha256 "$(shasum -a 256 "$RESOLVED" | cut -d' ' -f1)" \
     --allowlist "$ALLOWLIST" --out "$REFERENCE" || exit 1
   awk 'NR == 1 || /^reference-/' "$RUNS" | sed 's/^reference-[0-9]*/full/' > "$WORK/full-runs.tsv"
+  rm -f "$TIMES" # a new reference, so every scenario's time is recorded again
   verdicts times "$WORK/full-runs.tsv" --baseline "$TIMES" --update
   say "a test file to disable for reuse-testchange: $(cd "$CLONE" && verdicts pick-test-change "${runs[0]}" \
     $(git ls-files 'Tests/*Tests.swift'))"

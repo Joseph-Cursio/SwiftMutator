@@ -87,6 +87,18 @@ class VerdictsTests(unittest.TestCase):
         self.assertEqual(verdicts.load_json(out)["mutants"]["Sources/A.swift:1:5:RelationalOperatorReplacement:0"]["verdict"],
                          "killed")
 
+    # A minority of timeouts is the target's tests hanging now and then: the majority's verdict stands. A tie doesn't.
+    def test_theReference_keepsTheMajority_overAMinorityOfTimeouts(self):
+        hung = self.write("c.jsonl", header(), mutant(1, "timeout"), mutant(2, "passed"), mutant(3, "timeout"), end())
+        code, output, out = self.reference(self.full("a.jsonl"), self.full("b.jsonl"), hung)
+        self.assertEqual(code, 0, output)
+        self.assertIn("timeouts only", output)
+        self.assertEqual(verdicts.load_json(out)["mutants"]["Sources/A.swift:1:5:RelationalOperatorReplacement:0"]["verdict"],
+                         "killed")
+        code, output, _ = self.reference(self.full("a.jsonl"), hung)
+        self.assertEqual(code, 1, output)
+        self.assertIn("disagree", output)
+
     # Discovery is deterministic on a pinned tree: another mutation at the same place isn't a flaky verdict.
     def test_theReference_refusesRunsWithDifferentMutations(self):
         other = self.write("b.jsonl", header(), mutant(1, after=">="), mutant(2, "passed"), mutant(3, "timeout"), end())
@@ -107,6 +119,19 @@ class VerdictsTests(unittest.TestCase):
             code, output = self.run_command("check", path, "--reference", reference)
             self.assertEqual(code, 1, expected)
             self.assertIn(expected, output)
+
+    # A few verdicts that differ from the reference's by a timeout alone are reported; more than MAX_TIMEOUT_FLIPS fail.
+    def test_check_toleratesAFewTimeoutFlips_butNotMore(self):
+        many = [mutant(line, "passed") for line in range(1, verdicts.MAX_TIMEOUT_FLIPS + 3)]
+        _, _, reference = self.reference(self.write("f.jsonl", header(), *many, end()))
+        few = [mutant(line, "timeout" if line <= verdicts.MAX_TIMEOUT_FLIPS else "passed") for line in range(1, len(many) + 1)]
+        code, output = self.run_command("check", self.write("few.jsonl", header(), *few, end()), "--reference", reference)
+        self.assertEqual(code, 0, output)
+        self.assertIn("a timeout flip, tolerated", output)
+        too_many = [mutant(line, "timeout") for line in range(1, len(many) + 1)]
+        code, output = self.run_command("check", self.write("many.jsonl", header(), *too_many, end()), "--reference", reference)
+        self.assertEqual(code, 1, output)
+        self.assertIn("timeout flips, more than", output)
 
     # A reuse with nothing changed keeps all but timeouts, build errors and repeated places.
     def test_expectReuse_keepsWhatResumePlanKeeps(self):
@@ -138,6 +163,12 @@ class VerdictsTests(unittest.TestCase):
                           mutant(3, "passed"), end())
         args = ["--test-file", "Tests/X/ATests.swift"]
         self.assertEqual(self.run_command("expect-test-change", full, good, fresh, *args)[0], 0)
+        # A timeout against the edited tree's survivor is a timeout flip, as against the reference.
+        hung = self.write("hung.jsonl", header(reused=1), mutant(1, "passed"), mutant(2, killed_by=other, **kept),
+                          mutant(3, "timeout"), end())
+        code, output = self.run_command("expect-test-change", full, hung, fresh, *args)
+        self.assertEqual(code, 0, output)
+        self.assertIn("a timeout flip, tolerated", output)
         bad = self.write("bad.jsonl", header(reused=2), mutant(1, killed_by=only, **kept),
                          mutant(2, killed_by=other, **kept), mutant(3, "passed"), end())
         code, output = self.run_command("expect-test-change", full, bad, fresh, *args)
@@ -186,6 +217,11 @@ class VerdictsTests(unittest.TestCase):
         times = os.path.join(self.folder, "times.json")
         self.assertEqual(self.run_command("times", runs, "--baseline", times, "--update")[0], 0)
         self.assertEqual(verdicts.load_json(times), {"full": {"runs": 2, "wall_s": 200}})
+        # A suite's update adds the scenarios not yet timed, keeps full's time, and isn't misled by reference rows.
+        with open(runs, "a") as file:
+            file.write("release\t50\t1\n" "full\t999\t1\n" "reference-1\t5\t1\n")
+        self.assertEqual(self.run_command("times", runs, "--baseline", times, "--update")[0], 0)
+        self.assertEqual(verdicts.load_json(times), {"full": {"runs": 2, "wall_s": 200}, "release": {"runs": 1, "wall_s": 50}})
 
     def test_excludes_matchAsSwiftMutatorDoes(self):
         excludes = verdicts.DEFAULT_EXCLUDES + ["**/BuiltInRules.swift"]
