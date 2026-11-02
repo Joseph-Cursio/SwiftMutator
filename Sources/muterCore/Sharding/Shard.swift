@@ -8,7 +8,7 @@ import Foundation
 /// `--shard k/n`: the kth of n shards the discovered mutants are split into, so that n runs, on as many machines, test
 /// every mutant once between them. A mutant's shard follows from its place alone, its key without the occurrence
 /// (`MutantKey`): the same on every machine, whatever else each one discovers, with no plan to pass around.
-struct Shard: Equatable, Sendable, CustomStringConvertible {
+struct Shard: Hashable, Sendable, CustomStringConvertible {
     /// From 1 to `count`.
     let index: Int
     let count: Int
@@ -91,6 +91,13 @@ struct ShardSelection: Codable, Equatable, Sendable {
 
     var shard: Shard {
         Shard(index: index, count: count)
+    }
+
+    /// What a report of this shard's results alone covers: this shard, unless no other shard holds a mutant, when its
+    /// results are the whole run's. The run's own report and `report` of its file both say so.
+    var scopeAlone: ShardScope? {
+        let othersAreEmpty = mutantsPerShard.indices.allSatisfy { $0 == index - 1 || mutantsPerShard[$0] == 0 }
+        return othersAreEmpty ? nil : ShardScope(self)
     }
 }
 

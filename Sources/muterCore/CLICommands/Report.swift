@@ -1,30 +1,57 @@
 import ArgumentParser
 import Foundation
 
-/// `swift-mutator report`: a run's report in any format, made from its results file. A plain command, not a
-/// `RunCommand`: it mutates nothing, so it prints no banner, makes no log folder, and handles no signals.
+/// `swift-mutator report`: a run's report in any format, made from its results file, or from its shards' results files
+/// merged. A plain command, not a `RunCommand`: it mutates nothing, so it prints no banner, makes no log folder, and
+/// handles no signals.
 struct Report: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "report",
-        abstract: "Builds a report from a run's results file."
+        abstract: "Builds a report from a run's results file, or from its shards' results files merged."
     )
 
-    @Argument(help: "A run's results file, or the run's log folder in <project>_muter_logs that holds it.")
-    var results: URL
+    @Argument(
+        help: ArgumentHelp(
+            "A run's results file, or the run's log folder in <project>_muter_logs that holds it. "
+                + "Several, one for each shard of a run --shard split, are merged into one report.",
+            valueName: "results"
+        )
+    )
+    var results: [URL]
 
     @OptionGroup var reportOptions: ReportArguments
+
+    @Flag(
+        name: .customLong("force-merge"),
+        help: ArgumentHelp(
+            "Merge shards' results although their SwiftMutator build, toolchain or SDK differ. "
+                + "With one file, it does nothing."
+        )
+    )
+    var forceMerge = false
+
+    @Option(
+        name: .customLong("merge-ignoring"),
+        help: ArgumentHelp(
+            "Merge shards' results although project files matching this glob differ between them; * also matches /. "
+                + "Repeatable. With one file, it does nothing.",
+            valueName: "glob"
+        )
+    )
+    var mergeIgnoring: [String] = []
 
     init() {}
 
     /// The status `report` exits with, once the report is made, for a run that stopped on an error: the one the run
     /// itself exited with (`RunCommand.run(with:)`), so a script that checks the report fails as one that checked the
-    /// run would. A run that finished, was interrupted, or has no end line yet exits 0.
+    /// run would. A run that finished, was interrupted, or has no end line yet exits 0. Shards' files exit with it when
+    /// the report is known to lack results (`MergedShards.lacksResults`).
     static let stoppedOnAnError = ExitCode(-1)
 
     func run() async throws {
-        let recorded = try ResultsReport(format: reportOptions.reportFormat, outputPath: reportOptions.reportURL?.path)
-            .make(from: results.path)
-        if recorded.stoppedOnAnError {
+        let stopped = try ResultsReport(format: reportOptions.reportFormat, outputPath: reportOptions.reportURL?.path)
+            .make(from: results.map(\.path), forcing: forceMerge, ignoring: mergeIgnoring)
+        if stopped {
             throw Self.stoppedOnAnError
         }
     }

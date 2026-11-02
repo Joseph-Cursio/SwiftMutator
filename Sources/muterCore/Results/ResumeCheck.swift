@@ -12,7 +12,7 @@ enum ResumeCheck {
     ]
 
     /// What the resuming run would record in its header, of what a resume compares.
-    struct Current {
+    struct Current: Equatable {
         /// As loaded, as a header records it.
         let configuration: MuterConfiguration
         /// By name.
@@ -33,6 +33,17 @@ enum ResumeCheck {
         let name: String
         let was: String?
         let isNow: String?
+    }
+
+    /// What a recorded session is compared with the current one for, which decides what is compared.
+    enum Purpose {
+        /// `--resume`: everything.
+        case resume
+        /// `--reuse`: neither what `--since` chose nor the shard. A result holds whichever other mutants are tested,
+        /// and a reuse keeps only those of the mutants it discovers.
+        case reuse
+        /// Merging a split's shards (`report`): everything but the shard, in which shards differ.
+        case merge
     }
 
     struct Verdict: Equatable {
@@ -97,10 +108,13 @@ enum ResumeCheck {
     /// the baseline and the timed test run. Only the build and toolchain differences are ever `forced`.
     ///
     /// A resume compares what `--since` compares the working tree with too: the merge base, and `--changed-lines`; and
-    /// the shard. A `reusing` run compares neither: a result holds whichever other mutants are tested, and it keeps
-    /// only those of the mutants it discovers.
-    static func compare(_ recorded: ResultsHeader, with current: Current, forcing: Bool, reusing: Bool = false)
-        -> Verdict {
+    /// the shard. What `purpose` leaves out isn't compared.
+    static func compare(
+        _ recorded: ResultsHeader,
+        with current: Current,
+        forcing: Bool,
+        for purpose: Purpose = .resume
+    ) -> Verdict {
         var verdict = Verdict()
         for difference in configurationDifferences(recorded.configuration, current.configuration) {
             if keysThatDontAffectOutcomes.contains(difference.name) {
@@ -112,11 +126,11 @@ enum ResumeCheck {
             }
         }
         verdict.refusals += selectionDifferences(recorded, current).map(ResumeRefusal.selectionChanged)
-        if !reusing {
+        if purpose != .reuse {
             verdict.refusals += sinceDifferences(recorded.since, current.since).map(ResumeRefusal.selectionChanged)
-            if let shard = shardDifference(recorded.shard, current.shard) {
-                verdict.refusals.append(.selectionChanged(shard))
-            }
+        }
+        if purpose == .resume, let shard = shardDifference(recorded.shard, current.shard) {
+            verdict.refusals.append(.selectionChanged(shard))
         }
         if recorded.usingTestPlan || current.usingTestPlan {
             verdict.refusals.append(.testPlanRun)
@@ -330,6 +344,22 @@ extension ResumeCheck.Current {
             provenance: provenance,
             since: state.changeSelection,
             shard: state.runOptions.shard
+        )
+    }
+}
+
+extension ResumeCheck.Current {
+    /// What `header`'s session recorded, of what a resume compares: the shard the others are merged with.
+    init(header: ResultsHeader) {
+        self.init(
+            configuration: header.configuration,
+            operators: header.operators,
+            filesToMutate: header.filesToMutate,
+            skipCoverage: header.skipCoverage,
+            usingTestPlan: header.usingTestPlan,
+            provenance: header.provenance,
+            since: header.since,
+            shard: header.shard?.shard
         )
     }
 }

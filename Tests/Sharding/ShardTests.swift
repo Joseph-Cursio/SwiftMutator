@@ -140,6 +140,15 @@ final class ShardTests: XCTestCase {
         XCTAssertEqual(second.mutantsPerShard, [5, 1])
     }
 
+    // A shard's own report, and `report` of its file alone, cover the whole run when no other shard holds a mutant.
+    func test_aShardAlone_coversTheWholeRun_onlyIfTheOthersAreEmpty() {
+        let first = ShardSelection.make(index: 1, count: 3, mutantsInAllShards: 5, mutantsPerShard: [4, 1, 0])
+        let only = ShardSelection.make(index: 2, count: 3, mutantsInAllShards: 5, mutantsPerShard: [0, 5, 0])
+
+        XCTAssertEqual(first.scopeAlone, ShardScope(indices: [1], count: 3, mutantsInAllShards: 5))
+        XCTAssertNil(only.scopeAlone)
+    }
+
     func test_aKeysLine_separatesItsFields() {
         XCTAssertEqual(
             ShardSelection.keyLine(key("Sources/Sum.swift", line: 3, column: 5, occurrence: 1)),

@@ -547,15 +547,15 @@ final class ResumeCheckTests: XCTestCase {
         let moved = ChangeSelection.make(mergeBase: "fee1000000000000000000000000000000000000")
 
         XCTAssertEqual(
-            check(current(), recorded: header(of: current(since: Self.selected)), reusing: true).refusals,
+            check(current(), recorded: header(of: current(since: Self.selected)), for: .reuse).refusals,
             []
         )
         XCTAssertEqual(
-            check(current(since: Self.selected), recorded: header(of: current()), reusing: true).refusals,
+            check(current(since: Self.selected), recorded: header(of: current()), for: .reuse).refusals,
             []
         )
         XCTAssertEqual(
-            check(current(since: moved), recorded: header(of: current(since: Self.selected)), reusing: true).refusals,
+            check(current(since: moved), recorded: header(of: current(since: Self.selected)), for: .reuse).refusals,
             []
         )
     }
@@ -594,17 +594,30 @@ final class ResumeCheckTests: XCTestCase {
         )
     }
 
+    // Shards differ in their shard by definition, and in nothing else a resume compares.
+    func test_aMerge_comparesWhatAResumeDoes_butTheShard() {
+        let first = header(of: current(shard: Shard(index: 1, count: 2)))
+        let moved = ChangeSelection.make(mergeBase: "fee1000000000000000000000000000000000000")
+
+        XCTAssertEqual(check(current(shard: Shard(index: 2, count: 2)), recorded: first, for: .merge).refusals, [])
+        XCTAssertEqual(
+            check(current(operators: ["SwapTernary"], since: moved), recorded: first, for: .merge).refusals.count,
+            2
+        )
+        XCTAssertEqual(ResumeCheck.Current(header: first), current(shard: Shard(index: 1, count: 2)))
+    }
+
     // A reuse keeps a result only for a mutant this shard holds, which holds whatever else is tested.
     func test_aReuse_doesntCompareTheShard_eitherWay() {
         let first = Shard(index: 1, count: 2)
 
-        XCTAssertEqual(check(current(shard: first), reusing: true).refusals, [])
-        XCTAssertEqual(check(current(), recorded: header(of: current(shard: first)), reusing: true).refusals, [])
+        XCTAssertEqual(check(current(shard: first), for: .reuse).refusals, [])
+        XCTAssertEqual(check(current(), recorded: header(of: current(shard: first)), for: .reuse).refusals, [])
         XCTAssertEqual(
             check(
                 current(shard: Shard(index: 2, count: 3)),
                 recorded: header(of: current(shard: first)),
-                reusing: true
+                for: .reuse
             ).refusals,
             []
         )
@@ -655,9 +668,9 @@ final class ResumeCheckTests: XCTestCase {
         _ current: ResumeCheck.Current,
         recorded: ResultsHeader? = nil,
         forcing: Bool = false,
-        reusing: Bool = false
+        for purpose: ResumeCheck.Purpose = .resume
     ) -> ResumeCheck.Verdict {
-        ResumeCheck.compare(recorded ?? header(of: self.current()), with: current, forcing: forcing, reusing: reusing)
+        ResumeCheck.compare(recorded ?? header(of: self.current()), with: current, forcing: forcing, for: purpose)
     }
 
     private func provenance(
