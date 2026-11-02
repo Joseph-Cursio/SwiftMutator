@@ -82,7 +82,8 @@ let package = Package(
             path: "AcceptanceTests",
             exclude: [
                 "__Snapshots__",
-                "runAcceptanceTests.sh"
+                "runAcceptanceTests.sh",
+                "slow"
             ]
         ),
         .testTarget(
