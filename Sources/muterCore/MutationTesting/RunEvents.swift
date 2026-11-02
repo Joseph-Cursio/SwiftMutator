@@ -62,9 +62,13 @@ enum RunEvent {
 
 /// Delivers each of a run's events to whatever observes them, in the order they were added, at once and on the thread
 /// that sends the event. So an event has been handled when `send` returns, which the run relies on: the report is
-/// written before SwiftMutator exits, and a test's log is in the log folder before its file is removed.
+/// written before SwiftMutator exits, and a test's log is in the log folder before its file is removed. Events go out
+/// one at a time, whichever threads send them, so observers such as `Logger` need no lock of their own.
 final class RunEvents: @unchecked Sendable { // `observers` and `nextObserver` are behind `lock`
     private let lock = NSLock()
+    /// Held while an event is handed out, so that another thread's event waits for it. Recursive, so that an observer
+    /// may send an event of its own.
+    private let delivering = NSRecursiveLock()
     private var observers: [(key: Int, observe: (RunEvent) -> Void)] = []
     private var nextObserver = 0
 
@@ -78,11 +82,14 @@ final class RunEvents: @unchecked Sendable { // `observers` and `nextObserver` a
         return Subscription { [weak self] in self?.stopObserving(key) }
     }
 
-    /// Hands `event` to each observer in turn. No lock is held meanwhile, so an observer may send an event of its own.
+    /// Hands `event` to each observer in turn, once no other thread is handing one out. `lock` isn't held meanwhile, so
+    /// an observer may stop observing.
     func send(_ event: RunEvent) {
-        let observing = lock.withLock { observers.map(\.observe) }
-        for observe in observing {
-            observe(event)
+        delivering.withLock {
+            let observing = lock.withLock { observers.map(\.observe) }
+            for observe in observing {
+                observe(event)
+            }
         }
     }
 
