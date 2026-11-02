@@ -66,7 +66,7 @@ The header's `project` lists five files here. A real one lists every file in the
 | `workers` | Int | How many mutants were tested at once: `mutationTestWorkers`, but never more than the mutants to test, so 0 in a resumed session, or one that `--reuse` started, with nothing left to test |
 | `stopsAtFirstFailure` | Bool | Whether a mutant's test run stopped at its first failed test |
 | `failedTestLinesAreReliable` | Bool | False when the passing baseline printed a line that looks like a failed test or a crash. Such lines then don't show that a mutant was killed, so no mutant line has `killedBy`. |
-| `mutantsDiscovered` | Int | How many mutants the run found |
+| `mutantsDiscovered` | Int | How many mutants the run found. With `--shard`, how many of them the shard holds; `shard` gives the count in every shard. |
 | `mutantsToTest` | Int | How many of them it set out to test: all of them in a run's first session, and fewer in a resumed one, or one that `--reuse` starts, which test only those without an earlier result that still holds. It is written before any mutant is tested, so it says nothing about how many were: that is the number of `mutant` lines without `reusedFrom`, or the end line's `recorded` less `mutantsReused` in a session that `--reuse` starts. |
 | `project` | Object | Your project's files, each one's SHA-256, as SwiftMutator copied them, before it prepared any for mutation. See [below](#project). Left out by `run-without-mutating`, which copies nothing. |
 | `mutantsReused` | Int | Only in a resumed session: how many earlier sessions' results it kept rather than tested again. In a session that `--reuse` starts, how many of the earlier run's results it kept. |
@@ -74,6 +74,7 @@ The header's `project` lists five files here. A real one lists every file in the
 | `testBundlesRunDirectly` | Bool | Only when the session's mutants ran their test bundles directly, with `swiftpm-testing-helper`, rather than through `swift test`: `true` |
 | `reusedFrom` | String | Only in a session that `--reuse` starts: the earlier run's results file |
 | `since` | Object | Only in a session run with `--since`: what it chose, below |
+| `shard` | Object | Only in a session run with `--shard`: which shard it tested, and what discovery found in every shard, below |
 | `forced` | [String] | Only in a resumed session, or one that `--reuse` starts: the `provenance` values that changed since the last session and that `--force-resume` or `--force-reuse` let through, by name (`swiftMutator.executableSHA256`, `toolchain.testCommandVersion`, `toolchain.testExecutableSHA256` or `toolchain.environment`), or `[]` |
 
 #### Provenance
@@ -122,6 +123,22 @@ What `--since` chose, as it compared the working tree with the merge base before
 | `foldersNotCompared` | [String] | Only when there are some: the folders in the project that are repositories of their own, submodules or not, whose changes git doesn't compare here, so none of their files was chosen |
 
 A resume compares `mergeBase` and `changedLines`, and whether either session has a `since` at all. The files and lines follow from the working tree: a file changed since is compared as any project file is.
+
+#### `shard`
+
+Which shard `--shard k/n` tested, and what discovery found in every shard:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `index` | Int | k, from 1 to `count` |
+| `count` | Int | n |
+| `mutantsInAllShards` | Int | How many mutants discovery found in every shard together. The header's `mutantsDiscovered` and `mutantsToTest` count only this shard's. |
+| `mutantsPerShard` | [Int] | How many of them each shard holds, shard 1's first. A shard with none writes no results file, so this tells it from a shard whose file is missing. |
+| `allKeysSHA256` | String | SHA-256 over a line for each of those mutants' keys: its `path`, `mutationOperatorId`, `line`, `column` and `occurrence`, each followed by a NUL, then a line break. The lines are sorted by their UTF-8 bytes. Shards whose discoveries found the same mutants have the same. |
+
+A mutant's shard follows from its place alone, its key without `occurrence`. SHA-256 is taken over its `path`, `mutationOperatorId`, `line` and `column`, each followed by a NUL. The first 8 bytes are read as a big-endian number, which is taken modulo `count`, plus 1. So every repeat of one place and operator is in one shard, and a shard's keys are the ones a whole run gives the same mutants. Discovery filters the mutants: a shard's mutated copy holds only its own mutants' switches.
+
+A resume compares `index` and `count`, and whether either session has a `shard` at all. `--reuse` compares neither: it keeps the earlier run's results for the mutants this shard holds. `--shard 1/1` is the whole run, and records no `shard`.
 
 ### `mutant`
 

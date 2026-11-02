@@ -15,6 +15,10 @@ OPTIONS:
                           excludes and the coverage filter still apply.
   --changed-lines         With --since, only mutate code on the lines the
                           change added or changed.
+  --shard <k/n>           Only test shard k of n, such as 1/2: n runs, on as
+                          many machines, test each mutant once between them. A
+                          mutant's shard follows from where it is.
+                          swift-mutator report merges their results files.
   -c, --configuration <configuration>
                           The path to the configuration file.
   --skip-coverage         Skips the step in which SwiftMutator runs your

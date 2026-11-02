@@ -82,7 +82,8 @@ extension RecordedResults {
             coverageSkipped: header.skipCoverage,
             testDuration: testDuration,
             newVersion: header.newVersion,
-            since: header.since
+            since: header.since,
+            shard: header.shard
         )
     }
 }

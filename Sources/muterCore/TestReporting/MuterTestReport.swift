@@ -15,6 +15,8 @@ struct MuterTestReport {
     let killingTestSummary: KillingTestSummary?
     /// What `--since` chose, when it did; left out of the JSON otherwise.
     let since: SinceScope?
+    /// The shard `--shard` tested, when it did; left out of the JSON otherwise.
+    let shard: ShardScope?
 
     init(from outcome: MutationTestOutcome = .init()) {
         let summary = KillingTestSummary(of: outcome.mutations)
@@ -27,6 +29,7 @@ struct MuterTestReport {
         fileReports = MuterTestReport.fileReports(from: outcome, suspects: summary?.suspectIdentities ?? [])
         timeElapsed = outcome.testDuration.formatted()
         since = outcome.since.map(SinceScope.init)
+        shard = outcome.shard.map(ShardScope.init)
     }
 }
 
@@ -46,6 +49,26 @@ struct SinceScope: Codable, Equatable {
     var sentence: String {
         "Only the \(changedLines ? "lines" : "files") changed since the merge base of \(ref) and HEAD "
             + "(\(mergeBase.prefix(7))) were mutated."
+    }
+}
+
+/// The shard a `--shard` run tested, as its reports say.
+struct ShardScope: Codable, Equatable {
+    let index: Int
+    let count: Int
+    /// How many mutants were discovered in every shard together.
+    let mutantsInAllShards: Int
+
+    init(_ selection: ShardSelection) {
+        index = selection.index
+        count = selection.count
+        mutantsInAllShards = selection.mutantsInAllShards
+    }
+
+    /// "Only the mutants in shard 1 of 2 were tested, of 2463 discovered in every shard."
+    var sentence: String {
+        "Only the mutants in shard \(index) of \(count) were tested, of \(mutantsInAllShards) discovered "
+            + "in every shard."
     }
 }
 
@@ -250,5 +273,6 @@ extension MuterTestReport: Codable {
         case timeElapsed
         case killingTestSummary
         case since
+        case shard
     }
 }

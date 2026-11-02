@@ -172,8 +172,13 @@ final class Logger: @unchecked Sendable {
         printMessage("🔎 Analyzing source files to find mutants which can be inserted into your project...")
     }
 
-    /// How many mutants there are, in how many files, and with `verbose`, how many each file has.
-    func mutationsDiscoveryFinished(mutations: [SchemataMutationMapping], verbose: Bool = false) {
+    /// How many mutants there are, in how many files, and with `verbose`, how many each file has. With `--shard`,
+    /// `mutations` are the shard's, and how many there are in every shard is said first.
+    func mutationsDiscoveryFinished(
+        mutations: [SchemataMutationMapping],
+        verbose: Bool = false,
+        shard: ShardSelection? = nil
+    ) {
         let numberOfFiles = mutations.count
         var filesSummary: [String: Int] = [:]
 
@@ -182,8 +187,12 @@ final class Logger: @unchecked Sendable {
             filesSummary[mutation.fileName, default: 0] += mutation.mutationSchemata.count
         }
 
-        let discovered = "✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants "
-            + "in \(numberOfFiles) files"
+        let discovered = if let shard {
+            "✅ In total, SwiftMutator discovered \(shard.mutantsInAllShards) mutants, and shard \(shard.index) of "
+                + "\(shard.count) holds \(numberOfMutationPoints) of them, in \(numberOfFiles) files"
+        } else {
+            "✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants in \(numberOfFiles) files"
+        }
         guard verbose else {
             print(discovered)
             return

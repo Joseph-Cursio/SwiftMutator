@@ -560,6 +560,56 @@ final class ResumeCheckTests: XCTestCase {
         )
     }
 
+    // MARK: - --shard
+
+    func test_theSameShard_resumes() {
+        let shard = Shard(index: 1, count: 2)
+
+        XCTAssertEqual(check(current(shard: shard), recorded: header(of: current(shard: shard))), ResumeCheck.Verdict())
+    }
+
+    func test_anotherShard_orAShardGivenOnOneSideOnly_refuses() {
+        let first = Shard(index: 1, count: 2)
+
+        let difference = ResumeCheck.Difference(name: "shard", was: #""1/2""#, isNow: #""2/2""#)
+        XCTAssertEqual(
+            check(current(shard: Shard(index: 2, count: 2)), recorded: header(of: current(shard: first))).refusals,
+            [.selectionChanged(difference)]
+        )
+        XCTAssertEqual(
+            "\(ResumeRefusal.selectionChanged(difference))",
+            #"shard was "1/2" and is "2/2" now. A change to which mutants are tested needs a new run."#
+        )
+        XCTAssertEqual(
+            check(current(shard: Shard(index: 1, count: 3)), recorded: header(of: current(shard: first))).refusals,
+            [.selectionChanged(.init(name: "shard", was: #""1/2""#, isNow: #""1/3""#))]
+        )
+        XCTAssertEqual(
+            check(current(), recorded: header(of: current(shard: first))).refusals,
+            [.selectionChanged(.init(name: "shard", was: #""1/2""#, isNow: nil))]
+        )
+        XCTAssertEqual(
+            check(current(shard: first)).refusals,
+            [.selectionChanged(.init(name: "shard", was: nil, isNow: #""1/2""#))]
+        )
+    }
+
+    // A reuse keeps a result only for a mutant this shard holds, which holds whatever else is tested.
+    func test_aReuse_doesntCompareTheShard_eitherWay() {
+        let first = Shard(index: 1, count: 2)
+
+        XCTAssertEqual(check(current(shard: first), reusing: true).refusals, [])
+        XCTAssertEqual(check(current(), recorded: header(of: current(shard: first)), reusing: true).refusals, [])
+        XCTAssertEqual(
+            check(
+                current(shard: Shard(index: 2, count: 3)),
+                recorded: header(of: current(shard: first)),
+                reusing: true
+            ).refusals,
+            []
+        )
+    }
+
     private func current(
         configuration: MuterConfiguration? = nil,
         operators: [String] = ["RelationalOperatorReplacement"],
@@ -567,7 +617,8 @@ final class ResumeCheckTests: XCTestCase {
         skipCoverage: Bool = true,
         usingTestPlan: Bool = false,
         provenance: Provenance = .fixture,
-        since: ChangeSelection? = nil
+        since: ChangeSelection? = nil,
+        shard: Shard? = nil
     ) -> ResumeCheck.Current {
         ResumeCheck.Current(
             configuration: configuration ?? swift,
@@ -576,7 +627,8 @@ final class ResumeCheckTests: XCTestCase {
             skipCoverage: skipCoverage,
             usingTestPlan: usingTestPlan,
             provenance: provenance,
-            since: since
+            since: since,
+            shard: shard
         )
     }
 
@@ -593,7 +645,8 @@ final class ResumeCheckTests: XCTestCase {
             filesToMutate: current.filesToMutate,
             skipCoverage: current.skipCoverage,
             usingTestPlan: current.usingTestPlan,
-            since: current.since
+            since: current.since,
+            shard: current.shard.map { ShardSelection.make(index: $0.index, count: $0.count) }
         )
     }
 

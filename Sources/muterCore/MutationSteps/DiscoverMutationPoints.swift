@@ -34,11 +34,21 @@ struct DiscoverMutationPoints: MutationStep {
             throw MuterError.noMutationPointsDiscovered
         }
 
-        let mappings = discovered.mergeByFilePath()
+        var mappings = discovered.mergeByFilePath()
+        var shardSelected: [MutationTestState.Change] = []
+        if let shard = state.runOptions.shard {
+            let (kept, selection) = mappings.keepingOnly(shard, under: state.mutatedProjectDirectoryURL)
+            guard !kept.isEmpty else {
+                throw EmptyShard(shard: shard, mutantsInAllShards: selection.mutantsInAllShards)
+            }
+            mappings = kept
+            shardSelected = [.shardSelected(selection)]
+            events.send(.shardSelected(selection, mutations: mappings))
+        } else {
+            events.send(.mutationsDiscoveryFinished(mappings))
+        }
 
-        events.send(.mutationsDiscoveryFinished(mappings))
-
-        return [
+        return shardSelected + [
             .mutationMappingsDiscovered(mappings),
             // Pass empty dictionary - ApplySchemata will re-parse files on demand
             // This prevents memory exhaustion on large codebases (2000+ files)

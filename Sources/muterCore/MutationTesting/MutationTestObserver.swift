@@ -84,6 +84,8 @@ extension MutationTestObserver {
             logger.mutationsDiscoveryStarted()
         case let .mutationsDiscoveryFinished(mappings):
             logger.mutationsDiscoveryFinished(mutations: mappings, verbose: runOptions.verbose)
+        case let .shardSelected(selection, mappings):
+            logger.mutationsDiscoveryFinished(mutations: mappings, verbose: runOptions.verbose, shard: selection)
 
         case let .resumePlanned(summary):
             logger.resumePlanned(summary)

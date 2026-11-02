@@ -155,6 +155,9 @@ struct ResultsHeader: Codable, Equatable {
     var reusedFrom: String?
     /// Only in a session run with `--since`: the files, and with `--changed-lines` the lines, it chose.
     var since: ChangeSelection?
+    /// Only in a session run with `--shard`: which shard it tested, and what discovery found in every shard.
+    /// `mutantsDiscovered` and `mutantsToTest` count this shard's mutants.
+    var shard: ShardSelection?
 }
 
 extension ResultsHeader {
@@ -210,7 +213,8 @@ extension ResultsHeader {
             forced: forced,
             testBundlesRunDirectly: configuration.directTestRun == nil ? nil : true,
             reusedFrom: reusedFrom,
-            since: state.changeSelection
+            since: state.changeSelection,
+            shard: state.shardSelection
         )
     }
 }
