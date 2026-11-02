@@ -83,7 +83,7 @@ extension RecordedResults {
             testDuration: testDuration,
             newVersion: header.newVersion,
             since: header.since,
-            shard: header.shard
+            shards: header.shard.map(ShardScope.init)
         )
     }
 }

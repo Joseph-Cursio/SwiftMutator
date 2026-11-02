@@ -13,12 +13,16 @@ struct Shard: Equatable, Sendable, CustomStringConvertible {
     let index: Int
     let count: Int
 
+    /// The most shards a run can be split into: far more machines than a split is worth, and few enough that every
+    /// header's count of each shard's mutants (`ShardSelection.mutantsPerShard`) stays short.
+    static let largestCount = 1000
+
     init(index: Int, count: Int) {
         self.index = index
         self.count = count
     }
 
-    /// `k/n`, two whole numbers with 1 ≤ k ≤ n; nil for anything else.
+    /// `k/n`, two whole numbers with 1 ≤ k ≤ n ≤ `largestCount`; nil for anything else.
     init?(_ text: String) {
         let parts = text.split(separator: "/", omittingEmptySubsequences: false)
         guard parts.count == 2,
@@ -26,7 +30,8 @@ struct Shard: Equatable, Sendable, CustomStringConvertible {
               let index = Int(parts[0]),
               let count = Int(parts[1]),
               index >= 1,
-              index <= count
+              index <= count,
+              count <= Self.largestCount
         else { return nil }
         self.init(index: index, count: count)
     }
@@ -34,6 +39,17 @@ struct Shard: Equatable, Sendable, CustomStringConvertible {
     /// "1/2", as `--shard` takes it.
     var description: String {
         "\(index)/\(count)"
+    }
+
+    /// Whether this shard and `other` can hold a mutant in common: whether some number leaves this shard's remainder
+    /// divided by its count, and `other`'s divided by its, which is when the two remainders are the same modulo the
+    /// counts' greatest common divisor. Two shards of one split never can.
+    func overlaps(_ other: Shard) -> Bool {
+        var (larger, smaller) = (max(count, other.count), min(count, other.count))
+        while smaller > 0 {
+            (larger, smaller) = (smaller, larger % smaller)
+        }
+        return (index - 1) % larger == (other.index - 1) % larger
     }
 
     /// Whether this shard holds the mutant whose key is `key`.

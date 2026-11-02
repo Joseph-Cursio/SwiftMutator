@@ -354,7 +354,7 @@ final class Logger: @unchecked Sendable {
     }
 
     /// "a, b and c".
-    private static func listed(_ items: [String]) -> String {
+    static func listed(_ items: [String]) -> String {
         guard let last = items.last, items.count > 1 else { return items.first ?? "" }
         return items.dropLast().joined(separator: ", ") + " and " + last
     }

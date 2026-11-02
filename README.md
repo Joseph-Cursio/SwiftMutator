@@ -295,7 +295,8 @@ swift-mutator run --shard 1/2
   the Continue line keeps it. `--reuse` keeps the earlier run's results for this shard's mutants,
   whichever shard, or whole run, that was.
 - **The reports say so.** The plain and HTML reports say which shard was tested, of how many
-  mutants in all, and the JSON report gives it as `shard`.
+  mutants in all, and the JSON report gives it as `shards`.
+- **At most 1000 shards.** Each header counts every shard's mutants, so it stays short.
 
 ## Results file
 

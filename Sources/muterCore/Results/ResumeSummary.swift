@@ -111,6 +111,9 @@ extension ResumeSummary {
         case let (earlier?, nil):
             return "That run tested only shard \(earlier.index) of \(earlier.count), "
                 + "so this run's other mutants have no earlier result."
+        case let (earlier?, current?) where !earlier.overlaps(current):
+            return "That run tested shard \(earlier.index) of \(earlier.count), and this one tests shard "
+                + "\(current.index) of \(current.count), which share no mutant, so no earlier result is reused."
         case let (earlier?, current?):
             return "That run tested shard \(earlier.index) of \(earlier.count), and this one tests shard "
                 + "\(current.index) of \(current.count), so only the mutants in both have an earlier result."

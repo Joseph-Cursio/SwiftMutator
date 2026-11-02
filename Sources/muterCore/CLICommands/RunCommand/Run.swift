@@ -48,7 +48,9 @@ struct Run: RunCommand {
         ),
         transform: { text in
             guard let shard = Shard(text) else {
-                throw ValidationError("give two whole numbers k/n with 1 ≤ k ≤ n, such as 1/2.")
+                throw ValidationError(
+                    "give two whole numbers k/n with 1 ≤ k ≤ n ≤ \(Shard.largestCount), such as 1/2."
+                )
             }
             return shard
         }

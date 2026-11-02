@@ -9,13 +9,14 @@ final class ShardTests: XCTestCase {
         XCTAssertEqual(Shard("2/2"), Shard(index: 2, count: 2))
         XCTAssertEqual(Shard("1/1"), Shard(index: 1, count: 1))
         XCTAssertEqual(Shard("07/10"), Shard(index: 7, count: 10))
+        XCTAssertEqual(Shard("1000/1000"), Shard(index: 1000, count: 1000))
         XCTAssertEqual(Shard("3/4")?.description, "3/4")
     }
 
     func test_refuses_anythingButTwoWholeNumbers_withKFrom1ToN() {
         let refused = [
             "", "2", "/2", "1/", "0/2", "3/2", "1/0", "-1/2", "+1/2", "1/2/3", " 1/2", "1 / 2", "1.0/2", "½/2", "١/٢",
-            "1/99999999999999999999",
+            "1/99999999999999999999", "1/1001",
         ]
         for text in refused {
             XCTAssertNil(Shard(text), text)
@@ -42,6 +43,31 @@ final class ShardTests: XCTestCase {
             },
             [1, 3, 1, 4]
         )
+    }
+
+    // A number's remainders by two counts are any pair whose difference their greatest common divisor divides.
+    func test_shardsOverlap_unlessTheirRemaindersCantMeet() {
+        func shard(_ text: String) -> Shard? { Shard(text) }
+        let pairs: [(String, String, Bool)] = [
+            ("1/2", "1/2", true), ("1/2", "2/2", false), ("2/2", "1/4", false), ("2/2", "2/4", true),
+            ("2/2", "1/3", true), ("3/4", "2/6", false), ("3/4", "3/6", true), ("1/1", "5/7", true),
+        ]
+        for (first, second, overlap) in pairs {
+            let one = shard(first)
+            let other = shard(second)
+            XCTAssertEqual(one.flatMap { first in other.map(first.overlaps) }, overlap, "\(first) and \(second)")
+            XCTAssertEqual(other.flatMap { second in one.map(second.overlaps) }, overlap, "\(second) and \(first)")
+        }
+        // Checked against the shards of many places.
+        let keys = (1...600).map {
+            MutantKey(path: "F\($0 % 9).swift", mutationOperatorId: .ror, line: $0, column: 1, occurrence: 0)
+        }
+        for one in [Shard(index: 2, count: 2), Shard(index: 3, count: 4), Shard(index: 1, count: 3)] {
+            for other in [Shard(index: 1, count: 4), Shard(index: 2, count: 6), Shard(index: 1, count: 6)] {
+                let shared = keys.contains { one.holds($0) && other.holds($0) }
+                XCTAssertEqual(shared, one.overlaps(other), "\(one), \(other)")
+            }
+        }
     }
 
     func test_aPlacesRepeats_areInOneShard() {

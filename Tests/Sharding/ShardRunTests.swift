@@ -111,7 +111,7 @@ final class ShardRunTests: MuterTestCase {
     }
 
     func test_theReports_sayWhichShardWasTested() throws {
-        let outcome = MutationTestOutcome(shard: .make(index: 1, count: 2, mutantsInAllShards: 2463))
+        let outcome = MutationTestOutcome(shards: ShardScope(.make(index: 1, count: 2, mutantsInAllShards: 2463)))
 
         XCTAssertTrue(
             PlainTextReporter().report(from: outcome).contains(
@@ -121,11 +121,25 @@ final class ShardRunTests: MuterTestCase {
         let json = try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
         )
-        let shard = try XCTUnwrap(json["shard"] as? [String: Any])
-        XCTAssertEqual(shard["index"] as? Int, 1)
-        XCTAssertEqual(shard["count"] as? Int, 2)
-        XCTAssertEqual(shard["mutantsInAllShards"] as? Int, 2463)
+        let shards = try XCTUnwrap(json["shards"] as? [String: Any])
+        XCTAssertEqual(shards["indices"] as? [Int], [1])
+        XCTAssertEqual(shards["count"] as? Int, 2)
+        XCTAssertEqual(shards["mutantsInAllShards"] as? Int, 2463)
         XCTAssertTrue(HTMLReporter().report(from: outcome).contains("Shard tested, of 2463 mutants"))
+    }
+
+    // As a report of merged shards says, when some are missing.
+    func test_aScopeOfSeveralShards_namesThemAll() {
+        let scope = ShardScope(indices: [3, 1], count: 4, mutantsInAllShards: 2463)
+
+        XCTAssertEqual(scope.indices, [1, 3])
+        XCTAssertEqual(
+            scope.sentence,
+            "Only the mutants in shards 1 and 3 of 4 were tested, of 2463 discovered in every shard."
+        )
+        XCTAssertTrue(
+            HTMLReporter().report(from: MutationTestOutcome(shards: scope)).contains("Shards tested, of 2463")
+        )
     }
 
     func test_aReportWithoutAShard_saysNothingOfIt() throws {
@@ -135,7 +149,7 @@ final class ShardRunTests: MuterTestCase {
         let json = try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
         )
-        XCTAssertNil(json["shard"])
+        XCTAssertNil(json["shards"])
         XCTAssertFalse(HTMLReporter().report(from: outcome).contains("Shard tested"))
     }
 
@@ -157,6 +171,11 @@ final class ShardRunTests: MuterTestCase {
             ResumeSummary.shardChange(from: first, to: Shard(index: 2, count: 3)),
             "That run tested shard 1 of 2, and this one tests shard 2 of 3, so only the mutants in both have an "
                 + "earlier result."
+        )
+        XCTAssertEqual(
+            ResumeSummary.shardChange(from: first, to: Shard(index: 2, count: 2)),
+            "That run tested shard 1 of 2, and this one tests shard 2 of 2, which share no mutant, so no earlier "
+                + "result is reused."
         )
     }
 

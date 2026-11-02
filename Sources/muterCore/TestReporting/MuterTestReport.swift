@@ -15,8 +15,8 @@ struct MuterTestReport {
     let killingTestSummary: KillingTestSummary?
     /// What `--since` chose, when it did; left out of the JSON otherwise.
     let since: SinceScope?
-    /// The shard `--shard` tested, when it did; left out of the JSON otherwise.
-    let shard: ShardScope?
+    /// The shards of a `--shard` split the report covers, when it covers only some; left out of the JSON otherwise.
+    let shards: ShardScope?
 
     init(from outcome: MutationTestOutcome = .init()) {
         let summary = KillingTestSummary(of: outcome.mutations)
@@ -29,7 +29,7 @@ struct MuterTestReport {
         fileReports = MuterTestReport.fileReports(from: outcome, suspects: summary?.suspectIdentities ?? [])
         timeElapsed = outcome.testDuration.formatted()
         since = outcome.since.map(SinceScope.init)
-        shard = outcome.shard.map(ShardScope.init)
+        shards = outcome.shards
     }
 }
 
@@ -52,23 +52,35 @@ struct SinceScope: Codable, Equatable {
     }
 }
 
-/// The shard a `--shard` run tested, as its reports say.
+/// The shards of a `--shard` split a report covers, as it says: the one a run tested, or those `report` merged when
+/// some are missing.
 struct ShardScope: Codable, Equatable {
-    let index: Int
+    /// Sorted.
+    let indices: [Int]
     let count: Int
     /// How many mutants were discovered in every shard together.
     let mutantsInAllShards: Int
 
+    init(indices: [Int], count: Int, mutantsInAllShards: Int) {
+        self.indices = indices.sorted()
+        self.count = count
+        self.mutantsInAllShards = mutantsInAllShards
+    }
+
+    /// The shard `selection` tested.
     init(_ selection: ShardSelection) {
-        index = selection.index
-        count = selection.count
-        mutantsInAllShards = selection.mutantsInAllShards
+        self.init(indices: [selection.index], count: selection.count, mutantsInAllShards: selection.mutantsInAllShards)
+    }
+
+    /// "shard 1 of 2", or "shards 1 and 3 of 4".
+    var named: String {
+        let indices = Logger.listed(indices.map(String.init))
+        return (self.indices.count == 1 ? "shard " : "shards ") + "\(indices) of \(count)"
     }
 
     /// "Only the mutants in shard 1 of 2 were tested, of 2463 discovered in every shard."
     var sentence: String {
-        "Only the mutants in shard \(index) of \(count) were tested, of \(mutantsInAllShards) discovered "
-            + "in every shard."
+        "Only the mutants in \(named) were tested, of \(mutantsInAllShards) discovered in every shard."
     }
 }
 
@@ -273,6 +285,6 @@ extension MuterTestReport: Codable {
         case timeElapsed
         case killingTestSummary
         case since
-        case shard
+        case shards
     }
 }

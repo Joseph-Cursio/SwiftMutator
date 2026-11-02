@@ -141,7 +141,7 @@ struct PerformMutationTesting: MutationStep {
             testDuration: session.earlierTestDuration + thisSession,
             newVersion: state.newVersion,
             since: state.changeSelection,
-            shard: state.shardSelection
+            shards: state.shardSelection.map(ShardScope.init)
         )
 
         events.send(.mutationTestingFinished(mutationTestOutcome))
@@ -475,7 +475,7 @@ private extension PerformMutationTesting {
                     testDuration: testDuration,
                     newVersion: state.newVersion,
                     since: state.changeSelection,
-                    shard: state.shardSelection
+                    shards: state.shardSelection.map(ShardScope.init)
                 ),
                 discovered: session.keys.count,
                 reused: session.reused

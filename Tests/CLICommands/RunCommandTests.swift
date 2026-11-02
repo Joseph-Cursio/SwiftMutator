@@ -142,11 +142,11 @@ final class RunCommandTests: XCTestCase {
     }
 
     func test_aShardThatIsntKOfN_isAUsageError() {
-        for value in ["0/2", "3/2", "half", "1/2/3"] {
+        for value in ["0/2", "3/2", "half", "1/2/3", "1/1001"] {
             assertUsageError(
                 ["run", "--shard", value],
-                "The value '\(value)' is invalid for '--shard <k/n>': give two whole numbers k/n with 1 ≤ k ≤ n, "
-                    + "such as 1/2."
+                "The value '\(value)' is invalid for '--shard <k/n>': give two whole numbers k/n with 1 ≤ k ≤ n ≤ "
+                    + "1000, such as 1/2."
             )
         }
     }
