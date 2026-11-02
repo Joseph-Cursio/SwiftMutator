@@ -49,9 +49,27 @@ extension RecordedResults {
     func mutationTestOutcome() -> MutationTestOutcome {
         // `read` refuses a file without a header.
         guard let header = headers.last else { return MutationTestOutcome() }
+        return MutationTestOutcome(
+            records: latest.values,
+            under: header,
+            testDuration: testDuration,
+            shards: header.shard.map(ShardScope.init)
+        )
+    }
+}
+
+extension MutationTestOutcome {
+    /// The outcome of `records`, in the order a run tests them, under `header`'s project paths, coverage (or whether it
+    /// skipped it) and update notice, with `testDuration`, covering only `shards` of a split if given.
+    init(
+        records: some Collection<MutantResult>,
+        under header: ResultsHeader,
+        testDuration: TimeInterval,
+        shards: ShardScope?
+    ) {
         let projectDirectory = URL(fileURLWithPath: header.projectPath, isDirectory: true)
         let mutatedProjectDirectory = URL(fileURLWithPath: header.mutatedProjectPath, isDirectory: true)
-        let mutations = latest.values
+        let mutations = records
             .map { (record: $0, order: JobOrder(of: $0, under: header.mutatedProjectPath)) }
             .sorted { $0.order < $1.order }
             .map { record, order in
@@ -73,7 +91,7 @@ extension RecordedResults {
                     reusedFrom: record.reusedFrom
                 )
             }
-        return MutationTestOutcome(
+        self.init(
             mutations: mutations,
             coverage: header.coverage.map {
                 Coverage(percent: $0.percent, filesWithoutCoverage: $0.filesWithoutCoverage)
@@ -83,7 +101,7 @@ extension RecordedResults {
             testDuration: testDuration,
             newVersion: header.newVersion,
             since: header.since,
-            shards: header.shard.map(ShardScope.init)
+            shards: shards
         )
     }
 }

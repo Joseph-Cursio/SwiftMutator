@@ -1,7 +1,8 @@
 import Foundation
 
 /// `swift-mutator report`: a run's report in any format, made from its results file. For a finished run it's the
-/// run's own report; for one that stopped, or is still going, it reports what the file holds so far.
+/// run's own report; for one that stopped, or is still going, it reports what the file holds so far. The results files
+/// of a split's shards are merged into the whole run's report (`MergedShards`).
 struct ResultsReport {
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
@@ -21,21 +22,35 @@ struct ResultsReport {
         self.outputPath = outputPath
     }
 
-    /// Makes the report from the results file `path` names: the file itself, or a run's log folder that holds it.
-    /// Standard output holds the report alone (and, in the Xcode format, its warnings), so `-f json > report.json` is
-    /// valid JSON; what the file holds, the report's warning of suspect tests, and where the report went, are said on
-    /// standard error. Gives what the file holds, which says how the run ended.
+    /// Makes the report from the results files `paths` name: each the file itself, or a run's log folder that holds
+    /// it. One file is reported as it is; several, the shards of one split, are merged, `forcing` build and toolchain
+    /// differences through, and the project files `ignoring`'s globs match. Standard output holds the report alone
+    /// (and, in the Xcode format, its warnings), so `-f json > report.json` is valid JSON; what the files hold, the
+    /// report's warning of suspect tests, and where the report went, are said on standard error. Gives whether
+    /// `report` exits as a run that stopped on an error.
     @discardableResult
-    func make(from path: String) throws -> RecordedResults {
-        let file = try ResultsFile.find(at: path, using: fileManager)
+    func make(from paths: [String], forcing: Bool = false, ignoring: [String] = []) throws -> Bool {
+        let files = try paths.map { try ResultsFile.find(at: $0, using: fileManager) }
         if let outputPath {
-            try checkSaving(to: outputPath, from: file)
+            try checkSaving(to: outputPath, from: files)
         }
-        guard let data = fileManager.contents(atPath: file) else {
-            throw ResultsFileError.unreadable(path: file)
+        let read = try files.map { file in
+            guard let data = fileManager.contents(atPath: file) else {
+                throw ResultsFileError.unreadable(path: file)
+            }
+            return (path: file, recorded: try RecordedResults.read(data, path: file))
         }
-        let recorded = try RecordedResults.read(data, path: file)
-        let outcome = recorded.mutationTestOutcome()
+        if read.count == 1, let only = read.first {
+            try report(only.recorded.mutationTestOutcome(), saying: only.recorded.statusLines(path: only.path))
+            return only.recorded.stoppedOnAnError
+        }
+        let merged = try MergedShards.merge(read, forcing: forcing, ignoring: ignoring)
+        try report(merged.mutationTestOutcome(), saying: merged.statusLines())
+        return merged.stoppedOnAnError
+    }
+
+    /// Prints or saves the report of `outcome`, then says `status` and the rest on standard error.
+    private func report(_ outcome: MutationTestOutcome, saying status: [String]) throws {
         let reporter = format.reporter
         // As a run does when each mutant finishes: only the Xcode format prints anything, a warning for each survivor.
         for mutation in outcome.mutations {
@@ -51,21 +66,21 @@ struct ResultsReport {
         }
         // The report comes before what's said about it, should both go to one place.
         flushStandardOut()
-        recorded.statusLines(path: file).forEach(errorPrinter)
+        status.forEach(errorPrinter)
         // As a run ends with it, without the run's emoji: it is said of the report, as the status lines are.
         KillingTestSummary.warning(for: outcome).map(errorPrinter)
         if let outputPath {
             errorPrinter("Report saved to \(outputPath)")
         }
-        return recorded
     }
 
     /// Refuses an `outputPath` that saving the report at would destroy, before anything is printed: saving replaces
-    /// whatever is there, so the results file the report is made from, or a folder and everything in it.
-    private func checkSaving(to outputPath: String, from file: String) throws {
-        if ResultsFile.isSameFile(outputPath, file) {
+    /// whatever is there, so a results file the report is made from, or a folder and everything in it.
+    private func checkSaving(to outputPath: String, from files: [String]) throws {
+        if files.contains(where: { ResultsFile.isSameFile(outputPath, $0) }) {
+            let file = files.count == 1 ? "the results file" : "one of the results files"
             throw MuterError.literal(
-                reason: "\(outputPath) is the results file the report is made from: choose another output path"
+                reason: "\(outputPath) is \(file) the report is made from: choose another output path"
             )
         }
         if (try? fileManager.contentsOfDirectory(atPath: outputPath)) != nil {

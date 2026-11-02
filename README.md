@@ -297,6 +297,41 @@ swift-mutator run --shard 1/2
 - **The reports say so.** The plain and HTML reports say which shard was tested, of how many
   mutants in all, and the JSON report gives it as `shards`.
 - **At most 1000 shards.** Each header counts every shard's mutants, so it stays short.
+- **`report` merges the shards.** Give it every shard's results file, or log folder, and it makes
+  the whole run's report, in any format:
+
+  ```
+  swift-mutator report shard-1/results.jsonl shard-2/results.jsonl -f html -o report.html
+  Report of 2463 of 2463 mutants, merged from the results files of 2 of 2 shards.
+  Shard 1 of 2, 1228 of its 1228 mutants, from shard-1/results.jsonl: the run finished.
+  Shard 2 of 2, 1235 of its 1235 mutants, from shard-2/results.jsonl: the run finished.
+  ```
+
+  - **What it refuses.** It checks each shard against shard 1, or the lowest one given, as a
+    resume checks a run: the configuration, the operators, `--files-to-mutate`, `--skip-coverage`
+    and `--since`, the SwiftMutator build and the toolchain, and the project's files. It refuses
+    files that aren't shards, shards of different splits, a shard given twice, and a mutant with a
+    result in two files. `--force-merge` lets a different build or toolchain through, and
+    `--merge-ignoring <glob>` project files that differ, such as a file one machine left in its
+    checkout. Each refusal says which.
+  - **What it says.** On standard error, as for one file: how many mutants the report covers, and
+    how each shard's run ended. A shard whose file isn't given is named with the mutants it holds,
+    and makes `report` exit with 255, as a run that stopped on an error does, so a CI job that
+    checks the merged report fails. A shard that holds no mutant has no file, and is only said.
+  - **The report** is the whole run's: the mutants in the order a whole run tests them, the
+    coverage and paths of the lowest shard given, and the longest shard's time, as the shards are
+    meant to run at once. If the machines' coverage differed, so that their discoveries did,
+    `report` says so: a mutant only some of them discovered may have no result.
+  - **Not yet:** a merged results file. `--reuse` takes one shard's file, which keeps the results
+    of that shard's mutants only.
+- **In CI**, run the shards as a matrix, one job per shard, then merge them in a job after it.
+  - Every shard needs the same binary: build SwiftMutator once, or install one release.
+  - Each shard's results file is in `<project>_muter_logs/<run>/results.jsonl`, beside the
+    checkout, and the run prints its path. Upload it, allowing for none, as an empty shard writes
+    none.
+  - The merging job downloads them, outside any checkout a later run uses, and gives them all to
+    `report`.
+  - A worked GitHub Actions recipe is [#124](https://github.com/Joseph-Cursio/SwiftMutator/issues/124).
 
 ## Results file
 

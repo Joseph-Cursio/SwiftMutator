@@ -6,19 +6,24 @@ extension RecordedResults {
     func statusLines(path: String) -> [String] {
         // `read` refuses a file without a header.
         guard let last = sessions.last else { return [] }
-        var lines = [
-            "Report of \(latest.count) of \(last.header.mutantsDiscovered) mutants, from \(path): "
-                + "\(Self.ending(of: last)).",
-        ]
-        if !unreadableLines.isEmpty {
-            let noun = unreadableLines.count == 1 ? "line" : "lines"
-            let cutOff = endsWithCutOffLine ? "; the last was cut off as it was written" : ""
-            lines.append(
-                "Skipped \(unreadableLines.count) \(noun) that didn't read: "
-                    + unreadableLines.map(String.init).joined(separator: ", ") + cutOff + "."
-            )
-        }
-        return lines
+        let shard = last.header.shard.map { " in shard \($0.index) of \($0.count)" } ?? ""
+        return [
+            "Report of \(latest.count) of \(last.header.mutantsDiscovered) mutants\(shard), from \(path): \(ending).",
+        ] + [skippedLines].compactMap { $0 }
+    }
+
+    /// How the run ended, from its last session's end line.
+    var ending: String {
+        sessions.last.map(Self.ending(of:)) ?? ""
+    }
+
+    /// The lines skipped, by number; nil when none were.
+    var skippedLines: String? {
+        guard !unreadableLines.isEmpty else { return nil }
+        let noun = unreadableLines.count == 1 ? "line" : "lines"
+        let cutOff = endsWithCutOffLine ? "; the last was cut off as it was written" : ""
+        return "Skipped \(unreadableLines.count) \(noun) that didn't read: "
+            + unreadableLines.map(String.init).joined(separator: ", ") + cutOff + "."
     }
 
     /// Whether the run stopped on an error, as its last session's end line says: `report` then exits as the run did.

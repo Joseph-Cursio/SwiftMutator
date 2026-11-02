@@ -8,7 +8,7 @@ import Foundation
 /// `--shard k/n`: the kth of n shards the discovered mutants are split into, so that n runs, on as many machines, test
 /// every mutant once between them. A mutant's shard follows from its place alone, its key without the occurrence
 /// (`MutantKey`): the same on every machine, whatever else each one discovers, with no plan to pass around.
-struct Shard: Equatable, Sendable, CustomStringConvertible {
+struct Shard: Hashable, Sendable, CustomStringConvertible {
     /// From 1 to `count`.
     let index: Int
     let count: Int
