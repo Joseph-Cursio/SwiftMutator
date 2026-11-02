@@ -55,6 +55,7 @@ final class RunCommandTests: XCTestCase {
         XCTAssertNotEqual(Run.Options.make(verbose: true), .make())
         XCTAssertNotEqual(Run.Options.make(since: "main"), .make())
         XCTAssertNotEqual(Run.Options.make(since: "main", changedLinesOnly: true), .make(since: "main"))
+        XCTAssertNotEqual(Run.Options.make(shard: Shard(index: 1, count: 2)), .make())
     }
 
     // For one run, in place of the configuration's keys, on each command that tests mutants.
@@ -129,6 +130,25 @@ final class RunCommandTests: XCTestCase {
         XCTAssertTrue(help.contains("\n  --since <ref>"), help)
         XCTAssertTrue(help.contains("\n  --changed-lines"), help)
         XCTAssertTrue(help.contains("merge base of this git ref and HEAD"), help)
+    }
+
+    func test_shard_reachesTheRunOptions_andTheHelp_and1Of1IsTheWholeRun() throws {
+        let options = try XCTUnwrap(MuterCommand.parseAsRoot(["run", "--shard", "2/3"]) as? Run).runOptions
+        XCTAssertEqual(options.shard, Shard(index: 2, count: 3))
+        XCTAssertNil(try XCTUnwrap(MuterCommand.parseAsRoot(["run"]) as? Run).runOptions.shard)
+        XCTAssertNil(try XCTUnwrap(MuterCommand.parseAsRoot(["run", "--shard", "1/1"]) as? Run).runOptions.shard)
+        let help = Run.helpMessage(columns: 200)
+        XCTAssertTrue(help.contains("\n  --shard <k/n>"), help)
+    }
+
+    func test_aShardThatIsntKOfN_isAUsageError() {
+        for value in ["0/2", "3/2", "half", "1/2/3", "1/1001"] {
+            assertUsageError(
+                ["run", "--shard", value],
+                "The value '\(value)' is invalid for '--shard <k/n>': give two whole numbers k/n with 1 ≤ k ≤ n ≤ "
+                    + "1000, such as 1/2."
+            )
+        }
     }
 
     // They only say what a resume may reuse, so without one they're a mistake, which ArgumentParser shows with the

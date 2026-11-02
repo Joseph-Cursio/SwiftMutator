@@ -23,6 +23,8 @@ enum ResumeCheck {
         let provenance: Provenance
         /// What `--since` chose; nil without it.
         var since: ChangeSelection?
+        /// `--shard`; nil without it.
+        var shard: Shard?
     }
 
     /// A value the recorded session had and this run has, each as sorted-keys JSON. nil is a configuration key that
@@ -94,9 +96,9 @@ enum ResumeCheck {
     /// `timeoutSeconds`, `stopsAtFirstFailure` and `failedTestLinesAreReliable`, which follow from the configuration,
     /// the baseline and the timed test run. Only the build and toolchain differences are ever `forced`.
     ///
-    /// A resume compares what `--since` compares the working tree with too: the merge base, and `--changed-lines`. A
-    /// `reusing` run doesn't: a result holds whichever other mutants are tested, and it keeps only those of the
-    /// mutants it discovers.
+    /// A resume compares what `--since` compares the working tree with too: the merge base, and `--changed-lines`; and
+    /// the shard. A `reusing` run compares neither: a result holds whichever other mutants are tested, and it keeps
+    /// only those of the mutants it discovers.
     static func compare(_ recorded: ResultsHeader, with current: Current, forcing: Bool, reusing: Bool = false)
         -> Verdict {
         var verdict = Verdict()
@@ -112,6 +114,9 @@ enum ResumeCheck {
         verdict.refusals += selectionDifferences(recorded, current).map(ResumeRefusal.selectionChanged)
         if !reusing {
             verdict.refusals += sinceDifferences(recorded.since, current.since).map(ResumeRefusal.selectionChanged)
+            if let shard = shardDifference(recorded.shard, current.shard) {
+                verdict.refusals.append(.selectionChanged(shard))
+            }
         }
         if recorded.usingTestPlan || current.usingTestPlan {
             verdict.refusals.append(.testPlanRun)
@@ -207,6 +212,17 @@ enum ResumeCheck {
                 ),
             ]
         }
+    }
+
+    /// The difference in which shard is tested, by its `k/n`, which says all there is: which of the mutants discovered
+    /// are in a shard follows from their places alone.
+    private static func shardDifference(_ recorded: ShardSelection?, _ current: Shard?) -> Difference? {
+        guard recorded?.shard != current else { return nil }
+        return Difference(
+            name: "shard",
+            was: recorded.flatMap { json($0.shard.description) },
+            isNow: current.flatMap { json($0.description) }
+        )
     }
 
     /// The differences in what identifies the SwiftMutator build, the toolchain and the SDK, named by their keys in
@@ -312,7 +328,8 @@ extension ResumeCheck.Current {
             skipCoverage: state.runOptions.skipCoverage,
             usingTestPlan: state.runOptions.isUsingTestPlan,
             provenance: provenance,
-            since: state.changeSelection
+            since: state.changeSelection,
+            shard: state.runOptions.shard
         )
     }
 }

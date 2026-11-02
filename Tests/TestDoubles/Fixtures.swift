@@ -369,6 +369,7 @@ extension Run.Options {
         filesToMutate: [String] = [],
         since: String? = nil,
         changedLinesOnly: Bool = false,
+        shard: Shard? = nil,
         reportFormat: ReportFormat = .plain,
         reportURL: URL? = nil,
         mutationOperatorsList: MutationOperatorList = [],
@@ -389,6 +390,7 @@ extension Run.Options {
             filesToMutate: filesToMutate,
             since: since,
             changedLinesOnly: changedLinesOnly,
+            shard: shard,
             reportFormat: reportFormat,
             reportURL: reportURL,
             mutationOperatorsList: mutationOperatorsList,
@@ -598,7 +600,8 @@ extension ResultsHeader {
         forced: [String]? = nil,
         logDirectory: String = "/project_muter_logs/run",
         reusedFrom: String? = nil,
-        since: ChangeSelection? = nil
+        since: ChangeSelection? = nil,
+        shard: ShardSelection? = nil
     ) -> ResultsHeader {
         ResultsHeader(
             formatVersion: formatVersion,
@@ -629,7 +632,29 @@ extension ResultsHeader {
             waived: waived,
             forced: forced,
             reusedFrom: reusedFrom,
-            since: since
+            since: since,
+            shard: shard
+        )
+    }
+}
+
+extension ShardSelection {
+    static func make(
+        index: Int = 1,
+        count: Int = 2,
+        mutantsInAllShards: Int = 6,
+        mutantsPerShard: [Int]? = nil,
+        allKeysSHA256: String = "a11"
+    ) -> ShardSelection {
+        ShardSelection(
+            index: index,
+            count: count,
+            mutantsInAllShards: mutantsInAllShards,
+            // As even as the total allows, the first shards taking what is left over.
+            mutantsPerShard: mutantsPerShard ?? (0..<count).map {
+                mutantsInAllShards / count + ($0 < mutantsInAllShards % count ? 1 : 0)
+            },
+            allKeysSHA256: allKeysSHA256
         )
     }
 }

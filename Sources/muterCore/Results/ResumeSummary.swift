@@ -31,8 +31,8 @@ struct ResumeSummary: Equatable {
     var otherFilesChanged: [ProjectTree.FileChange] = []
     /// How many test files a reuse found changed, added or removed.
     var testFilesChanged = 0
-    /// Only in a reuse whose `--since` choice differs from the earlier run's: why the two discover other mutants, which
-    /// is then said in place of a warning that they do.
+    /// Only in a reuse whose `--since` choice or `--shard` differs from the earlier run's: why the two discover other
+    /// mutants, which is then said in place of a warning that they do.
     var selectionChange: String?
 
     /// How many mutants this run discovered: each is either kept or tested.
@@ -51,7 +51,7 @@ extension ResumeSummary {
         coverage: Coverage,
         in mutatedProject: URL,
         reusing changes: [Int: ReuseChanges]? = nil,
-        since selection: ChangeSelection? = nil
+        selecting current: (since: ChangeSelection?, shard: Shard?) = (nil, nil)
     ) {
         let all = changes.map { Array($0.values) } ?? []
         let otherFiles = Dictionary(
@@ -78,8 +78,46 @@ extension ResumeSummary {
             notices: resume.notices,
             otherFilesChanged: otherFiles.values.sorted { $0.path < $1.path },
             testFilesChanged: testFiles.count,
-            selectionChange: resume.isReuse ? Self.selectionChange(from: resume.lastHeader.since, to: selection) : nil
+            selectionChange: resume.isReuse
+                ? Self.selectionChange(from: (resume.lastHeader.since, resume.lastHeader.shard?.shard), to: current)
+                : nil
         )
+    }
+
+    /// Why a reuse whose `--since` choice and shard are `current` discovers other mutants than the earlier run, whose
+    /// choice and shard were `earlier`: a sentence for each that differs, or nil when neither does.
+    static func selectionChange(
+        from earlier: (since: ChangeSelection?, shard: Shard?),
+        to current: (since: ChangeSelection?, shard: Shard?)
+    ) -> String? {
+        let sentences = [
+            selectionChange(from: earlier.since, to: current.since),
+            shardChange(from: earlier.shard, to: current.shard),
+        ].compactMap { $0 }
+        return sentences.isEmpty ? nil : sentences.joined(separator: " ")
+    }
+
+    /// Why a reuse that tests the shard `current` discovers other mutants than the earlier run, which tested `earlier`;
+    /// nil when the two tested the same shard, or neither tested one.
+    static func shardChange(from earlier: Shard?, to current: Shard?) -> String? {
+        switch (earlier, current) {
+        case (nil, nil):
+            return nil
+        case let (earlier?, current?) where earlier == current:
+            return nil
+        case let (nil, current?):
+            return "This run tests only shard \(current.index) of \(current.count), "
+                + "so no earlier result of another shard's mutant is reused."
+        case let (earlier?, nil):
+            return "That run tested only shard \(earlier.index) of \(earlier.count), "
+                + "so this run's other mutants have no earlier result."
+        case let (earlier?, current?) where !earlier.overlaps(current):
+            return "That run tested shard \(earlier.index) of \(earlier.count), and this one tests shard "
+                + "\(current.index) of \(current.count), which share no mutant, so no earlier result is reused."
+        case let (earlier?, current?):
+            return "That run tested shard \(earlier.index) of \(earlier.count), and this one tests shard "
+                + "\(current.index) of \(current.count), so only the mutants in both have an earlier result."
+        }
     }
 
     /// Why a reuse whose `--since` choice is `current` discovers other mutants than the earlier run, whose choice was

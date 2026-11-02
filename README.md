@@ -262,6 +262,42 @@ swift-mutator run --since origin/main --changed-lines -o report.txt
   whole files and 50 s by changed lines, against 27.3 min for the whole project, with every verdict
   the full run's. A change to tests alone ended in 1 s, with nothing copied.
 
+## Splitting a run across machines
+
+`run --shard k/n` tests only the kth of n shards of the mutants, so n runs, on as many machines,
+test each mutant once between them
+([#74](https://github.com/Joseph-Cursio/SwiftMutator/issues/74)). Every run still copies the
+project, gathers coverage and runs the baseline, so two machines take a little more than half as
+long as one.
+
+```
+swift-mutator run --shard 1/2
+✅ In total, SwiftMutator discovered 2463 mutants, and shard 1 of 2 holds 1228 of them, in 287 files
+```
+
+- **Which mutants a shard holds** follows from where each one is, by a hash of its path, operator,
+  line and column. No plan is passed between the machines: each discovers the mutants itself, and
+  keeps its own. Every machine needs the same project, configuration, SwiftMutator build and
+  toolchain: commit the configuration rather than running `init` on each machine, which writes the
+  test command's full path, and build SwiftMutator once and share the binary, as every build has a
+  SHA-256 of its own.
+- **Shards are about even** in mutants, not in time: survivors take longest, and they fall where
+  they fall.
+- **A shard with no mutant isn't a failure.** With fewer mutants than shards, as for a small
+  `--since` change, a shard can hold none. SwiftMutator then says so, writes no report or results
+  file, and exits with 0. In CI, upload its results file with `if-no-files-found: ignore`.
+- **`--shard 1/1`** is the whole run, so a matrix of one entry needs no special case.
+- **One shard at a time on one machine.** Every shard of a project uses the same mutated copy,
+  `<project>_mutated`, so a second one started while the first runs is refused.
+- **It combines** with `--since`, `--changed-lines`, `--files-to-mutate` and `--operators`, which
+  choose the mutants that are split.
+- **Resuming.** The results file's header records the shard, and a resume must give the same one;
+  the Continue line keeps it. `--reuse` keeps the earlier run's results for this shard's mutants,
+  whichever shard, or whole run, that was.
+- **The reports say so.** The plain and HTML reports say which shard was tested, of how many
+  mutants in all, and the JSON report gives it as `shards`.
+- **At most 1000 shards.** Each header counts every shard's mutants, so it stays short.
+
 ## Results file
 
 SwiftMutator saves each mutant's result as soon as it is tested, as one line of JSON in

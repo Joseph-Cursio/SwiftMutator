@@ -124,6 +124,23 @@ extension Node where Context: HTML.BodyContext {
                     )
                 )
             },
+            .unwrap(testReport.shards) { shards in
+                .div(
+                    .class("header-item"),
+                    .div(
+                        .class("box"),
+                        .style("background-color: #8e44ad"),
+                        .p(
+                            .class("small"),
+                            .text(
+                                (shards.indices.count == 1 ? "Shard" : "Shards")
+                                    + " tested, of \(shards.mutantsInAllShards) mutants"
+                            )
+                        ),
+                        .h1(.text(shards.indices.map(String.init).joined(separator: ", ") + " of \(shards.count)"))
+                    )
+                )
+            },
             .div(
                 .class("header-item"),
                 .div(

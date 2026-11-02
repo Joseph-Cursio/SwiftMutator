@@ -36,6 +36,9 @@ protocol AnyMutationTestState: AnyObject {
     var reuseChanges: [Int: ReuseChanges]? { get }
     /// The files, and with `--changed-lines` the lines, that `--since` chose; nil without `--since`.
     var changeSelection: ChangeSelection? { get }
+    /// Which shard `--shard` tests, and what discovery found in every shard; nil without `--shard`, and until
+    /// discovery.
+    var shardSelection: ShardSelection? { get }
     /// The paths in the mutated project, relative to it, that discovery picks from, once listed before coverage is
     /// gathered, as a `--since` run lists them; nil until then, when discovery lists them itself.
     var candidatePaths: [FilePath]? { get }
@@ -66,6 +69,7 @@ final class MutationTestState: AnyMutationTestState {
     var resumeWaived: [String] = []
     var reuseChanges: [Int: ReuseChanges]?
     var changeSelection: ChangeSelection?
+    var shardSelection: ShardSelection?
     var candidatePaths: [FilePath]?
 
     init() {}
@@ -97,6 +101,7 @@ extension MutationTestState {
         case projectChangesWaived([String])
         case reuseChangesFound([Int: ReuseChanges])
         case changesSelected(ChangeSelection)
+        case shardSelected(ShardSelection)
         case candidatePathsListed([FilePath])
     }
 }
@@ -141,6 +146,8 @@ extension MutationTestState {
                 reuseChanges = changes
             case let .changesSelected(selection):
                 changeSelection = selection
+            case let .shardSelected(selection):
+                shardSelection = selection
             case let .candidatePathsListed(paths):
                 candidatePaths = paths
             }
