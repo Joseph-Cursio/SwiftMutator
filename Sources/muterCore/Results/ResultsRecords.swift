@@ -158,6 +158,10 @@ struct ResultsHeader: Codable, Equatable {
     /// Only in a session run with `--shard`: which shard it tested, and what discovery found in every shard.
     /// `mutantsDiscovered` and `mutantsToTest` count this shard's mutants.
     var shard: ShardSelection?
+    /// Only in a session run with `--sample`: the sample asked for, and how many mutants it held of how many were
+    /// discovered. `mutantsDiscovered` and `mutantsToTest` count the sample's, or with `--shard` too, the shard's part
+    /// of it.
+    var sample: SampleSelection?
 }
 
 extension ResultsHeader {
@@ -214,7 +218,8 @@ extension ResultsHeader {
             testBundlesRunDirectly: configuration.directTestRun == nil ? nil : true,
             reusedFrom: reusedFrom,
             since: state.changeSelection,
-            shard: state.shardSelection
+            shard: state.shardSelection,
+            sample: state.sampleSelection
         )
     }
 }

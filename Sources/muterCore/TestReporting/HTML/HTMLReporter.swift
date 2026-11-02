@@ -141,6 +141,20 @@ extension Node where Context: HTML.BodyContext {
                     )
                 )
             },
+            .unwrap(testReport.sample) { sample in
+                .div(
+                    .class("header-item"),
+                    .div(
+                        .class("box"),
+                        .style("background-color: #8e44ad"),
+                        .p(
+                            .class("small"),
+                            .text("Sample tested, of \(sample.mutantsSampledFrom) mutants (seed \(sample.seed))")
+                        ),
+                        .h1(.text("\(sample.mutantsSampled), score ± \(sample.margin)"))
+                    )
+                )
+            },
             .div(
                 .class("header-item"),
                 .div(

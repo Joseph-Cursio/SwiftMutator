@@ -12,6 +12,8 @@ struct MutationTestOutcome {
     /// The shards of a `--shard` split it covers, when it covers only some: the one a run tested, or those `report`
     /// merged when some are missing; nil for a whole run.
     let shards: ShardScope?
+    /// What `--sample` took; nil without it.
+    let sample: SampleSelection?
 
     init(
         mutations: [Mutation] = [],
@@ -20,7 +22,8 @@ struct MutationTestOutcome {
         testDuration: TimeInterval = 0,
         newVersion: String = "",
         since: ChangeSelection? = nil,
-        shards: ShardScope? = nil
+        shards: ShardScope? = nil,
+        sample: SampleSelection? = nil
     ) {
         self.mutations = mutations
         self.coverage = coverage
@@ -29,6 +32,7 @@ struct MutationTestOutcome {
         self.newVersion = newVersion
         self.since = since
         self.shards = shards
+        self.sample = sample
     }
 }
 

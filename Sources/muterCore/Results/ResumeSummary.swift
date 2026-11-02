@@ -31,8 +31,8 @@ struct ResumeSummary: Equatable {
     var otherFilesChanged: [ProjectTree.FileChange] = []
     /// How many test files a reuse found changed, added or removed.
     var testFilesChanged = 0
-    /// Only in a reuse whose `--since` choice or `--shard` differs from the earlier run's: why the two discover other
-    /// mutants, which is then said in place of a warning that they do.
+    /// Only in a reuse whose `--since` choice, `--shard` or `--sample` differs from the earlier run's: why the two
+    /// discover other mutants, which is then said in place of a warning that they do.
     var selectionChange: String?
 
     /// How many mutants this run discovered: each is either kept or tested.
@@ -51,7 +51,7 @@ extension ResumeSummary {
         coverage: Coverage,
         in mutatedProject: URL,
         reusing changes: [Int: ReuseChanges]? = nil,
-        selecting current: (since: ChangeSelection?, shard: Shard?) = (nil, nil)
+        selecting current: (since: ChangeSelection?, shard: Shard?, sample: Sample?) = (nil, nil, nil)
     ) {
         let all = changes.map { Array($0.values) } ?? []
         let otherFiles = Dictionary(
@@ -79,20 +79,28 @@ extension ResumeSummary {
             otherFilesChanged: otherFiles.values.sorted { $0.path < $1.path },
             testFilesChanged: testFiles.count,
             selectionChange: resume.isReuse
-                ? Self.selectionChange(from: (resume.lastHeader.since, resume.lastHeader.shard?.shard), to: current)
+                ? Self.selectionChange(
+                    from: (
+                        resume.lastHeader.since,
+                        resume.lastHeader.shard?.shard,
+                        resume.lastHeader.sample.map { Sample(size: $0.size, seed: $0.seed, seedIsChosen: false) }
+                    ),
+                    to: current
+                )
                 : nil
         )
     }
 
-    /// Why a reuse whose `--since` choice and shard are `current` discovers other mutants than the earlier run, whose
-    /// choice and shard were `earlier`: a sentence for each that differs, or nil when neither does.
+    /// Why a reuse whose `--since` choice, shard and sample are `current` discovers other mutants than the earlier run,
+    /// whose were `earlier`: a sentence for each that differs, or nil when none does.
     static func selectionChange(
-        from earlier: (since: ChangeSelection?, shard: Shard?),
-        to current: (since: ChangeSelection?, shard: Shard?)
+        from earlier: (since: ChangeSelection?, shard: Shard?, sample: Sample?),
+        to current: (since: ChangeSelection?, shard: Shard?, sample: Sample?)
     ) -> String? {
         let sentences = [
             selectionChange(from: earlier.since, to: current.since),
             shardChange(from: earlier.shard, to: current.shard),
+            sampleChange(from: earlier.sample, to: current.sample),
         ].compactMap { $0 }
         return sentences.isEmpty ? nil : sentences.joined(separator: " ")
     }
@@ -117,6 +125,27 @@ extension ResumeSummary {
         case let (earlier?, current?):
             return "That run tested shard \(earlier.index) of \(earlier.count), and this one tests shard "
                 + "\(current.index) of \(current.count), so only the mutants in both have an earlier result."
+        }
+    }
+
+    /// Why a reuse that tests the sample `current` discovers other mutants than the earlier run, which tested
+    /// `earlier`; nil when the two took the same sample, by its size and seed, or neither took one.
+    static func sampleChange(from earlier: Sample?, to current: Sample?) -> String? {
+        func named(_ sample: Sample) -> String {
+            "a sample of \(sample.size) (seed \(sample.seed))"
+        }
+        switch (earlier, current) {
+        case (nil, nil):
+            return nil
+        case let (earlier?, current?) where (earlier.size, earlier.seed) == (current.size, current.seed):
+            return nil
+        case let (nil, current?):
+            return "This run tests only \(named(current)), so no earlier result of a mutant outside it is reused."
+        case let (earlier?, nil):
+            return "That run tested only \(named(earlier)), so this run's other mutants have no earlier result."
+        case let (earlier?, current?):
+            return "That run tested \(named(earlier)), and this one tests \(named(current)), "
+                + "so only the mutants in both have an earlier result."
         }
     }
 

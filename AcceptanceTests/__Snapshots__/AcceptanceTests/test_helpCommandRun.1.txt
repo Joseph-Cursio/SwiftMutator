@@ -19,6 +19,13 @@ OPTIONS:
                           many machines, test each mutant once between them. A
                           mutant's shard follows from where it is.
                           swift-mutator report merges their results files.
+  --sample <N>            Only test a sample of about N of the mutants
+                          discovered, as for a trend between whole runs. The
+                          reports give how far the score may be from a whole
+                          run's.
+  --seed <S>              With --sample, the seed that chooses the sample: the
+                          same seed chooses the same mutants anywhere. Without
+                          it, SwiftMutator chooses one and says which.
   -c, --configuration <configuration>
                           The path to the configuration file.
   --skip-coverage         Skips the step in which SwiftMutator runs your

@@ -16,8 +16,15 @@ enum ResumeHint {
     ///
     /// `--since`'s ref is replaced by `sinceMergeBase`, the commit the run compared the working tree with: a branch
     /// that moved since, as `origin/main` does after a fetch, would choose other files, and the resume be refused.
-    static func command(continuing arguments: [String], from resultsFile: String, since sinceMergeBase: String? = nil)
-        -> String {
+    ///
+    /// `chosenSeed`, the seed SwiftMutator chose for a `--sample` given no `--seed`, is given as `--seed`: a resume
+    /// would otherwise choose another, and take another sample.
+    static func command(
+        continuing arguments: [String],
+        from resultsFile: String,
+        since sinceMergeBase: String? = nil,
+        chosenSeed: UInt64? = nil
+    ) -> String {
         var kept: [String] = []
         var skipsValue = false
         var waives = false
@@ -63,6 +70,9 @@ enum ResumeHint {
                 continue
             }
             kept.append(argument)
+        }
+        if let chosenSeed {
+            kept += ["--seed", String(chosenSeed)]
         }
         return (["swift-mutator"] + kept.map(Logger.shellWord) + ["--resume", Logger.shellQuoted(resultsFile)])
             .joined(separator: " ")

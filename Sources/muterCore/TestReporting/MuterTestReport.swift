@@ -17,6 +17,8 @@ struct MuterTestReport {
     let since: SinceScope?
     /// The shards of a `--shard` split the report covers, when it covers only some; left out of the JSON otherwise.
     let shards: ShardScope?
+    /// The `--sample` the report's mutants are, when it left some out; left out of the JSON otherwise.
+    let sample: SampleScope?
 
     init(from outcome: MutationTestOutcome = .init()) {
         let summary = KillingTestSummary(of: outcome.mutations)
@@ -30,6 +32,12 @@ struct MuterTestReport {
         timeElapsed = outcome.testDuration.formatted()
         since = outcome.since.map(SinceScope.init)
         shards = outcome.shards
+        sample = SampleScope(
+            outcome.sample,
+            killed: numberOfKilledMutants,
+            scored: outcome.mutations.count { $0.testSuiteOutcome != .buildError },
+            tested: outcome.mutations.count
+        )
     }
 }
 
@@ -286,5 +294,6 @@ extension MuterTestReport: Codable {
         case killingTestSummary
         case since
         case shards
+        case sample
     }
 }

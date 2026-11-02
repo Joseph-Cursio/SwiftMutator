@@ -172,11 +172,13 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         printMessage("🔎 Analyzing source files to find mutants which can be inserted into your project...")
     }
 
-    /// How many mutants there are, in how many files, and with `verbose`, how many each file has. With `--shard`,
-    /// `mutations` are the shard's, and how many there are in every shard is said first.
+    /// How many mutants there are, in how many files, and with `verbose`, how many each file has. With `--sample` or
+    /// `--shard`, `mutations` are the sample's or the shard's, and how many were discovered in all is said first; with
+    /// both, they are the shard's part of the sample. A seed SwiftMutator chose is said on a line of its own.
     func mutationsDiscoveryFinished(
         mutations: [SchemataMutationMapping],
         verbose: Bool = false,
+        sample: (selection: SampleSelection, seedIsChosen: Bool)? = nil,
         shard: ShardSelection? = nil
     ) {
         let numberOfFiles = mutations.count
@@ -187,17 +189,34 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
             filesSummary[mutation.fileName, default: 0] += mutation.mutationSchemata.count
         }
 
-        let discovered = if let shard {
+        let discovered = switch (sample?.selection, shard) {
+        case (nil, nil):
+            "✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants in \(numberOfFiles) files"
+        case let (nil, shard?):
             "✅ In total, SwiftMutator discovered \(shard.mutantsInAllShards) mutants, and shard \(shard.index) of "
                 + "\(shard.count) holds \(numberOfMutationPoints) of them, in \(numberOfFiles) files"
-        } else {
-            "✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants in \(numberOfFiles) files"
+        case let (sample?, nil) where sample.isPartial:
+            "✅ In total, SwiftMutator discovered \(sample.mutantsSampledFrom) mutants, and the sample of "
+                + "\(sample.size) holds \(numberOfMutationPoints) of them, in \(numberOfFiles) files"
+        case let (sample?, nil):
+            "✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants in \(numberOfFiles) files, "
+                + "no more than the sample of \(sample.size), which holds them all"
+        case let (sample?, shard?):
+            "✅ In total, SwiftMutator discovered \(sample.mutantsSampledFrom) mutants, the sample of \(sample.size) "
+                + "holds \(sample.mutantsSampled) of them, and shard \(shard.index) of \(shard.count) holds "
+                + "\(numberOfMutationPoints) of those, in \(numberOfFiles) files"
         }
-        guard verbose else {
-            print(discovered)
-            return
+        var lines = [discovered]
+        if let sample, sample.seedIsChosen {
+            let seed = sample.selection.seed
+            lines.append("🎲 SwiftMutator chose the sample's seed, \(seed): --seed \(seed) takes the same sample again.")
         }
-        print(discovered + "\n")
+        // With `verbose`, a blank line before the files.
+        if verbose {
+            lines[lines.count - 1] += "\n"
+        }
+        lines.forEach { print($0) }
+        guard verbose else { return }
         for (fileName, mutantCount) in filesSummary {
             print("\(fileName) (\(mutantCount) mutants)".bold)
         }
