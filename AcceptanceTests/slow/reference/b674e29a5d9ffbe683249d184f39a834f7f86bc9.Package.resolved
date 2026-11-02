@@ -1,0 +1,103 @@
+{
+  "originHash" : "ed12bb10a60c05a7bc048bba597284889de2a8e058568a93875c4ec4d1d06913",
+  "pins" : [
+    {
+      "identity" : "lintstudioui",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Joseph-Cursio/LintStudioUI.git",
+      "state" : {
+        "revision" : "2de257dcbda9935a83a7b93abf7a7ef3a5f08408",
+        "version" : "1.4.0"
+      }
+    },
+    {
+      "identity" : "swift-argument-parser",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-argument-parser.git",
+      "state" : {
+        "revision" : "6a52f3251125d74daf04fcbd5e6f08a75d074382",
+        "version" : "1.8.2"
+      }
+    },
+    {
+      "identity" : "swift-async-algorithms",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-async-algorithms.git",
+      "state" : {
+        "revision" : "13713a4ffdee8abd929f92568ee9462a46ae26e0",
+        "version" : "1.1.7"
+      }
+    },
+    {
+      "identity" : "swift-collections",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-collections.git",
+      "state" : {
+        "revision" : "f96b909e1a9e469620bc5037c1e24e00153f376f",
+        "version" : "1.7.5"
+      }
+    },
+    {
+      "identity" : "swift-numerics",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-numerics.git",
+      "state" : {
+        "revision" : "0c0290ff6b24942dadb83a929ffaaa1481df04a2",
+        "version" : "1.1.1"
+      }
+    },
+    {
+      "identity" : "swift-property-based",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/x-sheep/swift-property-based.git",
+      "state" : {
+        "revision" : "7d405e77a7b729390ed1d9a66e1f80a707fd03c4",
+        "version" : "2.0.1"
+      }
+    },
+    {
+      "identity" : "swift-syntax",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-syntax.git",
+      "state" : {
+        "revision" : "79e4b74a295b6eb74a8b585e3a39d29e70c1dbd1",
+        "version" : "603.0.2"
+      }
+    },
+    {
+      "identity" : "swifteffectinference",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Joseph-Cursio/SwiftEffectInference.git",
+      "state" : {
+        "revision" : "5fbee6f7fa984b5f2990a9cce0c8b049a3d8e45b"
+      }
+    },
+    {
+      "identity" : "swiftpropertylaws",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Joseph-Cursio/SwiftPropertyLaws.git",
+      "state" : {
+        "revision" : "a5ecdabd0d604be8126c19ddac410746609b4f4f",
+        "version" : "4.11.0"
+      }
+    },
+    {
+      "identity" : "viewinspector",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/nalexn/ViewInspector.git",
+      "state" : {
+        "revision" : "6be008f348a757e7c0c6901c2dde983e5bba069f"
+      }
+    },
+    {
+      "identity" : "yams",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/jpsim/Yams.git",
+      "state" : {
+        "revision" : "3d6871d5b4a5cd519adf233fbb576e0a2af71c17",
+        "version" : "5.4.0"
+      }
+    }
+  ],
+  "version" : 3
+}
