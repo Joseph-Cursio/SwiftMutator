@@ -60,6 +60,11 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
 - **Mutants that actually apply:** schemata keyed by stable source position, nested blocks kept,
   ternary swaps that don't corrupt code, and simulator, PATH and module-cache fixes (from
   [muter#309](https://github.com/muter-mutation-testing/muter/pull/309), by John Marshall).
+- **Mutants inside macros:** a mutant in a macro's arguments, as in `#Predicate { $0.id == id }`, is
+  switched around the macro, not inside it, where the macro would expand the switch along with the
+  mutant and fail to build. A body whose value is the macro returns it from each branch. A macro at a
+  file's or a type's top level, such as `#Preview`, has nothing around it that can hold a switch, so
+  its mutants are left out.
 - **Parallel workers:** `mutationTestWorkers: N` tests N mutants at once on SwiftPM projects,
   each in its own APFS clone of the mutated project. Each clone is built once before testing, which
   costs one extra build per worker but keeps tests that write files next to their sources from

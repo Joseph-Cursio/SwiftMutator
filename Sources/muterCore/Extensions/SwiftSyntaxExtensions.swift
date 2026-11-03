@@ -17,15 +17,27 @@ extension SyntaxProtocol {
         guard var list = ancestorOrSelf(mapping: { $0.as(CodeBlockItemListSyntax.self) }) else {
             preconditionFailure("\(self) is in no statement list")
         }
-        // `#if` is not a scope: a declaration in a clause is visible after `#endif`. Switching the
-        // clause's own statements would put it inside the switch's `if` block, out of reach of the code
-        // after `#endif`, so such a clause's mutants are switched in the list around the `#if`.
-        while list.parent?.is(IfConfigClauseSyntax.self) == true,
-              list.containsDeclaration,
-              let enclosing = list.enclosingListOfIfConfig {
-            list = enclosing
+        while true {
+            // `#if` is not a scope: a declaration in a clause is visible after `#endif`. Switching the
+            // clause's own statements would put it inside the switch's `if` block, out of reach of the code
+            // after `#endif`, so such a clause's mutants are switched in the list around the `#if`.
+            if list.parent?.is(IfConfigClauseSyntax.self) == true,
+               list.containsDeclaration,
+               let enclosing = list.enclosingListOfIfConfig {
+                list = enclosing
+                continue
+            }
+            // A macro expands its arguments, closures included, from their syntax: `#Predicate { $0.id == id }`
+            // turns its closure's statements into an expression tree, and with them a switch's `if` and its
+            // `ProcessInfo` lookup, which doesn't compile. So a list inside a macro's arguments is never switched:
+            // the list around the outermost macro is, and each of its branches holds the macro, with or without
+            // the mutant.
+            if let enclosing = list.enclosingListOutsideMacros {
+                list = enclosing
+                continue
+            }
+            return list
         }
-        return list
     }
 
     /// Whether the statement list a mutation would be switched in cannot hold the `if` switch.
@@ -154,6 +166,26 @@ extension Trivia? {
 }
 
 extension CodeBlockItemListSyntax {
+    /// Whether this list is the body of a function, a getter or a closure, and its one item a macro that is the body's
+    /// value, as in `func byID(_ id: String) -> Predicate<Item> { #Predicate { $0.id == id } }`. Returning it there
+    /// returns what the body did. An initializer may return no value, and `return` in a `case` would leave the
+    /// function, so neither is such a body.
+    var isAMacroItsBodyReturns: Bool {
+        guard count == 1, first?.item.is(MacroExpansionExprSyntax.self) == true, let parent else {
+            return false
+        }
+        if parent.is(ClosureExprSyntax.self) || parent.is(AccessorBlockSyntax.self) {
+            return true
+        }
+        guard parent.is(CodeBlockSyntax.self), let owner = parent.parent else {
+            return false
+        }
+        if owner.is(FunctionDeclSyntax.self) {
+            return true
+        }
+        return owner.as(AccessorDeclSyntax.self)?.accessorSpecifier.tokenKind == .keyword(.get)
+    }
+
     /// The file's own top level, or a `#if` clause at the file's top level.
     var isFileScope: Bool {
         guard let parent else {
@@ -181,6 +213,19 @@ extension CodeBlockItemListSyntax {
 }
 
 private extension CodeBlockItemListSyntax {
+    /// The statement list around the outermost freestanding macro this list is in, or `nil` when it is in none.
+    var enclosingListOutsideMacros: CodeBlockItemListSyntax? {
+        var outermostMacro: Syntax?
+        var ancestor = parent
+        while let current = ancestor {
+            if current.is(MacroExpansionExprSyntax.self) || current.is(MacroExpansionDeclSyntax.self) {
+                outermostMacro = current
+            }
+            ancestor = current.parent
+        }
+        return outermostMacro?.parent?.ancestorOrSelf(mapping: { $0.as(CodeBlockItemListSyntax.self) })
+    }
+
     var containsDeclaration: Bool {
         contains { Syntax($0.item).asProtocol(DeclSyntaxProtocol.self) != nil }
     }
