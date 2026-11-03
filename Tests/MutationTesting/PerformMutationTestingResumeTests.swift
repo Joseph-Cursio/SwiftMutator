@@ -7,6 +7,8 @@ import XCTest
 final class PerformMutationTestingResumeTests: MuterTestCase {
     private let state = MutationTestState()
     private let resultsPath = "/project_muter_logs/session 1/results.jsonl"
+    /// The note this session leaves in its own log folder, naming the file.
+    private let notePath = "/project_muter_logs/session 2/resumed session.txt"
     private let workerClone = URL(fileURLWithPath: "/project_mutated_worker1")
     private var clonedCounts: [Int] = []
     private let tree = ProjectTree(
@@ -115,6 +117,24 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         XCTAssertEqual(resultsFiles.files.map(\.isClosed), [true], "the end line releases the lock")
     }
 
+    // Its own log folder holds no results file, so the note names the one it adds to, on a line of its own, before the
+    // run announces the file.
+    func test_aResumedSession_leavesANoteInItsLogFolder_namingTheResultsFile() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+        var notedWhenAnnounced: [Bool] = []
+        whenSent(.resultsFileCreated) { [fileManager, notePath] _ in
+            notedWhenAnnounced.append(fileManager.createdFiles[notePath] != nil)
+        }
+
+        _ = try await sut.run(with: state)
+
+        let note = try XCTUnwrap(fileManager.createdFiles[notePath].map { String(decoding: $0, as: UTF8.self) })
+        XCTAssertTrue(note.hasPrefix(resultsPath + "\n\n"), note)
+        XCTAssertEqual(note, ResultsFile.note(pointingTo: resultsPath, session: 2))
+        XCTAssertTrue(note.contains("session 2 of a resumed run"), note)
+        XCTAssertEqual(notedWhenAnnounced, [true])
+    }
+
     func test_theNextNumber_followsTheFilesLastSession() async throws {
         recorded += [
             ResultsHeader.make(formatVersion: ResultsCoding.resumedFormatVersion, session: 2, project: tree),
@@ -150,6 +170,7 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
 
         XCTAssertEqual(sent, [.resultsFileUnavailable])
         XCTAssertEqual(try resultsFiles.kinds(), ["header"])
+        XCTAssertNil(fileManager.createdFiles[notePath], "the folder names a file that stands by results it doesn't")
     }
 
     // A header is written once the baseline passes; before it, no line would belong to a session, so the resumed file
@@ -162,6 +183,7 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         XCTAssertEqual(resultsFiles.lines, [])
         XCTAssertEqual(resultsFiles.directories, [])
         XCTAssertEqual(resultsFiles.files.map(\.isClosed), [true])
+        XCTAssertNil(fileManager.createdFiles[notePath], "the session added nothing to the file")
     }
 
     // So is a stop during the timed test run after the baseline: the session hasn't started its results, so it sends
@@ -178,6 +200,7 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         XCTAssertEqual(sent().count, 0)
         XCTAssertEqual(resultsFiles.lines, [])
         XCTAssertEqual(resultsFiles.files.map(\.isClosed), [true])
+        XCTAssertNil(fileManager.createdFiles[notePath])
     }
 
     // The kept results still stand. Quotient.swift's build error is tested again, and Gone.swift's mutant is no longer
@@ -319,6 +342,37 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
             return XCTFail("Expected an outcome, got \(changes)")
         }
         XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.passed, .runtimeError, .failed, .timeout])
+        XCTAssertEqual(
+            fileManager.createdFiles[notePath],
+            Data(ResultsFile.note(pointingTo: resultsPath, session: 2).utf8),
+            "the session added to the file, though it kept no log"
+        )
+    }
+
+    // The note is all a session with nothing left to test keeps in its log folder, and it keeps the folder, which
+    // the run removes at the end only when it is empty.
+    func test_nothingLeft_keepsItsLogFolder_holdingTheNote() async throws {
+        current.fileManager = FileManager.default
+        let folder = try makeTemporaryDirectory()
+        state.loggingDirectory = folder
+        state.resumeState = try ResumeState.make(
+            path: resultsPath,
+            lines: [
+                ResultsHeader.make(mutantsDiscovered: 4, mutantsToTest: 4, project: tree),
+                record(of: "Sources/Product.swift", line: 7, .passed, fileSHA256: "77e0"),
+                record(of: "Sources/Quotient.swift", line: 4, .runtimeError, fileSHA256: "3c4f"),
+                record(of: "Sources/Sum.swift", line: 3, .failed, fileSHA256: "5a1c"),
+                record(of: "Sources/Total.swift", line: 8, .timeout, fileSHA256: "9e21"),
+                ResultsEnd.make(reason: .finished, testDurationSeconds: 100.5, recorded: 4),
+            ],
+            file: XCTUnwrap(state.resumeState).file
+        )
+
+        _ = try await sut.run(with: state)
+        removeFolderIfEmpty(atPath: folder, fileManager: FileManager.default)
+
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: folder), [ResultsFile.noteFileName])
+        XCTAssertEqual(try ResultsFile.find(at: folder, using: FileManager.default), resultsPath)
     }
 
     // The first session, on 4 workers, was stopped while it ran its timeouts again: Sum.swift's was run again, and

@@ -184,6 +184,14 @@ final class ResumeAcceptanceTests: XCTestCase {
         XCTAssertEqual(rebuilt.status, 0, rebuilt.standardError)
         let rebuiltReport = try JSONSerialization.jsonObject(with: Data(rebuilt.standardOutput.utf8)) as? NSDictionary
         XCTAssertEqual(rebuiltReport, try parsedJSON(at: report))
+        // The resumed session's own log folder holds no results file, but a note naming the file, which `report`
+        // follows.
+        let resumedFolder = try XCTUnwrap(resumedSessionsFolders(besides: resultsFile).first)
+        XCTAssertEqual(try notedFile(in: resumedFolder), resultsFile.resolvingSymlinksInPath().path)
+        let fromFolder = try waitForEnd(of: launch(["report", resumedFolder.path, "-f", "json"]))
+        XCTAssertEqual(fromFolder.status, 0, fromFolder.standardError)
+        let folderReport = try JSONSerialization.jsonObject(with: Data(fromFolder.standardOutput.utf8)) as? NSDictionary
+        XCTAssertEqual(folderReport, try parsedJSON(at: report))
         XCTAssertEqual(workerClones(), [], "no worker clone is left")
     }
 
@@ -274,6 +282,15 @@ final class ResumeAcceptanceTests: XCTestCase {
         XCTAssertEqual(try outcomes(inJSONReportAt: report), ["failed", "failed", "passed", "passed"])
         // Every mutant was kept from the first session, the Checks kills with the test their lines name.
         XCTAssertEqual(try killingTestNames(inJSONReportAt: report), [["check()"], ["check()"], nil, nil])
+        // It kept no log, but the note naming the file keeps its folder.
+        let resumedFolders = resumedSessionsFolders(besides: resultsFile)
+        XCTAssertEqual(resumedFolders.count, 1, "\(resumedFolders)")
+        let resumedFolder = try XCTUnwrap(resumedFolders.first)
+        XCTAssertEqual(
+            try FileManager.default.contentsOfDirectory(atPath: resumedFolder.path),
+            ["resumed session.txt"]
+        )
+        XCTAssertEqual(try notedFile(in: resumedFolder), resultsFile.resolvingSymlinksInPath().path)
     }
 
     // MARK: - Helpers
@@ -500,6 +517,21 @@ final class ResumeAcceptanceTests: XCTestCase {
         }
         XCTAssertEqual(files.count, 1, "\(files)", file: file, line: line)
         return try XCTUnwrap(files.first, file: file, line: line)
+    }
+
+    /// The log folders in `project_muter_logs/` but `resultsFile`'s own: those of the sessions that resumed its run.
+    private func resumedSessionsFolders(besides resultsFile: URL) -> [URL] {
+        let logs = root.appendingPathComponent("project_muter_logs", isDirectory: true)
+        let first = resultsFile.deletingLastPathComponent().resolvingSymlinksInPath().path
+        return ((try? FileManager.default.contentsOfDirectory(at: logs, includingPropertiesForKeys: nil)) ?? [])
+            .filter { $0.resolvingSymlinksInPath().path != first }
+    }
+
+    /// The results file the note in a resumed session's log `folder` names on its first line, symbolic links resolved.
+    private func notedFile(in folder: URL) throws -> String {
+        let note = contents(of: folder.appendingPathComponent("resumed session.txt"))
+        let firstLine = try XCTUnwrap(note.components(separatedBy: "\n").first, note)
+        return URL(fileURLWithPath: firstLine).resolvingSymlinksInPath().path
     }
 
     private func records(in file: URL) throws -> [[String: Any]] {

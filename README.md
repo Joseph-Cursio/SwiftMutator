@@ -448,7 +448,8 @@ Each test run writes its output to `running/` in the log folder while it runs, n
 project or a worker clone, where your tests would see it. Once SwiftMutator has read it back, the
 log folder keeps its own copy, such as `baseline run.log`, and the file in `running/` goes.
 A run that keeps nothing there, such as a refused `--resume` or a `--since` run with no Swift file
-changed, leaves no folder of its own in `<project>_muter_logs`.
+changed, leaves no folder of its own in `<project>_muter_logs`. A resumed session's folder holds no
+results file, but `resumed session.txt`, a note naming the file it adds to.
 
 A SwiftPM mutant's run adds `--quiet`, so Swift Testing prints no line for each test or suite that
 starts or passes. Its log keeps each recorded issue, the run's summary, your tests' own output and
@@ -463,9 +464,9 @@ is beside the project, not in it, so from the project's folder, where `run` is r
 swift-mutator report "../SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM" -f html -o report.html
 ```
 
-- **What it takes.** The results file, or the run's log folder that holds it. `-f` and `-o` work as
-  in `run`. Without `-o` the report goes to standard output alone, so `-f json > report.json` gives
-  valid JSON.
+- **What it takes.** The results file, or a log folder of any of the run's sessions. `-f` and `-o`
+  work as in `run`. Without `-o` the report goes to standard output alone, so
+  `-f json > report.json` gives valid JSON.
 - **A finished run** gets its own report back, in any format. Only what depends on when and where a
   report is made can differ, such as the time in the HTML report's footer. A run by an older
   SwiftMutator, which tested a file's mutants by operator and put line 10 before line 9, gets them
@@ -645,8 +646,8 @@ the run's own arguments, ready to paste:
 ▶️ Continue: swift-mutator run --skip-coverage -o report.txt --resume '/…/results.jsonl'
 ```
 
-`--resume` takes the results file, or the log folder that holds it. SwiftMutator copies, discovers
-and builds the project as any run does, then says which results it keeps:
+`--resume` takes the results file, or a log folder of any of the run's sessions. SwiftMutator
+copies, discovers and builds the project as any run does, then says which results it keeps:
 
 ```
 ♻️ Resuming the run in /…/results.jsonl: 1098 results still hold, so 1399 mutants are left to test (1394 never tested, 5 build errors).
@@ -654,8 +655,10 @@ and builds the project as any run does, then says which results it keeps:
 
 It runs the baseline again and tests only the mutants left, which are what the progress bar, or the
 line per mutant, counts. Their results go into the same file, as a new session, so the file stays in
-the first session's log folder. The report at the end covers every mutant, kept or tested, and so
-does `swift-mutator report` of the file.
+the first session's log folder. The new session's own log folder holds its logs and a note,
+`resumed session.txt`, whose first line is the file's path, so `report`, `--resume` and `--reuse`
+take that folder too. The report at the end covers every mutant, kept or tested, and so does
+`swift-mutator report` of the file.
 
 - **What it saves.** The copy, the build, the baseline and the worker clones are made again. On
   SwiftProjectLint's 2,497 mutants on 6 October, on an 8-core Mac, they took 5–9% of a run, so
@@ -763,8 +766,8 @@ error, with status 64.
 
 `run --reuse` starts a new run from an earlier run's results, so a run after a small change tests
 only what the change can affect ([#71](https://github.com/Joseph-Cursio/SwiftMutator/issues/71)).
-It takes the earlier run's results file, or the log folder that holds it, finished or not, and
-writes a results file of its own in its own log folder: the earlier file is only read.
+It takes the earlier run's results file, or a log folder of any of its sessions, finished or not,
+and writes a results file of its own in its own log folder: the earlier file is only read.
 
 ```
 swift-mutator run --skip-coverage -o report.txt --reuse '/…/Oct 31, 2026 at 7:08 PM/results.jsonl'

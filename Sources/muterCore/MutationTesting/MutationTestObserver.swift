@@ -44,9 +44,10 @@ final class MutationTestObserver {
     }
 
     /// Removes the run's log folder if the run kept nothing in it. That happens when a run is refused or fails before
-    /// its first log, or when a resumed session runs no coverage and has nothing left to test. The logs' root,
-    /// `<project>_muter_logs`, stays, because another run of the project may be claiming a folder in it at the same
-    /// moment. Before `start()` there is no folder, and nothing is removed.
+    /// its first log. A resumed session that runs no coverage and has nothing left to test keeps its folder, which
+    /// holds its note naming the results file (`ResultsFile.noteFileName`). The logs' root, `<project>_muter_logs`,
+    /// stays, because another run of the project may be claiming a folder in it at the same moment. Before `start()`
+    /// there is no folder, and nothing is removed.
     func removeLoggingDirectoryIfEmpty() {
         guard !loggingDirectory.isEmpty else { return }
         removeFolderIfEmpty(atPath: loggingDirectory, fileManager: fileManager)

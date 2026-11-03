@@ -124,6 +124,78 @@ final class ResultsFileTests: XCTestCase {
         XCTAssertEqual(try ResultsFile.find(at: missing, using: FileManager.default), missing)
     }
 
+    // A glob for a run's results files, such as `*.jsonl`, `results*` or `*/results*`, never finds the note.
+    func test_theNotesName_isNotAResultsFileName_andDoesntStartWithOne() {
+        XCTAssertFalse(ResultsFile.isResultsFileName(ResultsFile.noteFileName))
+        XCTAssertFalse(ResultsFile.noteFileName.hasPrefix("results"))
+        XCTAssertNotEqual((ResultsFile.noteFileName as NSString).pathExtension, "jsonl")
+    }
+
+    func test_find_aResumedSessionsFolder_givesTheFileItsNoteNames() throws {
+        let first = try makeLogFolder(holding: ["results.jsonl", "baseline run.log"])
+        let resumed = try makeLogFolder(holding: ["baseline run.log"])
+        try writeNote(pointingTo: "\(first)/results.jsonl", session: 2, in: resumed)
+
+        let located = try ResultsFile.locate(at: resumed, using: FileManager.default)
+
+        XCTAssertEqual(located.path, "\(first)/results.jsonl")
+        XCTAssertTrue(located.isNoted)
+        XCTAssertEqual(try ResultsFile.find(at: resumed + "/", using: FileManager.default), "\(first)/results.jsonl")
+        XCTAssertFalse(try ResultsFile.locate(at: first, using: FileManager.default).isNoted)
+    }
+
+    // Once the first session's folder is removed, reading the file refuses it, naming the file rather than the folder.
+    func test_find_aNoteNamingAMissingFile_isLeftForReadingToRefuse() throws {
+        let missing = "\(directory)/removed/results-2.jsonl"
+        let resumed = try makeLogFolder(holding: [])
+        try writeNote(pointingTo: missing, session: 2, in: resumed)
+
+        XCTAssertEqual(try ResultsFile.find(at: resumed, using: FileManager.default), missing)
+    }
+
+    // Only an absolute path to a file with a results file's name, on the first line, is followed.
+    func test_find_aNoteWithoutAResultsFilesPath_isRefusedAsNoResultsFile() throws {
+        let notes = [
+            "results.jsonl\n",
+            "\(directory)/notes.txt\n",
+            "\(directory)/\n",
+            "\nThe first line is empty.\n\(directory)/results.jsonl\n",
+            "",
+        ]
+        for note in notes {
+            let resumed = try makeLogFolder(holding: [])
+            try Data(note.utf8).write(to: URL(fileURLWithPath: "\(resumed)/\(ResultsFile.noteFileName)"))
+
+            XCTAssertThrowsError(try ResultsFile.find(at: resumed, using: FileManager.default), note) { error in
+                XCTAssertEqual(error as? ResultsFileError, .noResultsFile(folder: resumed), note)
+            }
+        }
+    }
+
+    func test_find_aFolderWithAResultsFileAndANote_givesTheResultsFile() throws {
+        let folder = try makeLogFolder(holding: ["results.jsonl"])
+        try writeNote(pointingTo: "\(directory)/elsewhere/results.jsonl", session: 2, in: folder)
+
+        let located = try ResultsFile.locate(at: folder, using: FileManager.default)
+
+        XCTAssertEqual(located.path, "\(folder)/results.jsonl")
+        XCTAssertFalse(located.isNoted)
+    }
+
+    func test_theNote_namesTheFileOnItsFirstLine_thenSaysWhatTheFolderIs() {
+        XCTAssertEqual(
+            ResultsFile.note(pointingTo: "/logs/Oct 6, 2026 at 9:12 AM/results.jsonl", session: 3),
+            """
+            /logs/Oct 6, 2026 at 9:12 AM/results.jsonl
+
+            This folder holds the logs of session 3 of a resumed run. The run's results are in the results file \
+            above, in the first session's log folder. Give that file, or this folder, to swift-mutator report, or to \
+            swift-mutator run --resume or --reuse.
+
+            """
+        )
+    }
+
     func test_aLineIsOnDiskWhenAppendReturns() throws {
         let file = try ResultsFile.Opener().create(in: directory)
 
@@ -468,6 +540,12 @@ private extension ResultsFileTests {
             try Data().write(to: URL(fileURLWithPath: "\(folder)/\(name)"))
         }
         return folder
+    }
+
+    /// Writes the note the `session`th session of a resumed run leaves in its log folder, `folder`.
+    func writeNote(pointingTo path: String, session: Int, in folder: String) throws {
+        let note = Data(ResultsFile.note(pointingTo: path, session: session).utf8)
+        try note.write(to: URL(fileURLWithPath: "\(folder)/\(ResultsFile.noteFileName)"))
     }
 
     func contents(of path: String) throws -> Data {

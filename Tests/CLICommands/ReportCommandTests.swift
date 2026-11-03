@@ -114,6 +114,78 @@ final class ReportCommandTests: MuterTestCase {
         )
     }
 
+    // A resumed session's folder holds no results file but a note naming the one it adds to, in the first session's.
+    func test_acceptsAResumedSessionsLogFolder() async throws {
+        let (first, resumed) = try makeAResumedRunsLogFolders()
+
+        try await report(resumed)
+
+        XCTAssertEqual(printer.linesPassed, [PlainTextReporter().report(from: expected)])
+        XCTAssertEqual(
+            standardError.linesPassed,
+            ["Report of 3 of 3 mutants, from \(first)/results.jsonl: the run finished."]
+        )
+    }
+
+    // As a glob over the run's log folders gives them, in any order: one file, reported as it is, not merged.
+    func test_aRunsFirstAndResumedFolders_reportItsFileOnce() async throws {
+        let (first, resumed) = try makeAResumedRunsLogFolders()
+        let second = "\(directory)/project_muter_logs/session 3"
+        try FileManager.default.createDirectory(atPath: second, withIntermediateDirectories: true)
+        try writeNote(pointingTo: "\(first)/results.jsonl", session: 3, in: second)
+
+        for folders in [[first, resumed], [resumed, first], [resumed, second], [second, first, resumed]] {
+            let printed = printer.linesPassed.count
+            let said = standardError.linesPassed.count
+
+            try await report(folders)
+
+            XCTAssertEqual(
+                Array(printer.linesPassed.dropFirst(printed)),
+                [PlainTextReporter().report(from: expected)],
+                "\(folders)"
+            )
+            XCTAssertEqual(
+                Array(standardError.linesPassed.dropFirst(said)),
+                ["Report of 3 of 3 mutants, from \(first)/results.jsonl: the run finished."],
+                "\(folders)"
+            )
+        }
+    }
+
+    // The note spells the file's path as the resume was given it, here through a symbolic link to the logs, and the
+    // glob spells it another way.
+    func test_aRunsFirstAndResumedFolders_reportItsFileOnce_howeverTheNoteSpellsItsPath() async throws {
+        let (first, resumed) = try makeAResumedRunsLogFolders()
+        let linked = "\(directory)/linked logs"
+        try FileManager.default.createSymbolicLink(
+            atPath: linked,
+            withDestinationPath: "\(directory)/project_muter_logs"
+        )
+        try writeNote(pointingTo: "\(linked)/session 1/results.jsonl", session: 2, in: resumed)
+
+        try await report(first, resumed)
+
+        XCTAssertEqual(printer.linesPassed, [PlainTextReporter().report(from: expected)])
+        XCTAssertEqual(
+            standardError.linesPassed,
+            ["Report of 3 of 3 mutants, from \(first)/results.jsonl: the run finished."]
+        )
+    }
+
+    // Only a file a note names is dropped as a repeat: a shard's file given twice by its own path or folder is still
+    // refused, as a mistake in the command.
+    func test_aShardsFileGivenTwice_isStillRefused() async throws {
+        let (first, resumed) = try makeAResumedRunsLogFolders(header: shardHeader(1, mutantsDiscovered: 2))
+
+        await assertRefused(
+            try await report(first, first, resumed),
+            MergeRefused(reasons: [
+                .givenTwice(Shard(index: 1, count: 2), paths: ["\(first)/results.jsonl", "\(first)/results.jsonl"]),
+            ])
+        )
+    }
+
     // As in a run, each surviving mutant's warning is printed whether or not the report is saved to a file.
     func test_theXcodeFormat_warnsOfEachSurvivor_inJobOrder_thenGivesItsSummary() async throws {
         try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
@@ -489,6 +561,11 @@ private extension ReportCommandTests {
 
     /// Runs `swift-mutator report` with `arguments`.
     func report(_ arguments: String...) async throws {
+        try await report(arguments)
+    }
+
+    /// Runs `swift-mutator report` with `arguments`.
+    func report(_ arguments: [String]) async throws {
         let command = try MuterCommand.parseAsRoot(["report"] + arguments)
         guard let report = command as? Report else {
             return XCTFail("Expected the report command, got \(command)")
@@ -515,6 +592,28 @@ private extension ReportCommandTests {
         }
         XCTAssertEqual(printer.linesPassed, [], context, file: file, line: line)
         XCTAssertEqual(standardError.linesPassed, [], context, file: file, line: line)
+    }
+
+    /// The log folders of a run resumed once, in `<directory>/project_muter_logs`: the first session's, which holds the
+    /// results file, starting with `header`, and the resumed session's, which holds only its note naming the file.
+    func makeAResumedRunsLogFolders(
+        header: ResultsHeader = .make()
+    ) throws -> (first: String, resumed: String) {
+        let logs = "\(directory)/project_muter_logs"
+        let first = "\(logs)/session 1"
+        let resumed = "\(logs)/session 2"
+        for folder in [first, resumed] {
+            try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+        }
+        try write(header, zeta9, alpha3, zeta10, ResultsEnd.make(), to: "\(first)/results.jsonl")
+        try writeNote(pointingTo: "\(first)/results.jsonl", session: 2, in: resumed)
+        return (first, resumed)
+    }
+
+    /// Writes the note the `session`th session of a resumed run leaves in its log folder, `folder`.
+    func writeNote(pointingTo path: String, session: Int, in folder: String) throws {
+        let note = Data(ResultsFile.note(pointingTo: path, session: session).utf8)
+        try note.write(to: URL(fileURLWithPath: "\(folder)/\(ResultsFile.noteFileName)"))
     }
 
     /// JSONEncoder promises no order of keys, so JSON compares parsed.

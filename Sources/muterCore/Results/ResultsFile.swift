@@ -251,18 +251,61 @@ extension ResultsFile {
         fileNames.contains(name)
     }
 
-    /// The results file `path` names: `path` itself, or the one results file in the run's log folder it names.
+    /// The name of the note a resumed session leaves in its own log folder. The note names the results file the
+    /// session adds to, which stays in the first session's folder. The name is not a results file name and doesn't
+    /// start with one, so a glob for results files never finds it.
+    static let noteFileName = "resumed session.txt"
+
+    /// The note the `session`th session of a resumed run leaves in its log folder: `path`, the results file it adds
+    /// to, on the first line by itself, so that `find` can read it back, then what the folder is.
+    static func note(pointingTo path: String, session: Int) -> String {
+        """
+        \(path)
+
+        This folder holds the logs of session \(session) of a resumed run. The run's results are in the results file \
+        above, in the first session's log folder. Give that file, or this folder, to swift-mutator report, or to \
+        swift-mutator run --resume or --reuse.
+
+        """
+    }
+
+    /// The results file `path` names: `path` itself, or the one results file in the run's log folder it names. A
+    /// resumed session's folder holds no results file but a note naming the one it adds to, which is given instead.
     /// Anything that isn't a folder, a missing path included, is left for reading it to refuse.
     static func find(at path: String, using fileManager: FileSystemManager) throws -> String {
-        guard let names = try? fileManager.contentsOfDirectory(atPath: path) else { return path }
+        try locate(at: path, using: fileManager).path
+    }
+
+    /// The results file `path` names, as `find` gives it, and whether a resumed session's note named it.
+    static func locate(at path: String, using fileManager: FileSystemManager) throws -> (path: String, isNoted: Bool) {
+        guard let names = try? fileManager.contentsOfDirectory(atPath: path) else { return (path, false) }
         let present = Set(names)
         // In the order the runs started in, so results-10.jsonl comes after results-2.jsonl, and results.jsonl first.
         let found = fileNames.filter(present.contains)
         switch found.count {
-        case 1: return (path as NSString).appendingPathComponent(found[0])
-        case 0: throw ResultsFileError.noResultsFile(folder: path)
-        default: throw ResultsFileError.severalResultsFiles(folder: path, names: found)
+        case 1:
+            return ((path as NSString).appendingPathComponent(found[0]), false)
+        case 0:
+            guard present.contains(noteFileName), let noted = notedFile(in: path, using: fileManager) else {
+                throw ResultsFileError.noResultsFile(folder: path)
+            }
+            return (noted, true)
+        default:
+            throw ResultsFileError.severalResultsFiles(folder: path, names: found)
         }
+    }
+
+    /// The results file that the note in `folder`, a resumed session's log folder, names: the note's first line, if it
+    /// is an absolute path to a file with a results file's name. Whether the file is there is left for reading it to
+    /// refuse, which names the file. It is given without looking in it, so one note never leads to another.
+    private static func notedFile(in folder: String, using fileManager: FileSystemManager) -> String? {
+        let note = (folder as NSString).appendingPathComponent(noteFileName)
+        guard let data = fileManager.contents(atPath: note), let text = String(data: data, encoding: .utf8),
+              let firstLine = text.components(separatedBy: .newlines).first,
+              firstLine.hasPrefix("/"), isResultsFileName((firstLine as NSString).lastPathComponent) else {
+            return nil
+        }
+        return firstLine
     }
 
     /// Whether `output` names the file at `results`, so saving a report there would replace it: the same path once

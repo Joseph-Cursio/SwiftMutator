@@ -16,6 +16,8 @@ final class FileManagerSpy: Spy, FileSystemManager, @unchecked Sendable {
     private(set) var contentsOfDirectoryAtPath: [String] = []
     private(set) var fileExistsAtPath: [String] = []
     private(set) var contents: Data?
+    /// What each `createFile` wrote, by path: `contents` holds only what the last one wrote.
+    private(set) var createdFiles: [String: Data] = [:]
 
     private var fileContentsQueue: Queue<Data> = .init()
     var fileContentsToReturn: Data? {
@@ -75,6 +77,7 @@ final class FileManagerSpy: Spy, FileSystemManager, @unchecked Sendable {
         methodCalls.append(#function)
         paths.append(path)
         contents = data
+        createdFiles[path] = data ?? Data()
 
         return true
     }

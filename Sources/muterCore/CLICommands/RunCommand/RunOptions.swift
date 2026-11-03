@@ -28,9 +28,10 @@ extension Run {
         /// `--timeout`: seconds before a mutant's test run is stopped, in place of `mutationTestTimeout`.
         let timeout: Double?
         let createTestPlan: Bool
-        /// The results file, or the log folder that holds it, of the run that `--resume` continues.
+        /// The results file, or the log folder of one of its sessions, of the run that `--resume` continues.
         let resumeURL: URL?
-        /// The results file, or the log folder that holds it, of the earlier run whose results `--reuse` starts from.
+        /// The results file, or the log folder of one of its sessions, of the earlier run whose results `--reuse`
+        /// starts from.
         let reuseURL: URL?
         /// `--resume-ignoring`'s globs, or `--reuse-ignoring`'s: project files that changed, whose changes a resume or
         /// a reuse lets through. A reuse never lets a test file's through.

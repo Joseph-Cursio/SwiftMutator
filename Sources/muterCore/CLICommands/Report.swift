@@ -12,7 +12,7 @@ struct Report: AsyncParsableCommand {
 
     @Argument(
         help: ArgumentHelp(
-            "A run's results file, or the run's log folder in <project>_muter_logs that holds it. "
+            "A run's results file, or the log folder in <project>_muter_logs of any of the run's sessions. "
                 + "Several, one for each shard of a run --shard split, are merged into one report.",
             valueName: "results"
         )

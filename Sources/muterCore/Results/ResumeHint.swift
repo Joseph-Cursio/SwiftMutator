@@ -5,7 +5,7 @@ enum ResumeHint {
     /// `swift-mutator`, then `arguments` without an earlier `--resume` and its value, or `--force-resume`, then
     /// `--resume` and `resultsFile`, each quoted only where a shell would split it.
     ///
-    /// A resumed session's results file is the one this run continues, or the log folder that holds it, so
+    /// A resumed session's results file is the one this run continues, or a log folder of one of its sessions, so
     /// `resultsFile` replaces it. The header of a session `--force-resume` let through records the build and toolchain
     /// it ran with, so the next session needs no force. `--resume-ignoring` stays: changed files a session's results
     /// don't depend on are as likely to change again before the next one.

@@ -94,6 +94,24 @@ final class LoadResumeStateTests: MuterTestCase {
         XCTAssertEqual(listed.value, [state.projectDirectoryURL], "the project itself is listed: there is no copy yet")
     }
 
+    // A resumed session's folder holds no results file but its note, so a resume of the resume, given that folder,
+    // continues the file the note names.
+    func test_aResumedSessionsLogFolder_findsTheFileItsNoteNames() async throws {
+        let header = ResultsHeader.make(project: await projectTree())
+        try writeResults(header, ResultsEnd.make())
+        let resumed = try makeAResumedSessionsLogFolder()
+        resume(resumed)
+
+        let changes = try await sut.run(with: state)
+        state.apply(changes)
+
+        let loaded = try XCTUnwrap(state.resumeState)
+        XCTAssertEqual(loaded.path, resultsPath)
+        XCTAssertNotNil(loaded.file)
+        XCTAssertEqual(loaded.lastHeader, header)
+        loaded.file?.close()
+    }
+
     // Every reason is found before the copy, so one message says all there is to fix, and the file's lock goes with it.
     func test_everyRefusal_comesTogether_beforeTheCopy() async throws {
         try await writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
@@ -326,6 +344,20 @@ extension LoadResumeStateTests {
         XCTAssertEqual(listed.value, [])
     }
 
+    func test_aReuse_ofAResumedSessionsLogFolder_readsTheFileItsNoteNames() async throws {
+        let header = ResultsHeader.make(project: await projectTree())
+        try writeResults(header, ResultsEnd.make())
+        reuse(try makeAResumedSessionsLogFolder())
+
+        let changes = try await sut.run(with: state)
+        state.apply(changes)
+
+        let loaded = try XCTUnwrap(state.resumeState)
+        XCTAssertTrue(loaded.isReuse)
+        XCTAssertEqual(loaded.path, resultsPath)
+        XCTAssertEqual(loaded.lastHeader, header)
+    }
+
     // What a reuse can't take, it refuses as a resume does, naming its own flags.
     func test_aReuse_isRefusedAsAResumeIs_namingForceReuse() async throws {
         try await writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
@@ -376,6 +408,15 @@ private extension LoadResumeStateTests {
             resumeIgnoring: globs,
             forceResume: forcing
         )
+    }
+
+    /// The log folder of a session that resumed the run in `logs`, beside it: it holds only its note naming the file.
+    func makeAResumedSessionsLogFolder() throws -> String {
+        let folder = (logs as NSString).deletingLastPathComponent + "/Oct 6, 2026 at 9:40 AM"
+        try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+        let note = Data(ResultsFile.note(pointingTo: resultsPath, session: 2).utf8)
+        try note.write(to: URL(fileURLWithPath: "\(folder)/\(ResultsFile.noteFileName)"))
+        return folder
     }
 
     /// Checks that the step refuses with `expected`.

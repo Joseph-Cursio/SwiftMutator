@@ -91,6 +91,10 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
         XCTAssertEqual(mutants.map(\.reusedFrom), [origin, origin, nil, nil])
         XCTAssertEqual(mutants[1].killedBy, [sumTest], "how it was tested is as recorded")
         XCTAssertEqual(try resultsFiles.records(ResultsEnd.self).map(\.recorded), [4], "every mutant line it wrote")
+        XCTAssertNil(
+            fileManager.createdFiles["/project_muter_logs/now/\(ResultsFile.noteFileName)"],
+            "its folder holds its own file, so it leaves no note"
+        )
     }
 
     // Its test duration is its own: the earlier run's isn't in this file.

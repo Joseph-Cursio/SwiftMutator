@@ -170,8 +170,8 @@ final class MutationTestHandlerTests: MuterTestCase {
         assertTheRunsLogFolderIsRemoved()
     }
 
-    // Such as `mutate-without-running --skip-coverage`, or a resumed session that runs no coverage and has nothing left
-    // to test.
+    // Such as `mutate-without-running --skip-coverage`. A resumed session with nothing left to test keeps the note it
+    // leaves there.
     func test_aRunThatFinishedWithNothingKept_removesItsLogFolder() async throws {
         fileManager.currentDirectoryPathToReturn = "/project"
         givenThereAreNoFailuresInAnyOfItSteps()
