@@ -352,6 +352,11 @@ final class MergedShardsTests: XCTestCase {
         XCTAssertFalse(merged.lacksResults)
         XCTAssertEqual(merged.latest[sum9.key]?.outcome, .failed)
         XCTAssertEqual(merged.mutationTestOutcome().mutations.map(\.testSuiteOutcome), [.failed, .failed, .failed])
+        XCTAssertTrue(
+            merged.statusLines().contains(
+                "In shard 1 of 2's file: of these, 1 was tested in the last session, session 2, and 1 in session 1."
+            )
+        )
     }
 
     // Where a shard's kept results were tested, so the merged report marks them as a whole run's would.
@@ -370,6 +375,11 @@ final class MergedShardsTests: XCTestCase {
         XCTAssertEqual(
             merged.mutationTestOutcome().mutations.compactMap(\.reusedFrom),
             [ReusedFrom(resultsFile: "/old/results.jsonl", session: 1, despiteChanges: false)]
+        )
+        XCTAssertTrue(
+            merged.statusLines().contains(
+                "In shard 1 of 2's file: of these, 1 was tested and 1 kept by --reuse, tested in /old/results.jsonl."
+            )
         )
     }
 
@@ -455,6 +465,36 @@ final class MergedShardsTests: XCTestCase {
         )
 
         XCTAssertTrue(merged.statusLines().contains("In shard 1 of 2's file: skipped 1 line that didn't read: 3."))
+    }
+
+    // After the shard's own line and before its skipped lines, as for a file that isn't a shard's.
+    func test_aShardsSessions_areSaidForItsShard() throws {
+        let retested = MutantResult.make(session: 2, path: "Sources/Sum.swift", line: 9, outcome: .failed)
+        var data = try encoded(header(1), sum3, sum9, end(.interrupted), header(1, session: 2))
+        data += Data("garbled\n".utf8)
+        data += try encoded(ResultsRetired(session: 2, keys: [sum9.key]), retested)
+        let resumed = (path: "/a/results.jsonl", recorded: try RecordedResults.read(data, path: "/a/results.jsonl"))
+
+        let merged = try MergedShards.merge(
+            [resumed, read(file("/b/results.jsonl", header(2), alpha5, end()))],
+            forcing: false,
+            ignoring: []
+        )
+        let alone = try MergedShards.merge([resumed], forcing: false, ignoring: [])
+
+        XCTAssertEqual(Array(merged.statusLines().prefix(4)), [
+            "Report of 3 of 3 mutants, merged from the results files of 2 of 2 shards.",
+            "Shard 1 of 2, 2 of its 2 mutants, from /a/results.jsonl: "
+                + "the run has no end line, so it is still running, or it was killed or crashed.",
+            "In shard 1 of 2's file: of these, 1 was tested in the last session, session 2, and 1 in session 1.",
+            "In shard 1 of 2's file: skipped 1 line that didn't read: 6.",
+        ])
+        XCTAssertEqual(Array(alone.statusLines().prefix(3)), [
+            "Report of 2 of 2 mutants in shard 1 of 2, from /a/results.jsonl: "
+                + "the run has no end line, so it is still running, or it was killed or crashed.",
+            "Of these, 1 was tested in the last session, session 2, and 1 in session 1.",
+            "Skipped 1 line that didn't read: 6.",
+        ])
     }
 }
 

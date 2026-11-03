@@ -127,6 +127,38 @@ final class ReportCommandTests: MuterTestCase {
         )
     }
 
+    func test_aResumedRunsFile_saysWhichSessionsTestedItsResults() async throws {
+        let resumed = ResultsHeader.make(
+            formatVersion: ResultsCoding.resumedFormatVersion, session: 2, mutantsReused: 1
+        )
+        let alpha3Again = MutantResult.make(session: 2, path: "Sources/Alpha.swift", line: 3, outcome: .failed)
+        let zeta10Resumed = MutantResult.make(session: 2, path: "Sources/Zeta.swift", line: 10, outcome: .passed)
+        try write(
+            ResultsHeader.make(),
+            zeta9,
+            alpha3,
+            // The sessions' test durations add up to the 100.5 seconds `expected` has.
+            ResultsEnd.make(reason: .interrupted, detail: "SIGINT", testDurationSeconds: 40),
+            resumed,
+            ResultsRetired(session: 2, keys: [alpha3.key]),
+            alpha3Again,
+            zeta10Resumed,
+            ResultsEnd.make(session: 2, testDurationSeconds: 60.5),
+            to: resultsPath
+        )
+
+        try await report(resultsPath)
+
+        XCTAssertEqual(printer.linesPassed, [PlainTextReporter().report(from: expected)])
+        XCTAssertEqual(
+            standardError.linesPassed,
+            [
+                "Report of 3 of 3 mutants, from \(resultsPath): the run finished.",
+                "Of these, 2 were tested in the last session, session 2, and 1 in session 1.",
+            ]
+        )
+    }
+
     // As a glob over the run's log folders gives them, in any order: one file, reported as it is, not merged.
     func test_aRunsFirstAndResumedFolders_reportItsFileOnce() async throws {
         let (first, resumed) = try makeAResumedRunsLogFolders()

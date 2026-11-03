@@ -391,8 +391,9 @@ swift-mutator run --shard 1/2
     different build or toolchain through, and `--merge-ignoring <glob>` project files that differ,
     such as a file one machine left in its checkout. Each refusal says which.
   - **What it says.** On standard error, as for one file: how many mutants the report covers, and
-    how each shard's run ended. A shard whose file isn't given is named with the mutants it holds.
-    A shard that holds no mutant has no file, and is only said.
+    how each shard's run ended and, if it was resumed or reused, which sessions tested its results.
+    A shard whose file isn't given is named with the mutants it holds. A shard that holds no mutant
+    has no file, and is only said.
   - **When it fails.** It exits with 255, as for a run that stopped on an error, whenever the
     report is known to lack results: a shard stopped on an error, has fewer results than mutants,
     as when its job was cancelled or killed, or holds mutants but its file isn't given. So a CI job
@@ -500,6 +501,9 @@ swift-mutator report "../SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM" -f 
 - **On standard error** it says how many of the run's mutants the report covers, how the run ended,
   and where it saved the report. A run that stopped on its fifth build error in a row, for example,
   gives `Report of 1103 of 2497 mutants, from …: the run stopped on an error (tooManyBuildErrors).`
+  For a resumed or reused run, the next line says which sessions tested its results and how many
+  were kept by `--reuse`: `Of these, 1394 were tested in the last session, session 2, and 1103 in
+  session 1.`
 - **It exits with status 1** when the file can't be read or isn't a results file.
 - **It exits with status 255** once the report is made of a run that stopped on an error, the status
   the run itself exited with, so a script that checks the report fails as one that checked the run
@@ -835,7 +839,8 @@ each result by what changed since the session that tested it:
   that now fails stops the run. Only with no change at all, and nothing to test, does it run none.
 - **The new file** starts with the results it keeps, each with `reusedFrom`, which says where it was
   tested ([Mutant](Docs/results-file.md#mutant)), and their logs are copied into the new log folder.
-  So the new file stands alone: `swift-mutator report` of it gives the run's own report, and a later
+  So the new file stands alone: `swift-mutator report` of it gives the run's own report, and says
+  on standard error how many results were kept, and the file each was first tested in. A later
   `--reuse` or `--resume` of it works as of any run's. A stopped reuse continues with
   `--resume` of the new file, which its Continue line names, with each `--reuse-ignoring` as a
   `--resume-ignoring`. Stopped before its baseline passed, it has no file yet: run the same

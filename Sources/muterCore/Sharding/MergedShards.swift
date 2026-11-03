@@ -176,8 +176,8 @@ extension MergedShards {
     }
 
     /// What `report` says on standard error of the merge: how many mutants it covers, each shard's file and how its run
-    /// ended, the shards whose files weren't given, and what may make the report differ from a whole run's. One shard's
-    /// file alone is said as any other file is, naming its shard.
+    /// ended and which of its sessions tested its results, the shards whose files weren't given, and what may make the
+    /// report differ from a whole run's. One shard's file alone is said as any other file is, naming its shard.
     func statusLines() -> [String] {
         let count = reference.shard.count
         var lines: [String]
@@ -187,6 +187,7 @@ extension MergedShards {
                 "Report of \(only.recorded.latest.count) of \(Self.mutants(only.header.mutantsDiscovered)) in shard "
                     + "\(only.shard.index) of \(count), from \(only.path): \(only.recorded.ending).",
             ]
+            only.recorded.resultSources.map { lines.append($0) }
             only.recorded.skippedLines.map { lines.append($0) }
         } else {
             let given = "merged from the results files of \(parts.count) of \(count) shards"
@@ -201,6 +202,9 @@ extension MergedShards {
                     "\(shard.prefix(1).uppercased() + shard.dropFirst()), \(part.recorded.latest.count) of its "
                         + "\(Self.mutants(part.header.mutantsDiscovered)), from \(part.path): \(part.recorded.ending)."
                 )
+                if let sources = part.recorded.resultSources {
+                    lines.append("In \(shard)'s file: " + sources.prefix(1).lowercased() + sources.dropFirst())
+                }
                 if let skipped = part.recorded.skippedLines {
                     lines.append("In \(shard)'s file: " + skipped.prefix(1).lowercased() + skipped.dropFirst())
                 }

@@ -313,6 +313,15 @@ The report doesn't say whether the run finished. The status on standard error do
   | `aborted` | `the run stopped on an error (tooManyBuildErrors)`, giving the code in `detail` |
   | None | `the run has no end line, so it is still running, or it was killed or crashed` |
 
+  For a file of more than one session, or with results that `--reuse` kept, the next line says which sessions tested the report's results: how many the last session tested, how many each earlier session did, and how many `--reuse` kept, by the results file each was first tested in. Each result counts once, for the line the report takes for its key ([Sessions](#sessions)), so the counts add up to the first line's:
+
+  ```
+  Of these, 1394 were tested in the last session, session 3, and 1103 in earlier ones (900 in session 1 and 203 in session 2).
+  Of these, 300 were tested and 2197 kept by --reuse, tested in /Users/me/code/SwiftProjectLint_muter_logs/Oct 31, 2026 at 7:08 PM/results.jsonl.
+  ```
+
+  A session with no result left in the report isn't named. A file of one session that kept nothing, and an empty report, get no such line.
+
   When lines were skipped, another line numbers them, and says when the last was cut off as it was written: `Skipped 1 line that didn't read: 812; the last was cut off as it was written.`
 
   The status has no emoji, so it can be searched for in CI logs. Numbers have no thousands separators.
@@ -341,7 +350,7 @@ A run's file holds one session, and one more for each time `run --resume` contin
 - how the run ended, from the last session's end line;
 - how many mutants the run found, from the last header's `mutantsDiscovered`.
 
-So a resumed run that finished gets back the report its last session made, which covers every mutant, kept or tested again. The status counts every mutant with a result, whichever session tested it: `Report of 2497 of 2497 mutants, from …: the run finished.`
+So a resumed run that finished gets back the report its last session made, which covers every mutant, kept or tested again. The status counts every mutant with a result, whichever session tested it, and its next line says how many each session tested: `Report of 2497 of 2497 mutants, from …: the run finished.`, then `Of these, 1394 were tested in the last session, session 2, and 1103 in session 1.` A result tested again, as a timeout under a longer limit is, counts for the session that tested it again, and a rerun at lower load is one result, of its own session.
 
 ### Shards
 
@@ -373,7 +382,7 @@ Shard 2 of 2, 1232 of its 1235 mutants, from …/results.jsonl: the run was inte
 
 - The first line's total is `mutantsInAllShards`. If the shards' `allKeysSHA256` differ, their discoveries did, as when coverage differed between the machines: the line gives no total, and another says how many mutants in all each shard's run discovered.
 - A shard whose file isn't given is named with the mutants `mutantsPerShard` gives it: `No results file was given for shard 2 of 3, which holds 812 mutants.` A shard that holds none wrote no file, and is said to: `Shard 3 of 3 holds no mutant, so it has no results file.`
-- Lines skipped in a file are said for its shard.
+- Which sessions tested a file's results, and lines skipped in it, are said for its shard, after its own line: `In shard 2 of 2's file: of these, 300 were tested in the last session, session 2, and 932 in session 1.` The first line gives no such count, as the shards' sessions differ.
 - What `--force-merge` and `--merge-ignoring` let through is said, as is a shard whose own sessions let changes through when it was resumed or reused, by their headers' `forced` or `waived`.
 
 `report` exits with 255 whenever the report is known to lack results: any shard's last session stopped on an error; a shard has fewer results than its header's `mutantsDiscovered`, as one that was interrupted, killed or is still running has; or a shard that holds mutants has no file among those given. So a CI job that checks the merged report fails as one that checked every shard's run would. Discoveries that differ only warn: each shard has its own mutants' results.

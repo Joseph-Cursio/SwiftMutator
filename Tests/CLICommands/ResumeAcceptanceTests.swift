@@ -182,6 +182,8 @@ final class ResumeAcceptanceTests: XCTestCase {
         XCTAssertEqual(try killingTestNames(inJSONReportAt: report), [["check()"], ["check()"], nil, nil])
         let rebuilt = try waitForEnd(of: launch(["report", resultsFile.path, "-f", "json"]))
         XCTAssertEqual(rebuilt.status, 0, rebuilt.standardError)
+        let sessions = "Of these, 2 were tested in the last session, session 2, and 2 in session 1."
+        XCTAssertTrue(rebuilt.standardError.contains(sessions), rebuilt.standardError)
         let rebuiltReport = try JSONSerialization.jsonObject(with: Data(rebuilt.standardOutput.utf8)) as? NSDictionary
         XCTAssertEqual(rebuiltReport, try parsedJSON(at: report))
         // The resumed session's own log folder holds no results file, but a note naming the file, which `report`
