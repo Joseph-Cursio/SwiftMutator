@@ -2,7 +2,8 @@
 import XCTest
 
 /// The fixtures are real xcodebuild 27.2 logs of `test-without-building` runs on iOS 26.5 simulators, with home
-/// folders, the app's bundle ID and the Mac's and a device's names and IDs made anonymous.
+/// folders, the app's bundle ID and the Mac's and a device's names and IDs made anonymous. The `mutantCrash_` ones are
+/// `launch_beforeEstablishingConnection.log` with only its signal changed.
 final class SimulatorTroubleTests: MuterTestCase {
     private let xcodebuild = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
 
@@ -27,6 +28,24 @@ final class SimulatorTroubleTests: MuterTestCase {
                     + "(Test crashed with signal kill before establishing connection.)"
             )
         )
+    }
+
+    // The app crashed at launch, before its tests connected, as when a mutant crashes it: the same log as an app that
+    // was killed, but for the signal, which is the app's own.
+    func test_anAppThatCrashedBeforeItsTestsConnected_isNoTrouble() {
+        for signal in ["abrt", "segv", "trap"] {
+            let log = loadFixture("SimulatorTrouble/mutantCrash_\(signal)BeforeEstablishingConnection.log")
+
+            XCTAssertTrue(log.contains("Test crashed with signal \(signal) before establishing connection."), signal)
+            XCTAssertNil(SimulatorTrouble.first(inLog: log), signal)
+            XCTAssertNil(SimulatorTrouble.of(TestRun(outcome: .failed, testLog: log), with: xcodebuild), signal)
+        }
+        for signal in ["bus", "ill", "fpe"] {
+            let line = "\tMacCloud_client_iOS encountered an error "
+                + "(Test crashed with signal \(signal) before establishing connection.)"
+
+            XCTAssertNil(SimulatorTrouble.first(inLog: line), line)
+        }
     }
 
     // The simulator was deleted before the run: xcodebuild can't resolve the destination, and prints no summary.

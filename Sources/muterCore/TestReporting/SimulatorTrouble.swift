@@ -47,12 +47,14 @@ enum SimulatorTrouble: Equatable {
     }
 
     /// Text that xcodebuild prints when the simulator didn't launch the app or its test runner. The launch services'
-    /// own errors, nested in one another, then xcodebuild's own, which its summary repeats.
+    /// own errors, nested in one another, then xcodebuild's own, which its summary repeats. Of the app's crashes before
+    /// its tests connect, only signal kill: another run on the simulator killed it. Any other signal, such as abrt,
+    /// segv or trap, is the app's own crash at launch, as when a mutant crashes it, and a run on it again would too.
     private static let launchLines = [
         "Application failed preflight checks",
         "Simulator device failed to launch",
         "Failed to install or launch the test runner",
-        "before establishing connection",
+        "signal kill before establishing connection",
     ]
 
     /// Text that xcodebuild prints when the run's simulator is gone: before the run, when it can't resolve the
