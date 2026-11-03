@@ -26,6 +26,7 @@ struct PerformMutationTesting: MutationStep {
     private var sleep: Sleep
 
     private let simulatorWorkerSetup = SimulatorWorkerSetup()
+    private let timedTestRun = TimedTestRun()
 
     private let buildErrorsThreshold: Int = 5
 
@@ -283,23 +284,13 @@ private extension PerformMutationTesting {
         )
         muterConfiguration = pool.configuration
         let workers = pool.count
-        var testRunSeconds: TimeInterval?
-        // A reuse with nothing left to test ran the baseline only to see that the changed tests pass. One mutant's run
-        // saves no more than either costs, so its time limit is the configured one, or the baseline's default.
-        if muterConfiguration.buildSystem == .swift, !plan.toRun.isEmpty, state.selectedMutant == nil {
-            let direct = try await runningTestBundlesDirectly(muterConfiguration, baselineLog: testLog, state: state)
-            muterConfiguration = direct.configuration
-            // The run that checked the direct runs is a mutant's run with no mutant on, which needn't run again.
-            if muterConfiguration.testSuiteTimeout == nil {
-                testRunSeconds = direct.seconds
-                if testRunSeconds == nil {
-                    testRunSeconds = try await timeTestRun(using: muterConfiguration, state: state)
-                }
-            }
-        }
-        let onFirstWorker = Self.onFirstXcodeWorker(muterConfiguration, state, pool.xcodeWorkers.first)
-        let configuration = onFirstWorker.withDefaultTestSuiteTimeout(
-            Self.defaultTimeout(testRunSeconds: testRunSeconds, baselineSeconds: timePerBuildTestCycle, on: pool)
+        let (configuration, testRunSeconds) = try await mutantRuns(
+            muterConfiguration,
+            on: pool,
+            testing: plan,
+            baselineLog: testLog,
+            baselineSeconds: timePerBuildTestCycle,
+            state: state
         )
         // Only now, with nothing awaited before the results start: a stop during the timed test run, like one during
         // the baseline, has nothing to report.
@@ -352,6 +343,45 @@ private extension PerformMutationTesting {
         } else {
             try await testMutations(jobs, plan.toRun, using: state, configuration: configuration, session: session)
         }
+    }
+
+    /// The configuration `pool` tests `plan`'s mutants with, from `configuration`, the effective one: on the first
+    /// xcodebuild worker, and with the default time limit unless one is configured, from the baseline's
+    /// `baselineSeconds` or a timed test run. A SwiftPM run's mutants run their test bundles directly when a run that
+    /// checks it, which times it too, passes (`runningTestBundlesDirectly`). Also the timed test run's seconds, if one
+    /// passed.
+    func mutantRuns(
+        _ configuration: MuterConfiguration,
+        on pool: SimulatorWorkerSetup.Workers,
+        testing plan: ResumePlan,
+        baselineLog: String,
+        baselineSeconds: TimeInterval,
+        state: AnyMutationTestState
+    ) async throws -> (configuration: MuterConfiguration, testRunSeconds: TimeInterval?) {
+        var configuration = configuration
+        var testRunSeconds: TimeInterval?
+        // A reuse with nothing left to test ran the baseline only to see that the changed tests pass. One mutant's run
+        // saves no more than either costs, so its time limit is the configured one, or the baseline's default.
+        let timesATestRun = !plan.toRun.isEmpty && state.selectedMutant == nil
+        if configuration.buildSystem == .swift, timesATestRun {
+            let direct = try await runningTestBundlesDirectly(configuration, baselineLog: baselineLog, state: state)
+            configuration = direct.configuration
+            // The run that checked the direct runs is a mutant's run with no mutant on, which needn't run again.
+            if configuration.testSuiteTimeout == nil {
+                testRunSeconds = direct.seconds
+            }
+        }
+        configuration = Self.onFirstXcodeWorker(configuration, state, pool.xcodeWorkers.first)
+        // An xcodebuild run's is on the first worker, as its mutants run, after any check runs, which paid for each
+        // simulator's first install and launch.
+        if testRunSeconds == nil, timesATestRun, configuration.testSuiteTimeout == nil,
+           configuration.buildSystem != .unknown {
+            testRunSeconds = try await timedTestRun.seconds(
+                using: configuration, state: state, testOutput: testOutput(named: "timed test run", state: state)
+            )
+        }
+        let limit = Self.defaultTimeout(testRunSeconds: testRunSeconds, baselineSeconds: baselineSeconds, on: pool)
+        return (configuration.withDefaultTestSuiteTimeout(limit), testRunSeconds)
     }
 
     /// The workers that test `plan`'s mutants, with `configuration`, the effective one, said, with why fewer than asked
@@ -860,24 +890,6 @@ private extension PerformMutationTesting {
         }
         fileManager.keepLog(testLog, named: "timed test run.log", state: state)
         return (directConfiguration, seconds)
-    }
-
-    /// How long a mutant's test command takes with no mutant on, once the baseline has built the project, or nil if
-    /// that run didn't pass: one that crashed at once says nothing about how long a passing one takes.
-    func timeTestRun(
-        using configuration: MuterConfiguration,
-        state: AnyMutationTestState
-    ) async throws -> TimeInterval? {
-        let start = instant()
-        let (outcome, testLog) = await ioDelegate.runTestsWithoutBuilding(
-            using: configuration,
-            savingResultsIntoFileNamed: testOutput(named: "timed test run", state: state)
-        )
-        // Stopping the run kills this run too, which then fails, but that says nothing about the project's tests.
-        try Task.checkCancellation()
-        let seconds = outcome == .passed ? seconds(since: start) : nil
-        fileManager.keepLog(testLog, named: "timed test run.log", state: state)
-        return seconds
     }
 
     /// The seconds from `start` to now, on the monotonic clock.

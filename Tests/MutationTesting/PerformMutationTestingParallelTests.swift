@@ -144,10 +144,51 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         XCTAssertNil(try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first).testRunSeconds)
     }
 
-    // An xcodebuild project's mutants run `test-without-building` from a test run of their own, so a timed run of it
-    // isn't made, and the default stays based on the baseline.
-    func test_anotherBuildSystem_getsNoTimedTestRun() async throws {
+    // An xcodebuild project's mutants run `test-without-building` from `muter.xctestrun`, so the timed run tests from
+    // it too, written first with no mutant switched on, and sets the default as SwiftPM's does.
+    func test_anXcodebuildProject_timesATestRunFromItsTestRunWithNoMutantOn() async throws {
         state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
+        state.loggingDirectory = "/logs"
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        timeTheTestRun(seconds: 12)
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(Array(ioDelegate.methodCalls.prefix(3)), [
+            "benchmarkTests(using:savingResultsIntoFileNamed:)",
+            "switchOn(schemata:for:at:named:)",
+            timedRun,
+        ])
+        XCTAssertEqual(ioDelegate.schematas.first, .null)
+        XCTAssertEqual(ioDelegate.testRunFileNames.first, "muter.xctestrun")
+        XCTAssertEqual(
+            ioDelegate.configurationsWithoutBuilding.map(\.xcodeWorker?.testRunFile),
+            ["muter.xctestrun"]
+        )
+        let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
+        XCTAssertEqual(header.testRunSeconds, 12)
+        XCTAssertEqual(header.timeoutSeconds, 60)
+        XCTAssertEqual(ioDelegate.configurations.map(\.testSuiteTimeout), [60, 60])
+    }
+
+    // An `.xctestrun` that can't be written times nothing; the first mutant's switch says why.
+    func test_anXcodebuildTestRunThatCanNotBeWritten_isNotTimed() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        ioDelegate.switchOnError = CocoaError(.fileWriteNoPermission)
+
+        await assertThrowsMuterError(try await sut.run(with: state)) { error in
+            guard case .mutationTestingAborted(reason: .mutantNotSwitchedOn) = error else {
+                return XCTFail("\(error)")
+            }
+        }
+
+        XCTAssertFalse(ioDelegate.methodCalls.contains(timedRun))
+    }
+
+    // Another build system's mutants have no test command to time without its build.
+    func test_anotherBuildSystem_getsNoTimedTestRun() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/make", arguments: ["test"])
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
 
         _ = try await sut.run(with: state)
@@ -741,7 +782,8 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
             ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") },
             Array(repeating: "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)", count: 2)
         )
-        XCTAssertEqual(ioDelegate.testRunFileNames, ["muter.xctestrun", "muter.xctestrun"])
+        // The timed test run's, then each mutant's.
+        XCTAssertEqual(ioDelegate.testRunFileNames, ["muter.xctestrun", "muter.xctestrun", "muter.xctestrun"])
         XCTAssertEqual(choices.map(\.used), [1])
         XCTAssertEqual(
             choices.first?.sentence,
