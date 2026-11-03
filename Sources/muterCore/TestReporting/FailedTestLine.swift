@@ -107,9 +107,14 @@ extension FailedTestLine {
         failure(in: line)?.test
     }
 
-    /// The tests `log` shows failing. For a run stopped at its first failed test, the first is the line that
-    /// stopped it: the note SwiftMutator appends to its log doesn't match.
-    static func failedTests(inLog log: String, limit: Int = killedByLimit) -> FailedTests {
+    /// The tests `log` shows failing, but for those `ignoring` names, which neither count nor give the first line.
+    /// For a run stopped at its first failed test, the first is the line that stopped it: the note SwiftMutator
+    /// appends to its log doesn't match.
+    static func failedTests(
+        inLog log: String,
+        limit: Int = killedByLimit,
+        ignoring: Set<TestIdentity> = []
+    ) -> FailedTests {
         var seen = Set<TestIdentity>()
         var tests: [FailedTest] = []
         var firstLine: String?
@@ -120,14 +125,21 @@ extension FailedTestLine {
             let test = found.locationMayFollow
                 ? FailedTest(name: found.test.name, location: locationAfterArguments(onLines: lines[(index + 1)...]))
                 : found.test
+            let identity = TestIdentity(test)
+            guard !ignoring.contains(identity) else { continue }
             if firstLine == nil {
                 firstLine = String(withoutColours(line).prefix(lineLengthLimit))
             }
-            if seen.insert(TestIdentity(test)).inserted, tests.count < limit {
+            if seen.insert(identity).inserted, tests.count < limit {
                 tests.append(test)
             }
         }
         return FailedTests(tests: tests, count: seen.count, firstLine: firstLine)
+    }
+
+    /// Every test `log` shows failing.
+    static func failedTestIdentities(inLog log: String) -> Set<TestIdentity> {
+        Set(failedTests(inLog: log, limit: .max).tests.map(TestIdentity.init))
     }
 
     /// A failed test as one line shows it.
@@ -141,7 +153,7 @@ extension FailedTestLine {
     /// Which test a failed test is. Its name alone would merge same-named tests in different suites, and its
     /// location would split a test whose several issues were recorded at different lines; the location's file
     /// does neither, as a test's issues are recorded in its own file. Ordered by name, then by file, none first.
-    struct TestIdentity: Hashable, Comparable {
+    struct TestIdentity: Hashable, Comparable, Codable {
         let name: String
         let file: String?
 

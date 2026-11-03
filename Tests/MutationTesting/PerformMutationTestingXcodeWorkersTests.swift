@@ -302,6 +302,10 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
 
         XCTAssertEqual(Set(ioDelegate.configurations.map(\.failedTestLinesAreReliable)), [false])
         XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.workers), [2])
+        XCTAssertEqual(
+            try resultsFiles.records(ResultsHeader.self).map(\.failedTestLookalikes),
+            [[.init(name: "-[AppTests.ParserTests testFails]", file: nil)]]
+        )
     }
 
     // A failed baseline throws while the simulators boot: their boot is cancelled and awaited, and they are deleted

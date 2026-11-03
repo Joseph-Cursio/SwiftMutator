@@ -1,13 +1,6 @@
 /// Which tests failed for the most killed mutants, and which look as if they fail whatever the mutant. Counts only
 /// mutants a failed test killed (`.failed`) with their tests recorded: a crash kills a mutant whatever failed.
 struct KillingTestSummary: Codable, Equatable {
-    /// A test is suspect when it failed for mutants in at least this share of the files with a killed mutant that
-    /// names a test, and in at least `suspectMinimumFiles` of them. Measured on SwiftProjectLint's runs (killers-lab,
-    /// 2026-10-06): no good test reached 15% of those files, in whole runs or in 1,634 smaller sub-runs (8.8% at
-    /// most), while the tests that failed under load reached 23–97%. Fixed until a second project's runs say otherwise.
-    static let suspectFilePercent = 15
-    /// Below this many files with a kill, no test is suspect: in so few, a focused test reaches 40%.
-    static let suspectMinimumFiles = 10
     /// How many tests the reports list, before any other suspect test.
     static let shownTests = 10
 
@@ -37,6 +30,10 @@ struct KillingTestSummary: Codable, Equatable {
     let incompleteLists: Int
     /// How many mutated files have a killed mutant that names a test: what `suspectFilePercent` is a share of.
     let filesWithKills: Int
+    /// The share of `filesWithKills` a test must have failed for mutants in to be suspect, and how many files with a
+    /// kill there must be before any test can be (`SuspectTestThresholds`).
+    let suspectFilePercent: Int
+    let suspectMinimumFiles: Int
     /// Whether enough files have one for a test to be suspect (`suspectMinimumFiles`).
     let suspectsChecked: Bool
     /// How many tests failed for those mutants.
@@ -51,11 +48,15 @@ struct KillingTestSummary: Codable, Equatable {
     /// is. nil when there are none, as it is then the headline score.
     let mutationScoreWithoutSuspectOnlyKills: Int?
 
-    /// Whether a test that failed for mutants in `files` of the `filesWithKills` files is suspect. Integer arithmetic,
-    /// so a run and its `report` always agree.
-    static func isSuspect(files: Int, filesWithKills: Int) -> Bool {
-        filesWithKills >= suspectMinimumFiles && files >= suspectMinimumFiles
-            && files * 100 >= suspectFilePercent * filesWithKills
+    /// Whether a test that failed for mutants in `files` of the `filesWithKills` files is suspect under `thresholds`.
+    /// Integer arithmetic, so a run and its `report` always agree.
+    static func isSuspect(
+        files: Int,
+        filesWithKills: Int,
+        thresholds: SuspectTestThresholds = .standard
+    ) -> Bool {
+        filesWithKills >= thresholds.minimumFiles && files >= thresholds.minimumFiles
+            && files * 100 >= thresholds.filePercent * filesWithKills
     }
 
     /// Whether `mutation` is a kill only `suspects` were recorded failing for. Its list must name a test: one that
@@ -72,8 +73,9 @@ struct KillingTestSummary: Codable, Equatable {
 }
 
 extension KillingTestSummary {
-    /// The summary of `mutations`: nil when no mutant a failed test killed has its tests recorded.
-    init?(of mutations: [MutationTestOutcome.Mutation]) {
+    /// The summary of `mutations`, whose suspect tests `thresholds` picks: nil when no mutant a failed test killed has
+    /// its tests recorded.
+    init?(of mutations: [MutationTestOutcome.Mutation], thresholds: SuspectTestThresholds = .standard) {
         let killed = mutations.filter { $0.testSuiteOutcome == .failed }
         let recorded = killed.compactMap { mutation in
             mutation.killingTests.map { (path: mutation.point.filePath, killing: $0) }
@@ -94,7 +96,7 @@ extension KillingTestSummary {
         }
         // A total order, so every report lists the same tests the same way.
         let ranked = tallies
-            .map { identity, tally in Test(identity, tally, filesWithKills: filesWithKills) }
+            .map { identity, tally in Test(identity, tally, filesWithKills: filesWithKills, thresholds: thresholds) }
             .sorted { ($1.mutants, $0.identity) < ($0.mutants, $1.identity) }
 
         let suspects = Set(ranked.filter(\.suspect).map(\.identity))
@@ -113,7 +115,9 @@ extension KillingTestSummary {
             killedMutantsNotRecorded: killed.count - recorded.count,
             incompleteLists: named.count { !$0.killing.isComplete },
             filesWithKills: filesWithKills,
-            suspectsChecked: filesWithKills >= Self.suspectMinimumFiles,
+            suspectFilePercent: thresholds.filePercent,
+            suspectMinimumFiles: thresholds.minimumFiles,
+            suspectsChecked: filesWithKills >= thresholds.minimumFiles,
             distinctTests: ranked.count,
             tests: Array(ranked.prefix(Self.shownTests)) + ranked.dropFirst(Self.shownTests).filter(\.suspect),
             suspectOnlyKills: suspectOnlyKills.count,
@@ -177,7 +181,7 @@ extension KillingTestSummary {
     /// Says why no test can be suspect, when too few files have a killed mutant that names a test.
     var noVerdictSentence: String? {
         guard !suspectsChecked else { return nil }
-        return "Suspect tests are looked for once \(Self.suspectMinimumFiles) files have a killed mutant that names a "
+        return "Suspect tests are looked for once \(suspectMinimumFiles) files have a killed mutant that names a "
             + "test; this report has \(filesWithKills)."
     }
 
@@ -192,7 +196,7 @@ extension KillingTestSummary {
         default: "Only suspect tests were recorded failing for \(suspectOnlyKills) mutants."
         }
         var sentences = [
-            "\(these) failed for mutants in at least \(Self.suspectFilePercent)% of the \(filesWithKills) files with a "
+            "\(these) failed for mutants in at least \(suspectFilePercent)% of the \(filesWithKills) files with a "
                 + "killed mutant. A test of the mutated code rarely does that; a test that is timing-sensitive, or "
                 + "flaky under load, does.",
             theirKills + " " + scoreSentence(mutationScore: mutationScore),
@@ -252,14 +256,14 @@ extension KillingTestSummary {
         guard !suspects.isEmpty else { return nil }
         let (these, they) = suspects.count == 1 ? ("1 test", "it") : ("\(suspects.count) tests", "they")
         return "\(these) may fail whatever the mutant: \(they) failed for mutants in at least "
-            + "\(Self.suspectFilePercent)% of the \(filesWithKills) files with a killed mutant "
+            + "\(suspectFilePercent)% of the \(filesWithKills) files with a killed mutant "
             + "(\(names(of: suspects) { "\($0.name) in \($0.files)" })). "
             + scoreSentence(mutationScore: mutationScore)
     }
 
     /// The warning for `outcome`'s report.
     static func warning(for outcome: MutationTestOutcome) -> String? {
-        KillingTestSummary(of: outcome.mutations)?
+        KillingTestSummary(of: outcome.mutations, thresholds: outcome.suspectTestThresholds)?
             .warning(mutationScore: mutationScore(from: outcome.mutations.map(\.testSuiteOutcome)))
     }
 
@@ -303,14 +307,39 @@ private extension KillingTestSummary {
 }
 
 private extension KillingTestSummary.Test {
-    init(_ identity: FailedTestLine.TestIdentity, _ tally: KillingTestSummary.Tally, filesWithKills: Int) {
+    init(
+        _ identity: FailedTestLine.TestIdentity,
+        _ tally: KillingTestSummary.Tally,
+        filesWithKills: Int,
+        thresholds: SuspectTestThresholds
+    ) {
         self.init(
             name: identity.name,
             file: identity.file,
             mutants: tally.mutants,
             files: tally.files.count,
             onlyRecordedFailureOf: tally.onlyRecordedFailureOf,
-            suspect: KillingTestSummary.isSuspect(files: tally.files.count, filesWithKills: filesWithKills)
+            suspect: KillingTestSummary.isSuspect(
+                files: tally.files.count,
+                filesWithKills: filesWithKills,
+                thresholds: thresholds
+            )
         )
     }
+}
+
+/// When a test is suspect: when it failed for mutants in at least `filePercent` of the files with a killed mutant that
+/// names a test, and in at least `minimumFiles` of them, which there must be at least that many of. The configuration
+/// keys `suspectTestFilePercent` and `suspectTestMinimumFiles` set them for a run, whose header records them, so its
+/// `report` agrees with it.
+struct SuspectTestThresholds: Equatable {
+    /// From 1 to 100.
+    let filePercent: Int
+    /// At least 1.
+    let minimumFiles: Int
+
+    /// Measured on SwiftProjectLint's runs (killers-lab, 2026-10-06): no good test reached 15% of those files, in
+    /// whole runs or in 1,634 smaller sub-runs (8.8% at most), while the tests that failed under load reached 23–97%.
+    /// In fewer than 10 files, a focused test reaches 40%.
+    static let standard = SuspectTestThresholds(filePercent: 15, minimumFiles: 10)
 }

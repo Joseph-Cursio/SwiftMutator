@@ -43,11 +43,20 @@ struct MuterConfiguration: Equatable, Codable {
     /// (`SimulatorWorkerSetup.oneWorkerPlan(for:state:)`), true whenever the destination is a simulator and there are 2
     /// or more mutants to test, false never. Several workers test on simulators of their own whatever it says.
     let oneWorkerSimulator: Bool?
+    /// When a test is suspect (`suspectTestFilePercent:`, from 1 to 100, and `suspectTestMinimumFiles:`, at least 1):
+    /// nil leaves each to `SuspectTestThresholds.standard`. They change only what the reports say, never a mutant's
+    /// result, so a resume lets them change (`ResumeCheck.keysThatDontAffectOutcomes`).
+    let suspectTestFilePercent: Int?
+    let suspectTestMinimumFiles: Int?
     /// Whether a line `FailedTestLine` matches shows a failed test. Not a configuration key: false once a
     /// passing baseline has printed such a line, or one `CrashLine` matches, as its tests print text shaped like a
     /// failure. Such a line then neither stops a mutant's run nor counts a timed-out run killed. A `var` only so
     /// `withUnreliableFailedTestLines` can copy `self` and change just this field.
     private(set) var failedTestLinesAreReliable = true
+    /// The tests that a passing baseline's lines showed failing, which a mutant's list of failed tests leaves out, as
+    /// those lines are the tests' own text, printed whatever the mutant. Not a configuration key; a `var` only so
+    /// `withUnreliableFailedTestLines` can copy `self` and change just this field.
+    private(set) var failedTestLookalikes: Set<FailedTestLine.TestIdentity> = []
     /// How a mutant's run starts the test bundles without `swift test`. Not a configuration key: set once a run of
     /// them with no mutant on has matched the baseline (see `DirectTestRun`). A `var` only so `withDirectTestRun` can
     /// copy `self` and change just this field.
@@ -81,6 +90,8 @@ struct MuterConfiguration: Equatable, Codable {
         case mutationTestWorkers
         case stopAtFirstFailure
         case oneWorkerSimulator
+        case suspectTestFilePercent
+        case suspectTestMinimumFiles
     }
 
     init(
@@ -94,7 +105,9 @@ struct MuterConfiguration: Equatable, Codable {
         mutationTestWorkers workers: Int? = nil,
         stopAtFirstFailure: Bool? = nil,
         buildTimeout: Double? = nil,
-        oneWorkerSimulator: Bool? = nil
+        oneWorkerSimulator: Bool? = nil,
+        suspectTestFilePercent: Int? = nil,
+        suspectTestMinimumFiles: Int? = nil
     ) {
         testCommandExecutable = executable
         testCommandArguments = arguments
@@ -107,6 +120,8 @@ struct MuterConfiguration: Equatable, Codable {
         self.stopAtFirstFailure = stopAtFirstFailure
         self.buildTimeout = buildTimeout
         self.oneWorkerSimulator = oneWorkerSimulator
+        self.suspectTestFilePercent = suspectTestFilePercent
+        self.suspectTestMinimumFiles = suspectTestMinimumFiles
     }
 
     init(from decoder: Decoder) throws {
@@ -126,6 +141,36 @@ struct MuterConfiguration: Equatable, Codable {
         // Throws on a value that isn't a Boolean, so a typo is a configuration error rather than "unset".
         stopAtFirstFailure = try container.decodeIfPresent(Bool.self, forKey: .stopAtFirstFailure)
         oneWorkerSimulator = try container.decodeIfPresent(Bool.self, forKey: .oneWorkerSimulator)
+        suspectTestFilePercent = try Self.whole(forKey: .suspectTestFilePercent, in: 1 ... 100, in: container)
+        suspectTestMinimumFiles = try Self.whole(forKey: .suspectTestMinimumFiles, in: 1 ... Int.max, in: container)
+    }
+
+    /// A whole number in `range`, or nil if `key` isn't set. Throws on any other value, so a typo is a configuration
+    /// error rather than "unset".
+    private static func whole(
+        forKey key: CodingKeys,
+        in range: ClosedRange<Int>,
+        in container: KeyedDecodingContainer<CodingKeys>
+    ) throws -> Int? {
+        guard let value = try container.decodeIfPresent(Int.self, forKey: key) else { return nil }
+        guard range.contains(value) else {
+            let bounds = range.upperBound == Int.max
+                ? "at least \(range.lowerBound)" : "from \(range.lowerBound) to \(range.upperBound)"
+            throw DecodingError.dataCorruptedError(
+                forKey: key,
+                in: container,
+                debugDescription: "\(key.stringValue) must be a whole number \(bounds), not \(value)"
+            )
+        }
+        return value
+    }
+
+    /// When a test is suspect, from `suspectTestFilePercent` and `suspectTestMinimumFiles`.
+    var suspectTestThresholds: SuspectTestThresholds {
+        SuspectTestThresholds(
+            filePercent: suspectTestFilePercent ?? SuspectTestThresholds.standard.filePercent,
+            minimumFiles: suspectTestMinimumFiles ?? SuspectTestThresholds.standard.minimumFiles
+        )
     }
 
     /// A number of seconds, written as an Int or a Double, or nil if `key` isn't set.
@@ -243,10 +288,14 @@ struct MuterConfiguration: Equatable, Codable {
         stopAtFirstFailureUnsupportedReason == nil && failedTestLinesAreReliable && (stopAtFirstFailure ?? true)
     }
 
-    /// This configuration with `failedTestLinesAreReliable` false.
-    func withUnreliableFailedTestLines() -> MuterConfiguration {
+    /// This configuration with `failedTestLinesAreReliable` false, and the tests that the passing runs' `testLogs`
+    /// show failing added to `failedTestLookalikes`.
+    func withUnreliableFailedTestLines(printedIn testLogs: [String] = []) -> MuterConfiguration {
         var copy = self
         copy.failedTestLinesAreReliable = false
+        for testLog in testLogs {
+            copy.failedTestLookalikes.formUnion(FailedTestLine.failedTestIdentities(inLog: testLog))
+        }
         return copy
     }
 

@@ -139,6 +139,9 @@ struct ResultsHeader: Codable, Equatable {
     let workers: Int
     let stopsAtFirstFailure: Bool
     let failedTestLinesAreReliable: Bool
+    /// The tests that lines of the passing baseline, or of an xcodebuild worker's check run, showed failing, which no
+    /// mutant's `killedBy` names: those lines are the tests' own text. Sorted; absent when there are none.
+    var failedTestLookalikes: [FailedTestLine.TestIdentity]?
     let mutantsDiscovered: Int
     let mutantsToTest: Int
     /// The project's files, as the mutated copy held them before discovery rewrote it. In a session that tested a
@@ -257,6 +260,8 @@ extension ResultsHeader {
             workers: workers,
             stopsAtFirstFailure: configuration.stopsAtFirstFailure,
             failedTestLinesAreReliable: configuration.failedTestLinesAreReliable,
+            failedTestLookalikes: configuration.failedTestLookalikes.isEmpty
+                ? nil : configuration.failedTestLookalikes.sorted(),
             mutantsDiscovered: mutantsDiscovered,
             mutantsToTest: mutantsToTest,
             project: projectDelta == nil ? state.projectTree : nil,
@@ -302,8 +307,8 @@ struct MutantResult: Codable, Equatable {
     /// whose simulator, `.xctestrun` and derived data its run used.
     let worker: Int
     let finishedAt: Date
-    /// For a killed, crashed or timed-out mutant whose run's failed-test lines are reliable: the tests its log shows
-    /// failing, each once, in the order they first failed, at most `FailedTestLine.killedByLimit`. The list is
+    /// For a killed, crashed or timed-out mutant: the tests its log shows failing, each once, in the order they first
+    /// failed, at most `FailedTestLine.killedByLimit`, but for the header's `failedTestLookalikes`. The list is
     /// complete when `endedBy` is `exited` and `failedTestCount` is its length.
     let killedBy: [FailedTestLine.FailedTest]?
     /// How many distinct tests its log shows failing, uncapped.
@@ -337,7 +342,7 @@ struct MutantResult: Codable, Equatable {
 
 extension MutantResult {
     /// The record of `finished`, the run of `schema`'s mutant, whose log showed `failures` failing
-    /// (`failedTests(of:linesAreReliable:)`).
+    /// (`failedTests(of:ignoring:)`).
     init(
         key: MutantKey,
         schema: MutationSchema,
@@ -375,11 +380,15 @@ extension MutantResult {
         )
     }
 
-    /// The tests a killed, crashed or timed-out run's log shows failing. nil for any other run, and when the
-    /// baseline printed a line shaped like a failed test, as such lines then name no test the mutant failed.
-    static func failedTests(of run: TestRun, linesAreReliable: Bool) -> FailedTestLine.FailedTests? {
-        guard linesAreReliable, [.failed, .runtimeError, .timeout].contains(run.outcome) else { return nil }
-        return FailedTestLine.failedTests(inLog: run.testLog)
+    /// The tests a killed, crashed or timed-out run's log shows failing, but for `lookalikes`: those a passing
+    /// baseline's lines showed failing, as such lines are the tests' own text, printed whatever the mutant. nil for
+    /// any other run.
+    static func failedTests(
+        of run: TestRun,
+        ignoring lookalikes: Set<FailedTestLine.TestIdentity> = []
+    ) -> FailedTestLine.FailedTests? {
+        guard [.failed, .runtimeError, .timeout].contains(run.outcome) else { return nil }
+        return FailedTestLine.failedTests(inLog: run.testLog, ignoring: lookalikes)
     }
 }
 

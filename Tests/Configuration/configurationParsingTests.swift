@@ -187,6 +187,39 @@ final class ConfigurationParsingTests: MuterTestCase {
         XCTAssertThrowsError(try MuterConfiguration(from: Data(yaml.utf8)))
     }
 
+    func test_parseTheSuspectTestThresholds() throws {
+        let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
+        let set = try MuterConfiguration(
+            from: Data("\(swiftTest)\nsuspectTestFilePercent: 25\nsuspectTestMinimumFiles: 4".utf8)
+        )
+        let percentOnly = try MuterConfiguration(from: Data("\(swiftTest)\nsuspectTestFilePercent: 100".utf8))
+        let unset = try MuterConfiguration(from: Data(swiftTest.utf8))
+
+        XCTAssertEqual(set.suspectTestThresholds, SuspectTestThresholds(filePercent: 25, minimumFiles: 4))
+        XCTAssertEqual(percentOnly.suspectTestThresholds, SuspectTestThresholds(filePercent: 100, minimumFiles: 10))
+        XCTAssertNil(unset.suspectTestFilePercent)
+        XCTAssertNil(unset.suspectTestMinimumFiles)
+        XCTAssertEqual(unset.suspectTestThresholds, .standard)
+        // Written back as they were, so a header records them.
+        XCTAssertEqual(try MuterConfiguration(from: set.asData), set)
+    }
+
+    func test_suspectTestThresholdsOutOfRange_failToParse() {
+        let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
+        for line in [
+            "suspectTestFilePercent: 0",
+            "suspectTestFilePercent: 101",
+            "suspectTestFilePercent: 12.5",
+            "suspectTestFilePercent: many",
+            "suspectTestMinimumFiles: 0",
+            "suspectTestMinimumFiles: -3",
+        ] {
+            XCTAssertThrowsError(try MuterConfiguration(from: Data("\(swiftTest)\n\(line)".utf8)), line)
+        }
+        XCTAssertNoThrow(try MuterConfiguration(from: Data("\(swiftTest)\nsuspectTestFilePercent: 1".utf8)))
+        XCTAssertNoThrow(try MuterConfiguration(from: Data("\(swiftTest)\nsuspectTestMinimumFiles: 1".utf8)))
+    }
+
     func test_parseOneWorkerSimulator() throws {
         let xcodebuild = "executable: /usr/bin/xcodebuild\narguments: [test]"
         let always = try MuterConfiguration(from: Data("\(xcodebuild)\noneWorkerSimulator: true".utf8))
@@ -447,7 +480,8 @@ final class ConfigurationParsingTests: MuterTestCase {
 
     func test_withUnreliableFailedTestLines_keepsEveryOtherField() {
         XCTAssertEqual(
-            configurationWithEveryFieldSet(failedTestLinesAreReliable: true).withUnreliableFailedTestLines(),
+            configurationWithEveryFieldSet(failedTestLinesAreReliable: true)
+                .withUnreliableFailedTestLines(printedIn: [failedTestLookalikeLog]),
             configurationWithEveryFieldSet(failedTestLinesAreReliable: false)
         )
     }

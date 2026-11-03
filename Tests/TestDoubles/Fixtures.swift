@@ -525,7 +525,7 @@ extension MuterConfiguration {
 
 /// No field is left at its default, so a copy that drops one no longer equals this, and every configuration key
 /// differs from the default's. `test_configurationWithEveryFieldSet_leavesNoFieldAtItsDefault` fails until a new
-/// field is set here, which then reaches the copy tests and `test_everyConfigurationKeyButFour_isCompared`.
+/// field is set here, which then reaches the copy tests and `test_everyConfigurationKeyButSix_isCompared`.
 func configurationWithEveryFieldSet(
     executable: String = "/usr/bin/swift",
     timeout: Double? = 30,
@@ -542,7 +542,9 @@ func configurationWithEveryFieldSet(
         mutationTestWorkers: 4,
         stopAtFirstFailure: false,
         buildTimeout: 600,
-        oneWorkerSimulator: true
+        oneWorkerSimulator: true,
+        suspectTestFilePercent: 30,
+        suspectTestMinimumFiles: 5
     )
     .withDirectTestRun(DirectTestRun(
         helper: "/toolchain/usr/libexec/swift/pm/swiftpm-testing-helper",
@@ -559,8 +561,12 @@ func configurationWithEveryFieldSet(
         parallelTestingOff: true,
         testDiagnosticsOff: true
     ))
-    return failedTestLinesAreReliable ? configuration : configuration.withUnreliableFailedTestLines()
+    return failedTestLinesAreReliable
+        ? configuration : configuration.withUnreliableFailedTestLines(printedIn: [failedTestLookalikeLog])
 }
+
+/// A passing baseline's log with a line shaped like a failed test, which the test printed itself.
+let failedTestLookalikeLog = "✘ Test parsesAFailure() recorded an issue at ParserTests.swift:4:5: printed by the test"
 
 extension muterCore.XCTestRun {
     /// An `.xctestrun` in a test plan's format whose one test target has parallel testing on.

@@ -322,6 +322,8 @@ was for SwiftPM: `0.5` means 0.5%, so write `50` for half. The options are docum
 | `mutationTestTimeout` | Seconds before a mutant's test run is stopped (default: based on a timed test run; see above) |
 | `oneWorkerSimulator` | Whether one xcodebuild worker tests on a simulator SwiftMutator makes (absent: when the project and its baseline show it is faster; true: whenever the destination is a simulator; false: never; see [One worker on a simulator of its own](#one-worker-on-a-simulator-of-its-own)) |
 | `stopAtFirstFailure` | Stop a mutant's test run at its first failed test, or at a test process's crash, either of which already decides that it is killed (SwiftPM projects only; never the baseline; default true) |
+| `suspectTestFilePercent` | The share of the files with a killed mutant naming a test, from 1 to 100, that a test must have failed for mutants in to be suspect (default 15; see [Killing tests and suspect tests](#killing-tests-and-suspect-tests)) |
+| `suspectTestMinimumFiles` | How many files with such a kill there must be, at least 1, before a test can be suspect, and how many of them it must have failed for mutants in (default 10) |
 | `buildTimeout` | Seconds before the coverage run, which builds your project and runs its tests with coverage on, is stopped. Mutation testing then goes on without coverage, as after any coverage failure. For now it limits only the coverage run, not the baseline or other builds (default: no limit) |
 
 `--workers N` and `--timeout S`, on `run` and `run-without-mutating`, set `mutationTestWorkers`
@@ -771,12 +773,20 @@ A list is complete when the run exited by itself and named every test that faile
 `stopAtFirstFailure`, which is on by default for SwiftPM, a killed mutant's run stops at its first
 failed test, so its list can stop there too.
 
+Some tests print text shaped like a failed test, such as a test of a test reporter. When the
+passing baseline prints such a line, no line counts as a failed test for stopping a run or for
+counting a timed-out run killed. The tests those lines name are left out of every mutant's list,
+and the results file's header names them in `failedTestLookalikes`. The other tests that fail are
+still named.
+
 **Suspect tests.** Some tests fail whatever the mutant, because they are timing-sensitive or flaky
 under the load of several workers. Such a test makes a mutant count as killed when no test checks
 it, which raises the score. SwiftMutator calls a test *suspect* when it failed for mutants in at
 least 15% of the files that have a killed mutant naming a test, and in at least 10 of those files.
 A test of the mutated code rarely does that. With fewer than 10 such files the report gives no
-verdict, and says so.
+verdict, and says so. `suspectTestFilePercent` and `suspectTestMinimumFiles` change the 15% and
+the 10. They change only what the reports say, so a resume lets them change. The results file
+records them, and `swift-mutator report` uses those of the run's last session.
 
 When there are suspect tests, the headline score, the killed count and the exit status stay as
 they are. Every report also gives the score without the suspect tests, which counts each kill that
@@ -824,9 +834,10 @@ Suspect tests: 2 (testAnalyzeProjectPerformance(), everyFormatRendersTheSameByte
   In XCTest, start the test with
   `try XCTSkipIf(ProcessInfo.processInfo.environment["IS_MUTER_RUNNING"] == "YES")`.
 - **Limits.**
-  - The thresholds are fixed, from one project's runs. In SwiftProjectLint's, no test of the
+  - The default thresholds come from one project's runs. In SwiftProjectLint's, no test of the
     mutated code reached more than 8.8% of the files, in whole runs or in 1,634 smaller ones. The
-    tests that failed under load reached 23–97%.
+    tests that failed under load reached 23–97%. A project whose good tests reach further, such as
+    one with broad end-to-end tests, may need a higher `suspectTestFilePercent`.
   - The rule misses a test that fails in fewer than about 3% of runs, or about 5% when runs stop
     at their first failed test. Such a test is worth about 1 point of score at most: on
     SwiftProjectLint, 0.16.
@@ -995,12 +1006,12 @@ SwiftMutator copies the project is refused after the copy, so that message doesn
 
 | Since the last session | Resuming |
 |---|---|
-| A configuration key changed, other than `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout` and `oneWorkerSimulator` | Refused: start a new run |
+| A configuration key changed, other than `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent` and `suspectTestMinimumFiles` | Refused: start a new run |
 | `mutationTestTimeout` (or `--timeout`) is at least as long as every session's `timeoutSeconds` | Goes ahead, says so, and tests the timeouts under a shorter limit again |
 | `--operators`, `--files-to-mutate` or `--skip-coverage` changed | Refused: start a new run |
 | `--since`'s merge base or `--changed-lines` changed, or `--since` given in one session only | Refused: start a new run. `--reuse` doesn't compare them |
 | `--shard` changed, or given in one session only | Refused: start a new run. `--reuse` doesn't compare it |
-| `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout` or `oneWorkerSimulator` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
+| `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent` or `suspectTestMinimumFiles` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
 | SwiftMutator, the toolchain or the SDK changed | Refused, unless `--force-resume` is given |
 | Project files changed, were added or were removed | Refused, unless a `--resume-ignoring` glob matches each one |
 | Another SwiftMutator holds the file, because its run is still going | Refused with status 6, naming the process that holds it, and its host: wait for that run to end. If an older SwiftMutator holds it, which doesn't say, it names the process and host that wrote the file's last session, which may not be the one |

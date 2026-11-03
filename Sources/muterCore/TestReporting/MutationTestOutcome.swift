@@ -20,6 +20,8 @@ struct MutationTestOutcome {
     let sampleIsCutShort: Bool
     /// The one mutant `--mutant` tested, by its key's description; nil without it. Its score isn't the project's.
     let mutant: String?
+    /// When a test is suspect: the run's configuration's, or its last session's as its header records it.
+    let suspectTestThresholds: SuspectTestThresholds
 
     init(
         mutations: [Mutation] = [],
@@ -31,7 +33,8 @@ struct MutationTestOutcome {
         shards: ShardScope? = nil,
         sample: SampleSelection? = nil,
         sampleIsCutShort: Bool = false,
-        mutant: String? = nil
+        mutant: String? = nil,
+        suspectTestThresholds: SuspectTestThresholds = .standard
     ) {
         self.mutations = mutations
         self.coverage = coverage
@@ -43,6 +46,7 @@ struct MutationTestOutcome {
         self.sample = sample
         self.sampleIsCutShort = sampleIsCutShort
         self.mutant = mutant
+        self.suspectTestThresholds = suspectTestThresholds
     }
 }
 
@@ -55,7 +59,8 @@ extension MutationTestOutcome {
         let snapshot: MutationOperator.Snapshot
         let originalProjectPath: String
         /// The tests its run's log showed failing, as its results line records them. nil when none were recorded: a
-        /// survivor, a build error, or a session whose failed-test lines weren't reliable.
+        /// survivor, a build error, or a mutant tested before SwiftMutator recorded them when the baseline printed a
+        /// line shaped like a failed test.
         let killingTests: KillingTests?
         /// Where it was tested, for a result a run reused from an earlier run's results file (`--reuse`); nil for one
         /// the run tested, or kept from an earlier session of its own file.

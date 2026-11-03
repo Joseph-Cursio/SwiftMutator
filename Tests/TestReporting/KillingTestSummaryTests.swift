@@ -234,8 +234,7 @@ final class KillingTestSummaryTests: XCTestCase {
     }
 
     func test_suspectRule_atItsBoundaries() throws {
-        XCTAssertEqual(KillingTestSummary.suspectFilePercent, 15)
-        XCTAssertEqual(KillingTestSummary.suspectMinimumFiles, 10)
+        XCTAssertEqual(SuspectTestThresholds.standard, SuspectTestThresholds(filePercent: 15, minimumFiles: 10))
 
         XCTAssertTrue(KillingTestSummary.isSuspect(files: 10, filesWithKills: 66))
         XCTAssertFalse(KillingTestSummary.isSuspect(files: 10, filesWithKills: 67))
@@ -256,6 +255,44 @@ final class KillingTestSummaryTests: XCTestCase {
         let tenFiles = try XCTUnwrap(KillingTestSummary(of: killsInEveryFile(10)))
         XCTAssertTrue(tenFiles.suspectsChecked)
         XCTAssertEqual(tenFiles.tests.map(\.suspect), [true])
+    }
+
+    func test_suspectRule_followsTheThresholdsItIsGiven() throws {
+        let thresholds = SuspectTestThresholds(filePercent: 50, minimumFiles: 2)
+        XCTAssertTrue(KillingTestSummary.isSuspect(files: 2, filesWithKills: 4, thresholds: thresholds))
+        XCTAssertFalse(KillingTestSummary.isSuspect(files: 2, filesWithKills: 5, thresholds: thresholds))
+        XCTAssertFalse(KillingTestSummary.isSuspect(files: 1, filesWithKills: 2, thresholds: thresholds))
+
+        let timing = failedTest("timing()", in: "TimingTests.swift")
+        let sum = failedTest("sum()", in: "SumTests.swift")
+        let mutations = [
+            kill(in: "A.swift", naming: [timing]),
+            kill(in: "B.swift", naming: [timing]),
+            kill(in: "C.swift", naming: [sum]),
+            kill(in: "D.swift", naming: [sum]),
+            kill(in: "E.swift", naming: [sum]),
+        ]
+
+        // Under the standard thresholds, 5 files are too few for any verdict.
+        let standard = try XCTUnwrap(KillingTestSummary(of: mutations))
+        XCTAssertFalse(standard.suspectsChecked)
+        XCTAssertEqual(
+            standard.noVerdictSentence,
+            "Suspect tests are looked for once 10 files have a killed mutant that names a test; this report has 5."
+        )
+
+        let summary = try XCTUnwrap(KillingTestSummary(of: mutations, thresholds: thresholds))
+        XCTAssertTrue(summary.suspectsChecked)
+        XCTAssertEqual(summary.suspectFilePercent, 50)
+        XCTAssertEqual(summary.suspectMinimumFiles, 2)
+        // sum() in 3 of 5 files, timing() in 2: only sum() reaches 50%.
+        XCTAssertEqual(summary.tests.map(\.name), ["sum()", "timing()"])
+        XCTAssertEqual(summary.tests.map(\.suspect), [true, false])
+        XCTAssertEqual(
+            summary.warning(mutationScore: 100),
+            "1 test may fail whatever the mutant: it failed for mutants in at least 50% of the 5 files with a killed "
+                + "mutant (sum() in 3). Without its failures, the mutation score would be 40%, not 100%."
+        )
     }
 
     /// Shaped as SwiftProjectLint's run of 2026-10-02 at 2:20 AM, under load: of 132 files with a kill, the timing

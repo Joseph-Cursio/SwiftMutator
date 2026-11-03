@@ -85,6 +85,8 @@ final class JsonReporterTests: ReporterTestCase {
             "killedMutants",
             "killedMutantsNamingNoTest",
             "killedMutantsNotRecorded",
+            "suspectFilePercent",
+            "suspectMinimumFiles",
             "suspectOnlyKills",
             "suspectOnlyKillsWithIncompleteLists",
             "suspectsChecked",
