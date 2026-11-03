@@ -24,6 +24,7 @@ extension RunEvent {
         case resumePlanned
         case mutationTestingStarted
         case mutantRunsStarted
+        case stillTesting
         case workersChosen
         case stopAtFirstFailureTurnedOff
         case testBundlesNotRunDirectly
@@ -71,6 +72,7 @@ extension RunEvent {
         case .resumePlanned: .resumePlanned
         case .mutationTestingStarted: .mutationTestingStarted
         case .mutantRunsStarted: .mutantRunsStarted
+        case .stillTesting: .stillTesting
         case .workersChosen: .workersChosen
         case .stopAtFirstFailureTurnedOff: .stopAtFirstFailureTurnedOff
         case .testBundlesNotRunDirectly: .testBundlesNotRunDirectly
@@ -117,6 +119,7 @@ extension RunEvent {
         case let .mutantsSelected(sample, shard, mappings): (sample, shard, mappings)
         case let .resumePlanned(summary): summary
         case let .workersChosen(choice): choice
+        case let .stillTesting(still): still
         case let .stopAtFirstFailureTurnedOff(reason): reason
         case let .testBundlesNotRunDirectly(reason): reason
         case let .timeoutRerunsStarted(reruns): reruns
