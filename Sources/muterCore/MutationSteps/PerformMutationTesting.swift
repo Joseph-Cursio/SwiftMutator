@@ -387,6 +387,7 @@ private extension PerformMutationTesting {
                 snapshots: jobs.map(\.schema.snapshot),
                 recorded: resume.recorded.latest,
                 fileHashes: state.projectTree?.files ?? [:],
+                workers: ResumePlan.workers(of: resume.recorded.headers),
                 reusing: resume.isReuse ? state.reuseChanges : nil,
                 leftOut: state.keysLeftOutOfTheSample
             )
@@ -563,7 +564,8 @@ private extension PerformMutationTesting {
     /// `swift test` locks the package's build directory, so two runs can't share one. Every mutant is
     /// switched on per run: under `swift test` by the worker's active-mutant file, written just before the run
     /// (see `MutationTestingDelegate.testProcess`), so the clones' code never needs rewriting. Outcomes are
-    /// recorded, and their events sent, as they finish. The clones are kept in `session`, and
+    /// recorded, and their events sent, as they finish. The timeouts are then tested again, on fewer workers
+    /// (`rerunTimeouts`). The clones are kept in `session`, and
     /// `run(with:)` removes them once the end line is written. Once mutation testing is cancelled, no clone
     /// is made, no mutant starts, and none that returns is recorded.
     func testMutationsInParallel(
@@ -589,8 +591,89 @@ private extension PerformMutationTesting {
         let directories = [state.mutatedProjectDirectoryURL] + clones
 
         var buildErrors = 0
+        var timeouts: [Int] = []
         events.send(.mutantRunsStarted)
 
+        try await runPool(
+            indices,
+            of: jobs,
+            on: directories,
+            using: configuration,
+            outputNamed: { testOutput(named: logFileName(forJobAt: $0, $1), state: state) },
+            recording: { finished in
+                try record(
+                    finished,
+                    of: jobs[finished.index],
+                    using: state,
+                    configuration: configuration,
+                    session: session,
+                    buildErrors: &buildErrors
+                )
+                // A run the limit stopped whose log shows a failure is a kill, which another run wouldn't change.
+                if finished.run.outcome == .timeout {
+                    timeouts.append(finished.index)
+                }
+            }
+        )
+        try await rerunTimeouts(
+            timeouts.sorted(), of: jobs, on: directories, using: state, configuration: configuration, session: session
+        )
+    }
+
+    /// Tests the jobs at `indices` again, whose runs timed out, in job order, a quarter of `directories`' workers at
+    /// once, at least one, never more than `indices`: with every worker's tests competing for the same cores, a slow
+    /// test can pass the limit that it keeps to under less load. The limit is `configuration`'s, the first runs', so a
+    /// mutant that loops forever times out again. Each run's line follows its first run's, which it replaces, and its
+    /// events don't count in the progress, which counted the first run (`recordRerun`).
+    func rerunTimeouts(
+        _ indices: [Int],
+        of jobs: [MutantJob],
+        on directories: [URL],
+        using state: AnyMutationTestState,
+        configuration: MuterConfiguration,
+        session: TestingSession
+    ) async throws {
+        guard !indices.isEmpty else { return }
+        try Task.checkCancellation()
+        let reruns = TimeoutReruns(
+            count: indices.count,
+            workers: min(max(directories.count / 4, 1), indices.count),
+            limitSeconds: configuration.testSuiteTimeout
+        )
+        events.send(.timeoutRerunsStarted(reruns))
+        var tally = TimeoutRerunTally(reruns)
+        try await runPool(
+            indices,
+            of: jobs,
+            on: Array(directories.prefix(reruns.workers)),
+            using: configuration,
+            outputNamed: { testOutput(named: logFileName(forRerunOfJobAt: $0, $1), state: state) },
+            recording: { finished in
+                recordRerun(
+                    finished,
+                    of: jobs[finished.index],
+                    tally: &tally,
+                    using: state,
+                    configuration: configuration,
+                    session: session
+                )
+            }
+        )
+        events.send(.timeoutRerunsFinished(tally))
+    }
+
+    /// Runs the jobs at `indices`, started in their order, one at a time in each of `directories`, and hands each run
+    /// to `record` as it finishes; the worker that finished it then starts the next job. Each run writes its output to
+    /// the file `outputName` names for its job while it runs. Once mutation testing is cancelled, no job starts, and
+    /// no run that returns is handed on.
+    func runPool(
+        _ indices: [Int],
+        of jobs: [MutantJob],
+        on directories: [URL],
+        using configuration: MuterConfiguration,
+        outputNamed outputName: (_ index: Int, _ job: MutantJob) -> String,
+        recording record: (FinishedRun) throws -> Void
+    ) async throws {
         // The worker job loop and its inline cancellation handling genuinely span >30 lines; pulling the body
         // into a helper would split apart a tight loop-and-catch, so the length is disabled for this closure.
         // swiftlint:disable:next closure_body_length
@@ -602,7 +685,7 @@ private extension PerformMutationTesting {
             func start(_ index: Int, worker: Int) throws {
                 let job = jobs[index]
                 let directory = directories[worker]
-                let fileName = testOutput(named: logFileName(forJobAt: index, job), state: state)
+                let fileName = outputName(index, job)
                 // A worker's task is given the values and the two dependencies it uses, not the step.
                 let started = group.addTaskUnlessCancelled { [ioDelegate, instant] in
                     let launched = instant()
@@ -622,7 +705,7 @@ private extension PerformMutationTesting {
                 guard started else { throw CancellationError() }
             }
 
-            for worker in directories.indices {
+            for worker in directories.indices.prefix(indices.count) {
                 try start(indices[next], worker: worker)
                 next += 1
             }
@@ -630,14 +713,7 @@ private extension PerformMutationTesting {
             while let finished = try await group.next() {
                 // Throwing cancels the other runs, whose cancellation handlers kill their process trees.
                 try Self.throwIfCancelled(finished.run)
-                try record(
-                    finished,
-                    of: jobs[finished.index],
-                    using: state,
-                    configuration: configuration,
-                    session: session,
-                    buildErrors: &buildErrors
-                )
+                try record(finished)
                 // The worker that finished takes the next job; the directory is looked up from it.
                 if next < indices.count {
                     try start(indices[next], worker: finished.worker)
@@ -768,12 +844,10 @@ private extension PerformMutationTesting {
         return Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000_000
     }
 
-    /// Writes `finished`'s result, the run of `job`'s mutant, to the results file, keeps its outcome in `session`,
-    /// sends its events, and aborts after `buildErrorsThreshold` build errors in a row, not counting a mutant
-    /// that an earlier session recorded as one (`TestingSession.earlierBuildErrors`). The result is written first, so
-    /// it is on disk before anything else happens, and the outcome is kept before the abort, so mutation testing that
-    /// stops there still has it. `configuration` is the effective one, whose baseline may have made failed-test lines
-    /// unreliable.
+    /// Records `finished`, the run of `job`'s mutant (`keep`), sends its events, and aborts after
+    /// `buildErrorsThreshold` build errors in a row, not counting a mutant that an earlier session recorded as one
+    /// (`TestingSession.earlierBuildErrors`). The outcome is kept before the abort, so mutation testing that stops
+    /// there still has it.
     func record(
         _ finished: FinishedRun,
         of job: MutantJob,
@@ -782,42 +856,8 @@ private extension PerformMutationTesting {
         session: TestingSession,
         buildErrors: inout Int
     ) throws {
-        // The failed tests are worked out here, not in `write`'s autoclosure: the outcome needs them without a results
-        // file, or after a failed write. One scan of the log serves both.
-        let failures = MutantResult.failedTests(
-            of: finished.run,
-            linesAreReliable: configuration.failedTestLinesAreReliable
-        )
-        let outcome = Self.outcome(
-            finished.run.outcome,
-            of: job,
-            state: state,
-            killingTests: .init(failures, endedBy: finished.run.ending)
-        )
-        let key = session.keys[finished.index]
-        let log = MutationTestLog.keptFileName(for: key)
-        write(
-            MutantResult(
-                key: key,
-                schema: job.schema,
-                finished: finished,
-                failures: failures,
-                session: session.number,
-                finishedAt: now(),
-                log: log,
-                fileSHA256: state.projectTree?.files[key.path]
-            ),
-            in: session,
-            isAMutant: true
-        )
-        session.outcomes[finished.index] = outcome
-
-        let mutationLog = MutationTestLog(
-            mutationPoint: outcome.point,
-            testLog: finished.run.testLog,
-            timePerBuildTestCycle: .none,
-            remainingMutationPointsCount: .none,
-            keptFileName: log
+        let (outcome, mutationLog) = keep(
+            finished, of: job, rerun: nil, using: state, configuration: configuration, session: session
         )
 
         events.send(.newMutationTestOutcomeAvailable(outcome))
@@ -834,11 +874,101 @@ private extension PerformMutationTesting {
         }
     }
 
+    /// Records `finished`, the run that tested `job`'s timed-out mutant again (`keep`), counts it in `tally`, and sends
+    /// its event. Never its outcome's or its log's events, which would count the mutant in the progress again, and
+    /// never toward the build errors in a row: a build error here says nothing of the mutants before it.
+    func recordRerun(
+        _ finished: FinishedRun,
+        of job: MutantJob,
+        tally: inout TimeoutRerunTally,
+        using state: AnyMutationTestState,
+        configuration: MuterConfiguration,
+        session: TestingSession
+    ) {
+        let (outcome, mutationLog) = keep(
+            finished,
+            of: job,
+            rerun: MutantResult.Rerun(because: MutantResult.Rerun.timeout, workers: tally.reruns.workers),
+            using: state,
+            configuration: configuration,
+            session: session
+        )
+        tally.add(outcome.testSuiteOutcome)
+        events.send(
+            .timeoutRerunFinished(TimeoutRerun(
+                rerun: outcome,
+                log: mutationLog,
+                seconds: finished.seconds,
+                number: tally.rerun,
+                count: tally.reruns.count
+            ))
+        )
+    }
+
+    /// Writes `finished`'s result, the run of `job`'s mutant, or its `rerun`, to the results file, keeps its outcome in
+    /// `session`, and returns it with its log, kept under the name the line gives it. The result is written first, so
+    /// it is on disk before anything else happens. `configuration` is the effective one, whose baseline may have made
+    /// failed-test lines unreliable.
+    func keep(
+        _ finished: FinishedRun,
+        of job: MutantJob,
+        rerun: MutantResult.Rerun?,
+        using state: AnyMutationTestState,
+        configuration: MuterConfiguration,
+        session: TestingSession
+    ) -> (outcome: MutationTestOutcome.Mutation, log: MutationTestLog) {
+        // The failed tests are worked out here, not in `write`'s autoclosure: the outcome needs them without a results
+        // file, or after a failed write. One scan of the log serves both.
+        let failures = MutantResult.failedTests(
+            of: finished.run,
+            linesAreReliable: configuration.failedTestLinesAreReliable
+        )
+        let outcome = Self.outcome(
+            finished.run.outcome,
+            of: job,
+            state: state,
+            killingTests: .init(failures, endedBy: finished.run.ending)
+        )
+        let key = session.keys[finished.index]
+        let log = rerun == nil ? MutationTestLog.keptFileName(for: key) : MutationTestLog.rerunFileName(for: key)
+        write(
+            MutantResult(
+                key: key,
+                schema: job.schema,
+                finished: finished,
+                failures: failures,
+                session: session.number,
+                finishedAt: now(),
+                log: log,
+                fileSHA256: state.projectTree?.files[key.path],
+                rerun: rerun
+            ),
+            in: session,
+            isAMutant: true
+        )
+        session.outcomes[finished.index] = outcome
+
+        let mutationLog = MutationTestLog(
+            mutationPoint: outcome.point,
+            testLog: finished.run.testLog,
+            timePerBuildTestCycle: .none,
+            remainingMutationPointsCount: .none,
+            keptFileName: log
+        )
+        return (outcome, mutationLog)
+    }
+
     /// The file a mutant's run writes its output to while it runs. Its job's number comes first, so two runs under way
     /// at once never share one, as mutants in same-named files at the same place, or a repeated mutant, otherwise
     /// would: the first to finish would remove the file the other still has to read.
     func logFileName(forJobAt index: Int, _ job: MutantJob) -> String {
         "\(index)_\(job.fileName)_\(job.schema.mutationOperatorId.rawValue)_\(job.schema.position).log"
+    }
+
+    /// The file the run that tests a timed-out mutant again writes its output to while it runs, which the first run's
+    /// output, if a stop left it, never shares.
+    func logFileName(forRerunOfJobAt index: Int, _ job: MutantJob) -> String {
+        "\(index)_rerun_\(job.fileName)_\(job.schema.mutationOperatorId.rawValue)_\(job.schema.position).log"
     }
 
     /// Where the test run whose log is `name` writes its output while it runs: `testOutputFolderName` in the run's

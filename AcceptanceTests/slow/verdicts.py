@@ -98,6 +98,17 @@ def timeout_only(verdicts):
     return len(set(verdicts) - {"timedOut"}) <= 1
 
 
+def timeouts_not_rerun(run):
+    """The keys of the timeouts a finished session on more than one worker left without running them again at lower
+    load, which it does before it ends: each session's workers from the last header of its number, as SwiftMutator
+    reads them."""
+    workers = {header["session"]: header.get("workers", 1) for header in run.headers}
+    finished = {end["session"] for end in run.ends if end.get("reason") == "finished"}
+    return sorted(k for k, record in run.latest.items()
+                  if record["outcome"] == "timeout" and not record.get("rerun")
+                  and record["session"] in finished and workers.get(record["session"], 1) > 1)
+
+
 def killers(record):
     return ", ".join(f"{test.get('name')} ({test.get('location')})" for test in (record.get("killedBy") or [])[:3])
 
@@ -179,7 +190,11 @@ def command_check(args):
     problems += compare(run, reference, allowlist(args.allowlist), found & expected)
     if not run.ends or run.ends[-1].get("reason") != "finished":
         problems.append(f"the last session ended {run.ends[-1].get('reason') if run.ends else 'without an end line'}")
-    print(f"check {args.results}: {len(found)} mutants, {dict(collections.Counter(verdict(r) for r in run.latest.values()))}")
+    problems += [f"{k}: a timeout its session never ran again at lower load" for k in timeouts_not_rerun(run)]
+    # A result `--reuse` kept keeps the `rerun` it was tested with, though its own session never ran it again.
+    reruns = [line for line in run.lines if line.get("rerun") and not line.get("reusedFrom")]
+    print(f"check {args.results}: {len(found)} mutants, {dict(collections.Counter(verdict(r) for r in run.latest.values()))}, "
+          f"{len(reruns)} timeouts run again, {sum(line['outcome'] != 'timeout' for line in reruns)} changed")
     return fail(problems, "check")
 
 
@@ -279,16 +294,17 @@ def command_expect_stop_resume(args):
     if not first_end or first_end.get("reason") != "interrupted" or first_end.get("detail") != "SIGINT":
         problems.append(f"session 1 ended {first_end}, not interrupted by SIGINT")
     first = run.session_lines(1)
+    # A timeout run again has a second line in its session, so the session's mutants are its distinct keys.
+    first_keys = {key(line) for line in first}
     for line in first:
         if line.get("endedBy") == "exited" and line.get("exitStatus") in STOP_STATUSES:
             problems.append(f"{key(line)}: session 1 recorded a run that the stop ended (exit {line['exitStatus']})")
-    if not first or len(first) >= len(reference["mutants"]):
-        problems.append(f"session 1 recorded {len(first)} of {len(reference['mutants'])} mutants: the stop came too late or too early")
+    if not first or len(first_keys) >= len(reference["mutants"]):
+        problems.append(f"session 1 recorded {len(first_keys)} of {len(reference['mutants'])} mutants: the stop came too late or too early")
     tested_later = {key(line) for line in run.lines if line["session"] >= 2}
     for k in run.retired.get(2, []):
         if k not in tested_later and k in reference["mutants"]:
             problems.append(f"{k}: retired by session 2 and never tested again")
-    first_keys = {key(line) for line in first}
     for k in sorted(set(reference["mutants"]) - first_keys - tested_later):
         problems.append(f"{k}: neither session tested it")
     expected, found = set(reference["mutants"]), set(run.latest)

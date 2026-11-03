@@ -104,7 +104,9 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   least 20 s. For another build system, or when that run fails, it allows 3× the baseline, build
   included, and at least 10 s. A timeout counts as a survivor, so if your tests set limits of their
   own, such as Swift Testing's `.timeLimit`, which is at least a minute, set `mutationTestTimeout`
-  above them: otherwise a mutant that only your tests' limit would catch ends as a timeout.
+  above them: otherwise a mutant that only your tests' limit would catch ends as a timeout. With
+  several workers, each timeout is run again at lower load once the other mutants are tested: see
+  [Timeouts are run again](#timeouts-are-run-again).
 - **Coverage with several test bundles:** Swift 6.4's build system makes a test bundle for each
   test target, which Muter's coverage step can't read, so it tested every mutant, even in code no
   test runs. SwiftMutator exports the coverage of every bundle at once, leaves out the files no
@@ -190,6 +192,35 @@ once says so, and one that uses fewer workers than asked says why:
 👷 Testing 3 mutants at a time, though 4 workers were asked for: only 3 are left to test.
 👷 Testing one mutant at a time, though 4 workers were asked for: only SwiftPM projects test more than one at once.
 ```
+
+### Timeouts are run again
+
+With every worker's tests competing for the same cores, a slow test can pass the time limit that it
+keeps to under less load, and its mutant ends as a timeout, which the score counts as a survivor
+([#76](https://github.com/Joseph-Cursio/SwiftMutator/issues/76)). So a run on several workers runs
+each of its timeouts again once every other mutant is tested: in job order, on a quarter of the
+workers, at least one, and under the same limit. A mutant that loops forever times out again, at
+the cost of a second limit; one that was only slow is killed or survives. The progress bar and lines
+don't count the reruns, which are said apart:
+
+```
+🔁 Running 19 timeouts again, one at a time, under the same 24 s limit: at most 8 min.
+🔁 1 of 19 survived at ConfigurationPersistenceProtocol.swift:36:56 (removed line), in 13.3 s
+…
+🔁 6 of 19 timed out again at LargeStackWorkers.swift:103:31 (removed line), in 24 s
+…
+🔁 Ran 19 timeouts again, and 15 changed: 15 survived, 4 timed out again.
+```
+
+That was SwiftProjectLint's `--sample 200 --seed 157871` under `--timeout 24`, on 4 workers, where
+one test run alone takes about 14 s. The reruns took 5 of the run's 15 minutes. All 15 that changed
+survive in a whole run under the default limit, and of the 4 that timed out again, 3 time out there too;
+the fourth is killed there, after more than 24 s.
+
+The rerun's result is the one the report gives. The results file keeps both: the rerun's line, with
+`rerun`, follows the first run's, and each names a log of its own, the rerun's with ` (rerun)` before
+`.log` (see [Docs/results-file.md](Docs/results-file.md)). A run on one worker, as every
+xcodebuild run is, has no lower load to offer, and runs nothing again.
 
 ### Workers and release mode
 
@@ -613,10 +644,14 @@ does `swift-mutator report` of the file.
 - **What it keeps.** A result is kept when discovery finds its mutant again in the same file, at the
   same place, with the same operator and the same change (`snapshot`), and the file's SHA-256 hasn't
   changed. Killed mutants, survivors and timeouts are kept: the score counts a timeout as a survivor,
-  so a kept one can't raise it. These are tested again:
+  so a kept one can't raise it. A timeout of a session on several workers is kept only once it was
+  [run again](#timeouts-are-run-again): one that a stop, or a SwiftMutator from before reruns, left
+  unconfirmed is tested again, and retesting can only raise the score. These are tested again:
   - build errors, including test runs that couldn't start;
   - mutants in a file that changed, and mutations that changed;
   - mutants whose place and operator appear more than once in a file, as they share a switch ID;
+  - timeouts of a session on several workers that weren't run again, which the summary counts as
+    `2 timeouts not run again at lower load`;
   - mutants never tested, including any that discovery finds for the first time.
 - **Coverage.** Each session gathers coverage again, unless `--skip-coverage` is given, and
   discovers mutants by it. A result whose mutant this session no longer discovers is dropped,
@@ -630,7 +665,8 @@ does `swift-mutator report` of the file.
   from what it kept, `⏹ Stopped by SIGINT after testing 197 of the 1399 mutants left: 1295 of 2497
   have results.`, and ends with the command that continues it, as often as needed.
 - **A finished run** can be resumed too. Only its build errors and newly discovered mutants are
-  tested, so this is how to test build errors again. With nothing left to test, it says `nothing is
+  tested, and the timeouts of a run on several workers by a SwiftMutator from before reruns, so this
+  is how to test build errors again. With nothing left to test, it says `nothing is
   left to test`, builds nothing, runs no baseline and prints the report.
 
 ### When a resume is refused

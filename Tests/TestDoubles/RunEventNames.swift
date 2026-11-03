@@ -27,6 +27,9 @@ extension RunEvent {
         case workersChosen
         case stopAtFirstFailureTurnedOff
         case testBundlesNotRunDirectly
+        case timeoutRerunsStarted
+        case timeoutRerunFinished
+        case timeoutRerunsFinished
         case mutationTestingFinished
         case mutationTestingEndedEarly
         case newMutationTestOutcomeAvailable
@@ -62,6 +65,9 @@ extension RunEvent {
         case .workersChosen: .workersChosen
         case .stopAtFirstFailureTurnedOff: .stopAtFirstFailureTurnedOff
         case .testBundlesNotRunDirectly: .testBundlesNotRunDirectly
+        case .timeoutRerunsStarted: .timeoutRerunsStarted
+        case .timeoutRerunFinished: .timeoutRerunFinished
+        case .timeoutRerunsFinished: .timeoutRerunsFinished
         case .mutationTestingFinished: .mutationTestingFinished
         case .mutationTestingEndedEarly: .mutationTestingEndedEarly
         case .newMutationTestOutcomeAvailable: .newMutationTestOutcomeAvailable
@@ -95,6 +101,9 @@ extension RunEvent {
         case let .workersChosen(choice): choice
         case let .stopAtFirstFailureTurnedOff(reason): reason
         case let .testBundlesNotRunDirectly(reason): reason
+        case let .timeoutRerunsStarted(reruns): reruns
+        case let .timeoutRerunFinished(rerun): rerun
+        case let .timeoutRerunsFinished(tally): tally
         case let .mutationTestingFinished(outcome): outcome
         case let .mutationTestingEndedEarly(earlyEnd): earlyEnd
         case let .newMutationTestOutcomeAvailable(mutation): mutation

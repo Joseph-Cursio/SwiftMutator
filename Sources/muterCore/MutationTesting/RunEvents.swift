@@ -45,6 +45,12 @@ enum RunEvent {
     case stopAtFirstFailureTurnedOff(reason: String)
     /// Each mutant's tests run through `swift test`, as the bundles can't be run directly (see `DirectTestRun`).
     case testBundlesNotRunDirectly(reason: String)
+    /// Once every mutant is tested on more than one worker, the timeouts that are tested again, on fewer.
+    case timeoutRerunsStarted(TimeoutReruns)
+    /// A timeout tested again, once its line is written. Never counted in the progress, which counted its first run.
+    case timeoutRerunFinished(TimeoutRerun)
+    /// What the timeouts tested again came to, once every one is.
+    case timeoutRerunsFinished(TimeoutRerunTally)
     case mutationTestingFinished(MutationTestOutcome)
     /// What mutation testing tested before it stopped early, once the baseline passed.
     case mutationTestingEndedEarly(EarlyEnd)

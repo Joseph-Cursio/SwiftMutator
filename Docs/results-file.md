@@ -18,7 +18,7 @@ The file is [JSON Lines](https://jsonlines.org): UTF-8, one JSON object per line
 
 1. **`header`**, once per session. A run's first session writes it when the baseline test run has passed, before the first mutant is tested, so a run whose baseline fails writes no file. A run that `--resume` continues adds a session to the same file, which starts with a header of its own on the same condition, so one whose baseline fails adds nothing. One with nothing left to test runs no baseline, and writes its header at once, as does a run that `--reuse` starts with nothing left to test and nothing changed since the earlier run.
 2. **`retired`**, only in a resumed session, right after its header: the earlier results it no longer stands by. See [below](#retired).
-3. **`mutant`**, one for each tested mutant, written as its test run finishes. With several workers, mutants finish in a different order from the one they started in. A run that `--reuse` starts first writes one for each result it keeps from the earlier run, right after its header, each with `reusedFrom`.
+3. **`mutant`**, one for each tested mutant, written as its test run finishes. With several workers, mutants finish in a different order from the one they started in. A session that tests on several workers then runs its timeouts again at lower load, and writes a second line for each, with `rerun`, which replaces the first. A run that `--reuse` starts first writes one for each result it keeps from the earlier run, right after its header, each with `reusedFrom`, and with `rerun` too for a result that a rerun gave.
 4. **`end`**, last in each session. It is written when mutation testing stops: when it finishes, when an error stops it, and when Ctrl-C (SIGINT), SIGTERM or SIGHUP stops it (see [Stopping a run](../README.md#stopping-a-run)). A run that is killed with SIGKILL or crashes has no end line. Nor does one stopped at once, by a second signal or after 30 seconds of stopping, unless it had already written the end line.
 
 Here is a header, three of a run's mutant lines, and the end line of a run that stopped after 1,103 mutants:
@@ -67,7 +67,7 @@ The header's `project` lists five files here. A real one lists every file in the
 | `stopsAtFirstFailure` | Bool | Whether a mutant's test run stopped at its first failed test |
 | `failedTestLinesAreReliable` | Bool | False when the passing baseline printed a line that looks like a failed test or a crash. Such lines then don't show that a mutant was killed, so no mutant line has `killedBy`. |
 | `mutantsDiscovered` | Int | How many mutants the run found. With `--sample`, how many of them the sample holds; `sample` gives the count it was taken from. With `--shard`, how many the shard holds, of the sample if there is one; `shard` gives the count in every shard. |
-| `mutantsToTest` | Int | How many of them it set out to test: all of them in a run's first session, and fewer in a resumed one, or one that `--reuse` starts, which test only those without an earlier result that still holds. It is written before any mutant is tested, so it says nothing about how many were: that is the number of `mutant` lines without `reusedFrom`, or the end line's `recorded` less `mutantsReused` in a session that `--reuse` starts. |
+| `mutantsToTest` | Int | How many of them it set out to test: all of them in a run's first session, and fewer in a resumed one, or one that `--reuse` starts, which test only those without an earlier result that still holds. It is written before any mutant is tested, so it says nothing about how many were: that is the number of the session's `mutant` lines with neither `reusedFrom` nor `rerun`. |
 | `project` | Object | Your project's files, each one's SHA-256, as SwiftMutator copied them, before it prepared any for mutation. See [below](#project). Left out by `run-without-mutating`, which copies nothing. |
 | `mutantsReused` | Int | Only in a resumed session: how many earlier sessions' results it kept rather than tested again. In a session that `--reuse` starts, how many of the earlier run's results it kept. |
 | `waived` | [String] | Only in a resumed session: the project files that changed since the last session and that `--resume-ignoring` let through, by their paths relative to the project, or `[]`. In a session that `--reuse` starts, those that `--reuse-ignoring` let through since any of the earlier run's sessions. |
@@ -182,9 +182,10 @@ A report of a sample's results gives the score's margin unless they are cut shor
 | `killedBy` | `[{name, location}]` | See [below](#killedby). Only for `failed`, `runtimeError` and `timeout`, and left out when `failedTestLinesAreReliable` is false. |
 | `failedTestCount` | Int | With `killedBy`: how many different tests the log shows failing, without the limit of 20 |
 | `firstFailedTestLine` | String | With `killedBy`: the first line that shows a failed test, without colour codes, cut to 500 characters. Left out when no line does. |
-| `log` | String | The name of the mutant's kept log in its session's `logDirectory`: `<operator> @ <file name>-<line>-<column> <path hash>.log`, with ` (#2)`, ` (#3)` and so on before `.log` for a repeat. The hash is of `path`, as `switchID`'s is. So each mutant of a session keeps a log of its own, same-named files' mutants and repeats included. In results files whose log names have no hash, such mutants share a name, and only the last one tested kept its log. |
+| `log` | String | The name of the mutant's kept log in its session's `logDirectory`: `<operator> @ <file name>-<line>-<column> <path hash>.log`, with ` (#2)`, ` (#3)` and so on before `.log` for a repeat. The hash is of `path`, as `switchID`'s is. So each mutant of a session keeps a log of its own, same-named files' mutants and repeats included. A line with `rerun` names the second run's log, with ` (rerun)` before `.log`, and the first run's line keeps naming its own. In results files whose log names have no hash, such mutants share a name, and only the last one tested kept its log. |
 | `fileSHA256` | String | The SHA-256 of the mutant's file as SwiftMutator copied it, before it prepared it for mutation: the file's entry in the header's `project.files`. Left out when the header has no `project`, or the file isn't in it. |
 | `reusedFrom` | `{resultsFile, session, despiteChanges}` | Only for a result that a session `--reuse` started kept rather than tested: the results file and session that tested it, and `despiteChanges` true when `--reuse-ignoring`, `--force-reuse`, `--resume-ignoring` or `--force-resume` let a change through since. Each of those sessions' headers says which (`waived`, `forced`). Everything else is as it was tested, but for `session`, `utf8Offset` and `switchID`, which are the reusing session's, and `log`, which names a copy of the log in its `logDirectory`. A result reused again keeps where it was first tested. |
+| `rerun` | `{because, workers}` | On the line of a mutant that a session ran again: why, `timeout`, and how many mutants it ran at once meanwhile. A session that tests on several workers runs each of its timeouts again once every other mutant is tested, on a quarter of the workers, at least one, under the same time limit. The line follows the first run's, which it replaces by the last-line rule (see [Reading it](#reading-it)). A result that `--reuse` keeps keeps its `rerun`, as it keeps everything else it was tested with, though its own session didn't run it, so a session's own reruns are its lines with `rerun` and no `reusedFrom`. `because` is a string, so a later SwiftMutator may give another reason. |
 
 #### `killedBy`
 
@@ -217,7 +218,7 @@ A session that `--resume` adds no longer stands by some of the earlier sessions'
 | `reason` | String | `finished`; `aborted`, stopped by an error; or `interrupted`, stopped by a signal |
 | `detail` | String | Only when mutation testing stopped early. When `interrupted`: the signal that stopped it, `SIGINT` (Ctrl-C), `SIGTERM` or `SIGHUP`, so a Ctrl-C can be told apart from a `kill` or a closed terminal. When `aborted`: a short code for why. `tooManyBuildErrors` means 5 build errors in a row. `workerBaselineTestFailed(worker: n)` means a worker clone's baseline run didn't pass. `mutantNotSwitchedOn` means a mutant's run couldn't be told to switch it on: under xcodebuild, its `muter.xctestrun` couldn't be written. Any other error gives its type's name. It is never a log. |
 | `testDurationSeconds` | Double | How long the session's mutation testing took. For a run's first session, the duration the report shows, before rounding. A resumed run's report shows every session's added up. |
-| `recorded` | Int | How many `mutant` lines the session wrote, those with `reusedFrom` included |
+| `recorded` | Int | How many `mutant` lines the session wrote, those with `reusedFrom` or `rerun` included. So it can be more than the mutants the session tested: count the lines with neither for those. |
 
 ## How it is written
 
@@ -232,7 +233,7 @@ A session that `--resume` adds no longer stands by some of the earlier sessions'
 - **Read it line by line.** Look at `kind` first. Skip kinds you don't know, and ignore keys you don't know.
 - **Skip a line that doesn't parse.** The last line of a run killed in the middle of a write can be cut off, and after a power loss the file can end in NUL bytes. The lines before it are complete.
 - **Key mutants by `path`, `mutationOperatorId`, `line`, `column` and `occurrence`.** Each key is unique within a run, and a file that hasn't changed gives its mutants the same keys in the next run. An edit to the file can change a key, or keep it for a different mutant, so compare `snapshot` too before you match results across runs. Never key mutants by the order of their lines, which depends on when each one finished, or by `switchID`.
-- **The last line wins.** If a key appears more than once, its last `mutant` line is the one that counts.
+- **The last line wins.** If a key appears more than once, its last `mutant` line is the one that counts. That is how a timeout run again at lower load, whose second line has `rerun`, takes that run's result.
 - **A `retired` line drops a key.** No `mutant` line before it counts for a key it lists. A `mutant` line after it records the key again.
 
 ### Compatibility
@@ -240,6 +241,7 @@ A session that `--resume` adds no longer stands by some of the earlier sessions'
 New keys and new kinds of line are added without changing `formatVersion`, so a reader that skips what it doesn't know keeps working. `formatVersion` changes only for a change that an older reader would misread. A reader should refuse a file whose header has a `formatVersion` it doesn't know.
 
 - **Format 1** is a run's first session, also one that `--reuse` starts. A SwiftMutator from before `--reuse` reads the results such a session kept as tested in it.
+- **A timeout run again** has a second `mutant` line for its key, so a SwiftMutator from before `rerun` takes that line for the mutant's result, by the last-line rule, and ignores `rerun`.
 - **Format 2** is a resumed session. Its file can hold `retired` lines, and a reader that skipped them would report results the run no longer stands by, so a SwiftMutator from before `--resume` refuses the file. A file that was never resumed stays in format 1, which those read.
 
 ## Reports from the file
@@ -375,7 +377,7 @@ Shard 2 of 2, 1232 of its 1235 mutants, from …/results.jsonl: the run was inte
 
 ## `jq` recipes
 
-The first five recipes read every `mutant` line. In a file that `run --resume` added sessions to, a mutant tested again has a line from each session that tested it, and a `retired` line can drop a result. Run them on `latest.jsonl`, which the last recipe makes, to read only the lines that count.
+The first five recipes read every `mutant` line. A timeout run again at lower load has a second line in its session, with `rerun`. In a file that `run --resume` added sessions to, a mutant tested again has a line from each session that tested it, and a `retired` line can drop a result. Run them on `latest.jsonl`, which the last recipe makes, to read only the lines that count.
 
 The tests that killed the most mutants:
 
@@ -418,7 +420,7 @@ Plain `jq` stops at the first line that doesn't parse, such as a cut-off last li
 The progress of a run: how many mutants its last session has tested, of those it set out to test. A resumed session, or one that `--reuse` started, adds how many results it kept, and so how many of the run's mutants have one:
 
 ```bash
-jq -nR '[inputs | fromjson?] | (map(select(.kind == "header")) | last) as $header | (map(select(.kind == "mutant" and .session == $header.session and (has("reusedFrom") | not))) | length) as $tested | "\($tested) of \($header.mutantsToTest) tested" + if $header | has("mutantsReused") then ", and \($header.mutantsReused) results kept from earlier sessions: \($tested + $header.mutantsReused) of \($header.mutantsDiscovered) mutants have results" else "" end' results.jsonl
+jq -nR '[inputs | fromjson?] | (map(select(.kind == "header")) | last) as $header | (map(select(.kind == "mutant" and .session == $header.session and (has("reusedFrom") | not) and (has("rerun") | not))) | length) as $tested | "\($tested) of \($header.mutantsToTest) tested" + if $header | has("mutantsReused") then ", and \($header.mutantsReused) results kept from earlier sessions: \($tested + $header.mutantsReused) of \($header.mutantsDiscovered) mutants have results" else "" end' results.jsonl
 ```
 
 The score so far, worked out as the report works it out: from each mutant's line that counts (see [Reading it](#reading-it)), killed (`failed` and `runtimeError`) divided by everything but `buildError`, then times 100 and rounded down, or -1 when no mutant has a result. Keep that order: multiplying first can give a score 1 higher than the report's, such as 29 rather than 28 for 29 killed out of 100.

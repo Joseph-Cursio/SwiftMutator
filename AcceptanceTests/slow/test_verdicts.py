@@ -133,6 +133,35 @@ class VerdictsTests(unittest.TestCase):
         self.assertEqual(code, 1, output)
         self.assertIn("timeout flips, more than", output)
 
+    # A finished session on several workers runs its timeouts again before it ends, and the rerun's line has `rerun`.
+    # On one worker, or in a session that stopped, a timeout needn't have one.
+    def test_check_failsOnATimeoutAFinishedSessionOnSeveralWorkersNeverRanAgain(self):
+        _, _, reference = self.reference(self.full())
+        rerun = {"rerun": {"because": "timeout", "workers": 1}}
+        good = self.write("good.jsonl", header(workers=4), mutant(1), mutant(2, "passed"), mutant(3, "timeout"),
+                          mutant(3, "timeout", **rerun), end())
+        code, output = self.run_command("check", good, "--reference", reference)
+        self.assertEqual(code, 0, output)
+        self.assertIn("1 timeouts run again, 0 changed", output)
+        self.assertEqual(self.run_command("check", self.full("serial.jsonl"), "--reference", reference)[0], 0)
+        bad = self.write("bad.jsonl", header(workers=4), mutant(1), mutant(2, "passed"), mutant(3, "timeout"), end())
+        code, output = self.run_command("check", bad, "--reference", reference)
+        self.assertEqual(code, 1, output)
+        self.assertIn("a timeout its session never ran again at lower load", output)
+        stopped = self.write("stopped.jsonl", header(workers=4), mutant(3, "timeout"), end(reason="interrupted"))
+        self.assertEqual(verdicts.timeouts_not_rerun(verdicts.Results(stopped)), [])
+
+    # A result `--reuse` kept keeps the `rerun` it was tested with, but its session ran nothing again.
+    def test_check_countsNoRerunForAResultItsSessionKept(self):
+        _, _, reference = self.reference(self.full())
+        kept = {"reusedFrom": {"resultsFile": "full.jsonl", "session": 1},
+                "rerun": {"because": "timeout", "workers": 1}}
+        reuse = self.write("reuse.jsonl", header(workers=4, to_test=2, reused=1), mutant(1), mutant(2, "passed"),
+                           mutant(3, "timeout", **kept), end())
+        code, output = self.run_command("check", reuse, "--reference", reference)
+        self.assertEqual(code, 0, output)
+        self.assertIn("0 timeouts run again, 0 changed", output)
+
     # A reuse with nothing changed keeps all but timeouts, build errors and repeated places.
     def test_expectReuse_keepsWhatResumePlanKeeps(self):
         full = self.write("full.jsonl", header(discovered=4, to_test=4), mutant(1), mutant(2, "passed"),
@@ -188,6 +217,17 @@ class VerdictsTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("recorded a run that the stop ended", output)
         self.assertIn("neither session tested it", output)
+
+    # A timeout run again before the stop has two lines in session 1, but is one mutant: two of three recorded is
+    # still a stop in time.
+    def test_expectStopResume_countsSessionOnesMutants_notItsLines(self):
+        _, _, reference = self.reference(self.full())
+        rerun = {"rerun": {"because": "timeout", "workers": 1}}
+        good = self.write("good.jsonl", header(workers=4), mutant(1), mutant(3, "timeout"), mutant(3, "timeout", **rerun),
+                          end(reason="interrupted", detail="SIGINT"), header(session=2, to_test=1),
+                          mutant(2, "passed", session=2), end(session=2))
+        code, output = self.run_command("expect-stop-resume", good, "--reference", reference)
+        self.assertEqual(code, 0, output)
 
     def test_expectSince_boundsTheSelectionByGitsOwnDiff(self):
         _, _, reference = self.reference(self.write("f.jsonl", header(), mutant(1), mutant(2, "passed"),

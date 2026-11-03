@@ -18,7 +18,8 @@ final class ResumePlanTests: XCTestCase {
     }
 
     func test_reusesKillsSurvivorsAndTimeouts() {
-        // A timeout counts in the score like a survivor, so reusing one can never overstate it.
+        // A timeout counts in the score like a survivor, so reusing one can never overstate it. The session tested one
+        // mutant at a time, as low a load as any.
         let keys = (1...5).map { key(line: $0) }
         let records = [
             record(of: keys[0], outcome: .failed),
@@ -153,6 +154,7 @@ final class ResumePlanTests: XCTestCase {
             key(line: 6, occurrence: 1),
             key(line: 8),
             key(line: 9),
+            key(line: 10),
         ]
         let records = [
             record(of: keys[1]),
@@ -161,15 +163,16 @@ final class ResumePlanTests: XCTestCase {
             record(of: keys[4], snapshot: .make(before: "<", after: ">", description: "changed < to >")),
             record(of: keys[5]),
             record(of: keys[7], outcome: .passed),
+            record(of: keys[9], outcome: .timeout, endedBy: .timedOut),
         ]
 
-        let plan = plan(keys, recorded: records)
+        let plan = plan(keys, recorded: records, workers: [1: 4])
 
         XCTAssertEqual(plan.reused, [1: records[0], 7: records[5]])
-        XCTAssertEqual(plan.toRun, [0, 2, 3, 4, 5, 6, 8])
+        XCTAssertEqual(plan.toRun, [0, 2, 3, 4, 5, 6, 8, 9])
         XCTAssertEqual(
             plan.retestedBecause,
-            [.notRecorded: 2, .buildError: 1, .fileChanged: 1, .mutationChanged: 1, .repeated: 2]
+            [.notRecorded: 2, .buildError: 1, .fileChanged: 1, .mutationChanged: 1, .repeated: 2, .timeoutNotRerun: 1]
         )
         // Every reason but a reuse's.
         XCTAssertEqual(
@@ -177,6 +180,52 @@ final class ResumePlanTests: XCTestCase {
             Set(ResumePlan.Reason.allCases).subtracting([.timedOut, .otherFileChanged, .testsChanged])
         )
         XCTAssertEqual(plan.retestedBecause.values.reduce(0, +), plan.toRun.count)
+    }
+
+    // A session that tested more than one mutant at once tests its timeouts again at lower load once the others are
+    // tested. One stopped before that, or older than that, didn't, so a resume tests them: retesting a timeout can't
+    // lower the score, which counts it as a survivor.
+    func test_retestsATimeoutOfASessionOnSeveralWorkers_unlessItWasRunAgain() {
+        let keys = (1...5).map { key(line: $0) }
+        let rerun = MutantResult.Rerun(because: MutantResult.Rerun.timeout, workers: 1)
+        let records = [
+            timeout(of: keys[0], session: 1),
+            timeout(of: keys[1], session: 1, rerun: rerun),
+            timeout(of: keys[2], session: 2),
+            // A session whose header is missing may have tested on several workers.
+            timeout(of: keys[3], session: 3),
+            record(of: keys[4], outcome: .passed),
+        ]
+
+        let plan = plan(keys, recorded: records, workers: [1: 4, 2: 1])
+
+        XCTAssertEqual(plan.reused, [1: records[1], 2: records[2], 4: records[4]])
+        XCTAssertEqual(plan.toRun, [0, 3])
+        XCTAssertEqual(plan.retestedBecause, [.timeoutNotRerun: 2])
+        XCTAssertEqual(plan.retired, [keys[0], keys[3]])
+    }
+
+    // A reuse tests every timeout again, run again or not, for the reason it always has.
+    func test_aReuse_retestsATimeoutOfASessionOnSeveralWorkers_asATimeout() {
+        let keys = [key(line: 1), key(line: 2)]
+        let rerun = MutantResult.Rerun(because: MutantResult.Rerun.timeout, workers: 1)
+        let records = [timeout(of: keys[0], session: 1), timeout(of: keys[1], session: 1, rerun: rerun)]
+
+        let plan = plan(keys, recorded: records, workers: [1: 4], reusing: changes())
+
+        XCTAssertEqual(plan.toRun, [0, 1])
+        XCTAssertEqual(plan.retestedBecause, [.timedOut: 2])
+    }
+
+    // As `RecordedResults` reads a session's lines with the last header of its number.
+    func test_eachSessionsWorkers_comeFromTheLastHeaderOfItsNumber() {
+        let headers = [
+            ResultsHeader.make(session: 1, workers: 4),
+            ResultsHeader.make(session: 2, workers: 2),
+            ResultsHeader.make(session: 2, workers: 1),
+        ]
+
+        XCTAssertEqual(ResumePlan.workers(of: headers), [1: 4, 2: 1])
     }
 
     func test_aReuse_retestsTimeouts_evenWithNothingChanged() {
@@ -313,6 +362,24 @@ final class ResumePlanTests: XCTestCase {
         )
     }
 
+    /// A timeout recorded for `key`'s mutant by `session`, tested in its file as this run's `hashes` has it, and its
+    /// `rerun`'s if it was run again.
+    private func timeout(of key: MutantKey, session: Int, rerun: MutantResult.Rerun? = nil) -> MutantResult {
+        MutantResult.make(
+            session: session,
+            path: key.path,
+            line: key.line,
+            column: key.column,
+            occurrence: key.occurrence,
+            mutationOperatorId: key.mutationOperatorId,
+            snapshot: Self.mutation,
+            outcome: .timeout,
+            endedBy: .timedOut,
+            fileSHA256: Self.hashes[key.path],
+            rerun: rerun
+        )
+    }
+
     /// A result recorded for `key`'s mutant, tested in a file whose hash was `fileSHA256`.
     private func record(
         of key: MutantKey,
@@ -367,6 +434,7 @@ final class ResumePlanTests: XCTestCase {
         recorded records: [MutantResult],
         snapshots: [MutationOperator.Snapshot]? = nil,
         fileHashes: [String: String] = hashes,
+        workers: [Int: Int] = [1: 1],
         reusing changes: [Int: ReuseChanges]? = nil
     ) -> ResumePlan {
         ResumePlan.make(
@@ -374,6 +442,7 @@ final class ResumePlanTests: XCTestCase {
             snapshots: snapshots ?? keys.map { _ in Self.mutation },
             recorded: Dictionary(uniqueKeysWithValues: records.map { ($0.key, $0) }),
             fileHashes: fileHashes,
+            workers: workers,
             reusing: changes
         )
     }

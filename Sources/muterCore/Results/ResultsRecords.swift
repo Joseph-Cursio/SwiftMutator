@@ -266,6 +266,11 @@ struct MutantResult: Codable, Equatable {
     /// was tested. Its `session` is the reusing session's, and its `log` names the copy of its log in that session's
     /// `logDirectory`.
     var reusedFrom: ReusedFrom?
+    /// On the line of a run that tested the mutant again in the same session, after the line of its first run, which
+    /// it replaces as every later line of a key does: why, and at what load. Its `log` is a log of its own
+    /// (`MutationTestLog.rerunFileName(for:)`). A result reused from such a line keeps it, with `reusedFrom`, though
+    /// the reusing session didn't run the mutant.
+    var rerun: Rerun?
 
     var key: MutantKey {
         MutantKey(
@@ -289,7 +294,8 @@ extension MutantResult {
         session: Int,
         finishedAt: Date,
         log: String,
-        fileSHA256: String? = nil
+        fileSHA256: String? = nil,
+        rerun: Rerun? = nil
     ) {
         let run = finished.run
         self.init(
@@ -312,7 +318,8 @@ extension MutantResult {
             failedTestCount: failures?.count,
             firstFailedTestLine: failures?.firstLine,
             log: log,
-            fileSHA256: fileSHA256
+            fileSHA256: fileSHA256,
+            rerun: rerun
         )
     }
 
@@ -321,6 +328,21 @@ extension MutantResult {
     static func failedTests(of run: TestRun, linesAreReliable: Bool) -> FailedTestLine.FailedTests? {
         guard linesAreReliable, [.failed, .runtimeError, .timeout].contains(run.outcome) else { return nil }
         return FailedTestLine.failedTests(inLog: run.testLog)
+    }
+}
+
+extension MutantResult {
+    /// Why a session tested a mutant again, after its first run, and how many mutants it tested at once meanwhile.
+    struct Rerun: Codable, Equatable {
+        /// A first run that timed out: under the load of every worker, a slow test can pass the limit that it keeps
+        /// to under less.
+        static let timeout = "timeout"
+
+        /// Why, such as `timeout`. A string, not an enum, so that a reason a later SwiftMutator adds doesn't make the
+        /// line unreadable: a reader would skip it, and the first run's result would stand in its place.
+        let because: String
+        /// How many mutants were tested at once while it was tested again.
+        let workers: Int
     }
 }
 
@@ -385,7 +407,8 @@ extension MutantResult {
             failedTestCount: failedTestCount,
             firstFailedTestLine: firstFailedTestLine,
             log: log,
-            fileSHA256: fileSHA256
+            fileSHA256: fileSHA256,
+            rerun: rerun
         )
         copy.reusedFrom = ReusedFrom(
             resultsFile: origin?.resultsFile ?? resultsFile,
@@ -424,8 +447,9 @@ struct ResultsEnd: Codable, Equatable {
     /// How long this session's mutation testing took. For a first session, exactly its `MutationTestOutcome`'s
     /// `testDuration`; a resumed session's outcome adds the earlier sessions'.
     let testDurationSeconds: Double
-    /// How many mutant lines the session wrote: those of the mutants it tested, and in a session that reuses an earlier
-    /// run's results, those of the results it kept, which have `reusedFrom`.
+    /// How many mutant lines the session wrote: those of the mutants it tested, those of the mutants it tested again,
+    /// which have `rerun`, and in a session that reuses an earlier run's results, those of the results it kept, which
+    /// have `reusedFrom`, and `rerun` too if a rerun gave them.
     let recorded: Int
 
     /// A short code for why mutation testing stopped with `error`, never a log: the abort reason's name, the worker

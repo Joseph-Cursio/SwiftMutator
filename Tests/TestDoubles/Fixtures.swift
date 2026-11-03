@@ -601,6 +601,7 @@ extension ResultsHeader {
         waived: [String]? = nil,
         forced: [String]? = nil,
         logDirectory: String = "/project_muter_logs/run",
+        workers: Int = 1,
         reusedFrom: String? = nil,
         since: ChangeSelection? = nil,
         shard: ShardSelection? = nil,
@@ -625,7 +626,7 @@ extension ResultsHeader {
             testRunSeconds: 19.3,
             timeoutSeconds: 96.5,
             timeoutIsDefault: true,
-            workers: 1,
+            workers: workers,
             stopsAtFirstFailure: false,
             failedTestLinesAreReliable: true,
             mutantsDiscovered: mutantsDiscovered,
@@ -700,7 +701,8 @@ extension MutantResult {
         killedBy: [FailedTestLine.FailedTest]? = nil,
         failedTestCount: Int? = nil,
         fileSHA256: String? = nil,
-        reusedFrom: ReusedFrom? = nil
+        reusedFrom: ReusedFrom? = nil,
+        rerun: MutantResult.Rerun? = nil
     ) -> MutantResult {
         MutantResult(
             session: session,
@@ -723,7 +725,8 @@ extension MutantResult {
             firstFailedTestLine: nil,
             log: "\(mutationOperatorId.rawValue) @ Sum.swift-\(line)-\(column).log",
             fileSHA256: fileSHA256,
-            reusedFrom: reusedFrom
+            reusedFrom: reusedFrom,
+            rerun: rerun
         )
     }
 }

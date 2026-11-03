@@ -2,7 +2,8 @@ import Foundation
 
 /// Which of a results file's results a resumed run keeps, and which of its jobs it tests. A recorded result is kept
 /// for the job with its key only if that key's place and operator appear once in this run's discovery, it isn't a
-/// build error, its file's hash is this run's, and its mutation is the job's. A run that reuses an earlier run's
+/// build error, its file's hash is this run's, its mutation is the job's, and it isn't a timeout of a session that
+/// tested more than one mutant at once and never tested it again at lower load. A run that reuses an earlier run's
 /// results (`--reuse`) keeps one only if, as well, it isn't a timeout, and what changed since leaves it standing
 /// (`ReuseChanges`). Every other job is tested, counted by why. A mutant's `switchID` and `utf8Offset` are never
 /// compared: both count the header and import SwiftMutator inserts, so they change with how it prepares the file, and
@@ -21,6 +22,9 @@ struct ResumePlan: Equatable {
         /// Its place and operator appear more than once in this run's discovery, so its repeats share a switch ID and
         /// no result of theirs can be trusted.
         case repeated
+        /// A resume: it timed out in a session that tested more than one mutant at once, which stopped before it
+        /// tested the timeout again at lower load, or was older than that.
+        case timeoutNotRerun
         /// A reuse: it timed out, which a run under less load may not.
         case timedOut
         /// A reuse: a project file other than a test file changed, and no `--reuse-ignoring` glob let it through.
@@ -52,12 +56,14 @@ extension ResumePlan {
     /// the results file's `recorded` results (`RecordedResults.latest`) and the hashes of this run's project files by
     /// their paths relative to the project (`ProjectTree.files`), as keys' paths are. A reuse passes what changed since
     /// each of the file's sessions, by session: a result is judged by what changed since the session that recorded it.
-    /// A sampled run passes the keys of the mutants its sample leaves out (`leftOut`).
+    /// A resume passes how many workers each session tested on (`workers(of:)`), which says whether its timeouts were
+    /// tested again. A sampled run passes the keys of the mutants its sample leaves out (`leftOut`).
     static func make(
         keys: [MutantKey],
         snapshots: [MutationOperator.Snapshot],
         recorded: [MutantKey: MutantResult],
         fileHashes: [String: String],
+        workers: [Int: Int] = [:],
         reusing changes: [Int: ReuseChanges]? = nil,
         leftOut: Set<MutantKey> = []
     ) -> ResumePlan {
@@ -70,8 +76,10 @@ extension ResumePlan {
             if places[Place(key)] != 1 {
                 reason = .repeated
             } else if let record = recorded[key] {
+                // A reuse tests every timeout again, a resume those its session didn't.
                 reason = reasonToRetest(record, fileHash: fileHashes[key.path], snapshot: snapshots[index])
-                    ?? changes.flatMap { reasonToRetest(record, after: $0[record.session]) }
+                    ?? (changes.map { reasonToRetest(record, after: $0[record.session]) }
+                        ?? reasonToRetest(record, testedOn: workers[record.session]))
                 if reason == nil {
                     reused[index] = record
                 }
@@ -118,6 +126,20 @@ extension ResumePlan {
             return .mutationChanged
         }
         return nil
+    }
+
+    /// The workers of each session in `headers`, a results file's, by its number: the last header's of a number, as
+    /// `RecordedResults` reads a session's records with it.
+    static func workers(of headers: [ResultsHeader]) -> [Int: Int] {
+        Dictionary(headers.map { ($0.session, $0.workers) }, uniquingKeysWith: { _, last in last })
+    }
+
+    /// Why a resume doesn't keep `record`, which holds for its job by itself, tested on `workers` workers at once:
+    /// a timeout whose session tested more than one mutant at once, or whose header is missing, and that no later line
+    /// tested again at lower load. Retesting a timeout can't lower the score, which counts it as a survivor.
+    private static func reasonToRetest(_ record: MutantResult, testedOn workers: Int?) -> Reason? {
+        guard record.outcome == .timeout, record.rerun == nil, (workers ?? 2) > 1 else { return nil }
+        return .timeoutNotRerun
     }
 
     /// Why a reuse doesn't keep `record`, which holds for its job by itself, after `changes`, those since its session;
