@@ -204,12 +204,18 @@ the cost of a second limit; one that was only slow is killed or survives. The pr
 don't count the reruns, which are said apart:
 
 ```
-🔁 Running 3 timeouts again, one at a time, under the same 72 s limit: at most 4 min.
-🔁 1 of 3 killed at Rules.swift:42:17 (changed == to !=), in 41.2 s
-🔁 2 of 3 timed out again at Parser.swift:88:9 (changed < to <=), in 72 s
-🔁 3 of 3 timed out again at Parser.swift:90:13 (changed && to ||), in 72 s
-🔁 Ran 3 timeouts again, and 1 changed: 1 killed, 2 timed out again.
+🔁 Running 19 timeouts again, one at a time, under the same 24 s limit: at most 8 min.
+🔁 1 of 19 survived at ConfigurationPersistenceProtocol.swift:36:56 (removed line), in 13.3 s
+…
+🔁 6 of 19 timed out again at LargeStackWorkers.swift:103:31 (removed line), in 24 s
+…
+🔁 Ran 19 timeouts again, and 15 changed: 15 survived, 4 timed out again.
 ```
+
+That was SwiftProjectLint's `--sample 200 --seed 157871` under `--timeout 24`, on 4 workers, where
+one test run alone takes about 14 s. The reruns took 5 of the run's 15 minutes. All 15 that changed
+survive in a whole run under the default limit, and of the 4 that timed out again, 3 time out there too;
+the fourth is killed there, after more than 24 s.
 
 The rerun's result is the one the report gives. The results file keeps both: the rerun's line, with
 `rerun`, follows the first run's, and each names a log of its own, the rerun's with ` (rerun)` before
