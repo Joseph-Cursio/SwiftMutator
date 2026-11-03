@@ -1,0 +1,113 @@
+{
+  "devices": {
+    "com.apple.CoreSimulator.SimRuntime.iOS-26-5": [
+      {
+        "dataPath": "/Users/me/Library/Developer/CoreSimulator/Devices/693E96A4-A11F-4223-B131-CFC50C9A17B8/data",
+        "dataPathSize": 18337792,
+        "logPath": "/Users/me/Library/Logs/CoreSimulator/693E96A4-A11F-4223-B131-CFC50C9A17B8",
+        "udid": "693E96A4-A11F-4223-B131-CFC50C9A17B8",
+        "isAvailable": true,
+        "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro",
+        "state": "Shutdown",
+        "name": "iPhone 17 Pro"
+      },
+      {
+        "dataPath": "/Users/me/Library/Developer/CoreSimulator/Devices/2287A7A0-7267-42D1-B831-27EAB2C17C5C/data",
+        "dataPathSize": 1412546560,
+        "logPath": "/Users/me/Library/Logs/CoreSimulator/2287A7A0-7267-42D1-B831-27EAB2C17C5C",
+        "udid": "2287A7A0-7267-42D1-B831-27EAB2C17C5C",
+        "lastUsedAt": "2026-10-24T00:20:20Z",
+        "isAvailable": true,
+        "logPathSize": 176128,
+        "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state": "Shutdown",
+        "name": "iPhone 17"
+      },
+      {
+        "dataPath": "/Users/me/Library/Developer/CoreSimulator/Devices/461B8A08-7CE1-43BD-8F86-1812452225FB/data",
+        "dataPathSize": 773902336,
+        "logPath": "/Users/me/Library/Logs/CoreSimulator/461B8A08-7CE1-43BD-8F86-1812452225FB",
+        "udid": "461B8A08-7CE1-43BD-8F86-1812452225FB",
+        "lastUsedAt": "2026-11-03T14:16:32Z",
+        "isAvailable": true,
+        "logPathSize": 40960,
+        "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state": "Booted",
+        "name": "swiftmutator-probe-twin"
+      },
+      {
+        "dataPath": "/Users/me/Library/Developer/CoreSimulator/Devices/073D4163-4731-4F8E-A3E6-8DE6812C100D/data",
+        "dataPathSize": 18337792,
+        "logPath": "/Users/me/Library/Logs/CoreSimulator/073D4163-4731-4F8E-A3E6-8DE6812C100D",
+        "udid": "073D4163-4731-4F8E-A3E6-8DE6812C100D",
+        "isAvailable": true,
+        "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state": "Shutdown",
+        "name": "swiftmutator-probe-twin"
+      }
+    ],
+    "com.apple.CoreSimulator.SimRuntime.iOS-27-0": [
+      {
+        "dataPath": "/Users/me/Library/Developer/CoreSimulator/Devices/B7593A3C-F829-4269-994B-043764C06673/data",
+        "dataPathSize": 18337792,
+        "logPath": "/Users/me/Library/Logs/CoreSimulator/B7593A3C-F829-4269-994B-043764C06673",
+        "udid": "B7593A3C-F829-4269-994B-043764C06673",
+        "lastUsedAt": "2026-11-03T14:14:04Z",
+        "isAvailable": true,
+        "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-18-Pro",
+        "state": "Shutdown",
+        "name": "iPhone 18 Pro"
+      },
+      {
+        "dataPath": "/Users/me/Library/Developer/CoreSimulator/Devices/2EC081DD-E2CB-44D4-97E6-6336BE58165D/data",
+        "dataPathSize": 2734182400,
+        "logPath": "/Users/me/Library/Logs/CoreSimulator/2EC081DD-E2CB-44D4-97E6-6336BE58165D",
+        "udid": "2EC081DD-E2CB-44D4-97E6-6336BE58165D",
+        "lastUsedAt": "2026-10-26T16:42:20Z",
+        "isAvailable": true,
+        "logPathSize": 417792,
+        "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+        "state": "Shutdown",
+        "name": "iPhone 17"
+      }
+    ],
+    "com.apple.CoreSimulator.SimRuntime.tvOS-26-5": [
+      {
+        "dataPath": "/Users/me/Library/Developer/CoreSimulator/Devices/DF42C8D1-A7B7-4BCF-BA74-9851D2792BF0/data",
+        "dataPathSize": 4096,
+        "logPath": "/Users/me/Library/Logs/CoreSimulator/DF42C8D1-A7B7-4BCF-BA74-9851D2792BF0",
+        "udid": "DF42C8D1-A7B7-4BCF-BA74-9851D2792BF0",
+        "isAvailable": true,
+        "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.Apple-TV-1080p",
+        "state": "Shutdown",
+        "name": "Apple TV"
+      }
+    ],
+    "com.apple.CoreSimulator.SimRuntime.xrOS-27-0": [
+      {
+        "dataPath": "/Users/me/Library/Developer/CoreSimulator/Devices/39440E5C-D840-4955-83D4-FA319A1F1CC9/data",
+        "dataPathSize": 4096,
+        "logPath": "/Users/me/Library/Logs/CoreSimulator/39440E5C-D840-4955-83D4-FA319A1F1CC9",
+        "udid": "39440E5C-D840-4955-83D4-FA319A1F1CC9",
+        "isAvailable": true,
+        "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.Apple-Vision-Pro-4K",
+        "state": "Shutdown",
+        "name": "Apple Vision Pro"
+      }
+    ],
+    "com.apple.CoreSimulator.SimRuntime.watchOS-27-0": [],
+    "com.apple.CoreSimulator.SimRuntime.iOS-26-2": [
+      {
+        "dataPath": "/Users/me/Library/Developer/CoreSimulator/Devices/5A1F3C0E-2B7D-4E8A-9C61-0D4B8E2F7A93/data",
+        "dataPathSize": 18337792,
+        "logPath": "/Users/me/Library/Logs/CoreSimulator/5A1F3C0E-2B7D-4E8A-9C61-0D4B8E2F7A93",
+        "udid": "5A1F3C0E-2B7D-4E8A-9C61-0D4B8E2F7A93",
+        "isAvailable": false,
+        "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro",
+        "state": "Shutdown",
+        "name": "iPhone 17 Pro",
+        "availabilityError": "runtime profile not found using \"System\" match policy"
+      }
+    ]
+  }
+}
