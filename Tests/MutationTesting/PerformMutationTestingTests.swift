@@ -738,6 +738,24 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(logs.dropFirst(), ["the second run's log", "testLog"])
     }
 
+    // The second run's line is on disk before the console says the mutant ran again or keeps the first run's log, so a
+    // stop at once after that never leaves a mutant said to have run again with no line.
+    func test_aRunTheSimulatorFailedToLaunch_isSentOnlyOnceTheSecondRunsResultIsWritten() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
+        state.loggingDirectory = "/logs"
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed, .failed]
+        ioDelegate.mutantTestLogs = [loadFixture("SimulatorTrouble/launch_preflightBusy.log")]
+        var recordedWhenSent: [[TestSuiteOutcome]] = []
+        let observer = runEvents.observe(.runRepeatedAfterLaunchFailure) { [resultsFiles] _ in
+            recordedWhenSent.append((try? resultsFiles.records(MutantResult.self).map(\.outcome)) ?? [])
+        }
+        addTeardownBlock { observer.cancel() }
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(recordedWhenSent, [[.passed]])
+    }
+
     // One more run at most: a mutant that crashes its app at launch would otherwise run for ever. That run counts,
     // whatever it comes to.
     func test_whenTheSimulatorFailsToLaunchARunTwice_theSecondIsRecorded() async throws {

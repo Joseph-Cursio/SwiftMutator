@@ -981,7 +981,8 @@ private extension PerformMutationTesting {
     /// `session`, and returns it with its log, kept under the name the line gives it. The result is written first, so
     /// it is on disk before anything else happens. `configuration` is the effective one, whose baseline may have made
     /// failed-test lines unreliable. A run on a simulator that is gone is never recorded, and aborts mutation testing
-    /// (`keepingWhatTheSimulatorDid`).
+    /// (`abortingIfTheSimulatorIsGone`). A run the simulator failed to launch before this one is sent only once this
+    /// one's result is written (`sendingTheRunTheSimulatorFailedToLaunch`).
     func keep(
         _ finished: FinishedRun,
         of job: MutantJob,
@@ -1004,9 +1005,7 @@ private extension PerformMutationTesting {
         )
         let key = session.keys[finished.index]
         let log = rerun == nil ? MutationTestLog.keptFileName(for: key) : MutationTestLog.rerunFileName(for: key)
-        try keepingWhatTheSimulatorDid(
-            in: finished, of: outcome, logName: log, configuration: configuration, state: state
-        )
+        try abortingIfTheSimulatorIsGone(in: finished, logName: log, configuration: configuration, state: state)
         write(
             MutantResult(
                 key: key,
@@ -1023,6 +1022,7 @@ private extension PerformMutationTesting {
             isAMutant: true
         )
         session.outcomes[finished.index] = outcome
+        sendingTheRunTheSimulatorFailedToLaunch(before: finished, of: outcome, logName: log)
 
         let mutationLog = MutationTestLog(
             mutationPoint: outcome.point,
@@ -1034,24 +1034,32 @@ private extension PerformMutationTesting {
         return (outcome, mutationLog)
     }
 
-    /// Aborts mutation testing, with `finished`'s log kept, if the simulator it ran on is gone: every run on it would
-    /// fail, and none tested its mutant. Else, if the simulator failed to launch the run before it, sends that run with
-    /// `outcome`, this one's, and its log, which is kept beside `logName`, this one's.
-    func keepingWhatTheSimulatorDid(
+    /// Aborts mutation testing, with `finished`'s log kept beside `logName`, the name its result would have, if the
+    /// simulator it ran on is gone: every run on it would fail, and none tested its mutant. Called before the result is
+    /// written, so that run is never recorded.
+    func abortingIfTheSimulatorIsGone(
         in finished: FinishedRun,
-        of outcome: MutationTestOutcome.Mutation,
         logName: String,
         configuration: MuterConfiguration,
         state: AnyMutationTestState
     ) throws {
-        if case let .deviceGone(line) = SimulatorTrouble.of(finished.run, with: configuration) {
-            let log = fileManager.keepLog(
-                finished.run.testLog, named: MutationTestLog.simulatorGoneFileName(for: logName), state: state
-            )
-            throw MuterError.mutationTestingAborted(
-                reason: .simulatorUnavailable(worker: finished.worker, line: line, log: log)
-            )
-        }
+        guard case let .deviceGone(line) = SimulatorTrouble.of(finished.run, with: configuration) else { return }
+        let log = fileManager.keepLog(
+            finished.run.testLog, named: MutationTestLog.simulatorGoneFileName(for: logName), state: state
+        )
+        throw MuterError.mutationTestingAborted(
+            reason: .simulatorUnavailable(worker: finished.worker, line: line, log: log)
+        )
+    }
+
+    /// If the simulator failed to launch the run before `finished`, sends that run with `outcome`, `finished`'s, and
+    /// its log, which is kept beside `logName`, `finished`'s. Called once `finished`'s result is written, so the
+    /// results file has its line before the console says the mutant ran again or the first run's log is kept.
+    func sendingTheRunTheSimulatorFailedToLaunch(
+        before finished: FinishedRun,
+        of outcome: MutationTestOutcome.Mutation,
+        logName: String
+    ) {
         guard let failure = finished.launchFailure else { return }
         let log = MutationTestLog(
             mutationPoint: outcome.point,
