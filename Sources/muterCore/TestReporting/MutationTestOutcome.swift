@@ -14,6 +14,10 @@ struct MutationTestOutcome {
     let shards: ShardScope?
     /// What `--sample` took; nil without it.
     let sample: SampleSelection?
+    /// Whether the results of `sample` are cut short: a run, or a shard's, stopped before every mutant it set out to
+    /// test had a result. They are then its first files', not a random part of the sample, so the score has no margin.
+    /// A shard's results are a random part of it, as its hash doesn't depend on the seed.
+    let sampleIsCutShort: Bool
 
     init(
         mutations: [Mutation] = [],
@@ -23,7 +27,8 @@ struct MutationTestOutcome {
         newVersion: String = "",
         since: ChangeSelection? = nil,
         shards: ShardScope? = nil,
-        sample: SampleSelection? = nil
+        sample: SampleSelection? = nil,
+        sampleIsCutShort: Bool = false
     ) {
         self.mutations = mutations
         self.coverage = coverage
@@ -33,6 +38,7 @@ struct MutationTestOutcome {
         self.since = since
         self.shards = shards
         self.sample = sample
+        self.sampleIsCutShort = sampleIsCutShort
     }
 }
 

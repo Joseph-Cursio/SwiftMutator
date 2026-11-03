@@ -36,7 +36,8 @@ struct MuterTestReport {
             outcome.sample,
             killed: numberOfKilledMutants,
             scored: outcome.mutations.count { $0.testSuiteOutcome != .buildError },
-            tested: outcome.mutations.count
+            tested: outcome.mutations.count,
+            cutShort: outcome.sampleIsCutShort
         )
     }
 }

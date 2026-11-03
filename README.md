@@ -368,14 +368,20 @@ where the whole run takes 46. It scored 78%, and the whole run 77%; the report g
   than N. With no more than N mutants, it holds them all, and is the whole run.
 - **The reports say how close the score is.** The plain and HTML reports say the score is from a
   sample of N of M mutants, and give its 95% margin; the JSON report gives them as `sample`. The
-  margin narrows with the finite-population correction. A run stopped early gets none: its results
-  are the first files', not a random part of the sample.
+  margin narrows with the finite-population correction. A run that stopped before every mutant had
+  a result gets none: its results are the first files', not a random part of the sample. A shard's
+  hash doesn't depend on the seed, so a shard's mutants are a random part of the sample: its own
+  report, and a merge of some of the shards, give a margin from their results, unless a shard given
+  has some of its results but not all.
 - **It combines** with `--since`, `--changed-lines`, `--files-to-mutate` and `--operators`, which
   choose the mutants it is taken from, and with `--shard`, which splits the sample. A sampled split
   needs `--seed`, so that its shards share one sample, and `report` merges them.
 - **Resuming.** The results file's header records the sample, and a resume must take the same one,
   so it needs `--seed`; the Continue line gives it, chosen or not. `--reuse` keeps the earlier run's results for
-  this sample's mutants, whatever sample, or whole run, that was.
+  this sample's mutants, whatever sample, or whole run, that was. After a change, new mutants can
+  rank before some the sample took, and push them out. Their results no longer count, but they are
+  said apart from those of mutants that are gone:
+  `ℹ️ 2 earlier results no longer count, as the sample no longer takes their mutants.`
 
 ## Results file
 

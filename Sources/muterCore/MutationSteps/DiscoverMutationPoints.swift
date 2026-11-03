@@ -39,10 +39,10 @@ struct DiscoverMutationPoints: MutationStep {
         // The sample first, so that the shards of a sampled split share one sample, and each tests its part.
         var sampleSelection: SampleSelection?
         if let sample = state.runOptions.sample {
-            let (kept, selection) = mappings.keepingSample(sample, under: state.mutatedProjectDirectoryURL)
+            let (kept, selection, leftOut) = mappings.keepingSample(sample, under: state.mutatedProjectDirectoryURL)
             mappings = kept
             sampleSelection = selection
-            selected.append(.sampleSelected(selection))
+            selected += [.sampleSelected(selection), .sampleLeftOut(leftOut)]
         }
         var shardSelection: ShardSelection?
         if let shard = state.runOptions.shard {

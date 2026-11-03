@@ -284,6 +284,26 @@ final class PerformMutationTestingTests: MuterTestCase {
         )
     }
 
+    // A run that stops after its last mutant's result has every result, so its sample's score has a margin, as
+    // `report` of its file gives one. One that stops before it doesn't.
+    func test_anEarlyEndsSample_isCutShort_onlyWhenAMutantHasNoResult() async throws {
+        let sent = recordEvents(named: [.mutationTestingEndedEarly])
+        for mutants in [6, 8] {
+            state.mutationMapping = try Array(repeating: makeSchemataMapping(), count: mutants)
+            let sample = SampleSelection(size: mutants, seed: 7, mutantsSampledFrom: 20, mutantsSampled: mutants)
+            state.apply([.sampleSelected(sample)])
+            ioDelegate.testSuiteOutcomes = [.passed, .failed] + Array(repeating: .buildError, count: 5)
+
+            await assertThrowsMuterError(
+                try await sut.run(with: state),
+                .mutationTestingAborted(reason: .tooManyBuildErrors)
+            )
+        }
+
+        let earlyEnds = sent().compactMap { $0.object as? EarlyEnd }
+        XCTAssertEqual(earlyEnds.map(\.outcome.sampleIsCutShort), [false, true])
+    }
+
     // Nothing was tested, and the abort says why.
     func test_aFailedBaseline_postsNoEarlyEnd() async throws {
         ioDelegate.testSuiteOutcomes = [.failed]

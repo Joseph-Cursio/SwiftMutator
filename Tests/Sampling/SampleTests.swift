@@ -47,9 +47,10 @@ final class SampleTests: XCTestCase {
         for size in 1...6 {
             for seed: UInt64 in 0..<20 {
                 let sample = Sample(size: size, seed: seed, seedIsChosen: false)
-                let (kept, selection) = mappings.keepingSample(sample, under: mutatedRoot)
+                let (kept, selection, leftOut) = mappings.keepingSample(sample, under: mutatedRoot)
                 let sampled = keys(of: kept)
                 XCTAssertTrue(Set(sampled).isSubset(of: Set(wholeRun)), "\(size), seed \(seed)")
+                XCTAssertEqual(leftOut, Set(wholeRun).subtracting(sampled), "\(size), seed \(seed)")
                 XCTAssertEqual(sampled, wholeRun.filter(Set(sampled).contains), "\(size), seed \(seed): job order")
                 let second = key("Sources/Sum.swift", line: 3, column: 5, occurrence: 1)
                 XCTAssertEqual(sampled.contains(repeated), sampled.contains(second), "\(size), seed \(seed)")
@@ -65,12 +66,12 @@ final class SampleTests: XCTestCase {
     func test_aSampleOfAtLeastEveryMutant_isTheWholeRun() throws {
         let mappings = try manyPlaces()
         let sample = Sample(size: 500, seed: 3, seedIsChosen: true)
-        let (kept, selection) = mappings.keepingSample(sample, under: mutatedRoot)
+        let (kept, selection, _) = mappings.keepingSample(sample, under: mutatedRoot)
 
         XCTAssertEqual(keys(of: kept), keys(of: mappings))
         XCTAssertEqual(selection, SampleSelection(size: 500, seed: 3, mutantsSampledFrom: 200, mutantsSampled: 200))
         XCTAssertFalse(selection.isPartial)
-        XCTAssertNil(SampleScope(selection, killed: 150, scored: 200, tested: 200))
+        XCTAssertNil(SampleScope(selection, killed: 150, scored: 200, tested: 200, cutShort: false))
     }
 
     // After a small change most of the sample stays: a trend line moves with the tests, not the sample.
@@ -106,7 +107,7 @@ final class SampleTests: XCTestCase {
 
     func test_aPartialSample_saysWhatItTested_andTheMargin() throws {
         let selection = SampleSelection(size: 500, seed: 1234, mutantsSampledFrom: 2497, mutantsSampled: 500)
-        let scope = try XCTUnwrap(SampleScope(selection, killed: 380, scored: 500, tested: 500))
+        let scope = try XCTUnwrap(SampleScope(selection, killed: 380, scored: 500, tested: 500, cutShort: false))
 
         XCTAssertEqual(
             scope.sentence,
@@ -119,14 +120,15 @@ final class SampleTests: XCTestCase {
     // A run stopped early has the first files' results, no random part of the sample: no margin.
     func test_aSampleWithoutEveryResult_givesNoMargin() throws {
         let selection = SampleSelection(size: 500, seed: 1234, mutantsSampledFrom: 2497, mutantsSampled: 500)
-        let stopped = try XCTUnwrap(SampleScope(selection, killed: 76, scored: 100, tested: 100))
+        let stopped = try XCTUnwrap(SampleScope(selection, killed: 76, scored: 100, tested: 100, cutShort: true))
 
         XCTAssertNil(stopped.marginOfError)
         XCTAssertNil(stopped.margin)
         XCTAssertEqual(
             stopped.sentence,
             "Only a sample of 500 of the 2497 mutants discovered was tested (seed 1234), and 100 of them have a "
-                + "result, so no margin is given: they aren't a random part of the sample."
+                + "result, so no margin is given: the others have none yet, so these are the first ones tested, not a "
+                + "random part of the sample."
         )
         let json = try XCTUnwrap(
             JSONSerialization.jsonObject(with: JSONEncoder().encode(stopped)) as? [String: Any]

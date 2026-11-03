@@ -35,12 +35,16 @@ struct ResumePlan: Equatable {
     let toRun: [Int]
     /// How many of `toRun` are tested for each reason; a reason with none is absent.
     let retestedBecause: [Reason: Int]
-    /// Every recorded key whose result isn't kept, sorted: those of the jobs tested again, and those of mutants this
-    /// run's discovery no longer finds. A resumed session's `retired` line lists them.
+    /// Every recorded key whose result isn't kept, sorted: those of the jobs tested again, those of mutants this run's
+    /// discovery no longer finds, and those of mutants its sample leaves out. A resumed session's `retired` line lists
+    /// them.
     let retired: [MutantKey]
     /// How many of `retired` are of mutants this run's discovery no longer finds: their results are dropped, and no
     /// job tests them again.
     let noLongerDiscovered: Int
+    /// How many of `retired` are of mutants this run's discovery finds, but its sample leaves out, as when new mutants
+    /// rank before them after a change: their results are dropped, and no job tests them.
+    var outsideTheSample = 0
 }
 
 extension ResumePlan {
@@ -48,12 +52,14 @@ extension ResumePlan {
     /// the results file's `recorded` results (`RecordedResults.latest`) and the hashes of this run's project files by
     /// their paths relative to the project (`ProjectTree.files`), as keys' paths are. A reuse passes what changed since
     /// each of the file's sessions, by session: a result is judged by what changed since the session that recorded it.
+    /// A sampled run passes the keys of the mutants its sample leaves out (`leftOut`).
     static func make(
         keys: [MutantKey],
         snapshots: [MutationOperator.Snapshot],
         recorded: [MutantKey: MutantResult],
         fileHashes: [String: String],
-        reusing changes: [Int: ReuseChanges]? = nil
+        reusing changes: [Int: ReuseChanges]? = nil,
+        leftOut: Set<MutantKey> = []
     ) -> ResumePlan {
         let places = Dictionary(keys.map { (Place($0), 1) }, uniquingKeysWith: +)
         var reused: [Int: MutantResult] = [:]
@@ -84,7 +90,8 @@ extension ResumePlan {
             toRun: toRun,
             retestedBecause: reasons,
             retired: recorded.keys.filter { !kept.contains($0) }.sorted { $0.description < $1.description },
-            noLongerDiscovered: recorded.keys.filter { !discovered.contains($0) }.count
+            noLongerDiscovered: recorded.keys.count { !discovered.contains($0) && !leftOut.contains($0) },
+            outsideTheSample: recorded.keys.count { leftOut.contains($0) }
         )
     }
 

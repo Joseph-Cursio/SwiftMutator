@@ -161,15 +161,7 @@ private extension PerformMutationTesting {
         // has anything to report is whether the baseline passed, which the session records once it has.
         let jobs = Self.jobs(of: state)
         session.keys = MutantKey.keys(for: jobs.map(\.schema), under: state.mutatedProjectDirectoryURL)
-        let plan = state.resumeState.map { resume in
-            ResumePlan.make(
-                keys: session.keys,
-                snapshots: jobs.map(\.schema.snapshot),
-                recorded: resume.recorded.latest,
-                fileHashes: state.projectTree?.files ?? [:],
-                reusing: resume.isReuse ? state.reuseChanges : nil
-            )
-        } ?? .everything(jobs.count)
+        let plan = Self.plan(of: jobs, keyedBy: session.keys, state: state)
         let reused = keptResults(plan, of: jobs, state: state)
 
         if let resume = state.resumeState {
@@ -184,11 +176,13 @@ private extension PerformMutationTesting {
                     coverage: state.projectCoverage,
                     in: state.mutatedProjectDirectoryURL,
                     reusing: resume.isReuse ? state.reuseChanges : nil,
-                    selecting: (state.changeSelection, state.runOptions.shard, state.runOptions.sample)
+                    selecting: (state.changeSelection, state.runOptions.shard, state.runOptions.sample),
+                    sampleIsPartial: state.sampleSelection?.isPartial == true
                 ))
             )
             // With every result kept there is nothing to test, so no baseline and no clones: the session is a header,
-            // the retired line of mutants no longer discovered, if any, and the end line `run(with:)` writes. A reuse
+            // the retired line of mutants no longer discovered or sampled, if any, and the end line `run(with:)`
+            // writes. A reuse
             // after any change still runs the baseline, below: a changed test that now fails would otherwise go unseen.
             if plan.toRun.isEmpty, !resume.isReuse || state.reuseChanges?.values.allSatisfy(\.isEmpty) != false {
                 session.baselinePassed = true
@@ -384,6 +378,21 @@ private extension PerformMutationTesting {
         )
     }
 
+    /// Which of the results file's results a resumed or reused run keeps for `jobs`, keyed by `keys`, and which jobs it
+    /// tests; every job, for a run that does neither.
+    static func plan(of jobs: [MutantJob], keyedBy keys: [MutantKey], state: AnyMutationTestState) -> ResumePlan {
+        state.resumeState.map { resume in
+            ResumePlan.make(
+                keys: keys,
+                snapshots: jobs.map(\.schema.snapshot),
+                recorded: resume.recorded.latest,
+                fileHashes: state.projectTree?.files ?? [:],
+                reusing: resume.isReuse ? state.reuseChanges : nil,
+                leftOut: state.keysLeftOutOfTheSample
+            )
+        } ?? .everything(jobs.count)
+    }
+
     /// The results `plan` keeps, by job index: as recorded for a resume, and for a reuse as the new results file
     /// records them (`MutantResult.reused`), each in its job's place, with where it was tested and what was let
     /// through since.
@@ -477,7 +486,9 @@ private extension PerformMutationTesting {
                     newVersion: state.newVersion,
                     since: state.changeSelection,
                     shards: state.shardSelection?.scopeAlone,
-                    sample: state.sampleSelection
+                    sample: state.sampleSelection,
+                    // As `report` of the results file judges it: a run can stop after its last mutant's result.
+                    sampleIsCutShort: session.outcomesInJobOrder.count < session.keys.count
                 ),
                 discovered: session.keys.count,
                 reused: session.reused
