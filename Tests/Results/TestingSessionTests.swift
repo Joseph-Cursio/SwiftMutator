@@ -66,10 +66,12 @@ final class TestingSessionTests: XCTestCase {
         let starting = Thread.detach { [file] in _ = session.startResults(in: file, writing: [header, retired]) }
         XCTAssertTrue(file.started.wait(timeout: .now() + 5) == .success)
 
+        // The end line waits for the first lines to be written, not only to start: if it reached the file while they
+        // were under way, it would come among them.
         let ending = Thread.detach { session.end(waitingAtMost: 5) { Self.endLine(recorded: $0) } }
-        Thread.sleep(forTimeInterval: 0.1)
-        XCTAssertEqual(file.lines, [], "the end line came among the first lines")
+        XCTAssertTrue(file.started.wait(timeout: .now() + 0.2) == .timedOut, "the end line came among the first lines")
         file.finish.signal() // for the first lines
+        XCTAssertTrue(file.started.wait(timeout: .now() + 5) == .success, "the end line wasn't written")
         file.finish.signal() // for the end line
 
         XCTAssertTrue(starting.wait(timeout: .now() + 5) == .success)

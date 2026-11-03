@@ -320,7 +320,7 @@ The report doesn't say whether the run finished. The status on standard error do
   Of these, 300 were tested and 2197 kept by --reuse, tested in /Users/me/code/SwiftProjectLint_muter_logs/Oct 31, 2026 at 7:08 PM/results.jsonl.
   ```
 
-  A session with no result left in the report isn't named. A file of one session that kept nothing, and an empty report, get no such line.
+  The last session is always named, even when it tested none of them: `Of these, none were tested in the last session, session 2, and 2497 in session 1.` An earlier session with no result left in the report isn't named. A file of one session that kept nothing, and an empty report, get no such line.
 
   When lines were skipped, another line numbers them, and says when the last was cut off as it was written: `Skipped 1 line that didn't read: 812; the last was cut off as it was written.`
 

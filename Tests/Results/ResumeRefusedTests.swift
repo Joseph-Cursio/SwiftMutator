@@ -125,9 +125,11 @@ final class ResumeRefusedTests: XCTestCase {
         let changed = ResumeRefusal.filesChanged([.init(path: "notes.txt", kind: .added)])
         let alone = ResumeRefused(path: path, reasons: [locked], beforeTheCopy: true)
         let otherReasons = ResumeRefused(path: path, reasons: [changed, .noProjectTree], beforeTheCopy: true)
+        let lockedAndChanged = ResumeRefused(path: path, reasons: [locked, changed], beforeTheCopy: true)
 
         XCTAssertTrue(alone.isInUse)
         XCTAssertFalse(otherReasons.isInUse)
+        XCTAssertFalse(lockedAndChanged.isInUse)
         XCTAssertFalse(ResumeRefused(path: path, reasons: [changed], beforeTheCopy: true).isInUse)
         XCTAssertEqual(
             "\(alone)",
@@ -138,6 +140,12 @@ final class ResumeRefusedTests: XCTestCase {
                 "SwiftMutator won't resume the run in '/logs/results.jsonl', so that no result is reused"
             ),
             "\(otherReasons)"
+        )
+        XCTAssertTrue(
+            "\(lockedAndChanged)".hasPrefix(
+                "SwiftMutator won't resume the run in '/logs/results.jsonl', so that no result is reused"
+            ),
+            "\(lockedAndChanged)"
         )
     }
 

@@ -352,6 +352,12 @@ final class RunCommandTests: XCTestCase {
                 reasons: [.reportWouldReplaceTheResultsFile("/logs/results.jsonl")],
                 beforeTheCopy: true
             ),
+            // Held, but refused for another reason too: it won't resume once the lock is free either.
+            ResumeRefused(
+                path: "/logs/results.jsonl",
+                reasons: [.inUse(holder: nil, lastProcess: 81234, lastHost: "studio.local"), .filesChanged(changes)],
+                beforeTheCopy: true
+            ),
         ]
         for refused in refusals {
             XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: refused), .resumeRefused, "\(refused)")

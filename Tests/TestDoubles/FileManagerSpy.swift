@@ -39,6 +39,8 @@ final class FileManagerSpy: Spy, FileSystemManager, @unchecked Sendable {
     var currentDirectoryPathToReturn: String = ""
     var changeCurrentDirectoryPath: [String] = []
     var errorToThrow: Error?
+    /// What each `createDirectory` throws, in order, nil for one that succeeds; `errorToThrow` once they run out.
+    var createDirectoryErrorsToThrow: [Error?] = []
     var subpathsToReturn: [String]?
     var fileExistsToReturn: [Bool] = []
     var contentsAtPathSortedToReturn: [String] = []
@@ -64,7 +66,8 @@ final class FileManagerSpy: Spy, FileSystemManager, @unchecked Sendable {
         methodCalls.append(#function)
         paths.append(path)
         createsIntermediates.append(createIntermediates)
-        if let error = errorToThrow {
+        let error = createDirectoryErrorsToThrow.isEmpty ? errorToThrow : createDirectoryErrorsToThrow.removeFirst()
+        if let error {
             throw error
         }
     }

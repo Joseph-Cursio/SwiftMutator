@@ -207,11 +207,18 @@ final class RecordedResultsStatusTests: XCTestCase {
         )
         let quotientRerun = MutantResult.make(session: 2, path: quotient.path, outcome: .passed, rerun: rerun)
 
-        let timedOut = MutantResult.make(path: sum.path, outcome: .timeout, endedBy: .timedOut)
-        let single = try read(file(header, timedOut, MutantResult.make(path: sum.path, outcome: .passed, rerun: rerun)))
+        // One session that kept a result: counted by line, the timeout and its rerun would be "2 were tested".
+        let timedOut = MutantResult.make(path: quotient.path, outcome: .timeout, endedBy: .timedOut)
+        let timedOutRerun = MutantResult.make(path: quotient.path, outcome: .passed, rerun: rerun)
+        let reused = try read(
+            file(ResultsHeader.make(reusedFrom: older), kept(sum, from: older), timedOut, timedOutRerun)
+        )
         let resumed = try read(file(header, sum, ResultsHeader.make(session: 2), quotient, quotientRerun))
 
-        XCTAssertEqual(single.statusLines(path: path).count, 1)
+        XCTAssertEqual(
+            reused.resultSources,
+            "Of these, 1 was tested and 1 kept by --reuse, tested in /logs/Oct 31, 2026 at 7:08 PM/results.jsonl."
+        )
         XCTAssertEqual(
             resumed.statusLines(path: path),
             [
