@@ -75,25 +75,35 @@ extension FinishedRun {
     /// The run of the job at `index` on `worker`, which `run` makes with `configuration`, timed by `instant`. An
     /// xcodebuild run that the simulator failed to launch (`SimulatorTrouble.launch`) runs once more on the same
     /// worker, unless mutation testing was cancelled, and that run is the one returned, whatever it comes to, with the
-    /// first's failure. The mutant is still switched on: nothing else runs on the worker meanwhile.
+    /// first's failure. The mutant is still switched on: nothing else runs on the worker meanwhile. `heartbeat` is told
+    /// as each run starts and as the last ends, with the clock readings that time it, so it reads the clock no more
+    /// often, and with `place`, where the mutant is, as the progress lines give it.
     static func make(
         index: Int,
         worker: Int,
         configuration: MuterConfiguration,
         instant: Instant,
+        heartbeat: (heartbeat: Heartbeat, place: String),
         running run: () async -> TestRun
     ) async -> FinishedRun {
+        let (heartbeat, place) = heartbeat
         var launched = instant()
+        heartbeat.started(place, on: worker, at: launched)
         let (testRun, launchFailure) = await TestRun.launchedOnceMore(
             ifNeededWith: configuration,
-            relaunching: { launched = instant() },
+            relaunching: {
+                launched = instant()
+                heartbeat.started(place, on: worker, at: launched)
+            },
             running: run
         )
+        let ended = instant()
+        heartbeat.finished(on: worker, at: ended)
         return FinishedRun(
             index: index,
             worker: worker,
             run: testRun,
-            seconds: PerformMutationTesting.seconds(from: launched, to: instant()),
+            seconds: PerformMutationTesting.seconds(from: launched, to: ended),
             launchFailure: launchFailure
         )
     }

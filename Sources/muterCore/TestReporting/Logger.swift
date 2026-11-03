@@ -496,6 +496,14 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         }
     }
 
+    /// The mutants under way once none has finished for a while: a line, when standard output isn't a terminal, where
+    /// nothing else would print until one does. A terminal's progress bar redraws itself, and a line would break that.
+    func stillTesting(_ still: StillTesting) {
+        if let line = progressLines?.stillTestingLine(still, at: now()) {
+            print(line)
+        }
+    }
+
     /// "🔁 Running 3 timeouts again, 2 at a time, under the same 72 s limit: at most 4 min.": the timeouts tested
     /// again once every mutant is tested, after the progress bar's last redraw, which needs no room after it.
     func timeoutRerunsStarted(_ reruns: TimeoutReruns) {

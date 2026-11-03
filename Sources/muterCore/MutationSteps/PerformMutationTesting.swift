@@ -22,6 +22,8 @@ struct PerformMutationTesting: MutationStep {
     private var directTestRun: DirectTestRunProbe
     @Dependency(\.workerSimulators)
     private var workerSimulators: WorkerSimulating
+    @Dependency(\.sleep)
+    private var sleep: Sleep
 
     private let simulatorWorkerSetup = SimulatorWorkerSetup()
 
@@ -33,13 +35,12 @@ struct PerformMutationTesting: MutationStep {
     /// copy, so only the output of runs a stop cut short stays.
     static let testOutputFolderName = "running"
 
-    /// How long stopping at once waits to write the end line while a line is being written, in seconds.
-    static let endLineWaitAtOnce: TimeInterval = 2
-
     /// Clones the mutated project for each extra parallel worker, and removes the clones afterwards.
     /// Injected so tests don't touch the disk.
     private let makeWorkerDirectories: (_ mutatedProject: URL, _ count: Int) async throws -> [URL]
     private let removeWorkerDirectories: (_ directories: [URL]) -> Void
+    /// The mutants under way, for the line that names them once none has finished for a while.
+    private let heartbeat = Heartbeat()
 
     init(
         makeWorkerDirectories: @escaping (URL, Int) async throws -> [URL] = PerformMutationTesting.cloneMutatedProject,
@@ -581,6 +582,9 @@ private extension PerformMutationTesting {
     ) async throws {
         var buildErrors = 0
         events.send(.mutantRunsStarted)
+        heartbeat.begin(workers: 1, at: instant())
+        let beating = beat()
+        defer { beating.cancel() }
 
         for index in indices {
             let job = jobs[index]
@@ -594,7 +598,11 @@ private extension PerformMutationTesting {
             )
 
             let finished = await FinishedRun.make(
-                index: index, worker: 0, configuration: configuration, instant: instant
+                index: index,
+                worker: 0,
+                configuration: configuration,
+                instant: instant,
+                heartbeat: (heartbeat, place: Self.place(of: job))
             ) {
                 await ioDelegate.runTestSuite(
                     withSchemata: job.schema,
@@ -613,6 +621,27 @@ private extension PerformMutationTesting {
                 buildErrors: &buildErrors
             )
         }
+    }
+
+    /// Sends the mutants under way whenever `heartbeat` says none has finished for a while, until cancelled. It reads
+    /// the clock only once a wait ends, the first a whole interval, so it never moves a test's scripted clock on.
+    func beat() -> Task<Void, Never> {
+        // Given the values and the dependencies it uses, not the step. Its sleep ends once it is cancelled.
+        Task { [heartbeat, events, sleep, instant] in
+            var wait = Heartbeat.interval
+            while (try? await sleep(Suspensions.nanoseconds(wait))) != nil {
+                let time = instant()
+                if let still = heartbeat.due(at: time) {
+                    events.send(.stillTesting(still))
+                }
+                wait = heartbeat.secondsUntilDue(at: time)
+            }
+        }
+    }
+
+    /// "Rules.swift:42:17": where `job`'s mutant is, as the progress lines give it.
+    static func place(of job: MutantJob) -> String {
+        "\(job.fileName):\(job.schema.position.line):\(job.schema.position.column)"
     }
 
     /// Tests the jobs at `indices`, started in their order, on `workers` test processes at once, never more than
@@ -647,6 +676,9 @@ private extension PerformMutationTesting {
         var buildErrors = 0
         var timeouts: [Int] = []
         events.send(.mutantRunsStarted)
+        heartbeat.begin(workers: pool.count, at: instant())
+        let beating = beat()
+        defer { beating.cancel() }
 
         try await runPool(
             indices,
@@ -1245,40 +1277,6 @@ private extension PerformMutationTesting {
         sayingAFailure(written, in: session)
     }
 
-    /// Writes the end line of an interrupted session, from the thread that stops SwiftMutator at once, by a second
-    /// signal, Ctrl-\ or the grace period: mutation testing never gets to write its own. Static, so that thread is
-    /// given the session and the two dependencies it reads, not the step.
-    static func endResultsAtOnce(of session: TestingSession, stoppedBy interruption: InterruptionRecord, now: Now) {
-        session.end(waitingAtMost: endLineWaitAtOnce) { recorded in
-            endLine(
-                of: session,
-                .interrupted,
-                detail: interruption.signal.map(InterruptionRecord.name(of:)),
-                testDuration: now().timeIntervalSince(session.startedAt),
-                recorded: recorded,
-                endedAt: now()
-            )
-        }
-    }
-
-    static func endLine(
-        of session: TestingSession,
-        _ reason: ResultsEnd.Reason,
-        detail: String?,
-        testDuration: TimeInterval,
-        recorded: Int,
-        endedAt: Date
-    ) -> ResultsEnd {
-        ResultsEnd(
-            session: session.number,
-            endedAt: endedAt,
-            reason: reason,
-            detail: detail,
-            testDurationSeconds: testDuration,
-            recorded: recorded
-        )
-    }
-
     /// Whether `written`, what `TestingSession.append` returned, says the line was written. A failure is said once.
     @discardableResult
     func sayingAFailure(_ written: Bool?, in session: TestingSession) -> Bool {
@@ -1342,14 +1340,18 @@ extension PerformMutationTesting {
                 let (directory, configuration) = (workers[worker].directory, workers[worker].configuration)
                 let fileName = outputName(index, job)
                 // A worker's task is given the values and the two dependencies it uses, not the step.
-                let started = group.addTaskUnlessCancelled { [ioDelegate, instant] in
+                let started = group.addTaskUnlessCancelled { [ioDelegate, instant, heartbeat] in
                     if configuration.buildSystem == .xcodebuild {
                         try await Self.switchOn(
                             job, from: testRun, in: directory, for: configuration, using: ioDelegate
                         )
                     }
                     return await FinishedRun.make(
-                        index: index, worker: worker, configuration: configuration, instant: instant
+                        index: index,
+                        worker: worker,
+                        configuration: configuration,
+                        instant: instant,
+                        heartbeat: (heartbeat, place: Self.place(of: job))
                     ) {
                         await ioDelegate.runTestSuite(
                             withSchemata: job.schema,
