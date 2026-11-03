@@ -6,7 +6,7 @@ final class TestingSessionTests: XCTestCase {
     private let file = SlowFile()
     private lazy var session: TestingSession = {
         let session = TestingSession(startedAt: Date(timeIntervalSince1970: 0))
-        session.startResults(in: file)
+        _ = session.startResults(in: file, writing: [])
         return session
     }()
 
@@ -57,6 +57,40 @@ final class TestingSessionTests: XCTestCase {
         XCTAssertEqual(file.lines, ["\"mutant\"", "end of 1"])
     }
 
+    // A resumed session's header and its `retired` line: an end line between them would end the session before it
+    // retired the results it doesn't keep.
+    func test_theEndLineAtOnce_comesAfterTheFirstLines_neverBetweenThem() throws {
+        let session = TestingSession(number: 2, startedAt: Date(timeIntervalSince1970: 0))
+        let header = ResultsHeader.make(formatVersion: ResultsCoding.resumedFormatVersion, session: 2)
+        let retired = ResultsRetired(session: 2, keys: [MutantResult.make().key])
+        let starting = Thread.detach { [file] in _ = session.startResults(in: file, writing: [header, retired]) }
+        XCTAssertTrue(file.started.wait(timeout: .now() + 5) == .success)
+
+        // The end line waits for the first lines to be written, not only to start: if it reached the file while they
+        // were under way, it would come among them.
+        let ending = Thread.detach { session.end(waitingAtMost: 5) { Self.endLine(recorded: $0) } }
+        XCTAssertTrue(file.started.wait(timeout: .now() + 0.2) == .timedOut, "the end line came among the first lines")
+        file.finish.signal() // for the first lines
+        XCTAssertTrue(file.started.wait(timeout: .now() + 5) == .success, "the end line wasn't written")
+        file.finish.signal() // for the end line
+
+        XCTAssertTrue(starting.wait(timeout: .now() + 5) == .success)
+        XCTAssertTrue(ending.wait(timeout: .now() + 5) == .success)
+        XCTAssertEqual(file.lines, [json(header), json(retired), "end of 0"])
+        XCTAssertTrue(file.isClosed)
+    }
+
+    // Before its first lines, a session has no file, and a stop at once ends nothing: the process exits next.
+    func test_theEndLineAtOnce_beforeTheFirstLines_writesNothing() throws {
+        let session = TestingSession(startedAt: Date(timeIntervalSince1970: 0))
+
+        session.end(waitingAtMost: 1) { Self.endLine(recorded: $0) }
+
+        XCTAssertNil(session.results)
+        XCTAssertEqual(file.lines, [])
+        XCTAssertFalse(file.isClosed)
+    }
+
     private static func endLine(recorded: Int) -> ResultsEnd {
         ResultsEnd(
             session: 1,
@@ -69,8 +103,8 @@ final class TestingSessionTests: XCTestCase {
     }
 }
 
-/// A results file whose appends each wait for `finish`, after signalling `started`. It keeps an end line as
-/// "end of <recorded>", and anything else as JSON.
+/// A results file whose appends each wait for `finish`, after signalling `started`, as does each batch of lines, once
+/// for all of them. It keeps an end line as "end of <recorded>", and anything else as JSON.
 private final class SlowFile: ResultsRecording, @unchecked Sendable { // `written` and `closed` are behind `lock`
     let path = "/logs/results.jsonl"
     let writeError: Error? = nil
@@ -84,17 +118,28 @@ private final class SlowFile: ResultsRecording, @unchecked Sendable { // `writte
     var isClosed: Bool { lock.withLock { closed } }
 
     func append(_ line: some Encodable) -> Bool {
+        append(contentsOf: [line])
+    }
+
+    func append(contentsOf lines: [any Encodable]) -> Bool {
+        guard !lines.isEmpty else { return true }
         started.signal()
         finish.wait()
-        let text = (line as? ResultsEnd).map { "end of \($0.recorded)" }
-            ?? String(decoding: (try? JSONEncoder().encode(line)) ?? Data(), as: UTF8.self)
-        lock.withLock { written.append(text) }
+        let texts = lines.map { line in (line as? ResultsEnd).map { "end of \($0.recorded)" } ?? json(line) }
+        lock.withLock { written += texts }
         return true
     }
 
     func close() {
         lock.withLock { closed = true }
     }
+}
+
+/// `line` as JSON, its keys sorted so the same line always reads the same.
+private func json(_ line: some Encodable) -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = .sortedKeys
+    return String(decoding: (try? encoder.encode(line)) ?? Data(), as: UTF8.self)
 }
 
 private extension Thread {

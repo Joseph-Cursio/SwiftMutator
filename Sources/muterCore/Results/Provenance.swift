@@ -69,7 +69,7 @@ extension Provenance {
     }
 
     /// gethostname(3), never `ProcessInfo.hostName`, which can wait on DNS.
-    private static func hostName() -> String {
+    static func hostName() -> String {
         let capacity = 256
         // One more than gethostname may fill, so a name it cuts short still ends in a NUL.
         var buffer = [CChar](repeating: 0, count: capacity + 1)

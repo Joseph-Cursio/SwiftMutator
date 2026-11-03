@@ -9,10 +9,11 @@ protocol ResultsRecording: AnyObject {
     /// the line survives SwiftMutator being killed, and an OS crash.
     @discardableResult
     func append(_ line: some Encodable) -> Bool
-    /// Appends each of `lines` as a line of its own, as `append` does, but written out together and synchronized once:
-    /// once this returns true, they all survive. After a failure, any of them may be missing.
+    /// Appends each of `lines`, of any kinds, as a line of its own, as `append` does, but written out in one write and
+    /// synchronized once: once this returns true, they all survive. After a failure, any of them may be missing, and
+    /// the last one written may be cut off.
     @discardableResult
-    func append<Line: Encodable>(contentsOf lines: [Line]) -> Bool
+    func append(contentsOf lines: [any Encodable]) -> Bool
     /// Closes the file, which releases its lock.
     func close()
 }
@@ -20,7 +21,7 @@ protocol ResultsRecording: AnyObject {
 extension ResultsRecording {
     /// One `append` after another, for a file with no faster way.
     @discardableResult
-    func append<Line: Encodable>(contentsOf lines: [Line]) -> Bool {
+    func append(contentsOf lines: [any Encodable]) -> Bool {
         lines.allSatisfy { append($0) }
     }
 }
@@ -38,8 +39,8 @@ protocol ResultsFileOpening: Sendable {
 
 enum ResultsFileError: Error, Equatable, CustomStringConvertible {
     case cannotOpen(path: String, errno: Int32)
-    /// Another SwiftMutator process holds its lock.
-    case inUse(path: String)
+    /// Another SwiftMutator process holds its lock: `holder`, if its record shows which.
+    case inUse(path: String, holder: Holder?)
     case cannotWrite(path: String, errno: Int32)
     /// Nothing SwiftMutator can read is at `path`, as when it's missing.
     case unreadable(path: String)
@@ -55,8 +56,16 @@ enum ResultsFileError: Error, Equatable, CustomStringConvertible {
         switch self {
         case let .cannotOpen(path, code):
             return "can't open \(path): \(String(cString: strerror(code)))"
-        case let .inUse(path):
-            return "\(path) is in use by another SwiftMutator run"
+        case let .inUse(path, holder):
+            switch holder {
+            case let .running(holder):
+                return "\(path) is in use by another SwiftMutator run (\(holder))"
+            case let .unchecked(holder):
+                return "\(path) is in use by another SwiftMutator run (\(holder), by its record, which this host "
+                    + "can't check)"
+            case nil:
+                return "\(path) is in use by another SwiftMutator run"
+            }
         case let .cannotWrite(path, code):
             return "can't write to \(path): \(String(cString: strerror(code)))"
         case let .unreadable(path):
@@ -72,11 +81,23 @@ enum ResultsFileError: Error, Equatable, CustomStringConvertible {
                 + names.joined(separator: ", ") + ". Pass the one you want."
         }
     }
+
+    /// The holder of a results file's lock, as its record names it.
+    enum Holder: Equatable, Sendable {
+        /// A process on this host, which still runs with the recorded start.
+        case running(LockHolder)
+        /// A process on another host, which this host can't ask about.
+        case unchecked(LockHolder)
+    }
 }
 
 /// A run's results file, opened for appending and locked with flock while it is open, so no second SwiftMutator
 /// process writes to it. The kernel releases the lock when the process exits, SIGKILL included, so it never goes
 /// stale: the descriptor is closed on exec, so no test process SwiftMutator starts keeps it, or its lock, open.
+///
+/// The holder records its process ID, when it started and its host in `.<file>.holder` beside the file, and removes
+/// that record as it closes the file, so a run that is refused can name it. flock itself can't say who holds it. A run
+/// that ends without closing the file leaves its record, which names no one once that process has ended.
 final class ResultsFile: ResultsRecording {
     struct Opener: ResultsFileOpening {
         func create(in directory: String) throws -> ResultsRecording {
@@ -111,6 +132,8 @@ final class ResultsFile: ResultsRecording {
     let path: String
     private(set) var writeError: Error?
     private var descriptor: Int32
+    /// Where the holder's record is.
+    private let holderPath: String
     /// Whether the file's last line is to be ended before the first line is appended: the file was opened to add a
     /// session to it, and an earlier one may have cut its last line off.
     private var endsLastLineFirst = false
@@ -119,22 +142,26 @@ final class ResultsFile: ResultsRecording {
     private let writeBytes: (Int32, UnsafeRawPointer, Int) -> Int
     private let synchronize: (Int32) -> Int32
 
-    /// Takes over `descriptor`, open for appending to `path`, and locks it. A descriptor it can't lock is closed.
+    /// Takes over `descriptor`, open for appending to `path`, locks it and records the holder. A descriptor it can't
+    /// lock is closed.
     init(
         descriptor: Int32,
         path: String,
         writeBytes: @escaping (Int32, UnsafeRawPointer, Int) -> Int = { write($0, $1, $2) },
         synchronize: @escaping (Int32) -> Int32 = { fsync($0) }
     ) throws {
+        let holderPath = Self.holderPath(for: path)
         guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
             let code = errno
             closeDescriptor(descriptor)
             throw code == EWOULDBLOCK
-                ? ResultsFileError.inUse(path: path)
+                ? ResultsFileError.inUse(path: path, holder: Self.holder(recordedAt: holderPath))
                 : ResultsFileError.cannotOpen(path: path, errno: code)
         }
+        Self.record(LockHolder.current(), at: holderPath)
         self.descriptor = descriptor
         self.path = path
+        self.holderPath = holderPath
         self.writeBytes = writeBytes
         self.synchronize = synchronize
     }
@@ -164,7 +191,7 @@ final class ResultsFile: ResultsRecording {
     }
 
     @discardableResult
-    func append<Line: Encodable>(contentsOf lines: [Line]) -> Bool {
+    func append(contentsOf lines: [any Encodable]) -> Bool {
         guard writeError == nil, descriptor >= 0 else { return false }
         guard !lines.isEmpty else { return true }
         do {
@@ -189,6 +216,8 @@ final class ResultsFile: ResultsRecording {
 
     func close() {
         guard descriptor >= 0 else { return }
+        // While the lock is still held, so it never removes the next holder's record.
+        _ = unlink(holderPath)
         closeDescriptor(descriptor)
         descriptor = -1
     }
@@ -251,18 +280,61 @@ extension ResultsFile {
         fileNames.contains(name)
     }
 
-    /// The results file `path` names: `path` itself, or the one results file in the run's log folder it names.
+    /// The name of the note a resumed session leaves in its own log folder. The note names the results file the
+    /// session adds to, which stays in the first session's folder. The name is not a results file name and doesn't
+    /// start with one, so a glob for results files never finds it.
+    static let noteFileName = "resumed session.txt"
+
+    /// The note the `session`th session of a resumed run leaves in its log folder: `path`, the results file it adds
+    /// to, on the first line by itself, so that `find` can read it back, then what the folder is.
+    static func note(pointingTo path: String, session: Int) -> String {
+        """
+        \(path)
+
+        This folder holds the logs of session \(session) of a resumed run. The run's results are in the results file \
+        above, in the first session's log folder. Give that file, or this folder, to swift-mutator report, or to \
+        swift-mutator run --resume or --reuse.
+
+        """
+    }
+
+    /// The results file `path` names: `path` itself, or the one results file in the run's log folder it names. A
+    /// resumed session's folder holds no results file but a note naming the one it adds to, which is given instead.
     /// Anything that isn't a folder, a missing path included, is left for reading it to refuse.
     static func find(at path: String, using fileManager: FileSystemManager) throws -> String {
-        guard let names = try? fileManager.contentsOfDirectory(atPath: path) else { return path }
+        try locate(at: path, using: fileManager).path
+    }
+
+    /// The results file `path` names, as `find` gives it, and whether a resumed session's note named it.
+    static func locate(at path: String, using fileManager: FileSystemManager) throws -> (path: String, isNoted: Bool) {
+        guard let names = try? fileManager.contentsOfDirectory(atPath: path) else { return (path, false) }
         let present = Set(names)
         // In the order the runs started in, so results-10.jsonl comes after results-2.jsonl, and results.jsonl first.
         let found = fileNames.filter(present.contains)
         switch found.count {
-        case 1: return (path as NSString).appendingPathComponent(found[0])
-        case 0: throw ResultsFileError.noResultsFile(folder: path)
-        default: throw ResultsFileError.severalResultsFiles(folder: path, names: found)
+        case 1:
+            return ((path as NSString).appendingPathComponent(found[0]), false)
+        case 0:
+            guard present.contains(noteFileName), let noted = notedFile(in: path, using: fileManager) else {
+                throw ResultsFileError.noResultsFile(folder: path)
+            }
+            return (noted, true)
+        default:
+            throw ResultsFileError.severalResultsFiles(folder: path, names: found)
         }
+    }
+
+    /// The results file that the note in `folder`, a resumed session's log folder, names: the note's first line, if it
+    /// is an absolute path to a file with a results file's name. Whether the file is there is left for reading it to
+    /// refuse, which names the file. It is given without looking in it, so one note never leads to another.
+    private static func notedFile(in folder: String, using fileManager: FileSystemManager) -> String? {
+        let note = (folder as NSString).appendingPathComponent(noteFileName)
+        guard let data = fileManager.contents(atPath: note), let text = String(data: data, encoding: .utf8),
+              let firstLine = text.components(separatedBy: .newlines).first,
+              firstLine.hasPrefix("/"), isResultsFileName((firstLine as NSString).lastPathComponent) else {
+            return nil
+        }
+        return firstLine
     }
 
     /// Whether `output` names the file at `results`, so saving a report there would replace it: the same path once
@@ -276,6 +348,52 @@ extension ResultsFile {
             return false
         }
         return outputIdentity == resultsIdentity
+    }
+
+    /// Where the holder of the results file at `path` records itself: `.<name>.holder` beside it, once symbolic links
+    /// are resolved, so a run that reaches the file through a linked folder finds the same record. A hidden name
+    /// that doesn't start with a results file name, so a glob for results files never finds it.
+    static func holderPath(for path: String) -> String {
+        let file = resolved(path) as NSString
+        return file.deletingLastPathComponent.appending("/.\(file.lastPathComponent).holder")
+    }
+
+    /// Writes `holder`'s record to `holderPath`, through a file of its own that then replaces the record there, so a
+    /// refused run reads the last holder's record or this one, never part of one. The replacing also takes the place of
+    /// a record this user can't write, or of a link at that path. Only for a refused run's message, so a record that
+    /// can't be written, as to a folder that can't be written to, stops nothing.
+    private static func record(_ holder: LockHolder?, at holderPath: String) {
+        guard let holder else { return }
+        let temporary = "\(holderPath).\(holder.process)"
+        let descriptor = open(temporary, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC, 0o644)
+        guard descriptor >= 0 else { return }
+        let bytes = Array(holder.line.utf8)
+        let written = write(descriptor, bytes, bytes.count)
+        closeDescriptor(descriptor)
+        if written != bytes.count || rename(temporary, holderPath) != 0 {
+            _ = unlink(temporary)
+        }
+    }
+
+    /// The holder that the record at `holderPath` names: one on this host only while its process still runs with the
+    /// recorded start, and one on another host as it is recorded. None is named in the moment between a run locking
+    /// the file and recording itself, or if the holder couldn't record itself, as a SwiftMutator older than this one
+    /// doesn't.
+    private static func holder(recordedAt holderPath: String) -> ResultsFileError.Holder? {
+        // O_NONBLOCK: something other than a file at that path never keeps the refusal waiting.
+        let descriptor = open(holderPath, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+        guard descriptor >= 0 else { return nil }
+        defer { closeDescriptor(descriptor) }
+        // A record is far shorter.
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        var count = read(descriptor, &buffer, buffer.count)
+        while count < 0, errno == EINTR {
+            count = read(descriptor, &buffer, buffer.count)
+        }
+        guard count > 0, let holder = LockHolder(record: String(decoding: buffer[..<count], as: UTF8.self)[...])
+        else { return nil }
+        guard holder.isOnThisHost else { return .unchecked(holder) }
+        return holder.stillRuns ? .running(holder) : nil
     }
 
     private static func resolved(_ path: String) -> String {

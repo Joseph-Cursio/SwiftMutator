@@ -30,6 +30,9 @@ final class ResultsFilesSpy: ResultsFileOpening, @unchecked Sendable {
         private(set) var writeError: Error?
         /// Each line appended, without its line break.
         private(set) var lines: [String] = []
+        /// The lines of each `append(contentsOf:)`, by their places in `lines`, in order, a failed one's only as far as
+        /// it got.
+        private(set) var batches: [Range<Int>] = []
         private(set) var isClosed = false
         /// The 1-based number of the first line whose append fails, as on a full disk.
         private let failFromLine: Int?
@@ -53,6 +56,15 @@ final class ResultsFilesSpy: ResultsFileOpening, @unchecked Sendable {
                 writeError = error
                 return false
             }
+        }
+
+        /// Each line in turn, as `append` does, so a batch fails at the same line one append after another would.
+        @discardableResult
+        func append(contentsOf lines: [any Encodable]) -> Bool {
+            guard writeError == nil, !isClosed else { return false }
+            let start = self.lines.count
+            defer { batches.append(start ..< self.lines.count) }
+            return lines.allSatisfy { append($0) }
         }
 
         func close() {

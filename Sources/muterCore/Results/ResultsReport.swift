@@ -22,8 +22,9 @@ struct ResultsReport {
         self.outputPath = outputPath
     }
 
-    /// Makes the report from the results files `paths` name: each the file itself, or a run's log folder that holds
-    /// it. One file is reported as it is, unless it is a shard's; shards' files, the shards of one split, are merged,
+    /// Makes the report from the results files `paths` name: each the file itself, or the log folder of one of a run's
+    /// sessions. A file that a resumed session's folder names, and another of the `paths` gives too, is reported once.
+    /// One file is reported as it is, unless it is a shard's; shards' files, the shards of one split, are merged,
     /// one alone too, `forcing` build and toolchain differences through, and the project files `ignoring`'s globs
     /// match. Standard output holds the report alone
     /// (and, in the Xcode format, its warnings), so `-f json > report.json` is valid JSON; what the files hold, the
@@ -31,7 +32,7 @@ struct ResultsReport {
     /// `report` exits as a run that stopped on an error.
     @discardableResult
     func make(from paths: [String], forcing: Bool = false, ignoring: [String] = []) throws -> Bool {
-        let files = try paths.map { try ResultsFile.find(at: $0, using: fileManager) }
+        let files = Self.withoutNotedRepeats(try paths.map { try ResultsFile.locate(at: $0, using: fileManager) })
         if let outputPath {
             try checkSaving(to: outputPath, from: files)
         }
@@ -48,6 +49,22 @@ struct ResultsReport {
         let merged = try MergedShards.merge(read, forcing: forcing, ignoring: ignoring)
         try report(merged.mutationTestOutcome(), saying: merged.statusLines())
         return merged.lacksResults
+    }
+
+    /// The paths of the `found` files, less each that a resumed session's note named and that is the same file as one
+    /// given directly, or as one an earlier note named. A glob over a run's log folders, such as `<logs>/*/`, names its
+    /// file through the first session's folder and through each resumed session's, which are one file however they
+    /// are spelled, as `/tmp` and `/private/tmp` are. A file named twice directly is kept twice, so a shard's file
+    /// given twice is still refused.
+    private static func withoutNotedRepeats(_ found: [(path: String, isNoted: Bool)]) -> [String] {
+        found.indices.compactMap { index in
+            let file = found[index]
+            let isRepeat = file.isNoted && found.indices.contains { other in
+                other != index && (!found[other].isNoted || other < index)
+                    && ResultsFile.isSameFile(found[other].path, file.path)
+            }
+            return isRepeat ? nil : file.path
+        }
     }
 
     /// Prints or saves the report of `outcome`, then says `status` and the rest on standard error.

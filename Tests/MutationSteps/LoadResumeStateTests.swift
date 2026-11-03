@@ -44,9 +44,10 @@ final class LoadResumeStateTests: MuterTestCase {
         }
     }
 
-    // A run still writing the file holds its lock. The refusal comes before anything is removed or copied, and names
-    // the process that wrote the file's last session, which is likely the one that holds it.
-    func test_aLockedFile_isRefused_namingTheLastSessionsProcessAndHost() async throws {
+    // A run still writing the file holds its lock, and records itself beside it. The refusal comes before anything is
+    // removed or copied, and names the holder, not the process that wrote the file's last session: a resume holds the
+    // lock long before it writes its session.
+    func test_aLockedFile_isRefused_namingTheHolder() async throws {
         try await writeResults(
             ResultsHeader.make(project: projectTree(), provenance: provenance(process: 1200, host: "laptop.local")),
             ResultsEnd.make(),
@@ -61,15 +62,43 @@ final class LoadResumeStateTests: MuterTestCase {
         let running = try ResultsFile.Opener().openForResume(at: resultsPath)
         defer { running.close() }
 
+        let holder = try XCTUnwrap(LockHolder.current())
+
         await assertRefused(
             ResumeRefused(
                 path: resultsPath,
-                reasons: [.inUse(lastProcess: 81234, lastHost: "studio.local")],
+                reasons: [.inUse(holder: .running(holder), lastProcess: nil, lastHost: nil)],
                 beforeTheCopy: true
             )
         )
 
         XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: resultsPath)), written, "nothing is written to it")
+    }
+
+    // A SwiftMutator older than this one locks the file without recording itself. The process that wrote the last
+    // session is then all the file shows, which may not be the holder.
+    func test_aFileLockedWithoutARecord_isRefused_namingTheLastSessionsProcessAndHost() async throws {
+        try await writeResults(
+            ResultsHeader.make(project: projectTree(), provenance: provenance(process: 1200, host: "laptop.local")),
+            ResultsEnd.make(),
+            ResultsHeader.make(
+                formatVersion: ResultsCoding.resumedFormatVersion,
+                session: 2,
+                project: projectTree(),
+                provenance: provenance(process: 81234, host: "studio.local")
+            )
+        )
+        let descriptor = open(resultsPath, O_RDONLY | O_CLOEXEC)
+        defer { close(descriptor) }
+        XCTAssertEqual(flock(descriptor, LOCK_EX | LOCK_NB), 0)
+
+        await assertRefused(
+            ResumeRefused(
+                path: resultsPath,
+                reasons: [.inUse(holder: nil, lastProcess: 81234, lastHost: "studio.local")],
+                beforeTheCopy: true
+            )
+        )
     }
 
     func test_aLogFolder_findsItsResultsFile() async throws {
@@ -92,6 +121,24 @@ final class LoadResumeStateTests: MuterTestCase {
         XCTAssertEqual(loaded.forced, [])
         XCTAssertEqual(loaded.notices, [])
         XCTAssertEqual(listed.value, [state.projectDirectoryURL], "the project itself is listed: there is no copy yet")
+    }
+
+    // A resumed session's folder holds no results file but its note, so a resume of the resume, given that folder,
+    // continues the file the note names.
+    func test_aResumedSessionsLogFolder_findsTheFileItsNoteNames() async throws {
+        let header = ResultsHeader.make(project: await projectTree())
+        try writeResults(header, ResultsEnd.make())
+        let resumed = try makeAResumedSessionsLogFolder()
+        resume(resumed)
+
+        let changes = try await sut.run(with: state)
+        state.apply(changes)
+
+        let loaded = try XCTUnwrap(state.resumeState)
+        XCTAssertEqual(loaded.path, resultsPath)
+        XCTAssertNotNil(loaded.file)
+        XCTAssertEqual(loaded.lastHeader, header)
+        loaded.file?.close()
     }
 
     // Every reason is found before the copy, so one message says all there is to fix, and the file's lock goes with it.
@@ -326,6 +373,20 @@ extension LoadResumeStateTests {
         XCTAssertEqual(listed.value, [])
     }
 
+    func test_aReuse_ofAResumedSessionsLogFolder_readsTheFileItsNoteNames() async throws {
+        let header = ResultsHeader.make(project: await projectTree())
+        try writeResults(header, ResultsEnd.make())
+        reuse(try makeAResumedSessionsLogFolder())
+
+        let changes = try await sut.run(with: state)
+        state.apply(changes)
+
+        let loaded = try XCTUnwrap(state.resumeState)
+        XCTAssertTrue(loaded.isReuse)
+        XCTAssertEqual(loaded.path, resultsPath)
+        XCTAssertEqual(loaded.lastHeader, header)
+    }
+
     // What a reuse can't take, it refuses as a resume does, naming its own flags.
     func test_aReuse_isRefusedAsAResumeIs_namingForceReuse() async throws {
         try await writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
@@ -376,6 +437,15 @@ private extension LoadResumeStateTests {
             resumeIgnoring: globs,
             forceResume: forcing
         )
+    }
+
+    /// The log folder of a session that resumed the run in `logs`, beside it: it holds only its note naming the file.
+    func makeAResumedSessionsLogFolder() throws -> String {
+        let folder = (logs as NSString).deletingLastPathComponent + "/Oct 6, 2026 at 9:40 AM"
+        try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+        let note = Data(ResultsFile.note(pointingTo: resultsPath, session: 2).utf8)
+        try note.write(to: URL(fileURLWithPath: "\(folder)/\(ResultsFile.noteFileName)"))
+        return folder
     }
 
     /// Checks that the step refuses with `expected`.

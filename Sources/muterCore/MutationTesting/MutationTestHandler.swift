@@ -34,11 +34,17 @@ final class MutationTestHandler {
 
     func run() async throws {
         try startObserver()
+        // However the run ends, whether refused, failed, stopped or finished, it removes a log folder it kept nothing
+        // in. Every step has returned by then, and events are handled as they are sent, so nothing is still writing
+        // there.
+        defer { observer.removeLoggingDirectoryIfEmpty() }
         notifyMuterLaunched()
         try await runMutationsSteps()
     }
 
-    /// Starts the observer, which creates the run's log folder, and hands that folder to the steps.
+    /// Starts the observer, which creates the run's log folder, and hands that folder to the steps. `run()` removes
+    /// the folder at the end if the run kept nothing there. If starting fails, no folder was claimed, and there is
+    /// none to remove.
     private func startObserver() throws {
         try observer.start()
         state.apply([.loggingDirectoryCreated(observer.loggingDirectory)])

@@ -73,6 +73,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(linesAtTheBaselinesLog?.count, 1)
         XCTAssertEqual(sent().prefix(2).map(\.name), [.resultsFileCreated, .newTestLogAvailable])
         XCTAssertEqual(sent().first?.object as? String, "/logs/results.jsonl")
+        XCTAssertNil(fileManager.createdFiles["/logs/\(ResultsFile.noteFileName)"], "a first session leaves no note")
     }
 
     func test_theHeaderRecordsTheProjectTree() async throws {

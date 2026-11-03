@@ -55,16 +55,36 @@ func createLoggingDirectory(
 /// Makes `name` in `folder`, or the first of `name (2)`, `name (3)` and so on
 /// that isn't there. Making a folder fails if it is there, so two runs that
 /// start at once never claim the same one.
+///
+/// A run removes its log folder at exit when it kept nothing in it, so a folder
+/// that was there when making it failed can be gone when this looks. That name
+/// is tried again, up to `attemptsPerName` times in all, before the error is
+/// thrown: it is free again, and taking the next number would skip it.
 private func claimFolder(named name: String, in folder: String, fileManager: FileSystemManager) throws -> String {
+    let attemptsPerName = 3
     var number = 1
+    var attempts = 0
     while true {
         let claimed = (folder as NSString).appendingPathComponent(number == 1 ? name : "\(name) (\(number))")
         do {
             try fileManager.createDirectory(atPath: claimed, withIntermediateDirectories: false, attributes: nil)
             return claimed
         } catch {
-            guard fileManager.fileExists(atPath: claimed) else { throw error }
+            attempts += 1
+            if fileManager.fileExists(atPath: claimed) {
+                number += 1
+                attempts = 0
+            } else if attempts == attemptsPerName {
+                throw error
+            }
         }
-        number += 1
     }
+}
+
+/// Removes the folder at `path` if it holds nothing, hidden files included,
+/// and leaves it when it holds anything, when it isn't there, or when it can't
+/// be listed.
+func removeFolderIfEmpty(atPath path: String, fileManager: FileSystemManager) {
+    guard let contents = try? fileManager.contentsOfDirectory(atPath: path), contents.isEmpty else { return }
+    try? fileManager.removeItem(atPath: path)
 }

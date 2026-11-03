@@ -16,6 +16,8 @@ final class FileManagerSpy: Spy, FileSystemManager, @unchecked Sendable {
     private(set) var contentsOfDirectoryAtPath: [String] = []
     private(set) var fileExistsAtPath: [String] = []
     private(set) var contents: Data?
+    /// What each `createFile` wrote, by path: `contents` holds only what the last one wrote.
+    private(set) var createdFiles: [String: Data] = [:]
 
     private var fileContentsQueue: Queue<Data> = .init()
     var fileContentsToReturn: Data? {
@@ -37,6 +39,8 @@ final class FileManagerSpy: Spy, FileSystemManager, @unchecked Sendable {
     var currentDirectoryPathToReturn: String = ""
     var changeCurrentDirectoryPath: [String] = []
     var errorToThrow: Error?
+    /// What each `createDirectory` throws, in order, nil for one that succeeds; `errorToThrow` once they run out.
+    var createDirectoryErrorsToThrow: [Error?] = []
     var subpathsToReturn: [String]?
     var fileExistsToReturn: [Bool] = []
     var contentsAtPathSortedToReturn: [String] = []
@@ -62,7 +66,8 @@ final class FileManagerSpy: Spy, FileSystemManager, @unchecked Sendable {
         methodCalls.append(#function)
         paths.append(path)
         createsIntermediates.append(createIntermediates)
-        if let error = errorToThrow {
+        let error = createDirectoryErrorsToThrow.isEmpty ? errorToThrow : createDirectoryErrorsToThrow.removeFirst()
+        if let error {
             throw error
         }
     }
@@ -75,6 +80,7 @@ final class FileManagerSpy: Spy, FileSystemManager, @unchecked Sendable {
         methodCalls.append(#function)
         paths.append(path)
         contents = data
+        createdFiles[path] = data ?? Data()
 
         return true
     }

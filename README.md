@@ -143,9 +143,34 @@ A run tests in a copy of the project beside it, `<project>_mutated`, so a projec
 time. `run`, `mutate-without-running` and `run-without-mutating` lock `<project>_mutated.lock`
 before they read, remove, copy or test anything there. One started while another holds the lock is
 refused, naming the folder, and the process that holds it when the lock file shows which, and
-leaves everything as it was. The lock goes when SwiftMutator exits, however it exits, so it never
-needs clearing; the file stays, made with the permissions your umask gives new files, so anyone
-who can remove the copy can lock it.
+leaves everything as it was. It exits with status 6: run the same command again once that run has
+ended. The lock goes when SwiftMutator exits, however it exits, so it never needs clearing; the
+file stays, made with the permissions your umask gives new files, so anyone who can remove the copy
+can lock it.
+
+### Exit status
+
+`run`, `mutate-without-running` and `run-without-mutating` exit with:
+
+- **0** when the run finished, whatever its score, and when there is nothing to mutate, as for a
+  `--since` change with no Swift file, or a `--shard` that holds no mutant.
+- **5** when a `--resume` or `--reuse` is refused, as the results might not hold for this run
+  (see [When a resume is refused](#when-a-resume-is-refused)). Nothing was tested. The message says
+  what would let it through, such as a flag; a new run without `--resume` or `--reuse` isn't
+  refused for these reasons.
+- **6** when another SwiftMutator run holds a lock this one needs: on the project's copy, or on the
+  results file that `--resume` names. The same command goes ahead once that run has ended.
+- **64** for a usage error, such as `--workers 0`. `run-without-mutating` without a test plan's
+  path exits with 1.
+- **255** for any other error, a failed baseline and an abort, such as 5 build errors in a row,
+  included.
+- **128 plus the signal** when a signal stopped the run: 130 for SIGINT, 143 for SIGTERM and 129 for
+  SIGHUP (see [Stopping a run](#stopping-a-run)).
+
+Earlier SwiftMutators exited with 255 for a refused resume or reuse, and for a run refused by
+another's lock, so a script that checked for 255 there needs to check for 5 and 6 instead. `report` has statuses of its
+own (see [Results file](#results-file) and
+[Exit status](Docs/results-file.md#exit-status)).
 
 ## Progress
 
@@ -366,8 +391,9 @@ swift-mutator run --shard 1/2
     different build or toolchain through, and `--merge-ignoring <glob>` project files that differ,
     such as a file one machine left in its checkout. Each refusal says which.
   - **What it says.** On standard error, as for one file: how many mutants the report covers, and
-    how each shard's run ended. A shard whose file isn't given is named with the mutants it holds.
-    A shard that holds no mutant has no file, and is only said.
+    how each shard's run ended and, if it was resumed or reused, which sessions tested its results.
+    A shard whose file isn't given is named with the mutants it holds. A shard that holds no mutant
+    has no file, and is only said.
   - **When it fails.** It exits with 255, as for a run that stopped on an error, whenever the
     report is known to lack results: a shard stopped on an error, has fewer results than mutants,
     as when its job was cancelled or killed, or holds mutants but its file isn't given. So a CI job
@@ -447,6 +473,9 @@ tests that killed the most mutants.
 Each test run writes its output to `running/` in the log folder while it runs, never to the mutated
 project or a worker clone, where your tests would see it. Once SwiftMutator has read it back, the
 log folder keeps its own copy, such as `baseline run.log`, and the file in `running/` goes.
+A run that keeps nothing there, such as a refused `--resume` or a `--since` run with no Swift file
+changed, leaves no folder of its own in `<project>_muter_logs`. A resumed session's folder holds no
+results file, but `resumed session.txt`, a note naming the file it adds to.
 
 A SwiftPM mutant's run adds `--quiet`, so Swift Testing prints no line for each test or suite that
 starts or passes. Its log keeps each recorded issue, the run's summary, your tests' own output and
@@ -461,9 +490,9 @@ is beside the project, not in it, so from the project's folder, where `run` is r
 swift-mutator report "../SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM" -f html -o report.html
 ```
 
-- **What it takes.** The results file, or the run's log folder that holds it. `-f` and `-o` work as
-  in `run`. Without `-o` the report goes to standard output alone, so `-f json > report.json` gives
-  valid JSON.
+- **What it takes.** The results file, or a log folder of any of the run's sessions. `-f` and `-o`
+  work as in `run`. Without `-o` the report goes to standard output alone, so
+  `-f json > report.json` gives valid JSON.
 - **A finished run** gets its own report back, in any format. Only what depends on when and where a
   report is made can differ, such as the time in the HTML report's footer. A run by an older
   SwiftMutator, which tested a file's mutants by operator and put line 10 before line 9, gets them
@@ -472,6 +501,9 @@ swift-mutator report "../SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM" -f 
 - **On standard error** it says how many of the run's mutants the report covers, how the run ended,
   and where it saved the report. A run that stopped on its fifth build error in a row, for example,
   gives `Report of 1103 of 2497 mutants, from …: the run stopped on an error (tooManyBuildErrors).`
+  For a resumed or reused run, the next line says which sessions tested its results and how many
+  were kept by `--reuse`: `Of these, 1394 were tested in the last session, session 2, and 1103 in
+  session 1.`
 - **It exits with status 1** when the file can't be read or isn't a results file.
 - **It exits with status 255** once the report is made of a run that stopped on an error, the status
   the run itself exited with, so a script that checks the report fails as one that checked the run
@@ -643,8 +675,8 @@ the run's own arguments, ready to paste:
 ▶️ Continue: swift-mutator run --skip-coverage -o report.txt --resume '/…/results.jsonl'
 ```
 
-`--resume` takes the results file, or the log folder that holds it. SwiftMutator copies, discovers
-and builds the project as any run does, then says which results it keeps:
+`--resume` takes the results file, or a log folder of any of the run's sessions. SwiftMutator
+copies, discovers and builds the project as any run does, then says which results it keeps:
 
 ```
 ♻️ Resuming the run in /…/results.jsonl: 1098 results still hold, so 1399 mutants are left to test (1394 never tested, 5 build errors).
@@ -652,8 +684,10 @@ and builds the project as any run does, then says which results it keeps:
 
 It runs the baseline again and tests only the mutants left, which are what the progress bar, or the
 line per mutant, counts. Their results go into the same file, as a new session, so the file stays in
-the first session's log folder. The report at the end covers every mutant, kept or tested, and so
-does `swift-mutator report` of the file.
+the first session's log folder. The new session's own log folder holds its logs and a note,
+`resumed session.txt`, whose first line is the file's path, so `report`, `--resume` and `--reuse`
+take that folder too. The report at the end covers every mutant, kept or tested, and so does
+`swift-mutator report` of the file.
 
 - **What it saves.** The copy, the build, the baseline and the worker clones are made again. On
   SwiftProjectLint's 2,497 mutants on 6 October, on an 8-core Mac, they took 5–9% of a run, so
@@ -708,9 +742,10 @@ SwiftMutator won't resume the run in '/…/results.jsonl', so that no result is 
 Nothing was copied or removed.
 ```
 
-It then exits with status 255, as after an error, but without asking for a bug report. A project
-file that changes while SwiftMutator copies the project is refused after the copy, so that message
-doesn't end with `Nothing was copied or removed.`
+It then exits with status 5, without asking for a bug report, so a script can tell a refusal from
+an error: nothing was tested ([Exit status](#exit-status)). A project file that changes while
+SwiftMutator copies the project is refused after the copy, so that message doesn't end with
+`Nothing was copied or removed.`
 
 | Since the last session | Resuming |
 |---|---|
@@ -722,7 +757,7 @@ doesn't end with `Nothing was copied or removed.`
 | `mutationTestWorkers`, `stopAtFirstFailure` or `buildTimeout` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
 | SwiftMutator, the toolchain or the SDK changed | Refused, unless `--force-resume` is given |
 | Project files changed, were added or were removed | Refused, unless a `--resume-ignoring` glob matches each one |
-| Another SwiftMutator holds the file, because its run is still going | Refused, naming the process and host that wrote the file's last session |
+| Another SwiftMutator holds the file, because its run is still going | Refused with status 6, naming the process that holds it, and its host: wait for that run to end. If an older SwiftMutator holds it, which doesn't say, it names the process and host that wrote the file's last session, which may not be the one |
 | Coverage was gathered in one session only, or this session discovers other mutants | Goes ahead, and warns: `⚠️ 412 earlier results no longer count, as this session doesn't discover their mutants: coverage couldn't be gathered then, and is now.` |
 
 A run of a test plan (`run-without-mutating`) can't be resumed, nor can a results file written
@@ -761,8 +796,8 @@ error, with status 64.
 
 `run --reuse` starts a new run from an earlier run's results, so a run after a small change tests
 only what the change can affect ([#71](https://github.com/Joseph-Cursio/SwiftMutator/issues/71)).
-It takes the earlier run's results file, or the log folder that holds it, finished or not, and
-writes a results file of its own in its own log folder: the earlier file is only read.
+It takes the earlier run's results file, or a log folder of any of its sessions, finished or not,
+and writes a results file of its own in its own log folder: the earlier file is only read.
 
 ```
 swift-mutator run --skip-coverage -o report.txt --reuse '/…/Oct 31, 2026 at 7:08 PM/results.jsonl'
@@ -771,8 +806,9 @@ swift-mutator run --skip-coverage -o report.txt --reuse '/…/Oct 31, 2026 at 7:
 ```
 
 It checks the earlier run as a resume does (see [When a resume is refused](#when-a-resume-is-refused)),
-with `--force-reuse` for `--force-resume`. Changed project files never refuse it. Instead they decide
-which results it keeps, for each result by what changed since the session that tested it:
+with `--force-reuse` for `--force-resume`, and a refused `--reuse` exits with status 5 as a refused
+resume does. Changed project files never refuse it. Instead they decide which results it keeps, for
+each result by what changed since the session that tested it:
 
 - **What it keeps.** A result that a resume would keep: same file, place, operator and change, and
   the file's SHA-256 unchanged. Then:
@@ -803,7 +839,8 @@ which results it keeps, for each result by what changed since the session that t
   that now fails stops the run. Only with no change at all, and nothing to test, does it run none.
 - **The new file** starts with the results it keeps, each with `reusedFrom`, which says where it was
   tested ([Mutant](Docs/results-file.md#mutant)), and their logs are copied into the new log folder.
-  So the new file stands alone: `swift-mutator report` of it gives the run's own report, and a later
+  So the new file stands alone: `swift-mutator report` of it gives the run's own report, and says
+  on standard error how many results were kept, and the file each was first tested in. A later
   `--reuse` or `--resume` of it works as of any run's. A stopped reuse continues with
   `--resume` of the new file, which its Continue line names, with each `--reuse-ignoring` as a
   `--resume-ignoring`. Stopped before its baseline passed, it has no file yet: run the same

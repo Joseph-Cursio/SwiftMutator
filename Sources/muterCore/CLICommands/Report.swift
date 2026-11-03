@@ -12,7 +12,7 @@ struct Report: AsyncParsableCommand {
 
     @Argument(
         help: ArgumentHelp(
-            "A run's results file, or the run's log folder in <project>_muter_logs that holds it. "
+            "A run's results file, or the log folder in <project>_muter_logs of any of the run's sessions. "
                 + "Several, one for each shard of a run --shard split, are merged into one report.",
             valueName: "results"
         )
@@ -46,7 +46,7 @@ struct Report: AsyncParsableCommand {
     /// itself exited with (`RunCommand.run(with:)`), so a script that checks the report fails as one that checked the
     /// run would. A run that finished, was interrupted, or has no end line yet exits 0. Shards' files exit with it when
     /// the report is known to lack results (`MergedShards.lacksResults`).
-    static let stoppedOnAnError = ExitCode(-1)
+    static let stoppedOnAnError = ExitCode.stoppedOnAnError
 
     func run() async throws {
         let stopped = try ResultsReport(format: reportOptions.reportFormat, outputPath: reportOptions.reportURL?.path)

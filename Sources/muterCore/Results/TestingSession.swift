@@ -17,8 +17,9 @@ final class TestingSession: @unchecked Sendable { // `file`, `mutantLines` and `
     /// Whether the baseline passed, and the timed test run after it, if any, ended, so the results have started. Until
     /// then, mutation testing that stops has nothing to report, and sends no early end: an abort says why.
     var baselinePassed = false
-    /// Held while a line is written to the results file: a stop at once writes the end line from another thread
-    /// (`end(waitingAtMost:_:)`), between two lines, never inside one, and counts only the lines before it.
+    /// Held while a line is written to the results file, and across the session's first lines, which are written
+    /// together: a stop at once writes the end line from another thread (`end(waitingAtMost:_:)`), between two lines,
+    /// never inside one or among the first lines, and counts only the lines before it.
     private let writing = NSLock()
     private var file: ResultsRecording?
     private var mutantLines = 0
@@ -51,9 +52,16 @@ final class TestingSession: @unchecked Sendable { // `file`, `mutantLines` and `
     /// earlier run, and a second for each it tested again (`rerun`). So it can be more than the session's mutants.
     var recorded: Int { writing.withLock { mutantLines } }
 
-    /// Makes `file` the session's results file, which its header is written to first.
-    func startResults(in file: ResultsRecording) {
-        writing.withLock { self.file = file }
+    /// Makes `file` the session's results file, and writes `firstLines`, its header first, in one write while no end
+    /// line can come between them: a stop at once ends the session after them, or, before them, writes nothing. Returns
+    /// what `append` would. With no `firstLines` it only makes `file` the session's.
+    func startResults(in file: ResultsRecording, writing firstLines: [any Encodable]) -> Bool? {
+        writing.withLock {
+            self.file = file
+            guard file.writeError == nil, !ended else { return nil }
+            guard !firstLines.isEmpty else { return true }
+            return file.append(contentsOf: firstLines)
+        }
     }
 
     /// Appends `line` to the results file, and counts it in `recorded` if it `isAMutant`, written or not. Returns

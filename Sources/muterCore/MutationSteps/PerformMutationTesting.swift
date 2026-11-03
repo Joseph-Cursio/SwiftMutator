@@ -987,8 +987,7 @@ private extension PerformMutationTesting {
     func removeTestOutputFolderIfEmpty(_ state: AnyMutationTestState) {
         guard !state.loggingDirectory.isEmpty else { return }
         let folder = (state.loggingDirectory as NSString).appendingPathComponent(Self.testOutputFolderName)
-        guard let contents = try? fileManager.contentsOfDirectory(atPath: folder), contents.isEmpty else { return }
-        try? fileManager.removeItem(atPath: folder)
+        removeFolderIfEmpty(atPath: folder, fileManager: fileManager)
     }
 }
 
@@ -1000,13 +999,18 @@ private extension PerformMutationTesting {
     /// makes, writes none, and the header isn't made.
     ///
     /// A resumed run instead writes `header`, then a `retired` line of the `retiring` keys, to the stopped run's file,
-    /// which it opened before the copy, and announces the file once both are written. It is attached to the session
-    /// only now: before its header, no line of the session's would belong to one. A run that reuses an earlier run's
-    /// results writes a new file, as a first session does, with the `copying` results after its header, all at once,
-    /// and copies their logs into its log folder, before it announces the file.
+    /// which it opened before the copy. Once both are written, it leaves a note naming the file in its own log folder,
+    /// and announces the file. It is attached to the session only now: before its header, no line of the session's
+    /// would belong to one. A run that reuses an earlier run's results writes a new file, as a first session does,
+    /// with the `copying` results after its header, all at once, and copies their logs into its log folder, before it
+    /// announces the file.
     ///
-    /// `header` probes the toolchain, so it is made before the file is the session's, when a stop at once could write
-    /// the end line first, and then written at once.
+    /// The file becomes the session's as its first lines, the header and any `retired` line, are written, in one write
+    /// while the session's lock is held. A stop at once then ends the session after both, or, before them, writes
+    /// nothing, and a run killed as it starts leaves both or neither, unless the write is cut short, which leaves a
+    /// cut-off last line that readers skip. Written one after the other, a kill or an end line between them would leave
+    /// the header without the `retired` line, and the file would stand by the results the session retires until the
+    /// next session's. `header` probes the toolchain, so it is made before any of this.
     func startResults(
         _ header: @autoclosure () async -> ResultsHeader,
         retiring retired: [MutantKey],
@@ -1015,13 +1019,13 @@ private extension PerformMutationTesting {
         state: AnyMutationTestState
     ) async {
         if let resume = state.resumeState, let file = resume.file {
-            let headerLine = await header()
-            session.startResults(in: file)
-            guard write(headerLine, in: session) else { return }
+            var firstLines: [any Encodable] = [await header()]
             // Without it, the file would still stand by the earlier results this session doesn't keep.
-            if !retired.isEmpty, !write(ResultsRetired(session: session.number, keys: retired), in: session) {
-                return
+            if !retired.isEmpty {
+                firstLines.append(ResultsRetired(session: session.number, keys: retired))
             }
+            guard sayingAFailure(session.startResults(in: file, writing: firstLines), in: session) else { return }
+            leaveANote(pointingTo: resume.path, session: session.number, in: state.loggingDirectory)
             events.send(.resultsFileCreated(path: resume.path))
             return
         }
@@ -1030,8 +1034,7 @@ private extension PerformMutationTesting {
         let headerLine = await header()
         do {
             let results = try resultsFiles.create(in: loggingDirectory)
-            session.startResults(in: results)
-            guard write(headerLine, in: session) else { return }
+            guard sayingAFailure(session.startResults(in: results, writing: [headerLine]), in: session) else { return }
             if let resume = state.resumeState, resume.isReuse {
                 let lines = reused.sorted { $0.key < $1.key }.map(\.value)
                 guard sayingAFailure(session.append(contentsOf: lines), in: session) else { return }
@@ -1041,6 +1044,18 @@ private extension PerformMutationTesting {
         } catch {
             events.send(.resultsFileUnavailable(reason: "\(error)"))
         }
+    }
+
+    /// Leaves a note in this session's log folder, `ResultsFile.noteFileName`, that names the results file at `path` it
+    /// adds to, which is in the first session's folder, so that the folder can be given in the file's place. A state
+    /// without a log folder leaves none. A note that can't be written is left out: the console names the file too.
+    func leaveANote(pointingTo path: String, session: Int, in loggingDirectory: String) {
+        guard !loggingDirectory.isEmpty else { return }
+        _ = fileManager.createFile(
+            atPath: (loggingDirectory as NSString).appendingPathComponent(ResultsFile.noteFileName),
+            contents: Data(ResultsFile.note(pointingTo: path, session: session).utf8),
+            attributes: nil
+        )
     }
 
     /// Copies each of the `reused` results' kept logs from the folder of the session that recorded it in `resume`'s

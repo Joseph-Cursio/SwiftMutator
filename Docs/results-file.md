@@ -5,10 +5,10 @@ SwiftMutator saves each mutant's result as soon as its test run finishes, as one
 ## Where it is
 
 - `<project>_muter_logs/<run>/results.jsonl`, next to your project, beside the run's kept logs. For example, `SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM/results.jsonl`.
-- The run's folder is named for the minute it started in. A run that starts in a minute that already has a folder gets one of its own, the same name followed by ` (2)`, then ` (3)` and so on, so a folder holds one run's logs. Should a folder already have a `results.jsonl`, the file is `results-2.jsonl`, then `results-3.jsonl`, up to `results-99.jsonl`. An existing file is never overwritten.
+- The run's folder is named for the minute it started in. A run that starts in a minute that already has a folder gets one of its own, the same name followed by ` (2)`, then ` (3)` and so on, so a folder holds one run's logs. Should a folder already have a `results.jsonl`, the file is `results-2.jsonl`, then `results-3.jsonl`, up to `results-99.jsonl`. An existing file is never overwritten. While a run holds a results file, a hidden file beside it, `.results.jsonl.holder`, records which process holds it: see [How it is written](#how-it-is-written). `report`, `--resume` and `--reuse` ignore it.
 - SwiftMutator prints the path when it creates the file ("SwiftMutator saves each mutant's result as it finishes, in …"). After the report it prints it again ("Each mutant's result is in …"), if every line was written. When mutation testing stops early, it prints it on standard error instead ("Each tested mutant's result is in …"), on the same condition. If a mutant has a result, the command that makes a report from the file follows it, with the path quoted for the shell: "Full report: swift-mutator report '…/results.jsonl'". Then comes the command that continues the run, which repeats SwiftMutator's own arguments but for an earlier `--resume`, `--reuse`, `--force-resume` and `--force-reuse`, with each `--reuse-ignoring` as a `--resume-ignoring`, and `--since`'s ref as the merge base it chose: "Continue: swift-mutator run … --resume '…/results.jsonl'". A run of a test plan can't be resumed, and gets no Continue line.
 - `run --reuse` only reads the earlier run's file, and writes one of its own in its own log folder, as a first session does.
-- `run --resume` adds a session to the file it continues, which stays where it is, in the first session's log folder. The new session prints the file's path as it starts testing, as a first session does. Its kept logs go to a log folder of its own, named for the minute it started in as any run's is, followed by ` (2)`, ` (3)` and so on if that minute already has one. So a later session's folder holds no results file: give `report` and `--resume` the file, or the first session's folder.
+- `run --resume` adds a session to the file it continues, which stays where it is, in the first session's log folder. The new session prints the file's path as it starts testing, as a first session does. Its kept logs go to a log folder of its own, named for the minute it started in as any run's is, followed by ` (2)`, ` (3)` and so on if that minute already has one. So a later session's folder holds no results file, but a note, `resumed session.txt`, whose first line is the file's path, by itself. `report`, `--resume` and `--reuse` follow the note, so they take that folder as well as the file or the first session's folder. The note is written once the session's header and `retired` line are, so a resume whose baseline fails leaves none. A session that keeps no log, such as one that runs no coverage and has nothing left to test, still keeps its folder, with the note in it. A run that keeps nothing in its folder, such as a refused resume, leaves no folder.
 - It is always written, and there's no option to turn it off. A line takes about 0.5–1 KB, so a run of 2,500 mutants writes an estimated 2–3 MB, beside well over a gigabyte of logs. The header's list of the project's files adds about 140 bytes a file: about 205 KB for a project of 1,450 files.
 - `run` and `run-without-mutating` write one. `mutate-without-running` tests no mutants and writes none.
 
@@ -56,7 +56,7 @@ The header's `project` lists five files here. A real one lists every file in the
 | `usingTestPlan` | Bool | Whether the run tested a test plan (`run-without-mutating`) |
 | `projectPath` | String | Your project |
 | `mutatedProjectPath` | String | The mutated copy that SwiftMutator tested. Each mutant's `path` is relative to it. |
-| `logDirectory` | String | The session's log folder, which holds its kept logs. A resumed session has a folder of its own, and adds to the file in the first session's folder. |
+| `logDirectory` | String | The session's log folder, which holds its kept logs. A resumed session has a folder of its own, and adds to the file in the first session's folder. Its folder holds a note, `resumed session.txt`, naming the file, so it stays even when the session kept no log. |
 | `coverage` | `{percent, filesWithoutCoverage}` | The project's coverage, as the report shows it. Left out when the run has none: coverage was skipped, isn't supported for the test command, or couldn't be gathered. |
 | `newVersion` | String | The newer SwiftMutator version the update check found, or `""` |
 | `baselineSeconds` | Double | How long the baseline test run took, build included. Left out by a resumed session with nothing left to test, which runs no baseline, and by a session that `--reuse` starts with nothing left to test and nothing changed. |
@@ -224,8 +224,9 @@ A session that `--resume` adds no longer stands by some of the earlier sessions'
 
 - **Durable at once.** Each line is written whole and then flushed to disk with `fsync`. That happens before SwiftMutator shows the mutant's progress or keeps its log, and before its worker starts the next mutant. A line on disk survives SwiftMutator being killed, even with SIGKILL, and an operating-system crash.
 - **Before an abort.** A mutant's line is written before the build-error check, so the fifth build error in a row, which stops the run, is in the file.
-- **Locked while open.** The running SwiftMutator holds an exclusive `flock` on the file, so no other SwiftMutator process writes to it. The lock goes when the process exits, however it exits. So `run --resume` of a file that a run still holds is refused, naming the process and host that wrote the file's last session. Reading takes no lock, so you can read the file while the run is still writing it.
+- **Locked while open.** The running SwiftMutator holds an exclusive `flock` on the file, so no other SwiftMutator process writes to it. The lock goes when the process exits, however it exits. While it holds the lock, it records its process ID, when that process started and its host in a hidden file beside the results file, `.results.jsonl.holder` (`.results-2.jsonl.holder` for `results-2.jsonl`, and so on), and removes it as it closes the file. So `run --resume` of a file that a run still holds is refused, naming that process and its host, and exits with status 6. A record is believed only while a process with that ID and start still runs, so a record that a run left as it ended without closing the file, such as one killed at once, names no one; the next run to hold the file replaces it. A record from another host, which this host can't check, is named as only a record. Without a record, as when a SwiftMutator older than this one holds the file, the refusal names the process and host that wrote the file's last session, and says it may not be the holder: a resume holds the lock long before it writes a session. Reading takes no lock, so you can read the file while the run is still writing it.
 - **A cut-off line is ended.** Before a resumed session writes, it adds a line break to a last line that doesn't end in one, such as a line a killed run cut off, so that its own first line stands alone. Readers still skip a cut-off line.
+- **A session's first lines go together.** A resumed session's header and its `retired` line are written in one write and flushed together, and a stop at once ends the session only after both. On macOS a run killed as it starts leaves both lines or neither. On Linux, or when a write is cut short, as on a full disk, it can leave a cut-off line, which readers skip. If the cut falls in the `retired` line, the file stands by the earlier results the session meant to retire until the next session writes its own `retired` line. Nothing is wrongly reused, because a resume checks the earlier results again.
 - **Failures don't stop the run.** If the file can't be created, SwiftMutator says so once and the run goes on without it. If a write fails, it says so once and writes nothing more, so a half-written line is never followed by another. Either way the report at the end is complete.
 
 ## Reading it
@@ -258,9 +259,11 @@ It only reads the results file: it mutates nothing, prints no banner and makes n
 
 ### What it takes
 
-- **`<results>`** is a results file, or a run's log folder, `<project>_muter_logs/<run>/`, that holds one.
+- **`<results>`** is a results file, or a run's log folder, `<project>_muter_logs/<run>/`, that holds one, or the log folder of a session that resumed the run.
   - In a folder, only the names a run gives its results file count: `results.jsonl`, and `results-2.jsonl` up to `results-99.jsonl`.
-  - A folder with none is refused.
+  - A resumed session's folder holds none, but a note, `resumed session.txt`, whose first line is the path of the file the session added to. That file is reported. A folder whose note doesn't start with an absolute path to a file with one of those names is refused as one with none.
+  - So a glob over a run's log folders, such as `<project>_muter_logs/*/`, names the file once through the first session's folder and once through each resumed session's. A file that a note names, and that is also given another way, is reported once, however each spells its path. A file given twice by its own path or folder is still given twice, so a shard's file given twice is refused.
+  - A folder with none, and no note, is refused.
   - So is a folder with several, one for each run that started in that minute, as a folder from before each run got its own can hold. The error names them in the order the runs started in, so you can pass the one you want.
   - A path that isn't a folder is read as a results file.
 - **`-f`** chooses the format, as in `run`: `plain` (the default), `json`, `html` or `xcode`.
@@ -310,6 +313,15 @@ The report doesn't say whether the run finished. The status on standard error do
   | `aborted` | `the run stopped on an error (tooManyBuildErrors)`, giving the code in `detail` |
   | None | `the run has no end line, so it is still running, or it was killed or crashed` |
 
+  For a file of more than one session, or with results that `--reuse` kept, the next line says which sessions tested the report's results: how many the last session tested, how many each earlier session did, and how many `--reuse` kept, by the results file each was first tested in. Each result counts once, for the line the report takes for its key ([Sessions](#sessions)), so the counts add up to the first line's:
+
+  ```
+  Of these, 1394 were tested in the last session, session 3, and 1103 in earlier ones (900 in session 1 and 203 in session 2).
+  Of these, 300 were tested and 2197 kept by --reuse, tested in /Users/me/code/SwiftProjectLint_muter_logs/Oct 31, 2026 at 7:08 PM/results.jsonl.
+  ```
+
+  The last session is always named, even when it tested none of them: `Of these, none were tested in the last session, session 2, and 2497 in session 1.` An earlier session with no result left in the report isn't named. A file of one session that kept nothing, and an empty report, get no such line.
+
   When lines were skipped, another line numbers them, and says when the last was cut off as it was written: `Skipped 1 line that didn't read: 812; the last was cut off as it was written.`
 
   The status has no emoji, so it can be searched for in CI logs. Numbers have no thousands separators.
@@ -338,7 +350,7 @@ A run's file holds one session, and one more for each time `run --resume` contin
 - how the run ended, from the last session's end line;
 - how many mutants the run found, from the last header's `mutantsDiscovered`.
 
-So a resumed run that finished gets back the report its last session made, which covers every mutant, kept or tested again. The status counts every mutant with a result, whichever session tested it: `Report of 2497 of 2497 mutants, from …: the run finished.`
+So a resumed run that finished gets back the report its last session made, which covers every mutant, kept or tested again. The status counts every mutant with a result, whichever session tested it, and its next line says how many each session tested: `Report of 2497 of 2497 mutants, from …: the run finished.`, then `Of these, 1394 were tested in the last session, session 2, and 1103 in session 1.` A result tested again, as a timeout under a longer limit is, counts for the session that tested it again, and a rerun at lower load is one result, of its own session.
 
 ### Shards
 
@@ -370,7 +382,7 @@ Shard 2 of 2, 1232 of its 1235 mutants, from …/results.jsonl: the run was inte
 
 - The first line's total is `mutantsInAllShards`. If the shards' `allKeysSHA256` differ, their discoveries did, as when coverage differed between the machines: the line gives no total, and another says how many mutants in all each shard's run discovered.
 - A shard whose file isn't given is named with the mutants `mutantsPerShard` gives it: `No results file was given for shard 2 of 3, which holds 812 mutants.` A shard that holds none wrote no file, and is said to: `Shard 3 of 3 holds no mutant, so it has no results file.`
-- Lines skipped in a file are said for its shard.
+- Which sessions tested a file's results, and lines skipped in it, are said for its shard, after its own line: `In shard 2 of 2's file: of these, 300 were tested in the last session, session 2, and 932 in session 1.` The first line gives no such count, as the shards' sessions differ.
 - What `--force-merge` and `--merge-ignoring` let through is said, as is a shard whose own sessions let changes through when it was resumed or reused, by their headers' `forced` or `waived`.
 
 `report` exits with 255 whenever the report is known to lack results: any shard's last session stopped on an error; a shard has fewer results than its header's `mutantsDiscovered`, as one that was interrupted, killed or is still running has; or a shard that holds mutants has no file among those given. So a CI job that checks the merged report fails as one that checked every shard's run would. Discoveries that differ only warn: each shard has its own mutants' results.

@@ -43,8 +43,8 @@ OPTIONS:
   -f, --format <format>   The report format: plain, json, html, xcode
   -o, --output <output>   Output file for the report to be saved.
   --resume <results>      Continue a stopped run from its results file, or the
-                          log folder that holds it. Only mutants without a
-                          result that still holds are tested.
+                          log folder of any of its sessions. Only mutants
+                          without a result that still holds are tested.
   --resume-ignoring <glob>
                           With --resume, reuse results although project files
                           matching this glob changed; * also matches /.
@@ -52,10 +52,10 @@ OPTIONS:
   --force-resume          With --resume, reuse results although SwiftMutator,
                           the toolchain or the SDK changed.
   --reuse <results>       Start a new run from an earlier run's results file,
-                          or the log folder that holds it, finished or not.
-                          Only mutants without a result that still holds are
-                          tested, and the new run writes a results file of its
-                          own.
+                          or the log folder of any of its sessions, finished or
+                          not. Only mutants without a result that still holds
+                          are tested, and the new run writes a results file of
+                          its own.
   --reuse-ignoring <glob> With --reuse, reuse results although project files
                           matching this glob changed; * also matches /. Test
                           files are never waived. Repeatable.

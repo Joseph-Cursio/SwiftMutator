@@ -97,7 +97,7 @@ struct Run: RunCommand {
     @Option(
         name: .customLong("resume"),
         help: ArgumentHelp(
-            "Continue a stopped run from its results file, or the log folder that holds it. "
+            "Continue a stopped run from its results file, or the log folder of any of its sessions. "
                 + "Only mutants without a result that still holds are tested.",
             valueName: "results"
         )
@@ -123,9 +123,9 @@ struct Run: RunCommand {
     @Option(
         name: .customLong("reuse"),
         help: ArgumentHelp(
-            "Start a new run from an earlier run's results file, or the log folder that holds it, finished or not. "
-                + "Only mutants without a result that still holds are tested, and the new run writes a results file "
-                + "of its own.",
+            "Start a new run from an earlier run's results file, or the log folder of any of its sessions, "
+                + "finished or not. Only mutants without a result that still holds are tested, and the new run "
+                + "writes a results file of its own.",
             valueName: "results"
         )
     )

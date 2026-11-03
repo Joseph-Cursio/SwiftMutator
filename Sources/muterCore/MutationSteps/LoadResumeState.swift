@@ -30,14 +30,23 @@ struct LoadResumeState: MutationStep {
         let file: ResultsRecording
         do {
             file = try resultsFiles.openForResume(at: path)
-        } catch ResultsFileError.inUse {
-            // flock can't name its holder; the process that wrote the last session most likely holds it.
+        } catch let ResultsFileError.inUse(_, holder) {
+            if let holder {
+                throw ResumeRefused(
+                    path: path,
+                    reasons: [.inUse(holder: holder, lastProcess: nil, lastHost: nil)],
+                    beforeTheCopy: true
+                )
+            }
+            // A holder records itself beside the file. Without that record, as from a SwiftMutator older than this
+            // one, the last session's writer is all the file shows, and a resume holds the lock long before it writes
+            // its session.
             let last = fileManager.contents(atPath: path)
                 .flatMap { try? RecordedResults.read($0, path: path) }?
                 .headers.last?.provenance
             throw ResumeRefused(
                 path: path,
-                reasons: [.inUse(lastProcess: last?.processIdentifier, lastHost: last?.host)],
+                reasons: [.inUse(holder: nil, lastProcess: last?.processIdentifier, lastHost: last?.host)],
                 beforeTheCopy: true
             )
         }
