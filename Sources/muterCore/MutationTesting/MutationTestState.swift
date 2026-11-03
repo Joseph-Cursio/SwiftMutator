@@ -169,6 +169,11 @@ extension MutationTestState {
                 candidatePaths = paths
             case let .testPlanLoaded(plan):
                 testPlan = plan
+                // So the results file, and a resume's check, describe the plan's mutants, not the command's defaults.
+                if let scope = plan.scope {
+                    mutationOperatorList = scope.operators
+                    filesToMutate = scope.filesToMutate
+                }
             }
         }
     }

@@ -26,6 +26,8 @@ enum TestPlanCoding {
             swiftMutatorVersion: plan.swiftMutatorVersion ?? version,
             mutatedProject: RelativePath.from(projectRoot, to: plan.mutatedProjectURL),
             projectCoverage: plan.projectCoverage == .null ? nil : plan.projectCoverage.percent,
+            operators: (plan.scope?.operators ?? .allOperators).map(\.rawValue).sorted(),
+            filesToMutate: plan.scope?.filesToMutate ?? [],
             mappings: plan.mappings.map { $0.relative(to: plan.mutatedProjectURL) }
         )
         return try String(decoding: encoder.encode(file), as: UTF8.self) + "\n"
@@ -33,7 +35,8 @@ enum TestPlanCoding {
 
     /// The plan at `path`, whose bytes are `data`, with its paths resolved: a format-1 copy's under `projectRoot`, the
     /// folder the plan was made in, and its mutants' under the copy. A plan in format 0 holds absolute paths, which
-    /// are kept. A plan in a format newer than `newestFormatVersion` is refused.
+    /// are kept, and doesn't say what its mutants were chosen by. A plan in a format newer than `newestFormatVersion`
+    /// is refused.
     static func read(_ data: Data, path: String, under projectRoot: URL) throws -> MuterTestPlan {
         guard let found = try JSONDecoder().decode(FormatVersion.self, from: data).formatVersion else {
             let file = try JSONDecoder().decode(LegacyTestPlanFile.self, from: data)
@@ -43,6 +46,7 @@ enum TestPlanCoding {
                 swiftMutatorVersion: nil,
                 mutatedProjectURL: copy,
                 projectCoverage: file.projectCoverage < 0 ? .null : Coverage(percent: file.projectCoverage),
+                scope: nil,
                 mappings: file.mappings.map { $0.resolved(under: copy) }
             )
         }
@@ -56,6 +60,12 @@ enum TestPlanCoding {
             swiftMutatorVersion: file.swiftMutatorVersion,
             mutatedProjectURL: copy,
             projectCoverage: file.projectCoverage.map { Coverage(percent: $0) } ?? .null,
+            // A mutant by an operator this SwiftMutator doesn't know would have stopped the plan being read, so such
+            // an operator chose none of its mutants.
+            scope: TestPlanScope(
+                operators: file.operators.compactMap(MutationOperator.Id.init(rawValue:)),
+                filesToMutate: file.filesToMutate
+            ),
             mappings: file.mappings.map { $0.resolved(under: copy) }
         )
     }
@@ -86,6 +96,10 @@ struct TestPlanFile: Codable, Equatable {
     let mutatedProject: String
     /// Left out when coverage wasn't gathered.
     let projectCoverage: Int?
+    /// The operators the mutants were chosen by, `--operators` or every one, by name and sorted.
+    let operators: [String]
+    /// The files the mutants were chosen from, `--files-to-mutate` as given; empty when it wasn't.
+    let filesToMutate: [String]
     /// By file, each file's mutants in the order mutation testing runs them.
     let mappings: [SchemataMutationMapping]
 }

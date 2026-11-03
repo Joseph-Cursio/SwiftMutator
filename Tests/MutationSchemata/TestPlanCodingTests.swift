@@ -38,7 +38,10 @@ final class TestPlanCodingTests: XCTestCase {
     func test_keysAreSorted() throws {
         let text = try TestPlanCoding.encode(plan(), under: project)
 
-        let keys = ["formatVersion", "mappings", "mutatedProject", "projectCoverage", "swiftMutatorVersion"]
+        let keys = [
+            "filesToMutate", "formatVersion", "mappings", "mutatedProject", "operators", "projectCoverage",
+            "swiftMutatorVersion",
+        ]
         assertInOrder(text, keys.map { "\"\($0)\"" })
         let mutant = try String(
             decoding: TestPlanCoding.encoder.encode(mutant(in: "\(copy)/Sources/Sum.swift", line: 1)),
@@ -60,7 +63,8 @@ final class TestPlanCodingTests: XCTestCase {
     func test_eachKeyIsOnALineOfItsOwn_andThePlanEndsInOneNewline() throws {
         let text = try TestPlanCoding.encode(plan(), under: project)
 
-        XCTAssertTrue(text.hasPrefix("{\n  \"formatVersion\" : 1,\n  \"mappings\" : ["), text)
+        XCTAssertTrue(text.hasPrefix("{\n  \"filesToMutate\" : ["), text)
+        XCTAssertTrue(text.contains("\n  \"formatVersion\" : 1,\n  \"mappings\" : ["), text)
         XCTAssertTrue(text.hasSuffix("}\n"))
         XCTAssertFalse(text.hasSuffix("\n\n"))
     }
@@ -72,6 +76,36 @@ final class TestPlanCodingTests: XCTestCase {
 
         XCTAssertFalse(text.contains("projectCoverage"), text)
         XCTAssertEqual(try read(text).projectCoverage, .null)
+    }
+
+    // Whatever order --operators named them in, so that the same choice is the same bytes.
+    func test_theOperatorsAndFilesThePlanWasChosenBy_areWrittenSorted_andReadBack() throws {
+        let plan = MuterTestPlan.make(
+            mutatedProjectPath: copy,
+            scope: TestPlanScope(operators: [.swapTernary, .ror], filesToMutate: ["Sources/Sum.swift", "Max.swift"])
+        )
+
+        let text = try TestPlanCoding.encode(plan, under: project)
+
+        let file = try JSONDecoder().decode(TestPlanFile.self, from: Data(text.utf8))
+        XCTAssertEqual(file.operators, ["RelationalOperatorReplacement", "SwapTernary"])
+        XCTAssertEqual(file.filesToMutate, ["Sources/Sum.swift", "Max.swift"])
+        XCTAssertEqual(
+            try read(text).scope,
+            TestPlanScope(operators: [.ror, .swapTernary], filesToMutate: ["Sources/Sum.swift", "Max.swift"])
+        )
+    }
+
+    // A plan from a newer SwiftMutator may name an operator this one doesn't know, as long as it holds no mutant by it.
+    func test_anOperatorThisSwiftMutatorDoesntKnow_isLeftOutOfTheScope() throws {
+        var text = try TestPlanCoding.encode(MuterTestPlan.make(mutatedProjectPath: copy), under: project)
+        text = text.replacingOccurrences(of: "\"SwapTernary\"", with: "\"SwapTernary\", \"SomethingNew\"")
+
+        XCTAssertTrue(text.contains("\"SomethingNew\""), text)
+        XCTAssertEqual(
+            try read(text).scope?.operators.map(\.rawValue),
+            MutationOperatorList.allOperators.map(\.rawValue).sorted()
+        )
     }
 
     // A plan records no syntax, so what it reads back as is compared by the text it would write.
@@ -156,6 +190,7 @@ final class TestPlanCodingTests: XCTestCase {
         let schema = try XCTUnwrap(read.mappings.first?.mutationSchemata.first)
         XCTAssertEqual(schema.filePath, "/old/project_mutated/Sources/Sum.swift")
         XCTAssertEqual(schema.id, "Sum_RelationalOperatorReplacement_1_5_105")
+        XCTAssertNil(read.scope)
     }
 
     func test_aNewerFormat_isRefused_andExitsWith7() throws {

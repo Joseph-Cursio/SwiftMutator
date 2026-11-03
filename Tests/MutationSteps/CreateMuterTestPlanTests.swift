@@ -11,8 +11,16 @@ final class CreateMuterTestPlanTests: MuterTestCase {
         let state = makeState()
 
         let expect = expectation(forEvent: .testPlanFileCreated) { event in
-            let path = event.object as? String
-            XCTAssertEqual(path, "/path/to/project/muter-mappings.json")
+            XCTAssertEqual(
+                event.object as? TestPlanCreated,
+                TestPlanCreated(
+                    path: "/path/to/project/muter-mappings.json",
+                    mutatedProject: "../project_mutated",
+                    mutants: state.mutationMapping.first?.mutationSchemata.count ?? -1,
+                    files: 1,
+                    operators: nil
+                )
+            )
             return true
         }
 
@@ -32,6 +40,7 @@ final class CreateMuterTestPlanTests: MuterTestCase {
         let plan = MuterTestPlan.make(
             mutatedProjectPath: "/path/to/project_mutated",
             projectCoverage: 47,
+            scope: TestPlanScope(operators: .allOperators, filesToMutate: []),
             mappings: state.mutationMapping
         )
         XCTAssertEqual(
@@ -58,6 +67,46 @@ final class CreateMuterTestPlanTests: MuterTestCase {
         XCTAssertEqual(schemata.map(\.id), state.mutationMapping.first?.mutationSchemata.map(\.id))
     }
 
+    // What `--operators` and `--files-to-mutate` chose, which a run of the plan records as its own.
+    func test_recordsTheOperatorsAndFilesTheMutantsWereChosenBy() async throws {
+        let state = makeState()
+        state.mutationOperatorList = [.swapTernary, .ror]
+        state.filesToMutate = ["Sources/Check.swift"]
+
+        _ = try await sut.run(with: state)
+
+        let file = try JSONDecoder().decode(TestPlanFile.self, from: Data(try XCTUnwrap(writeFile.contentPassed).utf8))
+        XCTAssertEqual(file.operators, ["RelationalOperatorReplacement", "SwapTernary"])
+        XCTAssertEqual(file.filesToMutate, ["Sources/Check.swift"])
+    }
+
+    func test_withoutAChoice_everyOperatorAndNoFileIsRecorded() async throws {
+        let state = makeState()
+
+        _ = try await sut.run(with: state)
+
+        let file = try JSONDecoder().decode(TestPlanFile.self, from: Data(try XCTUnwrap(writeFile.contentPassed).utf8))
+        XCTAssertEqual(file.operators, MutationOperatorList.allOperators.map(\.rawValue).sorted())
+        XCTAssertEqual(file.filesToMutate, [])
+    }
+
+    // The message names the operators only when they aren't all of them.
+    func test_theCreatedPlan_namesTheOperatorsItWasChosenBy() async throws {
+        let state = makeState()
+        state.mutationOperatorList = [.swapTernary, .ror]
+        let expect = expectation(forEvent: .testPlanFileCreated) { event in
+            XCTAssertEqual(
+                (event.object as? TestPlanCreated)?.operators,
+                ["RelationalOperatorReplacement", "SwapTernary"]
+            )
+            return true
+        }
+
+        _ = try await sut.run(with: state)
+
+        await fulfillment(of: [expect], timeout: 2)
+    }
+
     func test_coverageThatWasntGathered_isLeftOut() async throws {
         let state = makeState()
         state.projectCoverage = .null
@@ -73,6 +122,7 @@ final class CreateMuterTestPlanTests: MuterTestCase {
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/project_mutated")
         state.projectDirectoryURL = URL(fileURLWithPath: "/path/to/project")
         state.projectCoverage = .make(percent: 47)
+        state.mutationOperatorList = .allOperators
         state.mutationMapping = generateSchemataMappings(
             for: SourceCodeInfo(
                 path: "/path/to/project_mutated/Sources/Check.swift",

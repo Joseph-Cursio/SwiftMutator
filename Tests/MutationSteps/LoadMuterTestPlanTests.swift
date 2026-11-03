@@ -49,7 +49,8 @@ final class LoadMuterTestPlanTests: MuterTestCase {
                         path: testPlanPath,
                         sha256: FileDigest.sha256(of: data),
                         formatVersion: TestPlanCoding.formatVersion,
-                        swiftMutatorVersion: muterCore.version
+                        swiftMutatorVersion: muterCore.version,
+                        scope: TestPlanScope(operators: .allOperators, filesToMutate: [])
                     )
                 ),
             ]
@@ -118,6 +119,39 @@ final class LoadMuterTestPlanTests: MuterTestCase {
         XCTAssertEqual(state.testPlan?.path, testPlanPath)
         XCTAssertEqual(state.testPlan?.sha256, FileDigest.sha256(of: data))
         XCTAssertEqual(state.mutatedProjectDirectoryURL, URL(fileURLWithPath: "/path/to/project_mutated"))
+    }
+
+    // A plan run's results file and its resume check describe the plan's mutants, not the command's defaults.
+    func test_theLoadedPlan_setsTheOperatorsAndFilesItWasChosenBy() async throws {
+        state.runOptions = .make(testPlanURL: URL(fileURLWithPath: testPlanPath))
+        state.mutationOperatorList = .allOperators
+        state.projectDirectoryURL = project
+        fileManager.fileContentsToReturn = MuterTestPlan.make(
+            scope: TestPlanScope(operators: [.swapTernary, .logicalOperator], filesToMutate: ["Sources/Check.swift"])
+        ).toData(under: project)
+
+        state.apply(try await sut.run(with: state))
+
+        XCTAssertEqual(state.mutationOperatorList, [.logicalOperator, .swapTernary])
+        XCTAssertEqual(state.filesToMutate, ["Sources/Check.swift"])
+        XCTAssertEqual(
+            state.testPlan?.scope,
+            TestPlanScope(operators: [.logicalOperator, .swapTernary], filesToMutate: ["Sources/Check.swift"])
+        )
+    }
+
+    // A plan in format 0 doesn't say, and was made with every operator and file: what the run was given stays.
+    func test_aPlanInFormat0_leavesTheOperatorsAndFilesAsTheRunWasGiven() async throws {
+        state.runOptions = .make(testPlanURL: URL(fileURLWithPath: testPlanPath))
+        state.mutationOperatorList = .allOperators
+        state.projectDirectoryURL = project
+        fileManager.fileContentsToReturn = MuterTestPlan.make().legacyData
+
+        state.apply(try await sut.run(with: state))
+
+        XCTAssertEqual(state.mutationOperatorList, .allOperators)
+        XCTAssertEqual(state.filesToMutate, [])
+        XCTAssertNil(state.testPlan?.scope)
     }
 
     // Another run of the project may be removing or rewriting the mutated project until it is locked, which comes

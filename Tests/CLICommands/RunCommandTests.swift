@@ -292,6 +292,34 @@ final class RunCommandTests: XCTestCase {
         XCTAssertTrue(help.contains("Test files are never waived."), help)
     }
 
+    // The plan records what they chose, so mutate-without-running takes them as run does.
+    func test_operatorsAndFilesToMutate_reachTheRunOptions_ofRunAndMutateWithoutRunning() throws {
+        let chosen = ["--files-to-mutate", "Sources/A.swift,B.swift", "--operators", "SwapTernary", "RemoveSideEffects"]
+        let run = try XCTUnwrap(MuterCommand.parseAsRoot(["run"] + chosen) as? Run).runOptions
+        let mutate = try XCTUnwrap(
+            MuterCommand.parseAsRoot(["mutate-without-running"] + chosen) as? MutateWithoutRunning
+        ).runOptions
+
+        for options in [run, mutate] {
+            XCTAssertEqual(options.filesToMutate, ["Sources/A.swift", "B.swift"])
+            XCTAssertEqual(options.mutationOperatorsList, [.swapTernary, .removeSideEffects])
+        }
+        XCTAssertTrue(mutate.createTestPlan)
+        let plain = try XCTUnwrap(MuterCommand.parseAsRoot(["mutate-without-running"]) as? MutateWithoutRunning)
+        XCTAssertEqual(plain.runOptions.filesToMutate, [])
+        XCTAssertEqual(plain.runOptions.mutationOperatorsList, .allOperators)
+    }
+
+    // Both commands list the two options first, as `run` always has.
+    func test_operatorsAndFilesToMutate_comeFirstInTheHelp_ofRunAndMutateWithoutRunning() {
+        for help in [Run.helpMessage(columns: 200), MutateWithoutRunning.helpMessage(columns: 200)] {
+            let options = help.components(separatedBy: "OPTIONS:\n").last ?? ""
+            XCTAssertTrue(options.hasPrefix("  --files-to-mutate <files-to-mutate>"), help)
+            XCTAssertTrue(options.contains("\n  --operators <operators> "), help)
+            XCTAssertTrue(help.contains(MutationOperator.Id.description), help)
+        }
+    }
+
     // Each command that runs mutation testing takes it, as it takes --skip-coverage.
     func test_verbose_reachesTheRunOptions_ofEachRunCommand_andTheHelp() throws {
         XCTAssertTrue(try XCTUnwrap(MuterCommand.parseAsRoot(["run", "--verbose"]) as? Run).runOptions.verbose)

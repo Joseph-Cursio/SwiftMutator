@@ -148,6 +148,12 @@ ended. The lock goes when SwiftMutator exits, however it exits, so it never need
 file stays, made with the permissions your umask gives new files, so anyone who can remove the copy
 can lock it.
 
+`swift-mutator mutate-without-running` makes the copy and writes a test plan, `muter-mappings.json`,
+without testing anything, so you can fix the copy by hand first; `swift-mutator run-without-mutating
+muter-mappings.json` then tests it. Like `run`, it takes `--files-to-mutate` and `--operators` to
+choose the mutants. The plan records them, and so does the results file of a run that tests it. See
+[The test plan](Docs/test-plan.md).
+
 ### Exit status
 
 `run`, `mutate-without-running` and `run-without-mutating` exit with:

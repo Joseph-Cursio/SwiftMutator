@@ -7,21 +7,8 @@ struct Run: RunCommand {
         abstract: "Performs mutation testing for the Swift project contained within the current directory."
     )
 
-    @Option(help: "Only mutate a given list of source code files.")
-    var filesToMutate: [String] = []
-
-    @Option(
-        parsing: .upToNextOption,
-        help: "The list of mutant operators to be used: \(MutationOperator.Id.description)",
-        transform: {
-            guard let `operator` = MutationOperator.Id(rawValue: $0) else {
-                throw MuterError.literal(reason: MutationOperator.Id.description)
-            }
-
-            return `operator`
-        }
-    )
-    var operators: [MutationOperator.Id] = MutationOperator.Id.allCases
+    // First, so the help lists --files-to-mutate and --operators before the rest.
+    @OptionGroup var selection: MutantSelectionArguments
 
     @Option(
         name: .customLong("since"),
@@ -153,7 +140,7 @@ struct Run: RunCommand {
     /// so `run()` asks once.
     var runOptions: Run.Options {
         Run.Options(
-            filesToMutate: filesToMutate,
+            filesToMutate: selection.filesToMutate,
             since: since,
             changedLinesOnly: changedLines,
             // 1/1 is the whole run.
@@ -161,7 +148,7 @@ struct Run: RunCommand {
             sample: sample.map { Sample(size: $0, seed: seed ?? Sample.chooseSeed(), seedIsChosen: seed == nil) },
             reportFormat: reportOptions.reportFormat,
             reportURL: reportOptions.reportURL,
-            mutationOperatorsList: !operators.isEmpty ? operators : .allOperators,
+            mutationOperatorsList: selection.mutationOperatorsList,
             skipCoverage: options.skipCoverage,
             skipUpdateCheck: options.skipUpdateCheck,
             verbose: options.verbose,
@@ -186,7 +173,7 @@ struct Run: RunCommand {
     /// `--seed` only says which sample `--sample` takes, and the shards of a sampled split, and a resume of a sample,
     /// need it to take the same one: a seed SwiftMutator chose would differ.
     func validate() throws {
-        if since != nil, !filesToMutate.isEmpty {
+        if since != nil, !selection.filesToMutate.isEmpty {
             throw ValidationError("--since and --files-to-mutate can't be given together.")
         }
         if since == nil, changedLines {

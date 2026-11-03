@@ -519,11 +519,13 @@ extension MuterTestPlan {
     static func make(
         mutatedProjectPath: String = "/path/to/project_mutated",
         projectCoverage: Int = 0,
+        scope: TestPlanScope? = TestPlanScope(operators: .allOperators, filesToMutate: []),
         mappings: [SchemataMutationMapping] = []
     ) -> MuterTestPlan {
         MuterTestPlan(
             mutatedProjectURL: URL(fileURLWithPath: mutatedProjectPath),
             projectCoverage: projectCoverage < 0 ? .null : Coverage(percent: projectCoverage),
+            scope: scope,
             mappings: mappings
         )
     }

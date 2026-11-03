@@ -7,6 +7,8 @@ struct MutateWithoutRunning: RunCommand {
         abstract: "Mutates the source code and outputs the test plan as JSON."
     )
 
+    // First, as in `run`'s help. The plan records what they chose, and a run that tests the plan records it too.
+    @OptionGroup var selection: MutantSelectionArguments
     @OptionGroup var options: RunArguments
 
     init() {}
@@ -14,6 +16,8 @@ struct MutateWithoutRunning: RunCommand {
     /// The options the command line gives the run.
     var runOptions: Run.Options {
         Run.Options(
+            filesToMutate: selection.filesToMutate,
+            mutationOperatorsList: selection.mutationOperatorsList,
             skipCoverage: options.skipCoverage,
             skipUpdateCheck: options.skipUpdateCheck,
             verbose: options.verbose,

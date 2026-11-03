@@ -2,6 +2,21 @@
 
 `swift-mutator mutate-without-running` copies the project to `<project>_mutated` beside it, as `run` does, puts every mutant's switch into the copy, and writes the test plan, `muter-mappings.json`, in the project folder. It tests nothing. `swift-mutator run-without-mutating muter-mappings.json` then tests the copy's mutants. In between you can fix the copy by hand, for example code that the rewriting left unable to compile.
 
+`mutate-without-running` takes `--files-to-mutate` and `--operators`, as `run` does, to choose which mutants the plan holds:
+
+```
+swift-mutator mutate-without-running --files-to-mutate Sources/Foo/Bar.swift --operators SwapTernary
+```
+
+The plan records them, and a run of the plan records them in its results file, as a run that finds its own mutants records the options it was given. When the plan is made, SwiftMutator says what it holds and what to run next:
+
+```
+💾 Mutation test plan created: /Users/me/Foo/muter-mappings.json (3 mutants in 1 file, operator SwapTernary)
+✏️ You can fix its copy, ../Foo_mutated, by hand before testing it.
+▶️ Test it: swift-mutator run-without-mutating /Users/me/Foo/muter-mappings.json
+⚠️ A later `swift-mutator run` or `mutate-without-running` of this project removes that copy, and any fix in it.
+```
+
 ## Where it is, and where to run it
 
 - The plan is `muter-mappings.json` at the project's root. You can move or rename it: what it names is relative to the project folder, not to the plan.
@@ -16,6 +31,9 @@ The plan is one JSON object, pretty-printed with two spaces, its keys sorted, it
 
 ```
 {
+  "filesToMutate" : [
+
+  ],
   "formatVersion" : 1,
   "mappings" : [
     {
@@ -40,6 +58,12 @@ The plan is one JSON object, pretty-printed with two spaces, its keys sorted, it
     }
   ],
   "mutatedProject" : "../Foo_mutated",
+  "operators" : [
+    "ChangeLogicalConnector",
+    "RelationalOperatorReplacement",
+    "RemoveSideEffects",
+    "SwapTernary"
+  ],
   "projectCoverage" : 72,
   "swiftMutatorVersion" : "0.1.0"
 }
@@ -51,6 +75,8 @@ The plan is one JSON object, pretty-printed with two spaces, its keys sorted, it
 | `swiftMutatorVersion` | String | The version of the SwiftMutator that made the plan. It is for you to read; SwiftMutator doesn't compare it. |
 | `mutatedProject` | String | The copy, relative to the folder the plan was made in. |
 | `projectCoverage` | Int | The project's code coverage, as a percentage. Left out when coverage wasn't gathered, as with `--skip-coverage`. |
+| `operators` | [String] | The operators the mutants were chosen by, sorted: those `--operators` named, or every one. |
+| `filesToMutate` | [String] | The files the mutants were chosen from, as `--files-to-mutate` gave them; empty when it wasn't given. |
 | `mappings` | [Object] | Each file with mutants, sorted by path: its `filePath`, relative to the copy, and its mutants, in the order they are tested. |
 
 Each mutant has:
@@ -68,7 +94,7 @@ The plan holds no date, host name, absolute path or hash of the SwiftMutator exe
 ## Compatibility
 
 - A format changes only for a change that a reader of the earlier one would misread. A new key needs none: readers ignore keys they don't know.
-- **Format 0** is the plan SwiftMutators wrote before format 1: no `formatVersion`, `mutatedProjectPath` in place of `mutatedProject`, absolute paths throughout, a `projectCoverage` of -1 when coverage wasn't gathered, and, from before the path hash, mutants without an `id`. This SwiftMutator still reads it. Its absolute paths are used as they are, wherever the command runs. A `swift test` plan made before the active-mutant file is refused, as before: make it again.
+- **Format 0** is the plan SwiftMutators wrote before format 1: no `formatVersion`, `mutatedProjectPath` in place of `mutatedProject`, absolute paths throughout, a `projectCoverage` of -1 when coverage wasn't gathered, no `operators` or `filesToMutate`, and, from before the path hash, mutants without an `id`. This SwiftMutator still reads it. Its absolute paths are used as they are, wherever the command runs, and a run of it records every operator and no `--files-to-mutate`, as before. A `swift test` plan made before the active-mutant file is refused, as before: make it again.
 - A plan in a **newer format** than this SwiftMutator reads is refused, with exit status 7.
 - An **older SwiftMutator** can't read a format-1 plan: it stops on the missing `mutatedProjectPath` before it locks, builds or tests anything. Test a plan with the SwiftMutator that made it, or a newer one.
 

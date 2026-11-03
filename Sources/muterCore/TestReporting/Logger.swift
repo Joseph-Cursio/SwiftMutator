@@ -682,12 +682,20 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         return text
     }
 
-    func testPlanFileCreated(atPath path: String?) {
-        if let path {
-            print("💾 Mutation test plan created: \(path)")
-        } else {
-            print("💾 Mutation test plan created")
-        }
+    /// What the plan holds, that its copy can be fixed by hand, how to test it, and that a later run removes the copy.
+    func testPlanFileCreated(_ created: TestPlanCreated) {
+        let mutants = created.mutants == 1 ? "1 mutant" : "\(created.mutants) mutants"
+        let files = created.files == 1 ? "1 file" : "\(created.files) files"
+        let operators = created.operators.map {
+            ($0.count == 1 ? "operator " : "operators ") + Self.listed($0)
+        } ?? "every operator"
+        print("💾 Mutation test plan created: \(created.path) (\(mutants) in \(files), \(operators))")
+        print("✏️ You can fix its copy, \(created.mutatedProject), by hand before testing it.")
+        print("▶️ Test it: swift-mutator run-without-mutating \(Self.shellWord(created.path))")
+        print(
+            "⚠️ A later `swift-mutator run` or `mutate-without-running` of this project removes that copy, and any fix "
+                + "in it."
+        )
     }
 
     func configurationFileCreated(atPath path: String?) {

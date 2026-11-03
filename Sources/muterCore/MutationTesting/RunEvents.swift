@@ -62,7 +62,7 @@ enum RunEvent {
     /// Why the results file can't be created or written to.
     case resultsFileUnavailable(reason: String)
 
-    case testPlanFileCreated(path: String)
+    case testPlanFileCreated(TestPlanCreated)
 
     case muterMutationTestPlanLoaded
 }

@@ -502,6 +502,40 @@ final class ResultsRecordTests: XCTestCase {
         XCTAssertTrue(header.failedTestLinesAreReliable)
     }
 
+    // run-without-mutating takes neither option: the plan's mutants were chosen by what mutate-without-running was
+    // given, which the plan records.
+    func test_aHeaderFromATestPlanRun_recordsTheOperatorsAndFilesThePlanWasChosenBy() {
+        let state = MutationTestState(from: .make(testPlanURL: URL(fileURLWithPath: "/project/muter-mappings.json")))
+        state.apply([
+            .testPlanLoaded(
+                LoadedTestPlan(
+                    path: "/project/muter-mappings.json",
+                    sha256: "abc",
+                    formatVersion: TestPlanCoding.formatVersion,
+                    swiftMutatorVersion: muterCore.version,
+                    scope: TestPlanScope(operators: [.swapTernary, .ror], filesToMutate: ["Sources/Sum.swift"])
+                )
+            ),
+        ])
+
+        let header = ResultsHeader(
+            session: 1,
+            startedAt: startedAt,
+            state: state,
+            logDirectory: "/logs",
+            configuration: MuterConfiguration(executable: "/usr/bin/swift"),
+            baselineSeconds: nil,
+            workers: 1,
+            mutantsDiscovered: 3,
+            mutantsToTest: 3,
+            provenance: .fixture
+        )
+
+        XCTAssertEqual(header.operators, ["RelationalOperatorReplacement", "SwapTernary"])
+        XCTAssertEqual(header.filesToMutate, ["Sources/Sum.swift"])
+        XCTAssertTrue(header.usingTestPlan)
+    }
+
     // A header records it, and a resume compares it with the last header's. A run without coverage has none.
     func test_aCoverageSummary_keepsThePercentAndTheFilesWithoutCoverage_andIsNilWithoutCoverage() {
         XCTAssertEqual(

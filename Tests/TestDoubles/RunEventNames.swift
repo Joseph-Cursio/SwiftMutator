@@ -111,7 +111,7 @@ extension RunEvent {
         case let .baselineTestFailed(mutationTestLog): mutationTestLog
         case let .resultsFileCreated(path): path
         case let .resultsFileUnavailable(reason): reason
-        case let .testPlanFileCreated(path): path
+        case let .testPlanFileCreated(created): created
         }
     }
 }

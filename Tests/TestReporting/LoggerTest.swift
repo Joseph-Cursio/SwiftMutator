@@ -33,7 +33,15 @@ final class LoggerTests: MuterTestCase {
                 mutationPoint: .make()
             )
         )
-        sut.testPlanFileCreated(atPath: "/path/to/test-plan")
+        sut.testPlanFileCreated(
+            TestPlanCreated(
+                path: "/path/to/test-plan",
+                mutatedProject: "../project_mutated",
+                mutants: 12,
+                files: 3,
+                operators: nil
+            )
+        )
         sut.configurationFileCreated(atPath: "/path/to/config-file")
         sut.muterMutationTestPlanLoaded()
         sut.mutationTestingFinished(
@@ -45,6 +53,44 @@ final class LoggerTests: MuterTestCase {
         )
 
         AssertSnapshot(printer.linesPassed.joined(separator: "\n"))
+    }
+
+    // What the plan holds, that its copy may be fixed by hand, the command that tests it, and that a later run removes
+    // the copy with any fix in it.
+    func test_testPlanFileCreated_saysWhatThePlanHolds_andHowToTestIt() {
+        sut.testPlanFileCreated(
+            TestPlanCreated(
+                path: "/Users/a/My Project/muter-mappings.json",
+                mutatedProject: "../My Project_mutated",
+                mutants: 1,
+                files: 1,
+                operators: ["SwapTernary"]
+            )
+        )
+        sut.testPlanFileCreated(
+            TestPlanCreated(
+                path: "/Users/a/Foo/muter-mappings.json",
+                mutatedProject: "../Foo_mutated",
+                mutants: 7,
+                files: 2,
+                operators: ["ChangeLogicalConnector", "RelationalOperatorReplacement", "SwapTernary"]
+            )
+        )
+
+        let removed = "⚠️ A later `swift-mutator run` or `mutate-without-running` of this project removes that copy, "
+            + "and any fix in it."
+        XCTAssertEqual(printer.linesPassed, [
+            "💾 Mutation test plan created: /Users/a/My Project/muter-mappings.json (1 mutant in 1 file, operator "
+                + "SwapTernary)",
+            "✏️ You can fix its copy, ../My Project_mutated, by hand before testing it.",
+            "▶️ Test it: swift-mutator run-without-mutating '/Users/a/My Project/muter-mappings.json'",
+            removed,
+            "💾 Mutation test plan created: /Users/a/Foo/muter-mappings.json (7 mutants in 2 files, operators "
+                + "ChangeLogicalConnector, RelationalOperatorReplacement and SwapTernary)",
+            "✏️ You can fix its copy, ../Foo_mutated, by hand before testing it.",
+            "▶️ Test it: swift-mutator run-without-mutating /Users/a/Foo/muter-mappings.json",
+            removed,
+        ])
     }
 
     // Last, after where the report went or the report itself, whether or not it was saved: the line a run ends on.

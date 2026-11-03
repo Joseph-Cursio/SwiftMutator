@@ -154,8 +154,8 @@ extension MutationTestObserver {
             resultsFilePath = nil
             logger.resultsFileUnavailable(reason: reason)
 
-        case let .testPlanFileCreated(path):
-            logger.testPlanFileCreated(atPath: path)
+        case let .testPlanFileCreated(created):
+            logger.testPlanFileCreated(created)
 
         case .muterMutationTestPlanLoaded:
             logger.muterMutationTestPlanLoaded()
