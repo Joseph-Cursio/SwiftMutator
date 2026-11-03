@@ -23,6 +23,19 @@ final class CreateMuterTestPlanTests: MuterTestCase {
         XCTAssertEqual(writeFile.pathPassed, "/path/to/project/muter-mappings.json")
     }
 
+    func test_writesThePlanAsTestPlanCodingDoes() async throws {
+        let state = makeState()
+
+        _ = try await sut.run(with: state)
+
+        let plan = MuterTestPlan.make(
+            mutatedProjectPath: "/path/to/project_mutated",
+            projectCoverage: 47,
+            mappings: [SchemataMutationMapping(filePath: "/path/to/file")]
+        )
+        XCTAssertEqual(writeFile.contentPassed, try TestPlanCoding.encode(plan))
+    }
+
     private func makeState() -> MutationTestState {
         let state = MutationTestState()
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/project_mutated")

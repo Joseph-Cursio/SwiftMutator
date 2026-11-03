@@ -528,8 +528,9 @@ extension MuterTestPlan {
         )
     }
 
+    /// The plan as `CreateMuterTestPlan` writes it.
     var toData: Data {
-        (try? JSONEncoder().encode(self)) ?? .init()
+        Data(((try? TestPlanCoding.encode(self)) ?? "").utf8)
     }
 }
 

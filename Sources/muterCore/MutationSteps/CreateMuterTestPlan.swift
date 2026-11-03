@@ -13,11 +13,7 @@ struct CreateMuterTestPlan: MutationStep {
             mappings: state.mutationMapping
         )
 
-        let jsonData = try JSONEncoder().encode(testPlan)
-
-        guard let json = String(data: jsonData, encoding: .utf8) else {
-            throw MuterError.literal(reason: "Could not convert test plan data to string.")
-        }
+        let json = try TestPlanCoding.encode(testPlan)
 
         let jsonUrl = state.projectDirectoryURL
             .appendingPathComponent("muter-mappings")
