@@ -178,9 +178,106 @@ final class FingerprintProjectTreeTests: MuterTestCase {
         XCTAssertEqual(state.projectTree?.excluded, ["muter.conf.yml", "old-report.partial.txt", "old-report.txt"])
         XCTAssertEqual(state.resumeWaived, [])
     }
+
+    // A test plan's run copies nothing: it records the plan's copy as it is tested, once it is locked. The plan file,
+    // which the project may hold anywhere and the copy doesn't, is left out.
+    func test_inATestPlansRun_theCopyIsHashedAsTested_andThePlanLeftOut() async throws {
+        let said = recordCopyEdits()
+        let left = "let sum = a + b"
+        testPlan(at: "\(project)/plans/plan.json", mutatedFiles: ["Sources/Sum.swift": sha256(left)])
+        try write(["README.md": "readme", "Sources/Sum.swift": "let sum = 1", "plans/plan.json": "{}"], in: project)
+        try write(["README.md": "readme", "Sources/Sum.swift": left], in: copy)
+        let listed = Locked<[URL]>([])
+        current.listProjectFiles = { directory in
+            listed.change { $0.append(directory) }
+            return ["README.md", "Sources/Sum.swift", "plans/plan.json"]
+        }
+
+        let changes = try await sut.run(with: state)
+
+        XCTAssertEqual(listed.value, [state.projectDirectoryURL])
+        let files = ["README.md": sha256("readme"), "Sources/Sum.swift": sha256(left)]
+        XCTAssertEqual(
+            changes,
+            [
+                .projectTreeFingerprinted(
+                    ProjectTree(
+                        listedBy: .git,
+                        files: files,
+                        excluded: ["muter.conf.yml", "plans/plan.json"],
+                        treeSHA256: ProjectTree.treeHash(of: files)
+                    )
+                ),
+            ]
+        )
+        XCTAssertEqual(said.value, [], "the copy holds what the plan left there")
+    }
+
+    // A fix by hand is never refused: the run says which files with mutants differ from what the plan left in the
+    // copy, and tests them as they are. A file outside the copy isn't compared.
+    func test_inATestPlansRun_aFileFixedByHand_isSaid_andTestedAsItIs() async throws {
+        let said = recordCopyEdits()
+        testPlan(
+            at: "\(project)/muter-mappings.json",
+            mutatedFiles: [
+                "Sources/Sum.swift": sha256("let sum = a + b"),
+                "Sources/Max.swift": sha256("let max = 2"),
+                "/elsewhere/Outside.swift": sha256("outside"),
+            ]
+        )
+        let files = ["Sources/Sum.swift": "let sum = a + b // fixed by hand", "Sources/Max.swift": "let max = 2"]
+        try write(files, in: copy)
+        current.listProjectFiles = { _ in Array(files.keys) }
+
+        state.apply(try await sut.run(with: state))
+
+        XCTAssertEqual(said.value, [["Sources/Sum.swift"]])
+        XCTAssertEqual(state.projectTree?.files["Sources/Sum.swift"], sha256("let sum = a + b // fixed by hand"))
+    }
+
+    // A plan in format 0 doesn't record what it left in the copy, so nothing is compared.
+    func test_inATestPlansRun_ofAPlanThatRecordsNoFiles_nothingIsSaid() async throws {
+        let said = recordCopyEdits()
+        testPlan(at: "\(project)/muter-mappings.json", mutatedFiles: nil)
+        try write(["Sources/Sum.swift": "let sum = 1"], in: copy)
+        current.listProjectFiles = { _ in ["Sources/Sum.swift"] }
+
+        state.apply(try await sut.run(with: state))
+
+        XCTAssertEqual(said.value, [])
+        XCTAssertEqual(state.projectTree?.files, ["Sources/Sum.swift": sha256("let sum = 1")])
+    }
 }
 
 private extension FingerprintProjectTreeTests {
+    /// A run of the plan at `path`, which left `mutatedFiles` in the copy.
+    func testPlan(at path: String, mutatedFiles: [String: String]?) {
+        state.runOptions = .make(testPlanURL: URL(fileURLWithPath: path))
+        state.testPlan = LoadedTestPlan(
+            path: path,
+            sha256: "",
+            formatVersion: mutatedFiles == nil ? 0 : TestPlanCoding.formatVersion,
+            swiftMutatorVersion: nil,
+            scope: nil,
+            sources: nil,
+            mutatedFiles: mutatedFiles
+        )
+    }
+
+    /// The paths of each `testPlanCopyEdited` sent from now on, until the test ends.
+    func recordCopyEdits() -> Locked<[[String]]> {
+        let said = Locked<[[String]]>([])
+        let subscription = runEvents.observe(.testPlanCopyEdited) { event in
+            said.change { $0.append(event.object as? [String] ?? []) }
+        }
+        addTeardownBlock { subscription.cancel() }
+        return said
+    }
+
+    func sha256(_ text: String) -> String {
+        FileDigest.sha256(of: Data(text.utf8))
+    }
+
     /// Resumes a run whose last session recorded `recorded`.
     func resume(_ recorded: ProjectTree, ignoring globs: [String] = []) throws {
         state.runOptions = .make(resumeURL: URL(fileURLWithPath: resultsPath), resumeIgnoring: globs)

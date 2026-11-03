@@ -34,7 +34,8 @@ struct LoadMuterTestPlan: MutationStep {
                     formatVersion: testPlan.formatVersion,
                     swiftMutatorVersion: testPlan.swiftMutatorVersion,
                     scope: testPlan.scope,
-                    sources: testPlan.sources
+                    sources: testPlan.sources,
+                    mutatedFiles: testPlan.mutatedFiles
                 )
             ),
         ]

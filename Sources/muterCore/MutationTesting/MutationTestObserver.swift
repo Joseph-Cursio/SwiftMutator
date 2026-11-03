@@ -165,6 +165,8 @@ extension MutationTestObserver {
             logger.testPlanSourcesDiffer(changes)
         case let .testPlanChangesWaived(paths):
             logger.testPlanChangesWaived(paths)
+        case let .testPlanCopyEdited(paths):
+            logger.testPlanCopyEdited(paths)
         }
     }
 

@@ -22,8 +22,8 @@ protocol AnyMutationTestState: AnyObject {
     /// The folder the run's test logs are kept in, `<project>_muter_logs/<timestamp>`, so a step can keep other
     /// files of the run beside them; "" until the handler has created it.
     var loggingDirectory: String { get }
-    /// The project's files as the copy held them before discovery rewrote it; nil until the copy is fingerprinted,
-    /// and for good in a run that tests a test plan.
+    /// The project's files as the copy held them before discovery rewrote it, or in a run that tests a test plan, as
+    /// the plan's copy holds them, rewritten and with any fix made by hand; nil until the copy is fingerprinted.
     var projectTree: ProjectTree? { get }
     /// The stopped run that `--resume` continues, or the earlier run whose results `--reuse` starts from; nil when the
     /// run does neither.

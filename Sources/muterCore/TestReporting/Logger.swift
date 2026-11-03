@@ -746,6 +746,20 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         )
     }
 
+    /// "1 file of the plan's copy differs from what … wrote, and is tested as it is now: …", up to
+    /// `ResumeRefusal.changedFilesNamed` of them by name.
+    func testPlanCopyEdited(_ paths: [String]) {
+        let named = paths.prefix(ResumeRefusal.changedFilesNamed)
+        let others = paths.count - named.count
+        let one = paths.count == 1
+        print(
+            "✏️ \(paths.count) file\(one ? "" : "s") of the plan's copy "
+                + "\(one ? "differs" : "differ") from what `swift-mutator mutate-without-running` wrote, and "
+                + "\(one ? "is" : "are") tested as \(one ? "it is" : "they are") now: "
+                + named.joined(separator: ", ") + (others > 0 ? ", and \(others) more" : "")
+        )
+    }
+
     /// Every line Muter logs goes through here, and so through the injected `printer`.
     ///
     /// The printer used to be a property also named `print`. Calls to `print("…")` inside this

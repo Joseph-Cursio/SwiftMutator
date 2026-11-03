@@ -135,6 +135,21 @@ final class LoggerTests: MuterTestCase {
         ])
     }
 
+    // Files with mutants that a fix by hand changed in the plan's copy: ten by name, and the rest counted.
+    func test_testPlanCopyEdited_namesTheFiles_andSaysTheyAreTestedAsTheyAre() {
+        sut.testPlanCopyEdited(["Sources/Sum.swift"])
+        sut.testPlanCopyEdited((1 ... 12).map { "Sources/File\($0).swift" })
+
+        XCTAssertEqual(printer.linesPassed, [
+            "✏️ 1 file of the plan's copy differs from what `swift-mutator mutate-without-running` wrote, and is "
+                + "tested as it is now: Sources/Sum.swift",
+            "✏️ 12 files of the plan's copy differ from what `swift-mutator mutate-without-running` wrote, and are "
+                + "tested as they are now: "
+                + (1 ... 10).map { "Sources/File\($0).swift" }.joined(separator: ", ")
+                + ", and 2 more",
+        ])
+    }
+
     // Last, after where the report went or the report itself, whether or not it was saved: the line a run ends on.
     func test_mutationTestingFinished_withASuspectWarning_printsItLast() {
         let warning = "1 test may fail whatever the mutant: it failed for mutants in at least 15% of the 10 files "

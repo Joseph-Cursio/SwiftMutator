@@ -93,7 +93,7 @@ The plan is one JSON object, pretty-printed with two spaces, its keys sorted, it
 | `operators` | [String] | The operators the mutants were chosen by, sorted: those `--operators` named, or every one. |
 | `filesToMutate` | [String] | The files the mutants were chosen from, as `--files-to-mutate` gave them; empty when it wasn't given. |
 | `sources` | Object | The project's own files when the plan was made, before any was rewritten, which a run of the plan checks the project against: `files`, each file's SHA-256 by its path relative to the project; `excluded`, the paths left out, such as `muter.conf.yml`; `listedBy`, `git`, or `walk` outside a repository; and `treeSHA256`, over them all. They are found as a run's results file records them (see [The results file](results-file.md)). |
-| `mutatedFiles` | Object | The SHA-256 of each file with mutants as the plan left it in the copy, by its path relative to the copy. |
+| `mutatedFiles` | Object | The SHA-256 of each file with mutants as the plan left it in the copy, by its path relative to the copy. A run of the plan names the files that differ, as after a fix by hand, and tests them as they are; it never refuses them. |
 | `mappings` | [Object] | Each file with mutants, sorted by path: its `filePath`, relative to the copy, and its mutants, in the order they are tested. |
 
 Each mutant has:
@@ -126,7 +126,7 @@ The hashes are shortened here. The plan holds no date, host name, absolute path 
 
 ## When the project changed
 
-`run-without-mutating` checks the project's own files against the plan's `sources` before it locks or reads anything in the copy. It never checks the copy against them: you may have fixed the copy by hand on purpose, and `run-without-mutating` checks every mutant's switch is still in the copy's code once it is locked.
+`run-without-mutating` checks the project's own files against the plan's `sources` before it locks or reads anything in the copy. It never checks the copy against them: you may have fixed the copy by hand on purpose, and `run-without-mutating` checks every mutant's switch is still in the copy's code once it is locked. Its results file records the copy as it was tested, each file's SHA-256 in its header's `project`, and the plan it tested, by its path and SHA-256, in `testPlan` (see [The results file](results-file.md)).
 
 - A file the plan mutates that changed, or was removed, refuses the plan. The copy holds the file as it was, so its mutants' places, and the reports' lines in the file, would describe code you no longer have. The message names each such file, up to 10, and the flags that let the changes through:
 

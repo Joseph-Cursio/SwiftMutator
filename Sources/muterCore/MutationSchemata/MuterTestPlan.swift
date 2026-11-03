@@ -58,7 +58,8 @@ struct TestPlanScope: Equatable, Sendable {
 }
 
 /// The test plan a run tests: where it was read from, the SHA-256 of its bytes, which format and SwiftMutator it was
-/// written in, what its mutants were chosen by, and the project's files it was made from.
+/// written in, what its mutants were chosen by, the project's files it was made from, and the files with mutants it
+/// left in the copy.
 struct LoadedTestPlan: Equatable, Sendable {
     let path: String
     let sha256: String
@@ -69,6 +70,9 @@ struct LoadedTestPlan: Equatable, Sendable {
     let scope: TestPlanScope?
     /// Nil for a plan in format 0, which doesn't record them; the project then isn't checked against the plan.
     let sources: ProjectTree?
+    /// The SHA-256 of each file with mutants as the plan left it in the copy, by its path relative to the copy, which
+    /// tells a fix by hand; nil for a plan in format 0, which doesn't record them.
+    let mutatedFiles: [String: String]?
 }
 
 /// The test plan `mutate-without-running` wrote, as it reports it: where the plan is, the copy it names, and what it

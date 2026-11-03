@@ -264,7 +264,8 @@ private extension CheckTestPlanSourcesTests {
                     excluded: ["muter.conf.yml"],
                     treeSHA256: ProjectTree.treeHash(of: $0)
                 )
-            }
+            },
+            mutatedFiles: nil
         )
         state.mutationMapping = paths.map { SchemataMutationMapping(filePath: "\(copy)/\($0)") }
     }

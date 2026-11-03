@@ -73,6 +73,9 @@ enum RunEvent {
     case testPlanSourcesDiffer([ProjectTree.FileChange])
     /// Files the plan mutates that changed since it was made, which `--plan-ignoring` let through.
     case testPlanChangesWaived([String])
+    /// Files with mutants that the plan's copy holds otherwise than `mutate-without-running` left them, as a fix by
+    /// hand does, by their paths relative to the copy; they are tested as they are.
+    case testPlanCopyEdited([String])
 }
 
 /// Delivers each of a run's events to whatever observes them, in the order they were added, at once and on the thread

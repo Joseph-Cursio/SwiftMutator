@@ -270,6 +270,7 @@ final class MutationTestHandlerTests: MuterTestCase {
             CheckMutantSwitches.self,
             PreviousRunCleanUp.self,
             CopyProjectToTempDirectory.self,
+            FingerprintProjectTree.self,
             BuildForTesting.self,
             PerformMutationTesting.self,
         ]
@@ -419,7 +420,7 @@ final class MutationTestHandlerTests: MuterTestCase {
             )
         )
 
-        XCTAssertEqual(sut.steps.count, 10)
+        XCTAssertEqual(sut.steps.count, 11)
         XCTAssertTypeEqual(sut.steps[safe: 0], UpdateCheck.self)
         XCTAssertTypeEqual(sut.steps[safe: 1], LoadConfiguration.self)
         XCTAssertTypeEqual(sut.steps[safe: 2], LoadMuterTestPlan.self)
@@ -429,9 +430,11 @@ final class MutationTestHandlerTests: MuterTestCase {
         XCTAssertTypeEqual(sut.steps[safe: 5], CheckTestPlanCode.self)
         // The plan's code may have been edited by hand since it was made.
         XCTAssertTypeEqual(sut.steps[safe: 6], CheckMutantSwitches.self)
-        XCTAssertTypeEqual(sut.steps[safe: 7], BuildForTesting.self)
-        XCTAssertTypeEqual(sut.steps[safe: 8], ProjectMappings.self)
-        XCTAssertTypeEqual(sut.steps[safe: 9], PerformMutationTesting.self)
+        // After the lock, in the copy as it is tested, which the results file records.
+        XCTAssertTypeEqual(sut.steps[safe: 7], FingerprintProjectTree.self)
+        XCTAssertTypeEqual(sut.steps[safe: 8], BuildForTesting.self)
+        XCTAssertTypeEqual(sut.steps[safe: 9], ProjectMappings.self)
+        XCTAssertTypeEqual(sut.steps[safe: 10], PerformMutationTesting.self)
     }
 
     func test_steps_whenMutateWithoutRunning() {

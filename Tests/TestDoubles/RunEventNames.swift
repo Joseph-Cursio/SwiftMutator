@@ -42,6 +42,7 @@ extension RunEvent {
         case testPlanSourcesUnchecked
         case testPlanSourcesDiffer
         case testPlanChangesWaived
+        case testPlanCopyEdited
     }
 
     var name: Name {
@@ -83,6 +84,7 @@ extension RunEvent {
         case .testPlanSourcesUnchecked: .testPlanSourcesUnchecked
         case .testPlanSourcesDiffer: .testPlanSourcesDiffer
         case .testPlanChangesWaived: .testPlanChangesWaived
+        case .testPlanCopyEdited: .testPlanCopyEdited
         }
     }
 
@@ -120,6 +122,7 @@ extension RunEvent {
         case let .testPlanFileCreated(created): created
         case let .testPlanSourcesDiffer(changes): changes
         case let .testPlanChangesWaived(paths): paths
+        case let .testPlanCopyEdited(paths): paths
         }
     }
 }

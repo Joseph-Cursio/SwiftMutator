@@ -107,6 +107,8 @@ private extension [MutationStep] {
             LockMutatedProject(),
             CheckTestPlanCode(),
             CheckMutantSwitches(),
+            // The copy as it is tested, rewritten and perhaps fixed by hand, which the results file records.
+            FingerprintProjectTree(),
             BuildForTesting(),
             ProjectMappings(),
             PerformMutationTesting(),
