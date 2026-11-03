@@ -1005,8 +1005,12 @@ private extension PerformMutationTesting {
     /// with the `copying` results after its header, all at once, and copies their logs into its log folder, before it
     /// announces the file.
     ///
-    /// `header` probes the toolchain, so it is made before the file is the session's, when a stop at once could write
-    /// the end line first, and then written at once.
+    /// The file becomes the session's as its first lines, the header and any `retired` line, are written, in one write
+    /// while the session's lock is held. A stop at once then ends the session after both, or, before them, writes
+    /// nothing, and a run killed as it starts leaves both or neither, unless the write is cut short, which leaves a
+    /// cut-off last line that readers skip. Written one after the other, a kill or an end line between them would leave
+    /// the header without the `retired` line, and the file would stand by the results the session retires until the
+    /// next session's. `header` probes the toolchain, so it is made before any of this.
     func startResults(
         _ header: @autoclosure () async -> ResultsHeader,
         retiring retired: [MutantKey],
@@ -1015,13 +1019,12 @@ private extension PerformMutationTesting {
         state: AnyMutationTestState
     ) async {
         if let resume = state.resumeState, let file = resume.file {
-            let headerLine = await header()
-            session.startResults(in: file)
-            guard write(headerLine, in: session) else { return }
+            var firstLines: [any Encodable] = [await header()]
             // Without it, the file would still stand by the earlier results this session doesn't keep.
-            if !retired.isEmpty, !write(ResultsRetired(session: session.number, keys: retired), in: session) {
-                return
+            if !retired.isEmpty {
+                firstLines.append(ResultsRetired(session: session.number, keys: retired))
             }
+            guard sayingAFailure(session.startResults(in: file, writing: firstLines), in: session) else { return }
             leaveANote(pointingTo: resume.path, session: session.number, in: state.loggingDirectory)
             events.send(.resultsFileCreated(path: resume.path))
             return
@@ -1031,8 +1034,7 @@ private extension PerformMutationTesting {
         let headerLine = await header()
         do {
             let results = try resultsFiles.create(in: loggingDirectory)
-            session.startResults(in: results)
-            guard write(headerLine, in: session) else { return }
+            guard sayingAFailure(session.startResults(in: results, writing: [headerLine]), in: session) else { return }
             if let resume = state.resumeState, resume.isReuse {
                 let lines = reused.sorted { $0.key < $1.key }.map(\.value)
                 guard sayingAFailure(session.append(contentsOf: lines), in: session) else { return }

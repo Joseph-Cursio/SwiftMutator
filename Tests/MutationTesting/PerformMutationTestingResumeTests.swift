@@ -103,6 +103,7 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         XCTAssertEqual(resultsFiles.directories, [], "no new file is made")
         XCTAssertEqual(resultsFiles.files.map(\.path), [resultsPath])
         XCTAssertEqual(try resultsFiles.kinds(), ["header", "retired", "mutant", "mutant", "end"])
+        XCTAssertEqual(resultsFiles.files.first?.batches, [0 ..< 2], "the header and the retired line go together")
         let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
         XCTAssertEqual(header.session, 2)
         XCTAssertEqual(header.formatVersion, ResultsCoding.resumedFormatVersion)
@@ -150,6 +151,27 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         _ = try await sut.run(with: state)
 
         XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.session), [3])
+    }
+
+    // Every earlier result still holds, so there is nothing to retire, and the header is written alone.
+    func test_aResumedSessionThatRetiresNothing_writesItsHeaderAlone() async throws {
+        recorded = [
+            ResultsHeader.make(mutantsDiscovered: 4, mutantsToTest: 4, project: tree),
+            record(of: "Sources/Product.swift", line: 7, .passed, fileSHA256: "77e0"),
+            record(of: "Sources/Sum.swift", line: 3, .failed, fileSHA256: "5a1c", killedBy: [sumTest]),
+            ResultsEnd.make(reason: .interrupted, recorded: 2),
+        ]
+        state.resumeState = try ResumeState.make(
+            path: resultsPath,
+            lines: recorded,
+            file: resultsFiles.openForResume(at: resultsPath)
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(try resultsFiles.kinds(), ["header", "mutant", "mutant", "end"])
+        XCTAssertEqual(resultsFiles.files.last?.batches, [0 ..< 1], "the file this session opened")
     }
 
     // Without its retired line, the file still stands by the earlier results this session tests again, and holds none

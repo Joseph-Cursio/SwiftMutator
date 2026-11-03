@@ -258,8 +258,30 @@ final class ResultsFileTests: XCTestCase {
 
         XCTAssertEqual(calls, ["write", "fsync"])
         XCTAssertEqual(try contents(of: file.path), try line(mutant) + line(other))
-        XCTAssertTrue(file.append(contentsOf: [MutantResult]()))
+        XCTAssertTrue(file.append(contentsOf: [any Encodable]()))
         XCTAssertEqual(calls, ["write", "fsync"], "nothing to write, so nothing is written")
+    }
+
+    // A resumed session's header and its `retired` line go together, so a run killed as it starts leaves both or
+    // neither.
+    func test_appendContentsOf_writesLinesOfDifferentKinds_inOneWrite() throws {
+        var calls: [String] = []
+        let file = try makeFile(
+            writeBytes: { descriptor, bytes, count in
+                calls.append("write")
+                return write(descriptor, bytes, count)
+            },
+            synchronize: { descriptor in
+                calls.append("fsync")
+                return fsync(descriptor)
+            }
+        )
+        let retired = ResultsRetired(session: 2, keys: [mutant.key])
+
+        XCTAssertTrue(file.append(contentsOf: [nextHeader, retired]))
+
+        XCTAssertEqual(calls, ["write", "fsync"])
+        XCTAssertEqual(try contents(of: file.path), try line(nextHeader) + line(retired))
     }
 
     func test_aShortOrInterruptedWriteOrSync_isCompleted() throws {
@@ -406,6 +428,21 @@ final class ResultsFileTests: XCTestCase {
         XCTAssertEqual(recorded.headers, [header, nextHeader])
         XCTAssertEqual(recorded.unreadableLines, [2])
         XCTAssertFalse(recorded.endsWithCutOffLine)
+    }
+
+    func test_openForResume_endsACutOffLastLine_beforeTheFirstLinesWrittenTogether() throws {
+        let earlier = try line(header) + line(mutant) + line(MutantResult.make(line: 80)).prefix(10)
+        try earlier.write(to: URL(fileURLWithPath: resultsPath))
+        let retired = ResultsRetired(session: 2, keys: [mutant.key])
+
+        let file = try ResultsFile.Opener().openForResume(at: resultsPath)
+        XCTAssertTrue(file.append(contentsOf: [nextHeader, retired]))
+
+        XCTAssertEqual(try contents(of: resultsPath), try earlier + Data("\n".utf8) + line(nextHeader) + line(retired))
+        let recorded = try RecordedResults.read(contents(of: resultsPath), path: resultsPath)
+        XCTAssertEqual(recorded.headers, [header, nextHeader])
+        XCTAssertEqual(recorded.latest, [:], "the retired line is read")
+        XCTAssertEqual(recorded.unreadableLines, [3])
     }
 
     // `--resume` may name a file that isn't a results file, and a resume may be refused, or its baseline fail. Until
