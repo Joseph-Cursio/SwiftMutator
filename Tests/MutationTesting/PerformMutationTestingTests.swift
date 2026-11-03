@@ -670,6 +670,25 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(ioDelegate.configurations.map { $0.xcodeWorker?.testDiagnosticsOff }, [false, false])
     }
 
+    // Before the baseline: a booted simulator an earlier run left holds memory the baseline could use.
+    func test_anXcodebuildRun_sweepsLeftoverWorkerSimulators_beforeTheBaseline() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
+        ioDelegate.testSuiteOutcomes = [.failed]
+
+        try await assertThrowsMuterError(await sut.run(with: state)) { _ in }
+
+        XCTAssertEqual(workerSimulators.calls, ["sweep /project_mutated"])
+    }
+
+    func test_aSwiftPMRun_leavesSimulatorsAlone() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(workerSimulators.calls, [])
+    }
+
     func test_swiftPMMutantsRuns_haveNoXcodeWorker() async throws {
         state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]

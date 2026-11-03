@@ -20,6 +20,8 @@ struct PerformMutationTesting: MutationStep {
     private var interruption: InterruptionRecord
     @Dependency(\.directTestRun)
     private var directTestRun: DirectTestRunProbe
+    @Dependency(\.workerSimulators)
+    private var workerSimulators: WorkerSimulating
 
     private let buildErrorsThreshold: Int = 5
 
@@ -172,6 +174,7 @@ private extension PerformMutationTesting {
         session.keys = MutantKey.keys(for: jobs.map(\.schema), under: state.mutatedProjectDirectoryURL)
         let plan = Self.plan(of: jobs, keyedBy: session.keys, state: state)
         let reused = keptResults(plan, of: jobs, state: state)
+        await sweepLeftoverSimulators(state)
 
         if let resume = state.resumeState {
             session.earlierBuildErrors = Set(
@@ -1060,6 +1063,14 @@ private extension PerformMutationTesting {
         return (state.loggingDirectory as NSString)
             .appendingPathComponent(Self.testOutputFolderName)
             .appending("/\(name)")
+    }
+
+    /// Deletes the worker simulators an earlier xcodebuild run of the project left, stopped at once, killed or crashed,
+    /// with those of any run that has ended. Booted, each holds memory, which the baseline could use. Under the mutated
+    /// project's lock, so no run of this project is under way.
+    func sweepLeftoverSimulators(_ state: AnyMutationTestState) async {
+        guard state.muterConfiguration.buildSystem == .xcodebuild else { return }
+        await workerSimulators.sweep(state.mutatedProjectDirectoryURL)
     }
 
     /// Removes the run's test-output folder if it is empty, as it is once every run has been read back, so a finished

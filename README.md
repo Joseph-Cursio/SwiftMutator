@@ -721,7 +721,9 @@ which a closed terminal sends, stop it the same way. SwiftMutator then:
 5. Removes its worker clones, `<project>_mutated_worker<n>`, the active-mutant files beside the
    mutated project and the clones, and an xcodebuild run's derived data,
    `<project>_mutated.DerivedData`. The mutated project, `<project>_mutated`, is kept, as after a
-   finished run.
+   finished run. Last, it deletes the simulators an xcodebuild run made for its workers, named
+   `swiftmutator-<project hash>-<pid>-<start>-w<n>`, which takes a few seconds when they are
+   booted. A finished run deletes them the same way.
 6. Exits by the same signal, so the shell sees status 130 for SIGINT, 143 for SIGTERM or 129 for
    SIGHUP, and a script or loop that runs SwiftMutator stops too.
 
@@ -740,9 +742,9 @@ the results file starts only after both.
   itself if stopping takes more than 30 seconds. It still kills every process it started, ends
   `results.jsonl` with an `end` line whose `detail` names the first signal, unless it had already
   written one, and exits by the first signal. But the partial report is there only if it had
-  already written it, and worker clones, their active-mutant files and derived data can be left
-  behind. A SIGHUP after a first SIGHUP is ignored, because zsh sends two when its terminal closes:
-  closing a terminal stops a run the same way as one Ctrl-C.
+  already written it, and worker clones, their active-mutant files, derived data and worker
+  simulators can be left behind. A SIGHUP after a first SIGHUP is ignored, because zsh sends two
+  when its terminal closes: closing a terminal stops a run the same way as one Ctrl-C.
 - **Suspending.** Ctrl-Z suspends SwiftMutator with every process it started, which the terminal's
   Ctrl-Z doesn't reach: each leads a process group of its own. `fg` or `bg` continues them all. No
   time limit counts the time suspended, and no test run's duration includes it, though a test that
@@ -751,7 +753,11 @@ the results file starts only after both.
   stopping isn't suspended: it is about to end.
 - **Leftovers.** The next `run` removes `<project>_mutated` and any worker clones, active-mutant
   files and `.DerivedData` folders an earlier run left behind, such as one stopped at once, killed
-  with SIGKILL, or crashed.
+  with SIGKILL, or crashed. The next xcodebuild run, before its baseline, deletes the worker
+  simulators an earlier run of the project left, and those of any run, of any project, whose
+  process has ended; a run of another project that is still under way keeps its own. Until then, a
+  booted one holds memory. No other simulator is touched: only SwiftMutator's own are named
+  `swiftmutator-<project hash>-…`.
   SwiftMutator can't handle SIGKILL or a crash itself, so once its tests start, it starts a watcher,
   `swift-mutator watch-test-processes`, which kills the test processes of a run that dies, as soon as
   it dies, and ends with SwiftMutator. If the watcher is killed too, as by `killall -9 swift-mutator`,

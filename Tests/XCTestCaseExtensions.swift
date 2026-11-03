@@ -16,6 +16,7 @@ class MuterTestCase: XCTestCase {
     private(set) var testingTimeOutExecutor = TestingTimeOutExecutorSpy()
     private(set) var resultsFiles = ResultsFilesSpy()
     private(set) var mutatedProjectLocker = MutatedProjectLockerSpy()
+    private(set) var workerSimulators = WorkerSimulatorsSpy()
 
     // Every field down to the minute is given, so there is always such a date.
     private let fixedNow = DateComponents(
@@ -61,6 +62,8 @@ class MuterTestCase: XCTestCase {
             directTestRun: { _, _ in .failure(.init(reason: nil)) },
             resultsFiles: resultsFiles,
             mutatedProjectLocker: mutatedProjectLocker,
+            // Never the Mac's own simulators.
+            workerSimulators: workerSimulators,
             // Never git in the checkout the tests run in: a test of --since gives its own.
             selectChanges: { _, _, _ in .failure(.gitFailed(arguments: [], errors: "not stubbed")) },
             // Never the test runner's own.
