@@ -39,6 +39,9 @@ final class TestingSession: @unchecked Sendable { // `file`, `mutantLines` and `
     var outcomes: [Int: MutationTestOutcome.Mutation] = [:]
     /// The worker clones made so far, removed however mutation testing ends.
     var clones: [URL] = []
+    /// The xcodebuild workers given a simulator each, in worker order, once their simulators have booted. Their
+    /// `.xctestrun` files and derived data, but worker 0's `.xctestrun`, are removed however mutation testing ends.
+    var xcodeWorkers: [MuterConfiguration.XcodeWorker] = []
 
     init(number: Int = 1, startedAt: Date, earlierTestDuration: TimeInterval = 0) {
         self.number = number

@@ -5,12 +5,13 @@
 #endif
 import Foundation
 
-/// The signal that stopped this run, if one did, and what to do before SwiftMutator stops at once. `Interruptions`
-/// records the signal before it cancels the run, so that the end line can name it.
-final class InterruptionRecord: @unchecked Sendable { // `first` and `atOnce` are behind `lock`
+/// The signal that stopped this run, if one did, what to do before SwiftMutator stops at once, and what to do once the
+/// work has ended. `Interruptions` records the signal before it cancels the run, so that the end line can name it.
+final class InterruptionRecord: @unchecked Sendable { // `first`, `atOnce` and `afterWork` are behind `lock`
     private let lock = NSLock()
     private var first: Int32?
     private var atOnce: (@Sendable () -> Void)?
+    private var afterWork: (@Sendable () async -> Void)?
 
     /// The first stopping signal, or nil if none came.
     var signal: Int32? { lock.withLock { first } }
@@ -21,9 +22,28 @@ final class InterruptionRecord: @unchecked Sendable { // `first` and `atOnce` ar
         lock.withLock { atOnce = action }
     }
 
-    /// Does what `beforeStoppingAtOnce` set, if anything, on the thread that stops SwiftMutator at once.
+    /// Does what `beforeStoppingAtOnce` set, if anything, on the thread that stops SwiftMutator at once. What
+    /// `afterWorkEnds` set is dropped: SwiftMutator ends before the work does.
     func stoppingAtOnce() {
-        lock.withLock { atOnce }?()
+        lock.withLock {
+            afterWork = nil
+            return atOnce
+        }?()
+    }
+
+    /// Sets what to do once the work has ended, however it ended, or with nil, that nothing is to be done. A stop at
+    /// once never does it, and the next run does what it would have done: deleting the simulators the run made.
+    func afterWorkEnds(_ action: (@Sendable () async -> Void)?) {
+        lock.withLock { afterWork = action }
+    }
+
+    /// Does what `afterWorkEnds` set, if anything, once.
+    func workEnded() async {
+        let action = lock.withLock {
+            defer { afterWork = nil }
+            return afterWork
+        }
+        await action?()
     }
 
     /// Records `signal` unless one was recorded before, and returns whether it did.
@@ -96,7 +116,8 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
     /// keeps killing new ones until `work` ends; a second signal, other than a SIGHUP after a first SIGHUP, or
     /// `gracePeriod` seconds without `work` ending, ends SwiftMutator at once, by the first signal. So does a SIGQUIT,
     /// first or not. Once a signal came, the caller is to exit by it, which a second signal meanwhile still does at
-    /// once.
+    /// once. Last, once nothing is left to kill, it does what the work set to do after it ended (`afterWorkEnds`),
+    /// which a second signal still cuts short.
     func run(_ work: @escaping @Sendable () async throws -> Void) async -> Ended {
         let task = Task { try await work() }
         observer.start(observing: Self.observedSignals, on: queue) { [self] signal in
@@ -119,6 +140,8 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
             }
         }
         if signal != nil { killDescendants() } // whatever started after the last sweep
+        // After the timers and the last kill, which would kill the processes it starts.
+        await record.workEnded()
         return Ended(result: result, signal: signal)
     }
 
@@ -164,7 +187,7 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
     private func stopAtOnce(
         by signal: Int32,
         saying message: String = "⏹ Stopping at once. "
-            + "SwiftMutator removes worker copies it leaves behind when it next runs."
+            + "SwiftMutator removes worker copies and simulators it leaves behind when it next runs."
     ) {
         killDescendants()
         // Before saying anything: a standard error nobody reads could hold it up.

@@ -9,8 +9,11 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
         self.plist = plist
     }
 
+    /// The plist with `key`, a mutant's switch, and `IS_MUTER_RUNNING` set in every test target's
+    /// `EnvironmentVariables`. With no `key`, only `IS_MUTER_RUNNING`: a run with no mutant on, as SwiftMutator's runs
+    /// of the tests are.
     func updateEnvironmentVariable(
-        setting key: String
+        setting key: String?
     ) -> [String: AnyHashable] {
         var copy = plist
         let testConfigurationsKey = "TestConfigurations"
@@ -56,7 +59,7 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
 
     private func updateEnvironmentVariables(
         forConfiguration configuration: [String: AnyHashable],
-        key: String
+        key: String?
     ) -> [String: AnyHashable] {
         let environmentVariablesKey = "EnvironmentVariables"
         var configuration = configuration
@@ -68,7 +71,9 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
         // process) the mutant then never activated in the test host — every mutant became a false
         // "survived", i.e. a phantom 0% score.
         var allEnvironmentVariables = configuration[environmentVariablesKey] as? [String: AnyHashable] ?? [:]
-        allEnvironmentVariables[key] = isMuterRunningValue
+        if let key {
+            allEnvironmentVariables[key] = isMuterRunningValue
+        }
         allEnvironmentVariables[isMuterRunningKey] = isMuterRunningValue
 
         configuration[environmentVariablesKey] = allEnvironmentVariables

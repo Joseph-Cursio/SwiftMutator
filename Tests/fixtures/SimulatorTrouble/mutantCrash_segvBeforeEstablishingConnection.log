@@ -1,0 +1,16 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test-without-building -destination id=C05545D9-8C29-4ABE-B885-1786CBA9EB27 -xctestrun muter.xctestrun "-only-testing:MacCloud_client_iOSTests" -parallel-testing-enabled NO -derivedDataPath /tmp/m103/dd_w2
+
+2026-11-03 07:29:43.801 xcodebuild[86414:184848744] [MT] IDETestOperationsObserverDebug: 31.066 elapsed -- Testing started completed.
+2026-11-03 07:29:43.801 xcodebuild[86414:184848744] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-03 07:29:43.801 xcodebuild[86414:184848744] [MT] IDETestOperationsObserverDebug: 31.066 sec, +31.066 sec -- end
+
+Test session results, code coverage, and logs:
+	/tmp/m103/dd_w2/Logs/Test/Test-MacCloud_client_iOS-2026.11.03_07-29-12--0600.xcresult
+
+Testing failed:
+	MacCloud_client_iOS encountered an error (Test crashed with signal segv before establishing connection.)
+
+** TEST EXECUTE FAILED **
+
+Testing started

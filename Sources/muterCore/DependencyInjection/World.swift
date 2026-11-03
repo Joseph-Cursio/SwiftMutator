@@ -102,6 +102,8 @@ struct World: Sendable {
     var directTestRun: DirectTestRunProbe = { await DirectTestRun.probe($0, in: $1) }
     var resultsFiles: ResultsFileOpening = ResultsFile.Opener()
     var mutatedProjectLocker: MutatedProjectLocking = MutatedProjectLock.Locker()
+    /// The simulators an xcodebuild run's workers test on, and those earlier runs left behind.
+    var workerSimulators: WorkerSimulating = WorkerSimulators()
     var listProjectFiles: ProjectFileListing = { await GitFileListing.list(in: $0) }
     var selectChanges: ChangeSelectionProbe = { await GitChanges.select(since: $0, changedLines: $1, in: $2) }
     /// SwiftMutator's command-line arguments, after the executable: what a results file's header records, and what the

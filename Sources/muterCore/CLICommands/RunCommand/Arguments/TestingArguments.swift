@@ -6,8 +6,8 @@ struct TestingArguments: ParsableArguments {
     @Option(
         name: .customLong("workers"),
         help: ArgumentHelp(
-            "How many mutants to test at once, in place of mutationTestWorkers. Only SwiftPM projects test more than "
-                + "one.",
+            "How many mutants to test at once, in place of mutationTestWorkers (SwiftPM, or xcodebuild on a "
+                + "simulator, which gets one simulator per worker).",
             valueName: "count"
         )
     )

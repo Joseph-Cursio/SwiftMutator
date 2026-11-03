@@ -22,11 +22,12 @@ struct MuterConfiguration: Equatable, Codable {
     /// (`buildTimeout:`); nil, the default, sets no limit. For now it limits only the coverage run, but it is meant
     /// for every step that builds, such as the baseline.
     let buildTimeout: Double?
-    /// How many mutants to test at once (`mutationTestWorkers:`). Each worker runs the test command in
-    /// its own clone of the mutated project, because `swift test` locks the package's build directory.
-    /// Each clone is built once before testing, so the paths compiled into its tests point into it.
-    /// Only SwiftPM projects run in parallel; nil or 1 tests one mutant at a time. A `var` only so `overriding` can
-    /// copy `self` and change just this field.
+    /// How many mutants to test at once (`mutationTestWorkers:`). A SwiftPM worker runs the test command in its own
+    /// clone of the mutated project, because `swift test` locks the package's build directory. Each clone is built
+    /// once before testing, so the paths compiled into its tests point into it. An xcodebuild worker tests on a
+    /// simulator of its own, from the mutated project's one build (see `XcodeWorker`). Other projects, and xcodebuild
+    /// projects that test elsewhere, test one at a time (`parallelWorkersUnsupportedReason`); so do nil and 1. A `var`
+    /// only so `overriding` can copy `self` and change just this field.
     private(set) var mutationTestWorkers: Int?
     /// Optional explicit build system from the `buildSystem:` config key. When set it overrides the
     /// executable-basename heuristic — needed when `executable` is a wrapper script (e.g. one that
@@ -45,6 +46,10 @@ struct MuterConfiguration: Equatable, Codable {
     /// them with no mutant on has matched the baseline (see `DirectTestRun`). A `var` only so `withDirectTestRun` can
     /// copy `self` and change just this field.
     private(set) var directTestRun: DirectTestRun?
+    /// Where an xcodebuild mutant's run tests from, and what it writes to. Not a configuration key: set for each
+    /// worker once the baseline has passed (see `XcodeWorker`). A `var` only so `forXcodeWorker` can copy `self` and
+    /// change just this field.
+    private(set) var xcodeWorker: XcodeWorker?
 
     var buildSystem: BuildSystem {
         if let explicitBuildSystem, explicitBuildSystem != .unknown {
@@ -122,11 +127,48 @@ struct MuterConfiguration: Equatable, Codable {
             ?? (try container.decodeIfPresent(Int.self, forKey: key)).flatMap(Double.init)
     }
 
-    /// The number of mutants to test at once: `mutationTestWorkers` for a SwiftPM project, at least 1;
-    /// always 1 for other build systems, whose test runs share an `.xctestrun` file and DerivedData.
+    /// The number of mutants to test at once: `mutationTestWorkers`, at least 1, for a SwiftPM project and for an
+    /// xcodebuild project whose first `-destination` is a simulator; always 1 for the others, for the reason
+    /// `parallelWorkersUnsupportedReason` gives. An xcodebuild run that can't give each worker a simulator still tests
+    /// one mutant at a time (see `SimulatorWorkerSetup`).
     var workerCount: Int {
-        guard buildSystem == .swift else { return 1 }
+        guard parallelWorkersUnsupportedReason == nil else { return 1 }
         return max(1, mutationTestWorkers ?? 1)
+    }
+
+    /// Why this test command can't test more than one mutant at once, completing a sentence such as "Testing one
+    /// mutant at a time: …", or nil when it can. xcodebuild can only on a simulator, as each worker gets one of its
+    /// own; a destination that names one by its `id=` alone is looked up when the run starts.
+    var parallelWorkersUnsupportedReason: String? {
+        switch buildSystem {
+        case .swift:
+            return nil
+        case .unknown:
+            return "only SwiftPM projects, and xcodebuild projects that test on a simulator, test more than one at once"
+        case .xcodebuild:
+            guard let destination = firstDestination else {
+                return "an xcodebuild project tests more than one at once only on a simulator, and the test command "
+                    + "gives no `-destination`"
+            }
+            if SimulatorDestination(destination: destination) != nil {
+                return nil
+            }
+            if Self.namesAMac(destination) {
+                return "a Mac app's test runs share its UserDefaults, saved state and container, so workers would "
+                    + "see each other's"
+            }
+            return "an xcodebuild project tests more than one at once only on a simulator, which "
+                + "`-destination \(destination)` doesn't name"
+        }
+    }
+
+    /// Whether `destination`, a `-destination` value, names a Mac: `platform=macOS`, with or without an `arch=` or
+    /// Mac Catalyst's `variant=`.
+    private static func namesAMac(_ destination: String) -> Bool {
+        destination.split(separator: ",").contains { pair in
+            let keyAndValue = pair.split(separator: "=", maxSplits: 1).map { String($0).trimmed.lowercased() }
+            return keyAndValue.count == 2 && keyAndValue[0] == "platform" && keyAndValue[1].hasPrefix("mac")
+        }
     }
 
     /// Why a mutant's test run can't be stopped at its first failed test with this test command, or nil.
@@ -168,6 +210,13 @@ struct MuterConfiguration: Equatable, Codable {
     func withDirectTestRun(_ directTestRun: DirectTestRun) -> MuterConfiguration {
         var copy = self
         copy.directTestRun = directTestRun
+        return copy
+    }
+
+    /// This configuration with an xcodebuild mutant's runs testing as `worker` says.
+    func forXcodeWorker(_ worker: XcodeWorker) -> MuterConfiguration {
+        var copy = self
+        copy.xcodeWorker = worker
         return copy
     }
 
@@ -279,26 +328,34 @@ extension MuterConfiguration {
     /// `DirectTestRun`), which then prints no line for each test or suite that starts or passes: on SwiftProjectLint,
     /// more than 10,000 of a surviving mutant's 12,500 lines. It still prints every line SwiftMutator reads: each
     /// recorded issue, the run's summary, the tests' own output, and SwiftPM's lines for a crash. XCTest's output
-    /// doesn't change.
+    /// doesn't change. For xcodebuild they test from `testRunFile` on the first `-destination`, unless `xcodeWorker`
+    /// names another file or destination, and add the worker's own arguments.
     func testWithoutBuildArguments(with testRunFile: String) -> [String] {
         let arguments = testCommandArguments
         switch buildSystem {
         case .xcodebuild:
-            guard let destinationIndex = indexOfArgument("-destination") else {
+            guard let destination = xcodeWorker?.destination ?? firstDestination else {
                 return arguments
             }
             return [
                 "test-without-building",
-                testCommandArguments[destinationIndex],
-                testCommandArguments[destinationIndex + 1],
+                "-destination",
+                destination,
                 "-xctestrun",
-                testRunFile,
-            ]
+                xcodeWorker?.testRunFile ?? testRunFile,
+            ] + (xcodeWorker?.arguments ?? [])
         case .swift:
             let setsVerbosity = arguments.contains { Self.verbosityOptions.contains($0) }
             return arguments + ["--skip-build"] + (setsVerbosity ? [] : ["--quiet"])
         case .unknown:
             return arguments
+        }
+    }
+
+    /// The value of the test command's first `-destination`, or nil if it gives none.
+    var firstDestination: String? {
+        indexOfArgument("-destination").flatMap { index in
+            index + 1 < testCommandArguments.count ? testCommandArguments[index + 1] : nil
         }
     }
 
@@ -328,5 +385,58 @@ extension MuterConfiguration {
         args.append(defaultDerivedData)
 
         return args
+    }
+}
+
+extension MuterConfiguration {
+    /// What one worker's xcodebuild mutant runs test from and write to, beyond the test command's own arguments.
+    struct XcodeWorker: Sendable, Equatable {
+        /// The `.xctestrun` file, at the mutated project's root, that the worker's runs test from.
+        let testRunFile: String
+        /// The worker's derived data folder, beside the mutated project (see `derivedData(ofWorker:in:)`). Without it,
+        /// every run made a folder of its own in `~/Library/Developer/Xcode/DerivedData`: 3-67 MB each.
+        let derivedData: String
+        /// The `-destination` the worker's runs test on; nil for the test command's first.
+        let destination: String?
+        /// Whether the worker's runs test one test at a time, in one test process.
+        let parallelTestingOff: Bool
+        /// Whether the worker's runs pass `-collect-test-diagnostics never`, so a failing run doesn't spend seconds
+        /// collecting diagnostics no one reads. Only when the xcodebuild in use lists the option in its `-help`: one
+        /// that doesn't know it would fail every run.
+        let testDiagnosticsOff: Bool
+
+        init(
+            testRunFile: String,
+            derivedData: String,
+            destination: String? = nil,
+            parallelTestingOff: Bool = false,
+            testDiagnosticsOff: Bool
+        ) {
+            self.testRunFile = testRunFile
+            self.derivedData = derivedData
+            self.destination = destination
+            self.parallelTestingOff = parallelTestingOff
+            self.testDiagnosticsOff = testDiagnosticsOff
+        }
+
+        /// Ends the name of a worker's derived data folder.
+        static let derivedDataSuffix = ".DerivedData"
+
+        /// Worker `worker`'s derived data folder: `<mutated>.DerivedData` for worker 0, and
+        /// `<mutated>_worker<n>.DerivedData` for worker n, beside the mutated project, so neither the copy's
+        /// fingerprint nor the build it tests from sees it.
+        static func derivedData(ofWorker worker: Int, in mutatedProject: URL) -> String {
+            let folder = mutatedProject.lastPathComponent + (worker == 0 ? "" : "_worker\(worker)")
+            return mutatedProject.deletingLastPathComponent()
+                .appendingPathComponent(folder + derivedDataSuffix)
+                .path
+        }
+
+        /// The arguments the worker's runs add to the test command's.
+        var arguments: [String] {
+            ["-derivedDataPath", derivedData]
+                + (testDiagnosticsOff ? ["-collect-test-diagnostics", "never"] : [])
+                + (parallelTestingOff ? ["-parallel-testing-enabled", "NO"] : [])
+        }
     }
 }

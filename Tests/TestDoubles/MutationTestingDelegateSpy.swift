@@ -13,6 +13,13 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     private(set) var schematas: MutationSchemata = []
     private(set) var testRuns: [XCTestRun] = []
     private(set) var testRunPaths: [URL] = []
+    /// The name of each `.xctestrun` file `switchOn` wrote, in order.
+    private(set) var testRunFileNames: [String] = []
+    /// What each `.xctestrun` file `switchOn` wrote switches on, by its path: what an xcodebuild run would test.
+    private var switchedOnTestRuns: [String: String] = [:]
+    /// Each mutant whose parallel xcodebuild run, as it started or as it ended, would have tested its worker's
+    /// `.xctestrun` with another mutant switched on, or none.
+    private(set) var mutantsNotSwitchedOnForTheirRun: [String] = []
     private(set) var testLogs: [String] = []
     private(set) var workingDirectories: [URL] = []
     private(set) var builtWorkerDirectories: [URL] = []
@@ -24,8 +31,13 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     private let lock = NSLock()
 
     var testSuiteOutcomes: [TestSuiteOutcome]!
+    /// How the run of the mutant with this id ends, before `testSuiteOutcomes`: for a verdict that mustn't depend on
+    /// which worker tests the mutant, or when.
+    var outcomesByMutant: [String: TestSuiteOutcome] = [:]
     /// The log of the baseline run in the mutated project.
     var baselineTestLog = "testLog"
+    /// The logs of the baselines to come, in order, before `baselineTestLog`, which the rest print.
+    var baselineTestLogs: [String] = []
     /// Each mutant run's log, in the order they're run; "testLog" once empty.
     var mutantTestLogs: [String] = []
     /// How each mutant's run ends, in the order they're run; `.exited` once empty.
@@ -42,11 +54,18 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     /// How each run of the test command without its build ends, and what it prints, in the order they're run; once
     /// empty, `timedTestRunOutcome` and "timed test run log".
     var testRunsWithoutBuilding: [(outcome: TestSuiteOutcome, log: String)] = []
+    /// How the run of the test command without its build that writes to the file of this name ends, and what it
+    /// prints, before `testRunsWithoutBuilding`: for runs at once, such as xcodebuild workers' runs with no mutant on.
+    var testRunsWithoutBuildingWritingTo: [String: (outcome: TestSuiteOutcome, log: String)] = [:]
+    /// How the first run of the test command without its build that writes to the file of this name ends, and what it
+    /// prints, before `testRunsWithoutBuildingWritingTo`: for a run that is run again, such as one the simulator failed
+    /// to launch.
+    var firstTestRunsWithoutBuildingWritingTo: [String: (outcome: TestSuiteOutcome, log: String)] = [:]
     /// The configuration each run of the test command without its build was given.
     private(set) var configurationsWithoutBuilding: [MuterConfiguration] = []
     /// Called just before the timed run of the test command without its build returns, so a test can move its clock.
     var whileRunningTestsWithoutBuilding: (() -> Void)?
-    /// What `switchOn` throws, once a test has set it: as if `muter.xctestrun` couldn't be written.
+    /// What `switchOn` throws, once a test has set it: as if its `.xctestrun` couldn't be written.
     var switchOnError: Error?
     private var mutantRunCount = 0
 
@@ -69,7 +88,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
         methodCalls.append(#function)
         testLogs.append(fileName)
         configurations.append(configuration)
-        let (run, number) = nextMutantRun()
+        let (run, number) = nextMutantRun(of: schemata)
         whileRunningMutant?(number)
         return run
     }
@@ -85,6 +104,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
             if !directoriesInUse.insert(workingDirectory).inserted {
                 directoriesSharedAtOnce.append(workingDirectory)
             }
+            checkSwitchedOn(schemata, for: configuration, in: workingDirectory)
         }
         await Task.yield()
         let (run, number) = lock.withLock {
@@ -92,19 +112,37 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
             testLogs.append(fileName)
             workingDirectories.append(workingDirectory)
             configurations.append(configuration)
-            return nextMutantRun()
+            return nextMutantRun(of: schemata)
         }
         whileRunningMutant?(number)
-        lock.withLock { _ = directoriesInUse.remove(workingDirectory) }
+        lock.withLock {
+            checkSwitchedOn(schemata, for: configuration, in: workingDirectory)
+            _ = directoriesInUse.remove(workingDirectory)
+        }
         return run
     }
 
-    /// The next mutant run, and its zero-based number.
-    private func nextMutantRun() -> (run: TestRun, number: Int) {
+    /// Notes `schemata`'s mutant if an xcodebuild run with `configuration` in `directory` would test another one.
+    /// Called with the lock held.
+    private func checkSwitchedOn(
+        _ schemata: MutationSchema,
+        for configuration: MuterConfiguration,
+        in directory: URL
+    ) {
+        guard configuration.buildSystem == .xcodebuild else { return }
+        let fileName = configuration.xcodeWorker?.testRunFile ?? MutationTestingDelegate.muterTestRunFileName
+        if switchedOnTestRuns[directory.appendingPathComponent(fileName).path] != schemata.id {
+            mutantsNotSwitchedOnForTheirRun.append(schemata.id)
+        }
+    }
+
+    /// The next run, of `schemata`'s mutant, and its zero-based number.
+    private func nextMutantRun(of schemata: MutationSchema) -> (run: TestRun, number: Int) {
         defer { mutantRunCount += 1 }
         let testLog = mutantTestLogs.isEmpty ? "testLog" : mutantTestLogs.removeFirst()
         let ending = mutantRunEndings.isEmpty ? .exited : mutantRunEndings.removeFirst()
-        return (TestRun(outcome: testSuiteOutcomes.remove(at: 0), testLog: testLog, ending: ending), mutantRunCount)
+        let outcome = outcomesByMutant[schemata.id] ?? testSuiteOutcomes.remove(at: 0)
+        return (TestRun(outcome: outcome, testLog: testLog, ending: ending), mutantRunCount)
     }
 
     func benchmarkTests(
@@ -117,7 +155,8 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
         methodCalls.append(#function)
         testLogs.append(fileName)
         whileRunningBaseline?(0)
-        return (testSuiteOutcomes.remove(at: 0), baselineTestLog)
+        let testLog = baselineTestLogs.isEmpty ? baselineTestLog : baselineTestLogs.removeFirst()
+        return (testSuiteOutcomes.remove(at: 0), testLog)
     }
 
     /// Called concurrently for each worker clone, so it takes the lock.
@@ -140,6 +179,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
         return (outcome, "testLog")
     }
 
+    /// Called concurrently by xcodebuild workers' runs with no mutant on, so it takes the lock.
     func runTestsWithoutBuilding(
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String
@@ -147,21 +187,34 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
         outcome: TestSuiteOutcome,
         testLog: String
     ) {
-        methodCalls.append(#function)
-        testLogs.append(fileName)
-        configurationsWithoutBuilding.append(configuration)
+        lock.withLock {
+            methodCalls.append(#function)
+            testLogs.append(fileName)
+            configurationsWithoutBuilding.append(configuration)
+        }
         whileRunningTestsWithoutBuilding?()
-        return testRunsWithoutBuilding.isEmpty
-            ? (timedTestRunOutcome, "timed test run log")
-            : testRunsWithoutBuilding.removeFirst()
+        let run = lock.withLock {
+            let name = (fileName as NSString).lastPathComponent
+            return firstTestRunsWithoutBuildingWritingTo.removeValue(forKey: name)
+                ?? testRunsWithoutBuildingWritingTo[name]
+                ?? (testRunsWithoutBuilding.isEmpty
+                    ? (timedTestRunOutcome, "timed test run log")
+                    : testRunsWithoutBuilding.removeFirst())
+        }
+        return (run.outcome, run.log)
     }
 
-    func switchOn(schemata: MutationSchema, for testRun: XCTestRun, at path: URL) throws {
-        methodCalls.append(#function)
-        schematas.append(schemata)
-        testRuns.append(testRun)
-        testRunPaths.append(path)
-        if let switchOnError { throw switchOnError }
+    /// Called concurrently by parallel xcodebuild workers, so it takes the lock.
+    func switchOn(schemata: MutationSchema, for testRun: XCTestRun, at path: URL, named fileName: String) throws {
+        try lock.withLock {
+            methodCalls.append(#function)
+            schematas.append(schemata)
+            testRuns.append(testRun)
+            testRunPaths.append(path)
+            testRunFileNames.append(fileName)
+            if let switchOnError { throw switchOnError }
+            switchedOnTestRuns[path.appendingPathComponent(fileName).path] = schemata.id
+        }
     }
 
     func restoreFile(at path: String, using swapFilePaths: [FilePath: FilePath]) {

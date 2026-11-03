@@ -277,7 +277,8 @@ struct MutantResult: Codable, Equatable {
     let exitStatus: Int32?
     /// From launch to classification, to the millisecond.
     let durationSeconds: Double
-    /// 0 is the mutated project, n is its clone `<mutated>_worker<n>`.
+    /// For SwiftPM, 0 is the mutated project, n is its clone `<mutated>_worker<n>`; for xcodebuild, n is the worker
+    /// whose simulator, `.xctestrun` and derived data its run used.
     let worker: Int
     let finishedAt: Date
     /// For a killed, crashed or timed-out mutant whose run's failed-test lines are reliable: the tests its log shows
@@ -500,6 +501,8 @@ struct ResultsEnd: Codable, Equatable {
             return "tooManyBuildErrors"
         case .mutantNotSwitchedOn:
             return "mutantNotSwitchedOn"
+        case let .simulatorUnavailable(worker, _, _):
+            return "simulatorUnavailable(worker: \(worker))"
         case .unknownError:
             return "unknownError"
         }

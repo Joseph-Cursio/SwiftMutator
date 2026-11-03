@@ -79,6 +79,7 @@ final class MuterErrorTests: XCTestCase {
             .tooManyBuildErrors,
             .unknownError(description: "the delegate stopped"),
             .workerBaselineTestFailed(worker: 2, directory: "/p_mutated_worker_2", log: "error: no such module"),
+            .simulatorUnavailable(worker: 1, line: "No matching device (X)", log: "/logs/x (simulator gone).log"),
         ]
         for reason in reasons {
             XCTAssertEqual(MuterError.mutationTestingAborted(reason: reason).description, "\(reason)")

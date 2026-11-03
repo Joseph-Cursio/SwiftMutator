@@ -33,6 +33,24 @@ extension MutationTestLog {
     /// The name of the file the run's log folder keeps the log of `key`'s second run in, when a session tests it
     /// again: `keptFileName(for:)` with ` (rerun)` before `.log`, so the first run's log is kept too.
     static func rerunFileName(for key: MutantKey) -> String {
-        String(keptFileName(for: key).dropLast(".log".count)) + " (rerun).log"
+        noting("rerun", in: keptFileName(for: key))
+    }
+
+    /// The name of the file the run's log folder keeps the log of a run in that the simulator failed to launch, and
+    /// that ran again in its place: `logName`, the name of that second run's log, with ` (launch failed)` before
+    /// `.log`.
+    static func launchFailedFileName(for logName: String) -> String {
+        noting("launch failed", in: logName)
+    }
+
+    /// The name of the file the run's log folder keeps the log of a run in that found its simulator gone, which no
+    /// result names: `logName`, the name its log would have had, with ` (simulator gone)` before `.log`.
+    static func simulatorGoneFileName(for logName: String) -> String {
+        noting("simulator gone", in: logName)
+    }
+
+    /// `logName` with ` (<note>)` before its `.log`.
+    private static func noting(_ note: String, in logName: String) -> String {
+        String(logName.dropLast(".log".count)) + " (\(note)).log"
     }
 }

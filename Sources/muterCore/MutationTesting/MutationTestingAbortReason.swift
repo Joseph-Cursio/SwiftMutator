@@ -12,6 +12,9 @@ public enum MutationTestingAbortReason: Equatable, Sendable {
     /// The mutant `id`'s run couldn't be told to switch it on: under xcodebuild, its `muter.xctestrun` couldn't be
     /// written, as `description` says. The file left by the run before would have switched that run's mutant on.
     case mutantNotSwitchedOn(id: String, description: String)
+    /// The simulator that worker `worker`'s xcodebuild run tested on is gone, as `line` of the run's log says: every
+    /// run on it would fail without testing its mutant. `log` is where that run's log is kept, if it is.
+    case simulatorUnavailable(worker: Int, line: String, log: String?)
     case unknownError(description: String)
 }
 
@@ -50,6 +53,20 @@ extension MutationTestingAbortReason: CustomStringConvertible {
             for code the run may not have tested.
 
             \(description)
+            """
+
+        case let .simulatorUnavailable(worker, line, log):
+            let kept = log.map { "\n\nThe run's log is in \($0)." } ?? ""
+            return """
+            SwiftMutator stopped because the simulator that worker \(worker) tests mutants on is gone: every run on it \
+            would fail without testing its mutant, and count as a kill. It recorded no verdict for that run. \
+            xcodebuild said:
+
+              \(line)\(kept)
+
+            The results so far are kept. If the simulator the -destination in your \
+            \(MuterConfiguration.fileNameWithExtension) names was deleted, make it again, then resume the run with the \
+            command its summary's Continue line gives. Workers' own simulators are made again for each run.
             """
 
         case let .unknownError(error):

@@ -103,7 +103,8 @@ final class InterruptionsTests: MuterTestCase {
         XCTAssertEqual(ended.signal, SIGTERM)
         XCTAssertEqual(
             said.all.last,
-            "⏹ Stopping at once. SwiftMutator removes worker copies it leaves behind when it next runs."
+            "⏹ Stopping at once. "
+                + "SwiftMutator removes worker copies and simulators it leaves behind when it next runs."
         )
     }
 
@@ -289,6 +290,61 @@ final class InterruptionsTests: MuterTestCase {
             "⏹ Stopping (SIGHUP): ending the test runs under way and keeping what was tested. "
                 + "Send SIGINT or SIGTERM to stop at once.",
         ])
+    }
+
+    // MARK: - After the work ends
+
+    func test_withoutASignal_whatIsSetForAfterTheWork_runsOnce_afterIt() throws {
+        let events = events
+        current.interruption.afterWorkEnds { events.append("after the work") }
+        let running = Running(makeInterruptions()) { events.append("work ended") }
+
+        _ = try XCTUnwrap(running.wait())
+        let record = current.interruption
+        let again = Gate()
+        Task { await record.workEnded(); again.open() }
+        XCTAssertTrue(again.wait())
+
+        XCTAssertEqual(events.all, ["work ended", "after the work"])
+    }
+
+    // What it does starts processes, as `simctl delete`, which a kill of the descendants would kill.
+    func test_afterAFirstSignal_whatIsSetForAfterTheWork_runsAfterTheLastKill_withNoMoreKillsMeanwhile() throws {
+        let events = events
+        current.interruption.afterWorkEnds {
+            events.append("removing")
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            events.append("removed")
+        }
+        let started = Gate()
+        let running = Running(makeInterruptions(sweepInterval: 0.01)) {
+            try await waitUntilCancelled(opening: started) { events.append("cancelled") }
+        }
+        XCTAssertTrue(started.wait())
+        waitUntilObserving()
+
+        XCTAssertTrue(observer.send(SIGINT))
+        let ended = try XCTUnwrap(running.wait())
+
+        XCTAssertEqual(ended.signal, SIGINT)
+        XCTAssertEqual(events.all.suffix(3), ["killed", "removing", "removed"])
+        XCTAssertFalse(observer.stopped, "a second signal must still stop SwiftMutator at once")
+    }
+
+    // SwiftMutator ends at once, and its next run's sweep deletes the simulators.
+    func test_stoppingAtOnce_neverRunsWhatIsSetForAfterTheWork() throws {
+        let events = events
+        let exited = exited
+        current.interruption.afterWorkEnds { events.append("after the work") }
+        let running = Running(makeInterruptions()) { exited.wait() }
+        waitUntilObserving()
+
+        XCTAssertTrue(observer.send(SIGQUIT))
+        _ = try XCTUnwrap(running.wait())
+
+        // The stand-in for exiting returns, so the work ends, and is followed by the last kill.
+        XCTAssertEqual(Array(events.all.prefix(2)), ["killed", "exited by SIGQUIT"])
+        XCTAssertFalse(events.all.contains("after the work"), "\(events.all)")
     }
 
     // `nohup` ignores SIGHUP, so that a run outlives its terminal.
