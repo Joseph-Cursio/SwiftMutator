@@ -183,7 +183,8 @@ struct Run: RunCommand {
     /// `--resume` continues a run's own results file and `--reuse` starts a new one, so only one can be given.
     /// `--resume-ignoring` and `--force-resume` only say what a resume may reuse, and `--reuse-ignoring` and
     /// `--force-reuse` what a reuse may. `--since` chooses the files itself, and `--changed-lines` narrows its choice.
-    /// `--seed` only says which sample `--sample` takes.
+    /// `--seed` only says which sample `--sample` takes, and the shards of a sampled split, and a resume of a sample,
+    /// need it to take the same one: a seed SwiftMutator chose would differ.
     func validate() throws {
         if since != nil, !filesToMutate.isEmpty {
             throw ValidationError("--since and --files-to-mutate can't be given together.")
@@ -195,9 +196,7 @@ struct Run: RunCommand {
         if since?.hasPrefix("-") == true {
             throw ValidationError("--since takes a git ref, such as main or origin/main, not an option.")
         }
-        if seed != nil, sample == nil {
-            throw ValidationError("--seed only applies with --sample.")
-        }
+        try validateSample()
         if resume != nil, reuse != nil {
             throw ValidationError("--resume and --reuse can't be given together.")
         }
@@ -216,6 +215,24 @@ struct Run: RunCommand {
             if forceReuse {
                 throw ValidationError("--force-reuse only applies with --reuse.")
             }
+        }
+    }
+}
+
+private extension Run {
+    func validateSample() throws {
+        if seed != nil, sample == nil {
+            throw ValidationError("--seed only applies with --sample.")
+        }
+        guard sample != nil, seed == nil else { return }
+        if let shard, shard.count > 1 {
+            throw ValidationError("--sample with --shard needs --seed, so that every shard takes the same sample.")
+        }
+        if resume != nil {
+            throw ValidationError(
+                "--sample with --resume needs the sample's --seed, which the Continue line gives, and the results "
+                    + "file's header records as sample.seed."
+            )
         }
     }
 }

@@ -198,9 +198,13 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         case let (sample?, nil) where sample.isPartial:
             "✅ In total, SwiftMutator discovered \(sample.mutantsSampledFrom) mutants, and the sample of "
                 + "\(sample.size) holds \(numberOfMutationPoints) of them, in \(numberOfFiles) files"
-        case let (sample?, nil):
+        case let (sample?, nil) where sample.mutantsSampledFrom <= sample.size:
             "✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants in \(numberOfFiles) files, "
                 + "no more than the sample of \(sample.size), which holds them all"
+        // The last place it took had repeats enough to hold the rest.
+        case let (sample?, nil):
+            "✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants in \(numberOfFiles) files, and "
+                + "the sample of \(sample.size) holds them all"
         case let (sample?, shard?):
             "✅ In total, SwiftMutator discovered \(sample.mutantsSampledFrom) mutants, the sample of \(sample.size) "
                 + "holds \(sample.mutantsSampled) of them, and shard \(shard.index) of \(shard.count) holds "

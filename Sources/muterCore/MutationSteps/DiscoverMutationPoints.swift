@@ -48,7 +48,11 @@ struct DiscoverMutationPoints: MutationStep {
         if let shard = state.runOptions.shard {
             let (kept, selection) = mappings.keepingOnly(shard, under: state.mutatedProjectDirectoryURL)
             guard !kept.isEmpty else {
-                throw EmptyShard(shard: shard, mutantsInAllShards: selection.mutantsInAllShards)
+                throw EmptyShard(
+                    shard: shard,
+                    mutantsInAllShards: selection.mutantsInAllShards,
+                    sample: sampleSelection.flatMap { $0.isPartial ? $0 : nil }
+                )
             }
             mappings = kept
             shardSelection = selection

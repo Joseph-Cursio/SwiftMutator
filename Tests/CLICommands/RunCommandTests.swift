@@ -178,6 +178,22 @@ final class RunCommandTests: XCTestCase {
         assertUsageError(["run", "--seed", "1234"], "--seed only applies with --sample.")
     }
 
+    // A seed SwiftMutator chose would differ from shard to shard, and from the run a resume continues.
+    func test_aSampleThatMustBeTakenAgain_needsItsSeed() throws {
+        assertUsageError(
+            ["run", "--sample", "500", "--shard", "1/2"],
+            "--sample with --shard needs --seed, so that every shard takes the same sample."
+        )
+        assertUsageError(
+            ["run", "--sample", "500", "--resume", "logs"],
+            "--sample with --resume needs the sample's --seed, which the Continue line gives, and the results file's "
+                + "header records as sample.seed."
+        )
+        for arguments in [["--shard", "1/2", "--seed", "7"], ["--shard", "1/1"], ["--resume", "logs", "--seed", "7"]] {
+            XCTAssertNoThrow(try MuterCommand.parseAsRoot(["run", "--sample", "500"] + arguments), "\(arguments)")
+        }
+    }
+
     func test_aShardThatIsntKOfN_isAUsageError() {
         for value in ["0/2", "3/2", "half", "1/2/3", "1/1001"] {
             assertUsageError(

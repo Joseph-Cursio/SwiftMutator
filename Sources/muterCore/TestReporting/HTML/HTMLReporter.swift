@@ -135,6 +135,7 @@ extension Node where Context: HTML.BodyContext {
                             .text(
                                 (shards.indices.count == 1 ? "Shard" : "Shards")
                                     + " tested, of \(shards.mutantsInAllShards) mutants"
+                                    + (testReport.sample == nil ? "" : " in the sample")
                             )
                         ),
                         .h1(.text(shards.indices.map(String.init).joined(separator: ", ") + " of \(shards.count)"))
@@ -151,7 +152,10 @@ extension Node where Context: HTML.BodyContext {
                             .class("small"),
                             .text("Sample tested, of \(sample.mutantsSampledFrom) mutants (seed \(sample.seed))")
                         ),
-                        .h1(.text("\(sample.mutantsSampled), score ± \(sample.margin)"))
+                        .h1(.text(
+                            "\(sample.mutantsSampled), "
+                                + (sample.margin.map { "score ± \($0)" } ?? "\(sample.mutantsTested) with a result")
+                        ))
                     )
                 )
             },

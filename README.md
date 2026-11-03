@@ -368,13 +368,13 @@ where the whole run takes 46. It scored 78%, and the whole run 77%; the report g
   than N. With no more than N mutants, it holds them all, and is the whole run.
 - **The reports say how close the score is.** The plain and HTML reports say the score is from a
   sample of N of M mutants, and give its 95% margin; the JSON report gives them as `sample`. The
-  margin narrows with the finite-population correction, and widens for a run stopped early, which
-  has fewer results.
+  margin narrows with the finite-population correction. A run stopped early gets none: its results
+  are the first files', not a random part of the sample.
 - **It combines** with `--since`, `--changed-lines`, `--files-to-mutate` and `--operators`, which
-  choose the mutants it is taken from, and with `--shard`, which splits the sample: the shards of a
-  sampled split share one sample, given the same seed, and `report` merges them.
-- **Resuming.** The results file's header records the sample, and a resume must take the same one;
-  the Continue line gives the seed, chosen or not. `--reuse` keeps the earlier run's results for
+  choose the mutants it is taken from, and with `--shard`, which splits the sample. A sampled split
+  needs `--seed`, so that its shards share one sample, and `report` merges them.
+- **Resuming.** The results file's header records the sample, and a resume must take the same one,
+  so it needs `--seed`; the Continue line gives it, chosen or not. `--reuse` keeps the earlier run's results for
   this sample's mutants, whatever sample, or whole run, that was.
 
 ## Results file

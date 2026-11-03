@@ -113,9 +113,26 @@ final class SampleTests: XCTestCase {
             "Only a sample of 500 of the 2497 mutants discovered was tested (seed 1234): a whole run's score is within "
                 + "3.3 points of this one, at 95% confidence."
         )
-        // A run stopped early has fewer results, and a wider margin.
+        XCTAssertEqual(scope.mutantsTested, 500)
+    }
+
+    // A run stopped early has the first files' results, no random part of the sample: no margin.
+    func test_aSampleWithoutEveryResult_givesNoMargin() throws {
+        let selection = SampleSelection(size: 500, seed: 1234, mutantsSampledFrom: 2497, mutantsSampled: 500)
         let stopped = try XCTUnwrap(SampleScope(selection, killed: 76, scored: 100, tested: 100))
-        XCTAssertGreaterThan(stopped.marginOfError, scope.marginOfError)
+
+        XCTAssertNil(stopped.marginOfError)
+        XCTAssertNil(stopped.margin)
+        XCTAssertEqual(
+            stopped.sentence,
+            "Only a sample of 500 of the 2497 mutants discovered was tested (seed 1234), and 100 of them have a "
+                + "result, so no margin is given: they aren't a random part of the sample."
+        )
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(stopped)) as? [String: Any]
+        )
+        XCTAssertNil(json["marginOfError"])
+        XCTAssertEqual(json["mutantsTested"] as? Int, 100)
     }
 
     private func keys(of mappings: [SchemataMutationMapping]) -> [MutantKey] {

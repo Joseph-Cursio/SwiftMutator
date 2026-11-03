@@ -93,6 +93,11 @@ final class SampleRunTests: MuterTestCase {
             sample: (SampleSelection(size: 4, seed: 7, mutantsSampledFrom: 9, mutantsSampled: 4), seedIsChosen: true),
             shard: .make(index: 2, count: 3, mutantsInAllShards: 4)
         )
+        // More than 3, but the last place taken had repeats enough to hold them all.
+        Logger().mutationsDiscoveryFinished(
+            mutations: [mapping],
+            sample: (SampleSelection(size: 3, seed: 7, mutantsSampledFrom: 5, mutantsSampled: 5), seedIsChosen: false)
+        )
 
         XCTAssertEqual(printer.linesPassed, [
             "✅ In total, SwiftMutator discovered 9 mutants, and the sample of 1 holds 1 of them, in 1 files",
@@ -101,7 +106,49 @@ final class SampleRunTests: MuterTestCase {
             "✅ In total, SwiftMutator discovered 9 mutants, the sample of 4 holds 4 of them, and shard 2 of 3 holds 1 "
                 + "of those, in 1 files",
             "🎲 SwiftMutator chose the sample's seed, 7: --seed 7 takes the same sample again.",
+            "✅ In total, SwiftMutator discovered 1 mutants in 1 files, and the sample of 3 holds them all",
         ])
+    }
+
+    // A small sample split many ways leaves some shards empty, which say how many the sample held, of how many.
+    func test_anEmptyShardOfASample_saysTheSampleHeldTheMutants() async throws {
+        try prepare()
+        let sample = Sample(size: 1, seed: 7, seedIsChosen: false)
+        let sampled = try await keys(discovering: sample)
+        let only = try XCTUnwrap(sampled.first)
+        let empty = Shard(index: Shard.index(ofPlace: only, among: 2) == 1 ? 2 : 1, count: 2)
+        state.runOptions = .make(shard: empty, sample: sample)
+
+        await AssertThrowsError(try await DiscoverMutationPoints().run(with: state)) { error in
+            XCTAssertEqual(
+                "\(error)",
+                "ℹ️ Shard \(empty.index) of 2 doesn't hold the only mutant in the sample, of the 4 discovered, so there "
+                    + "is nothing to mutate."
+            )
+        }
+        let selection = SampleSelection(size: 2, seed: 7, mutantsSampledFrom: 9, mutantsSampled: 2)
+        XCTAssertEqual(
+            "\(EmptyShard(shard: Shard(index: 3, count: 4), mutantsInAllShards: 2, sample: selection))",
+            "ℹ️ Shard 3 of 4 holds none of the 2 mutants in the sample, of the 9 discovered, so there is nothing to "
+                + "mutate."
+        )
+    }
+
+    func test_aSampledShardsReport_countsTheSample_andGivesNoMarginUntilMerged() throws {
+        let outcome = MutationTestOutcome(
+            mutations: [.make(testSuiteOutcome: .failed)],
+            shards: ShardScope(.make(index: 1, count: 2, mutantsInAllShards: 2)),
+            sample: SampleSelection(size: 2, seed: 9, mutantsSampledFrom: 40, mutantsSampled: 2)
+        )
+
+        let plain = PlainTextReporter().report(from: outcome)
+        XCTAssertTrue(
+            plain.contains("Only the mutants in shard 1 of 2 were tested, of 2 in every shard of the sample.")
+        )
+        XCTAssertTrue(plain.contains("and 1 of them have a result, so no margin is given"))
+        let html = HTMLReporter().report(from: outcome)
+        XCTAssertTrue(html.contains("Shard tested, of 2 mutants in the sample"))
+        XCTAssertTrue(html.contains("2, 1 with a result"))
     }
 
     func test_theReports_sayWhatTheSampleTested_andTheMargin() throws {

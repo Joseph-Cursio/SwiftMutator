@@ -100,20 +100,24 @@ extension [SchemataMutationMapping] {
 struct SampleScope: Codable, Equatable {
     let mutantsSampled: Int
     let mutantsSampledFrom: Int
+    /// How many of the sample's mutants the report has a result for: fewer than `mutantsSampled` for a run stopped
+    /// early, or for some shards of a sampled split.
+    let mutantsTested: Int
     let seed: UInt64
-    /// Half the width, in points, of the score's 95% confidence interval.
-    let marginOfError: Double
+    /// Half the width, in points, of the score's 95% confidence interval. nil, and left out of the JSON, unless every
+    /// mutant in the sample has a result: a run stopped early has the first files' results, which are no random part of
+    /// the sample.
+    let marginOfError: Double?
 
     /// `selection`'s sample, of which a report has `tested` results; those that counted toward the score (all but build
-    /// errors) number `scored`, and `killed` of them were killed. The margin is that of the results there are: of a run
-    /// stopped early, or of one shard of a sampled split, fewer than the sample's. nil when the sample held every
-    /// mutant.
+    /// errors) number `scored`, and `killed` of them were killed. nil when the sample held every mutant.
     init?(_ selection: SampleSelection?, killed: Int, scored: Int, tested: Int) {
         guard let selection, selection.isPartial else { return nil }
         mutantsSampled = selection.mutantsSampled
         mutantsSampledFrom = selection.mutantsSampledFrom
+        mutantsTested = tested
         seed = selection.seed
-        marginOfError = Self.marginOfError(
+        marginOfError = tested < selection.mutantsSampled ? nil : Self.marginOfError(
             killed: killed,
             scored: scored,
             sampled: tested,
@@ -121,9 +125,10 @@ struct SampleScope: Codable, Equatable {
         )
     }
 
-    init(mutantsSampled: Int, mutantsSampledFrom: Int, seed: UInt64, marginOfError: Double) {
+    init(mutantsSampled: Int, mutantsSampledFrom: Int, mutantsTested: Int, seed: UInt64, marginOfError: Double?) {
         self.mutantsSampled = mutantsSampled
         self.mutantsSampledFrom = mutantsSampledFrom
+        self.mutantsTested = mutantsTested
         self.seed = seed
         self.marginOfError = marginOfError
     }
@@ -139,15 +144,20 @@ struct SampleScope: Codable, Equatable {
         return 1.96 * (proportion * (1 - proportion) / trials * correction).squareRoot() * 100
     }
 
-    /// "3.4": the margin, to one decimal.
-    var margin: String {
-        String(format: "%.1f", marginOfError)
+    /// "3.4": the margin, to one decimal. nil when there is none.
+    var margin: String? {
+        marginOfError.map { String(format: "%.1f", $0) }
     }
 
     /// "Only a sample of 500 of the 2463 mutants discovered was tested (seed 1234): a whole run's score is within 3.4
-    /// points of this one, at 95% confidence."
+    /// points of this one, at 95% confidence." Without a margin, how many of the sample have a result instead.
     var sentence: String {
-        "Only a sample of \(mutantsSampled) of the \(mutantsSampledFrom) mutants discovered was tested (seed \(seed)): "
-            + "a whole run's score is within \(margin) points of this one, at 95% confidence."
+        let tested = "Only a sample of \(mutantsSampled) of the \(mutantsSampledFrom) mutants discovered was tested "
+            + "(seed \(seed))"
+        guard let margin else {
+            return tested + ", and \(mutantsTested) of them have a result, so no margin is given: they aren't a random "
+                + "part of the sample."
+        }
+        return tested + ": a whole run's score is within \(margin) points of this one, at 95% confidence."
     }
 }

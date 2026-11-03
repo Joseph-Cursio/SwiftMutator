@@ -41,7 +41,7 @@ struct PlainTextReporter: Reporter {
         ).
         \(mutationScoreMessage)\(suspectScoreLines(from: report))
         \(projectCoverageMessage)\(report.since.map { "\n" + $0.sentence } ?? "")\(
-            report.shards.map { "\n" + $0.sentence } ?? ""
+            report.shards.map { "\n" + $0.sentence(sampled: report.sample != nil) } ?? ""
         )\(report.sample.map { "\n" + $0.sentence } ?? "")
 
         \(generateMutationScoresCLITable(from: report.fileReports).description)
