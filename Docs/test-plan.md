@@ -143,3 +143,28 @@ The hashes are shortened here. The plan holds no date, host name, absolute path 
 - Only the files of the mutants the run tests count.
 - The plan itself, wherever in the project it is, and what a run leaves out of its results file's project files, such as the `-o` report and `muter.conf.yml`, are never changes.
 - The check hashes every file of the project, as a run does when it records them, so it takes about as long.
+
+## Resuming a run of the plan
+
+`run-without-mutating` writes a results file as `run` does, and a stopped run of a plan is continued as a stopped run is (see [Resuming a run](../README.md#resuming-a-run)). Its summary ends with the command, which repeats the plan's path as you gave it, and any `--plan-ignoring`:
+
+```
+▶️ Continue: swift-mutator run-without-mutating muter-mappings.json --resume '/…/results.jsonl'
+```
+
+- Run it in the project folder, as any run of the plan.
+- Every session checks the project against the plan, as the first one did (see [When the project changed](#when-the-project-changed)).
+- The plan must be the one the run tested, byte for byte: the results file records its SHA-256. A plan made again or edited since is refused, with exit status 5, and no `--force-resume` lets it through: start a new run without `--resume`.
+- The results are judged by the plan's copy, not by your project: the results file records the copy as each session tested it. Once the copy is locked, the resume compares it with the last session's. A file of the copy that changed since, as after a fix by hand, is refused with status 5, and the message names the flags that let it through:
+
+  ```
+  SwiftMutator won't resume the run in '/…/results.jsonl', so that no result is reused that this run might not reproduce:
+    - 1 file of the test plan's copy, /Users/me/Foo_mutated, changed since the run's last session, as a fix by hand would: Sources/Foo/Bar.swift (changed).
+      If it can't change any test's result: --resume-ignoring 'Sources/Foo/Bar.swift'
+      Mutants in a changed source file are tested again either way.
+  Nothing was copied or removed.
+  ```
+
+  With `--resume-ignoring`, the mutants in a changed file are tested again, and the other results kept.
+- `--force-resume` works as it does for `run`. `--reuse` isn't offered for a plan.
+- `run` can't resume a run of a plan, and `run-without-mutating` can't resume a run without one. Nor can a run of a plan by an earlier SwiftMutator, which recorded neither the plan nor its copy, be resumed.

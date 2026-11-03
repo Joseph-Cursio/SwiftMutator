@@ -65,7 +65,15 @@ enum ResumeRefusal: Equatable, CustomStringConvertible {
     case needsForce(ResumeCheck.Difference)
     /// Project files that changed, and that no `--resume-ignoring` glob matches.
     case filesChanged([ProjectTree.FileChange])
-    case testPlanRun
+    /// Files of the test plan's copy, at `copy`, that changed since the last session tested it, and that no
+    /// `--resume-ignoring` glob matches.
+    case copyChanged([ProjectTree.FileChange], copy: String)
+    /// One of the two runs tested a test plan and the other didn't: the recorded one if `recordedUsedOne`.
+    case testPlanRun(recordedUsedOne: Bool)
+    /// The test plan's SHA-256, `testPlan.sha256`, differs from the one the last session tested.
+    case testPlanChanged(ResumeCheck.Difference)
+    /// The last session tested a test plan, and was written by a SwiftMutator that didn't record which.
+    case testPlanNotRecorded
     /// The last session was written by a SwiftMutator from before `--resume`, which recorded no project files.
     case noProjectTree
     /// `-o` names the results file itself.
@@ -80,7 +88,6 @@ enum ResumeRefusal: Equatable, CustomStringConvertible {
 
     /// The reason, naming `--reuse`'s flags if `reusing`, and `--resume`'s otherwise.
     func describe(reusing: Bool) -> String {
-        let continuing = reusing ? "reused" : "resumed"
         switch self {
         case let .inUse(.running(holder), _, _):
             return "another SwiftMutator run, \(holder), holds its lock. Wait for that run to end, or stop it, then "
@@ -116,9 +123,27 @@ enum ResumeRefusal: Equatable, CustomStringConvertible {
                 : difference.change(absent: "unknown")
             return "\(subject) \(change). \(reusing ? "--force-reuse" : "--force-resume") reuses the results anyway."
         case let .filesChanged(changes):
-            return Self.describe(changes)
-        case .testPlanRun:
-            return "A run that tests a test plan (run-without-mutating) can't be \(continuing)."
+            return Self.describe(changes, of: ("project file", "project files"), changedSince: "the run stopped")
+        case let .copyChanged(changes, copy):
+            return Self.describe(
+                changes,
+                of: ("file of the test plan's copy, \(copy),", "files of the test plan's copy, \(copy),"),
+                changedSince: "the run's last session, as a fix by hand would"
+            )
+        case .testPlanRun(recordedUsedOne: true):
+            return "The file's run tested a test plan, so "
+                + (reusing ? "its results can't be reused: " : "")
+                + "only `swift-mutator run-without-mutating` with that plan and --resume can continue it."
+        case .testPlanRun(recordedUsedOne: false):
+            return "The file's run didn't test a test plan, so `swift-mutator run-without-mutating` can't continue "
+                + "it: `swift-mutator run` with --resume can."
+        case let .testPlanChanged(difference):
+            return "\(difference.name) \(difference.change(absent: "unknown")): the test plan was made again or "
+                + "edited, so its mutants may not be the ones the results are for. A new run is needed: "
+                + "`swift-mutator run-without-mutating` without --resume."
+        case .testPlanNotRecorded:
+            return "The file's last session tested a test plan with a SwiftMutator that recorded nothing to check it "
+                + "by. A new run is needed: `swift-mutator run-without-mutating` without --resume."
         case .noProjectTree:
             return "The file's last session recorded no project files, as SwiftMutator didn't before --resume, "
                 + "so nothing shows that they haven't changed. A new run is needed."
@@ -142,8 +167,13 @@ enum ResumeRefusal: Equatable, CustomStringConvertible {
     }
 
     /// The changed files, up to `changedFilesNamed` of them by name, and the flags that would let those through,
-    /// ready to paste.
-    private static func describe(_ changes: [ProjectTree.FileChange]) -> String {
+    /// ready to paste. `noun` names one of them, and several, such as "project file" and "project files", and `since`
+    /// says when they changed.
+    private static func describe(
+        _ changes: [ProjectTree.FileChange],
+        of noun: (one: String, many: String),
+        changedSince since: String
+    ) -> String {
         let named = changes.prefix(changedFilesNamed)
         let others = changes.count - named.count
         let one = changes.count == 1
@@ -153,7 +183,7 @@ enum ResumeRefusal: Equatable, CustomStringConvertible {
             .joined(separator: " ")
             + (others > 0 ? ", plus globs for the other \(others)" : "")
         return [
-            "\(changes.count) project file\(one ? "" : "s") changed since the run stopped: \(files).",
+            "\(changes.count) \(one ? noun.one : noun.many) changed since \(since): \(files).",
             "If \(one ? "it" : "they") can't change any test's result: \(flags)",
             "Mutants in a changed source file are tested again either way.",
         ].joined(separator: "\n")

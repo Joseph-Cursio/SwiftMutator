@@ -626,7 +626,8 @@ extension ResultsHeader {
         reusedFrom: String? = nil,
         since: ChangeSelection? = nil,
         shard: ShardSelection? = nil,
-        sample: SampleSelection? = nil
+        sample: SampleSelection? = nil,
+        testPlan: TestPlanRecord? = nil
     ) -> ResultsHeader {
         ResultsHeader(
             formatVersion: formatVersion,
@@ -659,7 +660,8 @@ extension ResultsHeader {
             reusedFrom: reusedFrom,
             since: since,
             shard: shard,
-            sample: sample
+            sample: sample,
+            testPlan: testPlan
         )
     }
 }

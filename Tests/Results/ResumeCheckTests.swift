@@ -398,11 +398,50 @@ final class ResumeCheckTests: XCTestCase {
         )
     }
 
-    func test_aTestPlanRun_cannotBeResumed() {
-        let planned = current(usingTestPlan: true)
+    func test_aTestPlanRun_resumesWithTheSamePlan() {
+        let planned = current(usingTestPlan: true, testPlanSHA256: "91a")
 
-        XCTAssertEqual(check(current(), recorded: header(of: planned, project: nil)).refusals, [.testPlanRun])
-        XCTAssertEqual(check(planned, recorded: header(of: current())).refusals, [.testPlanRun])
+        XCTAssertEqual(check(planned, recorded: header(of: planned)), ResumeCheck.Verdict())
+    }
+
+    func test_aChangedTestPlan_refusesTheResume_whateverIsForced() {
+        let recorded = header(of: current(usingTestPlan: true, testPlanSHA256: "91a"))
+        let changed = ResumeRefusal.testPlanChanged(
+            ResumeCheck.Difference(name: "testPlan.sha256", was: #""91a""#, isNow: #""b07""#)
+        )
+
+        let planned = current(usingTestPlan: true, testPlanSHA256: "b07")
+
+        XCTAssertEqual(check(planned, recorded: recorded).refusals, [changed])
+        XCTAssertEqual(check(planned, recorded: recorded, forcing: true).refusals, [changed])
+    }
+
+    func test_aPlanRun_andARunWithoutAPlan_refuseEachOther() {
+        let planned = current(usingTestPlan: true, testPlanSHA256: "91a")
+
+        XCTAssertEqual(
+            check(current(), recorded: header(of: planned)).refusals,
+            [.testPlanRun(recordedUsedOne: true)]
+        )
+        // Not for want of a project tree, which only a run without a plan is checked for.
+        XCTAssertEqual(
+            check(current(), recorded: header(of: planned, project: nil)).refusals,
+            [.testPlanRun(recordedUsedOne: true)]
+        )
+        XCTAssertEqual(check(planned, recorded: header(of: current())).refusals, [.testPlanRun(recordedUsedOne: false)])
+        XCTAssertEqual(
+            check(current(), recorded: header(of: planned), for: .reuse).refusals,
+            [.testPlanRun(recordedUsedOne: true)]
+        )
+    }
+
+    func test_aPlanRunFromBeforePlanRunsResumed_isRefused() {
+        // A SwiftMutator from before plan runs resumed recorded neither the plan nor the copy.
+        let recorded = header(of: current(usingTestPlan: true), project: nil)
+
+        let planned = current(usingTestPlan: true, testPlanSHA256: "91a")
+
+        XCTAssertEqual(check(planned, recorded: recorded).refusals, [.testPlanNotRecorded])
     }
 
     func test_aHeaderWithoutAProjectTree_cannotBeResumed() {
@@ -434,6 +473,38 @@ final class ResumeCheckTests: XCTestCase {
         let current = ResumeCheck.Current(state: state, provenance: .fixture)
 
         XCTAssertEqual(current.operators, ["RelationalOperatorReplacement", "SwapTernary"])
+        XCTAssertEqual(ResumeCheck.compare(written, with: current, forcing: false), ResumeCheck.Verdict())
+    }
+
+    func test_aPlanRunsCurrentRun_andItsHeader_nameThePlansSHA256() {
+        let state = MutationTestState(from: .make(testPlanURL: URL(fileURLWithPath: "/project/muter-mappings.json")))
+        let plan = LoadedTestPlan(
+            path: "/project/muter-mappings.json",
+            sha256: "91a",
+            formatVersion: TestPlanCoding.formatVersion,
+            swiftMutatorVersion: "16",
+            scope: nil,
+            sources: nil,
+            mutatedFiles: nil
+        )
+        state.apply([.configurationParsed(swift), .testPlanLoaded(plan), .projectTreeFingerprinted(Self.tree)])
+        let written = ResultsHeader(
+            session: 1,
+            startedAt: ResultsHeader.fixedStart,
+            state: state,
+            logDirectory: "/project_muter_logs/run",
+            configuration: swift.withDefaultTestSuiteTimeout(96.5),
+            baselineSeconds: 32.125,
+            workers: 1,
+            mutantsDiscovered: 3,
+            mutantsToTest: 3,
+            provenance: .fixture
+        )
+
+        let current = ResumeCheck.Current(state: state, provenance: .fixture)
+
+        XCTAssertEqual(current.testPlanSHA256, "91a")
+        XCTAssertEqual(ResumeCheck.Current(header: written).testPlanSHA256, "91a")
         XCTAssertEqual(ResumeCheck.compare(written, with: current, forcing: false), ResumeCheck.Verdict())
     }
 
@@ -783,6 +854,7 @@ final class ResumeCheckTests: XCTestCase {
         filesToMutate: [String] = [],
         skipCoverage: Bool = true,
         usingTestPlan: Bool = false,
+        testPlanSHA256: String? = nil,
         provenance: Provenance = .fixture,
         since: ChangeSelection? = nil,
         shard: Shard? = nil,
@@ -795,6 +867,7 @@ final class ResumeCheckTests: XCTestCase {
             skipCoverage: skipCoverage,
             usingTestPlan: usingTestPlan,
             provenance: provenance,
+            testPlanSHA256: testPlanSHA256,
             since: since,
             shard: shard,
             sample: sample
@@ -818,6 +891,14 @@ final class ResumeCheckTests: XCTestCase {
             shard: current.shard.map { ShardSelection.make(index: $0.index, count: $0.count) },
             sample: current.sample.map {
                 SampleSelection(size: $0.size, seed: $0.seed, mutantsSampledFrom: 2463, mutantsSampled: $0.size)
+            },
+            testPlan: current.testPlanSHA256.map {
+                TestPlanRecord(
+                    path: "/project/muter-mappings.json",
+                    sha256: $0,
+                    formatVersion: TestPlanCoding.formatVersion,
+                    swiftMutatorVersion: "16"
+                )
             }
         )
     }

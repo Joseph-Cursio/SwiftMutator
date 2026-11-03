@@ -624,8 +624,8 @@ which a closed terminal sends, stop it the same way. SwiftMutator then:
    file is, the `swift-mutator report` command that makes a report of them all from it, in any
    format, and the command that continues the run (see [Resuming a run](#resuming-a-run)). The
    commands are left out when no mutant has a result, or when the results file couldn't be written
-   in full. A run of a test plan (`run-without-mutating`) can't be resumed, so it gets no command
-   to continue it.
+   in full. A run of a test plan's command is `run-without-mutating` again, with the plan and
+   `--resume`.
 5. Removes its worker clones, `<project>_mutated_worker<n>`, and the active-mutant files beside the
    mutated project and the clones. The mutated project, `<project>_mutated`, is kept, as after a
    finished run.
@@ -736,6 +736,9 @@ take that folder too. The report at the end covers every mutant, kept or tested,
   a longer `--timeout`, the timeouts under a shorter limit, so this is how to test build errors
   again, or timeouts with more time. With nothing left to test, it says `nothing is
   left to test`, builds nothing, runs no baseline and prints the report.
+- **A run of a test plan** is resumed by `run-without-mutating` with the same plan and `--resume`,
+  which the command its summary ends with gives. It compares the plan and the plan's copy, not your
+  project: see [The test plan](Docs/test-plan.md#resuming-a-run-of-the-plan).
 
 ### When a resume is refused
 
@@ -771,10 +774,11 @@ SwiftMutator copies the project is refused after the copy, so that message doesn
 | Another SwiftMutator holds the file, because its run is still going | Refused with status 6, naming the process that holds it, and its host: wait for that run to end. If an older SwiftMutator holds it, which doesn't say, it names the process and host that wrote the file's last session, which may not be the one |
 | Coverage was gathered in one session only, or this session discovers other mutants | Goes ahead, and warns: `⚠️ 412 earlier results no longer count, as this session doesn't discover their mutants: coverage couldn't be gathered then, and is now.` |
 
-A run of a test plan (`run-without-mutating`) can't be resumed, nor can a results file written
-before `--resume` existed, as it records no project files. `-o` can't name the results file itself.
-`--force-resume` and `--resume-ignoring` work only with `--resume`; without it they are a usage
-error, with status 64.
+A results file written before `--resume` existed can't be resumed, as it records no project files.
+Nor can a run of a test plan by `run`, or a run without one by `run-without-mutating` (see
+[Resuming a run of a test plan](Docs/test-plan.md#resuming-a-run-of-the-plan)). `-o` can't name the
+results file itself. `--force-resume` and `--resume-ignoring` work only with `--resume`; without it
+they are a usage error, with status 64.
 
 - **`--force-resume`** reuses the results although the SwiftMutator build (its executable's
   SHA-256), the test command's version (`swift --version` or `xcodebuild -version`) or SHA-256, or

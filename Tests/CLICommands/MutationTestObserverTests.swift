@@ -483,10 +483,16 @@ final class MutationTestObserverTests: MuterTestCase {
         )
     }
 
-    // A run from a test plan can't be resumed: its results file still makes a report.
-    func test_aTestPlanRun_getsNoContinueLine() throws {
-        current.commandLineArguments = ["run-without-mutating", "muter-mappings.json"]
-        options = .make(testPlanURL: URL(fileURLWithPath: "/project/muter-mappings.json"))
+    // A run from a test plan resumes with the same plan, named as it was given: the plan runs from the project folder.
+    // A --plan-ignoring stays, as every session checks the project against the plan.
+    func test_aTestPlanRun_getsAContinueLine_repeatingThePlanPath() throws {
+        current.commandLineArguments = [
+            "run-without-mutating", "muter-mappings.json", "--plan-ignoring", "Tests/*",
+        ]
+        options = .make(
+            testPlanURL: URL(fileURLWithPath: "/project/muter-mappings.json"),
+            planIgnoring: ["Tests/*"]
+        )
         try sut.start()
         runEvents.send(.resultsFileCreated(path: "/logs/results.jsonl"))
 
@@ -496,6 +502,8 @@ final class MutationTestObserverTests: MuterTestCase {
             "⏹ Stopped by SIGINT after testing 2 of 4 mutants. Mutation score so far: 50%.",
             "💾 Each tested mutant's result is in \("/logs/results.jsonl".bold)",
             "📝 Full report: swift-mutator report '/logs/results.jsonl'",
+            "▶️ Continue: swift-mutator run-without-mutating muter-mappings.json --plan-ignoring 'Tests/*' "
+                + "--resume '/logs/results.jsonl'",
         ])
     }
 

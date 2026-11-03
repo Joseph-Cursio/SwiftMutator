@@ -103,6 +103,9 @@ private extension [MutationStep] {
             LoadMuterTestPlan(),
             // Before the copy is locked: it reads only the project, and a refusal leaves another run's copy alone.
             CheckTestPlanSources(),
+            // Before the copy is locked, as for any run, so that a results file another session still writes is
+            // refused for that alone. It compares the plan, and `FingerprintProjectTree` the copy.
+            LoadResumeState(),
             // Before anything in the mutated project the plan names is read, which another run may be rewriting.
             LockMutatedProject(),
             CheckTestPlanCode(),

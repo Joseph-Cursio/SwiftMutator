@@ -264,6 +264,7 @@ final class MutationTestHandlerTests: MuterTestCase {
             .make(resumeURL: URL(fileURLWithPath: "/logs")),
             .make(createTestPlan: true),
             .make(testPlanURL: URL(fileURLWithPath: "/path/to/testplan")),
+            .make(testPlanURL: URL(fileURLWithPath: "/path/to/testplan"), resumeURL: URL(fileURLWithPath: "/logs")),
         ]
         let users: [MutationStep.Type] = [
             CheckTestPlanCode.self,
@@ -435,6 +436,26 @@ final class MutationTestHandlerTests: MuterTestCase {
         XCTAssertTypeEqual(sut.steps[safe: 8], BuildForTesting.self)
         XCTAssertTypeEqual(sut.steps[safe: 9], ProjectMappings.self)
         XCTAssertTypeEqual(sut.steps[safe: 10], PerformMutationTesting.self)
+    }
+
+    func test_steps_whenRunWithoutMutating_resumes() throws {
+        sut = MutationTestHandler(
+            options: .make(
+                testPlanURL: URL(fileURLWithPath: "/path/to/testplan"),
+                resumeURL: URL(fileURLWithPath: "/logs/results.jsonl")
+            )
+        )
+
+        XCTAssertEqual(sut.steps.count, 12)
+        XCTAssertTypeEqual(sut.steps[safe: 2], LoadMuterTestPlan.self)
+        XCTAssertTypeEqual(sut.steps[safe: 3], CheckTestPlanSources.self)
+        // After the plan, which it compares, and before the lock, as in a run's: a results file another session still
+        // writes is refused for that alone.
+        XCTAssertTypeEqual(sut.steps[safe: 4], LoadResumeState.self)
+        XCTAssertTypeEqual(sut.steps[safe: 5], LockMutatedProject.self)
+        // Compares the copy with the one the last session tested.
+        XCTAssertTypeEqual(sut.steps[safe: 8], FingerprintProjectTree.self)
+        XCTAssertTypeEqual(sut.steps[safe: 11], PerformMutationTesting.self)
     }
 
     func test_steps_whenMutateWithoutRunning() {

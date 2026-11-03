@@ -137,8 +137,9 @@ struct ResultsHeader: Codable, Equatable {
     let mutantsDiscovered: Int
     let mutantsToTest: Int
     /// The project's files, as the mutated copy held them before discovery rewrote it. In a session that tested a
-    /// test plan, which copies nothing, the plan's copy as it was tested: rewritten, and with any fix made by hand.
-    /// Absent from a session that an earlier SwiftMutator ran on a test plan.
+    /// test plan, which copies nothing, the plan's copy as it was tested: rewritten, and with any fix made by hand,
+    /// which a resume of its run compares the copy with. Absent from a session that an earlier SwiftMutator ran on a
+    /// test plan.
     let project: ProjectTree?
     /// Only in a resumed session, or one that reuses an earlier run's results: how many earlier results it kept rather
     /// than tested again.
@@ -163,7 +164,7 @@ struct ResultsHeader: Codable, Equatable {
     /// discovered. `mutantsDiscovered` and `mutantsToTest` count the sample's, or with `--shard` too, the shard's part
     /// of it.
     var sample: SampleSelection?
-    /// Only in a session that tested a test plan: the plan it tested.
+    /// Only in a session that tested a test plan: the plan it tested, which a resume of its run must test too.
     var testPlan: TestPlanRecord?
 }
 

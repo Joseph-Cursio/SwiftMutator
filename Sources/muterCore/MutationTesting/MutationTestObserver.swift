@@ -205,17 +205,14 @@ extension MutationTestObserver {
             let report = runOptions.reportOptions.reporter.report(from: earlyEnd.outcome)
             partialReport = (path, ReportWriter.save(report, to: path, using: fileManager))
         }
-        // A run from a test plan can't be resumed: ResumeCheck refuses it.
-        let continueCommand = runOptions.isUsingTestPlan
-            ? nil
-            : resultsFilePath.map {
-                ResumeHint.command(
-                    continuing: commandLineArguments,
-                    from: $0,
-                    since: sinceMergeBase,
-                    chosenSeed: runOptions.sample.flatMap { $0.seedIsChosen ? $0.seed : nil }
-                )
-            }
+        let continueCommand = resultsFilePath.map {
+            ResumeHint.command(
+                continuing: commandLineArguments,
+                from: $0,
+                since: sinceMergeBase,
+                chosenSeed: runOptions.sample.flatMap { $0.seedIsChosen ? $0.seed : nil }
+            )
+        }
         logger.mutationTestingEndedEarly(
             earlyEnd,
             partialReport: partialReport,

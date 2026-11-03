@@ -8,7 +8,9 @@ import Foundation
 /// checked, as it is tested, rewritten and with any fix made by hand. That is what its results file records, and what
 /// each mutant's result is judged by. The plan file is left out, wherever in the project it is. A file with mutants
 /// that differs from what `mutate-without-running` left in the copy is said, so a fix by hand is seen to be tested;
-/// it is never refused, as `CheckMutantSwitches` checks the copy.
+/// it is never refused, as `CheckMutantSwitches` checks the copy. A resumed run of a plan compares the copy with the
+/// one its last session tested, which `LoadResumeState` left to it: a change, as a fix by hand between sessions, is
+/// refused unless `--resume-ignoring` lets it through.
 ///
 /// A resumed run compares the copy with the last session's files too. `LoadResumeState` compared the project before the
 /// copy, so this only finds what changed while it was copied, and hands on the changes `--resume-ignoring` let through.
@@ -69,7 +71,17 @@ struct FingerprintProjectTree: MutationStep {
         }
         let split = tree.changes(since: recorded).partition(by: state.runOptions.resumeIgnoring)
         guard split.unwaived.isEmpty else {
-            throw ResumeRefused(path: resume.path, reasons: [.filesChanged(split.unwaived)], beforeTheCopy: false)
+            // A run of a test plan copies and removes nothing.
+            let usingTestPlan = state.runOptions.isUsingTestPlan
+            throw ResumeRefused(
+                path: resume.path,
+                reasons: [
+                    usingTestPlan
+                        ? .copyChanged(split.unwaived, copy: state.mutatedProjectDirectoryURL.path)
+                        : .filesChanged(split.unwaived),
+                ],
+                beforeTheCopy: usingTestPlan
+            )
         }
         return [.projectTreeFingerprinted(tree), .projectChangesWaived(split.waived.map(\.path))]
     }

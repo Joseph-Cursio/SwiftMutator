@@ -10,6 +10,8 @@ struct RunWithoutMutating: RunCommand {
     @OptionGroup var options: RunArguments
     @OptionGroup var testing: TestingArguments
     @OptionGroup var reportOptions: ReportArguments
+    // A run of a test plan resumes as `run` does. The plan's copy stands for the project: a resume compares its files.
+    @OptionGroup var resuming: ResumeArguments
 
     // After the option groups, so it comes last in the help.
     @Option(
@@ -41,6 +43,9 @@ struct RunWithoutMutating: RunCommand {
             testPlanURL: testPlanURL,
             workers: testing.workers,
             timeout: testing.timeout,
+            resumeURL: resuming.resume,
+            resumeIgnoring: resuming.resumeIgnoring,
+            forceResume: resuming.forceResume,
             planIgnoring: planIgnoring
         )
     }

@@ -93,6 +93,49 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         ])
     }
 
+    // A resumed run of a test plan judges its results by the copy as it is tested: a file of the copy fixed by hand
+    // since the last session, which --resume-ignoring let through, has its mutants tested again, and an unchanged one
+    // keeps its results. The header records the plan again.
+    func test_aResumedTestPlansSession_keepsTheResultsOfUnchangedCopyFiles_andRetestsAnEditedOnes() async throws {
+        let plan = LoadedTestPlan(
+            path: "/project/muter-mappings.json",
+            sha256: "91a",
+            formatVersion: TestPlanCoding.formatVersion,
+            swiftMutatorVersion: "16",
+            scope: nil,
+            sources: nil,
+            mutatedFiles: nil
+        )
+        state.runOptions = .make(
+            testPlanURL: URL(fileURLWithPath: plan.path),
+            resumeURL: URL(fileURLWithPath: resultsPath),
+            resumeIgnoring: ["Sources/Sum.swift"]
+        )
+        state.testPlan = plan
+        var edited = tree.files
+        edited["Sources/Sum.swift"] = "5a1d"
+        state.projectTree = ProjectTree(listedBy: .git, files: edited, excluded: [], treeSHA256: "e5b9")
+        let sent = recordEvents(named: [.resumePlanned])
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed, .failed, .passed]
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.testLogs, [
+            running("baseline run"),
+            running("timed test run"),
+            running("1_Quotient.swift_RelationalOperatorReplacement_40_4_5.log"),
+            running("2_Sum.swift_RelationalOperatorReplacement_30_3_5.log"),
+            running("3_Total.swift_RelationalOperatorReplacement_80_8_5.log"),
+        ])
+        let summary = try XCTUnwrap(sent().first?.object as? ResumeSummary)
+        XCTAssertEqual(summary.retestedBecause, [.buildError: 1, .fileChanged: 1, .notRecorded: 1])
+        let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
+        XCTAssertTrue(header.usingTestPlan)
+        XCTAssertEqual(header.testPlan, TestPlanRecord(plan))
+        XCTAssertEqual(header.project?.files["Sources/Sum.swift"], "5a1d")
+        XCTAssertEqual(header.mutantsReused, 1)
+    }
+
     func test_aResumedSession_isTheNextNumber_withAFormat2Header_inTheSameFile() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
         var announced: [String] = []

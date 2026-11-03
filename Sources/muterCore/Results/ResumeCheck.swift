@@ -25,6 +25,8 @@ enum ResumeCheck {
         let skipCoverage: Bool
         let usingTestPlan: Bool
         let provenance: Provenance
+        /// The SHA-256 of the test plan's file, as read; nil without a plan, or for a header that didn't record it.
+        var testPlanSHA256: String?
         /// What `--since` chose; nil without it.
         var since: ChangeSelection?
         /// `--shard`; nil without it.
@@ -112,7 +114,8 @@ enum ResumeCheck {
     /// sets) and `skipCoverage`; and what identifies the SwiftMutator build, the toolchain and the SDK. Not compared:
     /// SwiftMutator's version and path, which its SHA-256 covers; the process, host and arguments; and the effective
     /// `timeoutSeconds`, `stopsAtFirstFailure` and `failedTestLinesAreReliable`, which follow from the configuration,
-    /// the baseline and the timed test run. Only the build and toolchain differences are ever `forced`.
+    /// the baseline and the timed test run. Only the build and toolchain differences are ever `forced`. Whether a test
+    /// plan was tested, and which, is compared too (`testPlanRefusals`).
     ///
     /// A resume compares what `--since` compares the working tree with too: the merge base, and `--changed-lines`; the
     /// shard; and the sample. What `purpose` leaves out isn't compared.
@@ -140,11 +143,7 @@ enum ResumeCheck {
         if purpose != .reuse, let sample = sampleDifference(recorded.sample, current.sample) {
             verdict.refusals.append(.selectionChanged(sample))
         }
-        if recorded.usingTestPlan || current.usingTestPlan {
-            verdict.refusals.append(.testPlanRun)
-        } else if recorded.project == nil {
-            verdict.refusals.append(.noProjectTree)
-        }
+        verdict.refusals += testPlanRefusals(recorded, current)
         let builds = provenanceDifferences(
             recorded.provenance,
             current.provenance,
@@ -239,6 +238,30 @@ enum ResumeCheck {
             return false
         }
         return isNow >= longest
+    }
+
+    /// What refuses `current` the results `recorded` tested: a run of a test plan only continues one of the same plan,
+    /// byte for byte, and a run without a plan one without, whose files a header from before `--resume` doesn't record.
+    /// No `--force-resume` lets a changed plan through: its mutants may not be the ones the results are for.
+    private static func testPlanRefusals(_ recorded: ResultsHeader, _ current: Current) -> [ResumeRefusal] {
+        switch (recorded.usingTestPlan, current.usingTestPlan) {
+        case (false, false):
+            return recorded.project == nil ? [.noProjectTree] : []
+        case (true, true):
+            guard let plan = recorded.testPlan else { return [.testPlanNotRecorded] }
+            guard plan.sha256 != current.testPlanSHA256 else { return [] }
+            return [
+                .testPlanChanged(
+                    Difference(
+                        name: "testPlan.sha256",
+                        was: json(plan.sha256),
+                        isNow: current.testPlanSHA256.flatMap { json($0) }
+                    )
+                ),
+            ]
+        case (true, false), (false, true):
+            return [.testPlanRun(recordedUsedOne: recorded.usingTestPlan)]
+        }
     }
 
     /// The differences in which mutants are tested.
@@ -397,6 +420,7 @@ extension ResumeCheck.Current {
             skipCoverage: state.runOptions.skipCoverage,
             usingTestPlan: state.runOptions.isUsingTestPlan,
             provenance: provenance,
+            testPlanSHA256: state.testPlan?.sha256,
             since: state.changeSelection,
             shard: state.runOptions.shard,
             sample: state.runOptions.sample
@@ -414,6 +438,7 @@ extension ResumeCheck.Current {
             skipCoverage: header.skipCoverage,
             usingTestPlan: header.usingTestPlan,
             provenance: header.provenance,
+            testPlanSHA256: header.testPlan?.sha256,
             since: header.since,
             shard: header.shard?.shard,
             sample: header.sample.map { Sample(size: $0.size, seed: $0.seed, seedIsChosen: false) }

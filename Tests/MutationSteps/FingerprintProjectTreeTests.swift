@@ -247,9 +247,79 @@ final class FingerprintProjectTreeTests: MuterTestCase {
         XCTAssertEqual(said.value, [])
         XCTAssertEqual(state.projectTree?.files, ["Sources/Sum.swift": sha256("let sum = 1")])
     }
+
+    // A resumed plan run's last session recorded the copy it tested. A fix by hand since then changes what its results
+    // would be, so it is refused as a changed project file is, before anything is built or tested. A plan run copies
+    // and removes nothing, which the message says.
+    func test_aResumedTestPlansRun_whoseCopyChanged_isRefused() async throws {
+        let recorded = try projectTree(of: ["README.md": "readme", "Sources/Sum.swift": "let sum = a + b"])
+        try write(["README.md": "readme", "Sources/Sum.swift": "let sum = a + b // fixed by hand"], in: copy)
+        current.listProjectFiles = { _ in ["README.md", "Sources/Sum.swift"] }
+        try resumePlan(recorded)
+
+        await AssertThrowsError(try await sut.run(with: state)) { error in
+            XCTAssertEqual(
+                error as? ResumeRefused,
+                ResumeRefused(
+                    path: self.resultsPath,
+                    reasons: [.copyChanged([.init(path: "Sources/Sum.swift", kind: .changed)], copy: self.copy)],
+                    beforeTheCopy: true
+                )
+            )
+        }
+    }
+
+    func test_aResumedTestPlansRun_whoseCopyChanged_goesAheadWithResumeIgnoring() async throws {
+        let recorded = try projectTree(of: ["README.md": "readme", "Sources/Sum.swift": "let sum = a + b"])
+        try write(["README.md": "readme", "Sources/Sum.swift": "let sum = a + b // fixed by hand"], in: copy)
+        current.listProjectFiles = { _ in ["README.md", "Sources/Sum.swift"] }
+        try resumePlan(recorded, ignoring: ["Sources/*"])
+
+        let changes = try await sut.run(with: state)
+        state.apply(changes)
+
+        XCTAssertEqual(state.resumeWaived, ["Sources/Sum.swift"])
+        XCTAssertEqual(state.projectTree?.files["Sources/Sum.swift"], sha256("let sum = a + b // fixed by hand"))
+    }
+
+    func test_aResumedTestPlansRun_whoseCopyIsUnchanged_goesAhead() async throws {
+        let files = ["README.md": "readme", "Sources/Sum.swift": "let sum = a + b"]
+        try write(files, in: copy)
+        current.listProjectFiles = { _ in Array(files.keys) }
+        try resumePlan(projectTree(of: files))
+
+        state.apply(try await sut.run(with: state))
+
+        XCTAssertEqual(state.resumeWaived, [])
+        XCTAssertEqual(state.projectTree?.files, try projectTree(of: files).files)
+    }
 }
 
 private extension FingerprintProjectTreeTests {
+    /// Resumes a run of the plan in the project, whose last session recorded `recorded` as the copy it tested.
+    func resumePlan(_ recorded: ProjectTree, ignoring globs: [String] = []) throws {
+        let plan = "\(project)/muter-mappings.json"
+        state.runOptions = .make(
+            testPlanURL: URL(fileURLWithPath: plan),
+            resumeURL: URL(fileURLWithPath: resultsPath),
+            resumeIgnoring: globs
+        )
+        state.testPlan = LoadedTestPlan(
+            path: plan,
+            sha256: "91a",
+            formatVersion: TestPlanCoding.formatVersion,
+            swiftMutatorVersion: "16",
+            scope: nil,
+            sources: nil,
+            mutatedFiles: nil
+        )
+        state.resumeState = try ResumeState.make(
+            path: resultsPath,
+            lines: [ResultsHeader.make(project: recorded, usingTestPlan: true), ResultsEnd.make()],
+            file: resultsFiles.openForResume(at: resultsPath)
+        )
+    }
+
     /// A run of the plan at `path`, which left `mutatedFiles` in the copy.
     func testPlan(at path: String, mutatedFiles: [String: String]?) {
         state.runOptions = .make(testPlanURL: URL(fileURLWithPath: path))
