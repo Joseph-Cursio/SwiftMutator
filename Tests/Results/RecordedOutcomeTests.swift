@@ -127,6 +127,42 @@ final class RecordedOutcomeTests: MuterTestCase {
         try assertTheResultsFileRebuilds(runOutcome)
     }
 
+    // The configuration's thresholds reach the run's report, and the header records them for the file's.
+    func test_aRunsSuspectTestThresholds_reachItsReport_andTheReportFromItsFile() async throws {
+        state.mutationMapping = try (0 ..< 4).map { index in
+            try makeMapping("/project_mutated/Sources/F\(index).swift", lines: [3])
+        }.mergeByFilePath()
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift",
+            arguments: ["test"],
+            mutationTestWorkers: 1,
+            suspectTestFilePercent: 60,
+            suspectTestMinimumFiles: 3
+        )
+        // timing() fails for the mutants in 3 of the 4 files, 75%; sum() for 1.
+        let timing = "✘ Test timing() recorded an issue at TimingTests.swift:9:5: Expectation failed: 1.2 < 1.0"
+        let sum = "✘ Test sum() recorded an issue at SumTests.swift:3:5: Expectation failed"
+        ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 4)
+        ioDelegate.mutantTestLogs = [timing, timing, timing, sum]
+
+        let changes = try await sut.run(with: state)
+
+        guard case let .mutationTestOutcomeGenerated(runOutcome)? = changes.first else {
+            return XCTFail("Expected an outcome, got \(changes)")
+        }
+        XCTAssertEqual(runOutcome.suspectTestThresholds, SuspectTestThresholds(filePercent: 60, minimumFiles: 3))
+        let summary = try XCTUnwrap(MuterTestReport(from: runOutcome).killingTestSummary)
+        XCTAssertTrue(summary.suspectsChecked)
+        XCTAssertEqual(summary.tests.filter(\.suspect).map(\.name), ["timing()"])
+        XCTAssertEqual(summary.mutationScoreWithoutSuspectOnlyKills, 25)
+        // The standard thresholds would give no verdict in 4 files.
+        XCTAssertEqual(KillingTestSummary(of: runOutcome.mutations)?.suspectsChecked, false)
+        let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
+        XCTAssertEqual(header.configuration.suspectTestFilePercent, 60)
+        XCTAssertEqual(header.configuration.suspectTestMinimumFiles, 3)
+        try assertTheResultsFileRebuilds(runOutcome)
+    }
+
     func test_recordsInCompletionOrder_areReportedInJobOrder() throws {
         let jobs = fixtureJobs()
         // Each repeat of a place and operator comes in the order it was found, which its occurrence numbers.
@@ -258,7 +294,10 @@ final class RecordedOutcomeTests: MuterTestCase {
                 projectPath: "/moved",
                 mutatedProjectPath: "/moved_mutated",
                 coverage: CoverageSummary(percent: 78, filesWithoutCoverage: uncovered),
-                newVersion: "9.9.9"
+                newVersion: "9.9.9",
+                configuration: MuterConfiguration(
+                    executable: "/usr/bin/swift", arguments: ["test"], suspectTestFilePercent: 40
+                )
             ),
             mutantResult(jobs[4].schema, jobs[4].key, outcome: .passed, session: 2),
             ResultsEnd.make(session: 2, testDurationSeconds: 20.25, recorded: 1)
@@ -275,6 +314,7 @@ final class RecordedOutcomeTests: MuterTestCase {
         XCTAssertEqual(rebuilt.coverage, .make(percent: 78, filesWithoutCoverage: uncovered))
         XCTAssertEqual(rebuilt.newVersion, "9.9.9")
         XCTAssertEqual(rebuilt.testDuration, 120.75)
+        XCTAssertEqual(rebuilt.suspectTestThresholds, SuspectTestThresholds(filePercent: 40, minimumFiles: 10))
     }
 
     // A resumed session retires the results it doesn't stand by, and records again those it tests again.

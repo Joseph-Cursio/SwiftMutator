@@ -307,24 +307,46 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertNil(reported.mutations.last?.killingTests)
     }
 
-    // Such lines then name no test the mutant failed.
-    func test_noKilledByWhenTheBaselinePrintedAFailureLikeLine() async throws {
+    // Such lines are the tests' own text, printed whatever the mutant: the tests they show failing are left out of
+    // each mutant's list, and the others still named.
+    func test_killedBy_leavesOutTheTestsThePassingBaselinesLinesShowedFailing() async throws {
+        let lookalike = "✘ Test parsesAFailure() recorded an issue at ParserTests.swift:3:5: Expectation failed: 1 == 2"
         ioDelegate.baselineTestLog = """
         ◇ Test run started.
-        ✘ Test sum() recorded an issue at SumTests.swift:3:5: Expectation failed: 1 == 2
+        \(lookalike)
         ✔ Test run with 1 test in 0 suites passed after 0.001 seconds.
         """
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
-        ioDelegate.mutantTestLogs = [killingLog, killingLog]
+        ioDelegate.mutantTestLogs = [lookalike + "\n" + killingLog, "◇ Test run started.\n" + lookalike]
 
         let changes = try await sut.run(with: state)
 
-        XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.failedTestLinesAreReliable), [false])
+        let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
+        XCTAssertFalse(header.failedTestLinesAreReliable)
+        XCTAssertEqual(header.failedTestLookalikes, [.init(name: "parsesAFailure()", file: "ParserTests.swift")])
         let mutants = try resultsFiles.records(MutantResult.self)
         XCTAssertEqual(mutants.map(\.outcome), [.failed, .failed])
-        XCTAssertEqual(mutants.map(\.killedBy), [nil, nil])
-        XCTAssertEqual(mutants.map(\.failedTestCount), [nil, nil])
-        XCTAssertEqual(try XCTUnwrap(outcome(of: changes)).mutations.map(\.killingTests), [nil, nil])
+        XCTAssertEqual(mutants.map(\.killedBy), [[.init(name: "sum()", location: "SumTests.swift:12:5")], []])
+        XCTAssertEqual(mutants.map(\.failedTestCount), [1, 0])
+        XCTAssertEqual(
+            mutants.map(\.firstFailedTestLine),
+            ["✘ Test sum() recorded an issue at SumTests.swift:12:5: Expectation failed: 3 == 4", nil]
+        )
+        XCTAssertEqual(try XCTUnwrap(outcome(of: changes)).mutations.map(\.killingTests), [
+            .init(tests: [.init(name: "sum()", location: "SumTests.swift:12:5")], count: 1, isComplete: true),
+            .init(tests: [], count: 0, isComplete: true),
+        ])
+    }
+
+    func test_aHeaderRecordsNoFailedTestLookalikes_whenTheBaselinePrintedNone() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        ioDelegate.mutantTestLogs = [killingLog, killingLog]
+
+        _ = try await sut.run(with: state)
+
+        let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
+        XCTAssertTrue(header.failedTestLinesAreReliable)
+        XCTAssertNil(header.failedTestLookalikes)
     }
 
     func test_repeatedMutants_getDistinctKeys() async throws {

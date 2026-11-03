@@ -128,8 +128,10 @@ At the top level, when a mutant a failed test killed has its tests recorded. A m
 | `killedMutantsNamingNoTest` | Of those, how many name no test |
 | `killedMutantsNotRecorded` | Mutants a failed test killed with no tests recorded |
 | `incompleteLists` | Of the mutants naming tests, how many may not name every test that failed |
-| `filesWithKills` | How many mutated files have a killed mutant that names a test: what the 15% is a share of |
-| `suspectsChecked` | Whether `filesWithKills` is at least 10, so that a test can be suspect |
+| `filesWithKills` | How many mutated files have a killed mutant that names a test: what `suspectFilePercent` is a share of |
+| `suspectFilePercent` | The share of `filesWithKills`, in percent, that a test must have failed for mutants in to be suspect: the configuration's `suspectTestFilePercent`, 15 by default |
+| `suspectMinimumFiles` | The configuration's `suspectTestMinimumFiles`, 10 by default: how many files with a kill there must be, and a test must have failed for mutants in, for it to be suspect |
+| `suspectsChecked` | Whether `filesWithKills` is at least `suspectMinimumFiles`, so that a test can be suspect |
 | `distinctTests` | How many different tests failed for those mutants |
 | `tests` | The 10 tests that failed for the most mutants, ties broken by name and then file, then every other suspect test |
 | `suspectOnlyKills` | Mutants only suspect tests were recorded failing for |
@@ -145,7 +147,7 @@ Each of its `tests`:
 | `mutants` | How many of those mutants it failed for |
 | `files` | How many mutated files those mutants are in |
 | `onlyRecordedFailureOf` | How many of them recorded it as the only test that failed |
-| `suspect` | Whether it is suspect: `files` is at least 10, and at least 15% of `filesWithKills` |
+| `suspect` | Whether it is suspect: `files` is at least `suspectMinimumFiles`, and at least `suspectFilePercent`% of `filesWithKills` |
 
 Here is part of a report with two suspect tests. Most keys, file reports and tests are left out:
 
@@ -178,6 +180,8 @@ Here is part of a report with two suspect tests. Most keys, file reports and tes
     "killedMutantsNotRecorded": 0,
     "incompleteLists": 36,
     "filesWithKills": 132,
+    "suspectFilePercent": 15,
+    "suspectMinimumFiles": 10,
     "suspectsChecked": true,
     "distinctTests": 1049,
     "tests": [

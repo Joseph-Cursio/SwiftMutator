@@ -307,7 +307,7 @@ final class ResultsRecordTests: XCTestCase {
             key: key,
             schema: schema,
             finished: FinishedRun(index: 4, worker: 2, run: run, seconds: 31.2071),
-            failures: MutantResult.failedTests(of: run, linesAreReliable: true),
+            failures: MutantResult.failedTests(of: run),
             session: 1,
             finishedAt: finishedAt,
             log: "RelationalOperatorReplacement @ Sum.swift-73-22.log"
@@ -371,12 +371,27 @@ final class ResultsRecordTests: XCTestCase {
         }
     }
 
-    func test_aMutantRecordFromARun_namesNoTestsWhenFailedTestLinesAreUnreliable() throws {
-        let log = "✘ Test sum() recorded an issue at SumTests.swift:12:5: Expectation failed"
-        let run = TestRun(outcome: .failed, testLog: log, ending: .exited, exitStatus: 1)
+    func test_aMutantRecordFromARun_leavesOutTheTestsThePassingBaselinesLinesShowedFailing() throws {
+        let lookalike = "✘ Test parsesAFailure() recorded an issue at ParserTests.swift:4:5: printed by the test"
+        let real = "✘ Test sum() recorded an issue at SumTests.swift:12:5: Expectation failed"
+        let configuration = MuterConfiguration().withUnreliableFailedTestLines(printedIn: [lookalike])
+        let run = TestRun(outcome: .failed, testLog: lookalike + "\n" + real, ending: .exited, exitStatus: 1)
 
-        XCTAssertNil(MutantResult.failedTests(of: run, linesAreReliable: false))
-        XCTAssertNotNil(MutantResult.failedTests(of: run, linesAreReliable: true))
+        let failures = try XCTUnwrap(MutantResult.failedTests(of: run, ignoring: configuration.failedTestLookalikes))
+
+        XCTAssertEqual(failures.tests, [FailedTestLine.FailedTest(name: "sum()", location: "SumTests.swift:12:5")])
+        XCTAssertEqual(failures.count, 1)
+        XCTAssertEqual(failures.firstLine, real)
+        // A run whose only such lines are the baseline's names no test.
+        let lookalikeOnly = TestRun(outcome: .failed, testLog: lookalike, ending: .exited, exitStatus: 1)
+        let none = try XCTUnwrap(
+            MutantResult.failedTests(of: lookalikeOnly, ignoring: configuration.failedTestLookalikes)
+        )
+        XCTAssertEqual(none.tests, [])
+        XCTAssertNil(none.firstLine)
+        // A test the baseline didn't show failing is named even though failed-test lines aren't reliable.
+        XCTAssertFalse(configuration.failedTestLinesAreReliable)
+        XCTAssertEqual(MutantResult.failedTests(of: run)?.count, 2)
     }
 
     func test_aMutantRecordFromARun_roundsItsDurationToTheMillisecond_andHasAnExitStatusOnlyIfItExited() throws {
@@ -730,7 +745,7 @@ private extension ResultsRecordTests {
             key: XCTUnwrap(MutantKey.keys(for: [schema], under: mutatedRoot).first),
             schema: schema,
             finished: FinishedRun(index: 0, worker: 0, run: run, seconds: seconds),
-            failures: MutantResult.failedTests(of: run, linesAreReliable: true),
+            failures: MutantResult.failedTests(of: run),
             session: 1,
             finishedAt: finishedAt,
             log: "RelationalOperatorReplacement @ Sum.swift-73-22.log"

@@ -275,13 +275,15 @@ struct SimulatorWorkerSetup {
             let reason = "worker \(failed.worker)'s run with no mutant on, on its simulator, didn't pass\(why)\(log)"
             return Workers(count: 1, unavailable: reason, configuration: configuration, xcodeWorkers: [])
         }
-        let lookalikes = runs.compactMap { run in
-            FailedTestLine.first(inLog: run.testLog) ?? CrashLine.first(inLog: run.testLog)
+        // The logs of the runs that printed a line shaped like a failed test or a crash.
+        let printingLookalikes = runs.compactMap { run in
+            (FailedTestLine.first(inLog: run.testLog) ?? CrashLine.first(inLog: run.testLog)).map { _ in run.testLog }
         }
         return Workers(
             count: xcodeWorkers.count,
             unavailable: nil,
-            configuration: lookalikes.isEmpty ? configuration : configuration.withUnreliableFailedTestLines(),
+            configuration: printingLookalikes.isEmpty
+                ? configuration : configuration.withUnreliableFailedTestLines(printedIn: printingLookalikes),
             xcodeWorkers: xcodeWorkers,
             checkRunSeconds: runs.map(\.seconds).max()
         )
