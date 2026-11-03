@@ -525,7 +525,7 @@ extension MuterConfiguration {
 
 /// No field is left at its default, so a copy that drops one no longer equals this, and every configuration key
 /// differs from the default's. `test_configurationWithEveryFieldSet_leavesNoFieldAtItsDefault` fails until a new
-/// field is set here, which then reaches the copy tests and `test_everyConfigurationKeyButThree_isCompared`.
+/// field is set here, which then reaches the copy tests and `test_everyConfigurationKeyButFour_isCompared`.
 func configurationWithEveryFieldSet(
     executable: String = "/usr/bin/swift",
     timeout: Double? = 30,
@@ -541,7 +541,8 @@ func configurationWithEveryFieldSet(
         buildSystem: .swift,
         mutationTestWorkers: 4,
         stopAtFirstFailure: false,
-        buildTimeout: 600
+        buildTimeout: 600,
+        oneWorkerSimulator: true
     )
     .withDirectTestRun(DirectTestRun(
         helper: "/toolchain/usr/libexec/swift/pm/swiftpm-testing-helper",
@@ -559,6 +560,15 @@ func configurationWithEveryFieldSet(
         testDiagnosticsOff: true
     ))
     return failedTestLinesAreReliable ? configuration : configuration.withUnreliableFailedTestLines()
+}
+
+extension muterCore.XCTestRun {
+    /// An `.xctestrun` in a test plan's format whose one test target has parallel testing on.
+    static var parallelizing: muterCore.XCTestRun {
+        let testTarget: [String: AnyHashable] = ["ParallelizationEnabled": true]
+        let testConfiguration: [String: AnyHashable] = ["TestTargets": [testTarget]]
+        return muterCore.XCTestRun(["TestConfigurations": [testConfiguration]])
+    }
 }
 
 extension MutationPosition {

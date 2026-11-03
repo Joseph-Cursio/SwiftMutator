@@ -26,8 +26,9 @@ struct MuterConfiguration: Equatable, Codable {
     /// clone of the mutated project, because `swift test` locks the package's build directory. Each clone is built
     /// once before testing, so the paths compiled into its tests point into it. An xcodebuild worker tests on a
     /// simulator of its own, from the mutated project's one build (see `XcodeWorker`). Other projects, and xcodebuild
-    /// projects that test elsewhere, test one at a time (`parallelWorkersUnsupportedReason`); so do nil and 1. A `var`
-    /// only so `overriding` can copy `self` and change just this field.
+    /// projects that test elsewhere, test one at a time (`parallelWorkersUnsupportedReason`); so do nil and 1, though
+    /// one xcodebuild worker may still test on a simulator of its own (`oneWorkerSimulator`). A `var` only so
+    /// `overriding` can copy `self` and change just this field.
     private(set) var mutationTestWorkers: Int?
     /// Optional explicit build system from the `buildSystem:` config key. When set it overrides the
     /// executable-basename heuristic — needed when `executable` is a wrapper script (e.g. one that
@@ -37,6 +38,11 @@ struct MuterConfiguration: Equatable, Codable {
     /// decides that the mutant is killed. nil leaves it to the default; see `stopsAtFirstFailure`. A `var` only so
     /// `withoutStoppingAtFirstFailure` can copy `self` and change just this field.
     private(set) var stopAtFirstFailure: Bool?
+    /// Whether one xcodebuild worker tests on a simulator SwiftMutator makes, rather than on the test command's
+    /// destination (`oneWorkerSimulator:`): nil decides from the project and the baseline
+    /// (`SimulatorWorkerSetup.oneWorkerPlan(for:state:)`), true whenever the destination is a simulator and there are 2
+    /// or more mutants to test, false never. Several workers test on simulators of their own whatever it says.
+    let oneWorkerSimulator: Bool?
     /// Whether a line `FailedTestLine` matches shows a failed test. Not a configuration key: false once a
     /// passing baseline has printed such a line, or one `CrashLine` matches, as its tests print text shaped like a
     /// failure. Such a line then neither stops a mutant's run nor counts a timed-out run killed. A `var` only so
@@ -74,6 +80,7 @@ struct MuterConfiguration: Equatable, Codable {
         case explicitBuildSystem = "buildSystem"
         case mutationTestWorkers
         case stopAtFirstFailure
+        case oneWorkerSimulator
     }
 
     init(
@@ -86,7 +93,8 @@ struct MuterConfiguration: Equatable, Codable {
         buildSystem: BuildSystem? = nil,
         mutationTestWorkers workers: Int? = nil,
         stopAtFirstFailure: Bool? = nil,
-        buildTimeout: Double? = nil
+        buildTimeout: Double? = nil,
+        oneWorkerSimulator: Bool? = nil
     ) {
         testCommandExecutable = executable
         testCommandArguments = arguments
@@ -98,6 +106,7 @@ struct MuterConfiguration: Equatable, Codable {
         mutationTestWorkers = workers
         self.stopAtFirstFailure = stopAtFirstFailure
         self.buildTimeout = buildTimeout
+        self.oneWorkerSimulator = oneWorkerSimulator
     }
 
     init(from decoder: Decoder) throws {
@@ -116,6 +125,7 @@ struct MuterConfiguration: Equatable, Codable {
         mutationTestWorkers = try container.decodeIfPresent(Int.self, forKey: .mutationTestWorkers)
         // Throws on a value that isn't a Boolean, so a typo is a configuration error rather than "unset".
         stopAtFirstFailure = try container.decodeIfPresent(Bool.self, forKey: .stopAtFirstFailure)
+        oneWorkerSimulator = try container.decodeIfPresent(Bool.self, forKey: .oneWorkerSimulator)
     }
 
     /// A number of seconds, written as an Int or a Double, or nil if `key` isn't set.
@@ -130,7 +140,8 @@ struct MuterConfiguration: Equatable, Codable {
     /// The number of mutants to test at once: `mutationTestWorkers`, at least 1, for a SwiftPM project and for an
     /// xcodebuild project whose first `-destination` is a simulator; always 1 for the others, for the reason
     /// `parallelWorkersUnsupportedReason` gives. An xcodebuild run that can't give each worker a simulator still tests
-    /// one mutant at a time (see `SimulatorWorkerSetup`).
+    /// one mutant at a time (see `SimulatorWorkerSetup`), and one xcodebuild worker may test on a simulator of its own
+    /// (`oneWorkerSimulator`).
     var workerCount: Int {
         guard parallelWorkersUnsupportedReason == nil else { return 1 }
         return max(1, mutationTestWorkers ?? 1)
@@ -169,6 +180,46 @@ struct MuterConfiguration: Equatable, Codable {
             let keyAndValue = pair.split(separator: "=", maxSplits: 1).map { String($0).trimmed.lowercased() }
             return keyAndValue.count == 2 && keyAndValue[0] == "platform" && keyAndValue[1].hasPrefix("mac")
         }
+    }
+
+    /// How the test command's own arguments set xcodebuild's parallel testing. They reach only the baseline and the
+    /// coverage run, never a mutant's, which tests from the `.xctestrun` with arguments of its own
+    /// (`testWithoutBuildArguments`), so they say only how far the baseline's testing is like a mutant's.
+    enum ParallelTestingArguments: Equatable {
+        /// They don't set it: the scheme or the test plan does, for the baseline and the mutants' runs alike.
+        case unset
+        /// `-parallel-testing-enabled NO`: the baseline tests one test at a time.
+        case off
+        /// They set it with `option`, such as `-parallel-testing-worker-count`, which a mutant's run doesn't have.
+        case tuned(String)
+    }
+
+    /// How the test command's arguments set parallel testing: `.off` for a `-parallel-testing-enabled NO`, in any
+    /// case, wherever it is; else `.tuned` with the first that tunes it, `-parallel-testing-enabled YES`,
+    /// `-parallel-testing-worker-count`, `-maximum-parallel-testing-workers` or
+    /// `-parallelize-tests-among-destinations`; else `.unset`, as for a `-parallel-testing-enabled` with no value.
+    var parallelTestingArguments: ParallelTestingArguments {
+        let arguments = testCommandArguments
+        var tuned: String?
+        for (index, argument) in arguments.enumerated() {
+            let value = index + 1 < arguments.count ? arguments[index + 1] : nil
+            switch argument {
+            case "-parallel-testing-enabled":
+                if let value, value.lowercased() == "no" {
+                    return .off
+                }
+                if let value, value.lowercased() == "yes" {
+                    tuned = tuned ?? "\(argument) \(value)"
+                }
+            case "-parallel-testing-worker-count",
+                 "-maximum-parallel-testing-workers",
+                 "-parallelize-tests-among-destinations":
+                tuned = tuned ?? argument
+            default:
+                break
+            }
+        }
+        return tuned.map(ParallelTestingArguments.tuned) ?? .unset
     }
 
     /// Why a mutant's test run can't be stopped at its first failed test with this test command, or nil.

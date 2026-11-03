@@ -151,7 +151,7 @@ final class ResumeCheckTests: XCTestCase {
         XCTAssertEqual(verdict.notices, ["buildTimeout was 900 and is 1800 now, which no result depends on."])
     }
 
-    func test_everyConfigurationKeyButThree_isCompared() {
+    func test_everyConfigurationKeyButFour_isCompared() {
         // A new configuration key is compared unless it is added to keysThatDontAffectOutcomes, and fails this test
         // either way, so each one is a decision.
         let verdict = check(
@@ -179,8 +179,26 @@ final class ResumeCheckTests: XCTestCase {
             [
                 "buildTimeout was not set and is 600 now, which no result depends on.",
                 "mutationTestWorkers was not set and is 4 now, which no result depends on.",
+                "oneWorkerSimulator was not set and is true now, which no result depends on.",
                 "stopAtFirstFailure was not set and is false now, which no result depends on.",
             ]
+        )
+    }
+
+    // Where one worker tests, on the destination or on a simulator of its own, can change a kill's kind, but not
+    // whether it is killed.
+    func test_aChangedOneWorkerSimulator_onlyNotifies() {
+        let recorded = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
+        let changed = MuterConfiguration(
+            executable: "/usr/bin/xcodebuild", arguments: ["test"], oneWorkerSimulator: true
+        )
+
+        let verdict = check(current(configuration: changed), recorded: header(of: current(configuration: recorded)))
+
+        XCTAssertEqual(verdict.refusals, [])
+        XCTAssertEqual(verdict.forced, [])
+        XCTAssertEqual(
+            verdict.notices, ["oneWorkerSimulator was not set and is true now, which no result depends on."]
         )
     }
 
@@ -197,6 +215,7 @@ final class ResumeCheckTests: XCTestCase {
                 .init(name: "executable", was: #""""#, isNow: #""/usr/bin/swift""#),
                 .init(name: "mutationTestTimeout", was: nil, isNow: "30"),
                 .init(name: "mutationTestWorkers", was: nil, isNow: "4"),
+                .init(name: "oneWorkerSimulator", was: nil, isNow: "true"),
                 .init(name: "stopAtFirstFailure", was: nil, isNow: "false"),
             ]
         )

@@ -155,12 +155,15 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
             unsupportedReason: "worker 1's run with no mutant on, on its simulator, didn't pass: Simulator device "
                 + "failed to launch com.example.MacCloud-client-iOS. (its log is no-mutant run worker 1.log)",
             mutantsToTest: 4,
-            onSimulators: true
+            onSimulators: true,
+            fellBack: true
         )
         XCTAssertEqual(choices(), [choice])
         XCTAssertEqual(fileManager.createdFiles["/logs/no-mutant run worker 1.log"], Data(launchFailed.utf8))
         XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.workers), [1])
         assertTestedOnOneWorker()
+        // The session still names the deleted simulators' workers, for their files, but no mutant runs on one.
+        XCTAssertEqual(runs(on: "SIM-0").count, 0)
     }
 
     // As a mutant's run does: the simulator's first install and launch, all at once on new simulators, is where it is
@@ -497,6 +500,13 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
             file: file,
             line: line
         )
+    }
+
+    /// The mutants' runs whose test command names `udid`'s simulator.
+    private func runs(on udid: String) -> [MuterConfiguration] {
+        ioDelegate.configurations.filter { configuration in
+            configuration.testWithoutBuildArguments(with: "muter.xctestrun").contains { $0.hasSuffix("id=\(udid)") }
+        }
     }
 
     /// Each of `workers` once, in the order they first come.
