@@ -51,6 +51,9 @@ enum RunEvent {
     case timeoutRerunFinished(TimeoutRerun)
     /// What the timeouts tested again came to, once every one is.
     case timeoutRerunsFinished(TimeoutRerunTally)
+    /// A run of one mutant (`--mutant`), once its line is written, which `mutationTestingFinished` then prints in
+    /// place of the report.
+    case oneMutantTested(OneMutantRun)
     case mutationTestingFinished(MutationTestOutcome)
     /// What mutation testing tested before it stopped early, once the baseline passed.
     case mutationTestingEndedEarly(EarlyEnd)
@@ -62,9 +65,26 @@ enum RunEvent {
     /// Why the results file can't be created or written to.
     case resultsFileUnavailable(reason: String)
 
-    case testPlanFileCreated(path: String)
+    case testPlanFileCreated(TestPlanCreated)
 
     case muterMutationTestPlanLoaded
+    /// The plan doesn't record the project's files, as a plan in format 0 doesn't, so the project isn't checked
+    /// against it.
+    case testPlanSourcesUnchecked
+    /// Project files the plan doesn't mutate that changed since it was made, whether or not `--plan-ignoring` matches
+    /// them: the copy holds them as they were.
+    case testPlanSourcesDiffer([ProjectTree.FileChange])
+    /// Files with the plan's other mutants, which `--mutant` leaves out of the run, that changed since it was made: a
+    /// run that tests those mutants refuses the plan unless `--plan-ignoring` lets the changes through.
+    case testPlanUntestedFilesChanged([ProjectTree.FileChange])
+    /// Files the plan mutates that changed since it was made, which `--plan-ignoring` let through.
+    case testPlanChangesWaived([String])
+    /// Files with mutants that the plan's copy holds otherwise than `mutate-without-running` left them, as a fix by
+    /// hand does, by their paths relative to the copy; they are tested as they are.
+    case testPlanCopyEdited([String])
+    /// Dependency resolution files of the plan's copy, which the project the plan was made from didn't have, that
+    /// changed since a resumed run's last session, as the copy's own build writes them: they don't refuse the resume.
+    case testPlanCopyResolutionChanged([ProjectTree.FileChange])
 }
 
 /// Delivers each of a run's events to whatever observes them, in the order they were added, at once and on the thread

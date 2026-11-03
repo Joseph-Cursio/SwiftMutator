@@ -31,6 +31,10 @@ struct DiscoverMutationPoints: MutationStep {
                     : .noMutantOnChangedLines
                 throw NothingToMutate(reason: reason, selection: selection)
             }
+            // The mutant `--mutant` names isn't there, which its refusal says, as for a project that has others.
+            if let reference = state.runOptions.mutant {
+                throw MutantRefused(reference: reference, reason: .notFound(nearby: [], files: 0))
+            }
             throw MuterError.noMutationPointsDiscovered
         }
 

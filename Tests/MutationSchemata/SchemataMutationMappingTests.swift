@@ -62,6 +62,43 @@ final class SchemataMutationMappingTests: XCTestCase {
         XCTAssertEqual(mapping.mutationSchemata.map(\.snapshot.after), (1 ... 8).map { "\($0)" })
     }
 
+    // A test plan writes each path relative to its copy and resolves it again when it is read. The plan's code switches
+    // each mutant on by the ID the plan records, so no ID may be made again from the relative path.
+    func test_aMappingMadeRelative_andResolvedAgain_isTheSame() throws {
+        let mapping = try SchemataMutationMapping.make(
+            filePath: path,
+            (source: "let later = 1", schemata: [mutant(line: 10, column: 5), mutant(line: 9, column: 12)]),
+            (source: "let earlier = 2", schemata: [
+                mutant(line: 9, column: 5, after: "first"),
+                mutant(line: 9, column: 5, after: "second"),
+            ])
+        )
+        let root = URL(fileURLWithPath: "/project_mutated")
+
+        let relative = mapping.relative(to: root)
+
+        XCTAssertEqual(relative.filePath, "Sources/Sum.swift")
+        XCTAssertEqual(Set(relative.mutationSchemata.map(\.filePath)), ["Sources/Sum.swift"])
+        XCTAssertEqual(relative.mutationSchemata.map(\.id), mapping.mutationSchemata.map(\.id))
+        XCTAssertEqual(relative.mutationSchemata.map(label), mapping.mutationSchemata.map(label))
+        XCTAssertEqual(relative.mutationSchemata.map(\.snapshot.after), mapping.mutationSchemata.map(\.snapshot.after))
+        XCTAssertEqual(relative.resolved(under: root), mapping)
+        XCTAssertEqual(relative.resolved(under: root).filePath, path)
+    }
+
+    // A file outside the copy has no path relative to it, so it keeps its own both ways.
+    func test_aMappingOutsideTheRoot_keepsItsPaths() throws {
+        let mapping = try SchemataMutationMapping.make(
+            filePath: path,
+            (source: "let value = 1", schemata: [mutant(line: 3, column: 5)])
+        )
+        let elsewhere = URL(fileURLWithPath: "/elsewhere")
+
+        XCTAssertEqual(mapping.relative(to: elsewhere), mapping)
+        XCTAssertEqual(mapping.relative(to: elsewhere).filePath, path)
+        XCTAssertEqual(mapping.resolved(under: elsewhere), mapping)
+    }
+
     private func mutant(
         line: Int,
         column: Int,

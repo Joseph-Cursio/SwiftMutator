@@ -297,7 +297,11 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         if !summary.waived.isEmpty {
             let named = summary.waived.prefix(ResumeRefusal.changedFilesNamed)
             let others = summary.waived.count - named.count
-            let files = summary.waived.count == 1 ? "1 project file" : "\(summary.waived.count) project files"
+            let one = summary.waived.count == 1
+            // As `ResumeRefusal.copyChanged` names them.
+            let files = summary.testPlanCopy.map { copy in
+                "\(summary.waived.count) file\(one ? "" : "s") of the test plan's copy, \(copy),"
+            } ?? (one ? "1 project file" : "\(summary.waived.count) project files")
             print(
                 "⚠️ Results are reused although \(files) changed (\(ignoring)): "
                     + named.joined(separator: ", ") + (others > 0 ? ", and \(others) more" : "")
@@ -445,10 +449,13 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
                 """
             )
 
+            // The mutants this session tests, which the baseline's log carries: fewer than were discovered when
+            // --mutant picks one of them.
+            let total = mutationTestLog.remainingMutationPointsCount ?? numberOfMutationPoints
             let estimate = SimpleTimeEstimate(
                 firstEstimate: Self.initialEstimate(
                     // The baseline's log carries both.
-                    remaining: mutationTestLog.remainingMutationPointsCount ?? numberOfMutationPoints,
+                    remaining: total,
                     cycle: mutationTestLog.testRunSeconds ?? mutationTestLog.timePerBuildTestCycle ?? 0,
                     workers: mutationTestLog.workers
                 ),
@@ -457,7 +464,7 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
             )
             if standardOutIsATerminal {
                 progressBar = ProgressBar(
-                    count: numberOfMutationPoints,
+                    count: total,
                     configuration: [
                         ProgressString(string: "Inserting mutant"),
                         ProgressOneIndexed(),
@@ -471,7 +478,7 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
                     printer: ProgressBarMultilineTerminalPrinter(numberOfLines: Self.progressBarLines)
                 )
             } else {
-                let lines = ProgressLines(total: numberOfMutationPoints, estimate: estimate)
+                let lines = ProgressLines(total: total, estimate: estimate)
                 progressLines = lines
                 print(lines.firstLine(at: now()))
             }
@@ -605,6 +612,102 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         }
     }
 
+    /// How many lines of a run of one mutant's log are printed whole. A longer log is printed from its last
+    /// `logLinesShownOfALongLog`.
+    static let logLinesShownWhole = 400
+    static let logLinesShownOfALongLog = 200
+
+    /// What the one mutant `--mutant` tested found, in place of the report: the mutant and its switch ID, what it
+    /// changes, its tests' log, its verdict, the mutated project the run leaves, and the command that runs its tests
+    /// there with it on; then where a requested report went.
+    func oneMutantTested(_ run: OneMutantRun, reportPath: (path: String, saved: Bool)?) {
+        print("🏁 SwiftMutator finished running!")
+        let change = run.snapshot.description.isEmpty ? "" : " (\(run.snapshot.description))"
+        var lines = ["🔬 \(run.key)\(change)", "Switch: \(run.switchID)", "Change:"]
+        lines += run.change.map { "  " + $0 }
+        lines.append(run.logPath.map { "Tests (log: \($0)):" } ?? "Tests:")
+        lines += Self.shown(log: run.testLog, kept: run.logPath != nil).map { $0.isEmpty ? "" : "  " + $0 }
+        lines.append("Verdict: " + Self.verdict(of: run))
+        lines.append("Mutated project kept, with the mutant switched off: \(run.mutatedProject)")
+        lines += Self.switchingOn(run)
+        lines.forEach { print($0) }
+        if let reportPath {
+            print(
+                reportPath.saved
+                    ? "📝 Report generated: \(reportPath.path.bold)"
+                    : "⚠️ Could not save the report to \(reportPath.path)"
+            )
+        }
+    }
+
+    /// `log`'s lines, or its last `logLinesShownOfALongLog` after a line saying how many come before them, when it has
+    /// more than `logLinesShownWhole`; those are in the log folder's copy if it is `kept`.
+    private static func shown(log: String, kept: Bool) -> [String] {
+        var lines = log.components(separatedBy: "\n")
+        if lines.last?.isEmpty == true {
+            lines.removeLast()
+        }
+        guard !lines.isEmpty else { return ["(the tests printed nothing)"] }
+        guard lines.count > logLinesShownWhole else { return lines }
+        let earlier = lines.count - logLinesShownOfALongLog
+        let left = kept ? "are in the log" : "are left out"
+        return ["… \(earlier) earlier lines \(left)"] + lines.suffix(logLinesShownOfALongLog)
+    }
+
+    /// "killed by sum() and product() (2 failed tests), in 4.2 s", "survived, in 4.2 s", "timed out after 30 s".
+    static func verdict(of run: OneMutantRun) -> String {
+        let took = ", in " + seconds(run.seconds)
+        switch run.outcome {
+        case .failed, .runtimeError:
+            guard let killing = run.killingTests, !killing.tests.isEmpty else {
+                return (run.outcome == .runtimeError ? "killed: the tests crashed" : "killed: the tests failed") + took
+            }
+            let named = killing.tests.prefix(3).map(\.name)
+            let more = killing.count - named.count
+            let tests = more > 0 ? named.joined(separator: ", ") + " and \(more) more" : listed(named)
+            let count = killing.count == 1 ? "1 failed test" : "\(killing.count) failed tests"
+            return "killed by \(tests) (\(count))" + took
+        case .passed:
+            return "survived" + took
+        case .timeout:
+            return "timed out after " + seconds(run.timeoutSeconds ?? run.seconds)
+        case .buildError:
+            return "build error" + took
+        case .noCoverage:
+            return "not covered"
+        }
+    }
+
+    /// How to run the mutant's tests in the mutated project with it on, as its run did: for `swift test`, by its file
+    /// beside the project (`MutationTestingDelegate.activeMutantFile(forWorkerIn:)`), and for another test command, by
+    /// its environment variable. For xcodebuild, whose run sets it in `muter.xctestrun`, only the variable is named.
+    private static func switchingOn(_ run: OneMutantRun) -> [String] {
+        let project = shellQuoted(run.mutatedProject)
+        let command = run.testCommand.map(shellWord).joined(separator: " ")
+        let muterRunning = "\(isMuterRunningKey)=\(isMuterRunningValue)"
+        switch run.buildSystem {
+        case .swift:
+            let file = shellQuoted(
+                MutationTestingDelegate.activeMutantFile(forWorkerIn: URL(fileURLWithPath: run.mutatedProject)).path
+            )
+            return [
+                "To run its tests with it on:",
+                "  printf '%s\\n' \(shellQuoted(run.switchID)) > \(file) && cd \(project) && \(muterRunning) "
+                    + "\(activeMutantFileKey)=\(file) \(command)",
+            ]
+        case .xcodebuild:
+            return [
+                "To run its tests with it on, set \(run.switchID)=YES and \(muterRunning) in their environment, and "
+                    + "SIMCTL_CHILD_\(run.switchID)=YES for a simulator.",
+            ]
+        case .unknown:
+            return [
+                "To run its tests with it on:",
+                "  cd \(project) && env \(muterRunning) \(shellQuoted(run.switchID + "=YES")) \(command)",
+            ]
+        }
+    }
+
     /// What mutation testing tested before it stopped early, and the warning of suspect tests its report gives, if it
     /// gives one, then where its partial report is, if it has one, where each result is, the command that makes a
     /// report of them all, and the command that continues the run. A resumed session counts the mutants it tested apart
@@ -682,12 +785,20 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         return text
     }
 
-    func testPlanFileCreated(atPath path: String?) {
-        if let path {
-            print("💾 Mutation test plan created: \(path)")
-        } else {
-            print("💾 Mutation test plan created")
-        }
+    /// What the plan holds, that its copy can be fixed by hand, how to test it, and that a later run removes the copy.
+    func testPlanFileCreated(_ created: TestPlanCreated) {
+        let mutants = created.mutants == 1 ? "1 mutant" : "\(created.mutants) mutants"
+        let files = created.files == 1 ? "1 file" : "\(created.files) files"
+        let operators = created.operators.map {
+            ($0.count == 1 ? "operator " : "operators ") + Self.listed($0)
+        } ?? "every operator"
+        print("💾 Mutation test plan created: \(created.path) (\(mutants) in \(files), \(operators))")
+        print("✏️ You can fix its copy, \(created.mutatedProject), by hand before testing it.")
+        print("▶️ Test it: swift-mutator run-without-mutating \(Self.shellWord(created.path))")
+        print(
+            "⚠️ A later `swift-mutator run` or `mutate-without-running` of this project removes that copy, and any fix "
+                + "in it."
+        )
     }
 
     func configurationFileCreated(atPath path: String?) {
@@ -698,6 +809,87 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
 
     func muterMutationTestPlanLoaded() {
         print("⬆️ SwiftMutator mutation test plan loaded")
+    }
+
+    func testPlanSourcesUnchecked() {
+        print(
+            "⚠️ The test plan was made by a SwiftMutator from before plans recorded the project's files, so it isn't "
+                + "checked against them. Make it again with `swift-mutator mutate-without-running` to have it checked."
+        )
+    }
+
+    /// "2 project files the plan doesn't mutate changed since …: Package.resolved (changed), …", up to
+    /// `ResumeRefusal.changedFilesNamed` of them by name.
+    func testPlanSourcesDiffer(_ changes: [ProjectTree.FileChange]) {
+        let one = changes.count == 1
+        let them = one ? "it" : "them"
+        let was = one ? "it was" : "they were"
+        print(
+            "⚠️ \(changes.count) project file\(one ? "" : "s") the plan doesn't mutate changed since "
+                + "`swift-mutator mutate-without-running` made it: \(Self.named(changes)). The plan's copy holds "
+                + "\(them) as \(was), so its mutants are tested with \(them) as \(was). Make the plan again to test "
+                + "with \(them) as \(one ? "it is" : "they are") now."
+        )
+    }
+
+    /// "1 file with the plan's other mutants, which this run doesn't test, changed since …: Sources/Max.swift
+    /// (changed). …", up to `ResumeRefusal.changedFilesNamed` of them by name.
+    func testPlanUntestedFilesChanged(_ changes: [ProjectTree.FileChange]) {
+        let one = changes.count == 1
+        print(
+            "⚠️ \(changes.count) file\(one ? "" : "s") with the plan's other mutants, which this run doesn't test, "
+                + "changed since `swift-mutator mutate-without-running` made it: \(Self.named(changes)). A run that "
+                + "tests those mutants refuses the plan, unless --plan-ignoring lets the "
+                + "change\(one ? "" : "s") through."
+        )
+    }
+
+    /// Each change's path and kind, up to `ResumeRefusal.changedFilesNamed` of them, and how many more there are.
+    private static func named(_ changes: [ProjectTree.FileChange]) -> String {
+        let named = changes.prefix(ResumeRefusal.changedFilesNamed)
+        let others = changes.count - named.count
+        return named.map { "\($0.path) (\($0.kind.rawValue))" }.joined(separator: ", ")
+            + (others > 0 ? ", and \(others) more" : "")
+    }
+
+    /// "The plan is tested although 1 file it mutates changed since it was made (--plan-ignoring): …", up to
+    /// `ResumeRefusal.changedFilesNamed` of them by name.
+    func testPlanChangesWaived(_ paths: [String]) {
+        let named = paths.prefix(ResumeRefusal.changedFilesNamed)
+        let others = paths.count - named.count
+        let files = paths.count == 1 ? "1 file it mutates" : "\(paths.count) files it mutates"
+        print(
+            "ℹ️ The plan is tested although \(files) changed since it was made (--plan-ignoring): "
+                + named.joined(separator: ", ") + (others > 0 ? ", and \(others) more" : "")
+                + ". \(paths.count == 1 ? "Its" : "Their") mutants are tested in the copy as it is."
+        )
+    }
+
+    /// "1 file of the plan's copy differs from what … wrote, and is tested as it is now: …", up to
+    /// `ResumeRefusal.changedFilesNamed` of them by name.
+    func testPlanCopyEdited(_ paths: [String]) {
+        let named = paths.prefix(ResumeRefusal.changedFilesNamed)
+        let others = paths.count - named.count
+        let one = paths.count == 1
+        print(
+            "✏️ \(paths.count) file\(one ? "" : "s") of the plan's copy "
+                + "\(one ? "differs" : "differ") from what `swift-mutator mutate-without-running` wrote, and "
+                + "\(one ? "is" : "are") tested as \(one ? "it is" : "they are") now: "
+                + named.joined(separator: ", ") + (others > 0 ? ", and \(others) more" : "")
+        )
+    }
+
+    /// "1 dependency resolution file of the plan's copy changed since the run's last session: Package.resolved
+    /// (added). …", up to `ResumeRefusal.changedFilesNamed` of them by name.
+    func testPlanCopyResolutionChanged(_ changes: [ProjectTree.FileChange]) {
+        let one = changes.count == 1
+        print(
+            "⚠️ \(changes.count) dependency resolution file\(one ? "" : "s") of the plan's copy changed since the "
+                + "run's last session: \(Self.named(changes)). The project the plan was made from had "
+                + "\(one ? "no such file" : "none of them"), so the copy's own build wrote \(one ? "it" : "them"), "
+                + "and the results are reused. To test every mutant with the dependencies as they are resolved now, "
+                + "start the run again without --resume."
+        )
     }
 
     /// Every line Muter logs goes through here, and so through the injected `printer`.

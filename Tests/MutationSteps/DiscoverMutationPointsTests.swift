@@ -71,6 +71,23 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         )
     }
 
+    // A project without a mutant has none of its own to name, so it's refused as a mutant that isn't there, not
+    // reported as a failure to file.
+    func test_withAMutantNamed_aProjectWithoutMutants_refusesTheMutant() async throws {
+        state.sourceFileCandidates = [
+            "\(fixturesDirectory)/sourceWithoutMutableCode.swift",
+        ]
+        let reference = MutantReference(path: "Bar.swift", line: 12, column: 9)
+        state.runOptions = .make(mutant: reference)
+
+        do {
+            _ = try await sut.run(with: state)
+            XCTFail("Expected the mutant to be refused")
+        } catch let refused as MutantRefused {
+            XCTAssertEqual(refused, MutantRefused(reference: reference, reason: .notFound(nearby: [], files: 0)))
+        }
+    }
+
     // MARK: - Files with the same name
 
     func test_keepsFilesWithTheSameNameApart() async throws {

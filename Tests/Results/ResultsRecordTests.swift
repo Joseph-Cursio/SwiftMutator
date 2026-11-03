@@ -262,7 +262,7 @@ final class ResultsRecordTests: XCTestCase {
         for key in [
             "coverage", "baselineSeconds", "testRunSeconds", "timeoutSeconds", "executablePath", "executableSHA256",
             "testCommandVersion", "testExecutableSHA256", "mutationTestTimeout", "buildSystem", "project",
-            "mutantsReused", "waived", "forced", "testBundlesRunDirectly",
+            "mutantsReused", "waived", "forced", "testBundlesRunDirectly", "testPlan",
         ] {
             XCTAssertFalse(header.contains("\"\(key)\""), "\(key) in \(header)")
         }
@@ -500,6 +500,112 @@ final class ResultsRecordTests: XCTestCase {
         XCTAssertNil(header.project)
         XCTAssertTrue(header.stopsAtFirstFailure)
         XCTAssertTrue(header.failedTestLinesAreReliable)
+    }
+
+    // run-without-mutating takes neither option: the plan's mutants were chosen by what mutate-without-running was
+    // given, which the plan records.
+    func test_aHeaderFromATestPlanRun_recordsTheOperatorsAndFilesThePlanWasChosenBy() {
+        let state = MutationTestState(from: .make(testPlanURL: URL(fileURLWithPath: "/project/muter-mappings.json")))
+        state.apply([
+            .testPlanLoaded(
+                LoadedTestPlan(
+                    path: "/project/muter-mappings.json",
+                    sha256: "abc",
+                    formatVersion: TestPlanCoding.formatVersion,
+                    swiftMutatorVersion: muterCore.version,
+                    scope: TestPlanScope(operators: [.swapTernary, .ror], filesToMutate: ["Sources/Sum.swift"]),
+                    sources: nil,
+                    mutatedFiles: nil,
+                    linkedFiles: nil,
+                    mutatedPaths: []
+                )
+            ),
+        ])
+
+        let header = ResultsHeader(
+            session: 1,
+            startedAt: startedAt,
+            state: state,
+            logDirectory: "/logs",
+            configuration: MuterConfiguration(executable: "/usr/bin/swift"),
+            baselineSeconds: nil,
+            workers: 1,
+            mutantsDiscovered: 3,
+            mutantsToTest: 3,
+            provenance: .fixture
+        )
+
+        XCTAssertEqual(header.operators, ["RelationalOperatorReplacement", "SwapTernary"])
+        XCTAssertEqual(header.filesToMutate, ["Sources/Sum.swift"])
+        XCTAssertTrue(header.usingTestPlan)
+    }
+
+    // The plan it tested, by its path and the SHA-256 of its bytes, and the plan's copy as it was tested.
+    func test_aHeaderFromATestPlanRun_recordsThePlan_andTheCopyAsTested() throws {
+        let state = MutationTestState(from: .make(testPlanURL: URL(fileURLWithPath: "/project/muter-mappings.json")))
+        let files = ["Sources/Sum.swift": "5a1c"]
+        let copy = ProjectTree(listedBy: .git, files: files, excluded: [], treeSHA256: ProjectTree.treeHash(of: files))
+        state.apply([
+            .testPlanLoaded(
+                LoadedTestPlan(
+                    path: "/project/muter-mappings.json",
+                    sha256: "abc",
+                    formatVersion: TestPlanCoding.formatVersion,
+                    swiftMutatorVersion: "1.2.3",
+                    scope: nil,
+                    sources: nil,
+                    mutatedFiles: ["Sources/Sum.swift": "77e0"],
+                    linkedFiles: nil,
+                    mutatedPaths: []
+                )
+            ),
+            .projectTreeFingerprinted(copy),
+        ])
+
+        let header = ResultsHeader(
+            session: 1,
+            startedAt: startedAt,
+            state: state,
+            logDirectory: "/logs",
+            configuration: MuterConfiguration(executable: "/usr/bin/swift"),
+            baselineSeconds: nil,
+            workers: 1,
+            mutantsDiscovered: 1,
+            mutantsToTest: 1,
+            provenance: .fixture
+        )
+
+        XCTAssertEqual(
+            header.testPlan,
+            TestPlanRecord(
+                path: "/project/muter-mappings.json",
+                sha256: "abc",
+                formatVersion: TestPlanCoding.formatVersion,
+                swiftMutatorVersion: "1.2.3"
+            )
+        )
+        XCTAssertEqual(header.project, copy)
+        let written = try line(header)
+        XCTAssertTrue(
+            written.contains(
+                #""testPlan":{"formatVersion":1,"path":"/project/muter-mappings.json","sha256":"abc","#
+                    + #""swiftMutatorVersion":"1.2.3"}"#
+            ),
+            written
+        )
+        XCTAssertEqual(try decode(ResultsHeader.self, from: written), header)
+    }
+
+    // A plan in format 0 doesn't say which SwiftMutator made it.
+    func test_aTestPlanRecord_ofAPlanInFormat0_leavesTheVersionOut() throws {
+        let record = TestPlanRecord(
+            path: "/project/muter-mappings.json",
+            sha256: "abc",
+            formatVersion: 0,
+            swiftMutatorVersion: nil
+        )
+
+        XCTAssertEqual(try line(record), #"{"formatVersion":0,"path":"/project/muter-mappings.json","sha256":"abc"}"#)
     }
 
     // A header records it, and a resume compares it with the last header's. A run without coverage has none.

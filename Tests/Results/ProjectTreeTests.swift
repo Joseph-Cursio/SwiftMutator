@@ -290,6 +290,30 @@ final class ProjectTreeTests: XCTestCase {
         XCTAssertEqual(fingerprinted, everyFile)
     }
 
+    // Folders given to prune, by their paths from the root, are left out whatever they hold, listed or walked. A
+    // folder of the same name elsewhere, or a file whose name starts with theirs, is kept.
+    func test_prunedFolders_areLeftOut_listedOrWalked() async throws {
+        try write([
+            "Sources/Sum.swift": "kept",
+            "TestContents/Build/Intermediates.noindex/App.build/DerivedSources/GeneratedAssetSymbols.swift": "pruned",
+            "TestContents/Build/Products/Debug/App.app/Info.plist": "pruned",
+            "build/dd/Build/Products/Debug/Generated.swift": "pruned",
+            "build/notes.txt": "kept",
+            "Sources/TestContents/Fixture.swift": "kept",
+            "TestContentsList.txt": "kept",
+        ])
+        try git("init", in: project)
+        try git("add", "-f", ".", in: project)
+        let kept = [
+            "Sources/Sum.swift", "Sources/TestContents/Fixture.swift", "TestContentsList.txt", "build/notes.txt",
+        ]
+
+        let listed = await fingerprint(pruning: ["TestContents", "build/dd"]).files.keys.sorted()
+        XCTAssertEqual(listed, kept, "listed by git")
+        let walked = await fingerprint(pruning: ["TestContents", "build/dd"], list: { _ in nil }).files.keys.sorted()
+        XCTAssertEqual(walked, kept, "walked")
+    }
+
     func test_withoutGit_walksEveryFile() async throws {
         try write([
             "Sources/Sum.swift": "sum",
@@ -476,12 +500,14 @@ private extension ProjectTreeTests {
     func fingerprint(
         hashingIn hashingRoot: String? = nil,
         excluding excluded: [String] = [],
+        pruning prunedFolders: Set<String> = [],
         list: ProjectFileListing = { await GitFileListing.list(in: $0) }
     ) async -> ProjectTree {
         await ProjectTree.fingerprint(
             listingIn: projectURL,
             hashingIn: URL(fileURLWithPath: hashingRoot ?? project),
             excluding: excluded,
+            pruning: prunedFolders,
             list: list
         )
     }

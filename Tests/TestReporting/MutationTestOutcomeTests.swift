@@ -23,7 +23,7 @@ final class MutationTestOutcomeTests: MuterTestCase {
     func test_pathMappingWhenPathsAreShallowlyNested() {
         let mutationPoint = MutationPoint(
             mutationOperatorId: .logicalOperator,
-            filePath: "/tmp/ProjectDirectory/file.swift",
+            filePath: "/var/tmp/nonsense/ProjectDirectory/file.swift",
             position: .firstPosition
         )
 
@@ -41,7 +41,7 @@ final class MutationTestOutcomeTests: MuterTestCase {
     func test_pathMappingWhenPathHasSpaces() {
         let mutationPoint = MutationPoint(
             mutationOperatorId: .logicalOperator,
-            filePath: "/tmp/Project Directory/file.swift",
+            filePath: "/var/tmp/nonsense/Project Directory/file.swift",
             position: .firstPosition
         )
 
@@ -72,6 +72,51 @@ final class MutationTestOutcomeTests: MuterTestCase {
         )
 
         XCTAssertEqual(outcome.originalProjectPath, "/Users/user0/Code/ProjectDirectory/ProjectDirectory/file.swift")
+    }
+
+    // The copy's name says nothing: a plan's copy can be anywhere, under any name.
+    func test_pathMapping_followsTheFilesPlaceInACopyThatMovedAndWasRenamed() {
+        let outcome = MutationTestOutcome.Mutation.make(
+            point: MutationPoint(
+                mutationOperatorId: .logicalOperator,
+                filePath: "/Volumes/b/Elsewhere/Copy/Sources/Foo/Bar.swift",
+                position: .firstPosition
+            ),
+            originalProjectDirectoryUrl: URL(fileURLWithPath: "/Users/user0/Code/Foo"),
+            mutatedProjectDirectoryURL: URL(fileURLWithPath: "/Volumes/b/Elsewhere/Copy")
+        )
+
+        XCTAssertEqual(outcome.originalProjectPath, "/Users/user0/Code/Foo/Sources/Foo/Bar.swift")
+    }
+
+    // Matched by name, the first `Foo_mutated` folder of the path would be taken for the copy.
+    func test_pathMapping_isNotMisledByAParentFolderNamedLikeTheCopy() {
+        let outcome = MutationTestOutcome.Mutation.make(
+            point: MutationPoint(
+                mutationOperatorId: .logicalOperator,
+                filePath: "/work/Foo_mutated/runs/Foo_mutated/Sources/Bar.swift",
+                position: .firstPosition
+            ),
+            originalProjectDirectoryUrl: URL(fileURLWithPath: "/work/Foo_mutated/runs/Foo"),
+            mutatedProjectDirectoryURL: URL(fileURLWithPath: "/work/Foo_mutated/runs/Foo_mutated")
+        )
+
+        XCTAssertEqual(outcome.originalProjectPath, "/work/Foo_mutated/runs/Foo/Sources/Bar.swift")
+    }
+
+    // Before, a path the copy's name wasn't in lost its first folder and was put under the project.
+    func test_pathMapping_keepsAPathOutsideTheCopyAsItIs() {
+        let outcome = MutationTestOutcome.Mutation.make(
+            point: MutationPoint(
+                mutationOperatorId: .logicalOperator,
+                filePath: "/opt/shared/Sources/Bar.swift",
+                position: .firstPosition
+            ),
+            originalProjectDirectoryUrl: URL(fileURLWithPath: "/Users/user0/Code/Foo"),
+            mutatedProjectDirectoryURL: URL(fileURLWithPath: "/Users/user0/Code/Foo_mutated")
+        )
+
+        XCTAssertEqual(outcome.originalProjectPath, "/opt/shared/Sources/Bar.swift")
     }
 
     // A run stopped at its first failed test, or one that named more tests than its line holds, may not name them all.

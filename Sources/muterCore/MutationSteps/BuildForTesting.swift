@@ -6,7 +6,8 @@ struct BuildForTesting: MutationStep {
     @Dependency(\.process)
     private var process: ProcessFactory
 
-    private let testContentsFolder = "TestContents"
+    /// The folder in the project's copy that the build is copied to, which the tests run from.
+    static let testContentsFolder = "TestContents"
     private let buildDirectory = "Build/Products/"
 
     func run(
@@ -103,7 +104,7 @@ struct BuildForTesting: MutationStep {
 
         guard let replaced = stringContents.replacingOccurrences(
             of: "__TESTROOT__/",
-            with: "__TESTROOT__/\(testContentsFolder)/\(buildDirectory)"
+            with: "__TESTROOT__/\(Self.testContentsFolder)/\(buildDirectory)"
         ).data(using: .utf8)
         else {
             throw MuterError.literal(reason: "Error error")
@@ -133,7 +134,7 @@ struct BuildForTesting: MutationStep {
     }
 
     private func createTestContetsUrl(_ tempURL: URL) -> URL {
-        tempURL.appendingPathComponent(testContentsFolder)
+        tempURL.appendingPathComponent(Self.testContentsFolder)
     }
 }
 

@@ -56,6 +56,108 @@ final class RunCommandTests: XCTestCase {
         XCTAssertNotEqual(Run.Options.make(since: "main"), .make())
         XCTAssertNotEqual(Run.Options.make(since: "main", changedLinesOnly: true), .make(since: "main"))
         XCTAssertNotEqual(Run.Options.make(shard: Shard(index: 1, count: 2)), .make())
+        XCTAssertNotEqual(Run.Options.make(planIgnoring: ["Sources/*"]), .make())
+        XCTAssertNotEqual(Run.Options.make(mutant: MutantReference(path: "Bar.swift", line: 12)), .make())
+    }
+
+    // Both commands that test mutants take it, and `run` skips coverage for it, which only leaves files and code out of
+    // discovery. Every file is still discovered with every operator: its path may be only the end of one, and a wrong
+    // operator is refused with the mutants near its place, whatever their operators.
+    func test_mutant_reachesTheRunOptions_ofRunAndRunWithoutMutating() throws {
+        let named = MutantReference(
+            path: "Sources/Foo/Bar.swift", line: 12, column: 9, mutationOperatorId: .swapTernary
+        )
+        let run = try XCTUnwrap(
+            MuterCommand.parseAsRoot(["run", "--mutant", "Sources/Foo/Bar.swift:12:9 SwapTernary"]) as? Run
+        ).runOptions
+        XCTAssertEqual(run.mutant, named)
+        XCTAssertTrue(run.skipCoverage)
+        XCTAssertEqual(run.mutationOperatorsList, .allOperators)
+        XCTAssertEqual(run.filesToMutate, [])
+
+        let anyOperator = try XCTUnwrap(MuterCommand.parseAsRoot(["run", "--mutant", "Bar.swift:12"]) as? Run)
+        XCTAssertEqual(anyOperator.runOptions.mutant, MutantReference(path: "Bar.swift", line: 12))
+        XCTAssertEqual(anyOperator.runOptions.mutationOperatorsList, .allOperators)
+
+        let plain = try XCTUnwrap(MuterCommand.parseAsRoot(["run"]) as? Run).runOptions
+        XCTAssertNil(plain.mutant)
+        XCTAssertFalse(plain.skipCoverage)
+
+        let plan = try XCTUnwrap(
+            MuterCommand.parseAsRoot(["run-without-mutating", "plan.json", "--mutant", "Bar.swift:12:9"])
+                as? RunWithoutMutating
+        ).runOptions
+        XCTAssertEqual(plan.mutant, MutantReference(path: "Bar.swift", line: 12, column: 9))
+        XCTAssertEqual(plan.testPlanURL?.lastPathComponent, "plan.json")
+    }
+
+    func test_aMutantThatDoesntRead_isAUsageError() {
+        assertUsageError(
+            ["run", "--mutant", "Bar.swift"],
+            "The value 'Bar.swift' is invalid for '--mutant <mutant>': give the mutant as path:line[:column] "
+                + "[Operator], such as 'Sources/Foo/Bar.swift:12:9 SwapTernary'."
+        )
+    }
+
+    // It names the one mutant to test, so nothing else that chooses mutants, or continues a run, goes with it.
+    func test_mutant_withAnotherOptionThatChoosesMutants_isAUsageError() {
+        let others: [(option: String, arguments: [String])] = [
+            ("--operators", ["--operators", "SwapTernary"]),
+            ("--files-to-mutate", ["--files-to-mutate", "Sources/Foo/Bar.swift"]),
+            ("--since", ["--since", "main"]),
+            ("--shard", ["--shard", "1/2"]),
+            ("--sample", ["--sample", "5", "--seed", "1"]),
+            ("--resume", ["--resume", "/logs/results.jsonl"]),
+            ("--reuse", ["--reuse", "/logs/results.jsonl"]),
+        ]
+        for (option, arguments) in others {
+            assertUsageError(
+                ["run", "--mutant", "Bar.swift:12:9"] + arguments,
+                "--mutant can't be given with \(option)."
+            )
+        }
+        assertUsageError(
+            ["run-without-mutating", "plan.json", "--mutant", "Bar.swift:12:9", "--resume", "/logs/results.jsonl"],
+            "--mutant can't be given with --resume."
+        )
+        XCTAssertNoThrow(try MuterCommand.parseAsRoot(["run", "--mutant", "Bar.swift:12:9", "--shard", "1/1"]))
+    }
+
+    // `run`'s help gains only --mutant, after the other options that choose mutants.
+    func test_mutant_isInTheHelp_ofRunAndRunWithoutMutating() {
+        let help = Run.helpMessage(columns: 200)
+        let seed = help.range(of: "\n  --seed <S>")
+        let mutant = help.range(of: "\n  --mutant <mutant>")
+        let configuration = help.range(of: "\n  -c, --configuration")
+        XCTAssertNotNil(mutant, help)
+        if let seed, let mutant, let configuration {
+            XCTAssertLessThan(seed.lowerBound, mutant.lowerBound, help)
+            XCTAssertLessThan(mutant.lowerBound, configuration.lowerBound, help)
+        }
+        XCTAssertTrue(
+            help.contains("Test only this mutant, and print its change, its tests' log and its verdict:"),
+            help
+        )
+        let options = RunWithoutMutating.helpMessage(columns: 200).components(separatedBy: "OPTIONS:\n").last ?? ""
+        XCTAssertTrue(options.hasPrefix("  --mutant <mutant>"), options)
+    }
+
+    // Repeatable, and only on the command that tests a plan.
+    func test_planIgnoring_reachesTheRunOptions_ofRunWithoutMutating() throws {
+        let plan = try XCTUnwrap(
+            MuterCommand.parseAsRoot(
+                ["run-without-mutating", "--plan-ignoring", "Sources/A.swift", "--plan-ignoring", "*.md", "plan.json"]
+            ) as? RunWithoutMutating
+        )
+        XCTAssertEqual(plan.runOptions.planIgnoring, ["Sources/A.swift", "*.md"])
+        XCTAssertEqual(
+            try XCTUnwrap(MuterCommand.parseAsRoot(["run-without-mutating", "plan.json"]) as? RunWithoutMutating)
+                .runOptions.planIgnoring,
+            []
+        )
+        XCTAssertThrowsError(try MuterCommand.parseAsRoot(["run", "--plan-ignoring", "*.md"]))
+        let help = RunWithoutMutating.helpMessage(columns: 200)
+        XCTAssertTrue(help.contains("\n  --plan-ignoring <glob>"), help)
     }
 
     // For one run, in place of the configuration's keys, on each command that tests mutants.
@@ -274,6 +376,57 @@ final class RunCommandTests: XCTestCase {
         XCTAssertFalse(options.forceResume)
     }
 
+    // A run of a test plan resumes as a run does, with the same options, and only resumes: an earlier run's results
+    // aren't reused for a plan.
+    func test_resumeOptions_reachTheRunOptions_ofRunWithoutMutating() throws {
+        let command = try MuterCommand.parseAsRoot([
+            "run-without-mutating", "muter-mappings.json",
+            "--resume", "/logs/results.jsonl",
+            "--resume-ignoring", "Sources/Sum.swift",
+            "--force-resume",
+            "--plan-ignoring", "*.md",
+        ])
+
+        let options = try XCTUnwrap(command as? RunWithoutMutating).runOptions
+        XCTAssertEqual(options.testPlanURL?.lastPathComponent, "muter-mappings.json")
+        XCTAssertEqual(options.resumeURL?.path, "/logs/results.jsonl")
+        XCTAssertFalse(options.isReuse)
+        XCTAssertEqual(options.resumeIgnoring, ["Sources/Sum.swift"])
+        XCTAssertTrue(options.forceResume)
+        XCTAssertEqual(options.planIgnoring, ["*.md"], "kept apart from --resume-ignoring")
+
+        let unresumed = try XCTUnwrap(
+            MuterCommand.parseAsRoot(["run-without-mutating", "muter-mappings.json"]) as? RunWithoutMutating
+        ).runOptions
+        XCTAssertNil(unresumed.resumeURL)
+        XCTAssertEqual(unresumed.resumeIgnoring, [])
+        XCTAssertFalse(unresumed.forceResume)
+        XCTAssertThrowsError(
+            try MuterCommand.parseAsRoot(["run-without-mutating", "muter-mappings.json", "--reuse", "/logs/r.jsonl"])
+        )
+    }
+
+    func test_resumeOptionsWithoutResume_areUsageErrors_ofRunWithoutMutating() {
+        assertUsageError(
+            ["run-without-mutating", "muter-mappings.json", "--resume-ignoring", "Sources/*"],
+            "--resume-ignoring only applies with --resume."
+        )
+        assertUsageError(
+            ["run-without-mutating", "muter-mappings.json", "--force-resume"],
+            "--force-resume only applies with --resume."
+        )
+    }
+
+    func test_runWithoutMutatingHelp_namesTheResumeOptions_beforePlanIgnoring() {
+        let help = RunWithoutMutating.helpMessage(columns: 200)
+
+        let options = ["--resume <results>", "--resume-ignoring <glob>", "--force-resume", "--plan-ignoring <glob>"]
+        let places = options.compactMap { help.range(of: "\n  \($0)")?.lowerBound }
+        XCTAssertEqual(places.count, options.count, help)
+        XCTAssertEqual(places, places.sorted(), help)
+        XCTAssertFalse(help.contains("--reuse"), help)
+    }
+
     // The help snapshot's test only runs once the acceptance tests' samples are made; this one always runs.
     func test_runHelp_namesTheResumeOptions() {
         let help = Run.helpMessage(columns: 200)
@@ -290,6 +443,34 @@ final class RunCommandTests: XCTestCase {
         }
         XCTAssertTrue(help.contains("Start a new run from an earlier run's results file"), help)
         XCTAssertTrue(help.contains("Test files are never waived."), help)
+    }
+
+    // The plan records what they chose, so mutate-without-running takes them as run does.
+    func test_operatorsAndFilesToMutate_reachTheRunOptions_ofRunAndMutateWithoutRunning() throws {
+        let chosen = ["--files-to-mutate", "Sources/A.swift,B.swift", "--operators", "SwapTernary", "RemoveSideEffects"]
+        let run = try XCTUnwrap(MuterCommand.parseAsRoot(["run"] + chosen) as? Run).runOptions
+        let mutate = try XCTUnwrap(
+            MuterCommand.parseAsRoot(["mutate-without-running"] + chosen) as? MutateWithoutRunning
+        ).runOptions
+
+        for options in [run, mutate] {
+            XCTAssertEqual(options.filesToMutate, ["Sources/A.swift", "B.swift"])
+            XCTAssertEqual(options.mutationOperatorsList, [.swapTernary, .removeSideEffects])
+        }
+        XCTAssertTrue(mutate.createTestPlan)
+        let plain = try XCTUnwrap(MuterCommand.parseAsRoot(["mutate-without-running"]) as? MutateWithoutRunning)
+        XCTAssertEqual(plain.runOptions.filesToMutate, [])
+        XCTAssertEqual(plain.runOptions.mutationOperatorsList, .allOperators)
+    }
+
+    // Both commands list the two options first, as `run` always has.
+    func test_operatorsAndFilesToMutate_comeFirstInTheHelp_ofRunAndMutateWithoutRunning() {
+        for help in [Run.helpMessage(columns: 200), MutateWithoutRunning.helpMessage(columns: 200)] {
+            let options = help.components(separatedBy: "OPTIONS:\n").last ?? ""
+            XCTAssertTrue(options.hasPrefix("  --files-to-mutate <files-to-mutate>"), help)
+            XCTAssertTrue(options.contains("\n  --operators <operators> "), help)
+            XCTAssertTrue(help.contains(MutationOperator.Id.description), help)
+        }
     }
 
     // Each command that runs mutation testing takes it, as it takes --skip-coverage.
@@ -318,6 +499,13 @@ final class RunCommandTests: XCTestCase {
         XCTAssertEqual(Run.message(showing: refused), "\(refused)")
         let inUse = MutatedProjectLockError.inUse(mutatedProject: "/code/x_mutated", process: 81234)
         XCTAssertEqual(Run.message(showing: inUse), "\(inUse)")
+        let plan = TestPlanRefused(path: "/code/x/muter-mappings.json", reason: .copyMissing(path: "/code/x_mutated"))
+        XCTAssertEqual(Run.message(showing: plan), "\(plan)")
+        let mutant = MutantRefused(
+            reference: MutantReference(path: "Bar.swift", line: 12),
+            reason: .notFound(nearby: [], files: 0)
+        )
+        XCTAssertEqual(Run.message(showing: mutant), "\(mutant)")
         let cannotLock = Run.message(showing: MutatedProjectLockError.cannotLock(path: "/x.lock", errno: EACCES))
         XCTAssertTrue(cannotLock.contains("SwiftMutator has encountered an error"), cannotLock)
         let other = Run.message(showing: MuterError.noSourceFilesDiscovered)
@@ -331,6 +519,7 @@ final class RunCommandTests: XCTestCase {
     func test_eachOutcome_exitsWithItsOwnStatus() {
         XCTAssertEqual(ExitCode.resumeRefused.rawValue, 5)
         XCTAssertEqual(ExitCode.anotherRunHoldsTheLock.rawValue, 6)
+        XCTAssertEqual(ExitCode.testPlanRefused.rawValue, 7)
         XCTAssertEqual(ExitCode.stoppedOnAnError.rawValue, -1)
         let difference = ResumeCheck.Difference(name: "mutationTestTimeout", was: "120", isNow: "60")
         let changes = [ProjectTree.FileChange(path: "notes.txt", kind: .added)]
@@ -370,6 +559,13 @@ final class RunCommandTests: XCTestCase {
         XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: lockedFile), .anotherRunHoldsTheLock)
         let lockedCopy = MutatedProjectLockError.inUse(mutatedProject: "/code/x_mutated", process: 81234)
         XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: lockedCopy), .anotherRunHoldsTheLock)
+        let plans = [
+            TestPlanRefused(path: "/code/x/muter-mappings.json", reason: .newerFormat(found: 2)),
+            TestPlanRefused(path: "/code/x/muter-mappings.json", reason: .copyMissing(path: "/code/x_mutated")),
+        ]
+        for refused in plans {
+            XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: refused), .testPlanRefused, "\(refused)")
+        }
         let errors: [Error] = [
             MutatedProjectLockError.cannotLock(path: "/x.lock", errno: EACCES),
             ResultsFileError.newerFormat(path: "/logs/results.jsonl", version: 3),

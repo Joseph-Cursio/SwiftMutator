@@ -62,3 +62,20 @@ enum RepoRelativePath {
         return (root.hasSuffix("/") ? root : root + "/") + path
     }
 }
+
+/// How a test plan names its copy of the project: by the way there from the folder the plan was made in.
+enum RelativePath {
+    /// `target` relative to `base`, going up through `..` as far as the two share a folder: `../Foo_mutated` for a
+    /// folder beside `base`, `.` for `base` itself. `target` itself when the two share no folder but the root, as on
+    /// another volume, where the way up would only be longer. Each path's `.` and `..` are taken out first, and only
+    /// those: a symbolic link isn't followed.
+    static func from(_ base: URL, to target: URL) -> String {
+        let baseComponents = base.standardized.pathComponents
+        let targetComponents = target.standardized.pathComponents
+        let shared = zip(baseComponents, targetComponents).prefix { $0 == $1 }.count
+        guard shared > 1 else { return target.standardized.path }
+        let components = Array(repeating: "..", count: baseComponents.count - shared)
+            + targetComponents.dropFirst(shared)
+        return components.isEmpty ? "." : components.joined(separator: "/")
+    }
+}

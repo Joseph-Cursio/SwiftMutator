@@ -20,8 +20,8 @@ struct ProjectTree: Codable, Equatable {
     }
 
     let listedBy: Listing
-    /// A symbolic link's entry is "link:" + the SHA-256 of the path it points to; it is never followed. The files of a
-    /// local package outside the project are under its path from the project, which starts with `../`.
+    /// A symbolic link's entry is `linkPrefix` + the SHA-256 of the path it points to; it is never followed. The files
+    /// of a local package outside the project are under its path from the project, which starts with `../`.
     let files: [String: String]
     /// Paths inside the project that are left out: the `-o` report and its `.partial` sibling, which the run itself
     /// writes, and the configuration file, whose settings the header records (`excludedPaths`).
@@ -31,6 +31,8 @@ struct ProjectTree: Codable, Equatable {
 }
 
 extension ProjectTree {
+    /// What a symbolic link's entry in `files` starts with.
+    static let linkPrefix = "link:"
     /// Folders no outcome is read from, at any depth: build products, git's own, and Xcode's per-user state.
     static let prunedComponents: Set = [".build", ".git", ".swiftpm", "DerivedData", "xcuserdata"]
     static let prunedNames: Set = [".DS_Store"]
@@ -46,14 +48,18 @@ extension ProjectTree {
     ///
     /// The listing comes from the project, not its copy: a repository that ignores SwiftMutator's copies, or that
     /// holds the project in a folder of its own, lists nothing, or the wrong files, in the copy.
+    ///
+    /// Nothing in `prunedFolders`, folders by their paths relative to `hashingRoot`, is listed or hashed, whatever it
+    /// holds.
     static func fingerprint(
         listingIn listingRoot: URL,
         hashingIn hashingRoot: URL,
         excluding excluded: [String],
+        pruning prunedFolders: Set<String> = [],
         list: ProjectFileListing
     ) async -> ProjectTree {
         let listed = await list(listingRoot)
-        let paths = self.paths(listed: listed, under: hashingRoot).subtracting(excluded)
+        let paths = self.paths(listed: listed, under: hashingRoot, pruning: prunedFolders).subtracting(excluded)
         var files: [String: String] = [:]
         for path in paths {
             files[path] = digest(of: hashingRoot.appendingPathComponent(path))
@@ -72,13 +78,13 @@ extension ProjectTree {
     }
 
     /// The files under `root` that `listed` names, unless pruned, and every Swift and package file under it; without a
-    /// listing, every file under it.
-    static func paths(listed: [String]?, under root: URL) -> Set<String> {
+    /// listing, every file under it. None is in `prunedFolders`, folders by their paths relative to `root`.
+    static func paths(listed: [String]?, under root: URL, pruning prunedFolders: Set<String> = []) -> Set<String> {
         guard let listed else {
-            return Set(walk(root, keeping: { _ in true }, skippingCheckouts: false))
+            return Set(walk(root, keeping: { _ in true }, skippingCheckouts: false, pruning: prunedFolders))
         }
-        return Set(listed.filter { !isPruned($0) })
-            .union(walk(root, keeping: isAlwaysIncluded, skippingCheckouts: true))
+        return Set(listed.filter { !isPruned($0) && !isInside($0, prunedFolders) })
+            .union(walk(root, keeping: isAlwaysIncluded, skippingCheckouts: true, pruning: prunedFolders))
     }
 
     /// `*.swift` (which includes Package.swift and Package@swift-*.swift) and `.swift-version` at any depth.
@@ -111,15 +117,21 @@ extension ProjectTree {
     }
 
     /// `FileManager.enumerator` (it never follows a symbolic link to a folder). It skips the descendants of pruned
-    /// folders, and in git mode of any folder holding a `.git` entry (worktrees and ignored clones: git lists the
-    /// nested checkouts it knows about itself). It calls `skipDescendants()` only on folders.
-    static func walk(_ root: URL, keeping: (String) -> Bool, skippingCheckouts: Bool) -> [String] {
+    /// folders, of `prunedFolders`, by their paths relative to `root`, and in git mode of any folder holding a `.git`
+    /// entry (worktrees and ignored clones: git lists the nested checkouts it knows about itself). It calls
+    /// `skipDescendants()` only on folders.
+    static func walk(
+        _ root: URL,
+        keeping: (String) -> Bool,
+        skippingCheckouts: Bool,
+        pruning prunedFolders: Set<String> = []
+    ) -> [String] {
         guard let enumerator = FileManager.default.enumerator(atPath: root.path) else { return [] }
         var paths: [String] = []
         while let path = enumerator.nextObject() as? String {
             if enumerator.fileAttributes?[.type] as? FileAttributeType == .typeDirectory {
                 let name = (path as NSString).lastPathComponent
-                if prunedComponents.contains(name)
+                if prunedComponents.contains(name) || prunedFolders.contains(path)
                     || skippingCheckouts && exists(root.appendingPathComponent(path).appendingPathComponent(".git")) {
                     // On Darwin, skipping the descendants of anything but a folder skips the next folder.
                     enumerator.skipDescendants()
@@ -129,6 +141,11 @@ extension ProjectTree {
             }
         }
         return paths
+    }
+
+    /// Whether `path` is in one of `folders`, at any depth.
+    static func isInside(_ path: String, _ folders: Set<String>) -> Bool {
+        folders.contains { path.hasPrefix($0 + "/") }
     }
 
     /// What changed from `recorded`, after leaving out both sessions' excluded paths.
@@ -193,7 +210,7 @@ private extension ProjectTree {
         case .typeSymbolicLink?:
             return (try? FileManager.default.destinationOfSymbolicLink(atPath: url.path))
                 .map { FileDigest.sha256(of: Data($0.utf8)) }
-                .map { "link:" + $0 }
+                .map { linkPrefix + $0 }
         default:
             return nil
         }
@@ -203,7 +220,9 @@ private extension ProjectTree {
     static func exists(_ url: URL) -> Bool {
         (try? FileManager.default.attributesOfItem(atPath: url.path)) != nil
     }
+}
 
+extension ProjectTree {
     /// `path`, absolute, with every symbolic link resolved in the part of it that exists: a report not written yet,
     /// in a folder not made yet, still compares with the project's path, which `getcwd()` gives resolved.
     static func resolved(_ path: String) -> String {

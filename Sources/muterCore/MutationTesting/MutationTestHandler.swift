@@ -87,6 +87,8 @@ private extension [MutationStep] {
             DiscoverProjectCoverage(),
             DiscoverSourceFiles(),
             DiscoverMutationPoints(),
+            // Before the copy is rewritten, so it gets only that mutant's switch, and builds as quickly as it can.
+            SelectMutant(),
             CreateMuterTestPlan(),
             ApplySchemata(),
             CheckMutantSwitches(),
@@ -99,12 +101,23 @@ private extension [MutationStep] {
     static var testPlanSteps: [MutationStep] {
         [
             UpdateCheck(),
+            // It finds the project folder the plan is read under. A folder without a configuration stops here, as an
+            // error, so `CheckTestPlanSources` refuses another folder only when it has one.
             LoadConfiguration(),
             LoadMuterTestPlan(),
+            // It reads only the plan. Before the checks, so they look only at that mutant's file.
+            SelectMutant(),
+            // Before the copy is locked: it reads only the project, and a refusal leaves another run's copy alone.
+            CheckTestPlanSources(),
+            // Before the copy is locked, as for any run, so that a results file another session still writes is
+            // refused for that alone. It compares the plan, and `FingerprintProjectTree` the copy.
+            LoadResumeState(),
             // Before anything in the mutated project the plan names is read, which another run may be rewriting.
             LockMutatedProject(),
             CheckTestPlanCode(),
             CheckMutantSwitches(),
+            // The copy as it is tested, rewritten and perhaps fixed by hand, which the results file records.
+            FingerprintProjectTree(),
             BuildForTesting(),
             ProjectMappings(),
             PerformMutationTesting(),
@@ -119,6 +132,8 @@ private extension [MutationStep] {
             LockMutatedProject(),
             PreviousRunCleanUp(),
             CopyProjectToTempDirectory(),
+            // Before anything is rewritten: the plan records the project's files as they are, for its runs to check.
+            FingerprintProjectTree(),
             DiscoverProjectCoverage(),
             DiscoverSourceFiles(),
             DiscoverMutationPoints(),
@@ -157,6 +172,10 @@ private extension [MutationStep] {
 
         if options.since == nil {
             copy.removeAll { $0 is SelectChangedCode || $0 is ListChangedSources }
+        }
+
+        if options.mutant == nil {
+            copy.removeAll { $0 is SelectMutant }
         }
 
         return copy

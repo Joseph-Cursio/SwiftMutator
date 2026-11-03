@@ -136,8 +136,10 @@ struct ResultsHeader: Codable, Equatable {
     let failedTestLinesAreReliable: Bool
     let mutantsDiscovered: Int
     let mutantsToTest: Int
-    /// The project's files, as the mutated copy held them before discovery rewrote it. Absent when the run tested a
-    /// test plan, which copies nothing.
+    /// The project's files, as the mutated copy held them before discovery rewrote it. In a session that tested a
+    /// test plan, which copies nothing, the plan's copy as it was tested: rewritten, and with any fix made by hand,
+    /// which a resume of its run compares the copy with. Absent from a session that an earlier SwiftMutator ran on a
+    /// test plan.
     let project: ProjectTree?
     /// Only in a resumed session, or one that reuses an earlier run's results: how many earlier results it kept rather
     /// than tested again.
@@ -162,6 +164,32 @@ struct ResultsHeader: Codable, Equatable {
     /// discovered. `mutantsDiscovered` and `mutantsToTest` count the sample's, or with `--shard` too, the shard's part
     /// of it.
     var sample: SampleSelection?
+    /// Only in a session that tested a test plan: the plan it tested, which a resume of its run must test too.
+    var testPlan: TestPlanRecord?
+    /// Only in a session run with `--mutant`: the key of the one mutant it tested, as `MutantKey.description` gives it.
+    /// No other run resumes or reuses its results, and its score isn't the project's.
+    var mutant: String?
+}
+
+/// The test plan a session tested: the path it was read from, absolute, the SHA-256 of its bytes, and which format and
+/// SwiftMutator it was written in. A plan made again, or edited, has another SHA-256.
+struct TestPlanRecord: Codable, Equatable {
+    let path: String
+    let sha256: String
+    let formatVersion: Int
+    /// Absent for a plan in format 0, which doesn't say.
+    let swiftMutatorVersion: String?
+}
+
+extension TestPlanRecord {
+    init(_ plan: LoadedTestPlan) {
+        self.init(
+            path: plan.path,
+            sha256: plan.sha256,
+            formatVersion: plan.formatVersion,
+            swiftMutatorVersion: plan.swiftMutatorVersion
+        )
+    }
 }
 
 extension ResultsHeader {
@@ -219,7 +247,9 @@ extension ResultsHeader {
             reusedFrom: reusedFrom,
             since: state.changeSelection,
             shard: state.shardSelection,
-            sample: state.sampleSelection
+            sample: state.sampleSelection,
+            testPlan: state.testPlan.map(TestPlanRecord.init),
+            mutant: state.selectedMutant?.description
         )
     }
 }

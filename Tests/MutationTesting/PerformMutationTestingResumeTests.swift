@@ -93,6 +93,51 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         ])
     }
 
+    // A resumed run of a test plan judges its results by the copy as it is tested: a file of the copy fixed by hand
+    // since the last session, which --resume-ignoring let through, has its mutants tested again, and an unchanged one
+    // keeps its results. The header records the plan again.
+    func test_aResumedTestPlansSession_keepsTheResultsOfUnchangedCopyFiles_andRetestsAnEditedOnes() async throws {
+        let plan = LoadedTestPlan(
+            path: "/project/muter-mappings.json",
+            sha256: "91a",
+            formatVersion: TestPlanCoding.formatVersion,
+            swiftMutatorVersion: "16",
+            scope: nil,
+            sources: nil,
+            mutatedFiles: nil,
+            linkedFiles: nil,
+            mutatedPaths: []
+        )
+        state.runOptions = .make(
+            testPlanURL: URL(fileURLWithPath: plan.path),
+            resumeURL: URL(fileURLWithPath: resultsPath),
+            resumeIgnoring: ["Sources/Sum.swift"]
+        )
+        state.testPlan = plan
+        var edited = tree.files
+        edited["Sources/Sum.swift"] = "5a1d"
+        state.projectTree = ProjectTree(listedBy: .git, files: edited, excluded: [], treeSHA256: "e5b9")
+        let sent = recordEvents(named: [.resumePlanned])
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed, .failed, .passed]
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.testLogs, [
+            running("baseline run"),
+            running("timed test run"),
+            running("1_Quotient.swift_RelationalOperatorReplacement_40_4_5.log"),
+            running("2_Sum.swift_RelationalOperatorReplacement_30_3_5.log"),
+            running("3_Total.swift_RelationalOperatorReplacement_80_8_5.log"),
+        ])
+        let summary = try XCTUnwrap(sent().first?.object as? ResumeSummary)
+        XCTAssertEqual(summary.retestedBecause, [.buildError: 1, .fileChanged: 1, .notRecorded: 1])
+        let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
+        XCTAssertTrue(header.usingTestPlan)
+        XCTAssertEqual(header.testPlan, TestPlanRecord(plan))
+        XCTAssertEqual(header.project?.files["Sources/Sum.swift"], "5a1d")
+        XCTAssertEqual(header.mutantsReused, 1)
+    }
+
     func test_aResumedSession_isTheNextNumber_withAFormat2Header_inTheSameFile() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
         var announced: [String] = []
@@ -616,6 +661,24 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         let summary = try XCTUnwrap(sent().first?.object as? ResumeSummary)
         XCTAssertNil(summary.coverageChange)
         XCTAssertEqual(summary.noLongerDiscovered, 1)
+    }
+
+    // A resume of a test plan's run compares the plan's copy, so what --resume-ignoring let through are its files.
+    func test_theSummary_ofATestPlansRun_namesTheCopy() async throws {
+        recorded[0] = ResultsHeader.make(mutantsDiscovered: 5, mutantsToTest: 5, project: tree, usingTestPlan: true)
+        state.resumeState = try ResumeState.make(
+            path: resultsPath,
+            lines: recorded,
+            file: XCTUnwrap(state.resumeState).file
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+        let sent = recordEvents(named: [.resumePlanned])
+
+        _ = try await sut.run(with: state)
+
+        let summary = try XCTUnwrap(sent().first?.object as? ResumeSummary)
+        XCTAssertEqual(summary.testPlanCopy, state.mutatedProjectDirectoryURL.path)
+        XCTAssertEqual(summary.waived, ["README.md"])
     }
 
     // xcodebuild names the files without coverage by their path in the copy, which moved with the project: the stopped

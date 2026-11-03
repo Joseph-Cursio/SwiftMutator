@@ -30,6 +30,7 @@ extension RunEvent {
         case timeoutRerunsStarted
         case timeoutRerunFinished
         case timeoutRerunsFinished
+        case oneMutantTested
         case mutationTestingFinished
         case mutationTestingEndedEarly
         case newMutationTestOutcomeAvailable
@@ -39,6 +40,12 @@ extension RunEvent {
         case resultsFileUnavailable
         case testPlanFileCreated
         case muterMutationTestPlanLoaded
+        case testPlanSourcesUnchecked
+        case testPlanSourcesDiffer
+        case testPlanUntestedFilesChanged
+        case testPlanChangesWaived
+        case testPlanCopyEdited
+        case testPlanCopyResolutionChanged
     }
 
     var name: Name {
@@ -68,6 +75,7 @@ extension RunEvent {
         case .timeoutRerunsStarted: .timeoutRerunsStarted
         case .timeoutRerunFinished: .timeoutRerunFinished
         case .timeoutRerunsFinished: .timeoutRerunsFinished
+        case .oneMutantTested: .oneMutantTested
         case .mutationTestingFinished: .mutationTestingFinished
         case .mutationTestingEndedEarly: .mutationTestingEndedEarly
         case .newMutationTestOutcomeAvailable: .newMutationTestOutcomeAvailable
@@ -77,6 +85,12 @@ extension RunEvent {
         case .resultsFileUnavailable: .resultsFileUnavailable
         case .testPlanFileCreated: .testPlanFileCreated
         case .muterMutationTestPlanLoaded: .muterMutationTestPlanLoaded
+        case .testPlanSourcesUnchecked: .testPlanSourcesUnchecked
+        case .testPlanSourcesDiffer: .testPlanSourcesDiffer
+        case .testPlanUntestedFilesChanged: .testPlanUntestedFilesChanged
+        case .testPlanChangesWaived: .testPlanChangesWaived
+        case .testPlanCopyEdited: .testPlanCopyEdited
+        case .testPlanCopyResolutionChanged: .testPlanCopyResolutionChanged
         }
     }
 
@@ -85,7 +99,7 @@ extension RunEvent {
         switch self {
         case .muterLaunched, .updateCheckStarted, .projectCopyStarted, .projectCoverageDiscoveryStarted,
              .sourceFileDiscoveryStarted, .mutationsDiscoveryStarted, .mutationTestingStarted, .mutantRunsStarted,
-             .muterMutationTestPlanLoaded:
+             .muterMutationTestPlanLoaded, .testPlanSourcesUnchecked:
             nil
         case let .updateCheckFinished(newVersion): newVersion
         case let .changesSelected(selection): selection
@@ -104,6 +118,7 @@ extension RunEvent {
         case let .timeoutRerunsStarted(reruns): reruns
         case let .timeoutRerunFinished(rerun): rerun
         case let .timeoutRerunsFinished(tally): tally
+        case let .oneMutantTested(run): run
         case let .mutationTestingFinished(outcome): outcome
         case let .mutationTestingEndedEarly(earlyEnd): earlyEnd
         case let .newMutationTestOutcomeAvailable(mutation): mutation
@@ -111,7 +126,11 @@ extension RunEvent {
         case let .baselineTestFailed(mutationTestLog): mutationTestLog
         case let .resultsFileCreated(path): path
         case let .resultsFileUnavailable(reason): reason
-        case let .testPlanFileCreated(path): path
+        case let .testPlanFileCreated(created): created
+        case let .testPlanSourcesDiffer(changes), let .testPlanUntestedFilesChanged(changes),
+             let .testPlanCopyResolutionChanged(changes): changes
+        case let .testPlanChangesWaived(paths): paths
+        case let .testPlanCopyEdited(paths): paths
         }
     }
 }

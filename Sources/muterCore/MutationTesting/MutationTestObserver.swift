@@ -24,6 +24,8 @@ final class MutationTestObserver {
     private var resultsFilePath: String?
     /// The merge base `--since` compared the working tree with, which the command that continues the run names.
     private var sinceMergeBase: String?
+    /// The run of the one mutant `--mutant` tests, which the end of the run prints in place of the report.
+    private var oneMutantRun: OneMutantRun?
     private let runOptions: Run.Options
 
     /// The observer's registration with the run's events, from `start()`; it ends when the observer does.
@@ -128,6 +130,8 @@ extension MutationTestObserver {
             logger.timeoutRerunFinished(rerun)
         case let .timeoutRerunsFinished(tally):
             logger.timeoutRerunsFinished(tally)
+        case let .oneMutantTested(run):
+            oneMutantRun = run
         case let .mutationTestingFinished(outcome):
             mutationTestingFinished(outcome)
         case let .mutationTestingEndedEarly(earlyEnd):
@@ -154,11 +158,23 @@ extension MutationTestObserver {
             resultsFilePath = nil
             logger.resultsFileUnavailable(reason: reason)
 
-        case let .testPlanFileCreated(path):
-            logger.testPlanFileCreated(atPath: path)
+        case let .testPlanFileCreated(created):
+            logger.testPlanFileCreated(created)
 
         case .muterMutationTestPlanLoaded:
             logger.muterMutationTestPlanLoaded()
+        case .testPlanSourcesUnchecked:
+            logger.testPlanSourcesUnchecked()
+        case let .testPlanSourcesDiffer(changes):
+            logger.testPlanSourcesDiffer(changes)
+        case let .testPlanUntestedFilesChanged(changes):
+            logger.testPlanUntestedFilesChanged(changes)
+        case let .testPlanChangesWaived(paths):
+            logger.testPlanChangesWaived(paths)
+        case let .testPlanCopyEdited(paths):
+            logger.testPlanCopyEdited(paths)
+        case let .testPlanCopyResolutionChanged(changes):
+            logger.testPlanCopyResolutionChanged(changes)
         }
     }
 
@@ -170,12 +186,19 @@ extension MutationTestObserver {
         )
     }
 
+    /// Says the run finished, then prints its report, or where it went, or for a run of one mutant (`--mutant`) what
+    /// it changes, its tests' log and its verdict, and where a requested report went; then where each result is.
     private func mutationTestingFinished(_ outcome: MutationTestOutcome) {
         let reporter = runOptions.reportOptions.reporter
         let reportPath = runOptions.reportOptions.path ?? ""
         let report = reporter.report(from: outcome)
         let didSave = ReportWriter.save(report, to: reportPath, using: fileManager)
 
+        if let oneMutantRun {
+            logger.oneMutantTested(oneMutantRun, reportPath: reportPath.isEmpty ? nil : (reportPath, didSave))
+            resultsFilePath.map(logger.resultsFileKept(atPath:))
+            return
+        }
         logger.mutationTestingFinished(
             report: report,
             reportPath: reportPath,
@@ -189,7 +212,8 @@ extension MutationTestObserver {
     /// Writes what was tested to a partial report beside the requested one, never replacing it, and says what was
     /// tested, and the command that continues the run: SwiftMutator's own arguments, resuming from the results file.
     /// Without a requested report there is no partial one: the summary and the results file say what was tested, and a
-    /// report printed to the terminal would run to thousands of lines.
+    /// report printed to the terminal would run to thousands of lines. A run of one mutant (`--mutant`) can't be
+    /// resumed, and gets no such command: the same command tests it again.
     private func mutationTestingEndedEarly(_ earlyEnd: EarlyEnd) {
         var partialReport: (path: String, saved: Bool)?
         if !earlyEnd.outcome.mutations.isEmpty,
@@ -197,17 +221,14 @@ extension MutationTestObserver {
             let report = runOptions.reportOptions.reporter.report(from: earlyEnd.outcome)
             partialReport = (path, ReportWriter.save(report, to: path, using: fileManager))
         }
-        // A run from a test plan can't be resumed: ResumeCheck refuses it.
-        let continueCommand = runOptions.isUsingTestPlan
-            ? nil
-            : resultsFilePath.map {
-                ResumeHint.command(
-                    continuing: commandLineArguments,
-                    from: $0,
-                    since: sinceMergeBase,
-                    chosenSeed: runOptions.sample.flatMap { $0.seedIsChosen ? $0.seed : nil }
-                )
-            }
+        let continueCommand = runOptions.mutant != nil ? nil : resultsFilePath.map {
+            ResumeHint.command(
+                continuing: commandLineArguments,
+                from: $0,
+                since: sinceMergeBase,
+                chosenSeed: runOptions.sample.flatMap { $0.seedIsChosen ? $0.seed : nil }
+            )
+        }
         logger.mutationTestingEndedEarly(
             earlyEnd,
             partialReport: partialReport,

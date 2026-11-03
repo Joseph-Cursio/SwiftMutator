@@ -11,6 +11,11 @@ import Foundation
 /// and a run of the same project still writing it holds the project's copy, which `LockMutatedProject` refuses. The
 /// same checks apply, with `--force-reuse` for `--force-resume`, except changed files: they don't refuse a reuse, but
 /// decide which results it keeps, once `FingerprintProjectTree` has listed them in the copy.
+///
+/// A run that tests a test plan resumes with the same plan, which `ResumeCheck` compares by its SHA-256. Its project's
+/// files aren't fingerprinted here: its last session recorded the plan's copy as it was tested, which
+/// `FingerprintProjectTree` compares once the copy is locked, and `CheckTestPlanSources` has already checked the
+/// project's own files against the plan, as it does in every session.
 struct LoadResumeState: MutationStep {
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
@@ -84,9 +89,11 @@ struct LoadResumeState: MutationStep {
         }
         // Asked in the project, where swiftly finds the same `.swift-version` as in the copy.
         let current = await provenance(state.muterConfiguration)
-        // Only a resume refuses changed files, so only a resume fingerprints the project here.
+        // Only a resume refuses changed files, so only a resume fingerprints the project here. Neither a run of a test
+        // plan nor one that resumes a run of a plan does: a plan run's header records its copy, not the project, and a
+        // run that resumes another kind of run is refused for that alone (`ResumeRefusal.testPlanRun`).
         var tree: ProjectTree?
-        if file != nil {
+        if file != nil, !options.isUsingTestPlan, !lastHeader.usingTestPlan {
             tree = await ProjectTree.fingerprint(
                 listingIn: state.projectDirectoryURL,
                 hashingIn: state.projectDirectoryURL,

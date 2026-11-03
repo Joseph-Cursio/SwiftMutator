@@ -24,8 +24,8 @@ final class LoggerTests: MuterTestCase {
         sut.mutationTestingStarted()
         sut.newMutationTestLogAvailable(
             mutationTestLog: .make(
-                timePerBuildTestCycle: 50,
-                remainingMutationPointsCount: 5
+                timePerBuildTestCycle: 300,
+                remainingMutationPointsCount: 1
             )
         )
         sut.newMutationTestLogAvailable(
@@ -33,7 +33,15 @@ final class LoggerTests: MuterTestCase {
                 mutationPoint: .make()
             )
         )
-        sut.testPlanFileCreated(atPath: "/path/to/test-plan")
+        sut.testPlanFileCreated(
+            TestPlanCreated(
+                path: "/path/to/test-plan",
+                mutatedProject: "../project_mutated",
+                mutants: 12,
+                files: 3,
+                operators: nil
+            )
+        )
         sut.configurationFileCreated(atPath: "/path/to/config-file")
         sut.muterMutationTestPlanLoaded()
         sut.mutationTestingFinished(
@@ -45,6 +53,243 @@ final class LoggerTests: MuterTestCase {
         )
 
         AssertSnapshot(printer.linesPassed.joined(separator: "\n"))
+    }
+
+    // What the plan holds, that its copy may be fixed by hand, the command that tests it, and that a later run removes
+    // the copy with any fix in it.
+    func test_testPlanFileCreated_saysWhatThePlanHolds_andHowToTestIt() {
+        sut.testPlanFileCreated(
+            TestPlanCreated(
+                path: "/Users/a/My Project/muter-mappings.json",
+                mutatedProject: "../My Project_mutated",
+                mutants: 1,
+                files: 1,
+                operators: ["SwapTernary"]
+            )
+        )
+        sut.testPlanFileCreated(
+            TestPlanCreated(
+                path: "/Users/a/Foo/muter-mappings.json",
+                mutatedProject: "../Foo_mutated",
+                mutants: 7,
+                files: 2,
+                operators: ["ChangeLogicalConnector", "RelationalOperatorReplacement", "SwapTernary"]
+            )
+        )
+
+        let removed = "⚠️ A later `swift-mutator run` or `mutate-without-running` of this project removes that copy, "
+            + "and any fix in it."
+        XCTAssertEqual(printer.linesPassed, [
+            "💾 Mutation test plan created: /Users/a/My Project/muter-mappings.json (1 mutant in 1 file, operator "
+                + "SwapTernary)",
+            "✏️ You can fix its copy, ../My Project_mutated, by hand before testing it.",
+            "▶️ Test it: swift-mutator run-without-mutating '/Users/a/My Project/muter-mappings.json'",
+            removed,
+            "💾 Mutation test plan created: /Users/a/Foo/muter-mappings.json (7 mutants in 2 files, operators "
+                + "ChangeLogicalConnector, RelationalOperatorReplacement and SwapTernary)",
+            "✏️ You can fix its copy, ../Foo_mutated, by hand before testing it.",
+            "▶️ Test it: swift-mutator run-without-mutating /Users/a/Foo/muter-mappings.json",
+            removed,
+        ])
+    }
+
+    // A plan in format 0 records no project files to check against.
+    func test_testPlanSourcesUnchecked_saysHowToHaveThePlanChecked() {
+        sut.testPlanSourcesUnchecked()
+
+        XCTAssertEqual(printer.linesPassed, [
+            "⚠️ The test plan was made by a SwiftMutator from before plans recorded the project's files, so it isn't "
+                + "checked against them. Make it again with `swift-mutator mutate-without-running` to have it checked.",
+        ])
+    }
+
+    // Files the plan doesn't mutate, which the copy holds as they were: ten by name, and the rest counted.
+    func test_testPlanSourcesDiffer_namesTheFiles_andSaysTheCopyHoldsThemAsTheyWere() {
+        sut.testPlanSourcesDiffer([.init(path: "Package.resolved", kind: .changed)])
+        sut.testPlanSourcesDiffer(
+            [.init(path: "README.md", kind: .removed)]
+                + (1 ... 11).map { .init(path: "Tests/Test\($0).swift", kind: .added) }
+        )
+
+        XCTAssertEqual(printer.linesPassed, [
+            "⚠️ 1 project file the plan doesn't mutate changed since `swift-mutator mutate-without-running` made it: "
+                + "Package.resolved (changed). The plan's copy holds it as it was, so its mutants are tested with it "
+                + "as it was. Make the plan again to test with it as it is now.",
+            "⚠️ 12 project files the plan doesn't mutate changed since `swift-mutator mutate-without-running` made "
+                + "it: README.md (removed), "
+                + (1 ... 9).map { "Tests/Test\($0).swift (added)" }.joined(separator: ", ")
+                + ", and 2 more. The plan's copy holds them as they were, so its mutants are tested with them as they "
+                + "were. Make the plan again to test with them as they are now.",
+        ])
+    }
+
+    // With `--mutant`, files with the plan's other mutants, which a run that tests them would refuse.
+    func test_testPlanUntestedFilesChanged_namesTheFiles_andSaysARunOfThemIsRefused() {
+        sut.testPlanUntestedFilesChanged([.init(path: "Sources/Max.swift", kind: .changed)])
+        sut.testPlanUntestedFilesChanged(
+            [.init(path: "Sources/Max.swift", kind: .removed), .init(path: "Sources/Min.swift", kind: .changed)]
+        )
+
+        XCTAssertEqual(printer.linesPassed, [
+            "⚠️ 1 file with the plan's other mutants, which this run doesn't test, changed since `swift-mutator "
+                + "mutate-without-running` made it: Sources/Max.swift (changed). A run that tests those mutants "
+                + "refuses the plan, unless --plan-ignoring lets the change through.",
+            "⚠️ 2 files with the plan's other mutants, which this run doesn't test, changed since `swift-mutator "
+                + "mutate-without-running` made it: Sources/Max.swift (removed), Sources/Min.swift (changed). A run "
+                + "that tests those mutants refuses the plan, unless --plan-ignoring lets the changes through.",
+        ])
+    }
+
+    func test_testPlanChangesWaived_namesTheFilesPlanIgnoringLetThrough() {
+        sut.testPlanChangesWaived(["Sources/Sum.swift"])
+        sut.testPlanChangesWaived(["Sources/Max.swift", "Sources/Sum.swift"])
+
+        XCTAssertEqual(printer.linesPassed, [
+            "ℹ️ The plan is tested although 1 file it mutates changed since it was made (--plan-ignoring): "
+                + "Sources/Sum.swift. Its mutants are tested in the copy as it is.",
+            "ℹ️ The plan is tested although 2 files it mutates changed since it was made (--plan-ignoring): "
+                + "Sources/Max.swift, Sources/Sum.swift. Their mutants are tested in the copy as it is.",
+        ])
+    }
+
+    // Files with mutants that a fix by hand changed in the plan's copy: ten by name, and the rest counted.
+    func test_testPlanCopyEdited_namesTheFiles_andSaysTheyAreTestedAsTheyAre() {
+        sut.testPlanCopyEdited(["Sources/Sum.swift"])
+        sut.testPlanCopyEdited((1 ... 12).map { "Sources/File\($0).swift" })
+
+        XCTAssertEqual(printer.linesPassed, [
+            "✏️ 1 file of the plan's copy differs from what `swift-mutator mutate-without-running` wrote, and is "
+                + "tested as it is now: Sources/Sum.swift",
+            "✏️ 12 files of the plan's copy differ from what `swift-mutator mutate-without-running` wrote, and are "
+                + "tested as they are now: "
+                + (1 ... 10).map { "Sources/File\($0).swift" }.joined(separator: ", ")
+                + ", and 2 more",
+        ])
+    }
+
+    // A Package.resolved the copy's own build wrote, which the plan's project didn't have, doesn't refuse a resume.
+    func test_testPlanCopyResolutionChanged_namesTheFiles_andSaysHowToTestWithThemAsTheyAre() {
+        sut.testPlanCopyResolutionChanged([.init(path: "Package.resolved", kind: .added)])
+        sut.testPlanCopyResolutionChanged([
+            .init(path: "App.xcworkspace/xcshareddata/swiftpm/Package.resolved", kind: .changed),
+            .init(path: "Package.resolved", kind: .changed),
+        ])
+
+        XCTAssertEqual(printer.linesPassed, [
+            "⚠️ 1 dependency resolution file of the plan's copy changed since the run's last session: "
+                + "Package.resolved (added). The project the plan was made from had no such file, so the copy's own "
+                + "build wrote it, and the results are reused. To test every mutant with the dependencies as they are "
+                + "resolved now, start the run again without --resume.",
+            "⚠️ 2 dependency resolution files of the plan's copy changed since the run's last session: "
+                + "App.xcworkspace/xcshareddata/swiftpm/Package.resolved (changed), Package.resolved (changed). The "
+                + "project the plan was made from had none of them, so the copy's own build wrote them, and the "
+                + "results are reused. To test every mutant with the dependencies as they are resolved now, start "
+                + "the run again without --resume.",
+        ])
+    }
+
+    // The block a run of one mutant ends with: what it changes, its tests' log, its verdict, the copy it leaves, and
+    // the command that runs its tests there with it on, by its file for `swift test`. Every path is quoted for a
+    // shell.
+    func test_oneMutantTested_printsTheChange_theLog_theVerdict_andHowToSwitchItOn_forSwiftTest() {
+        sut.oneMutantTested(.make(), reportPath: nil)
+
+        XCTAssertEqual(printer.linesPassed, [
+            "🏁 SwiftMutator finished running!",
+            "🔬 Sources/Foo/Bar.swift:12:9 SwapTernary (swapped ternary operator)",
+            "Switch: Bar_1a2b_SwapTernary_12_9_412",
+            "Change:",
+            "  -12:     return a ? b : c",
+            "  +12:     return a ? c : b",
+            "Tests (log: /logs/Oct 4/SwapTernary @ Bar.swift-12-9 1a2b.log):",
+            "  ✘ Test picksB() recorded an issue at BarTests.swift:3:5",
+            "",
+            "  ✘ Test run with 1 test failed.",
+            "Verdict: killed by picksB() (1 failed test), in 4.2 s",
+            "Mutated project kept, with the mutant switched off: /work/Foo's copy/Foo_mutant",
+            "To run its tests with it on:",
+            #"  printf '%s\n' 'Bar_1a2b_SwapTernary_12_9_412' > '/work/Foo'\''s copy/Foo_mutant.active-mutant' && "#
+                + #"cd '/work/Foo'\''s copy/Foo_mutant' && IS_MUTER_RUNNING=YES "#
+                + #"SWIFTMUTATOR_ACTIVE_MUTANT_FILE='/work/Foo'\''s copy/Foo_mutant.active-mutant' "#
+                + "/usr/bin/swift test 'Flag with space'",
+        ])
+    }
+
+    // Another test command is given the mutant's own variable, by `env`, as its ID needn't be a shell variable's name.
+    // An xcodebuild run sets it in `muter.xctestrun`, so only the variables are named.
+    func test_oneMutantTested_switchesItOnByItsVariable_forOtherTestCommands() {
+        sut.oneMutantTested(
+            .make(buildSystem: .unknown, testCommand: ["/bin/sh", "-c", "make test"]),
+            reportPath: nil
+        )
+        sut.oneMutantTested(
+            .make(buildSystem: .xcodebuild, testCommand: ["/usr/bin/xcodebuild", "test"]),
+            reportPath: nil
+        )
+
+        XCTAssertEqual(printer.linesPassed.filter { $0.hasPrefix("To run") || $0.hasPrefix("  cd ") }, [
+            "To run its tests with it on:",
+            #"  cd '/work/Foo'\''s copy/Foo_mutant' && env IS_MUTER_RUNNING=YES 'Bar_1a2b_SwapTernary_12_9_412=YES' "#
+                + "/bin/sh -c 'make test'",
+            "To run its tests with it on, set Bar_1a2b_SwapTernary_12_9_412=YES and IS_MUTER_RUNNING=YES in their "
+                + "environment, and SIMCTL_CHILD_Bar_1a2b_SwapTernary_12_9_412=YES for a simulator.",
+        ])
+    }
+
+    // A long log is printed from its end, where the failures and the summary are; the log folder keeps it whole.
+    func test_oneMutantTested_printsTheLastLinesOfALongLog() {
+        let log = (1 ... 401).map { "line \($0)" }.joined(separator: "\n") + "\n"
+
+        sut.oneMutantTested(.make(testLog: log), reportPath: nil)
+        sut.oneMutantTested(.make(testLog: log, logPath: nil), reportPath: nil)
+        sut.oneMutantTested(.make(testLog: ""), reportPath: nil)
+
+        let lines = printer.linesPassed
+        let first = lines.firstIndex(of: "  … 201 earlier lines are in the log")
+        XCTAssertEqual(first.map { lines[$0 + 1] }, "  line 202")
+        XCTAssertEqual(first.map { lines[$0 + 200] }, "  line 401")
+        XCTAssertEqual(first.map { lines[$0 + 201] }, "Verdict: killed by picksB() (1 failed test), in 4.2 s")
+        XCTAssertTrue(lines.contains("Tests:"), "\(lines)")
+        XCTAssertTrue(lines.contains("  … 201 earlier lines are left out"), "\(lines)")
+        XCTAssertTrue(lines.contains("  (the tests printed nothing)"), "\(lines)")
+    }
+
+    func test_oneMutantTested_givesEachVerdict() {
+        let killing = MutationTestOutcome.KillingTests(
+            tests: ["a()", "b()", "c()"].map { FailedTestLine.FailedTest(name: $0, location: nil) },
+            count: 5,
+            isComplete: true
+        )
+
+        XCTAssertEqual(
+            [
+                OneMutantRun.make(killingTests: killing),
+                .make(outcome: .failed, killingTests: nil),
+                .make(outcome: .runtimeError, killingTests: nil),
+                .make(outcome: .passed, killingTests: nil),
+                .make(outcome: .timeout, killingTests: nil),
+                .make(outcome: .buildError, killingTests: nil),
+            ].map(Logger.verdict(of:)),
+            [
+                "killed by a(), b(), c() and 2 more (5 failed tests), in 4.2 s",
+                "killed: the tests failed, in 4.2 s",
+                "killed: the tests crashed, in 4.2 s",
+                "survived, in 4.2 s",
+                "timed out after 30 s",
+                "build error, in 4.2 s",
+            ]
+        )
+    }
+
+    // A report asked for with -o is still written, and said, after the block.
+    func test_oneMutantTested_saysWhereARequestedReportWent() {
+        sut.oneMutantTested(.make(), reportPath: ("/out/report.txt", true))
+        sut.oneMutantTested(.make(), reportPath: ("/out/report.txt", false))
+
+        XCTAssertEqual(printer.linesPassed.filter { $0.hasPrefix("📝") || $0.hasPrefix("⚠️") }, [
+            "📝 Report generated: \("/out/report.txt".bold)",
+            "⚠️ Could not save the report to /out/report.txt",
+        ])
     }
 
     // Last, after where the report went or the report itself, whether or not it was saved: the line a run ends on.
@@ -640,6 +885,20 @@ final class LoggerTests: MuterTestCase {
             "⚠️ Results are reused although the toolchain's environment changed (--force-resume).",
             "⚠️ Results are reused although 12 project files changed (--resume-ignoring): "
                 + (1...10).map { "Docs/rules/rule\($0).md" }.joined(separator: ", ") + ", and 2 more",
+        ])
+    }
+
+    // A resume of a test plan's run compares the plan's copy, not the project: what --resume-ignoring let through are
+    // the copy's files, named as the refusal names them.
+    func test_resumePlanned_ofATestPlansRun_namesTheWaivedFilesAsTheCopys() {
+        sut.resumePlanned(.make(waived: ["Sources/Sum.swift"], testPlanCopy: "/work/Foo_mutated"))
+        sut.resumePlanned(.make(waived: ["Sources/Max.swift", "Sources/Sum.swift"], testPlanCopy: "/work/Foo_mutated"))
+
+        XCTAssertEqual(Array(printer.linesPassed.filter { $0.hasPrefix("⚠️") }), [
+            "⚠️ Results are reused although 1 file of the test plan's copy, /work/Foo_mutated, changed "
+                + "(--resume-ignoring): Sources/Sum.swift",
+            "⚠️ Results are reused although 2 files of the test plan's copy, /work/Foo_mutated, changed "
+                + "(--resume-ignoring): Sources/Max.swift, Sources/Sum.swift",
         ])
     }
 

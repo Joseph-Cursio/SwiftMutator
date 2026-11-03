@@ -19,6 +19,9 @@ struct MuterTestReport {
     let shards: ShardScope?
     /// The `--sample` the report's mutants are, when it left some out; left out of the JSON otherwise.
     let sample: SampleScope?
+    /// The one mutant `--mutant` tested, by its key's description, which the score is of; left out of the JSON
+    /// otherwise.
+    let mutant: String?
 
     init(from outcome: MutationTestOutcome = .init()) {
         let summary = KillingTestSummary(of: outcome.mutations)
@@ -39,6 +42,12 @@ struct MuterTestReport {
             tested: outcome.mutations.count,
             cutShort: outcome.sampleIsCutShort
         )
+        mutant = outcome.mutant
+    }
+
+    /// "One mutant tested with --mutant (Sources/Bar.swift:12:9 SwapTernary): its score isn't the project's."
+    static func oneMutantSentence(_ mutant: String) -> String {
+        "One mutant tested with --mutant (\(mutant)): its score isn't the project's."
     }
 }
 
@@ -298,5 +307,6 @@ extension MuterTestReport: Codable {
         case since
         case shards
         case sample
+        case mutant
     }
 }

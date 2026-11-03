@@ -7,21 +7,8 @@ struct Run: RunCommand {
         abstract: "Performs mutation testing for the Swift project contained within the current directory."
     )
 
-    @Option(help: "Only mutate a given list of source code files.")
-    var filesToMutate: [String] = []
-
-    @Option(
-        parsing: .upToNextOption,
-        help: "The list of mutant operators to be used: \(MutationOperator.Id.description)",
-        transform: {
-            guard let `operator` = MutationOperator.Id(rawValue: $0) else {
-                throw MuterError.literal(reason: MutationOperator.Id.description)
-            }
-
-            return `operator`
-        }
-    )
-    var operators: [MutationOperator.Id] = MutationOperator.Id.allCases
+    // First, so the help lists --files-to-mutate and --operators before the rest.
+    @OptionGroup var selection: MutantSelectionArguments
 
     @Option(
         name: .customLong("since"),
@@ -89,36 +76,16 @@ struct Run: RunCommand {
     )
     var seed: UInt64?
 
+    // After the options that choose mutants, of which it is the narrowest.
+    @OptionGroup var lone: MutantArguments
+
     @OptionGroup var options: RunArguments
     @OptionGroup var testing: TestingArguments
     @OptionGroup var reportOptions: ReportArguments
 
-    // After the option groups, so they come last in the help. Not in `RunArguments`, which other commands share.
-    @Option(
-        name: .customLong("resume"),
-        help: ArgumentHelp(
-            "Continue a stopped run from its results file, or the log folder of any of its sessions. "
-                + "Only mutants without a result that still holds are tested.",
-            valueName: "results"
-        )
-    )
-    var resume: URL?
-
-    @Option(
-        name: .customLong("resume-ignoring"),
-        help: ArgumentHelp(
-            "With --resume, reuse results although project files matching this glob changed; * also matches /. "
-                + "Repeatable.",
-            valueName: "glob"
-        )
-    )
-    var resumeIgnoring: [String] = []
-
-    @Flag(
-        name: .customLong("force-resume"),
-        help: "With --resume, reuse results although SwiftMutator, the toolchain or the SDK changed."
-    )
-    var forceResume = false
+    // After the option groups, so these and the ones below come last in the help. Not in `RunArguments`, which
+    // `mutate-without-running` shares.
+    @OptionGroup var resuming: ResumeArguments
 
     @Option(
         name: .customLong("reuse"),
@@ -150,10 +117,13 @@ struct Run: RunCommand {
     init() {}
 
     /// The options the command line gives the run. Without `--seed`, a `--sample` gets a seed chosen afresh each time,
-    /// so `run()` asks once.
+    /// so `run()` asks once. `--mutant` skips coverage, which only leaves files and code out of discovery. It leaves
+    /// the files and the operators alone: its path may be the end of one, and a wrong operator is refused with the
+    /// mutants near its place, whatever their operators, so every file is discovered with every operator, and
+    /// `SelectMutant` picks the mutant.
     var runOptions: Run.Options {
         Run.Options(
-            filesToMutate: filesToMutate,
+            filesToMutate: selection.filesToMutate,
             since: since,
             changedLinesOnly: changedLines,
             // 1/1 is the whole run.
@@ -161,18 +131,19 @@ struct Run: RunCommand {
             sample: sample.map { Sample(size: $0, seed: seed ?? Sample.chooseSeed(), seedIsChosen: seed == nil) },
             reportFormat: reportOptions.reportFormat,
             reportURL: reportOptions.reportURL,
-            mutationOperatorsList: !operators.isEmpty ? operators : .allOperators,
-            skipCoverage: options.skipCoverage,
+            mutationOperatorsList: selection.mutationOperatorsList,
+            skipCoverage: options.skipCoverage || lone.mutant != nil,
             skipUpdateCheck: options.skipUpdateCheck,
             verbose: options.verbose,
             configurationURL: options.configurationURL,
             workers: testing.workers,
             timeout: testing.timeout,
-            resumeURL: resume,
+            resumeURL: resuming.resume,
             reuseURL: reuse,
             // Only one of each pair can be given: `validate()` ties each to its own option.
-            resumeIgnoring: resume == nil ? reuseIgnoring : resumeIgnoring,
-            forceResume: resume == nil ? forceReuse : forceResume
+            resumeIgnoring: resuming.resume == nil ? reuseIgnoring : resuming.resumeIgnoring,
+            forceResume: resuming.resume == nil ? forceReuse : resuming.forceResume,
+            mutant: lone.mutant
         )
     }
 
@@ -181,12 +152,14 @@ struct Run: RunCommand {
     }
 
     /// `--resume` continues a run's own results file and `--reuse` starts a new one, so only one can be given.
-    /// `--resume-ignoring` and `--force-resume` only say what a resume may reuse, and `--reuse-ignoring` and
-    /// `--force-reuse` what a reuse may. `--since` chooses the files itself, and `--changed-lines` narrows its choice.
-    /// `--seed` only says which sample `--sample` takes, and the shards of a sampled split, and a resume of a sample,
-    /// need it to take the same one: a seed SwiftMutator chose would differ.
+    /// `--reuse-ignoring` and `--force-reuse` only say what a reuse may reuse, as `--resume-ignoring` and
+    /// `--force-resume` say what a resume may (`ResumeArguments`). `--since` chooses the files itself, and
+    /// `--changed-lines` narrows its choice. `--seed` only says which sample `--sample` takes, and the shards of a
+    /// sampled split, and a resume of a sample, need it to take the same one: a seed SwiftMutator chose would differ.
+    /// `--mutant` names its mutant alone, so no other option that chooses mutants, nor one that continues a run, can
+    /// be given with it.
     func validate() throws {
-        if since != nil, !filesToMutate.isEmpty {
+        if since != nil, !selection.filesToMutate.isEmpty {
             throw ValidationError("--since and --files-to-mutate can't be given together.")
         }
         if since == nil, changedLines {
@@ -197,16 +170,9 @@ struct Run: RunCommand {
             throw ValidationError("--since takes a git ref, such as main or origin/main, not an option.")
         }
         try validateSample()
-        if resume != nil, reuse != nil {
+        try validateMutant()
+        if resuming.resume != nil, reuse != nil {
             throw ValidationError("--resume and --reuse can't be given together.")
-        }
-        if resume == nil {
-            if !resumeIgnoring.isEmpty {
-                throw ValidationError("--resume-ignoring only applies with --resume.")
-            }
-            if forceResume {
-                throw ValidationError("--force-resume only applies with --resume.")
-            }
         }
         if reuse == nil {
             if !reuseIgnoring.isEmpty {
@@ -220,6 +186,23 @@ struct Run: RunCommand {
 }
 
 private extension Run {
+    func validateMutant() throws {
+        guard lone.mutant != nil else { return }
+        let others: [(option: String, isGiven: Bool)] = [
+            ("--operators", !selection.operators.isEmpty),
+            ("--files-to-mutate", !selection.filesToMutate.isEmpty),
+            ("--since", since != nil),
+            // 1/1 is the whole run.
+            ("--shard", (shard?.count ?? 1) > 1),
+            ("--sample", sample != nil),
+            ("--resume", resuming.resume != nil),
+            ("--reuse", reuse != nil),
+        ]
+        if let other = others.first(where: \.isGiven) {
+            throw ValidationError("--mutant can't be given with \(other.option).")
+        }
+    }
+
     func validateSample() throws {
         if seed != nil, sample == nil {
             throw ValidationError("--seed only applies with --sample.")
@@ -228,7 +211,7 @@ private extension Run {
         if let shard, shard.count > 1 {
             throw ValidationError("--sample with --shard needs --seed, so that every shard takes the same sample.")
         }
-        if resume != nil {
+        if resuming.resume != nil {
             throw ValidationError(
                 "--sample with --resume needs the sample's --seed, which the Continue line gives, and the results "
                     + "file's header records as sample.seed."

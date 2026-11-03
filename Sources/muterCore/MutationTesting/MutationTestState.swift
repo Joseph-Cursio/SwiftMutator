@@ -22,8 +22,8 @@ protocol AnyMutationTestState: AnyObject {
     /// The folder the run's test logs are kept in, `<project>_muter_logs/<timestamp>`, so a step can keep other
     /// files of the run beside them; "" until the handler has created it.
     var loggingDirectory: String { get }
-    /// The project's files as the copy held them before discovery rewrote it; nil until the copy is fingerprinted,
-    /// and for good in a run that tests a test plan.
+    /// The project's files as the copy held them before discovery rewrote it, or in a run that tests a test plan, as
+    /// the plan's copy holds them, rewritten and with any fix made by hand; nil until the copy is fingerprinted.
     var projectTree: ProjectTree? { get }
     /// The stopped run that `--resume` continues, or the earlier run whose results `--reuse` starts from; nil when the
     /// run does neither.
@@ -47,6 +47,11 @@ protocol AnyMutationTestState: AnyObject {
     /// The paths in the mutated project, relative to it, that discovery picks from, once listed before coverage is
     /// gathered, as a `--since` run lists them; nil until then, when discovery lists them itself.
     var candidatePaths: [FilePath]? { get }
+    /// The test plan the run tests; nil until it is loaded, and in a run that tests none.
+    var testPlan: LoadedTestPlan? { get }
+    /// The one mutant `--mutant` chose, which is then the only one in `mutationMapping`; nil without `--mutant`, and
+    /// until it is chosen.
+    var selectedMutant: MutantKey? { get }
 
     func apply(_ stateChanges: [MutationTestState.Change])
 }
@@ -78,6 +83,8 @@ final class MutationTestState: AnyMutationTestState {
     var sampleSelection: SampleSelection?
     var keysLeftOutOfTheSample: Set<MutantKey> = []
     var candidatePaths: [FilePath]?
+    var testPlan: LoadedTestPlan?
+    var selectedMutant: MutantKey?
 
     init() {}
 
@@ -112,6 +119,8 @@ extension MutationTestState {
         case sampleSelected(SampleSelection)
         case sampleLeftOut(Set<MutantKey>)
         case candidatePathsListed([FilePath])
+        case testPlanLoaded(LoadedTestPlan)
+        case mutantSelected(MutantKey)
     }
 }
 
@@ -163,6 +172,15 @@ extension MutationTestState {
                 keysLeftOutOfTheSample = keys
             case let .candidatePathsListed(paths):
                 candidatePaths = paths
+            case let .testPlanLoaded(plan):
+                testPlan = plan
+                // So the results file, and a resume's check, describe the plan's mutants, not the command's defaults.
+                if let scope = plan.scope {
+                    mutationOperatorList = scope.operators
+                    filesToMutate = scope.filesToMutate
+                }
+            case let .mutantSelected(key):
+                selectedMutant = key
             }
         }
     }

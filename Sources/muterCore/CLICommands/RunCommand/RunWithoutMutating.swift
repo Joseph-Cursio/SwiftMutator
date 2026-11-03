@@ -7,9 +7,24 @@ struct RunWithoutMutating: RunCommand {
         abstract: "Performs mutation testing using the test plan."
     )
 
+    // First, as in `run`'s help it comes before the other option groups.
+    @OptionGroup var lone: MutantArguments
     @OptionGroup var options: RunArguments
     @OptionGroup var testing: TestingArguments
     @OptionGroup var reportOptions: ReportArguments
+    // A run of a test plan resumes as `run` does. The plan's copy stands for the project: a resume compares its files.
+    @OptionGroup var resuming: ResumeArguments
+
+    // After the option groups, so it comes last in the help.
+    @Option(
+        name: .customLong("plan-ignoring"),
+        help: ArgumentHelp(
+            "Test the plan although files it mutates that match this glob changed since mutate-without-running made "
+                + "it; * also matches /. Repeatable.",
+            valueName: "glob"
+        )
+    )
+    var planIgnoring: [String] = []
 
     @Argument(
         help: "The path for the test plan."
@@ -29,7 +44,12 @@ struct RunWithoutMutating: RunCommand {
             configurationURL: options.configurationURL,
             testPlanURL: testPlanURL,
             workers: testing.workers,
-            timeout: testing.timeout
+            timeout: testing.timeout,
+            resumeURL: resuming.resume,
+            resumeIgnoring: resuming.resumeIgnoring,
+            forceResume: resuming.forceResume,
+            planIgnoring: planIgnoring,
+            mutant: lone.mutant
         )
     }
 
@@ -37,9 +57,13 @@ struct RunWithoutMutating: RunCommand {
         try await run(with: runOptions)
     }
 
+    /// `--mutant` tests one of the plan's mutants on its own, which no stopped run of the plan can continue.
     func validate() throws {
         if testPlanURL == nil {
             throw MuterError.literal(reason: "Please provide the path to the test plan json.")
+        }
+        if lone.mutant != nil, resuming.resume != nil {
+            throw ValidationError("--mutant can't be given with --resume.")
         }
     }
 }

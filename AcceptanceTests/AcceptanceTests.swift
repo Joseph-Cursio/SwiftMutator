@@ -132,11 +132,14 @@ final class AcceptanceTests: XCTestCase {
         )
     }
 
+    // The plan names its copy relative to the project, so the two can move together.
     func test_mutationTestPlan() throws {
-        let decodedTestPlan = try JSONDecoder().decode(MuterTestPlan.self, from: createdTestPlan)
-        XCTAssertTrue(decodedTestPlan.mutatedProjectPath.contains("_mutated"))
+        let decodedTestPlan = try JSONDecoder().decode(TestPlanFile.self, from: createdTestPlan)
+        XCTAssertEqual(decodedTestPlan.formatVersion, TestPlanCoding.formatVersion)
+        XCTAssertEqual(decodedTestPlan.mutatedProject, "../ExampleApp_mutated")
         XCTAssertEqual(decodedTestPlan.projectCoverage, 23)
         XCTAssertEqual(decodedTestPlan.mappings.count, 1)
+        XCTAssertFalse(decodedTestPlan.mappings.contains { $0.filePath.hasPrefix("/") })
     }
 
     func test_mutationTestTimeout() throws {

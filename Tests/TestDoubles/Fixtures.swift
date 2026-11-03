@@ -77,6 +77,45 @@ extension EarlyEnd {
     }
 }
 
+extension OneMutantRun {
+    /// A SwapTernary mutant killed by one test in 4.2 s, under a 30 s limit, in a copy whose path holds a space and a
+    /// quote.
+    static func make(
+        outcome: TestSuiteOutcome = .failed,
+        killingTests: MutationTestOutcome.KillingTests? = .init(
+            tests: [FailedTestLine.FailedTest(name: "picksB()", location: "BarTests.swift:3:5")],
+            count: 1,
+            isComplete: true
+        ),
+        testLog: String = "✘ Test picksB() recorded an issue at BarTests.swift:3:5\n\n✘ Test run with 1 test failed.\n",
+        logPath: String? = "/logs/Oct 4/SwapTernary @ Bar.swift-12-9 1a2b.log",
+        buildSystem: BuildSystem = .swift,
+        testCommand: [String] = ["/usr/bin/swift", "test", "Flag with space"]
+    ) -> OneMutantRun {
+        OneMutantRun(
+            key: MutantKey(
+                path: "Sources/Foo/Bar.swift", mutationOperatorId: .swapTernary, line: 12, column: 9, occurrence: 0
+            ),
+            switchID: "Bar_1a2b_SwapTernary_12_9_412",
+            snapshot: MutationOperator.Snapshot(
+                before: "a ? b : c",
+                after: "a ? c : b",
+                description: "swapped ternary operator"
+            ),
+            change: ["-12:     return a ? b : c", "+12:     return a ? c : b"],
+            outcome: outcome,
+            killingTests: killingTests,
+            seconds: 4.23,
+            timeoutSeconds: 30,
+            testLog: testLog,
+            logPath: logPath,
+            mutatedProject: "/work/Foo's copy/Foo_mutant",
+            buildSystem: buildSystem,
+            testCommand: testCommand
+        )
+    }
+}
+
 extension ResumeSummary {
     static func make(
         path: String = "/logs/results.jsonl",
@@ -88,6 +127,7 @@ extension ResumeSummary {
         coverageChange: ResumeCheck.CoverageChange? = nil,
         forced: [String] = [],
         waived: [String] = [],
+        testPlanCopy: String? = nil,
         notices: [String] = [],
         isReuse: Bool = false,
         otherFilesChanged: [ProjectTree.FileChange] = [],
@@ -106,6 +146,7 @@ extension ResumeSummary {
             coverageChange: coverageChange,
             forced: forced,
             waived: waived,
+            testPlanCopy: testPlanCopy,
             notices: notices,
             otherFilesChanged: otherFilesChanged,
             testFilesChanged: testFilesChanged,
@@ -385,7 +426,9 @@ extension Run.Options {
         resumeURL: URL? = nil,
         reuseURL: URL? = nil,
         resumeIgnoring: [String] = [],
-        forceResume: Bool = false
+        forceResume: Bool = false,
+        planIgnoring: [String] = [],
+        mutant: MutantReference? = nil
     ) -> Self {
         .init(
             filesToMutate: filesToMutate,
@@ -407,7 +450,9 @@ extension Run.Options {
             resumeURL: resumeURL,
             reuseURL: reuseURL,
             resumeIgnoring: resumeIgnoring,
-            forceResume: forceResume
+            forceResume: forceResume,
+            planIgnoring: planIgnoring,
+            mutant: mutant
         )
     }
 }
@@ -517,19 +562,39 @@ extension MutationPosition {
 
 extension MuterTestPlan {
     static func make(
-        mutatedProjectPath: String = "",
+        mutatedProjectPath: String = "/path/to/project_mutated",
         projectCoverage: Int = 0,
+        scope: TestPlanScope? = TestPlanScope(operators: .allOperators, filesToMutate: []),
+        sources: ProjectTree? = nil,
+        mutatedFiles: [String: String]? = nil,
+        linkedFiles: [String: String]? = nil,
         mappings: [SchemataMutationMapping] = []
     ) -> MuterTestPlan {
         MuterTestPlan(
-            mutatedProjectPath: mutatedProjectPath,
-            projectCoverage: projectCoverage,
+            mutatedProjectURL: URL(fileURLWithPath: mutatedProjectPath),
+            projectCoverage: projectCoverage < 0 ? .null : Coverage(percent: projectCoverage),
+            scope: scope,
+            sources: sources,
+            mutatedFiles: mutatedFiles,
+            linkedFiles: linkedFiles,
             mappings: mappings
         )
     }
 
-    var toData: Data {
-        (try? JSONEncoder().encode(self)) ?? .init()
+    /// The plan as `CreateMuterTestPlan` writes it into `projectRoot`, in format 1.
+    func toData(under projectRoot: URL) -> Data {
+        Data(((try? TestPlanCoding.encode(self, under: projectRoot)) ?? "").utf8)
+    }
+
+    /// The plan as a SwiftMutator from before format versions wrote it, in format 0: on one line, with absolute paths,
+    /// and a coverage of -1 when it wasn't gathered.
+    var legacyData: Data {
+        let file = LegacyTestPlanFile(
+            mutatedProjectPath: mutatedProjectURL.path,
+            projectCoverage: projectCoverage.percent,
+            mappings: mappings
+        )
+        return (try? JSONEncoder().encode(file)) ?? Data()
     }
 }
 
@@ -606,7 +671,9 @@ extension ResultsHeader {
         reusedFrom: String? = nil,
         since: ChangeSelection? = nil,
         shard: ShardSelection? = nil,
-        sample: SampleSelection? = nil
+        sample: SampleSelection? = nil,
+        testPlan: TestPlanRecord? = nil,
+        mutant: String? = nil
     ) -> ResultsHeader {
         ResultsHeader(
             formatVersion: formatVersion,
@@ -639,7 +706,9 @@ extension ResultsHeader {
             reusedFrom: reusedFrom,
             since: since,
             shard: shard,
-            sample: sample
+            sample: sample,
+            testPlan: testPlan,
+            mutant: mutant
         )
     }
 }

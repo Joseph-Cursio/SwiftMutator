@@ -41,7 +41,10 @@ path (1 mutants)
 Percentage complete:  0% [                              ] ETC: 5 min
 [1A[2K[1A[2KInserting mutant 1 of 1 
 Percentage complete:  100% [------------------------------] ETC: 0 min
-💾 Mutation test plan created: /path/to/test-plan
+💾 Mutation test plan created: /path/to/test-plan (12 mutants in 3 files, every operator)
+✏️ You can fix its copy, ../project_mutated, by hand before testing it.
+▶️ Test it: swift-mutator run-without-mutating /path/to/test-plan
+⚠️ A later `swift-mutator run` or `mutate-without-running` of this project removes that copy, and any fix in it.
 💾 Configuration file created at: /path/to/config-file
 ⬆️ SwiftMutator mutation test plan loaded
 🏁 SwiftMutator finished running!

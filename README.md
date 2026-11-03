@@ -148,6 +148,10 @@ ended. The lock goes when SwiftMutator exits, however it exits, so it never need
 file stays, made with the permissions your umask gives new files, so anyone who can remove the copy
 can lock it.
 
+`swift-mutator mutate-without-running` writes a test plan without testing anything, and
+`swift-mutator run-without-mutating` tests it (see [Test plans](#test-plans)). `--mutant` tests one
+mutant on its own (see [Testing one mutant](#testing-one-mutant)).
+
 ### Exit status
 
 `run`, `mutate-without-running` and `run-without-mutating` exit with:
@@ -160,6 +164,12 @@ can lock it.
   refused for these reasons.
 - **6** when another SwiftMutator run holds a lock this one needs: on the project's copy, or on the
   results file that `--resume` names. The same command goes ahead once that run has ended.
+- **7** when `run-without-mutating` refuses a test plan that might not describe the project, or
+  can't be tested as it is: one in a newer format, run in another folder than its project's that
+  has a configuration, one whose mutated files changed in the project since it was made, or whose
+  copy of the project isn't there (see [The test plan](Docs/test-plan.md#when-a-plan-is-refused)).
+  Nothing was tested. The message says what would let it through, such as `--plan-ignoring`. A
+  folder without `muter.conf.yml`, and no `--configuration`, stops on that first, with 255.
 - **64** for a usage error, such as `--workers 0`. `run-without-mutating` without a test plan's
   path exits with 1.
 - **255** for any other error, a failed baseline and an abort, such as 5 build errors in a row,
@@ -171,6 +181,91 @@ Earlier SwiftMutators exited with 255 for a refused resume or reuse, and for a r
 another's lock, so a script that checked for 255 there needs to check for 5 and 6 instead. `report` has statuses of its
 own (see [Results file](#results-file) and
 [Exit status](Docs/results-file.md#exit-status)).
+
+## Test plans
+
+`swift-mutator mutate-without-running` makes the copy, puts every mutant's switch into it, and
+writes a test plan, `muter-mappings.json`, without testing anything, so you can fix the copy by hand
+first, such as code the rewriting left unable to compile. `swift-mutator run-without-mutating
+muter-mappings.json` then tests it. See [The test plan](Docs/test-plan.md).
+
+- **Choosing the mutants.** Like `run`, `mutate-without-running` takes `--files-to-mutate` and
+  `--operators`. The plan records them, and so does the results file of a run that tests it.
+- **Fixing the copy by hand.** The run tests the copy as it is, and says which files with mutants
+  differ from what `mutate-without-running` wrote. Its results file records each file's SHA-256 as
+  tested.
+- **Run it from the project folder,** as `mutate-without-running` was: the plan's paths are
+  relative, and it finds its copy and loads `muter.conf.yml` from there. The configuration comes
+  first: a folder without one, as the project's `Sources`, stops on the missing file, with exit
+  status 255, before the plan is read. A folder with a configuration that holds none of the files the
+  plan mutates is refused, with exit status 7.
+- **A changed project.** A file the plan mutates that changed in the project since the plan was made
+  refuses the plan, with exit status 7. Make the plan again, or give `--plan-ignoring <glob>` to test
+  the copy as it is. A change to any other file, such as a test, is only said.
+- **Resuming.** A stopped run of a plan is continued by `run-without-mutating` with the same plan and
+  `--resume`, as its summary's Continue line gives it (see
+  [Resuming a run of the plan](Docs/test-plan.md#resuming-a-run-of-the-plan)).
+- **One mutant.** `run-without-mutating muter-mappings.json --mutant <mutant>` tests only that
+  mutant of the plan, in the plan's copy as it is, and leaves the copy unchanged (see
+  [Testing one mutant](#testing-one-mutant)).
+- **A later run removes the copy.** A later `swift-mutator run` or `mutate-without-running` of the
+  project removes `<project>_mutated`, with any fix in it. `run --mutant` doesn't: it has a copy of
+  its own.
+
+## Testing one mutant
+
+`--mutant` on `run` or `run-without-mutating` tests one mutant on its own: to check a verdict, a new
+test meant to kill it, or a fix made by hand in a test plan's copy. Name it as the progress lines
+and reports name it, `path:line[:column] [Operator]`, with as much of its path as tells its file
+apart:
+
+```
+swift-mutator run --mutant 'Rules.swift:42:17'
+swift-mutator run-without-mutating muter-mappings.json --mutant 'Sources/Foo/Rules.swift:42:17 RelationalOperatorReplacement'
+```
+
+It runs the baseline, then the mutant's tests with `stopAtFirstFailure` off, so the log names every
+test that fails, and prints, in place of the report:
+
+```
+🔬 Sources/Foo/Rules.swift:42:17 RelationalOperatorReplacement (changed == to !=)
+Switch: Rules_9c41…_RelationalOperatorReplacement_42_17_1388
+Change:
+  -42:         guard rule.kind == .error else { return }
+  +42:         guard rule.kind != .error else { return }
+Tests (log: /…/Foo_muter_logs/…/RelationalOperatorReplacement @ Rules.swift-42-17 9c41….log):
+  ✘ Test errorsAreReported() recorded an issue at RulesTests.swift:12:9: Expectation failed
+  …
+Verdict: killed by errorsAreReported() (1 failed test), in 3.8 s
+Mutated project kept, with the mutant switched off: /Users/me/Foo_mutant
+To run its tests with it on:
+  printf '%s\n' 'Rules_9c41…' > '/Users/me/Foo_mutant.active-mutant' && cd '/Users/me/Foo_mutant' && IS_MUTER_RUNNING=YES SWIFTMUTATOR_ACTIVE_MUTANT_FILE='/Users/me/Foo_mutant.active-mutant' /usr/bin/swift test
+```
+
+- **The change** is the mutant's line in your project's file, before and after. When that line
+  can't be found, as for code that spans lines, or a plan's file that changed since the plan was
+  made or that the plan doesn't record, as a plan in format 0 doesn't, it is the code the mutant
+  changes, as the mutant records it.
+- **The log** is printed whole up to 400 lines, and otherwise from its last 200; the log folder
+  keeps it whole.
+- **Exit status** is 0 whatever the verdict, which the results file records too. A reference that
+  doesn't read as a mutant is a usage error, 64. One that names no mutant exits with 255 and lists
+  the mutants near it, ready to paste, whatever operator it names, and one that names several lists
+  them. One of several mutants an operator makes at the same place is refused too: they share one
+  switch, so none can be tested on its own, and the lists name such a place without a `--mutant`
+  to paste. An absolute path may be spelled through a link, as `/tmp` is `/private/tmp`.
+- **`run --mutant`** skips coverage, finds every mutant, and puts only that mutant's switch into a
+  copy of its own, `<project>_mutant`, which it keeps for a look afterwards. A test plan's
+  `<project>_mutated`, and any fix in it, is left alone. `<project>_mutant` stays until the next
+  `run --mutant`.
+- **`run-without-mutating --mutant`** tests the plan's copy as it is, without rewriting it. The
+  project is checked against the plan as for a whole run, but only a change to that mutant's file
+  refuses it: one to a file with the plan's other mutants is only said.
+- For an xcodebuild project, only the switch's environment variable is named, not a command.
+- `--mutant` can't be given with `--operators`, `--files-to-mutate`, `--since`, `--shard`,
+  `--sample`, `--resume` or `--reuse`. A run of one mutant prints no Continue line: the same command
+  tests it again. Its reports, the one `-o` saves and those `report` makes of its results file,
+  say its score isn't the project's, and the JSON report gives the mutant as `mutant`.
 
 ## Progress
 
@@ -613,8 +708,8 @@ which a closed terminal sends, stop it the same way. SwiftMutator then:
    file is, the `swift-mutator report` command that makes a report of them all from it, in any
    format, and the command that continues the run (see [Resuming a run](#resuming-a-run)). The
    commands are left out when no mutant has a result, or when the results file couldn't be written
-   in full. A run of a test plan (`run-without-mutating`) can't be resumed, so it gets no command
-   to continue it.
+   in full. A run of a test plan's command is `run-without-mutating` again, with the plan and
+   `--resume`.
 5. Removes its worker clones, `<project>_mutated_worker<n>`, and the active-mutant files beside the
    mutated project and the clones. The mutated project, `<project>_mutated`, is kept, as after a
    finished run.
@@ -725,6 +820,9 @@ take that folder too. The report at the end covers every mutant, kept or tested,
   a longer `--timeout`, the timeouts under a shorter limit, so this is how to test build errors
   again, or timeouts with more time. With nothing left to test, it says `nothing is
   left to test`, builds nothing, runs no baseline and prints the report.
+- **A run of a test plan** is resumed by `run-without-mutating` with the same plan and `--resume`,
+  which the command its summary ends with gives. It compares the plan and the plan's copy, not your
+  project: see [The test plan](Docs/test-plan.md#resuming-a-run-of-the-plan).
 
 ### When a resume is refused
 
@@ -760,10 +858,11 @@ SwiftMutator copies the project is refused after the copy, so that message doesn
 | Another SwiftMutator holds the file, because its run is still going | Refused with status 6, naming the process that holds it, and its host: wait for that run to end. If an older SwiftMutator holds it, which doesn't say, it names the process and host that wrote the file's last session, which may not be the one |
 | Coverage was gathered in one session only, or this session discovers other mutants | Goes ahead, and warns: `⚠️ 412 earlier results no longer count, as this session doesn't discover their mutants: coverage couldn't be gathered then, and is now.` |
 
-A run of a test plan (`run-without-mutating`) can't be resumed, nor can a results file written
-before `--resume` existed, as it records no project files. `-o` can't name the results file itself.
-`--force-resume` and `--resume-ignoring` work only with `--resume`; without it they are a usage
-error, with status 64.
+A results file written before `--resume` existed can't be resumed, as it records no project files.
+Nor can a run of a test plan by `run`, or a run without one by `run-without-mutating` (see
+[Resuming a run of a test plan](Docs/test-plan.md#resuming-a-run-of-the-plan)). `-o` can't name the
+results file itself. `--force-resume` and `--resume-ignoring` work only with `--resume`; without it
+they are a usage error, with status 64.
 
 - **`--force-resume`** reuses the results although the SwiftMutator build (its executable's
   SHA-256), the test command's version (`swift --version` or `xcodebuild -version`) or SHA-256, or
@@ -775,7 +874,9 @@ error, with status 64.
   It can be given more than once. Quote a glob, so that the shell doesn't expand it. `*` also matches
   `/`, so `--resume-ignoring 'Docs/*'` matches every file under `Docs`, and `'*.md'` every Markdown
   file. A leading `./` is ignored. The command that continues the run keeps these flags, as the same
-  files may well change again.
+  files may well change again. A run of a test plan compares the plan's copy, not the project, so
+  there the glob matches the copy's files (see
+  [Resuming a run of the plan](Docs/test-plan.md#resuming-a-run-of-the-plan)).
 - **Which files count.** The files git lists in your project, tracked ones and untracked ones that
   aren't ignored, plus every Swift file and `.swift-version`, and the root `Package.resolved`, ignored
   or not. Outside a git repository, or in a folder that its repository ignores, every file. Build

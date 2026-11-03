@@ -192,11 +192,77 @@ final class ResumeRefusedTests: XCTestCase {
         XCTAssertTrue(description.contains(#"--resume-ignoring 'it'\''s here.md'"#), description)
     }
 
-    func test_otherReasons_sayWhatIsNeeded() {
-        XCTAssertEqual(
-            "\(ResumeRefusal.testPlanRun)",
-            "A run that tests a test plan (run-without-mutating) can't be resumed."
+    func test_aChangedCopy_namesTheCopy_andItsFlags() {
+        let refused = ResumeRefused(
+            path: path,
+            reasons: [
+                .copyChanged(
+                    [.init(path: "Sources/Sum.swift", kind: .changed)],
+                    copy: "/code/project_mutated"
+                ),
+            ],
+            beforeTheCopy: true
         )
+
+        XCTAssertEqual(
+            "\(refused)",
+            """
+            SwiftMutator won't resume the run in '/logs/results.jsonl', so that no result is reused that this run \
+            might not reproduce:
+              - 1 file of the test plan's copy, /code/project_mutated, changed since the run's last session, as a fix \
+            by hand would: Sources/Sum.swift (changed).
+                If it can't change any test's result: --resume-ignoring 'Sources/Sum.swift'
+                Mutants in a changed source file are tested again either way.
+            Nothing was copied or removed.
+            """
+        )
+        let two = ResumeRefusal.copyChanged(
+            [.init(path: "a", kind: .added), .init(path: "b", kind: .removed)],
+            copy: "/c"
+        )
+        XCTAssertTrue(
+            "\(two)".hasPrefix("2 files of the test plan's copy, /c, changed since the run's last session, as a fix "),
+            "the plural"
+        )
+    }
+
+    func test_aTestPlanRun_andARunWithoutOne_sayWhichCommandContinuesTheFile() {
+        XCTAssertEqual(
+            "\(ResumeRefusal.testPlanRun(recordedUsedOne: true))",
+            "The file's run tested a test plan, so only `swift-mutator run-without-mutating` with that plan and "
+                + "--resume can continue it."
+        )
+        XCTAssertEqual(
+            ResumeRefusal.testPlanRun(recordedUsedOne: true).describe(reusing: true),
+            "The file's run tested a test plan, so its results can't be reused: only "
+                + "`swift-mutator run-without-mutating` with that plan and --resume can continue it."
+        )
+        XCTAssertEqual(
+            "\(ResumeRefusal.testPlanRun(recordedUsedOne: false))",
+            "The file's run didn't test a test plan, so `swift-mutator run-without-mutating` can't continue it: "
+                + "`swift-mutator run` with --resume can."
+        )
+    }
+
+    func test_aChangedTestPlan_andOneNotRecorded_needANewRun() {
+        let changed = ResumeRefusal.testPlanChanged(
+            .init(name: "testPlan.sha256", was: #""91a""#, isNow: #""b07""#)
+        )
+
+        XCTAssertEqual(
+            "\(changed)",
+            #"testPlan.sha256 was "91a" and is "b07" now: the test plan was made again or edited, so its mutants "#
+                + "may not be the ones the results are for. A new run is needed: "
+                + "`swift-mutator run-without-mutating` without --resume."
+        )
+        XCTAssertEqual(
+            "\(ResumeRefusal.testPlanNotRecorded)",
+            "The file's last session tested a test plan with a SwiftMutator that recorded nothing to check it by. "
+                + "A new run is needed: `swift-mutator run-without-mutating` without --resume."
+        )
+    }
+
+    func test_otherReasons_sayWhatIsNeeded() {
         XCTAssertEqual(
             "\(ResumeRefusal.noProjectTree)",
             "The file's last session recorded no project files, as SwiftMutator didn't before --resume, "

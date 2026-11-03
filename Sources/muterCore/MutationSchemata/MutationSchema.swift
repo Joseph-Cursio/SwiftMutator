@@ -9,7 +9,7 @@ struct MutationSchema {
     /// switched a mutant on in each, and its verdict covered both. Being relative, it is the same wherever the
     /// project is. A test plan records the ID, since its code holds it.
     let id: String
-    let filePath: String
+    private(set) var filePath: String
     let mutationOperatorId: MutationOperator.Id
     let syntaxMutation: CodeBlockItemListSyntax
     let position: MutationPosition
@@ -40,6 +40,14 @@ struct MutationSchema {
         self.syntaxMutation = syntaxMutation
         self.position = position
         self.snapshot = snapshot
+    }
+
+    /// The same mutant in the file at `filePath`, as a test plan names it relative to its copy and resolves it again.
+    /// The ID is kept, never made again: the plan's code switches the mutant on by the ID the plan records.
+    func with(filePath: String) -> MutationSchema {
+        var schema = self
+        schema.filePath = filePath
+        return schema
     }
 
     /// Without `pathHash`, the ID a SwiftMutator from before the hash gave the mutant: a test plan made by one records

@@ -8,7 +8,8 @@ enum ResumeHint {
     /// A resumed session's results file is the one this run continues, or a log folder of one of its sessions, so
     /// `resultsFile` replaces it. The header of a session `--force-resume` let through records the build and toolchain
     /// it ran with, so the next session needs no force. `--resume-ignoring` stays: changed files a session's results
-    /// don't depend on are as likely to change again before the next one.
+    /// don't depend on are as likely to change again before the next one. So does a test plan's path, which a resume of
+    /// its run names again, and `--plan-ignoring`, which every session's check of the project needs.
     ///
     /// A run that reused an earlier run's results wrote `resultsFile` itself, so `--reuse` and its value go, and so
     /// does `--force-reuse`: its header records the build as it tested with it. Each `--reuse-ignoring` becomes a

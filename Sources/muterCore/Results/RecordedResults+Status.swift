@@ -2,14 +2,19 @@ import Foundation
 
 extension RecordedResults {
     /// What `swift-mutator report` says on standard error about the results file at `path`: how many mutants its
-    /// report covers, how the run ended, which sessions tested its results, and the lines it skipped. No emoji, so the
-    /// lines grep cleanly in CI logs.
+    /// report covers, how the run ended, that it tested one mutant alone if it did, which sessions tested its results,
+    /// and the lines it skipped. No emoji, so the lines grep cleanly in CI logs.
     func statusLines(path: String) -> [String] {
         // `read` refuses a file without a header.
         guard let last = sessions.last else { return [] }
         return [
             "Report of \(latest.count) of \(last.header.mutantsDiscovered) mutants, from \(path): \(ending).",
-        ] + [resultSources, skippedLines].compactMap { $0 }
+        ] + [oneMutant, resultSources, skippedLines].compactMap { $0 }
+    }
+
+    /// That the run tested one mutant alone, which the score is of; nil for any other run.
+    var oneMutant: String? {
+        sessions.last?.header.mutant.map(MuterTestReport.oneMutantSentence)
     }
 
     /// How the run ended, from its last session's end line.

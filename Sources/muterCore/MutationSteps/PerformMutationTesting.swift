@@ -142,7 +142,8 @@ struct PerformMutationTesting: MutationStep {
             newVersion: state.newVersion,
             since: state.changeSelection,
             shards: state.shardSelection?.scopeAlone,
-            sample: state.sampleSelection
+            sample: state.sampleSelection,
+            mutant: state.selectedMutant?.description
         )
 
         events.send(.mutationTestingFinished(mutationTestOutcome))
@@ -250,7 +251,10 @@ private extension PerformMutationTesting {
             )
         }
 
-        var muterConfiguration = state.muterConfiguration
+        // One mutant's run shows every test it fails, not only the first.
+        var muterConfiguration = state.selectedMutant == nil
+            ? state.muterConfiguration
+            : state.muterConfiguration.withoutStoppingAtFirstFailure()
         // A passing run can't show a failed test or a crash, so these tests print text shaped like one. Under a
         // mutant it could stop the run, or count a timed-out run killed, although every test passed, so such lines
         // don't count for this run. Checked whether or not runs stop at their first failed test, but worth a notice
@@ -272,8 +276,9 @@ private extension PerformMutationTesting {
             events.send(.workersChosen(choice))
         }
         var testRunSeconds: TimeInterval?
-        // A reuse with nothing left to test ran the baseline only to see that the changed tests pass.
-        if muterConfiguration.buildSystem == .swift, !plan.toRun.isEmpty {
+        // A reuse with nothing left to test ran the baseline only to see that the changed tests pass. One mutant's run
+        // saves no more than either costs, so its time limit is the configured one, or the baseline's default.
+        if muterConfiguration.buildSystem == .swift, !plan.toRun.isEmpty, state.selectedMutant == nil {
             let direct = try await runningTestBundlesDirectly(muterConfiguration, baselineLog: testLog, state: state)
             muterConfiguration = direct.configuration
             // The run that checked the direct runs is a mutant's run with no mutant on, which needn't run again.
@@ -491,7 +496,8 @@ private extension PerformMutationTesting {
                     shards: state.shardSelection?.scopeAlone,
                     sample: state.sampleSelection,
                     // As `report` of the results file judges it: a run can stop after its last mutant's result.
-                    sampleIsCutShort: session.outcomesInJobOrder.count < session.keys.count
+                    sampleIsCutShort: session.outcomesInJobOrder.count < session.keys.count,
+                    mutant: state.selectedMutant?.description
                 ),
                 discovered: session.keys.count,
                 reused: session.reused
@@ -849,7 +855,7 @@ private extension PerformMutationTesting {
     /// Records `finished`, the run of `job`'s mutant (`keep`), sends its events, and aborts after
     /// `buildErrorsThreshold` build errors in a row, not counting a mutant that an earlier session recorded as one
     /// (`TestingSession.earlierBuildErrors`). The outcome is kept before the abort, so mutation testing that stops
-    /// there still has it.
+    /// there still has it. The run of the one mutant `--mutant` tests also sends what the end of the run prints of it.
     func record(
         _ finished: FinishedRun,
         of job: MutantJob,
@@ -866,6 +872,28 @@ private extension PerformMutationTesting {
 
         events.send(.newTestLogAvailable(mutationLog))
 
+        if state.selectedMutant != nil {
+            events.send(
+                .oneMutantTested(OneMutantRun(
+                    key: session.keys[finished.index],
+                    switchID: job.schema.id,
+                    snapshot: job.schema.snapshot,
+                    change: change(of: job.schema, key: session.keys[finished.index], in: outcome, state: state),
+                    outcome: finished.run.outcome,
+                    killingTests: outcome.killingTests,
+                    seconds: finished.seconds,
+                    timeoutSeconds: configuration.testSuiteTimeout,
+                    testLog: finished.run.testLog,
+                    logPath: state.loggingDirectory.isEmpty
+                        ? nil
+                        : (state.loggingDirectory as NSString).appendingPathComponent(mutationLog.keptFileName),
+                    mutatedProject: state.mutatedProjectDirectoryURL.path,
+                    buildSystem: configuration.buildSystem,
+                    testCommand: [configuration.testCommandExecutable] + configuration.testCommandArguments
+                ))
+            )
+        }
+
         if finished.run.outcome != .buildError {
             buildErrors = 0
         } else if !session.earlierBuildErrors.contains(finished.index) {
@@ -874,6 +902,34 @@ private extension PerformMutationTesting {
         if buildErrors >= buildErrorsThreshold {
             throw MuterError.mutationTestingAborted(reason: .tooManyBuildErrors)
         }
+    }
+
+    /// What `schema`'s mutant, keyed `key`, changes, as `MutantDiff` finds it in its original file, `outcome`'s, never
+    /// the copy, whose code holds every switch. As its snapshot gives it when the original file can't be read, or can't
+    /// be told to be as the mutant was found in it: a test plan's file that changed since the plan was made, let
+    /// through by `--plan-ignoring`, and one that a plan doesn't record, as a plan in format 0 records none.
+    func change(
+        of schema: MutationSchema,
+        key: MutantKey,
+        in outcome: MutationTestOutcome.Mutation,
+        state: AnyMutationTestState
+    ) -> [String] {
+        let fallback = MutantDiff.fallback(snapshot: schema.snapshot, mutationOperatorId: schema.mutationOperatorId)
+        guard let data = fileManager.contents(atPath: outcome.originalProjectPath),
+              let original = String(data: data, encoding: .utf8)
+        else { return fallback }
+        if let plan = state.testPlan {
+            // A file with mutants that is a symbolic link is recorded by what its link's file held.
+            let planned = plan.linkedFiles?[key.path] ?? plan.sources?.files[key.path]
+            guard planned == FileDigest.sha256(of: data) else { return fallback }
+        }
+        return MutantDiff.lines(
+            original: original,
+            snapshot: schema.snapshot,
+            mutationOperatorId: schema.mutationOperatorId,
+            line: key.line,
+            column: key.column
+        ) ?? fallback
     }
 
     /// Records `finished`, the run that tested `job`'s timed-out mutant again (`keep`), counts it in `tally`, and sends

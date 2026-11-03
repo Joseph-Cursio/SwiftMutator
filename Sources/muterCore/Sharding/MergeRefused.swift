@@ -107,9 +107,9 @@ enum MergeRefusal: Equatable, CustomStringConvertible {
         case .noProjectTree:
             return "\(named(shard).capitalizedFirst)'s file recorded no project files, so nothing shows that the "
                 + "shards tested the same project."
-        case .testPlanRun:
-            return "A run that tests a test plan (run-without-mutating) can't be merged."
-        case .inUse, .filesChanged, .reportWouldReplaceTheResultsFile:
+        case .testPlanRun, .testPlanChanged, .testPlanNotRecorded:
+            return "A run that tests a test plan has no shards to merge."
+        case .inUse, .filesChanged, .copyChanged, .reportWouldReplaceTheResultsFile:
             return refusal.description
         }
     }

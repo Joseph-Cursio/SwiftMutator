@@ -108,6 +108,35 @@ final class CheckTestPlanCodeTests: MuterTestCase {
         XCTAssertEqual(fileManager.contentsAtPath, [])
     }
 
+    // A later run or mutate-without-running of the project removes the copy. Rebuilding it from the plan would lose
+    // any fix made in it by hand, so the plan is refused, after the lock, as the copy could be coming back until then.
+    func test_whenThePlansCopyIsMissing_thenItIsRefused() async throws {
+        let file = try mutatedCheck(named: "Check")
+        queuePlan(testedWith: swiftTest, file.mapping)
+        fileManager.fileExistsToReturn = [false]
+        state.runOptions = .make(testPlanURL: URL(fileURLWithPath: "/path/to/project/muter-mappings.json"))
+
+        await AssertThrowsError(try await sut.run(with: state)) { error in
+            XCTAssertEqual(
+                error as? TestPlanRefused,
+                TestPlanRefused(
+                    path: "/path/to/project/muter-mappings.json",
+                    reason: .copyMissing(path: "/path/to/muted")
+                )
+            )
+            XCTAssertEqual(
+                "\(error)",
+                "SwiftMutator won't test the plan '/path/to/project/muter-mappings.json': its copy of the project "
+                    + "isn't at /path/to/muted. If the copy was moved, or the project without it, move the copy "
+                    + "there. A later `swift-mutator run` or `swift-mutator mutate-without-running` of the project "
+                    + "removes the copy: then make the plan again with `swift-mutator mutate-without-running`. Nothing "
+                    + "was tested."
+            )
+        }
+        XCTAssertEqual(fileManager.fileExistsAtPath, ["/path/to/muted"])
+        XCTAssertEqual(fileManager.contentsAtPath, [])
+    }
+
     // MARK: - Helpers
 
     private struct MutatedFile {
@@ -145,6 +174,7 @@ final class CheckTestPlanCodeTests: MuterTestCase {
         state.muterConfiguration = configuration
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/muted")
         state.mutationMapping = mappings
+        fileManager.fileExistsToReturn = [true]
     }
 
     private func queueCode(_ code: String) {

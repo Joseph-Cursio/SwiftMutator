@@ -86,7 +86,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.project), [tree])
     }
 
-    // A test plan's run copies nothing, so its state has no tree, and neither does its header.
+    // A state whose project wasn't fingerprinted has no tree, and neither does its header.
     func test_aStateWithoutAProjectTree_writesAHeaderWithoutOne_andMutantLinesWithoutHashes() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
 
@@ -94,6 +94,34 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
 
         XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.project), [nil])
         XCTAssertEqual(try resultsFiles.records(MutantResult.self).map(\.fileSHA256), [nil, nil])
+    }
+
+    // A test plan's run records the plan it tested, and the plan's copy as it was tested, which each mutant's line
+    // gives its file's hash from: the code its verdict came from, with any fix made by hand.
+    func test_aTestPlansRun_recordsThePlan_andTheCopysHashes() async throws {
+        state.runOptions = .make(testPlanURL: URL(fileURLWithPath: "/project/muter-mappings.json"))
+        let plan = LoadedTestPlan(
+            path: "/project/muter-mappings.json",
+            sha256: "9e1f",
+            formatVersion: TestPlanCoding.formatVersion,
+            swiftMutatorVersion: muterCore.version,
+            scope: nil,
+            sources: nil,
+            mutatedFiles: ["Sources/Sum.swift": "5a1c", "Sources/Product.swift": "0000"],
+            linkedFiles: nil,
+            mutatedPaths: []
+        )
+        let copy = makeProjectTree(["Sources/Sum.swift": "5a1c", "Sources/Product.swift": "77e0"])
+        state.apply([.testPlanLoaded(plan), .projectTreeFingerprinted(copy)])
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+
+        _ = try await sut.run(with: state)
+
+        let header = try XCTUnwrap(try resultsFiles.records(ResultsHeader.self).first)
+        XCTAssertTrue(header.usingTestPlan)
+        XCTAssertEqual(header.testPlan, TestPlanRecord(plan))
+        XCTAssertEqual(header.project, copy)
+        XCTAssertEqual(try resultsFiles.records(MutantResult.self).map(\.fileSHA256), ["5a1c", "77e0"])
     }
 
     // No more workers run than there are mutants, and the header says how many ran.
