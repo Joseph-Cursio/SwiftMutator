@@ -538,7 +538,7 @@ private final class SimctlStandIn: MuterProcess, @unchecked Sendable { // every 
         let arguments = Array(args.dropFirst())
         let answering = lock.withLock {
             started.append((arguments, timeLimit))
-            return answer
+            return self.answer
         }
         let answer = answering(arguments)
         if arguments.first == "bootstatus", lock.withLock({ bootsHeldUntilKilled }) {
