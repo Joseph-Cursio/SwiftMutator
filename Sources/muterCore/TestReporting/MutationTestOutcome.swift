@@ -59,6 +59,9 @@ extension MutationTestOutcome {
 
         /// `killingTests` and `reusedFrom` have no default: the run, `swift-mutator report` and `--resume` must each
         /// pass theirs.
+        ///
+        /// The mutant's file in the original project is the one at its place in the copy, whatever either folder is
+        /// called or wherever it is; a file outside the copy keeps its own path.
         init(
             testSuiteOutcome: TestSuiteOutcome,
             mutationPoint: MutationPoint,
@@ -74,15 +77,10 @@ extension MutationTestOutcome {
             self.killingTests = killingTests
             self.reusedFrom = reusedFrom
 
-            let splitTempFilePath = mutationPoint.filePath.split(separator: "/")
-            let tempProjectDirectoryName = mutatedProjectDirectoryURL.lastPathComponent
-            let numberOfDirectoriesToDrop = splitTempFilePath.map(String.init)
-                .firstIndex(of: tempProjectDirectoryName) ?? 0
-            let pathSuffix = splitTempFilePath.dropFirst(numberOfDirectoriesToDrop + 1).joined(separator: "/")
-
-            originalProjectPath = originalProjectDirectoryUrl
-                .appendingPathComponent(pathSuffix, isDirectory: true)
-                .path
+            originalProjectPath = RepoRelativePath.resolve(
+                RepoRelativePath.of(mutationPoint.filePath, under: mutatedProjectDirectoryURL),
+                under: originalProjectDirectoryUrl.path
+            )
         }
     }
 
