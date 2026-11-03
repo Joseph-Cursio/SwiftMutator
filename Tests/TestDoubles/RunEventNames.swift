@@ -30,6 +30,7 @@ extension RunEvent {
         case timeoutRerunsStarted
         case timeoutRerunFinished
         case timeoutRerunsFinished
+        case oneMutantTested
         case mutationTestingFinished
         case mutationTestingEndedEarly
         case newMutationTestOutcomeAvailable
@@ -72,6 +73,7 @@ extension RunEvent {
         case .timeoutRerunsStarted: .timeoutRerunsStarted
         case .timeoutRerunFinished: .timeoutRerunFinished
         case .timeoutRerunsFinished: .timeoutRerunsFinished
+        case .oneMutantTested: .oneMutantTested
         case .mutationTestingFinished: .mutationTestingFinished
         case .mutationTestingEndedEarly: .mutationTestingEndedEarly
         case .newMutationTestOutcomeAvailable: .newMutationTestOutcomeAvailable
@@ -112,6 +114,7 @@ extension RunEvent {
         case let .timeoutRerunsStarted(reruns): reruns
         case let .timeoutRerunFinished(rerun): rerun
         case let .timeoutRerunsFinished(tally): tally
+        case let .oneMutantTested(run): run
         case let .mutationTestingFinished(outcome): outcome
         case let .mutationTestingEndedEarly(earlyEnd): earlyEnd
         case let .newMutationTestOutcomeAvailable(mutation): mutation

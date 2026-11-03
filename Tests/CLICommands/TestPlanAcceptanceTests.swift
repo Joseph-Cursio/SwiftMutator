@@ -272,6 +272,77 @@ final class TestPlanAcceptanceTests: XCTestCase {
         XCTAssertEqual(ranLines(), [], "something was tested")
     }
 
+    func test_oneMutantOfThePlan_printsItsChangeLogAndVerdict_andRunMutantLeavesThePlansCopyAlone() throws {
+        try makeThePlan()
+        let fixed = try fixByHand("Sources/Lib/Bounds.swift")
+        let checks = copy.appendingPathComponent("Sources/Lib/Checks.swift")
+        let checksBefore = try Data(contentsOf: checks)
+
+        // As a progress line names it.
+        let tested = try waitForEnd(of: launch(testPlan + ["--mutant", "Checks.swift:1:47"]))
+
+        XCTAssertEqual(tested.status, 0, tested.output)
+        let printed = tested.standardOutput
+        XCTAssertTrue(
+            printed.contains(
+                """
+                🔬 Sources/Lib/Checks.swift:1:47 RelationalOperatorReplacement (changed > to <)
+                Switch: Checks_
+                """
+            ),
+            printed
+        )
+        XCTAssertTrue(
+            printed.contains(
+                """
+                Change:
+                  -1: func isPositive(_ value: Int) -> Bool { value > 0 }
+                  +1: func isPositive(_ value: Int) -> Bool { value < 0 }
+                Tests (log:
+                """
+            ),
+            printed
+        )
+        XCTAssertTrue(
+            printed.contains("  ✘ Test check() recorded an issue at ChecksTests.swift:3:5: Expectation failed\n"),
+            printed
+        )
+        XCTAssertTrue(printed.contains("Verdict: killed by check() (1 failed test), in "), printed)
+        XCTAssertTrue(printed.contains("/project_mutated\nTo run its tests with it on:\n"), printed)
+        let tests = ranLines()
+        XCTAssertEqual(tests.count, 2, "\(tests)")
+        XCTAssertEqual(tests.first, "baseline")
+        let mutant = try XCTUnwrap(tests.last)
+        XCTAssertTrue(mutant.hasPrefix("Checks_"), mutant)
+        XCTAssertEqual(try Data(contentsOf: checks), checksBefore, "the plan's copy was rewritten")
+
+        // The command it printed runs the tests in the copy with the mutant on, which fail.
+        let printedCommand = try XCTUnwrap(
+            printed.components(separatedBy: "To run its tests with it on:\n  ").last?
+                .components(separatedBy: "\n💾").first
+        )
+        let switchedOn = try waitForEnd(
+            of: launch(executable: URL(fileURLWithPath: "/bin/sh"), arguments: ["-c", printedCommand], in: root)
+        )
+        XCTAssertEqual(switchedOn.status, 1, switchedOn.output)
+        XCTAssertEqual(ranLines().last, mutant)
+
+        let alone = try waitForEnd(of: launch(["run", "--skip-update-check", "--mutant", "Bounds.swift:2"]))
+
+        XCTAssertEqual(alone.status, 0, alone.output)
+        XCTAssertTrue(alone.standardOutput.contains("Verdict: survived, in "), alone.output)
+        XCTAssertTrue(
+            alone.standardOutput.contains("Mutated project kept, with the mutant switched off: ")
+                && alone.standardOutput.contains("/project_mutant\n"),
+            alone.output
+        )
+        XCTAssertEqual(
+            FileDigest.sha256(of: try Data(contentsOf: copy.appendingPathComponent("Sources/Lib/Bounds.swift"))),
+            fixed,
+            "run --mutant removed the plan's copy, or the fix in it"
+        )
+    }
+
     // MARK: - Helpers
 
     private static var configuration: String {

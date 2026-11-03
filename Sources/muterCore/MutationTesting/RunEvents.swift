@@ -51,6 +51,9 @@ enum RunEvent {
     case timeoutRerunFinished(TimeoutRerun)
     /// What the timeouts tested again came to, once every one is.
     case timeoutRerunsFinished(TimeoutRerunTally)
+    /// A run of one mutant (`--mutant`), once its line is written, which `mutationTestingFinished` then prints in
+    /// place of the report.
+    case oneMutantTested(OneMutantRun)
     case mutationTestingFinished(MutationTestOutcome)
     /// What mutation testing tested before it stopped early, once the baseline passed.
     case mutationTestingEndedEarly(EarlyEnd)

@@ -148,11 +148,9 @@ ended. The lock goes when SwiftMutator exits, however it exits, so it never need
 file stays, made with the permissions your umask gives new files, so anyone who can remove the copy
 can lock it.
 
-`swift-mutator mutate-without-running` makes the copy and writes a test plan, `muter-mappings.json`,
-without testing anything, so you can fix the copy by hand first; `swift-mutator run-without-mutating
-muter-mappings.json` then tests it. Like `run`, it takes `--files-to-mutate` and `--operators` to
-choose the mutants. The plan records them, and so does the results file of a run that tests it. See
-[The test plan](Docs/test-plan.md).
+`swift-mutator mutate-without-running` writes a test plan without testing anything, and
+`swift-mutator run-without-mutating` tests it (see [Test plans](#test-plans)). `--mutant` tests one
+mutant on its own (see [Testing one mutant](#testing-one-mutant)).
 
 ### Exit status
 
@@ -182,6 +180,85 @@ Earlier SwiftMutators exited with 255 for a refused resume or reuse, and for a r
 another's lock, so a script that checked for 255 there needs to check for 5 and 6 instead. `report` has statuses of its
 own (see [Results file](#results-file) and
 [Exit status](Docs/results-file.md#exit-status)).
+
+## Test plans
+
+`swift-mutator mutate-without-running` makes the copy, puts every mutant's switch into it, and
+writes a test plan, `muter-mappings.json`, without testing anything, so you can fix the copy by hand
+first, such as code the rewriting left unable to compile. `swift-mutator run-without-mutating
+muter-mappings.json` then tests it. See [The test plan](Docs/test-plan.md).
+
+- **Choosing the mutants.** Like `run`, `mutate-without-running` takes `--files-to-mutate` and
+  `--operators`. The plan records them, and so does the results file of a run that tests it.
+- **Fixing the copy by hand.** The run tests the copy as it is, and says which files with mutants
+  differ from what `mutate-without-running` wrote. Its results file records each file's SHA-256 as
+  tested.
+- **Run it from the project folder,** as `mutate-without-running` was: the plan's paths are
+  relative, and it finds its copy from there. A run in a folder that holds none of the files the plan
+  mutates is refused, with exit status 7.
+- **A changed project.** A file the plan mutates that changed in the project since the plan was made
+  refuses the plan, with exit status 7. Make the plan again, or give `--plan-ignoring <glob>` to test
+  the copy as it is. A change to any other file, such as a test, is only said.
+- **Resuming.** A stopped run of a plan is continued by `run-without-mutating` with the same plan and
+  `--resume`, as its summary's Continue line gives it (see
+  [Resuming a run of the plan](Docs/test-plan.md#resuming-a-run-of-the-plan)).
+- **One mutant.** `run-without-mutating muter-mappings.json --mutant <mutant>` tests only that
+  mutant of the plan, in the plan's copy as it is, and leaves the copy unchanged (see
+  [Testing one mutant](#testing-one-mutant)).
+- **A later run removes the copy.** A later `swift-mutator run` or `mutate-without-running` of the
+  project removes `<project>_mutated`, with any fix in it. `run --mutant` doesn't: it has a copy of
+  its own.
+
+## Testing one mutant
+
+`--mutant` on `run` or `run-without-mutating` tests one mutant on its own: to check a verdict, a new
+test meant to kill it, or a fix made by hand in a test plan's copy. Name it as the progress lines
+and reports name it, `path:line[:column] [Operator]`, with as much of its path as tells its file
+apart:
+
+```
+swift-mutator run --mutant 'Rules.swift:42:17'
+swift-mutator run-without-mutating muter-mappings.json --mutant 'Sources/Foo/Rules.swift:42:17 RelationalOperatorReplacement'
+```
+
+It runs the baseline, then the mutant's tests with `stopAtFirstFailure` off, so the log names every
+test that fails, and prints, in place of the report:
+
+```
+🔬 Sources/Foo/Rules.swift:42:17 RelationalOperatorReplacement (changed == to !=)
+Switch: Rules_9c41…_RelationalOperatorReplacement_42_17_1388
+Change:
+  -42:         guard rule.kind == .error else { return }
+  +42:         guard rule.kind != .error else { return }
+Tests (log: /…/Foo_muter_logs/…/RelationalOperatorReplacement @ Rules.swift-42-17 9c41….log):
+  ✘ Test errorsAreReported() recorded an issue at RulesTests.swift:12:9: Expectation failed
+  …
+Verdict: killed by errorsAreReported() (1 failed test), in 3.8 s
+Mutated project kept, with the mutant switched off: /Users/me/Foo_mutant
+To run its tests with it on:
+  printf '%s\n' 'Rules_9c41…' > '/Users/me/Foo_mutant.active-mutant' && cd '/Users/me/Foo_mutant' && IS_MUTER_RUNNING=YES SWIFTMUTATOR_ACTIVE_MUTANT_FILE='/Users/me/Foo_mutant.active-mutant' /usr/bin/swift test
+```
+
+- **The change** is the mutant's line in your project's file, before and after. When that line
+  can't be found, as for code that spans lines, or a plan's file that changed since the plan was
+  made, it is the code the mutant changes, as the mutant records it.
+- **The log** is printed whole up to 400 lines, and otherwise from its last 200; the log folder
+  keeps it whole.
+- **Exit status** is 0 whatever the verdict, which the results file records too. A reference that
+  doesn't read as a mutant is a usage error, 64. One that names no mutant exits with 255 and lists
+  the mutants near it, ready to paste, and one that names several lists them. One of several mutants
+  an operator makes at the same place is refused too: they share one switch, so none can be tested
+  on its own.
+- **`run --mutant`** skips coverage, finds mutants with only the operator the reference names, if
+  it names one, and puts only that mutant's switch into a copy of its own, `<project>_mutant`, which
+  it keeps for a look afterwards. A test plan's `<project>_mutated`, and any fix in it, is left
+  alone. `<project>_mutant` stays until the next `run --mutant`.
+- **`run-without-mutating --mutant`** tests the plan's copy as it is, without rewriting it, and
+  checks only that mutant's file against the project.
+- For an xcodebuild project, only the switch's environment variable is named, not a command.
+- `--mutant` can't be given with `--operators`, `--files-to-mutate`, `--since`, `--shard`,
+  `--sample`, `--resume` or `--reuse`. A run of one mutant prints no Continue line: the same command
+  tests it again. `report` of its results file says its score isn't the project's.
 
 ## Progress
 

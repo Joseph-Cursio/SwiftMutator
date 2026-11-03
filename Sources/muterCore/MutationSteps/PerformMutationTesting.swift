@@ -855,7 +855,7 @@ private extension PerformMutationTesting {
     /// Records `finished`, the run of `job`'s mutant (`keep`), sends its events, and aborts after
     /// `buildErrorsThreshold` build errors in a row, not counting a mutant that an earlier session recorded as one
     /// (`TestingSession.earlierBuildErrors`). The outcome is kept before the abort, so mutation testing that stops
-    /// there still has it.
+    /// there still has it. The run of the one mutant `--mutant` tests also sends what the end of the run prints of it.
     func record(
         _ finished: FinishedRun,
         of job: MutantJob,
@@ -872,6 +872,28 @@ private extension PerformMutationTesting {
 
         events.send(.newTestLogAvailable(mutationLog))
 
+        if state.selectedMutant != nil {
+            events.send(
+                .oneMutantTested(OneMutantRun(
+                    key: session.keys[finished.index],
+                    switchID: job.schema.id,
+                    snapshot: job.schema.snapshot,
+                    change: change(of: job.schema, key: session.keys[finished.index], in: outcome, state: state),
+                    outcome: finished.run.outcome,
+                    killingTests: outcome.killingTests,
+                    seconds: finished.seconds,
+                    timeoutSeconds: configuration.testSuiteTimeout,
+                    testLog: finished.run.testLog,
+                    logPath: state.loggingDirectory.isEmpty
+                        ? nil
+                        : (state.loggingDirectory as NSString).appendingPathComponent(mutationLog.keptFileName),
+                    mutatedProject: state.mutatedProjectDirectoryURL.path,
+                    buildSystem: configuration.buildSystem,
+                    testCommand: [configuration.testCommandExecutable] + configuration.testCommandArguments
+                ))
+            )
+        }
+
         if finished.run.outcome != .buildError {
             buildErrors = 0
         } else if !session.earlierBuildErrors.contains(finished.index) {
@@ -880,6 +902,32 @@ private extension PerformMutationTesting {
         if buildErrors >= buildErrorsThreshold {
             throw MuterError.mutationTestingAborted(reason: .tooManyBuildErrors)
         }
+    }
+
+    /// What `schema`'s mutant, keyed `key`, changes, as `MutantDiff` finds it in its original file, `outcome`'s, never
+    /// the copy, whose code holds every switch. As its snapshot gives it when the original file can't be read, or isn't
+    /// as the mutant was found in it: a test plan's file that changed since the plan was made, let through by
+    /// `--plan-ignoring`.
+    func change(
+        of schema: MutationSchema,
+        key: MutantKey,
+        in outcome: MutationTestOutcome.Mutation,
+        state: AnyMutationTestState
+    ) -> [String] {
+        let fallback = MutantDiff.fallback(snapshot: schema.snapshot, mutationOperatorId: schema.mutationOperatorId)
+        guard let data = fileManager.contents(atPath: outcome.originalProjectPath),
+              let original = String(data: data, encoding: .utf8)
+        else { return fallback }
+        if let planned = state.testPlan?.sources?.files[key.path], planned != FileDigest.sha256(of: data) {
+            return fallback
+        }
+        return MutantDiff.lines(
+            original: original,
+            snapshot: schema.snapshot,
+            mutationOperatorId: schema.mutationOperatorId,
+            line: key.line,
+            column: key.column
+        ) ?? fallback
     }
 
     /// Records `finished`, the run that tested `job`'s timed-out mutant again (`keep`), counts it in `tally`, and sends

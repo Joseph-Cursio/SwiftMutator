@@ -134,7 +134,10 @@ final class RunCommandTests: XCTestCase {
             XCTAssertLessThan(seed.lowerBound, mutant.lowerBound, help)
             XCTAssertLessThan(mutant.lowerBound, configuration.lowerBound, help)
         }
-        XCTAssertTrue(help.contains("Test only this mutant: path:line[:column] [Operator]"), help)
+        XCTAssertTrue(
+            help.contains("Test only this mutant, and print its change, its tests' log and its verdict:"),
+            help
+        )
         let options = RunWithoutMutating.helpMessage(columns: 200).components(separatedBy: "OPTIONS:\n").last ?? ""
         XCTAssertTrue(options.hasPrefix("  --mutant <mutant>"), options)
     }

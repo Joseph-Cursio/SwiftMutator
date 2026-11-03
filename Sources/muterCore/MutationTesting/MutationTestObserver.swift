@@ -24,6 +24,8 @@ final class MutationTestObserver {
     private var resultsFilePath: String?
     /// The merge base `--since` compared the working tree with, which the command that continues the run names.
     private var sinceMergeBase: String?
+    /// The run of the one mutant `--mutant` tests, which the end of the run prints in place of the report.
+    private var oneMutantRun: OneMutantRun?
     private let runOptions: Run.Options
 
     /// The observer's registration with the run's events, from `start()`; it ends when the observer does.
@@ -128,6 +130,8 @@ extension MutationTestObserver {
             logger.timeoutRerunFinished(rerun)
         case let .timeoutRerunsFinished(tally):
             logger.timeoutRerunsFinished(tally)
+        case let .oneMutantTested(run):
+            oneMutantRun = run
         case let .mutationTestingFinished(outcome):
             mutationTestingFinished(outcome)
         case let .mutationTestingEndedEarly(earlyEnd):
@@ -178,12 +182,19 @@ extension MutationTestObserver {
         )
     }
 
+    /// Says the run finished, then prints its report, or where it went, or for a run of one mutant (`--mutant`) what
+    /// it changes, its tests' log and its verdict, and where a requested report went; then where each result is.
     private func mutationTestingFinished(_ outcome: MutationTestOutcome) {
         let reporter = runOptions.reportOptions.reporter
         let reportPath = runOptions.reportOptions.path ?? ""
         let report = reporter.report(from: outcome)
         let didSave = ReportWriter.save(report, to: reportPath, using: fileManager)
 
+        if let oneMutantRun {
+            logger.oneMutantTested(oneMutantRun, reportPath: reportPath.isEmpty ? nil : (reportPath, didSave))
+            resultsFilePath.map(logger.resultsFileKept(atPath:))
+            return
+        }
         logger.mutationTestingFinished(
             report: report,
             reportPath: reportPath,

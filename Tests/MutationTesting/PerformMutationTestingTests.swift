@@ -719,6 +719,101 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(outcome.mutant, key.description)
     }
 
+    // What the end of a run of one mutant prints of it, sent once its line is written: its change, read from the
+    // original file and never the copy, its log, its verdict, and what runs its tests with it on.
+    func test_aOneMutantRun_sendsWhatItFound_withItsChangeFromTheOriginalFile() async throws {
+        let key = try selectOneTernary()
+        fileManager.fileContentsToReturn = Data(Self.ternarySource.utf8)
+        ioDelegate.testSuiteOutcomes = [.passed, .passed]
+        ioDelegate.mutantTestLogs = ["Test run with 3 tests passed.\n"]
+        let sent = recordEvents(named: [.oneMutantTested])
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(fileManager.contentsAtPath, ["/project/Sources/Bar.swift"])
+        let run = try XCTUnwrap(sent().first?.object as? OneMutantRun)
+        XCTAssertEqual(sent().count, 1)
+        XCTAssertEqual(run.key, key)
+        XCTAssertEqual(run.switchID, state.mutationMapping.first?.mutationSchemata.first?.id)
+        XCTAssertEqual(run.change, ["-2:     return flag ? 1 : 2", "+2:     return flag ? 2 : 1"])
+        XCTAssertEqual(run.outcome, .passed)
+        XCTAssertNil(run.killingTests)
+        XCTAssertEqual(run.timeoutSeconds, 60)
+        XCTAssertEqual(run.testLog, "Test run with 3 tests passed.\n")
+        XCTAssertEqual(run.logPath, "/logs/" + MutationTestLog.keptFileName(for: key))
+        XCTAssertEqual(run.mutatedProject, "/project_mutated")
+        XCTAssertEqual(run.buildSystem, .swift)
+        XCTAssertEqual(run.testCommand, ["/usr/bin/swift", "test"])
+    }
+
+    // A test plan's file that changed since the plan was made, let through by --plan-ignoring, may no longer hold the
+    // mutant's code at its place, so the change is the one the snapshot gives.
+    func test_aOneMutantRun_ofAPlansChangedFile_showsTheChangeAsTheSnapshotGivesIt() async throws {
+        try selectOneTernary()
+        state.apply([
+            .testPlanLoaded(LoadedTestPlan(
+                path: "/project/muter-mappings.json",
+                sha256: "9e1f",
+                formatVersion: TestPlanCoding.formatVersion,
+                swiftMutatorVersion: muterCore.version,
+                scope: nil,
+                sources: ProjectTree(
+                    listedBy: .git,
+                    files: ["Sources/Bar.swift": "0000"],
+                    excluded: [],
+                    treeSHA256: ProjectTree.treeHash(of: ["Sources/Bar.swift": "0000"])
+                ),
+                mutatedFiles: nil
+            )),
+        ])
+        fileManager.fileContentsToReturn = Data(Self.ternarySource.utf8)
+        ioDelegate.testSuiteOutcomes = [.passed, .passed]
+        let sent = recordEvents(named: [.oneMutantTested])
+
+        _ = try await sut.run(with: state)
+
+        let run = try XCTUnwrap(sent().first?.object as? OneMutantRun)
+        XCTAssertEqual(run.change, ["- flag ? 1 : 2", "+ flag ? 2 : 1"])
+    }
+
+    // Only a run of one mutant prints it on its own.
+    func test_aWholeRun_sendsNoOneMutantRun() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        let sent = recordEvents(named: [.oneMutantTested])
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertTrue(sent().isEmpty)
+        XCTAssertTrue(fileManager.contentsAtPath.isEmpty, "\(fileManager.contentsAtPath)")
+    }
+
+    private static let ternarySource = "func pick(_ flag: Bool) -> Int {\n    return flag ? 1 : 2\n}\n"
+
+    /// Makes the state's one mutant a swapped ternary in `Sources/Bar.swift` of the copy, at the end of
+    /// `ternarySource`'s line 2, and selects it, as `--mutant` does, under a 60 s limit.
+    @discardableResult
+    private func selectOneTernary() throws -> MutantKey {
+        let path = "/project_mutated/Sources/Bar.swift"
+        let schema = try MutationSchema.make(
+            filePath: path,
+            mutationOperatorId: .swapTernary,
+            position: MutationPosition(utf8Offset: 56, line: 2, column: 24),
+            snapshot: .make(before: "flag ? 1 : 2", after: "flag ? 2 : 1", description: "swapped ternary operator")
+        )
+        state.mutationMapping = try [
+            SchemataMutationMapping.make(filePath: path, (source: "func bar() { }", schemata: [schema])),
+        ]
+        let key = MutantKey(
+            path: "Sources/Bar.swift", mutationOperatorId: .swapTernary, line: 2, column: 24, occurrence: 0
+        )
+        state.apply([.mutantSelected(key)])
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], testSuiteTimeOut: 60
+        )
+        state.loggingDirectory = "/logs"
+        return key
+    }
+
     /// Records every event sent with one of `names`, in order, until the test ends.
     private func recordEvents(named names: [RunEvent.Name]) -> () -> [RunEvent] {
         var sent: [RunEvent] = []

@@ -524,6 +524,46 @@ final class MutationTestObserverTests: MuterTestCase {
         XCTAssertFalse(standardError.linesPassed.contains { $0.contains("Continue") }, "\(standardError.linesPassed)")
     }
 
+    // A run of one mutant ends with what it changes, its log and its verdict, not a report of a score of one mutant.
+    func test_aOneMutantRun_printsItsBlockInPlaceOfTheReport() throws {
+        options = .make(mutant: MutantReference(path: "Bar.swift", line: 12, column: 9))
+        try sut.start()
+        runEvents.send(.resultsFileCreated(path: "/logs/results.jsonl"))
+        let printedBefore = printer.linesPassed.count
+
+        runEvents.send(.oneMutantTested(.make()))
+        runEvents.send(
+            .mutationTestingFinished(MutationTestOutcome.make(mutations: [.make(testSuiteOutcome: .failed)]))
+        )
+
+        let printed = Array(printer.linesPassed.dropFirst(printedBefore))
+        XCTAssertEqual(printed.first, "🏁 SwiftMutator finished running!")
+        XCTAssertEqual(printed.dropFirst().first, "🔬 Sources/Foo/Bar.swift:12:9 SwapTernary (swapped ternary operator)")
+        XCTAssertTrue(printed.contains("Verdict: killed by picksB() (1 failed test), in 4.2 s"), "\(printed)")
+        XCTAssertFalse(printed.contains { $0.contains("SwiftMutator's report") }, "\(printed)")
+        XCTAssertEqual(printed.last, "💾 Each mutant's result is in \("/logs/results.jsonl".bold)")
+        XCTAssertFalse(
+            fileManager.methodCalls.contains("createFile(atPath:contents:attributes:)"),
+            "\(fileManager.methodCalls)"
+        )
+    }
+
+    // A report asked for with -o is still written, and its line follows the block.
+    func test_aOneMutantRun_stillSavesARequestedReport() throws {
+        options = .make(
+            reportURL: URL(fileURLWithPath: "/out/report.txt"),
+            mutant: MutantReference(path: "Bar.swift", line: 12, column: 9)
+        )
+        let outcome = MutationTestOutcome.make(mutations: [.make(testSuiteOutcome: .failed)])
+        try sut.start()
+
+        runEvents.send(.oneMutantTested(.make()))
+        runEvents.send(.mutationTestingFinished(outcome))
+
+        XCTAssertEqual(fileManager.contents, Data(PlainTextReporter().report(from: outcome).raw.utf8))
+        XCTAssertEqual(printer.linesPassed.last, "📝 Report generated: \("/out/report.txt".bold)")
+    }
+
     // The file lacks every result after the failed write.
     func test_anEarlyEnd_doesNotNameAResultsFileThatCouldNotBeWritten() throws {
         try sut.start()

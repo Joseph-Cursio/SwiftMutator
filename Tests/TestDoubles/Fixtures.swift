@@ -77,6 +77,45 @@ extension EarlyEnd {
     }
 }
 
+extension OneMutantRun {
+    /// A SwapTernary mutant killed by one test in 4.2 s, under a 30 s limit, in a copy whose path holds a space and a
+    /// quote.
+    static func make(
+        outcome: TestSuiteOutcome = .failed,
+        killingTests: MutationTestOutcome.KillingTests? = .init(
+            tests: [FailedTestLine.FailedTest(name: "picksB()", location: "BarTests.swift:3:5")],
+            count: 1,
+            isComplete: true
+        ),
+        testLog: String = "✘ Test picksB() recorded an issue at BarTests.swift:3:5\n\n✘ Test run with 1 test failed.\n",
+        logPath: String? = "/logs/Oct 4/SwapTernary @ Bar.swift-12-9 1a2b.log",
+        buildSystem: BuildSystem = .swift,
+        testCommand: [String] = ["/usr/bin/swift", "test", "Flag with space"]
+    ) -> OneMutantRun {
+        OneMutantRun(
+            key: MutantKey(
+                path: "Sources/Foo/Bar.swift", mutationOperatorId: .swapTernary, line: 12, column: 9, occurrence: 0
+            ),
+            switchID: "Bar_1a2b_SwapTernary_12_9_412",
+            snapshot: MutationOperator.Snapshot(
+                before: "a ? b : c",
+                after: "a ? c : b",
+                description: "swapped ternary operator"
+            ),
+            change: ["-12:     return a ? b : c", "+12:     return a ? c : b"],
+            outcome: outcome,
+            killingTests: killingTests,
+            seconds: 4.23,
+            timeoutSeconds: 30,
+            testLog: testLog,
+            logPath: logPath,
+            mutatedProject: "/work/Foo's copy/Foo_mutant",
+            buildSystem: buildSystem,
+            testCommand: testCommand
+        )
+    }
+}
+
 extension ResumeSummary {
     static func make(
         path: String = "/logs/results.jsonl",

@@ -168,3 +168,17 @@ The hashes are shortened here. The plan holds no date, host name, absolute path 
   With `--resume-ignoring`, the mutants in a changed file are tested again, and the other results kept.
 - `--force-resume` works as it does for `run`. `--reuse` isn't offered for a plan.
 - `run` can't resume a run of a plan, and `run-without-mutating` can't resume a run without one. Nor can a run of a plan by an earlier SwiftMutator, which recorded neither the plan nor its copy, be resumed.
+
+## Testing one mutant of the plan
+
+`run-without-mutating` with `--mutant` tests one of the plan's mutants on its own, as after a fix by hand meant to change its verdict:
+
+```
+swift-mutator run-without-mutating muter-mappings.json --mutant 'Bar.swift:12:9'
+```
+
+- It takes the mutant as `run --mutant` does, and prints its change, its tests' log, its verdict, and the command that runs its tests in the copy with it on (see [Testing one mutant](../README.md#testing-one-mutant)).
+- It tests the plan's copy as it is, under the plan's lock, and never rewrites it: only the plan's list of mutants is narrowed to that one.
+- The project is checked against the plan as for a whole run, but only that mutant's file can refuse it. Its change is shown from your project's file, or, when that file changed since the plan was made and `--plan-ignoring` let it through, as the mutant records it.
+- Its results file is a run of one mutant: no whole run resumes or reuses it, and `--resume` can't be given with `--mutant`.
+- `run --mutant` makes a copy of its own, `<project>_mutant`, so it never removes the plan's copy or a fix in it.
