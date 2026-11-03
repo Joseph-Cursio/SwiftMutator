@@ -87,7 +87,8 @@ final class MuterRewriter: SyntaxRewriter {
             mutationSchemata: mutationSchemata,
             with: childrenRewritten,
             onALineStartingWith: MutationSwitch.startOfTheFirstLine(of: node),
-            readingEnvironmentFrom: environmentCacheName
+            readingEnvironmentFrom: environmentCacheName,
+            returningItsMacro: node.isAMacroItsBodyReturns
         )
     }
 }

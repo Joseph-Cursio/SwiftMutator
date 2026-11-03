@@ -4,18 +4,28 @@ import SwiftSyntax
 enum MutationSwitch {
     /// Switches each mutant of `mutationSchemata` on in place of `originalSyntax`. `firstLineStart` is the line
     /// break and the indentation that start the line of the list's first token in its file, as
-    /// `startOfTheFirstLine(of:)` gives them. It's worked out only for a brace that needs it.
+    /// `startOfTheFirstLine(of:)` gives them. It's worked out only for a brace that needs it. `returningItsMacro` says
+    /// the list is a body whose value is its one macro (`CodeBlockItemListSyntax.isAMacroItsBodyReturns`): each
+    /// branch then returns it, so the switch is an `if` statement. As the body's value, an `if` expression whose
+    /// branches are `#Predicate { … }` doesn't compile ("value pack expansion can only appear inside a function
+    /// argument list").
     static func apply(
         mutationSchemata: MutationSchemata,
         with originalSyntax: CodeBlockItemListSyntax,
         onALineStartingWith firstLineStart: @autoclosure () -> Trivia,
-        readingEnvironmentFrom environmentCacheName: String
+        readingEnvironmentFrom environmentCacheName: String,
+        returningItsMacro: Bool = false
     ) -> CodeBlockItemListSyntax {
         guard !mutationSchemata.isEmpty else {
             return originalSyntax
         }
+        let originalSyntax = returningItsMacro ? returning(originalSyntax) : originalSyntax
+        var branches = branches(switchingOn: mutationSchemata, of: originalSyntax)
+        if returningItsMacro {
+            branches = branches.map(returning)
+        }
 
-        var mutants = Array(zip(mutationSchemata, branches(switchingOn: mutationSchemata, of: originalSyntax)))
+        var mutants = Array(zip(mutationSchemata, branches))
         let (firstSchema, firstStatements) = mutants.removeFirst()
 
         var previousElseBody = IfExprSyntax.ElseBody(
@@ -82,6 +92,18 @@ enum MutationSwitch {
         return CodeBlockItemListSyntax([
             CodeBlockItemSyntax(item: .init(outterIfStatement))
         ])
+    }
+
+    /// `list`, whose one item is an expression, as a `return` of it, with its trivia.
+    private static func returning(_ list: CodeBlockItemListSyntax) -> CodeBlockItemListSyntax {
+        guard list.count == 1, let item = list.first, let value = item.item.as(ExprSyntax.self) else {
+            return list
+        }
+        let statement = ReturnStmtSyntax(
+            returnKeyword: .keyword(.return, leadingTrivia: value.leadingTrivia, trailingTrivia: .space),
+            expression: value.with(\.leadingTrivia, [])
+        )
+        return CodeBlockItemListSyntax([item.with(\.item, .stmt(StmtSyntax(statement)))])
     }
 
     /// The line break before the line of `node`'s first token in its file, and the spaces and tabs that start
