@@ -175,6 +175,43 @@ final class WorkerSimulatorsTests: MuterTestCase {
         XCTAssertEqual(simctl.commands, [["list", "devices", "--json"]])
     }
 
+    // A lone worker tests on a destination that names no one simulator without a word, so that failure is told apart
+    // from the others, which are said.
+    func test_aDestinationThatNamesNoOneSimulator_isUnresolved_unlikeOtherFailures() async {
+        let unresolved = [
+            "platform=macOS",
+            "platform=iOS Simulator,name=iPhone 3G",
+            "id=00008120-001A2B3C4D5E601E",
+        ]
+        for destination in unresolved {
+            let failure = await unavailable(preparing: 1, like: destination)
+            XCTAssertEqual(failure?.destinationUnresolved, true, destination)
+        }
+
+        simctl = SimctlStandIn(list: list(of: [
+            (name: "iPhone 17", udid: "AAAAAAAA-0000-0000-0000-000000000000"),
+            (name: "iPhone 17", udid: "BBBBBBBB-0000-0000-0000-000000000000"),
+        ]))
+        let several = await unavailable(preparing: 1, like: "platform=iOS Simulator,name=iPhone 17")
+        XCTAssertEqual(several?.destinationUnresolved, true)
+
+        simctl = SimctlStandIn(list: Data("not JSON".utf8))
+        let unreadable = await unavailable(preparing: 1, like: "id=\(iPhone17Pro)")
+        XCTAssertEqual(unreadable?.destinationUnresolved, false)
+
+        simctl = SimctlStandIn(list: fixture)
+        simctl.answering { ["clone", "create"].contains($0.first) ? .init(status: 1, errors: "failed\n") : nil }
+        for udid in [iPhone17Pro, bootedTwin] {
+            let notMade = await unavailable(preparing: 1, like: "id=\(udid)")
+            XCTAssertEqual(notMade?.destinationUnresolved, false, udid)
+        }
+
+        simctl.answering { $0.first == "bootstatus" ? .init(status: 1) : nil }
+        let made = [WorkerSimulator(udid: "SIM-0", name: "w0", destination: "id=SIM-0")]
+        let notBooted = await failure(of: { try await self.makeSimulators().boot(made) })
+        XCTAssertEqual(notBooted?.destinationUnresolved, false)
+    }
+
     // MARK: - Booting them
 
     func test_boot_waitsForEverySimulatorAtOnce_withATimeLimit() async throws {
@@ -402,6 +439,23 @@ final class WorkerSimulatorsTests: MuterTestCase {
         let simulators = simulators ?? makeSimulators()
         let mutatedProject = mutatedProject
         return await reason(of: { try await simulators.prepare(count, like: destination, for: mutatedProject) })
+    }
+
+    /// Why `prepare` didn't make `count` simulators like `destination`, or nil if it made them.
+    private func unavailable(preparing count: Int, like destination: String) async -> WorkerSimulatorsUnavailable? {
+        let simulators = makeSimulators()
+        let mutatedProject = mutatedProject
+        return await failure(of: { try await simulators.prepare(count, like: destination, for: mutatedProject) })
+    }
+
+    /// Why `work` didn't make or boot simulators, or nil if it did.
+    private func failure(of work: () async throws -> some Any) async -> WorkerSimulatorsUnavailable? {
+        do {
+            _ = try await work()
+            return nil
+        } catch {
+            return error as? WorkerSimulatorsUnavailable
+        }
     }
 
     /// The reason `work` gave for not making or booting simulators, or nil if it gave none.

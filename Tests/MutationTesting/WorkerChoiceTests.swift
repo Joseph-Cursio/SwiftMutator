@@ -87,6 +87,47 @@ final class WorkerChoiceTests: XCTestCase {
         )
     }
 
+    func test_oneWorkerOnASimulatorOfItsOwn_isSaid() {
+        let iOS = MuterConfiguration(
+            executable: "/usr/bin/xcodebuild",
+            arguments: ["-destination", "platform=iOS Simulator,name=iPhone 17", "test"]
+        )
+
+        XCTAssertEqual(
+            WorkerChoice(iOS, used: 1, mutantsToTest: 40, ownSimulator: true).sentence,
+            "👷 Testing one mutant at a time, on a simulator of its own."
+        )
+    }
+
+    // A lone worker that was to have a simulator of its own says why it tests on the destination instead.
+    func test_oneWorkerThatFellBack_saysWhy() {
+        let iOS = MuterConfiguration(
+            executable: "/usr/bin/xcodebuild",
+            arguments: ["-destination", "platform=iOS Simulator,name=iPhone 17", "test"]
+        )
+        let reason = "worker 0's run with no mutant on, on its simulator, didn't pass (its log is no-mutant run "
+            + "worker 0.log)"
+
+        let choice = WorkerChoice(iOS, used: 1, mutantsToTest: 40, unsupportedReason: reason)
+
+        XCTAssertTrue(choice.fellBack)
+        XCTAssertEqual(
+            choice.sentence,
+            "👷 Testing one mutant at a time on the test command's destination: worker 0's run with no mutant on, on "
+                + "its simulator, didn't pass (its log is no-mutant run worker 0.log)."
+        )
+    }
+
+    // A test command that can't test on more than one says nothing for one worker, as it was asked for.
+    func test_oneWorkerAsAskedFor_onAMac_saysNothing() {
+        let mac = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["-destination", "platform=macOS"])
+        let choice = WorkerChoice(mac, used: 1, mutantsToTest: 40)
+
+        XCTAssertFalse(choice.fellBack)
+        XCTAssertNotNil(choice.unsupportedReason)
+        XCTAssertNil(choice.sentence)
+    }
+
     // What the configuration asks for, with --workers in place of the key.
     func test_theAskedCount_isTheConfigurations() {
         let xcode = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"], mutationTestWorkers: 3)

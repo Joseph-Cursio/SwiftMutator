@@ -187,6 +187,47 @@ final class ConfigurationParsingTests: MuterTestCase {
         XCTAssertThrowsError(try MuterConfiguration(from: Data(yaml.utf8)))
     }
 
+    func test_parseOneWorkerSimulator() throws {
+        let xcodebuild = "executable: /usr/bin/xcodebuild\narguments: [test]"
+        let always = try MuterConfiguration(from: Data("\(xcodebuild)\noneWorkerSimulator: true".utf8))
+        let never = try MuterConfiguration(from: Data("\(xcodebuild)\noneWorkerSimulator: false".utf8))
+        let automatic = try MuterConfiguration(from: Data(xcodebuild.utf8))
+
+        XCTAssertEqual(always.oneWorkerSimulator, true)
+        XCTAssertEqual(never.oneWorkerSimulator, false)
+        XCTAssertNil(automatic.oneWorkerSimulator)
+        XCTAssertTrue(try String(decoding: always.asData, as: UTF8.self).contains("oneWorkerSimulator: true"))
+        XCTAssertFalse(try String(decoding: automatic.asData, as: UTF8.self).contains("oneWorkerSimulator"))
+    }
+
+    func test_oneWorkerSimulatorThatIsNotABoolean_failsToParse() {
+        let yaml = "executable: /usr/bin/xcodebuild\narguments: [test]\noneWorkerSimulator: auto"
+
+        XCTAssertThrowsError(try MuterConfiguration(from: Data(yaml.utf8)))
+    }
+
+    func test_parallelTestingArguments() {
+        let cases: [(arguments: [String], expected: MuterConfiguration.ParallelTestingArguments)] = [
+            (["test"], .unset),
+            (["-parallel-testing-enabled", "YES", "test"], .tuned("-parallel-testing-enabled YES")),
+            (["-parallel-testing-enabled", "yes", "test"], .tuned("-parallel-testing-enabled yes")),
+            (["-parallel-testing-enabled", "NO", "test"], .off),
+            (["-parallel-testing-worker-count", "3", "-parallel-testing-enabled", "no"], .off),
+            (["-parallel-testing-worker-count", "3", "test"], .tuned("-parallel-testing-worker-count")),
+            (["-maximum-parallel-testing-workers", "2", "test"], .tuned("-maximum-parallel-testing-workers")),
+            (["-parallelize-tests-among-destinations", "test"], .tuned("-parallelize-tests-among-destinations")),
+            (
+                ["-maximum-parallel-testing-workers", "2", "-parallel-testing-enabled", "YES"],
+                .tuned("-maximum-parallel-testing-workers")
+            ),
+            (["test", "-parallel-testing-enabled"], .unset),
+        ]
+        for (arguments, expected) in cases {
+            let configuration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: arguments)
+            XCTAssertEqual(configuration.parallelTestingArguments, expected, "\(arguments)")
+        }
+    }
+
     func test_stopsAtFirstFailure_forSwiftPMUnlessSwitchedOff() {
         let swift = MuterConfiguration(executable: "/usr/bin/swift", stopAtFirstFailure: true)
         XCTAssertTrue(swift.stopsAtFirstFailure)

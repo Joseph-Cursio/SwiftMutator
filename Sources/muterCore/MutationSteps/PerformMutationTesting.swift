@@ -274,8 +274,12 @@ private extension PerformMutationTesting {
             muterConfiguration = muterConfiguration.withUnreliableFailedTestLines()
         }
 
+        // A lone worker's simulator can be deleted here, once the baseline shows it wouldn't be faster.
+        let checked = try await simulatorWorkerSetup.checkedAgainstTheBaseline(
+            try await booted, log: testLog, destination: state.muterConfiguration.firstDestination
+        )
         let pool = try await workers(
-            testing: plan, on: try await booted, with: muterConfiguration, state: state, session: session
+            testing: plan, on: checked, with: muterConfiguration, state: state, session: session
         )
         muterConfiguration = pool.configuration
         let workers = pool.count
@@ -293,9 +297,9 @@ private extension PerformMutationTesting {
                 }
             }
         }
-        let configuration = Self.onFirstXcodeWorker(muterConfiguration, state).withDefaultTestSuiteTimeout(
-            testRunSeconds.map { Self.defaultTimeout(testRunSeconds: $0, workers: workers) }
-                ?? max(timePerBuildTestCycle * Self.defaultTimeoutMultiplier, Self.minimumDefaultTimeout)
+        let onFirstWorker = Self.onFirstXcodeWorker(muterConfiguration, state, pool.xcodeWorkers.first)
+        let configuration = onFirstWorker.withDefaultTestSuiteTimeout(
+            Self.defaultTimeout(testRunSeconds: testRunSeconds, baselineSeconds: timePerBuildTestCycle, on: pool)
         )
         // Only now, with nothing awaited before the results start: a stop during the timed test run, like one during
         // the baseline, has nothing to report.
@@ -353,7 +357,8 @@ private extension PerformMutationTesting {
     /// The workers that test `plan`'s mutants, with `configuration`, the effective one, said, with why fewer than asked
     /// for, once they are known. A clone costs a copy and about a baseline build, and a simulator a boot, so there are
     /// never more workers than mutants to test. An xcodebuild run's `simulators` are checked first, which can fall back
-    /// to one worker, and can make failed-test lines unreliable (`SimulatorWorkerSetup`).
+    /// to one worker on the test command's destination, and can make failed-test lines unreliable
+    /// (`SimulatorWorkerSetup`). A lone worker's said to test on a simulator of its own only when it does.
     func workers(
         testing plan: ResumePlan,
         on simulators: SimulatorWorkerSetup.Simulators,
@@ -374,7 +379,8 @@ private extension PerformMutationTesting {
                 configuration,
                 used: workers.count,
                 mutantsToTest: plan.toRun.count,
-                unsupportedReason: workers.unavailable
+                unsupportedReason: workers.unavailable,
+                ownSimulator: !workers.xcodeWorkers.isEmpty
             )
             events.send(.workersChosen(choice))
         }
@@ -548,15 +554,18 @@ private extension PerformMutationTesting {
     }
 
     /// `configuration`, for an xcodebuild project, with its mutants' runs on the first xcodebuild worker, as one worker
-    /// alone has it: they test from `muter.xctestrun`, on the test command's destination, and keep their derived data
-    /// beside the mutated project rather than in `~/Library/Developer/Xcode/DerivedData`, where every run made a new
-    /// folder. They turn test diagnostics off if the test command takes the option.
+    /// alone has it: on `worker`'s simulator when the run made one for its lone worker
+    /// (`SimulatorWorkerSetup.Workers.xcodeWorkers`), else on the test command's destination. Either way they test
+    /// from `muter.xctestrun`, and keep their derived data beside the mutated project rather than in
+    /// `~/Library/Developer/Xcode/DerivedData`, where every run made a new folder. They turn test diagnostics off if
+    /// the test command takes the option.
     static func onFirstXcodeWorker(
         _ configuration: MuterConfiguration,
-        _ state: AnyMutationTestState
+        _ state: AnyMutationTestState,
+        _ worker: MuterConfiguration.XcodeWorker? = nil
     ) -> MuterConfiguration {
         guard configuration.buildSystem == .xcodebuild else { return configuration }
-        return configuration.forXcodeWorker(MuterConfiguration.XcodeWorker(
+        return configuration.forXcodeWorker(worker ?? MuterConfiguration.XcodeWorker(
             testRunFile: MutationTestingDelegate.testRunFileName(ofWorker: 0),
             derivedData: MuterConfiguration.XcodeWorker.derivedData(ofWorker: 0, in: state.mutatedProjectDirectoryURL),
             testDiagnosticsOff: state.testDiagnosticsCanBeTurnedOff

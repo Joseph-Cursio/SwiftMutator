@@ -87,6 +87,27 @@ final class XCTestRunTests: MuterTestCase {
         )
     }
 
+    // Parallel testing on for any test target makes a run from it clone its simulator, in either format.
+    func test_parallelizes() throws {
+        XCTAssertTrue(try muterCore.XCTestRun(loadPlist(for: "projectWithTestPlan")).parallelizes)
+        XCTAssertFalse(try muterCore.XCTestRun(loadPlist(for: "project")).parallelizes)
+        XCTAssertFalse(muterCore.XCTestRun().parallelizes)
+
+        let legacy = muterCore.XCTestRun([
+            "__xctestrun_metadata__": ["FormatVersion": 1] as [String: AnyHashable],
+            "AppTests": ["ParallelizationEnabled": true] as [String: AnyHashable],
+            "AppUITests": ["ParallelizationEnabled": false] as [String: AnyHashable],
+        ])
+        XCTAssertTrue(legacy.parallelizes)
+
+        let serial = muterCore.XCTestRun([
+            "TestConfigurations": [
+                ["TestTargets": [["ParallelizationEnabled": false] as [String: AnyHashable]]] as [String: AnyHashable],
+            ],
+        ])
+        XCTAssertFalse(serial.parallelizes)
+    }
+
     private func loadPlist(for fileName: String) throws -> [String: AnyHashable] {
         let data = try XCTUnwrap(
             FileManager.default

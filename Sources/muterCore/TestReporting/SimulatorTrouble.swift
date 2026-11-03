@@ -52,7 +52,8 @@ enum SimulatorTrouble: Equatable {
     /// Whether `line` is parallel testing's for a test that failed or crashed, as a baseline, the user's own test
     /// command, can print: `Test case 'SumTests.sum()' failed on 'Clone 1 of iPhone 17 Pro - App (123)' (0.01
     /// seconds)`. `FailedTestLine` leaves it out, since it reads the same for a crash, but either way a test ran, so
-    /// the simulator launched it.
+    /// the simulator launched it. `ParallelTestingSpread` reads these lines, and those for passed and skipped tests,
+    /// for how many clones a baseline's tests ran on.
     private static func showsParallelTestingFailure(_ line: Substring) -> Bool {
         line.hasPrefix("Test case '") && line.contains("' failed on '")
     }

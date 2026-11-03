@@ -4,11 +4,13 @@ import Foundation
 /// what only `--force-resume` lets through, and what changed that no result depends on. The project's files are
 /// compared apart, by `ProjectTree.changes(since:)`, and coverage once it is gathered, by `coverageChange`.
 enum ResumeCheck {
-    /// Configuration keys no outcome depends on: a change is only said.
+    /// Configuration keys no outcome depends on: a change is only said. Where one worker tests, on the destination or
+    /// on a simulator of its own (`oneWorkerSimulator`), can change a kill's kind, but not whether it is killed.
     static let keysThatDontAffectOutcomes: Set = [
         MuterConfiguration.CodingKeys.mutationTestWorkers.stringValue,
         MuterConfiguration.CodingKeys.stopAtFirstFailure.stringValue,
         MuterConfiguration.CodingKeys.buildTimeout.stringValue,
+        MuterConfiguration.CodingKeys.oneWorkerSimulator.stringValue,
     ]
 
     /// The key of a mutant's time limit, `mutationTestTimeout`, which a resume or a reuse lets lengthen

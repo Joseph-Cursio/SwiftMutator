@@ -39,6 +39,10 @@ struct WorkerSimulator: Equatable, Sendable {
 /// time: …".
 struct WorkerSimulatorsUnavailable: Error, Equatable, CustomStringConvertible {
     let reason: String
+    /// Whether it is that the run's first `-destination` names no available simulator, or more than one, as a
+    /// device's bare `id=` does. One worker then tests on that destination without a word, unless
+    /// `oneWorkerSimulator` asked for a simulator of its own.
+    var destinationUnresolved = false
 
     var description: String { reason }
 }
@@ -209,14 +213,17 @@ private extension WorkerSimulators {
     /// The available simulator `destination` names, which the workers' simulators are made like.
     func baseDevice(namedBy destination: String) async throws -> SimctlDevice {
         guard let wanted = SimulatorDestination(destination: destination) else {
-            throw WorkerSimulatorsUnavailable(reason: "`-destination \(destination)` names no simulator")
+            throw WorkerSimulatorsUnavailable(
+                reason: "`-destination \(destination)` names no simulator", destinationUnresolved: true
+            )
         }
         guard let list = await list() else {
             throw WorkerSimulatorsUnavailable(reason: "SwiftMutator couldn't read simctl's list of simulators")
         }
         guard let base = wanted.resolve(in: list) else {
             throw WorkerSimulatorsUnavailable(
-                reason: "no available simulator matches `-destination \(destination)`, or more than one does"
+                reason: "no available simulator matches `-destination \(destination)`, or more than one does",
+                destinationUnresolved: true
             )
         }
         return base

@@ -9,6 +9,26 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
         self.plist = plist
     }
 
+    /// Whether xcodebuild's parallel testing is on for any of its test targets (`ParallelizationEnabled`), as the
+    /// scheme or the test plan sets it. A run from it, as a mutant's is, then clones the destination's simulator, and
+    /// boots the clone, for its tests: about 15 s a run, which a simulator of its own doesn't cost
+    /// (`SimulatorWorkerSetup.oneWorkerPlan(for:state:)`).
+    var parallelizes: Bool {
+        testTargets.contains { $0["ParallelizationEnabled"] as? Bool == true }
+    }
+
+    /// Every test target's entry, as `updateEnvironmentVariable` finds them: in each of `TestConfigurations`'
+    /// `TestTargets`, or in the legacy format, every dictionary at the top level.
+    private var testTargets: [[String: AnyHashable]] {
+        guard let testConfigurations = plist["TestConfigurations"] as? [AnyHashable] else {
+            return plist.values.compactMap { $0 as? [String: AnyHashable] }
+        }
+        return testConfigurations.flatMap { testConfiguration in
+            let testTargets = (testConfiguration as? [String: AnyHashable])?["TestTargets"] as? [AnyHashable] ?? []
+            return testTargets.compactMap { $0 as? [String: AnyHashable] }
+        }
+    }
+
     /// The plist with `key`, a mutant's switch, and `IS_MUTER_RUNNING` set in every test target's
     /// `EnvironmentVariables`. With no `key`, only `IS_MUTER_RUNNING`: a run with no mutant on, as SwiftMutator's runs
     /// of the tests are.
