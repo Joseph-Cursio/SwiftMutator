@@ -184,8 +184,10 @@ was for SwiftPM: `0.5` means 0.5%, so write `50` for half. The options are docum
 `--workers N` and `--timeout S`, on `run` and `run-without-mutating`, set `mutationTestWorkers`
 and `mutationTestTimeout` for one run, in place of the file's
 ([#73](https://github.com/Joseph-Cursio/SwiftMutator/issues/73)). `--workers` must be at least 1,
-and `--timeout` above 0 and at most a day, 86,400 seconds. The run records and compares them as it does the keys: a resume with another
-`--timeout` is refused, and another `--workers` only said. A run that tests several mutants at
+and `--timeout` above 0 and at most a day, 86,400 seconds. The run records and compares them as it does the keys: a resume with a
+`--timeout` at least as long as every session's limit tests only the timeouts again (see
+[Timeouts are run again](#timeouts-are-run-again)), one that is shorter is refused, and another
+`--workers` is only said. A run that tests several mutants at
 once says so, and one that uses fewer workers than asked says why:
 
 ```
@@ -221,6 +223,24 @@ The rerun's result is the one the report gives. The results file keeps both: the
 `rerun`, follows the first run's, and each names a log of its own, the rerun's with ` (rerun)` before
 `.log` (see [Docs/results-file.md](Docs/results-file.md)). A run on one worker, as every
 xcodebuild run is, has no lower load to offer, and runs nothing again.
+
+A timeout that holds up at lower load may still be a mutant that only takes longer than the limit,
+such as one whose tests fail after a slow retry. To give the timeouts more time without testing
+everything again, resume the run with a longer limit: `--resume` with a `--timeout` at least as long
+as the limit of every session in the results file, which its header records as `timeoutSeconds`. It
+goes ahead, tests every timeout under a shorter limit again, and keeps every other result, as a run
+that ended in time ends the same under a longer limit:
+
+```
+♻️ Resuming the run in /…/results.jsonl: 196 results still hold, so 4 mutants are left to test (4 timeouts under a shorter limit).
+ℹ️ mutationTestTimeout was not set and is 60 now, no shorter than any session's limit: the timeouts under a shorter one are tested again.
+```
+
+A shorter limit is refused, as a result that ended in time under the longer one may not under it,
+and so is a resume without `--timeout` after one with it, as the default only the baseline sets, and
+a new limit for a file that holds results `--reuse` kept, as it doesn't record the limit they were
+tested under. A finished run can be resumed this way too. `--reuse` takes a longer limit by the same
+rule, and tests every timeout again in any case.
 
 ### Workers and release mode
 
@@ -652,6 +672,8 @@ does `swift-mutator report` of the file.
   - mutants whose place and operator appear more than once in a file, as they share a switch ID;
   - timeouts of a session on several workers that weren't run again, which the summary counts as
     `2 timeouts not run again at lower load`;
+  - under a longer `--timeout` than a session's limit, that session's timeouts, which the summary
+    counts as `4 timeouts under a shorter limit`;
   - mutants never tested, including any that discovery finds for the first time.
 - **Coverage.** Each session gathers coverage again, unless `--skip-coverage` is given, and
   discovers mutants by it. A result whose mutant this session no longer discovers is dropped,
@@ -665,8 +687,9 @@ does `swift-mutator report` of the file.
   from what it kept, `⏹ Stopped by SIGINT after testing 197 of the 1399 mutants left: 1295 of 2497
   have results.`, and ends with the command that continues it, as often as needed.
 - **A finished run** can be resumed too. Only its build errors and newly discovered mutants are
-  tested, and the timeouts of a run on several workers by a SwiftMutator from before reruns, so this
-  is how to test build errors again. With nothing left to test, it says `nothing is
+  tested, the timeouts of a run on several workers by a SwiftMutator from before reruns, and, under
+  a longer `--timeout`, the timeouts under a shorter limit, so this is how to test build errors
+  again, or timeouts with more time. With nothing left to test, it says `nothing is
   left to test`, builds nothing, runs no baseline and prints the report.
 
 ### When a resume is refused
@@ -677,7 +700,7 @@ one message:
 
 ```
 SwiftMutator won't resume the run in '/…/results.jsonl', so that no result is reused that this run might not reproduce:
-  - mutationTestTimeout was 60 and is 120 now. A configuration change needs a new run.
+  - mutationTestTimeout was 120 and is 60 now. A time limit shorter than a session's, or none, needs a new run: one at least as long as every session's only tests timeouts again.
   - The toolchain (toolchain.testCommandVersion) was "Apple Swift version 6.3.3 …" and is "Apple Swift version 6.4 …" now. --force-resume reuses the results anyway.
   - 2 project files changed since the run stopped: README.md (changed), notes.txt (added).
     If they can't change any test's result: --resume-ignoring 'README.md' --resume-ignoring 'notes.txt'
@@ -692,6 +715,7 @@ doesn't end with `Nothing was copied or removed.`
 | Since the last session | Resuming |
 |---|---|
 | A configuration key changed, other than `mutationTestWorkers`, `stopAtFirstFailure` and `buildTimeout` | Refused: start a new run |
+| `mutationTestTimeout` (or `--timeout`) is at least as long as every session's `timeoutSeconds` | Goes ahead, says so, and tests the timeouts under a shorter limit again |
 | `--operators`, `--files-to-mutate` or `--skip-coverage` changed | Refused: start a new run |
 | `--since`'s merge base or `--changed-lines` changed, or `--since` given in one session only | Refused: start a new run. `--reuse` doesn't compare them |
 | `--shard` changed, or given in one session only | Refused: start a new run. `--reuse` doesn't compare it |

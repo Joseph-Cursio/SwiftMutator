@@ -11,6 +11,10 @@ enum ResumeCheck {
         MuterConfiguration.CodingKeys.buildTimeout.stringValue,
     ]
 
+    /// The key of a mutant's time limit, `mutationTestTimeout`, which a resume or a reuse lets lengthen
+    /// (`isALongerTimeLimit`).
+    static let timeLimitKey = MuterConfiguration.CodingKeys.testSuiteTimeout.stringValue
+
     /// What the resuming run would record in its header, of what a resume compares.
     struct Current: Equatable {
         /// As loaded, as a header records it.
@@ -112,21 +116,19 @@ enum ResumeCheck {
     ///
     /// A resume compares what `--since` compares the working tree with too: the merge base, and `--changed-lines`; the
     /// shard; and the sample. What `purpose` leaves out isn't compared.
+    ///
+    /// A resume or a reuse lets through a time limit at least as long as `longestLimit`, the longest any of the file's
+    /// results was tested under (`isALongerTimeLimit`); nil, when that isn't known, or for a merge, lets none through.
     static func compare(
         _ recorded: ResultsHeader,
         with current: Current,
         forcing: Bool,
-        for purpose: Purpose = .resume
+        for purpose: Purpose = .resume,
+        longestLimit: Double? = nil
     ) -> Verdict {
         var verdict = Verdict()
         for difference in configurationDifferences(recorded.configuration, current.configuration) {
-            if keysThatDontAffectOutcomes.contains(difference.name) {
-                verdict.notices.append(
-                    "\(difference.name) \(difference.change(absent: "not set")), which no result depends on."
-                )
-            } else {
-                verdict.refusals.append(.configurationChanged(difference))
-            }
+            judge(difference, into: &verdict, for: purpose, longestLimit: longestLimit)
         }
         verdict.refusals += selectionDifferences(recorded, current).map(ResumeRefusal.selectionChanged)
         if purpose != .reuse {
@@ -199,6 +201,44 @@ enum ResumeCheck {
                 ? nil
                 : .percentChanged(was: recorded.percent, isNow: current.percent)
         }
+    }
+
+    /// Says `difference`, a configuration key's, in `verdict`: a notice for a key no result depends on, or for a
+    /// longer time limit that `purpose` lets through; a refusal otherwise, which for a new limit with no `longest` to
+    /// compare it with says so.
+    private static func judge(
+        _ difference: Difference,
+        into verdict: inout Verdict,
+        for purpose: Purpose,
+        longestLimit: Double?
+    ) {
+        if keysThatDontAffectOutcomes.contains(difference.name) {
+            verdict.notices.append(
+                "\(difference.name) \(difference.change(absent: "not set")), which no result depends on."
+            )
+        } else if purpose == .merge || difference.name != timeLimitKey {
+            verdict.refusals.append(.configurationChanged(difference))
+        } else if isALongerTimeLimit(difference, thanEvery: longestLimit) {
+            verdict.notices.append(
+                "\(difference.name) \(difference.change(absent: "not set")), no shorter than any session's "
+                    + "limit: the timeouts under a shorter one are tested again."
+            )
+        } else if longestLimit == nil, difference.isNow != nil {
+            verdict.refusals.append(.timeLimitUnknown(difference))
+        } else {
+            verdict.refusals.append(.configurationChanged(difference))
+        }
+    }
+
+    /// Whether `difference` sets the time limit to at least `longest`, the longest a session tested under: every result
+    /// then holds under it, as a run that ended in time still does, but a timeout under a shorter limit, which the plan
+    /// tests again (`ResumePlan.Reason.timeoutUnderShorterLimit`). Not a limit no longer set, whose default only the
+    /// baseline, after this check, sets; nor any, with no `longest` to compare it with.
+    private static func isALongerTimeLimit(_ difference: Difference, thanEvery longest: Double?) -> Bool {
+        guard difference.name == timeLimitKey, let longest, let isNow = difference.isNow.flatMap(Double.init) else {
+            return false
+        }
+        return isNow >= longest
     }
 
     /// The differences in which mutants are tested.

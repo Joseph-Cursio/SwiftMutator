@@ -93,7 +93,8 @@ struct LoadResumeState: MutationStep {
             lastHeader,
             with: ResumeCheck.Current(state: state, provenance: current),
             forcing: options.forceResume,
-            for: file == nil ? .reuse : .resume
+            for: file == nil ? .reuse : .resume,
+            longestLimit: Self.longestLimit(of: recorded)
         )
         var reasons = verdict.refusals
         if let reportPath = options.reportOptions.path, ResultsFile.isSameFile(reportPath, path) {
@@ -117,5 +118,14 @@ struct LoadResumeState: MutationStep {
             forced: verdict.forced,
             notices: verdict.notices
         )
+    }
+}
+
+extension LoadResumeState {
+    /// The longest time limit any of `recorded`'s results was tested under: its sessions' longest. nil when that isn't
+    /// known: no session recorded one, or a result was kept by `--reuse`, which doesn't record the earlier run's.
+    static func longestLimit(of recorded: RecordedResults) -> Double? {
+        guard !recorded.latest.values.contains(where: { $0.reusedFrom != nil }) else { return nil }
+        return recorded.headers.compactMap(\.timeoutSeconds).max()
     }
 }

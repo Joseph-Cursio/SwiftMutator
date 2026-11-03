@@ -155,6 +155,7 @@ final class ResumePlanTests: XCTestCase {
             key(line: 8),
             key(line: 9),
             key(line: 10),
+            key(line: 11),
         ]
         let records = [
             record(of: keys[1]),
@@ -164,15 +165,24 @@ final class ResumePlanTests: XCTestCase {
             record(of: keys[5]),
             record(of: keys[7], outcome: .passed),
             record(of: keys[9], outcome: .timeout, endedBy: .timedOut),
+            timeout(of: keys[10], session: 2),
         ]
 
-        let plan = plan(keys, recorded: records, workers: [1: 4])
+        let plan = plan(keys, recorded: records, workers: [1: 4, 2: 1], limits: [1: 120, 2: 60], limit: 120)
 
         XCTAssertEqual(plan.reused, [1: records[0], 7: records[5]])
-        XCTAssertEqual(plan.toRun, [0, 2, 3, 4, 5, 6, 8, 9])
+        XCTAssertEqual(plan.toRun, [0, 2, 3, 4, 5, 6, 8, 9, 10])
         XCTAssertEqual(
             plan.retestedBecause,
-            [.notRecorded: 2, .buildError: 1, .fileChanged: 1, .mutationChanged: 1, .repeated: 2, .timeoutNotRerun: 1]
+            [
+                .notRecorded: 2,
+                .buildError: 1,
+                .fileChanged: 1,
+                .mutationChanged: 1,
+                .repeated: 2,
+                .timeoutNotRerun: 1,
+                .timeoutUnderShorterLimit: 1,
+            ]
         )
         // Every reason but a reuse's.
         XCTAssertEqual(
@@ -205,13 +215,58 @@ final class ResumePlanTests: XCTestCase {
         XCTAssertEqual(plan.retired, [keys[0], keys[3]])
     }
 
+    // A longer limit, which `ResumeCheck` let through, tests the timeouts under a shorter one again, run again or not,
+    // and nothing else: a run that ended in time under a shorter limit still does.
+    func test_aLongerLimit_retestsTheTimeoutsUnderAShorterOne_only() {
+        let keys = (1...6).map { key(line: $0) }
+        let rerun = MutantResult.Rerun(because: MutantResult.Rerun.timeout, workers: 1)
+        let records = [
+            timeout(of: keys[0], session: 1),
+            timeout(of: keys[1], session: 1, rerun: rerun),
+            timeout(of: keys[2], session: 2),
+            // A session whose limit is unknown may have had a shorter one.
+            timeout(of: keys[3], session: 3),
+            record(of: keys[4], outcome: .passed),
+            record(of: keys[5], outcome: .failed),
+        ]
+
+        let plan = plan(keys, recorded: records, workers: [1: 4, 2: 1, 3: 1], limits: [1: 60, 2: 120], limit: 120)
+
+        XCTAssertEqual(plan.reused, [2: records[2], 4: records[4], 5: records[5]])
+        XCTAssertEqual(plan.toRun, [0, 1, 3])
+        XCTAssertEqual(plan.retestedBecause, [.timeoutUnderShorterLimit: 3])
+        XCTAssertEqual(plan.retired, [keys[0], keys[1], keys[3]])
+    }
+
+    // A run under the default limit, which only its baseline sets, has no limit to compare: as before.
+    func test_noLimitConfigured_retestsNoTimeoutForItsLimit() {
+        let keys = [key(line: 1)]
+        let records = [timeout(of: keys[0], session: 1)]
+
+        let plan = plan(keys, recorded: records, workers: [1: 1], limits: [1: 60])
+
+        XCTAssertEqual(plan.reused, [0: records[0]])
+        XCTAssertEqual(plan.retestedBecause, [:])
+    }
+
+    func test_eachSessionsLimit_comesFromTheLastHeaderOfItsNumber_andOneWithoutIsAbsent() {
+        let headers = [
+            ResultsHeader.make(session: 1, timeoutSeconds: 60),
+            ResultsHeader.make(session: 2, timeoutSeconds: 90),
+            ResultsHeader.make(session: 2, timeoutSeconds: 120),
+            ResultsHeader.make(session: 3, timeoutSeconds: nil),
+        ]
+
+        XCTAssertEqual(ResumePlan.limits(of: headers), [1: 60, 2: 120])
+    }
+
     // A reuse tests every timeout again, run again or not, for the reason it always has.
     func test_aReuse_retestsATimeoutOfASessionOnSeveralWorkers_asATimeout() {
         let keys = [key(line: 1), key(line: 2)]
         let rerun = MutantResult.Rerun(because: MutantResult.Rerun.timeout, workers: 1)
         let records = [timeout(of: keys[0], session: 1), timeout(of: keys[1], session: 1, rerun: rerun)]
 
-        let plan = plan(keys, recorded: records, workers: [1: 4], reusing: changes())
+        let plan = plan(keys, recorded: records, workers: [1: 4], limits: [1: 60], limit: 120, reusing: changes())
 
         XCTAssertEqual(plan.toRun, [0, 1])
         XCTAssertEqual(plan.retestedBecause, [.timedOut: 2])
@@ -435,6 +490,8 @@ final class ResumePlanTests: XCTestCase {
         snapshots: [MutationOperator.Snapshot]? = nil,
         fileHashes: [String: String] = hashes,
         workers: [Int: Int] = [1: 1],
+        limits: [Int: Double] = [:],
+        limit: Double? = nil,
         reusing changes: [Int: ReuseChanges]? = nil
     ) -> ResumePlan {
         ResumePlan.make(
@@ -443,6 +500,8 @@ final class ResumePlanTests: XCTestCase {
             recorded: Dictionary(uniqueKeysWithValues: records.map { ($0.key, $0) }),
             fileHashes: fileHashes,
             workers: workers,
+            limits: limits,
+            limit: limit,
             reusing: changes
         )
     }

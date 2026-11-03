@@ -357,6 +357,39 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.passed, .failed, .failed, .passed])
     }
 
+    // A resume under a longer limit than the first session's, which `ResumeCheck` let through, tests its timeout
+    // again, and keeps its other results: they ended in time under the shorter one.
+    func test_aLongerLimit_testsOnlyTheTimeoutsAgain() async throws {
+        state.resumeState = try ResumeState.make(
+            path: resultsPath,
+            lines: [
+                ResultsHeader.make(mutantsDiscovered: 4, mutantsToTest: 4, project: tree, timeoutSeconds: 60),
+                record(of: "Sources/Product.swift", line: 7, .passed, fileSHA256: "77e0"),
+                record(of: "Sources/Quotient.swift", line: 4, .failed, fileSHA256: "3c4f"),
+                record(of: "Sources/Sum.swift", line: 3, .failed, fileSHA256: "5a1c"),
+                record(of: "Sources/Total.swift", line: 8, .timeout, fileSHA256: "9e21"),
+                ResultsEnd.make(recorded: 4),
+            ],
+            file: XCTUnwrap(state.resumeState).file
+        )
+        state.muterConfiguration = state.muterConfiguration.overriding(workers: nil, timeout: 120)
+        ioDelegate.testSuiteOutcomes = [.passed, .failed]
+        let sent = recordEvents(named: [.resumePlanned])
+
+        let changes = try await sut.run(with: state)
+
+        let summary = try XCTUnwrap(sent().first?.object as? ResumeSummary)
+        XCTAssertEqual(summary.retestedBecause, [.timeoutUnderShorterLimit: 1])
+        XCTAssertEqual(summary.reused, 3)
+        XCTAssertEqual(ioDelegate.configurations.last?.testSuiteTimeout, 120)
+        XCTAssertEqual(try resultsFiles.records(MutantResult.self).map(\.path), ["Sources/Total.swift"])
+        XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).first?.timeoutSeconds, 120)
+        guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
+            return XCTFail("Expected an outcome, got \(changes)")
+        }
+        XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.passed, .failed, .failed, .failed])
+    }
+
     // The first session tested a kill between each two of the build errors it recorded, and those kills are kept, so
     // the build errors are tested again one after another. Failing to build again says nothing new about the build,
     // so they don't count toward stopping after 5 build errors in a row, or no resume of the run could finish.
