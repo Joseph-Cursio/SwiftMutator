@@ -39,6 +39,9 @@ extension RunEvent {
         case resultsFileUnavailable
         case testPlanFileCreated
         case muterMutationTestPlanLoaded
+        case testPlanSourcesUnchecked
+        case testPlanSourcesDiffer
+        case testPlanChangesWaived
     }
 
     var name: Name {
@@ -77,6 +80,9 @@ extension RunEvent {
         case .resultsFileUnavailable: .resultsFileUnavailable
         case .testPlanFileCreated: .testPlanFileCreated
         case .muterMutationTestPlanLoaded: .muterMutationTestPlanLoaded
+        case .testPlanSourcesUnchecked: .testPlanSourcesUnchecked
+        case .testPlanSourcesDiffer: .testPlanSourcesDiffer
+        case .testPlanChangesWaived: .testPlanChangesWaived
         }
     }
 
@@ -85,7 +91,7 @@ extension RunEvent {
         switch self {
         case .muterLaunched, .updateCheckStarted, .projectCopyStarted, .projectCoverageDiscoveryStarted,
              .sourceFileDiscoveryStarted, .mutationsDiscoveryStarted, .mutationTestingStarted, .mutantRunsStarted,
-             .muterMutationTestPlanLoaded:
+             .muterMutationTestPlanLoaded, .testPlanSourcesUnchecked:
             nil
         case let .updateCheckFinished(newVersion): newVersion
         case let .changesSelected(selection): selection
@@ -112,6 +118,8 @@ extension RunEvent {
         case let .resultsFileCreated(path): path
         case let .resultsFileUnavailable(reason): reason
         case let .testPlanFileCreated(created): created
+        case let .testPlanSourcesDiffer(changes): changes
+        case let .testPlanChangesWaived(paths): paths
         }
     }
 }

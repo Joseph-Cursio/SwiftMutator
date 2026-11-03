@@ -39,8 +39,8 @@ final class TestPlanCodingTests: XCTestCase {
         let text = try TestPlanCoding.encode(plan(), under: project)
 
         let keys = [
-            "filesToMutate", "formatVersion", "mappings", "mutatedProject", "operators", "projectCoverage",
-            "swiftMutatorVersion",
+            "filesToMutate", "formatVersion", "mappings", "mutatedFiles", "mutatedProject", "operators",
+            "projectCoverage", "sources", "swiftMutatorVersion",
         ]
         assertInOrder(text, keys.map { "\"\($0)\"" })
         let mutant = try String(
@@ -119,7 +119,20 @@ final class TestPlanCodingTests: XCTestCase {
         XCTAssertEqual(read.projectCoverage, Coverage(percent: 47))
         XCTAssertEqual(read.formatVersion, TestPlanCoding.formatVersion)
         XCTAssertEqual(read.swiftMutatorVersion, muterCore.version)
+        XCTAssertEqual(read.sources, sources)
+        XCTAssertEqual(read.mutatedFiles?.keys.sorted(), ["Sources/Max.swift", "Sources/Sum.swift"])
         XCTAssertEqual(try TestPlanCoding.encode(read, under: project), text)
+    }
+
+    // A plan made by a SwiftMutator of this format from before it recorded them reads without them, and isn't checked
+    // against the project.
+    func test_aPlanWithoutTheProjectsFiles_readsWithout() throws {
+        let text = try TestPlanCoding.encode(MuterTestPlan.make(mutatedProjectPath: copy), under: project)
+
+        XCTAssertFalse(text.contains("\"sources\""), text)
+        XCTAssertFalse(text.contains("\"mutatedFiles\""), text)
+        XCTAssertNil(try read(text).sources)
+        XCTAssertNil(try read(text).mutatedFiles)
     }
 
     // A file outside the copy has no path relative to it, so it keeps its own.
@@ -191,6 +204,8 @@ final class TestPlanCodingTests: XCTestCase {
         XCTAssertEqual(schema.filePath, "/old/project_mutated/Sources/Sum.swift")
         XCTAssertEqual(schema.id, "Sum_RelationalOperatorReplacement_1_5_105")
         XCTAssertNil(read.scope)
+        XCTAssertNil(read.sources)
+        XCTAssertNil(read.mutatedFiles)
     }
 
     func test_aNewerFormat_isRefused_andExitsWith7() throws {
@@ -211,6 +226,17 @@ final class TestPlanCodingTests: XCTestCase {
         }
     }
 
+    /// The project's files, as `FingerprintProjectTree` records them, by their paths relative to the project.
+    private var sources: ProjectTree {
+        let files = ["Sources/Max.swift": "c", "Sources/Sum.swift": "d", "Tests/SumTests.swift": "e"]
+        return ProjectTree(
+            listedBy: .git,
+            files: files,
+            excluded: ["muter.conf.yml"],
+            treeSHA256: ProjectTree.treeHash(of: files)
+        )
+    }
+
     private func read(_ text: String) throws -> MuterTestPlan {
         try TestPlanCoding.read(Data(text.utf8), path: planPath, under: project)
     }
@@ -226,6 +252,8 @@ final class TestPlanCodingTests: XCTestCase {
         return .make(
             mutatedProjectPath: copy,
             projectCoverage: 47,
+            sources: sources,
+            mutatedFiles: ["Sources/Max.swift": String(repeating: "a", count: 64), "Sources/Sum.swift": "b"],
             mappings: [
                 try .make(
                     filePath: "\(copy)/Sources/Max.swift",

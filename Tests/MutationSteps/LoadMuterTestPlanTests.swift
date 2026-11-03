@@ -50,7 +50,8 @@ final class LoadMuterTestPlanTests: MuterTestCase {
                         sha256: FileDigest.sha256(of: data),
                         formatVersion: TestPlanCoding.formatVersion,
                         swiftMutatorVersion: muterCore.version,
-                        scope: TestPlanScope(operators: .allOperators, filesToMutate: [])
+                        scope: TestPlanScope(operators: .allOperators, filesToMutate: []),
+                        sources: nil
                     )
                 ),
             ]
@@ -106,6 +107,25 @@ final class LoadMuterTestPlanTests: MuterTestCase {
         }
         XCTAssertEqual(loaded.formatVersion, 0)
         XCTAssertNil(loaded.swiftMutatorVersion)
+        XCTAssertNil(loaded.sources)
+    }
+
+    // `CheckTestPlanSources` checks the project against them.
+    func test_theProjectsFilesThePlanWasMadeFrom_reachTheState() async throws {
+        let files = ["Sources/Check.swift": "abc"]
+        let sources = ProjectTree(
+            listedBy: .git,
+            files: files,
+            excluded: ["muter.conf.yml"],
+            treeSHA256: ProjectTree.treeHash(of: files)
+        )
+        state.runOptions = .make(testPlanURL: URL(fileURLWithPath: testPlanPath))
+        state.projectDirectoryURL = project
+        fileManager.fileContentsToReturn = MuterTestPlan.make(sources: sources).toData(under: project)
+
+        state.apply(try await sut.run(with: state))
+
+        XCTAssertEqual(state.testPlan?.sources, sources)
     }
 
     func test_theLoadedPlan_isKeptInTheState() async throws {

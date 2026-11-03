@@ -13,6 +13,12 @@ struct MuterTestPlan: Equatable {
     let projectCoverage: Coverage
     /// What the mutants were chosen by; nil for a plan in format 0, which doesn't say.
     let scope: TestPlanScope?
+    /// The project's own files as they were when the plan was made; nil for a plan in format 0, which doesn't record
+    /// them.
+    let sources: ProjectTree?
+    /// The SHA-256 of each file with mutants as the plan left it in the copy, by its path relative to the copy; nil
+    /// for a plan in format 0.
+    let mutatedFiles: [String: String]?
     let mappings: [SchemataMutationMapping]
 
     init(
@@ -21,6 +27,8 @@ struct MuterTestPlan: Equatable {
         mutatedProjectURL: URL,
         projectCoverage: Coverage,
         scope: TestPlanScope?,
+        sources: ProjectTree? = nil,
+        mutatedFiles: [String: String]? = nil,
         mappings: [SchemataMutationMapping]
     ) {
         self.formatVersion = formatVersion
@@ -28,6 +36,8 @@ struct MuterTestPlan: Equatable {
         self.mutatedProjectURL = mutatedProjectURL
         self.projectCoverage = projectCoverage
         self.scope = scope
+        self.sources = sources
+        self.mutatedFiles = mutatedFiles
         self.mappings = mappings
     }
 }
@@ -48,7 +58,7 @@ struct TestPlanScope: Equatable, Sendable {
 }
 
 /// The test plan a run tests: where it was read from, the SHA-256 of its bytes, which format and SwiftMutator it was
-/// written in, and what its mutants were chosen by.
+/// written in, what its mutants were chosen by, and the project's files it was made from.
 struct LoadedTestPlan: Equatable, Sendable {
     let path: String
     let sha256: String
@@ -57,6 +67,8 @@ struct LoadedTestPlan: Equatable, Sendable {
     let swiftMutatorVersion: String?
     /// Nil for a plan in format 0, which doesn't say; the run then records the operators and files it was given.
     let scope: TestPlanScope?
+    /// Nil for a plan in format 0, which doesn't record them; the project then isn't checked against the plan.
+    let sources: ProjectTree?
 }
 
 /// The test plan `mutate-without-running` wrote, as it reports it: where the plan is, the copy it names, and what it

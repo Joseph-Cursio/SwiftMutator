@@ -17,8 +17,9 @@ extension ExitCode {
     static let anotherRunHoldsTheLock = ExitCode(6)
 
     /// SwiftMutator refused to test a test plan, because it might not describe the project or can't be tested as it
-    /// is: one in a newer format, or whose copy of the project isn't there. Nothing was tested. The message names what
-    /// would let it through.
+    /// is: one in a newer format, run in another folder than its project's, whose mutated files changed in the project
+    /// since it was made, or whose copy of the project isn't there. Nothing was tested. The message names what would
+    /// let it through.
     static let testPlanRefused = ExitCode(7)
 
     /// The status a run command exits with when its work failed with `error`, or nil when it exits 0: nothing to

@@ -33,7 +33,8 @@ struct LoadMuterTestPlan: MutationStep {
                     sha256: FileDigest.sha256(of: testPlanData),
                     formatVersion: testPlan.formatVersion,
                     swiftMutatorVersion: testPlan.swiftMutatorVersion,
-                    scope: testPlan.scope
+                    scope: testPlan.scope,
+                    sources: testPlan.sources
                 )
             ),
         ]

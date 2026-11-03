@@ -513,7 +513,8 @@ final class ResultsRecordTests: XCTestCase {
                     sha256: "abc",
                     formatVersion: TestPlanCoding.formatVersion,
                     swiftMutatorVersion: muterCore.version,
-                    scope: TestPlanScope(operators: [.swapTernary, .ror], filesToMutate: ["Sources/Sum.swift"])
+                    scope: TestPlanScope(operators: [.swapTernary, .ror], filesToMutate: ["Sources/Sum.swift"]),
+                    sources: nil
                 )
             ),
         ])

@@ -65,6 +65,14 @@ enum RunEvent {
     case testPlanFileCreated(TestPlanCreated)
 
     case muterMutationTestPlanLoaded
+    /// The plan doesn't record the project's files, as a plan in format 0 doesn't, so the project isn't checked
+    /// against it.
+    case testPlanSourcesUnchecked
+    /// Project files the plan doesn't mutate that changed since it was made, whether or not `--plan-ignoring` matches
+    /// them: the copy holds them as they were.
+    case testPlanSourcesDiffer([ProjectTree.FileChange])
+    /// Files the plan mutates that changed since it was made, which `--plan-ignoring` let through.
+    case testPlanChangesWaived([String])
 }
 
 /// Delivers each of a run's events to whatever observes them, in the order they were added, at once and on the thread

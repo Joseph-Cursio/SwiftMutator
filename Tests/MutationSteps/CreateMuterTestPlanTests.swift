@@ -41,6 +41,7 @@ final class CreateMuterTestPlanTests: MuterTestCase {
             mutatedProjectPath: "/path/to/project_mutated",
             projectCoverage: 47,
             scope: TestPlanScope(operators: .allOperators, filesToMutate: []),
+            mutatedFiles: [:],
             mappings: state.mutationMapping
         )
         XCTAssertEqual(
@@ -105,6 +106,28 @@ final class CreateMuterTestPlanTests: MuterTestCase {
         _ = try await sut.run(with: state)
 
         await fulfillment(of: [expect], timeout: 2)
+    }
+
+    // The project's files as they were before anything was rewritten, which a run of the plan checks the project
+    // against, and each mutated file as the copy holds it once its switches are in.
+    func test_recordsTheProjectsFiles_andHashesTheMutatedFilesInTheCopy() async throws {
+        let state = makeState()
+        let files = ["Sources/Check.swift": "original", "Tests/CheckTests.swift": "tests"]
+        state.projectTree = ProjectTree(
+            listedBy: .git,
+            files: files,
+            excluded: ["muter.conf.yml"],
+            treeSHA256: ProjectTree.treeHash(of: files)
+        )
+        let rewritten = Data("func check(_ value: Int) -> Bool { /* switches */ }".utf8)
+        fileManager.fileContentsToReturn = rewritten
+
+        _ = try await sut.run(with: state)
+
+        let file = try JSONDecoder().decode(TestPlanFile.self, from: Data(try XCTUnwrap(writeFile.contentPassed).utf8))
+        XCTAssertEqual(file.sources, state.projectTree)
+        XCTAssertEqual(file.mutatedFiles, ["Sources/Check.swift": FileDigest.sha256(of: rewritten)])
+        XCTAssertEqual(fileManager.contentsAtPath, ["/path/to/project_mutated/Sources/Check.swift"])
     }
 
     func test_coverageThatWasntGathered_isLeftOut() async throws {

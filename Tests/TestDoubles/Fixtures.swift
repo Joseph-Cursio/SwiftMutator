@@ -385,7 +385,8 @@ extension Run.Options {
         resumeURL: URL? = nil,
         reuseURL: URL? = nil,
         resumeIgnoring: [String] = [],
-        forceResume: Bool = false
+        forceResume: Bool = false,
+        planIgnoring: [String] = []
     ) -> Self {
         .init(
             filesToMutate: filesToMutate,
@@ -407,7 +408,8 @@ extension Run.Options {
             resumeURL: resumeURL,
             reuseURL: reuseURL,
             resumeIgnoring: resumeIgnoring,
-            forceResume: forceResume
+            forceResume: forceResume,
+            planIgnoring: planIgnoring
         )
     }
 }
@@ -520,12 +522,16 @@ extension MuterTestPlan {
         mutatedProjectPath: String = "/path/to/project_mutated",
         projectCoverage: Int = 0,
         scope: TestPlanScope? = TestPlanScope(operators: .allOperators, filesToMutate: []),
+        sources: ProjectTree? = nil,
+        mutatedFiles: [String: String]? = nil,
         mappings: [SchemataMutationMapping] = []
     ) -> MuterTestPlan {
         MuterTestPlan(
             mutatedProjectURL: URL(fileURLWithPath: mutatedProjectPath),
             projectCoverage: projectCoverage < 0 ? .null : Coverage(percent: projectCoverage),
             scope: scope,
+            sources: sources,
+            mutatedFiles: mutatedFiles,
             mappings: mappings
         )
     }

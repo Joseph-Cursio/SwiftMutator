@@ -11,6 +11,17 @@ struct RunWithoutMutating: RunCommand {
     @OptionGroup var testing: TestingArguments
     @OptionGroup var reportOptions: ReportArguments
 
+    // After the option groups, so it comes last in the help.
+    @Option(
+        name: .customLong("plan-ignoring"),
+        help: ArgumentHelp(
+            "Test the plan although files it mutates that match this glob changed since mutate-without-running made "
+                + "it; * also matches /. Repeatable.",
+            valueName: "glob"
+        )
+    )
+    var planIgnoring: [String] = []
+
     @Argument(
         help: "The path for the test plan."
     )
@@ -29,7 +40,8 @@ struct RunWithoutMutating: RunCommand {
             configurationURL: options.configurationURL,
             testPlanURL: testPlanURL,
             workers: testing.workers,
-            timeout: testing.timeout
+            timeout: testing.timeout,
+            planIgnoring: planIgnoring
         )
     }
 

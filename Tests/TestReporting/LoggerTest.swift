@@ -93,6 +93,48 @@ final class LoggerTests: MuterTestCase {
         ])
     }
 
+    // A plan in format 0 records no project files to check against.
+    func test_testPlanSourcesUnchecked_saysHowToHaveThePlanChecked() {
+        sut.testPlanSourcesUnchecked()
+
+        XCTAssertEqual(printer.linesPassed, [
+            "⚠️ The test plan was made by a SwiftMutator from before plans recorded the project's files, so it isn't "
+                + "checked against them. Make it again with `swift-mutator mutate-without-running` to have it checked.",
+        ])
+    }
+
+    // Files the plan doesn't mutate, which the copy holds as they were: ten by name, and the rest counted.
+    func test_testPlanSourcesDiffer_namesTheFiles_andSaysTheCopyHoldsThemAsTheyWere() {
+        sut.testPlanSourcesDiffer([.init(path: "Package.resolved", kind: .changed)])
+        sut.testPlanSourcesDiffer(
+            [.init(path: "README.md", kind: .removed)]
+                + (1 ... 11).map { .init(path: "Tests/Test\($0).swift", kind: .added) }
+        )
+
+        XCTAssertEqual(printer.linesPassed, [
+            "⚠️ 1 project file the plan doesn't mutate changed since `swift-mutator mutate-without-running` made it: "
+                + "Package.resolved (changed). The plan's copy holds it as it was, so its mutants are tested with it "
+                + "as it was. Make the plan again to test with it as it is now.",
+            "⚠️ 12 project files the plan doesn't mutate changed since `swift-mutator mutate-without-running` made "
+                + "it: README.md (removed), "
+                + (1 ... 9).map { "Tests/Test\($0).swift (added)" }.joined(separator: ", ")
+                + ", and 2 more. The plan's copy holds them as they were, so its mutants are tested with them as they "
+                + "were. Make the plan again to test with them as they are now.",
+        ])
+    }
+
+    func test_testPlanChangesWaived_namesTheFilesPlanIgnoringLetThrough() {
+        sut.testPlanChangesWaived(["Sources/Sum.swift"])
+        sut.testPlanChangesWaived(["Sources/Max.swift", "Sources/Sum.swift"])
+
+        XCTAssertEqual(printer.linesPassed, [
+            "ℹ️ The plan is tested although 1 file it mutates changed since it was made (--plan-ignoring): "
+                + "Sources/Sum.swift. Its mutants are tested in the copy as it is.",
+            "ℹ️ The plan is tested although 2 files it mutates changed since it was made (--plan-ignoring): "
+                + "Sources/Max.swift, Sources/Sum.swift. Their mutants are tested in the copy as it is.",
+        ])
+    }
+
     // Last, after where the report went or the report itself, whether or not it was saved: the line a run ends on.
     func test_mutationTestingFinished_withASuspectWarning_printsItLast() {
         let warning = "1 test may fail whatever the mutant: it failed for mutants in at least 15% of the 10 files "

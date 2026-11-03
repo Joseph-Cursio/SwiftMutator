@@ -708,6 +708,44 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         print("⬆️ SwiftMutator mutation test plan loaded")
     }
 
+    func testPlanSourcesUnchecked() {
+        print(
+            "⚠️ The test plan was made by a SwiftMutator from before plans recorded the project's files, so it isn't "
+                + "checked against them. Make it again with `swift-mutator mutate-without-running` to have it checked."
+        )
+    }
+
+    /// "2 project files the plan doesn't mutate changed since …: Package.resolved (changed), …", up to
+    /// `ResumeRefusal.changedFilesNamed` of them by name.
+    func testPlanSourcesDiffer(_ changes: [ProjectTree.FileChange]) {
+        let named = changes.prefix(ResumeRefusal.changedFilesNamed)
+        let others = changes.count - named.count
+        let one = changes.count == 1
+        let files = named.map { "\($0.path) (\($0.kind.rawValue))" }.joined(separator: ", ")
+            + (others > 0 ? ", and \(others) more" : "")
+        let them = one ? "it" : "them"
+        let was = one ? "it was" : "they were"
+        print(
+            "⚠️ \(changes.count) project file\(one ? "" : "s") the plan doesn't mutate changed since "
+                + "`swift-mutator mutate-without-running` made it: \(files). The plan's copy holds \(them) as \(was), "
+                + "so its mutants are tested with \(them) as \(was). Make the plan again to test with \(them) as "
+                + "\(one ? "it is" : "they are") now."
+        )
+    }
+
+    /// "The plan is tested although 1 file it mutates changed since it was made (--plan-ignoring): …", up to
+    /// `ResumeRefusal.changedFilesNamed` of them by name.
+    func testPlanChangesWaived(_ paths: [String]) {
+        let named = paths.prefix(ResumeRefusal.changedFilesNamed)
+        let others = paths.count - named.count
+        let files = paths.count == 1 ? "1 file it mutates" : "\(paths.count) files it mutates"
+        print(
+            "ℹ️ The plan is tested although \(files) changed since it was made (--plan-ignoring): "
+                + named.joined(separator: ", ") + (others > 0 ? ", and \(others) more" : "")
+                + ". \(paths.count == 1 ? "Its" : "Their") mutants are tested in the copy as it is."
+        )
+    }
+
     /// Every line Muter logs goes through here, and so through the injected `printer`.
     ///
     /// The printer used to be a property also named `print`. Calls to `print("…")` inside this

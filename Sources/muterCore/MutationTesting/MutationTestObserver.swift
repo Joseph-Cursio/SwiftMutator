@@ -159,6 +159,12 @@ extension MutationTestObserver {
 
         case .muterMutationTestPlanLoaded:
             logger.muterMutationTestPlanLoaded()
+        case .testPlanSourcesUnchecked:
+            logger.testPlanSourcesUnchecked()
+        case let .testPlanSourcesDiffer(changes):
+            logger.testPlanSourcesDiffer(changes)
+        case let .testPlanChangesWaived(paths):
+            logger.testPlanChangesWaived(paths)
         }
     }
 

@@ -101,6 +101,8 @@ private extension [MutationStep] {
             UpdateCheck(),
             LoadConfiguration(),
             LoadMuterTestPlan(),
+            // Before the copy is locked: it reads only the project, and a refusal leaves another run's copy alone.
+            CheckTestPlanSources(),
             // Before anything in the mutated project the plan names is read, which another run may be rewriting.
             LockMutatedProject(),
             CheckTestPlanCode(),
@@ -119,6 +121,8 @@ private extension [MutationStep] {
             LockMutatedProject(),
             PreviousRunCleanUp(),
             CopyProjectToTempDirectory(),
+            // Before anything is rewritten: the plan records the project's files as they are, for its runs to check.
+            FingerprintProjectTree(),
             DiscoverProjectCoverage(),
             DiscoverSourceFiles(),
             DiscoverMutationPoints(),

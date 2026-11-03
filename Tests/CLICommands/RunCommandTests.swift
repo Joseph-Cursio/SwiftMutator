@@ -56,6 +56,25 @@ final class RunCommandTests: XCTestCase {
         XCTAssertNotEqual(Run.Options.make(since: "main"), .make())
         XCTAssertNotEqual(Run.Options.make(since: "main", changedLinesOnly: true), .make(since: "main"))
         XCTAssertNotEqual(Run.Options.make(shard: Shard(index: 1, count: 2)), .make())
+        XCTAssertNotEqual(Run.Options.make(planIgnoring: ["Sources/*"]), .make())
+    }
+
+    // Repeatable, and only on the command that tests a plan.
+    func test_planIgnoring_reachesTheRunOptions_ofRunWithoutMutating() throws {
+        let plan = try XCTUnwrap(
+            MuterCommand.parseAsRoot(
+                ["run-without-mutating", "--plan-ignoring", "Sources/A.swift", "--plan-ignoring", "*.md", "plan.json"]
+            ) as? RunWithoutMutating
+        )
+        XCTAssertEqual(plan.runOptions.planIgnoring, ["Sources/A.swift", "*.md"])
+        XCTAssertEqual(
+            try XCTUnwrap(MuterCommand.parseAsRoot(["run-without-mutating", "plan.json"]) as? RunWithoutMutating)
+                .runOptions.planIgnoring,
+            []
+        )
+        XCTAssertThrowsError(try MuterCommand.parseAsRoot(["run", "--plan-ignoring", "*.md"]))
+        let help = RunWithoutMutating.helpMessage(columns: 200)
+        XCTAssertTrue(help.contains("\n  --plan-ignoring <glob>"), help)
     }
 
     // For one run, in place of the configuration's keys, on each command that tests mutants.

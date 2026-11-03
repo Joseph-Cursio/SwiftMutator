@@ -28,6 +28,8 @@ enum TestPlanCoding {
             projectCoverage: plan.projectCoverage == .null ? nil : plan.projectCoverage.percent,
             operators: (plan.scope?.operators ?? .allOperators).map(\.rawValue).sorted(),
             filesToMutate: plan.scope?.filesToMutate ?? [],
+            sources: plan.sources,
+            mutatedFiles: plan.mutatedFiles,
             mappings: plan.mappings.map { $0.relative(to: plan.mutatedProjectURL) }
         )
         return try String(decoding: encoder.encode(file), as: UTF8.self) + "\n"
@@ -35,8 +37,8 @@ enum TestPlanCoding {
 
     /// The plan at `path`, whose bytes are `data`, with its paths resolved: a format-1 copy's under `projectRoot`, the
     /// folder the plan was made in, and its mutants' under the copy. A plan in format 0 holds absolute paths, which
-    /// are kept, and doesn't say what its mutants were chosen by. A plan in a format newer than `newestFormatVersion`
-    /// is refused.
+    /// are kept, and doesn't say what its mutants were chosen by or record the project's files. A plan in a format
+    /// newer than `newestFormatVersion` is refused.
     static func read(_ data: Data, path: String, under projectRoot: URL) throws -> MuterTestPlan {
         guard let found = try JSONDecoder().decode(FormatVersion.self, from: data).formatVersion else {
             let file = try JSONDecoder().decode(LegacyTestPlanFile.self, from: data)
@@ -66,6 +68,8 @@ enum TestPlanCoding {
                 operators: file.operators.compactMap(MutationOperator.Id.init(rawValue:)),
                 filesToMutate: file.filesToMutate
             ),
+            sources: file.sources,
+            mutatedFiles: file.mutatedFiles,
             mappings: file.mappings.map { $0.resolved(under: copy) }
         )
     }
@@ -100,6 +104,12 @@ struct TestPlanFile: Codable, Equatable {
     let operators: [String]
     /// The files the mutants were chosen from, `--files-to-mutate` as given; empty when it wasn't.
     let filesToMutate: [String]
+    /// The project's own files as they were when the plan was made, before any was rewritten, which a run of the plan
+    /// checks the project against (`CheckTestPlanSources`). Left out only by a plan made without them.
+    let sources: ProjectTree?
+    /// The SHA-256 of each file with mutants, as the plan left it in the copy, by its path relative to the copy. Left
+    /// out only by a plan made without them.
+    let mutatedFiles: [String: String]?
     /// By file, each file's mutants in the order mutation testing runs them.
     let mappings: [SchemataMutationMapping]
 }

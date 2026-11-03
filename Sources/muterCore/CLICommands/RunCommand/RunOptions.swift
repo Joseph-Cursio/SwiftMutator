@@ -39,6 +39,9 @@ extension Run {
         /// `--force-resume`, or `--force-reuse`: a resume or a reuse lets a changed SwiftMutator build, toolchain or
         /// SDK through.
         let forceResume: Bool
+        /// `--plan-ignoring`'s globs: files a test plan mutates that changed in the project since the plan was made,
+        /// whose changes a run of the plan lets through.
+        let planIgnoring: [String]
         var isUsingTestPlan: Bool {
             testPlanURL != nil
         }
@@ -73,7 +76,8 @@ extension Run {
             resumeURL: URL? = nil,
             reuseURL: URL? = nil,
             resumeIgnoring: [String] = [],
-            forceResume: Bool = false
+            forceResume: Bool = false,
+            planIgnoring: [String] = []
         ) {
             self.since = since
             self.changedLinesOnly = changedLinesOnly
@@ -92,6 +96,7 @@ extension Run {
             self.reuseURL = reuseURL
             self.resumeIgnoring = resumeIgnoring
             self.forceResume = forceResume
+            self.planIgnoring = planIgnoring
 
             self.filesToMutate = filesToMutate.reduce(into: []) { accum, next in
                 accum.append(
@@ -127,6 +132,7 @@ extension Run.Options: Equatable {
             lhs.reuseURL == rhs.reuseURL &&
             lhs.resumeIgnoring == rhs.resumeIgnoring &&
             lhs.forceResume == rhs.forceResume &&
+            lhs.planIgnoring == rhs.planIgnoring &&
             lhs.reportOptions.path == rhs.reportOptions.path &&
             "\(lhs.reportOptions.reporter)" == "\(rhs.reportOptions.reporter)"
     }
@@ -154,7 +160,8 @@ extension Run.Options: Nullable {
             resumeURL: nil,
             reuseURL: nil,
             resumeIgnoring: [],
-            forceResume: false
+            forceResume: false,
+            planIgnoring: []
         )
     }
 }
