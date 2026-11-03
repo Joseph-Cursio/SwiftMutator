@@ -375,7 +375,10 @@ where the whole run takes 46. It scored 78%, and the whole run 77%; the report g
   needs `--seed`, so that its shards share one sample, and `report` merges them.
 - **Resuming.** The results file's header records the sample, and a resume must take the same one,
   so it needs `--seed`; the Continue line gives it, chosen or not. `--reuse` keeps the earlier run's results for
-  this sample's mutants, whatever sample, or whole run, that was.
+  this sample's mutants, whatever sample, or whole run, that was. After a change, new mutants can
+  rank before some the sample took, and push them out. Their results no longer count, but they are
+  said apart from those of mutants that are gone:
+  `ℹ️ 2 earlier results no longer count, as the sample no longer takes their mutants.`
 
 ## Results file
 

@@ -47,9 +47,10 @@ final class SampleTests: XCTestCase {
         for size in 1...6 {
             for seed: UInt64 in 0..<20 {
                 let sample = Sample(size: size, seed: seed, seedIsChosen: false)
-                let (kept, selection) = mappings.keepingSample(sample, under: mutatedRoot)
+                let (kept, selection, leftOut) = mappings.keepingSample(sample, under: mutatedRoot)
                 let sampled = keys(of: kept)
                 XCTAssertTrue(Set(sampled).isSubset(of: Set(wholeRun)), "\(size), seed \(seed)")
+                XCTAssertEqual(leftOut, Set(wholeRun).subtracting(sampled), "\(size), seed \(seed)")
                 XCTAssertEqual(sampled, wholeRun.filter(Set(sampled).contains), "\(size), seed \(seed): job order")
                 let second = key("Sources/Sum.swift", line: 3, column: 5, occurrence: 1)
                 XCTAssertEqual(sampled.contains(repeated), sampled.contains(second), "\(size), seed \(seed)")
@@ -65,7 +66,7 @@ final class SampleTests: XCTestCase {
     func test_aSampleOfAtLeastEveryMutant_isTheWholeRun() throws {
         let mappings = try manyPlaces()
         let sample = Sample(size: 500, seed: 3, seedIsChosen: true)
-        let (kept, selection) = mappings.keepingSample(sample, under: mutatedRoot)
+        let (kept, selection, _) = mappings.keepingSample(sample, under: mutatedRoot)
 
         XCTAssertEqual(keys(of: kept), keys(of: mappings))
         XCTAssertEqual(selection, SampleSelection(size: 500, seed: 3, mutantsSampledFrom: 200, mutantsSampled: 200))

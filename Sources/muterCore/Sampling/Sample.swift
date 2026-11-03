@@ -52,14 +52,18 @@ struct SampleSelection: Codable, Equatable, Sendable {
 
 extension [SchemataMutationMapping] {
     /// Of these mappings, every discovered mutant in the mutated project at `projectRoot`, only the ones `sample`
-    /// holds, and what it recorded of them. A file left with none is left out.
+    /// holds; what it recorded of them; and the keys of the mutants it leaves out, which a resume or a reuse tells from
+    /// mutants no longer discovered. A file left with none is left out.
     ///
     /// The places, a mutant's key without its occurrence (`MutantKey`), are ranked (`Sample.rank(ofPlace:seed:)`), ties
     /// broken by the place itself. The sample takes whole
     /// places in that order until it holds `size` mutants. Whole places, so that every repeat of one place and
     /// operator is in or out together: the sample's jobs then number their occurrences as a whole run's do
     /// (`MutantKey.keys`), and its keys are the whole run's.
-    func keepingSample(_ sample: Sample, under projectRoot: URL) -> (mappings: Self, selection: SampleSelection) {
+    func keepingSample(
+        _ sample: Sample,
+        under projectRoot: URL
+    ) -> (mappings: Self, selection: SampleSelection, leftOut: Set<MutantKey>) {
         let places = flatMap(\.mutationSchemata).map { Self.place(of: $0, under: projectRoot) }
         let mutantsAt = Dictionary(places.map { ($0, 1) }, uniquingKeysWith: +)
         let ranked = mutantsAt.keys
@@ -82,7 +86,17 @@ extension [SchemataMutationMapping] {
             mutantsSampledFrom: places.count,
             mutantsSampled: mutantsSampled
         )
-        return (mappings, selection)
+        // Keyed over the whole discovery, as a whole run keys them.
+        let leftOut = MutantKey.keys(for: flatMap(\.mutationSchemata), under: projectRoot).filter { key in
+            !kept.contains(MutantKey(
+                path: key.path,
+                mutationOperatorId: key.mutationOperatorId,
+                line: key.line,
+                column: key.column,
+                occurrence: 0
+            ))
+        }
+        return (mappings, selection, Set(leftOut))
     }
 
     private static func place(of schema: MutationSchema, under projectRoot: URL) -> MutantKey {

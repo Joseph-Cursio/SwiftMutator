@@ -41,6 +41,9 @@ protocol AnyMutationTestState: AnyObject {
     var shardSelection: ShardSelection? { get }
     /// Which mutants `--sample` tests, and of how many; nil without `--sample`, and until discovery.
     var sampleSelection: SampleSelection? { get }
+    /// The keys of the mutants discovery found and `--sample` left out, which a resume or a reuse tells from mutants
+    /// no longer discovered; empty without `--sample`.
+    var keysLeftOutOfTheSample: Set<MutantKey> { get }
     /// The paths in the mutated project, relative to it, that discovery picks from, once listed before coverage is
     /// gathered, as a `--since` run lists them; nil until then, when discovery lists them itself.
     var candidatePaths: [FilePath]? { get }
@@ -73,6 +76,7 @@ final class MutationTestState: AnyMutationTestState {
     var changeSelection: ChangeSelection?
     var shardSelection: ShardSelection?
     var sampleSelection: SampleSelection?
+    var keysLeftOutOfTheSample: Set<MutantKey> = []
     var candidatePaths: [FilePath]?
 
     init() {}
@@ -106,6 +110,7 @@ extension MutationTestState {
         case changesSelected(ChangeSelection)
         case shardSelected(ShardSelection)
         case sampleSelected(SampleSelection)
+        case sampleLeftOut(Set<MutantKey>)
         case candidatePathsListed([FilePath])
     }
 }
@@ -154,6 +159,8 @@ extension MutationTestState {
                 shardSelection = selection
             case let .sampleSelected(selection):
                 sampleSelection = selection
+            case let .sampleLeftOut(keys):
+                keysLeftOutOfTheSample = keys
             case let .candidatePathsListed(paths):
                 candidatePaths = paths
             }

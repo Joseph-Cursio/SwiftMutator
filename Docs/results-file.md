@@ -156,6 +156,8 @@ A sample takes whole places, a mutant's key without `occurrence`. Each place is 
 
 A resume compares `size` and `seed`, and whether either session has a `sample` at all; so does a merge of shards. `--reuse` compares neither: it keeps the earlier run's results for the mutants this sample holds. A sample that held every mutant is the whole run, and its reports say nothing of it.
 
+`mutantsSampledFrom` and `mutantsSampled` aren't compared: they follow from the working tree. After a change, new mutants can rank before some the sample took, and push them out. Their results are retired, as those of mutants no longer discovered are, but the run counts them apart, as they are still discovered: `ℹ️ 2 earlier results no longer count, as the sample no longer takes their mutants.`
+
 ### `mutant`
 
 | Key | Type | Meaning |
@@ -195,7 +197,7 @@ A resume compares `size` and `seed`, and whether either session has a `sample` a
 
 ### `retired`
 
-A session that `--resume` adds no longer stands by some of the earlier sessions' results: those of the mutants it tests again, and those of mutants its discovery no longer finds. It lists their keys in one line, right after its header, when there are any.
+A session that `--resume` adds no longer stands by some of the earlier sessions' results: those of the mutants it tests again, those of mutants its discovery no longer finds, and with `--sample` those of mutants its sample no longer takes. It lists their keys in one line, right after its header, when there are any.
 
 | Key | Type | Meaning |
 |---|---|---|
