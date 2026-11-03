@@ -49,6 +49,9 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     /// How each run of the test command without its build ends, and what it prints, in the order they're run; once
     /// empty, `timedTestRunOutcome` and "timed test run log".
     var testRunsWithoutBuilding: [(outcome: TestSuiteOutcome, log: String)] = []
+    /// How the run of the test command without its build that writes to the file of this name ends, and what it
+    /// prints, before `testRunsWithoutBuilding`: for runs at once, such as xcodebuild workers' runs with no mutant on.
+    var testRunsWithoutBuildingWritingTo: [String: (outcome: TestSuiteOutcome, log: String)] = [:]
     /// The configuration each run of the test command without its build was given.
     private(set) var configurationsWithoutBuilding: [MuterConfiguration] = []
     /// Called just before the timed run of the test command without its build returns, so a test can move its clock.
@@ -165,6 +168,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
         return (outcome, "testLog")
     }
 
+    /// Called concurrently by xcodebuild workers' runs with no mutant on, so it takes the lock.
     func runTestsWithoutBuilding(
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String
@@ -172,13 +176,19 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
         outcome: TestSuiteOutcome,
         testLog: String
     ) {
-        methodCalls.append(#function)
-        testLogs.append(fileName)
-        configurationsWithoutBuilding.append(configuration)
+        lock.withLock {
+            methodCalls.append(#function)
+            testLogs.append(fileName)
+            configurationsWithoutBuilding.append(configuration)
+        }
         whileRunningTestsWithoutBuilding?()
-        return testRunsWithoutBuilding.isEmpty
-            ? (timedTestRunOutcome, "timed test run log")
-            : testRunsWithoutBuilding.removeFirst()
+        let run = lock.withLock {
+            testRunsWithoutBuildingWritingTo[(fileName as NSString).lastPathComponent]
+                ?? (testRunsWithoutBuilding.isEmpty
+                    ? (timedTestRunOutcome, "timed test run log")
+                    : testRunsWithoutBuilding.removeFirst())
+        }
+        return (run.outcome, run.log)
     }
 
     /// Called concurrently by parallel xcodebuild workers, so it takes the lock.

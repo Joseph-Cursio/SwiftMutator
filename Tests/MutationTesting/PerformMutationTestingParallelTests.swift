@@ -233,7 +233,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
 
         _ = try await sut.run(with: state)
 
-        XCTAssertEqual(choices, [WorkerChoice(asked: 8, used: 2, isSwiftPM: true, mutantsToTest: 2)])
+        XCTAssertEqual(choices, [WorkerChoice(asked: 8, used: 2, unsupportedReason: nil, mutantsToTest: 2)])
     }
 
     // The progress bar's first estimate spreads the mutants over the workers that test them, which are never more
@@ -691,20 +691,63 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         XCTAssertEqual(fileManager.paths, ["/project_mutated.DerivedData"])
     }
 
-    func test_xcodebuildProjectsIgnoreWorkers() async throws {
+    // An xcodebuild project on a simulator gets one per worker, not a copy: every worker tests in the mutated project.
+    func test_anXcodebuildProjectOnASimulator_getsASimulatorPerWorker_andNoCopies() async throws {
         state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/xcodebuild", arguments: ["test"], mutationTestWorkers: 4
+            executable: "/usr/bin/xcodebuild",
+            arguments: ["-destination", "platform=iOS Simulator,name=iPhone 17", "test"],
+            mutationTestWorkers: 4
         )
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
 
         _ = try await sut.run(with: state)
 
         XCTAssertEqual(clonedCounts, [])
+        XCTAssertEqual(ioDelegate.builtWorkerDirectories, [])
+        XCTAssertEqual(workerSimulators.calls.prefix(3), [
+            "sweep /project_mutated",
+            "prepare 2 like platform=iOS Simulator,name=iPhone 17 for /project_mutated",
+            "boot SIM-0 SIM-1",
+        ])
+        XCTAssertEqual(
+            ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") },
+            Array(repeating: "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:workingDirectory:)", count: 2)
+        )
+        XCTAssertEqual(Set(ioDelegate.workingDirectories), [state.mutatedProjectDirectoryURL])
+        XCTAssertEqual(
+            Set(ioDelegate.configurations.compactMap(\.xcodeWorker?.destination)),
+            ["platform=iOS Simulator,id=SIM-0", "platform=iOS Simulator,id=SIM-1"]
+        )
+    }
+
+    // A Mac app's test runs share its defaults, so a macOS destination tests one mutant at a time, and says why.
+    func test_anXcodebuildProjectOnAMac_testsOneMutantAtATime() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/xcodebuild",
+            arguments: ["-destination", "platform=macOS", "test"],
+            mutationTestWorkers: 4
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        var choices: [WorkerChoice] = []
+        whenSent(.workersChosen) { event in
+            if case let .workersChosen(choice) = event { choices.append(choice) }
+        }
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(clonedCounts, [])
+        XCTAssertEqual(workerSimulators.calls, ["sweep /project_mutated"])
         XCTAssertEqual(
             ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") },
             Array(repeating: "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)", count: 2)
         )
         XCTAssertEqual(ioDelegate.testRunFileNames, ["muter.xctestrun", "muter.xctestrun"])
+        XCTAssertEqual(choices.map(\.used), [1])
+        XCTAssertEqual(
+            choices.first?.sentence,
+            "👷 Testing one mutant at a time, though 4 workers were asked for: a Mac app's test runs share its "
+                + "UserDefaults, saved state and container, so workers would see each other's."
+        )
     }
 
     // An xcodebuild project's workers all run in the mutated project, each from an `.xctestrun` of its own, which it

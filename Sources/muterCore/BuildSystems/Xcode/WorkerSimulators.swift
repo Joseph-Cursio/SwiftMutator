@@ -181,7 +181,7 @@ final class WorkerSimulators: WorkerSimulating, @unchecked Sendable { // `made` 
             for (index, simulator) in simulators.enumerated() {
                 group.addTask { [self] in
                     let arguments = ["bootstatus", simulator.udid, "-b"]
-                    let result = await simctl(arguments, timeLimit: Self.bootTimeLimit)
+                    let result = await simctl(arguments, timeLimit: Self.bootTimeLimit, killedIfCancelled: true)
                     return (index, result?.succeeded == true ? nil : Self.failure(of: arguments, result))
                 }
             }
@@ -251,8 +251,27 @@ private extension WorkerSimulators {
         }
     }
 
-    func simctl(_ arguments: [String], timeLimit: TimeInterval) async -> CommandResult? {
-        await process().runCommand(url: Self.xcrun, arguments: ["simctl"] + arguments, timeLimit: timeLimit)
+    /// Runs `xcrun simctl <arguments>`, or nil if it couldn't be started. If `killedIfCancelled`, cancelling the
+    /// calling task kills it, as waiting for a command ignores cancellation, and a task cancelled already starts
+    /// none: a boot that a failed baseline cancels would otherwise hold up the run's end for as long as the boot takes.
+    /// Never a delete, which a stop's own kill reaches, and which a cancelled boot's cleanup still needs.
+    func simctl(
+        _ arguments: [String],
+        timeLimit: TimeInterval,
+        killedIfCancelled: Bool = false
+    ) async -> CommandResult? {
+        let simctl = process()
+        guard killedIfCancelled else {
+            return await simctl.runCommand(url: Self.xcrun, arguments: ["simctl"] + arguments, timeLimit: timeLimit)
+        }
+        guard !Task.isCancelled else {
+            return nil
+        }
+        return await withTaskCancellationHandler {
+            await simctl.runCommand(url: Self.xcrun, arguments: ["simctl"] + arguments, timeLimit: timeLimit)
+        } onCancel: {
+            simctl.terminateTreeInBackground()
+        }
     }
 
     /// Why `xcrun simctl <arguments>` didn't do its job, as `result` shows: the last line of what it wrote.

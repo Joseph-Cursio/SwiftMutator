@@ -22,11 +22,12 @@ struct MuterConfiguration: Equatable, Codable {
     /// (`buildTimeout:`); nil, the default, sets no limit. For now it limits only the coverage run, but it is meant
     /// for every step that builds, such as the baseline.
     let buildTimeout: Double?
-    /// How many mutants to test at once (`mutationTestWorkers:`). Each worker runs the test command in
-    /// its own clone of the mutated project, because `swift test` locks the package's build directory.
-    /// Each clone is built once before testing, so the paths compiled into its tests point into it.
-    /// Only SwiftPM projects run in parallel; nil or 1 tests one mutant at a time. A `var` only so `overriding` can
-    /// copy `self` and change just this field.
+    /// How many mutants to test at once (`mutationTestWorkers:`). A SwiftPM worker runs the test command in its own
+    /// clone of the mutated project, because `swift test` locks the package's build directory. Each clone is built
+    /// once before testing, so the paths compiled into its tests point into it. An xcodebuild worker tests on a
+    /// simulator of its own, from the mutated project's one build (see `XcodeWorker`). Other projects, and xcodebuild
+    /// projects that test elsewhere, test one at a time (`parallelWorkersUnsupportedReason`); so do nil and 1. A `var`
+    /// only so `overriding` can copy `self` and change just this field.
     private(set) var mutationTestWorkers: Int?
     /// Optional explicit build system from the `buildSystem:` config key. When set it overrides the
     /// executable-basename heuristic — needed when `executable` is a wrapper script (e.g. one that
@@ -126,11 +127,48 @@ struct MuterConfiguration: Equatable, Codable {
             ?? (try container.decodeIfPresent(Int.self, forKey: key)).flatMap(Double.init)
     }
 
-    /// The number of mutants to test at once: `mutationTestWorkers` for a SwiftPM project, at least 1;
-    /// always 1 for other build systems, whose test runs share an `.xctestrun` file and DerivedData.
+    /// The number of mutants to test at once: `mutationTestWorkers`, at least 1, for a SwiftPM project and for an
+    /// xcodebuild project whose first `-destination` is a simulator; always 1 for the others, for the reason
+    /// `parallelWorkersUnsupportedReason` gives. An xcodebuild run that can't give each worker a simulator still tests
+    /// one mutant at a time (see `SimulatorWorkerSetup`).
     var workerCount: Int {
-        guard buildSystem == .swift else { return 1 }
+        guard parallelWorkersUnsupportedReason == nil else { return 1 }
         return max(1, mutationTestWorkers ?? 1)
+    }
+
+    /// Why this test command can't test more than one mutant at once, completing a sentence such as "Testing one
+    /// mutant at a time: …", or nil when it can. xcodebuild can only on a simulator, as each worker gets one of its
+    /// own; a destination that names one by its `id=` alone is looked up when the run starts.
+    var parallelWorkersUnsupportedReason: String? {
+        switch buildSystem {
+        case .swift:
+            return nil
+        case .unknown:
+            return "only SwiftPM projects, and xcodebuild projects that test on a simulator, test more than one at once"
+        case .xcodebuild:
+            guard let destination = firstDestination else {
+                return "an xcodebuild project tests more than one at once only on a simulator, and the test command "
+                    + "gives no `-destination`"
+            }
+            if SimulatorDestination(destination: destination) != nil {
+                return nil
+            }
+            if Self.namesAMac(destination) {
+                return "a Mac app's test runs share its UserDefaults, saved state and container, so workers would "
+                    + "see each other's"
+            }
+            return "an xcodebuild project tests more than one at once only on a simulator, which "
+                + "`-destination \(destination)` doesn't name"
+        }
+    }
+
+    /// Whether `destination`, a `-destination` value, names a Mac: `platform=macOS`, with or without an `arch=` or
+    /// Mac Catalyst's `variant=`.
+    private static func namesAMac(_ destination: String) -> Bool {
+        destination.split(separator: ",").contains { pair in
+            let keyAndValue = pair.split(separator: "=", maxSplits: 1).map { String($0).trimmed.lowercased() }
+            return keyAndValue.count == 2 && keyAndValue[0] == "platform" && keyAndValue[1].hasPrefix("mac")
+        }
     }
 
     /// Why a mutant's test run can't be stopped at its first failed test with this test command, or nil.
@@ -296,9 +334,7 @@ extension MuterConfiguration {
         let arguments = testCommandArguments
         switch buildSystem {
         case .xcodebuild:
-            let destination = xcodeWorker?.destination
-                ?? indexOfArgument("-destination").map { testCommandArguments[$0 + 1] }
-            guard let destination else {
+            guard let destination = xcodeWorker?.destination ?? firstDestination else {
                 return arguments
             }
             return [
@@ -313,6 +349,13 @@ extension MuterConfiguration {
             return arguments + ["--skip-build"] + (setsVerbosity ? [] : ["--quiet"])
         case .unknown:
             return arguments
+        }
+    }
+
+    /// The value of the test command's first `-destination`, or nil if it gives none.
+    var firstDestination: String? {
+        indexOfArgument("-destination").flatMap { index in
+            index + 1 < testCommandArguments.count ? testCommandArguments[index + 1] : nil
         }
     }
 

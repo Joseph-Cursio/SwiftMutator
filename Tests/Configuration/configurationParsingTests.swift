@@ -82,7 +82,7 @@ final class ConfigurationParsingTests: MuterTestCase {
         XCTAssertEqual(try MuterConfiguration(from: whole.asData), whole)
     }
 
-    func test_workerCount_isOneWithoutTheKeyOrOutsideSwiftPM() throws {
+    func test_workerCount_isOneWithoutTheKey_orWithoutASimulatorForXcodebuild() throws {
         let swift = try MuterConfiguration(from: Data("executable: /usr/bin/swift\narguments: [test]".utf8))
         let xcode = try MuterConfiguration(
             from: Data("executable: /usr/bin/xcodebuild\narguments: [test]\nmutationTestWorkers: 4".utf8)
@@ -92,6 +92,72 @@ final class ConfigurationParsingTests: MuterTestCase {
         XCTAssertEqual(swift.workerCount, 1)
         XCTAssertEqual(xcode.workerCount, 1)
         XCTAssertEqual(zero.workerCount, 1)
+    }
+
+    // Each worker gets a simulator of its own, like the one the first `-destination` names; one named by its id alone
+    // is looked up when the run starts.
+    func test_workerCount_forXcodebuild_isTheKeysOnASimulator() {
+        for destination in [
+            "platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5",
+            "platform=tvOS Simulator,name=Apple TV",
+            "id=693E96A4-0E5B-4F3A-9E4C-2A39F5C8D1B7",
+        ] {
+            let configuration = xcodebuild(testingOn: destination, workers: 4)
+
+            XCTAssertEqual(configuration.workerCount, 4, destination)
+            XCTAssertNil(configuration.parallelWorkersUnsupportedReason, destination)
+        }
+    }
+
+    func test_workerCount_forXcodebuild_isOneOffASimulator() {
+        let mac = "a Mac app's test runs share its UserDefaults, saved state and container, so workers would see each "
+            + "other's"
+        let reasons = [
+            "platform=macOS": mac,
+            "platform=macOS,arch=x86_64": mac,
+            "platform=macOS,variant=Mac Catalyst": mac,
+            "platform=iOS,id=00008110-000A1C2E3F45801E": "an xcodebuild project tests more than one at once only on "
+                + "a simulator, which `-destination platform=iOS,id=00008110-000A1C2E3F45801E` doesn't name",
+            "generic/platform=iOS Simulator": "an xcodebuild project tests more than one at once only on a simulator, "
+                + "which `-destination generic/platform=iOS Simulator` doesn't name",
+        ]
+
+        for (destination, reason) in reasons {
+            let configuration = xcodebuild(testingOn: destination, workers: 4)
+
+            XCTAssertEqual(configuration.workerCount, 1, destination)
+            XCTAssertEqual(configuration.parallelWorkersUnsupportedReason, reason, destination)
+        }
+        XCTAssertEqual(
+            MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"]).parallelWorkersUnsupportedReason,
+            "an xcodebuild project tests more than one at once only on a simulator, and the test command gives no "
+                + "`-destination`"
+        )
+    }
+
+    func test_workerCount_forAnotherBuildSystem_isOne() {
+        let other = MuterConfiguration(executable: "/usr/bin/make", arguments: ["test"], mutationTestWorkers: 4)
+
+        XCTAssertEqual(other.workerCount, 1)
+        XCTAssertEqual(
+            other.parallelWorkersUnsupportedReason,
+            "only SwiftPM projects, and xcodebuild projects that test on a simulator, test more than one at once"
+        )
+        let swift = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+        XCTAssertNil(swift.parallelWorkersUnsupportedReason)
+    }
+
+    // A `-destination` with no value after it is no destination, rather than a crash.
+    func test_firstDestination_isTheFirstsValue() {
+        XCTAssertEqual(
+            MuterConfiguration(
+                executable: "/usr/bin/xcodebuild",
+                arguments: ["-destination", "platform=macOS", "-destination", "id=X", "test"]
+            ).firstDestination,
+            "platform=macOS"
+        )
+        XCTAssertNil(MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test", "-destination"])
+            .firstDestination)
     }
 
     func test_withDefaultTestSuiteTimeout_fillsInOnlyAMissingTimeout() {
@@ -342,6 +408,15 @@ final class ConfigurationParsingTests: MuterTestCase {
         XCTAssertEqual(
             configurationWithEveryFieldSet(failedTestLinesAreReliable: true).withUnreliableFailedTestLines(),
             configurationWithEveryFieldSet(failedTestLinesAreReliable: false)
+        )
+    }
+
+    /// An xcodebuild test command on `destination`, with `workers` workers.
+    private func xcodebuild(testingOn destination: String, workers: Int) -> MuterConfiguration {
+        MuterConfiguration(
+            executable: "/usr/bin/xcodebuild",
+            arguments: ["-scheme", "App", "-destination", destination, "test"],
+            mutationTestWorkers: workers
         )
     }
 }

@@ -63,7 +63,8 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
 - **Parallel workers:** `mutationTestWorkers: N` tests N mutants at once on SwiftPM projects,
   each in its own APFS clone of the mutated project. Each clone is built once before testing, which
   costs one extra build per worker but keeps tests that write files next to their sources from
-  sharing them across workers.
+  sharing them across workers. An xcodebuild project that tests on a simulator gets one simulator
+  per worker instead, from one build (see [xcodebuild workers](#xcodebuild-workers)).
 - **One environment for every `swift test` run:** a mutant is switched on by its ID in a file
   beside the worker's folder, such as `MyPackage_mutated.active-mutant`, not by a variable of its
   own, so your tests don't find it among the package's files or in its `git status`. For a package
@@ -127,7 +128,8 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   on. These prove a switch is there, not that a run switched it on.
 - **xcodebuild mutant runs leave no derived data behind:** each mutant's `xcodebuild
   test-without-building` keeps its derived data in `<project>_mutated.DerivedData`, beside the copy,
-  emptied before each run and removed when the run ends. Muter's runs each add a folder of 3–67 MB
+  emptied before each run and removed when the run ends, and each other worker's in
+  `<project>_mutated_worker<n>.DerivedData`. Muter's runs each add a folder of 3–67 MB
   to `~/Library/Developer/Xcode/DerivedData`, which nothing removes. The runs
   also pass `-collect-test-diagnostics never`, so a failing run doesn't spend seconds collecting
   diagnostics no one reads, but only when `executable` lists that option in its `-help`, which
@@ -304,7 +306,7 @@ was for SwiftPM: `0.5` means 0.5%, so write `50` for half. The options are docum
 
 | Key | Meaning |
 |---|---|
-| `mutationTestWorkers` | How many mutants to test at once (SwiftPM projects only; default 1) |
+| `mutationTestWorkers` | How many mutants to test at once (SwiftPM projects, and xcodebuild projects that test on a simulator, which get one simulator per worker; default 1) |
 | `mutationTestTimeout` | Seconds before a mutant's test run is stopped (default: based on a timed test run; see above) |
 | `stopAtFirstFailure` | Stop a mutant's test run at its first failed test, or at a test process's crash, either of which already decides that it is killed (SwiftPM projects only; never the baseline; default true) |
 | `buildTimeout` | Seconds before the coverage run, which builds your project and runs its tests with coverage on, is stopped. Mutation testing then goes on without coverage, as after any coverage failure. For now it limits only the coverage run, not the baseline or other builds (default: no limit) |
@@ -320,7 +322,7 @@ once says so, and one that uses fewer workers than asked says why:
 
 ```
 👷 Testing 3 mutants at a time, though 4 workers were asked for: only 3 are left to test.
-👷 Testing one mutant at a time, though 4 workers were asked for: only SwiftPM projects test more than one at once.
+👷 Testing one mutant at a time, though 4 workers were asked for: a Mac app's test runs share its UserDefaults, saved state and container, so workers would see each other's.
 ```
 
 ### Timeouts are run again
@@ -349,8 +351,8 @@ the fourth is killed there, after more than 24 s.
 
 The rerun's result is the one the report gives. The results file keeps both: the rerun's line, with
 `rerun`, follows the first run's, and each names a log of its own, the rerun's with ` (rerun)` before
-`.log` (see [Docs/results-file.md](Docs/results-file.md)). A run on one worker, as every
-xcodebuild run is, has no lower load to offer, and runs nothing again.
+`.log` (see [Docs/results-file.md](Docs/results-file.md)). A run on one worker, as an xcodebuild
+run that doesn't test on a simulator always is, has no lower load to offer, and runs nothing again.
 
 A timeout that holds up at lower load may still be a mutant that only takes longer than the limit,
 such as one whose tests fail after a slow retry. To give the timeouts more time without testing
@@ -395,6 +397,52 @@ Measured on SwiftProjectLint's whole repo, 2,463 mutants, on an 18-core Mac, wit
   - Release mode can also lose kills without any warning: an `assert` or `assertionFailure` isn't
     evaluated, and code and tests under `#if DEBUG` drop out. `precondition` is still checked. If
     your code relies on them, compare a release run's survivors with a debug run's.
+
+#### xcodebuild workers
+
+An xcodebuild project whose first `-destination` is a simulator, such as
+`platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5`, or one named by its `id=` alone, tests N
+mutants at once with `mutationTestWorkers: N` or `--workers N`
+([#103](https://github.com/Joseph-Cursio/SwiftMutator/issues/103)). Workers stay off by default.
+
+- **One simulator per worker, worker 0 included,** like the one the destination names, which no
+  mutant runs on. Before the baseline, SwiftMutator makes them, named
+  `swiftmutator-<project hash>-<pid>-<start>-w<n>`, and boots them while the baseline builds and
+  runs. Your own simulator is never shut down: if it is shut down, each is a clone of it, with its
+  settings and data; if it is booted, a booted simulator can't be cloned, so each is a new one of
+  its kind and runtime, without your simulator's data, such as its locale, keychain, permissions
+  and installed apps. Every one is deleted when the run ends (see [Stopping a run](#stopping-a-run)).
+- **One build.** Every worker tests in the mutated project, from the build the baseline made, so
+  no copy is made or built. Each has its own `.xctestrun`, `muter.xctestrun` for worker 0 and
+  `muter-worker<n>.xctestrun` for the others, which its mutant is switched on in, and its own
+  derived data. Paths compiled into the tests, such as `#filePath`, point into the mutated project,
+  so tests that write next to their sources share those files across workers; on iOS, a test's
+  writes to its app's container are its simulator's own.
+- **Tests run one at a time within a worker**, with `-parallel-testing-enabled NO`. Otherwise
+  xcodebuild shuts each worker's simulator down and clones it again on every run. That can make a
+  large suite slower per run, and tests that depend on their order can give other verdicts than
+  on one worker.
+- **A run with no mutant on, on each simulator,** follows the baseline, all at once and with no
+  time limit, so no mutant's limit pays for a simulator's first install and launch, which took 30
+  to 93 s. Its log is kept as `no-mutant run worker <n>.log`. It shows that the tests pass one at a
+  time on a simulator SwiftMutator made.
+- **A fallback to one worker.** If the destination names no one simulator, or a simulator can't be
+  made or booted, or a run with no mutant on fails, the simulators are deleted and the run tests
+  one mutant at a time on your destination, as without workers, and says why:
+
+  ```
+  👷 Testing one mutant at a time, though 4 workers were asked for: worker 2's run with no mutant on, on its simulator, didn't pass (its log is no-mutant run worker 2.log).
+  ```
+
+  A Mac, Mac Catalyst, physical-device or `generic/…` destination always tests one at a time: a
+  Mac app's test runs share its `UserDefaults`, saved state and container, and SwiftMutator makes
+  only simulators.
+- **A run the simulator failed to launch runs again**, once, on the same worker, as on one worker:
+  its log shows no failed test, only such a line as `Application failed preflight checks`. The
+  second run is the one recorded, and the first run's log is kept with ` (launch failed)` before
+  `.log`. A run whose simulator is gone stops mutation testing, keeping the results so far: resume
+  it, and new simulators are made.
+- **Memory.** Each booted simulator holds memory. 2 to 4 workers suit most Macs.
 
 ## Mutating only what a branch changed
 
@@ -720,7 +768,8 @@ which a closed terminal sends, stop it the same way. SwiftMutator then:
    `--resume`.
 5. Removes its worker clones, `<project>_mutated_worker<n>`, the active-mutant files beside the
    mutated project and the clones, and an xcodebuild run's derived data,
-   `<project>_mutated.DerivedData`. The mutated project, `<project>_mutated`, is kept, as after a
+   `<project>_mutated.DerivedData` and `<project>_mutated_worker<n>.DerivedData`, with its workers'
+   `muter-worker<n>.xctestrun` files. The mutated project, `<project>_mutated`, is kept, as after a
    finished run. Last, it deletes the simulators an xcodebuild run made for its workers, named
    `swiftmutator-<project hash>-<pid>-<start>-w<n>`, which takes a few seconds when they are
    booted. A finished run deletes them the same way.

@@ -203,6 +203,38 @@ final class WorkerSimulatorsTests: MuterTestCase {
         XCTAssertEqual(error, "`xcrun simctl bootstatus SIM-1 -b` didn't finish within 300 seconds")
     }
 
+    // A failed baseline cancels the boot, which would otherwise hold up the run's end until the simulators booted.
+    func test_aBootThatIsCancelled_killsSimctl() async {
+        let made = [WorkerSimulator(udid: "SIM-0", name: "w0", destination: "id=SIM-0")]
+        simctl.holdingBootsUntilKilled()
+        let simulators = makeSimulators()
+
+        let boot = Task { try await simulators.boot(made) }
+        let deadline = Date().addingTimeInterval(5)
+        while simctl.commands.isEmpty, Date() < deadline {
+            try? await Task.sleep(nanoseconds: 1_000_000)
+        }
+        boot.cancel()
+        let result = await boot.result
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(simctl.treesKilled, 1)
+    }
+
+    func test_aBootInACancelledTask_startsNoSimctl() async {
+        let made = [WorkerSimulator(udid: "SIM-0", name: "w0", destination: "id=SIM-0")]
+        let simulators = makeSimulators()
+
+        let boot = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            try await simulators.boot(made)
+        }
+        let result = await boot.result
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(simctl.commands, [])
+    }
+
     // MARK: - Removing them
 
     func test_removeAll_deletesEachSimulatorMadeOnce_andKeepsGoingPastAFailure() async throws {
@@ -337,6 +369,8 @@ private final class SimctlStandIn: MuterProcess, @unchecked Sendable { // every 
     private var answer: @Sendable ([String]) -> Answer? = { _ in nil }
     private var started: [(arguments: [String], timeLimit: TimeInterval?)] = []
     private var bootsToHoldFor = 0
+    private var bootsHeldUntilKilled = false
+    private var killed = 0
     private var bootsUnderWay = 0
     private var mostBoots = 0
 
@@ -349,6 +383,8 @@ private final class SimctlStandIn: MuterProcess, @unchecked Sendable { // every 
     var timeLimits: [TimeInterval?] { lock.withLock { started.map(\.timeLimit) } }
     /// The most `bootstatus` commands that ran at once.
     var mostBootsAtOnce: Int { lock.withLock { mostBoots } }
+    /// How many times a command was killed, with every process it started.
+    var treesKilled: Int { lock.withLock { killed } }
 
     /// Gives `answer`'s answer to a command, where it gives one.
     func answering(_ answer: @escaping @Sendable ([String]) -> Answer?) {
@@ -361,6 +397,11 @@ private final class SimctlStandIn: MuterProcess, @unchecked Sendable { // every 
         lock.withLock { bootsToHoldFor = count }
     }
 
+    /// Has each `bootstatus` wait until a command is killed, for at most 5 seconds, and then end by SIGKILL.
+    func holdingBootsUntilKilled() {
+        lock.withLock { bootsHeldUntilKilled = true }
+    }
+
     func runCommand(url: String, arguments args: [String], timeLimit: TimeInterval?) async -> CommandResult? {
         guard url == "/usr/bin/xcrun", args.first == "simctl" else {
             return nil
@@ -371,6 +412,13 @@ private final class SimctlStandIn: MuterProcess, @unchecked Sendable { // every 
             return answer
         }
         let answer = answering(arguments)
+        if arguments.first == "bootstatus", lock.withLock({ bootsHeldUntilKilled }) {
+            let deadline = Date().addingTimeInterval(5)
+            while lock.withLock({ killed }) == 0, Date() < deadline {
+                try? await Task.sleep(nanoseconds: 1_000_000)
+            }
+            return CommandResult(status: SIGKILL, endedBySignal: true, output: "", errors: "")
+        }
         if arguments.first == "bootstatus" {
             await holdBoot()
         }
@@ -426,4 +474,8 @@ private final class SimctlStandIn: MuterProcess, @unchecked Sendable { // every 
     func terminate() {}
 
     func interrupt() {}
+
+    func terminateTree() {
+        lock.withLock { killed += 1 }
+    }
 }

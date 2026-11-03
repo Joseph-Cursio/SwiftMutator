@@ -23,6 +23,8 @@ struct PerformMutationTesting: MutationStep {
     @Dependency(\.workerSimulators)
     private var workerSimulators: WorkerSimulating
 
+    private let simulatorWorkerSetup = SimulatorWorkerSetup()
+
     private let buildErrorsThreshold: Int = 5
 
     /// The folder in the run's log folder that each test run writes its output to while it runs. Never the mutated
@@ -86,7 +88,8 @@ struct PerformMutationTesting: MutationStep {
         // second signal in that time exits at once. A clone left behind is removed when SwiftMutator next runs.
         // The mutated project is kept, for a look after the run, but not the active-mutant file beside it, nor the
         // helper link and the tests' `UserDefaults` of direct runs, nor the derived data of xcodebuild's mutant runs,
-        // which holds one run's at most. They go first: they take no time.
+        // which holds one run's at most, nor the `.xctestrun` files of xcodebuild workers beyond the first. They go
+        // first: they take no time. Their simulators go once the work has ended (`SimulatorWorkerSetup`).
         defer {
             if state.muterConfiguration.buildSystem == .swift {
                 let activeMutantFile = MutationTestingDelegate.activeMutantFile(
@@ -101,6 +104,10 @@ struct PerformMutationTesting: MutationStep {
                     in: state.mutatedProjectDirectoryURL
                 )
                 try? fileManager.removeItem(atPath: derivedData)
+            }
+            for worker in session.xcodeWorkers.dropFirst() {
+                try? fileManager.removeItem(atPath: state.mutatedProjectDirectoryURL.path + "/" + worker.testRunFile)
+                try? fileManager.removeItem(atPath: worker.derivedData)
             }
             removeTestOutputFolderIfEmpty(state)
             if !session.clones.isEmpty {
@@ -227,6 +234,13 @@ private extension PerformMutationTesting {
             events.send(.stopAtFirstFailureTurnedOff(reason: reason))
         }
 
+        // An xcodebuild run's workers' simulators boot while the baseline runs, which, with its build, takes longer.
+        // If the baseline fails, or is stopped, their boot is cancelled, and awaited, as this scope ends.
+        let simulators = try await simulatorWorkerSetup.make(for: plan.toRun.count, state: state)
+        // The boot is given the dependency it uses, not the step.
+        let booting = workerSimulators
+        async let booted = SimulatorWorkerSetup.boot(simulators, on: booting)
+
         let initialTime = Date()
         let (testSuiteOutcome, testLog) = await ioDelegate.benchmarkTests(
             using: state.muterConfiguration,
@@ -280,12 +294,11 @@ private extension PerformMutationTesting {
             muterConfiguration = muterConfiguration.withUnreliableFailedTestLines()
         }
 
-        // A clone costs a copy and about a baseline build, so there are never more workers than mutants to test.
-        let workers = min(muterConfiguration.workerCount, plan.toRun.count)
-        if !plan.toRun.isEmpty {
-            let choice = WorkerChoice(muterConfiguration, used: workers, mutantsToTest: plan.toRun.count)
-            events.send(.workersChosen(choice))
-        }
+        let pool = try await workers(
+            testing: plan, on: await booted, with: muterConfiguration, state: state, session: session
+        )
+        muterConfiguration = pool.configuration
+        let workers = pool.count
         var testRunSeconds: TimeInterval?
         // A reuse with nothing left to test ran the baseline only to see that the changed tests pass. One mutant's run
         // saves no more than either costs, so its time limit is the configured one, or the baseline's default.
@@ -355,6 +368,37 @@ private extension PerformMutationTesting {
         } else {
             try await testMutations(jobs, plan.toRun, using: state, configuration: configuration, session: session)
         }
+    }
+
+    /// The workers that test `plan`'s mutants, with `configuration`, the effective one, said, with why fewer than asked
+    /// for, once they are known. A clone costs a copy and about a baseline build, and a simulator a boot, so there are
+    /// never more workers than mutants to test. An xcodebuild run's `simulators` are checked first, which can fall back
+    /// to one worker, and can make failed-test lines unreliable (`SimulatorWorkerSetup`).
+    func workers(
+        testing plan: ResumePlan,
+        on simulators: SimulatorWorkerSetup.Simulators,
+        with configuration: MuterConfiguration,
+        state: AnyMutationTestState,
+        session: TestingSession
+    ) async throws -> SimulatorWorkerSetup.Workers {
+        let workers = try await simulatorWorkerSetup.workers(
+            min(configuration.workerCount, plan.toRun.count),
+            on: simulators,
+            configuration: configuration,
+            state: state,
+            session: session,
+            testOutput: { testOutput(named: $0, state: state) }
+        )
+        if !plan.toRun.isEmpty {
+            let choice = WorkerChoice(
+                configuration,
+                used: workers.count,
+                mutantsToTest: plan.toRun.count,
+                unsupportedReason: workers.unavailable
+            )
+            events.send(.workersChosen(choice))
+        }
+        return workers
     }
 
     /// The session's header, for testing `plan.toRun` of the jobs `session.keys` are of, with `configuration`, the
@@ -523,8 +567,8 @@ private extension PerformMutationTesting {
         }
     }
 
-    /// `configuration`, for an xcodebuild project, with its mutants' runs on the first xcodebuild worker, the only one
-    /// there is: they test from `muter.xctestrun`, on the test command's destination, and keep their derived data
+    /// `configuration`, for an xcodebuild project, with its mutants' runs on the first xcodebuild worker, as one worker
+    /// alone has it: they test from `muter.xctestrun`, on the test command's destination, and keep their derived data
     /// beside the mutated project rather than in `~/Library/Developer/Xcode/DerivedData`, where every run made a new
     /// folder. They turn test diagnostics off if the test command takes the option.
     static func onFirstXcodeWorker(
@@ -584,12 +628,13 @@ private extension PerformMutationTesting {
     }
 
     /// Tests the jobs at `indices`, started in their order, on `workers` test processes at once, never more than
-    /// `indices`, each in its own clone of the mutated project:
-    /// `swift test` locks the package's build directory, so two runs can't share one. Every mutant is
-    /// switched on per run: under `swift test` by the worker's active-mutant file, written just before the run
-    /// (see `MutationTestingDelegate.testProcess`), so the clones' code never needs rewriting. Outcomes are
-    /// recorded, and their events sent, as they finish. The timeouts are then tested again, on fewer workers
-    /// (`rerunTimeouts`). The clones are kept in `session`, and
+    /// `indices`. A SwiftPM worker runs in its own clone of the mutated project: `swift test` locks the package's build
+    /// directory, so two runs can't share one. An xcodebuild worker runs in the mutated project, on its own simulator,
+    /// from its own `.xctestrun`, as `session.xcodeWorkers` has it; it needs no clone, as nothing is built again. Every
+    /// mutant is switched on per run: under `swift test` by the worker's active-mutant file, written just before the
+    /// run (see `MutationTestingDelegate.testProcess`), so the clones' code never needs rewriting, and under xcodebuild
+    /// in the worker's `.xctestrun` (`runPool`). Outcomes are recorded, and their events sent, as they finish. The
+    /// timeouts are then tested again, on fewer workers (`rerunTimeouts`). The clones are kept in `session`, and
     /// `run(with:)` removes them once the end line is written. Once mutation testing is cancelled, no clone
     /// is made, no mutant starts, and none that returns is recorded.
     func testMutationsInParallel(
@@ -602,18 +647,13 @@ private extension PerformMutationTesting {
     ) async throws {
         // A clone costs a copy and about one baseline build, which a stopped run would only throw away.
         try Task.checkCancellation()
-        let clones: [URL]
-        do {
-            clones = try await makeWorkerDirectories(state.mutatedProjectDirectoryURL, workers - 1)
-        } catch {
-            // Stopping the run kills a `cp` under way, which then fails.
-            try Task.checkCancellation()
-            throw error
-        }
-        session.clones = clones
-        try await buildWorkerDirectories(clones, using: state)
-        let workers = ([state.mutatedProjectDirectoryURL] + clones).map {
-            PoolWorker(directory: $0, configuration: configuration)
+        let pool: [PoolWorker]
+        if configuration.buildSystem == .xcodebuild {
+            pool = session.xcodeWorkers.prefix(workers).map {
+                PoolWorker(directory: state.mutatedProjectDirectoryURL, configuration: configuration.forXcodeWorker($0))
+            }
+        } else {
+            pool = try await cloneWorkers(workers, using: state, configuration: configuration, session: session)
         }
 
         var buildErrors = 0
@@ -623,7 +663,7 @@ private extension PerformMutationTesting {
         try await runPool(
             indices,
             of: jobs,
-            on: workers,
+            on: pool,
             switchingOnFrom: state.projectXCTestRun,
             outputNamed: { testOutput(named: logFileName(forJobAt: $0, $1), state: state) },
             recording: { finished in
@@ -642,7 +682,7 @@ private extension PerformMutationTesting {
             }
         )
         try await rerunTimeouts(
-            timeouts.sorted(), of: jobs, on: workers, using: state, configuration: configuration, session: session
+            timeouts.sorted(), of: jobs, on: pool, using: state, configuration: configuration, session: session
         )
     }
 
@@ -686,6 +726,28 @@ private extension PerformMutationTesting {
             }
         )
         events.send(.timeoutRerunsFinished(tally))
+    }
+
+    /// `count` SwiftPM workers: the mutated project, and a clone of it for each other, built, and kept in `session`.
+    func cloneWorkers(
+        _ count: Int,
+        using state: AnyMutationTestState,
+        configuration: MuterConfiguration,
+        session: TestingSession
+    ) async throws -> [PoolWorker] {
+        let clones: [URL]
+        do {
+            clones = try await makeWorkerDirectories(state.mutatedProjectDirectoryURL, count - 1)
+        } catch {
+            // Stopping the run kills a `cp` under way, which then fails.
+            try Task.checkCancellation()
+            throw error
+        }
+        session.clones = clones
+        try await buildWorkerDirectories(clones, using: state)
+        return ([state.mutatedProjectDirectoryURL] + clones).map {
+            PoolWorker(directory: $0, configuration: configuration)
+        }
     }
 
     /// Builds each worker clone once, by running the baseline test command in it. A clone is copied
@@ -1318,103 +1380,6 @@ extension PerformMutationTesting {
             throw MuterError.mutationTestingAborted(
                 reason: .mutantNotSwitchedOn(id: job.schema.id, description: error.localizedDescription)
             )
-        }
-    }
-}
-
-extension PerformMutationTesting {
-    struct WorkerDirectoryError: Error, CustomStringConvertible {
-        let clone: URL
-        /// cp's exit status, or nil if it couldn't be started.
-        let status: Int32?
-        /// The first line cp wrote to standard error, such as why a file couldn't be copied.
-        var error: String?
-
-        var description: String {
-            let copy = status.map { "cp exited \($0)" } ?? "cp could not be started"
-            let why = error.map { ": \($0)" } ?? ""
-            return "SwiftMutator could not clone the mutated project to \(clone.path) "
-                + "for a parallel worker (\(copy))\(why)."
-        }
-    }
-
-    /// One clone of `project` per extra worker, next to it as `<name>_worker<n>`. On macOS `cp -c`
-    /// clones on APFS, so even a large build directory copies in seconds. Each clone is then built once
-    /// before testing (`buildWorkerDirectories`). Every path in it has changed, so that is a full build:
-    /// about one baseline build of time, and much of the clone's build directory is rewritten rather
-    /// than shared. Its copied Clang module caches record the mutated project's path, so they're
-    /// discarded first, as `CopyProjectToTempDirectory` does for the mutated project itself.
-    static func cloneMutatedProject(_ project: URL, count: Int) async throws -> [URL] {
-        try await cloneMutatedProject(project, count: count, copying: copyProject(_:to:))
-    }
-
-    /// `copy` copies the project to one clone. If one fails, the clones made before it are removed, and so is whatever
-    /// the failed copy left, rather than staying beside the project until SwiftMutator next starts.
-    static func cloneMutatedProject(
-        _ project: URL,
-        count: Int,
-        copying copy: (_ project: URL, _ clone: URL) async throws -> Void
-    ) async throws -> [URL] {
-        guard count > 0 else { return [] }
-        var clones: [URL] = []
-        do {
-            for index in 1...count {
-                let clone = project.deletingLastPathComponent()
-                    .appendingPathComponent("\(project.lastPathComponent)_worker\(index)")
-                try? FileManager.default.removeItem(at: clone)
-                clones.append(clone) // before the copy, which can fail partway through
-                try await copy(project, clone)
-                discardModuleCaches(in: clone)
-            }
-            return clones
-        } catch {
-            removeClones(clones)
-            throw error
-        }
-    }
-
-    private static func copyProject(_ project: URL, to clone: URL) async throws {
-        #if os(macOS)
-        let copy = await Foundation.Process().runCommand(
-            url: "/bin/cp",
-            arguments: ["-c", "-R", project.path, clone.path]
-        )
-        guard let copy, copy.status == 0 else {
-            let error = copy?.errors.split(separator: "\n").first.map(String.init)
-            throw WorkerDirectoryError(clone: clone, status: copy?.status, error: error)
-        }
-        #else
-        try FileManager.default.copyItem(at: project, to: clone)
-        #endif
-    }
-
-    static func discardModuleCaches(in directory: URL) {
-        guard let enumerator = FileManager.default.enumerator(
-            at: directory,
-            includingPropertiesForKeys: [.isDirectoryKey]
-        )
-        else { return }
-
-        for case let url as URL in enumerator
-            where CopyProjectToTempDirectory.moduleCacheDirectoryNames.contains(url.lastPathComponent) {
-            // On Darwin, skipping the descendants of anything but a directory skips the next directory.
-            if (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true {
-                enumerator.skipDescendants()
-            }
-            try? FileManager.default.removeItem(at: url)
-        }
-    }
-
-    /// Removes each clone, the active-mutant file and helper link beside it, and its tests' `UserDefaults`, on a
-    /// thread of its own: one large clone takes a
-    /// fraction of a second or more to remove, and a run that is stopping does this last, when a second signal exits
-    /// at once and leaves the rest behind.
-    static func removeClones(_ directories: [URL]) {
-        DispatchQueue.concurrentPerform(iterations: directories.count) { index in
-            let clone = directories[index]
-            try? FileManager.default.removeItem(at: MutationTestingDelegate.activeMutantFile(forWorkerIn: clone))
-            DirectTestRun.removeOwnDefaults(forWorkerIn: clone)
-            try? FileManager.default.removeItem(at: clone)
         }
     }
 }

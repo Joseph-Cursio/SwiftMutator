@@ -43,7 +43,8 @@ extension TestRun.Ending {
 struct FinishedRun {
     /// The mutant's position in this session's jobs.
     let index: Int
-    /// Where it ran: 0 is the mutated project, n is its clone `<mutated>_worker<n>`.
+    /// Where it ran: for SwiftPM, 0 is the mutated project and n its clone `<mutated>_worker<n>`; for xcodebuild, n is
+    /// the worker whose simulator, `.xctestrun` and derived data it used (`MuterConfiguration.XcodeWorker`).
     let worker: Int
     let run: TestRun
     /// From launch to classification, on the monotonic clock.

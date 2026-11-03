@@ -181,7 +181,7 @@ A report of a sample's results gives the score's margin unless they are cut shor
 | `endedBy` | String | How the test run ended: `exited` by itself; `timedOut`, stopped at the time limit; `stoppedAtFailedTest`, stopped at its first failed test (`stopAtFirstFailure`); `stoppedAtCrash`, stopped at a test process's crash before any failed test, also by `stopAtFirstFailure`, with `outcome` `runtimeError`; or `couldNotRun`, when its log couldn't be opened or its command couldn't start, and `outcome` is `buildError`. A cancelled run is never written, as its outcome says nothing about the mutant. |
 | `exitStatus` | Int | Only for `exited`: the exit code, or the number of the signal that ended it |
 | `durationSeconds` | Double | From the start of the mutant's test run to its outcome, to the millisecond |
-| `worker` | Int | Where it ran: 0 is the mutated project, and n is its clone `<project>_mutated_worker<n>` |
+| `worker` | Int | Where it ran. For SwiftPM, 0 is the mutated project, and n is its clone `<project>_mutated_worker<n>`. For xcodebuild, n is a simulator, not a copy: every worker tests in the mutated project, worker n on a simulator SwiftMutator made for it, from `muter-worker<n>.xctestrun` (`muter.xctestrun` for worker 0). One worker tests on your `-destination` as worker 0. |
 | `finishedAt` | Date | When the line was written |
 | `killedBy` | `[{name, location}]` | See [below](#killedby). Only for `failed`, `runtimeError` and `timeout`, and left out when `failedTestLinesAreReliable` is false. |
 | `failedTestCount` | Int | With `killedBy`: how many different tests the log shows failing, without the limit of 20 |
