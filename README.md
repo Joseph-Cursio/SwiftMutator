@@ -165,10 +165,11 @@ mutant on its own (see [Testing one mutant](#testing-one-mutant)).
 - **6** when another SwiftMutator run holds a lock this one needs: on the project's copy, or on the
   results file that `--resume` names. The same command goes ahead once that run has ended.
 - **7** when `run-without-mutating` refuses a test plan that might not describe the project, or
-  can't be tested as it is: one in a newer format, run in another folder than its project's, one
-  whose mutated files changed in the project since it was made, or whose copy of the project isn't
-  there (see [The test plan](Docs/test-plan.md#when-a-plan-is-refused)). Nothing was tested. The
-  message says what would let it through, such as `--plan-ignoring`.
+  can't be tested as it is: one in a newer format, run in another folder than its project's that
+  has a configuration, one whose mutated files changed in the project since it was made, or whose
+  copy of the project isn't there (see [The test plan](Docs/test-plan.md#when-a-plan-is-refused)).
+  Nothing was tested. The message says what would let it through, such as `--plan-ignoring`. A
+  folder without `muter.conf.yml`, and no `--configuration`, stops on that first, with 255.
 - **64** for a usage error, such as `--workers 0`. `run-without-mutating` without a test plan's
   path exits with 1.
 - **255** for any other error, a failed baseline and an abort, such as 5 build errors in a row,
@@ -194,8 +195,10 @@ muter-mappings.json` then tests it. See [The test plan](Docs/test-plan.md).
   differ from what `mutate-without-running` wrote. Its results file records each file's SHA-256 as
   tested.
 - **Run it from the project folder,** as `mutate-without-running` was: the plan's paths are
-  relative, and it finds its copy from there. A run in a folder that holds none of the files the plan
-  mutates is refused, with exit status 7.
+  relative, and it finds its copy and loads `muter.conf.yml` from there. The configuration comes
+  first: a folder without one, as the project's `Sources`, stops on the missing file, with exit
+  status 255, before the plan is read. A folder with a configuration that holds none of the files the
+  plan mutates is refused, with exit status 7.
 - **A changed project.** A file the plan mutates that changed in the project since the plan was made
   refuses the plan, with exit status 7. Make the plan again, or give `--plan-ignoring <glob>` to test
   the copy as it is. A change to any other file, such as a test, is only said.
@@ -241,7 +244,8 @@ To run its tests with it on:
 
 - **The change** is the mutant's line in your project's file, before and after. When that line
   can't be found, as for code that spans lines, or a plan's file that changed since the plan was
-  made, it is the code the mutant changes, as the mutant records it.
+  made or that the plan doesn't record, as a plan in format 0 doesn't, it is the code the mutant
+  changes, as the mutant records it.
 - **The log** is printed whole up to 400 lines, and otherwise from its last 200; the log folder
   keeps it whole.
 - **Exit status** is 0 whatever the verdict, which the results file records too. A reference that
@@ -254,8 +258,9 @@ To run its tests with it on:
   copy of its own, `<project>_mutant`, which it keeps for a look afterwards. A test plan's
   `<project>_mutated`, and any fix in it, is left alone. `<project>_mutant` stays until the next
   `run --mutant`.
-- **`run-without-mutating --mutant`** tests the plan's copy as it is, without rewriting it, and
-  checks only that mutant's file against the project.
+- **`run-without-mutating --mutant`** tests the plan's copy as it is, without rewriting it. The
+  project is checked against the plan as for a whole run, but only a change to that mutant's file
+  refuses it: one to a file with the plan's other mutants is only said.
 - For an xcodebuild project, only the switch's environment variable is named, not a command.
 - `--mutant` can't be given with `--operators`, `--files-to-mutate`, `--since`, `--shard`,
   `--sample`, `--resume` or `--reuse`. A run of one mutant prints no Continue line: the same command

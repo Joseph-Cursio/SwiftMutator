@@ -244,7 +244,8 @@ enum ResumeCheck {
 
     /// What refuses `current` the results `recorded` tested: a run of a test plan only continues one of the same plan,
     /// byte for byte, and a run without a plan one without, whose files a header from before `--resume` doesn't record.
-    /// No `--force-resume` lets a changed plan through: its mutants may not be the ones the results are for.
+    /// No `--force-resume` lets a changed plan through: its mutants may not be the ones the results are for. A plan
+    /// made again of the same sources is the same bytes, so it is the same plan, and the check of its copy decides.
     private static func testPlanRefusals(_ recorded: ResultsHeader, _ current: Current) -> [ResumeRefusal] {
         switch (recorded.usingTestPlan, current.usingTestPlan) {
         case (false, false):

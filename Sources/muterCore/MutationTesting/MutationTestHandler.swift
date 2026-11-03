@@ -101,6 +101,8 @@ private extension [MutationStep] {
     static var testPlanSteps: [MutationStep] {
         [
             UpdateCheck(),
+            // It finds the project folder the plan is read under. A folder without a configuration stops here, as an
+            // error, so `CheckTestPlanSources` refuses another folder only when it has one.
             LoadConfiguration(),
             LoadMuterTestPlan(),
             // It reads only the plan. Before the checks, so they look only at that mutant's file.

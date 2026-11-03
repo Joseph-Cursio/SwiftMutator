@@ -272,6 +272,62 @@ final class TestPlanAcceptanceTests: XCTestCase {
         XCTAssertEqual(ranLines(), [], "something was tested")
     }
 
+    func test_aRunFromAnotherFolderWithoutAConfiguration_stopsOnItWith255_andWithTheProjectsIsRefusedWith7() throws {
+        try makeThePlan()
+        let sources = project.appendingPathComponent("Sources", isDirectory: true)
+
+        let stopped = try waitForEnd(
+            of: launch(["run-without-mutating", "--skip-update-check", plan.path], in: sources)
+        )
+
+        XCTAssertEqual(stopped.status, 255, stopped.output)
+        XCTAssertTrue(stopped.output.contains("Could not find muter.conf at path "), stopped.output)
+        XCTAssertTrue(stopped.output.contains("/Sources/muter.conf.yml"), stopped.output)
+        XCTAssertFalse(stopped.output.contains("none of the 2 files it mutates"), stopped.output)
+        XCTAssertEqual(ranLines(), [], "something was tested")
+
+        let configuration = project.appendingPathComponent("muter.conf.yml").path
+        let refused = try waitForEnd(
+            of: launch(
+                ["run-without-mutating", "--skip-update-check", "--configuration", configuration, plan.path],
+                in: sources
+            )
+        )
+
+        XCTAssertEqual(refused.status, 7, refused.output)
+        XCTAssertTrue(refused.output.contains("none of the 2 files it mutates"), refused.output)
+        XCTAssertEqual(ranLines(), [], "something was tested")
+    }
+
+    func test_aPlanMadeAgainOfTheSameSources_isResumed_andOneOfChangedSourcesIsRefusedWith5() throws {
+        try makeThePlan()
+        let firstPlan = try Data(contentsOf: plan)
+        let first = try waitForEnd(of: launch(testPlan))
+        XCTAssertEqual(first.status, 0, first.output)
+        let resultsFile = try onlyResultsFile()
+        let resume = testPlan + ["--resume", resultsFile.path]
+        try makeThePlan()
+        XCTAssertEqual(try Data(contentsOf: plan), firstPlan, "the plan made again differs")
+        let ranBefore = ranLines()
+
+        let resumed = try waitForEnd(of: launch(resume))
+
+        XCTAssertEqual(resumed.status, 0, resumed.output)
+        XCTAssertEqual(ranLines().dropFirst(ranBefore.count).filter { $0 != "baseline" }, [], "a mutant was tested")
+        let header = try XCTUnwrap(records(in: resultsFile).dropFirst(6).first)
+        XCTAssertEqual(header["mutantsReused"] as? Int, 4)
+
+        try write("func isSmall(_ value: Int) -> Bool { value < 12 }\n", to: "Sources/Lib/Bounds.swift")
+        try makeThePlan()
+        let lines = try kinds(in: resultsFile).count
+
+        let refused = try waitForEnd(of: launch(resume))
+
+        XCTAssertEqual(refused.status, 5, refused.output)
+        XCTAssertTrue(refused.output.contains("testPlan.sha256"), refused.output)
+        XCTAssertEqual(try kinds(in: resultsFile).count, lines, "the refusal wrote a line")
+    }
+
     func test_oneMutantOfThePlan_printsItsChangeLogAndVerdict_andRunMutantLeavesThePlansCopyAlone() throws {
         try makeThePlan()
         let fixed = try fixByHand("Sources/Lib/Bounds.swift")
