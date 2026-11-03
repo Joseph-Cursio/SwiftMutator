@@ -55,6 +55,10 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     /// How the run of the test command without its build that writes to the file of this name ends, and what it
     /// prints, before `testRunsWithoutBuilding`: for runs at once, such as xcodebuild workers' runs with no mutant on.
     var testRunsWithoutBuildingWritingTo: [String: (outcome: TestSuiteOutcome, log: String)] = [:]
+    /// How the first run of the test command without its build that writes to the file of this name ends, and what it
+    /// prints, before `testRunsWithoutBuildingWritingTo`: for a run that is run again, such as one the simulator failed
+    /// to launch.
+    var firstTestRunsWithoutBuildingWritingTo: [String: (outcome: TestSuiteOutcome, log: String)] = [:]
     /// The configuration each run of the test command without its build was given.
     private(set) var configurationsWithoutBuilding: [MuterConfiguration] = []
     /// Called just before the timed run of the test command without its build returns, so a test can move its clock.
@@ -187,7 +191,9 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
         }
         whileRunningTestsWithoutBuilding?()
         let run = lock.withLock {
-            testRunsWithoutBuildingWritingTo[(fileName as NSString).lastPathComponent]
+            let name = (fileName as NSString).lastPathComponent
+            return firstTestRunsWithoutBuildingWritingTo.removeValue(forKey: name)
+                ?? testRunsWithoutBuildingWritingTo[name]
                 ?? (testRunsWithoutBuilding.isEmpty
                     ? (timedTestRunOutcome, "timed test run log")
                     : testRunsWithoutBuilding.removeFirst())

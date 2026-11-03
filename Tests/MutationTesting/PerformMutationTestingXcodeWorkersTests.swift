@@ -163,6 +163,71 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
         assertTestedOnOneWorker()
     }
 
+    // As a mutant's run does: the simulator's first install and launch, all at once on new simulators, is where it is
+    // likeliest to fail to launch a run. The run runs once more in its place, on its worker, and the workers are kept
+    // when it passes. The first run's log is kept beside the second's.
+    func test_aCheckRunTheSimulatorFailedToLaunch_runsOnceMore_andTheWorkersAreKeptWhenItPasses() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 4)
+        let launchFailed = loadFixture("SimulatorTrouble/launch_preflightBusy.log")
+        ioDelegate.firstTestRunsWithoutBuildingWritingTo["no-mutant run worker 1"] = (.failed, launchFailed)
+        let choices = sentChoices()
+
+        _ = try await sut.run(with: state)
+
+        let checks = ioDelegate.configurationsWithoutBuilding.compactMap(\.xcodeWorker)
+        XCTAssertEqual(checks.filter { $0 == worker(0) }.count, 1)
+        XCTAssertEqual(checks.filter { $0 == worker(1) }.count, 2)
+        XCTAssertEqual(choices().map(\.used), [2])
+        XCTAssertEqual(choices().map(\.unsupportedReason), [nil])
+        XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.workers), [2])
+        XCTAssertFalse(workerSimulators.calls.contains("removeAll"))
+        XCTAssertEqual(
+            fileManager.createdFiles["/logs/no-mutant run worker 1 (launch failed).log"],
+            Data(launchFailed.utf8)
+        )
+        XCTAssertEqual(fileManager.createdFiles["/logs/no-mutant run worker 1.log"], Data("timed test run log".utf8))
+        XCTAssertNil(fileManager.createdFiles["/logs/no-mutant run worker 0 (launch failed).log"])
+    }
+
+    // A second failure to launch it still falls back to one worker, and both runs keep their logs.
+    func test_aCheckRunTheSimulatorFailsToLaunchTwice_fallsBackToOneWorker_keepingBothLogs() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 4)
+        let launchFailed = loadFixture("SimulatorTrouble/launch_beforeEstablishingConnection.log")
+        ioDelegate.testRunsWithoutBuildingWritingTo["no-mutant run worker 1"] = (.failed, launchFailed)
+        let choices = sentChoices()
+
+        _ = try await sut.run(with: state)
+
+        let checks = ioDelegate.configurationsWithoutBuilding.compactMap(\.xcodeWorker)
+        XCTAssertEqual(checks.filter { $0 == worker(1) }.count, 2)
+        XCTAssertEqual(workerSimulators.calls.last, "removeAll")
+        XCTAssertEqual(choices().map(\.used), [1])
+        XCTAssertEqual(
+            fileManager.createdFiles["/logs/no-mutant run worker 1 (launch failed).log"],
+            Data(launchFailed.utf8)
+        )
+        XCTAssertEqual(fileManager.createdFiles["/logs/no-mutant run worker 1.log"], Data(launchFailed.utf8))
+        assertTestedOnOneWorker()
+    }
+
+    // A simulator that is gone would fail the run again the same way: it isn't run again, and the run falls back.
+    func test_aCheckRunWhoseSimulatorIsGone_isNotRunAgain_andFallsBackToOneWorker() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 4)
+        let gone = loadFixture("SimulatorTrouble/deviceGone_unableToFind.log")
+        ioDelegate.firstTestRunsWithoutBuildingWritingTo["no-mutant run worker 1"] = (.failed, gone)
+        let choices = sentChoices()
+
+        _ = try await sut.run(with: state)
+
+        let checks = ioDelegate.configurationsWithoutBuilding.compactMap(\.xcodeWorker)
+        XCTAssertEqual(checks.filter { $0 == worker(1) }.count, 1)
+        XCTAssertEqual(workerSimulators.calls.last, "removeAll")
+        XCTAssertEqual(choices().map(\.used), [1])
+        XCTAssertNil(fileManager.createdFiles["/logs/no-mutant run worker 1 (launch failed).log"])
+        XCTAssertEqual(fileManager.createdFiles["/logs/no-mutant run worker 1.log"], Data(gone.utf8))
+        assertTestedOnOneWorker()
+    }
+
     func test_simulatorsThatCanNotBeMade_fallBackToOneWorker() async throws {
         ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 4)
         let reason = "no available simulator matches `-destination \(destination)`, or more than one does"

@@ -39,6 +39,24 @@ extension TestRun.Ending {
     }
 }
 
+extension TestRun {
+    /// The run that `run` makes with `configuration`, or, if the simulator failed to launch it
+    /// (`SimulatorTrouble.launch`) and the task isn't cancelled, the one `run` makes next, on the same worker, in its
+    /// place, whatever it comes to, with the first's failure. `relaunching` is called just before the second starts.
+    static func launchedOnceMore(
+        ifNeededWith configuration: MuterConfiguration,
+        relaunching: () -> Void = {},
+        running run: () async -> TestRun
+    ) async -> (run: TestRun, launchFailure: LaunchFailure?) {
+        let testRun = await run()
+        guard case let .launch(line) = SimulatorTrouble.of(testRun, with: configuration), !Task.isCancelled else {
+            return (testRun, nil)
+        }
+        relaunching()
+        return (await run(), LaunchFailure(line: line, testLog: testRun.testLog))
+    }
+}
+
 /// A mutant's finished test run, as mutation testing records it.
 struct FinishedRun {
     /// The mutant's position in this session's jobs.
@@ -66,13 +84,11 @@ extension FinishedRun {
         running run: () async -> TestRun
     ) async -> FinishedRun {
         var launched = instant()
-        var testRun = await run()
-        var launchFailure: LaunchFailure?
-        if case let .launch(line) = SimulatorTrouble.of(testRun, with: configuration), !Task.isCancelled {
-            launchFailure = LaunchFailure(line: line, testLog: testRun.testLog)
-            launched = instant()
-            testRun = await run()
-        }
+        let (testRun, launchFailure) = await TestRun.launchedOnceMore(
+            ifNeededWith: configuration,
+            relaunching: { launched = instant() },
+            running: run
+        )
         return FinishedRun(
             index: index,
             worker: worker,
