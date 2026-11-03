@@ -11,16 +11,18 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
     private let notePath = "/project_muter_logs/session 2/resumed session.txt"
     private let workerClone = URL(fileURLWithPath: "/project_mutated_worker1")
     private var clonedCounts: [Int] = []
+    private static let files = [
+        "Sources/Product.swift": "77e0",
+        "Sources/Quotient.swift": "3c4f",
+        "Sources/Sum.swift": "5a1c",
+        "Sources/Total.swift": "9e21",
+    ]
+    /// With its real `treeSHA256`, which a resumed header's `projectDelta` is read back against.
     private let tree = ProjectTree(
         listedBy: .git,
-        files: [
-            "Sources/Product.swift": "77e0",
-            "Sources/Quotient.swift": "3c4f",
-            "Sources/Sum.swift": "5a1c",
-            "Sources/Total.swift": "9e21",
-        ],
+        files: files,
         excluded: [],
-        treeSHA256: "e5b8"
+        treeSHA256: ProjectTree.treeHash(of: files)
     )
     /// The test the stopped run recorded failing for Sum.swift's mutant.
     private let sumTest = FailedTestLine.FailedTest(name: "sum()", location: "SumTests.swift:3:5")
@@ -134,11 +136,11 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
         XCTAssertTrue(header.usingTestPlan)
         XCTAssertEqual(header.testPlan, TestPlanRecord(plan))
-        XCTAssertEqual(header.project?.files["Sources/Sum.swift"], "5a1d")
+        XCTAssertEqual(header.projectDelta?.files["Sources/Sum.swift"], "5a1d")
         XCTAssertEqual(header.mutantsReused, 1)
     }
 
-    func test_aResumedSession_isTheNextNumber_withAFormat2Header_inTheSameFile() async throws {
+    func test_aResumedSession_isTheNextNumber_withAFormat3Header_inTheSameFile() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
         var announced: [String] = []
         whenSent(.resultsFileCreated) { announced.append(($0.object as? String) ?? "") }
@@ -151,12 +153,17 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         XCTAssertEqual(resultsFiles.files.first?.batches, [0 ..< 2], "the header and the retired line go together")
         let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
         XCTAssertEqual(header.session, 2)
-        XCTAssertEqual(header.formatVersion, ResultsCoding.resumedFormatVersion)
+        XCTAssertEqual(header.formatVersion, ResultsCoding.projectDeltaFormatVersion)
         XCTAssertEqual(header.logDirectory, "/project_muter_logs/session 2", "the session's own log folder")
         XCTAssertEqual(header.mutantsDiscovered, 4)
         XCTAssertEqual(header.mutantsToTest, 2)
         XCTAssertEqual(header.mutantsReused, 2)
-        XCTAssertEqual(header.project, tree)
+        // Nothing changed since the last session, so its tree is that one's, by its hash, with no file.
+        XCTAssertNil(header.project)
+        XCTAssertEqual(header.projectDelta, ProjectTreeDelta(from: tree, to: tree))
+        XCTAssertEqual(header.projectDelta?.files, [:])
+        let file = try resultsFileData(recorded) + Data(resultsFiles.lines.map { $0 + "\n" }.joined().utf8)
+        XCTAssertEqual(try RecordedResults.read(file, path: resultsPath).headers.map(\.project), [tree, tree])
         XCTAssertEqual(try resultsFiles.records(MutantResult.self).map(\.session), [2, 2])
         XCTAssertEqual(try resultsFiles.records(ResultsEnd.self).map(\.session), [2])
         XCTAssertEqual(announced, [resultsPath])

@@ -67,7 +67,16 @@ struct RecordedResults {
                version > ResultsCoding.newestFormatVersion {
                 throw ResultsFileError.newerFormat(path: path, version: version)
             }
-            guard let header = try? decoder.decode(ResultsHeader.self, from: line) else { return false }
+            guard var header = try? decoder.decode(ResultsHeader.self, from: line) else { return false }
+            // A tree recorded as what changed since an earlier session's is made again from that one. A header whose
+            // tree can't be doesn't read, and nor do its session's lines, whose results are then tested again.
+            if let delta = header.projectDelta {
+                let base = sessions.lazy.reversed().compactMap(\.header.project).first {
+                    $0.treeSHA256 == delta.baseTreeSHA256
+                }
+                guard let tree = base?.applying(delta) else { return false }
+                header.project = tree
+            }
             sessions.append(Session(header: header))
         case "mutant":
             guard let record = try? decoder.decode(MutantResult.self, from: line),

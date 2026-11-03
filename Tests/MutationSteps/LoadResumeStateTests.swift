@@ -395,10 +395,11 @@ final class LoadResumeStateTests: MuterTestCase {
     }
 
     func test_aNewerFormat_passesItsErrorThrough() async throws {
-        try await writeResults(ResultsHeader.make(formatVersion: 3, project: projectTree()))
+        let newer = ResultsCoding.newestFormatVersion + 1
+        try await writeResults(ResultsHeader.make(formatVersion: newer, project: projectTree()))
 
         await AssertThrowsError(try await sut.run(with: state)) { error in
-            XCTAssertEqual(error as? ResultsFileError, .newerFormat(path: self.resultsPath, version: 3))
+            XCTAssertEqual(error as? ResultsFileError, .newerFormat(path: self.resultsPath, version: newer))
         }
     }
 

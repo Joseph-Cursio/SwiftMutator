@@ -45,7 +45,7 @@ The header's `project` lists five files here. A real one lists every file in the
 | Key | Type | Meaning |
 |---|---|---|
 | `kind` | `"header"` | |
-| `formatVersion` | Int | 1 for a run's first session, and 2 for a resumed one, whose file can hold `retired` lines. See [Compatibility](#compatibility). |
+| `formatVersion` | Int | 1 for a run's first session, and 3 for a resumed one, whose file can hold `retired` lines and which records `projectDelta` in place of `project`. 2 for a resumed session written before `projectDelta`, or whose last session recorded no `project`. See [Compatibility](#compatibility). |
 | `session` | Int | 1 for a run's first session, then one more for each session `--resume` adds to the file |
 | `startedAt` | Date | When mutation testing started. The run's test duration is measured from here. |
 | `provenance` | Object | The SwiftMutator build and toolchain the run used. See [below](#provenance). |
@@ -69,7 +69,8 @@ The header's `project` lists five files here. A real one lists every file in the
 | `failedTestLinesAreReliable` | Bool | False when the passing baseline printed a line that looks like a failed test or a crash. Such lines then don't show that a mutant was killed, so no mutant line has `killedBy`. |
 | `mutantsDiscovered` | Int | How many mutants the run found. With `--sample`, how many of them the sample holds; `sample` gives the count it was taken from. With `--shard`, how many the shard holds, of the sample if there is one; `shard` gives the count in every shard. |
 | `mutantsToTest` | Int | How many of them it set out to test: all of them in a run's first session, and fewer in a resumed one, or one that `--reuse` starts, which test only those without an earlier result that still holds. It is written before any mutant is tested, so it says nothing about how many were: that is the number of the session's `mutant` lines with neither `reusedFrom` nor `rerun`. |
-| `project` | Object | Your project's files, each one's SHA-256, as SwiftMutator copied them, before it prepared any for mutation. See [below](#project). A run of a test plan (`run-without-mutating`) copies nothing, so its `project` is the plan's copy as it was tested: prepared for mutation, and with any fix you made in it by hand. A resume of the run compares the copy with it, never your project. Results files from earlier SwiftMutators' `run-without-mutating` don't have it. |
+| `project` | Object | Your project's files, each one's SHA-256, as SwiftMutator copied them, before it prepared any for mutation. See [below](#project). A run of a test plan (`run-without-mutating`) copies nothing, so its `project` is the plan's copy as it was tested: prepared for mutation, and with any fix you made in it by hand. A resume of the run compares the copy with it, never your project. Results files from earlier SwiftMutators' `run-without-mutating` don't have it. A resumed session records `projectDelta` in its place. |
+| `projectDelta` | Object | Only in a resumed session whose last session recorded `project` or `projectDelta`: its project's files as what changed since that session's, in place of `project`. See [below](#project). |
 | `mutantsReused` | Int | Only in a resumed session: how many earlier sessions' results it kept rather than tested again. In a session that `--reuse` starts, how many of the earlier run's results it kept. |
 | `waived` | [String] | Only in a resumed session: the project files that changed since the last session and that `--resume-ignoring` let through, by their paths relative to the project, or `[]`. In a run of a test plan, they are files of the plan's copy, by their paths relative to it. In a session that `--reuse` starts, those that `--reuse-ignoring` let through since any of the earlier run's sessions. |
 | `testBundlesRunDirectly` | Bool | Only when the session's mutants ran their test bundles directly, with `swiftpm-testing-helper`, rather than through `swift test`: `true` |
@@ -108,6 +109,17 @@ A run of a test plan copies nothing. It hashes the files in the plan's copy once
 | `files` | Each file's SHA-256, by its path relative to the project. A symbolic link's is `link:` followed by the SHA-256 of the path it points to; it is never followed. A local package outside the project has its files under its path from the project, such as `../Core/Sources/Core/Core.swift`. |
 | `excluded` | The `-o` report and its `.partial` sibling, which the run writes itself, and the configuration file it loads, such as `muter.conf.yml`, whose settings `configuration` records, when they are inside the project. They are left out of `files`: a resume compares the configuration key by key instead, so a change of `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout` or `oneWorkerSimulator` doesn't refuse it. |
 | `treeSHA256` | The SHA-256 of every file's path, a NUL, its hash and a line break, sorted by path. Two trees with the same files and hashes have the same `treeSHA256`. |
+
+A resumed session's header records `projectDelta` instead: only what changed since the last session's tree, which is usually nothing, where a whole `project` on SwiftProjectLint took about 205 KB. The whole tree is the last session's, with `files` added or replacing theirs, without `removed`, and with this `listedBy` and `excluded`. SwiftMutator makes it again as it reads the file, from the tree whose `treeSHA256` is `baseTreeSHA256`, and checks that it comes to this `treeSHA256`. If it doesn't, or no earlier header has that tree, the header doesn't read, and nor do its session's lines, so a resume tests their mutants again.
+
+| Key | Meaning |
+|---|---|
+| `baseTreeSHA256` | The last session's `treeSHA256` |
+| `listedBy` | As in `project` |
+| `excluded` | As in `project` |
+| `files` | Each file added or changed since the last session, with its SHA-256, as in `project` |
+| `removed` | The paths of the files removed since, sorted |
+| `treeSHA256` | The whole tree's `treeSHA256`, as in `project` |
 
 - **Always listed**, even when git ignores them: Swift files (which include `Package.swift` and `Package@swift-*.swift`) and `.swift-version`, at any depth. `Package.resolved` too, but only at the root and in an Xcode project's or workspace's `xcshareddata/swiftpm/`.
 - **Never listed:** anything in a `.build`, `.git`, `.swiftpm`, `DerivedData` or `xcuserdata` folder at any depth, and `.DS_Store` files. Nor are the files SwiftMutator itself writes at the project's root: `muter-mappings.json`, `muter.xctestrun` and each xcodebuild worker's `muter-worker<n>.xctestrun`, and `.swiftmutator-active-mutant`, which earlier versions wrote there.
@@ -248,6 +260,7 @@ New keys and new kinds of line are added without changing `formatVersion`, so a 
 - **Format 1** is a run's first session, also one that `--reuse` starts. A SwiftMutator from before `--reuse` reads the results such a session kept as tested in it.
 - **A timeout run again** has a second `mutant` line for its key, so a SwiftMutator from before `rerun` takes that line for the mutant's result, by the last-line rule, and ignores `rerun`.
 - **Format 2** is a resumed session. Its file can hold `retired` lines, and a reader that skipped them would report results the run no longer stands by, so a SwiftMutator from before `--resume` refuses the file. A file that was never resumed stays in format 1, which those read.
+- **Format 3** is a resumed session that records `projectDelta`. A format-2 reader would take it for a session with no `project`, which `--reuse` and a merge of shards skip rather than check, so a SwiftMutator from before `projectDelta` refuses the file. A file resumed by such a SwiftMutator holds format-2 sessions, which this one reads.
 
 ## Reports from the file
 
