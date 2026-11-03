@@ -368,8 +368,11 @@ where the whole run takes 46. It scored 78%, and the whole run 77%; the report g
   than N. With no more than N mutants, it holds them all, and is the whole run.
 - **The reports say how close the score is.** The plain and HTML reports say the score is from a
   sample of N of M mutants, and give its 95% margin; the JSON report gives them as `sample`. The
-  margin narrows with the finite-population correction. A run stopped early gets none: its results
-  are the first files', not a random part of the sample.
+  margin narrows with the finite-population correction. A run that stopped before every mutant had
+  a result gets none: its results are the first files', not a random part of the sample. A shard's
+  hash doesn't depend on the seed, so a shard's mutants are a random part of the sample: its own
+  report, and a merge of some of the shards, give a margin from their results, unless a shard given
+  has some of its results but not all.
 - **It combines** with `--since`, `--changed-lines`, `--files-to-mutate` and `--operators`, which
   choose the mutants it is taken from, and with `--shard`, which splits the sample. A sampled split
   needs `--seed`, so that its shards share one sample, and `report` merges them.

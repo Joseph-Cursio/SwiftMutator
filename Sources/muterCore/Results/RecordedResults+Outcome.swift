@@ -53,19 +53,22 @@ extension RecordedResults {
             records: latest.values,
             under: header,
             testDuration: testDuration,
-            shards: header.shard?.scopeAlone
+            shards: header.shard?.scopeAlone,
+            sampleIsCutShort: latest.count < header.mutantsDiscovered
         )
     }
 }
 
 extension MutationTestOutcome {
     /// The outcome of `records`, in the order a run tests them, under `header`'s project paths, coverage (or whether it
-    /// skipped it), update notice and sample, with `testDuration`, covering only `shards` of a split if given.
+    /// skipped it), update notice and sample, with `testDuration`, covering only `shards` of a split if given. The
+    /// sample's results are `sampleIsCutShort` when some of the mutants its runs set out to test have none.
     init(
         records: some Collection<MutantResult>,
         under header: ResultsHeader,
         testDuration: TimeInterval,
-        shards: ShardScope?
+        shards: ShardScope?,
+        sampleIsCutShort: Bool
     ) {
         let projectDirectory = URL(fileURLWithPath: header.projectPath, isDirectory: true)
         let mutatedProjectDirectory = URL(fileURLWithPath: header.mutatedProjectPath, isDirectory: true)
@@ -102,7 +105,8 @@ extension MutationTestOutcome {
             newVersion: header.newVersion,
             since: header.since,
             shards: shards,
-            sample: header.sample
+            sample: header.sample,
+            sampleIsCutShort: sampleIsCutShort
         )
     }
 }

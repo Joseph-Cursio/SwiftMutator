@@ -486,7 +486,9 @@ private extension PerformMutationTesting {
                     newVersion: state.newVersion,
                     since: state.changeSelection,
                     shards: state.shardSelection?.scopeAlone,
-                    sample: state.sampleSelection
+                    sample: state.sampleSelection,
+                    // As `report` of the results file judges it: a run can stop after its last mutant's result.
+                    sampleIsCutShort: session.outcomesInJobOrder.count < session.keys.count
                 ),
                 discovered: session.keys.count,
                 reused: session.reused

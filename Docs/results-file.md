@@ -158,6 +158,8 @@ A resume compares `size` and `seed`, and whether either session has a `sample` a
 
 `mutantsSampledFrom` and `mutantsSampled` aren't compared: they follow from the working tree. After a change, new mutants can rank before some the sample took, and push them out. Their results are retired, as those of mutants no longer discovered are, but the run counts them apart, as they are still discovered: `ℹ️ 2 earlier results no longer count, as the sample no longer takes their mutants.`
 
+A report of a sample's results gives the score's margin unless they are cut short: when the file has fewer results, each its key's last line, than the last header's `mutantsDiscovered`. Those are then a stopped run's first files', not a random part of the sample. A shard's hash doesn't depend on the seed, so a shard's results are a random part of the sample: a shard's own report, and a merge of some of the shards, give a margin from them, unless a shard given has some of its results but not all. One with none, as when its job was cancelled before its first mutant, adds nothing, as if its file weren't given.
+
 ### `mutant`
 
 | Key | Type | Meaning |

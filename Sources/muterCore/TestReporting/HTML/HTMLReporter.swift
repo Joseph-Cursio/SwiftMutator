@@ -153,7 +153,9 @@ extension Node where Context: HTML.BodyContext {
                             .text("Sample tested, of \(sample.mutantsSampledFrom) mutants (seed \(sample.seed))")
                         ),
                         .h1(.text(
-                            "\(sample.mutantsSampled), "
+                            (sample.margin != nil && sample.mutantsTested < sample.mutantsSampled
+                                ? "\(sample.mutantsTested) of \(sample.mutantsSampled), "
+                                : "\(sample.mutantsSampled), ")
                                 + (sample.margin.map { "score ± \($0)" } ?? "\(sample.mutantsTested) with a result")
                         ))
                     )

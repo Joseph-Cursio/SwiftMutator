@@ -134,21 +134,50 @@ final class SampleRunTests: MuterTestCase {
         )
     }
 
-    func test_aSampledShardsReport_countsTheSample_andGivesNoMarginUntilMerged() throws {
+    // A shard's hash doesn't depend on the seed, so its results are a random part of the sample: its own report gives
+    // a margin from them, for the mutants sampled from.
+    func test_aSampledShardsReport_countsTheSample_andGivesAMarginFromItsResults() throws {
         let outcome = MutationTestOutcome(
             mutations: [.make(testSuiteOutcome: .failed)],
             shards: ShardScope(.make(index: 1, count: 2, mutantsInAllShards: 2)),
             sample: SampleSelection(size: 2, seed: 9, mutantsSampledFrom: 40, mutantsSampled: 2)
         )
+        let margin = SampleScope.marginOfError(killed: 1, scored: 1, sampled: 1, from: 40)
 
         let plain = PlainTextReporter().report(from: outcome)
         XCTAssertTrue(
             plain.contains("Only the mutants in shard 1 of 2 were tested, of 2 in every shard of the sample.")
         )
-        XCTAssertTrue(plain.contains("and 1 of them have a result, so no margin is given"))
+        XCTAssertTrue(
+            plain.contains(
+                "Only a sample of 2 of the 40 mutants discovered was tested (seed 9), and the margin is from the 1 of "
+                    + "them here: a whole run's score is within " + String(format: "%.1f", margin) + " points"
+            ),
+            plain
+        )
         let html = HTMLReporter().report(from: outcome)
         XCTAssertTrue(html.contains("Shard tested, of 2 mutants in the sample"))
-        XCTAssertTrue(html.contains("2, 1 with a result"))
+        XCTAssertTrue(html.contains("1 of 2, score ± " + String(format: "%.1f", margin)), html)
+    }
+
+    // A stopped run's results are its first files', so a shard's, or a whole sample's, that stopped gives none.
+    func test_aSampleCutShort_givesNoMargin_andSaysWhy() {
+        let outcome = MutationTestOutcome(
+            mutations: [.make(testSuiteOutcome: .failed)],
+            shards: ShardScope(.make(index: 1, count: 2, mutantsInAllShards: 2)),
+            sample: SampleSelection(size: 2, seed: 9, mutantsSampledFrom: 40, mutantsSampled: 2),
+            sampleIsCutShort: true
+        )
+
+        let plain = PlainTextReporter().report(from: outcome)
+        XCTAssertTrue(
+            plain.contains(
+                "and 1 of them have a result, so no margin is given: the others have none yet, so these are the first "
+                    + "ones tested, not a random part of the sample."
+            ),
+            plain
+        )
+        XCTAssertTrue(HTMLReporter().report(from: outcome).contains("2, 1 with a result"))
     }
 
     func test_theReports_sayWhatTheSampleTested_andTheMargin() throws {
@@ -195,9 +224,47 @@ final class SampleRunTests: MuterTestCase {
             sample: SampleSelection(size: 2, seed: 9, mutantsSampledFrom: 40, mutantsSampled: 2)
         )
 
-        let outcome = MutationTestOutcome(records: [MutantResult](), under: header, testDuration: 0, shards: nil)
+        let outcome = MutationTestOutcome(
+            records: [MutantResult](),
+            under: header,
+            testDuration: 0,
+            shards: nil,
+            sampleIsCutShort: false
+        )
 
         XCTAssertEqual(outcome.sample, header.sample)
+    }
+
+    // A file has a margin once every mutant its last session set out to test has a result, a resumed one's
+    // included.
+    func test_aResultsFilesSample_isCutShort_whileAMutantHasNoResult() throws {
+        let sample = SampleSelection(size: 2, seed: 9, mutantsSampledFrom: 40, mutantsSampled: 2)
+        let first = MutantResult.make(line: 3, outcome: .failed)
+        let second = MutantResult.make(session: 2, line: 9, outcome: .passed)
+        let stopped = try RecordedResults.read(resultsFileData([
+            ResultsHeader.make(mutantsDiscovered: 2, mutantsToTest: 2, sample: sample),
+            first,
+            ResultsEnd.make(reason: .interrupted, detail: "SIGINT", recorded: 1),
+        ]), path: "/logs/results.jsonl")
+        let resumed = try RecordedResults.read(resultsFileData([
+            ResultsHeader.make(mutantsDiscovered: 2, mutantsToTest: 2, sample: sample),
+            first,
+            ResultsEnd.make(reason: .interrupted, detail: "SIGINT", recorded: 1),
+            ResultsHeader.make(
+                formatVersion: ResultsCoding.resumedFormatVersion,
+                session: 2,
+                mutantsDiscovered: 2,
+                mutantsToTest: 1,
+                sample: sample
+            ),
+            second,
+            ResultsEnd.make(session: 2, recorded: 1),
+        ]), path: "/logs/results.jsonl")
+
+        XCTAssertTrue(stopped.mutationTestOutcome().sampleIsCutShort)
+        XCTAssertNil(MuterTestReport(from: stopped.mutationTestOutcome()).sample?.marginOfError)
+        XCTAssertFalse(resumed.mutationTestOutcome().sampleIsCutShort)
+        XCTAssertNotNil(MuterTestReport(from: resumed.mutationTestOutcome()).sample?.marginOfError)
     }
 
     // After a change, new mutants can rank before some the sample took: they are still discovered, only not sampled.

@@ -419,6 +419,29 @@ final class MergedShardsTests: XCTestCase {
         )
     }
 
+    // A shard's hash doesn't depend on the seed, so the shards given are a random part of the sample, whichever are
+    // missing; one given with fewer results than mutants tested its first files only.
+    func test_theShardsOfASample_haveAMargin_unlessOneGivenIsCutShort() throws {
+        let sample = SampleSelection(size: 3, seed: 7, mutantsSampledFrom: 20, mutantsSampled: 3)
+
+        let missing = try merge(file("/a/results.jsonl", header(1, sample: sample), sum3, sum9, end()))
+        let stopped = try merge(
+            file("/a/results.jsonl", header(1, sample: sample), sum3, end(.interrupted)),
+            file("/b/results.jsonl", header(2, sample: sample), alpha5, end())
+        )
+
+        XCTAssertFalse(missing.mutationTestOutcome().sampleIsCutShort)
+        XCTAssertNotNil(MuterTestReport(from: missing.mutationTestOutcome()).sample?.marginOfError)
+        XCTAssertTrue(stopped.mutationTestOutcome().sampleIsCutShort)
+        XCTAssertNil(MuterTestReport(from: stopped.mutationTestOutcome()).sample?.marginOfError)
+        // One whose job was cancelled before its first mutant adds nothing, as if its file weren't given.
+        let empty = try merge(
+            file("/a/results.jsonl", header(1, sample: sample), sum3, sum9, end()),
+            file("/b/results.jsonl", header(2, sample: sample), end(.interrupted))
+        )
+        XCTAssertFalse(empty.mutationTestOutcome().sampleIsCutShort)
+    }
+
     func test_skippedLines_areSaidForTheirShard() throws {
         var data = try encoded(header(1), sum3)
         data += Data("garbled\n".utf8)
@@ -456,7 +479,8 @@ private extension MergedShardsTests {
         forced: [String]? = nil,
         mutantsInAllShards: Int = 3,
         mutantsPerShard: [Int]? = nil,
-        allKeysSHA256: String = "a11"
+        allKeysSHA256: String = "a11",
+        sample: SampleSelection? = nil
     ) -> ResultsHeader {
         let shard = ShardSelection.make(
             index: index,
@@ -477,7 +501,8 @@ private extension MergedShardsTests {
             provenance: provenance,
             operators: operators,
             forced: forced,
-            shard: shard
+            shard: shard,
+            sample: sample
         )
     }
 
