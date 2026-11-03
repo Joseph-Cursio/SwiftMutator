@@ -46,7 +46,7 @@ struct Report: AsyncParsableCommand {
     /// itself exited with (`RunCommand.run(with:)`), so a script that checks the report fails as one that checked the
     /// run would. A run that finished, was interrupted, or has no end line yet exits 0. Shards' files exit with it when
     /// the report is known to lack results (`MergedShards.lacksResults`).
-    static let stoppedOnAnError = ExitCode(-1)
+    static let stoppedOnAnError = ExitCode.stoppedOnAnError
 
     func run() async throws {
         let stopped = try ResultsReport(format: reportOptions.reportFormat, outputPath: reportOptions.reportURL?.path)

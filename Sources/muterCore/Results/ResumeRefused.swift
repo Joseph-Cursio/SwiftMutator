@@ -17,10 +17,17 @@ struct ResumeRefused: Error, Equatable, CustomStringConvertible {
         self.isReuse = isReuse
     }
 
+    /// Whether the only reason is that another run holds the file's lock, so the run itself isn't in question.
+    /// `LoadResumeState` gives that reason alone.
+    var isInUse: Bool {
+        guard reasons.count == 1, case .inUse = reasons.first else { return false }
+        return true
+    }
+
     var description: String {
         let file = Logger.shellQuoted(path)
         var lines: [String]
-        if reasons.count == 1, let only = reasons.first, case .inUse = only {
+        if isInUse, let only = reasons.first {
             // The run isn't in question, only who has its file.
             lines = ["SwiftMutator won't resume the run in \(file): \(only)"]
         } else {

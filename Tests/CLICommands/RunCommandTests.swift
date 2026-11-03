@@ -326,6 +326,60 @@ final class RunCommandTests: XCTestCase {
         XCTAssertTrue(other.contains("please open an issue"), other)
     }
 
+    // A script can tell a refused resume or reuse, and a run another holds a lock against, from an error, and from
+    // each other: after the first, a new run starts, and after the second, waiting for the other run lets it through.
+    func test_eachOutcome_exitsWithItsOwnStatus() {
+        XCTAssertEqual(ExitCode.resumeRefused.rawValue, 5)
+        XCTAssertEqual(ExitCode.anotherRunHoldsTheLock.rawValue, 6)
+        XCTAssertEqual(ExitCode.stoppedOnAnError.rawValue, -1)
+        let difference = ResumeCheck.Difference(name: "mutationTestTimeout", was: "120", isNow: "60")
+        let changes = [ProjectTree.FileChange(path: "notes.txt", kind: .added)]
+        let refusals = [
+            ResumeRefused(
+                path: "/logs/results.jsonl",
+                reasons: [.configurationChanged(difference), .filesChanged(changes)],
+                beforeTheCopy: true
+            ),
+            ResumeRefused(
+                path: "/logs/results.jsonl",
+                reasons: [.configurationChanged(difference)],
+                beforeTheCopy: true,
+                isReuse: true
+            ),
+            ResumeRefused(path: "/logs/results.jsonl", reasons: [.filesChanged(changes)], beforeTheCopy: false),
+            ResumeRefused(
+                path: "/logs/results.jsonl",
+                reasons: [.reportWouldReplaceTheResultsFile("/logs/results.jsonl")],
+                beforeTheCopy: true
+            ),
+        ]
+        for refused in refusals {
+            XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: refused), .resumeRefused, "\(refused)")
+        }
+        let lockedFile = ResumeRefused(
+            path: "/logs/results.jsonl",
+            reasons: [.inUse(holder: nil, lastProcess: 81234, lastHost: "studio.local")],
+            beforeTheCopy: true
+        )
+        XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: lockedFile), .anotherRunHoldsTheLock)
+        let lockedCopy = MutatedProjectLockError.inUse(mutatedProject: "/code/x_mutated", process: 81234)
+        XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: lockedCopy), .anotherRunHoldsTheLock)
+        let errors: [Error] = [
+            MutatedProjectLockError.cannotLock(path: "/x.lock", errno: EACCES),
+            ResultsFileError.newerFormat(path: "/logs/results.jsonl", version: 3),
+            ChangeSelectionError.unknownRef("origin/main"),
+            MuterError.mutationTestingAborted(reason: .tooManyBuildErrors),
+            MuterError.noSourceFilesDiscovered,
+        ]
+        for error in errors {
+            XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: error), .stoppedOnAnError, "\(error)")
+        }
+        let nothing = NothingToMutate(reason: .noSwiftFileChanged, selection: .make())
+        XCTAssertNil(ExitCode.exitStatus(afterRunFailedWith: nothing))
+        let empty = EmptyShard(shard: Shard(index: 3, count: 4), mutantsInAllShards: 2)
+        XCTAssertNil(ExitCode.exitStatus(afterRunFailedWith: empty))
+    }
+
     // git couldn't answer, or there is nothing to mutate: each says what happened, and neither is a bug.
     func test_sinceOutcomes_areShownWithoutTheBugReportBanner() {
         let unknown = ChangeSelectionError.unknownRef("origin/main")

@@ -143,9 +143,34 @@ A run tests in a copy of the project beside it, `<project>_mutated`, so a projec
 time. `run`, `mutate-without-running` and `run-without-mutating` lock `<project>_mutated.lock`
 before they read, remove, copy or test anything there. One started while another holds the lock is
 refused, naming the folder, and the process that holds it when the lock file shows which, and
-leaves everything as it was. The lock goes when SwiftMutator exits, however it exits, so it never
-needs clearing; the file stays, made with the permissions your umask gives new files, so anyone
-who can remove the copy can lock it.
+leaves everything as it was. It exits with status 6: run the same command again once that run has
+ended. The lock goes when SwiftMutator exits, however it exits, so it never needs clearing; the
+file stays, made with the permissions your umask gives new files, so anyone who can remove the copy
+can lock it.
+
+### Exit status
+
+`run`, `mutate-without-running` and `run-without-mutating` exit with:
+
+- **0** when the run finished, whatever its score, and when there is nothing to mutate, as for a
+  `--since` change with no Swift file, or a `--shard` that holds no mutant.
+- **5** when a `--resume` or `--reuse` is refused, as the results might not hold for this run
+  (see [When a resume is refused](#when-a-resume-is-refused)). Nothing was tested. The message says
+  what would let it through, such as a flag; a new run without `--resume` or `--reuse` isn't
+  refused for these reasons.
+- **6** when another SwiftMutator run holds a lock this one needs: on the project's copy, or on the
+  results file that `--resume` names. The same command goes ahead once that run has ended.
+- **64** for a usage error, such as `--workers 0`. `run-without-mutating` without a test plan's
+  path exits with 1.
+- **255** for any other error, a failed baseline and an abort, such as 5 build errors in a row,
+  included.
+- **128 plus the signal** when a signal stopped the run: 130 for SIGINT, 143 for SIGTERM and 129 for
+  SIGHUP (see [Stopping a run](#stopping-a-run)).
+
+Earlier SwiftMutators exited with 255 for a refused resume or reuse, and for a run refused by
+another's lock, so a script that checked for 255 there needs to check for 5 and 6 instead. `report` has statuses of its
+own (see [Results file](#results-file) and
+[Exit status](Docs/results-file.md#exit-status)).
 
 ## Progress
 
@@ -713,9 +738,10 @@ SwiftMutator won't resume the run in '/…/results.jsonl', so that no result is 
 Nothing was copied or removed.
 ```
 
-It then exits with status 255, as after an error, but without asking for a bug report. A project
-file that changes while SwiftMutator copies the project is refused after the copy, so that message
-doesn't end with `Nothing was copied or removed.`
+It then exits with status 5, without asking for a bug report, so a script can tell a refusal from
+an error: nothing was tested ([Exit status](#exit-status)). A project file that changes while
+SwiftMutator copies the project is refused after the copy, so that message doesn't end with
+`Nothing was copied or removed.`
 
 | Since the last session | Resuming |
 |---|---|
@@ -727,7 +753,7 @@ doesn't end with `Nothing was copied or removed.`
 | `mutationTestWorkers`, `stopAtFirstFailure` or `buildTimeout` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
 | SwiftMutator, the toolchain or the SDK changed | Refused, unless `--force-resume` is given |
 | Project files changed, were added or were removed | Refused, unless a `--resume-ignoring` glob matches each one |
-| Another SwiftMutator holds the file, because its run is still going | Refused, naming the process that holds it, and its host. If an older SwiftMutator holds it, which doesn't say, it names the process and host that wrote the file's last session, which may not be the one |
+| Another SwiftMutator holds the file, because its run is still going | Refused with status 6, naming the process that holds it, and its host: wait for that run to end. If an older SwiftMutator holds it, which doesn't say, it names the process and host that wrote the file's last session, which may not be the one |
 | Coverage was gathered in one session only, or this session discovers other mutants | Goes ahead, and warns: `⚠️ 412 earlier results no longer count, as this session doesn't discover their mutants: coverage couldn't be gathered then, and is now.` |
 
 A run of a test plan (`run-without-mutating`) can't be resumed, nor can a results file written
@@ -776,8 +802,9 @@ swift-mutator run --skip-coverage -o report.txt --reuse '/…/Oct 31, 2026 at 7:
 ```
 
 It checks the earlier run as a resume does (see [When a resume is refused](#when-a-resume-is-refused)),
-with `--force-reuse` for `--force-resume`. Changed project files never refuse it. Instead they decide
-which results it keeps, for each result by what changed since the session that tested it:
+with `--force-reuse` for `--force-resume`, and a refused `--reuse` exits with status 5 as a refused
+resume does. Changed project files never refuse it. Instead they decide which results it keeps, for
+each result by what changed since the session that tested it:
 
 - **What it keeps.** A result that a resume would keep: same file, place, operator and change, and
   the file's SHA-256 unchanged. Then:

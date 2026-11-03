@@ -203,7 +203,7 @@ final class ResumeAcceptanceTests: XCTestCase {
 
         let refused = try waitForEnd(of: launch(firstSessionArguments + ["--resume", resultsFile.path]))
 
-        XCTAssertEqual(refused.status, 255, refused.standardError + refused.standardOutput)
+        XCTAssertEqual(refused.status, 6, refused.standardError + refused.standardOutput)
         // The live run records itself as the lock's holder.
         XCTAssertTrue(
             refused.standardOutput.contains(
@@ -215,6 +215,29 @@ final class ResumeAcceptanceTests: XCTestCase {
         XCTAssertTrue(first.process.isRunning, "the refused resume stopped the run it found holding the file")
         recordMarkers()
         XCTAssertEqual(sleepers.filter(isGone).sorted(), [], "the hanging test process ended")
+        XCTAssertTrue(exists("project_mutated.active-mutant"), "the live run's files were touched")
+
+        signalGroup(of: first, SIGINT)
+
+        assertDied(first, by: SIGINT)
+        assertNoTestProcessIsLeft()
+    }
+
+    func test_aRunOfAProjectInUse_isRefused_withItsOwnStatus() throws {
+        try createHangMarker()
+        let first = try launch(firstSessionArguments)
+        try waitUntilHanging(first)
+
+        let refused = try waitForEnd(of: launch(firstSessionArguments))
+
+        XCTAssertEqual(refused.status, 6, refused.standardError + refused.standardOutput)
+        XCTAssertTrue(refused.standardOutput.contains("SwiftMutator won't start"), refused.standardOutput)
+        XCTAssertTrue(
+            refused.standardOutput.contains("(process \(first.process.processIdentifier)) is using"),
+            refused.standardOutput
+        )
+        XCTAssertFalse(refused.standardOutput.contains("please open an issue"), refused.standardOutput)
+        XCTAssertTrue(first.process.isRunning, "the refused run stopped the run it found holding the project")
         XCTAssertTrue(exists("project_mutated.active-mutant"), "the live run's files were touched")
 
         signalGroup(of: first, SIGINT)
@@ -236,7 +259,7 @@ final class ResumeAcceptanceTests: XCTestCase {
 
         let refused = try waitForEnd(of: launch(commandLine: continueCommand))
 
-        XCTAssertEqual(refused.status, 255, refused.standardError + refused.standardOutput)
+        XCTAssertEqual(refused.status, 5, refused.standardError + refused.standardOutput)
         XCTAssertTrue(refused.standardOutput.contains("notes.txt (added)"), refused.standardOutput)
         XCTAssertTrue(refused.standardOutput.contains("--resume-ignoring 'notes.txt'"), refused.standardOutput)
         XCTAssertTrue(refused.standardOutput.contains("Nothing was copied or removed."), refused.standardOutput)

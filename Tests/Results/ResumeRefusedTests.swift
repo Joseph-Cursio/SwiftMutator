@@ -120,6 +120,27 @@ final class ResumeRefusedTests: XCTestCase {
         )
     }
 
+    func test_isInUse_onlyWhenTheLockIsTheOnlyReason() {
+        let locked = ResumeRefusal.inUse(holder: nil, lastProcess: 81234, lastHost: "studio.local")
+        let changed = ResumeRefusal.filesChanged([.init(path: "notes.txt", kind: .added)])
+        let alone = ResumeRefused(path: path, reasons: [locked], beforeTheCopy: true)
+        let otherReasons = ResumeRefused(path: path, reasons: [changed, .noProjectTree], beforeTheCopy: true)
+
+        XCTAssertTrue(alone.isInUse)
+        XCTAssertFalse(otherReasons.isInUse)
+        XCTAssertFalse(ResumeRefused(path: path, reasons: [changed], beforeTheCopy: true).isInUse)
+        XCTAssertEqual(
+            "\(alone)",
+            "SwiftMutator won't resume the run in '/logs/results.jsonl': \(locked)\nNothing was copied or removed."
+        )
+        XCTAssertTrue(
+            "\(otherReasons)".hasPrefix(
+                "SwiftMutator won't resume the run in '/logs/results.jsonl', so that no result is reused"
+            ),
+            "\(otherReasons)"
+        )
+    }
+
     func test_oneChangedFile_isSaidInTheSingular() {
         XCTAssertEqual(
             "\(ResumeRefusal.filesChanged([.init(path: "Docs/rules/Sum.md", kind: .removed)]))",
