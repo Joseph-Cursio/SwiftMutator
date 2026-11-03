@@ -51,6 +51,10 @@ enum RunEvent {
     case timeoutRerunFinished(TimeoutRerun)
     /// What the timeouts tested again came to, once every one is.
     case timeoutRerunsFinished(TimeoutRerunTally)
+    /// A mutant's xcodebuild run that the simulator failed to launch, which ran again in its place, once the second
+    /// run's result is written, just before its outcome is sent. Never counted in the progress, which counts the second
+    /// run.
+    case runRepeatedAfterLaunchFailure(RepeatedRun)
     /// A run of one mutant (`--mutant`), once its line is written, which `mutationTestingFinished` then prints in
     /// place of the report.
     case oneMutantTested(OneMutantRun)

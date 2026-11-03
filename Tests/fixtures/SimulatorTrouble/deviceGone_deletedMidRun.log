@@ -1,0 +1,662 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test-without-building -destination id=B564EE45-CFEB-4238-928C-5DF08A260581 -xctestrun muter.xctestrun "-only-testing:MacCloud_client_iOSTests" -parallel-testing-enabled NO -derivedDataPath ../dd2
+
+Test Suite 'All tests' started at 2026-11-03 07:36:54.104.
+Test Suite 'All tests' passed at 2026-11-03 07:36:54.105.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+◇ Test run started.
+↳ Testing Library Version: 2403
+↳ Target Platform: arm64-apple-ios17.0-simulator
+◇ Suite ChunkedUploadOrchestratorTests started.
+◇ Test uploadsAllChunksSequentiallyThenCompletes() started.
+✔ Test uploadsAllChunksSequentiallyThenCompletes() passed after 0.005 seconds.
+◇ Test resumeStartsAtServerQueuedChunksCounter() started.
+✔ Test resumeStartsAtServerQueuedChunksCounter() passed after 0.001 seconds.
+◇ Test resumeOfStalledSessionUnpausesFirst() started.
+✔ Test resumeOfStalledSessionUnpausesFirst() passed after 0.001 seconds.
+◇ Test transientNetworkFailureRetriesSameChunkIndex() started.
+2026-11-03 07:36:54.122609-0600 MacCloud_client_iOS[90296:184894700] [Default] Task <0B715A40-56A7-4EB6-A12B-F6557FC7F255>.<3> finished with error [-1005] Error Domain=NSURLErrorDomain Code=-1005 "(null)" UserInfo={_NSURLErrorRelatedURLSessionTaskErrorKey=(
+    "LocalDataTask <0B715A40-56A7-4EB6-A12B-F6557FC7F255>.<3>"
+), _NSURLErrorFailingURLSessionTaskErrorKey=LocalDataTask <0B715A40-56A7-4EB6-A12B-F6557FC7F255>.<3>}
+✔ Test transientNetworkFailureRetriesSameChunkIndex() passed after 0.003 seconds.
+◇ Test persistentNetworkFailureEventuallyThrows() started.
+2026-11-03 07:36:54.125017-0600 MacCloud_client_iOS[90296:184894688] [Default] Task <16F36B10-E3D1-45DF-AE90-C0B8DC399C09>.<2> finished with error [-1005] Error Domain=NSURLErrorDomain Code=-1005 "(null)" UserInfo={_NSURLErrorRelatedURLSessionTaskErrorKey=(
+    "LocalDataTask <16F36B10-E3D1-45DF-AE90-C0B8DC399C09>.<2>"
+), _NSURLErrorFailingURLSessionTaskErrorKey=LocalDataTask <16F36B10-E3D1-45DF-AE90-C0B8DC399C09>.<2>}
+2026-11-03 07:36:54.125738-0600 MacCloud_client_iOS[90296:184894693] [Default] Task <5B0DEC29-4081-45C1-A045-F525D243AE1E>.<3> finished with error [-1005] Error Domain=NSURLErrorDomain Code=-1005 "(null)" UserInfo={_NSURLErrorRelatedURLSessionTaskErrorKey=(
+    "LocalDataTask <5B0DEC29-4081-45C1-A045-F525D243AE1E>.<3>"
+), _NSURLErrorFailingURLSessionTaskErrorKey=LocalDataTask <5B0DEC29-4081-45C1-A045-F525D243AE1E>.<3>}
+2026-11-03 07:36:54.125998-0600 MacCloud_client_iOS[90296:184894700] [Default] Task <72DB8F7B-8405-4DFC-8785-A0D0D3F9109D>.<4> finished with error [-1005] Error Domain=NSURLErrorDomain Code=-1005 "(null)" UserInfo={_NSURLErrorRelatedURLSessionTaskErrorKey=(
+    "LocalDataTask <72DB8F7B-8405-4DFC-8785-A0D0D3F9109D>.<4>"
+), _NSURLErrorFailingURLSessionTaskErrorKey=LocalDataTask <72DB8F7B-8405-4DFC-8785-A0D0D3F9109D>.<4>}
+2026-11-03 07:36:54.126310-0600 MacCloud_client_iOS[90296:184894693] [Default] Task <5CC7716F-2F34-4958-8860-096F264A44BD>.<5> finished with error [-1005] Error Domain=NSURLErrorDomain Code=-1005 "(null)" UserInfo={_NSURLErrorRelatedURLSessionTaskErrorKey=(
+    "LocalDataTask <5CC7716F-2F34-4958-8860-096F264A44BD>.<5>"
+), _NSURLErrorFailingURLSessionTaskErrorKey=LocalDataTask <5CC7716F-2F34-4958-8860-096F264A44BD>.<5>}
+✔ Test persistentNetworkFailureEventuallyThrows() passed after 0.004 seconds.
+✔ Suite ChunkedUploadOrchestratorTests passed after 0.016 seconds.
+◇ Suite FileChangeApplierTests started.
+◇ Test createdFilesAreInsertedUnderTheirFullPath() started.
+✔ Test createdFilesAreInsertedUnderTheirFullPath() passed after 0.017 seconds.
+◇ Test modifiedFilesUpdateTheirRow() started.
+✔ Test modifiedFilesUpdateTheirRow() passed after 0.004 seconds.
+◇ Test deletedFilesAreRemovedAndOthersKept() started.
+✔ Test deletedFilesAreRemovedAndOthersKept() passed after 0.006 seconds.
+◇ Test applyingTheSameChangesTwiceIsApplyingThemOnce() started.
+✔ Test applyingTheSameChangesTwiceIsApplyingThemOnce() passed after 0.004 seconds.
+◇ Test aSnapshotRemovesRowsItDoesNotList() started.
+✔ Test aSnapshotRemovesRowsItDoesNotList() passed after 0.005 seconds.
+◇ Test anIncrementalSyncLeavesUnmentionedRowsAlone() started.
+✔ Test anIncrementalSyncLeavesUnmentionedRowsAlone() passed after 0.003 seconds.
+✔ Suite FileChangeApplierTests passed after 0.041 seconds.
+◇ Suite "A MacCloudFile built from a FileResponse is a function of the response" started.
+◇ Test "every field comes from the response" started.
+✔ Test "every field comes from the response" passed after 0.001 seconds.
+◇ Test "the stamps are the server's, not the moment of conversion" started.
+✔ Test "the stamps are the server's, not the moment of conversion" passed after 0.001 seconds.
+◇ Test "converting the same response twice gives the same file" started.
+✔ Test "converting the same response twice gives the same file" passed after 0.001 seconds.
+◇ Test "a file built from a server response is marked synced" started.
+✔ Test "a file built from a server response is marked synced" passed after 0.001 seconds.
+◇ Test "isFolder is taken from the response, not assumed" started.
+✔ Test "isFolder is taken from the response, not assumed" passed after 0.001 seconds.
+◇ Test "the folder mime type is not applied over the server's" started.
+✔ Test "the folder mime type is not applied over the server's" passed after 0.001 seconds.
+✔ Suite "A MacCloudFile built from a FileResponse is a function of the response" passed after 0.001 seconds.
+◇ Suite "Photo names are derived from the instant they are taken" started.
+◇ Test "the same instant always gives the same name" started.
+✔ Test "the same instant always gives the same name" passed after 0.001 seconds.
+◇ Test "the name is a jpg with a photo prefix" started.
+✔ Test "the name is a jpg with a photo prefix" passed after 0.001 seconds.
+◇ Test "distinct instants give distinct names" started.
+✔ Test "distinct instants give distinct names" passed after 0.001 seconds.
+◇ Test "instants inside the same second still differ" started.
+✔ Test "instants inside the same second still differ" passed after 0.001 seconds.
+✔ Suite "Photo names are derived from the instant they are taken" passed after 0.001 seconds.
+◇ Suite "File listing — the path arithmetic" started.
+◇ Test "a repeated folder name does not promote a grandchild to a child" started.
+✔ Test "a repeated folder name does not promote a grandchild to a child" passed after 0.001 seconds.
+◇ Test "the ordinary cases still hold" started.
+✔ Test "the ordinary cases still hold" passed after 0.001 seconds.
+◇ Test "a path outside the parent is not a child" started.
+✔ Test "a path outside the parent is not a child" passed after 0.001 seconds.
+◇ Test "a folder is not a child of itself" started.
+✔ Test "a folder is not a child of itself" passed after 0.001 seconds.
+◇ Test "no path is ever both a child and a grandchild" started.
+✔ Test "no path is ever both a child and a grandchild" passed after 0.001 seconds.
+◇ Test "folders sort before files" started.
+✔ Test "folders sort before files" passed after 0.001 seconds.
+◇ Test "within a kind, names sort case-insensitively" started.
+✔ Test "within a kind, names sort case-insensitively" passed after 0.001 seconds.
+◇ Test "the comparator is irreflexive" started.
+✔ Test "the comparator is irreflexive" passed after 0.001 seconds.
+◇ Test "the comparator is asymmetric and transitive over a spread of items" started.
+✔ Test "the comparator is asymmetric and transitive over a spread of items" passed after 0.001 seconds.
+◇ Test "a server item's full path joins its parent directory and name" started.
+✔ Test "a server item's full path joins its parent directory and name" passed after 0.001 seconds.
+◇ Test "an item the server lists at the root is a child of the root" started.
+✔ Test "an item the server lists at the root is a child of the root" passed after 0.001 seconds.
+◇ Test "a client directory is sent in the server's spelling" started.
+✔ Test "a client directory is sent in the server's spelling" passed after 0.001 seconds.
+✔ Suite "File listing — the path arithmetic" passed after 0.003 seconds.
+◇ Suite LocalAccountDataTests started.
+◇ Test everyFileAndUserRowIsDeleted() started.
+✔ Test everyFileAndUserRowIsDeleted() passed after 0.011 seconds.
+◇ Test downloadedCopiesAreDeletedAndOtherFilesKept() started.
+✔ Test downloadedCopiesAreDeletedAndOtherFilesKept() passed after 0.004 seconds.
+◇ Test signingOutErasesTheStore() started.
+✔ Test signingOutErasesTheStore() passed after 0.004 seconds.
+✔ Suite LocalAccountDataTests passed after 0.020 seconds.
+◇ Suite MacCloudAPIServiceTests started.
+◇ Test listFilesSuccess() started.
+✔ Test listFilesSuccess() passed after 0.003 seconds.
+◇ Test listFilesMultipleFiles() started.
+✔ Test listFilesMultipleFiles() passed after 0.001 seconds.
+◇ Test listFilesQueryParameters() started.
+✔ Test listFilesQueryParameters() passed after 0.001 seconds.
+◇ Test listFilesFailure() started.
+✔ Test listFilesFailure() passed after 0.001 seconds.
+◇ Test createFolderSuccess() started.
+✔ Test createFolderSuccess() passed after 0.001 seconds.
+◇ Test createFolderFailure() started.
+✔ Test createFolderFailure() passed after 0.001 seconds.
+◇ Test loginSuccess() started.
+✔ Test loginSuccess() passed after 0.001 seconds.
+◇ Test loginUnauthorized() started.
+✔ Test loginUnauthorized() passed after 0.001 seconds.
+◇ Test loginServerError() started.
+✔ Test loginServerError() passed after 0.001 seconds.
+◇ Test deleteFileSuccess() started.
+✔ Test deleteFileSuccess() passed after 0.001 seconds.
+◇ Test deleteFileFailure() started.
+✔ Test deleteFileFailure() passed after 0.001 seconds.
+◇ Test downloadFileSuccess() started.
+✔ Test downloadFileSuccess() passed after 0.001 seconds.
+◇ Test downloadFileFailure() started.
+✔ Test downloadFileFailure() passed after 0.001 seconds.
+◇ Test syncSuccess() started.
+✔ Test syncSuccess() passed after 0.001 seconds.
+◇ Test syncWithTimestamp() started.
+✔ Test syncWithTimestamp() passed after 0.001 seconds.
+◇ Test syncFailure() started.
+✔ Test syncFailure() passed after 0.001 seconds.
+◇ Test syncStatusTransitions() started.
+✔ Test syncStatusTransitions() passed after 0.001 seconds.
+✔ Suite MacCloudAPIServiceTests passed after 0.019 seconds.
+◇ Suite MacCloudAPIServiceUploadTests started.
+◇ Test getUserProfileSuccess() started.
+✔ Test getUserProfileSuccess() passed after 0.001 seconds.
+◇ Test refreshingTheProfileKeepsTheLoginsCreationDate() started.
+✔ Test refreshingTheProfileKeepsTheLoginsCreationDate() passed after 0.001 seconds.
+◇ Test aProfileForAnUnseenAccountTakesTheInjectedDate() started.
+✔ Test aProfileForAnUnseenAccountTakesTheInjectedDate() passed after 0.001 seconds.
+◇ Test getUserProfileFailure() started.
+✔ Test getUserProfileFailure() passed after 0.001 seconds.
+◇ Test logout() started.
+✔ Test logout() passed after 0.001 seconds.
+◇ Test configure() started.
+✔ Test configure() passed after 0.001 seconds.
+◇ Test uploadFileSuccess() started.
+✔ Test uploadFileSuccess() passed after 0.001 seconds.
+◇ Test uploadFileMakesOneRequest() started.
+✔ Test uploadFileMakesOneRequest() passed after 0.001 seconds.
+◇ Test uploadFileFailure() started.
+✔ Test uploadFileFailure() passed after 0.001 seconds.
+◇ Test uploadFileReportsProgressFromZeroToOne() started.
+✔ Test uploadFileReportsProgressFromZeroToOne() passed after 0.001 seconds.
+◇ Test uploadFileReportsNoCompletionProgressWhenTheServerRejectsIt() started.
+✔ Test uploadFileReportsNoCompletionProgressWhenTheServerRejectsIt() passed after 0.001 seconds.
+◇ Test downloadFileReportsIncrementalProgress() started.
+✔ Test downloadFileReportsIncrementalProgress() passed after 0.844 seconds.
+◇ Test downloadFileReportsBookendsWithoutContentLength() started.
+✔ Test downloadFileReportsBookendsWithoutContentLength() passed after 0.035 seconds.
+◇ Test loginStoresTokenInTokenStore() started.
+✔ Test loginStoresTokenInTokenStore() passed after 0.001 seconds.
+◇ Test logoutDeletesTokenFromStore() started.
+✔ Test logoutDeletesTokenFromStore() passed after 0.001 seconds.
+◇ Test loadsAuthTokenFromTokenStoreOnInit() started.
+✔ Test loadsAuthTokenFromTokenStoreOnInit() passed after 0.001 seconds.
+◇ Test aTokenWithNoStoredServerIsDiscarded() started.
+✔ Test aTokenWithNoStoredServerIsDiscarded() passed after 0.001 seconds.
+◇ Test theConfiguredServerOutlivesTheService() started.
+✔ Test theConfiguredServerOutlivesTheService() passed after 0.001 seconds.
+◇ Test startsUnauthenticatedWithEmptyTokenStore() started.
+✔ Test startsUnauthenticatedWithEmptyTokenStore() passed after 0.001 seconds.
+✔ Suite MacCloudAPIServiceUploadTests passed after 0.891 seconds.
+◇ Suite MacCloudFileDefaultsTests started.
+◇ Test fileDefaults() started.
+✔ Test fileDefaults() passed after 0.001 seconds.
+◇ Test folderDefaults() started.
+✔ Test folderDefaults() passed after 0.001 seconds.
+◇ Test fileWithSize() started.
+✔ Test fileWithSize() passed after 0.001 seconds.
+✔ Suite MacCloudFileDefaultsTests passed after 0.001 seconds.
+◇ Suite MacCloudUserDefaultsTests started.
+◇ Test userDefaults() started.
+✔ Test userDefaults() passed after 0.001 seconds.
+◇ Test userWithCustomQuota() started.
+✔ Test userWithCustomQuota() passed after 0.001 seconds.
+✔ Suite MacCloudUserDefaultsTests passed after 0.001 seconds.
+◇ Suite MacCloudUserFirstSeenTests started.
+◇ Test nothingOnHandIsAFirstSighting() started.
+✔ Test nothingOnHandIsAFirstSighting() passed after 0.001 seconds.
+◇ Test aDifferentAccountIsAFirstSighting() started.
+✔ Test aDifferentAccountIsAFirstSighting() passed after 0.001 seconds.
+◇ Test theSameAccountCarriesItsDateForward() started.
+✔ Test theSameAccountCarriesItsDateForward() passed after 0.001 seconds.
+◇ Test refreshingIsIdempotent() started.
+✔ Test refreshingIsIdempotent() passed after 0.001 seconds.
+✔ Suite MacCloudUserFirstSeenTests passed after 0.001 seconds.
+◇ Suite MacCloudVersionDefaultsTests started.
+◇ Test versionDefaults() started.
+✔ Test versionDefaults() passed after 0.001 seconds.
+◇ Test versionLinksToItsFile() started.
+✔ Test versionLinksToItsFile() passed after 0.001 seconds.
+✔ Suite MacCloudVersionDefaultsTests passed after 0.001 seconds.
+◇ Suite MacCloudShareDefaultsTests started.
+◇ Test shareDefaults() started.
+✔ Test shareDefaults() passed after 0.001 seconds.
+◇ Test shareWithCustomPermissions() started.
+✔ Test shareWithCustomPermissions() passed after 0.001 seconds.
+◇ Test shareLinksToItsFile() started.
+✔ Test shareLinksToItsFile() passed after 0.001 seconds.
+✔ Suite MacCloudShareDefaultsTests passed after 0.001 seconds.
+◇ Suite MacCloudErrorTests started.
+◇ Test "Error description contains expected substring" started.
+◇ Test case passing 1 argument testCase → timeout to "Error description contains expected substring" started.
+​◇ Test case passing 1 argument testCase → Authentication failed to "Error description contains expected substring" started.
+​◇ Test case passing 1 argument testCase → quota exceeded to "Error description contains expected substring" started.
+​◇ Test case passing 1 argument testCase → not found to "Error description contains expected substring" started.
+​◇ Test case passing 1 argument testCase → Permission denied to "Error description contains expected substring" started.
+​◇ Test case passing 1 argument testCase → Sync conflict to "Error description contains expected substring" started.
+​◇ Test case passing 1 argument testCase → internet connection to "Error description contains expected substring" started.
+​◇ Test case passing 1 argument testCase → HTTP 500 to "Error description contains expected substring" started.
+​✔ Test "Error description contains expected substring" with 8 test cases passed after 0.001 seconds.
+◇ Test allErrorsHaveDescriptions() started.
+✔ Test allErrorsHaveDescriptions() passed after 0.001 seconds.
+✔ Suite MacCloudErrorTests passed after 0.001 seconds.
+◇ Suite ResponseDecodingTests started.
+◇ Test decodeUserResponse() started.
+✔ Test decodeUserResponse() passed after 0.001 seconds.
+◇ Test decodeFileListResponse() started.
+✔ Test decodeFileListResponse() passed after 0.001 seconds.
+◇ Test decodeLoginResponse() started.
+✔ Test decodeLoginResponse() passed after 0.001 seconds.
+◇ Test decodeSyncResponseWithChanges() started.
+✔ Test decodeSyncResponseWithChanges() passed after 0.001 seconds.
+◇ Test decodeSyncResponseEmpty() started.
+✔ Test decodeSyncResponseEmpty() passed after 0.001 seconds.
+◇ Test decodeEmptyFileList() started.
+✔ Test decodeEmptyFileList() passed after 0.001 seconds.
+✔ Suite ResponseDecodingTests passed after 0.002 seconds.
+◇ Suite URLFileSizeTests started.
+◇ Test fileSizeForExistingFile() started.
+✔ Test fileSizeForExistingFile() passed after 0.001 seconds.
+◇ Test fileSizeForNonexistentFile() started.
+✔ Test fileSizeForNonexistentFile() passed after 0.001 seconds.
+◇ Test fileSizeForEmptyFile() started.
+✔ Test fileSizeForEmptyFile() passed after 0.001 seconds.
+✔ Suite URLFileSizeTests passed after 0.002 seconds.
+◇ Suite MacCloudSyncSessionAPITests started.
+◇ Test decodeSyncSessionResponse() started.
+✔ Test decodeSyncSessionResponse() passed after 0.001 seconds.
+◇ Test decodeCompletedSyncSessionWithFileId() started.
+✔ Test decodeCompletedSyncSessionWithFileId() passed after 0.001 seconds.
+◇ Test createSyncSessionSendsManifest() started.
+✔ Test createSyncSessionSendsManifest() passed after 0.001 seconds.
+◇ Test getSyncSessionUsesGet() started.
+✔ Test getSyncSessionUsesGet() passed after 0.001 seconds.
+◇ Test uploadChunkSendsIndexHeaderAndRawBody() started.
+✔ Test uploadChunkSendsIndexHeaderAndRawBody() passed after 0.001 seconds.
+◇ Test replayedChunkAckIsAccepted() started.
+✔ Test replayedChunkAckIsAccepted() passed after 0.001 seconds.
+◇ Test pauseSyncSessionPostsToPause() started.
+✔ Test pauseSyncSessionPostsToPause() passed after 0.001 seconds.
+◇ Test resumeSyncSessionPostsToResume() started.
+✔ Test resumeSyncSessionPostsToResume() passed after 0.001 seconds.
+◇ Test completeSyncSessionPostsToComplete() started.
+✔ Test completeSyncSessionPostsToComplete() passed after 0.001 seconds.
+◇ Test cancelSyncSessionSendsDelete() started.
+✔ Test cancelSyncSessionSendsDelete() passed after 0.001 seconds.
+◇ Test conflictStatusMapsToSyncConflict() started.
+✔ Test conflictStatusMapsToSyncConflict() passed after 0.002 seconds.
+◇ Test insufficientStorageMapsToQuotaExceeded() started.
+✔ Test insufficientStorageMapsToQuotaExceeded() passed after 0.001 seconds.
+✔ Suite MacCloudSyncSessionAPITests passed after 0.007 seconds.
+◇ Suite MacCloudViewModelChunkedUploadTests started.
+◇ Test smallUploadUsesSingleShotEndpoint() started.
+✔ Test smallUploadUsesSingleShotEndpoint() passed after 0.001 seconds.
+◇ Test largeUploadUsesSyncSessionEndpoints() started.
+✔ Test largeUploadUsesSyncSessionEndpoints() passed after 0.003 seconds.
+◇ Test chunkedUploadPublishesProgress() started.
+✔ Test chunkedUploadPublishesProgress() passed after 0.003 seconds.
+◇ Test failedChunkedUploadResumesFromServerCounter() started.
+2026-11-03 07:36:55.138073-0600 MacCloud_client_iOS[90296:184894691] [Default] Task <94DB81B4-3E12-4014-A1D1-B52D0FA73AA4>.<5> finished with error [-1005] Error Domain=NSURLErrorDomain Code=-1005 "(null)" UserInfo={_NSURLErrorRelatedURLSessionTaskErrorKey=(
+    "LocalDataTask <94DB81B4-3E12-4014-A1D1-B52D0FA73AA4>.<5>"
+), _NSURLErrorFailingURLSessionTaskErrorKey=LocalDataTask <94DB81B4-3E12-4014-A1D1-B52D0FA73AA4>.<5>}
+2026-11-03 07:36:55.138393-0600 MacCloud_client_iOS[90296:184894688] [Default] Task <A64EB951-BE18-4D2D-A866-CB0B7FE0542C>.<6> finished with error [-1005] Error Domain=NSURLErrorDomain Code=-1005 "(null)" UserInfo={_NSURLErrorRelatedURLSessionTaskErrorKey=(
+    "LocalDataTask <A64EB951-BE18-4D2D-A866-CB0B7FE0542C>.<6>"
+), _NSURLErrorFailingURLSessionTaskErrorKey=LocalDataTask <A64EB951-BE18-4D2D-A866-CB0B7FE0542C>.<6>}
+2026-11-03 07:36:55.138628-0600 MacCloud_client_iOS[90296:184894688] [Default] Task <EF3B58B9-BC65-4F6F-A0C4-4D294F944E8A>.<7> finished with error [-1005] Error Domain=NSURLErrorDomain Code=-1005 "(null)" UserInfo={_NSURLErrorRelatedURLSessionTaskErrorKey=(
+    "LocalDataTask <EF3B58B9-BC65-4F6F-A0C4-4D294F944E8A>.<7>"
+), _NSURLErrorFailingURLSessionTaskErrorKey=LocalDataTask <EF3B58B9-BC65-4F6F-A0C4-4D294F944E8A>.<7>}
+2026-11-03 07:36:55.138909-0600 MacCloud_client_iOS[90296:184894706] [Default] Task <2341212E-C0E5-497E-A5D5-BC4180EFCD51>.<8> finished with error [-1005] Error Domain=NSURLErrorDomain Code=-1005 "(null)" UserInfo={_NSURLErrorRelatedURLSessionTaskErrorKey=(
+    "LocalDataTask <2341212E-C0E5-497E-A5D5-BC4180EFCD51>.<8>"
+), _NSURLErrorFailingURLSessionTaskErrorKey=LocalDataTask <2341212E-C0E5-497E-A5D5-BC4180EFCD51>.<8>}
+✔ Test failedChunkedUploadResumesFromServerCounter() passed after 0.006 seconds.
+◇ Test terminalConflictOnRetryClearsPendingUpload() started.
+✔ Test terminalConflictOnRetryClearsPendingUpload() passed after 0.002 seconds.
+◇ Test retryWithoutPendingUploadReturnsNil() started.
+✔ Test retryWithoutPendingUploadReturnsNil() passed after 0.001 seconds.
+✔ Suite MacCloudViewModelChunkedUploadTests passed after 0.019 seconds.
+◇ Suite MacCloudViewModelOperationsTests started.
+◇ Test uiTestingFixturesSurviveUnauthenticatedPublisherValue() started.
+✔ Test uiTestingFixturesSurviveUnauthenticatedPublisherValue() passed after 0.100 seconds.
+◇ Test withoutUITestingAnUnauthenticatedPublisherValueClearsFiles() started.
+✔ Test withoutUITestingAnUnauthenticatedPublisherValueClearsFiles() passed after 0.101 seconds.
+◇ Test loadFilesSkipsWhenUnauthenticated() started.
+✔ Test loadFilesSkipsWhenUnauthenticated() passed after 0.001 seconds.
+◇ Test loadFilesShowsErrorOnFailure() started.
+✔ Test loadFilesShowsErrorOnFailure() passed after 0.502 seconds.
+◇ Test deleteFilesSuccessClearsSelection() started.
+✔ Test deleteFilesSuccessClearsSelection() passed after 0.001 seconds.
+◇ Test deleteFilesShowsErrorOnFailure() started.
+✔ Test deleteFilesShowsErrorOnFailure() passed after 0.001 seconds.
+◇ Test createFolderSuccessClosesSheet() started.
+✔ Test createFolderSuccessClosesSheet() passed after 0.503 seconds.
+◇ Test createFolderShowsErrorOnFailure() started.
+✔ Test createFolderShowsErrorOnFailure() passed after 0.001 seconds.
+◇ Test syncFilesSkipsWhenUnauthenticated() started.
+✔ Test syncFilesSkipsWhenUnauthenticated() passed after 0.001 seconds.
+◇ Test syncFilesShowsErrorOnFailure() started.
+✔ Test syncFilesShowsErrorOnFailure() passed after 0.001 seconds.
+◇ Test downloadFileFolderGuardSkips() started.
+✔ Test downloadFileFolderGuardSkips() passed after 0.001 seconds.
+◇ Test downloadFileSuccess() started.
+✔ Test downloadFileSuccess() passed after 0.001 seconds.
+◇ Test downloadFileShowsErrorOnFailure() started.
+✔ Test downloadFileShowsErrorOnFailure() passed after 0.001 seconds.
+◇ Test loginSuccessSetsAuthenticated() started.
+✔ Test loginSuccessSetsAuthenticated() passed after 0.001 seconds.
+◇ Test loginFailureShowsError() started.
+✔ Test loginFailureShowsError() passed after 0.001 seconds.
+◇ Test loginClosesLoginSheet() started.
+✔ Test loginClosesLoginSheet() passed after 0.001 seconds.
+◇ Test uploadFileSuccessClosesSheet() started.
+✔ Test uploadFileSuccessClosesSheet() passed after 0.506 seconds.
+◇ Test uploadFileFailureShowsError() started.
+✔ Test uploadFileFailureShowsError() passed after 0.002 seconds.
+◇ Test deleteMultipleFilesSuccess() started.
+✔ Test deleteMultipleFilesSuccess() passed after 0.001 seconds.
+◇ Test storageUsageWithUser() started.
+✔ Test storageUsageWithUser() passed after 0.001 seconds.
+◇ Test storageUsagePercentageWithUser() started.
+✔ Test storageUsagePercentageWithUser() passed after 0.001 seconds.
+◇ Test syncFilesSendsTheLastSyncTimestampBack() started.
+✔ Test syncFilesSendsTheLastSyncTimestampBack() passed after 0.101 seconds.
+◇ Test logoutForgetsTheLastSyncTimestamp() started.
+✔ Test logoutForgetsTheLastSyncTimestamp() passed after 0.102 seconds.
+◇ Test syncFilesFailureShowsErrorAndKeepsTheTimestamp() started.
+✔ Test syncFilesFailureShowsErrorAndKeepsTheTimestamp() passed after 0.101 seconds.
+✔ Suite MacCloudViewModelOperationsTests passed after 2.030 seconds.
+◇ Suite MacCloudViewModelTests started.
+◇ Test initialState() started.
+✔ Test initialState() passed after 0.001 seconds.
+◇ Test "Filtered files count by search term" started.
+◇ Test case passing 2 arguments query → "", expectedCount → 3 to "Filtered files count by search term" started.
+​◇ Test case passing 2 arguments query → "Apple", expectedCount → 1 to "Filtered files count by search term" started.
+​◇ Test case passing 2 arguments query → "apple", expectedCount → 1 to "Filtered files count by search term" started.
+​◇ Test case passing 2 arguments query → "txt", expectedCount → 2 to "Filtered files count by search term" started.
+​◇ Test case passing 2 arguments query → "Zebra", expectedCount → 0 to "Filtered files count by search term" started.
+​✔ Test "Filtered files count by search term" with 5 test cases passed after 0.001 seconds.
+◇ Test filteredFilesReturnsMatchingFile() started.
+✔ Test filteredFilesReturnsMatchingFile() passed after 0.001 seconds.
+◇ Test filteredFilesEmptyList() started.
+✔ Test filteredFilesEmptyList() passed after 0.001 seconds.
+◇ Test filteredFilesPartialMatch() started.
+✔ Test filteredFilesPartialMatch() passed after 0.001 seconds.
+◇ Test navigateUpFromDeepPath() started.
+✔ Test navigateUpFromDeepPath() passed after 0.001 seconds.
+◇ Test navigateUpFromRoot() started.
+✔ Test navigateUpFromRoot() passed after 0.001 seconds.
+◇ Test navigateUpClearsSelection() started.
+✔ Test navigateUpClearsSelection() passed after 0.001 seconds.
+◇ Test navigateToFolder() started.
+✔ Test navigateToFolder() passed after 0.001 seconds.
+◇ Test navigateToFolderIgnoresFiles() started.
+✔ Test navigateToFolderIgnoresFiles() passed after 0.001 seconds.
+◇ Test navigateToFolderWithTrailingSlash() started.
+✔ Test navigateToFolderWithTrailingSlash() passed after 0.001 seconds.
+◇ Test navigateToFolderClearsSelection() started.
+✔ Test navigateToFolderClearsSelection() passed after 0.001 seconds.
+◇ Test "File icon by type" started.
+◇ Test case passing 1 argument testCase → Work → folder to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → resume.pdf → doc.text to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → vacation.jpg → photo to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → data.dat → doc to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → report.docx → doc.text to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → budget.xlsx → tablecells to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → slides.pptx → chart.bar to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → clip.mp4 → video to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → movie.mov → video to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → film.avi → video to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → song.mp3 → music.note to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → audio.wav → music.note to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → track.aac → music.note to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → icon.png → photo to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → anim.gif → photo to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → photo.heic → photo to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → pic.jpeg → photo to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → archive.zip → archivebox to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → backup.rar → archivebox to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → data.7z → archivebox to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → old.doc → doc.text to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → old.xls → tablecells to "File icon by type" started.
+​◇ Test case passing 1 argument testCase → old.ppt → chart.bar to "File icon by type" started.
+​✔ Test "File icon by type" with 23 test cases passed after 0.005 seconds.
+◇ Test toggleFileSelection() started.
+✔ Test toggleFileSelection() passed after 0.001 seconds.
+◇ Test selectAllFiles() started.
+✔ Test selectAllFiles() passed after 0.001 seconds.
+◇ Test deselectAllFiles() started.
+✔ Test deselectAllFiles() passed after 0.001 seconds.
+◇ Test logout() started.
+✔ Test logout() passed after 0.001 seconds.
+◇ Test storageUsageWithNoUser() started.
+✔ Test storageUsageWithNoUser() passed after 0.001 seconds.
+◇ Test storageUsagePercentageWithNoUser() started.
+✔ Test storageUsagePercentageWithNoUser() passed after 0.001 seconds.
+◇ Test storageUsagePercentageInBounds() started.
+✔ Test storageUsagePercentageInBounds() passed after 0.001 seconds.
+◇ Test "Format file size returns non-empty string" started.
+◇ Test case passing 1 argument bytes → 1024 to "Format file size returns non-empty string" started.
+​◇ Test case passing 1 argument bytes → 1048576 to "Format file size returns non-empty string" started.
+​◇ Test case passing 1 argument bytes → 1073741824 to "Format file size returns non-empty string" started.
+​◇ Test case passing 1 argument bytes → 0 to "Format file size returns non-empty string" started.
+​✔ Test "Format file size returns non-empty string" with 4 test cases passed after 0.001 seconds.
+◇ Test formatDateContainsYear() started.
+✔ Test formatDateContainsYear() passed after 0.001 seconds.
+◇ Test formatDateNotEmpty() started.
+✔ Test formatDateNotEmpty() passed after 0.001 seconds.
+✔ Suite MacCloudViewModelTests passed after 0.015 seconds.
+◇ Suite ModelPersistenceTests started.
+◇ Test aUserSaves() started.
+✔ Test aUserSaves() passed after 0.004 seconds.
+◇ Test aFileSaves() started.
+✔ Test aFileSaves() passed after 0.003 seconds.
+◇ Test aVersionSaves() started.
+✔ Test aVersionSaves() passed after 0.003 seconds.
+◇ Test aShareSaves() started.
+✔ Test aShareSaves() passed after 0.004 seconds.
+✔ Suite ModelPersistenceTests passed after 0.015 seconds.
+◇ Suite "Quick Setup presets" started.
+◇ Test "Every preset URL parses and carries a scheme and host" started.
+✔ Test "Every preset URL parses and carries a scheme and host" passed after 0.001 seconds.
+◇ Test "Presets are distinct by URL, which is also their identity" started.
+✔ Test "Presets are distinct by URL, which is also their identity" passed after 0.001 seconds.
+◇ Test "The demo server is reached over HTTPS" started.
+✔ Test "The demo server is reached over HTTPS" passed after 0.001 seconds.
+✔ Suite "Quick Setup presets" passed after 0.001 seconds.
+◇ Suite ServerBaseURLTests started.
+◇ Test theServerURLIsTheAPIBaseWithNoVersionPrefix() started.
+✔ Test theServerURLIsTheAPIBaseWithNoVersionPrefix() passed after 0.001 seconds.
+◇ Test trailingSlashesAreDropped() started.
+✔ Test trailingSlashesAreDropped() passed after 0.001 seconds.
+◇ Test requestsGoToTheServerRoot() started.
+✔ Test requestsGoToTheServerRoot() passed after 0.001 seconds.
+◇ Test listingInsideAFolderSendsTheServersDirectorySpelling() started.
+✔ Test listingInsideAFolderSendsTheServersDirectorySpelling() passed after 0.001 seconds.
+✔ Suite ServerBaseURLTests passed after 0.001 seconds.
+◇ Suite ServerContractDecodingTests started.
+◇ Test tokenRefreshDecodes() started.
+✔ Test tokenRefreshDecodes() passed after 0.001 seconds.
+◇ Test loginResponseDecodes() started.
+✔ Test loginResponseDecodes() passed after 0.001 seconds.
+◇ Test fileListDecodes() started.
+✔ Test fileListDecodes() passed after 0.001 seconds.
+◇ Test singleFileDecodes() started.
+✔ Test singleFileDecodes() passed after 0.001 seconds.
+◇ Test syncChangesDecode() started.
+✔ Test syncChangesDecode() passed after 0.001 seconds.
+◇ Test createdFolderDecodes() started.
+✔ Test createdFolderDecodes() passed after 0.001 seconds.
+◇ Test currentUserDecodes() started.
+✔ Test currentUserDecodes() passed after 0.001 seconds.
+✔ Suite ServerContractDecodingTests passed after 0.001 seconds.
+◇ Suite SessionLifecycleTests started.
+◇ Test aRestoredSessionFetchesTheProfile() started.
+✔ Test aRestoredSessionFetchesTheProfile() passed after 0.021 seconds.
+◇ Test signingInDoesNotFetchTheProfileAgain() started.
+
+
+*** If you believe this error represents a bug, please attach the result bundle at /tmp/m103/robust/dd2/Logs/Test/Test-MacCloud_client_iOS-2026.11.03_07-36-52--0600.xcresult
+
+2026-11-03 07:37:18.923 xcodebuild[90293:184894507] [MT] IDELaunchReport: eb60c8d8af1e2dc0:eb60c8d8af1e1d00:Installing built products Finished with error: No matching device (B564EE45-CFEB-4238-928C-5DF08A260581) in set at /Users/me/Library/Developer/CoreSimulator/Devices
+Domain: com.apple.CoreSimulator.SimError
+Code: 404
+User Info: {
+    DVTErrorCreationDateKey = "2026-11-03 13:37:18 +0000";
+    IDERunOperationFailingWorker = "_IDEInstalliPhoneSimulatorWorker";
+}
+--
+
+2026-11-03 07:37:18.923 xcodebuild[90293:184894507] [MT] IDELaunchReport: eb60c8d8af1e2dc0:eb60c8d8af1e1d00:Installing built products com.apple.dt.IDERunOperationWorkerFinished {
+    "device_identifier" = "B564EE45-CFEB-4238-928C-5DF08A260581";
+    "device_model" = "iPhone18,1";
+    "device_osBuild" = "26.5 (23F77)";
+    "device_osBuild_monotonic" = 23005077000000000;
+    "device_os_variant" = 1;
+    "device_platform" = "com.apple.platform.iphonesimulator";
+    "device_platform_family" = 2;
+    "device_reality" = 2;
+    "device_thinningType" = "iPhone18,1";
+    "device_transport" = 4;
+    "launchSession_initiator" = 1;
+    "launchSession_schemeCommand" = "Test Without Building";
+    "launchSession_schemeCommand_enum" = 102;
+    "launchSession_targetArch" = arm64;
+    "launchSession_targetArch_enum" = 6;
+    "operation_duration_ms" = 1;
+    "operation_errorCode" = 404;
+    "operation_errorDomain" = "com.apple.CoreSimulator.SimError";
+    "operation_errorWorker" = "_IDEInstalliPhoneSimulatorWorker";
+    "operation_error_reportable" = 1;
+    "operation_name" = "_IDEInstalliPhoneSimulatorWorker";
+    "param_consoleMode" = 0;
+    "param_debugger_attachToExtensions" = 0;
+    "param_debugger_attachToXPC" = 0;
+    "param_debugger_type" = 1;
+    "param_destination_isProxy" = 0;
+    "param_destination_platform" = "com.apple.platform.iphonesimulator";
+    "param_diag_MTE_enable" = 0;
+    "param_diag_MainThreadChecker_stopOnIssue" = 0;
+    "param_diag_MallocStackLogging_enableDuringAttach" = 0;
+    "param_diag_MallocStackLogging_enableForXPC" = 0;
+    "param_diag_allowLocationSimulation" = 1;
+    "param_diag_checker_mtc_enable" = 0;
+    "param_diag_checker_tpc_enable" = 0;
+    "param_diag_gpu_frameCapture_enable" = 3;
+    "param_diag_gpu_shaderValidation_enable" = 0;
+    "param_diag_gpu_validation_enable" = 1;
+    "param_diag_guardMalloc_enable" = 0;
+    "param_diag_memoryGraphOnResourceException" = 0;
+    "param_diag_queueDebugging_enable" = 0;
+    "param_diag_runtimeProfile_generate" = 1;
+    "param_diag_sanitizer_asan_enable" = 0;
+    "param_diag_sanitizer_mtasan_enable" = 0;
+    "param_diag_sanitizer_tsan_enable" = 0;
+    "param_diag_sanitizer_tsan_stopOnIssue" = 0;
+    "param_diag_sanitizer_ubsan_enable" = 0;
+    "param_diag_sanitizer_ubsan_stopOnIssue" = 0;
+    "param_diag_showNonLocalizedStrings" = 0;
+    "param_diag_viewDebugging_enabled" = 0;
+    "param_diag_viewDebugging_insertDylibOnLaunch" = 0;
+    "param_install_style" = 2;
+    "param_launcher_UID" = 2;
+    "param_launcher_allowDeviceSensorReplayData" = 0;
+    "param_launcher_kind" = 0;
+    "param_launcher_style" = 0;
+    "param_launcher_substyle" = 0;
+    "param_runnable_appExtensionHostRunMode" = 0;
+    "param_runnable_productType" = "com.apple.product-type.application";
+    "param_testing_launchedForTesting" = 1;
+    "param_testing_suppressSimulatorApp" = 1;
+    "param_testing_usingCLI" = 0;
+    "sdk_canonicalName" = "iphonesimulator27.2";
+    "sdk_osVersion" = "27.2";
+    "sdk_platformID" = 7;
+    "sdk_variant" = iphonesimulator;
+    "sdk_version_monotonic" = 24001118008000000;
+}
+2026-11-03 07:37:18.924 xcodebuild[90293:184894507] [MT] IDELaunchReport: eb60c8d8af1e2dc0:eb60c8d8af1e2dc0: Finished with error: No matching device (B564EE45-CFEB-4238-928C-5DF08A260581) in set at /Users/me/Library/Developer/CoreSimulator/Devices
+Domain: com.apple.CoreSimulator.SimError
+Code: 404
+User Info: {
+    DVTErrorCreationDateKey = "2026-11-03 13:37:18 +0000";
+    IDERunOperationFailingWorker = "_IDEInstalliPhoneSimulatorWorker";
+}
+--
+
+2026-11-03 07:37:18.924 xcodebuild[90293:184894507] [MT] IDELaunchReport: eb60c8d8af1e2dc0:eb60c8d8af1e2dc0: com.apple.dt.IDERunOperationWorkerFinished {
+    "device_identifier" = "B564EE45-CFEB-4238-928C-5DF08A260581";
+    "device_model" = "iPhone18,1";
+    "device_osBuild" = "26.5 (23F77)";
+    "device_osBuild_monotonic" = 23005077000000000;
+    "device_os_variant" = 1;
+    "device_platform" = "com.apple.platform.iphonesimulator";
+    "device_platform_family" = 2;
+    "device_reality" = 2;
+    "device_thinningType" = "iPhone18,1";
+    "device_transport" = 4;
+    "launchSession_initiator" = 1;
+    "launchSession_schemeCommand" = "Test Without Building";
+    "launchSession_schemeCommand_enum" = 102;
+    "launchSession_targetArch" = arm64;
+    "launchSession_targetArch_enum" = 6;
+    "operation_duration_ms" = 1;
+    "operation_errorCode" = 404;
+    "operation_errorDomain" = "com.apple.CoreSimulator.SimError";
+    "operation_errorWorker" = "_IDEInstalliPhoneSimulatorWorker";
+    "operation_error_reportable" = 1;
+    "operation_name" = IDERunOperationWorkerGroup;
+    "param_consoleMode" = 0;
+    "param_debugger_attachToExtensions" = 0;
+    "param_debugger_attachToXPC" = 0;
+    "param_debugger_type" = 1;
+    "param_destination_isProxy" = 0;
+    "param_destination_platform" = "com.apple.platform.iphonesimulator";
+    "param_diag_MTE_enable" = 0;
+    "param_diag_MainThreadChecker_stopOnIssue" = 0;
+    "param_diag_MallocStackLogging_enableDuringAttach" = 0;
+    "param_diag_MallocStackLogging_enableForXPC" = 0;
+    "param_diag_allowLocationSimulation" = 1;
+    "param_diag_checker_mtc_enable" = 0;
+    "param_diag_checker_tpc_enable" = 0;
+    "param_diag_gpu_frameCapture_enable" = 3;
+    "param_diag_gpu_shaderValidation_enable" = 0;
+    "param_diag_gpu_validation_enable" = 1;
+    "param_diag_guardMalloc_enable" = 0;
+    "param_diag_memoryGraphOnResourceException" = 0;
+    "param_diag_queueDebugging_enable" = 0;
+    "param_diag_runtimeProfile_generate" = 1;
+    "param_diag_sanitizer_asan_enable" = 0;
+    "param_diag_sanitizer_mtasan_enable" = 0;
+    "param_diag_sanitizer_tsan_enable" = 0;
+    "param_diag_sanitizer_tsan_stopOnIssue" = 0;
+    "param_diag_sanitizer_ubsan_enable" = 0;
+    "param_diag_sanitizer_ubsan_stopOnIssue" = 0;
+    "param_diag_showNonLocalizedStrings" = 0;
+    "param_diag_viewDebugging_enabled" = 0;
+    "param_diag_viewDebugging_insertDylibOnLaunch" = 0;
+    "param_install_style" = 2;
+    "param_launcher_UID" = 2;
+    "param_launcher_allowDeviceSensorReplayData" = 0;
+    "param_launcher_kind" = 0;
+    "param_launcher_style" = 0;
+    "param_launcher_substyle" = 0;
+    "param_runnable_appExtensionHostRunMode" = 0;
+    "param_runnable_productType" = "com.apple.product-type.application";
+    "param_testing_launchedForTesting" = 1;
+    "param_testing_suppressSimulatorApp" = 1;
+    "param_testing_usingCLI" = 0;
+    "sdk_canonicalName" = "iphonesimulator27.2";
+    "sdk_osVersion" = "27.2";
+    "sdk_platformID" = 7;
+    "sdk_variant" = iphonesimulator;
+    "sdk_version_monotonic" = 24001118008000000;
+}
+2026-11-03 07:37:22.277 xcodebuild[90293:184894507] [MT] IDETestOperationsObserverDebug: 29.417 elapsed -- Testing started completed.
+2026-11-03 07:37:22.277 xcodebuild[90293:184894507] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-03 07:37:22.277 xcodebuild[90293:184894507] [MT] IDETestOperationsObserverDebug: 29.417 sec, +29.417 sec -- end
+
+Test session results, code coverage, and logs:
+	/tmp/m103/robust/dd2/Logs/Test/Test-MacCloud_client_iOS-2026.11.03_07-36-52--0600.xcresult
+
+Testing failed:
+	No matching device (B564EE45-CFEB-4238-928C-5DF08A260581) in set at /Users/me/Library/Developer/CoreSimulator/Devices
+
+Failing tests:
+	SessionLifecycleTests.signingInDoesNotFetchTheProfileAgain()
+
+** TEST EXECUTE FAILED **
+
+Testing started

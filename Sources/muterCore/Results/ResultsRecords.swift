@@ -500,6 +500,8 @@ struct ResultsEnd: Codable, Equatable {
             return "tooManyBuildErrors"
         case .mutantNotSwitchedOn:
             return "mutantNotSwitchedOn"
+        case let .simulatorUnavailable(worker, _, _):
+            return "simulatorUnavailable(worker: \(worker))"
         case .unknownError:
             return "unknownError"
         }

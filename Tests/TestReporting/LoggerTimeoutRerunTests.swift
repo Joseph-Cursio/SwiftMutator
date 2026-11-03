@@ -42,6 +42,25 @@ final class LoggerTimeoutRerunTests: MuterTestCase {
         ])
     }
 
+    // A mutant's run that ran again because the simulator didn't launch the first, which isn't a timeout's rerun.
+    func test_aRunRepeatedAfterALaunchFailure_saysWhereWhyAndWhichLog() {
+        let point = MutationPoint.make(filePath: "/tmp/project/Module.swift", position: 3)
+        let snapshot = MutationOperator.Snapshot.make(before: "==", after: "!=", description: "changed == to !=")
+
+        sut.runRepeatedAfterLaunchFailure(RepeatedRun(
+            mutant: .make(testSuiteOutcome: .failed, point: point, snapshot: snapshot),
+            worker: 0,
+            line: "Simulator device failed to launch com.example.App.",
+            log: .make(mutationPoint: point, keptFileName: "ROR @ Module.swift-3-3 1234 (launch failed).log")
+        ))
+
+        XCTAssertEqual(printer.linesPassed, [
+            "🔁 The simulator didn't launch the tests for Module.swift:3:3 (changed == to !=), so they ran again. "
+                + "The first run's log, ROR @ Module.swift-3-3 1234 (launch failed).log, says: "
+                + "Simulator device failed to launch com.example.App.",
+        ])
+    }
+
     func test_theRerunsEnd_sayingHowManyChanged_andWhatTheyCameTo() {
         var tally = TimeoutRerunTally(TimeoutReruns(count: 4, workers: 1, limitSeconds: 72))
         for outcome: TestSuiteOutcome in [.timeout, .runtimeError, .timeout, .buildError] {

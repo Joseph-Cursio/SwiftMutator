@@ -1,0 +1,82 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test-without-building -destination id=B564EE45-CFEB-4238-928C-5DF08A260581 -xctestrun muter.xctestrun "-only-testing:MacCloud_client_iOSTests" -parallel-testing-enabled NO -derivedDataPath ../dd2
+
+2026-11-03 07:38:28.567 xcodebuild[90411:184896546] Writing error result bundle to /var/folders/xx/0000000000000000000000000000gn/T/ResultBundle_2026-03-11_07-38-0028.xcresult
+xcodebuild: error: Unable to find a device matching the provided destination specifier:
+		{ id:B564EE45-CFEB-4238-928C-5DF08A260581 }
+
+	The requested device could not be found because no available devices matched the request.
+
+	Destinations compatible with the "MacCloud_client_iOS" scheme:
+		{ platform:macOS, arch:arm64e, id:00006050-000000000000001C, name:My Mac }
+		{ platform:macOS, arch:arm64, id:00006050-000000000000001C, name:My Mac }
+		{ platform:macOS, arch:x86_64, id:00006050-000000000000001C, name:My Mac }
+		{ platform:macOS, arch:arm64e, variant:Mac Catalyst, id:00006050-000000000000001C, name:My Mac }
+		{ platform:macOS, arch:arm64, variant:Mac Catalyst, id:00006050-000000000000001C, name:My Mac }
+		{ platform:macOS, arch:x86_64, variant:Mac Catalyst, id:00006050-000000000000001C, name:My Mac }
+		{ platform:macOS, arch:arm64e, variant:DriverKit, id:00006050-000000000000001C, name:My Mac }
+		{ platform:macOS, arch:arm64, variant:DriverKit, id:00006050-000000000000001C, name:My Mac }
+		{ platform:macOS, arch:arm64e, variant:Designed for [iPad,iPhone], id:00006050-000000000000001C, name:My Mac }
+		{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:00006050-000000000000001C, name:My Mac }
+		{ platform:iOS, arch:arm64e, id:00008101-000000000000001E, name:My iPad }
+		{ platform:iOS, arch:arm64, id:00008101-000000000000001E, name:My iPad }
+		{ platform:iOS, arch:arm64e, variant:DriverKit, id:00008101-000000000000001E, name:My iPad }
+		{ platform:iOS, arch:arm64, variant:DriverKit, id:00008101-000000000000001E, name:My iPad }
+		{ platform:DriverKit, name:Any DriverKit Host }
+		{ platform:iOS, id:dvtdevice-DVTiPhonePlaceholder-iphoneos:placeholder, name:Any iOS Device }
+		{ platform:iOS Simulator, id:dvtdevice-DVTiOSDeviceSimulatorPlaceholder-iphonesimulator:placeholder, name:Any iOS Simulator Device }
+		{ platform:macOS, name:Any Mac }
+		{ platform:macOS, variant:Mac Catalyst, name:Any Mac }
+		{ platform:tvOS, id:dvtdevice-DVTiOSDevicePlaceholder-appletvos:placeholder, name:Any tvOS Device }
+		{ platform:tvOS Simulator, id:dvtdevice-DVTiOSDeviceSimulatorPlaceholder-appletvsimulator:placeholder, name:Any tvOS Simulator Device }
+		{ platform:visionOS, id:dvtdevice-DVTiOSDevicePlaceholder-xros:placeholder, name:Any visionOS Device }
+		{ platform:visionOS Simulator, id:dvtdevice-DVTiOSDeviceSimulatorPlaceholder-xrsimulator:placeholder, name:Any visionOS Simulator Device }
+		{ platform:watchOS, id:dvtdevice-DVTiOSDevicePlaceholder-watchos:placeholder, name:Any watchOS Device }
+		{ platform:watchOS Simulator, id:dvtdevice-DVTiOSDeviceSimulatorPlaceholder-watchsimulator:placeholder, name:Any watchOS Simulator Device }
+		{ platform:tvOS Simulator, arch:arm64, id:DF42C8D1-A7B7-4BCF-BA74-9851D2792BF0, OS:26.5, name:Apple TV }
+		{ platform:tvOS Simulator, arch:arm64, id:DB93C67B-CB0A-43FE-8334-558239A5B7B8, OS:26.5, name:Apple TV 4K (3rd generation) }
+		{ platform:tvOS Simulator, arch:arm64, id:FF623C5E-0EAE-4A2E-ACC4-B193562A3669, OS:27.0, name:Apple TV 4K (3rd generation) }
+		{ platform:tvOS Simulator, arch:arm64, id:A51D49C1-7851-4540-976E-962DDA318909, OS:26.5, name:Apple TV 4K (3rd generation) (at 1080p) }
+		{ platform:tvOS Simulator, arch:arm64, id:ADF4EFA9-0A9A-4D57-9547-88823AF3BF59, OS:27.0, name:Apple TV 4K (3rd generation) (at 1080p) }
+		{ platform:visionOS Simulator, arch:arm64, id:86045F4C-2C86-4E4A-8835-09D5ADF58302, OS:26.5, name:Apple Vision Pro }
+		{ platform:visionOS Simulator, arch:arm64, variant:Designed for [iPad,iPhone], id:86045F4C-2C86-4E4A-8835-09D5ADF58302, OS:26.5, name:Apple Vision Pro }
+		{ platform:visionOS Simulator, arch:arm64, id:39440E5C-D840-4955-83D4-FA319A1F1CC9, OS:27.0, name:Apple Vision Pro }
+		{ platform:visionOS Simulator, arch:arm64, variant:Designed for [iPad,iPhone], id:39440E5C-D840-4955-83D4-FA319A1F1CC9, OS:27.0, name:Apple Vision Pro }
+		{ platform:watchOS Simulator, arch:arm64, id:BA182BB8-EE7F-4B54-99B0-BC8BB136036A, OS:26.5, name:Apple Watch SE 3 (40mm) }
+		{ platform:watchOS Simulator, arch:arm64, id:C5268D4C-294A-466D-B7C7-F795BE85C570, OS:27.0, name:Apple Watch SE 3 (40mm) }
+		{ platform:watchOS Simulator, arch:arm64, id:024BF906-CD7B-49C6-9447-BA242E5B5980, OS:26.5, name:Apple Watch SE 3 (44mm) }
+		{ platform:watchOS Simulator, arch:arm64, id:295287BB-FC96-4C7C-A0CA-C112AA7A2D00, OS:27.0, name:Apple Watch SE 3 (44mm) }
+		{ platform:watchOS Simulator, arch:arm64, id:A87DD337-3900-4D3C-AEE7-1624483FCECC, OS:26.5, name:Apple Watch Series 11 (42mm) }
+		{ platform:watchOS Simulator, arch:arm64, id:6A77D52C-228A-4C97-BBDA-FBC1F7B34013, OS:26.5, name:Apple Watch Series 11 (46mm) }
+		{ platform:watchOS Simulator, arch:arm64, id:0C30EE4E-45ED-4561-B281-FC4C96D49404, OS:27.0, name:Apple Watch Series 12 (42mm) }
+		{ platform:watchOS Simulator, arch:arm64, id:57CF7990-4CD6-48BB-8415-34DEA1500E5F, OS:27.0, name:Apple Watch Series 12 (46mm) }
+		{ platform:watchOS Simulator, arch:arm64, id:5DB1B712-7773-4D9C-9851-44840F9534DC, OS:26.5, name:Apple Watch Ultra 3 (49mm) }
+		{ platform:watchOS Simulator, arch:arm64, id:E7459C0B-E345-413E-85A0-16207D064885, OS:27.0, name:Apple Watch Ultra 4 (49mm) }
+		{ platform:iOS Simulator, arch:arm64, id:D9C43C43-38DB-475C-8D91-7F448890DCB5, OS:26.5, name:iPad (A16) }
+		{ platform:iOS Simulator, arch:arm64, id:A362E0B6-3E2F-484D-80CC-FDC56D337B09, OS:27.0, name:iPad (A16) }
+		{ platform:iOS Simulator, arch:arm64, id:31F71DF8-6C75-44EB-B21C-0719DE05C1EE, OS:26.5, name:iPad Air 11-inch (M4) }
+		{ platform:iOS Simulator, arch:arm64, id:37E11EA8-7A35-4B99-8F87-F500A36BAAEA, OS:27.0, name:iPad Air 11-inch (M4) }
+		{ platform:iOS Simulator, arch:arm64, id:457D4D41-A847-4231-A583-2A0D994FEEA3, OS:26.5, name:iPad Air 13-inch (M4) }
+		{ platform:iOS Simulator, arch:arm64, id:4823FCF7-0EAC-4A47-8D15-47371C0F30AF, OS:27.0, name:iPad Air 13-inch (M4) }
+		{ platform:iOS Simulator, arch:arm64, id:BF8B6152-E723-49ED-B48D-9A1F9FDAD81D, OS:26.5, name:iPad Pro 11-inch (M5) }
+		{ platform:iOS Simulator, arch:arm64, id:CD04E27C-2DBA-4D81-BB39-9EF521D189B3, OS:27.0, name:iPad Pro 11-inch (M5) }
+		{ platform:iOS Simulator, arch:arm64, id:FDEAFF15-ED6E-4743-8AD7-FB7EC5C025A0, OS:26.5, name:iPad Pro 13-inch (M5) }
+		{ platform:iOS Simulator, arch:arm64, id:F6009D7E-AC86-4161-A733-11C94D38D33E, OS:27.0, name:iPad Pro 13-inch (M5) }
+		{ platform:iOS Simulator, arch:arm64, id:E94E8320-7073-40AE-8F48-8A206A1CD9F6, OS:26.5, name:iPad mini (A17 Pro) }
+		{ platform:iOS Simulator, arch:arm64, id:25C7A24F-E5F9-4195-97A0-49077D2C2F16, OS:27.0, name:iPad mini (A17 Pro) }
+		{ platform:iOS Simulator, arch:arm64, id:2287A7A0-7267-42D1-B831-27EAB2C17C5C, OS:26.5, name:iPhone 17 }
+		{ platform:iOS Simulator, arch:arm64, id:2EC081DD-E2CB-44D4-97E6-6336BE58165D, OS:27.0, name:iPhone 17 }
+		{ platform:iOS Simulator, arch:arm64, id:693E96A4-A11F-4223-B131-CFC50C9A17B8, OS:26.5, name:iPhone 17 Pro }
+		{ platform:iOS Simulator, arch:arm64, id:1C555B69-A43F-4B78-A65E-7A0B81E300DB, OS:26.5, name:iPhone 17 Pro Max }
+		{ platform:iOS Simulator, arch:arm64, id:CC7BB605-AF44-4C97-9B06-99BA55F7E729, OS:26.5, name:iPhone 17e }
+		{ platform:iOS Simulator, arch:arm64, id:32596727-7F4A-48A7-8534-75633DB96468, OS:27.0, name:iPhone 17e }
+		{ platform:iOS Simulator, arch:arm64, id:B7593A3C-F829-4269-994B-043764C06673, OS:27.0, name:iPhone 18 Pro }
+		{ platform:iOS Simulator, arch:arm64, id:E31C8D1F-BB33-4D3C-BB7B-BA571028F808, OS:27.0, name:iPhone 18 Pro Max }
+		{ platform:iOS Simulator, arch:arm64, id:CD6C75DB-8C26-4BE5-AA7E-71A2A904F3C4, OS:26.5, name:iPhone Air }
+		{ platform:iOS Simulator, arch:arm64, id:70276DFA-0B61-40FB-9359-14463F889AA4, OS:27.0, name:iPhone Air }
+		{ platform:iOS Simulator, arch:arm64, id:0337B74A-55F6-4D3E-BEB2-D0A44F71F4FA, OS:27.1, name:iPhone Duo }
+		{ platform:iOS Simulator, arch:arm64, id:A6AB1665-F10F-49AC-BD9F-B7724A6B1C7C, OS:26.5, name:swiftmutator-probe-perf-a }
+		{ platform:iOS Simulator, arch:arm64, id:AC346FF4-40EE-4F12-AC1A-DB9A2C6DB95D, OS:26.5, name:swiftmutator-probe-perf-b }
+		{ platform:iOS Simulator, arch:arm64, id:751B1987-E71B-4232-8F6B-8C7D0CC87CD6, OS:26.5, name:swiftmutator-probe-perf-c }
+		{ platform:iOS Simulator, arch:arm64, id:2E2E1FE0-A665-4722-ADBD-DD89175F6DE5, OS:26.5, name:swiftmutator-probe-perf-d }
+		{ platform:iOS Simulator, arch:arm64, id:343BD81D-7A09-43E0-8EF2-3869C74274D0, OS:26.5, name:swiftmutator-probe-r1 }

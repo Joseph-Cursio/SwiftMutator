@@ -80,6 +80,25 @@ final class MutationTestLogTests: XCTestCase {
         )
     }
 
+    // Beside the log of the run that replaced it, or that a stop would have recorded.
+    func test_theLogsOfRunsTheSimulatorTroubled_areNamedAfterTheirMutantsLog() {
+        let kept = MutationTestLog.keptFileName(for: key(path: "Sources/Sum.swift"))
+        let rerun = MutationTestLog.rerunFileName(for: key(path: "Sources/Sum.swift"))
+
+        XCTAssertEqual(
+            MutationTestLog.launchFailedFileName(for: kept),
+            "RelationalOperatorReplacement @ Sum.swift-3-5 670192af8b34c2a4 (launch failed).log"
+        )
+        XCTAssertEqual(
+            MutationTestLog.launchFailedFileName(for: rerun),
+            "RelationalOperatorReplacement @ Sum.swift-3-5 670192af8b34c2a4 (rerun) (launch failed).log"
+        )
+        XCTAssertEqual(
+            MutationTestLog.simulatorGoneFileName(for: kept),
+            "RelationalOperatorReplacement @ Sum.swift-3-5 670192af8b34c2a4 (simulator gone).log"
+        )
+    }
+
     func test_aLogIsTheBaselinesUnlessNamed() {
         XCTAssertEqual(MutationTestLog.make().keptFileName, "baseline run.log")
     }

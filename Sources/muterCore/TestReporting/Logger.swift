@@ -540,6 +540,20 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         print("🔁 Ran \(timeouts) again, and \(changed) changed: \(came.joined(separator: ", ")).")
     }
 
+    /// "🔁 The simulator didn't launch the tests for Rules.swift:42:17 (changed == to !=), so they ran again: …": a
+    /// mutant's run that ran again in place of one the simulator failed to launch, with the line that showed it, while
+    /// the progress bar is still to be redrawn. Not a progress line: the progress counts the second run.
+    func runRepeatedAfterLaunchFailure(_ repeated: RepeatedRun) {
+        let mutant = repeated.mutant
+        let place = "\(mutant.point.fileName):\(mutant.point.position.line):\(mutant.point.position.column)"
+        let change = mutant.snapshot.description.isEmpty ? "" : " (\(mutant.snapshot.description))"
+        print(
+            "🔁 The simulator didn't launch the tests for \(place)\(change), so they ran again. "
+                + "The first run's log, \(repeated.log.keptFileName), says: \(repeated.line)"
+        )
+        leaveRoomForTheProgressBar()
+    }
+
     /// "72 s", "41.2 s": `seconds` to a tenth.
     private static func seconds(_ seconds: TimeInterval) -> String {
         String(format: "%g", (seconds * 10).rounded() / 10) + " s"

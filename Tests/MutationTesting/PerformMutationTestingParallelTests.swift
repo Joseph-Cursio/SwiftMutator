@@ -779,6 +779,40 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         XCTAssertEqual(finished.count, 0)
     }
 
+    // A run the simulator failed to launch runs again on its worker, from the same `.xctestrun`, with the mutant still
+    // switched on, before that worker takes another job. Only the second run is handed on, with the first's failure.
+    func test_aPoolOfXcodebuildWorkers_runsAgainOnItsWorker_aRunTheSimulatorFailedToLaunch() async throws {
+        let workers = (0...1).map(xcodebuildWorker)
+        let jobs = try xcodebuildJobs(3)
+        ioDelegate.testSuiteOutcomes = Array(repeating: .failed, count: 4)
+        ioDelegate.mutantTestLogs = [loadFixture("SimulatorTrouble/launch_preflightBusy.log")]
+        var finished: [FinishedRun] = []
+
+        try await sut.runPool(
+            Array(jobs.indices),
+            of: jobs,
+            on: workers,
+            switchingOnFrom: XCTestRun(),
+            outputNamed: { index, _ in "\(index).log" },
+            recording: { finished.append($0) }
+        )
+
+        XCTAssertEqual(finished.map(\.index).sorted(), [0, 1, 2])
+        let repeated = finished.filter { $0.launchFailure != nil }
+        XCTAssertEqual(repeated.count, 1)
+        let run = try XCTUnwrap(repeated.first)
+        XCTAssertEqual(run.launchFailure?.line, "Simulator device failed to launch com.example.MacCloud-client-iOS.")
+        XCTAssertEqual(run.run.testLog, "testLog")
+        let runsOfItsJob = zip(ioDelegate.testLogs, ioDelegate.configurations).filter { $0.0 == "\(run.index).log" }
+        XCTAssertEqual(
+            runsOfItsJob.map(\.1.xcodeWorker),
+            Array(repeating: workers[run.worker].configuration.xcodeWorker, count: 2)
+        )
+        XCTAssertEqual(ioDelegate.testLogs.count, 4)
+        XCTAssertEqual(ioDelegate.schematas.count, 3, "each mutant switched on once")
+        XCTAssertEqual(ioDelegate.mutantsNotSwitchedOnForTheirRun, [])
+    }
+
     /// Runs mutation testing in a task of its own, so a test that cancels it mid-run doesn't cancel itself.
     private func runInItsOwnTask() async -> Result<[MutationTestState.Change], Error> {
         await sut.runInItsOwnTask(with: state)

@@ -197,6 +197,29 @@ final class MutationTestObserverTests: MuterTestCase {
         XCTAssertEqual(printer.linesPassed, ["🔁 1 of 1 killed at Sum.swift:3:3, in 12 s"])
     }
 
+    // Beside the log of the run that replaced it, which the mutant's line names. Neither is counted in the progress.
+    func test_aRunRepeatedAfterALaunchFailure_keepsTheFirstRunsLog_andSaysSo() throws {
+        fileManager.currentDirectoryPathToReturn = "/project"
+        try sut.start()
+        let loggingDirectory = sut.loggingDirectory
+        let point = MutationPoint.make(filePath: "/project/Sources/Sum.swift", position: 3)
+        let keptFileName = "RelationalOperatorReplacement @ Sum.swift-3-3 670192af8b34c2a4 (launch failed).log"
+
+        runEvents.send(
+            .runRepeatedAfterLaunchFailure(RepeatedRun(
+                mutant: .make(testSuiteOutcome: .failed, point: point),
+                worker: 1,
+                line: "Simulator device failed to launch com.example.App.",
+                log: .make(mutationPoint: point, testLog: "** TEST EXECUTE FAILED **", keptFileName: keptFileName)
+            ))
+        )
+
+        XCTAssertEqual(fileManager.paths.last, "\(loggingDirectory)/\(keptFileName)")
+        XCTAssertEqual(fileManager.contents, Data("** TEST EXECUTE FAILED **".utf8))
+        XCTAssertEqual(printer.linesPassed.count, 1)
+        XCTAssertTrue(printer.linesPassed[0].hasPrefix("🔁 The simulator didn't launch the tests for Sum.swift:3:3"))
+    }
+
     // The first run's timeout wasn't a survivor the Xcode format warns of, so a rerun that survives is warned of
     // then. One that timed out again changed nothing.
     func test_aTimeoutThatSurvivesItsRerun_isWarnedOf_inTheXcodeFormat() throws {

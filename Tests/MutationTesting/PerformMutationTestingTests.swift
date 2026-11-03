@@ -699,6 +699,112 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertFalse(fileManager.paths.contains { $0.hasSuffix(".DerivedData") })
     }
 
+    // A real run that found the simulator still busy with the run before. It tested nothing, so the mutant runs again
+    // on the same simulator, still switched on, and only that run is recorded and counted. The first run's log is kept.
+    func test_whenTheSimulatorFailsToLaunchARun_itRunsOnceMore_andOnlyThatRunIsRecorded() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
+        state.loggingDirectory = "/logs"
+        let launchFailed = loadFixture("SimulatorTrouble/launch_preflightBusy.log")
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed, .failed]
+        ioDelegate.mutantTestLogs = [launchFailed, "the second run's log", "testLog"]
+        let sent = recordEvents(named: [.runRepeatedAfterLaunchFailure, .newTestLogAvailable])
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.methodCalls, [
+            "benchmarkTests(using:savingResultsIntoFileNamed:)",
+            "switchOn(schemata:for:at:named:)",
+            "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)",
+            "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)",
+            "switchOn(schemata:for:at:named:)",
+            "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)",
+        ])
+        XCTAssertEqual(outcomes(in: result), [.passed, .failed])
+        let records = try resultsFiles.records(MutantResult.self)
+        XCTAssertEqual(records.map(\.outcome), [.passed, .failed])
+        XCTAssertEqual(sent().map(\.name), [
+            .newTestLogAvailable, // the baseline's
+            .runRepeatedAfterLaunchFailure,
+            .newTestLogAvailable,
+            .newTestLogAvailable,
+        ])
+        let repeated = try XCTUnwrap(sent().compactMap { $0.object as? RepeatedRun }.first)
+        XCTAssertEqual(repeated.worker, 0)
+        XCTAssertEqual(repeated.mutant.testSuiteOutcome, .passed)
+        XCTAssertEqual(repeated.line, "Simulator device failed to launch com.example.MacCloud-client-iOS.")
+        XCTAssertEqual(repeated.log.testLog, launchFailed)
+        XCTAssertEqual(repeated.log.keptFileName, MutationTestLog.launchFailedFileName(for: records[0].log))
+        let logs = sent().compactMap { $0.object as? MutationTestLog }.map(\.testLog)
+        XCTAssertEqual(logs.dropFirst(), ["the second run's log", "testLog"])
+    }
+
+    // One more run at most: a mutant that crashes its app at launch would otherwise run for ever. That run counts,
+    // whatever it comes to.
+    func test_whenTheSimulatorFailsToLaunchARunTwice_theSecondIsRecorded() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
+        let launchFailed = loadFixture("SimulatorTrouble/launch_beforeEstablishingConnection.log")
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed, .failed]
+        ioDelegate.mutantTestLogs = [launchFailed, launchFailed]
+        let sent = recordEvents(named: [.runRepeatedAfterLaunchFailure])
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count, 3)
+        XCTAssertEqual(outcomes(in: result), [.failed, .failed])
+        XCTAssertEqual(sent().count, 1)
+    }
+
+    // A run that passed tested its mutant, whatever its log says; another build system's run has no simulator.
+    func test_aPassedRun_andASwiftPMRun_neverRunAgain() async throws {
+        let launchFailed = loadFixture("SimulatorTrouble/launch_preflightBusy.log")
+        let sent = recordEvents(named: [.runRepeatedAfterLaunchFailure])
+        let runs: [(executable: String, outcomes: [TestSuiteOutcome])] = [
+            ("/usr/bin/xcodebuild", [.passed, .passed]),
+            ("/usr/bin/swift", [.failed, .failed]),
+        ]
+        for (executable, recorded) in runs {
+            state.muterConfiguration = MuterConfiguration(executable: executable, arguments: ["test"])
+            ioDelegate.testSuiteOutcomes = [.passed] + recorded
+            ioDelegate.mutantTestLogs = [launchFailed, launchFailed]
+
+            let result = try await sut.run(with: state)
+
+            XCTAssertEqual(outcomes(in: result), recorded, executable)
+        }
+        XCTAssertEqual(ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count, 4)
+        XCTAssertEqual(sent().count, 0)
+    }
+
+    // A real run on a simulator deleted before it. Every run on it would fail the same way without a test, and count as
+    // a kill, so mutation testing stops without recording it, keeps its log, and keeps what it recorded before.
+    func test_whenARunsSimulatorIsGone_mutationTestingStops_withoutRecordingTheRun() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
+        state.loggingDirectory = "/logs"
+        let gone = loadFixture("SimulatorTrouble/deviceGone_unableToFind.log")
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .buildError]
+        ioDelegate.mutantTestLogs = ["testLog", gone]
+        let sent = recordEvents(named: [.mutationTestingEndedEarly])
+
+        do {
+            _ = try await sut.run(with: state)
+            XCTFail("expected an abort")
+        } catch let MuterError.mutationTestingAborted(reason: .simulatorUnavailable(worker, line, log)) {
+            XCTAssertEqual(worker, 0)
+            XCTAssertEqual(
+                line, "xcodebuild: error: Unable to find a device matching the provided destination specifier:"
+            )
+            let kept = try XCTUnwrap(log)
+            XCTAssertTrue(kept.hasPrefix("/logs/") && kept.hasSuffix(" (simulator gone).log"), kept)
+            XCTAssertEqual(fileManager.createdFiles[kept], Data(gone.utf8))
+        }
+
+        XCTAssertEqual(ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count, 2, "no run again")
+        XCTAssertEqual(try resultsFiles.records(MutantResult.self).map(\.outcome), [.failed])
+        let earlyEnd = try XCTUnwrap(sent().compactMap { $0.object as? EarlyEnd }.first)
+        XCTAssertEqual(earlyEnd.detail, "simulatorUnavailable(worker: 0)")
+        XCTAssertEqual(earlyEnd.outcome.mutations.map(\.testSuiteOutcome), [.failed])
+    }
+
     func test_whenStopAtFirstFailureIsSetWithRepeatUntil_thenANoticeSaysItIsOff() async throws {
         let configuration = MuterConfiguration(
             executable: "/usr/bin/swift",
@@ -926,6 +1032,14 @@ final class PerformMutationTestingTests: MuterTestCase {
         )
         state.loggingDirectory = "/logs"
         return key
+    }
+
+    /// The outcome of each mutant the run's result reports, in job order.
+    private func outcomes(in result: [MutationTestState.Change]) -> [TestSuiteOutcome] {
+        result.flatMap { change -> [TestSuiteOutcome] in
+            guard case let .mutationTestOutcomeGenerated(outcome) = change else { return [] }
+            return outcome.mutations.map(\.testSuiteOutcome)
+        }
     }
 
     /// Records every event sent with one of `names`, in order, until the test ends.

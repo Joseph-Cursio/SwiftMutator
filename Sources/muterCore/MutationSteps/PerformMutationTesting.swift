@@ -561,19 +561,19 @@ private extension PerformMutationTesting {
                 using: ioDelegate
             )
 
-            let launched = instant()
-            let run = await ioDelegate.runTestSuite(
-                withSchemata: job.schema,
-                using: configuration,
-                savingResultsIntoFileNamed: testOutput(
-                    named: logFileName(forJobAt: index, job),
-                    state: state
+            let finished = await FinishedRun.make(
+                index: index, worker: 0, configuration: configuration, instant: instant
+            ) {
+                await ioDelegate.runTestSuite(
+                    withSchemata: job.schema,
+                    using: configuration,
+                    savingResultsIntoFileNamed: testOutput(named: logFileName(forJobAt: index, job), state: state)
                 )
-            )
-            try Self.throwIfCancelled(run)
+            }
+            try Self.throwIfCancelled(finished.run)
 
             try record(
-                FinishedRun(index: index, worker: 0, run: run, seconds: seconds(since: launched)),
+                finished,
                 of: job,
                 using: state,
                 configuration: configuration,
@@ -675,7 +675,7 @@ private extension PerformMutationTesting {
             switchingOnFrom: state.projectXCTestRun,
             outputNamed: { testOutput(named: logFileName(forRerunOfJobAt: $0, $1), state: state) },
             recording: { finished in
-                recordRerun(
+                try recordRerun(
                     finished,
                     of: jobs[finished.index],
                     tally: &tally,
@@ -803,12 +803,6 @@ private extension PerformMutationTesting {
         Self.seconds(from: start, to: instant())
     }
 
-    /// The seconds from `start` to `end`, two readings of the monotonic clock; none if `end` is the earlier.
-    static func seconds(from start: DispatchTime, to end: DispatchTime) -> TimeInterval {
-        guard end >= start else { return 0 }
-        return Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000_000
-    }
-
     /// Records `finished`, the run of `job`'s mutant (`keep`), sends its events, and aborts after
     /// `buildErrorsThreshold` build errors in a row, not counting a mutant that an earlier session recorded as one
     /// (`TestingSession.earlierBuildErrors`). The outcome is kept before the abort, so mutation testing that stops
@@ -821,7 +815,7 @@ private extension PerformMutationTesting {
         session: TestingSession,
         buildErrors: inout Int
     ) throws {
-        let (outcome, mutationLog) = keep(
+        let (outcome, mutationLog) = try keep(
             finished, of: job, rerun: nil, using: state, configuration: configuration, session: session
         )
 
@@ -899,8 +893,8 @@ private extension PerformMutationTesting {
         using state: AnyMutationTestState,
         configuration: MuterConfiguration,
         session: TestingSession
-    ) {
-        let (outcome, mutationLog) = keep(
+    ) throws {
+        let (outcome, mutationLog) = try keep(
             finished,
             of: job,
             rerun: MutantResult.Rerun(because: MutantResult.Rerun.timeout, workers: tally.reruns.workers),
@@ -923,7 +917,8 @@ private extension PerformMutationTesting {
     /// Writes `finished`'s result, the run of `job`'s mutant, or its `rerun`, to the results file, keeps its outcome in
     /// `session`, and returns it with its log, kept under the name the line gives it. The result is written first, so
     /// it is on disk before anything else happens. `configuration` is the effective one, whose baseline may have made
-    /// failed-test lines unreliable.
+    /// failed-test lines unreliable. A run on a simulator that is gone is never recorded, and aborts mutation testing
+    /// (`keepingWhatTheSimulatorDid`).
     func keep(
         _ finished: FinishedRun,
         of job: MutantJob,
@@ -931,7 +926,7 @@ private extension PerformMutationTesting {
         using state: AnyMutationTestState,
         configuration: MuterConfiguration,
         session: TestingSession
-    ) -> (outcome: MutationTestOutcome.Mutation, log: MutationTestLog) {
+    ) throws -> (outcome: MutationTestOutcome.Mutation, log: MutationTestLog) {
         // The failed tests are worked out here, not in `write`'s autoclosure: the outcome needs them without a results
         // file, or after a failed write. One scan of the log serves both.
         let failures = MutantResult.failedTests(
@@ -946,6 +941,9 @@ private extension PerformMutationTesting {
         )
         let key = session.keys[finished.index]
         let log = rerun == nil ? MutationTestLog.keptFileName(for: key) : MutationTestLog.rerunFileName(for: key)
+        try keepingWhatTheSimulatorDid(
+            in: finished, of: outcome, logName: log, configuration: configuration, state: state
+        )
         write(
             MutantResult(
                 key: key,
@@ -971,6 +969,39 @@ private extension PerformMutationTesting {
             keptFileName: log
         )
         return (outcome, mutationLog)
+    }
+
+    /// Aborts mutation testing, with `finished`'s log kept, if the simulator it ran on is gone: every run on it would
+    /// fail, and none tested its mutant. Else, if the simulator failed to launch the run before it, sends that run with
+    /// `outcome`, this one's, and its log, which is kept beside `logName`, this one's.
+    func keepingWhatTheSimulatorDid(
+        in finished: FinishedRun,
+        of outcome: MutationTestOutcome.Mutation,
+        logName: String,
+        configuration: MuterConfiguration,
+        state: AnyMutationTestState
+    ) throws {
+        if case let .deviceGone(line) = SimulatorTrouble.of(finished.run, with: configuration) {
+            let log = fileManager.keepLog(
+                finished.run.testLog, named: MutationTestLog.simulatorGoneFileName(for: logName), state: state
+            )
+            throw MuterError.mutationTestingAborted(
+                reason: .simulatorUnavailable(worker: finished.worker, line: line, log: log)
+            )
+        }
+        guard let failure = finished.launchFailure else { return }
+        let log = MutationTestLog(
+            mutationPoint: outcome.point,
+            testLog: failure.testLog,
+            timePerBuildTestCycle: .none,
+            remainingMutationPointsCount: .none,
+            keptFileName: MutationTestLog.launchFailedFileName(for: logName)
+        )
+        events.send(
+            .runRepeatedAfterLaunchFailure(RepeatedRun(
+                mutant: outcome, worker: finished.worker, line: failure.line, log: log
+            ))
+        )
     }
 
     /// The file a mutant's run writes its output to while it runs. Its job's number comes first, so two runs under way
@@ -1192,6 +1223,12 @@ extension PerformMutationTesting {
         let configuration: MuterConfiguration
     }
 
+    /// The seconds from `start` to `end`, two readings of the monotonic clock; none if `end` is the earlier.
+    static func seconds(from start: DispatchTime, to end: DispatchTime) -> TimeInterval {
+        guard end >= start else { return 0 }
+        return Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000_000
+    }
+
     /// Runs the jobs at `indices`, started in their order, one at a time on each of `workers`, and hands each run to
     /// `record` as it finishes; the worker that finished it then starts the next job. An xcodebuild worker first
     /// switches its job's mutant on in its own `.xctestrun`, written from `testRun`, as the serial path does; a SwiftPM
@@ -1226,19 +1263,16 @@ extension PerformMutationTesting {
                             job, from: testRun, in: directory, for: configuration, using: ioDelegate
                         )
                     }
-                    let launched = instant()
-                    let run = await ioDelegate.runTestSuite(
-                        withSchemata: job.schema,
-                        using: configuration,
-                        savingResultsIntoFileNamed: fileName,
-                        workingDirectory: directory
-                    )
-                    return FinishedRun(
-                        index: index,
-                        worker: worker,
-                        run: run,
-                        seconds: Self.seconds(from: launched, to: instant())
-                    )
+                    return await FinishedRun.make(
+                        index: index, worker: worker, configuration: configuration, instant: instant
+                    ) {
+                        await ioDelegate.runTestSuite(
+                            withSchemata: job.schema,
+                            using: configuration,
+                            savingResultsIntoFileNamed: fileName,
+                            workingDirectory: directory
+                        )
+                    }
                 }
                 guard started else { throw CancellationError() }
             }

@@ -673,6 +673,14 @@ final class ResultsRecordTests: XCTestCase {
         XCTAssertEqual(
             ResultsEnd.detail(
                 for: MuterError.mutationTestingAborted(
+                    reason: .simulatorUnavailable(worker: 3, line: "No matching device (X)", log: nil)
+                )
+            ),
+            "simulatorUnavailable(worker: 3)"
+        )
+        XCTAssertEqual(
+            ResultsEnd.detail(
+                for: MuterError.mutationTestingAborted(
                     reason: .baselineTestFailed(log: "the log", mutatedFilePaths: [])
                 )
             ),

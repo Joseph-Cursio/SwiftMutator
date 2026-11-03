@@ -16,6 +16,23 @@ final class MutationTestingAbortReasonTests: MuterTestCase {
         XCTAssertTrue(description.contains("rather than record a verdict"), description)
     }
 
+    func test_whenASimulatorIsGone_thenNameTheWorkerWhatXcodebuildSaidAndTheLog_andHowToGoOn() {
+        let line = "xcodebuild: error: Unable to find a device matching the provided destination specifier:"
+        let description = MutationTestingAbortReason.simulatorUnavailable(
+            worker: 2,
+            line: line,
+            log: "/logs/RelationalOperatorReplacement @ Sum.swift-3-5 670192af8b34c2a4 (simulator gone).log"
+        ).description
+
+        XCTAssertTrue(description.contains("the simulator that worker 2 tests mutants on is gone"), description)
+        XCTAssertTrue(description.contains("  \(line)\n"), description)
+        XCTAssertTrue(description.contains("log is in /logs/RelationalOperatorReplacement @ Sum.swift"), description)
+        XCTAssertTrue(description.contains("Continue line"), description)
+
+        let withoutALog = MutationTestingAbortReason.simulatorUnavailable(worker: 0, line: line, log: nil).description
+        XCTAssertFalse(withoutALog.contains("log is in"), withoutALog)
+    }
+
     func test_whenAWorkerClonesBaselineFailed_thenNameTheWorkerAndSuggestOneWorker() {
         let description = MutationTestingAbortReason.workerBaselineTestFailed(
             worker: 2,

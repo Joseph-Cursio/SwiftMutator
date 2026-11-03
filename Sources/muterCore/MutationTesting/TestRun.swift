@@ -48,4 +48,36 @@ struct FinishedRun {
     let run: TestRun
     /// From launch to classification, on the monotonic clock.
     let seconds: TimeInterval
+    /// The run before this one, if the simulator failed to launch it, so that this one ran in its place.
+    var launchFailure: LaunchFailure?
+}
+
+extension FinishedRun {
+    /// The run of the job at `index` on `worker`, which `run` makes with `configuration`, timed by `instant`. An
+    /// xcodebuild run that the simulator failed to launch (`SimulatorTrouble.launch`) runs once more on the same
+    /// worker, unless mutation testing was cancelled, and that run is the one returned, whatever it comes to, with the
+    /// first's failure. The mutant is still switched on: nothing else runs on the worker meanwhile.
+    static func make(
+        index: Int,
+        worker: Int,
+        configuration: MuterConfiguration,
+        instant: Instant,
+        running run: () async -> TestRun
+    ) async -> FinishedRun {
+        var launched = instant()
+        var testRun = await run()
+        var launchFailure: LaunchFailure?
+        if case let .launch(line) = SimulatorTrouble.of(testRun, with: configuration), !Task.isCancelled {
+            launchFailure = LaunchFailure(line: line, testLog: testRun.testLog)
+            launched = instant()
+            testRun = await run()
+        }
+        return FinishedRun(
+            index: index,
+            worker: worker,
+            run: testRun,
+            seconds: PerformMutationTesting.seconds(from: launched, to: instant()),
+            launchFailure: launchFailure
+        )
+    }
 }
