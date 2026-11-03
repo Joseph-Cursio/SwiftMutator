@@ -57,9 +57,9 @@ struct SimulatorWorkerSetup {
     }
 
     /// Boots `simulators`, all at once, and returns them once each has booted, or, once they are deleted, why one
-    /// didn't. A boot that a stop cut short leaves them to `InterruptionRecord.afterWorkEnds`: mutation testing finds
-    /// out it was stopped once the baseline returns.
-    static func boot(_ simulators: Simulators, on workerSimulators: WorkerSimulating) async -> Simulators {
+    /// didn't. Throws only a CancellationError: a boot that a stop cut short leaves them to
+    /// `InterruptionRecord.afterWorkEnds`, and the run is stopped, not tested one mutant at a time.
+    static func boot(_ simulators: Simulators, on workerSimulators: WorkerSimulating) async throws -> Simulators {
         guard !simulators.made.isEmpty else {
             return simulators
         }
@@ -69,8 +69,6 @@ struct SimulatorWorkerSetup {
         } catch let unavailable as WorkerSimulatorsUnavailable {
             await workerSimulators.removeAll()
             return Simulators(unavailable: unavailable.reason)
-        } catch {
-            return Simulators(unavailable: "booting the workers' simulators was stopped")
         }
     }
 
@@ -82,6 +80,8 @@ struct SimulatorWorkerSetup {
     /// run's log is kept, and any that prints a line that looks like a failed test or a crash makes such lines
     /// unreliable, as the baseline's does. The workers are kept in `session` before their runs start, so their files
     /// are removed however mutation testing ends. `testOutput` names the file a run with the given log name writes to.
+    /// A stop before the workers are known throws a CancellationError, as one during the baseline does, rather than
+    /// being why the run tests one mutant at a time.
     func workers(
         _ planned: Int,
         on simulators: Simulators,
@@ -90,6 +90,8 @@ struct SimulatorWorkerSetup {
         session: TestingSession,
         testOutput: (String) -> String
     ) async throws -> Workers {
+        // A stop while the simulators that failed to boot were deleted, which `boot` doesn't see.
+        try Task.checkCancellation()
         guard !simulators.made.isEmpty else {
             let count = simulators.unavailable == nil ? planned : 1
             return Workers(count: count, unavailable: simulators.unavailable, configuration: configuration)
@@ -119,6 +121,8 @@ struct SimulatorWorkerSetup {
         // The lowest-numbered failure, so the same worker is named whichever run finished first.
         if let failed = runs.first(where: { $0.outcome != .passed }) {
             await workerSimulators.removeAll()
+            // A stop while they were deleted.
+            try Task.checkCancellation()
             let why = SimulatorTrouble.first(inLog: failed.testLog).map { ": \($0.line)" } ?? ""
             let log = logs[failed.worker] == nil ? "" : " (its log is \(Self.checkRunLogName(ofWorker: failed.worker)))"
             let reason = "worker \(failed.worker)'s run with no mutant on, on its simulator, didn't pass\(why)\(log)"

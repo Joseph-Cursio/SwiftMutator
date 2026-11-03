@@ -234,6 +234,41 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
         XCTAssertEqual(workerSimulators.calls.last, "removeAll")
     }
 
+    // A stop while the simulators boot, once the baseline has passed, cuts the boot short, as it does `simctl`'s, and
+    // stops the run as one during the baseline does: it isn't why the run tests one mutant at a time, so no number of
+    // workers is said, and no header is written. The simulators are deleted once the work has ended.
+    func test_aStopWhileTheSimulatorsBoot_onceTheBaselinePassed_stopsTheRun_ratherThanFallingBack() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 4)
+        workerSimulators.booting(throwing: CancellationError())
+        let choices = sentChoices()
+
+        let result = await sut.runInItsOwnTask(with: state)
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(choices(), [])
+        XCTAssertEqual(try resultsFiles.records(ResultsHeader.self), [])
+        XCTAssertFalse(ioDelegate.methodCalls.contains { $0.hasPrefix("runTestSuite") })
+        XCTAssertFalse(workerSimulators.calls.contains("removeAll"))
+        await current.interruption.workEnded()
+        XCTAssertEqual(workerSimulators.calls.last, "removeAll")
+    }
+
+    // As is a stop while the simulators are deleted after a failed check run.
+    func test_aStopWhileTheSimulatorsAreDeleted_afterAFailedCheckRun_stopsTheRun_ratherThanFallingBack() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 4)
+        ioDelegate.testRunsWithoutBuildingWritingTo["no-mutant run worker 1"] = (.failed, "** TEST FAILED **")
+        workerSimulators.removingAll { withUnsafeCurrentTask { $0?.cancel() } }
+        let choices = sentChoices()
+
+        let result = await sut.runInItsOwnTask(with: state)
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        XCTAssertEqual(workerSimulators.calls.last, "removeAll")
+        XCTAssertEqual(choices(), [])
+        XCTAssertEqual(try resultsFiles.records(ResultsHeader.self), [])
+        XCTAssertFalse(ioDelegate.methodCalls.contains { $0.hasPrefix("runTestSuite") })
+    }
+
     // One mutant needs no simulator of its own: it tests on the test command's destination.
     func test_oneMutant_makesNoSimulator() async throws {
         state.mutationMapping = try [makeSchemataMapping(line: 1)]

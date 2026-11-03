@@ -235,7 +235,8 @@ private extension PerformMutationTesting {
         }
 
         // An xcodebuild run's workers' simulators boot while the baseline runs, which, with its build, takes longer.
-        // If the baseline fails, or is stopped, their boot is cancelled, and awaited, as this scope ends.
+        // If the baseline fails, or is stopped, their boot is cancelled, and awaited, as this scope ends. A stop once
+        // it has passed cuts the boot short, which then throws.
         let simulators = try await simulatorWorkerSetup.make(for: plan.toRun.count, state: state)
         // The boot is given the dependency it uses, not the step.
         let booting = workerSimulators
@@ -295,7 +296,7 @@ private extension PerformMutationTesting {
         }
 
         let pool = try await workers(
-            testing: plan, on: await booted, with: muterConfiguration, state: state, session: session
+            testing: plan, on: try await booted, with: muterConfiguration, state: state, session: session
         )
         muterConfiguration = pool.configuration
         let workers = pool.count
