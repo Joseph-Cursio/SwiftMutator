@@ -19,7 +19,9 @@ protocol WorkerSimulating: Sendable {
     func boot(_ simulators: [WorkerSimulator]) async throws
 
     /// Deletes every simulator `prepare` made that hasn't been deleted yet, all at once, whether or not they are
-    /// booted. A failed delete is left for the next run's sweep. Starts no process when there is none.
+    /// booted. One whose delete fails, or is killed, as a stop kills this process's children, stays recorded, so that
+    /// a later call tries it once more; one that no call deletes is left for the next run's sweep. Starts no process
+    /// when there is none.
     func removeAll() async
 }
 
@@ -198,11 +200,7 @@ final class WorkerSimulators: WorkerSimulating, @unchecked Sendable { // `made` 
     }
 
     func removeAll() async {
-        let udids = lock.withLock {
-            defer { made = [] }
-            return made
-        }
-        await delete(udids)
+        await remove(recorded)
     }
 }
 
@@ -234,20 +232,29 @@ private extension WorkerSimulators {
         return SimctlDeviceList(json: Data(result.output.utf8))
     }
 
-    /// Deletes `udids`, which `prepare` made, and forgets them.
+    /// Deletes `udids`, which `prepare` made, and forgets each once its delete has succeeded. Until then the sweep
+    /// skips it, and `removeAll()` tries it again: a stop kills the deletes under way while the work runs, but not
+    /// those once it has ended.
     func remove(_ udids: [String]) async {
-        lock.withLock { made.removeAll { udids.contains($0) } }
-        await delete(udids)
+        let deleted = Set(await delete(udids))
+        lock.withLock { made.removeAll { deleted.contains($0) } }
     }
 
-    /// Deletes `udids` all at once, booted or not, ignoring failures.
-    func delete(_ udids: [String]) async {
-        await withTaskGroup(of: Void.self) { group in
+    /// Deletes `udids` all at once, booted or not, and returns those whose delete succeeded.
+    @discardableResult
+    func delete(_ udids: [String]) async -> [String] {
+        await withTaskGroup(of: String?.self) { group in
             for udid in udids {
                 group.addTask { [self] in
-                    _ = await simctl(["delete", udid], timeLimit: Self.simctlTimeLimit)
+                    let result = await simctl(["delete", udid], timeLimit: Self.simctlTimeLimit)
+                    return result?.succeeded == true ? udid : nil
                 }
             }
+            var deleted: [String] = []
+            for await udid in group {
+                if let udid { deleted.append(udid) }
+            }
+            return deleted
         }
     }
 
