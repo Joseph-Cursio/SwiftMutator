@@ -26,6 +26,10 @@ OPTIONS:
   --seed <S>              With --sample, the seed that chooses the sample: the
                           same seed chooses the same mutants anywhere. Without
                           it, SwiftMutator chooses one and says which.
+  --mutant <mutant>       Test only this mutant: path:line[:column] [Operator],
+                          as the progress lines and reports name it, such as
+                          'Bar.swift:12:9' or 'Sources/Foo/Bar.swift:12:9
+                          SwapTernary'.
   -c, --configuration <configuration>
                           The path to the configuration file.
   --skip-coverage         Skips the step in which SwiftMutator runs your

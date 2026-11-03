@@ -858,7 +858,8 @@ final class ResumeCheckTests: XCTestCase {
         provenance: Provenance = .fixture,
         since: ChangeSelection? = nil,
         shard: Shard? = nil,
-        sample: Sample? = nil
+        sample: Sample? = nil,
+        mutant: String? = nil
     ) -> ResumeCheck.Current {
         ResumeCheck.Current(
             configuration: configuration ?? swift,
@@ -870,8 +871,45 @@ final class ResumeCheckTests: XCTestCase {
             testPlanSHA256: testPlanSHA256,
             since: since,
             shard: shard,
-            sample: sample
+            sample: sample,
+            mutant: mutant
         )
+    }
+
+    // MARK: - --mutant
+
+    // A run of one mutant tests no other: no whole run resumes or reuses its results, and it resumes none.
+    func test_aRunOfOneMutant_andAWholeRun_refuseEachOther_forEveryPurpose() {
+        let key = "Sources/Sum.swift:3:4 RelationalOperatorReplacement"
+        let alone = header(of: current(mutant: key))
+
+        for purpose in [ResumeCheck.Purpose.resume, .reuse, .merge] {
+            XCTAssertEqual(
+                check(current(), recorded: alone, for: purpose).refusals,
+                [.selectionChanged(.init(name: "mutant", was: #""\#(key)""#, isNow: nil))],
+                "\(purpose)"
+            )
+            XCTAssertEqual(
+                check(current(mutant: key), for: purpose).refusals,
+                [.selectionChanged(.init(name: "mutant", was: nil, isNow: #""\#(key)""#))],
+                "\(purpose)"
+            )
+        }
+        XCTAssertEqual(
+            "\(ResumeRefusal.selectionChanged(.init(name: "mutant", was: #""\#(key)""#, isNow: nil)))",
+            #"mutant was "\#(key)" and is not set now. A change to which mutants are tested needs a new run."#
+        )
+        XCTAssertEqual(ResumeCheck.Current(header: alone).mutant, key)
+    }
+
+    func test_theStatesCurrentRun_namesTheMutantItChose() {
+        let state = MutationTestState(from: .make(mutant: MutantReference(path: "Sum.swift", line: 3)))
+        let key = MutantKey(path: "Sources/Sum.swift", mutationOperatorId: .ror, line: 3, column: 4, occurrence: 0)
+
+        XCTAssertNil(ResumeCheck.Current(state: state, provenance: .fixture).mutant)
+        state.apply([.mutantSelected(key)])
+
+        XCTAssertEqual(ResumeCheck.Current(state: state, provenance: .fixture).mutant, key.description)
     }
 
     /// The header a session of `current` wrote.
@@ -899,7 +937,8 @@ final class ResumeCheckTests: XCTestCase {
                     formatVersion: TestPlanCoding.formatVersion,
                     swiftMutatorVersion: "16"
                 )
-            }
+            },
+            mutant: current.mutant
         )
     }
 

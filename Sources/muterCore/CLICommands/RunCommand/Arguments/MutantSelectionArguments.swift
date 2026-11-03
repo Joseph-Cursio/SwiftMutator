@@ -17,7 +17,8 @@ struct MutantSelectionArguments: ParsableArguments {
             return `operator`
         }
     )
-    var operators: [MutationOperator.Id] = MutationOperator.Id.allCases
+    /// The operators named, in their order; none when `--operators` wasn't given.
+    var operators: [MutationOperator.Id] = []
 
     /// The operators to mutate with: every one when none was named.
     var mutationOperatorsList: MutationOperatorList {

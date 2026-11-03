@@ -197,7 +197,8 @@ extension MutationTestObserver {
     /// Writes what was tested to a partial report beside the requested one, never replacing it, and says what was
     /// tested, and the command that continues the run: SwiftMutator's own arguments, resuming from the results file.
     /// Without a requested report there is no partial one: the summary and the results file say what was tested, and a
-    /// report printed to the terminal would run to thousands of lines.
+    /// report printed to the terminal would run to thousands of lines. A run of one mutant (`--mutant`) can't be
+    /// resumed, and gets no such command: the same command tests it again.
     private func mutationTestingEndedEarly(_ earlyEnd: EarlyEnd) {
         var partialReport: (path: String, saved: Bool)?
         if !earlyEnd.outcome.mutations.isEmpty,
@@ -205,7 +206,7 @@ extension MutationTestObserver {
             let report = runOptions.reportOptions.reporter.report(from: earlyEnd.outcome)
             partialReport = (path, ReportWriter.save(report, to: path, using: fileManager))
         }
-        let continueCommand = resultsFilePath.map {
+        let continueCommand = runOptions.mutant != nil ? nil : resultsFilePath.map {
             ResumeHint.command(
                 continuing: commandLineArguments,
                 from: $0,

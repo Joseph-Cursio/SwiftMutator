@@ -7,6 +7,8 @@ struct RunWithoutMutating: RunCommand {
         abstract: "Performs mutation testing using the test plan."
     )
 
+    // First, as in `run`'s help it comes before the other option groups.
+    @OptionGroup var lone: MutantArguments
     @OptionGroup var options: RunArguments
     @OptionGroup var testing: TestingArguments
     @OptionGroup var reportOptions: ReportArguments
@@ -46,7 +48,8 @@ struct RunWithoutMutating: RunCommand {
             resumeURL: resuming.resume,
             resumeIgnoring: resuming.resumeIgnoring,
             forceResume: resuming.forceResume,
-            planIgnoring: planIgnoring
+            planIgnoring: planIgnoring,
+            mutant: lone.mutant
         )
     }
 
@@ -54,9 +57,13 @@ struct RunWithoutMutating: RunCommand {
         try await run(with: runOptions)
     }
 
+    /// `--mutant` tests one of the plan's mutants on its own, which no stopped run of the plan can continue.
     func validate() throws {
         if testPlanURL == nil {
             throw MuterError.literal(reason: "Please provide the path to the test plan json.")
+        }
+        if lone.mutant != nil, resuming.resume != nil {
+            throw ValidationError("--mutant can't be given with --resume.")
         }
     }
 }

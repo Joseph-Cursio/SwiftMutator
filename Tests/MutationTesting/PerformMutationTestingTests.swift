@@ -678,6 +678,47 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(sent().count, 0)
     }
 
+    // The baseline still builds the project, and makes a kill mean something. Neither the run of the bundles without
+    // `swift test` nor a timed run would save more than it costs for one mutant, whose tests all run, so its log names
+    // every one that fails. The active-mutant file goes, so the kept copy is left with the mutant off.
+    func test_aOneMutantRun_runsTheBaselineAndOneJob_withoutTheProbeOrTimedRun_withStoppingOff() async throws {
+        let key = MutantKey(
+            path: "/tmp/project/file.swift", mutationOperatorId: .ror, line: 0, column: 0, occurrence: 0
+        )
+        state.mutationMapping = try [makeSchemataMapping()]
+        state.apply([.mutantSelected(key)])
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], stopAtFirstFailure: true
+        )
+        state.loggingDirectory = "/logs"
+        current.directTestRun = { _, _ in
+            XCTFail("one mutant's run doesn't try the bundles without swift test")
+            return .failure(.init(reason: nil))
+        }
+        ioDelegate.testSuiteOutcomes = [.passed, .failed]
+        let finished = recordEvents(named: [.mutationTestingFinished])
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.methodCalls, [
+            "benchmarkTests(using:savingResultsIntoFileNamed:)",
+            "switchOn(schemata:for:at:)",
+            "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)",
+        ])
+        XCTAssertEqual(ioDelegate.configurations.map(\.stopsAtFirstFailure), [false])
+        XCTAssertEqual(fileManager.paths.filter { $0.hasSuffix(".active-mutant") }, ["/project_mutated.active-mutant"])
+        let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
+        XCTAssertEqual(header.mutant, key.description)
+        XCTAssertNil(header.testRunSeconds)
+        XCTAssertEqual(header.timeoutSeconds, PerformMutationTesting.minimumDefaultTimeout)
+        XCTAssertFalse(header.stopsAtFirstFailure)
+        XCTAssertEqual(header.workers, 1)
+        // As loaded, which is what a resume compares.
+        XCTAssertEqual(header.configuration.stopAtFirstFailure, true)
+        let outcome = try XCTUnwrap(finished().first?.object as? MutationTestOutcome)
+        XCTAssertEqual(outcome.mutant, key.description)
+    }
+
     /// Records every event sent with one of `names`, in order, until the test ends.
     private func recordEvents(named names: [RunEvent.Name]) -> () -> [RunEvent] {
         var sent: [RunEvent] = []

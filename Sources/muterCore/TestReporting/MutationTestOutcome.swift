@@ -18,6 +18,8 @@ struct MutationTestOutcome {
     /// test had a result. They are then its first files', not a random part of the sample, so the score has no margin.
     /// A shard's results are a random part of it, as its hash doesn't depend on the seed.
     let sampleIsCutShort: Bool
+    /// The one mutant `--mutant` tested, by its key's description; nil without it. Its score isn't the project's.
+    let mutant: String?
 
     init(
         mutations: [Mutation] = [],
@@ -28,7 +30,8 @@ struct MutationTestOutcome {
         since: ChangeSelection? = nil,
         shards: ShardScope? = nil,
         sample: SampleSelection? = nil,
-        sampleIsCutShort: Bool = false
+        sampleIsCutShort: Bool = false,
+        mutant: String? = nil
     ) {
         self.mutations = mutations
         self.coverage = coverage
@@ -39,6 +42,7 @@ struct MutationTestOutcome {
         self.shards = shards
         self.sample = sample
         self.sampleIsCutShort = sampleIsCutShort
+        self.mutant = mutant
     }
 }
 

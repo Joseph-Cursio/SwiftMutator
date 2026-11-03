@@ -49,6 +49,9 @@ protocol AnyMutationTestState: AnyObject {
     var candidatePaths: [FilePath]? { get }
     /// The test plan the run tests; nil until it is loaded, and in a run that tests none.
     var testPlan: LoadedTestPlan? { get }
+    /// The one mutant `--mutant` chose, which is then the only one in `mutationMapping`; nil without `--mutant`, and
+    /// until it is chosen.
+    var selectedMutant: MutantKey? { get }
 
     func apply(_ stateChanges: [MutationTestState.Change])
 }
@@ -81,6 +84,7 @@ final class MutationTestState: AnyMutationTestState {
     var keysLeftOutOfTheSample: Set<MutantKey> = []
     var candidatePaths: [FilePath]?
     var testPlan: LoadedTestPlan?
+    var selectedMutant: MutantKey?
 
     init() {}
 
@@ -116,6 +120,7 @@ extension MutationTestState {
         case sampleLeftOut(Set<MutantKey>)
         case candidatePathsListed([FilePath])
         case testPlanLoaded(LoadedTestPlan)
+        case mutantSelected(MutantKey)
     }
 }
 
@@ -174,6 +179,8 @@ extension MutationTestState {
                     mutationOperatorList = scope.operators
                     filesToMutate = scope.filesToMutate
                 }
+            case let .mutantSelected(key):
+                selectedMutant = key
             }
         }
     }

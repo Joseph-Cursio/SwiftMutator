@@ -33,6 +33,8 @@ enum ResumeCheck {
         var shard: Shard?
         /// `--sample` and its seed; nil without it.
         var sample: Sample?
+        /// The key of the mutant `--mutant` chose, as its description; nil without it, and until it is chosen.
+        var mutant: String?
     }
 
     /// A value the recorded session had and this run has, each as sorted-keys JSON. nil is a configuration key that
@@ -111,11 +113,11 @@ enum ResumeCheck {
     }
 
     /// Compared: every configuration key but `keysThatDontAffectOutcomes`; the operators, `filesToMutate` (both as
-    /// sets) and `skipCoverage`; and what identifies the SwiftMutator build, the toolchain and the SDK. Not compared:
-    /// SwiftMutator's version and path, which its SHA-256 covers; the process, host and arguments; and the effective
-    /// `timeoutSeconds`, `stopsAtFirstFailure` and `failedTestLinesAreReliable`, which follow from the configuration,
-    /// the baseline and the timed test run. Only the build and toolchain differences are ever `forced`. Whether a test
-    /// plan was tested, and which, is compared too (`testPlanRefusals`).
+    /// sets), `skipCoverage` and `--mutant`'s mutant; and what identifies the SwiftMutator build, the toolchain and the
+    /// SDK. Not compared: SwiftMutator's version and path, which its SHA-256 covers; the process, host and arguments;
+    /// and the effective `timeoutSeconds`, `stopsAtFirstFailure` and `failedTestLinesAreReliable`, which follow from
+    /// the configuration, the baseline and the timed test run. Only the build and toolchain differences are ever
+    /// `forced`. Whether a test plan was tested, and which, is compared too (`testPlanRefusals`).
     ///
     /// A resume compares what `--since` compares the working tree with too: the merge base, and `--changed-lines`; the
     /// shard; and the sample. What `purpose` leaves out isn't compared.
@@ -264,12 +266,18 @@ enum ResumeCheck {
         }
     }
 
-    /// The differences in which mutants are tested.
+    /// The differences in which mutants are tested. A run of one mutant (`--mutant`) differs from any other, so no
+    /// whole run continues it, whatever the purpose.
     private static func selectionDifferences(_ recorded: ResultsHeader, _ current: Current) -> [Difference] {
         [
             difference("operators", Set(recorded.operators).sorted(), Set(current.operators).sorted()),
             difference("filesToMutate", Set(recorded.filesToMutate).sorted(), Set(current.filesToMutate).sorted()),
             difference("skipCoverage", recorded.skipCoverage, current.skipCoverage),
+            recorded.mutant == current.mutant ? nil : Difference(
+                name: "mutant",
+                was: recorded.mutant.flatMap { json($0) },
+                isNow: current.mutant.flatMap { json($0) }
+            ),
         ].compactMap { $0 }
     }
 
@@ -423,7 +431,8 @@ extension ResumeCheck.Current {
             testPlanSHA256: state.testPlan?.sha256,
             since: state.changeSelection,
             shard: state.runOptions.shard,
-            sample: state.runOptions.sample
+            sample: state.runOptions.sample,
+            mutant: state.selectedMutant?.description
         )
     }
 }
@@ -441,7 +450,8 @@ extension ResumeCheck.Current {
             testPlanSHA256: header.testPlan?.sha256,
             since: header.since,
             shard: header.shard?.shard,
-            sample: header.sample.map { Sample(size: $0.size, seed: $0.seed, seedIsChosen: false) }
+            sample: header.sample.map { Sample(size: $0.size, seed: $0.seed, seedIsChosen: false) },
+            mutant: header.mutant
         )
     }
 }

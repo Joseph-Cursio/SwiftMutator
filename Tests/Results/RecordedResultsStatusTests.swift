@@ -68,6 +68,24 @@ final class RecordedResultsStatusTests: XCTestCase {
         )
     }
 
+    // Its score is one mutant's, and the outcome its report is made from says which.
+    func test_aRunOfOneMutant_saysItsScoreIsntTheProjects() throws {
+        let key = "Sources/Sum.swift:3:4 RelationalOperatorReplacement"
+        let recorded = try read(
+            file(ResultsHeader.make(mutantsDiscovered: 1, mutant: key), sum, ResultsEnd.make(reason: .finished))
+        )
+
+        XCTAssertEqual(
+            recorded.statusLines(path: path),
+            [
+                "Report of 1 of 1 mutants, from /logs/results.jsonl: the run finished.",
+                "One mutant tested with --mutant (\(key)): its score isn't the project's.",
+            ]
+        )
+        XCTAssertEqual(recorded.mutationTestOutcome().mutant, key)
+        XCTAssertNil(try read(file(header, sum)).mutationTestOutcome().mutant)
+    }
+
     func test_skippedLines_areNumbered_andACutOffLastLineIsSaid() throws {
         let garbled = Data("{\"kind\":\"mutant\",\"pa\n".utf8)
         let oneSkipped = try read(file(header, sum) + garbled + file(ResultsEnd.make()))

@@ -142,7 +142,8 @@ struct PerformMutationTesting: MutationStep {
             newVersion: state.newVersion,
             since: state.changeSelection,
             shards: state.shardSelection?.scopeAlone,
-            sample: state.sampleSelection
+            sample: state.sampleSelection,
+            mutant: state.selectedMutant?.description
         )
 
         events.send(.mutationTestingFinished(mutationTestOutcome))
@@ -250,7 +251,10 @@ private extension PerformMutationTesting {
             )
         }
 
-        var muterConfiguration = state.muterConfiguration
+        // One mutant's run shows every test it fails, not only the first.
+        var muterConfiguration = state.selectedMutant == nil
+            ? state.muterConfiguration
+            : state.muterConfiguration.withoutStoppingAtFirstFailure()
         // A passing run can't show a failed test or a crash, so these tests print text shaped like one. Under a
         // mutant it could stop the run, or count a timed-out run killed, although every test passed, so such lines
         // don't count for this run. Checked whether or not runs stop at their first failed test, but worth a notice
@@ -272,8 +276,9 @@ private extension PerformMutationTesting {
             events.send(.workersChosen(choice))
         }
         var testRunSeconds: TimeInterval?
-        // A reuse with nothing left to test ran the baseline only to see that the changed tests pass.
-        if muterConfiguration.buildSystem == .swift, !plan.toRun.isEmpty {
+        // A reuse with nothing left to test ran the baseline only to see that the changed tests pass. One mutant's run
+        // saves no more than either costs, so its time limit is the configured one, or the baseline's default.
+        if muterConfiguration.buildSystem == .swift, !plan.toRun.isEmpty, state.selectedMutant == nil {
             let direct = try await runningTestBundlesDirectly(muterConfiguration, baselineLog: testLog, state: state)
             muterConfiguration = direct.configuration
             // The run that checked the direct runs is a mutant's run with no mutant on, which needn't run again.
@@ -491,7 +496,8 @@ private extension PerformMutationTesting {
                     shards: state.shardSelection?.scopeAlone,
                     sample: state.sampleSelection,
                     // As `report` of the results file judges it: a run can stop after its last mutant's result.
-                    sampleIsCutShort: session.outcomesInJobOrder.count < session.keys.count
+                    sampleIsCutShort: session.outcomesInJobOrder.count < session.keys.count,
+                    mutant: state.selectedMutant?.description
                 ),
                 discovered: session.keys.count,
                 reused: session.reused

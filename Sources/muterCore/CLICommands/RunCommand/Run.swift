@@ -76,6 +76,9 @@ struct Run: RunCommand {
     )
     var seed: UInt64?
 
+    // After the options that choose mutants, of which it is the narrowest.
+    @OptionGroup var lone: MutantArguments
+
     @OptionGroup var options: RunArguments
     @OptionGroup var testing: TestingArguments
     @OptionGroup var reportOptions: ReportArguments
@@ -114,7 +117,9 @@ struct Run: RunCommand {
     init() {}
 
     /// The options the command line gives the run. Without `--seed`, a `--sample` gets a seed chosen afresh each time,
-    /// so `run()` asks once.
+    /// so `run()` asks once. `--mutant` skips coverage, which only leaves files and code out of discovery, and mutates
+    /// with only its operator when it names one. It leaves the files alone: its path may be the end of one, so every
+    /// file is discovered, and `SelectMutant` picks the mutant.
     var runOptions: Run.Options {
         Run.Options(
             filesToMutate: selection.filesToMutate,
@@ -125,8 +130,8 @@ struct Run: RunCommand {
             sample: sample.map { Sample(size: $0, seed: seed ?? Sample.chooseSeed(), seedIsChosen: seed == nil) },
             reportFormat: reportOptions.reportFormat,
             reportURL: reportOptions.reportURL,
-            mutationOperatorsList: selection.mutationOperatorsList,
-            skipCoverage: options.skipCoverage,
+            mutationOperatorsList: lone.mutant?.mutationOperatorId.map { [$0] } ?? selection.mutationOperatorsList,
+            skipCoverage: options.skipCoverage || lone.mutant != nil,
             skipUpdateCheck: options.skipUpdateCheck,
             verbose: options.verbose,
             configurationURL: options.configurationURL,
@@ -136,7 +141,8 @@ struct Run: RunCommand {
             reuseURL: reuse,
             // Only one of each pair can be given: `validate()` ties each to its own option.
             resumeIgnoring: resuming.resume == nil ? reuseIgnoring : resuming.resumeIgnoring,
-            forceResume: resuming.resume == nil ? forceReuse : resuming.forceResume
+            forceResume: resuming.resume == nil ? forceReuse : resuming.forceResume,
+            mutant: lone.mutant
         )
     }
 
@@ -149,6 +155,8 @@ struct Run: RunCommand {
     /// `--force-resume` say what a resume may (`ResumeArguments`). `--since` chooses the files itself, and
     /// `--changed-lines` narrows its choice. `--seed` only says which sample `--sample` takes, and the shards of a
     /// sampled split, and a resume of a sample, need it to take the same one: a seed SwiftMutator chose would differ.
+    /// `--mutant` names its mutant alone, so no other option that chooses mutants, nor one that continues a run, can
+    /// be given with it.
     func validate() throws {
         if since != nil, !selection.filesToMutate.isEmpty {
             throw ValidationError("--since and --files-to-mutate can't be given together.")
@@ -161,6 +169,7 @@ struct Run: RunCommand {
             throw ValidationError("--since takes a git ref, such as main or origin/main, not an option.")
         }
         try validateSample()
+        try validateMutant()
         if resuming.resume != nil, reuse != nil {
             throw ValidationError("--resume and --reuse can't be given together.")
         }
@@ -176,6 +185,23 @@ struct Run: RunCommand {
 }
 
 private extension Run {
+    func validateMutant() throws {
+        guard lone.mutant != nil else { return }
+        let others: [(option: String, isGiven: Bool)] = [
+            ("--operators", !selection.operators.isEmpty),
+            ("--files-to-mutate", !selection.filesToMutate.isEmpty),
+            ("--since", since != nil),
+            // 1/1 is the whole run.
+            ("--shard", (shard?.count ?? 1) > 1),
+            ("--sample", sample != nil),
+            ("--resume", resuming.resume != nil),
+            ("--reuse", reuse != nil),
+        ]
+        if let other = others.first(where: \.isGiven) {
+            throw ValidationError("--mutant can't be given with \(other.option).")
+        }
+    }
+
     func validateSample() throws {
         if seed != nil, sample == nil {
             throw ValidationError("--seed only applies with --sample.")

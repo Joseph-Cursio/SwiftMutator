@@ -33,8 +33,9 @@ struct MuterConfiguration: Equatable, Codable {
     /// restores env / forwards SIMCTL_CHILD_ vars) whose filename isn't literally `xcodebuild`/`swift`.
     let explicitBuildSystem: BuildSystem?
     /// Whether a mutant's test run stops at its first failed test (`stopAtFirstFailure:`), which already
-    /// decides that the mutant is killed. nil leaves it to the default; see `stopsAtFirstFailure`.
-    let stopAtFirstFailure: Bool?
+    /// decides that the mutant is killed. nil leaves it to the default; see `stopsAtFirstFailure`. A `var` only so
+    /// `withoutStoppingAtFirstFailure` can copy `self` and change just this field.
+    private(set) var stopAtFirstFailure: Bool?
     /// Whether a line `FailedTestLine` matches shows a failed test. Not a configuration key: false once a
     /// passing baseline has printed such a line, or one `CrashLine` matches, as its tests print text shaped like a
     /// failure. Such a line then neither stops a mutant's run nor counts a timed-out run killed. A `var` only so
@@ -153,6 +154,13 @@ struct MuterConfiguration: Equatable, Codable {
     func withUnreliableFailedTestLines() -> MuterConfiguration {
         var copy = self
         copy.failedTestLinesAreReliable = false
+        return copy
+    }
+
+    /// This configuration with `stopAtFirstFailure` false, so a mutant's test run goes on after its first failed test.
+    func withoutStoppingAtFirstFailure() -> MuterConfiguration {
+        var copy = self
+        copy.stopAtFirstFailure = false
         return copy
     }
 

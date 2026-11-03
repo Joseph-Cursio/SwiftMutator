@@ -507,6 +507,23 @@ final class MutationTestObserverTests: MuterTestCase {
         ])
     }
 
+    // No run continues one of a single mutant: the same command tests it again.
+    func test_aOneMutantRun_getsNoContinueLine() throws {
+        current.commandLineArguments = ["run", "--mutant", "Bar.swift:12:9"]
+        options = .make(mutant: MutantReference(path: "Bar.swift", line: 12, column: 9))
+        try sut.start()
+        runEvents.send(.resultsFileCreated(path: "/logs/results.jsonl"))
+
+        runEvents.send(.mutationTestingEndedEarly(EarlyEnd.make(detail: "SIGINT", tested: [.failed])))
+
+        XCTAssertEqual(
+            standardError.linesPassed.last,
+            "📝 Full report: swift-mutator report '/logs/results.jsonl'",
+            "\(standardError.linesPassed)"
+        )
+        XCTAssertFalse(standardError.linesPassed.contains { $0.contains("Continue") }, "\(standardError.linesPassed)")
+    }
+
     // The file lacks every result after the failed write.
     func test_anEarlyEnd_doesNotNameAResultsFileThatCouldNotBeWritten() throws {
         try sut.start()

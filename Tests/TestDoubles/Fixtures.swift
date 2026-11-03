@@ -386,7 +386,8 @@ extension Run.Options {
         reuseURL: URL? = nil,
         resumeIgnoring: [String] = [],
         forceResume: Bool = false,
-        planIgnoring: [String] = []
+        planIgnoring: [String] = [],
+        mutant: MutantReference? = nil
     ) -> Self {
         .init(
             filesToMutate: filesToMutate,
@@ -409,7 +410,8 @@ extension Run.Options {
             reuseURL: reuseURL,
             resumeIgnoring: resumeIgnoring,
             forceResume: forceResume,
-            planIgnoring: planIgnoring
+            planIgnoring: planIgnoring,
+            mutant: mutant
         )
     }
 }
@@ -627,7 +629,8 @@ extension ResultsHeader {
         since: ChangeSelection? = nil,
         shard: ShardSelection? = nil,
         sample: SampleSelection? = nil,
-        testPlan: TestPlanRecord? = nil
+        testPlan: TestPlanRecord? = nil,
+        mutant: String? = nil
     ) -> ResultsHeader {
         ResultsHeader(
             formatVersion: formatVersion,
@@ -661,7 +664,8 @@ extension ResultsHeader {
             since: since,
             shard: shard,
             sample: sample,
-            testPlan: testPlan
+            testPlan: testPlan,
+            mutant: mutant
         )
     }
 }

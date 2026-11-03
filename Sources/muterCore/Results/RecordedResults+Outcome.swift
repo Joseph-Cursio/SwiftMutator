@@ -61,8 +61,8 @@ extension RecordedResults {
 
 extension MutationTestOutcome {
     /// The outcome of `records`, in the order a run tests them, under `header`'s project paths, coverage (or whether it
-    /// skipped it), update notice and sample, with `testDuration`, covering only `shards` of a split if given. The
-    /// sample's results are `sampleIsCutShort` when some of the mutants its runs set out to test have none.
+    /// skipped it), update notice, sample and `--mutant`, with `testDuration`, covering only `shards` of a split if
+    /// given. The sample's results are `sampleIsCutShort` when some of the mutants its runs set out to test have none.
     init(
         records: some Collection<MutantResult>,
         under header: ResultsHeader,
@@ -106,7 +106,8 @@ extension MutationTestOutcome {
             since: header.since,
             shards: shards,
             sample: header.sample,
-            sampleIsCutShort: sampleIsCutShort
+            sampleIsCutShort: sampleIsCutShort,
+            mutant: header.mutant
         )
     }
 }

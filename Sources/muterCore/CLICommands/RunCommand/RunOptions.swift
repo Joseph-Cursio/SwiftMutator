@@ -42,6 +42,8 @@ extension Run {
         /// `--plan-ignoring`'s globs: files a test plan mutates that changed in the project since the plan was made,
         /// whose changes a run of the plan lets through.
         let planIgnoring: [String]
+        /// `--mutant`: the one mutant the run tests, on its own (`SelectMutant`).
+        let mutant: MutantReference?
         var isUsingTestPlan: Bool {
             testPlanURL != nil
         }
@@ -77,7 +79,8 @@ extension Run {
             reuseURL: URL? = nil,
             resumeIgnoring: [String] = [],
             forceResume: Bool = false,
-            planIgnoring: [String] = []
+            planIgnoring: [String] = [],
+            mutant: MutantReference? = nil
         ) {
             self.since = since
             self.changedLinesOnly = changedLinesOnly
@@ -97,6 +100,7 @@ extension Run {
             self.resumeIgnoring = resumeIgnoring
             self.forceResume = forceResume
             self.planIgnoring = planIgnoring
+            self.mutant = mutant
 
             self.filesToMutate = filesToMutate.reduce(into: []) { accum, next in
                 accum.append(
@@ -133,6 +137,7 @@ extension Run.Options: Equatable {
             lhs.resumeIgnoring == rhs.resumeIgnoring &&
             lhs.forceResume == rhs.forceResume &&
             lhs.planIgnoring == rhs.planIgnoring &&
+            lhs.mutant == rhs.mutant &&
             lhs.reportOptions.path == rhs.reportOptions.path &&
             "\(lhs.reportOptions.reporter)" == "\(rhs.reportOptions.reporter)"
     }
@@ -161,7 +166,8 @@ extension Run.Options: Nullable {
             reuseURL: nil,
             resumeIgnoring: [],
             forceResume: false,
-            planIgnoring: []
+            planIgnoring: [],
+            mutant: nil
         )
     }
 }

@@ -77,6 +77,7 @@ The header's `project` lists five files here. A real one lists every file in the
 | `since` | Object | Only in a session run with `--since`: what it chose, below |
 | `shard` | Object | Only in a session run with `--shard`: which shard it tested, and what discovery found in every shard, below |
 | `sample` | Object | Only in a session run with `--sample`: the sample asked for, and how many mutants it held of how many, below |
+| `mutant` | String | Only in a session run with `--mutant`: the key of the one mutant it tested, as `path:line:column Operator`. No other run resumes or reuses its results, and `swift-mutator report` says its score isn't the project's. |
 | `forced` | [String] | Only in a resumed session, or one that `--reuse` starts: the `provenance` values that changed since the last session and that `--force-resume` or `--force-reuse` let through, by name (`swiftMutator.executableSHA256`, `toolchain.testCommandVersion`, `toolchain.testExecutableSHA256` or `toolchain.environment`), or `[]` |
 
 #### Provenance

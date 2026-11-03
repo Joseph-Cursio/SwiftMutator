@@ -265,6 +265,8 @@ final class MutationTestHandlerTests: MuterTestCase {
             .make(createTestPlan: true),
             .make(testPlanURL: URL(fileURLWithPath: "/path/to/testplan")),
             .make(testPlanURL: URL(fileURLWithPath: "/path/to/testplan"), resumeURL: URL(fileURLWithPath: "/logs")),
+            .make(mutant: MutantReference(path: "Bar.swift", line: 12)),
+            .make(testPlanURL: URL(fileURLWithPath: "/path/to/testplan"), mutant: MutantReference(path: "B", line: 1)),
         ]
         let users: [MutationStep.Type] = [
             CheckTestPlanCode.self,
@@ -456,6 +458,47 @@ final class MutationTestHandlerTests: MuterTestCase {
         // Compares the copy with the one the last session tested.
         XCTAssertTypeEqual(sut.steps[safe: 8], FingerprintProjectTree.self)
         XCTAssertTypeEqual(sut.steps[safe: 11], PerformMutationTesting.self)
+    }
+
+    // The copy gets only that mutant's switch, and the rest of the run is a whole run's.
+    func test_steps_whenRunningOneMutant() {
+        let whole = MutationTestHandler(options: .make(skipCoverage: true)).steps.map { "\(type(of: $0))" }
+        sut = MutationTestHandler(options: .make(skipCoverage: true, mutant: MutantReference(path: "B", line: 1)))
+
+        var expected = whole
+        expected.insert("SelectMutant", at: whole.firstIndex(of: "ApplySchemata") ?? 0)
+        XCTAssertEqual(sut.steps.map { "\(type(of: $0))" }, expected)
+        let discovering = whole.firstIndex(of: "DiscoverMutationPoints") ?? 0
+        XCTAssertEqual(expected.firstIndex(of: "SelectMutant"), discovering + 1)
+    }
+
+    // Right after the plan is read, so its checks look only at the mutant's file, and before the copy is locked: it
+    // reads only the plan.
+    func test_steps_whenRunWithoutMutating_testsOneMutant() {
+        sut = MutationTestHandler(
+            options: .make(
+                testPlanURL: URL(fileURLWithPath: "/path/to/testplan"),
+                mutant: MutantReference(path: "Bar.swift", line: 12)
+            )
+        )
+
+        XCTAssertEqual(sut.steps.count, 12)
+        XCTAssertTypeEqual(sut.steps[safe: 2], LoadMuterTestPlan.self)
+        XCTAssertTypeEqual(sut.steps[safe: 3], SelectMutant.self)
+        XCTAssertTypeEqual(sut.steps[safe: 4], CheckTestPlanSources.self)
+        XCTAssertTypeEqual(sut.steps[safe: 5], LockMutatedProject.self)
+        XCTAssertTypeEqual(sut.steps[safe: 11], PerformMutationTesting.self)
+    }
+
+    func test_steps_withoutMutant_haveNoSelectMutant() {
+        let commands: [Run.Options] = [
+            .make(),
+            .make(createTestPlan: true),
+            .make(testPlanURL: URL(fileURLWithPath: "/path/to/testplan")),
+        ]
+        for options in commands {
+            assertStepsDoesNotContain(MutationTestHandler(options: options).steps, SelectMutant.self)
+        }
     }
 
     func test_steps_whenMutateWithoutRunning() {

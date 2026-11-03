@@ -166,6 +166,9 @@ struct ResultsHeader: Codable, Equatable {
     var sample: SampleSelection?
     /// Only in a session that tested a test plan: the plan it tested, which a resume of its run must test too.
     var testPlan: TestPlanRecord?
+    /// Only in a session run with `--mutant`: the key of the one mutant it tested, as `MutantKey.description` gives it.
+    /// No other run resumes or reuses its results, and its score isn't the project's.
+    var mutant: String?
 }
 
 /// The test plan a session tested: the path it was read from, absolute, the SHA-256 of its bytes, and which format and
@@ -245,7 +248,8 @@ extension ResultsHeader {
             since: state.changeSelection,
             shard: state.shardSelection,
             sample: state.sampleSelection,
-            testPlan: state.testPlan.map(TestPlanRecord.init)
+            testPlan: state.testPlan.map(TestPlanRecord.init),
+            mutant: state.selectedMutant?.description
         )
     }
 }
