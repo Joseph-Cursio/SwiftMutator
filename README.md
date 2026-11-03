@@ -343,6 +343,40 @@ swift-mutator run --shard 1/2
     is a usage error, with status 64.
   - A worked GitHub Actions recipe is [#124](https://github.com/Joseph-Cursio/SwiftMutator/issues/124).
 
+## Testing a sample of the mutants
+
+`run --sample N` tests about N of the mutants discovered, as for a trend check between whole runs,
+such as a nightly score ([#75](https://github.com/Joseph-Cursio/SwiftMutator/issues/75)). Every run
+still copies the project, gathers coverage and runs the baseline, so a sample saves the time of the
+mutants it leaves out.
+
+```
+swift-mutator run --sample 200
+✅ In total, SwiftMutator discovered 871 mutants, and the sample of 200 holds 200 of them, in 76 files
+🎲 SwiftMutator chose the sample's seed, 157871: --seed 157871 takes the same sample again.
+```
+
+On SwiftProjectLint, a sample of 200 of its 871 mutants took 16 minutes, stopped and resumed once,
+where the whole run takes 46. It scored 78%, and the whole run 77%; the report gave the margin as
+5.0 points. Every one of the 200 verdicts was the whole run's.
+
+- **Which mutants** follows from the seed and where each mutant is, by a hash of the seed and the
+  mutant's path, operator, line and column. The same seed takes the same sample on any machine, and
+  after a small change mostly the same one, so a trend line moves with the tests rather than with
+  the sample. Give `--seed S` to keep it; without one, SwiftMutator chooses one and says which.
+- **About N:** a place's repeats are in the sample or out of it together, so it can hold a few more
+  than N. With no more than N mutants, it holds them all, and is the whole run.
+- **The reports say how close the score is.** The plain and HTML reports say the score is from a
+  sample of N of M mutants, and give its 95% margin; the JSON report gives them as `sample`. The
+  margin narrows with the finite-population correction, and widens for a run stopped early, which
+  has fewer results.
+- **It combines** with `--since`, `--changed-lines`, `--files-to-mutate` and `--operators`, which
+  choose the mutants it is taken from, and with `--shard`, which splits the sample: the shards of a
+  sampled split share one sample, given the same seed, and `report` merges them.
+- **Resuming.** The results file's header records the sample, and a resume must take the same one;
+  the Continue line gives the seed, chosen or not. `--reuse` keeps the earlier run's results for
+  this sample's mutants, whatever sample, or whole run, that was.
+
 ## Results file
 
 SwiftMutator saves each mutant's result as soon as it is tested, as one line of JSON in

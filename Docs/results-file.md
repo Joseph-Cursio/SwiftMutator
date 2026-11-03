@@ -66,7 +66,7 @@ The header's `project` lists five files here. A real one lists every file in the
 | `workers` | Int | How many mutants were tested at once: `mutationTestWorkers`, but never more than the mutants to test, so 0 in a resumed session, or one that `--reuse` started, with nothing left to test |
 | `stopsAtFirstFailure` | Bool | Whether a mutant's test run stopped at its first failed test |
 | `failedTestLinesAreReliable` | Bool | False when the passing baseline printed a line that looks like a failed test or a crash. Such lines then don't show that a mutant was killed, so no mutant line has `killedBy`. |
-| `mutantsDiscovered` | Int | How many mutants the run found. With `--shard`, how many of them the shard holds; `shard` gives the count in every shard. |
+| `mutantsDiscovered` | Int | How many mutants the run found. With `--sample`, how many of them the sample holds; `sample` gives the count it was taken from. With `--shard`, how many the shard holds, of the sample if there is one; `shard` gives the count in every shard. |
 | `mutantsToTest` | Int | How many of them it set out to test: all of them in a run's first session, and fewer in a resumed one, or one that `--reuse` starts, which test only those without an earlier result that still holds. It is written before any mutant is tested, so it says nothing about how many were: that is the number of `mutant` lines without `reusedFrom`, or the end line's `recorded` less `mutantsReused` in a session that `--reuse` starts. |
 | `project` | Object | Your project's files, each one's SHA-256, as SwiftMutator copied them, before it prepared any for mutation. See [below](#project). Left out by `run-without-mutating`, which copies nothing. |
 | `mutantsReused` | Int | Only in a resumed session: how many earlier sessions' results it kept rather than tested again. In a session that `--reuse` starts, how many of the earlier run's results it kept. |
@@ -75,6 +75,7 @@ The header's `project` lists five files here. A real one lists every file in the
 | `reusedFrom` | String | Only in a session that `--reuse` starts: the earlier run's results file |
 | `since` | Object | Only in a session run with `--since`: what it chose, below |
 | `shard` | Object | Only in a session run with `--shard`: which shard it tested, and what discovery found in every shard, below |
+| `sample` | Object | Only in a session run with `--sample`: the sample asked for, and how many mutants it held of how many, below |
 | `forced` | [String] | Only in a resumed session, or one that `--reuse` starts: the `provenance` values that changed since the last session and that `--force-resume` or `--force-reuse` let through, by name (`swiftMutator.executableSHA256`, `toolchain.testCommandVersion`, `toolchain.testExecutableSHA256` or `toolchain.environment`), or `[]` |
 
 #### Provenance
@@ -139,6 +140,21 @@ Which shard `--shard k/n` tested, and what discovery found in every shard:
 A mutant's shard follows from its place alone, its key without `occurrence`. SHA-256 is taken over its `path`, `mutationOperatorId`, `line` and `column`, each followed by a NUL. The first 8 bytes are read as a big-endian number, which is taken modulo `count`, plus 1. So every repeat of one place and operator is in one shard, and a shard's keys are the ones a whole run gives the same mutants. Discovery filters the mutants: a shard's mutated copy holds only its own mutants' switches.
 
 A resume compares `index` and `count`, and whether either session has a `shard` at all. `--reuse` compares neither: it keeps the earlier run's results for the mutants this shard holds. `--shard 1/1` is the whole run, and records no `shard`.
+
+#### `sample`
+
+The sample `--sample N --seed S` took:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `size` | Int | N |
+| `seed` | Int | S, or the seed SwiftMutator chose when there was no `--seed` |
+| `mutantsSampledFrom` | Int | How many mutants discovery found, after the excludes, the coverage filter and `--since`, before the sample |
+| `mutantsSampled` | Int | How many the sample holds: N, a few more when the last place it took has repeats, or every mutant when there were no more than N. With `--shard` too, the header's `mutantsDiscovered` counts only the shard's part of them. |
+
+A sample takes whole places, a mutant's key without `occurrence`. Each place is ranked by SHA-256 over the seed, in decimal, and its `path`, `mutationOperatorId`, `line` and `column`, each followed by a NUL; the first 8 bytes are read as a big-endian number. Ties are broken by the place. The sample takes places from the lowest rank up until it holds N mutants. So every repeat of one place and operator is in the sample or out of it together, and the sample's keys are the ones a whole run gives the same mutants. Discovery takes the sample after `--changed-lines`, and before `--shard`, so the shards of a sampled split share one sample.
+
+A resume compares `size` and `seed`, and whether either session has a `sample` at all; so does a merge of shards. `--reuse` compares neither: it keeps the earlier run's results for the mutants this sample holds. A sample that held every mutant is the whole run, and its reports say nothing of it.
 
 ### `mutant`
 
@@ -336,7 +352,7 @@ Each is read as a single file is, and the last header of each must have a `shard
 
 Every reason found is given at once, with exit status 1, and no report is made.
 
-The report is made from every shard's results, each its file's last line for the key, as for a single file. The mutants come in the order a whole run tests them, under the reference shard's `mutatedProjectPath`. The reference shard's last header gives the project paths, the coverage, `since` and the update notice. The test duration is the longest shard's, as the shards are meant to run at once, and each shard's adds up its own sessions. When every shard that holds mutants is given, the report stands for the whole run, and has no `shards`. Otherwise its `shards` names the shards given, and the plain and HTML reports say that only their mutants were tested.
+The report is made from every shard's results, each its file's last line for the key, as for a single file. The mutants come in the order a whole run tests them, under the reference shard's `mutatedProjectPath`. The reference shard's last header gives the project paths, the coverage, `since`, `sample` and the update notice. The test duration is the longest shard's, as the shards are meant to run at once, and each shard's adds up its own sessions. When every shard that holds mutants is given, the report stands for the whole run, and has no `shards`. Otherwise its `shards` names the shards given, and the plain and HTML reports say that only their mutants were tested.
 
 Standard error says, for one shard's file alone, what it says of any file, naming the shard: `Report of 1228 of 1228 mutants in shard 1 of 2, from …: the run finished.` For several:
 
