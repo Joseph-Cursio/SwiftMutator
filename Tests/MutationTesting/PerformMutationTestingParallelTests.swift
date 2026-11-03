@@ -681,14 +681,14 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         XCTAssertEqual(removedClones, [[workerClone]])
     }
 
-    // Only a `swift test` run names its mutant in a file.
+    // Only a `swift test` run names its mutant in a file. An xcodebuild run removes its mutants' derived data instead.
     func test_anXcodebuildRun_removesNoActiveMutantFile() async throws {
         state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
 
         _ = try await sut.run(with: state)
 
-        XCTAssertEqual(fileManager.paths, [])
+        XCTAssertEqual(fileManager.paths, ["/project_mutated.DerivedData"])
     }
 
     func test_xcodebuildProjectsIgnoreWorkers() async throws {

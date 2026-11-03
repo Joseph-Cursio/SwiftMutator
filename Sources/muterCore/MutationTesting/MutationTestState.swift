@@ -12,6 +12,9 @@ protocol AnyMutationTestState: AnyObject {
     /// The lock on the mutated project, held until the state goes once the run's work has ended; nil until taken.
     var mutatedProjectLock: MutatedProjectLock? { get }
     var projectXCTestRun: XCTestRun { get }
+    /// Whether the xcodebuild in use lists `-collect-test-diagnostics never` in its `-help`; false until
+    /// `BuildForTesting` has asked it, and for other build systems.
+    var testDiagnosticsCanBeTurnedOff: Bool { get }
     var projectCoverage: Coverage { get }
     var sourceFileCandidates: [FilePath] { get }
     var mutationPoints: [MutationPoint] { get }
@@ -67,6 +70,7 @@ final class MutationTestState: AnyMutationTestState {
     var mutatedProjectDirectoryURL: URL = .init(fileURLWithPath: "path")
     var mutatedProjectLock: MutatedProjectLock?
     var projectXCTestRun: XCTestRun = .init()
+    var testDiagnosticsCanBeTurnedOff = false
     var projectCoverage: Coverage = .null
     var sourceFileCandidates: [FilePath] = []
     var mutationPoints: [MutationPoint] = []
@@ -103,6 +107,7 @@ extension MutationTestState {
         case tempDirectoryUrlCreated(URL)
         case mutatedProjectLocked(MutatedProjectLock)
         case projectXCTestRun(XCTestRun)
+        case testDiagnosticsOptionChecked(canBeTurnedOff: Bool)
         case projectCoverage(Coverage)
         case sourceFileCandidatesDiscovered([FilePath])
         case mutationPointsDiscovered([MutationPoint])
@@ -140,6 +145,8 @@ extension MutationTestState {
                 self.mutatedProjectLock = mutatedProjectLock
             case let .projectXCTestRun(projectXCTestRun):
                 self.projectXCTestRun = projectXCTestRun
+            case let .testDiagnosticsOptionChecked(canBeTurnedOff):
+                testDiagnosticsCanBeTurnedOff = canBeTurnedOff
             case let .projectCoverage(projectCoverage):
                 self.projectCoverage = projectCoverage
             case let .sourceFileCandidatesDiscovered(sourceFileCandidates):

@@ -150,6 +150,91 @@ final class BuildForTestingTests: MuterTestCase {
         )
     }
 
+    // Asked once, after the build, of the test command itself: a wrapper `executable` may not pass the option on.
+    func test_whenTheBuildSucceeds_thenAsksTheTestCommandWhetherItTakesNoTestDiagnostics() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/path/to/xcodebuild",
+            arguments: ["some", "commands", "test"]
+        )
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/temp")
+        process.stdoutToBeReturned = xcodebuildBuildForTestingOutput()
+        fileManager.contentsAtPathSortedToReturn = ["some/project.xctestrun"]
+        fileManager.fileContentsToReturn = loadXCTestRun()
+        process.commandResult = { [helpOutput = xcodebuildHelpOutput] _ in
+            CommandResult(status: 0, endedBySignal: false, output: "", errors: helpOutput)
+        }
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result.last, .testDiagnosticsOptionChecked(canBeTurnedOff: true))
+        XCTAssertEqual(process.commandsRun, [["/path/to/xcodebuild", "-help"]])
+        XCTAssertEqual(process.timeLimits, [BuildForTesting.helpTimeLimit])
+    }
+
+    // Without an answer, the option is left out: one the test command didn't know would fail every mutant's run.
+    func test_whenTheTestCommandsHelpCannotBeRead_thenTestDiagnosticsAreLeftOn() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/path/to/xcodebuild",
+            arguments: ["some", "commands", "test"]
+        )
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/temp")
+        process.stdoutToBeReturned = xcodebuildBuildForTestingOutput()
+        fileManager.contentsAtPathSortedToReturn = ["some/project.xctestrun"]
+        fileManager.fileContentsToReturn = loadXCTestRun()
+
+        let couldNotStart = try await sut.run(with: state)
+        process.stdoutToBeReturned = xcodebuildBuildForTestingOutput()
+        fileManager.fileContentsToReturn = loadXCTestRun()
+        process.commandResult = { [helpOutput = xcodebuildHelpOutput] _ in
+            CommandResult(status: 0, endedBySignal: false, output: "", errors: helpOutput, timedOut: true)
+        }
+        let timedOut = try await sut.run(with: state)
+
+        XCTAssertEqual(couldNotStart.last, .testDiagnosticsOptionChecked(canBeTurnedOff: false))
+        XCTAssertEqual(timedOut.last, .testDiagnosticsOptionChecked(canBeTurnedOff: false))
+    }
+
+    func test_whenTheBuildFails_thenTheTestCommandsHelpIsNotAsked() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/path/to/xcodebuild",
+            arguments: ["some", "commands", "test"]
+        )
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/temp")
+        process.stdoutToBeReturned = xcodebuildBuildForTestingFailedOutput()
+        process.terminationStatus = 65
+
+        _ = try? await sut.run(with: state)
+
+        XCTAssertEqual(process.commandsRun, [])
+    }
+
+    func test_listsNoTestDiagnostics_onlyForXcodebuildsLineWithNever() {
+        XCTAssertTrue(BuildForTesting.listsNoTestDiagnostics(xcodebuildHelpOutput))
+        XCTAssertTrue(BuildForTesting.listsNoTestDiagnostics("-collect-test-diagnostics never|on-failure"))
+
+        // An Xcode before the option, a wrapper's own usage, and lines that merely mention it.
+        XCTAssertFalse(BuildForTesting.listsNoTestDiagnostics(""))
+        let olderHelp = xcodebuildHelpOutput.replacingOccurrences(
+            of: "-collect-test-diagnostics",
+            with: "-test-repetition-relaunch"
+        )
+        XCTAssertFalse(BuildForTesting.listsNoTestDiagnostics(olderHelp))
+        XCTAssertFalse(BuildForTesting.listsNoTestDiagnostics("usage: run-tests.sh [scheme]"))
+        XCTAssertFalse(BuildForTesting.listsNoTestDiagnostics("-collect-test-diagnostics on-failure"))
+        XCTAssertFalse(BuildForTesting.listsNoTestDiagnostics("-collect-test-diagnostics"))
+        XCTAssertFalse(BuildForTesting.listsNoTestDiagnostics("unknown option -collect-test-diagnostics never"))
+    }
+
+    /// Lines of Xcode 27.2's `xcodebuild -help`, which it writes to standard error.
+    private let xcodebuildHelpOutput = """
+    Usage: xcodebuild [-project <projectname>] [[-target <targetname>]...|-alltargets] [<buildaction>]...
+
+    Options:
+        -test-iterations <number>                                If specified, tests will run <number> times
+        -collect-test-diagnostics on-failure|never               Whether or not testing collects verbose diagnostics (like a sysdiagnose) when encountering a failure
+        -testLanguage                                            constrains testing by specifying ISO 639-1 language in which to run the tests
+    """
+
     private func xcodebuildBuildForTestingFailedOutput() -> String {
         """
         Command line invocation:

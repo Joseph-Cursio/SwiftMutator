@@ -125,6 +125,14 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   with mutants that can't be read. Under xcodebuild, a mutant whose `muter.xctestrun` can't be
   written stops mutation testing, since the file left by the run before would switch that mutant
   on. These prove a switch is there, not that a run switched it on.
+- **xcodebuild mutant runs leave no derived data behind:** each mutant's `xcodebuild
+  test-without-building` keeps its derived data in `<project>_mutated.DerivedData`, beside the copy,
+  emptied before each run and removed when the run ends. Muter's runs each add a folder of 3–67 MB
+  to `~/Library/Developer/Xcode/DerivedData`, which nothing removes. The runs
+  also pass `-collect-test-diagnostics never`, so a failing run doesn't spend seconds collecting
+  diagnostics no one reads, but only when `executable` lists that option in its `-help`, which
+  SwiftMutator asks once per run. Without it, as for an older Xcode or a wrapper that doesn't pass
+  it on, the runs collect diagnostics as before.
 - **Logging through the injected printer**, so log output can be captured and tested.
 
 Fixes that apply to Muter are offered upstream too.
@@ -710,8 +718,9 @@ which a closed terminal sends, stop it the same way. SwiftMutator then:
    commands are left out when no mutant has a result, or when the results file couldn't be written
    in full. A run of a test plan's command is `run-without-mutating` again, with the plan and
    `--resume`.
-5. Removes its worker clones, `<project>_mutated_worker<n>`, and the active-mutant files beside the
-   mutated project and the clones. The mutated project, `<project>_mutated`, is kept, as after a
+5. Removes its worker clones, `<project>_mutated_worker<n>`, the active-mutant files beside the
+   mutated project and the clones, and an xcodebuild run's derived data,
+   `<project>_mutated.DerivedData`. The mutated project, `<project>_mutated`, is kept, as after a
    finished run.
 6. Exits by the same signal, so the shell sees status 130 for SIGINT, 143 for SIGTERM or 129 for
    SIGHUP, and a script or loop that runs SwiftMutator stops too.
@@ -731,17 +740,18 @@ the results file starts only after both.
   itself if stopping takes more than 30 seconds. It still kills every process it started, ends
   `results.jsonl` with an `end` line whose `detail` names the first signal, unless it had already
   written one, and exits by the first signal. But the partial report is there only if it had
-  already written it, and worker clones and their active-mutant files can be left behind. A SIGHUP
-  after a first SIGHUP is ignored, because zsh sends two when its terminal closes: closing a
-  terminal stops a run the same way as one Ctrl-C.
+  already written it, and worker clones, their active-mutant files and derived data can be left
+  behind. A SIGHUP after a first SIGHUP is ignored, because zsh sends two when its terminal closes:
+  closing a terminal stops a run the same way as one Ctrl-C.
 - **Suspending.** Ctrl-Z suspends SwiftMutator with every process it started, which the terminal's
   Ctrl-Z doesn't reach: each leads a process group of its own. `fg` or `bg` continues them all. No
   time limit counts the time suspended, and no test run's duration includes it, though a test that
   measures time itself can still see it pass. Under xcodebuild, a simulator runs the tests in a
   process of its own, which SwiftMutator didn't start, and doesn't suspend. A run that is
   stopping isn't suspended: it is about to end.
-- **Leftovers.** The next `run` removes `<project>_mutated` and any worker clones and active-mutant
-  files an earlier run left behind, such as one stopped at once, killed with SIGKILL, or crashed.
+- **Leftovers.** The next `run` removes `<project>_mutated` and any worker clones, active-mutant
+  files and `.DerivedData` folders an earlier run left behind, such as one stopped at once, killed
+  with SIGKILL, or crashed.
   SwiftMutator can't handle SIGKILL or a crash itself, so once its tests start, it starts a watcher,
   `swift-mutator watch-test-processes`, which kills the test processes of a run that dies, as soon as
   it dies, and ends with SwiftMutator. If the watcher is killed too, as by `killall -9 swift-mutator`,

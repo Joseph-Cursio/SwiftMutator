@@ -13,8 +13,8 @@ struct PreviousRunCleanUp: MutationStep {
         }
 
         // A run stopped at once (a second Ctrl-C, SIGKILL, a crash) leaves its worker clones, even once `_mutated` is
-        // gone, and the active-mutant files and helper links beside its folders. A link's tests' `UserDefaults` go
-        // with it.
+        // gone, and the active-mutant files, helper links and xcodebuild derived data beside its folders. A link's
+        // tests' `UserDefaults` go with it.
         let parent = mutated.deletingLastPathComponent().path
         let leftovers = ((try? fileManager.contentsOfDirectory(atPath: parent)) ?? [])
             .filter { Self.isLeftover($0, of: mutated.lastPathComponent) }
@@ -28,10 +28,16 @@ struct PreviousRunCleanUp: MutationStep {
         return []
     }
 
-    /// A worker clone, or the active-mutant file or helper link beside the mutated project or a clone, as
-    /// `MutationTestingDelegate.activeMutantFile(forWorkerIn:)` and `DirectTestRun.helperLink(forWorkerIn:)` name them.
+    /// A worker clone, or the active-mutant file, helper link or derived data folder beside the mutated project or a
+    /// clone, as `MutationTestingDelegate.activeMutantFile(forWorkerIn:)`, `DirectTestRun.helperLink(forWorkerIn:)` and
+    /// `MuterConfiguration.XcodeWorker.derivedData(ofWorker:in:)` name them. An xcodebuild worker has no clone, but its
+    /// derived data is named as if it had.
     static func isLeftover(_ name: String, of mutatedName: String) -> Bool {
-        let suffixes = [MutationTestingDelegate.activeMutantFileSuffix, DirectTestRun.helperLinkSuffix]
+        let suffixes = [
+            MutationTestingDelegate.activeMutantFileSuffix,
+            DirectTestRun.helperLinkSuffix,
+            MuterConfiguration.XcodeWorker.derivedDataSuffix,
+        ]
         guard let suffix = suffixes.first(where: name.hasSuffix) else { return isWorkerClone(name, of: mutatedName) }
         let folder = String(name.dropLast(suffix.count))
         return folder == mutatedName || isWorkerClone(folder, of: mutatedName)

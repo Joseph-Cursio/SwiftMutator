@@ -77,7 +77,9 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
     @Dependency(\.writeFile)
     private var writeFile: WriteFile
 
-    private let muterTestRunFileName = "muter.xctestrun"
+    /// The `.xctestrun` file, at the mutated project's root, that `switchOn` writes and a mutant's xcodebuild run
+    /// tests from, unless its configuration's `xcodeWorker` names another.
+    static let muterTestRunFileName = "muter.xctestrun"
     /// Ends the name of the file `activeMutantFileKey` names, beside a worker's folder.
     static let activeMutantFileSuffix = ".active-mutant"
 
@@ -396,7 +398,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         )
 
         try data.write(
-            to: path.appendingPathComponent(muterTestRunFileName)
+            to: path.appendingPathComponent(Self.muterTestRunFileName)
         )
     }
 
@@ -410,8 +412,14 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         // A mutant's run skips the build the baseline did, and so does the run that times one with no mutant on.
         let skipsBuild = skippingBuild ?? (schemata != .null)
         let testCommandArguments = skipsBuild
-            ? configuration.testWithoutBuildArguments(with: muterTestRunFileName)
+            ? configuration.testWithoutBuildArguments(with: Self.muterTestRunFileName)
             : configuration.testCommandArguments
+
+        if skipsBuild, configuration.buildSystem == .xcodebuild, let worker = configuration.xcodeWorker {
+            // Each run adds a result bundle and logs, which nothing reads, to the worker's derived data folder.
+            // Emptied here, it holds one run's at most. Nothing in it is needed: the run tests the baseline's build.
+            try? fileManager.removeItem(atPath: worker.derivedData)
+        }
 
         let process = process()
 

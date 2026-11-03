@@ -643,6 +643,43 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(ioDelegate.configurations.map(\.stopsAtFirstFailure), [false, false])
     }
 
+    // Rather than in a new folder of ~/Library/Developer/Xcode/DerivedData for each run. The folder goes with the run.
+    func test_xcodebuildMutantsRuns_keepTheirDerivedDataBesideTheCopy_untilTheRunEnds() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
+        state.apply([.testDiagnosticsOptionChecked(canBeTurnedOff: true)])
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+
+        _ = try await sut.run(with: state)
+
+        let worker = MuterConfiguration.XcodeWorker(
+            testRunFile: "muter.xctestrun",
+            derivedData: "/project_mutated.DerivedData",
+            testDiagnosticsOff: true
+        )
+        XCTAssertEqual(ioDelegate.configurations.map(\.xcodeWorker), [worker, worker])
+        XCTAssertEqual(fileManager.paths.filter { $0.hasSuffix(".DerivedData") }, ["/project_mutated.DerivedData"])
+    }
+
+    // Only an xcodebuild that lists the option in its `-help` gets it (see BuildForTesting).
+    func test_xcodebuildMutantsRuns_keepTestDiagnostics_unlessTheTestCommandTakesTheOption() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.configurations.map { $0.xcodeWorker?.testDiagnosticsOff }, [false, false])
+    }
+
+    func test_swiftPMMutantsRuns_haveNoXcodeWorker() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.configurations.map(\.xcodeWorker), [nil, nil])
+        XCTAssertFalse(fileManager.paths.contains { $0.hasSuffix(".DerivedData") })
+    }
+
     func test_whenStopAtFirstFailureIsSetWithRepeatUntil_thenANoticeSaysItIsOff() async throws {
         let configuration = MuterConfiguration(
             executable: "/usr/bin/swift",

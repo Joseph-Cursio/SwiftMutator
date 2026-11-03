@@ -83,7 +83,8 @@ struct PerformMutationTesting: MutationStep {
         // After the end line and anything sent about an early end: removing large clones can take seconds, and a
         // second signal in that time exits at once. A clone left behind is removed when SwiftMutator next runs.
         // The mutated project is kept, for a look after the run, but not the active-mutant file beside it, nor the
-        // helper link and the tests' `UserDefaults` of direct runs, which go first: they take no time.
+        // helper link and the tests' `UserDefaults` of direct runs, nor the derived data of xcodebuild's mutant runs,
+        // which holds one run's at most. They go first: they take no time.
         defer {
             if state.muterConfiguration.buildSystem == .swift {
                 let activeMutantFile = MutationTestingDelegate.activeMutantFile(
@@ -91,6 +92,13 @@ struct PerformMutationTesting: MutationStep {
                 )
                 try? fileManager.removeItem(atPath: activeMutantFile.path)
                 DirectTestRun.removeOwnDefaults(forWorkerIn: state.mutatedProjectDirectoryURL)
+            }
+            if state.muterConfiguration.buildSystem == .xcodebuild {
+                let derivedData = MuterConfiguration.XcodeWorker.derivedData(
+                    ofWorker: 0,
+                    in: state.mutatedProjectDirectoryURL
+                )
+                try? fileManager.removeItem(atPath: derivedData)
             }
             removeTestOutputFolderIfEmpty(state)
             if !session.clones.isEmpty {
@@ -289,7 +297,7 @@ private extension PerformMutationTesting {
                 }
             }
         }
-        let configuration = muterConfiguration.withDefaultTestSuiteTimeout(
+        let configuration = Self.onFirstXcodeWorker(muterConfiguration, state).withDefaultTestSuiteTimeout(
             testRunSeconds.map { Self.defaultTimeout(testRunSeconds: $0, workers: workers) }
                 ?? max(timePerBuildTestCycle * Self.defaultTimeoutMultiplier, Self.minimumDefaultTimeout)
         )
@@ -515,6 +523,22 @@ private extension PerformMutationTesting {
         state.mutationMapping.flatMap { mutationMap in
             mutationMap.mutationSchemata.map { MutantJob(fileName: mutationMap.fileName, schema: $0) }
         }
+    }
+
+    /// `configuration`, for an xcodebuild project, with its mutants' runs on the first xcodebuild worker, the only one
+    /// there is: they test from `muter.xctestrun`, on the test command's destination, and keep their derived data
+    /// beside the mutated project rather than in `~/Library/Developer/Xcode/DerivedData`, where every run made a new
+    /// folder. They turn test diagnostics off if the test command takes the option.
+    static func onFirstXcodeWorker(
+        _ configuration: MuterConfiguration,
+        _ state: AnyMutationTestState
+    ) -> MuterConfiguration {
+        guard configuration.buildSystem == .xcodebuild else { return configuration }
+        return configuration.forXcodeWorker(MuterConfiguration.XcodeWorker(
+            testRunFile: MutationTestingDelegate.muterTestRunFileName,
+            derivedData: MuterConfiguration.XcodeWorker.derivedData(ofWorker: 0, in: state.mutatedProjectDirectoryURL),
+            testDiagnosticsOff: state.testDiagnosticsCanBeTurnedOff
+        ))
     }
 
     /// Tests the jobs at `indices`, in their order, one at a time in the mutated project.

@@ -184,6 +184,100 @@ final class ConfigurationParsingTests: MuterTestCase {
         XCTAssertFalse(xcode.testWithoutBuildArguments(with: "run.xctestrun").contains("--quiet"))
     }
 
+    // Each run of a mutant keeps its derived data beside the copy, not in ~/Library/Developer/Xcode/DerivedData. The
+    // rest of the test command's arguments are still dropped.
+    func test_testWithoutBuildArguments_forXcodebuild_addTheWorkersDerivedData() {
+        let xcode = MuterConfiguration(
+            executable: "/usr/bin/xcodebuild",
+            arguments: ["-scheme", "App", "-destination", "platform=iOS Simulator,name=iPhone 17", "test"]
+        )
+        let worker = MuterConfiguration.XcodeWorker(
+            testRunFile: "muter.xctestrun",
+            derivedData: "/path/App_mutated.DerivedData",
+            testDiagnosticsOff: false
+        )
+
+        XCTAssertEqual(xcode.testWithoutBuildArguments(with: "muter.xctestrun"), [
+            "test-without-building",
+            "-destination", "platform=iOS Simulator,name=iPhone 17",
+            "-xctestrun", "muter.xctestrun",
+        ])
+        XCTAssertEqual(xcode.forXcodeWorker(worker).testWithoutBuildArguments(with: "muter.xctestrun"), [
+            "test-without-building",
+            "-destination", "platform=iOS Simulator,name=iPhone 17",
+            "-xctestrun", "muter.xctestrun",
+            "-derivedDataPath", "/path/App_mutated.DerivedData",
+        ])
+    }
+
+    // Only when the xcodebuild in use takes it (see BuildForTesting).
+    func test_testWithoutBuildArguments_forXcodebuild_turnOffTestDiagnosticsWhenTheWorkerSays() {
+        let xcode = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["-destination", "platform=macOS"])
+        let worker = MuterConfiguration.XcodeWorker(
+            testRunFile: "muter.xctestrun",
+            derivedData: "/path/App_mutated.DerivedData",
+            testDiagnosticsOff: true
+        )
+
+        XCTAssertEqual(xcode.forXcodeWorker(worker).testWithoutBuildArguments(with: "muter.xctestrun"), [
+            "test-without-building",
+            "-destination", "platform=macOS",
+            "-xctestrun", "muter.xctestrun",
+            "-derivedDataPath", "/path/App_mutated.DerivedData",
+            "-collect-test-diagnostics", "never",
+        ])
+    }
+
+    func test_testWithoutBuildArguments_forXcodebuild_useTheWorkersDestinationAndTestRunFile() {
+        let xcode = MuterConfiguration(
+            executable: "/usr/bin/xcodebuild",
+            arguments: ["-destination", "platform=iOS Simulator,name=iPhone 17", "-only-testing", "AppTests", "test"]
+        )
+        let worker = MuterConfiguration.XcodeWorker(
+            testRunFile: "muter-worker2.xctestrun",
+            derivedData: "/path/App_mutated_worker2.DerivedData",
+            destination: "platform=iOS Simulator,id=8C5A2F0E",
+            parallelTestingOff: true,
+            testDiagnosticsOff: true
+        )
+
+        XCTAssertEqual(xcode.forXcodeWorker(worker).testWithoutBuildArguments(with: "muter.xctestrun"), [
+            "test-without-building",
+            "-destination", "platform=iOS Simulator,id=8C5A2F0E",
+            "-xctestrun", "muter-worker2.xctestrun",
+            "-derivedDataPath", "/path/App_mutated_worker2.DerivedData",
+            "-collect-test-diagnostics", "never",
+            "-parallel-testing-enabled", "NO",
+        ])
+    }
+
+    // Beside the copy, so neither its fingerprint nor the build its runs test from sees it.
+    func test_aWorkersDerivedData_isBesideTheMutatedProject() {
+        let mutated = URL(fileURLWithPath: "/path/App_mutated")
+
+        XCTAssertEqual(
+            MuterConfiguration.XcodeWorker.derivedData(ofWorker: 0, in: mutated),
+            "/path/App_mutated.DerivedData"
+        )
+        XCTAssertEqual(
+            MuterConfiguration.XcodeWorker.derivedData(ofWorker: 3, in: mutated),
+            "/path/App_mutated_worker3.DerivedData"
+        )
+    }
+
+    // Not a configuration key: neither the configuration file nor a results file's header holds it.
+    func test_xcodeWorker_isNeverEncoded() throws {
+        let configuration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
+        let withWorker = configuration.forXcodeWorker(MuterConfiguration.XcodeWorker(
+            testRunFile: "muter.xctestrun",
+            derivedData: "/path/App_mutated.DerivedData",
+            testDiagnosticsOff: true
+        ))
+
+        XCTAssertEqual(try withWorker.asData, try configuration.asData)
+        XCTAssertEqual(try MuterConfiguration(from: withWorker.asData), configuration)
+    }
+
     func test_asData_writesStopAtFirstFailureOnlyWhenSet() throws {
         // Left out while unset, so `init` and the JSON-to-YAML migration write the same files as before.
         let unset = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
@@ -229,6 +323,19 @@ final class ConfigurationParsingTests: MuterTestCase {
             configurationWithEveryFieldSet(timeout: nil).withDefaultTestSuiteTimeout(12),
             configurationWithEveryFieldSet(timeout: 12)
         )
+    }
+
+    func test_forXcodeWorker_keepsEveryOtherField() throws {
+        let configuration = configurationWithEveryFieldSet()
+        let worker = try XCTUnwrap(configuration.xcodeWorker)
+        let other = MuterConfiguration.XcodeWorker(
+            testRunFile: "muter.xctestrun",
+            derivedData: "/path/App_mutated.DerivedData",
+            testDiagnosticsOff: false
+        )
+
+        XCTAssertEqual(configuration.forXcodeWorker(other).xcodeWorker, other)
+        XCTAssertEqual(configuration.forXcodeWorker(other).forXcodeWorker(worker), configuration)
     }
 
     func test_withUnreliableFailedTestLines_keepsEveryOtherField() {

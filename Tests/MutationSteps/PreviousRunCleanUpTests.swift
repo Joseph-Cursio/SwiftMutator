@@ -131,6 +131,28 @@ final class PreviousRunCleanUpTests: MuterTestCase {
         )
     }
 
+    // An xcodebuild run keeps each worker's derived data beside the mutated project, named as its clone would be.
+    func test_removesTheDerivedDataAnEarlierRunLeft_andNoOther() async throws {
+        fileManager.fileExistsToReturn = [false]
+        fileManager.contentsOfDirectoryToReturn = [
+            "x_mutated.DerivedData",
+            "x_mutated_worker3.DerivedData",
+            "x_mutated_workerX.DerivedData",
+            "x_mutated_worker.DerivedData",
+            "Other.DerivedData",
+            "y_mutated.DerivedData",
+            "DerivedData",
+        ]
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/some/x_mutated")
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(
+            fileManager.paths,
+            ["/some/x_mutated.DerivedData", "/some/x_mutated_worker3.DerivedData"]
+        )
+    }
+
     // Another run of the project may hold it, and a run that removed it could lock a new file while that one held the
     // old.
     func test_keepsTheMutatedProjectsLockFile() async throws {

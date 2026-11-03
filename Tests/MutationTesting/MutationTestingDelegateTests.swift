@@ -49,6 +49,63 @@ final class MutationTestingDelegateTests: MuterTestCase {
         XCTAssertEqual(testProcess.executableURL?.path, "/tmp/xcodebuild")
     }
 
+    // Each mutant's run starts with an empty derived data folder of its worker's, where xcodebuild writes its result
+    // bundle and logs.
+    func test_testProcessForXcodeBuild_emptiesTheWorkersDerivedDataBeforeAMutantsRun() async throws {
+        current.process = { MuterProcessFactory.makeProcess() }
+        let configuration = MuterConfiguration(
+            executable: "/tmp/xcodebuild",
+            arguments: ["-destination", "platform=iOS Simulator,name=iPhone 17", "test"]
+        )
+        .forXcodeWorker(MuterConfiguration.XcodeWorker(
+            testRunFile: "muter.xctestrun",
+            derivedData: "/path/App_mutated.DerivedData",
+            testDiagnosticsOff: true
+        ))
+
+        let testProcess = try await sut.testProcess(
+            with: configuration,
+            schemata: MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1)),
+            and: FileHandle(fileDescriptor: 0)
+        )
+
+        XCTAssertEqual(fileManager.paths, ["/path/App_mutated.DerivedData"])
+        XCTAssertEqual(testProcess.arguments, [
+            "test-without-building",
+            "-destination",
+            "platform=iOS Simulator,name=iPhone 17",
+            "-xctestrun",
+            "muter.xctestrun",
+            "-derivedDataPath",
+            "/path/App_mutated.DerivedData",
+            "-collect-test-diagnostics",
+            "never",
+        ])
+    }
+
+    // The baseline builds, with the test command as it is, so its derived data is the user's.
+    func test_testProcessForXcodeBuild_leavesTheWorkersDerivedDataAloneForTheBaseline() async throws {
+        current.process = { MuterProcessFactory.makeProcess() }
+        let configuration = MuterConfiguration(
+            executable: "/tmp/xcodebuild",
+            arguments: ["-destination", "platform=macOS", "test"]
+        )
+        .forXcodeWorker(MuterConfiguration.XcodeWorker(
+            testRunFile: "muter.xctestrun",
+            derivedData: "/path/App_mutated.DerivedData",
+            testDiagnosticsOff: true
+        ))
+
+        let baselineProcess = try await sut.testProcess(
+            with: configuration,
+            schemata: .null,
+            and: FileHandle(fileDescriptor: 0)
+        )
+
+        XCTAssertEqual(fileManager.paths, [])
+        XCTAssertEqual(baselineProcess.arguments, ["-destination", "platform=macOS", "test"])
+    }
+
     func test_testProcessForSwiftBuild() async throws {
         current.process = { MuterProcessFactory.makeProcess() }
 

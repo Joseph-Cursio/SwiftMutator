@@ -32,8 +32,12 @@ struct BuildForTesting: MutationStep {
             try copyBuildArtifactsAtPath(buildDirectory, to: tempDebugURL.path)
 
             let xcTestRun = try parseXCTestRunAt(tempDebugURL)
+            let canTurnOffTestDiagnostics = await takesNoTestDiagnostics(state.muterConfiguration)
 
-            return [.projectXCTestRun(xcTestRun)]
+            return [
+                .projectXCTestRun(xcTestRun),
+                .testDiagnosticsOptionChecked(canBeTurnedOff: canTurnOffTestDiagnostics),
+            ]
         } catch {
             throw MuterError.literal(reason: "\(error)")
         }
@@ -61,6 +65,37 @@ struct BuildForTesting: MutationStep {
             throw MuterError.literal(
                 reason: buildFailureReason(output, status: buildProcess.terminationStatus)
             )
+        }
+    }
+
+    /// How long `takesNoTestDiagnostics` waits for the test command's `-help`, in seconds. xcodebuild's takes
+    /// about 0.3 s.
+    static let helpTimeLimit: TimeInterval = 30
+
+    /// Whether the test command takes `-collect-test-diagnostics never`, as its `-help` says. Asked once per run, here,
+    /// where xcodebuild has just run. xcodebuild refuses an option it doesn't know, so an Xcode without this one, or a
+    /// wrapper `executable` that doesn't pass it on, would fail every mutant's run, and kill every mutant. False
+    /// whenever the answer isn't clear: the option only saves time.
+    private func takesNoTestDiagnostics(_ configuration: MuterConfiguration) async -> Bool {
+        guard let help = await process().runCommand(
+            url: configuration.testCommandExecutable,
+            arguments: ["-help"],
+            timeLimit: Self.helpTimeLimit
+        ), !help.timedOut
+        else {
+            return false
+        }
+        // xcodebuild writes its help to standard error.
+        return Self.listsNoTestDiagnostics(help.output + "\n" + help.errors)
+    }
+
+    /// Whether `help`, a test command's `-help`, has xcodebuild's line for `-collect-test-diagnostics` with `never`
+    /// among its values: `-collect-test-diagnostics on-failure|never`.
+    static func listsNoTestDiagnostics(_ help: String) -> Bool {
+        help.split(whereSeparator: \.isNewline).contains { line in
+            let words = line.split(whereSeparator: \.isWhitespace)
+            guard words.count > 1, words[0] == "-collect-test-diagnostics" else { return false }
+            return words[1].split(separator: "|").contains("never")
         }
     }
 
