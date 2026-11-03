@@ -32,7 +32,8 @@ final class CheckTestPlanSourcesTests: MuterTestCase {
         state.runOptions = .make(testPlanURL: URL(fileURLWithPath: planPath))
         let subscription = runEvents.observe { [said] event in
             switch event.name {
-            case .testPlanSourcesUnchecked, .testPlanSourcesDiffer, .testPlanChangesWaived:
+            case .testPlanSourcesUnchecked, .testPlanSourcesDiffer, .testPlanUntestedFilesChanged,
+                 .testPlanChangesWaived:
                 said.change { $0.append(event) }
             default:
                 break
@@ -153,9 +154,10 @@ final class CheckTestPlanSourcesTests: MuterTestCase {
     }
 
     // Run from another folder, the plan names a copy beside that folder, which may be another project's. The project
-    // isn't fingerprinted, which in such a folder could list a great many files.
+    // isn't fingerprinted, which in such a folder could list a great many files. A file at the top, as `Package.swift`,
+    // is in most projects, so it doesn't tell.
     func test_inAFolderWithNoneOfTheFilesItMutates_isRefused() async throws {
-        try write(["README.md": "another project"], in: project)
+        try write(["README.md": "another project", "Package.swift": "// swift-tools-version:5.9"], in: project)
         plan(mutating: ["Sources/Sum.swift", "Sources/Max.swift"])
 
         await AssertThrowsError(try await sut.run(with: state)) { error in
@@ -199,18 +201,102 @@ final class CheckTestPlanSourcesTests: MuterTestCase {
     }
 
     // With some of the plan's mutants to be tested, as `--mutant` chooses one, a change to another of its files
-    // describes no mutant tested.
+    // describes no mutant tested. It is said as a file with the plan's other mutants, not as one the plan doesn't
+    // mutate.
     func test_onlyTheFilesOfTheMutantsToBeTested_canRefuse() async throws {
-        try write(recorded.merging(["Sources/Max.swift": "let max = 3"]) { $1 }, in: project)
-        plan(mutating: ["Sources/Sum.swift"])
+        try write(recorded.merging(["Sources/Max.swift": "let max = 3", "Package.resolved": "{}"]) { $1 }, in: project)
+        plan(mutating: ["Sources/Sum.swift", "Sources/Max.swift"], recorded: recorded, tested: ["Sources/Sum.swift"])
 
         let changes = try await sut.run(with: state)
 
         XCTAssertEqual(changes, [])
+        XCTAssertEqual(said.value.map(\.name), [.testPlanSourcesDiffer, .testPlanUntestedFilesChanged])
         XCTAssertEqual(
             said.value.first?.object as? [ProjectTree.FileChange],
+            [.init(path: "Package.resolved", kind: .added)]
+        )
+        XCTAssertEqual(
+            said.value.last?.object as? [ProjectTree.FileChange],
             [.init(path: "Sources/Max.swift", kind: .changed)]
         )
+    }
+
+    // A file the plan mutates that was renamed in the project is a change of the project, which `--plan-ignoring` can
+    // let through, though the folder holds none of the files the plan mutates: the plan's other files in `Sources`
+    // tell its project.
+    func test_theOneFileItMutates_renamedInTheProject_isRefusedAsRemoved() async throws {
+        let now = recorded.merging(["Sources/Total.swift": "let sum = 1"]) { $1 }
+            .filter { $0.key != "Sources/Sum.swift" }
+        try write(now, in: project)
+        plan(mutating: ["Sources/Sum.swift"])
+
+        await AssertThrowsError(try await sut.run(with: state)) { error in
+            XCTAssertEqual(
+                error as? TestPlanRefused,
+                TestPlanRefused(
+                    path: self.planPath,
+                    reason: .sourcesChanged([.init(path: "Sources/Sum.swift", kind: .removed)])
+                )
+            )
+        }
+
+        state.runOptions = .make(testPlanURL: URL(fileURLWithPath: planPath), planIgnoring: ["Sources/Sum.swift"])
+        let changes = try await sut.run(with: state)
+
+        XCTAssertEqual(changes, [])
+        XCTAssertEqual(said.value.map(\.name), [.testPlanSourcesDiffer, .testPlanChangesWaived])
+        XCTAssertEqual(said.value.last?.object as? [String], ["Sources/Sum.swift"])
+    }
+
+    // `--mutant` narrows the run to the one file, which was removed, while the plan's other file is still there.
+    func test_theFileOfTheMutantToBeTested_removedInTheProject_isRefusedAsRemoved() async throws {
+        try write(recorded.filter { $0.key != "Sources/Max.swift" }, in: project)
+        plan(mutating: ["Sources/Sum.swift", "Sources/Max.swift"], recorded: recorded, tested: ["Sources/Max.swift"])
+
+        await AssertThrowsError(try await sut.run(with: state)) { error in
+            XCTAssertEqual(
+                error as? TestPlanRefused,
+                TestPlanRefused(
+                    path: self.planPath,
+                    reason: .sourcesChanged([.init(path: "Sources/Max.swift", kind: .removed)])
+                )
+            )
+        }
+    }
+
+    // A file with mutants that is a symbolic link, here to a file outside the project, is recorded by where it
+    // points, which didn't change, and by what its file held, which did.
+    func test_aLinkedFileItMutates_whoseFileChanged_isRefused() async throws {
+        try write(recorded, in: project)
+        let shared = "\(project)/../Shared/Shared.swift"
+        try write(["Shared.swift": "let shared = 1"], in: "\(project)/../Shared")
+        try FileManager.default.createSymbolicLink(
+            atPath: "\(project)/Sources/Shared.swift",
+            withDestinationPath: "../../Shared/Shared.swift"
+        )
+        plan(
+            mutating: ["Sources/Shared.swift"],
+            recorded: recorded,
+            links: ["Sources/Shared.swift": ("../../Shared/Shared.swift", "let shared = 1")]
+        )
+        let unchanged = try await sut.run(with: state)
+        XCTAssertEqual(unchanged, [])
+        XCTAssertEqual(said.value.map(\.name), [])
+
+        try Data("let shared = 2".utf8).write(to: URL(fileURLWithPath: shared))
+
+        await AssertThrowsError(try await sut.run(with: state)) { error in
+            XCTAssertEqual(
+                error as? TestPlanRefused,
+                TestPlanRefused(
+                    path: self.planPath,
+                    reason: .sourcesChanged([.init(path: "Sources/Shared.swift", kind: .changed)])
+                )
+            )
+        }
+        state.runOptions = .make(testPlanURL: URL(fileURLWithPath: planPath), planIgnoring: ["Sources/Shared.swift"])
+        _ = try await sut.run(with: state)
+        XCTAssertEqual(said.value.map(\.name), [.testPlanChangesWaived])
     }
 
     // The copy may have been fixed by hand, on purpose, and another run of the project may be rewriting it until it is
@@ -248,9 +334,17 @@ private extension CheckTestPlanSourcesTests {
     }
 
     /// A loaded plan made from `recorded`, the project's files when it was made, or by a SwiftMutator that didn't
-    /// record them, with mutants in `paths`, relative to the copy.
-    func plan(mutating paths: [String], recorded: [String: String]?) {
-        let files = recorded.map { $0.mapValues { FileDigest.sha256(of: Data($0.utf8)) } }
+    /// record them, with mutants in `paths`, relative to the copy, of which the run tests those in `tested`, as
+    /// `--mutant` narrows them, or every one. Each of `links` is a symbolic link in the project, to the path it names,
+    /// whose file held the text it names when the plan was made.
+    func plan(
+        mutating paths: [String],
+        recorded: [String: String]?,
+        tested: [String]? = nil,
+        links: [String: (destination: String, text: String)] = [:]
+    ) {
+        let linked = links.mapValues { ProjectTree.linkPrefix + FileDigest.sha256(of: Data($0.destination.utf8)) }
+        let files = recorded.map { $0.mapValues { FileDigest.sha256(of: Data($0.utf8)) }.merging(linked) { $1 } }
         state.testPlan = LoadedTestPlan(
             path: planPath,
             sha256: "",
@@ -265,9 +359,11 @@ private extension CheckTestPlanSourcesTests {
                     treeSHA256: ProjectTree.treeHash(of: $0)
                 )
             },
-            mutatedFiles: nil
+            mutatedFiles: nil,
+            linkedFiles: links.isEmpty ? nil : links.mapValues { FileDigest.sha256(of: Data($0.text.utf8)) },
+            mutatedPaths: Set(paths)
         )
-        state.mutationMapping = paths.map { SchemataMutationMapping(filePath: "\(copy)/\($0)") }
+        state.mutationMapping = (tested ?? paths).map { SchemataMutationMapping(filePath: "\(copy)/\($0)") }
     }
 
     /// Writes each file, relative to `root`, making its folders.

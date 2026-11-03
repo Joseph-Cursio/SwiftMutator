@@ -19,6 +19,10 @@ struct MuterTestPlan: Equatable {
     /// The SHA-256 of each file with mutants as the plan left it in the copy, by its path relative to the copy; nil
     /// for a plan in format 0.
     let mutatedFiles: [String: String]?
+    /// The SHA-256 of what each file with mutants that is a symbolic link in the project held when the plan was made,
+    /// by its path relative to the project: `sources` records only where such a link points. Nil when no such file is
+    /// a link, and for a plan that doesn't record them.
+    let linkedFiles: [String: String]?
     let mappings: [SchemataMutationMapping]
 
     init(
@@ -29,6 +33,7 @@ struct MuterTestPlan: Equatable {
         scope: TestPlanScope?,
         sources: ProjectTree? = nil,
         mutatedFiles: [String: String]? = nil,
+        linkedFiles: [String: String]? = nil,
         mappings: [SchemataMutationMapping]
     ) {
         self.formatVersion = formatVersion
@@ -38,6 +43,7 @@ struct MuterTestPlan: Equatable {
         self.scope = scope
         self.sources = sources
         self.mutatedFiles = mutatedFiles
+        self.linkedFiles = linkedFiles
         self.mappings = mappings
     }
 }
@@ -73,6 +79,12 @@ struct LoadedTestPlan: Equatable, Sendable {
     /// The SHA-256 of each file with mutants as the plan left it in the copy, by its path relative to the copy, which
     /// tells a fix by hand; nil for a plan in format 0, which doesn't record them.
     let mutatedFiles: [String: String]?
+    /// The SHA-256 of what each file with mutants that is a symbolic link in the project held when the plan was made,
+    /// by its path relative to the project; nil when none is, and for a plan that doesn't record them.
+    let linkedFiles: [String: String]?
+    /// The paths of all the plan's files with mutants, relative to the copy and so to the project, which `--mutant`
+    /// doesn't narrow as it narrows the run's mappings. A file outside the copy is left out.
+    let mutatedPaths: Set<String>
 }
 
 /// The test plan `mutate-without-running` wrote, as it reports it: where the plan is, the copy it names, and what it

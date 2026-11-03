@@ -20,8 +20,8 @@ struct ProjectTree: Codable, Equatable {
     }
 
     let listedBy: Listing
-    /// A symbolic link's entry is "link:" + the SHA-256 of the path it points to; it is never followed. The files of a
-    /// local package outside the project are under its path from the project, which starts with `../`.
+    /// A symbolic link's entry is `linkPrefix` + the SHA-256 of the path it points to; it is never followed. The files
+    /// of a local package outside the project are under its path from the project, which starts with `../`.
     let files: [String: String]
     /// Paths inside the project that are left out: the `-o` report and its `.partial` sibling, which the run itself
     /// writes, and the configuration file, whose settings the header records (`excludedPaths`).
@@ -31,6 +31,8 @@ struct ProjectTree: Codable, Equatable {
 }
 
 extension ProjectTree {
+    /// What a symbolic link's entry in `files` starts with.
+    static let linkPrefix = "link:"
     /// Folders no outcome is read from, at any depth: build products, git's own, and Xcode's per-user state.
     static let prunedComponents: Set = [".build", ".git", ".swiftpm", "DerivedData", "xcuserdata"]
     static let prunedNames: Set = [".DS_Store"]
@@ -193,7 +195,7 @@ private extension ProjectTree {
         case .typeSymbolicLink?:
             return (try? FileManager.default.destinationOfSymbolicLink(atPath: url.path))
                 .map { FileDigest.sha256(of: Data($0.utf8)) }
-                .map { "link:" + $0 }
+                .map { linkPrefix + $0 }
         default:
             return nil
         }

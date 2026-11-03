@@ -52,7 +52,9 @@ final class LoadMuterTestPlanTests: MuterTestCase {
                         swiftMutatorVersion: muterCore.version,
                         scope: TestPlanScope(operators: .allOperators, filesToMutate: []),
                         sources: nil,
-                        mutatedFiles: nil
+                        mutatedFiles: nil,
+                        linkedFiles: nil,
+                        mutatedPaths: []
                     )
                 ),
             ]
@@ -132,6 +134,23 @@ final class LoadMuterTestPlanTests: MuterTestCase {
 
         XCTAssertEqual(state.testPlan?.sources, sources)
         XCTAssertEqual(state.testPlan?.mutatedFiles, mutatedFiles)
+    }
+
+    // `--mutant` narrows the run's mappings, not the plan's files, which `CheckTestPlanSources` tells the project by. A
+    // file outside the copy isn't the project's.
+    func test_theFilesThePlanMutates_andItsLinkedFiles_reachTheState() async throws {
+        let outside = SchemataMutationMapping(filePath: "/elsewhere/Outside.swift")
+        state.runOptions = .make(testPlanURL: URL(fileURLWithPath: testPlanPath))
+        state.projectDirectoryURL = project
+        fileManager.fileContentsToReturn = MuterTestPlan.make(
+            linkedFiles: ["Sources/Check.swift": "abc"],
+            mappings: [try mapping(), outside]
+        ).toData(under: project)
+
+        state.apply(try await sut.run(with: state))
+
+        XCTAssertEqual(state.testPlan?.mutatedPaths, ["Sources/Check.swift"])
+        XCTAssertEqual(state.testPlan?.linkedFiles, ["Sources/Check.swift": "abc"])
     }
 
     func test_theLoadedPlan_isKeptInTheState() async throws {

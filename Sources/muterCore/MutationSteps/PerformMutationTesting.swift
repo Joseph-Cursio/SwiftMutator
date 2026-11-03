@@ -905,9 +905,9 @@ private extension PerformMutationTesting {
     }
 
     /// What `schema`'s mutant, keyed `key`, changes, as `MutantDiff` finds it in its original file, `outcome`'s, never
-    /// the copy, whose code holds every switch. As its snapshot gives it when the original file can't be read, or isn't
-    /// as the mutant was found in it: a test plan's file that changed since the plan was made, let through by
-    /// `--plan-ignoring`.
+    /// the copy, whose code holds every switch. As its snapshot gives it when the original file can't be read, or can't
+    /// be told to be as the mutant was found in it: a test plan's file that changed since the plan was made, let
+    /// through by `--plan-ignoring`, and one that a plan doesn't record, as a plan in format 0 records none.
     func change(
         of schema: MutationSchema,
         key: MutantKey,
@@ -918,8 +918,10 @@ private extension PerformMutationTesting {
         guard let data = fileManager.contents(atPath: outcome.originalProjectPath),
               let original = String(data: data, encoding: .utf8)
         else { return fallback }
-        if let planned = state.testPlan?.sources?.files[key.path], planned != FileDigest.sha256(of: data) {
-            return fallback
+        if let plan = state.testPlan {
+            // A file with mutants that is a symbolic link is recorded by what its link's file held.
+            let planned = plan.linkedFiles?[key.path] ?? plan.sources?.files[key.path]
+            guard planned == FileDigest.sha256(of: data) else { return fallback }
         }
         return MutantDiff.lines(
             original: original,

@@ -485,7 +485,9 @@ final class ResumeCheckTests: XCTestCase {
             swiftMutatorVersion: "16",
             scope: nil,
             sources: nil,
-            mutatedFiles: nil
+            mutatedFiles: nil,
+            linkedFiles: nil,
+            mutatedPaths: []
         )
         state.apply([.configurationParsed(swift), .testPlanLoaded(plan), .projectTreeFingerprinted(Self.tree)])
         let written = ResultsHeader(

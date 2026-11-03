@@ -30,6 +30,7 @@ enum TestPlanCoding {
             filesToMutate: plan.scope?.filesToMutate ?? [],
             sources: plan.sources,
             mutatedFiles: plan.mutatedFiles,
+            linkedFiles: plan.linkedFiles,
             mappings: plan.mappings.map { $0.relative(to: plan.mutatedProjectURL) }
         )
         return try String(decoding: encoder.encode(file), as: UTF8.self) + "\n"
@@ -70,6 +71,7 @@ enum TestPlanCoding {
             ),
             sources: file.sources,
             mutatedFiles: file.mutatedFiles,
+            linkedFiles: file.linkedFiles,
             mappings: file.mappings.map { $0.resolved(under: copy) }
         )
     }
@@ -110,6 +112,10 @@ struct TestPlanFile: Codable, Equatable {
     /// The SHA-256 of each file with mutants, as the plan left it in the copy, by its path relative to the copy. Left
     /// out only by a plan made without them.
     let mutatedFiles: [String: String]?
+    /// The SHA-256 of what each file with mutants that is a symbolic link in the project held when the plan was made,
+    /// by its path relative to the project, which a run of the plan checks the link's file against. Left out when no
+    /// such file is a link.
+    let linkedFiles: [String: String]?
     /// By file, each file's mutants in the order mutation testing runs them.
     let mappings: [SchemataMutationMapping]
 }

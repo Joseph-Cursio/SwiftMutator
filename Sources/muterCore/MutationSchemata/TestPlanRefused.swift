@@ -19,13 +19,15 @@ struct TestPlanRefused: Error, Equatable, CustomStringConvertible {
 enum TestPlanRefusal: Equatable, CustomStringConvertible {
     /// The plan is in a format newer than `TestPlanCoding.newestFormatVersion`.
     case newerFormat(found: Int)
-    /// None of the `files` files the plan mutates is in `folder`, the folder the run is in, so it isn't the project
-    /// the plan was made from. `mutatedProject` is the copy as the plan names it, relative to that project.
+    /// None of the `files` files the plan mutates is in `folder`, the folder the run is in, nor any other file the plan
+    /// recorded in the folders at the top of the project that hold them, so it isn't the project the plan was made
+    /// from. `mutatedProject` is the copy as the plan names it, relative to that project.
     case notThisProject(folder: String, files: Int, mutatedProject: String)
     /// Files the plan mutates that changed in the project since the plan was made, and that no `--plan-ignoring` glob
     /// matches.
     case sourcesChanged([ProjectTree.FileChange])
-    /// The plan's copy of the project, at this absolute path, isn't there.
+    /// The plan's copy of the project, at this absolute path, isn't there: it was removed, or moved, or the project
+    /// was moved without it.
     case copyMissing(path: String)
 
     var description: String {
@@ -42,9 +44,9 @@ enum TestPlanRefusal: Equatable, CustomStringConvertible {
         case let .sourcesChanged(changes):
             return Self.describe(changes)
         case let .copyMissing(path):
-            return "its copy of the project, \(path), isn't there. A later `swift-mutator run` or "
-                + "`swift-mutator mutate-without-running` of the project removes it. Make the plan again with "
-                + "`swift-mutator mutate-without-running`."
+            return "its copy of the project isn't at \(path). If the copy was moved, or the project without it, move "
+                + "the copy there. A later `swift-mutator run` or `swift-mutator mutate-without-running` of the "
+                + "project removes the copy: then make the plan again with `swift-mutator mutate-without-running`."
         }
     }
 

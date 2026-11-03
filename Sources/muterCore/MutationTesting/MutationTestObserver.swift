@@ -167,6 +167,8 @@ extension MutationTestObserver {
             logger.testPlanSourcesUnchecked()
         case let .testPlanSourcesDiffer(changes):
             logger.testPlanSourcesDiffer(changes)
+        case let .testPlanUntestedFilesChanged(changes):
+            logger.testPlanUntestedFilesChanged(changes)
         case let .testPlanChangesWaived(paths):
             logger.testPlanChangesWaived(paths)
         case let .testPlanCopyEdited(paths):

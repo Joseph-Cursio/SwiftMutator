@@ -763,7 +763,9 @@ final class PerformMutationTestingTests: MuterTestCase {
                     excluded: [],
                     treeSHA256: ProjectTree.treeHash(of: ["Sources/Bar.swift": "0000"])
                 ),
-                mutatedFiles: nil
+                mutatedFiles: nil,
+                linkedFiles: nil,
+                mutatedPaths: []
             )),
         ])
         fileManager.fileContentsToReturn = Data(Self.ternarySource.utf8)
@@ -774,6 +776,62 @@ final class PerformMutationTestingTests: MuterTestCase {
 
         let run = try XCTUnwrap(sent().first?.object as? OneMutantRun)
         XCTAssertEqual(run.change, ["- flag ? 1 : 2", "+ flag ? 2 : 1"])
+    }
+
+    // A plan that doesn't record the project's files, as one in format 0 doesn't, isn't checked against them, so its
+    // file may have changed too: the change is the one the snapshot gives.
+    func test_aOneMutantRun_ofAPlanThatDoesntRecordItsFile_showsTheChangeAsTheSnapshotGivesIt() async throws {
+        try selectOneTernary()
+        loadPlan(sources: nil)
+        fileManager.fileContentsToReturn = Data(Self.ternarySource.utf8)
+        ioDelegate.testSuiteOutcomes = [.passed, .passed]
+        let sent = recordEvents(named: [.oneMutantTested])
+
+        _ = try await sut.run(with: state)
+
+        let run = try XCTUnwrap(sent().first?.object as? OneMutantRun)
+        XCTAssertEqual(run.change, ["- flag ? 1 : 2", "+ flag ? 2 : 1"])
+    }
+
+    // A plan's file as the plan recorded it, here through a symbolic link, by what its link's file held, shows the
+    // change from the original file.
+    func test_aOneMutantRun_ofAPlansUnchangedFile_showsTheChangeFromTheOriginalFile() async throws {
+        let digest = FileDigest.sha256(of: Data(Self.ternarySource.utf8))
+        for (sources, linkedFiles) in [
+            (["Sources/Bar.swift": digest], nil),
+            (["Sources/Bar.swift": ProjectTree.linkPrefix + "0000"], ["Sources/Bar.swift": digest]),
+        ] {
+            try selectOneTernary()
+            loadPlan(sources: sources, linkedFiles: linkedFiles)
+            fileManager.fileContentsToReturn = Data(Self.ternarySource.utf8)
+            ioDelegate.testSuiteOutcomes = [.passed, .passed]
+            let sent = recordEvents(named: [.oneMutantTested])
+
+            _ = try await sut.run(with: state)
+
+            let run = try XCTUnwrap(sent().last?.object as? OneMutantRun)
+            XCTAssertEqual(run.change, ["-2:     return flag ? 1 : 2", "+2:     return flag ? 2 : 1"])
+        }
+    }
+
+    /// Loads a test plan that records the project's `sources`, each file's SHA-256 by its path, or doesn't, as a plan
+    /// in format 0 doesn't, and the SHA-256 of each of `linkedFiles`.
+    private func loadPlan(sources: [String: String]?, linkedFiles: [String: String]? = nil) {
+        state.apply([
+            .testPlanLoaded(LoadedTestPlan(
+                path: "/project/muter-mappings.json",
+                sha256: "9e1f",
+                formatVersion: sources == nil ? 0 : TestPlanCoding.formatVersion,
+                swiftMutatorVersion: sources == nil ? nil : muterCore.version,
+                scope: nil,
+                sources: sources.map {
+                    ProjectTree(listedBy: .git, files: $0, excluded: [], treeSHA256: ProjectTree.treeHash(of: $0))
+                },
+                mutatedFiles: nil,
+                linkedFiles: linkedFiles,
+                mutatedPaths: []
+            )),
+        ])
     }
 
     // Only a run of one mutant prints it on its own.

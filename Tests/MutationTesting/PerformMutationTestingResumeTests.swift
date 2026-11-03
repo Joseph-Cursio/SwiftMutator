@@ -104,7 +104,9 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
             swiftMutatorVersion: "16",
             scope: nil,
             sources: nil,
-            mutatedFiles: nil
+            mutatedFiles: nil,
+            linkedFiles: nil,
+            mutatedPaths: []
         )
         state.runOptions = .make(
             testPlanURL: URL(fileURLWithPath: plan.path),

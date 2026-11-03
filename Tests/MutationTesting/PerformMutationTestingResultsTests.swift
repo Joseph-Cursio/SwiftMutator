@@ -107,7 +107,9 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
             swiftMutatorVersion: muterCore.version,
             scope: nil,
             sources: nil,
-            mutatedFiles: ["Sources/Sum.swift": "5a1c", "Sources/Product.swift": "0000"]
+            mutatedFiles: ["Sources/Sum.swift": "5a1c", "Sources/Product.swift": "0000"],
+            linkedFiles: nil,
+            mutatedPaths: []
         )
         let copy = makeProjectTree(["Sources/Sum.swift": "5a1c", "Sources/Product.swift": "77e0"])
         state.apply([.testPlanLoaded(plan), .projectTreeFingerprinted(copy)])

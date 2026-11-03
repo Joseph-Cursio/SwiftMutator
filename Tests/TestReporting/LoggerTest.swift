@@ -123,6 +123,23 @@ final class LoggerTests: MuterTestCase {
         ])
     }
 
+    // With `--mutant`, files with the plan's other mutants, which a run that tests them would refuse.
+    func test_testPlanUntestedFilesChanged_namesTheFiles_andSaysARunOfThemIsRefused() {
+        sut.testPlanUntestedFilesChanged([.init(path: "Sources/Max.swift", kind: .changed)])
+        sut.testPlanUntestedFilesChanged(
+            [.init(path: "Sources/Max.swift", kind: .removed), .init(path: "Sources/Min.swift", kind: .changed)]
+        )
+
+        XCTAssertEqual(printer.linesPassed, [
+            "⚠️ 1 file with the plan's other mutants, which this run doesn't test, changed since `swift-mutator "
+                + "mutate-without-running` made it: Sources/Max.swift (changed). A run that tests those mutants "
+                + "refuses the plan, unless --plan-ignoring lets the change through.",
+            "⚠️ 2 files with the plan's other mutants, which this run doesn't test, changed since `swift-mutator "
+                + "mutate-without-running` made it: Sources/Max.swift (removed), Sources/Min.swift (changed). A run "
+                + "that tests those mutants refuses the plan, unless --plan-ignoring lets the changes through.",
+        ])
+    }
+
     func test_testPlanChangesWaived_namesTheFilesPlanIgnoringLetThrough() {
         sut.testPlanChangesWaived(["Sources/Sum.swift"])
         sut.testPlanChangesWaived(["Sources/Max.swift", "Sources/Sum.swift"])

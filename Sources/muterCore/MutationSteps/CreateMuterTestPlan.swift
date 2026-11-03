@@ -4,7 +4,9 @@ import Foundation
 /// (`TestPlanFile`), so the project and its copy can move together. The plan records the operators and files its
 /// mutants were chosen by, the project's files as `FingerprintProjectTree` found them before anything was rewritten,
 /// which a run of the plan checks the project against, and the SHA-256 of each file with mutants as the copy now holds
-/// it. It runs once the copy is locked and its switches checked.
+/// it. For a file with mutants that is a symbolic link in the project, whose file the project's files record only by
+/// where it points, it also records the SHA-256 of what the link's file holds. It runs once the copy is locked and its
+/// switches checked.
 struct CreateMuterTestPlan: MutationStep {
     @Dependency(\.events)
     private var events: RunEvents
@@ -20,6 +22,7 @@ struct CreateMuterTestPlan: MutationStep {
             scope: TestPlanScope(operators: state.mutationOperatorList, filesToMutate: state.filesToMutate),
             sources: state.projectTree,
             mutatedFiles: mutatedFiles(in: state),
+            linkedFiles: linkedFiles(in: state),
             mappings: state.mutationMapping
         )
 
@@ -62,5 +65,20 @@ struct CreateMuterTestPlan: MutationStep {
                 FileDigest.sha256(of: contents)
         }
         return files
+    }
+
+    /// The SHA-256 of what each file with mutants that is a symbolic link in the project holds, read through the link,
+    /// by its path relative to the project; nil when none is. A file that can't be read is left out.
+    private func linkedFiles(in state: AnyMutationTestState) -> [String: String]? {
+        guard let recorded = state.projectTree?.files else { return nil }
+        var files: [String: String] = [:]
+        for mapping in state.mutationMapping {
+            let path = RepoRelativePath.of(mapping.filePath, under: state.mutatedProjectDirectoryURL)
+            guard recorded[path]?.hasPrefix(ProjectTree.linkPrefix) == true,
+                  let digest = FileDigest.sha256(of: state.projectDirectoryURL.appendingPathComponent(path))
+            else { continue }
+            files[path] = digest
+        }
+        return files.isEmpty ? nil : files
     }
 }

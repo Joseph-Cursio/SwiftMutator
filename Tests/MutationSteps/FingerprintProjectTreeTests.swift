@@ -311,7 +311,9 @@ private extension FingerprintProjectTreeTests {
             swiftMutatorVersion: "16",
             scope: nil,
             sources: nil,
-            mutatedFiles: nil
+            mutatedFiles: nil,
+            linkedFiles: nil,
+            mutatedPaths: []
         )
         state.resumeState = try ResumeState.make(
             path: resultsPath,
@@ -330,7 +332,9 @@ private extension FingerprintProjectTreeTests {
             swiftMutatorVersion: nil,
             scope: nil,
             sources: nil,
-            mutatedFiles: mutatedFiles
+            mutatedFiles: mutatedFiles,
+            linkedFiles: nil,
+            mutatedPaths: []
         )
     }
 

@@ -74,6 +74,9 @@ enum RunEvent {
     /// Project files the plan doesn't mutate that changed since it was made, whether or not `--plan-ignoring` matches
     /// them: the copy holds them as they were.
     case testPlanSourcesDiffer([ProjectTree.FileChange])
+    /// Files with the plan's other mutants, which `--mutant` leaves out of the run, that changed since it was made: a
+    /// run that tests those mutants refuses the plan unless `--plan-ignoring` lets the changes through.
+    case testPlanUntestedFilesChanged([ProjectTree.FileChange])
     /// Files the plan mutates that changed since it was made, which `--plan-ignoring` let through.
     case testPlanChangesWaived([String])
     /// Files with mutants that the plan's copy holds otherwise than `mutate-without-running` left them, as a fix by

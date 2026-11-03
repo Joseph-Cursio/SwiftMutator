@@ -21,7 +21,7 @@ The plan records them, and a run of the plan records them in its results file, a
 
 - The plan is `muter-mappings.json` at the project's root. You can move or rename it: what it names is relative to the project folder, not to the plan.
 - Its paths are relative, so the project and its copy can move together. The copy's path is relative to the folder the plan was made in, normally `../<project>_mutated`. Each mutant's file is relative to the copy, as `Sources/Foo/Bar.swift`. A copy that shares no folder with the project but the root, as on another volume, is named by its absolute path, and so is a file outside the copy.
-- Run `run-without-mutating` in the project folder, as `mutate-without-running` was: the plan's copy is found from the folder the command runs in, which is also where it loads `muter.conf.yml`. A run in a folder that holds none of the files the plan mutates is refused (see [When a plan is refused](#when-a-plan-is-refused)).
+- Run `run-without-mutating` in the project folder, as `mutate-without-running` was: the plan's copy is found from the folder the command runs in, which is also where it loads `muter.conf.yml`. A run in a folder that holds none of the files the plan mutates, nor any other file the plan recorded beside them, is refused (see [When a plan is refused](#when-a-plan-is-refused)).
 - A copy that moved can hold absolute paths in its `.build` folder or in Xcode's DerivedData, which still point to where it was. Remove the copy's `.build` after moving it.
 - A later `swift-mutator run` or `mutate-without-running` of the project removes the copy, with any fix you made in it. A plan whose copy isn't there is refused (see [When a plan is refused](#when-a-plan-is-refused)).
 
@@ -94,6 +94,7 @@ The plan is one JSON object, pretty-printed with two spaces, its keys sorted, it
 | `filesToMutate` | [String] | The files the mutants were chosen from, as `--files-to-mutate` gave them; empty when it wasn't given. |
 | `sources` | Object | The project's own files when the plan was made, before any was rewritten, which a run of the plan checks the project against: `files`, each file's SHA-256 by its path relative to the project; `excluded`, the paths left out, such as `muter.conf.yml`; `listedBy`, `git`, or `walk` outside a repository; and `treeSHA256`, over them all. They are found as a run's results file records them (see [The results file](results-file.md)). |
 | `mutatedFiles` | Object | The SHA-256 of each file with mutants as the plan left it in the copy, by its path relative to the copy. A run of the plan names the files that differ, as after a fix by hand, and tests them as they are; it never refuses them. |
+| `linkedFiles` | Object | The SHA-256 of what each file with mutants that is a symbolic link in the project held when the plan was made, by its path relative to the project: `sources` records only where such a link points. Left out when no file with mutants is a link. |
 | `mappings` | [Object] | Each file with mutants, sorted by path: its `filePath`, relative to the copy, and its mutants, in the order they are tested. |
 
 Each mutant has:
@@ -120,15 +121,15 @@ The hashes are shortened here. The plan holds no date, host name, absolute path 
 `run-without-mutating` refuses a plan that might not describe the project, or can't be tested as it is. It tests nothing, says why and what would let the plan through, and exits with status 7:
 
 - The plan is in a newer format than this SwiftMutator reads.
-- The folder the command runs in holds none of the files the plan mutates, so it isn't the project the plan was made from. Run it in that project's folder.
+- The folder the command runs in holds none of the files the plan mutates, nor any other file the plan recorded in the folders at the top of the project that hold them, as `Sources`, so it isn't the project the plan was made from. Run it in that project's folder. A file at the top, as `Package.swift`, is in most projects, so it doesn't count. In the project, a file the plan mutates that was renamed or removed is a change like any other (see [When the project changed](#when-the-project-changed)).
 - A file the plan mutates changed in the project since the plan was made, or was removed (see [When the project changed](#when-the-project-changed)).
-- The plan's copy isn't there. This is checked once the copy is locked, since another run of the project could be making it until then. Make the plan again with `swift-mutator mutate-without-running`.
+- The plan's copy isn't there. This is checked once the copy is locked, since another run of the project could be making it until then, or when the folder the copy should be in isn't there either, so that it can't be locked. If the copy was moved, or the project without it, move the copy to where the message says. Otherwise make the plan again with `swift-mutator mutate-without-running`.
 
 ## When the project changed
 
 `run-without-mutating` checks the project's own files against the plan's `sources` before it locks or reads anything in the copy. It never checks the copy against them: you may have fixed the copy by hand on purpose, and `run-without-mutating` checks every mutant's switch is still in the copy's code once it is locked. Its results file records the copy as it was tested, each file's SHA-256 in its header's `project`, and the plan it tested, by its path and SHA-256, in `testPlan` (see [The results file](results-file.md)).
 
-- A file the plan mutates that changed, or was removed, refuses the plan. The copy holds the file as it was, so its mutants' places, and the reports' lines in the file, would describe code you no longer have. The message names each such file, up to 10, and the flags that let the changes through:
+- A file the plan mutates that changed, or was removed or renamed, refuses the plan. A file with mutants that is a symbolic link counts as changed when the file it points to changed. The copy holds the file as it was, so its mutants' places, and the reports' lines in the file, would describe code you no longer have. The message names each such file, up to 10, and the flags that let the changes through:
 
   ```
   SwiftMutator won't test the plan '/Users/me/Foo/muter-mappings.json': 1 file it mutates changed since `swift-mutator mutate-without-running` made it:
@@ -140,7 +141,7 @@ The hashes are shortened here. The plan holds no date, host name, absolute path 
 
   Make the plan again, or give `--plan-ignoring <glob>` to test the copy as it is. The glob is matched against each path relative to the project, and `*` also matches `/`, so `--plan-ignoring 'Sources/*'` lets every change under `Sources` through. It can be given more than once. The run then says which changes it let through.
 - A change to any other file, such as a test or `Package.resolved`, is only said, with or without `--plan-ignoring`: the copy holds the file as it was, and its mutants are tested with it. Make the plan again to test with the file as it is now.
-- Only the files of the mutants the run tests count.
+- Only the files of the mutants the run tests count. With `--mutant`, a change to a file with the plan's other mutants is only said, as a file a run of those mutants would refuse.
 - The plan itself, wherever in the project it is, and what a run leaves out of its results file's project files, such as the `-o` report and `muter.conf.yml`, are never changes.
 - The check hashes every file of the project, as a run does when it records them, so it takes about as long.
 
@@ -179,6 +180,6 @@ swift-mutator run-without-mutating muter-mappings.json --mutant 'Bar.swift:12:9'
 
 - It takes the mutant as `run --mutant` does, and prints its change, its tests' log, its verdict, and the command that runs its tests in the copy with it on (see [Testing one mutant](../README.md#testing-one-mutant)).
 - It tests the plan's copy as it is, under the plan's lock, and never rewrites it: only the plan's list of mutants is narrowed to that one.
-- The project is checked against the plan as for a whole run, but only that mutant's file can refuse it. Its change is shown from your project's file, or, when that file changed since the plan was made and `--plan-ignoring` let it through, as the mutant records it.
+- The project is checked against the plan as for a whole run, but only that mutant's file can refuse it. Its change is shown from your project's file, or, when that file changed since the plan was made and `--plan-ignoring` let it through, or the plan doesn't record it, as a plan in format 0 doesn't, as the mutant records it.
 - Its results file is a run of one mutant: no whole run resumes or reuses it, and `--resume` can't be given with `--mutant`.
 - `run --mutant` makes a copy of its own, `<project>_mutant`, so it never removes the plan's copy or a fix in it.

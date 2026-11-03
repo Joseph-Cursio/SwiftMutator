@@ -515,7 +515,9 @@ final class ResultsRecordTests: XCTestCase {
                     swiftMutatorVersion: muterCore.version,
                     scope: TestPlanScope(operators: [.swapTernary, .ror], filesToMutate: ["Sources/Sum.swift"]),
                     sources: nil,
-                    mutatedFiles: nil
+                    mutatedFiles: nil,
+                    linkedFiles: nil,
+                    mutatedPaths: []
                 )
             ),
         ])
@@ -552,7 +554,9 @@ final class ResultsRecordTests: XCTestCase {
                     swiftMutatorVersion: "1.2.3",
                     scope: nil,
                     sources: nil,
-                    mutatedFiles: ["Sources/Sum.swift": "77e0"]
+                    mutatedFiles: ["Sources/Sum.swift": "77e0"],
+                    linkedFiles: nil,
+                    mutatedPaths: []
                 )
             ),
             .projectTreeFingerprinted(copy),

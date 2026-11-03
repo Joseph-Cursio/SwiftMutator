@@ -126,10 +126,11 @@ final class CheckTestPlanCodeTests: MuterTestCase {
             )
             XCTAssertEqual(
                 "\(error)",
-                "SwiftMutator won't test the plan '/path/to/project/muter-mappings.json': its copy of the project, "
-                    + "/path/to/muted, isn't there. A later `swift-mutator run` or `swift-mutator "
-                    + "mutate-without-running` of the project removes it. Make the plan again with `swift-mutator "
-                    + "mutate-without-running`. Nothing was tested."
+                "SwiftMutator won't test the plan '/path/to/project/muter-mappings.json': its copy of the project "
+                    + "isn't at /path/to/muted. If the copy was moved, or the project without it, move the copy "
+                    + "there. A later `swift-mutator run` or `swift-mutator mutate-without-running` of the project "
+                    + "removes the copy: then make the plan again with `swift-mutator mutate-without-running`. Nothing "
+                    + "was tested."
             )
         }
         XCTAssertEqual(fileManager.fileExistsAtPath, ["/path/to/muted"])

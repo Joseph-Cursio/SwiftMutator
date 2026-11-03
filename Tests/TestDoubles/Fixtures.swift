@@ -565,6 +565,7 @@ extension MuterTestPlan {
         scope: TestPlanScope? = TestPlanScope(operators: .allOperators, filesToMutate: []),
         sources: ProjectTree? = nil,
         mutatedFiles: [String: String]? = nil,
+        linkedFiles: [String: String]? = nil,
         mappings: [SchemataMutationMapping] = []
     ) -> MuterTestPlan {
         MuterTestPlan(
@@ -573,6 +574,7 @@ extension MuterTestPlan {
             scope: scope,
             sources: sources,
             mutatedFiles: mutatedFiles,
+            linkedFiles: linkedFiles,
             mappings: mappings
         )
     }

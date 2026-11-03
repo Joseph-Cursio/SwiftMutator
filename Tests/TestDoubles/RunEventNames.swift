@@ -42,6 +42,7 @@ extension RunEvent {
         case muterMutationTestPlanLoaded
         case testPlanSourcesUnchecked
         case testPlanSourcesDiffer
+        case testPlanUntestedFilesChanged
         case testPlanChangesWaived
         case testPlanCopyEdited
     }
@@ -85,6 +86,7 @@ extension RunEvent {
         case .muterMutationTestPlanLoaded: .muterMutationTestPlanLoaded
         case .testPlanSourcesUnchecked: .testPlanSourcesUnchecked
         case .testPlanSourcesDiffer: .testPlanSourcesDiffer
+        case .testPlanUntestedFilesChanged: .testPlanUntestedFilesChanged
         case .testPlanChangesWaived: .testPlanChangesWaived
         case .testPlanCopyEdited: .testPlanCopyEdited
         }
@@ -123,7 +125,7 @@ extension RunEvent {
         case let .resultsFileCreated(path): path
         case let .resultsFileUnavailable(reason): reason
         case let .testPlanFileCreated(created): created
-        case let .testPlanSourcesDiffer(changes): changes
+        case let .testPlanSourcesDiffer(changes), let .testPlanUntestedFilesChanged(changes): changes
         case let .testPlanChangesWaived(paths): paths
         case let .testPlanCopyEdited(paths): paths
         }

@@ -39,7 +39,7 @@ final class TestPlanCodingTests: XCTestCase {
         let text = try TestPlanCoding.encode(plan(), under: project)
 
         let keys = [
-            "filesToMutate", "formatVersion", "mappings", "mutatedFiles", "mutatedProject", "operators",
+            "filesToMutate", "formatVersion", "linkedFiles", "mappings", "mutatedFiles", "mutatedProject", "operators",
             "projectCoverage", "sources", "swiftMutatorVersion",
         ]
         assertInOrder(text, keys.map { "\"\($0)\"" })
@@ -64,7 +64,7 @@ final class TestPlanCodingTests: XCTestCase {
         let text = try TestPlanCoding.encode(plan(), under: project)
 
         XCTAssertTrue(text.hasPrefix("{\n  \"filesToMutate\" : ["), text)
-        XCTAssertTrue(text.contains("\n  \"formatVersion\" : 1,\n  \"mappings\" : ["), text)
+        XCTAssertTrue(text.contains("\n  \"formatVersion\" : 1,\n  \"linkedFiles\" : {"), text)
         XCTAssertTrue(text.hasSuffix("}\n"))
         XCTAssertFalse(text.hasSuffix("\n\n"))
     }
@@ -121,6 +121,7 @@ final class TestPlanCodingTests: XCTestCase {
         XCTAssertEqual(read.swiftMutatorVersion, muterCore.version)
         XCTAssertEqual(read.sources, sources)
         XCTAssertEqual(read.mutatedFiles?.keys.sorted(), ["Sources/Max.swift", "Sources/Sum.swift"])
+        XCTAssertEqual(read.linkedFiles, ["Sources/Max.swift": "c"])
         XCTAssertEqual(try TestPlanCoding.encode(read, under: project), text)
     }
 
@@ -131,6 +132,7 @@ final class TestPlanCodingTests: XCTestCase {
 
         XCTAssertFalse(text.contains("\"sources\""), text)
         XCTAssertFalse(text.contains("\"mutatedFiles\""), text)
+        XCTAssertFalse(text.contains("\"linkedFiles\""), text)
         XCTAssertNil(try read(text).sources)
         XCTAssertNil(try read(text).mutatedFiles)
     }
@@ -254,6 +256,7 @@ final class TestPlanCodingTests: XCTestCase {
             projectCoverage: 47,
             sources: sources,
             mutatedFiles: ["Sources/Max.swift": String(repeating: "a", count: 64), "Sources/Sum.swift": "b"],
+            linkedFiles: ["Sources/Max.swift": "c"],
             mappings: [
                 try .make(
                     filePath: "\(copy)/Sources/Max.swift",

@@ -35,7 +35,13 @@ struct LoadMuterTestPlan: MutationStep {
                     swiftMutatorVersion: testPlan.swiftMutatorVersion,
                     scope: testPlan.scope,
                     sources: testPlan.sources,
-                    mutatedFiles: testPlan.mutatedFiles
+                    mutatedFiles: testPlan.mutatedFiles,
+                    linkedFiles: testPlan.linkedFiles,
+                    mutatedPaths: Set(
+                        testPlan.mappings.map { RepoRelativePath.of($0.filePath, under: testPlan.mutatedProjectURL) }
+                    )
+                    // A file outside the copy keeps its absolute path, and isn't the project's.
+                    .filter { !$0.hasPrefix("/") }
                 )
             ),
         ]
