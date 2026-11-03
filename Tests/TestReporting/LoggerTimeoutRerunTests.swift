@@ -85,15 +85,18 @@ final class LoggerTimeoutRerunTests: MuterTestCase {
         XCTAssertTrue(printer.linesPassed[printedBefore - 1].contains("] 2 of 2 (100%) | "))
     }
 
-    func test_aResume_namesTheTimeoutsNotRunAgain() {
+    func test_aResume_namesTheTimeoutsNotRunAgain_andThoseUnderAShorterLimit() {
         sut.resumePlanned(.make(reused: 3, toTest: 2, retestedBecause: [.timeoutNotRerun: 1, .notRecorded: 1]))
         sut.resumePlanned(.make(reused: 3, toTest: 2, retestedBecause: [.timeoutNotRerun: 2]))
+        sut.resumePlanned(.make(reused: 3, toTest: 2, retestedBecause: [.timeoutUnderShorterLimit: 1, .notRecorded: 1]))
 
         XCTAssertEqual(printer.linesPassed, [
             "♻️ Resuming the run in \("/logs/results.jsonl".bold): 3 results still hold, "
                 + "so 2 mutants are left to test (1 never tested, 1 timeout not run again at lower load).",
             "♻️ Resuming the run in \("/logs/results.jsonl".bold): 3 results still hold, "
                 + "so 2 mutants are left to test (2 timeouts not run again at lower load).",
+            "♻️ Resuming the run in \("/logs/results.jsonl".bold): 3 results still hold, "
+                + "so 2 mutants are left to test (1 never tested, 1 timeout under a shorter limit).",
         ])
     }
 }

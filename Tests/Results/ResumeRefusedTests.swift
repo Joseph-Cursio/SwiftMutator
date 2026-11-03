@@ -8,7 +8,7 @@ final class ResumeRefusedTests: XCTestCase {
         let refused = ResumeRefused(
             path: path,
             reasons: [
-                .configurationChanged(.init(name: "mutationTestTimeout", was: "60", isNow: "120")),
+                .configurationChanged(.init(name: "mutationTestTimeout", was: "120", isNow: "60")),
                 .needsForce(
                     .init(
                         name: "toolchain.testCommandVersion",
@@ -29,7 +29,8 @@ final class ResumeRefusedTests: XCTestCase {
             """
             SwiftMutator won't resume the run in '/logs/results.jsonl', so that no result is reused that this run \
             might not reproduce:
-              - mutationTestTimeout was 60 and is 120 now. A configuration change needs a new run.
+              - mutationTestTimeout was 120 and is 60 now. A time limit shorter than a session's, or none, needs a \
+            new run: one at least as long as every session's only tests timeouts again.
               - The toolchain (toolchain.testCommandVersion) was "Apple Swift version 6.3.3" and is \
             "Apple Swift version 6.4" now. --force-resume reuses the results anyway.
               - 2 project files changed since the run stopped: README.md (changed), notes.txt (added).

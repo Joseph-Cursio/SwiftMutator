@@ -92,7 +92,7 @@ enum MergeRefusal: Equatable, CustomStringConvertible {
                 + named(reference)
         }
         switch refusal {
-        case let .configurationChanged(difference):
+        case let .configurationChanged(difference), let .timeLimitUnknown(difference):
             return "\(difference.name) \(values(difference, absent: "not set")). The shards must test with one "
                 + "configuration."
         case let .selectionChanged(difference):

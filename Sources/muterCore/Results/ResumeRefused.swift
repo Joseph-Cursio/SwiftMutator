@@ -48,6 +48,9 @@ enum ResumeRefusal: Equatable, CustomStringConvertible {
     case inUse(lastProcess: Int32?, lastHost: String?)
     /// A configuration key that some outcome depends on.
     case configurationChanged(ResumeCheck.Difference)
+    /// A new time limit, where the file doesn't record the limit each of its results was tested under, so none is
+    /// known to be long enough: one that `--reuse` kept was tested under the earlier run's.
+    case timeLimitUnknown(ResumeCheck.Difference)
     /// `operators`, `filesToMutate`, `skipCoverage` or what `--since` chose: which mutants are tested.
     case selectionChanged(ResumeCheck.Difference)
     /// What identifies the SwiftMutator build, the toolchain or the SDK, which `--force-resume` lets through.
@@ -78,9 +81,16 @@ enum ResumeRefusal: Equatable, CustomStringConvertible {
             }
             return "another SwiftMutator run holds its lock."
                 + (writer.isEmpty ? "" : " The file's last session was written\(writer).")
+        case let .configurationChanged(difference) where difference.name == ResumeCheck.timeLimitKey:
+            return "\(difference.name) \(difference.change(absent: "not set")). A time limit shorter than a "
+                + "session's, or none, needs a new run: one at least as long as every session's only tests timeouts "
+                + "again."
         case let .configurationChanged(difference):
             return "\(difference.name) \(difference.change(absent: "not set")). "
                 + "A configuration change needs a new run."
+        case let .timeLimitUnknown(difference):
+            return "\(difference.name) \(difference.change(absent: "not set")). The file doesn't record the time "
+                + "limit every result was tested under, as for one --reuse kept, so a new limit needs a new run."
         case let .selectionChanged(difference):
             return "\(difference.name) \(difference.change(absent: "not set")). "
                 + "A change to which mutants are tested needs a new run."

@@ -379,6 +379,8 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
             return "\(count) repeated in \(one ? "its" : "their") file"
         case .timeoutNotRerun:
             return "\(count) timeout\(one ? "" : "s") not run again at lower load"
+        case .timeoutUnderShorterLimit:
+            return "\(count) timeout\(one ? "" : "s") under a shorter limit"
         case .timedOut:
             return "\(count) timeout\(one ? "" : "s")"
         case .otherFileChanged:

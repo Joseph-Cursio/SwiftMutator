@@ -388,6 +388,8 @@ private extension PerformMutationTesting {
                 recorded: resume.recorded.latest,
                 fileHashes: state.projectTree?.files ?? [:],
                 workers: ResumePlan.workers(of: resume.recorded.headers),
+                limits: ResumePlan.limits(of: resume.recorded.headers),
+                limit: state.muterConfiguration.testSuiteTimeout,
                 reusing: resume.isReuse ? state.reuseChanges : nil,
                 leftOut: state.keysLeftOutOfTheSample
             )
