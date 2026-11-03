@@ -446,7 +446,9 @@ mutants at once with `mutationTestWorkers: N` or `--workers N`
   second run is the one recorded, and the first run's log is kept with ` (launch failed)` before
   `.log`. A run whose simulator is gone stops mutation testing, keeping the results so far, and
   keeps its log with ` (simulator gone)` before `.log`: resume it, and new simulators are made. If
-  the simulator your `-destination` names was the one deleted, make it again first.
+  the simulator your `-destination` names was the one deleted, make it again first. A baseline the
+  simulator failed to launch runs again too, once, on any number of workers, and its first log is
+  kept as `baseline run (launch failed).log`.
 - **Memory.** Each booted simulator holds memory. 2 to 4 workers suit most Macs.
 
 ## Mutating only what a branch changed

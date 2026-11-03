@@ -554,6 +554,16 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         leaveRoomForTheProgressBar()
     }
 
+    /// "🔁 The simulator didn't launch the baseline's tests, so they ran again. …": an xcodebuild baseline that ran
+    /// again in place of one the simulator failed to launch, with the line that showed it, before any progress is
+    /// drawn.
+    func baselineRepeatedAfterLaunchFailure(line: String, keptFileName: String) {
+        print(
+            "🔁 The simulator didn't launch the baseline's tests, so they ran again. "
+                + "The first run's log, \(keptFileName), says: \(line)"
+        )
+    }
+
     /// "72 s", "41.2 s": `seconds` to a tenth.
     private static func seconds(_ seconds: TimeInterval) -> String {
         String(format: "%g", (seconds * 10).rounded() / 10) + " s"

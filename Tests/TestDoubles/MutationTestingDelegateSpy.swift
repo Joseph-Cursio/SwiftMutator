@@ -36,6 +36,8 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     var outcomesByMutant: [String: TestSuiteOutcome] = [:]
     /// The log of the baseline run in the mutated project.
     var baselineTestLog = "testLog"
+    /// The logs of the baselines to come, in order, before `baselineTestLog`, which the rest print.
+    var baselineTestLogs: [String] = []
     /// Each mutant run's log, in the order they're run; "testLog" once empty.
     var mutantTestLogs: [String] = []
     /// How each mutant's run ends, in the order they're run; `.exited` once empty.
@@ -153,7 +155,8 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
         methodCalls.append(#function)
         testLogs.append(fileName)
         whileRunningBaseline?(0)
-        return (testSuiteOutcomes.remove(at: 0), baselineTestLog)
+        let testLog = baselineTestLogs.isEmpty ? baselineTestLog : baselineTestLogs.removeFirst()
+        return (testSuiteOutcomes.remove(at: 0), testLog)
     }
 
     /// Called concurrently for each worker clone, so it takes the lock.

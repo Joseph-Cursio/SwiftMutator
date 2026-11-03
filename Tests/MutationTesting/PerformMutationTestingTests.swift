@@ -738,6 +738,57 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(logs.dropFirst(), ["the second run's log", "testLog"])
     }
 
+    // A real baseline that found Xcode's clone of the simulator busy. It tested nothing, so it runs once more, and
+    // mutation testing goes on from that run. The first run's log is kept beside the baseline's.
+    func test_whenTheSimulatorFailsToLaunchTheBaseline_itRunsOnceMore_andTestingGoesOn() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
+        let launchFailed = loadFixture("SimulatorTrouble/launch_preflightBusy.log")
+        ioDelegate.testSuiteOutcomes = [.failed, .passed, .failed, .failed]
+        ioDelegate.baselineTestLogs = [launchFailed, "the second baseline's log"]
+        let sent = recordEvents(named: [.baselineRepeatedAfterLaunchFailure, .newTestLogAvailable])
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.methodCalls.filter { $0.hasPrefix("benchmarkTests") }.count, 2)
+        XCTAssertEqual(outcomes(in: result), [.failed, .failed])
+        XCTAssertEqual(sent().map(\.name), [
+            .baselineRepeatedAfterLaunchFailure,
+            .newTestLogAvailable, // the second baseline's
+            .newTestLogAvailable,
+            .newTestLogAvailable,
+        ])
+        let (line, log) = try XCTUnwrap(sent().first?.object as? (String, MutationTestLog))
+        XCTAssertEqual(line, "Simulator device failed to launch com.example.MacCloud-client-iOS.")
+        XCTAssertEqual(log.testLog, launchFailed)
+        XCTAssertNil(log.mutationPoint)
+        XCTAssertEqual(log.keptFileName, "baseline run (launch failed).log")
+        let baselineLog = try XCTUnwrap(sent()[1].object as? MutationTestLog)
+        XCTAssertEqual(baselineLog.testLog, "the second baseline's log")
+    }
+
+    // One more baseline at most, which fails mutation testing as any failed baseline does. A SwiftPM baseline has no
+    // simulator, so its failure is never run again.
+    func test_aBaselineTheSimulatorFailsToLaunchTwice_andASwiftPMBaseline_failAsAnyFailedBaselineDoes() async throws {
+        let launchFailed = loadFixture("SimulatorTrouble/launch_preflightBusy.log")
+        let sent = recordEvents(named: [.baselineRepeatedAfterLaunchFailure])
+        for (executable, baselines) in [("/usr/bin/xcodebuild", 2), ("/usr/bin/swift", 1)] {
+            state.muterConfiguration = MuterConfiguration(executable: executable, arguments: ["test"])
+            let baselinesBefore = ioDelegate.methodCalls.filter { $0.hasPrefix("benchmarkTests") }.count
+            ioDelegate.testSuiteOutcomes = [.failed, .failed]
+            ioDelegate.baselineTestLogs = [launchFailed, launchFailed]
+
+            try await assertThrowsMuterError(await sut.run(with: state)) { error in
+                guard case .mutationTestingAborted(reason: .baselineTestFailed) = error else {
+                    return XCTFail("Expected mutationTestingAborted, got \(error)")
+                }
+            }
+
+            let baselinesRun = ioDelegate.methodCalls.filter { $0.hasPrefix("benchmarkTests") }.count - baselinesBefore
+            XCTAssertEqual(baselinesRun, baselines, executable)
+        }
+        XCTAssertEqual(sent().count, 1)
+    }
+
     // The second run's line is on disk before the console says the mutant ran again or keeps the first run's log, so a
     // stop at once after that never leaves a mutant said to have run again with no line.
     func test_aRunTheSimulatorFailedToLaunch_isSentOnlyOnceTheSecondRunsResultIsWritten() async throws {

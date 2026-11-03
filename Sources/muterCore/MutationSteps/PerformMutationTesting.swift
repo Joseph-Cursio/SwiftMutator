@@ -243,12 +243,7 @@ private extension PerformMutationTesting {
         async let booted = SimulatorWorkerSetup.boot(simulators, on: booting)
 
         let initialTime = Date()
-        let (testSuiteOutcome, testLog) = await ioDelegate.benchmarkTests(
-            using: state.muterConfiguration,
-            savingResultsIntoFileNamed: testOutput(named: "baseline run", state: state)
-        )
-        // Stopping the run kills the baseline run, which then fails, but that says nothing about the project's tests.
-        try Task.checkCancellation()
+        let (testSuiteOutcome, testLog) = try await baseline(state: state)
 
         let timeAfterRunningTestSuite = Date()
         let timePerBuildTestCycle = DateInterval(
@@ -1073,6 +1068,33 @@ private extension PerformMutationTesting {
                 mutant: outcome, worker: finished.worker, line: failure.line, log: log
             ))
         )
+    }
+
+    /// The baseline run's outcome and log. A baseline the simulator failed to launch says nothing about the tests
+    /// either, so it runs once more, as a mutant's run does (`SimulatorTrouble.launch`), and the first run's log is
+    /// sent to be kept, whatever the second comes to. The caller times both runs: the first paid for the build. A stop
+    /// throws.
+    private func baseline(state: AnyMutationTestState) async throws -> (outcome: TestSuiteOutcome, testLog: String) {
+        let (baseline, launchFailure) = await TestRun.launchedOnceMore(ifNeededWith: state.muterConfiguration) {
+            let (outcome, testLog) = await ioDelegate.benchmarkTests(
+                using: state.muterConfiguration,
+                savingResultsIntoFileNamed: testOutput(named: "baseline run", state: state)
+            )
+            return TestRun(outcome: outcome, testLog: testLog)
+        }
+        // Stopping the run kills the baseline run, which then fails, but that says nothing about the project's tests.
+        try Task.checkCancellation()
+        if let launchFailure {
+            let log = MutationTestLog(
+                mutationPoint: .none,
+                testLog: launchFailure.testLog,
+                timePerBuildTestCycle: .none,
+                remainingMutationPointsCount: .none,
+                keptFileName: MutationTestLog.launchFailedFileName(for: MutationTestLog.baselineFileName)
+            )
+            events.send(.baselineRepeatedAfterLaunchFailure(line: launchFailure.line, log: log))
+        }
+        return (baseline.outcome, baseline.testLog)
     }
 
     /// The file a mutant's run writes its output to while it runs. Its job's number comes first, so two runs under way

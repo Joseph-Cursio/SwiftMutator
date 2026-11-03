@@ -55,6 +55,9 @@ enum RunEvent {
     /// run's result is written, just before its outcome is sent. Never counted in the progress, which counts the second
     /// run.
     case runRepeatedAfterLaunchFailure(RepeatedRun)
+    /// An xcodebuild baseline that the simulator failed to launch, with the line that showed it and its log, once the
+    /// baseline has run again in its place, before that run's outcome is known to anyone.
+    case baselineRepeatedAfterLaunchFailure(line: String, log: MutationTestLog)
     /// A run of one mutant (`--mutant`), once its line is written, which `mutationTestingFinished` then prints in
     /// place of the report.
     case oneMutantTested(OneMutantRun)

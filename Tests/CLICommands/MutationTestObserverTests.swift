@@ -220,6 +220,27 @@ final class MutationTestObserverTests: MuterTestCase {
         XCTAssertTrue(printer.linesPassed[0].hasPrefix("🔁 The simulator didn't launch the tests for Sum.swift:3:3"))
     }
 
+    // Beside the log of the baseline that replaced it, before any progress.
+    func test_aBaselineRepeatedAfterALaunchFailure_keepsTheFirstRunsLog_andSaysSo() throws {
+        fileManager.currentDirectoryPathToReturn = "/project"
+        try sut.start()
+        let loggingDirectory = sut.loggingDirectory
+        let keptFileName = "baseline run (launch failed).log"
+
+        runEvents.send(.baselineRepeatedAfterLaunchFailure(
+            line: "Simulator device failed to launch com.example.App.",
+            log: .make(testLog: "** TEST FAILED **", keptFileName: keptFileName)
+        ))
+
+        XCTAssertEqual(fileManager.paths.last, "\(loggingDirectory)/\(keptFileName)")
+        XCTAssertEqual(fileManager.contents, Data("** TEST FAILED **".utf8))
+        XCTAssertEqual(printer.linesPassed, [
+            "🔁 The simulator didn't launch the baseline's tests, so they ran again. "
+                + "The first run's log, baseline run (launch failed).log, says: "
+                + "Simulator device failed to launch com.example.App.",
+        ])
+    }
+
     // The first run's timeout wasn't a survivor the Xcode format warns of, so a rerun that survives is warned of
     // then. One that timed out again changed nothing.
     func test_aTimeoutThatSurvivesItsRerun_isWarnedOf_inTheXcodeFormat() throws {
