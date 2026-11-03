@@ -31,6 +31,9 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     private let lock = NSLock()
 
     var testSuiteOutcomes: [TestSuiteOutcome]!
+    /// How the run of the mutant with this id ends, before `testSuiteOutcomes`: for a verdict that mustn't depend on
+    /// which worker tests the mutant, or when.
+    var outcomesByMutant: [String: TestSuiteOutcome] = [:]
     /// The log of the baseline run in the mutated project.
     var baselineTestLog = "testLog"
     /// Each mutant run's log, in the order they're run; "testLog" once empty.
@@ -79,7 +82,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
         methodCalls.append(#function)
         testLogs.append(fileName)
         configurations.append(configuration)
-        let (run, number) = nextMutantRun()
+        let (run, number) = nextMutantRun(of: schemata)
         whileRunningMutant?(number)
         return run
     }
@@ -103,7 +106,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
             testLogs.append(fileName)
             workingDirectories.append(workingDirectory)
             configurations.append(configuration)
-            return nextMutantRun()
+            return nextMutantRun(of: schemata)
         }
         whileRunningMutant?(number)
         lock.withLock {
@@ -127,12 +130,13 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
         }
     }
 
-    /// The next mutant run, and its zero-based number.
-    private func nextMutantRun() -> (run: TestRun, number: Int) {
+    /// The next run, of `schemata`'s mutant, and its zero-based number.
+    private func nextMutantRun(of schemata: MutationSchema) -> (run: TestRun, number: Int) {
         defer { mutantRunCount += 1 }
         let testLog = mutantTestLogs.isEmpty ? "testLog" : mutantTestLogs.removeFirst()
         let ending = mutantRunEndings.isEmpty ? .exited : mutantRunEndings.removeFirst()
-        return (TestRun(outcome: testSuiteOutcomes.remove(at: 0), testLog: testLog, ending: ending), mutantRunCount)
+        let outcome = outcomesByMutant[schemata.id] ?? testSuiteOutcomes.remove(at: 0)
+        return (TestRun(outcome: outcome, testLog: testLog, ending: ending), mutantRunCount)
     }
 
     func benchmarkTests(
