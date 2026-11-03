@@ -23,6 +23,8 @@ struct RecordedResults {
     }
 
     private(set) var sessions: [Session] = []
+    /// Every session's control runs, in file order.
+    private(set) var controlRuns: [ControlRunResult] = []
     /// Each key's last record, unless a `retired` line after it retired the key.
     private(set) var latest: [MutantKey: MutantResult] = [:]
     /// The 1-based numbers of the lines skipped: those that don't read as a record, and records of a session no
@@ -92,6 +94,12 @@ struct RecordedResults {
             for key in retired.keys {
                 latest.removeValue(forKey: key)
             }
+        case "control":
+            guard let record = try? decoder.decode(ControlRunResult.self, from: line),
+                  let session = sessionIndex(record.session)
+            else { return false }
+            controlRuns.append(record)
+            sessions[session].lastFinishedAt = max(sessions[session].lastFinishedAt ?? .distantPast, record.finishedAt)
         case "end":
             guard let end = try? decoder.decode(ResultsEnd.self, from: line),
                   let session = sessionIndex(end.session)

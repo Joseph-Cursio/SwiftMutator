@@ -66,6 +66,7 @@ struct PlainTextReporter: Reporter {
             summary.countSentences.joined(separator: "\n"),
             (tableLines + [summary.shownTestsSentence].compactMap { $0 }).joined(separator: "\n"),
             summary.noVerdictSentence,
+            summary.controlRunSentences.joined(separator: "\n"),
             summary.suspectSentences(mutationScore: report.globalMutationScore).joined(separator: "\n"),
         ]
         return paragraphs.compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n\n") + "\n\n\n"

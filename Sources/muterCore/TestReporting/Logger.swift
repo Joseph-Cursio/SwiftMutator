@@ -504,6 +504,32 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         }
     }
 
+    /// "⚠️ Control run 2 of 3, with no mutant on, failed: timing() at TimingTests.swift:9:5. …": a control run that
+    /// didn't pass, while the progress bar is still to be redrawn. Nothing for one that passed. Not a progress line:
+    /// the progress counts only mutants.
+    func controlRunFinished(_ control: ControlRunFinished) {
+        let record = control.record
+        guard ![.passed, .noCoverage].contains(record.outcome) else { return }
+        let verdict = switch record.outcome {
+        case .passed, .noCoverage, .failed: "failed"
+        case .runtimeError: "crashed"
+        case .timeout: "timed out"
+        case .buildError: "couldn't run its tests"
+        }
+        let run = "⚠️ Control run \(record.number) of \(control.count), with no mutant on, \(verdict)"
+        let log = "Its log is \(record.log)."
+        guard let first = record.failedTests?.first else {
+            print("\(run), naming no failed test. \(log)")
+            return
+        }
+        let count = record.failedTestCount ?? record.failedTests?.count ?? 1
+        let more = count > 1 ? " (+\(count - 1))" : ""
+        print(
+            "\(run): \(first.nameAndLocation)\(more). A test that fails with no mutant on is flaky, and the reports "
+                + "count a kill only such tests failed for as suspect. \(log)"
+        )
+    }
+
     /// "🔁 Running 3 timeouts again, 2 at a time, under the same 72 s limit: at most 4 min.": the timeouts tested
     /// again once every mutant is tested, after the progress bar's last redraw, which needs no room after it.
     func timeoutRerunsStarted(_ reruns: TimeoutReruns) {

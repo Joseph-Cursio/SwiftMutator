@@ -22,6 +22,8 @@ struct MutationTestOutcome {
     let mutant: String?
     /// When a test is suspect: the run's configuration's, or its last session's as its header records it.
     let suspectTestThresholds: SuspectTestThresholds
+    /// The control runs, with no mutant on, of every session the outcome covers, in the order they're recorded.
+    let controlRuns: [ControlRun]
 
     init(
         mutations: [Mutation] = [],
@@ -34,7 +36,8 @@ struct MutationTestOutcome {
         sample: SampleSelection? = nil,
         sampleIsCutShort: Bool = false,
         mutant: String? = nil,
-        suspectTestThresholds: SuspectTestThresholds = .standard
+        suspectTestThresholds: SuspectTestThresholds = .standard,
+        controlRuns: [ControlRun] = []
     ) {
         self.mutations = mutations
         self.coverage = coverage
@@ -47,6 +50,7 @@ struct MutationTestOutcome {
         self.sampleIsCutShort = sampleIsCutShort
         self.mutant = mutant
         self.suspectTestThresholds = suspectTestThresholds
+        self.controlRuns = controlRuns
     }
 }
 
@@ -124,5 +128,28 @@ extension MutationTestOutcome.KillingTests {
     /// The tests a results line records.
     init?(_ record: MutantResult) {
         self.init(killedBy: record.killedBy, failedTestCount: record.failedTestCount, endedBy: record.endedBy)
+    }
+}
+
+extension MutationTestOutcome {
+    /// A control run, with no mutant on (`ControlRunResult`): how it ended, and the tests it recorded failing, nil when
+    /// it passed or built nothing.
+    struct ControlRun: Equatable {
+        let outcome: TestSuiteOutcome
+        let failedTests: KillingTests?
+
+        init(outcome: TestSuiteOutcome, failedTests: KillingTests?) {
+            self.outcome = outcome
+            self.failedTests = failedTests
+        }
+
+        init(_ record: ControlRunResult) {
+            self.init(
+                outcome: record.outcome,
+                failedTests: KillingTests(
+                    killedBy: record.failedTests, failedTestCount: record.failedTestCount, endedBy: record.endedBy
+                )
+            )
+        }
     }
 }

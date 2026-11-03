@@ -137,6 +137,10 @@ At the top level, when a mutant a failed test killed has its tests recorded. A m
 | `suspectOnlyKills` | Mutants only suspect tests were recorded failing for |
 | `suspectOnlyKillsWithIncompleteLists` | Of those, how many may not name every test that failed. When it isn't 0, the score without suspect tests is a lower bound. |
 | `mutationScoreWithoutSuspectOnlyKills` | The mutation score with those mutants counted as survivors, worked out as `globalMutationScore` is. Left out when `suspectOnlyKills` is 0. |
+| `controlRuns` | How many control runs, with no mutant on, the run's sessions ran among the mutants (see [Control runs](../README.md#control-runs)) |
+| `failedControlRuns` | Of those, how many didn't pass: they failed, crashed or timed out |
+| `failedControlRunsNamingNoTest` | Of those, how many named no failed test |
+| `flakyTests` | Every test that failed in a control run, as `{name, file, controlRuns}`, `controlRuns` being how many it failed in: those that failed in the most first, then by name and file. `file` is left out for XCTest. |
 
 Each of its `tests`:
 
@@ -147,7 +151,8 @@ Each of its `tests`:
 | `mutants` | How many of those mutants it failed for |
 | `files` | How many mutated files those mutants are in |
 | `onlyRecordedFailureOf` | How many of them recorded it as the only test that failed |
-| `suspect` | Whether it is suspect: `files` is at least `suspectMinimumFiles`, and at least `suspectFilePercent`% of `filesWithKills` |
+| `failedControlRuns` | How many control runs it failed in: one or more makes it flaky |
+| `suspect` | Whether it is suspect: it failed in a control run, or `files` is at least `suspectMinimumFiles` and at least `suspectFilePercent`% of `filesWithKills` |
 
 Here is part of a report with two suspect tests. Most keys, file reports and tests are left out:
 
@@ -191,6 +196,7 @@ Here is part of a report with two suspect tests. Most keys, file reports and tes
         "mutants": 796,
         "files": 128,
         "onlyRecordedFailureOf": 202,
+        "failedControlRuns": 0,
         "suspect": true
       },
       {
@@ -199,12 +205,17 @@ Here is part of a report with two suspect tests. Most keys, file reports and tes
         "mutants": 101,
         "files": 60,
         "onlyRecordedFailureOf": 8,
+        "failedControlRuns": 0,
         "suspect": true
       }
     ],
     "suspectOnlyKills": 228,
     "suspectOnlyKillsWithIncompleteLists": 0,
-    "mutationScoreWithoutSuspectOnlyKills": 72
+    "mutationScoreWithoutSuspectOnlyKills": 72,
+    "controlRuns": 0,
+    "failedControlRuns": 0,
+    "failedControlRunsNamingNoTest": 0,
+    "flakyTests": []
   }
 }
 ```

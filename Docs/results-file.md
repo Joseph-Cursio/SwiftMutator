@@ -19,7 +19,8 @@ The file is [JSON Lines](https://jsonlines.org): UTF-8, one JSON object per line
 1. **`header`**, once per session. A run's first session writes it when the baseline test run has passed, before the first mutant is tested, so a run whose baseline fails writes no file. A run that `--resume` continues adds a session to the same file, which starts with a header of its own on the same condition, so one whose baseline fails adds nothing. One with nothing left to test runs no baseline, and writes its header at once, as does a run that `--reuse` starts with nothing left to test and nothing changed since the earlier run.
 2. **`retired`**, only in a resumed session, right after its header: the earlier results it no longer stands by. See [below](#retired).
 3. **`mutant`**, one for each tested mutant, written as its test run finishes. With several workers, mutants finish in a different order from the one they started in. A session that tests on several workers then runs its timeouts again at lower load, and writes a second line for each, with `rerun`, which replaces the first. A run that `--reuse` starts first writes one for each result it keeps from the earlier run, right after its header, each with `reusedFrom`, and with `rerun` too for a result that a rerun gave.
-4. **`end`**, last in each session. It is written when mutation testing stops: when it finishes, when an error stops it, and when Ctrl-C (SIGINT), SIGTERM or SIGHUP stops it (see [Stopping a run](../README.md#stopping-a-run)). A run that is killed with SIGKILL or crashes has no end line. Nor does one stopped at once, by a second signal or after 30 seconds of stopping, unless it had already written the end line.
+4. **`control`**, one for each control run: the test command with no mutant on, run among the session's mutants, about one for each 100 (`controlRunEvery`). See [below](#control).
+5. **`end`**, last in each session. It is written when mutation testing stops: when it finishes, when an error stops it, and when Ctrl-C (SIGINT), SIGTERM or SIGHUP stops it (see [Stopping a run](../README.md#stopping-a-run)). A run that is killed with SIGKILL or crashes has no end line. Nor does one stopped at once, by a second signal or after 30 seconds of stopping, unless it had already written the end line.
 
 Here is a header, three of a run's mutant lines, and the end line of a run that stopped after 1,103 mutants:
 
@@ -108,7 +109,7 @@ A run of a test plan copies nothing. It hashes the files in the plan's copy once
 |---|---|
 | `listedBy` | `git` or `walk`. `git`: `git ls-files --cached --others --exclude-standard`, run in your project, not in the copy. That lists tracked files, and untracked ones that neither your project's ignore files nor your global ones ignore. A nested repository or submodule is listed by its own git. `walk`: every file, when the project isn't in a git repository, is in a folder its repository ignores (where git lists none of its untracked files), or git fails. |
 | `files` | Each file's SHA-256, by its path relative to the project. A symbolic link's is `link:` followed by the SHA-256 of the path it points to; it is never followed. A local package outside the project has its files under its path from the project, such as `../Core/Sources/Core/Core.swift`. |
-| `excluded` | The `-o` report and its `.partial` sibling, which the run writes itself, and the configuration file it loads, such as `muter.conf.yml`, whose settings `configuration` records, when they are inside the project. They are left out of `files`: a resume compares the configuration key by key instead, so a change of `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent` or `suspectTestMinimumFiles` doesn't refuse it. |
+| `excluded` | The `-o` report and its `.partial` sibling, which the run writes itself, and the configuration file it loads, such as `muter.conf.yml`, whose settings `configuration` records, when they are inside the project. They are left out of `files`: a resume compares the configuration key by key instead, so a change of `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles` or `controlRunEvery` doesn't refuse it. |
 | `treeSHA256` | The SHA-256 of every file's path, a NUL, its hash and a line break, sorted by path. Two trees with the same files and hashes have the same `treeSHA256`. |
 
 A resumed session's header records `projectDelta` instead: only what changed since the last session's tree, which is usually nothing, where a whole `project` on SwiftProjectLint took about 205 KB. The whole tree is the last session's, with `files` added or replacing theirs, without `removed`, and with this `listedBy` and `excluded`. SwiftMutator makes it again as it reads the file, from the tree whose `treeSHA256` is `baseTreeSHA256`, and checks that it comes to this `treeSHA256`. If it doesn't, or no earlier header has that tree, the header doesn't read, and nor do its session's lines, so a resume tests their mutants again.
@@ -225,6 +226,27 @@ A session that `--resume` adds no longer stands by some of the earlier sessions'
 | `session` | Int | The resumed session, as in its header |
 | `keys` | `[{path, mutationOperatorId, line, column, occurrence}]` | The keys of the results it retires, sorted. Each is a key as a `mutant` line has it. |
 
+### `control`
+
+A control run is the test command with no mutant on, run every so often among a session's mutants, on whichever worker is free, under the mutants' time limit and the same load. It never stops at its first failed test, so it shows every test that failed. A test that fails in one is flaky: the reports call it suspect, and count a kill that only flaky or suspect tests were recorded failing for as one without them (see [Killing tests and suspect tests](../README.md#killing-tests-and-suspect-tests)). A session runs one for each whole `controlRunEvery` mutants it tests, 100 by default, and none with `controlRunEvery: 0` or `--mutant`. Control run k starts once (k − 1) × `controlRunEvery` + `controlRunEvery` / 2 of the session's mutants have, halfway through its stretch. Its log is kept as `control run <k>.log` in the session's log folder. It is never a `mutant` line, and `end`'s `recorded` doesn't count it.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `kind` | `"control"` | |
+| `session` | Int | The session that ran it, as in its header |
+| `number` | Int | 1 for the session's first |
+| `afterMutants` | Int | How many of the session's mutants had started before it |
+| `outcome` | String | As a mutant's: `passed`, `failed`, `runtimeError`, `timeout` or `buildError` |
+| `endedBy` | String | As a mutant's |
+| `exitStatus` | Int | As a mutant's |
+| `durationSeconds` | Double | As a mutant's |
+| `worker` | Int | Where it ran, as a mutant's `worker` says |
+| `finishedAt` | Date | |
+| `failedTests` | `[{name, location}]` | For a run that failed, crashed or timed out: the tests its log shows failing, as a mutant's [`killedBy`](#killedby) names them, at most 20, leaving out the header's `failedTestLookalikes` |
+| `failedTestCount` | Int | With `failedTests`: how many different tests the log shows failing, without the limit |
+| `firstFailedTestLine` | String | With `failedTests`: the first line that shows a failed test, as a mutant's |
+| `log` | String | The kept log's file name in the session's `logDirectory`: `control run <number>.log` |
+
 ### `end`
 
 | Key | Type | Meaning |
@@ -233,7 +255,7 @@ A session that `--resume` adds no longer stands by some of the earlier sessions'
 | `session` | Int | The session it ends, as in its header |
 | `endedAt` | Date | |
 | `reason` | String | `finished`; `aborted`, stopped by an error; or `interrupted`, stopped by a signal |
-| `detail` | String | Only when mutation testing stopped early. When `interrupted`: the signal that stopped it, `SIGINT` (Ctrl-C), `SIGTERM` or `SIGHUP`, so a Ctrl-C can be told apart from a `kill` or a closed terminal. When `aborted`: a short code for why. `tooManyBuildErrors` means 5 build errors in a row. `workerBaselineTestFailed(worker: n)` means a worker clone's baseline run didn't pass. `mutantNotSwitchedOn` means a mutant's run couldn't be told to switch it on: under xcodebuild, its `muter.xctestrun` or `muter-worker<n>.xctestrun` couldn't be written. `simulatorUnavailable(worker: n)` means the simulator xcodebuild worker n tested on was gone, as when it was deleted during the run: every run on it would have failed without testing its mutant. The run that found it gone has no line, and its log is kept with ` (simulator gone)` before `.log`. A resume makes new simulators for its workers; if the simulator was the one your `-destination` names, make it again first. Any other error gives its type's name. It is never a log. |
+| `detail` | String | Only when mutation testing stopped early. When `interrupted`: the signal that stopped it, `SIGINT` (Ctrl-C), `SIGTERM` or `SIGHUP`, so a Ctrl-C can be told apart from a `kill` or a closed terminal. When `aborted`: a short code for why. `tooManyBuildErrors` means 5 build errors in a row. `workerBaselineTestFailed(worker: n)` means a worker clone's baseline run didn't pass. `mutantNotSwitchedOn` means a mutant's run couldn't be told to switch it on: under xcodebuild, its `muter.xctestrun` or `muter-worker<n>.xctestrun` couldn't be written. `controlRunNotSwitchedOff(number: n)` means control run n's xcodebuild worker's `.xctestrun` couldn't be written with no mutant on. `simulatorUnavailable(worker: n)` means the simulator xcodebuild worker n tested on was gone, as when it was deleted during the run: every run on it would have failed without testing its mutant. The run that found it gone has no line, and its log is kept with ` (simulator gone)` before `.log`. A resume makes new simulators for its workers; if the simulator was the one your `-destination` names, make it again first. Any other error gives its type's name. It is never a log. |
 | `testDurationSeconds` | Double | How long the session's mutation testing took. For a run's first session, the duration the report shows, before rounding. A resumed run's report shows every session's added up. |
 | `recorded` | Int | How many `mutant` lines the session wrote, those with `reusedFrom` or `rerun` included. So it can be more than the mutants the session tested: count the lines with neither for those. |
 
@@ -259,6 +281,7 @@ A session that `--resume` adds no longer stands by some of the earlier sessions'
 New keys and new kinds of line are added without changing `formatVersion`, so a reader that skips what it doesn't know keeps working. `formatVersion` changes only for a change that an older reader would misread. A reader should refuse a file whose header has a `formatVersion` it doesn't know.
 
 - **Format 1** is a run's first session, also one that `--reuse` starts. A SwiftMutator from before `--reuse` reads the results such a session kept as tested in it.
+- **A control run** is a `control` line, a kind a SwiftMutator from before control runs skips. Its reports then name no flaky test.
 - **A timeout run again** has a second `mutant` line for its key, so a SwiftMutator from before `rerun` takes that line for the mutant's result, by the last-line rule, and ignores `rerun`.
 - **Format 2** is a resumed session. Its file can hold `retired` lines, and a reader that skipped them would report results the run no longer stands by, so a SwiftMutator from before `--resume` refuses the file. A file that was never resumed stays in format 1, which those read.
 - **Format 3** is a resumed session that records `projectDelta`. A format-2 reader would take it for a session with no `project`, which `--reuse` and a merge of shards skip rather than check, so a SwiftMutator from before `projectDelta` refuses the file. A file resumed by such a SwiftMutator holds format-2 sessions, which this one reads.
@@ -309,6 +332,7 @@ The report is made from each mutant's last line (see [Reading it](#reading-it)) 
 - **Completeness** is judged mutant by mutant, as [`killedBy`](#killedby) says. So a file whose sessions ran with different `stopAtFirstFailure` settings gives each mutant's list the right verdict.
 - **A resumed run** never tests a kill again. A list that a stopped run left short stays short.
 - **No list** was recorded by a session of a SwiftMutator from before `failedTestLookalikes`, when its header has `failedTestLinesAreReliable` false. Its kills name no tests, and its mutants don't count toward suspect tests.
+- **Flaky tests** are those that failed in any session's `control` line; a report of merged shards takes every shard's. A `--reuse` copies no `control` line, so the reused run's control runs don't count.
 - **Suspect tests** are those of the thresholds in the last session's `configuration`, `suspectTestFilePercent` and `suspectTestMinimumFiles`, 15% and 10 when it has none. A report of merged shards uses the reference shard's.
 
 The report doesn't say whether the run finished. The status on standard error does.

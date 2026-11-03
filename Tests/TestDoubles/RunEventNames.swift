@@ -28,6 +28,7 @@ extension RunEvent {
         case workersChosen
         case stopAtFirstFailureTurnedOff
         case testBundlesNotRunDirectly
+        case controlRunFinished
         case timeoutRerunsStarted
         case timeoutRerunFinished
         case timeoutRerunsFinished
@@ -76,6 +77,7 @@ extension RunEvent {
         case .workersChosen: .workersChosen
         case .stopAtFirstFailureTurnedOff: .stopAtFirstFailureTurnedOff
         case .testBundlesNotRunDirectly: .testBundlesNotRunDirectly
+        case .controlRunFinished: .controlRunFinished
         case .timeoutRerunsStarted: .timeoutRerunsStarted
         case .timeoutRerunFinished: .timeoutRerunFinished
         case .timeoutRerunsFinished: .timeoutRerunsFinished
@@ -122,6 +124,7 @@ extension RunEvent {
         case let .stillTesting(still): still
         case let .stopAtFirstFailureTurnedOff(reason): reason
         case let .testBundlesNotRunDirectly(reason): reason
+        case let .controlRunFinished(control): control
         case let .timeoutRerunsStarted(reruns): reruns
         case let .timeoutRerunFinished(rerun): rerun
         case let .timeoutRerunsFinished(tally): tally

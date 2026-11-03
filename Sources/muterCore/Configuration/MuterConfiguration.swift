@@ -48,6 +48,10 @@ struct MuterConfiguration: Equatable, Codable {
     /// result, so a resume lets them change (`ResumeCheck.keysThatDontAffectOutcomes`).
     let suspectTestFilePercent: Int?
     let suspectTestMinimumFiles: Int?
+    /// How many mutants to test for each control run, a run with no mutant on among theirs (`controlRunEvery:`, a
+    /// whole number, 0 for none): nil leaves it to `defaultMutantsPerControlRun`. A control run changes no mutant's
+    /// result, only which tests the reports call suspect, so a resume lets it change.
+    let controlRunEvery: Int?
     /// Whether a line `FailedTestLine` matches shows a failed test. Not a configuration key: false once a
     /// passing baseline has printed such a line, or one `CrashLine` matches, as its tests print text shaped like a
     /// failure. Such a line then neither stops a mutant's run nor counts a timed-out run killed. A `var` only so
@@ -92,6 +96,7 @@ struct MuterConfiguration: Equatable, Codable {
         case oneWorkerSimulator
         case suspectTestFilePercent
         case suspectTestMinimumFiles
+        case controlRunEvery
     }
 
     init(
@@ -107,7 +112,8 @@ struct MuterConfiguration: Equatable, Codable {
         buildTimeout: Double? = nil,
         oneWorkerSimulator: Bool? = nil,
         suspectTestFilePercent: Int? = nil,
-        suspectTestMinimumFiles: Int? = nil
+        suspectTestMinimumFiles: Int? = nil,
+        controlRunEvery: Int? = nil
     ) {
         testCommandExecutable = executable
         testCommandArguments = arguments
@@ -122,6 +128,7 @@ struct MuterConfiguration: Equatable, Codable {
         self.oneWorkerSimulator = oneWorkerSimulator
         self.suspectTestFilePercent = suspectTestFilePercent
         self.suspectTestMinimumFiles = suspectTestMinimumFiles
+        self.controlRunEvery = controlRunEvery
     }
 
     init(from decoder: Decoder) throws {
@@ -143,6 +150,7 @@ struct MuterConfiguration: Equatable, Codable {
         oneWorkerSimulator = try container.decodeIfPresent(Bool.self, forKey: .oneWorkerSimulator)
         suspectTestFilePercent = try Self.whole(forKey: .suspectTestFilePercent, in: 1 ... 100, in: container)
         suspectTestMinimumFiles = try Self.whole(forKey: .suspectTestMinimumFiles, in: 1 ... Int.max, in: container)
+        controlRunEvery = try Self.whole(forKey: .controlRunEvery, in: 0 ... Int.max, in: container)
     }
 
     /// A whole number in `range`, or nil if `key` isn't set. Throws on any other value, so a typo is a configuration
@@ -163,6 +171,15 @@ struct MuterConfiguration: Equatable, Codable {
             )
         }
         return value
+    }
+
+    /// One control run for each 100 mutants costs about 3% of a run: a control run takes as long as a survivor, which
+    /// on SwiftProjectLint on 31 October took 6.9 s, against 2.4 s for a mutant on average.
+    static let defaultMutantsPerControlRun = 100
+
+    /// How many mutants are tested for each control run: `controlRunEvery`, or the default; 0 for none.
+    var mutantsPerControlRun: Int {
+        controlRunEvery ?? Self.defaultMutantsPerControlRun
     }
 
     /// When a test is suspect, from `suspectTestFilePercent` and `suspectTestMinimumFiles`.

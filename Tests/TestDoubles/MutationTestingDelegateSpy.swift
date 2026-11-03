@@ -65,8 +65,18 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     private(set) var configurationsWithoutBuilding: [MuterConfiguration] = []
     /// Called just before the timed run of the test command without its build returns, so a test can move its clock.
     var whileRunningTestsWithoutBuilding: (() -> Void)?
-    /// What `switchOn` throws, once a test has set it: as if its `.xctestrun` couldn't be written.
+    /// How each control run ends, and what it prints, in the order they're run; once empty, passed with
+    /// "control run log". Not taken from `testSuiteOutcomes`, which scripts the baselines and the mutants.
+    var controlRuns: [(outcome: TestSuiteOutcome, log: String)] = []
+    /// The configuration and the working directory of each control run, in order.
+    private(set) var controlRunConfigurations: [MuterConfiguration] = []
+    private(set) var controlRunDirectories: [URL?] = []
+    /// What each control run's xcodebuild worker's `.xctestrun` switched on as it started, "" for none.
+    private(set) var switchedOnForControlRuns: [String] = []
+    /// What `switchOn` throws, once a test has set it, for the schemata `switchOnFails` picks: as if its `.xctestrun`
+    /// couldn't be written.
     var switchOnError: Error?
+    var switchOnFails: (MutationSchema) -> Bool = { _ in true }
     private var mutantRunCount = 0
 
     func backupFile(at path: String, using swapFilePaths: [FilePath: FilePath]) {
@@ -180,6 +190,33 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     }
 
     /// Called concurrently by xcodebuild workers' runs with no mutant on, so it takes the lock.
+    /// Called concurrently by parallel workers, so it takes the lock.
+    func runControlTests(
+        using configuration: MuterConfiguration,
+        savingResultsIntoFileNamed fileName: String,
+        workingDirectory: URL?
+    ) async -> TestRun {
+        await Task.yield()
+        let run = lock.withLock {
+            methodCalls.append(#function)
+            testLogs.append(fileName)
+            controlRunConfigurations.append(configuration)
+            controlRunDirectories.append(workingDirectory)
+            if let worker = configuration.xcodeWorker, let directory = workingDirectory {
+                let path = directory.appendingPathComponent(worker.testRunFile).path
+                switchedOnForControlRuns.append(switchedOnTestRuns[path] ?? "")
+            }
+            return controlRuns.isEmpty
+                ? (outcome: TestSuiteOutcome.passed, log: "control run log") : controlRuns.removeFirst()
+        }
+        return TestRun(
+            outcome: run.outcome,
+            testLog: run.log,
+            ending: .exited,
+            exitStatus: run.outcome == .passed ? 0 : 1
+        )
+    }
+
     func runTestsWithoutBuilding(
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String
@@ -212,7 +249,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
             testRuns.append(testRun)
             testRunPaths.append(path)
             testRunFileNames.append(fileName)
-            if let switchOnError { throw switchOnError }
+            if let switchOnError, switchOnFails(schemata) { throw switchOnError }
             switchedOnTestRuns[path.appendingPathComponent(fileName).path] = schemata.id
         }
     }

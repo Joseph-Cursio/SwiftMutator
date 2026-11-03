@@ -12,6 +12,9 @@ public enum MutationTestingAbortReason: Equatable, Sendable {
     /// The mutant `id`'s run couldn't be told to switch it on: under xcodebuild, its `muter.xctestrun` couldn't be
     /// written, as `description` says. The file left by the run before would have switched that run's mutant on.
     case mutantNotSwitchedOn(id: String, description: String)
+    /// Control run `number`'s xcodebuild worker's `.xctestrun` couldn't be written with no mutant on, as `description`
+    /// says. The file left by the run before would have switched that run's mutant on.
+    case controlRunNotSwitchedOff(number: Int, description: String)
     /// The simulator that worker `worker`'s xcodebuild run tested on is gone, as `line` of the run's log says: every
     /// run on it would fail without testing its mutant. `log` is where that run's log is kept, if it is.
     case simulatorUnavailable(worker: Int, line: String, log: String?)
@@ -51,6 +54,14 @@ extension MutationTestingAbortReason: CustomStringConvertible {
             return """
             SwiftMutator could not switch on mutant \(id) for its test run, and stopped rather than record a verdict \
             for code the run may not have tested.
+
+            \(description)
+            """
+
+        case let .controlRunNotSwitchedOff(number, description):
+            return """
+            SwiftMutator could not switch every mutant off for control run \(number), and stopped rather than record \
+            as flaky the tests that failed for a mutant the run may have tested.
 
             \(description)
             """

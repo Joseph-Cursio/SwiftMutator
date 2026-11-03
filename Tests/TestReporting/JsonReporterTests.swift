@@ -79,8 +79,12 @@ final class JsonReporterTests: ReporterTestCase {
 
         let summary = try XCTUnwrap(report["killingTestSummary"] as? [String: Any])
         XCTAssertEqual(summary.keys.sorted(), [
+            "controlRuns",
             "distinctTests",
+            "failedControlRuns",
+            "failedControlRunsNamingNoTest",
             "filesWithKills",
+            "flakyTests",
             "incompleteLists",
             "killedMutants",
             "killedMutantsNamingNoTest",
@@ -94,12 +98,15 @@ final class JsonReporterTests: ReporterTestCase {
         ])
         XCTAssertEqual(summary["killedMutants"] as? Int, 1)
         XCTAssertEqual(summary["suspectsChecked"] as? Bool, false)
+        XCTAssertEqual(summary["controlRuns"] as? Int, 0)
+        XCTAssertEqual(summary["flakyTests"] as? NSArray, [])
         XCTAssertEqual(summary["tests"] as? NSArray, [
             [
                 "name": "-[Tests.SumTests testTotal]",
                 "mutants": 1,
                 "files": 1,
                 "onlyRecordedFailureOf": 0,
+                "failedControlRuns": 0,
                 "suspect": false,
             ],
             [
@@ -108,6 +115,7 @@ final class JsonReporterTests: ReporterTestCase {
                 "mutants": 1,
                 "files": 1,
                 "onlyRecordedFailureOf": 0,
+                "failedControlRuns": 0,
                 "suspect": false,
             ],
         ] as NSArray)

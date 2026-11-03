@@ -54,22 +54,24 @@ extension RecordedResults {
             under: header,
             testDuration: testDuration,
             shards: header.shard?.scopeAlone,
-            sampleIsCutShort: latest.count < header.mutantsDiscovered
+            sampleIsCutShort: latest.count < header.mutantsDiscovered,
+            controlRuns: controlRuns
         )
     }
 }
 
 extension MutationTestOutcome {
     /// The outcome of `records`, in the order a run tests them, under `header`'s project paths, coverage (or whether it
-    /// skipped it), update notice, sample, `--mutant` and suspect-test thresholds, with `testDuration`, covering only
-    /// `shards` of a split if given. The sample's results are `sampleIsCutShort` when some of the mutants its runs set
-    /// out to test have none.
+    /// skipped it), update notice, sample, `--mutant` and suspect-test thresholds, with `testDuration` and
+    /// `controlRuns`, covering only `shards` of a split if given. The sample's results are `sampleIsCutShort` when some
+    /// of the mutants its runs set out to test have none.
     init(
         records: some Collection<MutantResult>,
         under header: ResultsHeader,
         testDuration: TimeInterval,
         shards: ShardScope?,
-        sampleIsCutShort: Bool
+        sampleIsCutShort: Bool,
+        controlRuns: [ControlRunResult]
     ) {
         let projectDirectory = URL(fileURLWithPath: header.projectPath, isDirectory: true)
         let mutatedProjectDirectory = URL(fileURLWithPath: header.mutatedProjectPath, isDirectory: true)
@@ -109,7 +111,8 @@ extension MutationTestOutcome {
             sample: header.sample,
             sampleIsCutShort: sampleIsCutShort,
             mutant: header.mutant,
-            suspectTestThresholds: header.configuration.suspectTestThresholds
+            suspectTestThresholds: header.configuration.suspectTestThresholds,
+            controlRuns: controlRuns.map(MutationTestOutcome.ControlRun.init)
         )
     }
 }

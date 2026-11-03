@@ -16,6 +16,16 @@ final class MutationTestingAbortReasonTests: MuterTestCase {
         XCTAssertTrue(description.contains("rather than record a verdict"), description)
     }
 
+    func test_whenAControlRunCannotSwitchTheMutantsOff_thenNameItAndWhy() {
+        let description = MutationTestingAbortReason.controlRunNotSwitchedOff(
+            number: 3,
+            description: "The file “muter-worker1.xctestrun” couldn’t be saved."
+        ).description
+
+        XCTAssertTrue(description.contains("switch every mutant off for control run 3"), description)
+        XCTAssertTrue(description.contains("couldn’t be saved"), description)
+    }
+
     func test_whenASimulatorIsGone_thenNameTheWorkerWhatXcodebuildSaidAndTheLog_andHowToGoOn() {
         let line = "xcodebuild: error: Unable to find a device matching the provided destination specifier:"
         let description = MutationTestingAbortReason.simulatorUnavailable(

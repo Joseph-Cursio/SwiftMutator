@@ -24,7 +24,9 @@ struct MuterTestReport {
     let mutant: String?
 
     init(from outcome: MutationTestOutcome = .init()) {
-        let summary = KillingTestSummary(of: outcome.mutations, thresholds: outcome.suspectTestThresholds)
+        let summary = KillingTestSummary(
+            of: outcome.mutations, controlRuns: outcome.controlRuns, thresholds: outcome.suspectTestThresholds
+        )
         killingTestSummary = summary
         globalMutationScore = mutationScore(from: outcome.mutations.map { $0.testSuiteOutcome })
         totalAppliedMutationOperators = outcome.mutations.count

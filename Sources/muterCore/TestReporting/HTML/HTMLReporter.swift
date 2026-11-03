@@ -362,7 +362,7 @@ extension Node where Context: HTML.BodyContext {
                                 .td(.class("right-aligned"), .text("\(test.mutants)")),
                                 .td(.class("right-aligned"), .text("\(test.files)")),
                                 .td(.class("right-aligned"), .text("\(test.onlyRecordedFailureOf)")),
-                                .td(.text(test.suspect ? "yes" : "-"))
+                                .td(.text(test.suspectCell))
                             )
                         }
                     )
@@ -370,6 +370,7 @@ extension Node where Context: HTML.BodyContext {
             ),
             .unwrap(summary.shownTestsSentence) { .p(.text($0)) },
             .unwrap(summary.noVerdictSentence) { .p(.text($0)) },
+            .forEach(summary.controlRunSentences) { .p(.text($0)) },
             .forEach(summary.suspectSentences(mutationScore: mutationScore)) { .p(.text($0)) }
         )
     }

@@ -22,6 +22,10 @@ extension ResultsEnd: ResultsRecord {
     static let recordKind = "end"
 }
 
+extension ControlRunResult: ResultsRecord {
+    static let recordKind = "control"
+}
+
 /// Makes results files in memory. Each keeps its lines as a results file would write them. A test sets it up, then
 /// the code under test uses it from one task at a time, so it needs no lock.
 final class ResultsFilesSpy: ResultsFileOpening, @unchecked Sendable {
