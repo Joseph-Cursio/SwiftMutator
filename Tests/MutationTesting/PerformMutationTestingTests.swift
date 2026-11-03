@@ -35,10 +35,10 @@ final class PerformMutationTestingTests: MuterTestCase {
             // Base line
             "benchmarkTests(using:savingResultsIntoFileNamed:)",
             // First mutation
-            "switchOn(schemata:for:at:)",
+            "switchOn(schemata:for:at:named:)",
             "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)",
             // Second mutation
-            "switchOn(schemata:for:at:)",
+            "switchOn(schemata:for:at:named:)",
             "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)",
         ])
 
@@ -224,15 +224,15 @@ final class PerformMutationTestingTests: MuterTestCase {
 
         XCTAssertEqual(ioDelegate.methodCalls, [
             "benchmarkTests(using:savingResultsIntoFileNamed:)",
-            "switchOn(schemata:for:at:)",
+            "switchOn(schemata:for:at:named:)",
             "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)",
-            "switchOn(schemata:for:at:)",
+            "switchOn(schemata:for:at:named:)",
             "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)",
-            "switchOn(schemata:for:at:)",
+            "switchOn(schemata:for:at:named:)",
             "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)",
-            "switchOn(schemata:for:at:)",
+            "switchOn(schemata:for:at:named:)",
             "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)",
-            "switchOn(schemata:for:at:)",
+            "switchOn(schemata:for:at:named:)",
             "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)",
         ])
     }
@@ -253,7 +253,7 @@ final class PerformMutationTestingTests: MuterTestCase {
 
         XCTAssertEqual(ioDelegate.methodCalls, [
             "benchmarkTests(using:savingResultsIntoFileNamed:)",
-            "switchOn(schemata:for:at:)",
+            "switchOn(schemata:for:at:named:)",
         ])
         let earlyEnd = try XCTUnwrap(sent().compactMap { $0.object as? EarlyEnd }.first)
         XCTAssertEqual(earlyEnd.reason, .aborted)
@@ -370,19 +370,19 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(ioDelegate.methodCalls, [
             // base line
             "benchmarkTests(using:savingResultsIntoFileNamed:)",
-            "switchOn(schemata:for:at:)",
+            "switchOn(schemata:for:at:named:)",
             // First operator
             "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)",
-            "switchOn(schemata:for:at:)",
+            "switchOn(schemata:for:at:named:)",
 
             "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)",
-            "switchOn(schemata:for:at:)",
+            "switchOn(schemata:for:at:named:)",
 
             "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)",
-            "switchOn(schemata:for:at:)",
+            "switchOn(schemata:for:at:named:)",
 
             "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)",
-            "switchOn(schemata:for:at:)",
+            "switchOn(schemata:for:at:named:)",
 
             "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)",
         ])
@@ -758,7 +758,7 @@ final class PerformMutationTestingTests: MuterTestCase {
 
         XCTAssertEqual(ioDelegate.methodCalls, [
             "benchmarkTests(using:savingResultsIntoFileNamed:)",
-            "switchOn(schemata:for:at:)",
+            "switchOn(schemata:for:at:named:)",
             "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)",
         ])
         XCTAssertEqual(ioDelegate.configurations.map(\.stopsAtFirstFailure), [false])

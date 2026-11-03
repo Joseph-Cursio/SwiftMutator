@@ -46,8 +46,9 @@ protocol MutationTestingIODelegate: Sendable {
     )
 
     /// A mutant's test command, which skips the build, with no mutant switched on, once the baseline has built the
-    /// project: what a mutant's run costs. Like the baseline, it has no time limit and runs to its end. `fileName` is
-    /// as in `runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)`.
+    /// project: what a mutant's run costs. Like the baseline, it has no time limit and runs to its end. An xcodebuild
+    /// worker's configuration runs it on that worker, from its `.xctestrun`, so it also checks the worker. `fileName`
+    /// is as in `runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)`.
     func runTestsWithoutBuilding(
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String
@@ -56,11 +57,30 @@ protocol MutationTestingIODelegate: Sendable {
         testLog: String
     )
 
+    /// Writes `testRun`, with `schemata`'s mutant switched on, to `fileName` in `path`, the `.xctestrun` an xcodebuild
+    /// worker's runs test from. `.null` switches no mutant on, for a run with none.
+    func switchOn(
+        schemata: MutationSchema,
+        for testRun: XCTestRun,
+        at path: URL,
+        named fileName: String
+    ) async throws
+}
+
+extension MutationTestingIODelegate {
+    /// `switchOn(schemata:for:at:named:)` to the first worker's `.xctestrun`, `muter.xctestrun`.
     func switchOn(
         schemata: MutationSchema,
         for testRun: XCTestRun,
         at path: URL
-    ) async throws
+    ) async throws {
+        try await switchOn(
+            schemata: schemata,
+            for: testRun,
+            at: path,
+            named: MutationTestingDelegate.muterTestRunFileName
+        )
+    }
 }
 
 struct MutationTestingDelegate: MutationTestingIODelegate {
@@ -80,6 +100,24 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
     /// The `.xctestrun` file, at the mutated project's root, that `switchOn` writes and a mutant's xcodebuild run
     /// tests from, unless its configuration's `xcodeWorker` names another.
     static let muterTestRunFileName = "muter.xctestrun"
+
+    /// The `.xctestrun` file, at the mutated project's root, that xcodebuild worker `worker`'s runs test from:
+    /// `muter.xctestrun` for worker 0, and `muter-worker<n>.xctestrun` for worker n. Each worker has its own, so the
+    /// mutant one worker switches on is never the one another's run tests. All of them sit where `muter.xctestrun`
+    /// does, which the paths in it are relative to (see `BuildForTesting`).
+    static func testRunFileName(ofWorker worker: Int) -> String {
+        worker == 0 ? muterTestRunFileName : "\(workerTestRunFilePrefix)\(worker)\(workerTestRunFileSuffix)"
+    }
+
+    /// Whether `name` is `muter-worker<n>.xctestrun`, as `testRunFileName(ofWorker:)` names worker n's.
+    static func isWorkerTestRunFileName(_ name: String) -> Bool {
+        guard name.hasPrefix(workerTestRunFilePrefix), name.hasSuffix(workerTestRunFileSuffix) else { return false }
+        let number = name.dropFirst(workerTestRunFilePrefix.count).dropLast(workerTestRunFileSuffix.count)
+        return !number.isEmpty && number.allSatisfy { $0.isASCII && $0.isNumber }
+    }
+
+    private static let workerTestRunFilePrefix = "muter-worker"
+    private static let workerTestRunFileSuffix = ".xctestrun"
     /// Ends the name of the file `activeMutantFileKey` names, beside a worker's folder.
     static let activeMutantFileSuffix = ".active-mutant"
 
@@ -385,10 +423,11 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
     func switchOn(
         schemata: MutationSchema,
         for testRun: XCTestRun,
-        at path: URL
+        at path: URL,
+        named fileName: String
     ) async throws {
         let updated = testRun.updateEnvironmentVariable(
-            setting: schemata.id
+            setting: schemata == .null ? nil : schemata.id
         )
 
         let data = try PropertyListSerialization.data(
@@ -398,7 +437,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         )
 
         try data.write(
-            to: path.appendingPathComponent(Self.muterTestRunFileName)
+            to: path.appendingPathComponent(fileName)
         )
     }
 

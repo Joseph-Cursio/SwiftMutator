@@ -13,6 +13,13 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     private(set) var schematas: MutationSchemata = []
     private(set) var testRuns: [XCTestRun] = []
     private(set) var testRunPaths: [URL] = []
+    /// The name of each `.xctestrun` file `switchOn` wrote, in order.
+    private(set) var testRunFileNames: [String] = []
+    /// What each `.xctestrun` file `switchOn` wrote switches on, by its path: what an xcodebuild run would test.
+    private var switchedOnTestRuns: [String: String] = [:]
+    /// Each mutant whose parallel xcodebuild run, as it started or as it ended, would have tested its worker's
+    /// `.xctestrun` with another mutant switched on, or none.
+    private(set) var mutantsNotSwitchedOnForTheirRun: [String] = []
     private(set) var testLogs: [String] = []
     private(set) var workingDirectories: [URL] = []
     private(set) var builtWorkerDirectories: [URL] = []
@@ -46,7 +53,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     private(set) var configurationsWithoutBuilding: [MuterConfiguration] = []
     /// Called just before the timed run of the test command without its build returns, so a test can move its clock.
     var whileRunningTestsWithoutBuilding: (() -> Void)?
-    /// What `switchOn` throws, once a test has set it: as if `muter.xctestrun` couldn't be written.
+    /// What `switchOn` throws, once a test has set it: as if its `.xctestrun` couldn't be written.
     var switchOnError: Error?
     private var mutantRunCount = 0
 
@@ -85,6 +92,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
             if !directoriesInUse.insert(workingDirectory).inserted {
                 directoriesSharedAtOnce.append(workingDirectory)
             }
+            checkSwitchedOn(schemata, for: configuration, in: workingDirectory)
         }
         await Task.yield()
         let (run, number) = lock.withLock {
@@ -95,8 +103,25 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
             return nextMutantRun()
         }
         whileRunningMutant?(number)
-        lock.withLock { _ = directoriesInUse.remove(workingDirectory) }
+        lock.withLock {
+            checkSwitchedOn(schemata, for: configuration, in: workingDirectory)
+            _ = directoriesInUse.remove(workingDirectory)
+        }
         return run
+    }
+
+    /// Notes `schemata`'s mutant if an xcodebuild run with `configuration` in `directory` would test another one.
+    /// Called with the lock held.
+    private func checkSwitchedOn(
+        _ schemata: MutationSchema,
+        for configuration: MuterConfiguration,
+        in directory: URL
+    ) {
+        guard configuration.buildSystem == .xcodebuild else { return }
+        let fileName = configuration.xcodeWorker?.testRunFile ?? MutationTestingDelegate.muterTestRunFileName
+        if switchedOnTestRuns[directory.appendingPathComponent(fileName).path] != schemata.id {
+            mutantsNotSwitchedOnForTheirRun.append(schemata.id)
+        }
     }
 
     /// The next mutant run, and its zero-based number.
@@ -156,12 +181,17 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
             : testRunsWithoutBuilding.removeFirst()
     }
 
-    func switchOn(schemata: MutationSchema, for testRun: XCTestRun, at path: URL) throws {
-        methodCalls.append(#function)
-        schematas.append(schemata)
-        testRuns.append(testRun)
-        testRunPaths.append(path)
-        if let switchOnError { throw switchOnError }
+    /// Called concurrently by parallel xcodebuild workers, so it takes the lock.
+    func switchOn(schemata: MutationSchema, for testRun: XCTestRun, at path: URL, named fileName: String) throws {
+        try lock.withLock {
+            methodCalls.append(#function)
+            schematas.append(schemata)
+            testRuns.append(testRun)
+            testRunPaths.append(path)
+            testRunFileNames.append(fileName)
+            if let switchOnError { throw switchOnError }
+            switchedOnTestRuns[path.appendingPathComponent(fileName).path] = schemata.id
+        }
     }
 
     func restoreFile(at path: String, using swapFilePaths: [FilePath: FilePath]) {

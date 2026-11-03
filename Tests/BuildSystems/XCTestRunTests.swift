@@ -70,6 +70,23 @@ final class XCTestRunTests: MuterTestCase {
         XCTAssertEqual(environmentVariables?[isMuterRunningKey], isMuterRunningValue)
     }
 
+    // A run with no mutant on, as a worker's check run is, runs as SwiftMutator's runs do and switches nothing on.
+    func test_updateEnvironmentVariable_withNoKey_setsOnlyIsMuterRunning() {
+        sut = muterCore.XCTestRun([
+            "SomeTestTarget": [
+                "EnvironmentVariables": ["OWN_VARIABLE": "1"] as [String: AnyHashable],
+            ] as [String: AnyHashable],
+        ])
+
+        let actualPlist = sut.updateEnvironmentVariable(setting: nil)
+
+        let target = actualPlist["SomeTestTarget"] as? [String: AnyHashable]
+        XCTAssertEqual(
+            target?["EnvironmentVariables"] as? [String: AnyHashable],
+            ["OWN_VARIABLE": "1", isMuterRunningKey: isMuterRunningValue]
+        )
+    }
+
     private func loadPlist(for fileName: String) throws -> [String: AnyHashable] {
         let data = try XCTUnwrap(
             FileManager.default

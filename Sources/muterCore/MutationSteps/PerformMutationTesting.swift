@@ -516,11 +516,6 @@ private extension PerformMutationTesting {
         )
     }
 
-    struct MutantJob {
-        let fileName: FileName
-        let schema: MutationSchema
-    }
-
     /// Every discovered mutant, in job order: file by file as discovery mapped them, and in each file in its order.
     static func jobs(of state: AnyMutationTestState) -> [MutantJob] {
         state.mutationMapping.flatMap { mutationMap in
@@ -538,7 +533,7 @@ private extension PerformMutationTesting {
     ) -> MuterConfiguration {
         guard configuration.buildSystem == .xcodebuild else { return configuration }
         return configuration.forXcodeWorker(MuterConfiguration.XcodeWorker(
-            testRunFile: MutationTestingDelegate.muterTestRunFileName,
+            testRunFile: MutationTestingDelegate.testRunFileName(ofWorker: 0),
             derivedData: MuterConfiguration.XcodeWorker.derivedData(ofWorker: 0, in: state.mutatedProjectDirectoryURL),
             testDiagnosticsOff: state.testDiagnosticsCanBeTurnedOff
         ))
@@ -558,19 +553,13 @@ private extension PerformMutationTesting {
         for index in indices {
             let job = jobs[index]
             try Task.checkCancellation()
-            // A `muter.xctestrun` that couldn't be written still switches on the mutant before this one, whose
-            // verdict an xcodebuild run would record for this one.
-            do {
-                try await ioDelegate.switchOn(
-                    schemata: job.schema,
-                    for: state.projectXCTestRun,
-                    at: state.mutatedProjectDirectoryURL
-                )
-            } catch {
-                throw MuterError.mutationTestingAborted(
-                    reason: .mutantNotSwitchedOn(id: job.schema.id, description: error.localizedDescription)
-                )
-            }
+            try await Self.switchOn(
+                job,
+                from: state.projectXCTestRun,
+                in: state.mutatedProjectDirectoryURL,
+                for: configuration,
+                using: ioDelegate
+            )
 
             let launched = instant()
             let run = await ioDelegate.runTestSuite(
@@ -623,7 +612,9 @@ private extension PerformMutationTesting {
         }
         session.clones = clones
         try await buildWorkerDirectories(clones, using: state)
-        let directories = [state.mutatedProjectDirectoryURL] + clones
+        let workers = ([state.mutatedProjectDirectoryURL] + clones).map {
+            PoolWorker(directory: $0, configuration: configuration)
+        }
 
         var buildErrors = 0
         var timeouts: [Int] = []
@@ -632,8 +623,8 @@ private extension PerformMutationTesting {
         try await runPool(
             indices,
             of: jobs,
-            on: directories,
-            using: configuration,
+            on: workers,
+            switchingOnFrom: state.projectXCTestRun,
             outputNamed: { testOutput(named: logFileName(forJobAt: $0, $1), state: state) },
             recording: { finished in
                 try record(
@@ -651,19 +642,19 @@ private extension PerformMutationTesting {
             }
         )
         try await rerunTimeouts(
-            timeouts.sorted(), of: jobs, on: directories, using: state, configuration: configuration, session: session
+            timeouts.sorted(), of: jobs, on: workers, using: state, configuration: configuration, session: session
         )
     }
 
-    /// Tests the jobs at `indices` again, whose runs timed out, in job order, a quarter of `directories`' workers at
+    /// Tests the jobs at `indices` again, whose runs timed out, in job order, on the first quarter of `workers` at
     /// once, at least one, never more than `indices`: with every worker's tests competing for the same cores, a slow
-    /// test can pass the limit that it keeps to under less load. The limit is `configuration`'s, the first runs', so a
-    /// mutant that loops forever times out again. Each run's line follows its first run's, which it replaces, and its
-    /// events don't count in the progress, which counted the first run (`recordRerun`).
+    /// test can pass the limit that it keeps to under less load. The limit is `configuration`'s, the first runs', which
+    /// every worker's shares, so a mutant that loops forever times out again. Each run's line follows its first run's,
+    /// which it replaces, and its events don't count in the progress, which counted the first run (`recordRerun`).
     func rerunTimeouts(
         _ indices: [Int],
         of jobs: [MutantJob],
-        on directories: [URL],
+        on workers: [PoolWorker],
         using state: AnyMutationTestState,
         configuration: MuterConfiguration,
         session: TestingSession
@@ -672,7 +663,7 @@ private extension PerformMutationTesting {
         try Task.checkCancellation()
         let reruns = TimeoutReruns(
             count: indices.count,
-            workers: min(max(directories.count / 4, 1), indices.count),
+            workers: min(max(workers.count / 4, 1), indices.count),
             limitSeconds: configuration.testSuiteTimeout
         )
         events.send(.timeoutRerunsStarted(reruns))
@@ -680,8 +671,8 @@ private extension PerformMutationTesting {
         try await runPool(
             indices,
             of: jobs,
-            on: Array(directories.prefix(reruns.workers)),
-            using: configuration,
+            on: Array(workers.prefix(reruns.workers)),
+            switchingOnFrom: state.projectXCTestRun,
             outputNamed: { testOutput(named: logFileName(forRerunOfJobAt: $0, $1), state: state) },
             recording: { finished in
                 recordRerun(
@@ -695,67 +686,6 @@ private extension PerformMutationTesting {
             }
         )
         events.send(.timeoutRerunsFinished(tally))
-    }
-
-    /// Runs the jobs at `indices`, started in their order, one at a time in each of `directories`, and hands each run
-    /// to `record` as it finishes; the worker that finished it then starts the next job. Each run writes its output to
-    /// the file `outputName` names for its job while it runs. Once mutation testing is cancelled, no job starts, and
-    /// no run that returns is handed on.
-    func runPool(
-        _ indices: [Int],
-        of jobs: [MutantJob],
-        on directories: [URL],
-        using configuration: MuterConfiguration,
-        outputNamed outputName: (_ index: Int, _ job: MutantJob) -> String,
-        recording record: (FinishedRun) throws -> Void
-    ) async throws {
-        // The worker job loop and its inline cancellation handling genuinely span >30 lines; pulling the body
-        // into a helper would split apart a tight loop-and-catch, so the length is disabled for this closure.
-        // swiftlint:disable:next closure_body_length
-        try await withThrowingTaskGroup(of: FinishedRun.self) { group in
-            // The position in `indices` of the next job to start.
-            var next = 0
-            // Throws once mutation testing is cancelled, rather than skip the job: with no run under way, the
-            // loop below would end as if every mutant had been tested.
-            func start(_ index: Int, worker: Int) throws {
-                let job = jobs[index]
-                let directory = directories[worker]
-                let fileName = outputName(index, job)
-                // A worker's task is given the values and the two dependencies it uses, not the step.
-                let started = group.addTaskUnlessCancelled { [ioDelegate, instant] in
-                    let launched = instant()
-                    let run = await ioDelegate.runTestSuite(
-                        withSchemata: job.schema,
-                        using: configuration,
-                        savingResultsIntoFileNamed: fileName,
-                        workingDirectory: directory
-                    )
-                    return FinishedRun(
-                        index: index,
-                        worker: worker,
-                        run: run,
-                        seconds: Self.seconds(from: launched, to: instant())
-                    )
-                }
-                guard started else { throw CancellationError() }
-            }
-
-            for worker in directories.indices.prefix(indices.count) {
-                try start(indices[next], worker: worker)
-                next += 1
-            }
-
-            while let finished = try await group.next() {
-                // Throwing cancels the other runs, whose cancellation handlers kill their process trees.
-                try Self.throwIfCancelled(finished.run)
-                try record(finished)
-                // The worker that finished takes the next job; the directory is looked up from it.
-                if next < indices.count {
-                    try start(indices[next], worker: finished.worker)
-                    next += 1
-                }
-            }
-        }
     }
 
     /// Builds each worker clone once, by running the baseline test command in it. A clone is copied
@@ -1243,6 +1173,118 @@ private extension PerformMutationTesting {
             events.send(.resultsFileUnavailable(reason: reason))
         }
         return written
+    }
+}
+
+/// The jobs, one per mutant, and the workers that test them at once.
+extension PerformMutationTesting {
+    struct MutantJob {
+        let fileName: FileName
+        let schema: MutationSchema
+    }
+
+    /// A worker that tests mutants at once with the others: the folder its runs start in, and the configuration they
+    /// run with. A SwiftPM worker's folder is its own, the mutated project or a clone of it, and every worker shares
+    /// one configuration. An xcodebuild worker's configuration names what is its own instead
+    /// (`MuterConfiguration.XcodeWorker`), whatever folder it runs in.
+    struct PoolWorker {
+        let directory: URL
+        let configuration: MuterConfiguration
+    }
+
+    /// Runs the jobs at `indices`, started in their order, one at a time on each of `workers`, and hands each run to
+    /// `record` as it finishes; the worker that finished it then starts the next job. An xcodebuild worker first
+    /// switches its job's mutant on in its own `.xctestrun`, written from `testRun`, as the serial path does; a SwiftPM
+    /// run writes its worker's active-mutant file itself (see `MutationTestingDelegate.testProcess`). A worker runs one
+    /// job at a time, so nothing rewrites either file during a run. Each run writes its output to the file `outputName`
+    /// names for its job while it runs. Once mutation testing is cancelled, no job starts, and no run that returns is
+    /// handed on.
+    func runPool(
+        _ indices: [Int],
+        of jobs: [MutantJob],
+        on workers: [PoolWorker],
+        switchingOnFrom testRun: XCTestRun,
+        outputNamed outputName: (_ index: Int, _ job: MutantJob) -> String,
+        recording record: (FinishedRun) throws -> Void
+    ) async throws {
+        // The worker job loop and its inline cancellation handling genuinely span >30 lines; pulling the body
+        // into a helper would split apart a tight loop-and-catch, so the length is disabled for this closure.
+        // swiftlint:disable:next closure_body_length
+        try await withThrowingTaskGroup(of: FinishedRun.self) { group in
+            // The position in `indices` of the next job to start.
+            var next = 0
+            // Throws once mutation testing is cancelled, rather than skip the job: with no run under way, the
+            // loop below would end as if every mutant had been tested.
+            func start(_ index: Int, worker: Int) throws {
+                let job = jobs[index]
+                let (directory, configuration) = (workers[worker].directory, workers[worker].configuration)
+                let fileName = outputName(index, job)
+                // A worker's task is given the values and the two dependencies it uses, not the step.
+                let started = group.addTaskUnlessCancelled { [ioDelegate, instant] in
+                    if configuration.buildSystem == .xcodebuild {
+                        try await Self.switchOn(
+                            job, from: testRun, in: directory, for: configuration, using: ioDelegate
+                        )
+                    }
+                    let launched = instant()
+                    let run = await ioDelegate.runTestSuite(
+                        withSchemata: job.schema,
+                        using: configuration,
+                        savingResultsIntoFileNamed: fileName,
+                        workingDirectory: directory
+                    )
+                    return FinishedRun(
+                        index: index,
+                        worker: worker,
+                        run: run,
+                        seconds: Self.seconds(from: launched, to: instant())
+                    )
+                }
+                guard started else { throw CancellationError() }
+            }
+
+            for worker in workers.indices.prefix(indices.count) {
+                try start(indices[next], worker: worker)
+                next += 1
+            }
+
+            // A mutant that couldn't be switched on throws here too, and stops mutation testing.
+            while let finished = try await group.next() {
+                // Throwing cancels the other runs, whose cancellation handlers kill their process trees.
+                try Self.throwIfCancelled(finished.run)
+                try record(finished)
+                // The worker that finished takes the next job.
+                if next < indices.count {
+                    try start(indices[next], worker: finished.worker)
+                    next += 1
+                }
+            }
+        }
+    }
+
+    /// Switches `job`'s mutant on for a run with `configuration` in `directory`, by writing `testRun` with it on to
+    /// the `.xctestrun` that run tests from: its xcodebuild worker's, or `muter.xctestrun`. A file that couldn't be
+    /// written would still switch on the mutant before this one, whose verdict an xcodebuild run would record for this
+    /// one, so that aborts mutation testing.
+    static func switchOn(
+        _ job: MutantJob,
+        from testRun: XCTestRun,
+        in directory: URL,
+        for configuration: MuterConfiguration,
+        using ioDelegate: MutationTestingIODelegate
+    ) async throws {
+        do {
+            try await ioDelegate.switchOn(
+                schemata: job.schema,
+                for: testRun,
+                at: directory,
+                named: configuration.xcodeWorker?.testRunFile ?? MutationTestingDelegate.muterTestRunFileName
+            )
+        } catch {
+            throw MuterError.mutationTestingAborted(
+                reason: .mutantNotSwitchedOn(id: job.schema.id, description: error.localizedDescription)
+            )
+        }
     }
 }
 

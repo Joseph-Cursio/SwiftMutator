@@ -36,8 +36,10 @@ extension ProjectTree {
     /// Folders no outcome is read from, at any depth: build products, git's own, and Xcode's per-user state.
     static let prunedComponents: Set = [".build", ".git", ".swiftpm", "DerivedData", "xcuserdata"]
     static let prunedNames: Set = [".DS_Store"]
-    /// What SwiftMutator itself writes at the root of the project it copies. Earlier versions wrote the active-mutant
-    /// file there too, as `.swiftmutator-active-mutant`; it is still left out, so a fingerprint doesn't change.
+    /// What SwiftMutator itself writes at the root of the project it copies, with each xcodebuild worker's
+    /// `muter-worker<n>.xctestrun` (`MutationTestingDelegate.isWorkerTestRunFileName`). Earlier versions wrote the
+    /// active-mutant file there too, as `.swiftmutator-active-mutant`; it is still left out, so a fingerprint doesn't
+    /// change.
     static let prunedAtRoot: Set = ["muter-mappings.json", ".swiftmutator-active-mutant", "muter.xctestrun"]
 
     /// Lists the project at `listingRoot` (git; without it, a walk of `hashingRoot`), adds every Swift and package
@@ -113,7 +115,8 @@ extension ProjectTree {
         guard let name = components.last else { return true }
         return components.contains(where: prunedComponents.contains)
             || prunedNames.contains(name)
-            || components.count == 1 && prunedAtRoot.contains(name)
+            || components.count == 1
+            && (prunedAtRoot.contains(name) || MutationTestingDelegate.isWorkerTestRunFileName(name))
     }
 
     /// `FileManager.enumerator` (it never follows a symbolic link to a folder). It skips the descendants of pruned

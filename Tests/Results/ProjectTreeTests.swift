@@ -102,6 +102,26 @@ final class ProjectTreeTests: XCTestCase {
         XCTAssertTrue(ProjectTree.isPruned("Sub/.git/HEAD"))
     }
 
+    // Each xcodebuild worker's test run is SwiftMutator's, as `muter.xctestrun` is, so a plan's copy keeps its
+    // fingerprint whatever ran in it. Only at the root, and only as SwiftMutator names one.
+    func test_prunesEachXcodebuildWorkersTestRun_atTheRootOnly() async throws {
+        try write([
+            "Sources/Sum.swift": "kept",
+            "muter-worker2.xctestrun": "pruned",
+            "muter-worker12.xctestrun": "pruned",
+            "muter-worker.xctestrun": "kept: no worker's",
+            "Sub/muter-worker2.xctestrun": "kept: only the root's are SwiftMutator's",
+        ])
+        try git("init", in: project)
+        try git("add", "-f", ".", in: project)
+        let kept = ["Sources/Sum.swift", "Sub/muter-worker2.xctestrun", "muter-worker.xctestrun"]
+
+        let listed = await fingerprint().files.keys.sorted()
+        XCTAssertEqual(listed, kept, "listed by git")
+        let walked = await fingerprint(list: { _ in nil }).files.keys.sorted()
+        XCTAssertEqual(walked, kept, "walked")
+    }
+
     func test_leavesOutTheExcludedReportAndItsPartialSibling() async throws {
         let folders = try makeDirectoryWithSymbolicLink()
         project = folders.directory
