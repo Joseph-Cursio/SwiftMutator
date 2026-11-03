@@ -409,10 +409,11 @@ mutants at once with `mutationTestWorkers: N` or `--workers N`
 - **One simulator per worker, worker 0 included,** like the one the destination names, which no
   mutant runs on. Before the baseline, SwiftMutator makes them, named
   `swiftmutator-<project hash>-<pid>-<start>-w<n>`, and boots them while the baseline builds and
-  runs. Your own simulator is never shut down: if it is shut down, each is a clone of it, with its
-  settings and data; if it is booted, a booted simulator can't be cloned, so each is a new one of
-  its kind and runtime, without your simulator's data, such as its locale, keychain, permissions
-  and installed apps. Every one is deleted when the run ends (see [Stopping a run](#stopping-a-run)).
+  runs. SwiftMutator never shuts your own simulator down: if it is shut down, each is a clone of
+  it, with its settings and data; if it is booted, a booted simulator can't be cloned, so each is
+  a new one of its kind and runtime, without your simulator's data, such as its locale, keychain,
+  permissions and installed apps. The baseline is your own test command, though, so with parallel
+  testing on, xcodebuild shuts your simulator down to clone it, as it does without SwiftMutator. Every one is deleted when the run ends (see [Stopping a run](#stopping-a-run)).
 - **One build.** Every worker tests in the mutated project, from the build the baseline made, so
   no copy is made or built. Each has its own `.xctestrun`, `muter.xctestrun` for worker 0 and
   `muter-worker<n>.xctestrun` for the others, which its mutant is switched on in, and its own

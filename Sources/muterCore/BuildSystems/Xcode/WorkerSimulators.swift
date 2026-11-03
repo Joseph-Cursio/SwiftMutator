@@ -157,7 +157,8 @@ final class WorkerSimulators: WorkerSimulating, @unchecked Sendable { // `made` 
             try Task.checkCancellation()
             let name = WorkerSimulatorName(projectHash: project, owner: owner, worker: worker).text
             // A booted simulator can't be cloned (SimError 405), and SwiftMutator never shuts the user's down: a new
-            // one of its kind is made instead, without the user's simulator data.
+            // one of its kind is made instead, without the user's simulator data. The baseline, the user's own test
+            // command, may still shut it down, as xcodebuild's parallel testing does to clone it.
             let arguments = base.isShutdown
                 ? ["clone", base.udid, name]
                 : ["create", name, base.deviceTypeIdentifier, base.runtimeIdentifier]
