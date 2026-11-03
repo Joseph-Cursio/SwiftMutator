@@ -123,9 +123,10 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   reads each rewritten file back and checks that it holds every one of its mutants' IDs as a quoted
   string, and `run-without-mutating` checks a test plan's code the same way, as it may have been
   edited by hand. A gap stops the run before any test, naming the files and mutants, as does a file
-  with mutants that can't be read. Under xcodebuild, a mutant whose `muter.xctestrun` can't be
-  written stops mutation testing, since the file left by the run before would switch that mutant
-  on. These prove a switch is there, not that a run switched it on.
+  with mutants that can't be read. Under xcodebuild, a mutant whose `muter.xctestrun`, or its
+  worker's `muter-worker<n>.xctestrun`, can't be written stops mutation testing, since the file
+  left by the run before would switch that mutant on. These prove a switch is there, not that a
+  run switched it on.
 - **xcodebuild mutant runs leave no derived data behind:** each mutant's `xcodebuild
   test-without-building` keeps its derived data in `<project>_mutated.DerivedData`, beside the copy,
   emptied before each run and removed when the run ends, and each other worker's in
@@ -425,7 +426,9 @@ mutants at once with `mutationTestWorkers: N` or `--workers N`
 - **A run with no mutant on, on each simulator,** follows the baseline, all at once and with no
   time limit, so no mutant's limit pays for a simulator's first install and launch, which took 30
   to 93 s. Its log is kept as `no-mutant run worker <n>.log`. It shows that the tests pass one at a
-  time on a simulator SwiftMutator made.
+  time on a simulator SwiftMutator made. A run of these that the simulator failed to launch runs
+  again, once, as a mutant's does (below), and its log is kept with ` (launch failed)` before
+  `.log`.
 - **A fallback to one worker.** If the destination names no one simulator, or a simulator can't be
   made or booted, or a run with no mutant on fails, the simulators are deleted and the run tests
   one mutant at a time on your destination, as without workers, and says why:
@@ -440,8 +443,9 @@ mutants at once with `mutationTestWorkers: N` or `--workers N`
 - **A run the simulator failed to launch runs again**, once, on the same worker, as on one worker:
   its log shows no failed test, only such a line as `Application failed preflight checks`. The
   second run is the one recorded, and the first run's log is kept with ` (launch failed)` before
-  `.log`. A run whose simulator is gone stops mutation testing, keeping the results so far: resume
-  it, and new simulators are made.
+  `.log`. A run whose simulator is gone stops mutation testing, keeping the results so far, and
+  keeps its log with ` (simulator gone)` before `.log`: resume it, and new simulators are made. If
+  the simulator your `-destination` names was the one deleted, make it again first.
 - **Memory.** Each booted simulator holds memory. 2 to 4 workers suit most Macs.
 
 ## Mutating only what a branch changed
