@@ -106,6 +106,9 @@ final class SimulatorTroubleTests: MuterTestCase {
         let failedTests = [
             "✘ Test sum() recorded an issue at SumTests.swift:12:5: Expectation failed: 1 + 1 == 3",
             "Test Case '-[CalcTests.CalcTests test_inRange]' failed (0.001 seconds).",
+            // Parallel testing's, as a baseline can print, the same for a failed test or a crash.
+            "Test case 'MacCloudUserFirstSeenTests/refreshingIsIdempotent()' failed on "
+                + "'Clone 1 of iPhone 17 Pro - MacCloud_client_iOS (67864)' (0.011 seconds)",
         ]
         let trouble = [
             "\tSimulator device failed to launch com.example.MacCloud-client-iOS.",

@@ -18,14 +18,17 @@ enum SimulatorTrouble: Equatable {
     }
 
     /// What `log` shows went wrong with the simulator, if anything, unless it shows a failed test, which makes the run
-    /// the mutant's kill whatever else went wrong. A gone device comes before a failed launch: a run on it again
+    /// the mutant's kill whatever else went wrong: `FailedTestLine`'s, or parallel testing's
+    /// (`showsParallelTestingFailure`). A gone device comes before a failed launch: a run on it again
     /// wouldn't launch either. The line is the first that shows it in the summary after `Testing failed:`, which
     /// xcodebuild ends its output with, or else the first anywhere, without its indent, at most
     /// `FailedTestLine.lineLengthLimit` characters.
     static func first(inLog log: String) -> SimulatorTrouble? {
         // "\r\n" is a single Character, so a log with those line breaks isn't split at "\n" alone.
         let lines = log.split(whereSeparator: { $0 == "\n" || $0 == "\r\n" })
-        guard !lines.contains(where: FailedTestLine.matches) else { return nil }
+        guard !lines.contains(where: { FailedTestLine.matches($0) || showsParallelTestingFailure($0) }) else {
+            return nil
+        }
         let summary = lines.lastIndex { $0.hasPrefix("Testing failed:") }.map { lines[$0...] } ?? []
         for (trouble, signs) in [(Self.deviceGone, deviceGoneLines), (Self.launch, launchLines)] {
             let shows = { (line: Substring) in signs.contains { line.contains($0) } }
@@ -44,6 +47,14 @@ enum SimulatorTrouble: Equatable {
             return nil
         }
         return first(inLog: run.testLog)
+    }
+
+    /// Whether `line` is parallel testing's for a test that failed or crashed, as a baseline, the user's own test
+    /// command, can print: `Test case 'SumTests.sum()' failed on 'Clone 1 of iPhone 17 Pro - App (123)' (0.01
+    /// seconds)`. `FailedTestLine` leaves it out, since it reads the same for a crash, but either way a test ran, so
+    /// the simulator launched it.
+    private static func showsParallelTestingFailure(_ line: Substring) -> Bool {
+        line.hasPrefix("Test case '") && line.contains("' failed on '")
     }
 
     /// Text that xcodebuild prints when the simulator didn't launch the app or its test runner. The launch services'
