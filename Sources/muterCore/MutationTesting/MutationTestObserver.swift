@@ -104,6 +104,20 @@ extension MutationTestObserver {
             logger.stopAtFirstFailureTurnedOff(reason: reason)
         case let .testBundlesNotRunDirectly(reason):
             logger.testBundlesNotRunDirectly(reason: reason)
+        case let .timeoutRerunsStarted(reruns):
+            logger.timeoutRerunsStarted(reruns)
+        case let .timeoutRerunFinished(rerun):
+            // A verdict that didn't change is no news. Never the logger's outcome or log, which count the progress
+            // again.
+            if rerun.changed {
+                runOptions.reportOptions.reporter.newMutationTestOutcomeAvailable(
+                    outcomeWithFlush: MutationOutcomeWithFlush(mutation: rerun.rerun, fflush: flushStdOut)
+                )
+            }
+            writeTestLog(rerun.log)
+            logger.timeoutRerunFinished(rerun)
+        case let .timeoutRerunsFinished(tally):
+            logger.timeoutRerunsFinished(tally)
         case let .mutationTestingFinished(outcome):
             mutationTestingFinished(outcome)
         case let .mutationTestingEndedEarly(earlyEnd):

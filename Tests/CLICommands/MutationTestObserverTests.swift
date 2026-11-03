@@ -165,6 +165,51 @@ final class MutationTestObserverTests: MuterTestCase {
         XCTAssertEqual(fileManager.contents, Data("Executed 3 tests, with 1 failure".utf8))
     }
 
+    // Beside the first run's, which the first line names: the rerun's line names this one.
+    func test_aRerunsLog_isWrittenUnderItsOwnName_withoutCountingTheProgress() throws {
+        fileManager.currentDirectoryPathToReturn = "/project"
+        try sut.start()
+        let loggingDirectory = sut.loggingDirectory
+        let point = MutationPoint.make(filePath: "/project/Sources/Sum.swift", position: 3)
+        let keptFileName = "RelationalOperatorReplacement @ Sum.swift-3-3 670192af8b34c2a4 (rerun).log"
+
+        runEvents.send(
+            .timeoutRerunFinished(TimeoutRerun(
+                rerun: .make(testSuiteOutcome: .failed, point: point),
+                log: .make(
+                    mutationPoint: point, testLog: "Executed 3 tests, with 1 failure", keptFileName: keptFileName
+                ),
+                seconds: 12,
+                number: 1,
+                count: 1
+            ))
+        )
+
+        XCTAssertEqual(fileManager.paths.last, "\(loggingDirectory)/\(keptFileName)")
+        XCTAssertEqual(fileManager.contents, Data("Executed 3 tests, with 1 failure".utf8))
+        XCTAssertEqual(printer.linesPassed, ["🔁 1 of 1 killed at Sum.swift:3:3, in 12 s"])
+    }
+
+    // The first run's timeout wasn't a survivor the Xcode format warns of, so a rerun that survives is warned of
+    // then. One that timed out again changed nothing.
+    func test_aTimeoutThatSurvivesItsRerun_isWarnedOf_inTheXcodeFormat() throws {
+        options = .make(reportFormat: .xcode)
+        try sut.start()
+        let point = MutationPoint.make(filePath: "/project/Sources/Sum.swift", position: 3)
+        let rerun = { (outcome: TestSuiteOutcome) in
+            TimeoutRerun(
+                rerun: .make(testSuiteOutcome: outcome, point: point), log: .make(), seconds: 12, number: 1, count: 2
+            )
+        }
+
+        runEvents.send(.timeoutRerunFinished(rerun(.timeout)))
+        XCTAssertEqual(printer.linesPassed.filter { $0.contains("warning:") }, [])
+        runEvents.send(.timeoutRerunFinished(rerun(.passed)))
+
+        XCTAssertEqual(printer.linesPassed.filter { $0.contains("warning:") }.count, 1, "\(printer.linesPassed)")
+        XCTAssertTrue(flushStandardOut.flushHandlerWasCalled)
+    }
+
     func test_stopAtFirstFailureTurnedOff_isPrinted() throws {
         try sut.start()
 

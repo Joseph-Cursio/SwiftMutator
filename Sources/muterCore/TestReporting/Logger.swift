@@ -367,6 +367,8 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
             return "\(count) changed mutation\(one ? "" : "s")"
         case .repeated:
             return "\(count) repeated in \(one ? "its" : "their") file"
+        case .timeoutNotRerun:
+            return "\(count) timeout\(one ? "" : "s") not run again at lower load"
         case .timedOut:
             return "\(count) timeout\(one ? "" : "s")"
         case .otherFileChanged:
@@ -473,6 +475,55 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         if let line = progressLines?.line(after: mutation, at: now()) {
             print(line)
         }
+    }
+
+    /// "🔁 Running 3 timeouts again, 2 at a time, under the same 72 s limit: at most 4 min.": the timeouts tested
+    /// again once every mutant is tested, after the progress bar's last redraw, which needs no room after it.
+    func timeoutRerunsStarted(_ reruns: TimeoutReruns) {
+        let timeouts = reruns.count == 1 ? "1 timeout" : "\(reruns.count) timeouts"
+        let atATime = reruns.count == 1 ? ""
+            : reruns.workers == 1 ? ", one at a time" : ", \(reruns.workers) at a time"
+        var limit = ""
+        if let seconds = reruns.limitSeconds, let longest = reruns.longestSeconds {
+            limit = ", under the same \(Self.seconds(seconds)) limit: at most "
+                + SimpleTimeEstimate.text(secondsLeft: longest)
+        }
+        print("🔁 Running \(timeouts) again\(atATime)\(limit).")
+    }
+
+    /// "🔁 1 of 3 killed at Rules.swift:42:17 (changed == to !=), in 41.2 s": what a timeout tested again came to. Not
+    /// a progress line: the progress counted its first run.
+    func timeoutRerunFinished(_ rerun: TimeoutRerun) {
+        let mutant = rerun.rerun
+        let verdict = switch mutant.testSuiteOutcome {
+        case .failed, .runtimeError: "killed"
+        case .passed: "survived"
+        case .timeout: "timed out again"
+        case .buildError: "failed to build"
+        case .noCoverage: "not covered"
+        }
+        let place = "\(mutant.point.fileName):\(mutant.point.position.line):\(mutant.point.position.column)"
+        let change = mutant.snapshot.description.isEmpty ? "" : " (\(mutant.snapshot.description))"
+        print("🔁 \(rerun.number) of \(rerun.count) \(verdict) at \(place)\(change), in \(Self.seconds(rerun.seconds))")
+    }
+
+    /// "🔁 Ran 3 timeouts again, and 1 changed: 1 killed, 2 timed out again."
+    func timeoutRerunsFinished(_ tally: TimeoutRerunTally) {
+        let timeouts = tally.rerun == 1 ? "1 timeout" : "\(tally.rerun) timeouts"
+        let changed = tally.changed == 0 ? "none" : "\(tally.changed)"
+        let counts = [
+            (tally.killed, "killed"),
+            (tally.survived, "survived"),
+            (tally.buildErrors, tally.buildErrors == 1 ? "build error" : "build errors"),
+            (tally.timedOutAgain, "timed out again"),
+        ]
+        let came = counts.compactMap { count, words in count > 0 ? "\(count) \(words)" : nil }
+        print("🔁 Ran \(timeouts) again, and \(changed) changed: \(came.joined(separator: ", ")).")
+    }
+
+    /// "72 s", "41.2 s": `seconds` to a tenth.
+    private static func seconds(_ seconds: TimeInterval) -> String {
+        String(format: "%g", (seconds * 10).rounded() / 10) + " s"
     }
 
     /// The seconds since the mutants started, or nil before they have.

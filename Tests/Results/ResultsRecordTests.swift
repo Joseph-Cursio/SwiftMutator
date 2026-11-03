@@ -91,6 +91,40 @@ final class ResultsRecordTests: XCTestCase {
         XCTAssertEqual(try ResultsCoding.decoder.decode(MutantResult.self, from: Data(line.utf8)), reused)
     }
 
+    // A tested result has no `rerun`; a timeout tested again says why and at what load.
+    func test_rerun_isLeftOutWhenNil_andRoundTrips() throws {
+        XCTAssertFalse(try line(MutantResult.make()).contains("rerun"))
+
+        let rerun = MutantResult.make(rerun: MutantResult.Rerun(because: MutantResult.Rerun.timeout, workers: 2))
+        let written = try line(rerun)
+        XCTAssertTrue(written.contains(#""rerun":{"because":"timeout","workers":2}"#), written)
+        XCTAssertEqual(try decode(MutantResult.self, from: written), rerun)
+    }
+
+    // A reason a later SwiftMutator adds must not make the line unreadable: a reader would skip it, and the first
+    // run's timeout would stand in its place.
+    func test_aRerunForAReasonAddedLater_stillReads() throws {
+        let written = try line(MutantResult.make(rerun: MutantResult.Rerun(because: "timeout", workers: 1)))
+            .replacingOccurrences(of: #""because":"timeout""#, with: #""because":"flaky""#)
+
+        XCTAssertEqual(try decode(MutantResult.self, from: written).rerun?.because, "flaky")
+    }
+
+    // A reused rerun's result is the rerun's, and so is the log copied with it.
+    func test_aReusedRerun_keepsItsRerun() {
+        let rerun = MutantResult.Rerun(because: MutantResult.Rerun.timeout, workers: 1)
+        let copy = MutantResult.make(rerun: rerun).reused(
+            from: "/logs/a/results.jsonl",
+            headers: [.make(session: 1)],
+            in: 1,
+            utf8Offset: 4000,
+            switchID: "Sum_new",
+            despiteChanges: false
+        )
+
+        XCTAssertEqual(copy.rerun, rerun)
+    }
+
     func test_aHeaderAndAnEndRecordRoundTrip() throws {
         let header = makeHeader()
         let headerWithoutAProject = makeHeader(project: nil)

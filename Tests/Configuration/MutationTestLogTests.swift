@@ -68,6 +68,18 @@ final class MutationTestLogTests: XCTestCase {
         XCTAssertFalse(name.contains("/"), name)
     }
 
+    // The first run's log is kept too, under its own name, which its line names.
+    func test_rerunFileName_isTheKeptOnesWithRerunBeforeTheExtension() {
+        XCTAssertEqual(
+            MutationTestLog.rerunFileName(for: key(path: "Sources/Sum.swift")),
+            "RelationalOperatorReplacement @ Sum.swift-3-5 670192af8b34c2a4 (rerun).log"
+        )
+        XCTAssertEqual(
+            MutationTestLog.rerunFileName(for: key(path: "Sources/Sum.swift", occurrence: 1)),
+            "RelationalOperatorReplacement @ Sum.swift-3-5 670192af8b34c2a4 (#2) (rerun).log"
+        )
+    }
+
     func test_aLogIsTheBaselinesUnlessNamed() {
         XCTAssertEqual(MutationTestLog.make().keptFileName, "baseline run.log")
     }

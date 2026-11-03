@@ -321,6 +321,42 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.passed, .runtimeError, .failed, .timeout])
     }
 
+    // The first session, on 4 workers, was stopped while it ran its timeouts again: Sum.swift's was run again, and
+    // killed, Total.swift's wasn't. Only that one is tested, and the rerun's kill is kept.
+    func test_aRunStoppedWhileRunningItsTimeoutsAgain_testsOnlyThoseNotRunAgain() async throws {
+        let rerun = MutantResult.Rerun(because: MutantResult.Rerun.timeout, workers: 1)
+        state.resumeState = try ResumeState.make(
+            path: resultsPath,
+            lines: [
+                ResultsHeader.make(mutantsDiscovered: 4, mutantsToTest: 4, project: tree, workers: 4),
+                record(of: "Sources/Product.swift", line: 7, .passed, fileSHA256: "77e0"),
+                record(of: "Sources/Quotient.swift", line: 4, .failed, fileSHA256: "3c4f"),
+                record(of: "Sources/Sum.swift", line: 3, .timeout, fileSHA256: "5a1c"),
+                record(of: "Sources/Total.swift", line: 8, .timeout, fileSHA256: "9e21"),
+                record(of: "Sources/Sum.swift", line: 3, .failed, fileSHA256: "5a1c", rerun: rerun),
+                ResultsEnd.make(reason: .interrupted, detail: "SIGINT", recorded: 5),
+            ],
+            file: XCTUnwrap(state.resumeState).file
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .passed]
+        let sent = recordEvents(named: [.resumePlanned])
+
+        let changes = try await sut.run(with: state)
+
+        let summary = try XCTUnwrap(sent().first?.object as? ResumeSummary)
+        XCTAssertEqual(summary.retestedBecause, [.timeoutNotRerun: 1])
+        XCTAssertEqual(summary.reused, 3)
+        XCTAssertEqual(
+            ioDelegate.testLogs.filter { $0.contains("RelationalOperatorReplacement") },
+            [running("3_Total.swift_RelationalOperatorReplacement_80_8_5.log")]
+        )
+        XCTAssertEqual(try resultsFiles.records(MutantResult.self).map(\.path), ["Sources/Total.swift"])
+        guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
+            return XCTFail("Expected an outcome, got \(changes)")
+        }
+        XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.passed, .failed, .failed, .passed])
+    }
+
     // The first session tested a kill between each two of the build errors it recorded, and those kills are kept, so
     // the build errors are tested again one after another. Failing to build again says nothing new about the build,
     // so they don't count toward stopping after 5 build errors in a row, or no resume of the run could finish.
@@ -649,7 +685,8 @@ private extension PerformMutationTestingResumeTests {
         line: Int,
         _ outcome: TestSuiteOutcome,
         fileSHA256: String,
-        killedBy: [FailedTestLine.FailedTest]? = nil
+        killedBy: [FailedTestLine.FailedTest]? = nil,
+        rerun: MutantResult.Rerun? = nil
     ) -> MutantResult {
         let name = URL(fileURLWithPath: file).deletingPathExtension().lastPathComponent
         let operatorId = MutationOperator.Id.ror
@@ -662,7 +699,8 @@ private extension PerformMutationTestingResumeTests {
             switchID: "\(name)_\(operatorId.rawValue)_\(line)_5_\(line * 10)",
             outcome: outcome,
             killedBy: killedBy,
-            fileSHA256: fileSHA256
+            fileSHA256: fileSHA256,
+            rerun: rerun
         )
     }
 

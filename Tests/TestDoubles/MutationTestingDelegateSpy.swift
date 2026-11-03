@@ -17,6 +17,10 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     private(set) var workingDirectories: [URL] = []
     private(set) var builtWorkerDirectories: [URL] = []
     private(set) var configurations: [MuterConfiguration] = []
+    /// Each working directory a parallel mutant run started in while another run was under way there, which a worker's
+    /// active-mutant file can't allow.
+    private(set) var directoriesSharedAtOnce: [URL] = []
+    private var directoriesInUse: Set<URL> = []
     private let lock = NSLock()
 
     var testSuiteOutcomes: [TestSuiteOutcome]!
@@ -77,6 +81,11 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
         savingResultsIntoFileNamed fileName: String,
         workingDirectory: URL
     ) async -> TestRun {
+        lock.withLock {
+            if !directoriesInUse.insert(workingDirectory).inserted {
+                directoriesSharedAtOnce.append(workingDirectory)
+            }
+        }
         await Task.yield()
         let (run, number) = lock.withLock {
             methodCalls.append(#function)
@@ -86,6 +95,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
             return nextMutantRun()
         }
         whileRunningMutant?(number)
+        lock.withLock { _ = directoriesInUse.remove(workingDirectory) }
         return run
     }
 

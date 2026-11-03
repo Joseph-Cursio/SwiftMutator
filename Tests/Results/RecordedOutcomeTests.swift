@@ -50,9 +50,39 @@ final class RecordedOutcomeTests: MuterTestCase {
         try await assertTheReportFromTheFileEqualsTheRuns(workers: 1)
     }
 
-    // The lines are written in the order the mutants finished in, which isn't the order they were tested in.
+    // The lines are written in the order the mutants finished in, which isn't the order they were tested in. The
+    // timeout is tested again, and times out again.
     func test_theReportFromTheFile_equalsTheRunsReport_inEveryFormat_inParallel() async throws {
-        try await assertTheReportFromTheFileEqualsTheRuns(workers: 2)
+        try await assertTheReportFromTheFileEqualsTheRuns(workers: 2, rerun: (.timeout, "", .timedOut))
+    }
+
+    // The rerun's line follows the first run's timeout, and its kill, with the test that killed it, is what the file
+    // reports, as the run did.
+    func test_aTimeoutThatARerunKills_isReportedAsTheRunReportedIt() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
+        )
+        // The baseline, the worker clone's build, the five mutants, then the timeout's rerun.
+        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .passed, .timeout, .passed, .failed, .failed]
+        ioDelegate.mutantTestLogs = Array(repeating: "", count: 5)
+            + ["✘ Test slow() recorded an issue at SlowTests.swift:4:5: Failed"]
+        ioDelegate.mutantRunEndings = [.exited, .exited, .timedOut, .exited, .exited, .exited]
+
+        let changes = try await sut.run(with: state)
+
+        guard case let .mutationTestOutcomeGenerated(runOutcome)? = changes.first else {
+            return XCTFail("Expected an outcome, got \(changes)")
+        }
+        XCTAssertFalse(runOutcome.mutations.contains { $0.testSuiteOutcome == .timeout })
+        let slow = FailedTestLine.FailedTest(name: "slow()", location: "SlowTests.swift:4:5")
+        XCTAssertEqual(
+            runOutcome.mutations.compactMap(\.killingTests).filter { !$0.tests.isEmpty },
+            [.init(tests: [slow], count: 1, isComplete: true)]
+        )
+        let records = try resultsFiles.records(MutantResult.self)
+        XCTAssertEqual(records.count, 6)
+        XCTAssertEqual(records.last?.rerun, MutantResult.Rerun(because: "timeout", workers: 1))
+        try assertTheResultsFileRebuilds(runOutcome)
     }
 
     // Suspect tests, and the score without them, come from each mutant's recorded tests, so a report made from the
@@ -364,8 +394,10 @@ final class RecordedOutcomeTests: MuterTestCase {
 private extension RecordedOutcomeTests {
     /// Runs mutation testing on `workers` workers, then checks that the outcome rebuilt from its results file is its
     /// own, whatever order the mutants' lines come in.
+    /// With more than one worker, the timeout is tested again, and its `rerun` comes to what it says.
     func assertTheReportFromTheFileEqualsTheRuns(
         workers: Int,
+        rerun: (outcome: TestSuiteOutcome, log: String, ending: TestRun.Ending)? = nil,
         file: StaticString = #filePath,
         line: UInt = #line
     ) async throws {
@@ -387,6 +419,11 @@ private extension RecordedOutcomeTests {
             "error: cannot convert value of type 'Bool' to expected argument type 'Int'",
         ]
         ioDelegate.mutantRunEndings = [.stoppedAtFailedTest, .exited, .exited, .timedOut, .exited]
+        if let rerun {
+            ioDelegate.testSuiteOutcomes.append(rerun.outcome)
+            ioDelegate.mutantTestLogs.append(rerun.log)
+            ioDelegate.mutantRunEndings.append(rerun.ending)
+        }
 
         let changes = try await sut.run(with: state)
 
@@ -474,10 +511,18 @@ private extension RecordedOutcomeTests {
         current.now = { frozen }
     }
 
-    /// `lines` with its mutants' lines, those between the header and the end line, put in another order.
+    /// `lines` with its mutants' lines, those between the header and the end line, put in another order, but each
+    /// key's in the order written: a key's later line, such as a rerun's, replaces its earlier one.
     func reorderingMutantLines(_ lines: [String], _ reorder: ([String]) -> [String]) -> [String] {
         guard lines.count > 2, let header = lines.first, let end = lines.last else { return lines }
-        return [header] + reorder(Array(lines.dropFirst().dropLast())) + [end]
+        let mutantLines = Array(lines.dropFirst().dropLast())
+        let decoder = ResultsCoding.decoder
+        let key = { (line: String) in
+            (try? decoder.decode(MutantResult.self, from: Data(line.utf8)))?.key.description ?? line
+        }
+        var linesOfKey = Dictionary(grouping: mutantLines, by: key)
+        let reordered = reorder(mutantLines).map { line in linesOfKey[key(line)]?.removeFirst() ?? line }
+        return [header] + reordered + [end]
     }
 
     func rebuild(from lines: [String]) throws -> MutationTestOutcome {

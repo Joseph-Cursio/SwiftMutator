@@ -47,8 +47,8 @@ final class TestingSession: @unchecked Sendable { // `file`, `mutantLines` and `
 
     /// nil until the header is written, and for good if the file couldn't be created.
     var results: ResultsRecording? { writing.withLock { file } }
-    /// How many mutants the session recorded, tested or kept from an earlier run, each in a line of its own unless a
-    /// write failed.
+    /// How many mutant lines the session recorded, written or not: one for each mutant it tested or kept from an
+    /// earlier run, and a second for each it tested again (`rerun`). So it can be more than the session's mutants.
     var recorded: Int { writing.withLock { mutantLines } }
 
     /// Makes `file` the session's results file, which its header is written to first.
