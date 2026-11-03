@@ -10,8 +10,12 @@ enum ResultsCoding {
     /// would report results the run no longer stands by. A file that was never resumed stays in format 1, which older
     /// SwiftMutators read.
     static let resumedFormatVersion = 2
+    /// A resumed session's header that records its project tree as what changed since the last session's
+    /// (`ResultsHeader.projectDelta`). A format-2 reader would take it for a session with no tree, which `--reuse` and
+    /// a merge of shards skip, rather than check.
+    static let projectDeltaFormatVersion = 3
     /// The newest format this SwiftMutator reads. It refuses a file with a header in a newer one.
-    static let newestFormatVersion = resumedFormatVersion
+    static let newestFormatVersion = projectDeltaFormatVersion
 
     /// Sorted keys, so lines read and compare alike; slashes unescaped, so paths read as paths; never pretty-printed,
     /// so a record is one line, any line break in it escaped. Dates are ISO 8601 in UTC, to the millisecond.
@@ -97,7 +101,8 @@ extension CoverageSummary {
 /// resumed session with nothing left to test runs no baseline, and writes it at once.
 struct ResultsHeader: Codable, Equatable {
     var kind = "header"
-    /// `ResultsCoding.formatVersion` for a first session, `resumedFormatVersion` for a resumed one.
+    /// `ResultsCoding.formatVersion` for a first session, `resumedFormatVersion` for a resumed one, or
+    /// `projectDeltaFormatVersion` for a resumed one that records `projectDelta`.
     let formatVersion: Int
     /// 1 for a run's first session; each resumed session adds the next to the same file.
     let session: Int
@@ -124,8 +129,8 @@ struct ResultsHeader: Codable, Equatable {
     /// How long the baseline run took; nil when a resumed session had nothing left to test, and ran none.
     let baselineSeconds: Double?
     /// How long one run of a mutant's test command took with no mutant on, which the default time limit is based on;
-    /// nil when none was timed: a time limit was configured, the build system isn't SwiftPM, the run didn't pass, or a
-    /// resumed session had nothing left to test.
+    /// nil when none was timed: a time limit was configured, the build system is neither SwiftPM nor xcodebuild, the
+    /// run didn't pass, or a resumed session had nothing left to test.
     let testRunSeconds: Double?
     /// The time limit for a mutant's run: the configured one, or else the default that the timed test run, or else the
     /// baseline, set, if one ran.
@@ -139,8 +144,12 @@ struct ResultsHeader: Codable, Equatable {
     /// The project's files, as the mutated copy held them before discovery rewrote it. In a session that tested a
     /// test plan, which copies nothing, the plan's copy as it was tested: rewritten, and with any fix made by hand,
     /// which a resume of its run compares the copy with. Absent from a session that an earlier SwiftMutator ran on a
-    /// test plan.
-    let project: ProjectTree?
+    /// test plan. A resumed session's header records `projectDelta` in its place, from which a header read from a
+    /// results file gets it again (`RecordedResults`).
+    var project: ProjectTree?
+    /// Only in a resumed session whose last session recorded a tree: its tree as what changed since that one, in
+    /// place of `project`.
+    var projectDelta: ProjectTreeDelta?
     /// Only in a resumed session, or one that reuses an earlier run's results: how many earlier results it kept rather
     /// than tested again.
     let mutantsReused: Int?
@@ -195,9 +204,11 @@ extension TestPlanRecord {
 extension ResultsHeader {
     /// The header of a session that tests `state`'s mutants with `configuration`, the effective configuration: the
     /// default time limit applied, and failed-test lines judged by the baseline. `logDirectory` is the session's. A
-    /// session after the first is a resumed one, in `ResultsCoding.resumedFormatVersion`, which says what it reused,
-    /// and what `--resume-ignoring` and `--force-resume` let through. A session that reuses an earlier run's results
-    /// is a first session, which says the same, and the file it reused from.
+    /// session after the first is a resumed one, which says what it reused, and what `--resume-ignoring` and
+    /// `--force-resume` let through. It records its project tree as what changed since the last session's, in
+    /// `ResultsCoding.projectDeltaFormatVersion`, or, when that session recorded none, in full, in
+    /// `resumedFormatVersion`. A session that reuses an earlier run's results is a first session, which says the same,
+    /// and the file it reused from.
     init(
         session: Int,
         startedAt: Date,
@@ -215,8 +226,17 @@ extension ResultsHeader {
         forced: [String]? = nil,
         reusedFrom: String? = nil
     ) {
+        let lastTree = session == 1 ? nil : state.resumeState?.lastHeader.project
+        let projectDelta = state.projectTree.flatMap { tree in
+            lastTree.map { ProjectTreeDelta(from: $0, to: tree) }
+        }
+        let formatVersion = if session == 1 {
+            ResultsCoding.formatVersion
+        } else {
+            projectDelta == nil ? ResultsCoding.resumedFormatVersion : ResultsCoding.projectDeltaFormatVersion
+        }
         self.init(
-            formatVersion: session == 1 ? ResultsCoding.formatVersion : ResultsCoding.resumedFormatVersion,
+            formatVersion: formatVersion,
             session: session,
             startedAt: startedAt,
             provenance: provenance,
@@ -239,7 +259,8 @@ extension ResultsHeader {
             failedTestLinesAreReliable: configuration.failedTestLinesAreReliable,
             mutantsDiscovered: mutantsDiscovered,
             mutantsToTest: mutantsToTest,
-            project: state.projectTree,
+            project: projectDelta == nil ? state.projectTree : nil,
+            projectDelta: projectDelta,
             mutantsReused: mutantsReused,
             waived: waived,
             forced: forced,

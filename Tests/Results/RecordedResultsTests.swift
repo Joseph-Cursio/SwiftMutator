@@ -147,11 +147,11 @@ final class RecordedResultsTests: XCTestCase {
     }
 
     func test_aNewerFormat_isRefused() throws {
-        let newer = try file(ResultsHeader.make(formatVersion: 3), sum)
-        let newerAndUnlikeThisOne = Data(#"{"formatVersion":3,"kind":"header"}"#.utf8)
-        let newerSecondSession = try file(header, sum, end, ResultsHeader.make(formatVersion: 4, session: 2))
+        let newer = try file(ResultsHeader.make(formatVersion: 4), sum)
+        let newerAndUnlikeThisOne = Data(#"{"formatVersion":4,"kind":"header"}"#.utf8)
+        let newerSecondSession = try file(header, sum, end, ResultsHeader.make(formatVersion: 5, session: 2))
 
-        for (data, version) in [(newer, 3), (newerAndUnlikeThisOne, 3), (newerSecondSession, 4)] {
+        for (data, version) in [(newer, 4), (newerAndUnlikeThisOne, 4), (newerSecondSession, 5)] {
             XCTAssertThrowsError(try read(data)) { error in
                 XCTAssertEqual(error as? ResultsFileError, .newerFormat(path: path, version: version))
             }
@@ -220,7 +220,59 @@ final class RecordedResultsTests: XCTestCase {
     }
 }
 
+// A resumed header records its tree as what changed since an earlier session's, and is read with that tree made again.
+extension RecordedResultsTests {
+    func test_aResumedHeadersDelta_isReadAsTheWholeTree_sessionAfterSession() throws {
+        let first = projectTree(["Sum.swift": "1", "Total.swift": "2"])
+        let second = projectTree(["Sum.swift": "1", "Total.swift": "3", "Product.swift": "4"])
+        let third = projectTree(["Total.swift": "3", "Product.swift": "4"])
+
+        let recorded = try read(file(
+            ResultsHeader.make(project: first),
+            end,
+            resumed(session: 2, ProjectTreeDelta(from: first, to: second)),
+            resumed(session: 3, ProjectTreeDelta(from: second, to: third))
+        ))
+
+        XCTAssertEqual(recorded.headers.map(\.project), [first, second, third])
+        XCTAssertEqual(recorded.unreadableLines, [])
+    }
+
+    // Without the tree it was recorded against, as when that header's line was cut off, a delta's header doesn't read,
+    // and nor do its session's results, which a resume then tests again.
+    func test_aDeltaWithoutItsBase_leavesItsHeaderAndItsSessionsResultsUnread() throws {
+        let first = projectTree(["Sum.swift": "1"])
+        let second = projectTree(["Sum.swift": "2"])
+        let other = projectTree(["Total.swift": "9"])
+        let secondSum = MutantResult.make(session: 2, path: "Sources/Sum.swift")
+
+        let recorded = try read(file(
+            ResultsHeader.make(project: first),
+            end,
+            resumed(session: 2, ProjectTreeDelta(from: other, to: second)),
+            secondSum
+        ))
+
+        XCTAssertEqual(recorded.headers.map(\.session), [1])
+        XCTAssertEqual(recorded.unreadableLines, [3, 4])
+        XCTAssertEqual(recorded.latest.count, 0)
+    }
+}
+
 private extension RecordedResultsTests {
+    func projectTree(_ files: [String: String]) -> ProjectTree {
+        ProjectTree(listedBy: .git, files: files, excluded: [], treeSHA256: ProjectTree.treeHash(of: files))
+    }
+
+    func resumed(session: Int, _ delta: ProjectTreeDelta) -> ResultsHeader {
+        ResultsHeader.make(
+            formatVersion: ResultsCoding.projectDeltaFormatVersion,
+            session: session,
+            projectDelta: delta,
+            mutantsReused: 0
+        )
+    }
+
     func read(_ data: Data) throws -> RecordedResults {
         try RecordedResults.read(data, path: path)
     }

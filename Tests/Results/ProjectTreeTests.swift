@@ -497,6 +497,44 @@ final class ProjectTreeTests: XCTestCase {
         XCTAssertEqual(now.changes(since: now), [])
     }
 
+    // A delta holds only what changed, and makes the tree it was taken to, listing and exclusions included.
+    func test_aDelta_holdsOnlyWhatChanged_andMakesTheTreeAgain() {
+        let recorded = tree(["Same.swift": "1", "Changed.swift": "2", "Removed.txt": "3"], excluding: ["a.txt"])
+        let now = ProjectTree(
+            listedBy: .walk,
+            files: ["Same.swift": "1", "Changed.swift": "9", "Added.txt": "4"],
+            excluded: ["b.txt"],
+            treeSHA256: ProjectTree.treeHash(of: ["Same.swift": "1", "Changed.swift": "9", "Added.txt": "4"])
+        )
+
+        let delta = ProjectTreeDelta(from: recorded, to: now)
+
+        XCTAssertEqual(delta.baseTreeSHA256, recorded.treeSHA256)
+        XCTAssertEqual(delta.files, ["Changed.swift": "9", "Added.txt": "4"])
+        XCTAssertEqual(delta.removed, ["Removed.txt"])
+        XCTAssertEqual(recorded.applying(delta), now)
+        XCTAssertEqual(ProjectTreeDelta(from: now, to: now).files, [:])
+        XCTAssertEqual(now.applying(ProjectTreeDelta(from: now, to: now)), now)
+    }
+
+    // A delta applies only to the tree it was taken from, and only when it makes the tree it records.
+    func test_aDelta_appliesToNoOtherTree_andNotWhenItDoesNotMakeItsTree() {
+        let recorded = tree(["Sum.swift": "1"], excluding: [])
+        let now = tree(["Sum.swift": "2"], excluding: [])
+        let delta = ProjectTreeDelta(from: recorded, to: now)
+        let wrongResult = ProjectTreeDelta(
+            baseTreeSHA256: delta.baseTreeSHA256,
+            listedBy: delta.listedBy,
+            excluded: delta.excluded,
+            files: ["Sum.swift": "3"],
+            removed: [],
+            treeSHA256: delta.treeSHA256
+        )
+
+        XCTAssertNil(now.applying(delta))
+        XCTAssertNil(recorded.applying(wrongResult))
+    }
+
     func test_partition_starMatchesSlash_andDotSlashIsDropped() async {
         let changes: [ProjectTree.FileChange] = [
             .init(path: "Docs/rules/rule.md", kind: .changed),

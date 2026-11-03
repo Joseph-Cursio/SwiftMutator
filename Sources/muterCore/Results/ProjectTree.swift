@@ -201,6 +201,53 @@ extension ProjectTree {
             .joined()
         return FileDigest.sha256(of: Data(lines.utf8))
     }
+
+    /// The tree `delta` makes of this one, or nil if `delta` wasn't recorded against it, or doesn't make the tree it
+    /// recorded.
+    func applying(_ delta: ProjectTreeDelta) -> ProjectTree? {
+        guard delta.baseTreeSHA256 == treeSHA256 else { return nil }
+        var files = files.merging(delta.files) { _, recorded in recorded }
+        for path in delta.removed {
+            files.removeValue(forKey: path)
+        }
+        let tree = ProjectTree(
+            listedBy: delta.listedBy,
+            files: files,
+            excluded: delta.excluded,
+            treeSHA256: Self.treeHash(of: files)
+        )
+        return tree.treeSHA256 == delta.treeSHA256 ? tree : nil
+    }
+}
+
+/// A resumed session's project tree, as what changed since the tree of the session it resumed, whose `treeSHA256` it
+/// names: a project's every hash in each session's header made it about 205 KB longer on SwiftProjectLint, where the
+/// files seldom change between sessions.
+struct ProjectTreeDelta: Codable, Equatable {
+    /// The `treeSHA256` of the tree it was recorded against: the last session's.
+    let baseTreeSHA256: String
+    let listedBy: ProjectTree.Listing
+    let excluded: [String]
+    /// Each file added or changed since, with its SHA-256, as `ProjectTree.files` has it.
+    let files: [String: String]
+    /// The paths of the files removed since, sorted.
+    let removed: [String]
+    /// The `treeSHA256` of the tree it makes.
+    let treeSHA256: String
+}
+
+extension ProjectTreeDelta {
+    /// What changed from `base` to `tree`.
+    init(from base: ProjectTree, to tree: ProjectTree) {
+        self.init(
+            baseTreeSHA256: base.treeSHA256,
+            listedBy: tree.listedBy,
+            excluded: tree.excluded,
+            files: tree.files.filter { base.files[$0.key] != $0.value },
+            removed: base.files.keys.filter { tree.files[$0] == nil }.sorted(),
+            treeSHA256: tree.treeSHA256
+        )
+    }
 }
 
 private extension ProjectTree {
