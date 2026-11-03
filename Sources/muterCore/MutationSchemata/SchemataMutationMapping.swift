@@ -136,6 +136,26 @@ struct SchemataMutationMapping: Sendable {
         }
     }
 
+    /// The same mutants with every path, the file's and each mutant's, relative to `root`, as a test plan writes
+    /// them; a path outside `root` stays absolute. Each mutant keeps its ID and its place in the file's order.
+    func relative(to root: URL) -> SchemataMutationMapping {
+        withPaths { RepoRelativePath.of($0, under: root) }
+    }
+
+    /// The same mutants with every relative path joined to `root`, as a test plan is read; an absolute path stays as
+    /// it is. The inverse of `relative(to:)`.
+    func resolved(under root: URL) -> SchemataMutationMapping {
+        withPaths { RepoRelativePath.resolve($0, under: root.path) }
+    }
+
+    private func withPaths(_ path: (String) -> String) -> SchemataMutationMapping {
+        SchemataMutationMapping(
+            filePath: path(filePath),
+            mappings: mappings.mapValues { schemata in schemata.map { $0.with(filePath: path($0.filePath)) } },
+            codeBlockText: codeBlockText
+        )
+    }
+
     // Key-based add for merging two mappings without reconstructing a syntax node from text.
     fileprivate mutating func add(
         _ key: CodeBlockKey,

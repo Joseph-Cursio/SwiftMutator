@@ -1,23 +1,39 @@
 import Foundation
 
-struct MuterTestPlan: Equatable, Codable {
-    let mutatedProjectPath: String
-    let projectCoverage: Int
+/// A test plan as the steps use it: its paths absolute, wherever the plan file holds them relative to the project
+/// (`TestPlanFile`).
+struct MuterTestPlan: Equatable {
+    /// The format the plan was read in, or the one `TestPlanCoding` writes for a plan being made.
+    let formatVersion: Int
+    /// The SwiftMutator that made the plan; nil for a plan in format 0, which doesn't say.
+    let swiftMutatorVersion: String?
+    /// The copy of the project the plan's mutants are in, with no `..` in its path.
+    let mutatedProjectURL: URL
+    /// `.null` when coverage wasn't gathered.
+    let projectCoverage: Coverage
     let mappings: [SchemataMutationMapping]
+
+    init(
+        formatVersion: Int = TestPlanCoding.formatVersion,
+        swiftMutatorVersion: String? = version,
+        mutatedProjectURL: URL,
+        projectCoverage: Coverage,
+        mappings: [SchemataMutationMapping]
+    ) {
+        self.formatVersion = formatVersion
+        self.swiftMutatorVersion = swiftMutatorVersion
+        self.mutatedProjectURL = mutatedProjectURL
+        self.projectCoverage = projectCoverage
+        self.mappings = mappings
+    }
 }
 
-/// How a test plan is written. It is a file people read, diff and commit, so it is pretty-printed and ends in a
-/// newline; its keys are sorted, so a plan of the same mutants is the same bytes; and its slashes are unescaped, so
-/// paths read as paths. Any JSON decoder reads it, as it reads a plan written on one line.
-enum TestPlanCoding {
-    static var encoder: JSONEncoder {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        return encoder
-    }
-
-    /// The plan's text, as `CreateMuterTestPlan` writes it.
-    static func encode(_ plan: MuterTestPlan) throws -> String {
-        try String(decoding: encoder.encode(plan), as: UTF8.self) + "\n"
-    }
+/// The test plan a run tests: where it was read from, the SHA-256 of its bytes, and which format and SwiftMutator it
+/// was written in.
+struct LoadedTestPlan: Equatable, Sendable {
+    let path: String
+    let sha256: String
+    let formatVersion: Int
+    /// Nil for a plan in format 0, which doesn't say.
+    let swiftMutatorVersion: String?
 }

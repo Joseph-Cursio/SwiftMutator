@@ -1,13 +1,20 @@
 import Foundation
 
-/// Refuses a `swift test` plan whose mutated code was made by a SwiftMutator from before the active-mutant file. It
-/// reads the mutated project's files, so it comes after `LockMutatedProject`: until then another run of the project
-/// could be removing them, or copying and rewriting them.
+/// Refuses a test plan whose copy of the project isn't there, and a `swift test` plan whose mutated code was made by a
+/// SwiftMutator from before the active-mutant file. It reads the mutated project's files, so it comes after
+/// `LockMutatedProject`: until then another run of the project could be removing them, or copying and rewriting them.
 struct CheckTestPlanCode: MutationStep {
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
 
     func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+        let copy = state.mutatedProjectDirectoryURL.path
+        guard fileManager.fileExists(atPath: copy) else {
+            throw TestPlanRefused(
+                path: state.runOptions.testPlanURL?.path ?? "",
+                reason: .copyMissing(path: copy)
+            )
+        }
         try refuseCodeThatCannotReadTheActiveMutantFile(
             in: state.mutationMapping,
             of: state.mutatedProjectDirectoryURL.path,

@@ -1,5 +1,7 @@
 import Foundation
 
+/// Writes the test plan, `muter-mappings.json`, into the project folder, with its paths relative to it
+/// (`TestPlanFile`), so the project and its copy can move together.
 struct CreateMuterTestPlan: MutationStep {
     @Dependency(\.events)
     private var events: RunEvents
@@ -8,12 +10,12 @@ struct CreateMuterTestPlan: MutationStep {
 
     func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
         let testPlan = MuterTestPlan(
-            mutatedProjectPath: state.mutatedProjectDirectoryURL.path,
-            projectCoverage: state.projectCoverage.percent,
+            mutatedProjectURL: state.mutatedProjectDirectoryURL,
+            projectCoverage: state.projectCoverage,
             mappings: state.mutationMapping
         )
 
-        let json = try TestPlanCoding.encode(testPlan)
+        let json = try TestPlanCoding.encode(testPlan, under: state.projectDirectoryURL)
 
         let jsonUrl = state.projectDirectoryURL
             .appendingPathComponent("muter-mappings")

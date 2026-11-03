@@ -350,11 +350,13 @@ final class MutationTestHandlerTests: MuterTestCase {
                 )
             ).first
         )
+        let project = mutatedProject.deletingLastPathComponent().appendingPathComponent("x")
         fileManager.fileContentsToReturn = MuterTestPlan.make(
             mutatedProjectPath: mutatedProject.path,
             mappings: [mapping]
-        ).toData
+        ).toData(under: project)
         let state = MutationTestState()
+        state.projectDirectoryURL = project
         state.runOptions = .make(testPlanURL: URL(fileURLWithPath: "/project/muter-mappings.json"))
         state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
         let steps: [MutationStep] = [LoadMuterTestPlan(), LockMutatedProject(), CheckTestPlanCode()]
@@ -382,7 +384,8 @@ final class MutationTestHandlerTests: MuterTestCase {
     }
 
     func test_steps_whenRunWithouMutating() throws {
-        fileManager.fileContentsToReturn = MuterTestPlan.make().toData
+        fileManager.fileContentsToReturn = MuterTestPlan.make()
+            .toData(under: URL(fileURLWithPath: "/path/to/project"))
 
         sut = MutationTestHandler(
             options: .make(

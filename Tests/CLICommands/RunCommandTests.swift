@@ -318,6 +318,8 @@ final class RunCommandTests: XCTestCase {
         XCTAssertEqual(Run.message(showing: refused), "\(refused)")
         let inUse = MutatedProjectLockError.inUse(mutatedProject: "/code/x_mutated", process: 81234)
         XCTAssertEqual(Run.message(showing: inUse), "\(inUse)")
+        let plan = TestPlanRefused(path: "/code/x/muter-mappings.json", reason: .copyMissing(path: "/code/x_mutated"))
+        XCTAssertEqual(Run.message(showing: plan), "\(plan)")
         let cannotLock = Run.message(showing: MutatedProjectLockError.cannotLock(path: "/x.lock", errno: EACCES))
         XCTAssertTrue(cannotLock.contains("SwiftMutator has encountered an error"), cannotLock)
         let other = Run.message(showing: MuterError.noSourceFilesDiscovered)
@@ -331,6 +333,7 @@ final class RunCommandTests: XCTestCase {
     func test_eachOutcome_exitsWithItsOwnStatus() {
         XCTAssertEqual(ExitCode.resumeRefused.rawValue, 5)
         XCTAssertEqual(ExitCode.anotherRunHoldsTheLock.rawValue, 6)
+        XCTAssertEqual(ExitCode.testPlanRefused.rawValue, 7)
         XCTAssertEqual(ExitCode.stoppedOnAnError.rawValue, -1)
         let difference = ResumeCheck.Difference(name: "mutationTestTimeout", was: "120", isNow: "60")
         let changes = [ProjectTree.FileChange(path: "notes.txt", kind: .added)]
@@ -370,6 +373,13 @@ final class RunCommandTests: XCTestCase {
         XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: lockedFile), .anotherRunHoldsTheLock)
         let lockedCopy = MutatedProjectLockError.inUse(mutatedProject: "/code/x_mutated", process: 81234)
         XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: lockedCopy), .anotherRunHoldsTheLock)
+        let plans = [
+            TestPlanRefused(path: "/code/x/muter-mappings.json", reason: .newerFormat(found: 2)),
+            TestPlanRefused(path: "/code/x/muter-mappings.json", reason: .copyMissing(path: "/code/x_mutated")),
+        ]
+        for refused in plans {
+            XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: refused), .testPlanRefused, "\(refused)")
+        }
         let errors: [Error] = [
             MutatedProjectLockError.cannotLock(path: "/x.lock", errno: EACCES),
             ResultsFileError.newerFormat(path: "/logs/results.jsonl", version: 3),

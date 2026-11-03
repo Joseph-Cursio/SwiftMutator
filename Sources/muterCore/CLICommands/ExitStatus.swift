@@ -16,9 +16,15 @@ extension ExitCode {
     /// project's copy. Nothing was copied or removed. The same command can go ahead once that run has ended.
     static let anotherRunHoldsTheLock = ExitCode(6)
 
+    /// SwiftMutator refused to test a test plan, because it might not describe the project or can't be tested as it
+    /// is: one in a newer format, or whose copy of the project isn't there. Nothing was tested. The message names what
+    /// would let it through.
+    static let testPlanRefused = ExitCode(7)
+
     /// The status a run command exits with when its work failed with `error`, or nil when it exits 0: nothing to
-    /// mutate and a shard with no mutant are not failures. A refused resume or reuse, and a run refused because
-    /// another run holds a lock it needs, each have a status of their own, so a script can tell them from an error.
+    /// mutate and a shard with no mutant are not failures. A refused resume or reuse, a run refused because another
+    /// run holds a lock it needs, and a refused test plan each have a status of their own, so a script can tell them
+    /// from an error.
     static func exitStatus(afterRunFailedWith error: Error) -> ExitCode? {
         switch error {
         case is NothingToMutate, is EmptyShard:
@@ -27,6 +33,8 @@ extension ExitCode {
             return refused.isInUse ? .anotherRunHoldsTheLock : .resumeRefused
         case MutatedProjectLockError.inUse:
             return .anotherRunHoldsTheLock
+        case is TestPlanRefused:
+            return .testPlanRefused
         default:
             return .stoppedOnAnError
         }

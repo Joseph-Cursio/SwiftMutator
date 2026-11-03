@@ -127,6 +127,48 @@ final class MutantKeyTests: XCTestCase {
         }
     }
 
+    // A test plan names its copy this way from the project, so the two can move together.
+    func test_relativePath_goesUpAsFarAsTheFoldersShareOne() {
+        let project = URL(fileURLWithPath: "/Users/a/Foo")
+
+        let cases = [
+            ("/Users/a/Foo_mutated", "../Foo_mutated"),
+            ("/Users/b/Foo_mutated", "../../b/Foo_mutated"),
+            ("/Users/a/Foo/Copies/x", "Copies/x"),
+            ("/Users/a/Foo", "."),
+            ("/Users/a/x/../Foo_mutated", "../Foo_mutated"),
+        ]
+        for (target, relative) in cases {
+            XCTAssertEqual(RelativePath.from(project, to: URL(fileURLWithPath: target)), relative, target)
+        }
+        XCTAssertEqual(RelativePath.from(URL(fileURLWithPath: "/Users/a/Foo/"), to: project), ".")
+    }
+
+    // Through the root, the way up would be longer than the path, and would break as soon as either folder moved.
+    func test_relativePath_ofFoldersThatShareOnlyTheRoot_isTheTargetsOwn() {
+        let project = URL(fileURLWithPath: "/Users/a/Foo")
+
+        XCTAssertEqual(
+            RelativePath.from(project, to: URL(fileURLWithPath: "/Volumes/Scratch/Foo_mutated")),
+            "/Volumes/Scratch/Foo_mutated"
+        )
+    }
+
+    // A plan resolves the path under the project it was made in, and gets the copy back.
+    func test_relativePath_resolvesUnderTheBase_toTheTarget() {
+        let project = URL(fileURLWithPath: "/Users/a/Foo")
+        let targets = ["/Users/a/Foo_mutated", "/Users/b/Foo_mutated", "/Users/a/Foo/Copies/x", "/Users/a/Foo", "/x"]
+
+        for target in targets {
+            let relative = RelativePath.from(project, to: URL(fileURLWithPath: target))
+            XCTAssertEqual(
+                URL(fileURLWithPath: RepoRelativePath.resolve(relative, under: project.path)).standardized.path,
+                target,
+                relative
+            )
+        }
+    }
+
     func test_description_namesThePlaceAndTheOperator_andARepeat() {
         let key = MutantKey(path: "Sources/Sum.swift", mutationOperatorId: .ror, line: 3, column: 5, occurrence: 0)
         let repeated = MutantKey(path: "Sources/Sum.swift", mutationOperatorId: .ror, line: 3, column: 5, occurrence: 1)

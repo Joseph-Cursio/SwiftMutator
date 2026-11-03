@@ -517,20 +517,31 @@ extension MutationPosition {
 
 extension MuterTestPlan {
     static func make(
-        mutatedProjectPath: String = "",
+        mutatedProjectPath: String = "/path/to/project_mutated",
         projectCoverage: Int = 0,
         mappings: [SchemataMutationMapping] = []
     ) -> MuterTestPlan {
         MuterTestPlan(
-            mutatedProjectPath: mutatedProjectPath,
-            projectCoverage: projectCoverage,
+            mutatedProjectURL: URL(fileURLWithPath: mutatedProjectPath),
+            projectCoverage: projectCoverage < 0 ? .null : Coverage(percent: projectCoverage),
             mappings: mappings
         )
     }
 
-    /// The plan as `CreateMuterTestPlan` writes it.
-    var toData: Data {
-        Data(((try? TestPlanCoding.encode(self)) ?? "").utf8)
+    /// The plan as `CreateMuterTestPlan` writes it into `projectRoot`, in format 1.
+    func toData(under projectRoot: URL) -> Data {
+        Data(((try? TestPlanCoding.encode(self, under: projectRoot)) ?? "").utf8)
+    }
+
+    /// The plan as a SwiftMutator from before format versions wrote it, in format 0: on one line, with absolute paths,
+    /// and a coverage of -1 when it wasn't gathered.
+    var legacyData: Data {
+        let file = LegacyTestPlanFile(
+            mutatedProjectPath: mutatedProjectURL.path,
+            projectCoverage: projectCoverage.percent,
+            mappings: mappings
+        )
+        return (try? JSONEncoder().encode(file)) ?? Data()
     }
 }
 

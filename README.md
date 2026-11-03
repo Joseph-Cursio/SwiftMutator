@@ -160,6 +160,10 @@ can lock it.
   refused for these reasons.
 - **6** when another SwiftMutator run holds a lock this one needs: on the project's copy, or on the
   results file that `--resume` names. The same command goes ahead once that run has ended.
+- **7** when `run-without-mutating` refuses a test plan that might not describe the project, or
+  can't be tested as it is: one in a newer format, or whose copy of the project isn't there (see
+  [The test plan](Docs/test-plan.md#when-a-plan-is-refused)). Nothing was tested. The message says
+  what would let it through.
 - **64** for a usage error, such as `--workers 0`. `run-without-mutating` without a test plan's
   path exits with 1.
 - **255** for any other error, a failed baseline and an abort, such as 5 build errors in a row,

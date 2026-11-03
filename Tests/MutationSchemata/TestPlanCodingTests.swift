@@ -1,10 +1,14 @@
+import ArgumentParser
 import Foundation
 @testable import muterCore
 import XCTest
 
-/// How a test plan is written: a file people read, diff and commit, whose bytes depend only on its mutants.
+/// How a test plan is written and read: a file people read, diff and commit, whose bytes depend only on its mutants
+/// and on the name of the project's folder.
 final class TestPlanCodingTests: XCTestCase {
+    private let project = URL(fileURLWithPath: "/path/to/project")
     private let copy = "/path/to/project_mutated"
+    private let planPath = "/path/to/project/muter-mappings.json"
 
     // A file's mutants are kept in a dictionary by code block, so the second plan's are added in the other order.
     func test_twoEqualPlans_areTheSameBytes() throws {
@@ -12,14 +16,30 @@ final class TestPlanCodingTests: XCTestCase {
         let second = try plan(addingBlocksInReverse: true)
 
         XCTAssertEqual(first, second)
-        XCTAssertEqual(try TestPlanCoding.encode(first), try TestPlanCoding.encode(second))
+        XCTAssertEqual(
+            try TestPlanCoding.encode(first, under: project),
+            try TestPlanCoding.encode(second, under: project)
+        )
     }
 
-    // Declared order would put mutatedProjectPath first, and a mutant's id before its filePath.
-    func test_keysAreSorted() throws {
-        let text = try TestPlanCoding.encode(plan())
+    // The paths are relative and no date, host or executable is recorded, so only the folders' names count.
+    func test_theSameProjectInAnotherFolder_isTheSameBytes() throws {
+        let here = URL(fileURLWithPath: "/Users/a/Foo")
+        let there = URL(fileURLWithPath: "/Volumes/b/Foo")
 
-        assertInOrder(text, ["\"mappings\"", "\"mutatedProjectPath\"", "\"projectCoverage\""])
+        XCTAssertEqual(
+            try TestPlanCoding.encode(plan(copy: "/Users/a/Foo_mutated"), under: here),
+            try TestPlanCoding.encode(plan(copy: "/Volumes/b/Foo_mutated"), under: there)
+        )
+    }
+
+    // Declared order would put swiftMutatorVersion and mutatedProject before mappings, and a mutant's id before its
+    // filePath.
+    func test_keysAreSorted() throws {
+        let text = try TestPlanCoding.encode(plan(), under: project)
+
+        let keys = ["formatVersion", "mappings", "mutatedProject", "projectCoverage", "swiftMutatorVersion"]
+        assertInOrder(text, keys.map { "\"\($0)\"" })
         let mutant = try String(
             decoding: TestPlanCoding.encoder.encode(mutant(in: "\(copy)/Sources/Sum.swift", line: 1)),
             as: UTF8.self
@@ -27,46 +47,146 @@ final class TestPlanCodingTests: XCTestCase {
         assertInOrder(mutant, ["\"filePath\"", "\"id\"", "\"mutationOperatorId\"", "\"position\"", "\"snapshot\""])
     }
 
-    func test_pathsKeepTheirSlashes() throws {
-        let text = try TestPlanCoding.encode(plan())
+    func test_pathsAreRelative_andKeepTheirSlashes() throws {
+        let text = try TestPlanCoding.encode(plan(), under: project)
 
         XCTAssertFalse(text.contains("\\/"))
-        XCTAssertTrue(text.contains("\"mutatedProjectPath\" : \"\(copy)\""))
+        XCTAssertFalse(text.contains(copy), text)
+        XCTAssertTrue(text.contains("\"mutatedProject\" : \"../project_mutated\""), text)
+        XCTAssertTrue(text.contains("\"filePath\" : \"Sources/Sum.swift\""), text)
+        XCTAssertTrue(text.contains("\"swiftMutatorVersion\" : \"\(muterCore.version)\""), text)
     }
 
     func test_eachKeyIsOnALineOfItsOwn_andThePlanEndsInOneNewline() throws {
-        let text = try TestPlanCoding.encode(plan())
+        let text = try TestPlanCoding.encode(plan(), under: project)
 
-        XCTAssertTrue(text.hasPrefix("{\n  \"mappings\" : ["))
+        XCTAssertTrue(text.hasPrefix("{\n  \"formatVersion\" : 1,\n  \"mappings\" : ["), text)
         XCTAssertTrue(text.hasSuffix("}\n"))
         XCTAssertFalse(text.hasSuffix("\n\n"))
     }
 
+    func test_coverageThatWasntGathered_isLeftOut() throws {
+        let plan = MuterTestPlan.make(mutatedProjectPath: copy, projectCoverage: -1)
+
+        let text = try TestPlanCoding.encode(plan, under: project)
+
+        XCTAssertFalse(text.contains("projectCoverage"), text)
+        XCTAssertEqual(try read(text).projectCoverage, .null)
+    }
+
     // A plan records no syntax, so what it reads back as is compared by the text it would write.
     func test_aPlanReadsBackAsItWasWritten() throws {
-        let text = try TestPlanCoding.encode(plan())
+        let text = try TestPlanCoding.encode(plan(), under: project)
 
-        let read = try JSONDecoder().decode(MuterTestPlan.self, from: Data(text.utf8))
+        let read = try read(text)
 
-        XCTAssertEqual(try TestPlanCoding.encode(read), text)
+        XCTAssertEqual(read.mutatedProjectURL, URL(fileURLWithPath: copy))
+        XCTAssertEqual(read.mappings.map(\.filePath), ["\(copy)/Sources/Max.swift", "\(copy)/Sources/Sum.swift"])
+        XCTAssertEqual(read.projectCoverage, Coverage(percent: 47))
+        XCTAssertEqual(read.formatVersion, TestPlanCoding.formatVersion)
+        XCTAssertEqual(read.swiftMutatorVersion, muterCore.version)
+        XCTAssertEqual(try TestPlanCoding.encode(read, under: project), text)
     }
 
-    // A plan written by a SwiftMutator from before plans were pretty-printed is one line, in declared key order.
-    func test_aPlanOnOneLine_readsAsBefore() throws {
-        let plan = try plan()
-        let line = try JSONEncoder().encode(plan)
+    // A file outside the copy has no path relative to it, so it keeps its own.
+    func test_aPathOutsideTheCopy_staysAbsolute() throws {
+        let outside = "/elsewhere/Generated.swift"
+        let plan = MuterTestPlan.make(
+            mutatedProjectPath: copy,
+            mappings: [
+                try .make(
+                    filePath: outside,
+                    (source: "let generated = 1", schemata: [mutant(in: outside, line: 2)])
+                ),
+            ]
+        )
 
-        let read = try JSONDecoder().decode(MuterTestPlan.self, from: line)
+        let text = try TestPlanCoding.encode(plan, under: project)
 
-        XCTAssertEqual(try TestPlanCoding.encode(read), try TestPlanCoding.encode(plan))
+        XCTAssertTrue(text.contains("\"filePath\" : \"\(outside)\""), text)
+        XCTAssertEqual(try read(text).mappings.first?.mutationSchemata.map(\.filePath), [outside])
     }
 
-    private func plan(addingBlocksInReverse: Bool = false) throws -> MuterTestPlan {
+    // A copy that shares no folder with the project but the root is named by its own path.
+    func test_aCopyOnAnotherVolume_isNamedByItsOwnPath() throws {
+        let plan = MuterTestPlan.make(mutatedProjectPath: "/Volumes/Scratch/project_mutated")
+
+        let text = try TestPlanCoding.encode(plan, under: project)
+
+        XCTAssertTrue(text.contains("\"mutatedProject\" : \"/Volumes/Scratch/project_mutated\""), text)
+        XCTAssertEqual(try read(text).mutatedProjectURL.path, "/Volumes/Scratch/project_mutated")
+    }
+
+    // The run's folder is the current directory, whose path can go through a symbolic link, as /private/tmp does for
+    // /tmp. Its `..` taken out, the copy's path keeps that form, which the mutants' paths and the lock's are made from.
+    func test_theCopysPath_keepsTheFormOfTheProjects() throws {
+        // realpath follows /var to /private/var, where `resolvingSymlinksInPath` would take /private away.
+        let temporary = try XCTUnwrap(realpath(FileManager.default.temporaryDirectory.path, nil))
+        defer { free(temporary) }
+        let folder = URL(fileURLWithPath: String(cString: temporary)).appendingPathComponent(UUID().uuidString)
+        let project = folder.appendingPathComponent("project")
+        let copy = folder.appendingPathComponent("project_mutated")
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: copy, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let text = try TestPlanCoding.encode(MuterTestPlan.make(mutatedProjectPath: copy.path), under: project)
+
+        let read = try TestPlanCoding.read(Data(text.utf8), path: planPath, under: project)
+
+        XCTAssertEqual(read.mutatedProjectURL.path, copy.path)
+    }
+
+    // A plan written by a SwiftMutator from before format versions: one line, absolute paths, -1 for coverage that
+    // wasn't gathered, and, from before the path hash, a mutant without an id.
+    func test_aPlanInFormat0_readsWithItsAbsolutePaths() throws {
+        let line = """
+        {"mutatedProjectPath":"\\/old\\/project_mutated","projectCoverage":-1,"mappings":[{"filePath":\
+        "\\/old\\/project_mutated\\/Sources\\/Sum.swift","mappings":[{"filePath":\
+        "\\/old\\/project_mutated\\/Sources\\/Sum.swift","mutationOperatorId":"RelationalOperatorReplacement",\
+        "position":{"utf8Offset":105,"line":1,"column":5},\
+        "snapshot":{"before":"a > b","after":"a < b","description":"changed > to <"}}]}]}
+        """
+
+        let read = try read(line)
+
+        XCTAssertEqual(read.formatVersion, 0)
+        XCTAssertNil(read.swiftMutatorVersion)
+        XCTAssertEqual(read.mutatedProjectURL, URL(fileURLWithPath: "/old/project_mutated"))
+        XCTAssertEqual(read.projectCoverage, .null)
+        let schema = try XCTUnwrap(read.mappings.first?.mutationSchemata.first)
+        XCTAssertEqual(schema.filePath, "/old/project_mutated/Sources/Sum.swift")
+        XCTAssertEqual(schema.id, "Sum_RelationalOperatorReplacement_1_5_105")
+    }
+
+    func test_aNewerFormat_isRefused_andExitsWith7() throws {
+        let text = """
+        {"formatVersion": 2, "somethingNew": true}
+        """
+
+        XCTAssertThrowsError(try read(text)) { error in
+            let refused = error as? TestPlanRefused
+            XCTAssertEqual(refused, TestPlanRefused(path: planPath, reason: .newerFormat(found: 2)))
+            XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: error), .testPlanRefused)
+            XCTAssertEqual(
+                "\(error)",
+                "SwiftMutator won't test the plan '\(planPath)': it is in test plan format 2, which only a newer "
+                    + "SwiftMutator can read. Test it with the SwiftMutator that made it, or make it again with "
+                    + "`swift-mutator mutate-without-running`. Nothing was tested."
+            )
+        }
+    }
+
+    private func read(_ text: String) throws -> MuterTestPlan {
+        try TestPlanCoding.read(Data(text.utf8), path: planPath, under: project)
+    }
+
+    private func plan(copy: String? = nil, addingBlocksInReverse: Bool = false) throws -> MuterTestPlan {
+        let copy = copy ?? self.copy
         var sum = SchemataMutationMapping(filePath: "\(copy)/Sources/Sum.swift")
         // Each block's leading spaces put its first statement at an offset of its own.
         for number in addingBlocksInReverse ? Array((1 ... 8).reversed()) : Array(1 ... 8) {
             let block = try sourceCode(String(repeating: " ", count: number) + "let block\(number) = \(number)")
-            try sum.add(block.statements, mutant(in: sum.filePath, line: number))
+            try sum.add(block.statements, mutant(in: sum.filePath, line: number, copy: copy))
         }
         return .make(
             mutatedProjectPath: copy,
@@ -74,20 +194,23 @@ final class TestPlanCodingTests: XCTestCase {
             mappings: [
                 try .make(
                     filePath: "\(copy)/Sources/Max.swift",
-                    (source: "let max = 1", schemata: [mutant(in: "\(copy)/Sources/Max.swift", line: 3)])
+                    (
+                        source: "let max = 1",
+                        schemata: [mutant(in: "\(copy)/Sources/Max.swift", line: 3, copy: copy)]
+                    )
                 ),
                 sum,
             ]
         )
     }
 
-    private func mutant(in filePath: String, line: Int) throws -> MutationSchema {
+    private func mutant(in filePath: String, line: Int, copy: String? = nil) throws -> MutationSchema {
         try .make(
             filePath: filePath,
             mutationOperatorId: .ror,
             position: MutationPosition(utf8Offset: line * 100 + 5, line: line, column: 5),
             snapshot: .make(before: "a > b", after: "a < b", description: "changed > to <"),
-            under: URL(fileURLWithPath: copy)
+            under: URL(fileURLWithPath: copy ?? self.copy)
         )
     }
 

@@ -47,6 +47,8 @@ protocol AnyMutationTestState: AnyObject {
     /// The paths in the mutated project, relative to it, that discovery picks from, once listed before coverage is
     /// gathered, as a `--since` run lists them; nil until then, when discovery lists them itself.
     var candidatePaths: [FilePath]? { get }
+    /// The test plan the run tests; nil until it is loaded, and in a run that tests none.
+    var testPlan: LoadedTestPlan? { get }
 
     func apply(_ stateChanges: [MutationTestState.Change])
 }
@@ -78,6 +80,7 @@ final class MutationTestState: AnyMutationTestState {
     var sampleSelection: SampleSelection?
     var keysLeftOutOfTheSample: Set<MutantKey> = []
     var candidatePaths: [FilePath]?
+    var testPlan: LoadedTestPlan?
 
     init() {}
 
@@ -112,6 +115,7 @@ extension MutationTestState {
         case sampleSelected(SampleSelection)
         case sampleLeftOut(Set<MutantKey>)
         case candidatePathsListed([FilePath])
+        case testPlanLoaded(LoadedTestPlan)
     }
 }
 
@@ -163,6 +167,8 @@ extension MutationTestState {
                 keysLeftOutOfTheSample = keys
             case let .candidatePathsListed(paths):
                 candidatePaths = paths
+            case let .testPlanLoaded(plan):
+                testPlan = plan
             }
         }
     }
