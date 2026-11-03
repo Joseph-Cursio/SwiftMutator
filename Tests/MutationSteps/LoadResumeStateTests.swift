@@ -44,9 +44,10 @@ final class LoadResumeStateTests: MuterTestCase {
         }
     }
 
-    // A run still writing the file holds its lock. The refusal comes before anything is removed or copied, and names
-    // the process that wrote the file's last session, which is likely the one that holds it.
-    func test_aLockedFile_isRefused_namingTheLastSessionsProcessAndHost() async throws {
+    // A run still writing the file holds its lock, and records itself beside it. The refusal comes before anything is
+    // removed or copied, and names the holder, not the process that wrote the file's last session: a resume holds the
+    // lock long before it writes its session.
+    func test_aLockedFile_isRefused_namingTheHolder() async throws {
         try await writeResults(
             ResultsHeader.make(project: projectTree(), provenance: provenance(process: 1200, host: "laptop.local")),
             ResultsEnd.make(),
@@ -61,15 +62,43 @@ final class LoadResumeStateTests: MuterTestCase {
         let running = try ResultsFile.Opener().openForResume(at: resultsPath)
         defer { running.close() }
 
+        let holder = try XCTUnwrap(LockHolder.current())
+
         await assertRefused(
             ResumeRefused(
                 path: resultsPath,
-                reasons: [.inUse(lastProcess: 81234, lastHost: "studio.local")],
+                reasons: [.inUse(holder: .running(holder), lastProcess: nil, lastHost: nil)],
                 beforeTheCopy: true
             )
         )
 
         XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: resultsPath)), written, "nothing is written to it")
+    }
+
+    // A SwiftMutator older than this one locks the file without recording itself. The process that wrote the last
+    // session is then all the file shows, which may not be the holder.
+    func test_aFileLockedWithoutARecord_isRefused_namingTheLastSessionsProcessAndHost() async throws {
+        try await writeResults(
+            ResultsHeader.make(project: projectTree(), provenance: provenance(process: 1200, host: "laptop.local")),
+            ResultsEnd.make(),
+            ResultsHeader.make(
+                formatVersion: ResultsCoding.resumedFormatVersion,
+                session: 2,
+                project: projectTree(),
+                provenance: provenance(process: 81234, host: "studio.local")
+            )
+        )
+        let descriptor = open(resultsPath, O_RDONLY | O_CLOEXEC)
+        defer { close(descriptor) }
+        XCTAssertEqual(flock(descriptor, LOCK_EX | LOCK_NB), 0)
+
+        await assertRefused(
+            ResumeRefused(
+                path: resultsPath,
+                reasons: [.inUse(holder: nil, lastProcess: 81234, lastHost: "studio.local")],
+                beforeTheCopy: true
+            )
+        )
     }
 
     func test_aLogFolder_findsItsResultsFile() async throws {

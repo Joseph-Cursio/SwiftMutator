@@ -44,8 +44,9 @@ struct ResumeRefused: Error, Equatable, CustomStringConvertible {
 
 /// One reason a run can't be resumed, and what would let it be.
 enum ResumeRefusal: Equatable, CustomStringConvertible {
-    /// Another process holds the results file's lock. The file's last session's process and host, if it has one.
-    case inUse(lastProcess: Int32?, lastHost: String?)
+    /// Another process holds the results file's lock: `holder`, if its record shows which. Without a record, the
+    /// file's last session's process and host, if it has one, which may not be the holder.
+    case inUse(holder: ResultsFileError.Holder?, lastProcess: Int32?, lastHost: String?)
     /// A configuration key that some outcome depends on.
     case configurationChanged(ResumeCheck.Difference)
     /// A new time limit, where the file doesn't record the limit each of its results was tested under, so none is
@@ -74,13 +75,20 @@ enum ResumeRefusal: Equatable, CustomStringConvertible {
     func describe(reusing: Bool) -> String {
         let continuing = reusing ? "reused" : "resumed"
         switch self {
-        case let .inUse(process, host):
+        case let .inUse(.running(holder), _, _):
+            return "another SwiftMutator run, \(holder), holds its lock. Wait for that run to end, or stop it, then "
+                + "resume again."
+        case let .inUse(.unchecked(holder), _, _):
+            return "another SwiftMutator run holds its lock: by its record, \(holder), which this host can't check."
+        case let .inUse(nil, process, host):
             var writer = process.map { " by process \($0)" } ?? ""
             if let host, !host.isEmpty {
                 writer += " on \(host)"
             }
-            return "another SwiftMutator run holds its lock."
-                + (writer.isEmpty ? "" : " The file's last session was written\(writer).")
+            guard !writer.isEmpty else { return "another SwiftMutator run holds its lock." }
+            return "another SwiftMutator run holds its lock, and doesn't say which. The file's last session was "
+                + "written\(writer), but that run may not be the one: a resume holds the lock before it writes a "
+                + "session of its own."
         case let .configurationChanged(difference) where difference.name == ResumeCheck.timeLimitKey:
             return "\(difference.name) \(difference.change(absent: "not set")). A time limit shorter than a "
                 + "session's, or none, needs a new run: one at least as long as every session's only tests timeouts "

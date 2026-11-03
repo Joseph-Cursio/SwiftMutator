@@ -204,11 +204,14 @@ final class ResumeAcceptanceTests: XCTestCase {
         let refused = try waitForEnd(of: launch(firstSessionArguments + ["--resume", resultsFile.path]))
 
         XCTAssertEqual(refused.status, 255, refused.standardError + refused.standardOutput)
-        XCTAssertTrue(refused.standardOutput.contains("holds its lock"), refused.standardOutput)
+        // The live run records itself as the lock's holder.
         XCTAssertTrue(
-            refused.standardOutput.contains("by process \(first.process.processIdentifier) "),
+            refused.standardOutput.contains(
+                "another SwiftMutator run, process \(first.process.processIdentifier) on "
+            ),
             refused.standardOutput
         )
+        XCTAssertTrue(refused.standardOutput.contains("holds its lock"), refused.standardOutput)
         XCTAssertTrue(first.process.isRunning, "the refused resume stopped the run it found holding the file")
         recordMarkers()
         XCTAssertEqual(sleepers.filter(isGone).sorted(), [], "the hanging test process ended")

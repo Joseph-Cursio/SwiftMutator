@@ -311,7 +311,7 @@ final class RunCommandTests: XCTestCase {
     func test_aRefusal_isShownWithoutTheBugReportBanner() {
         let refused = ResumeRefused(
             path: "/logs/results.jsonl",
-            reasons: [.inUse(lastProcess: 81234, lastHost: "studio.local")],
+            reasons: [.inUse(holder: nil, lastProcess: 81234, lastHost: "studio.local")],
             beforeTheCopy: true
         )
 

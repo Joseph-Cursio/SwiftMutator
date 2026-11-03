@@ -445,7 +445,7 @@ private final class RefusingStep: MutationStep {
     func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
         throw ResumeRefused(
             path: "/logs/results.jsonl",
-            reasons: [.inUse(lastProcess: nil, lastHost: nil)],
+            reasons: [.inUse(holder: nil, lastProcess: nil, lastHost: nil)],
             beforeTheCopy: true
         )
     }

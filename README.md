@@ -727,7 +727,7 @@ doesn't end with `Nothing was copied or removed.`
 | `mutationTestWorkers`, `stopAtFirstFailure` or `buildTimeout` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
 | SwiftMutator, the toolchain or the SDK changed | Refused, unless `--force-resume` is given |
 | Project files changed, were added or were removed | Refused, unless a `--resume-ignoring` glob matches each one |
-| Another SwiftMutator holds the file, because its run is still going | Refused, naming the process and host that wrote the file's last session |
+| Another SwiftMutator holds the file, because its run is still going | Refused, naming the process that holds it, and its host. If an older SwiftMutator holds it, which doesn't say, it names the process and host that wrote the file's last session, which may not be the one |
 | Coverage was gathered in one session only, or this session discovers other mutants | Goes ahead, and warns: `⚠️ 412 earlier results no longer count, as this session doesn't discover their mutants: coverage couldn't be gathered then, and is now.` |
 
 A run of a test plan (`run-without-mutating`) can't be resumed, nor can a results file written
