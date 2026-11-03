@@ -40,6 +40,8 @@ enum RunEvent {
     /// Sent once the mutants start: after the baseline, the timed test run and any worker clones' builds, just before
     /// the first mutant's run.
     case mutantRunsStarted
+    /// The mutants under way once none has finished for `Heartbeat.interval`, and again each interval while none does.
+    case stillTesting(StillTesting)
     /// How many workers test the mutants, and why fewer than asked for, once the baseline has passed.
     case workersChosen(WorkerChoice)
     case stopAtFirstFailureTurnedOff(reason: String)

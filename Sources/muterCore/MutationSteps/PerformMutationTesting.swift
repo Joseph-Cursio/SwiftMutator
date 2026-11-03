@@ -20,6 +20,8 @@ struct PerformMutationTesting: MutationStep {
     private var interruption: InterruptionRecord
     @Dependency(\.directTestRun)
     private var directTestRun: DirectTestRunProbe
+    @Dependency(\.sleep)
+    private var sleep: Sleep
 
     private let buildErrorsThreshold: Int = 5
 
@@ -53,6 +55,8 @@ struct PerformMutationTesting: MutationStep {
     /// Injected so tests don't touch the disk.
     private let makeWorkerDirectories: (_ mutatedProject: URL, _ count: Int) async throws -> [URL]
     private let removeWorkerDirectories: (_ directories: [URL]) -> Void
+    /// The mutants under way, for the line that names them once none has finished for a while.
+    private let heartbeat = Heartbeat()
 
     init(
         makeWorkerDirectories: @escaping (URL, Int) async throws -> [URL] = PerformMutationTesting.cloneMutatedProject,
@@ -527,6 +531,9 @@ private extension PerformMutationTesting {
     ) async throws {
         var buildErrors = 0
         events.send(.mutantRunsStarted)
+        heartbeat.begin(workers: 1, at: instant())
+        let beating = beat()
+        defer { beating.cancel() }
 
         for index in indices {
             let job = jobs[index]
@@ -546,6 +553,7 @@ private extension PerformMutationTesting {
             }
 
             let launched = instant()
+            heartbeat.started(Self.place(of: job), on: 0, at: launched)
             let run = await ioDelegate.runTestSuite(
                 withSchemata: job.schema,
                 using: configuration,
@@ -554,10 +562,12 @@ private extension PerformMutationTesting {
                     state: state
                 )
             )
+            let ended = instant()
+            heartbeat.finished(on: 0, at: ended)
             try Self.throwIfCancelled(run)
 
             try record(
-                FinishedRun(index: index, worker: 0, run: run, seconds: seconds(since: launched)),
+                FinishedRun(index: index, worker: 0, run: run, seconds: Self.seconds(from: launched, to: ended)),
                 of: job,
                 using: state,
                 configuration: configuration,
@@ -565,6 +575,27 @@ private extension PerformMutationTesting {
                 buildErrors: &buildErrors
             )
         }
+    }
+
+    /// Sends the mutants under way whenever `heartbeat` says none has finished for a while, until cancelled. It reads
+    /// the clock only once a wait ends, the first a whole interval, so it never moves a test's scripted clock on.
+    func beat() -> Task<Void, Never> {
+        // Given the values and the dependencies it uses, not the step. Its sleep ends once it is cancelled.
+        Task { [heartbeat, events, sleep, instant] in
+            var wait = Heartbeat.interval
+            while (try? await sleep(Suspensions.nanoseconds(wait))) != nil {
+                let time = instant()
+                if let still = heartbeat.due(at: time) {
+                    events.send(.stillTesting(still))
+                }
+                wait = heartbeat.secondsUntilDue(at: time)
+            }
+        }
+    }
+
+    /// "Rules.swift:42:17": where `job`'s mutant is, as the progress lines give it.
+    static func place(of job: MutantJob) -> String {
+        "\(job.fileName):\(job.schema.position.line):\(job.schema.position.column)"
     }
 
     /// Tests the jobs at `indices`, started in their order, on `workers` test processes at once, never more than
@@ -601,6 +632,9 @@ private extension PerformMutationTesting {
         var buildErrors = 0
         var timeouts: [Int] = []
         events.send(.mutantRunsStarted)
+        heartbeat.begin(workers: directories.count, at: instant())
+        let beating = beat()
+        defer { beating.cancel() }
 
         try await runPool(
             indices,
@@ -695,19 +729,22 @@ private extension PerformMutationTesting {
                 let directory = directories[worker]
                 let fileName = outputName(index, job)
                 // A worker's task is given the values and the two dependencies it uses, not the step.
-                let started = group.addTaskUnlessCancelled { [ioDelegate, instant] in
+                let started = group.addTaskUnlessCancelled { [ioDelegate, instant, heartbeat] in
                     let launched = instant()
+                    heartbeat.started(Self.place(of: job), on: worker, at: launched)
                     let run = await ioDelegate.runTestSuite(
                         withSchemata: job.schema,
                         using: configuration,
                         savingResultsIntoFileNamed: fileName,
                         workingDirectory: directory
                     )
+                    let ended = instant()
+                    heartbeat.finished(on: worker, at: ended)
                     return FinishedRun(
                         index: index,
                         worker: worker,
                         run: run,
-                        seconds: Self.seconds(from: launched, to: instant())
+                        seconds: Self.seconds(from: launched, to: ended)
                     )
                 }
                 guard started else { throw CancellationError() }
