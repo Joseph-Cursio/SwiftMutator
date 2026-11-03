@@ -14,7 +14,10 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
     )
 
     private let destination = "platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5"
-    private let checkRun = "runTestsWithoutBuilding(using:savingResultsIntoFileNamed:)"
+    /// The output files of the runs with no mutant on that check a worker's simulator, not the timed test run's.
+    private var checkRuns: [String] {
+        ioDelegate.testLogs.filter { $0.hasSuffix("no-mutant run worker 0") }
+    }
     /// A baseline whose tests ran on one clone, as the destination's runs would, each paying for its clone and boot.
     private let oneCloneBaseline = """
     Test case 'SumTests.sum()' passed on 'Clone 1 of iPhone 17 Pro - App (123)' (0.010 seconds)
@@ -62,7 +65,8 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
             "prepare 1 like \(destination) for /project_mutated",
             "boot SIM-0",
         ])
-        XCTAssertEqual(ioDelegate.configurationsWithoutBuilding.map(\.xcodeWorker), [worker0])
+        // The check run, then the timed test run.
+        XCTAssertEqual(ioDelegate.configurationsWithoutBuilding.map(\.xcodeWorker), [worker0, worker0])
         XCTAssertTrue(
             ioDelegate.configurationsWithoutBuilding.first?.testWithoutBuildArguments(with: "muter.xctestrun")
                 .joined(separator: " ").contains("-parallel-testing-enabled NO") == true
@@ -115,7 +119,7 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
             choices().map(\.sentence),
             ["👷 Testing one mutant at a time on the test command's destination: \(reason)."]
         )
-        XCTAssertFalse(ioDelegate.methodCalls.contains(checkRun))
+        XCTAssertEqual(checkRuns, [])
         assertTestedOnTheDestination()
     }
 
@@ -131,7 +135,7 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
             choices().map(\.sentence),
             ["👷 Testing one mutant at a time on the test command's destination: \(reason)."]
         )
-        XCTAssertFalse(ioDelegate.methodCalls.contains(checkRun))
+        XCTAssertEqual(checkRuns, [])
         assertTestedOnTheDestination()
     }
 
@@ -144,7 +148,7 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
         _ = try await sut.run(with: state)
 
         XCTAssertEqual(choices().compactMap(\.sentence), [])
-        XCTAssertFalse(ioDelegate.methodCalls.contains(checkRun))
+        XCTAssertEqual(checkRuns, [])
         assertTestedOnTheDestination()
     }
 
@@ -313,7 +317,7 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
             "boot SIM-0",
             "removeAll",
         ])
-        XCTAssertFalse(ioDelegate.methodCalls.contains(checkRun))
+        XCTAssertEqual(checkRuns, [])
         XCTAssertEqual(choices().map(\.sentence), [
             "👷 Testing one mutant at a time on the test command's destination: the baseline's parallel testing spread "
                 + "12.0 s of tests over 2 clones, which one at a time on one simulator could make slower; "
@@ -358,7 +362,7 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
         _ = try await sut.run(with: state)
 
         XCTAssertEqual(workerSimulators.calls.last, "removeAll")
-        XCTAssertFalse(ioDelegate.methodCalls.contains(checkRun))
+        XCTAssertEqual(checkRuns, [])
         XCTAssertEqual(choices().map(\.sentence), [
             "👷 Testing one mutant at a time on the test command's destination: the baseline printed no parallel "
                 + "testing line to tell how many clones its tests ran on; `oneWorkerSimulator: true` tests on a "
@@ -374,7 +378,7 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
         _ = try await sut.run(with: state)
 
         XCTAssertFalse(workerSimulators.calls.contains("removeAll"))
-        XCTAssertTrue(ioDelegate.methodCalls.contains(checkRun))
+        XCTAssertEqual(checkRuns, ["/logs/running/no-mutant run worker 0"])
         XCTAssertEqual(ioDelegate.configurations.map(\.xcodeWorker), Array(repeating: worker0, count: 6))
     }
 
@@ -419,21 +423,52 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
         XCTAssertEqual(try resultsFiles.records(MutantResult.self).filter { $0.rerun != nil }, [])
     }
 
-    // The baseline spread its tests over parallel testing's clones, but the worker tests one test at a time, as its run
-    // with no mutant on did, so a mutant's run may take 3 times that run, when it took longer than the baseline.
-    func test_oneWorker_aRunWithNoMutantOnLongerThanTheBaseline_setsTheDefaultTimeLimit() async throws {
+    // The timed test run follows the check run, on the worker's simulator, so it doesn't pay for the simulator's first
+    // install and launch, and sets the limit as SwiftPM's does: 5 times it, for one worker.
+    func test_oneWorker_theTimedTestRunOnItsSimulator_setsTheDefaultTimeLimit() async throws {
+        let nanoseconds = Locked<UInt64>(1)
+        current.instant = { DispatchTime(uptimeNanoseconds: nanoseconds.value) }
+        let runSeconds = Locked<[UInt64]>([40, 10])
+        ioDelegate.whileRunningTestsWithoutBuilding = {
+            let seconds = runSeconds.change { $0.removeFirst() }
+            nanoseconds.change { $0 += seconds * 1_000_000_000 }
+        }
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(
+            ioDelegate.testLogs.prefix(3),
+            ["/logs/running/baseline run", "/logs/running/no-mutant run worker 0", "/logs/running/timed test run"]
+        )
+        XCTAssertEqual(ioDelegate.configurationsWithoutBuilding.map(\.xcodeWorker), [worker0, worker0])
+        // The check run's `.xctestrun`, then the timed run's, both with no mutant on, before the first mutant's.
+        let firstMutant = state.mutationMapping[0].mutationSchemata[0]
+        XCTAssertEqual(ioDelegate.schematas.prefix(3), [.null, .null, firstMutant])
+        XCTAssertEqual(Set(ioDelegate.testRunFileNames), ["muter.xctestrun"])
+        XCTAssertEqual(ioDelegate.configurations.map(\.testSuiteTimeout), Array(repeating: 50, count: 6))
+        let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
+        XCTAssertEqual(header.testRunSeconds, 10)
+        XCTAssertEqual(header.timeoutSeconds, 50)
+        XCTAssertEqual(fileManager.createdFiles["/logs/timed test run.log"], Data("timed test run log".utf8))
+    }
+
+    // Without a passing timed test run, a mutant's run may take 3 times the run with no mutant on, when it took longer
+    // than the baseline, which spread its tests over parallel testing's clones; the worker tests one at a time.
+    func test_oneWorker_aFailedTimedTestRun_leavesTheDefaultTimeLimitToTheRunWithNoMutantOn() async throws {
         let nanoseconds = Locked<UInt64>(1)
         current.instant = { DispatchTime(uptimeNanoseconds: nanoseconds.value) }
         ioDelegate.whileRunningTestsWithoutBuilding = { nanoseconds.change { $0 += 40_000_000_000 } }
+        ioDelegate.testRunsWithoutBuildingWritingTo["timed test run"] = (.failed, "** TEST FAILED **")
 
         _ = try await sut.run(with: state)
 
         XCTAssertEqual(ioDelegate.configurations.map(\.xcodeWorker), Array(repeating: worker0, count: 6))
         XCTAssertEqual(ioDelegate.configurations.map(\.testSuiteTimeout), Array(repeating: 120, count: 6))
+        XCTAssertNil(try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first).testRunSeconds)
     }
 
-    // On the destination, after a fallback, a mutant's run tests as the baseline did, whose time sets the limit.
-    func test_oneWorker_aFailedRunWithNoMutantOn_leavesTheDefaultTimeLimitToTheBaseline() async throws {
+    // On the destination, after a fallback, the timed test run tests there, as a mutant's run then does.
+    func test_oneWorker_aFailedRunWithNoMutantOn_timesTheTestRunOnTheDestination() async throws {
         let nanoseconds = Locked<UInt64>(1)
         current.instant = { DispatchTime(uptimeNanoseconds: nanoseconds.value) }
         ioDelegate.whileRunningTestsWithoutBuilding = { nanoseconds.change { $0 += 40_000_000_000 } }
@@ -443,9 +478,10 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
 
         assertTestedOnTheDestination()
         XCTAssertEqual(
-            ioDelegate.configurations.map(\.testSuiteTimeout),
-            Array(repeating: PerformMutationTesting.minimumDefaultTimeout, count: 6)
+            ioDelegate.configurationsWithoutBuilding.last?.xcodeWorker,
+            ioDelegate.configurations.first?.xcodeWorker
         )
+        XCTAssertEqual(ioDelegate.configurations.map(\.testSuiteTimeout), Array(repeating: 200, count: 6))
     }
 
     // Several workers' timeouts are run again, at lower load, and SwiftPM's timed run tests as a mutant's does.
@@ -482,7 +518,7 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
         await assertThrowsMuterError(try await sut.run(with: state)) { _ in }
 
         XCTAssertEqual(workerSimulators.calls.dropFirst().first, "prepare 1 like \(destination) for /project_mutated")
-        XCTAssertFalse(ioDelegate.methodCalls.contains(checkRun))
+        XCTAssertEqual(checkRuns, [])
         XCTAssertFalse(workerSimulators.calls.contains("removeAll"))
         await current.interruption.workEnded()
         XCTAssertEqual(workerSimulators.calls.last, "removeAll")
@@ -495,7 +531,7 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         XCTAssertEqual(workerSimulators.calls.dropFirst().first, "prepare 1 like \(destination) for /project_mutated")
-        XCTAssertFalse(ioDelegate.methodCalls.contains(checkRun))
+        XCTAssertEqual(checkRuns, [])
         await current.interruption.workEnded()
         XCTAssertEqual(workerSimulators.calls.last, "removeAll")
     }

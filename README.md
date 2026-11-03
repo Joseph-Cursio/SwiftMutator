@@ -104,14 +104,17 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
     the test removes afterwards. Until then, `mutationTestWorkers: 1` avoids it, at the cost of
     speed.
 - **A default timeout:** without `mutationTestTimeout`, a mutant's test run stops after a limit
-  based on how long your tests take, so a mutant that loops forever can't hang the run. For a
-  SwiftPM project, SwiftMutator times one run of a mutant's test command with no mutant on,
-  the test bundles run directly or `swift test … --skip-build`, just after the baseline, and allows 5× that, once more for each worker beyond the first, and at
-  least 20 s. For another build system, or when that run fails, it allows 3× the baseline, build
-  included, and at least 10 s, or 3× a lone xcodebuild worker's run with no mutant on, on
-  [a simulator of its own](#one-worker-on-a-simulator-of-its-own), when that took longer: the
-  baseline may have spread its tests over parallel testing's clones, and the worker tests one at a
-  time. A timeout counts as a survivor, so if your tests set limits of their
+  based on how long your tests take, so a mutant that loops forever can't hang the run.
+  SwiftMutator times one run of a mutant's test command with no mutant on, just after the
+  baseline, and allows 5× that, once more for each worker beyond the first, and at least 20 s.
+  For a SwiftPM project that run is the test bundles run directly or `swift test … --skip-build`.
+  For an xcodebuild project it is `test-without-building` from `muter.xctestrun`, with no mutant
+  switched on, on the first worker, after the workers' runs with no mutant on, so it doesn't pay
+  for a simulator's first install and launch. For another build system, or when that run fails, it
+  allows 3× the baseline, build included, and at least 10 s, or 3× a lone xcodebuild worker's run
+  with no mutant on, on [a simulator of its own](#one-worker-on-a-simulator-of-its-own), when that
+  took longer: the baseline may have spread its tests over parallel testing's clones, and the
+  worker tests one at a time. A timeout counts as a survivor, so if your tests set limits of their
   own, such as Swift Testing's `.timeLimit`, which is at least a minute, set `mutationTestTimeout`
   above them: otherwise a mutant that only your tests' limit would catch ends as a timeout. With
   several workers, each timeout is run again at lower load once the other mutants are tested: see

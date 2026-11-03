@@ -714,6 +714,8 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(ioDelegate.methodCalls, [
             "benchmarkTests(using:savingResultsIntoFileNamed:)",
             "switchOn(schemata:for:at:named:)",
+            "runTestsWithoutBuilding(using:savingResultsIntoFileNamed:)",
+            "switchOn(schemata:for:at:named:)",
             "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)",
             "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)",
             "switchOn(schemata:for:at:named:)",

@@ -18,6 +18,10 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
 
     private let destination = "platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5"
     private let checkRun = "runTestsWithoutBuilding(using:savingResultsIntoFileNamed:)"
+    /// The output files of the runs with no mutant on that check the workers' simulators, not the timed test run's.
+    private var checkRuns: [String] {
+        ioDelegate.testLogs.filter { $0.contains("no-mutant run worker") }
+    }
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -75,18 +79,41 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
 
         _ = try await sut.run(with: state)
 
+        // The timed test run follows them, on worker 0.
         let checks = ioDelegate.configurationsWithoutBuilding.compactMap(\.xcodeWorker)
-        XCTAssertEqual(checks.sorted { $0.testRunFile > $1.testRunFile }, [worker(0), worker(1)])
+        XCTAssertEqual(checks.sorted { $0.testRunFile > $1.testRunFile }, [worker(0), worker(0), worker(1)])
+        XCTAssertEqual(ioDelegate.testLogs.prefix(4).last, "/logs/running/timed test run")
         XCTAssertEqual(
             Set(ioDelegate.testLogs.filter { $0.contains("no-mutant") }),
             ["/logs/running/no-mutant run worker 0", "/logs/running/no-mutant run worker 1"]
         )
         let switchedOff = zip(ioDelegate.schematas, ioDelegate.testRunFileNames).filter { $0.0 == .null }.map(\.1)
-        XCTAssertEqual(switchedOff.sorted(), ["muter-worker1.xctestrun", "muter.xctestrun"])
+        XCTAssertEqual(switchedOff.sorted(), ["muter-worker1.xctestrun", "muter.xctestrun", "muter.xctestrun"])
         XCTAssertEqual(
             fileManager.createdFiles["/logs/no-mutant run worker 1.log"],
             Data("timed test run log".utf8)
         )
+    }
+
+    // The timed test run sets the default as SwiftPM's does: 5 times it, and once more for the second worker. The check
+    // runs, which paid for each simulator's first install and launch, don't.
+    func test_theTimedTestRun_setsTheDefaultTimeLimit_withOneMoreForEachWorkerBeyondTheFirst() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 4)
+        let nanoseconds = Locked<UInt64>(1)
+        current.instant = { DispatchTime(uptimeNanoseconds: nanoseconds.value) }
+        // The two check runs, at once, then the timed test run.
+        let runs = Locked(0)
+        ioDelegate.whileRunningTestsWithoutBuilding = {
+            let seconds: UInt64 = runs.change { $0 += 1; return $0 } <= 2 ? 90 : 10
+            nanoseconds.change { $0 += seconds * 1_000_000_000 }
+        }
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.configurations.map(\.testSuiteTimeout), Array(repeating: 60, count: 4))
+        let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
+        XCTAssertEqual(header.testRunSeconds, 10)
+        XCTAssertEqual(header.timeoutSeconds, 60)
     }
 
     // Nothing is copied or built again: every worker tests in the mutated project, from the baseline's build, on its
@@ -178,7 +205,8 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
         _ = try await sut.run(with: state)
 
         let checks = ioDelegate.configurationsWithoutBuilding.compactMap(\.xcodeWorker)
-        XCTAssertEqual(checks.filter { $0 == worker(0) }.count, 1)
+        // Worker 0's check run, and the timed test run.
+        XCTAssertEqual(checks.filter { $0 == worker(0) }.count, 2)
         XCTAssertEqual(checks.filter { $0 == worker(1) }.count, 2)
         XCTAssertEqual(choices().map(\.used), [2])
         XCTAssertEqual(choices().map(\.unsupportedReason), [nil])
@@ -244,7 +272,7 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
             "prepare 2 like \(destination) for /project_mutated",
         ])
         XCTAssertEqual(choices().map(\.unsupportedReason), [reason])
-        XCTAssertFalse(ioDelegate.methodCalls.contains(checkRun))
+        XCTAssertEqual(checkRuns, [])
         XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.workers), [1])
         assertTestedOnOneWorker()
     }
@@ -259,7 +287,7 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
 
         XCTAssertEqual(workerSimulators.calls.last, "removeAll")
         XCTAssertEqual(choices().map(\.unsupportedReason), [reason])
-        XCTAssertFalse(ioDelegate.methodCalls.contains(checkRun))
+        XCTAssertEqual(checkRuns, [])
         assertTestedOnOneWorker()
     }
 
@@ -283,7 +311,7 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
 
         await assertThrowsMuterError(try await sut.run(with: state)) { _ in }
 
-        XCTAssertFalse(ioDelegate.methodCalls.contains(checkRun))
+        XCTAssertEqual(checkRuns, [])
         XCTAssertFalse(workerSimulators.calls.contains("removeAll"))
         await current.interruption.workEnded()
         XCTAssertEqual(workerSimulators.calls.last, "removeAll")
@@ -297,7 +325,7 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
         let result = await sut.runInItsOwnTask(with: state)
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        XCTAssertFalse(ioDelegate.methodCalls.contains(checkRun))
+        XCTAssertEqual(checkRuns, [])
         await current.interruption.workEnded()
         XCTAssertEqual(workerSimulators.calls.last, "removeAll")
     }
@@ -345,7 +373,7 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
         _ = try await sut.run(with: state)
 
         XCTAssertEqual(workerSimulators.calls, ["sweep /project_mutated"])
-        XCTAssertFalse(ioDelegate.methodCalls.contains(checkRun))
+        XCTAssertEqual(checkRuns, [])
     }
 
     // A Mac app's test runs share its defaults, saved state and container, so it tests one mutant at a time, on the
@@ -362,7 +390,7 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
         _ = try await sut.run(with: state)
 
         XCTAssertEqual(workerSimulators.calls, ["sweep /project_mutated"])
-        XCTAssertFalse(ioDelegate.methodCalls.contains(checkRun))
+        XCTAssertEqual(checkRuns, [])
         XCTAssertEqual(choices().map(\.unsupportedReason), [state.muterConfiguration.parallelWorkersUnsupportedReason])
         XCTAssertEqual(choices().map(\.used), [1])
         assertTestedOnOneWorker()

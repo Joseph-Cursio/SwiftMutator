@@ -26,6 +26,7 @@ struct PerformMutationTesting: MutationStep {
     private var sleep: Sleep
 
     private let simulatorWorkerSetup = SimulatorWorkerSetup()
+    private let timedTestRun = TimedTestRun()
 
     private let buildErrorsThreshold: Int = 5
 
@@ -293,11 +294,23 @@ private extension PerformMutationTesting {
             if muterConfiguration.testSuiteTimeout == nil {
                 testRunSeconds = direct.seconds
                 if testRunSeconds == nil {
-                    testRunSeconds = try await timeTestRun(using: muterConfiguration, state: state)
+                    testRunSeconds = try await timedTestRun.seconds(
+                        using: muterConfiguration,
+                        state: state,
+                        testOutput: testOutput(named: "timed test run", state: state)
+                    )
                 }
             }
         }
         let onFirstWorker = Self.onFirstXcodeWorker(muterConfiguration, state, pool.xcodeWorkers.first)
+        // On the first worker, as its mutants run, after any check runs, which paid for each simulator's first install
+        // and launch.
+        if onFirstWorker.buildSystem == .xcodebuild, onFirstWorker.testSuiteTimeout == nil, !plan.toRun.isEmpty,
+           state.selectedMutant == nil {
+            testRunSeconds = try await timedTestRun.seconds(
+                using: onFirstWorker, state: state, testOutput: testOutput(named: "timed test run", state: state)
+            )
+        }
         let configuration = onFirstWorker.withDefaultTestSuiteTimeout(
             Self.defaultTimeout(testRunSeconds: testRunSeconds, baselineSeconds: timePerBuildTestCycle, on: pool)
         )
@@ -860,24 +873,6 @@ private extension PerformMutationTesting {
         }
         fileManager.keepLog(testLog, named: "timed test run.log", state: state)
         return (directConfiguration, seconds)
-    }
-
-    /// How long a mutant's test command takes with no mutant on, once the baseline has built the project, or nil if
-    /// that run didn't pass: one that crashed at once says nothing about how long a passing one takes.
-    func timeTestRun(
-        using configuration: MuterConfiguration,
-        state: AnyMutationTestState
-    ) async throws -> TimeInterval? {
-        let start = instant()
-        let (outcome, testLog) = await ioDelegate.runTestsWithoutBuilding(
-            using: configuration,
-            savingResultsIntoFileNamed: testOutput(named: "timed test run", state: state)
-        )
-        // Stopping the run kills this run too, which then fails, but that says nothing about the project's tests.
-        try Task.checkCancellation()
-        let seconds = outcome == .passed ? seconds(since: start) : nil
-        fileManager.keepLog(testLog, named: "timed test run.log", state: state)
-        return seconds
     }
 
     /// The seconds from `start` to now, on the monotonic clock.
