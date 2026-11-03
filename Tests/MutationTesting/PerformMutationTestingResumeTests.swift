@@ -663,6 +663,24 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         XCTAssertEqual(summary.noLongerDiscovered, 1)
     }
 
+    // A resume of a test plan's run compares the plan's copy, so what --resume-ignoring let through are its files.
+    func test_theSummary_ofATestPlansRun_namesTheCopy() async throws {
+        recorded[0] = ResultsHeader.make(mutantsDiscovered: 5, mutantsToTest: 5, project: tree, usingTestPlan: true)
+        state.resumeState = try ResumeState.make(
+            path: resultsPath,
+            lines: recorded,
+            file: XCTUnwrap(state.resumeState).file
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+        let sent = recordEvents(named: [.resumePlanned])
+
+        _ = try await sut.run(with: state)
+
+        let summary = try XCTUnwrap(sent().first?.object as? ResumeSummary)
+        XCTAssertEqual(summary.testPlanCopy, state.mutatedProjectDirectoryURL.path)
+        XCTAssertEqual(summary.waived, ["README.md"])
+    }
+
     // xcodebuild names the files without coverage by their path in the copy, which moved with the project: the stopped
     // run was in another CI agent's checkout. They are the same files.
     func test_theSummary_ofAProjectThatMoved_comparesTheFilesWithoutCoverageInEachCopy() async throws {

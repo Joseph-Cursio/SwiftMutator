@@ -89,10 +89,11 @@ struct LoadResumeState: MutationStep {
         }
         // Asked in the project, where swiftly finds the same `.swift-version` as in the copy.
         let current = await provenance(state.muterConfiguration)
-        // Only a resume refuses changed files, so only a resume fingerprints the project here, and not one of a test
-        // plan, whose last session recorded the copy.
+        // Only a resume refuses changed files, so only a resume fingerprints the project here. Neither a run of a test
+        // plan nor one that resumes a run of a plan does: a plan run's header records its copy, not the project, and a
+        // run that resumes another kind of run is refused for that alone (`ResumeRefusal.testPlanRun`).
         var tree: ProjectTree?
-        if file != nil, !options.isUsingTestPlan {
+        if file != nil, !options.isUsingTestPlan, !lastHeader.usingTestPlan {
             tree = await ProjectTree.fingerprint(
                 listingIn: state.projectDirectoryURL,
                 hashingIn: state.projectDirectoryURL,

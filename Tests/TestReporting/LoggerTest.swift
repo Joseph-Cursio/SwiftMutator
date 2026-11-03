@@ -167,6 +167,27 @@ final class LoggerTests: MuterTestCase {
         ])
     }
 
+    // A Package.resolved the copy's own build wrote, which the plan's project didn't have, doesn't refuse a resume.
+    func test_testPlanCopyResolutionChanged_namesTheFiles_andSaysHowToTestWithThemAsTheyAre() {
+        sut.testPlanCopyResolutionChanged([.init(path: "Package.resolved", kind: .added)])
+        sut.testPlanCopyResolutionChanged([
+            .init(path: "App.xcworkspace/xcshareddata/swiftpm/Package.resolved", kind: .changed),
+            .init(path: "Package.resolved", kind: .changed),
+        ])
+
+        XCTAssertEqual(printer.linesPassed, [
+            "⚠️ 1 dependency resolution file of the plan's copy changed since the run's last session: "
+                + "Package.resolved (added). The project the plan was made from had no such file, so the copy's own "
+                + "build wrote it, and the results are reused. To test every mutant with the dependencies as they are "
+                + "resolved now, start the run again without --resume.",
+            "⚠️ 2 dependency resolution files of the plan's copy changed since the run's last session: "
+                + "App.xcworkspace/xcshareddata/swiftpm/Package.resolved (changed), Package.resolved (changed). The "
+                + "project the plan was made from had none of them, so the copy's own build wrote them, and the "
+                + "results are reused. To test every mutant with the dependencies as they are resolved now, start "
+                + "the run again without --resume.",
+        ])
+    }
+
     // The block a run of one mutant ends with: what it changes, its tests' log, its verdict, the copy it leaves, and
     // the command that runs its tests there with it on, by its file for `swift test`. Every path is quoted for a
     // shell.
@@ -864,6 +885,20 @@ final class LoggerTests: MuterTestCase {
             "⚠️ Results are reused although the toolchain's environment changed (--force-resume).",
             "⚠️ Results are reused although 12 project files changed (--resume-ignoring): "
                 + (1...10).map { "Docs/rules/rule\($0).md" }.joined(separator: ", ") + ", and 2 more",
+        ])
+    }
+
+    // A resume of a test plan's run compares the plan's copy, not the project: what --resume-ignoring let through are
+    // the copy's files, named as the refusal names them.
+    func test_resumePlanned_ofATestPlansRun_namesTheWaivedFilesAsTheCopys() {
+        sut.resumePlanned(.make(waived: ["Sources/Sum.swift"], testPlanCopy: "/work/Foo_mutated"))
+        sut.resumePlanned(.make(waived: ["Sources/Max.swift", "Sources/Sum.swift"], testPlanCopy: "/work/Foo_mutated"))
+
+        XCTAssertEqual(Array(printer.linesPassed.filter { $0.hasPrefix("⚠️") }), [
+            "⚠️ Results are reused although 1 file of the test plan's copy, /work/Foo_mutated, changed "
+                + "(--resume-ignoring): Sources/Sum.swift",
+            "⚠️ Results are reused although 2 files of the test plan's copy, /work/Foo_mutated, changed "
+                + "(--resume-ignoring): Sources/Max.swift, Sources/Sum.swift",
         ])
     }
 

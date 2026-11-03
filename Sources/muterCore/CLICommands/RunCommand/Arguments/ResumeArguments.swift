@@ -17,8 +17,8 @@ struct ResumeArguments: ParsableArguments {
     @Option(
         name: .customLong("resume-ignoring"),
         help: ArgumentHelp(
-            "With --resume, reuse results although project files matching this glob changed; * also matches /. "
-                + "Repeatable.",
+            "With --resume, reuse results although project files matching this glob changed, or with a test plan "
+                + "the files of its copy; * also matches /. Repeatable.",
             valueName: "glob"
         )
     )

@@ -166,7 +166,13 @@ The hashes are shortened here. The plan holds no date, host name, absolute path 
   Nothing was copied or removed.
   ```
 
-  With `--resume-ignoring`, the mutants in a changed file are tested again, and the other results kept.
+  With `--resume-ignoring`, the mutants in a changed file are tested again, and the other results kept, and the run says which files of the copy it let through:
+
+  ```
+  ⚠️ Results are reused although 1 file of the test plan's copy, /Users/me/Foo_mutated, changed (--resume-ignoring): Sources/Foo/Bar.swift
+  ```
+- Only the copy's own changes count. Its files are the ones the plan recorded and the last session tested, not the ones your project lists now, so a file you `git rm` in the project, or that another branch doesn't have, is still the copy's as it was. What SwiftMutator's build writes in the copy, which keeps it from one session to the next, is left out: for xcodebuild, its `-derivedDataPath` and `TestContents`. A `Package.resolved` the project didn't have when the plan was made, as one it ignores, is written by the copy's build: a change to it is only said, and the results are reused. Start the run again without `--resume` to test every mutant with the dependencies as they are resolved now.
+- `run --resume` with the results file of a run of a plan is refused for that alone: it doesn't compare your project with the plan's copy.
 - `--force-resume` works as it does for `run`. `--reuse` isn't offered for a plan.
 - `run` can't resume a run of a plan, and `run-without-mutating` can't resume a run without one. Nor can a run of a plan by an earlier SwiftMutator, which recorded neither the plan nor its copy, be resumed.
 

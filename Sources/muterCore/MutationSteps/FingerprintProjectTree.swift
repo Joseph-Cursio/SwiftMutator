@@ -10,7 +10,10 @@ import Foundation
 /// that differs from what `mutate-without-running` left in the copy is said, so a fix by hand is seen to be tested;
 /// it is never refused, as `CheckMutantSwitches` checks the copy. A resumed run of a plan compares the copy with the
 /// one its last session tested, which `LoadResumeState` left to it: a change, as a fix by hand between sessions, is
-/// refused unless `--resume-ignoring` lets it through.
+/// refused unless `--resume-ignoring` lets it through. So that only the copy's own changes count, the copy's files are
+/// the ones the plan and the last session recorded, not the project's as it lists them now, and none of the folders
+/// SwiftMutator's build writes in the copy is fingerprinted. A `Package.resolved` the project didn't have when the plan
+/// was made, which the copy's build writes, is only said when it changes.
 ///
 /// A resumed run compares the copy with the last session's files too. `LoadResumeState` compared the project before the
 /// copy, so this only finds what changed while it was copied, and hands on the changes `--resume-ignoring` let through.
@@ -24,17 +27,33 @@ struct FingerprintProjectTree: MutationStep {
     private var listProjectFiles: ProjectFileListing
 
     func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
-        let tree = await ProjectTree.fingerprint(
+        let lastSession = state.resumeState?.lastHeader.project
+        let copyListing = state.testPlan.flatMap { Self.copyListing(of: $0, lastSession: lastSession) }
+        let fingerprinted = await ProjectTree.fingerprint(
             listingIn: state.projectDirectoryURL,
             hashingIn: state.mutatedProjectDirectoryURL,
             // The last session's too: its report may still be in the project, under another name.
             excluding: ProjectTree.excludedPaths(state.runOptions, under: state.projectDirectoryURL)
-                + (state.resumeState?.lastHeader.project?.excluded ?? [])
+                + (lastSession?.excluded ?? [])
                 + ProjectTree.relativePaths([state.testPlan?.path], under: state.projectDirectoryURL),
-            list: listProjectFiles
+            pruning: state.testPlan == nil
+                ? []
+                : Self.foldersWritten(in: state.mutatedProjectDirectoryURL, by: state.muterConfiguration),
+            list: { [listProjectFiles, project = state.projectDirectoryURL] directory in
+                guard let copyListing, directory == project else { return await listProjectFiles(directory) }
+                return copyListing.paths
+            }
         )
         // A git that stopping the run killed reads as no repository, and the walk in its place lists what git ignores.
         try Task.checkCancellation()
+        let tree = copyListing.map { listing in
+            ProjectTree(
+                listedBy: listing.listedBy,
+                files: fingerprinted.files,
+                excluded: fingerprinted.excluded,
+                treeSHA256: fingerprinted.treeSHA256
+            )
+        } ?? fingerprinted
         if let written = state.testPlan?.mutatedFiles {
             let edited = Self.filesEdited(in: tree, since: written)
             if !edited.isEmpty {
@@ -70,20 +89,65 @@ struct FingerprintProjectTree: MutationStep {
             return [.projectTreeFingerprinted(tree), .projectChangesWaived(waived), .reuseChangesFound(changes)]
         }
         let split = tree.changes(since: recorded).partition(by: state.runOptions.resumeIgnoring)
-        guard split.unwaived.isEmpty else {
+        let resolved = state.testPlan?.sources.map { Self.resolutionsWritten(in: split.unwaived, since: $0) } ?? []
+        let unwaived = split.unwaived.filter { !resolved.contains($0) }
+        guard unwaived.isEmpty else {
             // A run of a test plan copies and removes nothing.
             let usingTestPlan = state.runOptions.isUsingTestPlan
             throw ResumeRefused(
                 path: resume.path,
                 reasons: [
                     usingTestPlan
-                        ? .copyChanged(split.unwaived, copy: state.mutatedProjectDirectoryURL.path)
-                        : .filesChanged(split.unwaived),
+                        ? .copyChanged(unwaived, copy: state.mutatedProjectDirectoryURL.path)
+                        : .filesChanged(unwaived),
                 ],
                 beforeTheCopy: usingTestPlan
             )
         }
+        if !resolved.isEmpty {
+            events.send(.testPlanCopyResolutionChanged(resolved))
+        }
         return [.projectTreeFingerprinted(tree), .projectChangesWaived(split.waived.map(\.path))]
+    }
+
+    /// What a run of `plan` lists in its copy, and how the paths were found: the project's files the plan recorded,
+    /// with those `lastSession` recorded, so that a file removed from the project's listing since, as by `git rm` or
+    /// a switch to another branch, isn't taken for one removed from the copy. Nil when neither records them, as in the
+    /// first session of a plan in format 0, which lists the project. A local package outside the project is listed
+    /// where it is.
+    static func copyListing(
+        of plan: LoadedTestPlan,
+        lastSession: ProjectTree?
+    ) -> (paths: [String], listedBy: ProjectTree.Listing)? {
+        let trees = [plan.sources, lastSession].compactMap { $0 }
+        guard let first = trees.first else { return nil }
+        let paths = Set(trees.flatMap(\.files.keys)).filter { !$0.hasPrefix("../") }
+        return (paths.sorted(), first.listedBy)
+    }
+
+    /// The folders SwiftMutator writes in a test plan's copy, which keeps them from one session to the next, by their
+    /// paths relative to the copy: for xcodebuild, the `-derivedDataPath` it builds in, if it is in the copy, and
+    /// `TestContents`, where it copies the build. Nothing for another build system.
+    static func foldersWritten(in copy: URL, by configuration: MuterConfiguration) -> Set<String> {
+        guard configuration.buildSystem == .xcodebuild else { return [] }
+        // The build runs in the copy, so a relative path is in it.
+        let derivedData = configuration.derivedDataPath
+        let path = derivedData.hasPrefix("/") ? derivedData : copy.appendingPathComponent(derivedData).path
+        return Set([BuildForTesting.testContentsFolder] + ProjectTree.relativePaths([path], under: copy))
+    }
+
+    /// The dependency resolution files of `changes`, the copy's since a resumed run's last session, that `sources`,
+    /// the project's files when the plan was made, don't hold: `Package.resolved` at the copy's root, or in a
+    /// workspace, which the copy's own build writes, as when the project ignores it.
+    static func resolutionsWritten(
+        in changes: [ProjectTree.FileChange],
+        since sources: ProjectTree
+    ) -> [ProjectTree.FileChange] {
+        changes.filter { change in
+            (change.path as NSString).lastPathComponent == "Package.resolved"
+                && ProjectTree.isAlwaysIncluded(change.path)
+                && sources.files[change.path] == nil
+        }
     }
 
     /// The files of `written`, the SHA-256 of each file with mutants as `mutate-without-running` left it in the copy,

@@ -293,12 +293,146 @@ final class FingerprintProjectTreeTests: MuterTestCase {
         XCTAssertEqual(state.resumeWaived, [])
         XCTAssertEqual(state.projectTree?.files, try projectTree(of: files).files)
     }
+
+    // The copy's files are those the plan recorded, not those the project lists now: a file the project added since is
+    // the project's, not the copy's, and the project isn't listed.
+    func test_inATestPlansRun_theCopysFilesAreThoseThePlanRecorded() async throws {
+        let files = ["README.md": "readme", "Sources/Sum.swift": "let sum = a + b"]
+        try write(files.merging(["notes.txt": "added since"]) { $1 }, in: copy)
+        let listed = recordListings(["README.md", "Sources/Sum.swift", "notes.txt"])
+        try testPlan(
+            at: "\(project)/muter-mappings.json",
+            mutatedFiles: nil,
+            sources: projectTree(of: files, by: .walk)
+        )
+
+        state.apply(try await sut.run(with: state))
+
+        XCTAssertEqual(listed.value, [], "the project was listed")
+        XCTAssertEqual(state.projectTree?.files, try projectTree(of: files).files)
+        XCTAssertEqual(state.projectTree?.listedBy, .walk, "as the plan's files were found")
+    }
+
+    // A file the project no longer lists, as after `git rm` or a switch to another branch, is still the copy's: the
+    // copy is compared by the files the last session recorded, so it isn't taken for a fix by hand.
+    func test_aResumedTestPlansRun_whoseProjectNoLongerListsAFile_goesAhead() async throws {
+        let files = ["README.md": "readme", "Sources/Sum.swift": "let sum = a + b", "Tests/Fixtures/data.json": "{}"]
+        try write(files, in: copy)
+        let listed = recordListings(["README.md", "Sources/Sum.swift"])
+        try resumePlan(projectTree(of: files))
+
+        state.apply(try await sut.run(with: state))
+
+        XCTAssertEqual(listed.value, [], "the project was listed")
+        XCTAssertEqual(state.resumeWaived, [])
+        XCTAssertEqual(state.projectTree?.files, try projectTree(of: files).files)
+    }
+
+    func test_aResumedTestPlansRun_whoseCopyChangedAFileTheProjectNoLongerLists_isRefused() async throws {
+        let files = ["README.md": "readme", "Sources/Sum.swift": "let sum = a + b", "Tests/Fixtures/data.json": "{}"]
+        try write(files.merging(["Tests/Fixtures/data.json": "{\"fixed\": true}"]) { $1 }, in: copy)
+        _ = recordListings(["README.md", "Sources/Sum.swift"])
+        try resumePlan(projectTree(of: files))
+
+        await AssertThrowsError(try await sut.run(with: state)) { error in
+            XCTAssertEqual(
+                error as? ResumeRefused,
+                ResumeRefused(
+                    path: self.resultsPath,
+                    reasons: [
+                        .copyChanged([.init(path: "Tests/Fixtures/data.json", kind: .changed)], copy: self.copy),
+                    ],
+                    beforeTheCopy: true
+                )
+            )
+        }
+    }
+
+    // xcodebuild builds in the plan's copy, which keeps the build from one session to the next, and copies it to
+    // TestContents: neither is the copy's own change, whatever Swift it generates, wherever -derivedDataPath puts it.
+    func test_aResumedXcodebuildTestPlansRun_leavesOutTheBuildItWroteInTheCopy() async throws {
+        let files = ["Sources/Sum.swift": "let sum = a + b"]
+        let generated = "Build/Intermediates.noindex/App.build/DerivedSources/GeneratedAssetSymbols.swift"
+        try write(
+            files.merging(["TestContents/\(generated)": "generated", "build/\(generated)": "generated"]) { $1 },
+            in: copy
+        )
+        _ = recordListings(Array(files.keys))
+        try resumePlan(
+            projectTree(of: files),
+            configuration: MuterConfiguration(
+                executable: "/usr/bin/xcodebuild",
+                arguments: ["-scheme", "App", "-derivedDataPath", "build", "test"]
+            )
+        )
+
+        state.apply(try await sut.run(with: state))
+
+        XCTAssertEqual(state.projectTree?.files, try projectTree(of: files).files)
+    }
+
+    // A run without a plan copies the project afresh each session, so its fingerprint leaves out nothing more.
+    func test_aRunWithoutAPlan_keepsTheFoldersAPlansRunLeavesOut() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
+        try write(["Sources/Sum.swift": "sum", "TestContents/Generated.swift": "generated"], in: copy)
+        _ = recordListings(["Sources/Sum.swift"])
+
+        state.apply(try await sut.run(with: state))
+
+        XCTAssertEqual(state.projectTree?.files.keys.sorted(), ["Sources/Sum.swift", "TestContents/Generated.swift"])
+    }
+
+    // A Package.resolved the project didn't have when the plan was made, as one it ignores, is the copy's build's:
+    // when it changes, as the build resolves the dependencies, it is said, and the run goes ahead.
+    func test_aResumedTestPlansRun_whoseBuildWroteAPackageResolved_goesAhead_andSaysIt() async throws {
+        let said = recordResolutionChanges()
+        let files = ["Package.swift": "// swift-tools-version:6.0", "Sources/Sum.swift": "let sum = a + b"]
+        try write(files.merging(["Package.resolved": "{}"]) { $1 }, in: copy)
+        _ = recordListings(Array(files.keys))
+        try resumePlan(projectTree(of: files), sources: projectTree(of: files))
+
+        state.apply(try await sut.run(with: state))
+
+        XCTAssertEqual(said.value, [[.init(path: "Package.resolved", kind: .added)]])
+        XCTAssertEqual(state.resumeWaived, [])
+        XCTAssertEqual(state.projectTree?.files["Package.resolved"], sha256("{}"))
+    }
+
+    // One the project had is the plan's: a change to it in the copy is refused as any other.
+    func test_aResumedTestPlansRun_whosePackageResolvedThePlanRecordedChanged_isRefused() async throws {
+        let said = recordResolutionChanges()
+        let files = ["Package.resolved": "{\"pins\": []}", "Sources/Sum.swift": "let sum = a + b"]
+        try write(files.merging(["Package.resolved": "{}"]) { $1 }, in: copy)
+        _ = recordListings(Array(files.keys))
+        try resumePlan(projectTree(of: files), sources: projectTree(of: files))
+
+        await AssertThrowsError(try await sut.run(with: state)) { error in
+            XCTAssertEqual(
+                error as? ResumeRefused,
+                ResumeRefused(
+                    path: self.resultsPath,
+                    reasons: [.copyChanged([.init(path: "Package.resolved", kind: .changed)], copy: self.copy)],
+                    beforeTheCopy: true
+                )
+            )
+        }
+        XCTAssertEqual(said.value, [])
+    }
 }
 
 private extension FingerprintProjectTreeTests {
     /// Resumes a run of the plan in the project, whose last session recorded `recorded` as the copy it tested.
-    func resumePlan(_ recorded: ProjectTree, ignoring globs: [String] = []) throws {
+    /// The plan recorded the project's files as `sources`, and the run builds with `configuration` if given.
+    func resumePlan(
+        _ recorded: ProjectTree,
+        ignoring globs: [String] = [],
+        sources: ProjectTree? = nil,
+        configuration: MuterConfiguration? = nil
+    ) throws {
         let plan = "\(project)/muter-mappings.json"
+        if let configuration {
+            state.muterConfiguration = configuration
+        }
         state.runOptions = .make(
             testPlanURL: URL(fileURLWithPath: plan),
             resumeURL: URL(fileURLWithPath: resultsPath),
@@ -310,7 +444,7 @@ private extension FingerprintProjectTreeTests {
             formatVersion: TestPlanCoding.formatVersion,
             swiftMutatorVersion: "16",
             scope: nil,
-            sources: nil,
+            sources: sources,
             mutatedFiles: nil,
             linkedFiles: nil,
             mutatedPaths: []
@@ -322,8 +456,9 @@ private extension FingerprintProjectTreeTests {
         )
     }
 
-    /// A run of the plan at `path`, which left `mutatedFiles` in the copy.
-    func testPlan(at path: String, mutatedFiles: [String: String]?) {
+    /// A run of the plan at `path`, which left `mutatedFiles` in the copy, and recorded the project's files as
+    /// `sources`.
+    func testPlan(at path: String, mutatedFiles: [String: String]?, sources: ProjectTree? = nil) {
         state.runOptions = .make(testPlanURL: URL(fileURLWithPath: path))
         state.testPlan = LoadedTestPlan(
             path: path,
@@ -331,7 +466,7 @@ private extension FingerprintProjectTreeTests {
             formatVersion: mutatedFiles == nil ? 0 : TestPlanCoding.formatVersion,
             swiftMutatorVersion: nil,
             scope: nil,
-            sources: nil,
+            sources: sources,
             mutatedFiles: mutatedFiles,
             linkedFiles: nil,
             mutatedPaths: []
@@ -348,6 +483,26 @@ private extension FingerprintProjectTreeTests {
         return said
     }
 
+    /// The changes of each `testPlanCopyResolutionChanged` sent from now on, until the test ends.
+    func recordResolutionChanges() -> Locked<[[ProjectTree.FileChange]]> {
+        let said = Locked<[[ProjectTree.FileChange]]>([])
+        let subscription = runEvents.observe(.testPlanCopyResolutionChanged) { event in
+            said.change { $0.append(event.object as? [ProjectTree.FileChange] ?? []) }
+        }
+        addTeardownBlock { subscription.cancel() }
+        return said
+    }
+
+    /// Lists `paths` for the project, and records each folder listed.
+    func recordListings(_ paths: [String]) -> Locked<[URL]> {
+        let listed = Locked<[URL]>([])
+        current.listProjectFiles = { directory in
+            listed.change { $0.append(directory) }
+            return paths
+        }
+        return listed
+    }
+
     func sha256(_ text: String) -> String {
         FileDigest.sha256(of: Data(text.utf8))
     }
@@ -362,12 +517,12 @@ private extension FingerprintProjectTreeTests {
         )
     }
 
-    /// The tree of `files`, each a path relative to the project and its contents, as listed by git, and as a run that
-    /// loads the project's own configuration records it.
-    func projectTree(of files: [String: String]) throws -> ProjectTree {
+    /// The tree of `files`, each a path relative to the project and its contents, as listed by `listing`, and as a run
+    /// that loads the project's own configuration records it.
+    func projectTree(of files: [String: String], by listing: ProjectTree.Listing = .git) throws -> ProjectTree {
         let hashes = files.mapValues { FileDigest.sha256(of: Data($0.utf8)) }
         return ProjectTree(
-            listedBy: .git,
+            listedBy: listing,
             files: hashes,
             excluded: ["muter.conf.yml"],
             treeSHA256: ProjectTree.treeHash(of: hashes)

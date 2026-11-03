@@ -297,7 +297,11 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         if !summary.waived.isEmpty {
             let named = summary.waived.prefix(ResumeRefusal.changedFilesNamed)
             let others = summary.waived.count - named.count
-            let files = summary.waived.count == 1 ? "1 project file" : "\(summary.waived.count) project files"
+            let one = summary.waived.count == 1
+            // As `ResumeRefusal.copyChanged` names them.
+            let files = summary.testPlanCopy.map { copy in
+                "\(summary.waived.count) file\(one ? "" : "s") of the test plan's copy, \(copy),"
+            } ?? (one ? "1 project file" : "\(summary.waived.count) project files")
             print(
                 "⚠️ Results are reused although \(files) changed (\(ignoring)): "
                     + named.joined(separator: ", ") + (others > 0 ? ", and \(others) more" : "")
@@ -869,6 +873,19 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
                 + "\(one ? "differs" : "differ") from what `swift-mutator mutate-without-running` wrote, and "
                 + "\(one ? "is" : "are") tested as \(one ? "it is" : "they are") now: "
                 + named.joined(separator: ", ") + (others > 0 ? ", and \(others) more" : "")
+        )
+    }
+
+    /// "1 dependency resolution file of the plan's copy changed since the run's last session: Package.resolved
+    /// (added). …", up to `ResumeRefusal.changedFilesNamed` of them by name.
+    func testPlanCopyResolutionChanged(_ changes: [ProjectTree.FileChange]) {
+        let one = changes.count == 1
+        print(
+            "⚠️ \(changes.count) dependency resolution file\(one ? "" : "s") of the plan's copy changed since the "
+                + "run's last session: \(Self.named(changes)). The project the plan was made from had "
+                + "\(one ? "no such file" : "none of them"), so the copy's own build wrote \(one ? "it" : "them"), "
+                + "and the results are reused. To test every mutant with the dependencies as they are resolved now, "
+                + "start the run again without --resume."
         )
     }
 

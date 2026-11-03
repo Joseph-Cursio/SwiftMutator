@@ -82,6 +82,9 @@ enum RunEvent {
     /// Files with mutants that the plan's copy holds otherwise than `mutate-without-running` left them, as a fix by
     /// hand does, by their paths relative to the copy; they are tested as they are.
     case testPlanCopyEdited([String])
+    /// Dependency resolution files of the plan's copy, which the project the plan was made from didn't have, that
+    /// changed since a resumed run's last session, as the copy's own build writes them: they don't refuse the resume.
+    case testPlanCopyResolutionChanged([ProjectTree.FileChange])
 }
 
 /// Delivers each of a run's events to whatever observes them, in the order they were added, at once and on the thread

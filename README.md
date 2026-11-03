@@ -867,7 +867,9 @@ they are a usage error, with status 64.
   It can be given more than once. Quote a glob, so that the shell doesn't expand it. `*` also matches
   `/`, so `--resume-ignoring 'Docs/*'` matches every file under `Docs`, and `'*.md'` every Markdown
   file. A leading `./` is ignored. The command that continues the run keeps these flags, as the same
-  files may well change again.
+  files may well change again. A run of a test plan compares the plan's copy, not the project, so
+  there the glob matches the copy's files (see
+  [Resuming a run of the plan](Docs/test-plan.md#resuming-a-run-of-the-plan)).
 - **Which files count.** The files git lists in your project, tracked ones and untracked ones that
   aren't ignored, plus every Swift file and `.swift-version`, and the root `Package.resolved`, ignored
   or not. Outside a git repository, or in a folder that its repository ignores, every file. Build

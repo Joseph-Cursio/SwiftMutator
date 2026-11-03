@@ -32,6 +32,9 @@ struct ResumeSummary: Equatable {
     let forced: [String]
     /// The changed project files `--resume-ignoring` let through, by their paths.
     let waived: [String]
+    /// The test plan's copy, when the run tests a plan: `waived` are then the copy's files, by their paths relative to
+    /// it, as a resume of a plan compares the copy, not the project.
+    var testPlanCopy: String?
     /// A sentence for each change no result depends on.
     let notices: [String]
     /// A reuse's changed files other than test files that no `--reuse-ignoring` glob let through: they make it test
@@ -51,7 +54,8 @@ struct ResumeSummary: Equatable {
 
 extension ResumeSummary {
     /// The summary of `plan`, made for the resume of `resume`, which let the changed files `waived` through, by a run
-    /// that gathered `coverage` in the project copy at `mutatedProject`. A reuse passes what changed (`changes`).
+    /// that gathered `coverage` in the project copy at `mutatedProject`. A reuse passes what changed (`changes`). A
+    /// resume of a test plan's run is one of a run of the same plan, which compares its copy.
     init(
         _ resume: ResumeState,
         _ plan: ResumePlan,
@@ -90,6 +94,7 @@ extension ResumeSummary {
             ),
             forced: resume.forced,
             waived: waived,
+            testPlanCopy: resume.lastHeader.usingTestPlan ? mutatedProject.path : nil,
             notices: resume.notices,
             otherFilesChanged: otherFiles.values.sorted { $0.path < $1.path },
             testFilesChanged: testFiles.count,

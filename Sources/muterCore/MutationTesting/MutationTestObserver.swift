@@ -173,6 +173,8 @@ extension MutationTestObserver {
             logger.testPlanChangesWaived(paths)
         case let .testPlanCopyEdited(paths):
             logger.testPlanCopyEdited(paths)
+        case let .testPlanCopyResolutionChanged(changes):
+            logger.testPlanCopyResolutionChanged(changes)
         }
     }
 

@@ -45,6 +45,7 @@ extension RunEvent {
         case testPlanUntestedFilesChanged
         case testPlanChangesWaived
         case testPlanCopyEdited
+        case testPlanCopyResolutionChanged
     }
 
     var name: Name {
@@ -89,6 +90,7 @@ extension RunEvent {
         case .testPlanUntestedFilesChanged: .testPlanUntestedFilesChanged
         case .testPlanChangesWaived: .testPlanChangesWaived
         case .testPlanCopyEdited: .testPlanCopyEdited
+        case .testPlanCopyResolutionChanged: .testPlanCopyResolutionChanged
         }
     }
 
@@ -125,7 +127,8 @@ extension RunEvent {
         case let .resultsFileCreated(path): path
         case let .resultsFileUnavailable(reason): reason
         case let .testPlanFileCreated(created): created
-        case let .testPlanSourcesDiffer(changes), let .testPlanUntestedFilesChanged(changes): changes
+        case let .testPlanSourcesDiffer(changes), let .testPlanUntestedFilesChanged(changes),
+             let .testPlanCopyResolutionChanged(changes): changes
         case let .testPlanChangesWaived(paths): paths
         case let .testPlanCopyEdited(paths): paths
         }
