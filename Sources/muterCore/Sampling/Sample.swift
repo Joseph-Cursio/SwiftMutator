@@ -52,14 +52,18 @@ struct SampleSelection: Codable, Equatable, Sendable {
 
 extension [SchemataMutationMapping] {
     /// Of these mappings, every discovered mutant in the mutated project at `projectRoot`, only the ones `sample`
-    /// holds, and what it recorded of them. A file left with none is left out.
+    /// holds; what it recorded of them; and the keys of the mutants it leaves out, which a resume or a reuse tells from
+    /// mutants no longer discovered. A file left with none is left out.
     ///
     /// The places, a mutant's key without its occurrence (`MutantKey`), are ranked (`Sample.rank(ofPlace:seed:)`), ties
     /// broken by the place itself. The sample takes whole
     /// places in that order until it holds `size` mutants. Whole places, so that every repeat of one place and
     /// operator is in or out together: the sample's jobs then number their occurrences as a whole run's do
     /// (`MutantKey.keys`), and its keys are the whole run's.
-    func keepingSample(_ sample: Sample, under projectRoot: URL) -> (mappings: Self, selection: SampleSelection) {
+    func keepingSample(
+        _ sample: Sample,
+        under projectRoot: URL
+    ) -> (mappings: Self, selection: SampleSelection, leftOut: Set<MutantKey>) {
         let places = flatMap(\.mutationSchemata).map { Self.place(of: $0, under: projectRoot) }
         let mutantsAt = Dictionary(places.map { ($0, 1) }, uniquingKeysWith: +)
         let ranked = mutantsAt.keys
@@ -82,7 +86,17 @@ extension [SchemataMutationMapping] {
             mutantsSampledFrom: places.count,
             mutantsSampled: mutantsSampled
         )
-        return (mappings, selection)
+        // Keyed over the whole discovery, as a whole run keys them.
+        let leftOut = MutantKey.keys(for: flatMap(\.mutationSchemata), under: projectRoot).filter { key in
+            !kept.contains(MutantKey(
+                path: key.path,
+                mutationOperatorId: key.mutationOperatorId,
+                line: key.line,
+                column: key.column,
+                occurrence: 0
+            ))
+        }
+        return (mappings, selection, Set(leftOut))
     }
 
     private static func place(of schema: MutationSchema, under projectRoot: URL) -> MutantKey {
@@ -104,20 +118,22 @@ struct SampleScope: Codable, Equatable {
     /// early, or for some shards of a sampled split.
     let mutantsTested: Int
     let seed: UInt64
-    /// Half the width, in points, of the score's 95% confidence interval. nil, and left out of the JSON, unless every
-    /// mutant in the sample has a result: a run stopped early has the first files' results, which are no random part of
-    /// the sample.
+    /// Half the width, in points, of the score's 95% confidence interval. nil, and left out of the JSON, when the
+    /// results are cut short: a run stopped early has the first files' results, which are no random part of the sample.
+    /// A shard's results are a random part of it, as its hash doesn't depend on the seed, so a shard's report, and a
+    /// merge of some of the shards, have one.
     let marginOfError: Double?
 
     /// `selection`'s sample, of which a report has `tested` results; those that counted toward the score (all but build
-    /// errors) number `scored`, and `killed` of them were killed. nil when the sample held every mutant.
-    init?(_ selection: SampleSelection?, killed: Int, scored: Int, tested: Int) {
+    /// errors) number `scored`, and `killed` of them were killed. The results are `cutShort` when a run, or a shard's,
+    /// stopped before every mutant it set out to test had one. nil when the sample held every mutant.
+    init?(_ selection: SampleSelection?, killed: Int, scored: Int, tested: Int, cutShort: Bool) {
         guard let selection, selection.isPartial else { return nil }
         mutantsSampled = selection.mutantsSampled
         mutantsSampledFrom = selection.mutantsSampledFrom
         mutantsTested = tested
         seed = selection.seed
-        marginOfError = tested < selection.mutantsSampled ? nil : Self.marginOfError(
+        marginOfError = cutShort ? nil : Self.marginOfError(
             killed: killed,
             scored: scored,
             sampled: tested,
@@ -155,9 +171,11 @@ struct SampleScope: Codable, Equatable {
         let tested = "Only a sample of \(mutantsSampled) of the \(mutantsSampledFrom) mutants discovered was tested "
             + "(seed \(seed))"
         guard let margin else {
-            return tested + ", and \(mutantsTested) of them have a result, so no margin is given: they aren't a random "
-                + "part of the sample."
+            return tested + ", and \(mutantsTested) of them have a result, so no margin is given: the others have none "
+                + "yet, so these are the first ones tested, not a random part of the sample."
         }
-        return tested + ": a whole run's score is within \(margin) points of this one, at 95% confidence."
+        // A shard's results, or some shards', are a random part of the sample too.
+        let part = mutantsTested < mutantsSampled ? ", and the margin is from the \(mutantsTested) of them here" : ""
+        return tested + part + ": a whole run's score is within \(margin) points of this one, at 95% confidence."
     }
 }

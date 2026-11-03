@@ -473,6 +473,22 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         XCTAssertEqual(summary.coverageChange, .gatheredOnlyNow)
     }
 
+    // A sample that no longer takes Gone.swift's mutant after a change: the mutant is still discovered, only not
+    // sampled, so its result is counted apart, not warned of as gone.
+    func test_theSummary_countsTheResultsOutsideTheSample_apartFromThoseNoLongerDiscovered() async throws {
+        let gone = record(of: "Sources/Gone.swift", line: 2, .failed, fileSHA256: "0b9d").key
+        state.apply([.sampleLeftOut([gone])])
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+        let sent = recordEvents(named: [.resumePlanned])
+
+        _ = try await sut.run(with: state)
+
+        let summary = try XCTUnwrap(sent().first?.object as? ResumeSummary)
+        XCTAssertEqual(summary.outsideTheSample, 1)
+        XCTAssertEqual(summary.noLongerDiscovered, 0)
+        XCTAssertEqual(try resultsFiles.records(ResultsRetired.self).last?.keys.contains(gone), true)
+    }
+
     // Coverage the stopped run recorded as it is now explains nothing: Gone.swift's mutant is gone for another reason.
     func test_theSummary_withTheSameCoverage_saysNoCoverageChange() async throws {
         let gathered = CoverageSummary(percent: 80, filesWithoutCoverage: ["/project_mutated/Sources/Gone.swift"])

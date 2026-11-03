@@ -16,6 +16,14 @@ struct ResumeSummary: Equatable {
     let retestedBecause: [ResumePlan.Reason: Int]
     /// How many recorded results no longer count because this run doesn't discover their mutants.
     let noLongerDiscovered: Int
+    /// How many recorded results no longer count because this run's sample leaves out their mutants.
+    var outsideTheSample = 0
+    /// Whether this run tests a sample that leaves some mutants out: then how many mutants it tests is the sample's
+    /// count, which a change can move as new mutants rank into the sample, not what discovery found.
+    var sampleIsPartial = false
+    /// Only in a reuse of another sample, or of none: `selectionChange` says why this run's sample doesn't hold the
+    /// earlier results, which `outsideTheSample` then needn't.
+    var sampleChanged = false
     /// How many mutants the last session discovered.
     let discoveredBefore: Int
     /// How this run's coverage differs from the last session's, which may say why their mutants differ.
@@ -51,7 +59,8 @@ extension ResumeSummary {
         coverage: Coverage,
         in mutatedProject: URL,
         reusing changes: [Int: ReuseChanges]? = nil,
-        selecting current: (since: ChangeSelection?, shard: Shard?, sample: Sample?) = (nil, nil, nil)
+        selecting current: (since: ChangeSelection?, shard: Shard?, sample: Sample?) = (nil, nil, nil),
+        sampleIsPartial: Bool = false
     ) {
         let all = changes.map { Array($0.values) } ?? []
         let otherFiles = Dictionary(
@@ -66,6 +75,12 @@ extension ResumeSummary {
             toTest: plan.toRun.count,
             retestedBecause: plan.retestedBecause,
             noLongerDiscovered: plan.noLongerDiscovered,
+            outsideTheSample: plan.outsideTheSample,
+            sampleIsPartial: sampleIsPartial,
+            sampleChanged: resume.isReuse && Self.sampleChange(
+                from: resume.lastHeader.sample.map { Sample(size: $0.size, seed: $0.seed, seedIsChosen: false) },
+                to: current.sample
+            ) != nil,
             discoveredBefore: resume.lastHeader.mutantsDiscovered,
             coverageChange: ResumeCheck.coverageChange(
                 from: resume.lastHeader.coverage,

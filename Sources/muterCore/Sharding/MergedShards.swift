@@ -160,12 +160,18 @@ extension MergedShards {
     /// The outcome a whole run of the merged mutants would have reported: under the reference shard's project paths,
     /// coverage and update notice, and with the longest shard's test duration, as the shards are meant to run at once;
     /// of the shards given, if some that hold mutants aren't.
+    ///
+    /// The results of a sample's shards are cut short when one of those given has some of its results, but not all:
+    /// they are then its first files'. A shard with none, as one whose job was cancelled before its first mutant, or
+    /// whose file isn't given, leaves the others a random part of the sample, as a shard's hash doesn't depend on the
+    /// seed.
     func mutationTestOutcome() -> MutationTestOutcome {
         MutationTestOutcome(
             records: latest.values,
             under: reference.header,
             testDuration: parts.map(\.recorded.testDuration).max() ?? 0,
-            shards: scope
+            shards: scope,
+            sampleIsCutShort: parts.contains { (1..<$0.header.mutantsDiscovered).contains($0.recorded.latest.count) }
         )
     }
 

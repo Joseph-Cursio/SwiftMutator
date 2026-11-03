@@ -239,7 +239,7 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         let reused = summary.reused == 1 ? "1 result still holds" : "\(summary.reused) results still hold"
         if summary.toTest == 0 {
             var held = summary.reused == 1 ? "its only result still holds" : "all \(summary.reused) results still hold"
-            if summary.noLongerDiscovered > 0 {
+            if summary.noLongerDiscovered > 0 || summary.outsideTheSample > 0 {
                 // Not all the file's results: some no longer count.
                 held = reused
             }
@@ -262,6 +262,15 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
             print(
                 "ℹ️ \(change.prefix(1).uppercased() + change.dropFirst()), "
                     + "but every earlier result's mutant is still discovered."
+            )
+        }
+        // Still discovered, but not sampled: a reuse of another sample, or of none, says why in `selectionChange`.
+        if !summary.sampleChanged, summary.outsideTheSample > 0 {
+            print(
+                summary.outsideTheSample == 1
+                    ? "ℹ️ 1 earlier result no longer counts, as the sample no longer takes its mutant."
+                    : "ℹ️ \(summary.outsideTheSample) earlier results no longer count, as the sample no longer takes "
+                    + "their mutants."
             )
         }
         for notice in summary.notices {
@@ -330,7 +339,8 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
                 ? "1 earlier result no longer counts, as this session doesn't discover its mutant\(because)."
                 : "\(lost) earlier results no longer count, as this session doesn't discover their mutants\(because)."
         }
-        if summary.discovered != summary.discoveredBefore {
+        // A partial sample's count is the sample's, which moves as new mutants rank into it, not discovery's.
+        if summary.discovered != summary.discoveredBefore, !summary.sampleIsPartial {
             let more = summary.discovered > summary.discoveredBefore
             let because = reason(summary.coverageChange, if: more ? \.canBringInMutants : \.canLeaveOutMutants)
             let mutants = summary.discovered == 1 ? "1 mutant" : "\(summary.discovered) mutants"
