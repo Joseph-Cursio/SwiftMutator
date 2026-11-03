@@ -25,6 +25,8 @@ enum ResumeCheck {
         var since: ChangeSelection?
         /// `--shard`; nil without it.
         var shard: Shard?
+        /// `--sample` and its seed; nil without it.
+        var sample: Sample?
     }
 
     /// A value the recorded session had and this run has, each as sorted-keys JSON. nil is a configuration key that
@@ -39,10 +41,11 @@ enum ResumeCheck {
     enum Purpose {
         /// `--resume`: everything.
         case resume
-        /// `--reuse`: neither what `--since` chose nor the shard. A result holds whichever other mutants are tested,
-        /// and a reuse keeps only those of the mutants it discovers.
+        /// `--reuse`: neither what `--since` chose, nor the shard, nor the sample. A result holds whichever other
+        /// mutants are tested, and a reuse keeps only those of the mutants it discovers.
         case reuse
-        /// Merging a split's shards (`report`): everything but the shard, in which shards differ.
+        /// Merging a split's shards (`report`): everything but the shard, in which shards differ. The sample too, which
+        /// the shards of a sampled split share.
         case merge
     }
 
@@ -107,8 +110,8 @@ enum ResumeCheck {
     /// `timeoutSeconds`, `stopsAtFirstFailure` and `failedTestLinesAreReliable`, which follow from the configuration,
     /// the baseline and the timed test run. Only the build and toolchain differences are ever `forced`.
     ///
-    /// A resume compares what `--since` compares the working tree with too: the merge base, and `--changed-lines`; and
-    /// the shard. What `purpose` leaves out isn't compared.
+    /// A resume compares what `--since` compares the working tree with too: the merge base, and `--changed-lines`; the
+    /// shard; and the sample. What `purpose` leaves out isn't compared.
     static func compare(
         _ recorded: ResultsHeader,
         with current: Current,
@@ -131,6 +134,9 @@ enum ResumeCheck {
         }
         if purpose == .resume, let shard = shardDifference(recorded.shard, current.shard) {
             verdict.refusals.append(.selectionChanged(shard))
+        }
+        if purpose != .reuse, let sample = sampleDifference(recorded.sample, current.sample) {
+            verdict.refusals.append(.selectionChanged(sample))
         }
         if recorded.usingTestPlan || current.usingTestPlan {
             verdict.refusals.append(.testPlanRun)
@@ -239,6 +245,15 @@ enum ResumeCheck {
         )
     }
 
+    /// The difference in which sample is tested, by its size and seed, which say all there is: which of the mutants
+    /// discovered are in a sample follows from their places alone. Its value is "N, seed S".
+    private static func sampleDifference(_ recorded: SampleSelection?, _ current: Sample?) -> Difference? {
+        let was = recorded.map { "\($0.size), seed \($0.seed)" }
+        let isNow = current.map { "\($0.size), seed \($0.seed)" }
+        guard was != isNow else { return nil }
+        return Difference(name: "sample", was: was.flatMap { json($0) }, isNow: isNow.flatMap { json($0) })
+    }
+
     /// The differences in what identifies the SwiftMutator build, the toolchain and the SDK, named by their keys in
     /// the header's `provenance`. An identity that couldn't be read is a difference even if it is unknown on both
     /// sides, as nothing shows the two to be the same: SwiftMutator's SHA-256, and the test command's version, or,
@@ -343,7 +358,8 @@ extension ResumeCheck.Current {
             usingTestPlan: state.runOptions.isUsingTestPlan,
             provenance: provenance,
             since: state.changeSelection,
-            shard: state.runOptions.shard
+            shard: state.runOptions.shard,
+            sample: state.runOptions.sample
         )
     }
 }
@@ -359,7 +375,8 @@ extension ResumeCheck.Current {
             usingTestPlan: header.usingTestPlan,
             provenance: header.provenance,
             since: header.since,
-            shard: header.shard?.shard
+            shard: header.shard?.shard,
+            sample: header.sample.map { Sample(size: $0.size, seed: $0.seed, seedIsChosen: false) }
         )
     }
 }

@@ -13,6 +13,8 @@ extension Run {
         let changedLinesOnly: Bool
         /// `--shard`: of the mutants discovered, only those in this shard are tested.
         let shard: Shard?
+        /// `--sample` and `--seed`: of the mutants discovered, before any shard is taken, only this sample is tested.
+        let sample: Sample?
         let mutationOperatorsList: MutationOperatorList
         let skipCoverage: Bool
         let skipUpdateCheck: Bool
@@ -55,6 +57,7 @@ extension Run {
             since: String? = nil,
             changedLinesOnly: Bool = false,
             shard: Shard? = nil,
+            sample: Sample? = nil,
             reportFormat: ReportFormat = .plain,
             reportURL: URL? = nil,
             mutationOperatorsList: MutationOperatorList = .allOperators,
@@ -74,6 +77,7 @@ extension Run {
             self.since = since
             self.changedLinesOnly = changedLinesOnly
             self.shard = shard
+            self.sample = sample
             self.skipCoverage = skipCoverage
             self.skipUpdateCheck = skipUpdateCheck
             self.verbose = verbose
@@ -108,6 +112,7 @@ extension Run.Options: Equatable {
             lhs.since == rhs.since &&
             lhs.changedLinesOnly == rhs.changedLinesOnly &&
             lhs.shard == rhs.shard &&
+            lhs.sample == rhs.sample &&
             lhs.mutationOperatorsList == rhs.mutationOperatorsList &&
             lhs.skipCoverage == rhs.skipCoverage &&
             lhs.skipUpdateCheck == rhs.skipUpdateCheck &&
@@ -133,6 +138,7 @@ extension Run.Options: Nullable {
             since: nil,
             changedLinesOnly: false,
             shard: nil,
+            sample: nil,
             reportFormat: .plain,
             reportURL: nil,
             mutationOperatorsList: [],

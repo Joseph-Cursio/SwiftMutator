@@ -370,6 +370,7 @@ extension Run.Options {
         since: String? = nil,
         changedLinesOnly: Bool = false,
         shard: Shard? = nil,
+        sample: Sample? = nil,
         reportFormat: ReportFormat = .plain,
         reportURL: URL? = nil,
         mutationOperatorsList: MutationOperatorList = [],
@@ -391,6 +392,7 @@ extension Run.Options {
             since: since,
             changedLinesOnly: changedLinesOnly,
             shard: shard,
+            sample: sample,
             reportFormat: reportFormat,
             reportURL: reportURL,
             mutationOperatorsList: mutationOperatorsList,
@@ -601,7 +603,8 @@ extension ResultsHeader {
         logDirectory: String = "/project_muter_logs/run",
         reusedFrom: String? = nil,
         since: ChangeSelection? = nil,
-        shard: ShardSelection? = nil
+        shard: ShardSelection? = nil,
+        sample: SampleSelection? = nil
     ) -> ResultsHeader {
         ResultsHeader(
             formatVersion: formatVersion,
@@ -633,7 +636,8 @@ extension ResultsHeader {
             forced: forced,
             reusedFrom: reusedFrom,
             since: since,
-            shard: shard
+            shard: shard,
+            sample: sample
         )
     }
 }

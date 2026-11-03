@@ -84,8 +84,13 @@ extension MutationTestObserver {
             logger.mutationsDiscoveryStarted()
         case let .mutationsDiscoveryFinished(mappings):
             logger.mutationsDiscoveryFinished(mutations: mappings, verbose: runOptions.verbose)
-        case let .shardSelected(selection, mappings):
-            logger.mutationsDiscoveryFinished(mutations: mappings, verbose: runOptions.verbose, shard: selection)
+        case let .mutantsSelected(sample, shard, mappings):
+            logger.mutationsDiscoveryFinished(
+                mutations: mappings,
+                verbose: runOptions.verbose,
+                sample: sample.map { (selection: $0, seedIsChosen: runOptions.sample?.seedIsChosen ?? false) },
+                shard: shard
+            )
 
         case let .resumePlanned(summary):
             logger.resumePlanned(summary)
@@ -172,7 +177,12 @@ extension MutationTestObserver {
         let continueCommand = runOptions.isUsingTestPlan
             ? nil
             : resultsFilePath.map {
-                ResumeHint.command(continuing: commandLineArguments, from: $0, since: sinceMergeBase)
+                ResumeHint.command(
+                    continuing: commandLineArguments,
+                    from: $0,
+                    since: sinceMergeBase,
+                    chosenSeed: runOptions.sample.flatMap { $0.seedIsChosen ? $0.seed : nil }
+                )
             }
         logger.mutationTestingEndedEarly(
             earlyEnd,

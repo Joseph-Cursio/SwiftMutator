@@ -35,20 +35,36 @@ struct DiscoverMutationPoints: MutationStep {
         }
 
         var mappings = discovered.mergeByFilePath()
-        var shardSelected: [MutationTestState.Change] = []
+        var selected: [MutationTestState.Change] = []
+        // The sample first, so that the shards of a sampled split share one sample, and each tests its part.
+        var sampleSelection: SampleSelection?
+        if let sample = state.runOptions.sample {
+            let (kept, selection) = mappings.keepingSample(sample, under: state.mutatedProjectDirectoryURL)
+            mappings = kept
+            sampleSelection = selection
+            selected.append(.sampleSelected(selection))
+        }
+        var shardSelection: ShardSelection?
         if let shard = state.runOptions.shard {
             let (kept, selection) = mappings.keepingOnly(shard, under: state.mutatedProjectDirectoryURL)
             guard !kept.isEmpty else {
-                throw EmptyShard(shard: shard, mutantsInAllShards: selection.mutantsInAllShards)
+                throw EmptyShard(
+                    shard: shard,
+                    mutantsInAllShards: selection.mutantsInAllShards,
+                    sample: sampleSelection.flatMap { $0.isPartial ? $0 : nil }
+                )
             }
             mappings = kept
-            shardSelected = [.shardSelected(selection)]
-            events.send(.shardSelected(selection, mutations: mappings))
-        } else {
+            shardSelection = selection
+            selected.append(.shardSelected(selection))
+        }
+        if sampleSelection == nil, shardSelection == nil {
             events.send(.mutationsDiscoveryFinished(mappings))
+        } else {
+            events.send(.mutantsSelected(sample: sampleSelection, shard: shardSelection, mutations: mappings))
         }
 
-        return shardSelected + [
+        return selected + [
             .mutationMappingsDiscovered(mappings),
             // Pass empty dictionary - ApplySchemata will re-parse files on demand
             // This prevents memory exhaustion on large codebases (2000+ files)

@@ -141,6 +141,59 @@ final class RunCommandTests: XCTestCase {
         XCTAssertTrue(help.contains("\n  --shard <k/n>"), help)
     }
 
+    func test_sample_reachesTheRunOptions_withTheSeedGiven_orOneChosen() throws {
+        let given = try XCTUnwrap(MuterCommand.parseAsRoot(["run", "--sample", "500", "--seed", "1234"]) as? Run)
+        XCTAssertEqual(given.runOptions.sample, Sample(size: 500, seed: 1234, seedIsChosen: false))
+
+        let run = try XCTUnwrap(MuterCommand.parseAsRoot(["run", "--sample", "40"]) as? Run)
+        let chosen = try XCTUnwrap(run.runOptions.sample)
+        XCTAssertEqual(chosen.size, 40)
+        XCTAssertTrue(chosen.seedIsChosen)
+        XCTAssertTrue((1...999_999).contains(chosen.seed), "\(chosen.seed)")
+
+        XCTAssertNil(try XCTUnwrap(MuterCommand.parseAsRoot(["run"]) as? Run).runOptions.sample)
+        XCTAssertNotEqual(Run.Options.make(sample: Sample(size: 1, seed: 1, seedIsChosen: false)), .make())
+        let help = Run.helpMessage(columns: 200)
+        XCTAssertTrue(help.contains("\n  --sample <N>"), help)
+        XCTAssertTrue(help.contains("\n  --seed <S>"), help)
+    }
+
+    func test_aSampleOrSeedThatIsntAWholeNumber_isAUsageError() {
+        for value in ["0", "+5", "1.5", "half", " 5", "99999999999999999999"] {
+            assertUsageError(
+                ["run", "--sample", value],
+                "The value '\(value)' is invalid for '--sample <N>': give a whole number of mutants, 1 or more, "
+                    + "such as 500."
+            )
+        }
+        for value in ["+1", "1.5", "seed", "18446744073709551616"] {
+            assertUsageError(
+                ["run", "--sample", "5", "--seed", value],
+                "The value '\(value)' is invalid for '--seed <S>': give a whole number, 0 or more, such as 1234."
+            )
+        }
+    }
+
+    func test_aSeedWithoutASample_isAUsageError() {
+        assertUsageError(["run", "--seed", "1234"], "--seed only applies with --sample.")
+    }
+
+    // A seed SwiftMutator chose would differ from shard to shard, and from the run a resume continues.
+    func test_aSampleThatMustBeTakenAgain_needsItsSeed() throws {
+        assertUsageError(
+            ["run", "--sample", "500", "--shard", "1/2"],
+            "--sample with --shard needs --seed, so that every shard takes the same sample."
+        )
+        assertUsageError(
+            ["run", "--sample", "500", "--resume", "logs"],
+            "--sample with --resume needs the sample's --seed, which the Continue line gives, and the results file's "
+                + "header records as sample.seed."
+        )
+        for arguments in [["--shard", "1/2", "--seed", "7"], ["--shard", "1/1"], ["--resume", "logs", "--seed", "7"]] {
+            XCTAssertNoThrow(try MuterCommand.parseAsRoot(["run", "--sample", "500"] + arguments), "\(arguments)")
+        }
+    }
+
     func test_aShardThatIsntKOfN_isAUsageError() {
         for value in ["0/2", "3/2", "half", "1/2/3", "1/1001"] {
             assertUsageError(

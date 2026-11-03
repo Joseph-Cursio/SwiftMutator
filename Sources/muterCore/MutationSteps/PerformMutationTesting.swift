@@ -141,7 +141,8 @@ struct PerformMutationTesting: MutationStep {
             testDuration: session.earlierTestDuration + thisSession,
             newVersion: state.newVersion,
             since: state.changeSelection,
-            shards: state.shardSelection?.scopeAlone
+            shards: state.shardSelection?.scopeAlone,
+            sample: state.sampleSelection
         )
 
         events.send(.mutationTestingFinished(mutationTestOutcome))
@@ -183,7 +184,7 @@ private extension PerformMutationTesting {
                     coverage: state.projectCoverage,
                     in: state.mutatedProjectDirectoryURL,
                     reusing: resume.isReuse ? state.reuseChanges : nil,
-                    selecting: (state.changeSelection, state.runOptions.shard)
+                    selecting: (state.changeSelection, state.runOptions.shard, state.runOptions.sample)
                 ))
             )
             // With every result kept there is nothing to test, so no baseline and no clones: the session is a header,
@@ -475,7 +476,8 @@ private extension PerformMutationTesting {
                     testDuration: testDuration,
                     newVersion: state.newVersion,
                     since: state.changeSelection,
-                    shards: state.shardSelection?.scopeAlone
+                    shards: state.shardSelection?.scopeAlone,
+                    sample: state.sampleSelection
                 ),
                 discovered: session.keys.count,
                 reused: session.reused

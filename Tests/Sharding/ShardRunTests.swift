@@ -134,8 +134,13 @@ final class ShardRunTests: MuterTestCase {
 
         XCTAssertEqual(scope.indices, [1, 3])
         XCTAssertEqual(
-            scope.sentence,
+            scope.sentence(),
             "Only the mutants in shards 1 and 3 of 4 were tested, of 2463 discovered in every shard."
+        )
+        // A sampled split's shards count the sample's mutants.
+        XCTAssertEqual(
+            scope.sentence(sampled: true),
+            "Only the mutants in shards 1 and 3 of 4 were tested, of 2463 in every shard of the sample."
         )
         XCTAssertTrue(
             HTMLReporter().report(from: MutationTestOutcome(shards: scope)).contains("Shards tested, of 2463")
@@ -183,12 +188,12 @@ final class ShardRunTests: MuterTestCase {
         let selection = ChangeSelection.make(ref: "origin/main")
 
         XCTAssertEqual(
-            ResumeSummary.selectionChange(from: (nil, nil), to: (selection, Shard(index: 1, count: 2))),
+            ResumeSummary.selectionChange(from: (nil, nil, nil), to: (selection, Shard(index: 1, count: 2), nil)),
             "This run mutates only what changed since the merge base of origin/main and HEAD (ba5e000), so no earlier "
                 + "result of another mutant is reused. This run tests only shard 1 of 2, so no earlier result of "
                 + "another shard's mutant is reused."
         )
-        XCTAssertNil(ResumeSummary.selectionChange(from: (selection, nil), to: (selection, nil)))
+        XCTAssertNil(ResumeSummary.selectionChange(from: (selection, nil, nil), to: (selection, nil, nil)))
     }
 }
 

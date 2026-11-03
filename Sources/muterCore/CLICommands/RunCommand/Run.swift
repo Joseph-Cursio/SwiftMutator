@@ -57,6 +57,38 @@ struct Run: RunCommand {
     )
     var shard: Shard?
 
+    @Option(
+        name: .customLong("sample"),
+        help: ArgumentHelp(
+            "Only test a sample of about N of the mutants discovered, as for a trend between whole runs. "
+                + "The reports give how far the score may be from a whole run's.",
+            valueName: "N"
+        ),
+        transform: { text in
+            guard text.allSatisfy({ ("0"..."9").contains($0) }), let size = Int(text), size >= 1 else {
+                throw ValidationError("give a whole number of mutants, 1 or more, such as 500.")
+            }
+            return size
+        }
+    )
+    var sample: Int?
+
+    @Option(
+        name: .customLong("seed"),
+        help: ArgumentHelp(
+            "With --sample, the seed that chooses the sample: the same seed chooses the same mutants anywhere. "
+                + "Without it, SwiftMutator chooses one and says which.",
+            valueName: "S"
+        ),
+        transform: { text in
+            guard text.allSatisfy({ ("0"..."9").contains($0) }), let seed = UInt64(text) else {
+                throw ValidationError("give a whole number, 0 or more, such as 1234.")
+            }
+            return seed
+        }
+    )
+    var seed: UInt64?
+
     @OptionGroup var options: RunArguments
     @OptionGroup var testing: TestingArguments
     @OptionGroup var reportOptions: ReportArguments
@@ -117,7 +149,8 @@ struct Run: RunCommand {
 
     init() {}
 
-    /// The options the command line gives the run.
+    /// The options the command line gives the run. Without `--seed`, a `--sample` gets a seed chosen afresh each time,
+    /// so `run()` asks once.
     var runOptions: Run.Options {
         Run.Options(
             filesToMutate: filesToMutate,
@@ -125,6 +158,7 @@ struct Run: RunCommand {
             changedLinesOnly: changedLines,
             // 1/1 is the whole run.
             shard: shard?.count == 1 ? nil : shard,
+            sample: sample.map { Sample(size: $0, seed: seed ?? Sample.chooseSeed(), seedIsChosen: seed == nil) },
             reportFormat: reportOptions.reportFormat,
             reportURL: reportOptions.reportURL,
             mutationOperatorsList: !operators.isEmpty ? operators : .allOperators,
@@ -149,6 +183,8 @@ struct Run: RunCommand {
     /// `--resume` continues a run's own results file and `--reuse` starts a new one, so only one can be given.
     /// `--resume-ignoring` and `--force-resume` only say what a resume may reuse, and `--reuse-ignoring` and
     /// `--force-reuse` what a reuse may. `--since` chooses the files itself, and `--changed-lines` narrows its choice.
+    /// `--seed` only says which sample `--sample` takes, and the shards of a sampled split, and a resume of a sample,
+    /// need it to take the same one: a seed SwiftMutator chose would differ.
     func validate() throws {
         if since != nil, !filesToMutate.isEmpty {
             throw ValidationError("--since and --files-to-mutate can't be given together.")
@@ -160,6 +196,7 @@ struct Run: RunCommand {
         if since?.hasPrefix("-") == true {
             throw ValidationError("--since takes a git ref, such as main or origin/main, not an option.")
         }
+        try validateSample()
         if resume != nil, reuse != nil {
             throw ValidationError("--resume and --reuse can't be given together.")
         }
@@ -178,6 +215,24 @@ struct Run: RunCommand {
             if forceReuse {
                 throw ValidationError("--force-reuse only applies with --reuse.")
             }
+        }
+    }
+}
+
+private extension Run {
+    func validateSample() throws {
+        if seed != nil, sample == nil {
+            throw ValidationError("--seed only applies with --sample.")
+        }
+        guard sample != nil, seed == nil else { return }
+        if let shard, shard.count > 1 {
+            throw ValidationError("--sample with --shard needs --seed, so that every shard takes the same sample.")
+        }
+        if resume != nil {
+            throw ValidationError(
+                "--sample with --resume needs the sample's --seed, which the Continue line gives, and the results "
+                    + "file's header records as sample.seed."
+            )
         }
     }
 }

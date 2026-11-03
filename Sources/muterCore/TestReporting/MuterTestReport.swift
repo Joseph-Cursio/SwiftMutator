@@ -17,6 +17,8 @@ struct MuterTestReport {
     let since: SinceScope?
     /// The shards of a `--shard` split the report covers, when it covers only some; left out of the JSON otherwise.
     let shards: ShardScope?
+    /// The `--sample` the report's mutants are, when it left some out; left out of the JSON otherwise.
+    let sample: SampleScope?
 
     init(from outcome: MutationTestOutcome = .init()) {
         let summary = KillingTestSummary(of: outcome.mutations)
@@ -30,6 +32,12 @@ struct MuterTestReport {
         timeElapsed = outcome.testDuration.formatted()
         since = outcome.since.map(SinceScope.init)
         shards = outcome.shards
+        sample = SampleScope(
+            outcome.sample,
+            killed: numberOfKilledMutants,
+            scored: outcome.mutations.count { $0.testSuiteOutcome != .buildError },
+            tested: outcome.mutations.count
+        )
     }
 }
 
@@ -78,9 +86,11 @@ struct ShardScope: Codable, Equatable {
         return (self.indices.count == 1 ? "shard " : "shards ") + "\(indices) of \(count)"
     }
 
-    /// "Only the mutants in shard 1 of 2 were tested, of 2463 discovered in every shard."
-    var sentence: String {
-        "Only the mutants in \(named) were tested, of \(mutantsInAllShards) discovered in every shard."
+    /// "Only the mutants in shard 1 of 2 were tested, of 2463 discovered in every shard." Of a `sampled` split, the
+    /// shards split the sample, whose mutants they count: "…, of 500 in every shard of the sample."
+    func sentence(sampled: Bool = false) -> String {
+        "Only the mutants in \(named) were tested, of \(mutantsInAllShards) "
+            + (sampled ? "in every shard of the sample." : "discovered in every shard.")
     }
 }
 
@@ -286,5 +296,6 @@ extension MuterTestReport: Codable {
         case killingTestSummary
         case since
         case shards
+        case sample
     }
 }
