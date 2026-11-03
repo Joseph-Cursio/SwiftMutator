@@ -447,6 +447,8 @@ tests that killed the most mutants.
 Each test run writes its output to `running/` in the log folder while it runs, never to the mutated
 project or a worker clone, where your tests would see it. Once SwiftMutator has read it back, the
 log folder keeps its own copy, such as `baseline run.log`, and the file in `running/` goes.
+A run that keeps nothing there, such as a refused `--resume` or a `--since` run with no Swift file
+changed, leaves no folder of its own in `<project>_muter_logs`.
 
 A SwiftPM mutant's run adds `--quiet`, so Swift Testing prints no line for each test or suite that
 starts or passes. Its log keeps each recorded issue, the run's summary, your tests' own output and

@@ -119,6 +119,83 @@ final class MutationTestHandlerTests: MuterTestCase {
         XCTAssertEqual(state.loggingDirectory, loggingDirectory)
     }
 
+    // A refused or failed run keeps nothing in its log folder, and leaves no empty folder behind for each refusal.
+    func test_aRefusedRun_removesItsEmptyLogFolder() async throws {
+        fileManager.currentDirectoryPathToReturn = "/project"
+        givenThereIsAFailureInOneOfItsSteps()
+
+        try await assertThrowsMuterError(await sut.run()) { error in
+            guard case .configurationParsingError = error else {
+                XCTFail("Expected configurationParsingError, got \(error)")
+                return
+            }
+        }
+
+        assertTheRunsLogFolderIsRemoved()
+    }
+
+    // A resume refused is removed the same way, whichever step refuses it.
+    func test_aRefusedResume_removesItsEmptyLogFolder() async throws {
+        fileManager.currentDirectoryPathToReturn = "/project"
+        stepSpy1.resultToReturn = .success([])
+        sut = MutationTestHandler(steps: [stepSpy1, RefusingStep(), stepSpy2], state: state)
+
+        await AssertThrowsError(try await sut.run()) { XCTAssertTrue($0 is ResumeRefused, "\($0)") }
+
+        XCTAssertTrue(stepSpy2.methodCalls.isEmpty)
+        assertTheRunsLogFolderIsRemoved()
+    }
+
+    func test_aRunThatKeptALog_keepsItsLogFolder() async throws {
+        fileManager.currentDirectoryPathToReturn = "/project"
+        fileManager.contentsOfDirectoryToReturn = ["baseline run.log"]
+        givenThereIsAFailureInOneOfItsSteps()
+
+        try await assertThrowsMuterError(await sut.run()) { _ in }
+
+        XCTAssertEqual(fileManager.contentsOfDirectoryAtPath, [state.loggingDirectory])
+        XCTAssertFalse(fileManager.methodCalls.contains("removeItem(atPath:)"), "\(fileManager.methodCalls)")
+    }
+
+    func test_aStoppedRun_removesItsEmptyLogFolder() async throws {
+        fileManager.currentDirectoryPathToReturn = "/project"
+        givenThereAreNoFailuresInAnyOfItSteps()
+        stepSpy1.whileRunning = { withUnsafeCurrentTask { $0?.cancel() } }
+
+        // The test waits for the task, so until it ends only the task uses the handler, its steps and its state.
+        nonisolated(unsafe) let handler = sut
+        let result = await Task { try await handler.run() }.result
+
+        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
+        assertTheRunsLogFolderIsRemoved()
+    }
+
+    // Such as `mutate-without-running --skip-coverage`, or a resumed session that runs no coverage and has nothing left
+    // to test.
+    func test_aRunThatFinishedWithNothingKept_removesItsLogFolder() async throws {
+        fileManager.currentDirectoryPathToReturn = "/project"
+        givenThereAreNoFailuresInAnyOfItSteps()
+
+        try await sut.run()
+
+        assertTheRunsLogFolderIsRemoved()
+    }
+
+    /// Asserts that the run listed its own log folder at the end, found it empty and removed it, and only it: the
+    /// logs' root, which another run may be claiming a folder in, stays.
+    private func assertTheRunsLogFolderIsRemoved(file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(
+            state.loggingDirectory.hasPrefix("/project_muter_logs/"),
+            state.loggingDirectory,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(fileManager.contentsOfDirectoryAtPath, [state.loggingDirectory], file: file, line: line)
+        XCTAssertEqual(fileManager.methodCalls.last, "removeItem(atPath:)", file: file, line: line)
+        XCTAssertEqual(fileManager.methodCalls.filter { $0 == "removeItem(atPath:)" }.count, 1, file: file, line: line)
+        XCTAssertEqual(fileManager.paths.last, state.loggingDirectory, file: file, line: line)
+    }
+
     func test_allSteps() {
         sut = MutationTestHandler(options: .make())
 
@@ -231,8 +308,11 @@ final class MutationTestHandlerTests: MuterTestCase {
         // As if the first run had copied the project.
         fileManager.fileExistsToReturn = [true]
         let firstRunsCalls = fileManager.methodCalls.count
+        let firstRunsPaths = fileManager.paths.count
+        let firstRunsListings = fileManager.contentsOfDirectoryAtPath.count
+        let second = state()
 
-        await AssertThrowsError(try await MutationTestHandler(steps: steps(), state: state()).run()) { error in
+        await AssertThrowsError(try await MutationTestHandler(steps: steps(), state: second).run()) { error in
             XCTAssertEqual(
                 error as? MutatedProjectLockError,
                 .inUse(mutatedProject: project.path + "_mutated", process: getpid())
@@ -240,8 +320,17 @@ final class MutationTestHandlerTests: MuterTestCase {
         }
         let secondRunsCalls = fileManager.methodCalls.dropFirst(firstRunsCalls)
         XCTAssertFalse(secondRunsCalls.contains("fileExists(atPath:)"), "\(secondRunsCalls)")
-        XCTAssertFalse(secondRunsCalls.contains("removeItem(atPath:)"), "\(secondRunsCalls)")
-        XCTAssertFalse(secondRunsCalls.contains("contentsOfDirectory(atPath:)"), "\(secondRunsCalls)")
+        // The refused run lists and removes only its own log folder, which it kept nothing in.
+        XCTAssertEqual(
+            Array(fileManager.contentsOfDirectoryAtPath.dropFirst(firstRunsListings)),
+            [second.loggingDirectory]
+        )
+        let secondRunsPaths = fileManager.paths.dropFirst(firstRunsPaths)
+        let logsRoot = (second.loggingDirectory as NSString).deletingLastPathComponent
+        XCTAssertTrue(
+            secondRunsPaths.allSatisfy { $0 == second.loggingDirectory || $0 == logsRoot },
+            "\(secondRunsPaths)"
+        )
 
         first.mutatedProjectLock?.release()
         try await MutationTestHandler(steps: steps(), state: state()).run()
@@ -347,6 +436,17 @@ final class MutationTestHandlerTests: MuterTestCase {
             steps.contains { type(of: $0) == step },
             file: file,
             line: line
+        )
+    }
+}
+
+/// A step that refuses a resume, as `LoadResumeState` and `FingerprintProjectTree` do.
+private final class RefusingStep: MutationStep {
+    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+        throw ResumeRefused(
+            path: "/logs/results.jsonl",
+            reasons: [.inUse(lastProcess: nil, lastHost: nil)],
+            beforeTheCopy: true
         )
     }
 }

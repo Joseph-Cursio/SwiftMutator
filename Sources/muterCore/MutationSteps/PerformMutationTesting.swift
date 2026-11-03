@@ -987,8 +987,7 @@ private extension PerformMutationTesting {
     func removeTestOutputFolderIfEmpty(_ state: AnyMutationTestState) {
         guard !state.loggingDirectory.isEmpty else { return }
         let folder = (state.loggingDirectory as NSString).appendingPathComponent(Self.testOutputFolderName)
-        guard let contents = try? fileManager.contentsOfDirectory(atPath: folder), contents.isEmpty else { return }
-        try? fileManager.removeItem(atPath: folder)
+        removeFolderIfEmpty(atPath: folder, fileManager: fileManager)
     }
 }
 

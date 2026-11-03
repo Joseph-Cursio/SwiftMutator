@@ -85,6 +85,38 @@ final class FileOperationTests: XCTestCase {
         XCTAssertEqual(try create(), "\(first) (2)")
     }
 
+    // A run that kept nothing in its log folder leaves no folder.
+    func test_removeFolderIfEmpty_removesAnEmptyFolder() throws {
+        let folder = try makeTemporaryDirectory() + "/run"
+        try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: false)
+
+        removeFolderIfEmpty(atPath: folder, fileManager: FileManager.default)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder))
+    }
+
+    // A kept log, or a file the user or Finder put there, keeps the folder and what is in it.
+    func test_removeFolderIfEmpty_keepsAFolderWithAFile() throws {
+        let root = try makeTemporaryDirectory()
+        for file in ["baseline run.log", ".DS_Store"] {
+            let folder = "\(root)/with \(file)"
+            try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: false)
+            try Data("kept".utf8).write(to: URL(fileURLWithPath: "\(folder)/\(file)"))
+
+            removeFolderIfEmpty(atPath: folder, fileManager: FileManager.default)
+
+            XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: folder), [file])
+        }
+    }
+
+    func test_removeFolderIfEmpty_ignoresAMissingFolder() throws {
+        let root = try makeTemporaryDirectory()
+
+        removeFolderIfEmpty(atPath: root + "/missing", fileManager: FileManager.default)
+
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root), [])
+    }
+
     // Logs go next to the project, like the `_mutated` copy, never inside it:
     // a `muter_logs` folder in the project is picked up by the next project
     // copy and shows up as untracked files in the user's repository.

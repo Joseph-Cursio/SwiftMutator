@@ -68,3 +68,11 @@ private func claimFolder(named name: String, in folder: String, fileManager: Fil
         number += 1
     }
 }
+
+/// Removes the folder at `path` if it holds nothing, hidden files included,
+/// and leaves it when it holds anything, when it isn't there, or when it can't
+/// be listed.
+func removeFolderIfEmpty(atPath path: String, fileManager: FileSystemManager) {
+    guard let contents = try? fileManager.contentsOfDirectory(atPath: path), contents.isEmpty else { return }
+    try? fileManager.removeItem(atPath: path)
+}

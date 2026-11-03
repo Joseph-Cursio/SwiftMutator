@@ -15,6 +15,13 @@ final class MutationTestObserverTests: MuterTestCase {
         fileManager.currentDirectoryPathToReturn = "/"
     }
 
+    // Before it starts, the observer has no folder, so it lists and removes nothing.
+    func test_removeLoggingDirectoryIfEmpty_beforeStart_removesNothing() {
+        sut.removeLoggingDirectoryIfEmpty()
+
+        XCTAssertTrue(fileManager.methodCalls.isEmpty, "\(fileManager.methodCalls)")
+    }
+
     func test_flushesStdoutWhenUsingAnXcodeReporter() {
         options = .make(reportFormat: .xcode)
 
