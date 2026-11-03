@@ -2,6 +2,37 @@
 import XCTest
 
 final class MuterTestReportTests: MuterTestCase {
+    // A report saved by `run --mutant -o`, or made by `report` from its results file, is passed around without the
+    // console's notice, so it says itself that its score is one mutant's.
+    func test_theReportsOfOneMutant_sayItsScoreIsntTheProjects() throws {
+        let key = "Sources/Bar.swift:12:9 SwapTernary"
+        let sentence = "One mutant tested with --mutant (Sources/Bar.swift:12:9 SwapTernary): "
+            + "its score isn't the project's."
+        let outcome = MutationTestOutcome(mutant: key)
+
+        XCTAssertEqual(MuterTestReport(from: outcome).mutant, key)
+        let plainText = PlainTextReporter().report(from: outcome)
+        XCTAssertTrue(plainText.contains("\n" + sentence + "\n"), plainText)
+        let html = HTMLReporter().report(from: outcome)
+        XCTAssertTrue(html.contains(sentence), html)
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(json["mutant"] as? String, key)
+    }
+
+    func test_theReportsOfAnyOtherRun_sayNothingOfOneMutant() throws {
+        let outcome = MutationTestOutcome()
+
+        XCTAssertNil(MuterTestReport(from: outcome).mutant)
+        XCTAssertFalse(PlainTextReporter().report(from: outcome).contains("--mutant"))
+        XCTAssertFalse(HTMLReporter().report(from: outcome).contains("--mutant"))
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
+        )
+        XCTAssertNil(json["mutant"])
+    }
+
     func test_calculatingNonEmptyTestOutcomes() {
         let outcome =
             MutationTestOutcome.make(

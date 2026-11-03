@@ -26,34 +26,47 @@ struct SelectMutant: MutationStep {
     }
 
     /// The key of the one mutant among `keys` that `reference` names, its path made relative to the first of `roots`
-    /// that holds it; or why there is none to test on its own.
+    /// that holds it; or why there is none to test on its own. A refusal lists each place once, with how many mutants
+    /// share its switch, so that every `--mutant` it offers is one this accepts.
     static func select(_ reference: MutantReference, among keys: [MutantKey], roots: [URL]) throws -> MutantKey {
         let wanted = reference.relative(toFirstOf: roots)
+        let sharing = Dictionary(keys.map { (place(of: $0), 1) }, uniquingKeysWith: +)
         let matches = keys.filter(wanted.matches)
-        var places: [MutantKey] = []
-        for match in matches where !places.contains(place(of: match)) {
-            places.append(place(of: match))
-        }
+        let places = Self.places(of: matches)
 
         guard let place = places.first else {
             let inFiles = keys.filter { wanted.matchesPath($0.path) }
             let files = Set(inFiles.map(\.path)).count
+            let placesInFiles = Self.places(of: inFiles)
             // The nearest by line, and of those at the same distance the first in the jobs; listed in job order.
-            let nearby = inFiles.indices
-                .sorted { (abs(inFiles[$0].line - wanted.line), $0) < (abs(inFiles[$1].line - wanted.line), $1) }
+            let nearby = placesInFiles.indices
+                .sorted {
+                    (abs(placesInFiles[$0].line - wanted.line), $0) < (abs(placesInFiles[$1].line - wanted.line), $1)
+                }
                 .prefix(nearbyListed)
                 .sorted()
-                .map { inFiles[$0] }
+                .map { MutantRefused.Listed(key: placesInFiles[$0], sharing: sharing[placesInFiles[$0]] ?? 1) }
             throw MutantRefused(reference: reference, reason: .notFound(nearby: nearby, files: files))
         }
         guard places.count == 1 else {
-            throw MutantRefused(reference: reference, reason: .ambiguous(matches))
+            let listed = places.map { MutantRefused.Listed(key: $0, sharing: sharing[$0] ?? 1) }
+            throw MutantRefused(reference: reference, reason: .ambiguous(listed))
         }
-        let atThePlace = keys.filter { Self.place(of: $0) == place }.count
+        let atThePlace = sharing[place] ?? 1
         guard atThePlace == 1 else {
             throw MutantRefused(reference: reference, reason: .repeated(matches[0], count: atThePlace))
         }
         return place
+    }
+
+    /// The places of `keys`' mutants, each once, in the order of the first key at each.
+    private static func places(of keys: [MutantKey]) -> [MutantKey] {
+        var places: [MutantKey] = []
+        var seen: Set<MutantKey> = []
+        for key in keys where seen.insert(place(of: key)).inserted {
+            places.append(place(of: key))
+        }
+        return places
     }
 
     /// `key` without its occurrence: where its mutant is, and which operator mutates it there.
@@ -87,13 +100,20 @@ struct MutantRefused: Error, Equatable, CustomStringConvertible {
     let reason: Reason
 
     enum Reason: Equatable {
-        /// No mutant is at the place given. `nearby` are the mutants nearest to its line, at most
+        /// No mutant is at the place given. `nearby` are the places nearest to its line, at most
         /// `SelectMutant.nearbyListed`, in the `files` files whose path its path names; none when no file does.
-        case notFound(nearby: [MutantKey], files: Int)
+        case notFound(nearby: [Listed], files: Int)
         /// The reference matches mutants at more than one place: these.
-        case ambiguous([MutantKey])
+        case ambiguous([Listed])
         /// The mutant is one of `count` that one operator makes at one place, which share one switch.
         case repeated(MutantKey, count: Int)
+    }
+
+    /// A place a refusal lists: its key, and how many mutants one operator makes there, which share one switch. Only
+    /// a place with one can be tested on its own.
+    struct Listed: Equatable {
+        let key: MutantKey
+        let sharing: Int
     }
 
     var description: String {
@@ -106,9 +126,11 @@ struct MutantRefused: Error, Equatable, CustomStringConvertible {
             let inFiles = files == 1 ? "the file" : "the \(files) files"
             return "No mutant is at \(reference). Mutants near line \(reference.line) in \(inFiles) it names:\n"
                 + Self.options(nearby) + "\nNothing was tested."
-        case let .ambiguous(matches):
-            return "\(reference) names \(matches.count) mutants; give one of these:\n"
-                + Self.options(matches) + "\nNothing was tested."
+        case let .ambiguous(places):
+            let count = places.map(\.sharing).reduce(0, +)
+            let choice = places.contains { $0.sharing == 1 }
+                ? "give one of these:" : "none of them can be tested on its own:"
+            return "\(reference) names \(count) mutants; \(choice)\n" + Self.options(places) + "\nNothing was tested."
         case let .repeated(key, count):
             return "\(Logger.shellQuoted(key.description)) is one of \(count) \(key.mutationOperatorId.rawValue) "
                 + "mutants at the same place. They share one switch, so none of them can be tested on its own. "
@@ -116,8 +138,15 @@ struct MutantRefused: Error, Equatable, CustomStringConvertible {
         }
     }
 
-    /// Each key as the option that names it, quoted for a shell, on a line of its own.
-    private static func options(_ keys: [MutantKey]) -> String {
-        keys.map { "  --mutant " + Logger.shellQuoted($0.description) }.joined(separator: "\n")
+    /// Each place on a line of its own: as the option that names it, quoted for a shell, when it can be tested on its
+    /// own, and otherwise as a note that it can't, which isn't an option to paste.
+    private static func options(_ places: [Listed]) -> String {
+        places.map { place in
+            place.sharing == 1
+                ? "  --mutant " + Logger.shellQuoted(place.key.description)
+                : "  " + Logger.shellQuoted(place.key.description) + ": one of \(place.sharing) "
+                    + "\(place.key.mutationOperatorId.rawValue) mutants that share one switch, so can't be tested alone"
+        }
+        .joined(separator: "\n")
     }
 }

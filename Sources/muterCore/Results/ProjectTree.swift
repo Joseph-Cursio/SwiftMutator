@@ -220,7 +220,9 @@ private extension ProjectTree {
     static func exists(_ url: URL) -> Bool {
         (try? FileManager.default.attributesOfItem(atPath: url.path)) != nil
     }
+}
 
+extension ProjectTree {
     /// `path`, absolute, with every symbolic link resolved in the part of it that exists: a report not written yet,
     /// in a folder not made yet, still compares with the project's path, which `getcwd()` gives resolved.
     static func resolved(_ path: String) -> String {

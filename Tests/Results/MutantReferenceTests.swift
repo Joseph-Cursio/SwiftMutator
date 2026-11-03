@@ -87,6 +87,45 @@ final class MutantReferenceTests: XCTestCase {
         )
     }
 
+    // A shell's $PWD keeps `/tmp` where getcwd() gives `/private/tmp`, so a path copied from one names the project the
+    // other gives, and the other way round. A mutated file that is itself a link keeps the link's name, as its key
+    // does.
+    func test_anAbsolutePath_throughASymbolicLink_isMadeRelative_toTheRootItResolvesInto() throws {
+        let (directory, link) = try makeDirectoryWithSymbolicLink()
+        let sources = (directory as NSString).appendingPathComponent("Sources")
+        try FileManager.default.createDirectory(atPath: sources, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: (sources as NSString).appendingPathComponent("Bar.swift"), contents: nil)
+        try FileManager.default.createSymbolicLink(
+            atPath: (sources as NSString).appendingPathComponent("Link.swift"),
+            withDestinationPath: "Bar.swift"
+        )
+        let resolvedRoot = URL(fileURLWithPath: directory.canonicalPath)
+        let copy = URL(fileURLWithPath: directory.canonicalPath + "_mutated")
+
+        XCTAssertEqual(
+            try MutantReference.parse("\(link)/Sources/Bar.swift:12:9").relative(toFirstOf: [resolvedRoot, copy]),
+            MutantReference(path: "Sources/Bar.swift", line: 12, column: 9)
+        )
+        XCTAssertEqual(
+            try MutantReference.parse("\(directory.canonicalPath)/Sources/Bar.swift:12")
+                .relative(toFirstOf: [URL(fileURLWithPath: link)]),
+            MutantReference(path: "Sources/Bar.swift", line: 12)
+        )
+        XCTAssertEqual(
+            try MutantReference.parse("\(link)/Sources/Link.swift:3").relative(toFirstOf: [resolvedRoot]),
+            MutantReference(path: "Sources/Link.swift", line: 3)
+        )
+        let key = MutantKey(path: "Sources/Bar.swift", mutationOperatorId: .ror, line: 12, column: 9, occurrence: 0)
+        XCTAssertEqual(
+            try SelectMutant.select(
+                try MutantReference.parse("\(link)/Sources/Bar.swift:12:9"),
+                among: [key],
+                roots: [resolvedRoot, copy]
+            ),
+            key
+        )
+    }
+
     func test_refusesText_withoutAPlace() {
         let usage = "give the mutant as path:line[:column] [Operator], "
             + "such as 'Sources/Foo/Bar.swift:12:9 SwapTernary'."

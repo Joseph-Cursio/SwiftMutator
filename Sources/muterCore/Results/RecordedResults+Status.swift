@@ -14,7 +14,7 @@ extension RecordedResults {
 
     /// That the run tested one mutant alone, which the score is of; nil for any other run.
     var oneMutant: String? {
-        sessions.last?.header.mutant.map { "One mutant tested with --mutant (\($0)): its score isn't the project's." }
+        sessions.last?.header.mutant.map(MuterTestReport.oneMutantSentence)
     }
 
     /// How the run ended, from its last session's end line.

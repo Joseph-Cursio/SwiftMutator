@@ -167,6 +167,77 @@ final class SelectMutantTests: MuterTestCase {
         }
     }
 
+    // A place with repeats is listed once, as a note rather than an option, since each of its mutants is refused; every
+    // option listed is one that's accepted.
+    func test_aRefusalsList_marksAPlaceWithRepeats_andOffersOnlyMutantsTestedAlone() async throws {
+        let keys = MutantKey.keys(for: state.mutationMapping.flatMap(\.mutationSchemata), under: copy)
+        let note = "  'Sources/Sum.swift:3:4 RelationalOperatorReplacement': one of 2 RelationalOperatorReplacement "
+            + "mutants that share one switch, so can't be tested alone"
+        XCTAssertThrowsError(
+            try SelectMutant.select(try MutantReference.parse("Sum.swift:5"), among: keys, roots: [project, copy])
+        ) { error in
+            XCTAssertEqual(
+                "\(error)",
+                """
+                No mutant is at Sum.swift:5. Mutants near line 5 in the file it names:
+                \(note)
+                  --mutant 'Sources/Sum.swift:7:1 RelationalOperatorReplacement'
+                Nothing was tested.
+                """
+            )
+        }
+
+        state.mutationMapping = try [
+            mapping("Sources/Sum.swift", [(3, 4, .ror), (3, 4, .ror), (3, 9, .ror), (3, 9, .ror)]),
+        ]
+        let everyPlaceRepeated = MutantKey.keys(for: state.mutationMapping.flatMap(\.mutationSchemata), under: copy)
+        XCTAssertThrowsError(
+            try SelectMutant.select(
+                try MutantReference.parse("Sum.swift:3"), among: everyPlaceRepeated, roots: [project]
+            )
+        ) { error in
+            XCTAssertEqual(
+                "\(error)",
+                """
+                Sum.swift:3 names 4 mutants; none of them can be tested on its own:
+                \(note)
+                  'Sources/Sum.swift:3:9 RelationalOperatorReplacement': one of 2 RelationalOperatorReplacement \
+                mutants that share one switch, so can't be tested alone
+                Nothing was tested.
+                """
+            )
+        }
+
+        state.mutationMapping = try [
+            mapping("Sources/Sum.swift", [(3, 4, .ror), (3, 9, .ror), (3, 9, .ror)]),
+        ]
+        let repeatedKeys = MutantKey.keys(for: state.mutationMapping.flatMap(\.mutationSchemata), under: copy)
+        var message = ""
+        XCTAssertThrowsError(
+            try SelectMutant.select(try MutantReference.parse("Sum.swift:3"), among: repeatedKeys, roots: [project])
+        ) { error in
+            message = "\(error)"
+        }
+        XCTAssertEqual(
+            message,
+            """
+            Sum.swift:3 names 3 mutants; give one of these:
+              --mutant 'Sources/Sum.swift:3:4 RelationalOperatorReplacement'
+              'Sources/Sum.swift:3:9 RelationalOperatorReplacement': one of 2 RelationalOperatorReplacement \
+            mutants that share one switch, so can't be tested alone
+            Nothing was tested.
+            """
+        )
+        let offered = message.components(separatedBy: "\n")
+            .filter { $0.hasPrefix("  --mutant ") }
+            .map { String($0.dropFirst("  --mutant '".count).dropLast()) }
+        XCTAssertEqual(offered.count, 1)
+        for option in offered {
+            let reference = try MutantReference.parse(option)
+            XCTAssertNoThrow(try SelectMutant.select(reference, among: repeatedKeys, roots: [project]), option)
+        }
+    }
+
     /// A file's mapping in the copy, with a mutant at each of `places`, in their order, each in a code block of its
     /// own.
     private func mapping(

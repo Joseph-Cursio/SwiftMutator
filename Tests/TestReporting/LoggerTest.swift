@@ -24,8 +24,8 @@ final class LoggerTests: MuterTestCase {
         sut.mutationTestingStarted()
         sut.newMutationTestLogAvailable(
             mutationTestLog: .make(
-                timePerBuildTestCycle: 50,
-                remainingMutationPointsCount: 5
+                timePerBuildTestCycle: 300,
+                remainingMutationPointsCount: 1
             )
         )
         sut.newMutationTestLogAvailable(

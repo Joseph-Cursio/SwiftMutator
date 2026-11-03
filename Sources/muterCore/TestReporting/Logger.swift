@@ -449,10 +449,13 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
                 """
             )
 
+            // The mutants this session tests, which the baseline's log carries: fewer than were discovered when
+            // --mutant picks one of them.
+            let total = mutationTestLog.remainingMutationPointsCount ?? numberOfMutationPoints
             let estimate = SimpleTimeEstimate(
                 firstEstimate: Self.initialEstimate(
                     // The baseline's log carries both.
-                    remaining: mutationTestLog.remainingMutationPointsCount ?? numberOfMutationPoints,
+                    remaining: total,
                     cycle: mutationTestLog.testRunSeconds ?? mutationTestLog.timePerBuildTestCycle ?? 0,
                     workers: mutationTestLog.workers
                 ),
@@ -461,7 +464,7 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
             )
             if standardOutIsATerminal {
                 progressBar = ProgressBar(
-                    count: numberOfMutationPoints,
+                    count: total,
                     configuration: [
                         ProgressString(string: "Inserting mutant"),
                         ProgressOneIndexed(),
@@ -475,7 +478,7 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
                     printer: ProgressBarMultilineTerminalPrinter(numberOfLines: Self.progressBarLines)
                 )
             } else {
-                let lines = ProgressLines(total: numberOfMutationPoints, estimate: estimate)
+                let lines = ProgressLines(total: total, estimate: estimate)
                 progressLines = lines
                 print(lines.firstLine(at: now()))
             }

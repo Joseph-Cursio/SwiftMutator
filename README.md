@@ -246,19 +246,21 @@ To run its tests with it on:
   keeps it whole.
 - **Exit status** is 0 whatever the verdict, which the results file records too. A reference that
   doesn't read as a mutant is a usage error, 64. One that names no mutant exits with 255 and lists
-  the mutants near it, ready to paste, and one that names several lists them. One of several mutants
-  an operator makes at the same place is refused too: they share one switch, so none can be tested
-  on its own.
-- **`run --mutant`** skips coverage, finds mutants with only the operator the reference names, if
-  it names one, and puts only that mutant's switch into a copy of its own, `<project>_mutant`, which
-  it keeps for a look afterwards. A test plan's `<project>_mutated`, and any fix in it, is left
-  alone. `<project>_mutant` stays until the next `run --mutant`.
+  the mutants near it, ready to paste, whatever operator it names, and one that names several lists
+  them. One of several mutants an operator makes at the same place is refused too: they share one
+  switch, so none can be tested on its own, and the lists name such a place without a `--mutant`
+  to paste. An absolute path may be spelled through a link, as `/tmp` is `/private/tmp`.
+- **`run --mutant`** skips coverage, finds every mutant, and puts only that mutant's switch into a
+  copy of its own, `<project>_mutant`, which it keeps for a look afterwards. A test plan's
+  `<project>_mutated`, and any fix in it, is left alone. `<project>_mutant` stays until the next
+  `run --mutant`.
 - **`run-without-mutating --mutant`** tests the plan's copy as it is, without rewriting it, and
   checks only that mutant's file against the project.
 - For an xcodebuild project, only the switch's environment variable is named, not a command.
 - `--mutant` can't be given with `--operators`, `--files-to-mutate`, `--since`, `--shard`,
   `--sample`, `--resume` or `--reuse`. A run of one mutant prints no Continue line: the same command
-  tests it again. `report` of its results file says its score isn't the project's.
+  tests it again. Its reports, the one `-o` saves and those `report` makes of its results file,
+  say its score isn't the project's, and the JSON report gives the mutant as `mutant`.
 
 ## Progress
 

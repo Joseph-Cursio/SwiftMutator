@@ -61,8 +61,8 @@ final class RunCommandTests: XCTestCase {
     }
 
     // Both commands that test mutants take it, and `run` skips coverage for it, which only leaves files and code out of
-    // discovery, and mutates with only the operator it names, if it names one. Every file is still discovered: its path
-    // may be only the end of one.
+    // discovery. Every file is still discovered with every operator: its path may be only the end of one, and a wrong
+    // operator is refused with the mutants near its place, whatever their operators.
     func test_mutant_reachesTheRunOptions_ofRunAndRunWithoutMutating() throws {
         let named = MutantReference(
             path: "Sources/Foo/Bar.swift", line: 12, column: 9, mutationOperatorId: .swapTernary
@@ -72,7 +72,7 @@ final class RunCommandTests: XCTestCase {
         ).runOptions
         XCTAssertEqual(run.mutant, named)
         XCTAssertTrue(run.skipCoverage)
-        XCTAssertEqual(run.mutationOperatorsList, [.swapTernary])
+        XCTAssertEqual(run.mutationOperatorsList, .allOperators)
         XCTAssertEqual(run.filesToMutate, [])
 
         let anyOperator = try XCTUnwrap(MuterCommand.parseAsRoot(["run", "--mutant", "Bar.swift:12"]) as? Run)

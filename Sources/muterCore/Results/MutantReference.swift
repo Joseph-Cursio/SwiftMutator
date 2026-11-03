@@ -116,22 +116,37 @@ struct MutantReference: Hashable, CustomStringConvertible {
     }
 
     /// This reference with its path made relative to the first of `roots` it is inside, as a key's is, so that an
-    /// absolute path in the project or in its copy matches the key; otherwise as it is.
+    /// absolute path in the project or in its copy matches the key; otherwise as it is. A path spelled through a
+    /// symbolic link, as `/tmp` is `/private/tmp`, is inside a root when its folder, resolved, is inside the root,
+    /// resolved: `getcwd()` gives the project's path resolved, and a shell's `$PWD` often doesn't. The file's own name
+    /// isn't resolved, so a mutated file that is itself a link still names the link, as its key does.
     func relative(toFirstOf roots: [URL]) -> MutantReference {
         guard path.hasPrefix("/") else { return self }
-        for root in roots {
-            let relative = RepoRelativePath.of(path, under: root)
-            if relative != path {
-                return MutantReference(
-                    path: relative,
-                    line: line,
-                    column: column,
-                    mutationOperatorId: mutationOperatorId,
-                    occurrence: occurrence
-                )
-            }
+        if let relative = Self.relative(path, toFirstOf: roots) {
+            return with(path: relative)
         }
-        return self
+        let resolvedPath = (ProjectTree.resolved((path as NSString).deletingLastPathComponent) as NSString)
+            .appendingPathComponent((path as NSString).lastPathComponent)
+        let resolvedRoots = roots.map { URL(fileURLWithPath: ProjectTree.resolved($0.path)) }
+        return Self.relative(resolvedPath, toFirstOf: resolvedRoots).map(with(path:)) ?? self
+    }
+
+    /// `path` relative to the first of `roots` it is inside, or nil when it is inside none.
+    private static func relative(_ path: String, toFirstOf roots: [URL]) -> String? {
+        roots.lazy
+            .map { RepoRelativePath.of(path, under: $0) }
+            .first { $0 != path }
+    }
+
+    /// This reference with `path` in place of its own.
+    private func with(path: String) -> MutantReference {
+        MutantReference(
+            path: path,
+            line: line,
+            column: column,
+            mutationOperatorId: mutationOperatorId,
+            occurrence: occurrence
+        )
     }
 
     private static let usage = ValidationError(

@@ -117,9 +117,10 @@ struct Run: RunCommand {
     init() {}
 
     /// The options the command line gives the run. Without `--seed`, a `--sample` gets a seed chosen afresh each time,
-    /// so `run()` asks once. `--mutant` skips coverage, which only leaves files and code out of discovery, and mutates
-    /// with only its operator when it names one. It leaves the files alone: its path may be the end of one, so every
-    /// file is discovered, and `SelectMutant` picks the mutant.
+    /// so `run()` asks once. `--mutant` skips coverage, which only leaves files and code out of discovery. It leaves
+    /// the files and the operators alone: its path may be the end of one, and a wrong operator is refused with the
+    /// mutants near its place, whatever their operators, so every file is discovered with every operator, and
+    /// `SelectMutant` picks the mutant.
     var runOptions: Run.Options {
         Run.Options(
             filesToMutate: selection.filesToMutate,
@@ -130,7 +131,7 @@ struct Run: RunCommand {
             sample: sample.map { Sample(size: $0, seed: seed ?? Sample.chooseSeed(), seedIsChosen: seed == nil) },
             reportFormat: reportOptions.reportFormat,
             reportURL: reportOptions.reportURL,
-            mutationOperatorsList: lone.mutant?.mutationOperatorId.map { [$0] } ?? selection.mutationOperatorsList,
+            mutationOperatorsList: selection.mutationOperatorsList,
             skipCoverage: options.skipCoverage || lone.mutant != nil,
             skipUpdateCheck: options.skipUpdateCheck,
             verbose: options.verbose,
