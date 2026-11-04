@@ -73,7 +73,11 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
 - **One environment for every `swift test` run:** a mutant is switched on by its ID in a file
   beside the worker's folder, such as `MyPackage_mutated.active-mutant`, not by a variable of its
   own, so your tests don't find it among the package's files or in its `git status`. For a package
-  inside a larger git repository, ignore `*_mutated*` there, which covers the worker clones too.
+  inside a larger git repository, ignore `*_mutated*` there, which covers the copy, the worker
+  clones, the derived data folders and the files beside them, under their `.noindex` names too. If
+  you use `run --mutant`, ignore `*_mutant*` as well: its folders, such as its copy,
+  `Foo_mutant.noindex`, don't match `*_mutated*`. A pattern that ends at `_mutated`, such as `*_mutated` or
+  `Foo_mutated/`, no longer covers the copy, `Foo_mutated.noindex`: change it to `*_mutated*`.
   SwiftPM keys its cache of compiled package manifests on the whole environment, so runs no longer
   recompile every `Package.swift`, which saves about 6 s per mutant with 4 workers. A wrapper
   script around `swift test` gets this only with `buildSystem: swift`, and its tests must be able
@@ -139,14 +143,29 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   left by the run before would switch that mutant on. These prove a switch is there, not that a
   run switched it on.
 - **xcodebuild mutant runs leave no derived data behind:** each mutant's `xcodebuild
-  test-without-building` keeps its derived data in `<project>_mutated.DerivedData`, beside the copy,
-  emptied before each run and removed when the run ends, and each other worker's in
-  `<project>_mutated_worker<n>.DerivedData`. Muter's runs each add a folder of 3–67 MB
+  test-without-building` keeps its derived data in `<project>_mutated.DerivedData.noindex`, beside
+  the copy, emptied before each run and removed when the run ends, and each other worker's in
+  `<project>_mutated_worker<n>.DerivedData.noindex`. Muter's runs each add a folder of 3–67 MB
   to `~/Library/Developer/Xcode/DerivedData`, which nothing removes. The runs
   also pass `-collect-test-diagnostics never`, so a failing run doesn't spend seconds collecting
   diagnostics no one reads, but only when `executable` lists that option in its `-help`, which
   SwiftMutator asks once per run. Without it, as for an older Xcode or a wrapper that doesn't pass
   it on, the runs collect diagnostics as before.
+- **Spotlight skips the copies:** every folder SwiftMutator makes beside the project has a name
+  that ends in `.noindex`: the copy, `<project>_mutated.noindex` (`<project>_mutant.noindex` for
+  `--mutant`), the worker clones, `<project>_mutated_worker<n>.noindex`, and the xcodebuild derived
+  data folders, `<project>_mutated.DerivedData.noindex` and
+  `<project>_mutated_worker<n>.DerivedData.noindex`. Spotlight skips such a folder, `.build` and
+  all, while it would otherwise index each copy as the run builds and writes into it. It goes only
+  by the folder's own name, so `.noindex` comes last: it would index
+  `<project>_mutated.noindex_worker1`. Copying BonMot with its 406 MB `.build` beside it and building
+  it, then waiting 90 s, Spotlight (`mdworker_shared`, `mds_stores`, `mds`) used 4.7 s and 7.4 s of
+  CPU with the copy named `X_mutated`, and 0.9 s and 0.7 s with it named `X_mutated.noindex` (two
+  alternating trials each; the copy took 2 s, the incremental build 6 s). The rest is Spotlight's
+  idle level. The lock, the active-mutant files and the helper links keep the names they had, as
+  `<project>_mutated.lock` and `<project>_mutated_worker1.active-mutant`. The log folder,
+  `<project>_muter_logs`, keeps its name too, so scripts and CI paths that name it still work, and
+  Spotlight still indexes it.
 - **Logging through the injected printer**, so log output can be captured and tested.
 
 Fixes that apply to Muter are offered upstream too.
@@ -161,12 +180,15 @@ swift build -c release --product swift-mutator
 
 `make install` installs `swift-mutator` into `/usr/local/bin`.
 
-A run tests in a copy of the project beside it, `<project>_mutated`, so a project has one run at a
-time. `run`, `mutate-without-running` and `run-without-mutating` lock `<project>_mutated.lock`
-before they read, remove, copy or test anything there. One started while another holds the lock is
-refused, naming the folder, and the process that holds it when the lock file shows which, and
-leaves everything as it was. It exits with status 6: run the same command again once that run has
-ended. The lock goes when SwiftMutator exits, however it exits, so it never needs clearing; the
+A run tests in a copy of the project beside it, `<project>_mutated.noindex`, so a project has one
+run at a time. `run`, `mutate-without-running` and `run-without-mutating` lock
+`<project>_mutated.lock` before they read, remove, copy or test anything there. One started while
+another holds the lock is refused, naming the process that holds it and the folder it runs in
+when the lock file shows them, and leaves everything as it was. The lock has the name it had
+before the copy's name ended in `.noindex`, so an older SwiftMutator, running in
+`<project>_mutated`, and this one exclude each other too. This one names the older run's folder,
+`<project>_mutated`, but an older one it refuses names its own, not `<project>_mutated.noindex`.
+It exits with status 6: run the same command again once that run has ended. The lock goes when SwiftMutator exits, however it exits, so it never needs clearing; the
 file stays, made with the permissions your umask gives new files, so anyone who can remove the copy
 can lock it.
 
@@ -282,8 +304,8 @@ muter-mappings.json` then tests it. See [The test plan](Docs/test-plan.md).
   mutant of the plan, in the plan's copy as it is, and leaves the copy unchanged (see
   [Testing one mutant](#testing-one-mutant)).
 - **A later run removes the copy.** A later `swift-mutator run` or `mutate-without-running` of the
-  project removes `<project>_mutated`, with any fix in it. `run --mutant` doesn't: it has a copy of
-  its own.
+  project removes `<project>_mutated.noindex`, with any fix in it. `run --mutant` doesn't: it has a
+  copy of its own.
 
 ## Testing one mutant
 
@@ -310,9 +332,9 @@ Tests (log: /…/Foo_muter_logs/…/RelationalOperatorReplacement @ Rules.swift-
   ✘ Test errorsAreReported() recorded an issue at RulesTests.swift:12:9: Expectation failed
   …
 Verdict: killed by errorsAreReported() (1 failed test), in 3.8 s
-Mutated project kept, with the mutant switched off: /Users/me/Foo_mutant
+Mutated project kept, with the mutant switched off: /Users/me/Foo_mutant.noindex
 To run its tests with it on:
-  printf '%s\n' 'Rules_9c41…' > '/Users/me/Foo_mutant.active-mutant' && cd '/Users/me/Foo_mutant' && IS_MUTER_RUNNING=YES SWIFTMUTATOR_ACTIVE_MUTANT_FILE='/Users/me/Foo_mutant.active-mutant' /usr/bin/swift test
+  printf '%s\n' 'Rules_9c41…' > '/Users/me/Foo_mutant.active-mutant' && cd '/Users/me/Foo_mutant.noindex' && IS_MUTER_RUNNING=YES SWIFTMUTATOR_ACTIVE_MUTANT_FILE='/Users/me/Foo_mutant.active-mutant' /usr/bin/swift test
 ```
 
 - **The change** is the mutant's line in your project's file, before and after. When that line
@@ -329,9 +351,9 @@ To run its tests with it on:
   switch, so none can be tested on its own, and the lists name such a place without a `--mutant`
   to paste. An absolute path may be spelled through a link, as `/tmp` is `/private/tmp`.
 - **`run --mutant`** skips coverage, finds every mutant, and puts only that mutant's switch into a
-  copy of its own, `<project>_mutant`, which it keeps for a look afterwards. A test plan's
-  `<project>_mutated`, and any fix in it, is left alone. `<project>_mutant` stays until the next
-  `run --mutant`.
+  copy of its own, `<project>_mutant.noindex`, which it keeps for a look afterwards. A test plan's
+  `<project>_mutated.noindex`, and any fix in it, is left alone. `<project>_mutant.noindex` stays
+  until the next `run --mutant`.
 - **`run-without-mutating --mutant`** tests the plan's copy as it is, without rewriting it. The
   project is checked against the plan as for a whole run, but only a change to that mutant's file
   refuses it: one to a file with the plan's other mutants is only said.
@@ -766,7 +788,7 @@ swift-mutator run --shard 1/2
   file, and exits with 0. In CI, upload its results file with `if-no-files-found: ignore`.
 - **`--shard 1/1`** is the whole run, so a matrix of one entry needs no special case.
 - **One shard at a time on one machine.** Every shard of a project uses the same mutated copy,
-  `<project>_mutated`, so a second one started while the first runs is refused.
+  `<project>_mutated.noindex`, so a second one started while the first runs is refused.
 - **It combines** with `--since`, `--changed-lines`, `--files-to-mutate` and `--operators`, which
   choose the mutants that are split.
 - **Resuming.** The results file's header records the shard, and a resume must give the same one;
@@ -1129,11 +1151,11 @@ which a closed terminal sends, stop it the same way. SwiftMutator then:
    commands are left out when no mutant has a result, or when the results file couldn't be written
    in full. A run of a test plan's command is `run-without-mutating` again, with the plan and
    `--resume`.
-5. Removes its worker clones, `<project>_mutated_worker<n>`, the active-mutant files beside the
-   mutated project and the clones, and an xcodebuild run's derived data,
-   `<project>_mutated.DerivedData` and `<project>_mutated_worker<n>.DerivedData`, with its workers'
-   `muter-worker<n>.xctestrun` files. The mutated project, `<project>_mutated`, is kept, as after a
-   finished run. Last, it deletes the simulators an xcodebuild run made for its workers, named
+5. Removes its worker clones, `<project>_mutated_worker<n>.noindex`, the active-mutant files beside
+   the mutated project and the clones, and an xcodebuild run's derived data,
+   `<project>_mutated.DerivedData.noindex` and `<project>_mutated_worker<n>.DerivedData.noindex`,
+   with its workers' `muter-worker<n>.xctestrun` files. The mutated project,
+   `<project>_mutated.noindex`, is kept, as after a finished run. Last, it deletes the simulators an xcodebuild run made for its workers, named
    `swiftmutator-<project hash>-<pid>-<start>-w<n>`, which takes a few seconds when they are
    booted. A finished run deletes them the same way.
 6. Exits by the same signal, so the shell sees status 130 for SIGINT, 143 for SIGTERM or 129 for
@@ -1163,9 +1185,15 @@ the results file starts only after both.
   measures time itself can still see it pass. Under xcodebuild, a simulator runs the tests in a
   process of its own, which SwiftMutator didn't start, and doesn't suspend. A run that is
   stopping isn't suspended: it is about to end.
-- **Leftovers.** The next `run` removes `<project>_mutated` and any worker clones, active-mutant
-  files and `.DerivedData` folders an earlier run left behind, such as one stopped at once, killed
-  with SIGKILL, or crashed. The next xcodebuild run, before its baseline, deletes the worker
+- **Leftovers.** The next `run` removes `<project>_mutated.noindex` and any worker clones,
+  active-mutant files and `.DerivedData.noindex` folders an earlier run left behind, such as one
+  stopped at once, killed with SIGKILL, or crashed. It also removes what a SwiftMutator from before
+  the `.noindex` names left under the names it gave them, `<project>_mutated` with any fix in it,
+  `<project>_mutated_worker<n>`, the `.DerivedData` folders and the files beside them, so the first
+  run after an upgrade leaves none of them. It holds the lock that SwiftMutator took, so it never
+  touches a run of it still under way, and `run --mutant` removes only what runs of one mutant left.
+  An older SwiftMutator doesn't know the `.noindex` names, so going back to one leaves them to
+  remove by hand. The next xcodebuild run, before its baseline, deletes the worker
   simulators an earlier run of the project left, and those of any run, of any project, whose
   process has ended; a run of another project that is still under way keeps its own. Until then, a
   booted one holds memory. No other simulator is touched: only SwiftMutator's own are named

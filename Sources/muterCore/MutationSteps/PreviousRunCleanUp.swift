@@ -12,12 +12,16 @@ struct PreviousRunCleanUp: MutationStep {
             try remove(mutated.path)
         }
 
-        // A run stopped at once (a second Ctrl-C, SIGKILL, a crash) leaves its worker clones, even once `_mutated` is
+        // A run stopped at once (a second Ctrl-C, SIGKILL, a crash) leaves its worker clones, even once the copy is
         // gone, and the active-mutant files, helper links and xcodebuild derived data beside its folders. A link's
-        // tests' `UserDefaults` go with it.
+        // tests' `UserDefaults` go with it. So do the folders and files a SwiftMutator from before `.noindex` left
+        // under the names it gave them, its copy `<project>_mutated` too, a hand fix in it included: this run holds
+        // the lock that SwiftMutator took for them, `<project>_mutated.lock`, so none of them is in use. A run of one
+        // mutant's stem is `<project>_mutant`, so it removes only what such runs left.
+        let stem = MutatedProjectNames.stem(of: mutated)
         let parent = mutated.deletingLastPathComponent().path
         let leftovers = ((try? fileManager.contentsOfDirectory(atPath: parent)) ?? [])
-            .filter { Self.isLeftover($0, of: mutated.lastPathComponent) }
+            .filter { $0 != mutated.lastPathComponent && MutatedProjectNames.isLeftover($0, of: stem) }
             .sorted()
         for name in leftovers {
             try remove((parent as NSString).appendingPathComponent(name))
@@ -26,29 +30,6 @@ struct PreviousRunCleanUp: MutationStep {
             }
         }
         return []
-    }
-
-    /// A worker clone, or the active-mutant file, helper link or derived data folder beside the mutated project or a
-    /// clone, as `MutationTestingDelegate.activeMutantFile(forWorkerIn:)`, `DirectTestRun.helperLink(forWorkerIn:)` and
-    /// `MuterConfiguration.XcodeWorker.derivedData(ofWorker:in:)` name them. An xcodebuild worker has no clone, but its
-    /// derived data is named as if it had.
-    static func isLeftover(_ name: String, of mutatedName: String) -> Bool {
-        let suffixes = [
-            MutationTestingDelegate.activeMutantFileSuffix,
-            DirectTestRun.helperLinkSuffix,
-            MuterConfiguration.XcodeWorker.derivedDataSuffix,
-        ]
-        guard let suffix = suffixes.first(where: name.hasSuffix) else { return isWorkerClone(name, of: mutatedName) }
-        let folder = String(name.dropLast(suffix.count))
-        return folder == mutatedName || isWorkerClone(folder, of: mutatedName)
-    }
-
-    /// `<mutated>_worker<n>`, as `PerformMutationTesting.cloneMutatedProject` names a clone.
-    static func isWorkerClone(_ name: String, of mutatedName: String) -> Bool {
-        let prefix = mutatedName + "_worker"
-        guard name.hasPrefix(prefix) else { return false }
-        let number = name.dropFirst(prefix.count)
-        return !number.isEmpty && number.allSatisfy { $0.isASCII && $0.isNumber }
     }
 
     private func remove(_ path: String) throws {

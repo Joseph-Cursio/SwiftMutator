@@ -345,7 +345,7 @@ final class MutationTestHandlerTests: MuterTestCase {
         await AssertThrowsError(try await MutationTestHandler(steps: steps(), state: second).run()) { error in
             XCTAssertEqual(
                 error as? MutatedProjectLockError,
-                .inUse(mutatedProject: project.path + "_mutated", process: getpid())
+                .inUse(mutatedProject: project.path + "_mutated.noindex", process: getpid())
             )
         }
         let secondRunsCalls = fileManager.methodCalls.dropFirst(firstRunsCalls)
@@ -364,7 +364,7 @@ final class MutationTestHandlerTests: MuterTestCase {
 
         first.mutatedProjectLock?.release()
         try await MutationTestHandler(steps: steps(), state: state()).run()
-        XCTAssertTrue(fileManager.paths.contains(project.path + "_mutated"), "\(fileManager.paths)")
+        XCTAssertTrue(fileManager.paths.contains(project.path + "_mutated.noindex"), "\(fileManager.paths)")
     }
 
     // A run refused by another run of the project, or by any step before the lock, prunes no log folder; one that
@@ -389,6 +389,7 @@ final class MutationTestHandlerTests: MuterTestCase {
             state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", keepLogFolders: 2)
             return state
         }
+        // As an older SwiftMutator, whose copy has no `.noindex`, holds it: it locks the same file.
         let other = try MutatedProjectLock.Locker().lock(URL(fileURLWithPath: project.path + "_mutated"))
         let locked = MutationTestHandler(steps: steps([]), state: state())
         let refused = MutationTestHandler(steps: steps([RefusingStep()]), state: state())

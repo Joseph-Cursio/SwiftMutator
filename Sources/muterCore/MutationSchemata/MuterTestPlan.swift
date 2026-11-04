@@ -91,7 +91,7 @@ struct LoadedTestPlan: Equatable, Sendable {
 /// holds.
 struct TestPlanCreated: Equatable {
     let path: String
-    /// The copy, as the plan names it: relative to the project folder, as `../Foo_mutated`.
+    /// The copy, as the plan names it: relative to the project folder, as `../Foo_mutated.noindex`.
     let mutatedProject: String
     let mutants: Int
     let files: Int

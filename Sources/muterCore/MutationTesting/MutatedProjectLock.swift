@@ -16,7 +16,8 @@ protocol MutatedProjectLocking: Sendable {
 }
 
 enum MutatedProjectLockError: Error, Equatable, CustomStringConvertible {
-    /// Another SwiftMutator process holds the lock on `mutatedProject`: `process`, if the lock file shows which.
+    /// Another SwiftMutator process holds the lock: `process`, if the lock file shows which. `mutatedProject` is the
+    /// copy that process is running in, as the lock file shows it, or else the refused run's own.
     case inUse(mutatedProject: String, process: Int32?)
     case cannotLock(path: String, errno: Int32)
 
@@ -40,9 +41,16 @@ enum MutatedProjectLockError: Error, Equatable, CustomStringConvertible {
 /// also let a run lock a new file while another still held the old one. The descriptor is closed on exec, so no test
 /// process SwiftMutator starts keeps it, or its lock, open.
 ///
-/// The holder records its process ID in the file, and when that process started, and clears them as it releases the
-/// lock, so a run that is refused can name it. A record is believed only while the process with that ID started then:
-/// a holder killed at once leaves its record, and its ID can go to another process.
+/// The file is named after the copy's stem, its name without `.noindex`, as SwiftMutators from before `.noindex` named
+/// it: an older SwiftMutator's run, in `<project>_mutated`, and this one's, in `<project>_mutated.noindex`, lock the
+/// same file, so neither removes or uses a copy the other is running in.
+///
+/// The holder records its process ID in the file, and when that process started, then, on a line of its own, the copy
+/// it runs in, and clears them as it releases the lock, so a run that is refused can name it and its copy. A record is
+/// believed only while the process with that ID started then: a holder killed at once leaves its record, and its ID can
+/// go to another process. An older SwiftMutator records no copy: it runs in the folder the lock is named after, which
+/// is not the refused run's own when that run's copy is `<project>_mutated.noindex` and the holder's
+/// `<project>_mutated`.
 ///
 /// Below its record, the holder lists the test processes it is running, the same way, and tells a watcher of its own
 /// about them (`TestProcessWatcher`). Each leads a process group of its own, so if the holder dies first, killed with
@@ -69,7 +77,10 @@ final class MutatedProjectLock: Equatable, @unchecked Sendable { // every `var` 
                 let holder = code == EWOULDBLOCK ? MutatedProjectLock.holder(recordedIn: descriptor) : nil
                 close(descriptor)
                 throw code == EWOULDBLOCK
-                    ? MutatedProjectLockError.inUse(mutatedProject: mutatedProject.path, process: holder)
+                    ? MutatedProjectLockError.inUse(
+                        mutatedProject: MutatedProjectLock.copy(of: holder, lockedAt: path, refused: mutatedProject),
+                        process: holder?.process
+                    )
                     : MutatedProjectLockError.cannotLock(
                         path: path,
                         errno: MutatedProjectLock.reportedErrno(
@@ -84,7 +95,7 @@ final class MutatedProjectLock: Equatable, @unchecked Sendable { // every `var` 
             let lock = MutatedProjectLock(
                 descriptor: descriptor,
                 path: path,
-                holder: MutatedProjectLock.record(of: getpid()) ?? "",
+                holder: MutatedProjectLock.record(of: getpid(), runningIn: mutatedProject) ?? "",
                 startWatcher: startWatcher
             )
             access.withLock { held = lock }
@@ -187,9 +198,9 @@ final class MutatedProjectLock: Equatable, @unchecked Sendable { // every `var` 
         lhs === rhs
     }
 
-    /// The lock file of `mutatedProject`: beside it, named after it.
+    /// The lock file of `mutatedProject`: beside it, named after its stem (`MutatedProjectNames.lockFile(of:)`).
     static func path(for mutatedProject: URL) -> String {
-        mutatedProject.path + ".lock"
+        MutatedProjectNames.lockFile(of: mutatedProject)
     }
 
     /// The lock file at `path`, made if it's missing. A new file gets whatever permissions the umask leaves, as the
@@ -213,20 +224,46 @@ final class MutatedProjectLock: Equatable, @unchecked Sendable { // every `var` 
         code == EBADF ? reason ?? code : code
     }
 
-    /// What the lock file records of `process`: its ID, and when it started, which tells it apart from a later process
-    /// given the same ID. Nil if its start can't be read.
-    private static func record(of process: Int32) -> String? {
-        startTime(of: process).map { "\(process) \($0)\n" }
+    /// Starts the line on which the holder records its copy.
+    private static let copyPrefix = "copy "
+
+    /// What the lock file records of `process`, running in `copy`: its ID, and when it started, which tells it apart
+    /// from a later process given the same ID, then `copy <path>`. A path with a line break in it isn't recorded. Nil
+    /// if its start can't be read. A SwiftMutator from before `.noindex` reads only the first line, and passes over the
+    /// second when it looks for test processes, as it isn't `test <pid> <start>`.
+    private static func record(of process: Int32, runningIn copy: URL) -> String? {
+        guard let started = startTime(of: process) else { return nil }
+        let copyLine = copy.path.contains("\n") ? "" : copyPrefix + copy.path + "\n"
+        return "\(process) \(started)\n" + copyLine
     }
 
-    /// The holder that `descriptor`'s file records, if that process still runs. None is named in the moment between a
-    /// run locking the file and recording itself, or if the holder couldn't record itself.
-    private static func holder(recordedIn descriptor: Int32) -> Int32? {
-        let fields = contents(of: descriptor).prefix { $0 != "\n" }.split(whereSeparator: \.isWhitespace)
+    /// The holder that `descriptor`'s file records, if that process still runs, and the copy it records, if any. None
+    /// is named in the moment between a run locking the file and recording itself, or if the holder couldn't record
+    /// itself.
+    private static func holder(recordedIn descriptor: Int32) -> (process: Int32, copy: String?)? {
+        let lines = contents(of: descriptor).split(separator: "\n", omittingEmptySubsequences: false)
+        let fields = (lines.first ?? "").split(whereSeparator: \.isWhitespace)
         guard fields.count == 2, let process = Int32(fields[0]), let started = UInt64(fields[1]),
               startTime(of: process) == started
         else { return nil }
-        return process
+        let copy = lines.dropFirst().first.flatMap { line in
+            line.hasPrefix(copyPrefix) ? String(line.dropFirst(copyPrefix.count)) : nil
+        }
+        return (process, copy)
+    }
+
+    /// The copy a refused run names as in use by `holder`, which holds the lock file at `lockPath`: the copy `holder`
+    /// records, or, for a holder that records none, an older SwiftMutator, the folder it names its lock after,
+    /// `lockPath` without `.lock`. With no holder known, the refused run's own copy, `refused`.
+    private static func copy(
+        of holder: (process: Int32, copy: String?)?,
+        lockedAt lockPath: String,
+        refused: URL
+    ) -> String {
+        guard let holder else { return refused.path }
+        if let copy = holder.copy { return copy }
+        let suffix = MutatedProjectNames.lockSuffix
+        return lockPath.hasSuffix(suffix) ? String(lockPath.dropLast(suffix.count)) : refused.path
     }
 
     /// Kills each test process the lock file at `descriptor` lists, with every process it started, if it still runs:

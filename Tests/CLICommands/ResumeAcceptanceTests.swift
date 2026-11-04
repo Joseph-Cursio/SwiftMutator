@@ -1,3 +1,4 @@
+@testable import muterCore
 import XCTest
 
 /// Runs the built `swift-mutator` on a two-file project whose test command is a shell script, stops a run partway with
@@ -253,6 +254,25 @@ final class ResumeAcceptanceTests: XCTestCase {
         assertNoTestProcessIsLeft()
     }
 
+    // An older SwiftMutator runs in `project_mutated` and locks `project_mutated.lock`, the file this one locks for
+    // `project_mutated.noindex`. So this one refuses to start, and never removes the copy that run tests in, though it
+    // removes such a copy as a leftover once no run holds the lock.
+    func test_aRunWhileAnOlderSwiftMutatorRunsInTheOldNamedCopy_isRefused_andLeavesThatCopy() throws {
+        let olderCopy = root.appendingPathComponent("project_mutated", isDirectory: true)
+        let olderMarker = olderCopy.appendingPathComponent("marker")
+        try FileManager.default.createDirectory(at: olderCopy, withIntermediateDirectories: true)
+        try "".write(to: olderMarker, atomically: true, encoding: .utf8)
+        let older = try MutatedProjectLock.Locker(startWatcher: { nil }).lock(olderCopy)
+
+        let refused = try waitForEnd(of: launch(firstSessionArguments))
+
+        XCTAssertEqual(refused.status, 6, refused.standardError + refused.standardOutput)
+        XCTAssertTrue(refused.standardOutput.contains("SwiftMutator won't start"), refused.standardOutput)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: olderMarker.path), "the older run's copy was touched")
+        XCTAssertFalse(exists("project_mutated.noindex"), "the project was copied")
+        older.release()
+    }
+
     func test_aChangedProjectFile_refusesBeforeTheCopy_andResumeIgnoringLetsItThrough() throws {
         let (resultsFile, continueCommand) = try stopTheFirstSession()
         try FileManager.default.removeItem(at: hangMarker)
@@ -261,7 +281,7 @@ final class ResumeAcceptanceTests: XCTestCase {
             atomically: true,
             encoding: .utf8
         )
-        let copyMarker = root.appendingPathComponent("project_mutated/left-by-the-test")
+        let copyMarker = root.appendingPathComponent("project_mutated.noindex/left-by-the-test")
         try "".write(to: copyMarker, atomically: true, encoding: .utf8)
 
         let refused = try waitForEnd(of: launch(commandLine: continueCommand))
@@ -577,7 +597,7 @@ final class ResumeAcceptanceTests: XCTestCase {
         try records(in: file).map { $0["kind"] as? String }
     }
 
-    /// The worker clones, `project_mutated_worker<n>`, beside the project.
+    /// The worker clones, `project_mutated_worker<n>.noindex`, beside the project.
     private func workerClones() -> [String] {
         ((try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? [])
             .filter { $0.hasPrefix("project_mutated_worker") }

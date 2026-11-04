@@ -729,11 +729,14 @@ final class PerformMutationTestingTests: MuterTestCase {
 
         let worker = MuterConfiguration.XcodeWorker(
             testRunFile: "muter.xctestrun",
-            derivedData: "/project_mutated.DerivedData",
+            derivedData: "/project_mutated.DerivedData.noindex",
             testDiagnosticsOff: true
         )
         XCTAssertEqual(ioDelegate.configurations.map(\.xcodeWorker), [worker, worker])
-        XCTAssertEqual(fileManager.paths.filter { $0.hasSuffix(".DerivedData") }, ["/project_mutated.DerivedData"])
+        XCTAssertEqual(
+            fileManager.paths.filter { $0.contains(".DerivedData") },
+            ["/project_mutated.DerivedData.noindex"]
+        )
     }
 
     // Only an xcodebuild that lists the option in its `-help` gets it (see BuildForTesting).
@@ -772,7 +775,7 @@ final class PerformMutationTestingTests: MuterTestCase {
         _ = try await sut.run(with: state)
 
         XCTAssertEqual(ioDelegate.configurations.map(\.xcodeWorker), [nil, nil])
-        XCTAssertFalse(fileManager.paths.contains { $0.hasSuffix(".DerivedData") })
+        XCTAssertFalse(fileManager.paths.contains { $0.contains(".DerivedData") })
     }
 
     // A real run that found the simulator still busy with the run before. It tested nothing, so the mutant runs again

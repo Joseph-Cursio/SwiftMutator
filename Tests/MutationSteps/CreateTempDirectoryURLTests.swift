@@ -13,7 +13,7 @@ final class CreateMutatedProjectDirectoryURLTests: MuterTestCase {
 
         XCTAssertEqual(
             result,
-            [.tempDirectoryUrlCreated(URL(fileURLWithPath: "/tmp/some/projectName_mutated"))]
+            [.tempDirectoryUrlCreated(URL(fileURLWithPath: "/tmp/some/projectName_mutated.noindex"))]
         )
     }
 
@@ -25,7 +25,10 @@ final class CreateMutatedProjectDirectoryURLTests: MuterTestCase {
 
         let result = try await sut.run(with: state)
 
-        XCTAssertEqual(result, [.tempDirectoryUrlCreated(URL(fileURLWithPath: "/tmp/some/projectName_mutant"))])
+        XCTAssertEqual(
+            result,
+            [.tempDirectoryUrlCreated(URL(fileURLWithPath: "/tmp/some/projectName_mutant.noindex"))]
+        )
     }
 
     func test_mutateWithoutRunning_andAWholeRun_keepTheMutatedCopy() async throws {
@@ -36,7 +39,10 @@ final class CreateMutatedProjectDirectoryURLTests: MuterTestCase {
 
             let result = try await sut.run(with: state)
 
-            XCTAssertEqual(result, [.tempDirectoryUrlCreated(URL(fileURLWithPath: "/tmp/some/projectName_mutated"))])
+            XCTAssertEqual(
+                result,
+                [.tempDirectoryUrlCreated(URL(fileURLWithPath: "/tmp/some/projectName_mutated.noindex"))]
+            )
         }
     }
 }

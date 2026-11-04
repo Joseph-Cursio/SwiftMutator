@@ -8,7 +8,7 @@ final class MutatedProjectLockTests: XCTestCase {
 
     /// Never made: a run takes the lock before it copies the project.
     private var mutatedProject: URL {
-        URL(fileURLWithPath: "\(directory)/x_mutated")
+        URL(fileURLWithPath: "\(directory)/x_mutated.noindex")
     }
 
     override func setUpWithError() throws {
@@ -16,7 +16,8 @@ final class MutatedProjectLockTests: XCTestCase {
         directory = try makeTemporaryDirectory()
     }
 
-    // Beside the copy, which a run removes and makes again while it holds the lock.
+    // Beside the copy, which a run removes and makes again while it holds the lock. Named after the copy without
+    // `.noindex`, as SwiftMutators from before `.noindex` named it.
     func test_theLockIsAFileBesideTheMutatedProject_whichNeedNotExistYet() throws {
         let lock = try locker.lock(mutatedProject)
 
@@ -37,7 +38,8 @@ final class MutatedProjectLockTests: XCTestCase {
         withExtendedLifetime(first) {}
     }
 
-    // Each run names the folder its own way, such as through a symbolic link, but there is only one lock file.
+    // Each run names the folder its own way, such as through a symbolic link, but there is only one lock file. The
+    // refused run names the folder as the holder does.
     func test_aRunReachingTheFolderThroughAnotherPath_isRefusedToo() throws {
         let (real, link) = try makeDirectoryWithSymbolicLink()
         let first = try locker.lock(URL(fileURLWithPath: "\(real)/x_mutated"))
@@ -45,10 +47,45 @@ final class MutatedProjectLockTests: XCTestCase {
         XCTAssertThrowsError(try locker.lock(URL(fileURLWithPath: "\(link)/x_mutated"))) { error in
             XCTAssertEqual(
                 error as? MutatedProjectLockError,
-                .inUse(mutatedProject: "\(link)/x_mutated", process: getpid())
+                .inUse(mutatedProject: "\(real)/x_mutated", process: getpid())
             )
         }
         withExtendedLifetime(first) {}
+    }
+
+    // An older SwiftMutator's copy, `x_mutated`, and this one's, `x_mutated.noindex`, lock the same file, so neither
+    // run removes or uses a copy the other is running in, whichever starts first. The refused run names the copy the
+    // holder runs in, not its own.
+    func test_aCopyNamedAsAnOlderSwiftMutatorNamedIt_andOneNamedAsThisOneDoes_shareTheLock() throws {
+        let older = URL(fileURLWithPath: "\(directory)/x_mutated")
+        for (first, second) in [(older, mutatedProject), (mutatedProject, older)] {
+            let held = try locker.lock(first)
+
+            XCTAssertThrowsError(try locker.lock(second)) { error in
+                XCTAssertEqual(
+                    error as? MutatedProjectLockError,
+                    .inUse(mutatedProject: first.path, process: getpid())
+                )
+            }
+            XCTAssertEqual(held.path, "\(directory)/x_mutated.lock")
+            held.release()
+        }
+    }
+
+    // An older SwiftMutator records no copy: it runs in the folder its lock is named after, `x_mutated`, which this
+    // run, whose copy is `x_mutated.noindex`, names rather than its own, which it hasn't made.
+    func test_aHolderThatRecordsNoCopy_isAnOlderSwiftMutator_runningInTheFolderItsLockIsNamedAfter() throws {
+        let start = try XCTUnwrap(MutatedProjectLock.startTime(of: getpid()))
+        try writeRecord("\(getpid()) \(start)\ntest 99999999 1\n")
+        try holdLockWithoutRecording()
+
+        XCTAssertThrowsError(try locker.lock(mutatedProject)) { error in
+            XCTAssertEqual(
+                error as? MutatedProjectLockError,
+                .inUse(mutatedProject: "\(directory)/x_mutated", process: getpid())
+            )
+            XCTAssertTrue("\(error)".contains("is using \(directory)/x_mutated, and two runs"), "\(error)")
+        }
     }
 
     func test_aRunOfAnotherProjectBesideIt_isNotRefused() throws {
@@ -82,7 +119,10 @@ final class MutatedProjectLockTests: XCTestCase {
         let lock = try locker.lock(mutatedProject)
 
         let start = try XCTUnwrap(MutatedProjectLock.startTime(of: getpid()))
-        XCTAssertEqual(try String(contentsOfFile: lock.path, encoding: .utf8), "\(getpid()) \(start)\n")
+        XCTAssertEqual(
+            try String(contentsOfFile: lock.path, encoding: .utf8),
+            "\(getpid()) \(start)\ncopy \(mutatedProject.path)\n"
+        )
     }
 
     // So a run that has finished is never named, even while its process is still exiting.
@@ -326,7 +366,10 @@ final class MutatedProjectLockTests: XCTestCase {
         let everyProcess = [tree.root.id, tree.sleeper, other.root.id, other.sleeper]
         XCTAssertTrue(waitUntilGone(everyProcess), "still running")
         let start = try XCTUnwrap(MutatedProjectLock.startTime(of: getpid()))
-        XCTAssertEqual(try String(contentsOfFile: lock.path, encoding: .utf8), "\(getpid()) \(start)\n")
+        XCTAssertEqual(
+            try String(contentsOfFile: lock.path, encoding: .utf8),
+            "\(getpid()) \(start)\ncopy \(mutatedProject.path)\n"
+        )
     }
 
     // Its ID may have gone to another process.

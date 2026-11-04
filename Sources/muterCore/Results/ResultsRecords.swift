@@ -315,8 +315,8 @@ struct MutantResult: Codable, Equatable {
     let exitStatus: Int32?
     /// From launch to classification, to the millisecond.
     let durationSeconds: Double
-    /// For SwiftPM, 0 is the mutated project, n is its clone `<mutated>_worker<n>`; for xcodebuild, n is the worker
-    /// whose simulator, `.xctestrun` and derived data its run used.
+    /// For SwiftPM, 0 is the mutated project, n is its clone `<project>_mutated_worker<n>.noindex`; for xcodebuild, n
+    /// is the worker whose simulator, `.xctestrun` and derived data its run used.
     let worker: Int
     let finishedAt: Date
     /// For a killed, crashed or timed-out mutant: the tests its log shows failing, each once, in the order they first

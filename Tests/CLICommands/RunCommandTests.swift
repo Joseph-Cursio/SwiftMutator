@@ -565,7 +565,7 @@ final class RunCommandTests: XCTestCase {
         let lockedCopy = MutatedProjectLockError.inUse(mutatedProject: "/code/x_mutated", process: 81234)
         XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: lockedCopy), .anotherRunHoldsTheLock)
         let plans = [
-            TestPlanRefused(path: "/code/x/muter-mappings.json", reason: .newerFormat(found: 2)),
+            TestPlanRefused(path: "/code/x/muter-mappings.json", reason: .newerFormat(found: 3)),
             TestPlanRefused(path: "/code/x/muter-mappings.json", reason: .copyMissing(path: "/code/x_mutated")),
         ]
         for refused in plans {

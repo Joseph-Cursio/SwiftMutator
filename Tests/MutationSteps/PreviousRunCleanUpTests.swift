@@ -166,6 +166,80 @@ final class PreviousRunCleanUpTests: MuterTestCase {
         XCTAssertEqual(fileManager.paths, [])
     }
 
+    // The first run after an upgrade removes what an older SwiftMutator left under the names it gave them, its copy
+    // too, as well as what a run of this one leaves. It holds the lock the older one took, `x_mutated.lock`.
+    func test_aCopyEndingInNoindex_removesWhatEitherNamingLeft_andNothingElse() async throws {
+        fileManager.fileExistsToReturn = [true]
+        fileManager.contentsOfDirectoryToReturn = [
+            "x",
+            "x_mutated",
+            "x_mutated.noindex",
+            "x_mutated_worker1",
+            "x_mutated_worker2.noindex",
+            "x_mutated.DerivedData",
+            "x_mutated.DerivedData.noindex",
+            "x_mutated_worker3.DerivedData",
+            "x_mutated_worker3.DerivedData.noindex",
+            "x_mutated.active-mutant",
+            "x_mutated_worker2.active-mutant",
+            "x_mutated_worker1.swiftpm-testing-helper",
+            "x_mutated.lock",
+            "x_muter_logs",
+            "x_mutated_worker.noindex",
+            "x_mutated_workerfoo.noindex",
+            "x_mutated_worker2.noindex.txt",
+            "y_mutated_worker1.noindex",
+            "y_mutated.DerivedData.noindex",
+            "x_mutated.active-mutant.noindex",
+            "x_mutated.noindex.DerivedData",
+            "x_mutant",
+            "x_mutant.noindex",
+        ]
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/some/x_mutated.noindex")
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result, [])
+        XCTAssertEqual(fileManager.paths, [
+            "/some/x_mutated.noindex", // once
+            "/some/x_mutated",
+            "/some/x_mutated.DerivedData",
+            "/some/x_mutated.DerivedData.noindex",
+            "/some/x_mutated.active-mutant",
+            "/some/x_mutated_worker1",
+            "/some/x_mutated_worker1.swiftpm-testing-helper",
+            "/some/x_mutated_worker2.active-mutant",
+            "/some/x_mutated_worker2.noindex",
+            "/some/x_mutated_worker3.DerivedData",
+            "/some/x_mutated_worker3.DerivedData.noindex",
+        ])
+    }
+
+    // A run of one mutant removes only what such runs left, never a test plan's copy, which may have been fixed by
+    // hand.
+    func test_aOneMutantCopy_removesOnlyWhatRunsOfOneMutantLeft() async throws {
+        fileManager.fileExistsToReturn = [false]
+        fileManager.contentsOfDirectoryToReturn = [
+            "x_mutant",
+            "x_mutant_worker1.noindex",
+            "x_mutant.active-mutant",
+            "x_mutant.lock",
+            "x_mutated",
+            "x_mutated.noindex",
+            "x_mutated_worker1.noindex",
+            "x_mutated.DerivedData.noindex",
+            "x_mutated.active-mutant",
+        ]
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/some/x_mutant.noindex")
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(
+            fileManager.paths,
+            ["/some/x_mutant", "/some/x_mutant.active-mutant", "/some/x_mutant_worker1.noindex"]
+        )
+    }
+
     func test_aLeftoverCloneThatCannotBeRemoved_failsTheStep() async throws {
         fileManager.errorToThrow = RemoveTempDirectorySpecError.stub
         fileManager.fileExistsToReturn = [false]

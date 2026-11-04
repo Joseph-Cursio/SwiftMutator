@@ -161,11 +161,11 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
         _ = try await sut.run(with: state)
 
         XCTAssertEqual(
-            fileManager.paths.filter { $0.hasSuffix(".DerivedData") || $0.hasSuffix(".xctestrun") }.sorted(),
+            fileManager.paths.filter { $0.hasSuffix(".DerivedData.noindex") || $0.hasSuffix(".xctestrun") }.sorted(),
             [
-                "/project_mutated.DerivedData",
+                "/project_mutated.DerivedData.noindex",
                 "/project_mutated/muter-worker1.xctestrun",
-                "/project_mutated_worker1.DerivedData",
+                "/project_mutated_worker1.DerivedData.noindex",
             ]
         )
         XCTAssertFalse(workerSimulators.calls.contains("removeAll"))
@@ -597,7 +597,7 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
         )
         let firstWorker = MuterConfiguration.XcodeWorker(
             testRunFile: "muter.xctestrun",
-            derivedData: "/project_mutated.DerivedData",
+            derivedData: "/project_mutated.DerivedData.noindex",
             testDiagnosticsOff: true
         )
         XCTAssertEqual(

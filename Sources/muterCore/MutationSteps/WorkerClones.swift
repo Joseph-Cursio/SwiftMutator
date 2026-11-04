@@ -18,7 +18,8 @@ extension PerformMutationTesting {
         }
     }
 
-    /// One clone of `project` per extra worker, next to it as `<name>_worker<n>`. On macOS `cp -c`
+    /// One clone of `project` per extra worker, next to it as `<stem>_worker<n>.noindex`
+    /// (`MutatedProjectNames.clone(_:of:)`). On macOS `cp -c`
     /// clones on APFS, so even a large build directory copies in seconds. Each clone is then built once
     /// before testing (`buildWorkerDirectories`). Every path in it has changed, so that is a full build:
     /// about one baseline build of time, and much of the clone's build directory is rewritten rather
@@ -39,8 +40,7 @@ extension PerformMutationTesting {
         var clones: [URL] = []
         do {
             for index in 1...count {
-                let clone = project.deletingLastPathComponent()
-                    .appendingPathComponent("\(project.lastPathComponent)_worker\(index)")
+                let clone = MutatedProjectNames.clone(index, of: project)
                 try? FileManager.default.removeItem(at: clone)
                 clones.append(clone) // before the copy, which can fail partway through
                 try await copy(project, clone)

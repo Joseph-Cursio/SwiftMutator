@@ -635,7 +635,7 @@ extension MuterTestPlan {
         )
     }
 
-    /// The plan as `CreateMuterTestPlan` writes it into `projectRoot`, in format 1.
+    /// The plan as `CreateMuterTestPlan` writes it into `projectRoot`, in `TestPlanCoding.formatVersion`.
     func toData(under projectRoot: URL) -> Data {
         Data(((try? TestPlanCoding.encode(self, under: projectRoot)) ?? "").utf8)
     }

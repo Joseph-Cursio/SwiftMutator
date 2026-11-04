@@ -640,17 +640,11 @@ extension MuterConfiguration {
             self.testDiagnosticsOff = testDiagnosticsOff
         }
 
-        /// Ends the name of a worker's derived data folder.
-        static let derivedDataSuffix = ".DerivedData"
-
-        /// Worker `worker`'s derived data folder: `<mutated>.DerivedData` for worker 0, and
-        /// `<mutated>_worker<n>.DerivedData` for worker n, beside the mutated project, so neither the copy's
-        /// fingerprint nor the build it tests from sees it.
+        /// Worker `worker`'s derived data folder, beside the mutated project, so neither the copy's fingerprint nor the
+        /// build it tests from sees it: `<stem>.DerivedData.noindex` for worker 0, and
+        /// `<stem>_worker<n>.DerivedData.noindex` for worker n (`MutatedProjectNames.derivedData(ofWorker:in:)`).
         static func derivedData(ofWorker worker: Int, in mutatedProject: URL) -> String {
-            let folder = mutatedProject.lastPathComponent + (worker == 0 ? "" : "_worker\(worker)")
-            return mutatedProject.deletingLastPathComponent()
-                .appendingPathComponent(folder + derivedDataSuffix)
-                .path
+            MutatedProjectNames.derivedData(ofWorker: worker, in: mutatedProject).path
         }
 
         /// The arguments the worker's runs add to the test command's.
