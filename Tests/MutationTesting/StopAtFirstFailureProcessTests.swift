@@ -94,6 +94,36 @@ final class StopAtFirstFailureProcessTests: MuterTestCase {
         XCTAssertEqual(result.outcome, .runtimeError)
     }
 
+    // A run past its time limit is killed with every process it started, before the teardown kills anything: the
+    // shell, its child, and the child of a subshell, which is the shell's grandchild. A killed process the system
+    // hasn't yet reaped still has its ID, so each is waited for.
+    func test_aRealRunPastItsTimeLimit_endsAsATimeout_andLeavesNothingRunning() async throws {
+        let configuration = testCommand(running: """
+            /bin/sleep 30.2323 & echo $! > child.pid
+            (/bin/sleep 30.2424 & echo $! > grandchild.pid; wait) &
+            echo started; wait
+            """, timeLimit: 0.5)
+
+        let started = Date()
+        let result = try await runMutantsTests(using: configuration)
+
+        XCTAssertLessThan(Date().timeIntervalSince(started), 10, "the run outlived its time limit")
+        XCTAssertEqual(result.ending, .timedOut, result.testLog)
+        XCTAssertEqual(result.outcome, .timeout, result.testLog)
+        let shell = try XCTUnwrap(launched.value.first?.processIdentifier)
+        // The time limit doesn't wait for the script, so a slow machine may kill it before it writes an ID. The
+        // process group's check below covers every process, those whose IDs were never written too.
+        let tree = [shell] + ["child.pid", "grandchild.pid"].compactMap(pid(writtenTo:))
+        XCTAssertTrue(
+            Self.waitUntil(within: 2) { tree.allSatisfy(isGone) },
+            "\(tree.filter { !isGone($0) }) of \(tree) are still running"
+        )
+        XCTAssertTrue(
+            Self.waitUntil(within: 2) { kill(-shell, 0) == -1 && errno == ESRCH },
+            "a process is left in the test command's process group"
+        )
+    }
+
     // A process whose parent exited before the kill escapes it. On Linux it holds back Foundation's notice of the
     // exit, which the kernel's is not, so the run ends with its test command all the same. The sleeps' odd lengths
     // make them easy to find if they're left behind.

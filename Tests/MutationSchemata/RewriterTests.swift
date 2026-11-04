@@ -1,6 +1,7 @@
 @testable import muterCore
 import SnapshotTesting
 import SwiftParser
+import SwiftSyntax
 import TestingExtensions
 import XCTest
 
@@ -91,8 +92,47 @@ final class RewriterTests: MuterTestCase {
         XCTAssertEqual(Set(lines), [6], "only the comparison inside check(_:) can be switched")
 
         let rewritten = MuterRewriter(mapping).rewrite(source.code).description
-        let fileScopeSwitches = rewritten.split(separator: "\n").filter { $0.hasPrefix("if ProcessInfo") }
-        XCTAssertEqual(fileScopeSwitches, [])
+        XCTAssertEqual(fileScopeSwitches(in: rewritten), [], rewritten)
+        XCTAssertEqual(rewritten.components(separatedBy: ".environment[").count - 1, 1, "check(_:)'s switch is missing")
+
+        // The shape the bug made: the file's statements, and a top-level `#if` clause's, each wrapped in a switch.
+        // The check finds both, so its finding none above means none was added.
+        let wrappedFileScope = """
+        if __SwiftMutator_0123.environment["probe_0123_RelationalOperatorReplacement_4_29_70"] != nil {
+            import Foundation
+        } else {
+            import Foundation
+        }
+        #if DEBUG
+        if __SwiftMutator_0123.environment["probe_0123_RelationalOperatorReplacement_12_55_250"] != nil {
+            enum Probe {}
+        } else {
+            enum Probe {}
+        }
+        #endif
+        """
+        XCTAssertEqual(fileScopeSwitches(in: wrappedFileScope).count, 2)
+    }
+
+    /// The mutation switches among the file's own statements, and those of its top-level `#if` clauses, each by its
+    /// first line. A switch is an `if` that reads a mutant from `__SwiftMutator_<hash>.environment`.
+    private func fileScopeSwitches(in code: String) -> [String] {
+        func switches(in statements: CodeBlockItemListSyntax) -> [String] {
+            statements.flatMap { statement -> [String] in
+                if let ifConfig = statement.item.as(IfConfigDeclSyntax.self) {
+                    return ifConfig.clauses.flatMap { clause -> [String] in
+                        guard case let .statements(clauseStatements)? = clause.elements else { return [] }
+                        return switches(in: clauseStatements)
+                    }
+                }
+                let text = statement.item.trimmedDescription
+                guard text.hasPrefix("if "), text.contains("__SwiftMutator_"), text.contains(".environment[") else {
+                    return []
+                }
+                return [String(text.prefix { !$0.isNewline })]
+            }
+        }
+        return switches(in: Parser.parse(source: code).statements)
     }
 
     // `#if` is not a scope: a `let` in a clause is visible after `#endif`. Switching the clause's own
