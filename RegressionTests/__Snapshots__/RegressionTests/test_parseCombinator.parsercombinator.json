@@ -3,6 +3,7 @@
     {
       "appliedOperators" : [
         {
+          "key" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift:88:23 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -15,9 +16,16 @@
             "before" : "==",
             "description" : "changed == to !="
           },
+          "path" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift",
+          "sourceChange" : {
+            "after" : "            while max != nil || result.count < max!, let (element, newRemainder) = self.parse(remainder) {",
+            "before" : "            while max == nil || result.count < max!, let (element, newRemainder) = self.parse(remainder) {",
+            "line" : 88
+          },
           "testSuiteOutcome" : "runtimeError"
         },
         {
+          "key" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift:88:30 ChangeLogicalConnector",
           "mutationPoint" : {
             "mutationOperatorId" : "ChangeLogicalConnector",
             "position" : {
@@ -30,9 +38,16 @@
             "before" : "||",
             "description" : "changed || to &&"
           },
+          "path" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift",
+          "sourceChange" : {
+            "after" : "            while max == nil && result.count < max!, let (element, newRemainder) = self.parse(remainder) {",
+            "before" : "            while max == nil || result.count < max!, let (element, newRemainder) = self.parse(remainder) {",
+            "line" : 88
+          },
           "testSuiteOutcome" : "runtimeError"
         },
         {
+          "key" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift:88:46 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -45,9 +60,16 @@
             "before" : "<",
             "description" : "changed < to >"
           },
+          "path" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift",
+          "sourceChange" : {
+            "after" : "            while max == nil || result.count > max!, let (element, newRemainder) = self.parse(remainder) {",
+            "before" : "            while max == nil || result.count < max!, let (element, newRemainder) = self.parse(remainder) {",
+            "line" : 88
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift:90:39 RemoveSideEffects",
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
@@ -60,9 +82,15 @@
             "before" : "result.append(element)",
             "description" : "removed line"
           },
+          "path" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift",
+          "sourceChange" : {
+            "before" : "                result.append(element)",
+            "line" : 90
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift:92:29 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -75,15 +103,23 @@
             "before" : "<",
             "description" : "changed < to >"
           },
+          "path" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift",
+          "sourceChange" : {
+            "after" : "            if result.count > min {",
+            "before" : "            if result.count < min {",
+            "line" : 92
+          },
           "testSuiteOutcome" : "failed"
         }
       ],
       "fileName" : "FFCParserCombinator.swift",
-      "mutationScore" : 100
+      "mutationScore" : 100,
+      "path" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift"
     },
     {
       "appliedOperators" : [
         {
+          "key" : "Sources\/FFCParserCombinator\/StringParsing.swift:103:73 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -96,9 +132,16 @@
             "before" : "==",
             "description" : "changed == to !="
           },
+          "path" : "Sources\/FFCParserCombinator\/StringParsing.swift",
+          "sourceChange" : {
+            "after" : "                guard let (_, newRemainder) = character(condition: { $0 != char }).parse(remainder) else {",
+            "before" : "                guard let (_, newRemainder) = character(condition: { $0 == char }).parse(remainder) else {",
+            "line" : 103
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/FFCParserCombinator\/StringParsing.swift:180:55 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -111,9 +154,16 @@
             "before" : "==",
             "description" : "changed == to !="
           },
+          "path" : "Sources\/FFCParserCombinator\/StringParsing.swift",
+          "sourceChange" : {
+            "after" : "        let decimalExponent = { (s, m) in Int(m) * (s != .minus ? -1 : 1) } <^> floatingPointE *> sign <&> UInt.parser",
+            "before" : "        let decimalExponent = { (s, m) in Int(m) * (s == .minus ? -1 : 1) } <^> floatingPointE *> sign <&> UInt.parser",
+            "line" : 180
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/FFCParserCombinator\/StringParsing.swift:180:73 SwapTernary",
           "mutationPoint" : {
             "mutationOperatorId" : "SwapTernary",
             "position" : {
@@ -126,9 +176,16 @@
             "before" : "s == .minus ? -1 : 1",
             "description" : "swapped ternary operator"
           },
+          "path" : "Sources\/FFCParserCombinator\/StringParsing.swift",
+          "sourceChange" : {
+            "after" : "        let decimalExponent = { (s, m) in Int(m) * (s == .minus ? 1 :  -1) } <^> floatingPointE *> sign <&> UInt.parser",
+            "before" : "        let decimalExponent = { (s, m) in Int(m) * (s == .minus ? -1 : 1) } <^> floatingPointE *> sign <&> UInt.parser",
+            "line" : 180
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/FFCParserCombinator\/StringParsing.swift:204:38 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -141,9 +198,16 @@
             "before" : ">",
             "description" : "changed > to <"
           },
+          "path" : "Sources\/FFCParserCombinator\/StringParsing.swift",
+          "sourceChange" : {
+            "after" : "                let sign: String = e < 0 ? \"+\" : \"\"",
+            "before" : "                let sign: String = e > 0 ? \"+\" : \"\"",
+            "line" : 204
+          },
           "testSuiteOutcome" : "runtimeError"
         },
         {
+          "key" : "Sources\/FFCParserCombinator\/StringParsing.swift:204:52 SwapTernary",
           "mutationPoint" : {
             "mutationOperatorId" : "SwapTernary",
             "position" : {
@@ -156,9 +220,16 @@
             "before" : "e > 0 ? \"+\" : \"\"",
             "description" : "swapped ternary operator"
           },
+          "path" : "Sources\/FFCParserCombinator\/StringParsing.swift",
+          "sourceChange" : {
+            "after" : "                let sign: String = e > 0 ? \"\" :  \"+\"",
+            "before" : "                let sign: String = e > 0 ? \"+\" : \"\"",
+            "line" : 204
+          },
           "testSuiteOutcome" : "runtimeError"
         },
         {
+          "key" : "Sources\/FFCParserCombinator\/StringParsing.swift:254:42 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -171,9 +242,16 @@
             "before" : "==",
             "description" : "changed == to !="
           },
+          "path" : "Sources\/FFCParserCombinator\/StringParsing.swift",
+          "sourceChange" : {
+            "after" : "    public static let x = character { $0 != \"x\" }",
+            "before" : "    public static let x = character { $0 == \"x\" }",
+            "line" : 254
+          },
           "testSuiteOutcome" : "runtimeError"
         },
         {
+          "key" : "Sources\/FFCParserCombinator\/StringParsing.swift:282:48 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -186,9 +264,16 @@
             "before" : "==",
             "description" : "changed == to !="
           },
+          "path" : "Sources\/FFCParserCombinator\/StringParsing.swift",
+          "sourceChange" : {
+            "after" : "    public static let newline = character { $0 != \"\\n\" } <* character { $0 == \"\\r\" } <|> (character { $0 == \"\\n\" } )",
+            "before" : "    public static let newline = character { $0 == \"\\n\" } <* character { $0 == \"\\r\" } <|> (character { $0 == \"\\n\" } )",
+            "line" : 282
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/FFCParserCombinator\/StringParsing.swift:282:76 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -201,9 +286,16 @@
             "before" : "==",
             "description" : "changed == to !="
           },
+          "path" : "Sources\/FFCParserCombinator\/StringParsing.swift",
+          "sourceChange" : {
+            "after" : "    public static let newline = character { $0 == \"\\n\" } <* character { $0 != \"\\r\" } <|> (character { $0 == \"\\n\" } )",
+            "before" : "    public static let newline = character { $0 == \"\\n\" } <* character { $0 == \"\\r\" } <|> (character { $0 == \"\\n\" } )",
+            "line" : 282
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/FFCParserCombinator\/StringParsing.swift:282:106 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -216,14 +308,28 @@
             "before" : "==",
             "description" : "changed == to !="
           },
+          "path" : "Sources\/FFCParserCombinator\/StringParsing.swift",
+          "sourceChange" : {
+            "after" : "    public static let newline = character { $0 == \"\\n\" } <* character { $0 == \"\\r\" } <|> (character { $0 != \"\\n\" } )",
+            "before" : "    public static let newline = character { $0 == \"\\n\" } <* character { $0 == \"\\r\" } <|> (character { $0 == \"\\n\" } )",
+            "line" : 282
+          },
           "testSuiteOutcome" : "failed"
         }
       ],
       "fileName" : "StringParsing.swift",
-      "mutationScore" : 100
+      "mutationScore" : 100,
+      "path" : "Sources\/FFCParserCombinator\/StringParsing.swift"
     }
   ],
   "globalMutationScore" : 100,
+  "mutantsByOutcome" : {
+    "buildErrors" : 0,
+    "killed" : 14,
+    "notCovered" : 0,
+    "survived" : 0,
+    "timedOut" : 0
+  },
   "numberOfKilledMutants" : 14,
   "totalAppliedMutationOperators" : 14
 }

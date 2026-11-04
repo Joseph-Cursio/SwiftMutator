@@ -291,7 +291,7 @@ New keys and new kinds of line are added without changing `formatVersion`, so a 
 `swift-mutator report` makes a run's report from its results file, in any of the formats `run` writes:
 
 ```
-swift-mutator report <results>… [-f plain|json|html|xcode] [-o <path>] [--force-merge] [--merge-ignoring <glob>]…
+swift-mutator report <results>… [-f plain|json|html|xcode] [-o <path>] [--summary <path>] [--force-merge] [--merge-ignoring <glob>]…
 ```
 
 One results file is reported as it is. The results files of a `run --shard` split's shards, one alone included, are merged first ([Shards](#shards)).
@@ -311,6 +311,7 @@ It only reads the results file: it mutates nothing, prints no banner and makes n
 - **`-o`** saves the report at that path, replacing any file there.
   - The path is used exactly as given. A report of a stopped run isn't named `.partial`, as `run`'s partial report is, because you chose the name.
   - A path that would destroy what is there is refused before anything is printed: the results file itself, by any name (through a symbolic link, a hard link, or a different case on a case-insensitive volume), and a folder.
+- **`--summary`** also saves the run's [summary.json](../README.md#summaryjson) at that path, with `ended` from the last session's end line; for merged shards, `aborted` if a shard was, else `interrupted` if one was, else `finished`, and left out when a shard has no end line or the file of a shard that holds mutants wasn't given. The same paths are refused as for `-o`, and so is `-o`'s own, even spelled in another case on a volume that ignores case: the summary is then refused once the report is saved.
 
 ### What the report holds
 
@@ -321,7 +322,8 @@ The report is made from each mutant's last line (see [Reading it](#reading-it)) 
   2. **The Xcode format's warnings**, one for each survivor, come in the order the run tested the mutants. A run with several workers prints them as its mutants finish. The warnings are the same, and so is the summary.
   3. **The plain report's colours** are added when standard output is a terminal, unless `NO_COLOR` is set. The same rule applies to `run` and `report`, so the reports match when both write to a terminal, or neither does.
   4. **JSON keys** can come in a different order. The JSON is the same once it is parsed.
-- **A run that was stopped by a signal or an error** gets a report of the mutants it tested, made the same way. It matches the partial report the run wrote beside its `-o`, if it wrote one, with the same four exceptions. The end line's `testDurationSeconds` gives the test duration.
+  5. **The results file's path** in the Run section and the JSON's `run` is spelled as `report` found it, from the path or folder it was given, which can differ from the run's spelling, as through a symbolic link.
+- **A run that was stopped by a signal or an error** gets a report of the mutants it tested, made the same way. It matches the partial report the run wrote beside its `-o`, if it wrote one, with the same five exceptions. The end line's `testDurationSeconds` gives the test duration.
 - **A run with no end line**, which is still going, was killed or crashed, gets a report of the mutants it tested. The test duration runs from the header's `startedAt` to the last mutant's `finishedAt`.
 - **A run stopped before any mutant finished** has no `mutant` lines, and gets an empty report: `Report of 0 of 2497 mutants`.
 - **Lines that don't read** are skipped, as a reader should skip them, and the status says which.
@@ -335,7 +337,7 @@ The report is made from each mutant's last line (see [Reading it](#reading-it)) 
 - **Flaky tests** are those that failed in any session's `control` line; a report of merged shards takes every shard's. A `--reuse` copies no `control` line, so the reused run's control runs don't count.
 - **Suspect tests** are those of the thresholds in the last session's `configuration`, `suspectTestFilePercent` and `suspectTestMinimumFiles`, 15% and 10 when it has none. A report of merged shards uses the reference shard's.
 
-The report doesn't say whether the run finished. The status on standard error does.
+The report doesn't say whether the run finished. The status on standard error does, and so does `--summary`'s `ended`.
 
 ### Where the output goes
 

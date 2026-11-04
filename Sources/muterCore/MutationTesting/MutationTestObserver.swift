@@ -12,6 +12,8 @@ final class MutationTestObserver {
     private var logger: Logger
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
+    @Dependency(\.writeFile)
+    private var writeFile: WriteFile
     @Dependency(\.flushStandardOut)
     private var flushStdOut: Flush
     @Dependency(\.events)
@@ -188,6 +190,16 @@ extension MutationTestObserver {
         }
     }
 
+    /// Writes `summary` beside the results file (`RunSummary.path`), replacing an earlier session's, or in the log
+    /// folder once a write to that file failed. One that can't be written is left out: the results file holds
+    /// everything it says. Only a run that gets past its baseline finishes or ends early, so only such a run writes
+    /// one.
+    private func writeSummary(_ summary: RunSummary) {
+        guard let path = RunSummary.path(besideResultsFile: resultsFilePath, loggingDirectory: loggingDirectory)
+        else { return }
+        try? writeFile(String(decoding: summary.json, as: UTF8.self), path)
+    }
+
     private func writeTestLog(_ mutationTestLog: MutationTestLog) {
         _ = fileManager.createFile(
             atPath: "\(loggingDirectory)/\(mutationTestLog.keptFileName)",
@@ -203,6 +215,7 @@ extension MutationTestObserver {
         let reportPath = runOptions.reportOptions.path ?? ""
         let report = reporter.report(from: outcome)
         let didSave = ReportWriter.save(report, to: reportPath, using: fileManager)
+        writeSummary(RunSummary(of: outcome, ended: .finished, report: didSave ? reportPath : nil))
 
         if let oneMutantRun {
             logger.oneMutantTested(oneMutantRun, reportPath: reportPath.isEmpty ? nil : (reportPath, didSave))
@@ -232,6 +245,12 @@ extension MutationTestObserver {
             let report = runOptions.reportOptions.reporter.report(from: earlyEnd.outcome)
             partialReport = (path, ReportWriter.save(report, to: path, using: fileManager))
         }
+        writeSummary(RunSummary(
+            of: earlyEnd.outcome,
+            ended: earlyEnd.reason,
+            endDetail: earlyEnd.detail,
+            report: partialReport.flatMap { $0.saved ? $0.path : nil }
+        ))
         let continueCommand = runOptions.mutant != nil ? nil : resultsFilePath.map {
             ResumeHint.command(
                 continuing: commandLineArguments,

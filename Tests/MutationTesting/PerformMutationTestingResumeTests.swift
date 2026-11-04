@@ -332,7 +332,12 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
                 originalProjectDirectoryUrl: state.projectDirectoryURL,
                 mutatedProjectDirectoryURL: state.mutatedProjectDirectoryURL,
                 killingTests: nil,
-                reusedFrom: nil
+                reusedFrom: nil,
+                // As its results line records them.
+                key: MutantKey(
+                    path: "Sources/Product.swift", mutationOperatorId: .ror, line: 7, column: 5, occurrence: 0
+                ),
+                durationSeconds: 31.25
             )
         )
     }
@@ -851,7 +856,8 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
             return XCTFail("Expected an outcome, got \(changes)")
         }
         let file = try resultsFileData(recorded) + Data(resultsFiles.lines.map { $0 + "\n" }.joined().utf8)
-        let fromTheFile = try RecordedResults.read(file, path: resultsPath).mutationTestOutcome()
+        let fromTheFile = try RecordedResults.read(file, path: resultsPath)
+            .mutationTestOutcome(resultsFile: resultsPath)
         XCTAssertEqual(fromTheFile, outcome)
         XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.passed, .failed, .failed, .passed])
     }

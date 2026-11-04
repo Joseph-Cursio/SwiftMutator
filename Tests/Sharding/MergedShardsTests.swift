@@ -195,6 +195,54 @@ final class MergedShardsTests: XCTestCase {
         )
     }
 
+    // The merged run's details name every shard's file, in shard order, count every shard's sessions, and are
+    // otherwise the first shard's.
+    func test_theMergedRunsDetails_nameEveryShardsFile_andCountEveryShardsSessions() throws {
+        let merged = try MergedShards.merge(
+            [
+                file("/b/results.jsonl", header(2), end(.interrupted), header(2, session: 2), end()),
+                file("/a/results.jsonl", header(1)),
+            ].map(read),
+            forcing: false,
+            ignoring: []
+        )
+
+        let run = try XCTUnwrap(merged.mutationTestOutcome().run)
+        XCTAssertEqual(run.resultsFiles, ["/a/results.jsonl", "/b/results.jsonl"])
+        XCTAssertEqual(run.sessions, 3)
+        let first = merged.parts[0].header
+        XCTAssertEqual(run.workers, first.workers)
+        XCTAssertEqual(run.configuration, first.configuration)
+        XCTAssertEqual(run.lines.first, "Results files: /a/results.jsonl, /b/results.jsonl (3 sessions)")
+    }
+
+    // A merged summary says the merged run was aborted if a shard's was, else interrupted if one was, else finished.
+    func test_theMergedEnding_isTheWorstOfTheShards() throws {
+        func ending(_ first: ResultsEnd.Reason, _ second: ResultsEnd.Reason) throws -> ResultsEnd.Reason? {
+            try merge(
+                file("/a/results.jsonl", header(1), end(first)),
+                file("/b/results.jsonl", header(2), end(second))
+            ).ending?.reason
+        }
+
+        XCTAssertEqual(try ending(.finished, .finished), .finished)
+        XCTAssertEqual(try ending(.finished, .interrupted), .interrupted)
+        XCTAssertEqual(try ending(.interrupted, .finished), .interrupted)
+        XCTAssertEqual(try ending(.interrupted, .aborted), .aborted)
+        XCTAssertEqual(try ending(.aborted, .interrupted), .aborted)
+    }
+
+    // How a shard's run ended is unknown while it is still running, or when its file isn't given.
+    func test_theMergedEnding_isUnknown_whileAShardHasNoEndLine_orIsAbsent() throws {
+        XCTAssertNil(try merge(file("/a/results.jsonl", header(1), end()), file("/b/results.jsonl", header(2))).ending)
+        XCTAssertNil(try merge(file("/a/results.jsonl", header(1), sum3, sum9, end())).ending)
+        // A shard with no mutants has nothing to say.
+        XCTAssertEqual(
+            try merge(file("/a/results.jsonl", header(1, mutantsPerShard: [3, 0]), sum3, sum9, alpha5, end())).ending,
+            end()
+        )
+    }
+
     func test_projectFilesThatDiffer_refuse_unlessIgnored() throws {
         let other = ProjectTree(
             listedBy: .git,

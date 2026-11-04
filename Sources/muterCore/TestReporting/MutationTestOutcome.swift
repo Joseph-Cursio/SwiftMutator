@@ -30,7 +30,10 @@ struct MutationTestOutcome {
     let mutatedProjectPath: String
     /// Each project file's SHA-256 as it was tested, by its path relative to the project (`ProjectTree.files`): the
     /// reports show a mutant's line from its original file only while that file is as it was. nil when not recorded.
-    let sourceDigests: [String: String]?
+    var sourceDigests: [String: String]?
+    /// Where the results came from, as the results file's headers record them (`RunDetails`); nil when there's no
+    /// header, as for a run whose results file couldn't be made, or once a write to the file failed.
+    var run: RunDetails?
 
     init(
         mutations: [Mutation] = [],
@@ -47,7 +50,8 @@ struct MutationTestOutcome {
         controlRuns: [ControlRun] = [],
         projectPath: String = "",
         mutatedProjectPath: String = "",
-        sourceDigests: [String: String]? = nil
+        sourceDigests: [String: String]? = nil,
+        run: RunDetails? = nil
     ) {
         self.mutations = mutations
         self.coverage = coverage
@@ -64,33 +68,11 @@ struct MutationTestOutcome {
         self.projectPath = projectPath
         self.mutatedProjectPath = mutatedProjectPath
         self.sourceDigests = sourceDigests
+        self.run = run
     }
 }
 
 extension MutationTestOutcome: Equatable {}
-
-extension MutationTestOutcome {
-    /// This outcome, with `sourceDigests` in place of its own.
-    func with(sourceDigests: [String: String]?) -> MutationTestOutcome {
-        MutationTestOutcome(
-            mutations: mutations,
-            coverage: coverage,
-            coverageSkipped: coverageSkipped,
-            testDuration: testDuration,
-            newVersion: newVersion,
-            since: since,
-            shards: shards,
-            sample: sample,
-            sampleIsCutShort: sampleIsCutShort,
-            mutant: mutant,
-            suspectTestThresholds: suspectTestThresholds,
-            controlRuns: controlRuns,
-            projectPath: projectPath,
-            mutatedProjectPath: mutatedProjectPath,
-            sourceDigests: sourceDigests
-        )
-    }
-}
 
 extension MutationTestOutcome {
     struct Mutation: Equatable {
@@ -108,9 +90,13 @@ extension MutationTestOutcome {
         /// Where it was tested, for a result a run reused from an earlier run's results file (`--reuse`); nil for one
         /// the run tested, or kept from an earlier session of its own file.
         let reusedFrom: ReusedFrom?
+        /// What identifies it across runs, as its results line records it, and `--mutant` takes it.
+        let key: MutantKey?
+        /// How long its run took, from launch to classification, to the millisecond, as its results line records it.
+        let durationSeconds: Double?
 
-        /// `killingTests` and `reusedFrom` have no default: the run, `swift-mutator report` and `--resume` must each
-        /// pass theirs.
+        /// `killingTests`, `reusedFrom`, `key` and `durationSeconds` have no default: the run, `swift-mutator report`
+        /// and `--resume` must each pass theirs.
         ///
         /// The mutant's file in the original project is the one at its place in the copy, whatever either folder is
         /// called or wherever it is; a file outside the copy keeps its own path.
@@ -121,13 +107,17 @@ extension MutationTestOutcome {
             originalProjectDirectoryUrl: URL,
             mutatedProjectDirectoryURL: URL,
             killingTests: KillingTests?,
-            reusedFrom: ReusedFrom?
+            reusedFrom: ReusedFrom?,
+            key: MutantKey?,
+            durationSeconds: Double?
         ) {
             self.testSuiteOutcome = testSuiteOutcome
             point = mutationPoint
             snapshot = mutationSnapshot
             self.killingTests = killingTests
             self.reusedFrom = reusedFrom
+            self.key = key
+            self.durationSeconds = durationSeconds
 
             relativePath = RepoRelativePath.of(mutationPoint.filePath, under: mutatedProjectDirectoryURL)
             originalProjectPath = RepoRelativePath.resolve(relativePath, under: originalProjectDirectoryUrl.path)

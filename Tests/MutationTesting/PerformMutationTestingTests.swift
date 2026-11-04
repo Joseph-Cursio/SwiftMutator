@@ -54,7 +54,9 @@ final class PerformMutationTestingTests: MuterTestCase {
                 originalProjectDirectoryUrl: state.projectDirectoryURL,
                 mutatedProjectDirectoryURL: state.mutatedProjectDirectoryURL,
                 // The spy's "testLog" shows no failed test, and the baseline's shows none that makes lines unreliable.
-                killingTests: .noneNamed
+                killingTests: .noneNamed,
+                key: fileKey(0),
+                durationSeconds: 0
             ),
             MutationTestOutcome.Mutation.make(
                 testSuiteOutcome: .failed,
@@ -66,7 +68,9 @@ final class PerformMutationTestingTests: MuterTestCase {
                 snapshot: .null,
                 originalProjectDirectoryUrl: state.projectDirectoryURL,
                 mutatedProjectDirectoryURL: state.mutatedProjectDirectoryURL,
-                killingTests: .noneNamed
+                killingTests: .noneNamed,
+                key: fileKey(1),
+                durationSeconds: 0
             ),
         ]
 
@@ -391,16 +395,20 @@ final class PerformMutationTestingTests: MuterTestCase {
             "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)",
         ])
 
-        let expectedBuildErrorOutcome = MutationTestOutcome.Mutation.make(
-            testSuiteOutcome: .buildError,
-            point: MutationPoint(
-                mutationOperatorId: .ror,
-                filePath: "/tmp/project/file.swift",
-                position: .firstPosition
-            ),
-            snapshot: .null,
-            originalProjectDirectoryUrl: URL(fileURLWithPath: "/project")
-        )
+        let expectedBuildErrorOutcome = { (occurrence: Int) in
+            MutationTestOutcome.Mutation.make(
+                testSuiteOutcome: .buildError,
+                point: MutationPoint(
+                    mutationOperatorId: .ror,
+                    filePath: "/tmp/project/file.swift",
+                    position: .firstPosition
+                ),
+                snapshot: .null,
+                originalProjectDirectoryUrl: URL(fileURLWithPath: "/project"),
+                key: fileKey(occurrence),
+                durationSeconds: 0
+            )
+        }
 
         let expectedFailingOutcome = MutationTestOutcome.Mutation.make(
             testSuiteOutcome: .failed,
@@ -411,10 +419,12 @@ final class PerformMutationTestingTests: MuterTestCase {
             ),
             snapshot: .null,
             originalProjectDirectoryUrl: URL(fileURLWithPath: "/project"),
-            killingTests: .noneNamed
+            killingTests: .noneNamed,
+            key: fileKey(4),
+            durationSeconds: 0
         )
 
-        let expectedTestOutcomes = Array(repeating: expectedBuildErrorOutcome, count: 4) + [expectedFailingOutcome]
+        let expectedTestOutcomes = (0 ..< 4).map(expectedBuildErrorOutcome) + [expectedFailingOutcome]
 
         XCTAssertEqual(result, [
             .mutationTestOutcomeGenerated(
@@ -1161,4 +1171,9 @@ final class PerformMutationTestingTests: MuterTestCase {
             )
         )
     }
+}
+
+/// The key of the nth mutant at the start of /tmp/project/file.swift, which is outside the mutated project.
+private func fileKey(_ occurrence: Int) -> MutantKey {
+    MutantKey(path: "/tmp/project/file.swift", mutationOperatorId: .ror, line: 0, column: 0, occurrence: occurrence)
 }

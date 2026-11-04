@@ -40,6 +40,16 @@ struct Report: AsyncParsableCommand {
     )
     var mergeIgnoring: [String] = []
 
+    @Option(
+        name: .customLong("summary"),
+        help: ArgumentHelp(
+            "Also save the run's summary.json, its score, counts and details for scripts, at this path.",
+            valueName: "path"
+        ),
+        transform: { URL(fileURLWithPath: $0) }
+    )
+    var summary: URL?
+
     init() {}
 
     /// The status `report` exits with, once the report is made, for a run that stopped on an error: the one the run
@@ -49,8 +59,12 @@ struct Report: AsyncParsableCommand {
     static let stoppedOnAnError = ExitCode.stoppedOnAnError
 
     func run() async throws {
-        let stopped = try ResultsReport(format: reportOptions.reportFormat, outputPath: reportOptions.reportURL?.path)
-            .make(from: results.map(\.path), forcing: forceMerge, ignoring: mergeIgnoring)
+        let report = ResultsReport(
+            format: reportOptions.reportFormat,
+            outputPath: reportOptions.reportURL?.path,
+            summaryPath: summary?.path
+        )
+        let stopped = try report.make(from: results.map(\.path), forcing: forceMerge, ignoring: mergeIgnoring)
         if stopped {
             throw Self.stoppedOnAnError
         }

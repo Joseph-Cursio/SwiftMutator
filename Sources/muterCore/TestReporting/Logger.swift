@@ -599,7 +599,8 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
     }
 
     /// "72 s", "41.2 s": `seconds` to a tenth.
-    private static func seconds(_ seconds: TimeInterval) -> String {
+    /// "4.2 s": `seconds` to a tenth.
+    static func seconds(_ seconds: TimeInterval) -> String {
         String(format: "%g", (seconds * 10).rounded() / 10) + " s"
     }
 

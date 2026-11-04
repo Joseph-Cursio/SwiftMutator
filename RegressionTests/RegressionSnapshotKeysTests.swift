@@ -16,6 +16,26 @@ final class RegressionSnapshotKeysTests: XCTestCase {
         }
         XCTAssertEqual(snapshot(of: withKillingTests), snapshot(of: withoutKillingTests))
     }
+
+    // Each mutant's duration and the run's details (its log folder, build, toolchain and settings) differ every run.
+    func test_durationAndRunKeys_leaveTheSnapshotUnchanged() throws {
+        var timed = outcome(namingKillingTests: false, durationSeconds: 2.412)
+        timed.run = try JSONDecoder().decode(RunDetails.self, from: Data(#"""
+        {"resultsFiles": ["/project_muter_logs/run/results.jsonl"], "sessions": 1,
+         "swiftMutator": {"version": "1.4.0", "executableSHA256": "3f9a"},
+         "toolchain": {"testCommandVersion": "Apple Swift version 6.2", "environment": {}},
+         "workers": 4, "timeoutSeconds": 24, "timeoutIsDefault": true,
+         "configuration": {"executable": "/usr/bin/swift", "arguments": ["test"]}}
+        """#.utf8))
+        let untimed = outcome(namingKillingTests: false)
+
+        let unfiltered = try XCTUnwrap(String(data: JSONEncoder().encode(MuterTestReport(from: timed)), encoding: .utf8))
+        for key in ["durationSeconds", "run"] {
+            XCTAssertTrue(unfiltered.contains("\"\(key)\""), "the report has no \(key) to leave out")
+            XCTAssertTrue(RegressionTests.keysToExclude.contains(key), key)
+        }
+        XCTAssertEqual(snapshot(of: MuterTestReport(from: timed)), snapshot(of: MuterTestReport(from: untimed)))
+    }
 }
 
 private extension RegressionSnapshotKeysTests {
@@ -27,9 +47,9 @@ private extension RegressionSnapshotKeysTests {
     }
 
     /// A kill, a crash, a time-out and a survivor in each of ten files, with the tests that failed for each, as a run
-    /// records them, or with none. The kills' tests failed in every file, so they are suspect, and each kill is theirs
+    /// records them, or with none, each taking `durationSeconds`, if given. The kills' tests failed in every file, so they are suspect, and each kill is theirs
     /// alone.
-    func outcome(namingKillingTests: Bool) -> MutationTestOutcome {
+    func outcome(namingKillingTests: Bool, durationSeconds: Double? = nil) -> MutationTestOutcome {
         let killingTests: [TestSuiteOutcome: MutationTestOutcome.KillingTests] = [
             .failed: .init(
                 tests: [
@@ -60,7 +80,9 @@ private extension RegressionSnapshotKeysTests {
                     originalProjectDirectoryUrl: URL(fileURLWithPath: "/project"),
                     mutatedProjectDirectoryURL: URL(fileURLWithPath: "/project_mutated"),
                     killingTests: namingKillingTests ? killingTests[outcome] : nil,
-                    reusedFrom: nil
+                    reusedFrom: nil,
+                    key: nil,
+                    durationSeconds: durationSeconds
                 )
             }
         }

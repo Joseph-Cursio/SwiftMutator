@@ -20,7 +20,8 @@ enum FileReportProvider {
                         after: "!=",
                         description: "changed from == to !="
                     ),
-                    testSuiteOutcome: .failed
+                    testSuiteOutcome: .failed,
+                    path: "/tmp/a module.swift"
                 ),
             ]
         )
@@ -44,7 +45,8 @@ enum FileReportProvider {
                         after: "!=",
                         description: "changed from == to !="
                     ),
-                    testSuiteOutcome: .passed
+                    testSuiteOutcome: .passed,
+                    path: "/tmp/file 4.swift"
                 ),
             ]
         )
@@ -68,7 +70,8 @@ enum FileReportProvider {
                         after: "!=",
                         description: "changed from == to !="
                     ),
-                    testSuiteOutcome: .failed
+                    testSuiteOutcome: .failed,
+                    path: "/tmp/file1.swift"
                 ),
                 MuterTestReport.AppliedMutationOperator.make(
                     mutationPoint: MutationPoint.make(
@@ -81,7 +84,8 @@ enum FileReportProvider {
                         after: "!=",
                         description: "changed from == to !="
                     ),
-                    testSuiteOutcome: .failed
+                    testSuiteOutcome: .failed,
+                    path: "/tmp/file1.swift"
                 ),
                 MuterTestReport.AppliedMutationOperator.make(
                     mutationPoint: MutationPoint.make(
@@ -94,7 +98,8 @@ enum FileReportProvider {
                         after: "!=",
                         description: "changed from == to !="
                     ),
-                    testSuiteOutcome: .passed
+                    testSuiteOutcome: .passed,
+                    path: "/tmp/file1.swift"
                 ),
             ]
         )
@@ -118,7 +123,8 @@ enum FileReportProvider {
                         after: "!=",
                         description: "changed from == to !="
                     ),
-                    testSuiteOutcome: .failed
+                    testSuiteOutcome: .failed,
+                    path: "/tmp/file2.swift"
                 ),
                 MuterTestReport.AppliedMutationOperator.make(
                     mutationPoint: MutationPoint.make(
@@ -131,7 +137,8 @@ enum FileReportProvider {
                         after: "!=",
                         description: "changed from == to !="
                     ),
-                    testSuiteOutcome: .failed
+                    testSuiteOutcome: .failed,
+                    path: "/tmp/file2.swift"
                 ),
             ]
         )
@@ -155,7 +162,8 @@ enum FileReportProvider {
                         after: "!=",
                         description: "changed from == to !="
                     ),
-                    testSuiteOutcome: .failed
+                    testSuiteOutcome: .failed,
+                    path: "/tmp/file3.swift"
                 ),
                 MuterTestReport.AppliedMutationOperator.make(
                     mutationPoint: MutationPoint.make(
@@ -168,7 +176,8 @@ enum FileReportProvider {
                         after: "!=",
                         description: "changed from == to !="
                     ),
-                    testSuiteOutcome: .passed
+                    testSuiteOutcome: .passed,
+                    path: "/tmp/file3.swift"
                 ),
                 MuterTestReport.AppliedMutationOperator.make(
                     mutationPoint: MutationPoint.make(
@@ -181,7 +190,8 @@ enum FileReportProvider {
                         after: "!=",
                         description: "changed from == to !="
                     ),
-                    testSuiteOutcome: .passed
+                    testSuiteOutcome: .passed,
+                    path: "/tmp/file3.swift"
                 ),
             ]
         )

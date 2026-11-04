@@ -14,6 +14,10 @@ final class TestingSession: @unchecked Sendable { // `file`, `mutantLines` and `
     let earlierTestDuration: TimeInterval
     /// Each job's key, in job order, known before the baseline runs.
     var keys: [MutantKey] = []
+    /// The header written to its results file, and that file, once written: where the reports say its results came
+    /// from.
+    var header: ResultsHeader?
+    var resultsPath: String?
     /// Whether the baseline passed, and the timed test run after it, if any, ended, so the results have started. Until
     /// then, mutation testing that stops has nothing to report, and sends no early end: an abort says why.
     var baselinePassed = false

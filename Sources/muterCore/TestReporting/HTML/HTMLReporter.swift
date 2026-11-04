@@ -44,6 +44,13 @@ private func htmlReport(
                             .divider("Killing Tests"),
                             .killingTestsTable(summary, mutationScore: testReport.globalMutationScore)
                         )
+                    },
+                    .unwrap(testReport.run) { run in
+                        .group(
+                            .divider("Run"),
+                            // Text only: paths and versions can hold anything.
+                            .div(.class("run"), .forEach(run.lines) { .p(.text($0)) })
+                        )
                     }
                 ),
                 .muterFooter(now: now)
@@ -284,6 +291,7 @@ extension Node where Context: HTML.BodyContext {
         }
         let showsKillingTests = fileReports.showsKillingTests
         let showsReuse = fileReports.showsReuse
+        let showsDurations = fileReports.showsDurations
 
         return .table(
             .id("applied-operators"),
@@ -294,7 +302,8 @@ extension Node where Context: HTML.BodyContext {
                     .th("Changes"),
                     .th("Mutation Test Result"),
                     .if(showsKillingTests, .th("Killed By")),
-                    .if(showsReuse, .th("Reused"))
+                    .if(showsReuse, .th("Reused")),
+                    .if(showsDurations, .th("Duration"))
                 )
             ),
             .tbody(
@@ -313,7 +322,8 @@ extension Node where Context: HTML.BodyContext {
                             .raw("\(report.appliedOperator.testSuiteOutcome.asIcon)")
                         ),
                         .if(showsKillingTests, .td(.class("left-aligned"), .killedBy(report.appliedOperator))),
-                        .if(showsReuse, .td(.text(report.appliedOperator.reusedCell)))
+                        .if(showsReuse, .td(.text(report.appliedOperator.reusedCell))),
+                        .if(showsDurations, .td(.class("right-aligned"), .text(report.appliedOperator.durationCell)))
                     )
                 }
             )

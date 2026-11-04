@@ -143,8 +143,8 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
             return XCTFail("Expected an outcome, got \(changes)")
         }
         let file = Data(resultsFiles.lines.map { $0 + "\n" }.joined().utf8)
-        let fromTheFile = try RecordedResults.read(file, path: "/project_muter_logs/now/results.jsonl")
-            .mutationTestOutcome()
+        let path = "/project_muter_logs/now/results.jsonl"
+        let fromTheFile = try RecordedResults.read(file, path: path).mutationTestOutcome(resultsFile: path)
         XCTAssertEqual(fromTheFile, outcome)
         XCTAssertEqual(outcome.mutations.map { $0.reusedFrom != nil }, [true, false, true, false])
     }

@@ -3,6 +3,7 @@
     {
       "appliedOperators" : [
         {
+          "key" : "Sources\/ContextualAlternates.swift:75:123 SwapTernary",
           "mutationPoint" : {
             "mutationOperatorId" : "SwapTernary",
             "position" : {
@@ -15,9 +16,16 @@
             "before" : "contextualAlternates ? kContextualAlternatesOnSelector : kContextualAlternatesOffSelector",
             "description" : "swapped ternary operator"
           },
+          "path" : "Sources\/ContextualAlternates.swift",
+          "sourceChange" : {
+            "after" : "                selectors.append(contextualAlternates ? kContextualAlternatesOffSelector :  kContextualAlternatesOnSelector)",
+            "before" : "                selectors.append(contextualAlternates ? kContextualAlternatesOnSelector : kContextualAlternatesOffSelector)",
+            "line" : 75
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/ContextualAlternates.swift:81:138 SwapTernary",
           "mutationPoint" : {
             "mutationOperatorId" : "SwapTernary",
             "position" : {
@@ -30,15 +38,23 @@
             "before" : "contextualSwashAlternates ? kContextualSwashAlternatesOnSelector : kContextualSwashAlternatesOffSelector",
             "description" : "swapped ternary operator"
           },
+          "path" : "Sources\/ContextualAlternates.swift",
+          "sourceChange" : {
+            "after" : "                selectors.append(contextualSwashAlternates ? kContextualSwashAlternatesOffSelector :  kContextualSwashAlternatesOnSelector)",
+            "before" : "                selectors.append(contextualSwashAlternates ? kContextualSwashAlternatesOnSelector : kContextualSwashAlternatesOffSelector)",
+            "line" : 81
+          },
           "testSuiteOutcome" : "passed"
         }
       ],
       "fileName" : "ContextualAlternates.swift",
-      "mutationScore" : 50
+      "mutationScore" : 50,
+      "path" : "Sources\/ContextualAlternates.swift"
     },
     {
       "appliedOperators" : [
         {
+          "key" : "Sources\/FontFeatures.swift:34:42 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -51,9 +67,16 @@
             "before" : ">",
             "description" : "changed > to <"
           },
+          "path" : "Sources\/FontFeatures.swift",
+          "sourceChange" : {
+            "after" : "            guard featureProviders.count < 0 else {",
+            "before" : "            guard featureProviders.count > 0 else {",
+            "line" : 34
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/FontFeatures.swift:40:37 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -66,15 +89,23 @@
             "before" : ">",
             "description" : "changed > to <"
           },
+          "path" : "Sources\/FontFeatures.swift",
+          "sourceChange" : {
+            "after" : "            guard newFeatures.count < 0 else {",
+            "before" : "            guard newFeatures.count > 0 else {",
+            "line" : 40
+          },
           "testSuiteOutcome" : "failed"
         }
       ],
       "fileName" : "FontFeatures.swift",
-      "mutationScore" : 100
+      "mutationScore" : 100,
+      "path" : "Sources\/FontFeatures.swift"
     },
     {
       "appliedOperators" : [
         {
+          "key" : "Sources\/NSAttributedString+BonMot.swift:57:97 RemoveSideEffects",
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
@@ -87,9 +118,15 @@
             "before" : "debug.replaceCharacters(in: replacement.range, with: \"<BON:\\(replacement.string)\/>\")",
             "description" : "removed line"
           },
+          "path" : "Sources\/NSAttributedString+BonMot.swift",
+          "sourceChange" : {
+            "before" : "            debug.replaceCharacters(in: replacement.range, with: \"<BON:\\(replacement.string)\/>\")",
+            "line" : 57
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/NSAttributedString+BonMot.swift:72:60 ChangeLogicalConnector",
           "mutationPoint" : {
             "mutationOperatorId" : "ChangeLogicalConnector",
             "position" : {
@@ -102,9 +139,16 @@
             "before" : "&&",
             "description" : "changed && to ||"
           },
+          "path" : "Sources\/NSAttributedString+BonMot.swift",
+          "sourceChange" : {
+            "after" : "                if transformed.hasPrefix(unassignedPrefix) || transformed.hasSuffix(unassignedSuffix) {",
+            "before" : "                if transformed.hasPrefix(unassignedPrefix) && transformed.hasSuffix(unassignedSuffix) {",
+            "line" : 72
+          },
           "testSuiteOutcome" : "passed"
         },
         {
+          "key" : "Sources\/NSAttributedString+BonMot.swift:83:85 RemoveSideEffects",
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
@@ -117,15 +161,22 @@
             "before" : "debug.replaceCharacters(in: replacement.range, with: replacement.string)",
             "description" : "removed line"
           },
+          "path" : "Sources\/NSAttributedString+BonMot.swift",
+          "sourceChange" : {
+            "before" : "            debug.replaceCharacters(in: replacement.range, with: replacement.string)",
+            "line" : 83
+          },
           "testSuiteOutcome" : "failed"
         }
       ],
       "fileName" : "NSAttributedString+BonMot.swift",
-      "mutationScore" : 66
+      "mutationScore" : 66,
+      "path" : "Sources\/NSAttributedString+BonMot.swift"
     },
     {
       "appliedOperators" : [
         {
+          "key" : "Sources\/NamedStyles.swift:72:55 RemoveSideEffects",
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
@@ -138,15 +189,22 @@
             "before" : "NamedStyles.unregisteredStyleClosure(name)",
             "description" : "removed line"
           },
+          "path" : "Sources\/NamedStyles.swift",
+          "sourceChange" : {
+            "before" : "            NamedStyles.unregisteredStyleClosure(name)",
+            "line" : 72
+          },
           "testSuiteOutcome" : "passed"
         }
       ],
       "fileName" : "NamedStyles.swift",
-      "mutationScore" : 0
+      "mutationScore" : 0,
+      "path" : "Sources\/NamedStyles.swift"
     },
     {
       "appliedOperators" : [
         {
+          "key" : "Sources\/StringStyle+Part.swift:134:31 RemoveSideEffects",
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
@@ -159,9 +217,15 @@
             "before" : "update(part: part)",
             "description" : "removed line"
           },
+          "path" : "Sources\/StringStyle+Part.swift",
+          "sourceChange" : {
+            "before" : "            update(part: part)",
+            "line" : 134
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/StringStyle+Part.swift:155:37 RemoveSideEffects",
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
@@ -174,15 +238,22 @@
             "before" : "style.update(part: part)",
             "description" : "removed line"
           },
+          "path" : "Sources\/StringStyle+Part.swift",
+          "sourceChange" : {
+            "before" : "            style.update(part: part)",
+            "line" : 155
+          },
           "testSuiteOutcome" : "failed"
         }
       ],
       "fileName" : "StringStyle+Part.swift",
-      "mutationScore" : 100
+      "mutationScore" : 100,
+      "path" : "Sources\/StringStyle+Part.swift"
     },
     {
       "appliedOperators" : [
         {
+          "key" : "Sources\/StylisticAlternates.swift:220:96 SwapTernary",
           "mutationPoint" : {
             "mutationOperatorId" : "SwapTernary",
             "position" : {
@@ -195,9 +266,16 @@
             "before" : "two ? kStylisticAltTwoOnSelector : kStylisticAltTwoOffSelector",
             "description" : "swapped ternary operator"
           },
+          "path" : "Sources\/StylisticAlternates.swift",
+          "sourceChange" : {
+            "after" : "                selectors.append(two ? kStylisticAltTwoOffSelector :  kStylisticAltTwoOnSelector)",
+            "before" : "                selectors.append(two ? kStylisticAltTwoOnSelector : kStylisticAltTwoOffSelector)",
+            "line" : 220
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/StylisticAlternates.swift:223:102 SwapTernary",
           "mutationPoint" : {
             "mutationOperatorId" : "SwapTernary",
             "position" : {
@@ -210,9 +288,16 @@
             "before" : "three ? kStylisticAltThreeOnSelector : kStylisticAltThreeOffSelector",
             "description" : "swapped ternary operator"
           },
+          "path" : "Sources\/StylisticAlternates.swift",
+          "sourceChange" : {
+            "after" : "                selectors.append(three ? kStylisticAltThreeOffSelector :  kStylisticAltThreeOnSelector)",
+            "before" : "                selectors.append(three ? kStylisticAltThreeOnSelector : kStylisticAltThreeOffSelector)",
+            "line" : 223
+          },
           "testSuiteOutcome" : "passed"
         },
         {
+          "key" : "Sources\/StylisticAlternates.swift:229:99 SwapTernary",
           "mutationPoint" : {
             "mutationOperatorId" : "SwapTernary",
             "position" : {
@@ -225,9 +310,16 @@
             "before" : "five ? kStylisticAltFiveOnSelector : kStylisticAltFiveOffSelector",
             "description" : "swapped ternary operator"
           },
+          "path" : "Sources\/StylisticAlternates.swift",
+          "sourceChange" : {
+            "after" : "                selectors.append(five ? kStylisticAltFiveOffSelector :  kStylisticAltFiveOnSelector)",
+            "before" : "                selectors.append(five ? kStylisticAltFiveOnSelector : kStylisticAltFiveOffSelector)",
+            "line" : 229
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/StylisticAlternates.swift:232:96 SwapTernary",
           "mutationPoint" : {
             "mutationOperatorId" : "SwapTernary",
             "position" : {
@@ -240,15 +332,23 @@
             "before" : "six ? kStylisticAltSixOnSelector : kStylisticAltSixOffSelector",
             "description" : "swapped ternary operator"
           },
+          "path" : "Sources\/StylisticAlternates.swift",
+          "sourceChange" : {
+            "after" : "                selectors.append(six ? kStylisticAltSixOffSelector :  kStylisticAltSixOnSelector)",
+            "before" : "                selectors.append(six ? kStylisticAltSixOnSelector : kStylisticAltSixOffSelector)",
+            "line" : 232
+          },
           "testSuiteOutcome" : "failed"
         }
       ],
       "fileName" : "StylisticAlternates.swift",
-      "mutationScore" : 75
+      "mutationScore" : 75,
+      "path" : "Sources\/StylisticAlternates.swift"
     },
     {
       "appliedOperators" : [
         {
+          "key" : "Sources\/Tracking.swift:23:21 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -261,15 +361,23 @@
             "before" : "==",
             "description" : "changed == to !="
           },
+          "path" : "Sources\/Tracking.swift",
+          "sourceChange" : {
+            "after" : "            if font != nil {",
+            "before" : "            if font == nil {",
+            "line" : 23
+          },
           "testSuiteOutcome" : "passed"
         }
       ],
       "fileName" : "Tracking.swift",
-      "mutationScore" : 0
+      "mutationScore" : 0,
+      "path" : "Sources\/Tracking.swift"
     },
     {
       "appliedOperators" : [
         {
+          "key" : "Sources\/UIKit\/TextAlignmentConstraint.swift:135:36 RemoveSideEffects",
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
@@ -282,9 +390,15 @@
             "before" : "constraint.setupObservers()",
             "description" : "removed line"
           },
+          "path" : "Sources\/UIKit\/TextAlignmentConstraint.swift",
+          "sourceChange" : {
+            "before" : "        constraint.setupObservers()",
+            "line" : 135
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/UIKit\/TextAlignmentConstraint.swift:136:36 RemoveSideEffects",
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
@@ -297,9 +411,15 @@
             "before" : "constraint.updateConstant()",
             "description" : "removed line"
           },
+          "path" : "Sources\/UIKit\/TextAlignmentConstraint.swift",
+          "sourceChange" : {
+            "before" : "        constraint.updateConstant()",
+            "line" : 136
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/UIKit\/TextAlignmentConstraint.swift:153:109 RemoveSideEffects",
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
@@ -312,9 +432,15 @@
             "before" : "addObserver(self, forKeyPath: keyPath, options: [], context: &TextAlignmentConstraintKVOContext)",
             "description" : "removed line"
           },
+          "path" : "Sources\/UIKit\/TextAlignmentConstraint.swift",
+          "sourceChange" : {
+            "before" : "            addObserver(self, forKeyPath: keyPath, options: [], context: &TextAlignmentConstraintKVOContext)",
+            "line" : 153
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/UIKit\/TextAlignmentConstraint.swift:159:99 RemoveSideEffects",
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
@@ -327,15 +453,22 @@
             "before" : "removeObserver(self, forKeyPath: keyPath, context: &TextAlignmentConstraintKVOContext)",
             "description" : "removed line"
           },
+          "path" : "Sources\/UIKit\/TextAlignmentConstraint.swift",
+          "sourceChange" : {
+            "before" : "            removeObserver(self, forKeyPath: keyPath, context: &TextAlignmentConstraintKVOContext)",
+            "line" : 159
+          },
           "testSuiteOutcome" : "passed"
         }
       ],
       "fileName" : "TextAlignmentConstraint.swift",
-      "mutationScore" : 75
+      "mutationScore" : 75,
+      "path" : "Sources\/UIKit\/TextAlignmentConstraint.swift"
     },
     {
       "appliedOperators" : [
         {
+          "key" : "Sources\/XMLBuilder.swift:143:61 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -348,9 +481,16 @@
             "before" : "==",
             "description" : "changed == to !="
           },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "                case let .style(string, style) where string != name:",
+            "before" : "                case let .style(string, style) where string == name:",
+            "line" : 143
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/XMLBuilder.swift:145:66 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -363,9 +503,16 @@
             "before" : "==",
             "description" : "changed == to !="
           },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "                case let .styleBlock(string, block) where string != name:",
+            "before" : "                case let .styleBlock(string, block) where string == name:",
+            "line" : 145
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/XMLBuilder.swift:162:66 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -378,9 +525,16 @@
             "before" : "==",
             "description" : "changed == to !="
           },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "                case let .enter(string, composable) where string != name:",
+            "before" : "                case let .enter(string, composable) where string == name:",
+            "line" : 162
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/XMLBuilder.swift:164:66 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -393,9 +547,16 @@
             "before" : "==",
             "description" : "changed == to !="
           },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "                case let .enterBlock(string, block) where string != name:",
+            "before" : "                case let .enterBlock(string, block) where string == name:",
+            "line" : 164
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/XMLBuilder.swift:177:65 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -408,9 +569,16 @@
             "before" : "==",
             "description" : "changed == to !="
           },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "                case let .exitBlock(string, block) where string != name:",
+            "before" : "                case let .exitBlock(string, block) where string == name:",
+            "line" : 177
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/XMLBuilder.swift:268:103 SwapTernary",
           "mutationPoint" : {
             "mutationOperatorId" : "SwapTernary",
             "position" : {
@@ -423,9 +591,11 @@
             "before" : "options.contains(.doNotWrapXML) ? string : \"<\\(XMLBuilder.internalTopLevelElement)>\\(string)<\/\\(XMLBuilder.internalTopLevelElement)>\"",
             "description" : "swapped ternary operator"
           },
+          "path" : "Sources\/XMLBuilder.swift",
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/XMLBuilder.swift:291:37 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -438,9 +608,16 @@
             "before" : "==",
             "description" : "changed == to !="
           },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "            let shiftColumn = (line != 1 && options.contains(.doNotWrapXML) == false)",
+            "before" : "            let shiftColumn = (line == 1 && options.contains(.doNotWrapXML) == false)",
+            "line" : 291
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/XMLBuilder.swift:291:42 ChangeLogicalConnector",
           "mutationPoint" : {
             "mutationOperatorId" : "ChangeLogicalConnector",
             "position" : {
@@ -453,9 +630,16 @@
             "before" : "&&",
             "description" : "changed && to ||"
           },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "            let shiftColumn = (line == 1 || options.contains(.doNotWrapXML) == false)",
+            "before" : "            let shiftColumn = (line == 1 && options.contains(.doNotWrapXML) == false)",
+            "line" : 291
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/XMLBuilder.swift:291:77 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -468,9 +652,16 @@
             "before" : "==",
             "description" : "changed == to !="
           },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "            let shiftColumn = (line == 1 && options.contains(.doNotWrapXML) != false)",
+            "before" : "            let shiftColumn = (line == 1 && options.contains(.doNotWrapXML) == false)",
+            "line" : 291
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/XMLBuilder.swift:293:76 SwapTernary",
           "mutationPoint" : {
             "mutationOperatorId" : "SwapTernary",
             "position" : {
@@ -483,9 +674,16 @@
             "before" : "shiftColumn ? shiftSize : 0",
             "description" : "swapped ternary operator"
           },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "            let column = parser.columnNumber - (shiftColumn ? 0 :  shiftSize)",
+            "before" : "            let column = parser.columnNumber - (shiftColumn ? shiftSize : 0)",
+            "line" : 293
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/XMLBuilder.swift:308:27 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -498,9 +696,16 @@
             "before" : "!=",
             "description" : "changed != to =="
           },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "        guard elementName == XMLBuilder.internalTopLevelElement else { return }",
+            "before" : "        guard elementName != XMLBuilder.internalTopLevelElement else { return }",
+            "line" : 308
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/XMLBuilder.swift:335:28 RemoveSideEffects",
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
@@ -513,9 +718,15 @@
             "before" : "styles.removeLast()",
             "description" : "removed line"
           },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "before" : "        styles.removeLast()",
+            "line" : 335
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/XMLBuilder.swift:336:32 RemoveSideEffects",
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
@@ -528,9 +739,15 @@
             "before" : "xmlStylers.removeLast()",
             "description" : "removed line"
           },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "before" : "        xmlStylers.removeLast()",
+            "line" : 336
+          },
           "testSuiteOutcome" : "passed"
         },
         {
+          "key" : "Sources\/XMLBuilder.swift:349:25 RemoveSideEffects",
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
@@ -543,9 +760,15 @@
             "before" : "foundNewString()",
             "description" : "removed line"
           },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "before" : "        foundNewString()",
+            "line" : 349
+          },
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/XMLBuilder.swift:350:63 RemoveSideEffects",
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
@@ -558,9 +781,15 @@
             "before" : "enter(element: elementName, attributes: attributeDict)",
             "description" : "removed line"
           },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "before" : "        enter(element: elementName, attributes: attributeDict)",
+            "line" : 350
+          },
           "testSuiteOutcome" : "runtimeError"
         },
         {
+          "key" : "Sources\/XMLBuilder.swift:355:27 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
@@ -573,11 +802,18 @@
             "before" : "!=",
             "description" : "changed != to =="
           },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "        guard elementName == XMLBuilder.internalTopLevelElement else { return }",
+            "before" : "        guard elementName != XMLBuilder.internalTopLevelElement else { return }",
+            "line" : 355
+          },
           "testSuiteOutcome" : "failed"
         }
       ],
       "fileName" : "XMLBuilder.swift",
-      "mutationScore" : 93
+      "mutationScore" : 93,
+      "path" : "Sources\/XMLBuilder.swift"
     },
     {
       "appliedOperators" : [
@@ -598,10 +834,18 @@
         }
       ],
       "fileName" : "Platform.swift",
-      "mutationScore" : 0
+      "mutationScore" : 0,
+      "path" : "Sources\/Platform.swift"
     }
   ],
   "globalMutationScore" : 80,
+  "mutantsByOutcome" : {
+    "buildErrors" : 0,
+    "killed" : 28,
+    "notCovered" : 0,
+    "survived" : 7,
+    "timedOut" : 0
+  },
   "numberOfKilledMutants" : 28,
   "projectCodeCoverage" : 78,
   "totalAppliedMutationOperators" : 35

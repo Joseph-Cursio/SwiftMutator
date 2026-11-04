@@ -3,6 +3,7 @@
     {
       "appliedOperators" : [
         {
+          "key" : "ProjectWithConcurrency\/main.swift:11:12 RemoveSideEffects",
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
@@ -15,9 +16,15 @@
             "before" : "block()",
             "description" : "removed line"
           },
+          "path" : "ProjectWithConcurrency\/main.swift",
+          "sourceChange" : {
+            "before" : "    block()",
+            "line" : 11
+          },
           "testSuiteOutcome" : "passed"
         },
         {
+          "key" : "ProjectWithConcurrency\/main.swift:17:12 RemoveSideEffects",
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
@@ -30,9 +37,15 @@
             "before" : "block()",
             "description" : "removed line"
           },
+          "path" : "ProjectWithConcurrency\/main.swift",
+          "sourceChange" : {
+            "before" : "    block()",
+            "line" : 17
+          },
           "testSuiteOutcome" : "passed"
         },
         {
+          "key" : "ProjectWithConcurrency\/main.swift:23:12 RemoveSideEffects",
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
@@ -45,9 +58,15 @@
             "before" : "block()",
             "description" : "removed line"
           },
+          "path" : "ProjectWithConcurrency\/main.swift",
+          "sourceChange" : {
+            "before" : "    block()",
+            "line" : 23
+          },
           "testSuiteOutcome" : "passed"
         },
         {
+          "key" : "ProjectWithConcurrency\/main.swift:29:12 RemoveSideEffects",
           "mutationPoint" : {
             "mutationOperatorId" : "RemoveSideEffects",
             "position" : {
@@ -60,14 +79,27 @@
             "before" : "block()",
             "description" : "removed line"
           },
+          "path" : "ProjectWithConcurrency\/main.swift",
+          "sourceChange" : {
+            "before" : "    block()",
+            "line" : 29
+          },
           "testSuiteOutcome" : "passed"
         }
       ],
       "fileName" : "main.swift",
-      "mutationScore" : 0
+      "mutationScore" : 0,
+      "path" : "ProjectWithConcurrency\/main.swift"
     }
   ],
   "globalMutationScore" : 0,
+  "mutantsByOutcome" : {
+    "buildErrors" : 0,
+    "killed" : 0,
+    "notCovered" : 0,
+    "survived" : 4,
+    "timedOut" : 0
+  },
   "numberOfKilledMutants" : 0,
   "totalAppliedMutationOperators" : 4
 }

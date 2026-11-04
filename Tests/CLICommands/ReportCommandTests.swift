@@ -16,6 +16,22 @@ final class ReportCommandTests: MuterTestCase {
 
     /// The outcome the run reported: `ResultsHeader.make()` records a run that skipped coverage.
     private var expected: MutationTestOutcome {
+        expected(from: [resultsPath])
+    }
+
+    /// `outcome`, of the results files at `paths`, `resultsPath` alone by default, each file's last header `header`.
+    private func ran(
+        _ outcome: MutationTestOutcome,
+        from paths: [String]? = nil,
+        header: ResultsHeader = .make()
+    ) -> MutationTestOutcome {
+        var outcome = outcome
+        outcome.run = RunDetails(of: (paths ?? [resultsPath]).map { ($0, [header]) })
+        return outcome
+    }
+
+    /// The outcome the run reported, of the results files at `paths`, each of whose last header is `header`.
+    private func expected(from paths: [String], header: ResultsHeader = .make()) -> MutationTestOutcome {
         MutationTestOutcome(
             mutations: [
                 mutation("Sources/Alpha.swift", line: 3, .failed),
@@ -25,7 +41,10 @@ final class ReportCommandTests: MuterTestCase {
             coverage: .null,
             coverageSkipped: true,
             testDuration: 100.5,
-            newVersion: ""
+            newVersion: "",
+            projectPath: header.projectPath,
+            mutatedProjectPath: header.mutatedProjectPath,
+            run: RunDetails(of: paths.map { ($0, [header]) })
         )
     }
 
@@ -108,7 +127,10 @@ final class ReportCommandTests: MuterTestCase {
 
         try await report(folder)
 
-        XCTAssertEqual(printer.linesPassed, [PlainTextReporter().report(from: expected)])
+        XCTAssertEqual(
+            printer.linesPassed,
+            [PlainTextReporter().report(from: expected(from: ["\(folder)/results.jsonl"]))]
+        )
         XCTAssertEqual(
             standardError.linesPassed,
             ["Report of 3 of 3 mutants, from \(folder)/results.jsonl: the run finished."]
@@ -121,7 +143,10 @@ final class ReportCommandTests: MuterTestCase {
 
         try await report(resumed)
 
-        XCTAssertEqual(printer.linesPassed, [PlainTextReporter().report(from: expected)])
+        XCTAssertEqual(
+            printer.linesPassed,
+            [PlainTextReporter().report(from: expected(from: ["\(first)/results.jsonl"]))]
+        )
         XCTAssertEqual(
             standardError.linesPassed,
             ["Report of 3 of 3 mutants, from \(first)/results.jsonl: the run finished."]
@@ -150,7 +175,10 @@ final class ReportCommandTests: MuterTestCase {
 
         try await report(resultsPath)
 
-        XCTAssertEqual(printer.linesPassed, [PlainTextReporter().report(from: expected)])
+        XCTAssertEqual(
+            printer.linesPassed,
+            [PlainTextReporter().report(from: expected(from: [resultsPath], header: resumed))]
+        )
         XCTAssertEqual(
             standardError.linesPassed,
             [
@@ -175,7 +203,7 @@ final class ReportCommandTests: MuterTestCase {
 
             XCTAssertEqual(
                 Array(printer.linesPassed.dropFirst(printed)),
-                [PlainTextReporter().report(from: expected)],
+                [PlainTextReporter().report(from: expected(from: ["\(first)/results.jsonl"]))],
                 "\(folders)"
             )
             XCTAssertEqual(
@@ -199,7 +227,10 @@ final class ReportCommandTests: MuterTestCase {
 
         try await report(first, resumed)
 
-        XCTAssertEqual(printer.linesPassed, [PlainTextReporter().report(from: expected)])
+        XCTAssertEqual(
+            printer.linesPassed,
+            [PlainTextReporter().report(from: expected(from: ["\(first)/results.jsonl"]))]
+        )
         XCTAssertEqual(
             standardError.linesPassed,
             ["Report of 3 of 3 mutants, from \(first)/results.jsonl: the run finished."]
@@ -367,11 +398,11 @@ final class ReportCommandTests: MuterTestCase {
 
         try await report(resultsPath)
 
-        let soFar = MutationTestOutcome(
+        let soFar = ran(MutationTestOutcome(
             mutations: [mutation("Sources/Alpha.swift", line: 3, .failed)],
             coverageSkipped: true,
             testDuration: 31.25
-        )
+        ))
         XCTAssertEqual(printer.linesPassed, [PlainTextReporter().report(from: soFar)])
         XCTAssertEqual(
             standardError.linesPassed,
@@ -391,14 +422,17 @@ final class ReportCommandTests: MuterTestCase {
         let kills: [any Encodable] = files.map { MutantResult.make(path: $0, line: 3, killedBy: [timing]) }
         let survivorAndEnd: [any Encodable] = [zeta9, ResultsEnd.make(recorded: 11)]
         try write(header + kills + survivorAndEnd, to: resultsPath)
-        let outcome = MutationTestOutcome(
-            mutations: files.map { path in
-                mutation(path, line: 3, .failed, killingTests: .init(tests: [timing], count: 1, isComplete: true))
-            } + [mutation("Sources/Zeta.swift", line: 9, .passed)],
-            coverage: .null,
-            coverageSkipped: true,
-            testDuration: 100.5,
-            newVersion: ""
+        let outcome = ran(
+            MutationTestOutcome(
+                mutations: files.map { path in
+                    mutation(path, line: 3, .failed, killingTests: .init(tests: [timing], count: 1, isComplete: true))
+                } + [mutation("Sources/Zeta.swift", line: 9, .passed)],
+                coverage: .null,
+                coverageSkipped: true,
+                testDuration: 100.5,
+                newVersion: ""
+            ),
+            header: .make(mutantsDiscovered: 11, mutantsToTest: 11)
         )
         let status = "Report of 11 of 11 mutants, from \(resultsPath): the run finished."
         let warning = "1 test may fail whatever the mutant: it failed for mutants in at least 15% of the 10 files "
@@ -424,6 +458,64 @@ final class ReportCommandTests: MuterTestCase {
         )
     }
 
+    // `--summary` saves the run's summary.json, of how its last session ended, naming the report and the file.
+    func test_theSummary_isSavedWhereAsked() async throws {
+        let interrupted = ResultsEnd.make(reason: .interrupted, detail: "SIGTERM")
+        try write(ResultsHeader.make(), zeta9, alpha3, zeta10, interrupted, to: resultsPath)
+        let summaryPath = "\(directory)/summary.json"
+        let output = "\(directory)/report.html"
+
+        try await report(resultsPath, "-f", "html", "-o", output, "--summary", summaryPath)
+
+        let data = try Data(contentsOf: URL(fileURLWithPath: summaryPath))
+        let summary = try JSONDecoder().decode(RunSummary.self, from: data)
+        XCTAssertEqual(summary, RunSummary(of: expected, ended: .interrupted, endDetail: "SIGTERM", report: output))
+        XCTAssertEqual(summary.run?.resultsFiles, [resultsPath])
+        XCTAssertEqual(standardError.linesPassed.last, "Summary saved to \(summaryPath)")
+    }
+
+    // Saving replaces whatever is there, so never the results file, nor the report.
+    func test_theSummary_isNeverSavedOverTheResultsFile_orTheReport() async throws {
+        try write(ResultsHeader.make(), zeta9, ResultsEnd.make(), to: resultsPath)
+        let output = "\(directory)/report.txt"
+
+        await AssertThrowsError(try await report(resultsPath, "--summary", resultsPath))
+        await AssertThrowsError(try await report(resultsPath, "-o", output, "--summary", output))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: output))
+        XCTAssertTrue(try String(contentsOfFile: resultsPath, encoding: .utf8).contains(#""kind":"end""#))
+    }
+
+    // Two spellings of one new file, on a volume that ignores case, are known to be one only once the report is saved:
+    // the summary is then refused, and the report kept.
+    func test_theSummary_isNeverSavedOverTheReport_spelledInAnotherCase() async throws {
+        let probe = "\(directory)/probe"
+        XCTAssertTrue(FileManager.default.createFile(atPath: probe, contents: nil))
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: "\(directory)/PROBE"), "This volume tells case apart")
+        try write(ResultsHeader.make(), zeta9, ResultsEnd.make(), to: resultsPath)
+        let output = "\(directory)/Report.txt"
+
+        await AssertThrowsError(try await report(resultsPath, "-o", output, "--summary", "\(directory)/report.txt")) {
+            let refusal = "The report and the summary can't both be saved to \(output)"
+            XCTAssertEqual($0 as? MuterError, .literal(reason: refusal))
+        }
+        let saved = try String(contentsOfFile: output, encoding: .utf8)
+        XCTAssertTrue(saved.contains("Sources/Zeta.swift:9:22 survived"), "the report, not the summary: \(saved)")
+    }
+
+    // A refusal names the option whose path it refuses.
+    func test_aSummaryPathThatIsAFolder_isRefusedAsTheSummarys() async throws {
+        try write(ResultsHeader.make(), zeta9, ResultsEnd.make(), to: resultsPath)
+
+        await AssertThrowsError(try await report(resultsPath, "--summary", directory)) {
+            let refusal = "\(directory) is a folder: name the file to save the summary to"
+            XCTAssertEqual($0 as? MuterError, .literal(reason: refusal))
+        }
+        await AssertThrowsError(try await report(resultsPath, "--summary", resultsPath)) {
+            let refusal = "\(resultsPath) is the results file the report is made from: choose another summary path"
+            XCTAssertEqual($0 as? MuterError, .literal(reason: refusal))
+        }
+    }
+
     // The run stopped before any mutant finished.
     func test_aFileWithOnlyItsHeader_givesAnEmptyReport() async throws {
         try write(ResultsHeader.make(), to: resultsPath)
@@ -433,7 +525,7 @@ final class ReportCommandTests: MuterTestCase {
         XCTAssertEqual(printer.linesPassed.count, 1)
         XCTAssertEqual(
             try parsedJSON(printer.linesPassed.first ?? ""),
-            try parsedJSON(JsonReporter().report(from: MutationTestOutcome()))
+            try parsedJSON(JsonReporter().report(from: ran(MutationTestOutcome())))
         )
         XCTAssertEqual(
             standardError.linesPassed,
@@ -460,7 +552,9 @@ final class ReportCommandTests: MuterTestCase {
 
         try await report(second, first)
 
-        XCTAssertEqual(printer.linesPassed, [PlainTextReporter().report(from: expected)])
+        // The shards' files in shard order; their details are the first shard's.
+        let reported = expected(from: [first, second], header: shardHeader(1, mutantsDiscovered: 2))
+        XCTAssertEqual(printer.linesPassed, [PlainTextReporter().report(from: reported)])
         XCTAssertEqual(standardError.linesPassed, [
             "Report of 3 of 3 mutants, merged from the results files of 2 of 2 shards.",
             "Shard 1 of 2, 2 of its 2 mutants, from \(first): the run finished.",
@@ -688,7 +782,9 @@ private extension ReportCommandTests {
             originalProjectDirectoryUrl: URL(fileURLWithPath: "/project", isDirectory: true),
             mutatedProjectDirectoryURL: URL(fileURLWithPath: "/project_mutated", isDirectory: true),
             killingTests: killingTests,
-            reusedFrom: nil
+            reusedFrom: nil,
+            key: MutantKey(path: path, mutationOperatorId: .ror, line: line, column: 22, occurrence: 0),
+            durationSeconds: 31.25
         )
     }
 }

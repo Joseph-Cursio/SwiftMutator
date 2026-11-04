@@ -60,6 +60,13 @@ struct PlainTextReporter: Reporter {
         """
 
         return survivorsMessage + appliedMutationsMessage + killingTestsMessage(from: report) + mutationScoresMessage
+            + runMessage(from: report)
+    }
+
+    /// Where the results came from, after the scores; none when not known.
+    private func runMessage(from report: MuterTestReport) -> String {
+        guard let run = report.run else { return "" }
+        return "\n\n\n---\nRun\n---\n\n" + run.lines.joined(separator: "\n")
     }
 
     /// The survivors, which are the mutants to act on, each at its place, then the line it changes, before and

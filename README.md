@@ -323,8 +323,12 @@ Sources/Lint/Rules.swift:42:17 survived: RelationalOperatorReplacement (changed 
 - **Paths in the project.** The tables of mutants and of files name each file by its path relative
   to the project, and a mutant by `path:line:column`, so two files called `Rules.swift` are told
   apart. A file outside the project keeps its absolute path. The Killing Tests table names a test's
-  file as its log recorded it. The Xcode format keeps the absolute paths Xcode needs, and the JSON
-  report's paths are as they were.
+  file as its log recorded it. The Xcode format keeps the absolute paths Xcode needs. The JSON
+  report gives each file its `path` in the project, and each mutant its `path`, its `key`, which
+  `--mutant` takes, and its `durationSeconds`; `mutationPoint.filePath` is still its path in the
+  mutated copy.
+- **Durations.** The plain and HTML reports' table of mutants has a Duration column: how long each
+  mutant's run took, as its results line records it.
 - **The changed line** comes from the original file, never the mutated copy, whose code holds
   every switch. It is shown only while the file is as it was tested: its SHA-256 must match the
   one the run recorded, so an edit made since, which could move the line, shows the change as the
@@ -350,6 +354,65 @@ Sources/Lint/Rules.swift:42:17 survived: RelationalOperatorReplacement (changed 
 
   `swift-mutator report -o` says the same on standard error, without the emoji, before
   `Report saved to`.
+- **Where the results came from.** The plain and HTML reports end with a Run section, and the JSON
+  report has `run`: the results file, or each shard's for a merged report, how many sessions made
+  the results, then the SwiftMutator version and its executable's SHA-256, as no commit is built
+  in, the toolchain, the workers and the time limit, as the last session that tested a mutant
+  recorded them. A resumed or reusing session with nothing left to test doesn't count; when no
+  session tested any, as for a `--reuse` of an unchanged project, it says `Workers: none`. For a
+  merged report, the sessions are every shard's added up, and the rest is the first shard's. The
+  JSON's `run` also has the configuration as loaded. A run whose results file couldn't be made, or
+  written in full, has no Run section.
+
+  ```
+  Results file: /Users/me/code/SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM/results.jsonl (2 sessions)
+  SwiftMutator: 1.4.0, executable SHA-256 3f9a…
+  Toolchain: Apple Swift version 6.2 (swiftlang-6.2.0.19.9 clang-1700.3.19.1)
+  Workers: 4; time limit per mutant: 24 s, the default
+  ```
+
+### summary.json
+
+Once its baseline has passed, a run writes `summary.json` beside its results file when it finishes
+or stops, replacing an earlier session's, so a script can read the outcome without parsing a
+report. It is written without `-o` too. A resumed run's file stays in the first session's log
+folder, and so does its summary. A run whose results file couldn't be made, or written in full,
+writes it in its own log folder, without `run`. One killed, or stopped at once by a second Ctrl-C,
+may not get to write it. A run whose baseline fails, or that is stopped before its baseline has
+passed, writes none, so a resumed run leaves the earlier session's summary as it was: its exit
+status and its log say why it stopped.
+
+```json
+{
+  "durationSeconds" : 1712.4,
+  "ended" : "finished",
+  "formatVersion" : 1,
+  "mutants" : 1103,
+  "mutantsByOutcome" : { "buildErrors" : 0, "killed" : 1024, "notCovered" : 0, "survived" : 75, "timedOut" : 4 },
+  "mutationScore" : 92,
+  "report" : "report.html",
+  "run" : { "resultsFiles" : [ "…/results.jsonl" ], "sessions" : 1, "workers" : 4, … }
+}
+```
+
+| Key | Meaning |
+|---|---|
+| `ended` | `finished`, `interrupted` or `aborted`, as the results file's end line says. Left out when the last session has no end line, for `report` of a run still going or killed. For merged shards, see [`report --summary`](Docs/results-file.md). |
+| `endDetail` | Why it stopped early: the signal's name or the abort's code. Left out otherwise. |
+| `mutationScore` | The headline score. Left out when no mutant was tested. |
+| `mutationScoreWithoutSuspectTests` and `scoreWithoutSuspectsIsALowerBound` | When there are suspect tests: the score without them, and whether it is a lower bound. |
+| `mutants` | How many mutants have a result |
+| `mutantsByOutcome` | As the JSON report's |
+| `durationSeconds` | How long mutation testing took, over every session |
+| `codeCoverage` | The project's coverage, percent. Left out when it wasn't gathered. |
+| `mutant` | For a run of one mutant (`--mutant`), its key. |
+| `shards` | When it covers only some shards of a `--shard` split, so its score isn't the whole run's: `indices`, `count` and `mutantsInAllShards`, as the JSON report's. |
+| `report` | The report `-o` saved, or a stopped run's partial report. Left out when none was saved. |
+| `run` | As the JSON report's. Left out when the results file couldn't be made, or written in full. |
+| `formatVersion` | 1. It goes up only when a key is taken out or changes its meaning. |
+
+`swift-mutator report --summary <path>` writes one from a results file, or from shards' files
+merged. It never replaces the results file or the report.
 
 ## Configuration
 
@@ -772,7 +835,8 @@ swift-mutator report "../SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM" -f 
 
 - **What it takes.** The results file, or a log folder of any of the run's sessions. `-f` and `-o`
   work as in `run`. Without `-o` the report goes to standard output alone, so
-  `-f json > report.json` gives valid JSON.
+  `-f json > report.json` gives valid JSON. `--summary <path>` also saves the run's
+  [summary.json](#summaryjson) there.
 - **A finished run** gets its own report back, in any format. Only what depends on when and where a
   report is made can differ, such as the time in the HTML report's footer. A run by an older
   SwiftMutator, which tested a file's mutants by operator and put line 10 before line 9, gets them

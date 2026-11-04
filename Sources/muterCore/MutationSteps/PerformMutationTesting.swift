@@ -151,7 +151,8 @@ struct PerformMutationTesting: MutationStep {
             controlRuns: Self.controlRuns(of: session, state: state),
             projectPath: state.projectDirectoryURL.path,
             mutatedProjectPath: state.mutatedProjectDirectoryURL.path,
-            sourceDigests: Self.sourceDigests(of: state)
+            sourceDigests: Self.sourceDigests(of: state),
+            run: Self.runDetails(of: session, state: state)
         )
 
         events.send(.mutationTestingFinished(mutationTestOutcome))
@@ -515,7 +516,9 @@ private extension PerformMutationTesting {
                 of: jobs[index],
                 state: state,
                 killingTests: .init(result),
-                reusedFrom: result.reusedFrom
+                reusedFrom: result.reusedFrom,
+                key: result.key,
+                durationSeconds: result.durationSeconds
             )
             session.outcomes[index] = outcome
             session.reused += 1
@@ -530,7 +533,9 @@ private extension PerformMutationTesting {
         of job: MutantJob,
         state: AnyMutationTestState,
         killingTests: MutationTestOutcome.KillingTests?,
-        reusedFrom: ReusedFrom? = nil
+        reusedFrom: ReusedFrom? = nil,
+        key: MutantKey,
+        durationSeconds: Double
     ) -> MutationTestOutcome.Mutation {
         MutationTestOutcome.Mutation(
             testSuiteOutcome: testSuiteOutcome,
@@ -543,7 +548,9 @@ private extension PerformMutationTesting {
             originalProjectDirectoryUrl: state.projectDirectoryURL,
             mutatedProjectDirectoryURL: state.mutatedProjectDirectoryURL,
             killingTests: killingTests,
-            reusedFrom: reusedFrom
+            reusedFrom: reusedFrom,
+            key: key,
+            durationSeconds: durationSeconds
         )
     }
 
@@ -581,7 +588,8 @@ private extension PerformMutationTesting {
                     controlRuns: Self.controlRuns(of: session, state: state),
                     projectPath: state.projectDirectoryURL.path,
                     mutatedProjectPath: state.mutatedProjectDirectoryURL.path,
-                    sourceDigests: Self.sourceDigests(of: state)
+                    sourceDigests: Self.sourceDigests(of: state),
+                    run: Self.runDetails(of: session, state: state)
                 ),
                 discovered: session.keys.count,
                 reused: session.reused
@@ -1064,13 +1072,15 @@ private extension PerformMutationTesting {
         // The failed tests are worked out here, not in `write`'s autoclosure: the outcome needs them without a results
         // file, or after a failed write. One scan of the log serves both.
         let failures = MutantResult.failedTests(of: finished.run, ignoring: configuration.failedTestLookalikes)
+        let key = session.keys[finished.index]
         let outcome = Self.outcome(
             finished.run.outcome,
             of: job,
             state: state,
-            killingTests: .init(failures, endedBy: finished.run.ending)
+            killingTests: .init(failures, endedBy: finished.run.ending),
+            key: key,
+            durationSeconds: MutantResult.recordedSeconds(finished.seconds)
         )
-        let key = session.keys[finished.index]
         let log = rerun == nil ? MutationTestLog.keptFileName(for: key) : MutationTestLog.rerunFileName(for: key)
         try abortingIfTheSimulatorIsGone(in: finished, logName: log, configuration: configuration, state: state)
         write(
@@ -1224,6 +1234,8 @@ private extension PerformMutationTesting {
                 firstLines.append(ResultsRetired(session: session.number, keys: retired))
             }
             guard sayingAFailure(session.startResults(in: file, writing: firstLines), in: session) else { return }
+            session.header = firstLines.first as? ResultsHeader
+            session.resultsPath = resume.path
             leaveANote(pointingTo: resume.path, session: session.number, in: state.loggingDirectory)
             events.send(.resultsFileCreated(path: resume.path))
             return
@@ -1234,6 +1246,8 @@ private extension PerformMutationTesting {
         do {
             let results = try resultsFiles.create(in: loggingDirectory)
             guard sayingAFailure(session.startResults(in: results, writing: [headerLine]), in: session) else { return }
+            session.header = headerLine
+            session.resultsPath = results.path
             if let resume = state.resumeState, resume.isReuse {
                 let lines = reused.sorted { $0.key < $1.key }.map(\.value)
                 guard sayingAFailure(session.append(contentsOf: lines), in: session) else { return }
@@ -1305,5 +1319,16 @@ extension PerformMutationTesting {
         guard let plan = state.testPlan else { return state.projectTree?.files }
         // A file with mutants that is a symbolic link is recorded by what its link's file held.
         return plan.sources.map { $0.files.merging(plan.linkedFiles ?? [:]) { _, linked in linked } }
+    }
+
+    /// Where `session`'s results came from, once its header is written to its results file: that file, with the
+    /// headers of the sessions a resumed run's file holds before it. nil once a write to the file has failed: the file
+    /// then lacks some of the session's results, and the run no longer names it.
+    static func runDetails(of session: TestingSession, state: AnyMutationTestState) -> RunDetails? {
+        guard !session.saidResultsUnwritable, let header = session.header, let path = session.resultsPath else {
+            return nil
+        }
+        let earlier = state.resumeState.map { $0.isReuse ? [] : $0.recorded.headers } ?? []
+        return RunDetails(of: [(path, earlier + [header])])
     }
 }
