@@ -50,6 +50,16 @@ struct Report: AsyncParsableCommand {
     )
     var summary: URL?
 
+    @Option(
+        name: .customLong("triage"),
+        help: ArgumentHelp(
+            "Show the labels in this triage file, if not muter.triage.yml in the run's project, or in the current "
+                + "folder.",
+            valueName: "path"
+        )
+    )
+    var triage: String?
+
     init() {}
 
     /// Makes the report, then exits with the status `ResultsReport.make` gives once it is made: for a run that
@@ -64,7 +74,8 @@ struct Report: AsyncParsableCommand {
             outputPath: reportOptions.reportURL?.path,
             summaryPath: summary?.path,
             failUnder: reportOptions.failUnder,
-            propertyTests: reportOptions.propertyTestGlobs
+            propertyTests: reportOptions.propertyTestGlobs,
+            triagePath: triage
         )
         if let status = try report.make(from: results.map(\.path), forcing: forceMerge, ignoring: mergeIgnoring) {
             throw status

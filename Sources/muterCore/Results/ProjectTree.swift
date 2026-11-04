@@ -40,7 +40,11 @@ extension ProjectTree {
     /// `muter-worker<n>.xctestrun` (`MutationTestingDelegate.isWorkerTestRunFileName`). Earlier versions wrote the
     /// active-mutant file there too, as `.swiftmutator-active-mutant`; it is still left out, so a fingerprint doesn't
     /// change.
-    static let prunedAtRoot: Set = ["muter-mappings.json", ".swiftmutator-active-mutant", "muter.xctestrun"]
+    /// `muter.triage.yml` isn't written by a run, but no result reads it: labelling a mutant must refuse no `--resume`,
+    /// and test nothing again in a `--reuse`.
+    static let prunedAtRoot: Set = [
+        "muter-mappings.json", ".swiftmutator-active-mutant", "muter.xctestrun", TriageFile.fileName,
+    ]
 
     /// Lists the project at `listingRoot` (git; without it, a walk of `hashingRoot`), adds every Swift and package
     /// file under `hashingRoot`, and hashes each as `hashingRoot` holds it. A listed path that isn't there is left out,

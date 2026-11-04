@@ -83,6 +83,46 @@ final class ReportCommandTests: MuterTestCase {
         XCTAssertThrowsError(try MuterCommand.parseAsRoot(["report"]))
     }
 
+    func test_showsTheLabelsInTheRunsProject() async throws {
+        try write(ResultsHeader.make(projectPath: directory), zeta9, ResultsEnd.make(), to: resultsPath)
+        try writeTriage(to: "\(directory)/\(TriageFile.fileName)", label: "equivalent")
+
+        try await report(resultsPath)
+
+        XCTAssertTrue(printer.linesPassed.first?.contains("Triaged: equivalent") == true, "\(printer.linesPassed)")
+    }
+
+    func test_showsTheLabelsInTheCurrentFolder_whenTheRunsProjectHasNone() async throws {
+        try write(ResultsHeader.make(), zeta9, ResultsEnd.make(), to: resultsPath)
+        try writeTriage(to: "\(directory)/\(TriageFile.fileName)", label: "missing-test")
+        let before = FileManager.default.currentDirectoryPath
+        FileManager.default.changeCurrentDirectoryPath(directory)
+        defer { FileManager.default.changeCurrentDirectoryPath(before) }
+
+        try await report(resultsPath)
+
+        XCTAssertTrue(printer.linesPassed.first?.contains("Triaged: missing test") == true, "\(printer.linesPassed)")
+    }
+
+    func test_triageFlag_namesTheFile_whichMustBeThere() async throws {
+        try write(ResultsHeader.make(), zeta9, ResultsEnd.make(), to: resultsPath)
+        let file = "\(directory)/labels.yml"
+
+        await XCTAssertThrowsErrorAsync(try await report(resultsPath, "--triage", file))
+
+        try writeTriage(to: file, label: "tool-limitation")
+        try await report(resultsPath, "--triage", file)
+        XCTAssertTrue(printer.linesPassed.first?.contains("Triaged: tool limitation") == true, "\(printer.linesPassed)")
+    }
+
+    func test_aBrokenTriageFile_isRefused() async throws {
+        try write(ResultsHeader.make(projectPath: directory), zeta9, ResultsEnd.make(), to: resultsPath)
+        try "mutants: [".write(toFile: "\(directory)/\(TriageFile.fileName)", atomically: true, encoding: .utf8)
+
+        await XCTAssertThrowsErrorAsync(try await report(resultsPath))
+        XCTAssertEqual(printer.linesPassed, [])
+    }
+
     func test_printsTheReportOnStandardOutput_andTheStatusOnStandardError() async throws {
         try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
 
@@ -931,6 +971,25 @@ private extension ReportCommandTests {
     func writeNote(pointingTo path: String, session: Int, in folder: String) throws {
         let note = Data(ResultsFile.note(pointingTo: path, session: session).utf8)
         try note.write(to: URL(fileURLWithPath: "\(folder)/\(ResultsFile.noteFileName)"))
+    }
+
+    /// A triage file at `path` with `label` for `zeta9`.
+    func writeTriage(to path: String, label: String) throws {
+        try """
+        mutants:
+        - mutant: Sources/Zeta.swift:9:22 RelationalOperatorReplacement
+          label: \(label)
+        """.write(toFile: path, atomically: true, encoding: .utf8)
+    }
+
+    func XCTAssertThrowsErrorAsync(
+        _ expression: @autoclosure () async throws -> Void,
+        line: UInt = #line
+    ) async {
+        do {
+            try await expression()
+            XCTFail("Expected an error", line: line)
+        } catch {}
     }
 
     /// JSONEncoder promises no order of keys, so JSON compares parsed.

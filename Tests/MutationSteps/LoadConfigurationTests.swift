@@ -30,6 +30,20 @@ final class LoadConfigurationTests: MuterTestCase {
         ])
     }
 
+    // Now, so a typo in a label doesn't wait for the end of a long run.
+    func test_aBrokenTriageFile_refusesTheRun() async throws {
+        fileManager.fileExistsToReturn = [false, true]
+        fileManager.fileContentsToReturn = loadYAMLConfiguration()
+        fileManager.fileContentsToReturn = Data("mutants: [".utf8)
+
+        do {
+            _ = try await sut.run(with: state)
+            XCTFail("Expected a refusal")
+        } catch {
+            XCTAssertTrue("\(error)".contains(TriageFile.fileName), "\(error)")
+        }
+    }
+
     // For this run only, in place of the file's keys, which the header then records and a resume compares.
     func test_workersAndTimeoutFlags_replaceTheirKeys() async throws {
         fileManager.fileExistsToReturn = [false, true]
@@ -234,7 +248,7 @@ final class LoadConfigurationTests: MuterTestCase {
 
         XCTAssertEqual(
             fileManager.contentsAtPath,
-            ["/some/custom/path/muter.conf.yml"]
+            ["/some/custom/path/muter.conf.yml", "\(fixturesDirectory)/\(TriageFile.fileName)"]
         )
     }
 

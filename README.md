@@ -458,6 +458,91 @@ Sources/Lint/Rules.swift:42:17 survived: RelationalOperatorReplacement (changed 
   Workers: 4; time limit per mutant: 24 s, the default
   ```
 
+### Triaging survivors
+
+A survivor is a missing test, or a mutant no test could kill, or code you don't mean to test, and
+only a person can say which. `swift-mutator triage` records what you decided, in
+`muter.triage.yml` beside `muter.conf.yml`, and the reports show it from then on
+([#105](https://github.com/Joseph-Cursio/SwiftMutator/issues/105)). Commit the file, so the labels
+carry across runs and to the people you work with.
+
+```
+swift-mutator triage 'Sources/Lint/Rules.swift:42:17 RelationalBoundary' --results '/…/results.jsonl' --label equivalent --note 'count never exceeds limit here'
+swift-mutator triage 'Sources/Lint/Rules.swift:42:17 RelationalBoundary' --remove
+```
+
+- **The labels.** `missing-test`, `equivalent`, `out-of-scope` and `tool-limitation`.
+- **Which mutants take one.** Those that survived or timed out in the run `--results` names, its
+  results file or a log folder. The mutant is named as `--mutant` names one, and a name that fits
+  several lists them. Labelling a mutant again replaces its label, and keeps every other, saving
+  those that followed their code at their new places.
+- **It changes no score.** Not the headline score, not `--fail-under`, not `summary.json`. A label
+  is someone's word, which a CI job's threshold shouldn't rest on, and `equivalent` is often wrong.
+- **What the reports show.** The plain text, HTML and JSON reports mark each labelled survivor, and
+  add a Triage section. The Xcode format and `summary.json` don't.
+
+  ```
+  Sources/Lint/Rules.swift:42:17 survived: RelationalBoundary (changed >= to >)
+      -42:     if count >= limit {
+      +42:     if count > limit {
+      Triaged: equivalent: count never exceeds limit here
+  ```
+
+  ```
+  Of the 15 mutants that survived or timed out, 9 are triaged in muter.triage.yml, and 6 aren't.
+  By label: 4 missing test, 3 equivalent, 1 out of scope, 1 tool limitation.
+  ```
+- **When code moves.** A mutant's key holds its line and column, which any edit above it changes, so
+  an entry also holds what its mutant changes and the line it's on. A label applies at its key while
+  those still match. Otherwise it follows its code to the one mutant in its file with the same
+  operator, change and line, whatever the line's indent, and keeps following it with no need to save
+  it again. It labels nothing rather than guess: with no such mutant, or two, or another label on that
+  one or after it, or a change to the line itself, the report lists it as matching no mutant, and you
+  decide again.
+- **What that can't tell apart.** Two identical lines in a file. A label can follow to the other
+  one, if its own was removed and only that one is left. And a label at its key can't be told from
+  an identical line that an edit shifted onto that key, so identical lines an equal distance apart
+  can each take the next one's label. The note is there to catch this.
+- **What the report asks you to look at.** Labels that followed their code, labels on mutants that
+  no longer survive, as a test now kills them, and labels that match no mutant, up to 10 of each. The
+  JSON report lists them all.
+- **Results of part of a project.** Results that leave out some of a file's mutants say nothing about
+  those, so no label follows its code in them, and a label whose mutant isn't in them matches nothing.
+  That goes for `--mutant`, `--shard`, `--sample`, `--since --changed-lines` and a run that stopped.
+  A plain `--since` tests whole files, so its labels in those files follow as usual.
+- **Removing a label.** `--remove` with `--results` removes the label on the mutant at the place those
+  results show, or a label matching no mutant in them. Without `--results` it takes the key the file
+  holds, which is older than what a report shows if the code moved: the report gives that key for a
+  label that followed its code. Either way it says what it removed.
+- **Where the file is looked for.** A run reads `muter.triage.yml` in the folder it runs in.
+  `swift-mutator report` reads the one in the run's project, then the current folder's, or the file
+  `--triage <path>` names. `swift-mutator triage` writes to the run's project, or the current folder
+  if that's gone, or `--file <path>`, and `--remove` without `--results` to the current folder or
+  `--file`. A file that is a symbolic link stays one.
+- **A broken file** refuses a run as it starts, so a typo doesn't wait for the end of a long one, and
+  refuses `report` and `triage`, which leaves the file as it was. That's YAML that won't parse, a key
+  it doesn't know, as a misspelling would be, a label it doesn't know, two labels for one key, text
+  that isn't UTF-8, and a file it can't open. If it breaks during a run, the report is made without
+  labels and says so.
+- **It's only read for reports.** The default file isn't one of the project's files as a resume or a
+  `--reuse` sees them, so labelling a mutant refuses no `--resume` and tests nothing again. Keep a
+  file you name with `--triage` outside the project, or it counts as a changed file.
+- **The file** is YAML you can edit, though `triage` writes it in order and doesn't keep comments;
+  keep your reasons in `note`. An entry needs only `mutant`, a whole key as the reports give it, and
+  `label`. Without `before`, `after` and `line`, it applies at its key alone, whatever is there now,
+  and can't follow its code; a change that spans lines has no `line`, and neither has a mutant whose
+  file changed since the run you labelled it from, so those stay at their place too.
+
+  ```yaml
+  mutants:
+  - mutant: Sources/Lint/Rules.swift:42:17 RelationalBoundary
+    label: equivalent
+    note: count never exceeds limit here
+    before: '>='
+    after: '>'
+    line: if count >= limit {
+  ```
+
 ### summary.json
 
 Once its baseline has passed, a run writes `summary.json` beside its results file when it finishes

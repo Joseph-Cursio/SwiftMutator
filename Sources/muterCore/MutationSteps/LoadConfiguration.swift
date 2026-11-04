@@ -48,6 +48,11 @@ struct LoadConfiguration: MutationStep {
             if let reason = resolved.propertyRerunsUnsupportedReason {
                 throw MuterError.configurationParsingError(reason: reason)
             }
+            // Now, not when the report is made: a typo shouldn't wait for the end of a long run.
+            _ = try TriageFile.load(
+                at: TriageFile.path(in: fileManager.currentDirectoryPath),
+                using: fileManager
+            )
             return [
                 .projectDirectoryUrlDiscovered(URL(fileURLWithPath: fileManager.currentDirectoryPath)),
                 .configurationParsed(resolved),
