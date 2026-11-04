@@ -255,14 +255,18 @@ final class TriageSummaryTests: MuterTestCase {
         XCTAssertEqual(result.numberOfKilledMutants, MuterTestReport(from: bare).numberOfKilledMutants)
     }
 
-    func test_aFileWithNoEntries_leavesEveryReportAsItWas() {
+    func test_aFileWithNoEntries_leavesEveryReportAsItWas() throws {
         var bare = report([(1, .passed)], entries: [])
         let empty = bare
         bare.triage = nil
 
-        for reporter in [ReportFormat.plain, .json].map(\.reporter) {
-            XCTAssertEqual(reporter.report(from: empty), reporter.report(from: bare))
+        XCTAssertEqual(PlainTextReporter().report(from: empty), PlainTextReporter().report(from: bare))
+        // The JSON report doesn't sort its keys, so two encodes of one report can differ as text.
+        let parsed = try [empty, bare].map { outcome in
+            let json = JsonReporter().report(from: outcome)
+            return try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? NSDictionary, json)
         }
+        XCTAssertEqual(parsed[0], parsed[1])
         XCTAssertNil(MuterTestReport(from: empty).triageSummary)
     }
 
