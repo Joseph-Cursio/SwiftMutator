@@ -262,7 +262,7 @@ struct SimulatorWorkerSetup {
                     failure.testLog, named: MutationTestLog.launchFailedFileName(for: logName), state: state
                 )
             }
-            return fileManager.keepLog(run.testLog, named: logName, state: state)
+            return fileManager.keepLog(run.testLog, writtenTo: run.output, by: ioDelegate, named: logName, state: state)
         }
 
         // The lowest-numbered failure, so the same worker is named whichever run finished first.
@@ -294,11 +294,25 @@ struct SimulatorWorkerSetup {
         "no-mutant run worker \(worker).log"
     }
 
-    /// A worker's run with no mutant on, the run before it, if the simulator failed to launch that one, and how long
-    /// both took.
-    private typealias CheckRun = (
-        worker: Int, outcome: TestSuiteOutcome, testLog: String, launchFailure: LaunchFailure?, seconds: TimeInterval
-    )
+    /// A worker's run with no mutant on, the run before it, if the simulator failed to launch that one, how long both
+    /// took, and the file it wrote its output to, none if it never ran.
+    private struct CheckRun {
+        let worker: Int
+        let outcome: TestSuiteOutcome
+        let testLog: String
+        let launchFailure: LaunchFailure?
+        let seconds: TimeInterval
+        let output: String?
+
+        init(_ worker: Int, _ run: TestRun, launchFailure: LaunchFailure?, seconds: TimeInterval, output: String?) {
+            self.worker = worker
+            outcome = run.outcome
+            testLog = run.testLog
+            self.launchFailure = launchFailure
+            self.seconds = seconds
+            self.output = output
+        }
+    }
 
     /// Runs the tests with no mutant on, on every one of `xcodeWorkers` at once, each from its own `.xctestrun`, and
     /// returns the runs in worker order. A worker whose `.xctestrun` can't be written fails its run. A run the
@@ -323,7 +337,8 @@ struct SimulatorWorkerSetup {
                     } catch {
                         let why = error.localizedDescription
                         let log = "SwiftMutator could not write \(xcodeWorker.testRunFile): \(why)"
-                        return (worker, .buildError, log, nil, 0)
+                        let run = TestRun(outcome: .buildError, testLog: log)
+                        return CheckRun(worker, run, launchFailure: nil, seconds: 0, output: nil)
                     }
                     let start = instant()
                     let (run, launchFailure) = await TestRun.launchedOnceMore(ifNeededWith: configuration) {
@@ -334,7 +349,7 @@ struct SimulatorWorkerSetup {
                         return TestRun(outcome: run.outcome, testLog: run.testLog)
                     }
                     let seconds = PerformMutationTesting.seconds(from: start, to: instant())
-                    return (worker, run.outcome, run.testLog, launchFailure, seconds)
+                    return CheckRun(worker, run, launchFailure: launchFailure, seconds: seconds, output: fileName)
                 }
             }
             return await group.reduce(into: []) { $0.append($1) }

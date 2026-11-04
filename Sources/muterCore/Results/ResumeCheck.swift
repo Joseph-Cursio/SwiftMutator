@@ -14,6 +14,8 @@ enum ResumeCheck {
         MuterConfiguration.CodingKeys.suspectTestFilePercent.stringValue,
         MuterConfiguration.CodingKeys.suspectTestMinimumFiles.stringValue,
         MuterConfiguration.CodingKeys.controlRunEvery.stringValue,
+        MuterConfiguration.CodingKeys.keepAllLogs.stringValue,
+        MuterConfiguration.CodingKeys.keepLogFolders.stringValue,
     ]
 
     /// The key of a mutant's time limit, `mutationTestTimeout`, which a resume or a reuse lets lengthen

@@ -280,6 +280,70 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(kept, mutants.map(\.log))
     }
 
+    // By default, a kill by a failed test its line names keeps no log: `killedBy` and `firstFailedTestLine` stand in
+    // for it. Its line has no `log`, nothing is written for it, and its output is discarded, so the header is in format
+    // 4.
+    func test_byDefault_aKillByATestItsLineNames_keepsNoLog() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+        ioDelegate.mutantTestLogs = [killingLog, "survivor's log"]
+
+        _ = try await sut.run(with: state)
+
+        let mutants = try resultsFiles.records(MutantResult.self)
+        XCTAssertEqual(mutants.map(\.outcome), [.failed, .passed])
+        XCTAssertNil(mutants[0].log)
+        XCTAssertEqual(mutants[0].killedBy, [.init(name: "sum()", location: "SumTests.swift:12:5")])
+        let survivorsLog = try XCTUnwrap(mutants[1].log)
+        XCTAssertEqual(fileManager.createdFiles["/logs/" + survivorsLog], Data("survivor's log".utf8))
+        let killsLog = "/logs/" + MutationTestLog.keptFileName(for: mutants[0].key)
+        XCTAssertFalse(fileManager.paths.contains(killsLog), "\(fileManager.paths)")
+        let discarded = ioDelegate.keptOutputs.filter { $0.path == nil }.map(\.output)
+        XCTAssertEqual(discarded.count, 1)
+        XCTAssertTrue(discarded.first?.hasPrefix("/logs/running/0_Sum.swift") == true, "\(discarded)")
+        let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
+        XCTAssertEqual(header.formatVersion, ResultsCoding.omittedLogsFormatVersion)
+    }
+
+    // Survivors, crashes, timeouts and build errors keep their logs, even when the log names failed tests, as does a
+    // kill whose line names no test, since nothing in its line stands in for its log.
+    func test_byDefault_everyRunButAKillByANamedTest_keepsItsLog() async throws {
+        state.mutationMapping = try (1...6).map { try makeSchemataMapping(file: "Sources/File\($0).swift", line: $0) }
+        ioDelegate.testSuiteOutcomes = [.passed, .passed, .runtimeError, .timeout, .buildError, .buildError, .failed]
+        ioDelegate.mutantRunEndings = [.exited, .exited, .timedOut, .exited, .couldNotRun, .exited]
+        let summaryOnly = "✘ Test run with 1 test in 0 suites failed after 0.001 seconds with 1 issue."
+        ioDelegate.mutantTestLogs = ["passed", killingLog, killingLog, "error: build", "couldn't start", summaryOnly]
+
+        _ = try await sut.run(with: state)
+
+        let mutants = try resultsFiles.records(MutantResult.self)
+        XCTAssertEqual(mutants.map(\.outcome), [.passed, .runtimeError, .timeout, .buildError, .buildError, .failed])
+        XCTAssertEqual(mutants.map(\.log), mutants.map { MutationTestLog.keptFileName(for: $0.key) })
+        XCTAssertEqual(mutants[5].killedBy, [])
+        for mutant in mutants {
+            XCTAssertNotNil(fileManager.createdFiles["/logs/" + (mutant.log ?? "")], "\(mutant.key)")
+        }
+        XCTAssertEqual(ioDelegate.keptOutputs.filter { $0.path == nil }.map(\.output), [])
+    }
+
+    // `keepAllLogs: true` keeps the kill's log too, so every line names one and the header keeps to format 1.
+    func test_keepingAllLogs_aKillByATestItsLineNames_keepsItsLog() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], keepAllLogs: true
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+        ioDelegate.mutantTestLogs = [killingLog, "survivor's log"]
+
+        _ = try await sut.run(with: state)
+
+        let mutants = try resultsFiles.records(MutantResult.self)
+        let killsLog = try XCTUnwrap(mutants[0].log)
+        XCTAssertEqual(killsLog, MutationTestLog.keptFileName(for: mutants[0].key))
+        XCTAssertEqual(fileManager.createdFiles["/logs/" + killsLog], Data(killingLog.utf8))
+        XCTAssertEqual(ioDelegate.keptOutputs.filter { $0.path == nil }.map(\.output), [])
+        let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
+        XCTAssertEqual(header.formatVersion, ResultsCoding.formatVersion)
+    }
+
     // The hash of the file as the copy held it before discovery rewrote it, so a later run can tell whether the
     // mutant's file is still the one it was tested in.
     func test_aMutantLineCarriesItsFilesHash() async throws {

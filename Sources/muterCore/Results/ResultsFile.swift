@@ -327,7 +327,7 @@ extension ResultsFile {
     /// The results file that the note in `folder`, a resumed session's log folder, names: the note's first line, if it
     /// is an absolute path to a file with a results file's name. Whether the file is there is left for reading it to
     /// refuse, which names the file. It is given without looking in it, so one note never leads to another.
-    private static func notedFile(in folder: String, using fileManager: FileSystemManager) -> String? {
+    static func notedFile(in folder: String, using fileManager: FileSystemManager) -> String? {
         let note = (folder as NSString).appendingPathComponent(noteFileName)
         guard let data = fileManager.contents(atPath: note), let text = String(data: data, encoding: .utf8),
               let firstLine = text.components(separatedBy: .newlines).first,
@@ -335,6 +335,40 @@ extension ResultsFile {
             return nil
         }
         return firstLine
+    }
+
+    /// What trying to lock a results file or a run's marker (`RunMarker`) without waiting found (`probeLock(_:)`).
+    enum LockProbe: Equatable {
+        /// No other process held its lock, and this descriptor now does, for the caller to close, which releases it.
+        case held(Int32)
+        /// Another process holds its lock.
+        case inUse
+        /// Nothing is there to lock.
+        case missing
+        /// It couldn't be opened or locked, with this `errno`, which says nothing of whether another process holds it,
+        /// as where flock isn't supported.
+        case failed(Int32)
+    }
+
+    /// Tries to lock the file at `path` with flock, a results file or a run's marker (`RunMarker`), without waiting. A
+    /// holder's record, `.<name>.holder`, says nothing here: only the lock shows a run that still holds the file. A
+    /// run that tries to hold the file meanwhile is refused as for any holder, so the caller closes it as soon as it
+    /// can.
+    static func probeLock(_ path: String) -> LockProbe {
+        // Opened to write if it can be, as the file's holders open it: where flock is emulated with fcntl locks, as on
+        // a Linux NFS mount, an exclusive lock needs that, and one opened read-only gets EBADF. Neither truncates nor
+        // writes it. O_NONBLOCK: something other than a file at that path never keeps the caller waiting.
+        var descriptor = open(path, O_RDWR | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+        if descriptor < 0, errno == EACCES || errno == EROFS {
+            descriptor = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+        }
+        guard descriptor >= 0 else { return errno == ENOENT ? .missing : .failed(errno) }
+        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
+            let code = errno
+            closeDescriptor(descriptor)
+            return code == EWOULDBLOCK ? .inUse : .failed(code)
+        }
+        return .held(descriptor)
     }
 
     /// Whether `output` names the file at `results`, so saving a report there would replace it: the same path once

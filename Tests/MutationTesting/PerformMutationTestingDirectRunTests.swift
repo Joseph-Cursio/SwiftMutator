@@ -61,6 +61,11 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
         XCTAssertNotNil(header.testRunSeconds)
         // The configuration as loaded, which the header records, has none.
         XCTAssertNil(header.configuration.directTestRun)
+        // Its output is moved to the timed test run's log, which it is.
+        XCTAssertTrue(
+            ioDelegate.keptOutputs.contains { $0 == ("/logs/running/direct test run", "/logs/timed test run.log") },
+            "\(ioDelegate.keptOutputs)"
+        )
     }
 
     func test_aRunThatRunsOtherTests_leavesSwiftTest_andIsTimedAgain() async throws {
@@ -86,6 +91,15 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
 
         XCTAssertEqual(ioDelegate.configurations.map(\.directTestRun), [nil])
         XCTAssertTrue(sent().first?.contains("didn't pass") ?? false)
+        // Its output is moved to the log the notice names, and the timed run that follows keeps its own.
+        XCTAssertTrue(
+            ioDelegate.keptOutputs.contains { $0 == ("/logs/running/direct test run", "/logs/direct test run.log") },
+            "\(ioDelegate.keptOutputs)"
+        )
+        XCTAssertTrue(
+            ioDelegate.keptOutputs.contains { $0 == ("/logs/running/timed test run", "/logs/timed test run.log") },
+            "\(ioDelegate.keptOutputs)"
+        )
     }
 
     // `swift test` runs XCTest tests with `xctest`, which running the bundles directly doesn't.

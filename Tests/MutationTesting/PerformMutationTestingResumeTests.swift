@@ -140,7 +140,8 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         XCTAssertEqual(header.mutantsReused, 1)
     }
 
-    func test_aResumedSession_isTheNextNumber_withAFormat3Header_inTheSameFile() async throws {
+    // Its kills may keep no log, so its mutant lines may have no `log`, which only a format-4 reader reads.
+    func test_aResumedSession_isTheNextNumber_withAFormat4Header_inTheSameFile() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
         var announced: [String] = []
         whenSent(.resultsFileCreated) { announced.append(($0.object as? String) ?? "") }
@@ -153,7 +154,7 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         XCTAssertEqual(resultsFiles.files.first?.batches, [0 ..< 2], "the header and the retired line go together")
         let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
         XCTAssertEqual(header.session, 2)
-        XCTAssertEqual(header.formatVersion, ResultsCoding.projectDeltaFormatVersion)
+        XCTAssertEqual(header.formatVersion, ResultsCoding.omittedLogsFormatVersion)
         XCTAssertEqual(header.logDirectory, "/project_muter_logs/session 2", "the session's own log folder")
         XCTAssertEqual(header.mutantsDiscovered, 4)
         XCTAssertEqual(header.mutantsToTest, 2)
@@ -426,6 +427,42 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
             Data(ResultsFile.note(pointingTo: resultsPath, session: 2).utf8),
             "the session added to the file, though it kept no log"
         )
+    }
+
+    // Every mutant line it writes names a log, so it keeps to the format a resumed session had before format 4.
+    func test_aResumedSessionKeepingAllLogs_hasAFormat3Header() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], keepAllLogs: true
+        )
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+
+        _ = try await sut.run(with: state)
+
+        let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
+        XCTAssertEqual(header.formatVersion, ResultsCoding.projectDeltaFormatVersion)
+        XCTAssertEqual(try resultsFiles.records(MutantResult.self).map { $0.log != nil }, [true, true])
+    }
+
+    // It writes no mutant line, so nothing in it needs format 4.
+    func test_aResumedSessionWithNothingLeft_hasAFormat3Header() async throws {
+        state.resumeState = try ResumeState.make(
+            path: resultsPath,
+            lines: [
+                ResultsHeader.make(mutantsDiscovered: 4, mutantsToTest: 4, project: tree),
+                record(of: "Sources/Product.swift", line: 7, .passed, fileSHA256: "77e0"),
+                record(of: "Sources/Quotient.swift", line: 4, .runtimeError, fileSHA256: "3c4f"),
+                record(of: "Sources/Sum.swift", line: 3, .failed, fileSHA256: "5a1c", killedBy: [sumTest]),
+                record(of: "Sources/Total.swift", line: 8, .timeout, fileSHA256: "9e21"),
+            ],
+            file: XCTUnwrap(state.resumeState).file
+        )
+        ioDelegate.testSuiteOutcomes = []
+
+        _ = try await sut.run(with: state)
+
+        let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
+        XCTAssertEqual(header.mutantsToTest, 0)
+        XCTAssertEqual(header.formatVersion, ResultsCoding.projectDeltaFormatVersion)
     }
 
     // The note is all a session with nothing left to test keeps in its log folder, and it keeps the folder, which

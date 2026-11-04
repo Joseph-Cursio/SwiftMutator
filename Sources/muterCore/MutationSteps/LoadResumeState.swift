@@ -7,8 +7,10 @@ import Foundation
 /// changed project files that no `--resume-ignoring` glob matches. The project's files are fingerprinted in the
 /// project itself, as there is no copy yet; `FingerprintProjectTree` checks the copy again.
 ///
-/// For `--reuse` it reads the earlier run's results file once, without a lock: the new run writes a file of its own,
-/// and a run of the same project still writing it holds the project's copy, which `LockMutatedProject` refuses. The
+/// For `--reuse` it reads the earlier run's results file once, without a lock on it: the new run writes a file of its
+/// own, and a run of the same project still writing it holds the project's copy, which `LockMutatedProject` refuses.
+/// It holds shared locks on the earlier run's log folders instead (`ReusedFolders`), so no run prunes them before
+/// their logs are copied. The
 /// same checks apply, with `--force-reuse` for `--force-resume`, except changed files: they don't refuse a reuse, but
 /// decide which results it keeps, once `FingerprintProjectTree` has listed them in the copy.
 ///
@@ -132,7 +134,13 @@ struct LoadResumeState: MutationStep {
             lastHeader: lastHeader,
             provenance: current,
             forced: verdict.forced,
-            notices: verdict.notices
+            notices: verdict.notices,
+            reusedFolders: file == nil
+                ? ReusedFolders(
+                    holding: [(path as NSString).deletingLastPathComponent] + recorded.headers.map(\.logDirectory),
+                    resultsFile: path
+                )
+                : nil
         )
     }
 }

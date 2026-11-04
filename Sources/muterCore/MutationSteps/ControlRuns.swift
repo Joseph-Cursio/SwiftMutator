@@ -91,7 +91,7 @@ extension PerformMutationTesting {
                 savingResultsIntoFileNamed: fileName,
                 workingDirectory: workingDirectory
             )
-        }
+        }.writing(to: fileName)
     }
 
     /// Writes `finished`, control run `number` of `runs.count`, of one for each `runs.every` mutants, to the results
@@ -121,7 +121,7 @@ extension PerformMutationTesting {
         )
         write(record, in: session)
         session.controlRuns.append(record)
-        fileManager.keepLog(finished.run.testLog, named: log, state: state)
+        fileManager.keepLog(finished.run.testLog, writtenTo: finished.output, by: ioDelegate, named: log, state: state)
         if let failure = finished.launchFailure {
             fileManager.keepLog(failure.testLog, named: MutationTestLog.launchFailedFileName(for: log), state: state)
         }

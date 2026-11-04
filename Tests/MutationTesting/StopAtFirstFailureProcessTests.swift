@@ -36,6 +36,22 @@ final class StopAtFirstFailureProcessTests: MuterTestCase {
         XCTAssertTrue(Self.waitUntil(within: 2) { isGone(child) }, "the test command's child is still running")
     }
 
+    // The file the log is kept from, by moving it, ends with the same note as the run's log. Its process tree was
+    // killed, so nothing writes to it after the note.
+    func test_aRealRunStoppedAtItsFirstFailedTest_endsItsFileWithTheNote() async throws {
+        let configuration = testCommand(running: """
+            echo "✘ Test sum() recorded an issue at SumTests.swift:3:5: Expectation failed: 5 == 4"
+            /bin/sleep 30.1515
+            """)
+
+        let result = try await runMutantsTests(using: configuration)
+
+        XCTAssertEqual(result.ending, .stoppedAtFailedTest, result.testLog)
+        let file = try String(contentsOf: directory.appendingPathComponent("logFileName"), encoding: .utf8)
+        XCTAssertTrue(file.contains("[SwiftMutator] Stopped this test run at its first failed test"), file)
+        XCTAssertEqual(file, result.testLog)
+    }
+
     func test_aRealTestCommandThatPassesRunsToItsEnd() async throws {
         let summary = "✔ Test run with 1 test in 1 suite passed after 0.301 seconds."
         let configuration = testCommand(running: """

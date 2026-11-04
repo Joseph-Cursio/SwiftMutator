@@ -79,6 +79,10 @@ final class PerformMutationTestingControlRunTests: MuterTestCase {
         XCTAssertEqual(controls.map(\.log), ["control run 1.log", "control run 2.log"])
         XCTAssertEqual(controls.map(\.failedTests), [nil, nil])
         XCTAssertEqual(fileManager.createdFiles["/logs/control run 2.log"], Data("control run log".utf8))
+        XCTAssertEqual(
+            ioDelegate.keptOutputs.filter { $0.output.hasPrefix("/logs/running/control run") }.map(\.path),
+            ["/logs/control run 1.log", "/logs/control run 2.log"]
+        )
         // In the mutated project, with the mutants' configuration and time limit, and never counted as a mutant.
         XCTAssertEqual(ioDelegate.controlRunDirectories, [nil, nil])
         let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
@@ -94,6 +98,22 @@ final class PerformMutationTestingControlRunTests: MuterTestCase {
         let outcome = try XCTUnwrap(outcome(of: changes))
         XCTAssertEqual(outcome.mutations.count, 4)
         XCTAssertEqual(outcome.controlRuns, Array(repeating: .init(outcome: .passed, failedTests: nil), count: 2))
+    }
+
+    // As a mutant's run does: the first run's log is kept from its text, beside the second's, which is recorded.
+    func test_aControlRunTheSimulatorFailedToLaunch_runsOnceMore_andKeepsBothLogs() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/xcodebuild", arguments: ["test"], controlRunEvery: 2
+        )
+        let launchFailed = loadFixture("SimulatorTrouble/launch_preflightBusy.log")
+        ioDelegate.controlRuns = [(.failed, launchFailed)]
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed, .failed, .passed]
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(try resultsFiles.records(ControlRunResult.self).map(\.outcome), [.passed, .passed])
+        XCTAssertEqual(fileManager.createdFiles["/logs/control run 1 (launch failed).log"], Data(launchFailed.utf8))
+        XCTAssertEqual(fileManager.createdFiles["/logs/control run 1.log"], Data("control run log".utf8))
     }
 
     func test_noControlRun_whenTheKeyTurnsThemOff() async throws {

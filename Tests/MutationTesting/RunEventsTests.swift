@@ -18,8 +18,7 @@ final class RunEventsTests: MuterTestCase {
         withExtendedLifetime((first, second)) {}
     }
 
-    // The run relies on it: the report is written before SwiftMutator exits, and a test's log is in the log folder
-    // before its file is removed.
+    // The run relies on it: the report is written before SwiftMutator exits.
     func test_anEvent_isHandled_beforeSendReturns_onTheSendersThread() {
         let events = RunEvents()
         let sender = Thread.current

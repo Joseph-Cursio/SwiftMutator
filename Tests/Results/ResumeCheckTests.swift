@@ -179,6 +179,8 @@ final class ResumeCheckTests: XCTestCase {
             [
                 "buildTimeout was not set and is 600 now, which no result depends on.",
                 "controlRunEvery was not set and is 50 now, which no result depends on.",
+                "keepAllLogs was not set and is true now, which no result depends on.",
+                "keepLogFolders was not set and is 3 now, which no result depends on.",
                 "mutationTestWorkers was not set and is 4 now, which no result depends on.",
                 "oneWorkerSimulator was not set and is true now, which no result depends on.",
                 "stopAtFirstFailure was not set and is false now, which no result depends on.",
@@ -217,6 +219,8 @@ final class ResumeCheckTests: XCTestCase {
                 .init(name: "exclude", was: "[]", isNow: #"["Generated"]"#),
                 .init(name: "excludeCalls", was: "[]", isNow: #"["print"]"#),
                 .init(name: "executable", was: #""""#, isNow: #""/usr/bin/swift""#),
+                .init(name: "keepAllLogs", was: nil, isNow: "true"),
+                .init(name: "keepLogFolders", was: nil, isNow: "3"),
                 .init(name: "mutationTestTimeout", was: nil, isNow: "30"),
                 .init(name: "mutationTestWorkers", was: nil, isNow: "4"),
                 .init(name: "oneWorkerSimulator", was: nil, isNow: "true"),

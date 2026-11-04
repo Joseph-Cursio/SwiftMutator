@@ -9,6 +9,7 @@ extension RunEvent {
         case updateCheckStarted
         case updateCheckFinished
         case changesSelected
+        case logFoldersPruned
         case projectCopyStarted
         case projectCopySkippedVanishedFiles
         case projectCopyFinished
@@ -39,7 +40,6 @@ extension RunEvent {
         case mutationTestingEndedEarly
         case newMutationTestOutcomeAvailable
         case newTestLogAvailable
-        case baselineTestFailed
         case resultsFileCreated
         case resultsFileUnavailable
         case testPlanFileCreated
@@ -58,6 +58,7 @@ extension RunEvent {
         case .updateCheckStarted: .updateCheckStarted
         case .updateCheckFinished: .updateCheckFinished
         case .changesSelected: .changesSelected
+        case .logFoldersPruned: .logFoldersPruned
         case .projectCopyStarted: .projectCopyStarted
         case .projectCopySkippedVanishedFiles: .projectCopySkippedVanishedFiles
         case .projectCopyFinished: .projectCopyFinished
@@ -88,7 +89,6 @@ extension RunEvent {
         case .mutationTestingEndedEarly: .mutationTestingEndedEarly
         case .newMutationTestOutcomeAvailable: .newMutationTestOutcomeAvailable
         case .newTestLogAvailable: .newTestLogAvailable
-        case .baselineTestFailed: .baselineTestFailed
         case .resultsFileCreated: .resultsFileCreated
         case .resultsFileUnavailable: .resultsFileUnavailable
         case .testPlanFileCreated: .testPlanFileCreated
@@ -111,6 +111,7 @@ extension RunEvent {
             nil
         case let .updateCheckFinished(newVersion): newVersion
         case let .changesSelected(selection): selection
+        case let .logFoldersPruned(pruning): pruning
         case let .projectCopySkippedVanishedFiles(paths): paths
         case let .projectCopyFinished(destinationPath): destinationPath
         case let .projectCoverageDiscoveryFinished(failure): failure
@@ -135,7 +136,6 @@ extension RunEvent {
         case let .mutationTestingEndedEarly(earlyEnd): earlyEnd
         case let .newMutationTestOutcomeAvailable(mutation): mutation
         case let .newTestLogAvailable(mutationTestLog): mutationTestLog
-        case let .baselineTestFailed(mutationTestLog): mutationTestLog
         case let .resultsFileCreated(path): path
         case let .resultsFileUnavailable(reason): reason
         case let .testPlanFileCreated(created): created

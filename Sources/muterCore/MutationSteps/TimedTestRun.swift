@@ -14,10 +14,10 @@ struct TimedTestRun {
 
     /// How long a mutant's test command, with `configuration`, takes with no mutant on, or nil if that run didn't pass:
     /// one that crashed at once says nothing about how long a passing one takes. It writes its output to `testOutput`,
-    /// and its log is kept. An xcodebuild worker's run tests from its `.xctestrun`, written first with no mutant
-    /// switched on, or is nil if that can't be written; the first mutant's switch then says why. A run the simulator
-    /// failed to launch runs once more, as a mutant's does, and only the second is timed; the first's log is kept
-    /// beside it. A stop throws.
+    /// which is moved to the name its log is kept under. An xcodebuild worker's run tests from its `.xctestrun`,
+    /// written first with no mutant switched on, or is nil if that can't be written; the first mutant's switch then
+    /// says why. A run the simulator failed to launch runs once more, as a mutant's does, and only the second is timed;
+    /// the first's log is kept beside it. A stop throws, and leaves the output where it ran.
     func seconds(
         using configuration: MuterConfiguration,
         state: AnyMutationTestState,
@@ -55,7 +55,7 @@ struct TimedTestRun {
                 launchFailure.testLog, named: MutationTestLog.launchFailedFileName(for: Self.logName), state: state
             )
         }
-        fileManager.keepLog(run.testLog, named: Self.logName, state: state)
+        fileManager.keepLog(run.testLog, writtenTo: testOutput, by: ioDelegate, named: Self.logName, state: state)
         return seconds
     }
 }

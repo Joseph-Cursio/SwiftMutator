@@ -49,7 +49,11 @@ extension PerformMutationTesting {
     ) throws {
         guard case let .deviceGone(line) = SimulatorTrouble.of(finished.run, with: configuration) else { return }
         let log = fileManager.keepLog(
-            finished.run.testLog, named: MutationTestLog.simulatorGoneFileName(for: logName), state: state
+            finished.run.testLog,
+            writtenTo: finished.output,
+            by: ioDelegate,
+            named: MutationTestLog.simulatorGoneFileName(for: logName),
+            state: state
         )
         throw MuterError.mutationTestingAborted(
             reason: .simulatorUnavailable(worker: finished.worker, line: line, log: log)
@@ -81,19 +85,19 @@ extension PerformMutationTesting {
 
     /// Runs `tasks`, started in their order, one at a time on each of `workers`, and hands each mutant's run to
     /// `record`, and each control run to `recordControlRun`, as it finishes; the worker that finished it then starts
-    /// the next task. A control run writes its output to the file `controlOutputName` names (`runControl`). An
-    /// xcodebuild worker first switches its job's mutant on in its own `.xctestrun`, written from `testRun`, as the
-    /// serial path does; a SwiftPM run writes its worker's active-mutant file itself (see
-    /// `MutationTestingDelegate.testProcess`). A worker runs one job at a time, so nothing rewrites either file during
-    /// a run. Each run writes its output to the file `outputName` names for its job while it runs. Once mutation
-    /// testing is cancelled, no job starts, and no run that returns is handed on.
+    /// the next task. A control run writes its output to the file `controlOutputName` names (`runControl`), which only
+    /// tasks with no control run may leave out. An xcodebuild worker first switches its job's mutant on in its own
+    /// `.xctestrun`, written from `testRun`, as the serial path does; a SwiftPM run writes its worker's active-mutant
+    /// file itself (see `MutationTestingDelegate.testProcess`). A worker runs one job at a time, so nothing rewrites
+    /// either file during a run. Each run writes its output to the file `outputName` names for its job while it runs.
+    /// Once mutation testing is cancelled, no job starts, and no run that returns is handed on.
     func runPool(
         _ tasks: [PoolTask],
         of jobs: [MutantJob],
         on workers: [PoolWorker],
         switchingOnFrom testRun: XCTestRun,
         outputNamed outputName: (_ index: Int, _ job: MutantJob) -> String,
-        controlOutputNamed controlOutputName: (_ number: Int) -> String = { _ in "" },
+        controlOutputNamed controlOutputName: (_ number: Int) -> String? = { _ in nil },
         recordingControlRun recordControlRun: (_ number: Int, FinishedRun) throws -> Void = { _, _ in },
         recording record: (FinishedRun) throws -> Void
     ) async throws {
@@ -109,7 +113,8 @@ extension PerformMutationTesting {
                 let (directory, configuration) = (workers[worker].directory, workers[worker].configuration)
                 guard case let .mutant(index) = task else {
                     guard case let .control(number) = task else { return }
-                    let fileName = controlOutputName(number)
+                    // A run named "" has no output to keep or discard (`FinishedRun.writing(to:)`).
+                    let fileName = controlOutputName(number) ?? ""
                     let poolWorker = workers[worker]
                     let started = group.addTaskUnlessCancelled { [ioDelegate, instant, heartbeat] in
                         let finished = try await Self.runControl(
@@ -147,7 +152,7 @@ extension PerformMutationTesting {
                             savingResultsIntoFileNamed: fileName,
                             workingDirectory: directory
                         )
-                    }
+                    }.writing(to: fileName)
                     return (task, finished)
                 }
                 guard started else { throw CancellationError() }

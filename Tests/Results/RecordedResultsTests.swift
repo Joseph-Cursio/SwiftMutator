@@ -147,11 +147,11 @@ final class RecordedResultsTests: XCTestCase {
     }
 
     func test_aNewerFormat_isRefused() throws {
-        let newer = try file(ResultsHeader.make(formatVersion: 4), sum)
-        let newerAndUnlikeThisOne = Data(#"{"formatVersion":4,"kind":"header"}"#.utf8)
-        let newerSecondSession = try file(header, sum, end, ResultsHeader.make(formatVersion: 5, session: 2))
+        let newer = try file(ResultsHeader.make(formatVersion: 5), sum)
+        let newerAndUnlikeThisOne = Data(#"{"formatVersion":5,"kind":"header"}"#.utf8)
+        let newerSecondSession = try file(header, sum, end, ResultsHeader.make(formatVersion: 6, session: 2))
 
-        for (data, version) in [(newer, 4), (newerAndUnlikeThisOne, 4), (newerSecondSession, 5)] {
+        for (data, version) in [(newer, 5), (newerAndUnlikeThisOne, 5), (newerSecondSession, 6)] {
             XCTAssertThrowsError(try read(data)) { error in
                 XCTAssertEqual(error as? ResultsFileError, .newerFormat(path: path, version: version))
             }
@@ -172,6 +172,30 @@ final class RecordedResultsTests: XCTestCase {
         XCTAssertEqual(recorded.latest, [sum.key: retested, product.key: product])
         XCTAssertEqual(recorded.unreadableLines, [])
         XCTAssertEqual(recorded.testDuration, 120.75)
+    }
+
+    // A format-4 session's kills by a test their lines name keep no log, and their lines, which have no `log`, are read
+    // with the rest.
+    func test_format4_isRead_withItsLinesWithoutALog() throws {
+        let killed = MutantResult.make(
+            path: "Sources/Sum.swift",
+            finishedAt: ResultsHeader.fixedStart + 31.25,
+            killedBy: [.init(name: "sum()", location: "SumTests.swift:3:5")],
+            keptLog: false
+        )
+        let survived = MutantResult.make(
+            path: "Sources/Product.swift", outcome: .passed, finishedAt: ResultsHeader.fixedStart + 62.5
+        )
+
+        let recorded = try read(
+            file(ResultsHeader.make(formatVersion: ResultsCoding.omittedLogsFormatVersion), killed, survived, end)
+        )
+
+        XCTAssertEqual(recorded.headers.map(\.formatVersion), [4])
+        XCTAssertEqual(recorded.latest, [killed.key: killed, survived.key: survived])
+        XCTAssertNil(recorded.latest[killed.key]?.log)
+        XCTAssertNotNil(recorded.latest[survived.key]?.log)
+        XCTAssertEqual(recorded.unreadableLines, [])
     }
 
     func test_aMutantLineBeforeAnyHeader_isUnreadable() throws {

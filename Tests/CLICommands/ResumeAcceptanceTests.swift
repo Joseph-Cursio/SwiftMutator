@@ -164,7 +164,8 @@ final class ResumeAcceptanceTests: XCTestCase {
         )
         let header = try XCTUnwrap(lines.dropFirst(4).first)
         XCTAssertEqual(header["session"] as? Int, 2)
-        XCTAssertEqual(header["formatVersion"] as? Int, 3)
+        // Format 4, as its kills keep no log, so their lines have no `log`.
+        XCTAssertEqual(header["formatVersion"] as? Int, 4)
         XCTAssertNil(header["project"], "the tree is recorded as what changed since session 1's")
         let delta = try XCTUnwrap(header["projectDelta"] as? [String: Any])
         let firstTree = try XCTUnwrap(lines.first?["project"] as? [String: Any])
@@ -314,13 +315,13 @@ final class ResumeAcceptanceTests: XCTestCase {
         XCTAssertEqual(try outcomes(inJSONReportAt: report), ["failed", "failed", "passed", "passed"])
         // Every mutant was kept from the first session, the Checks kills with the test their lines name.
         XCTAssertEqual(try killingTestNames(inJSONReportAt: report), [["check()"], ["check()"], nil, nil])
-        // It kept no log, but the note naming the file keeps its folder.
+        // It kept no log, but the note naming the file keeps its folder, beside the run's marker.
         let resumedFolders = resumedSessionsFolders(besides: resultsFile)
         XCTAssertEqual(resumedFolders.count, 1, "\(resumedFolders)")
         let resumedFolder = try XCTUnwrap(resumedFolders.first)
         XCTAssertEqual(
-            try FileManager.default.contentsOfDirectory(atPath: resumedFolder.path),
-            ["resumed session.txt"]
+            Set(try FileManager.default.contentsOfDirectory(atPath: resumedFolder.path)),
+            ["resumed session.txt", ".swiftmutator-run"]
         )
         XCTAssertEqual(try notedFile(in: resumedFolder), resultsFile.resolvingSymlinksInPath().path)
     }

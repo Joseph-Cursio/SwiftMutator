@@ -1,5 +1,6 @@
 @testable import muterCore
 import XCTest
+import Yams
 
 final class ConfigurationParsingTests: MuterTestCase {
     func test_parse() {
@@ -214,6 +215,45 @@ final class ConfigurationParsingTests: MuterTestCase {
         for line in ["controlRunEvery: -1", "controlRunEvery: often", "controlRunEvery: 2.5"] {
             XCTAssertThrowsError(try every(line), line)
         }
+    }
+
+    func test_parseKeepAllLogs() throws {
+        let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
+        let keeping = { (line: String) in try MuterConfiguration(from: Data("\(swiftTest)\n\(line)".utf8)) }
+
+        XCTAssertEqual(try keeping("keepAllLogs: true").keepAllLogs, true)
+        XCTAssertTrue(try keeping("keepAllLogs: true").keepsAllLogs)
+        XCTAssertFalse(try keeping("keepAllLogs: false").keepsAllLogs)
+        let unset = try MuterConfiguration(from: Data(swiftTest.utf8))
+        XCTAssertNil(unset.keepAllLogs)
+        XCTAssertFalse(unset.keepsAllLogs)
+        // A typo is a configuration error rather than "unset".
+        XCTAssertThrowsError(try keeping("keepAllLogs: maybe"))
+        // Written back as it was, so a header records it.
+        let kept = try keeping("keepAllLogs: true")
+        XCTAssertEqual(try MuterConfiguration(from: kept.asData), kept)
+    }
+
+    func test_parseKeepLogFolders() throws {
+        let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
+        let keeping = { (line: String) in try MuterConfiguration(from: Data("\(swiftTest)\n\(line)".utf8)) }
+
+        XCTAssertEqual(try keeping("keepLogFolders: 5").keepLogFolders, 5)
+        XCTAssertEqual(try keeping("keepLogFolders: 2").keepLogFolders, 2)
+        XCTAssertNil(try MuterConfiguration(from: Data(swiftTest.utf8)).keepLogFolders)
+        for value in ["1", "0", "-1", "2.5", "many"] {
+            XCTAssertThrowsError(try keeping("keepLogFolders: \(value)"), value)
+        }
+        // A number below 2 says why: the run before this one is always kept.
+        for value in [1, 0, -1] {
+            let yaml = Data("\(swiftTest)\nkeepLogFolders: \(value)".utf8)
+            XCTAssertThrowsError(try YAMLDecoder().decode(MuterConfiguration.self, from: yaml)) { error in
+                XCTAssertTrue("\(error)".contains("keepLogFolders must be a whole number at least 2"), "\(error)")
+            }
+        }
+        // Written back as it was, so a header records it.
+        let kept = try keeping("keepLogFolders: 5")
+        XCTAssertEqual(try MuterConfiguration(from: kept.asData), kept)
     }
 
     func test_suspectTestThresholdsOutOfRange_failToParse() {

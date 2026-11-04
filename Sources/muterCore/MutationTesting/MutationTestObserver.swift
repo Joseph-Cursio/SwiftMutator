@@ -22,6 +22,9 @@ final class MutationTestObserver {
     private var commandLineArguments: [String]
 
     private(set) var loggingDirectory: String = ""
+    /// The run's marker in its log folder, locked from `start()` until the observer goes, so no other run prunes the
+    /// folder meanwhile (`RunMarker`); nil when it couldn't be made.
+    private var runMarker: RunMarker?
     /// The run's results file, while every result has been written to it.
     private var resultsFilePath: String?
     /// The merge base `--since` compared the working tree with, which the command that continues the run names.
@@ -37,12 +40,13 @@ final class MutationTestObserver {
         self.runOptions = runOptions
     }
 
-    /// Creates the run's log folder, and observes the run's events.
+    /// Creates the run's log folder, with the run's marker in it, and observes the run's events.
     func start() throws {
         loggingDirectory = try createLoggingDirectory(
             forProjectAt: fileManager.currentDirectoryPath,
             fileManager: fileManager
         )
+        runMarker = RunMarker.hold(in: loggingDirectory)
 
         subscription = events.observe { [weak self] event in self?.handle(event) }
     }
@@ -50,11 +54,13 @@ final class MutationTestObserver {
     /// Removes the run's log folder if the run kept nothing in it. That happens when a run is refused or fails before
     /// its first log. A resumed session that runs no coverage and has nothing left to test keeps its folder, which
     /// holds its note naming the results file (`ResultsFile.noteFileName`). The logs' root, `<project>_muter_logs`,
-    /// stays, because another run of the project may be claiming a folder in it at the same moment. Before `start()`
-    /// there is no folder, and nothing is removed.
+    /// stays, because another run of the project may be claiming a folder in it at the same moment. The run's marker
+    /// counts for nothing, and goes with the folder. Before `start()` there is no folder, and nothing is removed.
     func removeLoggingDirectoryIfEmpty() {
         guard !loggingDirectory.isEmpty else { return }
-        removeFolderIfEmpty(atPath: loggingDirectory, fileManager: fileManager)
+        if removeFolderIfEmpty(atPath: loggingDirectory, ignoring: [RunMarker.fileName], fileManager: fileManager) {
+            runMarker?.release()
+        }
     }
 }
 
@@ -72,6 +78,9 @@ extension MutationTestObserver {
         case let .changesSelected(selection):
             sinceMergeBase = selection.mergeBase
             logger.changesSelected(selection, verbose: runOptions.verbose)
+
+        case let .logFoldersPruned(pruning):
+            logger.logFoldersPruned(pruning)
 
         case .projectCopyStarted:
             logger.projectCopyStarted()
@@ -132,15 +141,12 @@ extension MutationTestObserver {
                     outcomeWithFlush: MutationOutcomeWithFlush(mutation: rerun.rerun, fflush: flushStdOut)
                 )
             }
-            writeTestLog(rerun.log)
             logger.timeoutRerunFinished(rerun)
         case let .timeoutRerunsFinished(tally):
             logger.timeoutRerunsFinished(tally)
         case let .runRepeatedAfterLaunchFailure(repeated):
-            writeTestLog(repeated.log)
             logger.runRepeatedAfterLaunchFailure(repeated)
         case let .baselineRepeatedAfterLaunchFailure(line, log):
-            writeTestLog(log)
             logger.baselineRepeatedAfterLaunchFailure(line: line, keptFileName: log.keptFileName)
         case let .oneMutantTested(run):
             oneMutantRun = run
@@ -156,11 +162,6 @@ extension MutationTestObserver {
             logger.newMutationTestOutcomeAvailable(mutation: mutation)
         case let .newTestLogAvailable(mutationTestLog):
             logger.newMutationTestLogAvailable(mutationTestLog: mutationTestLog)
-            writeTestLog(mutationTestLog)
-        case let .baselineTestFailed(mutationTestLog):
-            // Records the log only. The abort message reports the failure to the console, and there is no progress
-            // left to announce.
-            writeTestLog(mutationTestLog)
         case let .resultsFileCreated(path):
             resultsFilePath = path
             logger.resultsFileCreated(atPath: path)
@@ -198,14 +199,6 @@ extension MutationTestObserver {
         guard let path = RunSummary.path(besideResultsFile: resultsFilePath, loggingDirectory: loggingDirectory)
         else { return }
         try? writeFile(String(decoding: summary.json, as: UTF8.self), path)
-    }
-
-    private func writeTestLog(_ mutationTestLog: MutationTestLog) {
-        _ = fileManager.createFile(
-            atPath: "\(loggingDirectory)/\(mutationTestLog.keptFileName)",
-            contents: mutationTestLog.testLog.data(using: .utf8),
-            attributes: nil
-        )
     }
 
     /// Says the run finished, then prints its report, or where it went, or for a run of one mutant (`--mutant`) what

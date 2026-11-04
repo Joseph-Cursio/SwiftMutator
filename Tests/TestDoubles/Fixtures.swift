@@ -553,7 +553,9 @@ func configurationWithEveryFieldSet(
         oneWorkerSimulator: true,
         suspectTestFilePercent: 30,
         suspectTestMinimumFiles: 5,
-        controlRunEvery: 50
+        controlRunEvery: 50,
+        keepAllLogs: true,
+        keepLogFolders: 3
     )
     .withDirectTestRun(DirectTestRun(
         helper: "/toolchain/usr/libexec/swift/pm/swiftpm-testing-helper",
@@ -806,7 +808,8 @@ extension MutantResult {
         failedTestCount: Int? = nil,
         fileSHA256: String? = nil,
         reusedFrom: ReusedFrom? = nil,
-        rerun: MutantResult.Rerun? = nil
+        rerun: MutantResult.Rerun? = nil,
+        keptLog: Bool = true
     ) -> MutantResult {
         MutantResult(
             session: session,
@@ -827,7 +830,7 @@ extension MutantResult {
             killedBy: killedBy,
             failedTestCount: failedTestCount ?? killedBy?.count,
             firstFailedTestLine: nil,
-            log: "\(mutationOperatorId.rawValue) @ Sum.swift-\(line)-\(column).log",
+            log: keptLog ? "\(mutationOperatorId.rawValue) @ Sum.swift-\(line)-\(column).log" : nil,
             fileSHA256: fileSHA256,
             reusedFrom: reusedFrom,
             rerun: rerun

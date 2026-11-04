@@ -89,6 +89,9 @@ private extension [MutationStep] {
             DiscoverMutationPoints(),
             // Before the copy is rewritten, so it gets only that mutant's switch, and builds as quickly as it can.
             SelectMutant(),
+            // Once nothing can refuse the run, or find nothing to test: the last step that can is just before. Before
+            // the build and every mutant's run, which write most of its logs.
+            PruneLogFolders(),
             CreateMuterTestPlan(),
             ApplySchemata(),
             CheckMutantSwitches(),
@@ -118,6 +121,8 @@ private extension [MutationStep] {
             CheckMutantSwitches(),
             // The copy as it is tested, rewritten and perhaps fixed by hand, which the results file records.
             FingerprintProjectTree(),
+            // Once nothing can refuse the run: the plan's code and its copy are checked, and a resume's copy compared.
+            PruneLogFolders(),
             BuildForTesting(),
             ProjectMappings(),
             PerformMutationTesting(),
@@ -137,6 +142,8 @@ private extension [MutationStep] {
             DiscoverProjectCoverage(),
             DiscoverSourceFiles(),
             DiscoverMutationPoints(),
+            // Once the run can't find nothing to mutate.
+            PruneLogFolders(),
             ApplySchemata(),
             CheckMutantSwitches(),
             CreateMuterTestPlan(),
@@ -176,6 +183,9 @@ private extension [MutationStep] {
 
         if options.mutant == nil {
             copy.removeAll { $0 is SelectMutant }
+        } else {
+            // A short probe, the run most likely to go alongside another, never prunes their log folders.
+            copy.removeAll { $0 is PruneLogFolders }
         }
 
         return copy

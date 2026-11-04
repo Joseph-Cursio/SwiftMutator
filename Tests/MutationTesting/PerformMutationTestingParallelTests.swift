@@ -352,8 +352,8 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         XCTAssertEqual(ioDelegate.testLogs.filter { !$0.hasPrefix("/logs/running/") }, [])
     }
 
-    // Their files go once read back, and nothing else keeps their logs. A failed worker baseline's is what says why the
-    // run stopped.
+    // Each run's file is moved to the name its log is kept under. A failed worker baseline's is what says why the run
+    // stopped.
     func test_theTimedRunsAndEachWorkerBaselinesLogs_areKeptInTheLogFolder_aFailedOnesToo() async throws {
         state.muterConfiguration = MuterConfiguration(
             executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
@@ -370,12 +370,21 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
 
         XCTAssertEqual(
             fileManager.paths.filter { $0.hasSuffix(".log") },
-            ["/logs/timed test run.log", "/logs/baseline run worker 1.log"]
+            ["/logs/baseline run.log", "/logs/timed test run.log", "/logs/baseline run worker 1.log"]
         )
         XCTAssertEqual(fileManager.contents, Data("testLog".utf8), "the worker baseline's log, kept last")
+        XCTAssertEqual(
+            ioDelegate.keptOutputs.map(\.output),
+            ["/logs/running/baseline run", "/logs/running/timed test run", "/logs/running/baseline run worker 1"]
+        )
+        XCTAssertEqual(
+            ioDelegate.keptOutputs.map(\.path),
+            ["/logs/baseline run.log", "/logs/timed test run.log", "/logs/baseline run worker 1.log"]
+        )
     }
 
-    // Each run's output goes once its log is read back, so a finished run's log folder keeps only its own logs.
+    // Each recorded run's output is moved to the name its log is kept under, so a finished run's log folder keeps only
+    // its own logs.
     func test_theRunningFolder_isRemovedOnceEmpty() async throws {
         state.loggingDirectory = "/logs"
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
@@ -383,7 +392,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         _ = try await sut.run(with: state)
 
         XCTAssertEqual(fileManager.contentsOfDirectoryAtPath, ["/logs/running"])
-        XCTAssertEqual(fileManager.paths, ["/logs/running"])
+        XCTAssertEqual(fileManager.paths.filter { !$0.hasSuffix(".log") }, ["/logs/running"])
     }
 
     // A stop leaves the output of the runs under way, all there is to say what they were doing.
@@ -394,7 +403,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
 
         _ = try await sut.run(with: state)
 
-        XCTAssertEqual(fileManager.paths, [])
+        XCTAssertEqual(fileManager.paths.filter { !$0.hasSuffix(".log") }, [])
     }
 
     func test_aWorkerCloneWhoseBaselineFails_stopsTheRun() async throws {
