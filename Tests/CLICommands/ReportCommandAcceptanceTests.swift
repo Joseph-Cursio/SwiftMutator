@@ -57,14 +57,16 @@ final class ReportCommandAcceptanceTests: XCTestCase {
         project = root.appendingPathComponent("project", isDirectory: true)
         let sources = project.appendingPathComponent("Sources/Lib", isDirectory: true)
         try FileManager.default.createDirectory(at: sources, withIntermediateDirectories: true)
+        // The comparisons are `!=`, which only RelationalOperatorReplacement mutates: four mutants in all. `<` or `>`
+        // would get a RelationalBoundary mutant too.
         try """
-        func isPositive(_ value: Int) -> Bool { value > 0 }
+        func isPositive(_ value: Int) -> Bool { value != 0 }
         func both(_ first: Bool, _ second: Bool) -> Bool { first && second }
 
         """.write(to: sources.appendingPathComponent("Checks.swift"), atomically: true, encoding: .utf8)
         try """
-        func isSmall(_ value: Int) -> Bool { value < 10 }
-        func isHuge(_ value: Int) -> Bool { value > 100 }
+        func isSmall(_ value: Int) -> Bool { value != 10 }
+        func isHuge(_ value: Int) -> Bool { value != 100 }
 
         """.write(to: sources.appendingPathComponent("Bounds.swift"), atomically: true, encoding: .utf8)
         let script = Self.testCommand

@@ -483,6 +483,7 @@ private extension MutationOperator.Id {
     var friendlyName: String {
         switch self {
         case .ror: "Relational Operator Replacement"
+        case .relationalBoundary: "Relational Boundary"
         case .removeSideEffects: "Remove Side Effects"
         case .logicalOperator: "Change Logical Connector"
         case .swapTernary: "Swap Ternary"

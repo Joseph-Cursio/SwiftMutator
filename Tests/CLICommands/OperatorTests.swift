@@ -9,6 +9,7 @@ final class OperatorTests: MuterTestCase {
     func test_eachOperator_isDescribedByItsName() async throws {
         let titles: [MutationOperator.Id: String] = [
             .ror: "Relational Operator Replacement",
+            .relationalBoundary: "Relational Boundary",
             .removeSideEffects: "Remove Side Effects",
             .logicalOperator: "Change Logical Connector",
             .swapTernary: "Swap Ternary",
@@ -46,7 +47,7 @@ final class OperatorTests: MuterTestCase {
         XCTAssertEqual(printer.linesPassed, [])
         XCTAssertEqual(
             MutationOperator.Id.description,
-            "RelationalOperatorReplacement, RemoveSideEffects, ChangeLogicalConnector, SwapTernary"
+            "RelationalOperatorReplacement, RelationalBoundary, RemoveSideEffects, ChangeLogicalConnector, SwapTernary"
         )
     }
 

@@ -7,8 +7,8 @@ OPTIONS:
   --files-to-mutate <files-to-mutate>
                           Only mutate a given list of source code files.
   --operators <operators> The list of mutant operators to be used:
-                          RelationalOperatorReplacement, RemoveSideEffects,
-                          ChangeLogicalConnector, SwapTernary
+                          RelationalOperatorReplacement, RelationalBoundary,
+                          RemoveSideEffects, ChangeLogicalConnector, SwapTernary
   --since <ref>           Only mutate the Swift files changed since the merge
                           base of this git ref and HEAD: committed,
                           uncommitted, and new files git doesn't ignore. The

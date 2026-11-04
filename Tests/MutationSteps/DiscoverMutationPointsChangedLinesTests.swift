@@ -6,8 +6,8 @@ import XCTest
 final class DiscoverMutationPointsChangedLinesTests: MuterTestCase {
     private let state = MutationTestState()
 
-    // Line 2 holds `<`, whose right-hand operand is on line 3; lines 8 and 9 statements RemoveSideEffects removes;
-    // line 13 `==`.
+    // Line 2 holds `<`, which RelationalOperatorReplacement and RelationalBoundary each mutate, and whose right-hand
+    // operand is on line 3; lines 8 and 9 statements RemoveSideEffects removes; line 13 `==`.
     private let source = """
     func check(index: Int, items: [Int]) -> Bool {
         guard index <
@@ -38,7 +38,7 @@ final class DiscoverMutationPointsChangedLinesTests: MuterTestCase {
     func test_anOperatorWhoseOperandChanged_isKept() async throws {
         let kept = try await mutants(changing: [LineRange(first: 3, last: 3)])
 
-        XCTAssertEqual(kept.map(\.operatorAndLine), ["RelationalOperatorReplacement:2"])
+        XCTAssertEqual(kept.map(\.operatorAndLine), ["RelationalBoundary:2", "RelationalOperatorReplacement:2"])
     }
 
     func test_aChangedStatement_isKept_andTheUnchangedOnesAreNot() async throws {
@@ -51,13 +51,13 @@ final class DiscoverMutationPointsChangedLinesTests: MuterTestCase {
     func test_anExpressionLinesWereRemovedFrom_isKept() async throws {
         let kept = try await mutants(removingAfter: [2])
 
-        XCTAssertEqual(kept.map(\.operatorAndLine), ["RelationalOperatorReplacement:2"])
+        XCTAssertEqual(kept.map(\.operatorAndLine), ["RelationalBoundary:2", "RelationalOperatorReplacement:2"])
     }
 
     func test_withoutChangedLines_everyMutantOfAChangedFileIsKept() async throws {
         let kept = try await mutants(changing: [LineRange(first: 8, last: 8)], changedLines: false)
 
-        XCTAssertEqual(kept.count, 4)
+        XCTAssertEqual(kept.count, 5)
     }
 
     func test_noMutantOnAChangedLine_leavesNothingToMutate() async throws {

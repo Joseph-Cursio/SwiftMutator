@@ -4,8 +4,9 @@ USAGE: swift-mutator operator <operator>
 
 ARGUMENTS:
   <operator>                  Available operators are:
-                          RelationalOperatorReplacement, RemoveSideEffects,
-                          ChangeLogicalConnector, SwapTernary
+                          RelationalOperatorReplacement, RelationalBoundary,
+                          RemoveSideEffects, ChangeLogicalConnector,
+                          SwapTernary
                               For all operators use: all
 
 OPTIONS:

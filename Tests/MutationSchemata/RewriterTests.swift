@@ -93,7 +93,8 @@ final class RewriterTests: MuterTestCase {
 
         let rewritten = MuterRewriter(mapping).rewrite(source.code).description
         XCTAssertEqual(fileScopeSwitches(in: rewritten), [], rewritten)
-        XCTAssertEqual(rewritten.components(separatedBy: ".environment[").count - 1, 1, "check(_:)'s switch is missing")
+        // A branch for each of the comparison's mutants, RelationalOperatorReplacement's and RelationalBoundary's.
+        XCTAssertEqual(rewritten.components(separatedBy: ".environment[").count - 1, 2, "check(_:)'s switch is gone")
 
         // The shape the bug made: the file's statements, and a top-level `#if` clause's, each wrapped in a switch.
         // The check finds both, so its finding none above means none was added.
@@ -174,7 +175,8 @@ final class RewriterTests: MuterTestCase {
         """))
         let mapping = try XCTUnwrap(generateSchemataMappings(for: source).first)
 
-        XCTAssertEqual(mapping.mutationSchemata.count, 3)
+        // `==` and `&&` get one mutant each, and `>` two, RelationalOperatorReplacement's and RelationalBoundary's.
+        XCTAssertEqual(mapping.mutationSchemata.count, 4)
         XCTAssertEqual(mapping.codeBlocks.count, 1)
         let block = try XCTUnwrap(mapping.codeBlocks.first)
         XCTAssertTrue(block.contains("let predicate") && block.contains("return try"), block)

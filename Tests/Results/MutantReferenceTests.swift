@@ -160,8 +160,8 @@ final class MutantReferenceTests: XCTestCase {
                 let word = text.contains("Ternery") ? "SwapTernery" : "swapTernary"
                 XCTAssertEqual(
                     (error as? ValidationError)?.message,
-                    "\(word) isn't an operator: give one of RelationalOperatorReplacement, RemoveSideEffects, "
-                        + "ChangeLogicalConnector, SwapTernary.",
+                    "\(word) isn't an operator: give one of RelationalOperatorReplacement, RelationalBoundary, "
+                        + "RemoveSideEffects, ChangeLogicalConnector, SwapTernary.",
                     text
                 )
             }

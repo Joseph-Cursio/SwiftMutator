@@ -217,6 +217,45 @@ extension MutationOperator.Id {
                 """.onCodeBlock
             )
             """
+        case .relationalBoundary:
+            return """
+
+            \("Relational Boundary".bold)
+
+            The \("relational boundary".italic) operator will move the boundary of an ordering comparison based on this table:
+
+            +-------------------+------------------+
+            | Original Operator | Changed Operator |
+            +-------------------+------------------+
+            |        \(" < ".onCodeEscape)        |       \(" <= ".onCodeEscape)       |
+            |       \(" <= ".onCodeEscape)        |        \(" < ".onCodeEscape)       |
+            |        \(" > ".onCodeEscape)        |       \(" >= ".onCodeEscape)       |
+            |       \(" >= ".onCodeEscape)        |        \(" > ".onCodeEscape)       |
+            +-------------------+------------------+
+
+            The purpose of this operator is to highlight whether your tests check the edge of each comparison.
+            Such a mutant survives unless some test uses the value at the boundary, where the two operators differ.
+
+            \("Mutating a boundary".bold)
+
+            \(
+                """
+                \("if".asKeyword) count < \("10".asTypeDeclaration) {
+                    \("// something happens here".asComment)
+                }
+                """.onCodeBlock
+            )
+
+            becomes
+
+            \(
+                """
+                \("if".asKeyword) count <= \("10".asTypeDeclaration) {
+                    \("// something happens here".asComment)
+                }
+                """.onCodeBlock
+            )
+            """
         case .swapTernary:
             return """
 
