@@ -324,6 +324,7 @@ was for SwiftPM: `0.5` means 0.5%, so write `50` for half. The options are docum
 | `stopAtFirstFailure` | Stop a mutant's test run at its first failed test, or at a test process's crash, either of which already decides that it is killed (SwiftPM projects only; never the baseline; default true) |
 | `suspectTestFilePercent` | The share of the files with a killed mutant naming a test, from 1 to 100, that a test must have failed for mutants in to be suspect (default 15; see [Killing tests and suspect tests](#killing-tests-and-suspect-tests)) |
 | `suspectTestMinimumFiles` | How many files with such a kill there must be, at least 1, before a test can be suspect, and how many of them it must have failed for mutants in (default 10) |
+| `controlRunEvery` | How many mutants to test for each control run, a run with no mutant on among theirs, whose failed tests are flaky (a whole number; 0 for none; default 100; see [Control runs](#control-runs)) |
 | `buildTimeout` | Seconds before the coverage run, which builds your project and runs its tests with coverage on, is stopped. Mutation testing then goes on without coverage, as after any coverage failure. For now it limits only the coverage run, not the baseline or other builds (default: no limit) |
 
 `--workers N` and `--timeout S`, on `run` and `run-without-mutating`, set `mutationTestWorkers`
@@ -840,7 +841,40 @@ Suspect tests: 2 (testAnalyzeProjectPerformance(), everyFormatRendersTheSameByte
     one with broad end-to-end tests, may need a higher `suspectTestFilePercent`.
   - The rule misses a test that fails in fewer than about 3% of runs, or about 5% when runs stop
     at their first failed test. Such a test is worth about 1 point of score at most: on
-    SwiftProjectLint, 0.16.
+    SwiftProjectLint, 0.16. A control run catches one only if it fails there: 25 control runs
+    give a test that fails in 3% of runs about an even chance.
+
+#### Control runs
+
+Every so often, among the mutants, SwiftMutator runs the tests with no mutant on: a *control run*.
+It runs on whichever worker is free, under the mutants' time limit and the same load as theirs, and
+never stops at its first failed test. A passing baseline shows the tests pass alone. A control run
+shows whether they still pass beside the other workers' runs. A test that fails in one is *flaky*:
+it is suspect however few files it failed for mutants in, and a kill only suspect tests were
+recorded failing for counts as one without them, as above.
+
+- **How many.** One for each 100 mutants a session tests, by default, so none below 100. Control
+  run k starts halfway through its stretch of 100, so none runs as the workers start or drain.
+  `controlRunEvery: 50` runs one for each 50, and `controlRunEvery: 0` none. `--mutant` runs none.
+- **The cost.** A control run takes as long as a survivor's run. On SwiftProjectLint on 31
+  October, a survivor took 6.9 s and a mutant 2.4 s on average, so one for each 100 mutants adds
+  about 3%.
+- **What it says.** A control run that doesn't pass is said as it ends, with its first failed test:
+
+  ```
+  ⚠️ Control run 2 of 24, with no mutant on, failed: testAnalyzeProjectPerformance() at ProjectLinterTests.swift:98:9. A test that fails with no mutant on is flaky, and the reports count a kill only such tests failed for as suspect. Its log is control run 2.log.
+  ```
+
+  The Killing Tests section says how many control runs didn't pass and names the flaky tests, and
+  the Suspect column says `flaky` for one. The warning names them apart from the tests the 15% rule
+  found: `1 test may fail whatever the mutant: it failed in a control run, with no mutant on
+  (testAnalyzeProjectPerformance() in 3 of 24).`
+- **The record.** Each control run is a `control` line in the results file, with the tests it
+  failed (see [the results file](Docs/results-file.md#control)), and its log is kept as
+  `control run <k>.log`. A resumed run's report counts every session's, and a merge of shards'
+  every shard's. A run that `--reuse` starts doesn't count the reused run's.
+- **Lookalike lines.** The tests the passing baseline's lines showed failing aren't flaky, as they
+  aren't a mutant's killing tests.
 
 ## Stopping a run
 
@@ -1006,12 +1040,12 @@ SwiftMutator copies the project is refused after the copy, so that message doesn
 
 | Since the last session | Resuming |
 |---|---|
-| A configuration key changed, other than `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent` and `suspectTestMinimumFiles` | Refused: start a new run |
+| A configuration key changed, other than `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles` and `controlRunEvery` | Refused: start a new run |
 | `mutationTestTimeout` (or `--timeout`) is at least as long as every session's `timeoutSeconds` | Goes ahead, says so, and tests the timeouts under a shorter limit again |
 | `--operators`, `--files-to-mutate` or `--skip-coverage` changed | Refused: start a new run |
 | `--since`'s merge base or `--changed-lines` changed, or `--since` given in one session only | Refused: start a new run. `--reuse` doesn't compare them |
 | `--shard` changed, or given in one session only | Refused: start a new run. `--reuse` doesn't compare it |
-| `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent` or `suspectTestMinimumFiles` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
+| `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles` or `controlRunEvery` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
 | SwiftMutator, the toolchain or the SDK changed | Refused, unless `--force-resume` is given |
 | Project files changed, were added or were removed | Refused, unless a `--resume-ignoring` glob matches each one |
 | Another SwiftMutator holds the file, because its run is still going | Refused with status 6, naming the process that holds it, and its host: wait for that run to end. If an older SwiftMutator holds it, which doesn't say, it names the process and host that wrote the file's last session, which may not be the one |

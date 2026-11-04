@@ -809,7 +809,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         var finished: [FinishedRun] = []
 
         try await sut.runPool(
-            Array(jobs.indices),
+            jobs.indices.map(PerformMutationTesting.PoolTask.mutant),
             of: jobs,
             on: workers,
             switchingOnFrom: XCTestRun(),
@@ -848,7 +848,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
 
         await assertThrowsMuterError(
             try await sut.runPool(
-                [0, 1],
+                [.mutant(0), .mutant(1)],
                 of: jobs,
                 on: [xcodebuildWorker(0)],
                 switchingOnFrom: XCTestRun(),
@@ -874,7 +874,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         var finished: [FinishedRun] = []
 
         try await sut.runPool(
-            Array(jobs.indices),
+            jobs.indices.map(PerformMutationTesting.PoolTask.mutant),
             of: jobs,
             on: workers,
             switchingOnFrom: XCTestRun(),

@@ -473,6 +473,61 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
         XCTAssertEqual(try resultsFiles.records(MutantResult.self), [])
     }
 
+    // A control run tests from its worker's `.xctestrun`, written with no mutant on, on that worker's simulator.
+    func test_aControlRun_switchesEveryMutantOffInItsWorkersXCTestRun() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/xcodebuild",
+            arguments: ["-scheme", "App", "-destination", destination, "test"],
+            mutationTestWorkers: 2,
+            controlRunEvery: 2
+        )
+        ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 4)
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.switchedOnForControlRuns, [MutationSchema.null.id, MutationSchema.null.id])
+        XCTAssertEqual(ioDelegate.controlRunDirectories, Array(repeating: state.mutatedProjectDirectoryURL, count: 2))
+        XCTAssertTrue(
+            ioDelegate.controlRunConfigurations.allSatisfy { [worker(0), worker(1)].contains($0.xcodeWorker) }
+        )
+        XCTAssertEqual(try resultsFiles.records(ControlRunResult.self).count, 2)
+        XCTAssertEqual(ioDelegate.mutantsNotSwitchedOnForTheirRun, [])
+    }
+
+    // As for a mutant: a control run whose worker's `.xctestrun` can't be written would test the last mutant.
+    func test_aControlRunThatCanNotSwitchTheMutantsOff_stopsMutationTesting_beforeItsRun() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/xcodebuild",
+            arguments: ["-scheme", "App", "-destination", destination, "test"],
+            mutationTestWorkers: 2,
+            controlRunEvery: 1
+        )
+        ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 4)
+        let error = CocoaError(.fileWriteOutOfSpace)
+        // Only with no mutant on, so the mutant the other worker starts meanwhile is switched on.
+        ioDelegate.switchOnFails = { $0 == .null }
+        whenSent(.workersChosen) { [unowned self] _ in ioDelegate.switchOnError = error }
+
+        var failed: Int?
+        await assertThrowsMuterError(try await sut.run(with: state)) { muterError in
+            guard case let .mutationTestingAborted(reason: .controlRunNotSwitchedOff(number, description)) = muterError
+            else {
+                return XCTFail("expected controlRunNotSwitchedOff, got \(muterError)")
+            }
+            failed = number
+            XCTAssertEqual(description, error.localizedDescription)
+        }
+
+        // The first, unless the other worker's mutant finished before it began, and that worker took the second.
+        let number = try XCTUnwrap(failed)
+        XCTAssertTrue([1, 2].contains(number), "\(number)")
+        XCTAssertEqual(ioDelegate.controlRunConfigurations, [])
+        XCTAssertEqual(try resultsFiles.records(ControlRunResult.self), [])
+        XCTAssertEqual(
+            try resultsFiles.records(ResultsEnd.self).map(\.detail), ["controlRunNotSwitchedOff(number: \(number))"]
+        )
+    }
+
     // Which worker tests a mutant, and when, changes no verdict: four workers record what one does.
     func test_fourWorkers_recordTheVerdictsOneWorkerDoes() async throws {
         state.mutationMapping = try (1...6).map(makeSchemataMapping(line:))

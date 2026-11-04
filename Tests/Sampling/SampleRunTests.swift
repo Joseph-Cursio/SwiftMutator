@@ -229,7 +229,8 @@ final class SampleRunTests: MuterTestCase {
             under: header,
             testDuration: 0,
             shards: nil,
-            sampleIsCutShort: false
+            sampleIsCutShort: false,
+            controlRuns: []
         )
 
         XCTAssertEqual(outcome.sample, header.sample)

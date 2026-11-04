@@ -118,6 +118,8 @@ extension MutationTestObserver {
             logger.stopAtFirstFailureTurnedOff(reason: reason)
         case let .testBundlesNotRunDirectly(reason):
             logger.testBundlesNotRunDirectly(reason: reason)
+        case let .controlRunFinished(control):
+            logger.controlRunFinished(control)
         case let .timeoutRerunsStarted(reruns):
             logger.timeoutRerunsStarted(reruns)
         case let .timeoutRerunFinished(rerun):

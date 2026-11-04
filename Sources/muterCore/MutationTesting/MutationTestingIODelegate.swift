@@ -57,6 +57,17 @@ protocol MutationTestingIODelegate: Sendable {
         testLog: String
     )
 
+    /// A control run: a mutant's test command, which skips the build, with no mutant switched on, under the mutants'
+    /// time limit and never stopped at its first failed test, so its log shows every test that failed. Run among the
+    /// mutants, in `workingDirectory`, a worker's folder, or the current directory if nil, under the same load. An
+    /// xcodebuild worker's configuration runs it on that worker, from its `.xctestrun`, which must switch no mutant
+    /// on. `fileName` is as in `runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)`.
+    func runControlTests(
+        using configuration: MuterConfiguration,
+        savingResultsIntoFileNamed fileName: String,
+        workingDirectory: URL?
+    ) async -> TestRun
+
     /// Writes `testRun`, with `schemata`'s mutant switched on, to `fileName` in `path`, the `.xctestrun` an xcodebuild
     /// worker's runs test from. `.null` switches no mutant on, for a run with none.
     func switchOn(
@@ -178,6 +189,21 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             skippingBuild: true
         )
         return (run.outcome, run.testLog)
+    }
+
+    func runControlTests(
+        using configuration: MuterConfiguration,
+        savingResultsIntoFileNamed fileName: String,
+        workingDirectory: URL?
+    ) async -> TestRun {
+        await runTestSuite(
+            withSchemata: .null,
+            using: configuration,
+            savingResultsIntoFileNamed: fileName,
+            isBenchmark: false,
+            skippingBuild: true,
+            workingDirectory: workingDirectory
+        )
     }
 
     func runTestSuite(

@@ -15,8 +15,20 @@ struct KillingTestSummary: Codable, Equatable {
         let files: Int
         /// How many of those mutants recorded it as the only test that failed.
         let onlyRecordedFailureOf: Int
-        /// Whether it failed for mutants in so many of the files that it may fail whatever the mutant (`isSuspect`).
+        /// How many control runs, with no mutant on, it failed in: one or more makes it flaky.
+        let failedControlRuns: Int
+        /// Whether it may fail whatever the mutant: it failed for mutants in so many of the files (`isSuspect`), or in
+        /// a control run.
         let suspect: Bool
+    }
+
+    /// A test that failed in a control run, with no mutant on, so is flaky, whether or not it failed for a mutant.
+    struct FlakyTest: Codable, Equatable {
+        let name: String
+        /// As a `Test`'s.
+        let file: String?
+        /// How many control runs it failed in.
+        let controlRuns: Int
     }
 
     /// Mutants a failed test killed whose tests were recorded, even as none.
@@ -47,6 +59,13 @@ struct KillingTestSummary: Codable, Equatable {
     /// The mutation score with those mutants counted as survivors, over the headline's mutants and truncated as it
     /// is. nil when there are none, as it is then the headline score.
     let mutationScoreWithoutSuspectOnlyKills: Int?
+    /// How many control runs, with no mutant on, there were, and how many didn't pass: those that failed, crashed or
+    /// timed out, of which `failedControlRunsNamingNoTest` named no failed test.
+    let controlRuns: Int
+    let failedControlRuns: Int
+    let failedControlRunsNamingNoTest: Int
+    /// Every test that failed in a control run, those that failed in the most first, then by name and file.
+    let flakyTests: [FlakyTest]
 
     /// Whether a test that failed for mutants in `files` of the `filesWithKills` files is suspect under `thresholds`.
     /// Integer arithmetic, so a run and its `report` always agree.
@@ -73,14 +92,25 @@ struct KillingTestSummary: Codable, Equatable {
 }
 
 extension KillingTestSummary {
-    /// The summary of `mutations`, whose suspect tests `thresholds` picks: nil when no mutant a failed test killed has
-    /// its tests recorded.
-    init?(of mutations: [MutationTestOutcome.Mutation], thresholds: SuspectTestThresholds = .standard) {
+    /// The summary of `mutations`, whose suspect tests are those `thresholds` picks and those that failed in any of
+    /// `controlRuns`: nil when no mutant a failed test killed has its tests recorded.
+    init?(
+        of mutations: [MutationTestOutcome.Mutation],
+        controlRuns: [MutationTestOutcome.ControlRun] = [],
+        thresholds: SuspectTestThresholds = .standard
+    ) {
         let killed = mutations.filter { $0.testSuiteOutcome == .failed }
         let recorded = killed.compactMap { mutation in
             mutation.killingTests.map { (path: mutation.point.filePath, killing: $0) }
         }
         guard !recorded.isEmpty else { return nil }
+        let failedControlRuns = controlRuns.filter { $0.outcome != .passed }
+        var flaky: [FailedTestLine.TestIdentity: Int] = [:]
+        for run in failedControlRuns {
+            for identity in Set((run.failedTests?.tests ?? []).map(FailedTestLine.TestIdentity.init)) {
+                flaky[identity, default: 0] += 1
+            }
+        }
         let named = recorded.filter { !$0.killing.tests.isEmpty }
         let filesWithKills = Set(named.map(\.path)).count
 
@@ -96,7 +126,15 @@ extension KillingTestSummary {
         }
         // A total order, so every report lists the same tests the same way.
         let ranked = tallies
-            .map { identity, tally in Test(identity, tally, filesWithKills: filesWithKills, thresholds: thresholds) }
+            .map { identity, tally in
+                Test(
+                    identity,
+                    tally,
+                    filesWithKills: filesWithKills,
+                    failedControlRuns: flaky[identity] ?? 0,
+                    thresholds: thresholds
+                )
+            }
             .sorted { ($1.mutants, $0.identity) < ($0.mutants, $1.identity) }
 
         let suspects = Set(ranked.filter(\.suspect).map(\.identity))
@@ -122,7 +160,13 @@ extension KillingTestSummary {
             tests: Array(ranked.prefix(Self.shownTests)) + ranked.dropFirst(Self.shownTests).filter(\.suspect),
             suspectOnlyKills: suspectOnlyKills.count,
             suspectOnlyKillsWithIncompleteLists: suspectOnlyKills.count { $0.killingTests?.isComplete == false },
-            mutationScoreWithoutSuspectOnlyKills: suspectOnlyKills.isEmpty ? nil : scoreWithoutThem
+            mutationScoreWithoutSuspectOnlyKills: suspectOnlyKills.isEmpty ? nil : scoreWithoutThem,
+            controlRuns: controlRuns.count,
+            failedControlRuns: failedControlRuns.count,
+            failedControlRunsNamingNoTest: failedControlRuns.count { $0.failedTests?.tests.isEmpty != false },
+            flakyTests: flaky
+                .sorted { ($1.value, $0.key) < ($0.value, $1.key) }
+                .map { FlakyTest(name: $0.key.name, file: $0.key.file, controlRuns: $0.value) }
         )
     }
 }
@@ -185,6 +229,32 @@ extension KillingTestSummary {
             + "test; this report has \(filesWithKills)."
     }
 
+    /// What the control runs came to, and the flaky tests that failed in them, each with how many: none without
+    /// control runs.
+    var controlRunSentences: [String] {
+        guard controlRuns > 0 else { return [] }
+        let runs = controlRuns == 1
+            ? "The 1 control run" : failedControlRuns == 0 ? "All \(controlRuns) control runs"
+            : "\(failedControlRuns) of the \(controlRuns) control runs"
+        let didIt = failedControlRuns == 0 ? "passed" : "didn't pass"
+        var sentences = ["\(runs), with no mutant on and under the same load as the mutants, \(didIt)."]
+        if !flakyTests.isEmpty {
+            let named = Self.names(of: flakyTests) { "\($0.name) in \($0.controlRuns)" }
+            sentences.append("A test that failed in one is flaky, so it is suspect: \(named).")
+        }
+        if failedControlRunsNamingNoTest > 0 {
+            let all = failedControlRunsNamingNoTest == failedControlRuns
+            let (these, name) = switch (all, failedControlRunsNamingNoTest == 1) {
+            case (true, true): ("It", "names")
+            case (true, false): ("They", "name")
+            case (false, true): ("1 of them", "names")
+            case (false, false): ("\(failedControlRunsNamingNoTest) of them", "name")
+            }
+            sentences.append("\(these) \(name) no failed test, as a crash or a timeout may not.")
+        }
+        return sentences
+    }
+
     /// What the section says of its suspect tests, given the headline `mutationScore`: why they are suspect, what
     /// the score would be without them, and how to leave one out. None when there are none.
     func suspectSentences(mutationScore: Int) -> [String] {
@@ -195,12 +265,21 @@ extension KillingTestSummary {
         case 1: "Only suspect tests were recorded failing for 1 mutant."
         default: "Only suspect tests were recorded failing for \(suspectOnlyKills) mutants."
         }
-        var sentences = [
+        let byTheRule = suspects.filter { $0.failedControlRuns == 0 }
+        let flaky = suspects.count - byTheRule.count
+        let why = if flaky == 0 {
             "\(these) failed for mutants in at least \(suspectFilePercent)% of the \(filesWithKills) files with a "
                 + "killed mutant. A test of the mutated code rarely does that; a test that is timing-sensitive, or "
-                + "flaky under load, does.",
-            theirKills + " " + scoreSentence(mutationScore: mutationScore),
-        ]
+                + "flaky under load, does."
+        } else if byTheRule.isEmpty {
+            "\(these) failed in a control run, with no mutant on and under the same load, so may fail whatever the "
+                + "mutant."
+        } else {
+            "Of \(these), \(flaky) failed in a control run, with no mutant on and under the same load, and "
+                + "\(byTheRule.count) for mutants in at least \(suspectFilePercent)% of the \(filesWithKills) files "
+                + "with a killed mutant, which a test of the mutated code rarely does."
+        }
+        var sentences = [why, theirKills + " " + scoreSentence(mutationScore: mutationScore)]
         if scoreWithoutSuspectsIsALowerBound {
             sentences.append(
                 "Some of those runs stopped at their first failed test, so other tests may have failed too: the score "
@@ -208,9 +287,13 @@ extension KillingTestSummary {
             )
         }
         sentences.append(
-            "If a suspect test also fails without a mutant under the same load, leave it out of mutation runs: skip it "
-                + "while the environment variable \(isMuterRunningKey) is \(isMuterRunningValue), which SwiftMutator "
-                + "sets for the baseline and every mutant's test run."
+            byTheRule.isEmpty
+                ? "Leave a flaky test out of mutation runs: skip it while the environment variable "
+                + "\(isMuterRunningKey) is \(isMuterRunningValue), which SwiftMutator sets for the baseline, every "
+                + "mutant's test run and the control runs."
+                : "If a suspect test also fails without a mutant under the same load, leave it out of mutation runs: "
+                + "skip it while the environment variable \(isMuterRunningKey) is \(isMuterRunningValue), which "
+                + "SwiftMutator sets for the baseline and every mutant's test run."
         )
         return sentences
     }
@@ -247,7 +330,7 @@ extension KillingTestSummary {
 
     /// The suspect tests' names: the first 3, then how many more.
     var suspectNames: String {
-        names(of: suspects) { $0.name }
+        Self.names(of: suspects) { $0.name }
     }
 
     /// The sentence every report warns of suspect tests with, given the headline `mutationScore`: which they are,
@@ -255,15 +338,27 @@ extension KillingTestSummary {
     func warning(mutationScore: Int) -> String? {
         guard !suspects.isEmpty else { return nil }
         let (these, they) = suspects.count == 1 ? ("1 test", "it") : ("\(suspects.count) tests", "they")
-        return "\(these) may fail whatever the mutant: \(they) failed for mutants in at least "
-            + "\(suspectFilePercent)% of the \(filesWithKills) files with a killed mutant "
-            + "(\(names(of: suspects) { "\($0.name) in \($0.files)" })). "
-            + scoreSentence(mutationScore: mutationScore)
+        let flaky = suspects.filter { $0.failedControlRuns > 0 }
+        let byTheRule = suspects.filter { $0.failedControlRuns == 0 }
+        let inControlRuns = "failed in a control run, with no mutant on "
+            + "(\(Self.names(of: flaky) { "\($0.name) in \($0.failedControlRuns) of \(controlRuns)" }))"
+        let forMutants = "for mutants in at least \(suspectFilePercent)% of the \(filesWithKills) files with a killed "
+            + "mutant (\(Self.names(of: byTheRule) { "\($0.name) in \($0.files)" }))"
+        let why = if flaky.isEmpty {
+            "\(they) failed \(forMutants)"
+        } else if byTheRule.isEmpty {
+            "\(they) \(inControlRuns)"
+        } else {
+            "\(flaky.count) \(inControlRuns), and \(byTheRule.count) failed \(forMutants)"
+        }
+        return "\(these) may fail whatever the mutant: \(why). " + scoreSentence(mutationScore: mutationScore)
     }
 
     /// The warning for `outcome`'s report.
     static func warning(for outcome: MutationTestOutcome) -> String? {
-        KillingTestSummary(of: outcome.mutations, thresholds: outcome.suspectTestThresholds)?
+        KillingTestSummary(
+            of: outcome.mutations, controlRuns: outcome.controlRuns, thresholds: outcome.suspectTestThresholds
+        )?
             .warning(mutationScore: mutationScore(from: outcome.mutations.map(\.testSuiteOutcome)))
     }
 
@@ -279,7 +374,7 @@ extension KillingTestSummary {
     }
 
     /// The first 3 of `tests` as `describe` says them, then how many more.
-    private func names(of tests: [Test], _ describe: (Test) -> String) -> String {
+    private static func names<Named>(of tests: [Named], _ describe: (Named) -> String) -> String {
         let shown = tests.prefix(3).map(describe)
         return (tests.count > 3 ? shown + ["and \(tests.count - 3) more"] : shown).joined(separator: ", ")
     }
@@ -289,6 +384,12 @@ extension KillingTestSummary.Test {
     /// Which test it is, as each mutant's list tells them apart.
     var identity: FailedTestLine.TestIdentity {
         .init(name: name, file: file)
+    }
+
+    /// Its Suspect cell in the reports' tables: "flaky" when it failed in a control run, "yes" when it is suspect for
+    /// the files it failed for mutants in, "-" otherwise.
+    var suspectCell: String {
+        failedControlRuns > 0 ? "flaky" : suspect ? "yes" : "-"
     }
 }
 
@@ -311,6 +412,7 @@ private extension KillingTestSummary.Test {
         _ identity: FailedTestLine.TestIdentity,
         _ tally: KillingTestSummary.Tally,
         filesWithKills: Int,
+        failedControlRuns: Int,
         thresholds: SuspectTestThresholds
     ) {
         self.init(
@@ -319,7 +421,8 @@ private extension KillingTestSummary.Test {
             mutants: tally.mutants,
             files: tally.files.count,
             onlyRecordedFailureOf: tally.onlyRecordedFailureOf,
-            suspect: KillingTestSummary.isSuspect(
+            failedControlRuns: failedControlRuns,
+            suspect: failedControlRuns > 0 || KillingTestSummary.isSuspect(
                 files: tally.files.count,
                 filesWithKills: filesWithKills,
                 thresholds: thresholds

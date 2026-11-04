@@ -117,7 +117,7 @@ func generateKillingTestsCLITable(from summary: KillingTestSummary) -> CLITable 
         column("Mutants") { "\($0.mutants)" },
         column("Files") { "\($0.files)" },
         column("Only Recorded Failure Of") { "\($0.onlyRecordedFailureOf)" },
-        column("Suspect") { $0.suspect ? "yes" : "-" },
+        column("Suspect") { $0.suspectCell },
     ])
 }
 

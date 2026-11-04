@@ -37,6 +37,8 @@ final class TestingSession: @unchecked Sendable { // `file`, `mutantLines` and `
     /// Each mutant's outcome by job index: a kept result's once the header is written, and a tested one's as it is
     /// recorded, so mutation testing that stops early still has them.
     var outcomes: [Int: MutationTestOutcome.Mutation] = [:]
+    /// The control runs recorded so far, in the order they finished, written or not.
+    var controlRuns: [ControlRunResult] = []
     /// The worker clones made so far, removed however mutation testing ends.
     var clones: [URL] = []
     /// The xcodebuild workers given a simulator each, in worker order, once their simulators have booted. Their

@@ -204,6 +204,18 @@ final class ConfigurationParsingTests: MuterTestCase {
         XCTAssertEqual(try MuterConfiguration(from: set.asData), set)
     }
 
+    func test_parseControlRunEvery() throws {
+        let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
+        let every = { (line: String) in try MuterConfiguration(from: Data("\(swiftTest)\n\(line)".utf8)) }
+
+        XCTAssertEqual(try every("controlRunEvery: 250").mutantsPerControlRun, 250)
+        XCTAssertEqual(try every("controlRunEvery: 0").mutantsPerControlRun, 0)
+        XCTAssertEqual(try MuterConfiguration(from: Data(swiftTest.utf8)).mutantsPerControlRun, 100)
+        for line in ["controlRunEvery: -1", "controlRunEvery: often", "controlRunEvery: 2.5"] {
+            XCTAssertThrowsError(try every(line), line)
+        }
+    }
+
     func test_suspectTestThresholdsOutOfRange_failToParse() {
         let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
         for line in [

@@ -151,7 +151,7 @@ final class ResumeCheckTests: XCTestCase {
         XCTAssertEqual(verdict.notices, ["buildTimeout was 900 and is 1800 now, which no result depends on."])
     }
 
-    func test_everyConfigurationKeyButSix_isCompared() {
+    func test_everyConfigurationKeyButSeven_isCompared() {
         // A new configuration key is compared unless it is added to keysThatDontAffectOutcomes, and fails this test
         // either way, so each one is a decision.
         let verdict = check(
@@ -178,6 +178,7 @@ final class ResumeCheckTests: XCTestCase {
             verdict.notices,
             [
                 "buildTimeout was not set and is 600 now, which no result depends on.",
+                "controlRunEvery was not set and is 50 now, which no result depends on.",
                 "mutationTestWorkers was not set and is 4 now, which no result depends on.",
                 "oneWorkerSimulator was not set and is true now, which no result depends on.",
                 "stopAtFirstFailure was not set and is false now, which no result depends on.",
@@ -211,6 +212,7 @@ final class ResumeCheckTests: XCTestCase {
                 .init(name: "arguments", was: "[]", isNow: #"["test"]"#),
                 .init(name: "buildSystem", was: nil, isNow: #""swift""#),
                 .init(name: "buildTimeout", was: nil, isNow: "600"),
+                .init(name: "controlRunEvery", was: nil, isNow: "50"),
                 .init(name: "coverageThreshold", was: "0", isNow: "80"),
                 .init(name: "exclude", was: "[]", isNow: #"["Generated"]"#),
                 .init(name: "excludeCalls", was: "[]", isNow: #"["print"]"#),

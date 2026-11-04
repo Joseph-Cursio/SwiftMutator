@@ -531,6 +531,8 @@ struct ResultsEnd: Codable, Equatable {
             return "tooManyBuildErrors"
         case .mutantNotSwitchedOn:
             return "mutantNotSwitchedOn"
+        case let .controlRunNotSwitchedOff(number, _):
+            return "controlRunNotSwitchedOff(number: \(number))"
         case let .simulatorUnavailable(worker, _, _):
             return "simulatorUnavailable(worker: \(worker))"
         case .unknownError:

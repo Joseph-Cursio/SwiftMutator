@@ -525,7 +525,7 @@ extension MuterConfiguration {
 
 /// No field is left at its default, so a copy that drops one no longer equals this, and every configuration key
 /// differs from the default's. `test_configurationWithEveryFieldSet_leavesNoFieldAtItsDefault` fails until a new
-/// field is set here, which then reaches the copy tests and `test_everyConfigurationKeyButSix_isCompared`.
+/// field is set here, which then reaches the copy tests and `test_everyConfigurationKeyButSeven_isCompared`.
 func configurationWithEveryFieldSet(
     executable: String = "/usr/bin/swift",
     timeout: Double? = 30,
@@ -544,7 +544,8 @@ func configurationWithEveryFieldSet(
         buildTimeout: 600,
         oneWorkerSimulator: true,
         suspectTestFilePercent: 30,
-        suspectTestMinimumFiles: 5
+        suspectTestMinimumFiles: 5,
+        controlRunEvery: 50
     )
     .withDirectTestRun(DirectTestRun(
         helper: "/toolchain/usr/libexec/swift/pm/swiftpm-testing-helper",
@@ -876,6 +877,35 @@ extension ResumeState {
             provenance: provenance,
             forced: forced,
             notices: notices
+        )
+    }
+}
+
+extension ControlRunResult {
+    static func make(
+        session: Int = 1,
+        number: Int = 1,
+        afterMutants: Int = 50,
+        outcome: TestSuiteOutcome = .passed,
+        worker: Int = 0,
+        finishedAt: Date = ResultsHeader.fixedStart.addingTimeInterval(60),
+        failedTests: [FailedTestLine.FailedTest]? = nil,
+        failedTestCount: Int? = nil
+    ) -> ControlRunResult {
+        ControlRunResult(
+            session: session,
+            number: number,
+            afterMutants: afterMutants,
+            outcome: outcome,
+            endedBy: .exited,
+            exitStatus: outcome == .passed ? 0 : 1,
+            durationSeconds: 6.9,
+            worker: worker,
+            finishedAt: finishedAt,
+            failedTests: failedTests,
+            failedTestCount: failedTestCount ?? failedTests?.count,
+            firstFailedTestLine: nil,
+            log: ControlRunResult.logName(of: number)
         )
     }
 }

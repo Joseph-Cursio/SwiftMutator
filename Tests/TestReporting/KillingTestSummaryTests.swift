@@ -36,6 +36,7 @@ final class KillingTestSummaryTests: XCTestCase {
                 mutants: 3,
                 files: 2,
                 onlyRecordedFailureOf: 2,
+                failedControlRuns: 0,
                 suspect: false
             ),
             .init(
@@ -44,6 +45,7 @@ final class KillingTestSummaryTests: XCTestCase {
                 mutants: 2,
                 files: 2,
                 onlyRecordedFailureOf: 0,
+                failedControlRuns: 0,
                 suspect: false
             ),
         ])
@@ -87,6 +89,7 @@ final class KillingTestSummaryTests: XCTestCase {
                 mutants: 1,
                 files: 1,
                 onlyRecordedFailureOf: 1,
+                failedControlRuns: 0,
                 suspect: false
             ),
         ])
@@ -292,6 +295,103 @@ final class KillingTestSummaryTests: XCTestCase {
             summary.warning(mutationScore: 100),
             "1 test may fail whatever the mutant: it failed for mutants in at least 50% of the 5 files with a killed "
                 + "mutant (sum() in 3). Without its failures, the mutation score would be 40%, not 100%."
+        )
+    }
+
+    // A test that failed in a control run is flaky, so suspect, however few files it failed for mutants in; a flaky
+    // test that killed nothing is listed with the control runs only.
+    func test_aTestThatFailedInAControlRun_isSuspect_andFlaky() throws {
+        let timing = failedTest("timing()", in: "TimingTests.swift")
+        let sum = failedTest("sum()", in: "SumTests.swift")
+        let clock = failedTest("clock()", in: "ClockTests.swift")
+        let controlRuns: [MutationTestOutcome.ControlRun] = [
+            .init(outcome: .failed, failedTests: .init(tests: [timing, clock], count: 2, isComplete: true)),
+            .init(outcome: .failed, failedTests: .init(tests: [clock], count: 1, isComplete: true)),
+            .init(outcome: .passed, failedTests: nil),
+        ]
+
+        let summary = try XCTUnwrap(KillingTestSummary(
+            of: [kill(in: "A.swift", naming: [timing]), kill(in: "B.swift", naming: [sum])],
+            controlRuns: controlRuns
+        ))
+
+        XCTAssertEqual(summary.controlRuns, 3)
+        XCTAssertEqual(summary.failedControlRuns, 2)
+        XCTAssertEqual(summary.failedControlRunsNamingNoTest, 0)
+        XCTAssertEqual(summary.flakyTests, [
+            .init(name: "clock()", file: "ClockTests.swift", controlRuns: 2),
+            .init(name: "timing()", file: "TimingTests.swift", controlRuns: 1),
+        ])
+        XCTAssertEqual(summary.tests.map(\.name), ["sum()", "timing()"])
+        XCTAssertEqual(summary.tests.map(\.failedControlRuns), [0, 1])
+        XCTAssertEqual(summary.tests.map(\.suspect), [false, true])
+        XCTAssertEqual(summary.suspectOnlyKills, 1)
+        XCTAssertEqual(summary.controlRunSentences, [
+            "2 of the 3 control runs, with no mutant on and under the same load as the mutants, didn't pass.",
+            "A test that failed in one is flaky, so it is suspect: clock() in 2, timing() in 1.",
+        ])
+        XCTAssertEqual(summary.suspectSentences(mutationScore: 100), [
+            "1 suspect test failed in a control run, with no mutant on and under the same load, so may fail whatever "
+                + "the mutant.",
+            "Only suspect tests were recorded failing for 1 mutant. Without its failures, the mutation score would be "
+                + "50%, not 100%.",
+            "Leave a flaky test out of mutation runs: skip it while the environment variable IS_MUTER_RUNNING is "
+                + "YES, which SwiftMutator sets for the baseline, every mutant's test run and the control runs.",
+        ])
+    }
+
+    func test_controlRunSentences_sayWhenEveryOnePassed_andNoneWithoutControlRuns() throws {
+        let sum = failedTest("sum()")
+        let kills = [kill(in: "A.swift", naming: [sum])]
+        let passed = MutationTestOutcome.ControlRun(outcome: .passed, failedTests: nil)
+
+        XCTAssertEqual(try XCTUnwrap(KillingTestSummary(of: kills)).controlRunSentences, [])
+        XCTAssertEqual(try XCTUnwrap(KillingTestSummary(of: kills, controlRuns: [passed])).controlRunSentences, [
+            "The 1 control run, with no mutant on and under the same load as the mutants, passed.",
+        ])
+        XCTAssertEqual(
+            try XCTUnwrap(KillingTestSummary(of: kills, controlRuns: [passed, passed])).controlRunSentences,
+            ["All 2 control runs, with no mutant on and under the same load as the mutants, passed."]
+        )
+        let crashed = MutationTestOutcome.ControlRun(
+            outcome: .runtimeError, failedTests: .init(tests: [], count: 0, isComplete: true)
+        )
+        XCTAssertEqual(try XCTUnwrap(KillingTestSummary(of: kills, controlRuns: [crashed])).controlRunSentences, [
+            "The 1 control run, with no mutant on and under the same load as the mutants, didn't pass.",
+            "It names no failed test, as a crash or a timeout may not.",
+        ])
+        XCTAssertEqual(
+            try XCTUnwrap(KillingTestSummary(of: kills, controlRuns: [crashed, crashed])).controlRunSentences.last,
+            "They name no failed test, as a crash or a timeout may not."
+        )
+    }
+
+    // Suspect by the rule and flaky at once: each part of the warning names its own.
+    func test_theWarning_namesTheFlakyTests_andThoseTheRuleFound_apart() throws {
+        let timing = failedTest("timing()", in: "TimingTests.swift")
+        let arrival = failedTest("arrival()", in: "ArrivalTests.swift")
+        let mutations = (0 ..< 10).map { index in
+            kill(in: "F\(index).swift", naming: index < 5 ? [arrival, timing] : [arrival])
+        }
+        let controlRuns: [MutationTestOutcome.ControlRun] = [
+            .init(outcome: .failed, failedTests: .init(tests: [timing], count: 1, isComplete: true)),
+            .init(outcome: .passed, failedTests: nil),
+        ]
+
+        let summary = try XCTUnwrap(KillingTestSummary(of: mutations, controlRuns: controlRuns))
+
+        XCTAssertEqual(summary.tests.map(\.suspectCell), ["yes", "flaky"])
+        XCTAssertEqual(
+            summary.warning(mutationScore: 100),
+            "2 tests may fail whatever the mutant: 1 failed in a control run, with no mutant on (timing() in 1 of 2), "
+                + "and 1 failed for mutants in at least 15% of the 10 files with a killed mutant (arrival() in 10). "
+                + "Without their failures, the mutation score would be 0%, not 100%."
+        )
+        XCTAssertEqual(
+            summary.suspectSentences(mutationScore: 100).first,
+            "Of 2 suspect tests, 1 failed in a control run, with no mutant on and under the same load, and 1 for "
+                + "mutants in at least 15% of the 10 files with a killed mutant, which a test of the mutated code "
+                + "rarely does."
         )
     }
 
