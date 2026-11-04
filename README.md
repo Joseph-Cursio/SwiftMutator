@@ -523,6 +523,7 @@ was for SwiftPM: `0.5` means 0.5%, so write `50` for half. The options are docum
 | `keepLogFolders` | How many runs' log folders to keep in `<project>_muter_logs`, this run's included: a whole number, at least 2, so the run before this one is always kept. Earlier runs' folders beyond it are removed once nothing can refuse the run, before its build (default: unset, which removes none; see [Results file](#results-file)) |
 | `failUnder` | A percent from 0 to 100, up to 6 decimals: a finished run whose headline score is below it exits with 2, once its reports are written (default: unset, which checks none; see [Failing on a low score](#failing-on-a-low-score)) |
 | `propertyTests` | A list of globs that pick out property tests, by name or by the file their issue was recorded in, so the reports split the kills between example tests and property tests (default: unset, which splits none; see [Example tests and property tests](#example-tests-and-property-tests)) |
+| `propertyTestFilter` | A list of test filters that select the property tests alone, as `swift test --filter` or xcodebuild's `-only-testing:` takes them: once every mutant is tested, each kill whose recorded tests include no property test is tested again with only those tests (default: unset, which tests none again; needs `propertyTests`) |
 | `buildTimeout` | Seconds before the coverage run, which builds your project and runs its tests with coverage on, is stopped. Mutation testing then goes on without coverage, as after any coverage failure. For now it limits only the coverage run, not the baseline or other builds (default: no limit) |
 
 `--workers N` and `--timeout S`, on `run` and `run-without-mutating`, set `mutationTestWorkers`
@@ -1178,7 +1179,36 @@ propertyTests:
   test alone. An example that fails first hides a property that would also have failed, so "only
   by examples" may be "by both". The section says how many kills that may be: the count by both is
   then a lower bound, and the counts by one kind alone may be high. `stopAtFirstFailure: false`
-  records every failed test, up to 20, at the cost of a longer run.
+  records every failed test, up to 20, at the cost of a longer run, and so does
+  `propertyTestFilter`, at the cost of one more run for each kill of examples alone.
+- **Testing a kill again with the properties alone.** With `propertyTestFilter`, once every
+  mutant is tested, each kill whose recorded tests include no property test is tested again with
+  only the tests the filter selects, on as many workers. Its entries are what your test command
+  takes: `swift test` gets `--filter <entry>` for each, which matches test identifiers such as
+  `SortingTests.SortProperties/ordered()`, and xcodebuild gets `-only-testing:<entry>`, such as
+  `SortingTests/SortProperties`. So the property tests must be selectable by name, for example in
+  suites of their own. A property that fails makes the kill one by both; every property passing
+  makes it one by examples alone, whatever the first run stopped at. A crash that names no test
+  isn't tested again.
+
+  ```yaml
+  propertyTests: ["*Properties*"]
+  propertyTestFilter: [SortProperties]
+  ```
+
+  ```
+  🧪 Running the property tests again for 4 kills only examples were recorded making, one at a time.
+  🧪 Ran the property tests again for 4 kills: a property test failed too for 3, and every one passed for 1.
+  ```
+
+  First the filtered tests run once with no mutant on. If they ran no test, as a filter that
+  matches none doesn't, or didn't pass, no kill is tested again, and the run says why. A
+  `propertyRerun` line in the results file records each run (see
+  [the results file](Docs/results-file.md#propertyrerun)). `propertyTestFilter` needs
+  `propertyTests`, and a SwiftPM or xcodebuild project; `--mutant` runs none. On a small sorting
+  package whose three properties wait 0.4 s before their checks, fail-fast stopped three kills at
+  an example, and the reruns found a property failing for each, which matched a run that stopped
+  at none.
 - **It changes no result.** It only reads what the runs recorded, so a resume lets it change, and
   `swift-mutator report --property-tests '<glob>'` splits an earlier run's kills, in place of the
   globs its header records. The JSON report's `propertyKillSummary` holds the section (see
@@ -1355,12 +1385,12 @@ SwiftMutator copies the project is refused after the copy, so that message doesn
 
 | Since the last session | Resuming |
 |---|---|
-| A configuration key changed, other than `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `keepAllLogs`, `keepLogFolders`, `failUnder` and `propertyTests` | Refused: start a new run |
+| A configuration key changed, other than `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests` and `propertyTestFilter` | Refused: start a new run |
 | `mutationTestTimeout` (or `--timeout`) is at least as long as every session's `timeoutSeconds` | Goes ahead, says so, and tests the timeouts under a shorter limit again |
 | `--operators`, `--files-to-mutate` or `--skip-coverage` changed | Refused: start a new run |
 | `--since`'s merge base or `--changed-lines` changed, or `--since` given in one session only | Refused: start a new run. `--reuse` doesn't compare them |
 | `--shard` changed, or given in one session only | Refused: start a new run. `--reuse` doesn't compare it |
-| `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `keepAllLogs`, `keepLogFolders`, `failUnder` or `propertyTests` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
+| `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests` or `propertyTestFilter` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
 | SwiftMutator, the toolchain or the SDK changed | Refused, unless `--force-resume` is given |
 | Project files changed, were added or were removed | Refused, unless a `--resume-ignoring` glob matches each one |
 | Another SwiftMutator holds the file, because its run is still going | Refused with status 6, naming the process that holds it, and its host: wait for that run to end. If an older SwiftMutator holds it, which doesn't say, it names the process and host that wrote the file's last session, which may not be the one |

@@ -56,7 +56,8 @@ extension RecordedResults {
             testDuration: testDuration,
             shards: header.shard?.scopeAlone,
             sampleIsCutShort: latest.count < header.mutantsDiscovered,
-            controlRuns: controlRuns
+            controlRuns: controlRuns,
+            propertyReruns: propertyReruns
         )
         outcome.run = resultsFile.flatMap { RunDetails(of: [($0, headers)]) }
         return outcome
@@ -74,7 +75,8 @@ extension MutationTestOutcome {
         testDuration: TimeInterval,
         shards: ShardScope?,
         sampleIsCutShort: Bool,
-        controlRuns: [ControlRunResult]
+        controlRuns: [ControlRunResult],
+        propertyReruns: [MutantKey: PropertyRerunResult] = [:]
     ) {
         let projectDirectory = URL(fileURLWithPath: header.projectPath, isDirectory: true)
         let mutatedProjectDirectory = URL(fileURLWithPath: header.mutatedProjectPath, isDirectory: true)
@@ -82,7 +84,7 @@ extension MutationTestOutcome {
             .map { (record: $0, order: JobOrder(of: $0, under: header.mutatedProjectPath)) }
             .sorted { $0.order < $1.order }
             .map { record, order in
-                MutationTestOutcome.Mutation(
+                var mutation = MutationTestOutcome.Mutation(
                     testSuiteOutcome: record.outcome,
                     mutationPoint: MutationPoint(
                         mutationOperatorId: record.mutationOperatorId,
@@ -101,6 +103,8 @@ extension MutationTestOutcome {
                     key: record.key,
                     durationSeconds: record.durationSeconds
                 )
+                mutation.propertyRerun = propertyReruns[record.key]?.rerun
+                return mutation
             }
         self.init(
             mutations: mutations,

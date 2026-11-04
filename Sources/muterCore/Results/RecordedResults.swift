@@ -27,6 +27,9 @@ struct RecordedResults {
     private(set) var controlRuns: [ControlRunResult] = []
     /// Each key's last record, unless a `retired` line after it retired the key.
     private(set) var latest: [MutantKey: MutantResult] = [:]
+    /// Each mutant's property rerun, by key, for its result in `latest`: the last line of its kind after the mutant's
+    /// last `mutant` line, which sets aside any before it (`PropertyRerunResult`).
+    private(set) var propertyReruns: [MutantKey: PropertyRerunResult] = [:]
     /// The 1-based numbers of the lines skipped: those that don't read as a record, and records of a session no
     /// earlier header started. Empty lines, and kinds of record this SwiftMutator doesn't know, aren't among them.
     private(set) var unreadableLines: [Int] = []
@@ -85,6 +88,8 @@ struct RecordedResults {
                   let session = sessionIndex(record.session)
             else { return false }
             latest[record.key] = record
+            // A new result: a rerun of the mutant's properties is of the result it followed.
+            propertyReruns.removeValue(forKey: record.key)
             sessions[session].lastFinishedAt = max(sessions[session].lastFinishedAt ?? .distantPast, record.finishedAt)
         case "retired":
             guard let retired = try? decoder.decode(ResultsRetired.self, from: line),
@@ -93,12 +98,22 @@ struct RecordedResults {
             // In file order, so a key a later mutant line records again counts again.
             for key in retired.keys {
                 latest.removeValue(forKey: key)
+                propertyReruns.removeValue(forKey: key)
             }
         case "control":
             guard let record = try? decoder.decode(ControlRunResult.self, from: line),
                   let session = sessionIndex(record.session)
             else { return false }
             controlRuns.append(record)
+            sessions[session].lastFinishedAt = max(sessions[session].lastFinishedAt ?? .distantPast, record.finishedAt)
+        case "propertyRerun":
+            guard let record = try? decoder.decode(PropertyRerunResult.self, from: line),
+                  let session = sessionIndex(record.session)
+            else { return false }
+            // Of a result a later line retired, so of none: read, but kept for no result.
+            if latest[record.key] != nil {
+                propertyReruns[record.key] = record
+            }
             sessions[session].lastFinishedAt = max(sessions[session].lastFinishedAt ?? .distantPast, record.finishedAt)
         case "end":
             guard let end = try? decoder.decode(ResultsEnd.self, from: line),

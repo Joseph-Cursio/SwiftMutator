@@ -578,7 +578,8 @@ func configurationWithEveryFieldSet(
         keepAllLogs: true,
         keepLogFolders: 3,
         failUnder: 80,
-        propertyTests: ["*Properties*"]
+        propertyTests: ["*Properties*"],
+        propertyTestFilter: ["Properties"]
     )
     .withDirectTestRun(DirectTestRun(
         helper: "/toolchain/usr/libexec/swift/pm/swiftpm-testing-helper",
@@ -595,6 +596,8 @@ func configurationWithEveryFieldSet(
         parallelTestingOff: true,
         testDiagnosticsOff: true
     ))
+    // So `testFilterArguments` is set too, as for a property rerun's runs.
+    .withPropertyTestFilter() ?? MuterConfiguration()
     return failedTestLinesAreReliable
         ? configuration : configuration.withUnreliableFailedTestLines(printedIn: [failedTestLookalikeLog])
 }

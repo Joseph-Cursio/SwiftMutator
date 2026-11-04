@@ -45,6 +45,9 @@ struct LoadConfiguration: MutationStep {
                     failUnder: state.runOptions.failUnder,
                     propertyTests: state.runOptions.propertyTests
                 )
+            if let reason = resolved.propertyRerunsUnsupportedReason {
+                throw MuterError.configurationParsingError(reason: reason)
+            }
             return [
                 .projectDirectoryUrlDiscovered(URL(fileURLWithPath: fileManager.currentDirectoryPath)),
                 .configurationParsed(resolved),

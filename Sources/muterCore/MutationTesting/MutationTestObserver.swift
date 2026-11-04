@@ -147,6 +147,12 @@ extension MutationTestObserver {
             logger.timeoutRerunFinished(rerun)
         case let .timeoutRerunsFinished(tally):
             logger.timeoutRerunsFinished(tally)
+        case let .propertyRerunsStarted(reruns):
+            logger.propertyRerunsStarted(reruns)
+        case let .propertyRerunsFinished(tally):
+            logger.propertyRerunsFinished(tally)
+        case let .propertyRerunsSkipped(reason, log):
+            logger.propertyRerunsSkipped(reason: reason, log: log)
         case let .runRepeatedAfterLaunchFailure(repeated):
             logger.runRepeatedAfterLaunchFailure(repeated)
         case let .baselineRepeatedAfterLaunchFailure(line, log):

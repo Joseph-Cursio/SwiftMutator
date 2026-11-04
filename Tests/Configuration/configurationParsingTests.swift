@@ -235,6 +235,77 @@ final class ConfigurationParsingTests: MuterTestCase {
         XCTAssertEqual(set.overriding(workers: nil, timeout: nil).propertyTests, set.propertyTests)
     }
 
+    func test_parsePropertyTestFilter_andWhenItCanBeUsed() throws {
+        let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
+        let parsed = { (lines: String) in try MuterConfiguration(from: Data("\(swiftTest)\n\(lines)".utf8)) }
+
+        let set = try parsed("propertyTests: ['*Properties*']\npropertyTestFilter: [SortProperties, ParseProperties]")
+        XCTAssertEqual(set.propertyTestFilter, ["SortProperties", "ParseProperties"])
+        XCTAssertNil(set.propertyRerunsUnsupportedReason)
+        XCTAssertEqual(try MuterConfiguration(from: set.asData), set, "written back as it was")
+        XCTAssertThrowsError(try parsed("propertyTestFilter: ['']"))
+        XCTAssertNil(try MuterConfiguration(from: Data(swiftTest.utf8)).propertyTestFilter)
+
+        let withoutGlobs = try parsed("propertyTestFilter: [SortProperties]")
+        XCTAssertEqual(
+            withoutGlobs.propertyRerunsUnsupportedReason,
+            "propertyTestFilter needs propertyTests too, which say which of a kill's recorded tests are property tests"
+        )
+        XCTAssertNil(withoutGlobs.withPropertyTestFilter())
+        let wrapper = MuterConfiguration(
+            executable: "/project/test.sh", arguments: [], propertyTests: ["*"], propertyTestFilter: ["Properties"]
+        )
+        XCTAssertEqual(
+            wrapper.propertyRerunsUnsupportedReason,
+            "propertyTestFilter needs a SwiftPM or xcodebuild project, whose test command it can filter"
+        )
+        XCTAssertNil(MuterConfiguration().withPropertyTestFilter(), "no filter, no filtered runs")
+    }
+
+    // `swift test` and the bundles run directly take `--filter`, xcodebuild `-only-testing:`, each after the rest.
+    func test_withPropertyTestFilter_addsTheFilterToEachRunsTestCommand() throws {
+        let swift = MuterConfiguration(
+            executable: "/usr/bin/swift",
+            arguments: ["test"],
+            propertyTests: ["*Properties*"],
+            propertyTestFilter: ["SortProperties", "ParseProperties"]
+        )
+        let filtered = try XCTUnwrap(swift.withPropertyTestFilter())
+        XCTAssertEqual(filtered.testWithoutBuildArguments(with: ""), [
+            "test", "--skip-build", "--quiet", "--filter", "SortProperties", "--filter", "ParseProperties",
+        ])
+        XCTAssertEqual(swift.testWithoutBuildArguments(with: ""), ["test", "--skip-build", "--quiet"])
+
+        let direct = DirectTestRun(
+            helper: "/toolchain/swiftpm-testing-helper",
+            productsFolder: ".build/debug",
+            bundles: ["SortTests"],
+            testFiles: [:],
+            platformDeveloperFolder: "/Developer",
+            arguments: ["--skip-build"]
+        )
+        let directFiltered = try XCTUnwrap(swift.withDirectTestRun(direct).withPropertyTestFilter()?.directTestRun)
+        XCTAssertEqual(
+            directFiltered.arguments, ["--skip-build", "--filter", "SortProperties", "--filter", "ParseProperties"]
+        )
+        let script = directFiltered.script(in: URL(fileURLWithPath: "/project"))
+        XCTAssertTrue(script.contains("--filter") && script.contains("SortProperties"), script)
+
+        let xcode = MuterConfiguration(
+            executable: "/usr/bin/xcodebuild",
+            arguments: ["test", "-destination", "platform=macOS"],
+            propertyTests: ["*Properties*"],
+            propertyTestFilter: ["SortTests/SortProperties"]
+        )
+        let xcodeFiltered = try XCTUnwrap(xcode.withPropertyTestFilter())
+        XCTAssertEqual(xcodeFiltered.testWithoutBuildArguments(with: "muter.xctestrun"), [
+            "test-without-building",
+            "-destination", "platform=macOS",
+            "-xctestrun", "muter.xctestrun",
+            "-only-testing:SortTests/SortProperties",
+        ])
+    }
+
     func test_parseKeepAllLogs() throws {
         let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
         let keeping = { (line: String) in try MuterConfiguration(from: Data("\(swiftTest)\n\(line)".utf8)) }

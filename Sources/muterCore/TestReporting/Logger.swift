@@ -628,6 +628,36 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         print("🔁 \(rerun.number) of \(rerun.count) \(verdict) at \(place)\(change), in \(Self.seconds(rerun.seconds))")
     }
 
+    /// "🧪 Running the property tests again for 12 kills only examples were recorded making, 4 at a time.": once every
+    /// mutant is tested, and after any timeouts tested again.
+    func propertyRerunsStarted(_ reruns: PropertyReruns) {
+        let kills = reruns.count == 1 ? "1 kill" : "\(reruns.count) kills"
+        let atATime = reruns.count == 1 ? ""
+            : reruns.workers == 1 ? ", one at a time" : ", \(reruns.workers) at a time"
+        print("🧪 Running the property tests again for \(kills) only examples were recorded making\(atATime).")
+    }
+
+    /// "🧪 Ran the property tests again for 12 kills: a property test failed too for 5, and every one passed for 7."
+    func propertyRerunsFinished(_ tally: PropertyRerunTally) {
+        let kills = tally.rerun == 1 ? "1 kill" : "\(tally.rerun) kills"
+        var sentence = "🧪 Ran the property tests again for \(kills): a property test failed too for \(tally.killed), "
+            + "and every one passed for \(tally.passed)"
+        if tally.unsettled > 0 {
+            sentence += "; \(tally.unsettled) timed out or didn't build, which settles nothing"
+        }
+        print(sentence + ".")
+    }
+
+    /// "⚠️ No kill was tested again with the property tests alone: propertyTestFilter selected no test: …. The
+    /// reports count what the runs recorded. Its log is property tests with no mutant on.log."
+    func propertyRerunsSkipped(reason: String, log: String?) {
+        let logSentence = log.map { " Its log is \($0)." } ?? ""
+        print(
+            "⚠️ No kill was tested again with the property tests alone: \(reason). The reports count what the runs "
+                + "recorded, so the count by both may be low.\(logSentence)"
+        )
+    }
+
     /// "🔁 Ran 3 timeouts again, and 1 changed: 1 killed, 2 timed out again."
     func timeoutRerunsFinished(_ tally: TimeoutRerunTally) {
         let timeouts = tally.rerun == 1 ? "1 timeout" : "\(tally.rerun) timeouts"

@@ -498,8 +498,11 @@ private extension PerformMutationTesting {
         in session: TestingSession,
         state: AnyMutationTestState
     ) {
+        // A resume keeps the property reruns its file records for the results it keeps; a reuse's are another file's,
+        // which this one doesn't hold, so its session runs them again.
+        let reruns = state.resumeState.flatMap { $0.isReuse ? nil : $0.recorded.propertyReruns } ?? [:]
         for (index, result) in reused.sorted(by: { $0.key < $1.key }) {
-            let outcome = Self.outcome(
+            var outcome = Self.outcome(
                 result.outcome,
                 of: jobs[index],
                 state: state,
@@ -508,6 +511,7 @@ private extension PerformMutationTesting {
                 key: result.key,
                 durationSeconds: result.durationSeconds
             )
+            outcome.propertyRerun = reruns[result.key]?.rerun
             session.outcomes[index] = outcome
             session.reused += 1
             events.send(.newMutationTestOutcomeAvailable(outcome))
@@ -689,6 +693,14 @@ private extension PerformMutationTesting {
                 buildErrors: &buildErrors
             )
         }
+        try await rerunPropertyTests(
+            of: jobs,
+            on: [PoolWorker(directory: state.mutatedProjectDirectoryURL, configuration: configuration)],
+            from: state.projectXCTestRun,
+            using: state,
+            configuration: configuration,
+            session: session
+        )
     }
 
     /// Sends the mutants under way whenever `heartbeat` says none has finished for a while, until cancelled. It reads
@@ -778,6 +790,14 @@ private extension PerformMutationTesting {
         )
         try await rerunTimeouts(
             timeouts.sorted(), of: jobs, on: pool, using: state, configuration: configuration, session: session
+        )
+        try await rerunPropertyTests(
+            of: jobs,
+            on: pool,
+            from: state.projectXCTestRun,
+            using: state,
+            configuration: configuration,
+            session: session
         )
     }
 
@@ -1197,15 +1217,6 @@ private extension PerformMutationTesting {
         "\(index)_rerun_\(job.fileName)_\(job.schema.mutationOperatorId.rawValue)_\(job.schema.position).log"
     }
 
-    /// Where the test run whose log is `name` writes its output while it runs: `testOutputFolderName` in the run's
-    /// log folder, or, without one, as a state that bypasses the handler has, the current directory.
-    func testOutput(named name: String, state: AnyMutationTestState) -> String {
-        guard !state.loggingDirectory.isEmpty else { return name }
-        return (state.loggingDirectory as NSString)
-            .appendingPathComponent(Self.testOutputFolderName)
-            .appending("/\(name)")
-    }
-
     /// Deletes the worker simulators an earlier xcodebuild run of the project left, stopped at once, killed or crashed,
     /// with those of any run that has ended. Booted, each holds memory, which the baseline could use. Under the mutated
     /// project's lock, so no run of this project is under way.
@@ -1336,6 +1347,15 @@ private extension PerformMutationTesting {
 }
 
 extension PerformMutationTesting {
+    /// Where the test run whose log is `name` writes its output while it runs: `testOutputFolderName` in the run's
+    /// log folder, or, without one, as a state that bypasses the handler has, the current directory.
+    func testOutput(named name: String, state: AnyMutationTestState) -> String {
+        guard !state.loggingDirectory.isEmpty else { return name }
+        return (state.loggingDirectory as NSString)
+            .appendingPathComponent(Self.testOutputFolderName)
+            .appending("/\(name)")
+    }
+
     /// Each project file's SHA-256 as it was tested, by its path in the project, which the reports check a file
     /// against before showing a mutant's line from it: the project tree's, or for a run of a test plan, whose tree is
     /// its rewritten copy, what the plan recorded of the project when it was made. nil for a plan in format 0, which

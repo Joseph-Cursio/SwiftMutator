@@ -51,6 +51,12 @@ extension MutationTestLog {
         noting("rerun", in: keptFileName(for: key))
     }
 
+    /// The name of the file the run's log folder keeps the log of `key`'s property rerun in, the run of the property
+    /// tests alone with its mutant on (`PropertyReruns`): `keptFileName(for:)` with ` (properties)` before `.log`.
+    static func propertyRerunFileName(for key: MutantKey) -> String {
+        noting("properties", in: keptFileName(for: key))
+    }
+
     /// The name of the file the run's log folder keeps the log of a run in that the simulator failed to launch, and
     /// that ran again in its place: `logName`, the name of that second run's log, with ` (launch failed)` before
     /// `.log`.

@@ -33,6 +33,9 @@ extension RunEvent {
         case timeoutRerunsStarted
         case timeoutRerunFinished
         case timeoutRerunsFinished
+        case propertyRerunsStarted
+        case propertyRerunsFinished
+        case propertyRerunsSkipped
         case runRepeatedAfterLaunchFailure
         case baselineRepeatedAfterLaunchFailure
         case oneMutantTested
@@ -82,6 +85,9 @@ extension RunEvent {
         case .timeoutRerunsStarted: .timeoutRerunsStarted
         case .timeoutRerunFinished: .timeoutRerunFinished
         case .timeoutRerunsFinished: .timeoutRerunsFinished
+        case .propertyRerunsStarted: .propertyRerunsStarted
+        case .propertyRerunsFinished: .propertyRerunsFinished
+        case .propertyRerunsSkipped: .propertyRerunsSkipped
         case .runRepeatedAfterLaunchFailure: .runRepeatedAfterLaunchFailure
         case .baselineRepeatedAfterLaunchFailure: .baselineRepeatedAfterLaunchFailure
         case .oneMutantTested: .oneMutantTested
@@ -129,6 +135,9 @@ extension RunEvent {
         case let .timeoutRerunsStarted(reruns): reruns
         case let .timeoutRerunFinished(rerun): rerun
         case let .timeoutRerunsFinished(tally): tally
+        case let .propertyRerunsStarted(reruns): reruns
+        case let .propertyRerunsFinished(tally): tally
+        case let .propertyRerunsSkipped(reason, log): (reason, log)
         case let .runRepeatedAfterLaunchFailure(repeated): repeated
         case let .baselineRepeatedAfterLaunchFailure(line, log): (line, log)
         case let .oneMutantTested(run): run
