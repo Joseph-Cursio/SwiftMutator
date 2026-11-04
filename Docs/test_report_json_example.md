@@ -290,6 +290,9 @@ At the top level, when `propertyTests` or `--property-tests` gives globs: the ki
 | `killedNamingNoTest` | Killed mutants that name no failed test, such as a crash's, which count as neither |
 | `incompleteExampleOnlyKills` | Of `killedOnlyByExamples`, how many may not name every test that failed: a property may have failed too |
 | `incompletePropertyOnlyKills` | Of `killedOnlyByProperties`, how many may not name every test that failed: an example may have failed too |
+| `propertyReruns` | Of the kills whose recorded tests are all examples, how many the property tests were run again for on their own (`propertyTestFilter`) |
+| `propertyRerunKills` | Of those, how many a property test failed for too: they count in `killedByBoth` |
+| `propertyRerunPasses` | Of those, how many every property passed for: they count in `killedOnlyByExamples`, and never in `incompleteExampleOnlyKills` |
 | `distinctProperties` | How many property tests failed for a killed mutant |
 | `properties` | The 10 that failed for the most killed mutants, ties broken by name and then file, each as `{name, file, mutants, onlyRecordedKillerOf}`: `file` as a test's in `killingTestSummary`, left out for XCTest; `mutants`, how many killed mutants it failed for; `onlyRecordedKillerOf`, how many of them recorded it as the only test that failed |
 
@@ -306,6 +309,9 @@ With made-up counts:
   "killedNamingNoTest": 0,
   "incompleteExampleOnlyKills": 36,
   "incompletePropertyOnlyKills": 2,
+  "propertyReruns": 0,
+  "propertyRerunKills": 0,
+  "propertyRerunPasses": 0,
   "distinctProperties": 14,
   "properties": [
     { "name": "everyFormatRendersTheSameBytesForAnyArrivalOrder()", "file": "ReportOrderDeterminismLawsTests.swift", "mutants": 101, "onlyRecordedKillerOf": 8 }

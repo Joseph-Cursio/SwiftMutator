@@ -70,6 +70,12 @@ struct MuterConfiguration: Equatable, Codable {
     /// mutant's result, so a resume lets them change. A `var` only so `overriding` can copy `self` and change just this
     /// field.
     private(set) var propertyTests: [String]?
+    /// What selects the property tests alone, for the runs that test a killed mutant again with only them
+    /// (`propertyTestFilter:`, `PropertyReruns`): each entry is given to `swift test` as `--filter <entry>`, and to
+    /// xcodebuild as `-only-testing:<entry>`. nil, the default, runs none. A kill whose recorded tests include no
+    /// property test is tested again, so the reports can tell "only by examples" from "by both" where a run stopped at
+    /// its first failed test. It changes no mutant's result, so a resume lets it change.
+    let propertyTestFilter: [String]?
     /// Whether a line `FailedTestLine` matches shows a failed test. Not a configuration key: false once a
     /// passing baseline has printed such a line, or one `CrashLine` matches, as its tests print text shaped like a
     /// failure. Such a line then neither stops a mutant's run nor counts a timed-out run killed. A `var` only so
@@ -87,6 +93,10 @@ struct MuterConfiguration: Equatable, Codable {
     /// worker once the baseline has passed (see `XcodeWorker`). A `var` only so `forXcodeWorker` can copy `self` and
     /// change just this field.
     private(set) var xcodeWorker: XcodeWorker?
+    /// What a run's test command adds to select some of the tests: `--filter` or `-only-testing:` for each of
+    /// `propertyTestFilter`'s entries (`withPropertyTestFilter`). Not a configuration key; a `var` only so that can
+    /// copy `self` and change just this field.
+    private(set) var testFilterArguments: [String] = []
 
     var buildSystem: BuildSystem {
         if let explicitBuildSystem, explicitBuildSystem != .unknown {
@@ -119,6 +129,7 @@ struct MuterConfiguration: Equatable, Codable {
         case keepLogFolders
         case failUnder
         case propertyTests
+        case propertyTestFilter
     }
 
     init(
@@ -139,7 +150,8 @@ struct MuterConfiguration: Equatable, Codable {
         keepAllLogs: Bool? = nil,
         keepLogFolders: Int? = nil,
         failUnder: Double? = nil,
-        propertyTests: [String]? = nil
+        propertyTests: [String]? = nil,
+        propertyTestFilter: [String]? = nil
     ) {
         testCommandExecutable = executable
         testCommandArguments = arguments
@@ -159,6 +171,7 @@ struct MuterConfiguration: Equatable, Codable {
         self.keepLogFolders = keepLogFolders
         self.failUnder = failUnder
         self.propertyTests = propertyTests
+        self.propertyTestFilter = propertyTestFilter
     }
 
     init(from decoder: Decoder) throws {
@@ -185,10 +198,11 @@ struct MuterConfiguration: Equatable, Codable {
         keepLogFolders = try Self.whole(forKey: .keepLogFolders, in: 2 ... Int.max, in: container)
         failUnder = try Self.percent(forKey: .failUnder, in: container)
         propertyTests = try Self.globs(forKey: .propertyTests, in: container)
+        propertyTestFilter = try Self.globs(forKey: .propertyTestFilter, in: container)
     }
 
-    /// A list of globs, or nil if `key` isn't set. Throws on an empty glob, which would match nothing, and on a value
-    /// that isn't a list of strings, so a typo is a configuration error rather than "unset".
+    /// A list of globs, or of test filters, or nil if `key` isn't set. Throws on an empty entry, which would select
+    /// nothing, and on a value that isn't a list of strings, so a typo is a configuration error rather than "unset".
     private static func globs(
         forKey key: CodingKeys,
         in container: KeyedDecodingContainer<CodingKeys>
@@ -259,6 +273,7 @@ struct MuterConfiguration: Equatable, Codable {
         try container.encodeIfPresent(keepLogFolders, forKey: .keepLogFolders)
         try container.encodeIfPresent(failUnder.map(WrittenPercent.init), forKey: .failUnder)
         try container.encodeIfPresent(propertyTests, forKey: .propertyTests)
+        try container.encodeIfPresent(propertyTestFilter, forKey: .propertyTestFilter)
     }
 
     /// A percent, written in JSON as a number and in YAML as a plain scalar, both in decimal digits
@@ -459,6 +474,39 @@ struct MuterConfiguration: Equatable, Codable {
         return copy
     }
 
+    /// This configuration with its runs testing only what `propertyTestFilter` selects: `swift test`, and the test
+    /// bundles run directly, with `--filter` for each entry, and xcodebuild with `-only-testing:`. nil without a
+    /// filter, or for a build system that takes neither (`propertyRerunsUnsupportedReason`).
+    func withPropertyTestFilter() -> MuterConfiguration? {
+        guard let filter = propertyTestFilter, !filter.isEmpty, propertyRerunsUnsupportedReason == nil else {
+            return nil
+        }
+        var copy = self
+        switch buildSystem {
+        case .swift:
+            copy.testFilterArguments = filter.flatMap { ["--filter", $0] }
+            copy.directTestRun = directTestRun?.adding(copy.testFilterArguments)
+        case .xcodebuild:
+            copy.testFilterArguments = filter.map { "-only-testing:\($0)" }
+        case .unknown:
+            return nil
+        }
+        return copy
+    }
+
+    /// Why `propertyTestFilter` can't be used with this configuration; nil when it can, or isn't set.
+    var propertyRerunsUnsupportedReason: String? {
+        guard propertyTestFilter != nil else { return nil }
+        if propertyTests?.isEmpty != false {
+            return "propertyTestFilter needs propertyTests too, which say which of a kill's recorded tests are "
+                + "property tests"
+        }
+        if buildSystem == .unknown {
+            return "propertyTestFilter needs a SwiftPM or xcodebuild project, whose test command it can filter"
+        }
+        return nil
+    }
+
     /// This configuration with an xcodebuild mutant's runs testing as `worker` says.
     func forXcodeWorker(_ worker: XcodeWorker) -> MuterConfiguration {
         var copy = self
@@ -597,10 +645,10 @@ extension MuterConfiguration {
                 destination,
                 "-xctestrun",
                 xcodeWorker?.testRunFile ?? testRunFile,
-            ] + (xcodeWorker?.arguments ?? [])
+            ] + (xcodeWorker?.arguments ?? []) + testFilterArguments
         case .swift:
             let setsVerbosity = arguments.contains { Self.verbosityOptions.contains($0) }
-            return arguments + ["--skip-build"] + (setsVerbosity ? [] : ["--quiet"])
+            return arguments + ["--skip-build"] + (setsVerbosity ? [] : ["--quiet"]) + testFilterArguments
         case .unknown:
             return arguments
         }

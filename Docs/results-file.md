@@ -20,7 +20,8 @@ The file is [JSON Lines](https://jsonlines.org): UTF-8, one JSON object per line
 2. **`retired`**, only in a resumed session, right after its header: the earlier results it no longer stands by. See [below](#retired).
 3. **`mutant`**, one for each tested mutant, written as its test run finishes. With several workers, mutants finish in a different order from the one they started in. A session that tests on several workers then runs its timeouts again at lower load, and writes a second line for each, with `rerun`, which replaces the first. A run that `--reuse` starts first writes one for each result it keeps from the earlier run, right after its header, each with `reusedFrom`, and with `rerun` too for a result that a rerun gave.
 4. **`control`**, one for each control run: the test command with no mutant on, run among the session's mutants, about one for each 100 (`controlRunEvery`). See [below](#control).
-5. **`end`**, last in each session. It is written when mutation testing stops: when it finishes, when an error stops it, and when Ctrl-C (SIGINT), SIGTERM or SIGHUP stops it (see [Stopping a run](../README.md#stopping-a-run)). A run that is killed with SIGKILL or crashes has no end line. Nor does one stopped at once, by a second signal or after 30 seconds of stopping, unless it had already written the end line.
+5. **`propertyRerun`**, with `propertyTestFilter`: one for each kill whose recorded tests include no property test, which the session tested again with only the property tests, once every mutant was tested. See [below](#propertyrerun).
+6. **`end`**, last in each session. It is written when mutation testing stops: when it finishes, when an error stops it, and when Ctrl-C (SIGINT), SIGTERM or SIGHUP stops it (see [Stopping a run](../README.md#stopping-a-run)). A run that is killed with SIGKILL or crashes has no end line. Nor does one stopped at once, by a second signal or after 30 seconds of stopping, unless it had already written the end line.
 
 Here is a header, three of a run's mutant lines, and the end line of a run that stopped after 1,103 mutants. The first mutant was killed by tests its line names, so it kept no log, and its line has no `log`:
 
@@ -109,7 +110,7 @@ A run of a test plan copies nothing. It hashes the files in the plan's copy once
 |---|---|
 | `listedBy` | `git` or `walk`. `git`: `git ls-files --cached --others --exclude-standard`, run in your project, not in the copy. That lists tracked files, and untracked ones that neither your project's ignore files nor your global ones ignore. A nested repository or submodule is listed by its own git. `walk`: every file, when the project isn't in a git repository, is in a folder its repository ignores (where git lists none of its untracked files), or git fails. |
 | `files` | Each file's SHA-256, by its path relative to the project. A symbolic link's is `link:` followed by the SHA-256 of the path it points to; it is never followed. A local package outside the project has its files under its path from the project, such as `../Core/Sources/Core/Core.swift`. |
-| `excluded` | The `-o` report and its `.partial` sibling, which the run writes itself, and the configuration file it loads, such as `muter.conf.yml`, whose settings `configuration` records, when they are inside the project. They are left out of `files`: a resume compares the configuration key by key instead, so a change of `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `keepAllLogs`, `keepLogFolders`, `failUnder` or `propertyTests` doesn't refuse it. |
+| `excluded` | The `-o` report and its `.partial` sibling, which the run writes itself, and the configuration file it loads, such as `muter.conf.yml`, whose settings `configuration` records, when they are inside the project. They are left out of `files`: a resume compares the configuration key by key instead, so a change of `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests` or `propertyTestFilter` doesn't refuse it. |
 | `treeSHA256` | The SHA-256 of every file's path, a NUL, its hash and a line break, sorted by path. Two trees with the same files and hashes have the same `treeSHA256`. |
 
 A resumed session's header records `projectDelta` instead: only what changed since the last session's tree, which is usually nothing, where a whole `project` on SwiftProjectLint took about 205 KB. The whole tree is the last session's, with `files` added or replacing theirs, without `removed`, and with this `listedBy` and `excluded`. SwiftMutator makes it again as it reads the file, from the tree whose `treeSHA256` is `baseTreeSHA256`, and checks that it comes to this `treeSHA256`. If it doesn't, or no earlier header has that tree, the header doesn't read, and nor do its session's lines, so a resume tests their mutants again.
@@ -246,6 +247,22 @@ A control run is the test command with no mutant on, run every so often among a 
 | `failedTestCount` | Int | With `failedTests`: how many different tests the log shows failing, without the limit |
 | `firstFailedTestLine` | String | With `failedTests`: the first line that shows a failed test, as a mutant's |
 | `log` | String | The kept log's file name in the session's `logDirectory`: `control run <number>.log` |
+
+### `propertyRerun`
+
+With `propertyTestFilter` set, once every mutant is tested, and after any timeouts are tested again, a session tests again each of its kills whose recorded tests include none that `propertyTests` picks out, with only the tests the filter selects: under `swift test` and the test bundles run directly, with `--filter <entry>` for each entry, and under xcodebuild with `-only-testing:<entry>`. It stops at the first failed test as the mutants' runs do. A run stopped at its first failed test records that test alone, so this line tells a kill only by examples from one by both (see [Example tests and property tests](../README.md#example-tests-and-property-tests)). A crash that names no test, and `--mutant`'s one mutant, aren't tested again.
+
+First the filtered tests run once with no mutant on, and their log is kept as `property tests with no mutant on.log`. If they ran no test, as a filter that matches none doesn't, or didn't pass, no kill is tested again, and the run says why. The line follows its mutant's `mutant` line and never replaces it, and `end`'s `recorded` doesn't count it. A later `mutant` line of the same key, a new result, sets it aside, as does a `retired` line. A resumed session keeps an earlier session's lines for the results it keeps, and tests again the kills that have none; a session `--reuse` starts tests again every reused kill that needs one, as the earlier file's lines aren't copied.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `kind` | `"propertyRerun"` | |
+| `session` | Int | The session that ran it, as in its header |
+| `path`, `line`, `column`, `occurrence`, `mutationOperatorId` | | The mutant's key, as its `mutant` line has it |
+| `outcome` | String | How the property tests came out with the mutant on: `failed` or `runtimeError` is a kill by a property too, so by both; `passed` is a kill by examples alone; `timeout` or `buildError` settles nothing |
+| `endedBy`, `exitStatus`, `durationSeconds`, `worker`, `finishedAt` | | As a mutant's |
+| `killedBy`, `failedTestCount`, `firstFailedTestLine` | | As a mutant's, for the property tests that failed |
+| `log` | String | The kept log's file name in the session's `logDirectory`, the mutant's own with ` (properties)` before `.log`. Absent when the property tests passed, or a property test the line names failed, unless `keepAllLogs: true` is set. |
 
 ### `end`
 

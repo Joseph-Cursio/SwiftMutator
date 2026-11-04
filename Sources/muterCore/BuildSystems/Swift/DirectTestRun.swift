@@ -33,6 +33,18 @@ struct DirectTestRun: Equatable, Sendable {
 }
 
 extension DirectTestRun {
+    /// This run with `more` given to each helper after its own arguments, such as a test filter.
+    func adding(_ more: [String]) -> DirectTestRun {
+        DirectTestRun(
+            helper: helper,
+            productsFolder: productsFolder,
+            bundles: bundles,
+            testFiles: testFiles,
+            platformDeveloperFolder: platformDeveloperFolder,
+            arguments: arguments + more
+        )
+    }
+
     /// The `/bin/sh` script that runs each bundle in `folder`, the mutated project or a worker's clone, in the order
     /// `bundles(forMutantIn: filePath)` gives, and exits 1 if any helper failed. A helper killed by a signal is
     /// reported as `swift test` reports it, with a line that `TestSuiteOutcome` reads as a crash, and that stops a run

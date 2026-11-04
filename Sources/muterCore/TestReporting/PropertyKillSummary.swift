@@ -87,6 +87,13 @@ struct PropertyKillSummary: Codable, Equatable {
     /// failed test or its time limit, or more failed than a list holds. A test of the other kind may have failed too.
     let incompleteExampleOnlyKills: Int
     let incompletePropertyOnlyKills: Int
+    /// Of the kills whose recorded tests are all examples, how many the property tests were run again for on their own
+    /// (`propertyTestFilter`), and in how many of those a property test failed too, so they count as by both. The
+    /// others' properties all passed, so they count as by examples alone, whatever their lists held. A rerun that
+    /// timed out or didn't build settles nothing.
+    let propertyReruns: Int
+    let propertyRerunKills: Int
+    let propertyRerunPasses: Int
     /// How many property tests failed for a killed mutant.
     let distinctProperties: Int
     /// The `shownProperties` that failed for the most killed mutants, then by name and file.
@@ -103,6 +110,7 @@ extension PropertyKillSummary {
         let killed = mutations.filter { $0.testSuiteOutcome == .failed || $0.testSuiteOutcome == .runtimeError }
         var (examplesOnly, propertiesOnly, both, namingNone) = (0, 0, 0, 0)
         var (examplesOnlyIncomplete, propertiesOnlyIncomplete) = (0, 0)
+        var (reruns, rerunKills, rerunPasses) = (0, 0, 0)
         var tallies: [FailedTestLine.TestIdentity: (mutants: Int, only: Int)] = [:]
         for mutation in killed {
             let tests = Set((mutation.killingTests?.tests ?? []).map(FailedTestLine.TestIdentity.init))
@@ -110,12 +118,24 @@ extension PropertyKillSummary {
                 namingNone += 1
                 continue
             }
-            let properties = tests.filter(isProperty)
+            var properties = tests.filter(isProperty)
             let isComplete = mutation.killingTests?.isComplete == true
+            let rerun = properties.isEmpty ? mutation.propertyRerun : nil
+            if let rerun {
+                reruns += 1
+                if rerun.killed { rerunKills += 1 }
+                if rerun.outcome == .passed { rerunPasses += 1 }
+            }
             switch (properties.isEmpty, properties.count == tests.count) {
+            case (true, _) where rerun?.killed == true:
+                both += 1
+                // The properties the rerun saw failing killed it too, with the examples its own run recorded.
+                properties = Set((rerun?.killingTests?.tests ?? []).map(FailedTestLine.TestIdentity.init))
+                    .filter(isProperty)
             case (true, _):
                 examplesOnly += 1
-                if !isComplete { examplesOnlyIncomplete += 1 }
+                // Every property passed with it on, so no property was hidden, however the list was cut short.
+                if !isComplete, rerun?.outcome != .passed { examplesOnlyIncomplete += 1 }
             case (false, true):
                 propertiesOnly += 1
                 if !isComplete { propertiesOnlyIncomplete += 1 }
@@ -124,8 +144,8 @@ extension PropertyKillSummary {
             }
             for property in properties {
                 tallies[property, default: (0, 0)].mutants += 1
-                // The count, not the list: more may have failed than it holds.
-                if mutation.killingTests?.count == 1 { tallies[property, default: (0, 0)].only += 1 }
+                // The count, not the list: more may have failed than it holds. Never a rerun's, as an example failed.
+                if rerun == nil, mutation.killingTests?.count == 1 { tallies[property, default: (0, 0)].only += 1 }
             }
         }
         // A total order, so every report lists the same properties the same way.
@@ -147,6 +167,9 @@ extension PropertyKillSummary {
             killedNamingNoTest: namingNone,
             incompleteExampleOnlyKills: examplesOnlyIncomplete,
             incompletePropertyOnlyKills: propertiesOnlyIncomplete,
+            propertyReruns: reruns,
+            propertyRerunKills: rerunKills,
+            propertyRerunPasses: rerunPasses,
             distinctProperties: ranked.count,
             properties: Array(ranked.prefix(Self.shownProperties))
         )
@@ -185,6 +208,16 @@ extension PropertyKillSummary {
                 + "\(share(killedOnlyByExamples)), properties alone \(killedOnlyByProperties)"
                 + "\(share(killedOnlyByProperties)), and both \(killedByBoth)\(share(killedByBoth)).",
         ]
+        if propertyReruns > 0 {
+            let kills = propertyReruns == 1 ? "1 kill" : "\(propertyReruns) kills"
+            let unsettled = propertyReruns - propertyRerunKills - propertyRerunPasses
+            let rest = unsettled > 0 ? "; \(unsettled) timed out or didn't build, which settles nothing" : ""
+            sentences.append(
+                "The property tests ran again on their own for \(kills) only examples were recorded making: a "
+                    + "property failed too for \(propertyRerunKills), which count as by both, and every property "
+                    + "passed for \(propertyRerunPasses)\(rest)."
+            )
+        }
         if killedNamingNoTest > 0 {
             let (these, name, counts) = killedNamingNoTest == 1
                 ? ("1 more killed mutant", "names", "it counts")

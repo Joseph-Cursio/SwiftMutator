@@ -105,6 +105,9 @@ extension MutationTestOutcome {
         let key: MutantKey?
         /// How long its run took, from launch to classification, to the millisecond, as its results line records it.
         let durationSeconds: Double?
+        /// For a kill whose recorded tests include no property test: how the property tests alone came out with it on
+        /// (`PropertyRerunResult`); nil when they weren't run again for it.
+        var propertyRerun: PropertyRerun?
 
         /// `killingTests`, `reusedFrom`, `key` and `durationSeconds` have no default: the run, `swift-mutator report`
         /// and `--resume` must each pass theirs.

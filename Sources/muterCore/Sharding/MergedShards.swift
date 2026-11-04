@@ -184,7 +184,11 @@ extension MergedShards {
             testDuration: parts.map(\.recorded.testDuration).max() ?? 0,
             shards: scope,
             sampleIsCutShort: parts.contains { (1..<$0.header.mutantsDiscovered).contains($0.recorded.latest.count) },
-            controlRuns: parts.flatMap(\.recorded.controlRuns)
+            controlRuns: parts.flatMap(\.recorded.controlRuns),
+            // A key is in one shard alone.
+            propertyReruns: parts.reduce(into: [:]) { reruns, part in
+                reruns.merge(part.recorded.propertyReruns) { _, later in later }
+            }
         )
         outcome.run = RunDetails(of: parts.map { ($0.path, $0.recorded.headers) })
         guard !waived.isEmpty else { return outcome }

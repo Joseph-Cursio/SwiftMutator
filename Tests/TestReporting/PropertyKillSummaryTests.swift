@@ -114,6 +114,35 @@ final class PropertyKillSummaryTests: XCTestCase {
         XCTAssertEqual(ties.properties.map(\.file), ["AProperties.swift", "BProperties.swift"])
     }
 
+    // A property rerun settles a kill of examples alone: a property that failed makes it one by both, and every
+    // property passing makes it one by examples alone, however its list was cut short.
+    func test_aPropertyRerun_settlesAKillOfExamplesAlone() throws {
+        let sum = failedTest("sum()", in: "SumTests.swift")
+        let ordered = failedTest("ordered()", in: "SortProperties.swift")
+        var killedToo = kill(naming: [sum], count: 1, isComplete: false)
+        let orderedFailed = MutationTestOutcome.KillingTests(tests: [ordered], count: 1, isComplete: true)
+        killedToo.propertyRerun = .init(outcome: .failed, killingTests: orderedFailed)
+        var passed = kill(naming: [sum], count: 1, isComplete: false)
+        passed.propertyRerun = .init(outcome: .passed, killingTests: nil)
+        var timedOut = kill(naming: [sum], count: 1, isComplete: false)
+        timedOut.propertyRerun = .init(outcome: .timeout, killingTests: nil)
+
+        let summary = try XCTUnwrap(PropertyKillSummary(of: [killedToo, passed, timedOut], globs: ["*Properties*"]))
+
+        XCTAssertEqual([summary.killedOnlyByExamples, summary.killedByBoth], [2, 1])
+        XCTAssertEqual(summary.incompleteExampleOnlyKills, 1, "only the rerun that timed out leaves it unsettled")
+        XCTAssertEqual([summary.propertyReruns, summary.propertyRerunKills, summary.propertyRerunPasses], [3, 1, 1])
+        XCTAssertEqual(summary.properties, [
+            .init(name: "ordered()", file: "SortProperties.swift", mutants: 1, onlyRecordedKillerOf: 0),
+        ])
+        XCTAssertEqual(
+            summary.splitSentences[1],
+            "The property tests ran again on their own for 3 kills only examples were recorded making: a property "
+                + "failed too for 1, which count as by both, and every property passed for 1; 1 timed out or didn't "
+                + "build, which settles nothing."
+        )
+    }
+
     // MARK: - What the reports say
 
     func test_theSentences_giveEachShareOfTheScoredMutants_andSayWhenTheCountsAreBounds() throws {

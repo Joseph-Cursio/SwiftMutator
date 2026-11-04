@@ -7,7 +7,7 @@ enum ResumeCheck {
     /// Configuration keys no outcome depends on: a change is only said. Where one worker tests, on the destination or
     /// on a simulator of its own (`oneWorkerSimulator`), can change a kill's kind, but not whether it is killed.
     /// `failUnder` judges the score once the run finishes, never a result, and `propertyTests` only splits the kills
-    /// the reports count.
+    /// the reports count, which `propertyTestFilter`'s runs only settle.
     static let keysThatDontAffectOutcomes: Set = [
         MuterConfiguration.CodingKeys.mutationTestWorkers.stringValue,
         MuterConfiguration.CodingKeys.stopAtFirstFailure.stringValue,
@@ -20,6 +20,7 @@ enum ResumeCheck {
         MuterConfiguration.CodingKeys.keepLogFolders.stringValue,
         MuterConfiguration.CodingKeys.failUnder.stringValue,
         MuterConfiguration.CodingKeys.propertyTests.stringValue,
+        MuterConfiguration.CodingKeys.propertyTestFilter.stringValue,
     ]
 
     /// The key of a mutant's time limit, `mutationTestTimeout`, which a resume or a reuse lets lengthen
