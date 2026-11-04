@@ -132,6 +132,8 @@ extension MutationTestObserver {
             logger.stopAtFirstFailureTurnedOff(reason: reason)
         case let .testBundlesNotRunDirectly(reason):
             logger.testBundlesNotRunDirectly(reason: reason)
+        case .workersShareUserDefaults:
+            logger.workersShareUserDefaults()
         case let .controlRunFinished(control):
             logger.controlRunFinished(control)
         case let .timeoutRerunsStarted(reruns):

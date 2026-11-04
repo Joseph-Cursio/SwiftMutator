@@ -51,6 +51,8 @@ enum RunEvent {
     case stopAtFirstFailureTurnedOff(reason: String)
     /// Each mutant's tests run through `swift test`, as the bundles can't be run directly (see `DirectTestRun`).
     case testBundlesNotRunDirectly(reason: String)
+    /// More than one worker tests mutants through `swift test`, so their tests share `UserDefaults.standard` (#92).
+    case workersShareUserDefaults
     /// A control run, with no mutant on, among the mutants, once its line is written. Never counted in the progress.
     case controlRunFinished(ControlRunFinished)
     /// Once every mutant is tested on more than one worker, the timeouts that are tested again, on fewer.
