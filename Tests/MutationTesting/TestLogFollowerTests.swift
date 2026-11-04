@@ -164,6 +164,45 @@ final class TestLogFollowerTests: XCTestCase {
         XCTAssertNil(line)
     }
 
+    // The real logs `ThreeBundleLogTests` describes: SwiftProjectLint's three test bundles at commit 76fcfca9, with
+    // the machine's paths replaced.
+    func test_ofARealFailingLog_stopsAtItsFailedTestLine_andNotBefore() async throws {
+        let log = try logFixture(named: "testRunWithFailures_swiftTesting_threeBundles.log")
+        let failedTestLine = "✘ Test mixedChainOnlyFlagsBadPairs() recorded an issue at "
+            + "ModifierOrderVisitorTests.swift:239:9: Expectation failed: visitor.detectedIssues.count == 1"
+        let start = try XCTUnwrap(log.range(of: Data(failedTestLine.utf8))).lowerBound
+        try writer.write(contentsOf: log[..<start])
+        let following = follow()
+
+        // Everything before the failed test's line: the XCTest summaries, and the lines the tests print.
+        let returnedEarly = XCTestExpectation(description: "the follower returned before the failed test's line")
+        let early = Task {
+            _ = await following.task.value
+            returnedEarly.fulfill()
+        }
+        addTeardownBlock { early.cancel() }
+        let waited = await XCTWaiter().fulfillment(of: [returnedEarly], timeout: 0.2)
+        XCTAssertEqual(waited, .timedOut, "it stopped before the failed test's line")
+        try writer.write(contentsOf: log[start...])
+
+        let line = await following.value
+        XCTAssertEqual(line, .failedTest(line: failedTestLine))
+    }
+
+    // The passing log is a megabyte, sixteen reads. The line after it shows the follower read all of it without
+    // stopping, which a follower cancelled before it got there wouldn't.
+    func test_ofARealPassingLog_neverStops() async throws {
+        let log = try logFixture(named: "testRunWithoutFailures_swiftTesting_threeBundles.log")
+        XCTAssertGreaterThan(log.count, 10 * TestLogFollower.readSize)
+        let lineAfterTheLog = "✘ Test afterTheLog() recorded an issue at AfterTests.swift:1:1: x"
+        try writer.write(contentsOf: log)
+        try write(lineAfterTheLog + "\n")
+
+        let line = await follow().value
+
+        XCTAssertEqual(line, .failedTest(line: lineAfterTheLog))
+    }
+
     func test_returnsNilWhenTheLogCannotBeOpened() async {
         let missingLog = logFileUrl.deletingLastPathComponent().appendingPathComponent("missing.log")
         let started = Date()
@@ -178,6 +217,11 @@ final class TestLogFollowerTests: XCTestCase {
 
     private func write(_ text: String) throws {
         try writer.write(contentsOf: Data(text.utf8))
+    }
+
+    /// The bytes of the log fixture `name`, as the test command wrote them.
+    private func logFixture(named name: String) throws -> Data {
+        try Data(contentsOf: URL(fileURLWithPath: "\(fixturesDirectory)/TestLogsForParsing/\(name)"))
     }
 
     /// Follows the log at `url`, this test's unless given, and cancels the follower after `timeout` seconds,
