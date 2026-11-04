@@ -1083,7 +1083,7 @@ final class PerformMutationTestingTests: MuterTestCase {
 
         _ = try await sut.run(with: state)
 
-        XCTAssertEqual(fileManager.contentsAtPath, ["/project/Sources/Bar.swift"])
+        XCTAssertEqual(fileManager.contentsAtPath, ["/project/Sources/Bar.swift", "/project/muter.triage.yml"])
         let run = try XCTUnwrap(sent().first?.object as? OneMutantRun)
         XCTAssertEqual(sent().count, 1)
         XCTAssertEqual(run.key, key)
@@ -1218,7 +1218,35 @@ final class PerformMutationTestingTests: MuterTestCase {
         _ = try await sut.run(with: state)
 
         XCTAssertTrue(sent().isEmpty)
-        XCTAssertTrue(fileManager.contentsAtPath.isEmpty, "\(fileManager.contentsAtPath)")
+        XCTAssertEqual(fileManager.contentsAtPath, ["/project/muter.triage.yml"], "its labels alone: no source file")
+    }
+
+    func test_aRun_reportsWithTheProjectsLabels() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        fileManager.fileContentsToReturn = Data(
+            "mutants:\n- mutant: Sources/A.swift:3:9 RelationalOperatorReplacement\n  label: equivalent\n".utf8
+        )
+        let finished = recordEvents(named: [.mutationTestingFinished])
+
+        _ = try await sut.run(with: state)
+
+        let outcome = try XCTUnwrap(finished().first?.object as? MutationTestOutcome)
+        XCTAssertEqual(outcome.triage?.path, "/project/muter.triage.yml")
+        XCTAssertEqual(outcome.triage?.entries.map(\.label), [.equivalent])
+    }
+
+    // The run checked it as it started: one that broke since mustn't cost a long run its report.
+    func test_aTriageFileThatBrokeDuringTheRun_costsOnlyItsLabels() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        fileManager.fileContentsToReturn = Data("mutants: [".utf8)
+        let finished = recordEvents(named: [.mutationTestingFinished])
+
+        _ = try await sut.run(with: state)
+
+        let outcome = try XCTUnwrap(finished().first?.object as? MutationTestOutcome)
+        XCTAssertNil(outcome.triage)
+        let warned = standardError.linesPassed.contains { $0.contains("no triage labels") }
+        XCTAssertTrue(warned, "\(standardError.linesPassed)")
     }
 
     private static let ternarySource = "func pick(_ flag: Bool) -> Int {\n    return flag ? 1 : 2\n}\n"

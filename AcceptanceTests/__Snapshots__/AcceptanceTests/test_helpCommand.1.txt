@@ -15,6 +15,8 @@ SUBCOMMANDS:
                           JSON.
   report                  Builds a report from a run's results file, or from
                           its shards' results files merged.
+  triage                  Labels a surviving mutant in muter.triage.yml, which
+                          the reports show. It changes no score.
   operator                Describes a given mutation operator.
 
   See 'swift-mutator help <subcommand>' for detailed help.

@@ -42,6 +42,24 @@ struct MutantKey: Hashable, Codable, CustomStringConvertible {
     }
 }
 
+extension MutantKey {
+    /// The key `text` spells whole, as `description` prints one; nil for anything that leaves out its column or
+    /// operator, as a `MutantReference` may.
+    init?(wholeDescription text: String) {
+        guard let reference = try? MutantReference.parse(text),
+              let column = reference.column,
+              let mutationOperatorId = reference.mutationOperatorId
+        else { return nil }
+        self.init(
+            path: reference.path,
+            mutationOperatorId: mutationOperatorId,
+            line: reference.line,
+            column: column,
+            occurrence: reference.occurrence ?? 0
+        )
+    }
+}
+
 /// Paths in a results file: relative to the mutated project, so the results of a project that moved, or of the
 /// same project on another Mac, still match. Exactly invertible for the absolute paths SwiftMutator discovers, so a
 /// report rebuilt from the file shows the paths the run showed.

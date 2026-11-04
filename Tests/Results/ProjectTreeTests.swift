@@ -89,6 +89,7 @@ final class ProjectTreeTests: XCTestCase {
             "muter-mappings.json": "pruned",
             ".swiftmutator-active-mutant": "pruned",
             "muter.xctestrun": "pruned",
+            "muter.triage.yml": "pruned",
         ])
         try git("init", in: project)
         try git("add", "-f", ".", in: project)

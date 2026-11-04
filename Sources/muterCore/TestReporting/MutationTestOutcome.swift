@@ -29,6 +29,8 @@ struct MutationTestOutcome {
     /// (`PropertyKillSummary`): the run's configuration's, or its last session's as its header records it, unless
     /// `report --property-tests` gives others. Empty splits none.
     var propertyTests: [String]
+    /// The labels people gave surviving mutants (`TriageFile`), which the reports show; nil without a file.
+    var triage: TriageFile?
     /// The control runs, with no mutant on, of every session the outcome covers, in the order they're recorded.
     let controlRuns: [ControlRun]
     /// The project, and its mutated copy, by their absolute paths: what the reports give each file's path relative to.
@@ -56,6 +58,7 @@ struct MutationTestOutcome {
         suspectTestThresholds: SuspectTestThresholds = .standard,
         failUnder: Double? = nil,
         propertyTests: [String] = [],
+        triage: TriageFile? = nil,
         controlRuns: [ControlRun] = [],
         projectPath: String = "",
         mutatedProjectPath: String = "",
@@ -75,6 +78,7 @@ struct MutationTestOutcome {
         self.suspectTestThresholds = suspectTestThresholds
         self.failUnder = failUnder
         self.propertyTests = propertyTests
+        self.triage = triage
         self.controlRuns = controlRuns
         self.projectPath = projectPath
         self.mutatedProjectPath = mutatedProjectPath
@@ -84,6 +88,15 @@ struct MutationTestOutcome {
 }
 
 extension MutationTestOutcome: Equatable {}
+
+extension MutationTestOutcome {
+    /// Whether a file's mutants may be missing from these results although the code is there: `--mutant`, `--shard`,
+    /// `--sample` and `--since --changed-lines` test some of a file's mutants, and a run that stopped has tested only
+    /// some. A plain `--since` tests whole files. `sampleIsCutShort` is set for any run that stopped, sampled or not.
+    var leavesOutSomeMutants: Bool {
+        mutant != nil || shards != nil || sample != nil || since?.changedLines == true || sampleIsCutShort
+    }
+}
 
 extension MutationTestOutcome {
     struct Mutation: Equatable {
