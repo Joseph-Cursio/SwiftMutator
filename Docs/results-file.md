@@ -109,7 +109,7 @@ A run of a test plan copies nothing. It hashes the files in the plan's copy once
 |---|---|
 | `listedBy` | `git` or `walk`. `git`: `git ls-files --cached --others --exclude-standard`, run in your project, not in the copy. That lists tracked files, and untracked ones that neither your project's ignore files nor your global ones ignore. A nested repository or submodule is listed by its own git. `walk`: every file, when the project isn't in a git repository, is in a folder its repository ignores (where git lists none of its untracked files), or git fails. |
 | `files` | Each file's SHA-256, by its path relative to the project. A symbolic link's is `link:` followed by the SHA-256 of the path it points to; it is never followed. A local package outside the project has its files under its path from the project, such as `../Core/Sources/Core/Core.swift`. |
-| `excluded` | The `-o` report and its `.partial` sibling, which the run writes itself, and the configuration file it loads, such as `muter.conf.yml`, whose settings `configuration` records, when they are inside the project. They are left out of `files`: a resume compares the configuration key by key instead, so a change of `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `keepAllLogs` or `keepLogFolders` doesn't refuse it. |
+| `excluded` | The `-o` report and its `.partial` sibling, which the run writes itself, and the configuration file it loads, such as `muter.conf.yml`, whose settings `configuration` records, when they are inside the project. They are left out of `files`: a resume compares the configuration key by key instead, so a change of `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `keepAllLogs`, `keepLogFolders` or `failUnder` doesn't refuse it. |
 | `treeSHA256` | The SHA-256 of every file's path, a NUL, its hash and a line break, sorted by path. Two trees with the same files and hashes have the same `treeSHA256`. |
 
 A resumed session's header records `projectDelta` instead: only what changed since the last session's tree, which is usually nothing, where a whole `project` on SwiftProjectLint took about 205 KB. The whole tree is the last session's, with `files` added or replacing theirs, without `removed`, and with this `listedBy` and `excluded`. SwiftMutator makes it again as it reads the file, from the tree whose `treeSHA256` is `baseTreeSHA256`, and checks that it comes to this `treeSHA256`. If it doesn't, or no earlier header has that tree, the header doesn't read, and nor do its session's lines, so a resume tests their mutants again.
@@ -292,7 +292,7 @@ New keys and new kinds of line are added without changing `formatVersion`, so a 
 `swift-mutator report` makes a run's report from its results file, in any of the formats `run` writes:
 
 ```
-swift-mutator report <results>… [-f plain|json|html|xcode] [-o <path>] [--summary <path>] [--force-merge] [--merge-ignoring <glob>]…
+swift-mutator report <results>… [-f plain|json|html|xcode] [-o <path>] [--fail-under <percent>] [--summary <path>] [--force-merge] [--merge-ignoring <glob>]…
 ```
 
 One results file is reported as it is. The results files of a `run --shard` split's shards, one alone included, are merged first ([Shards](#shards)).
@@ -312,7 +312,12 @@ It only reads the results file: it mutates nothing, prints no banner and makes n
 - **`-o`** saves the report at that path, replacing any file there.
   - The path is used exactly as given. A report of a stopped run isn't named `.partial`, as `run`'s partial report is, because you chose the name.
   - A path that would destroy what is there is refused before anything is printed: the results file itself, by any name (through a symbolic link, a hard link, or a different case on a case-insensitive volume), and a folder.
-- **`--summary`** also saves the run's [summary.json](../README.md#summaryjson) at that path, with `ended` from the last session's end line; for merged shards, `aborted` if a shard was, else `interrupted` if one was, else `finished`, and left out when a shard has no end line or the file of a shard that holds mutants wasn't given. The same paths are refused as for `-o`, and so is `-o`'s own, even spelled in another case on a volume that ignores case: the summary is then refused once the report is saved.
+- **`--fail-under`** checks the report's headline score against a percent from 0 to 100, with up to 6 decimals, once the report is made, as a run checks its own ([Failing on a low score](../README.md#failing-on-a-low-score)): the exact score, so a score equal to it passes. Below it, `report` exits with 2. The verdict comes last on standard error: `Mutation score 71.4% is below the required 80%.` `report` reads no configuration, so only this flag sets a threshold, never the run's `failUnder`.
+  - **One results file** is checked on what it holds. For a run that was interrupted or has no end line, the verdict says how many of its mutants have results: `… Only 1103 of 2497 mutants have results, as the run didn't finish.` A run that stopped on an error exits as it did, and its score isn't checked: `The required 80% isn't checked: the run stopped on an error.`
+  - **Shards' files** are checked on the merged score, the whole run's. When the merged report lacks results, it exits as it would without the flag, and says `The required 80% isn't checked: the merged report lacks results.`
+  - **A run of one mutant** (`--mutant`) isn't checked: its score isn't the project's.
+  - **Nothing scored**, as when every mutant is a build error, passes.
+- **`--summary`** also saves the run's [summary.json](../README.md#summaryjson) at that path, with `ended` from the last session's end line; for merged shards, `aborted` if a shard was, else `interrupted` if one was, else `finished`, and left out when a shard has no end line or the file of a shard that holds mutants wasn't given. The same paths are refused as for `-o`, and so is `-o`'s own, even spelled in another case on a volume that ignores case: the summary is then refused once the report is saved. With `--fail-under`, its `gate` holds the verdict: `gate.failUnder` is the threshold `report` checked, and `run.configuration.failUnder`, if the header has one, the run's own.
 
 ### What the report holds
 
@@ -374,8 +379,9 @@ The report doesn't say whether the run finished. The status on standard error do
 
 ### Exit status
 
-- **0** when the report was made, an empty one included, unless the run stopped on an error.
-- **255** when the report was made of a run that stopped on an error, its last session's end line `aborted`: the status the run itself exited with, so a script that checks the report fails as one that checked the run would. The report and the status come first, as for any other run. Shards' files exit with it whenever the report is known to lack results ([Shards](#shards)).
+- **0** when the report was made, an empty one included, unless the run stopped on an error or the score is below `--fail-under`.
+- **2** when the score is below `--fail-under`. The report, the status and the summary come first.
+- **4** or **255** when the report was made of a run that stopped on an error, its last session's end line `aborted`: the status the run itself exited with, so a script that checks the report fails as one that checked the run would. 4 is for an abort, whose `detail` names its reason, such as `tooManyBuildErrors`; 255 for any other error. A run whose baseline failed, which exits with 3, never gets here: a first session's results file is made only once its baseline has passed, and a resumed session whose baseline fails writes nothing to the file. The report and the status come first, as for any other run. Shards' files exit with 4, or a stopped shard's status, whenever the report is known to lack results ([Shards](#shards)). An error's status wins over `--fail-under`, which then isn't checked. Earlier SwiftMutators exited with 255 for both.
 - **1** with `Error: …` on standard error, when:
   - the path is missing or can't be read;
   - the file isn't a results file, because it has no header line;
@@ -431,7 +437,7 @@ Shard 2 of 2, 1232 of its 1235 mutants, from …/results.jsonl: the run was inte
 - Which sessions tested a file's results, and lines skipped in it, are said for its shard, after its own line: `In shard 2 of 2's file: of these, 300 were tested in the last session, session 2, and 932 in session 1.` The first line gives no such count, as the shards' sessions differ.
 - What `--force-merge` and `--merge-ignoring` let through is said, as is a shard whose own sessions let changes through when it was resumed or reused, by their headers' `forced` or `waived`.
 
-`report` exits with 255 whenever the report is known to lack results: any shard's last session stopped on an error; a shard has fewer results than its header's `mutantsDiscovered`, as one that was interrupted, killed or is still running has; or a shard that holds mutants has no file among those given. So a CI job that checks the merged report fails as one that checked every shard's run would. Discoveries that differ only warn: each shard has its own mutants' results.
+`report` exits with the status of the first shard, by its index, that stopped on an error, as that shard's run did, 4 or 255, and otherwise with 4, whenever the report is known to lack results: any shard's last session stopped on an error; a shard has fewer results than its header's `mutantsDiscovered`, as one that was interrupted, killed or is still running has; or a shard that holds mutants has no file among those given, as a shard whose baseline failed, which writes none. `--fail-under` then isn't checked. So a CI job that checks the merged report fails as one that checked every shard's run would. Discoveries that differ only warn: each shard has its own mutants' results.
 
 ## `jq` recipes
 

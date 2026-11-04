@@ -1,3 +1,4 @@
+import ArgumentParser
 import Foundation
 
 extension RecordedResults {
@@ -77,6 +78,21 @@ extension RecordedResults {
         sessions.last?.end?.reason == .aborted
     }
 
+    /// The status the run exited with for the error it stopped on, as its last session's end line says, which `report`
+    /// exits with too; nil when it didn't stop on one (`ResultsEnd.exitStatus`).
+    var exitStatus: ExitCode? {
+        sessions.last?.end?.exitStatus
+    }
+
+    /// How many of the mutants discovered have results, for a run that didn't finish and lacks some: `report` says it
+    /// with its verdict on the score. nil once the last session finished, or when every mutant has a result.
+    var unfinishedProgress: ScoreGate.Progress? {
+        guard sessions.last?.end?.reason != .finished else { return nil }
+        let discovered = headers.last?.mutantsDiscovered ?? latest.count
+        guard latest.count < discovered else { return nil }
+        return ScoreGate.Progress(results: latest.count, discovered: discovered)
+    }
+
     /// How many results `--reuse` kept, `kept` counting them by the results file each was first tested in; nil when
     /// it kept none.
     private static func keptPhrase(_ kept: [String: Int]) -> String? {
@@ -103,5 +119,17 @@ extension RecordedResults {
         case .aborted:
             return "the run stopped on an error" + (end.detail.map { " (\($0))" } ?? "")
         }
+    }
+}
+
+extension ResultsEnd {
+    /// The status the session exited with, for one that stopped on an error, from the abort reason its `detail` names
+    /// (`detail(for:)`), as the run did (`ExitCode.exitStatus(afterRunFailedWith:)`): that reason's kind's status
+    /// (`MutationTestingAbortReason.Kind.exitStatus`), and `stoppedOnAnError` for any other error. nil for a session
+    /// that finished or was interrupted.
+    var exitStatus: ExitCode? {
+        guard reason == .aborted else { return nil }
+        let code = detail.map { String($0.prefix { $0 != "(" }) }
+        return code.flatMap(MutationTestingAbortReason.Kind.init(rawValue:))?.exitStatus ?? .stoppedOnAnError
     }
 }

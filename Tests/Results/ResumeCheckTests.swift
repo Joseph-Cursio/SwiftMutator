@@ -151,6 +151,17 @@ final class ResumeCheckTests: XCTestCase {
         XCTAssertEqual(verdict.notices, ["buildTimeout was 900 and is 1800 now, which no result depends on."])
     }
 
+    // It judges the score once the run finishes, never a mutant's result.
+    func test_aChangedFailUnder_onlyNotifies() {
+        let recorded = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"], failUnder: 80)
+        let changed = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"], failUnder: 72.5)
+
+        let verdict = check(current(configuration: changed), recorded: header(of: current(configuration: recorded)))
+
+        XCTAssertEqual(verdict.refusals, [])
+        XCTAssertEqual(verdict.notices, ["failUnder was 80 and is 72.5 now, which no result depends on."])
+    }
+
     func test_everyConfigurationKeyButSeven_isCompared() {
         // A new configuration key is compared unless it is added to keysThatDontAffectOutcomes, and fails this test
         // either way, so each one is a decision.
@@ -179,6 +190,7 @@ final class ResumeCheckTests: XCTestCase {
             [
                 "buildTimeout was not set and is 600 now, which no result depends on.",
                 "controlRunEvery was not set and is 50 now, which no result depends on.",
+                "failUnder was not set and is 80 now, which no result depends on.",
                 "keepAllLogs was not set and is true now, which no result depends on.",
                 "keepLogFolders was not set and is 3 now, which no result depends on.",
                 "mutationTestWorkers was not set and is 4 now, which no result depends on.",
@@ -219,6 +231,7 @@ final class ResumeCheckTests: XCTestCase {
                 .init(name: "exclude", was: "[]", isNow: #"["Generated"]"#),
                 .init(name: "excludeCalls", was: "[]", isNow: #"["print"]"#),
                 .init(name: "executable", was: #""""#, isNow: #""/usr/bin/swift""#),
+                .init(name: "failUnder", was: nil, isNow: "80"),
                 .init(name: "keepAllLogs", was: nil, isNow: "true"),
                 .init(name: "keepLogFolders", was: nil, isNow: "3"),
                 .init(name: "mutationTestTimeout", was: nil, isNow: "30"),

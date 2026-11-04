@@ -363,15 +363,15 @@ final class ReportCommandTests: MuterTestCase {
         XCTAssertEqual(try String(contentsOfFile: "\(reports)/old.txt", encoding: .utf8), "last week's report")
     }
 
-    // A script that checks the report fails as one that checked the run would: the run exited 255 through `exit(-1)`.
-    // The report and the status are still given first, and ArgumentParser prints nothing more.
+    // A script that checks the report fails as one that checked the run would: the run exited 4 for its abort. The
+    // report and the status are still given first, and ArgumentParser prints nothing more.
     func test_aRunThatStoppedOnAnError_isReported_thenExitsAsTheRunDid() async throws {
         let end = ResultsEnd.make(reason: .aborted, detail: "mutantNotSwitchedOn")
         try write(ResultsHeader.make(), alpha3, end, to: resultsPath)
 
         await AssertThrowsError(try await report(resultsPath)) { error in
-            XCTAssertEqual(error as? ExitCode, Report.stoppedOnAnError)
-            XCTAssertEqual(MuterCommand.exitCode(for: error).rawValue, -1)
+            XCTAssertEqual(error as? ExitCode, .abortedMidRun)
+            XCTAssertEqual(MuterCommand.exitCode(for: error).rawValue, 4)
             XCTAssertEqual(MuterCommand.fullMessage(for: error), "")
         }
         XCTAssertEqual(printer.linesPassed.count, 1)
@@ -567,7 +567,7 @@ final class ReportCommandTests: MuterTestCase {
         try write(shardHeader(1, mutantsDiscovered: 2), zeta9, alpha3, ResultsEnd.make(), to: resultsPath)
 
         await AssertThrowsError(try await report(resultsPath)) { error in
-            XCTAssertEqual(error as? ExitCode, Report.stoppedOnAnError)
+            XCTAssertEqual(error as? ExitCode, .abortedMidRun)
         }
 
         XCTAssertTrue(
@@ -597,7 +597,7 @@ final class ReportCommandTests: MuterTestCase {
     }
 
     // A CI job that checks the merged report fails, as the missing shard's own job may not have.
-    func test_aShardThatHoldsMutantsButIsntGiven_isReported_thenExitsAsAStoppedRunDoes() async throws {
+    func test_aShardThatHoldsMutantsButIsntGiven_isReported_thenExitsAsAnAbortedRunDoes() async throws {
         let split = [2, 1, 1]
         try write(
             shardHeader(1, count: 3, mutantsDiscovered: 2, mutantsPerShard: split),
@@ -614,7 +614,7 @@ final class ReportCommandTests: MuterTestCase {
         )
 
         await AssertThrowsError(try await report("\(directory)/1.jsonl", "\(directory)/3.jsonl")) { error in
-            XCTAssertEqual(error as? ExitCode, Report.stoppedOnAnError)
+            XCTAssertEqual(error as? ExitCode, .abortedMidRun)
         }
         XCTAssertEqual(printer.linesPassed.count, 1)
         XCTAssertEqual(
@@ -661,6 +661,147 @@ final class ReportCommandTests: MuterTestCase {
             XCTAssertTrue(report.forceMerge)
             XCTAssertEqual(report.mergeIgnoring, ["*.md"])
         }
+    }
+
+    // CI can gate on a results file it already has. The report and the status come first, and the verdict last, on
+    // standard error; the status is the threshold's own, and ArgumentParser prints nothing more.
+    func test_failUnder_aScoreBelowIt_exits2_afterTheReport() async throws {
+        try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
+
+        await AssertThrowsError(try await report(resultsPath, "--fail-under", "50")) { error in
+            XCTAssertEqual(error as? ExitCode, .scoreBelowThreshold)
+            XCTAssertEqual(MuterCommand.exitCode(for: error).rawValue, 2)
+            XCTAssertEqual(MuterCommand.fullMessage(for: error), "")
+        }
+        XCTAssertEqual(printer.linesPassed, [PlainTextReporter().report(from: expected)])
+        XCTAssertEqual(standardError.linesPassed, [
+            "Report of 3 of 3 mutants, from \(resultsPath): the run finished.",
+            "Mutation score 33.3% is below the required 50%.",
+        ])
+    }
+
+    // Exactly 33.33…%, which the threshold's one decimal shows as it is.
+    func test_failUnder_aScoreAtOrAboveIt_exits0() async throws {
+        try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
+
+        try await report(resultsPath, "--fail-under", "33.3")
+
+        XCTAssertEqual(standardError.linesPassed.last, "Mutation score 33.3% meets the required 33.3%.")
+    }
+
+    // The run's error wins (#110): the score of what it tested isn't the project's.
+    func test_failUnder_ofARunThatStoppedOnAnError_isntChecked_andExitsAsTheRunDid() async throws {
+        for (detail, status) in [("tooManyBuildErrors", ExitCode.abortedMidRun), ("MuterError", .stoppedOnAnError)] {
+            let end = ResultsEnd.make(reason: .aborted, detail: detail)
+            try write(ResultsHeader.make(), alpha3, end, to: resultsPath)
+
+            await AssertThrowsError(try await report(resultsPath, "--fail-under", "100")) { error in
+                XCTAssertEqual(error as? ExitCode, status, detail)
+            }
+            XCTAssertEqual(
+                standardError.linesPassed.last,
+                "The required 100% isn't checked: the run stopped on an error.",
+                detail
+            )
+        }
+    }
+
+    // What was tested is checked, and the verdict says it is partial; the job that ran it already got its signal.
+    func test_failUnder_ofARunThatDidntFinish_checksWhatWasTested() async throws {
+        for end in [ResultsEnd.make(reason: .interrupted, detail: "SIGINT"), nil] {
+            try write([ResultsHeader.make(), zeta9] + [end].compactMap { $0 }, to: resultsPath)
+
+            await AssertThrowsError(try await report(resultsPath, "--fail-under", "50")) { error in
+                XCTAssertEqual(error as? ExitCode, .scoreBelowThreshold)
+            }
+            XCTAssertEqual(
+                standardError.linesPassed.last,
+                "Mutation score 0.0% is below the required 50%. Only 1 of 3 mutants have results, as the run didn't "
+                    + "finish."
+            )
+        }
+    }
+
+    // The merged score is the whole run's.
+    func test_failUnder_ofMergedShards_checksTheMergedScore() async throws {
+        let first = "\(directory)/1.jsonl"
+        let second = "\(directory)/2.jsonl"
+        try write(shardHeader(1, mutantsDiscovered: 2), zeta9, alpha3, ResultsEnd.make(), to: first)
+        try write(shardHeader(2, mutantsDiscovered: 1), zeta10, ResultsEnd.make(), to: second)
+
+        await AssertThrowsError(try await report(first, second, "--fail-under", "34")) { error in
+            XCTAssertEqual(error as? ExitCode, .scoreBelowThreshold)
+        }
+        XCTAssertEqual(standardError.linesPassed.last, "Mutation score 33.3% is below the required 34%.")
+
+        try await report(first, second, "--fail-under", "33")
+        XCTAssertEqual(standardError.linesPassed.last, "Mutation score 33.3% meets the required 33%.")
+    }
+
+    // As without the threshold: the merge lacks results, so the whole run didn't test every mutant.
+    func test_failUnder_ofShardsThatLackResults_isntChecked_andExits4() async throws {
+        try write(shardHeader(1, mutantsDiscovered: 2), zeta9, alpha3, ResultsEnd.make(), to: resultsPath)
+
+        await AssertThrowsError(try await report(resultsPath, "--fail-under", "10")) { error in
+            XCTAssertEqual(error as? ExitCode, .abortedMidRun)
+        }
+        XCTAssertEqual(
+            standardError.linesPassed.last,
+            "The required 10% isn't checked: the merged report lacks results."
+        )
+    }
+
+    // Scripts read the verdict from the summary; the threshold checked, which needn't be the run's own.
+    func test_failUnder_isRecordedInTheSummary() async throws {
+        try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
+        let summaryPath = "\(directory)/summary.json"
+
+        await AssertThrowsError(try await report(resultsPath, "--fail-under", "50", "--summary", summaryPath))
+
+        let saved = try String(contentsOfFile: summaryPath, encoding: .utf8)
+        let gate = try XCTUnwrap(parsedJSON(saved)["gate"] as? NSDictionary, saved)
+        XCTAssertEqual(gate, ["failUnder": 50, "passed": false, "score": 100.0 / 3])
+        XCTAssertEqual(standardError.linesPassed.suffix(2), [
+            "Summary saved to \(summaryPath)",
+            "Mutation score 33.3% is below the required 50%.",
+        ])
+    }
+
+    // `report` reads no configuration, so the run's own failUnder, which its header records, is never checked: only
+    // `--fail-under` sets a threshold, so a plain `report` of a low score exits 0 whatever the run required.
+    func test_failUnder_theRunsOwn_isntChecked_onlyTheFlag() async throws {
+        let configuration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"], failUnder: 80)
+        let header = ResultsHeader.make(configuration: configuration)
+        try write(header, zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
+        let summaryPath = "\(directory)/summary.json"
+
+        try await report(resultsPath, "--summary", summaryPath)
+
+        let saved = try String(contentsOfFile: summaryPath, encoding: .utf8)
+        let summary = try parsedJSON(saved)
+        XCTAssertNil(summary["gate"], saved)
+        let run = try XCTUnwrap(summary["run"] as? NSDictionary, saved)
+        XCTAssertEqual((run["configuration"] as? NSDictionary)?["failUnder"] as? Double, 80, saved)
+        XCTAssertEqual(standardError.linesPassed.last, "Summary saved to \(summaryPath)")
+        XCTAssertFalse(standardError.linesPassed.contains { $0.contains("required") }, "\(standardError.linesPassed)")
+
+        // The flag's threshold is checked in its place, below the run's own.
+        try await report(resultsPath, "--fail-under", "30", "--summary", summaryPath)
+
+        let gate = try parsedJSON(String(contentsOfFile: summaryPath, encoding: .utf8))["gate"] as? NSDictionary
+        XCTAssertEqual(gate?["failUnder"] as? Double, 30)
+        XCTAssertEqual(standardError.linesPassed.last, "Mutation score 33.3% meets the required 30%.")
+    }
+
+    func test_failUnder_withoutIt_theSummaryHasNoGate() async throws {
+        try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
+        let summaryPath = "\(directory)/summary.json"
+
+        try await report(resultsPath, "--summary", summaryPath)
+
+        let saved = try String(contentsOfFile: summaryPath, encoding: .utf8)
+        XCTAssertNil(try parsedJSON(saved)["gate"], saved)
+        XCTAssertEqual(standardError.linesPassed.last, "Summary saved to \(summaryPath)")
     }
 }
 

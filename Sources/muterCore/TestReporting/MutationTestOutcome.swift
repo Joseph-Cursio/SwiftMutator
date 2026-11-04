@@ -22,6 +22,9 @@ struct MutationTestOutcome {
     let mutant: String?
     /// When a test is suspect: the run's configuration's, or its last session's as its header records it.
     let suspectTestThresholds: SuspectTestThresholds
+    /// The run's threshold for its score, its configuration's `failUnder` or `--fail-under`'s, which `ScoreGate`
+    /// checks; nil without one, and for an outcome read from a results file, as `report` checks only its own flag.
+    let failUnder: Double?
     /// The control runs, with no mutant on, of every session the outcome covers, in the order they're recorded.
     let controlRuns: [ControlRun]
     /// The project, and its mutated copy, by their absolute paths: what the reports give each file's path relative to.
@@ -47,6 +50,7 @@ struct MutationTestOutcome {
         sampleIsCutShort: Bool = false,
         mutant: String? = nil,
         suspectTestThresholds: SuspectTestThresholds = .standard,
+        failUnder: Double? = nil,
         controlRuns: [ControlRun] = [],
         projectPath: String = "",
         mutatedProjectPath: String = "",
@@ -64,6 +68,7 @@ struct MutationTestOutcome {
         self.sampleIsCutShort = sampleIsCutShort
         self.mutant = mutant
         self.suspectTestThresholds = suspectTestThresholds
+        self.failUnder = failUnder
         self.controlRuns = controlRuns
         self.projectPath = projectPath
         self.mutatedProjectPath = mutatedProjectPath

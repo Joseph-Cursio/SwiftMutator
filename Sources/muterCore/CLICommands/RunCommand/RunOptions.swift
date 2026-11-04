@@ -27,6 +27,8 @@ extension Run {
         let workers: Int?
         /// `--timeout`: seconds before a mutant's test run is stopped, in place of `mutationTestTimeout`.
         let timeout: Double?
+        /// `--fail-under`: the percent below which a finished run's score fails it, in place of `failUnder`.
+        let failUnder: Double?
         let createTestPlan: Bool
         /// The results file, or the log folder of one of its sessions, of the run that `--resume` continues.
         let resumeURL: URL?
@@ -74,6 +76,7 @@ extension Run {
             testPlanURL: URL? = nil,
             workers: Int? = nil,
             timeout: Double? = nil,
+            failUnder: Double? = nil,
             createTestPlan: Bool = false,
             resumeURL: URL? = nil,
             reuseURL: URL? = nil,
@@ -95,6 +98,7 @@ extension Run {
             self.testPlanURL = testPlanURL
             self.workers = workers
             self.timeout = timeout
+            self.failUnder = failUnder
             self.resumeURL = resumeURL
             self.reuseURL = reuseURL
             self.resumeIgnoring = resumeIgnoring
@@ -131,6 +135,7 @@ extension Run.Options: Equatable {
             lhs.testPlanURL == rhs.testPlanURL &&
             lhs.workers == rhs.workers &&
             lhs.timeout == rhs.timeout &&
+            lhs.failUnder == rhs.failUnder &&
             lhs.createTestPlan == rhs.createTestPlan &&
             lhs.resumeURL == rhs.resumeURL &&
             lhs.reuseURL == rhs.reuseURL &&
@@ -161,6 +166,7 @@ extension Run.Options: Nullable {
             testPlanURL: nil,
             workers: nil,
             timeout: nil,
+            failUnder: nil,
             createTestPlan: false,
             resumeURL: nil,
             reuseURL: nil,

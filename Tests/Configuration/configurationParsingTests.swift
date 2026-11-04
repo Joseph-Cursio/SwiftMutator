@@ -256,6 +256,65 @@ final class ConfigurationParsingTests: MuterTestCase {
         XCTAssertEqual(try MuterConfiguration(from: kept.asData), kept)
     }
 
+    // A percent, whole or not, from 0 to 100, both included; unset checks no score.
+    func test_parseFailUnder() throws {
+        let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
+        let failing = { (line: String) in try MuterConfiguration(from: Data("\(swiftTest)\n\(line)".utf8)) }
+
+        XCTAssertEqual(try failing("failUnder: 80").failUnder, 80)
+        XCTAssertEqual(try failing("failUnder: 72.5").failUnder, 72.5)
+        XCTAssertEqual(try failing("failUnder: 0").failUnder, 0)
+        XCTAssertEqual(try failing("failUnder: 100").failUnder, 100)
+        XCTAssertEqual(try failing("failUnder: 0.000001").failUnder, 0.000001)
+        XCTAssertNil(try MuterConfiguration(from: Data(swiftTest.utf8)).failUnder)
+        // Written back as it was, in YAML as plain digits, which a reading takes, so `init` and a migration keep it,
+        // and in JSON as a number, so a header records it.
+        let lines = [("failUnder: 80", "80"), ("failUnder: 72.5", "72.5"), ("failUnder: 0.00001", "0.00001")]
+        for (line, written) in lines {
+            let configuration = try failing(line)
+            let yaml = try configuration.asData
+            XCTAssertTrue(String(decoding: yaml, as: UTF8.self).contains("\nfailUnder: \(written)\n"), line)
+            XCTAssertEqual(try MuterConfiguration(from: yaml), configuration, line)
+            let json = try JSONEncoder().encode(configuration)
+            XCTAssertTrue(String(decoding: json, as: UTF8.self).contains("\"failUnder\":\(written)"), line)
+            XCTAssertEqual(try JSONDecoder().decode(MuterConfiguration.self, from: json), configuration, line)
+        }
+        XCTAssertFalse(try String(decoding: failing("mutationTestWorkers: 2").asData, as: UTF8.self).contains("fail"))
+    }
+
+    // A typo is a configuration error rather than "unset", and one out of range says the range.
+    func test_failUnderOutOfRange_failsToParse() {
+        let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
+        // Refused as `--fail-under` refuses them, though YAML reads most as numbers: 0x50, 8_0 and 1:20 as 80.
+        let refused = ["-1", "100.5", "1000", ".inf", ".nan", "high", "1e2", "0x50", "0o120", "8_0", "1:20", "+80"]
+            + ["80.", ".5", "0.0000001", "33.3333333"]
+        for value in refused {
+            let yaml = Data("\(swiftTest)\nfailUnder: \(value)".utf8)
+            XCTAssertThrowsError(try YAMLDecoder().decode(MuterConfiguration.self, from: yaml), value) { error in
+                XCTAssertTrue(
+                    "\(error)".contains(
+                        "failUnder must be a number from 0 to 100, with at most 6 decimals, such as 80 or 72.5, not "
+                            + value
+                    ),
+                    "\(error)"
+                )
+            }
+            XCTAssertNil(ScoreGate.percent(value), value)
+        }
+        XCTAssertThrowsError(try MuterConfiguration(from: Data("\(swiftTest)\nfailUnder: [80]".utf8)))
+        // A JSON configuration's number is checked in its shortest decimal form.
+        let numbers = [("1e-7", "0.0000001"), ("33.3333333", "33.3333333"), ("101", "101"), ("-0.5", "-0.5")]
+            + [("1e-16", "1e-16")]
+        for (number, shown) in numbers {
+            let json = Data(#"{"executable": "/usr/bin/swift", "arguments": [], "failUnder": \#(number)}"#.utf8)
+            XCTAssertThrowsError(try JSONDecoder().decode(MuterConfiguration.self, from: json), number) { error in
+                XCTAssertTrue("\(error)".hasSuffix("decimals, such as 80 or 72.5, not \(shown)"), "\(error)")
+            }
+        }
+        let json = Data(#"{"executable": "/usr/bin/swift", "arguments": [], "failUnder": 1e2}"#.utf8)
+        XCTAssertEqual(try JSONDecoder().decode(MuterConfiguration.self, from: json).failUnder, 100)
+    }
+
     func test_suspectTestThresholdsOutOfRange_failToParse() {
         let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
         for line in [
@@ -501,6 +560,26 @@ final class ConfigurationParsingTests: MuterTestCase {
                 "\(field.label ?? "a field") is at its default"
             )
         }
+    }
+
+    func test_everyKey_isWritten_andReadBack() throws {
+        // encode(to:) is written by hand, so a key added to CodingKeys but not written there would be lost from every
+        // results header and never compared on a resume.
+        let configuration = configurationWithEveryFieldSet()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        let json = try encoder.encode(configuration)
+        let written = try XCTUnwrap(JSONSerialization.jsonObject(with: json) as? [String: Any])
+
+        XCTAssertEqual(Set(written.keys), Set(MuterConfiguration.CodingKeys.allCases.map(\.stringValue)))
+        XCTAssertEqual(
+            try encoder.encode(JSONDecoder().decode(MuterConfiguration.self, from: json)),
+            json
+        )
+        XCTAssertEqual(
+            try encoder.encode(MuterConfiguration(from: configuration.asData)),
+            json
+        )
     }
 
     func test_withExecutable_keepsEveryOtherField() {

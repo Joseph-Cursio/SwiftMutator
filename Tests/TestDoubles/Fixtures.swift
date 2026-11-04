@@ -51,11 +51,28 @@ extension MutationOperator.Snapshot {
 extension MutationTestOutcome {
     static func make(
         mutations: [Mutation] = [],
-        coverage: Coverage = .null
+        coverage: Coverage = .null,
+        failUnder: Double? = nil
     ) -> MutationTestOutcome {
         MutationTestOutcome(
             mutations: mutations,
-            coverage: coverage
+            coverage: coverage,
+            failUnder: failUnder
+        )
+    }
+
+    /// An outcome with a mutant for each of `outcomes`, in a file of its own, as a run with `failUnder` reports it.
+    static func make(
+        _ outcomes: [TestSuiteOutcome],
+        failUnder: Double? = nil,
+        shards: ShardScope? = nil,
+        mutant: String? = nil
+    ) -> MutationTestOutcome {
+        MutationTestOutcome(
+            mutations: outcomes.map { .make(testSuiteOutcome: $0) },
+            shards: shards,
+            mutant: mutant,
+            failUnder: failUnder
         )
     }
 }
@@ -430,6 +447,7 @@ extension Run.Options {
         testPlanURL: URL? = nil,
         workers: Int? = nil,
         timeout: Double? = nil,
+        failUnder: Double? = nil,
         createTestPlan: Bool = false,
         resumeURL: URL? = nil,
         reuseURL: URL? = nil,
@@ -454,6 +472,7 @@ extension Run.Options {
             testPlanURL: testPlanURL,
             workers: workers,
             timeout: timeout,
+            failUnder: failUnder,
             createTestPlan: createTestPlan,
             resumeURL: resumeURL,
             reuseURL: reuseURL,
@@ -555,7 +574,8 @@ func configurationWithEveryFieldSet(
         suspectTestMinimumFiles: 5,
         controlRunEvery: 50,
         keepAllLogs: true,
-        keepLogFolders: 3
+        keepLogFolders: 3,
+        failUnder: 80
     )
     .withDirectTestRun(DirectTestRun(
         helper: "/toolchain/usr/libexec/swift/pm/swiftpm-testing-helper",

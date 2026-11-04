@@ -1,3 +1,4 @@
+import ArgumentParser
 import Foundation
 
 /// `swift-mutator report`: a run's report in any format, made from its results file. For a finished run it's the
@@ -18,11 +19,15 @@ struct ResultsReport {
     let outputPath: String?
     /// Where to save the run's `summary.json` (`RunSummary`); nil saves none.
     let summaryPath: String?
+    /// `--fail-under`: the percent below which the report's score fails it (`ScoreGate`); nil checks none. Never the
+    /// run's `failUnder`, which a CI job that didn't ask for it would then be failed by.
+    let failUnder: Double?
 
-    init(format: ReportFormat, outputPath: String?, summaryPath: String? = nil) {
+    init(format: ReportFormat, outputPath: String?, summaryPath: String? = nil, failUnder: Double? = nil) {
         self.format = format
         self.outputPath = outputPath
         self.summaryPath = summaryPath
+        self.failUnder = failUnder
     }
 
     /// Makes the report from the results files `paths` name: each the file itself, or the log folder of one of a run's
@@ -31,10 +36,16 @@ struct ResultsReport {
     /// one alone too, `forcing` build and toolchain differences through, and the project files `ignoring`'s globs
     /// match. Standard output holds the report alone
     /// (and, in the Xcode format, its warnings), so `-f json > report.json` is valid JSON; what the files hold, the
-    /// report's warning of suspect tests, and where the report went, are said on standard error. Gives whether
-    /// `report` exits as a run that stopped on an error.
+    /// report's warning of suspect tests, where the report went, and last the verdict on its score against
+    /// `failUnder`, are said on standard error.
+    ///
+    /// Gives the status `report` exits with, nil for 0: for a run that stopped on an error, the one the run itself
+    /// exited with (`ExitCode.exitStatus(afterRunFailedWith:)`), so a script that checks the report fails as one that
+    /// checked the run would; for shards whose merge lacks results, a stopped shard's, or else 4
+    /// (`MergedShards.exitStatus`); otherwise the verdict's (`ScoreGate`), which checks what the file holds, of a run
+    /// that was interrupted too, and says so. An error's status wins, and its score isn't checked.
     @discardableResult
-    func make(from paths: [String], forcing: Bool = false, ignoring: [String] = []) throws -> Bool {
+    func make(from paths: [String], forcing: Bool = false, ignoring: [String] = []) throws -> ExitCode? {
         let files = Self.withoutNotedRepeats(try paths.map { try ResultsFile.locate(at: $0, using: fileManager) })
         if let outputPath {
             try checkSaving(.report, to: outputPath, from: files)
@@ -50,16 +61,32 @@ struct ResultsReport {
             return (path: file, recorded: try RecordedResults.read(data, path: file))
         }
         if read.count == 1, let only = read.first, only.recorded.headers.last?.shard == nil {
+            let outcome = only.recorded.mutationTestOutcome(resultsFile: only.path)
+            let status = only.recorded.exitStatus
+            let gate = failUnder.map {
+                ScoreGate(
+                    failUnder: $0,
+                    judging: outcome,
+                    unless: status == nil ? nil : .stoppedOnAnError,
+                    progress: only.recorded.unfinishedProgress
+                )
+            }
             try report(
-                only.recorded.mutationTestOutcome(resultsFile: only.path),
+                outcome,
                 saying: only.recorded.statusLines(path: only.path),
-                ended: only.recorded.sessions.last?.end
+                ended: only.recorded.sessions.last?.end,
+                gate: gate
             )
-            return only.recorded.stoppedOnAnError
+            return status ?? gate?.exitStatus
         }
         let merged = try MergedShards.merge(read, forcing: forcing, ignoring: ignoring)
-        try report(merged.mutationTestOutcome(), saying: merged.statusLines(), ended: merged.ending)
-        return merged.lacksResults
+        let outcome = merged.mutationTestOutcome()
+        let status = merged.exitStatus
+        let gate = failUnder.map {
+            ScoreGate(failUnder: $0, judging: outcome, unless: status == nil ? nil : .lacksResults)
+        }
+        try report(outcome, saying: merged.statusLines(), ended: merged.ending, gate: gate)
+        return status ?? gate?.exitStatus
     }
 
     /// The paths of the `found` files, less each that a resumed session's note named and that is the same file as one
@@ -79,8 +106,13 @@ struct ResultsReport {
     }
 
     /// Prints or saves the report of `outcome`, then says `status` and the rest on standard error, and saves its
-    /// summary, of a run that `ended` so, if asked to.
-    private func report(_ outcome: MutationTestOutcome, saying status: [String], ended: ResultsEnd?) throws {
+    /// summary, of a run that `ended` so, if asked to; then says the verdict of `gate`, last, as a run does.
+    private func report(
+        _ outcome: MutationTestOutcome,
+        saying status: [String],
+        ended: ResultsEnd?,
+        gate: ScoreGate?
+    ) throws {
         let reporter = format.reporter
         // As a run does when each mutant finishes: only the Xcode format prints anything, a warning for each survivor.
         for mutation in outcome.mutations {
@@ -108,13 +140,20 @@ struct ResultsReport {
             // Checked again now that the report exists: two spellings of one new file, which differ only in case on a
             // volume that ignores it, are known to be one only once it's there.
             try checkTheReportAndSummaryDiffer()
-            let summary = RunSummary(of: outcome, ended: ended?.reason, endDetail: ended?.detail, report: outputPath)
+            let summary = RunSummary(
+                of: outcome,
+                ended: ended?.reason,
+                endDetail: ended?.detail,
+                report: outputPath,
+                gate: gate
+            )
             guard ReportWriter.save(String(decoding: summary.json, as: UTF8.self), to: summaryPath, using: fileManager)
             else {
                 throw MuterError.literal(reason: "SwiftMutator could not save the summary to \(summaryPath)")
             }
             errorPrinter("Summary saved to \(summaryPath)")
         }
+        gate?.line.map(errorPrinter)
     }
 
     /// What `report` saves: the report itself, at `-o`, or the summary, at `--summary`.

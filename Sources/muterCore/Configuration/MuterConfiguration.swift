@@ -45,7 +45,7 @@ struct MuterConfiguration: Equatable, Codable {
     let oneWorkerSimulator: Bool?
     /// When a test is suspect (`suspectTestFilePercent:`, from 1 to 100, and `suspectTestMinimumFiles:`, at least 1):
     /// nil leaves each to `SuspectTestThresholds.standard`. They change only what the reports say, never a mutant's
-    /// result, so a resume lets them change (`ResumeCheck.keysThatDontAffectOutcomes`).
+    /// result, so a resume lets them change (`ResumeCheck.keysThatDontAffectOutcomes`), as it does `failUnder`.
     let suspectTestFilePercent: Int?
     let suspectTestMinimumFiles: Int?
     /// How many mutants to test for each control run, a run with no mutant on among theirs (`controlRunEvery:`, a
@@ -61,6 +61,10 @@ struct MuterConfiguration: Equatable, Codable {
     /// those of each of its sessions, and only a run with a results file counts. See `LogFolderPruning`. Which folders
     /// are kept changes no result, so a resume lets it change.
     let keepLogFolders: Int?
+    /// The percent, from 0 to 100, up to 6 decimals, below which a finished run's headline score fails it with status 2
+    /// (`failUnder:`, `ScoreGate`); nil, the default, checks none. It changes no result, so a resume lets it change.
+    /// A `var` only so `overriding` can copy `self` and change just this field.
+    private(set) var failUnder: Double?
     /// Whether a line `FailedTestLine` matches shows a failed test. Not a configuration key: false once a
     /// passing baseline has printed such a line, or one `CrashLine` matches, as its tests print text shaped like a
     /// failure. Such a line then neither stops a mutant's run nor counts a timed-out run killed. A `var` only so
@@ -91,7 +95,7 @@ struct MuterConfiguration: Equatable, Codable {
         return BuildSystem(rawValue: buildSystem)
     }
 
-    enum CodingKeys: String, CodingKey {
+    enum CodingKeys: String, CodingKey, CaseIterable {
         case testCommandArguments = "arguments"
         case testCommandExecutable = "executable"
         case excludeFileList = "exclude"
@@ -108,6 +112,7 @@ struct MuterConfiguration: Equatable, Codable {
         case controlRunEvery
         case keepAllLogs
         case keepLogFolders
+        case failUnder
     }
 
     init(
@@ -126,7 +131,8 @@ struct MuterConfiguration: Equatable, Codable {
         suspectTestMinimumFiles: Int? = nil,
         controlRunEvery: Int? = nil,
         keepAllLogs: Bool? = nil,
-        keepLogFolders: Int? = nil
+        keepLogFolders: Int? = nil,
+        failUnder: Double? = nil
     ) {
         testCommandExecutable = executable
         testCommandArguments = arguments
@@ -144,6 +150,7 @@ struct MuterConfiguration: Equatable, Codable {
         self.controlRunEvery = controlRunEvery
         self.keepAllLogs = keepAllLogs
         self.keepLogFolders = keepLogFolders
+        self.failUnder = failUnder
     }
 
     init(from decoder: Decoder) throws {
@@ -168,6 +175,79 @@ struct MuterConfiguration: Equatable, Codable {
         controlRunEvery = try Self.whole(forKey: .controlRunEvery, in: 0 ... Int.max, in: container)
         keepAllLogs = try container.decodeIfPresent(Bool.self, forKey: .keepAllLogs)
         keepLogFolders = try Self.whole(forKey: .keepLogFolders, in: 2 ... Int.max, in: container)
+        failUnder = try Self.percent(forKey: .failUnder, in: container)
+    }
+
+    /// A percent from 0 to 100, or nil if `key` isn't set, written as `--fail-under` takes it (`ScoreGate.percent`):
+    /// plain decimal digits, with at most `ScoreGate.maximumDecimals` decimals, so not 1e2, 0x50, 8_0 or 1:20, which
+    /// YAML would read as numbers. A JSON configuration, such as a results file's header, holds a number instead,
+    /// whose shortest decimal form is checked the same way. Throws on any other value, so a typo is a configuration
+    /// error rather than "unset".
+    private static func percent(
+        forKey key: CodingKeys,
+        in container: KeyedDecodingContainer<CodingKeys>
+    ) throws -> Double? {
+        // YAML gives any scalar as the text it is written with; JSON gives only a string so.
+        let text: String
+        let number: Double?
+        if let written = try? container.decodeIfPresent(String.self, forKey: key) {
+            (text, number) = (written, nil)
+        } else if let value = try seconds(forKey: key, in: container) {
+            (text, number) = (ScoreGate.shown(value), value)
+        } else {
+            return nil
+        }
+        // A number must be the one its text gives, so one with more decimals than its text shows is refused.
+        guard let percent = ScoreGate.percent(text), number.map({ $0 == percent }) ?? true else {
+            let shown = number.map { Double(text) == $0 ? text : "\($0)" } ?? text
+            throw DecodingError.dataCorruptedError(
+                forKey: key,
+                in: container,
+                debugDescription: "\(key.stringValue) must be a number from 0 to 100, with at most "
+                    + "\(ScoreGate.maximumDecimals) decimals, such as 80 or 72.5, not \(shown)"
+            )
+        }
+        return percent
+    }
+
+    /// Writes each configuration key as `init(from:)` reads it, in the order of `CodingKeys`, leaving out those not
+    /// set. `failUnder` is written in YAML as plain decimal digits (`WrittenPercent`), which `init(from:)` reads back,
+    /// rather than as Yams writes a number, 8e+1.
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(testCommandArguments, forKey: .testCommandArguments)
+        try container.encode(testCommandExecutable, forKey: .testCommandExecutable)
+        try container.encode(excludeFileList, forKey: .excludeFileList)
+        try container.encode(excludeCallList, forKey: .excludeCallList)
+        try container.encode(coverageThreshold, forKey: .coverageThreshold)
+        try container.encodeIfPresent(testSuiteTimeout, forKey: .testSuiteTimeout)
+        try container.encodeIfPresent(buildTimeout, forKey: .buildTimeout)
+        try container.encodeIfPresent(explicitBuildSystem, forKey: .explicitBuildSystem)
+        try container.encodeIfPresent(mutationTestWorkers, forKey: .mutationTestWorkers)
+        try container.encodeIfPresent(stopAtFirstFailure, forKey: .stopAtFirstFailure)
+        try container.encodeIfPresent(oneWorkerSimulator, forKey: .oneWorkerSimulator)
+        try container.encodeIfPresent(suspectTestFilePercent, forKey: .suspectTestFilePercent)
+        try container.encodeIfPresent(suspectTestMinimumFiles, forKey: .suspectTestMinimumFiles)
+        try container.encodeIfPresent(controlRunEvery, forKey: .controlRunEvery)
+        try container.encodeIfPresent(keepAllLogs, forKey: .keepAllLogs)
+        try container.encodeIfPresent(keepLogFolders, forKey: .keepLogFolders)
+        try container.encodeIfPresent(failUnder.map(WrittenPercent.init), forKey: .failUnder)
+    }
+
+    /// A percent, written in JSON as a number and in YAML as a plain scalar, both in decimal digits
+    /// (`ScoreGate.shown`): 80, 72.5, 0.00001.
+    private struct WrittenPercent: YAMLEncodable {
+        let value: Double
+
+        /// A `Decimal`, which JSONEncoder writes in plain digits, as 0.00001 rather than 1e-05.
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(Decimal(string: ScoreGate.shown(value)) ?? Decimal(value))
+        }
+
+        func box() -> Node {
+            Node(ScoreGate.shown(value), Tag(value == value.rounded() ? .int : .float))
+        }
     }
 
     /// A whole number in `range`, or nil if `key` isn't set. Throws on any other value, so a typo is a configuration
@@ -359,12 +439,14 @@ struct MuterConfiguration: Equatable, Codable {
         return copy
     }
 
-    /// This configuration with `--workers`' and `--timeout`'s values, when given, in place of `mutationTestWorkers` and
-    /// `mutationTestTimeout`: a run records and compares them as it does the keys.
-    func overriding(workers: Int?, timeout: Double?) -> MuterConfiguration {
+    /// This configuration with `--workers`', `--timeout`'s and `--fail-under`'s values, when given, in place of
+    /// `mutationTestWorkers`, `mutationTestTimeout` and `failUnder`: a run records and compares them as it does the
+    /// keys.
+    func overriding(workers: Int?, timeout: Double?, failUnder: Double? = nil) -> MuterConfiguration {
         var copy = self
         if let workers { copy.mutationTestWorkers = workers }
         if let timeout { copy.testSuiteTimeout = timeout }
+        if let failUnder { copy.failUnder = failUnder }
         return copy
     }
 

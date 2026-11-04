@@ -138,6 +138,7 @@ struct Run: RunCommand {
             configurationURL: options.configurationURL,
             workers: testing.workers,
             timeout: testing.timeout,
+            failUnder: reportOptions.failUnder,
             resumeURL: resuming.resume,
             reuseURL: reuse,
             // Only one of each pair can be given: `validate()` ties each to its own option.

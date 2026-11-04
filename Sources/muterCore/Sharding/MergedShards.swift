@@ -1,3 +1,4 @@
+import ArgumentParser
 import Foundation
 
 /// The results files of a split's shards (`run --shard`), merged into the results of the whole run: one shard's file
@@ -137,14 +138,22 @@ extension MergedShards {
         }
     }
 
-    /// Whether `report` exits as a run that stopped on an error does: when the report is known to lack results. A shard
-    /// stopped on an error; or has fewer results than mutants, as one that was interrupted or killed, or is still
-    /// running; or the file of a shard that holds mutants wasn't given. So a CI job that checks the report fails as one
-    /// that checked every shard's run would. Discoveries that differ only warn: each shard has its own mutants'
-    /// results.
+    /// Whether the report is known to lack results, so `report` exits with `exitStatus` and doesn't check its score: a
+    /// shard stopped on an error; or has fewer results than mutants, as one that was interrupted or killed, or is still
+    /// running; or the file of a shard that holds mutants wasn't given, as for a shard whose baseline failed, which
+    /// writes no file. So a CI job that checks the report fails as one that checked every shard's run would.
+    /// Discoveries that differ only warn: each shard has its own mutants' results.
     var lacksResults: Bool {
         parts.contains { $0.recorded.stoppedOnAnError || $0.recorded.latest.count < $0.header.mutantsDiscovered }
             || absentShards.contains { $0.mutants > 0 }
+    }
+
+    /// The status `report` exits with when the report lacks results: that of the first shard, by its index, that
+    /// stopped on an error, as its run exited (`RecordedResults.exitStatus`), else `abortedMidRun`, as the whole run
+    /// didn't test every mutant. nil when it lacks none.
+    var exitStatus: ExitCode? {
+        guard lacksResults else { return nil }
+        return parts.lazy.compactMap(\.recorded.exitStatus).first ?? .abortedMidRun
     }
 
     /// The shards the report covers, when it covers only some: those given, unless every shard that holds mutants is.
