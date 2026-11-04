@@ -275,6 +275,20 @@ Here is part of a report with two suspect tests. Most keys, file reports and tes
 }
 ```
 
+### `triageSummary`
+
+At the top level, when a triage file has entries: how far the survivors have been triaged (see [Triaging survivors](../README.md#triaging-survivors)). It changes no score. Each labelled survivor in `appliedOperators` also has `triage`, with its `label` and any `note`.
+
+| Key | Meaning |
+|---|---|
+| `file` | The triage file's path |
+| `survivors` | The mutants that survived or timed out |
+| `triaged` | Those with a label |
+| `byLabel` | Each label's `label` and how many `mutants` have it, zeros included |
+| `moved` | Labels that followed their code: `from`, the place the file gives, `now`, and `label` |
+| `noLongerSurviving` | Labels on mutants that came to something else: `mutant`, `label`, `verdict`, such as `killed`, and `savedAs`, the key the file holds it by |
+| `unmatched` | Labels that match no mutant in the results: `mutant` and `label` |
+
 ### `propertyKillSummary`
 
 At the top level, when `propertyTests` or `--property-tests` gives globs: the kills split between example tests and property tests (see [Example tests and property tests](../README.md#example-tests-and-property-tests)). Its counts are of the mutants the headline score is of, every one but a build error, so its four kill counts add up to `killedMutants`.

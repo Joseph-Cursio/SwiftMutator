@@ -51,6 +51,12 @@ private func htmlReport(
                             .propertyKillsTable(summary)
                         )
                     },
+                    .unwrap(testReport.triageSummary) { summary in
+                        .group(
+                            .divider("Triage"),
+                            .triageSection(summary)
+                        )
+                    },
                     .unwrap(testReport.run) { run in
                         .group(
                             .divider("Run"),
@@ -353,7 +359,8 @@ extension Node where Context: HTML.BodyContext {
                         .th("Place"),
                         .th("Applied Mutation Operator"),
                         .th("Changes"),
-                        .th("Mutation Test Result")
+                        .th("Mutation Test Result"),
+                        .if(testReport.triageSummary != nil, .th("Triage"))
                     )
                 ),
                 .tbody(
@@ -369,7 +376,12 @@ extension Node where Context: HTML.BodyContext {
                                     + "<wbr>")
                             ),
                             .td(.class("mutation-snapshot"), .diff(of: survivor.appliedOperator)),
-                            .td(.raw("\(survivor.appliedOperator.testSuiteOutcome.asIcon)"))
+                            .td(.raw("\(survivor.appliedOperator.testSuiteOutcome.asIcon)")),
+                            // Text only: a note can hold anything.
+                            .if(
+                                testReport.triageSummary != nil,
+                                .td(.class("left-aligned"), .text(survivor.appliedOperator.triage?.text ?? "-"))
+                            )
                         )
                     }
                 )
@@ -459,6 +471,23 @@ extension Node where Context: HTML.BodyContext {
                 )
             ),
             .unwrap(summary.shownPropertiesSentence) { .p(.text($0)) }
+        )
+    }
+
+    /// The Triage section: how far the survivors have been triaged, then the labels that need attention. Text nodes
+    /// only: keys and paths can hold anything.
+    static func triageSection(_ summary: TriageSummary) -> Self {
+        .div(
+            .class("killing-tests"),
+            .p(.text(TriageSummary.introduction)),
+            .p(.text(summary.countSentence)),
+            .unwrap(summary.labelSentence) { .p(.text($0)) },
+            .forEach(summary.attentionParagraphs) { paragraph in
+                .group(
+                    .p(.text(paragraph.first ?? "")),
+                    .ul(.forEach(paragraph.dropFirst()) { .li(.text($0.trimmingCharacters(in: .whitespaces))) })
+                )
+            }
         )
     }
 

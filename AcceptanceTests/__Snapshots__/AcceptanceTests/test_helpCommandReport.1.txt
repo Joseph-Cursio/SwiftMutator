@@ -1,7 +1,7 @@
 OVERVIEW: Builds a report from a run's results file, or from its shards'
 results files merged.
 
-USAGE: swift-mutator report <results> ... [--format <format>] [--output <output>] [--fail-under <percent>] [--force-merge] [--merge-ignoring <glob> ...] [--summary <path>]
+USAGE: swift-mutator report <results> ... [--format <format>] [--output <output>] [--fail-under <percent>] [--property-tests <glob> ...] [--force-merge] [--merge-ignoring <glob> ...] [--summary <path>] [--triage <path>]
 
 ARGUMENTS:
   <results>               A run's results file, or the log folder in
@@ -15,6 +15,10 @@ OPTIONS:
   --fail-under <percent>  Exit with status 2 when the headline mutation score
                           is below this percent, from 0 to 100, once the report
                           is written. For a run, in place of failUnder.
+  --property-tests <glob> Split the report's kills between example tests and
+                          the property tests this glob matches by name or by
+                          the file their issue was recorded in; * matches any
+                          characters. Repeatable. In place of propertyTests.
   --force-merge           Merge shards' results although their SwiftMutator
                           build, toolchain or SDK differ. With one file, it
                           does nothing.
@@ -23,6 +27,9 @@ OPTIONS:
                           Repeatable. With one file, it does nothing.
   --summary <path>        Also save the run's summary.json, its score, counts
                           and details for scripts, at this path.
+  --triage <path>         Show the labels in this triage file, if not
+                          muter.triage.yml in the run's project, or in the
+                          current folder.
   --version               Show the version.
   -h, --help              Show help information.
 

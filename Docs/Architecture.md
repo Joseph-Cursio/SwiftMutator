@@ -19,7 +19,7 @@ say otherwise. For how to use SwiftMutator, see the [README](../README.md).
 
 [`CLICommands/Muter.swift`](../Sources/muterCore/CLICommands/Muter.swift) lists the
 subcommands: `init`, `run` (the default), `run-without-mutating`, `mutate-without-running`,
-`report`, `operator` and `watch-test-processes`. The three that mutate or test are in
+`report`, `triage`, `operator` and `watch-test-processes`. The three that mutate or test are in
 [`CLICommands/RunCommand`](../Sources/muterCore/CLICommands/RunCommand). Each makes a
 [`MutationTestHandler`](../Sources/muterCore/MutationTesting/MutationTestHandler.swift), which runs
 a list of steps.

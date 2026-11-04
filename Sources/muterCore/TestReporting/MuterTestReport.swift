@@ -19,6 +19,9 @@ struct MuterTestReport {
     /// The kills split between example tests and the property tests `propertyTests` picks out. nil without
     /// `propertyTests`, and then left out of the JSON.
     let propertyKillSummary: PropertyKillSummary?
+    /// How far the survivors have been triaged (`TriageFile`). nil without a triage file with entries, and then left
+    /// out of the JSON.
+    let triageSummary: TriageSummary?
     /// What `--since` chose, when it did; left out of the JSON otherwise.
     let since: SinceScope?
     /// The shards of a `--shard` split the report covers, when it covers only some; left out of the JSON otherwise.
@@ -48,11 +51,17 @@ struct MuterTestReport {
         mutantsByOutcome = OutcomeCounts(outcome.mutations.map(\.testSuiteOutcome))
         projectCodeCoverage = outcome.coverage == .null ? nil : outcome.coverage.percent
         var sources = ReportSources(read: readSource, digests: outcome.sourceDigests)
-        fileReports = MuterTestReport.fileReports(
-            from: outcome,
-            suspects: summary?.suspectIdentities ?? [],
-            sources: &sources
+        let triaged = MuterTestReport.triaged(
+            MuterTestReport.fileReports(
+                from: outcome,
+                suspects: summary?.suspectIdentities ?? [],
+                sources: &sources
+            ),
+            by: outcome.triage,
+            following: !outcome.leavesOutSomeMutants
         )
+        fileReports = triaged.fileReports
+        triageSummary = triaged.summary
         timeElapsed = outcome.testDuration.formatted()
         since = outcome.since.map(SinceScope.init)
         shards = outcome.shards
@@ -165,7 +174,7 @@ extension MuterTestReport {
         /// project, its absolute path. The JSON's `path`.
         let relativePath: String
         let mutationScore: Int
-        let appliedOperators: [AppliedMutationOperator]
+        var appliedOperators: [AppliedMutationOperator]
 
         enum CodingKeys: String, CodingKey {
             case fileName
@@ -242,6 +251,9 @@ extension MuterTestReport {
         let key: String?
         /// How long its run took, to the millisecond; nil, and left out of the JSON, when not known.
         let durationSeconds: Double?
+        /// Its label in the triage file, for a mutant that survived or timed out; nil, and left out of the JSON, for
+        /// any other.
+        var triage: TriageMark?
 
         enum CodingKeys: String, CodingKey {
             case mutationPoint
@@ -254,6 +266,7 @@ extension MuterTestReport {
             case path
             case key
             case durationSeconds
+            case triage
         }
 
         init(
@@ -266,7 +279,8 @@ extension MuterTestReport {
             sourceChange: SourceChange? = nil,
             path: String? = nil,
             key: String? = nil,
-            durationSeconds: Double? = nil
+            durationSeconds: Double? = nil,
+            triage: TriageMark? = nil
         ) {
             self.mutationPoint = mutationPoint
             self.mutationSnapshot = mutationSnapshot
@@ -278,6 +292,7 @@ extension MuterTestReport {
             self.path = path
             self.key = key
             self.durationSeconds = durationSeconds
+            self.triage = triage
         }
 
         public init(from decoder: Decoder) throws {
@@ -297,6 +312,7 @@ extension MuterTestReport {
             path = try container.decodeIfPresent(String.self, forKey: .path)
             key = try container.decodeIfPresent(String.self, forKey: .key)
             durationSeconds = try container.decodeIfPresent(Double.self, forKey: .durationSeconds)
+            triage = try container.decodeIfPresent(TriageMark.self, forKey: .triage)
         }
     }
 }
@@ -465,6 +481,7 @@ extension MuterTestReport: Codable {
         case timeElapsed
         case killingTestSummary
         case propertyKillSummary
+        case triageSummary
         case since
         case shards
         case sample
