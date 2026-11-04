@@ -518,8 +518,9 @@ final class MutationTestingDelegateTests: MuterTestCase {
         XCTAssertEqual(try Data(contentsOf: opened.logFileUrl), Data())
     }
 
-    // The log folder keeps whatever it needs of a run's log, so the file the run wrote goes once it is read back.
-    func test_aRunsOutputFile_isRemovedOnceItsLogIsReadBack() async throws {
+    // Whatever records the run moves the file to the name its log is kept under, or discards it (`keepOutput`), so
+    // each log is written once.
+    func test_aRunsOutputFile_staysOnceItsLogIsReadBack() async throws {
         let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"])
         let file = outputFolderURL.appendingPathComponent("running/mutant.log").path
 
@@ -529,7 +530,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
             savingResultsIntoFileNamed: file
         )
 
-        XCTAssertFalse(FileManager.default.fileExists(atPath: file))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file))
     }
 
     // Its output is all a stopped run leaves to say what it was doing.

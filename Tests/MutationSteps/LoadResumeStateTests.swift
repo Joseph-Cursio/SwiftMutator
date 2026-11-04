@@ -441,6 +441,24 @@ extension LoadResumeStateTests {
         XCTAssertEqual(listed.value, [])
     }
 
+    // Its logs are copied long after the file is read, so the reuse holds a shared lock on the earlier run's folders
+    // until it ends, which a run that prunes log folders in another lock domain sees as in use.
+    func test_aReuse_holdsTheEarlierRunsFolders_soNoRunPrunesThem() async throws {
+        let header = ResultsHeader.make(project: await projectTree(), logDirectory: logs)
+        try writeResults(header, ResultsEnd.make())
+        RunMarker.hold(in: logs)?.release()
+        let marker = logs + "/" + RunMarker.fileName
+        reuse(logs)
+
+        state.apply(try await sut.run(with: state))
+
+        XCTAssertNotNil(state.resumeState?.reusedFolders)
+        XCTAssertEqual(ResultsFile.probeLock(marker), .inUse)
+        state.resumeState = nil
+        guard case let .held(probe) = ResultsFile.probeLock(marker) else { return XCTFail("still locked") }
+        close(probe)
+    }
+
     func test_aReuse_ofAResumedSessionsLogFolder_readsTheFileItsNoteNames() async throws {
         let header = ResultsHeader.make(project: await projectTree())
         try writeResults(header, ResultsEnd.make())

@@ -10,13 +10,28 @@ struct MutationTestLog {
     /// How long one run of a mutant's test command took with no mutant on, if it was timed. Only the baseline's log
     /// says.
     var testRunSeconds: TimeInterval?
-    /// The name of the file the run's log folder keeps this log in: a mutant's is `keptFileName(for:)` its key, or
-    /// `rerunFileName(for:)` it for the run that tested it again, which its results line names too.
+    /// The name of the file the run's log folder keeps this log in, which the step that ran it keeps it under: a
+    /// mutant's is `keptFileName(for:)` its key, or `rerunFileName(for:)` it for the run that tested it again, which
+    /// its results line names too. A mutant's log that `isKept` drops has the name it would have had, though no file
+    /// holds it.
     var keptFileName = Self.baselineFileName
 }
 
 extension MutationTestLog {
     static let baselineFileName = "baseline run.log"
+
+    /// Whether a mutant's run with `outcome`, whose log showed the tests `killedBy` failing, keeps its log: every run
+    /// but one killed by a failed test that its results line names, as `killedBy` and `firstFailedTestLine` stand in
+    /// for that log. So a survivor, a crash, a timeout and a build error keep theirs, as does a kill whose line names
+    /// no test. `keepingAll`, from `keepAllLogs`, keeps every log. Only a mutant's run goes by this: every other log
+    /// is kept.
+    static func isKept(
+        outcome: TestSuiteOutcome,
+        killedBy: [FailedTestLine.FailedTest]?,
+        keepingAll: Bool
+    ) -> Bool {
+        keepingAll || outcome != .failed || (killedBy ?? []).isEmpty
+    }
 
     /// The name of the file the run's log folder keeps the log of `key`'s run in:
     /// `<operator> @ <file name>-<line>-<column> <path hash>.log`, with ` (#<n>)` before `.log` for the nth of a

@@ -431,6 +431,8 @@ was for SwiftPM: `0.5` means 0.5%, so write `50` for half. The options are docum
 | `suspectTestFilePercent` | The share of the files with a killed mutant naming a test, from 1 to 100, that a test must have failed for mutants in to be suspect (default 15; see [Killing tests and suspect tests](#killing-tests-and-suspect-tests)) |
 | `suspectTestMinimumFiles` | How many files with such a kill there must be, at least 1, before a test can be suspect, and how many of them it must have failed for mutants in (default 10) |
 | `controlRunEvery` | How many mutants to test for each control run, a run with no mutant on among theirs, whose failed tests are flaky (a whole number; 0 for none; default 100; see [Control runs](#control-runs)) |
+| `keepAllLogs` | Keep the log of every mutant's test run, a kill's too (default false: a mutant killed by a failed test its results line names keeps none; see [Results file](#results-file)) |
+| `keepLogFolders` | How many runs' log folders to keep in `<project>_muter_logs`, this run's included: a whole number, at least 2, so the run before this one is always kept. Earlier runs' folders beyond it are removed once nothing can refuse the run, before its build (default: unset, which removes none; see [Results file](#results-file)) |
 | `buildTimeout` | Seconds before the coverage run, which builds your project and runs its tests with coverage on, is stopped. Mutation testing then goes on without coverage, as after any coverage failure. For now it limits only the coverage run, not the baseline or other builds (default: no limit) |
 
 `--workers N` and `--timeout S`, on `run` and `run-without-mutating`, set `mutationTestWorkers`
@@ -472,8 +474,10 @@ survive in a whole run under the default limit, and of the 4 that timed out agai
 the fourth is killed there, after more than 24 s.
 
 The rerun's result is the one the report gives. The results file keeps both: the rerun's line, with
-`rerun`, follows the first run's, and each names a log of its own, the rerun's with ` (rerun)` before
-`.log` (see [Docs/results-file.md](Docs/results-file.md)). A run on one worker, as an xcodebuild
+`rerun`, follows the first run's. Each keeps a log of its own by the rule for mutants' logs (see
+[Results file](#results-file)), the rerun's with ` (rerun)` before `.log`, and its line names it only
+then: a rerun killed by a failed test its line names keeps none, unless `keepAllLogs: true` is set
+(see [Docs/results-file.md](Docs/results-file.md)). A run on one worker, as an xcodebuild
 run that doesn't test on a simulator always is, has no lower load to offer, and runs nothing again.
 
 A timeout that holds up at lower load may still be a mutant that only takes longer than the limit,
@@ -814,11 +818,68 @@ toolchain and the settings the run used, and each killed mutant's line names the
 tests that killed the most mutants.
 
 Each test run writes its output to `running/` in the log folder while it runs, never to the mutated
-project or a worker clone, where your tests would see it. Once SwiftMutator has read it back, the
-log folder keeps its own copy, such as `baseline run.log`, and the file in `running/` goes.
+project or a worker clone, where your tests would see it. Once SwiftMutator has read it back and
+recorded the run, it moves that file to the name the log folder keeps the log under, such as
+`baseline run.log`, so each log is written once. A run that finished but wasn't recorded, because a
+stop or an abort came first, leaves its output in `running/`. A process your tests started that
+outlives the test command and still writes to its output adds those lines to the kept log.
+
+The log folder keeps the logs you would open: those of the mutants that survived, crashed, timed
+out or didn't build, and of a kill whose results line names no failed test. A mutant killed by a
+failed test its line names keeps no log, as the line's `killedBy` and `firstFailedTestLine` say what
+the log would, and its line has no `log`. Every other log is kept: the baselines', the timed and
+control runs', the coverage run's, and those of runs the simulator failed to launch or found gone.
+`keepAllLogs: true` in `muter.conf.yml` keeps every mutant's log, as before, and so does
+`--mutant`, whose log the end of the run names. Which logs are kept changes no result, so a resume
+lets `keepAllLogs` change. A results file whose lines may have no `log` is in results format 4,
+which an older SwiftMutator refuses as a newer format rather than lose those mutants' results (see
+[Compatibility](Docs/results-file.md#compatibility)).
 A run that keeps nothing there, such as a refused `--resume` or a `--since` run with no Swift file
 changed, leaves no folder of its own in `<project>_muter_logs`. A resumed session's folder holds no
 results file, but `resumed session.txt`, a note naming the file it adds to.
+
+Log folders pile up: SwiftMutator removes none unless you set `keepLogFolders` in
+`muter.conf.yml`. With `keepLogFolders: 5`, a run keeps the folders of the newest 5 runs, itself
+included, and removes older ones once nothing can refuse it or find nothing to test: after its
+configuration, `--since`, `--resume` or `--reuse` checks, the project's lock, a test plan's checks
+of its code and copy, and the discovery of the files and mutants to test, and before the build. A
+run that ends before then removes nothing. It says what it removed and what it left:
+
+```
+🧹 Removed the log folders of 3 earlier runs, 1.9 GB, from /Users/me/code/SwiftProjectLint_muter_logs, keeping the newest 5 runs (keepLogFolders: 5):
+  Oct 9, 2026 at 9:00 AM
+  Oct 9, 2026 at 9:00 AM (2)
+  Oct 10, 2026 at 8:00 AM
+⚠️ Left Oct 1, 2026 at 8:12 AM: another SwiftMutator run is using it.
+⚠️ Left Sep 30, 2026 at 4:02 PM: it holds files SwiftMutator didn't write: notes.txt
+```
+
+When it removes none but leaves some, a first line says where they are instead:
+`🧹 Left the log folders of 2 earlier runs in /Users/me/code/SwiftProjectLint_muter_logs, beyond the newest 5 runs (keepLogFolders: 5):`.
+
+- **What counts as a run.** A run's folders are those of each of its sessions: a resumed session's
+  folder goes with the first session's, whose results file its note names. Only a run with a
+  results file counts toward the 5. Folders without one, such as a run whose baseline failed or a
+  `mutate-without-running` run, and `--mutant` runs, are kept while they are newer than the oldest
+  earlier run kept, and removed once older, however few runs there are; with no earlier run, none
+  is removed. Runs are dated by when their folders were made and their results files last written,
+  never by their names, so opening an old run's folder in Finder, or deleting a log from it, doesn't
+  make it newer.
+- **What is never removed.** This run's folders, a resumed run's earlier sessions included, and
+  those of the run `--reuse` reads, which are kept besides the 5. A `--mutant` run removes nothing.
+- **What is left alone.** A folder a run still uses: every run holds a lock on a hidden file,
+  `.swiftmutator-run`, in its folder until it exits, and on its results file while it writes it. A
+  folder an older SwiftMutator made, which has no such file, counts as in use for a day after its
+  `running/` was last written to. A run that `--reuse` reads is left while the reusing run goes,
+  which holds a shared lock on the same files until it ends. A folder holding a file SwiftMutator
+  didn't write, one whose locks can't be checked, as on a volume without `flock`, and any folder
+  SwiftMutator didn't make, are left too, and so is a resumed session's folder whose first session's
+  folder SwiftMutator didn't make.
+- **Shards.** Each `--shard` is a run of its own. To merge shards run one after another on one
+  machine, set `keepLogFolders` above the number of shards: the message names a removed shard,
+  `(shard 2 of 4)`.
+- **A removed run is gone.** Its results file and logs go with it, so it can no longer be reported,
+  resumed or reused.
 
 A SwiftPM mutant's run adds `--quiet`, so Swift Testing prints no line for each test or suite that
 starts or passes. Its log keeps each recorded issue, the run's summary, your tests' own output and
@@ -991,7 +1052,8 @@ which a closed terminal sends, stop it the same way. SwiftMutator then:
 
 1. Stops the test runs under way and kills every process it started, so no test runner is left
    running. A test run that the stop ended is never recorded, so it can't count as a killed mutant.
-   What it had written stays in `running/` in the log folder.
+   What it had written stays in `running/` in the log folder, as does the output of a run that had
+   finished but wasn't recorded yet.
 2. Says on standard error that it is stopping. Standard error reaches the terminal even when the
    same Ctrl-C has ended a `| tee`.
 3. Ends `results.jsonl` with an `end` line whose `detail` names the signal, such as `"SIGINT"`, and
@@ -1148,12 +1210,12 @@ SwiftMutator copies the project is refused after the copy, so that message doesn
 
 | Since the last session | Resuming |
 |---|---|
-| A configuration key changed, other than `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles` and `controlRunEvery` | Refused: start a new run |
+| A configuration key changed, other than `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `keepAllLogs` and `keepLogFolders` | Refused: start a new run |
 | `mutationTestTimeout` (or `--timeout`) is at least as long as every session's `timeoutSeconds` | Goes ahead, says so, and tests the timeouts under a shorter limit again |
 | `--operators`, `--files-to-mutate` or `--skip-coverage` changed | Refused: start a new run |
 | `--since`'s merge base or `--changed-lines` changed, or `--since` given in one session only | Refused: start a new run. `--reuse` doesn't compare them |
 | `--shard` changed, or given in one session only | Refused: start a new run. `--reuse` doesn't compare it |
-| `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles` or `controlRunEvery` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
+| `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `keepAllLogs` or `keepLogFolders` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
 | SwiftMutator, the toolchain or the SDK changed | Refused, unless `--force-resume` is given |
 | Project files changed, were added or were removed | Refused, unless a `--resume-ignoring` glob matches each one |
 | Another SwiftMutator holds the file, because its run is still going | Refused with status 6, naming the process that holds it, and its host: wait for that run to end. If an older SwiftMutator holds it, which doesn't say, it names the process and host that wrote the file's last session, which may not be the one |
@@ -1241,7 +1303,8 @@ each result by what changed since the session that tested it:
   that now fails stops the run. Only with no change at all, and nothing to test, does it run none.
 - **The new file** starts with the results it keeps, each with `reusedFrom`, which says where it was
   tested ([Mutant](Docs/results-file.md#mutant)), and their logs are copied into the new log folder.
-  So the new file stands alone: `swift-mutator report` of it gives the run's own report, and says
+  Only the logs this run would keep are copied: by default a kill by a test its line names keeps
+  none, and its new line has no `log`, even if the earlier run kept one. So the new file stands alone: `swift-mutator report` of it gives the run's own report, and says
   on standard error how many results were kept, and the file each was first tested in. A later
   `--reuse` or `--resume` of it works as of any run's. A stopped reuse continues with
   `--resume` of the new file, which its Continue line names, with each `--reuse-ignoring` as a

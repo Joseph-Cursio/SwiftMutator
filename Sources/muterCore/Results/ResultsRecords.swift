@@ -14,8 +14,12 @@ enum ResultsCoding {
     /// (`ResultsHeader.projectDelta`). A format-2 reader would take it for a session with no tree, which `--reuse` and
     /// a merge of shards skip, rather than check.
     static let projectDeltaFormatVersion = 3
+    /// A session's header whose `mutant` lines may have no `log`, as a mutant killed by a failed test its line names
+    /// keeps none unless `keepAllLogs` is set. A format-3 reader would skip those lines, as it can't read them, and
+    /// lose their results. A session that writes a `log` on every line keeps to the formats above.
+    static let omittedLogsFormatVersion = 4
     /// The newest format this SwiftMutator reads. It refuses a file with a header in a newer one.
-    static let newestFormatVersion = projectDeltaFormatVersion
+    static let newestFormatVersion = omittedLogsFormatVersion
 
     /// Sorted keys, so lines read and compare alike; slashes unescaped, so paths read as paths; never pretty-printed,
     /// so a record is one line, any line break in it escaped. Dates are ISO 8601 in UTC, to the millisecond.
@@ -102,7 +106,8 @@ extension CoverageSummary {
 struct ResultsHeader: Codable, Equatable {
     var kind = "header"
     /// `ResultsCoding.formatVersion` for a first session, `resumedFormatVersion` for a resumed one, or
-    /// `projectDeltaFormatVersion` for a resumed one that records `projectDelta`.
+    /// `projectDeltaFormatVersion` for a resumed one that records `projectDelta`; `omittedLogsFormatVersion` for any
+    /// session whose `mutant` lines may have no `log`.
     let formatVersion: Int
     /// 1 for a run's first session; each resumed session adds the next to the same file.
     let session: Int
@@ -119,8 +124,8 @@ struct ResultsHeader: Codable, Equatable {
     let usingTestPlan: Bool
     let projectPath: String
     let mutatedProjectPath: String
-    /// The folder of the session's kept logs, which each of its mutants' `log` names a file in. A resumed session has
-    /// a folder of its own; the results file stays in the first session's.
+    /// The folder of the session's kept logs, which each of its mutants' `log` names a file in, when the mutant kept
+    /// one. A resumed session has a folder of its own; the results file stays in the first session's.
     let logDirectory: String
     /// Absent when the run has no coverage, as its report then shows none.
     let coverage: CoverageSummary?
@@ -211,7 +216,9 @@ extension ResultsHeader {
     /// `--force-resume` let through. It records its project tree as what changed since the last session's, in
     /// `ResultsCoding.projectDeltaFormatVersion`, or, when that session recorded none, in full, in
     /// `resumedFormatVersion`. A session that reuses an earlier run's results is a first session, which says the same,
-    /// and the file it reused from.
+    /// and the file it reused from. A session whose `mutant` lines may have no `log` is in `omittedLogsFormatVersion`,
+    /// whichever session it is: one that tests mutants, but for `--mutant`'s one, without `keepAllLogs`, and one that
+    /// copies reused results with no `log`, `copyingLinesWithoutLogs`.
     init(
         session: Int,
         startedAt: Date,
@@ -227,13 +234,18 @@ extension ResultsHeader {
         mutantsReused: Int? = nil,
         waived: [String]? = nil,
         forced: [String]? = nil,
-        reusedFrom: String? = nil
+        reusedFrom: String? = nil,
+        copyingLinesWithoutLogs: Bool = false
     ) {
         let lastTree = session == 1 ? nil : state.resumeState?.lastHeader.project
         let projectDelta = state.projectTree.flatMap { tree in
             lastTree.map { ProjectTreeDelta(from: $0, to: tree) }
         }
-        let formatVersion = if session == 1 {
+        let omitsLogs = copyingLinesWithoutLogs
+            || mutantsToTest > 0 && state.selectedMutant == nil && !state.muterConfiguration.keepsAllLogs
+        let formatVersion = if omitsLogs {
+            ResultsCoding.omittedLogsFormatVersion
+        } else if session == 1 {
             ResultsCoding.formatVersion
         } else {
             projectDelta == nil ? ResultsCoding.resumedFormatVersion : ResultsCoding.projectDeltaFormatVersion
@@ -315,8 +327,10 @@ struct MutantResult: Codable, Equatable {
     let failedTestCount: Int?
     /// The first line that shows one, without colour codes, capped.
     let firstFailedTestLine: String?
-    /// The kept log's file name in the session's `logDirectory`.
-    let log: String
+    /// The kept log's file name in the session's `logDirectory`. Absent for a mutant killed by a failed test its line
+    /// names, whose `killedBy` and `firstFailedTestLine` stand in for its log, unless `keepAllLogs` is set or the run
+    /// is `--mutant`'s (`MutationTestLog.isKept`); only in format 4 (`ResultsCoding.omittedLogsFormatVersion`).
+    let log: String?
     /// SHA-256 of the mutant's original file.
     let fileSHA256: String?
     /// Only for a result a session reused from an earlier run's results file (`--reuse`) rather than tested: where it
@@ -357,7 +371,7 @@ extension MutantResult {
         failures: FailedTestLine.FailedTests?,
         session: Int,
         finishedAt: Date,
-        log: String,
+        log: String?,
         fileSHA256: String? = nil,
         rerun: Rerun? = nil
     ) {
@@ -442,14 +456,16 @@ extension MutantResult {
     /// that reuses it writes it for the job at `utf8Offset` with `switchID`: the job's place in the file as
     /// SwiftMutator now prepares it, so the new file's report is the run's. The rest, how it was tested, is as
     /// recorded, and `reusedFrom` says where, and whether changes were let through since: by the sessions after its
-    /// own, by an earlier reuse, or by the reusing session (`despiteChanges`).
+    /// own, by an earlier reuse, or by the reusing session (`despiteChanges`). Unless `keepingLog`, it names no log, as
+    /// the reusing session keeps none for it.
     func reused(
         from resultsFile: String,
         headers: [ResultsHeader],
         in session: Int,
         utf8Offset: Int,
         switchID: String,
-        despiteChanges: Bool
+        despiteChanges: Bool,
+        keepingLog: Bool = true
     ) -> MutantResult {
         let later = headers.filter { $0.session > self.session }
         let origin = reusedFrom
@@ -474,7 +490,7 @@ extension MutantResult {
             killedBy: killedBy,
             failedTestCount: failedTestCount,
             firstFailedTestLine: firstFailedTestLine,
-            log: log,
+            log: keepingLog ? log : nil,
             fileSHA256: fileSHA256,
             rerun: rerun
         )

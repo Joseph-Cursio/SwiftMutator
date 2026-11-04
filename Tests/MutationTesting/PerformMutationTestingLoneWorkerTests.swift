@@ -450,6 +450,22 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
         XCTAssertEqual(header.testRunSeconds, 10)
         XCTAssertEqual(header.timeoutSeconds, 50)
         XCTAssertEqual(fileManager.createdFiles["/logs/timed test run.log"], Data("timed test run log".utf8))
+        XCTAssertTrue(
+            ioDelegate.keptOutputs.contains { $0 == ("/logs/running/timed test run", "/logs/timed test run.log") },
+            "\(ioDelegate.keptOutputs)"
+        )
+    }
+
+    // As a mutant's run does: the first run's log is kept from its text, beside the second's.
+    func test_oneWorker_aTimedTestRunTheSimulatorFailedToLaunch_runsOnceMore_andKeepsBothLogs() async throws {
+        let launchFailed = loadFixture("SimulatorTrouble/launch_preflightBusy.log")
+        ioDelegate.firstTestRunsWithoutBuildingWritingTo["timed test run"] = (.failed, launchFailed)
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.testLogs.filter { $0 == "/logs/running/timed test run" }.count, 2)
+        XCTAssertEqual(fileManager.createdFiles["/logs/timed test run (launch failed).log"], Data(launchFailed.utf8))
+        XCTAssertEqual(fileManager.createdFiles["/logs/timed test run.log"], Data("timed test run log".utf8))
     }
 
     // Without a passing timed test run, a mutant's run may take 3 times the run with no mutant on, when it took longer

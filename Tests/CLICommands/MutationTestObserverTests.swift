@@ -124,31 +124,16 @@ final class MutationTestObserverTests: MuterTestCase {
         ])
     }
 
-    // A failing baseline's log is the only record of why the run stopped: the abort message points the
-    // user at the logs folder.
-    func test_whenTheBaselineFails_itsLogIsWrittenToTheLoggingDirectory() throws {
+    // The step that ran each test keeps its log, by moving the file the run wrote (`FileSystemManager.keepLog`), so
+    // the observer writes none: a second write of every log would double what a run writes to disk.
+    func test_aTestLog_isNotWrittenByTheObserver() throws {
         fileManager.currentDirectoryPathToReturn = "/project"
         try sut.start()
-        let loggingDirectory = sut.loggingDirectory
-
-        runEvents.send(.baselineTestFailed(MutationTestLog.make(testLog: "error: no such module 'Calc'")))
-
-        XCTAssertTrue(loggingDirectory.hasPrefix("/project_muter_logs/"), loggingDirectory)
-        XCTAssertEqual(fileManager.paths.last, "\(loggingDirectory)/baseline run.log")
-        XCTAssertEqual(fileManager.contents, Data("error: no such module 'Calc'".utf8))
-    }
-
-    // The name is the one the mutant's results line gives as its log.
-    func test_eachTestLogIsWrittenToTheLoggingDirectory_underTheNameItCarries() throws {
-        fileManager.currentDirectoryPathToReturn = "/project"
-        try sut.start()
-        let loggingDirectory = sut.loggingDirectory
         let mutationPoint = MutationPoint(
             mutationOperatorId: .removeSideEffects,
             filePath: "/project/Sources/file2.swift",
             position: MutationPosition(utf8Offset: 2, line: 5, column: 6)
         )
-        let keptFileName = "RemoveSideEffects @ file2.swift-5-6 9c3e04a1d8f2b7e6 (#2).log"
 
         runEvents.send(
             .newTestLogAvailable(MutationTestLog.make(
@@ -161,22 +146,19 @@ final class MutationTestObserverTests: MuterTestCase {
             .newTestLogAvailable(MutationTestLog.make(
                 mutationPoint: mutationPoint,
                 testLog: "Executed 3 tests, with 1 failure",
-                keptFileName: keptFileName
+                keptFileName: "RemoveSideEffects @ file2.swift-5-6 9c3e04a1d8f2b7e6 (#2).log"
             ))
         )
 
-        XCTAssertEqual(fileManager.paths.suffix(2), [
-            "\(loggingDirectory)/baseline run.log",
-            "\(loggingDirectory)/\(keptFileName)",
-        ])
-        XCTAssertEqual(fileManager.contents, Data("Executed 3 tests, with 1 failure".utf8))
+        XCTAssertFalse(
+            fileManager.methodCalls.contains("createFile(atPath:contents:attributes:)"), "\(fileManager.methodCalls)"
+        )
     }
 
-    // Beside the first run's, which the first line names: the rerun's line names this one.
-    func test_aRerunsLog_isWrittenUnderItsOwnName_withoutCountingTheProgress() throws {
+    // The step keeps its log beside the first run's.
+    func test_aRerun_isSaid_withoutCountingTheProgress() throws {
         fileManager.currentDirectoryPathToReturn = "/project"
         try sut.start()
-        let loggingDirectory = sut.loggingDirectory
         let point = MutationPoint.make(filePath: "/project/Sources/Sum.swift", position: 3)
         let keptFileName = "RelationalOperatorReplacement @ Sum.swift-3-3 670192af8b34c2a4 (rerun).log"
 
@@ -192,16 +174,15 @@ final class MutationTestObserverTests: MuterTestCase {
             ))
         )
 
-        XCTAssertEqual(fileManager.paths.last, "\(loggingDirectory)/\(keptFileName)")
-        XCTAssertEqual(fileManager.contents, Data("Executed 3 tests, with 1 failure".utf8))
+        XCTAssertFalse(fileManager.methodCalls.contains("createFile(atPath:contents:attributes:)"))
         XCTAssertEqual(printer.linesPassed, ["🔁 1 of 1 killed at Sum.swift:3:3, in 12 s"])
     }
 
-    // Beside the log of the run that replaced it, which the mutant's line names. Neither is counted in the progress.
-    func test_aRunRepeatedAfterALaunchFailure_keepsTheFirstRunsLog_andSaysSo() throws {
+    // The step keeps the first run's log beside the log of the run that replaced it, which the mutant's line names.
+    // Neither is counted in the progress.
+    func test_aRunRepeatedAfterALaunchFailure_isSaid_namingTheFirstRunsLog() throws {
         fileManager.currentDirectoryPathToReturn = "/project"
         try sut.start()
-        let loggingDirectory = sut.loggingDirectory
         let point = MutationPoint.make(filePath: "/project/Sources/Sum.swift", position: 3)
         let keptFileName = "RelationalOperatorReplacement @ Sum.swift-3-3 670192af8b34c2a4 (launch failed).log"
 
@@ -214,17 +195,15 @@ final class MutationTestObserverTests: MuterTestCase {
             ))
         )
 
-        XCTAssertEqual(fileManager.paths.last, "\(loggingDirectory)/\(keptFileName)")
-        XCTAssertEqual(fileManager.contents, Data("** TEST EXECUTE FAILED **".utf8))
+        XCTAssertFalse(fileManager.methodCalls.contains("createFile(atPath:contents:attributes:)"))
         XCTAssertEqual(printer.linesPassed.count, 1)
         XCTAssertTrue(printer.linesPassed[0].hasPrefix("🔁 The simulator didn't launch the tests for Sum.swift:3:3"))
     }
 
-    // Beside the log of the baseline that replaced it, before any progress.
-    func test_aBaselineRepeatedAfterALaunchFailure_keepsTheFirstRunsLog_andSaysSo() throws {
+    // The step keeps the first run's log beside the log of the baseline that replaced it, before any progress.
+    func test_aBaselineRepeatedAfterALaunchFailure_isSaid_namingTheFirstRunsLog() throws {
         fileManager.currentDirectoryPathToReturn = "/project"
         try sut.start()
-        let loggingDirectory = sut.loggingDirectory
         let keptFileName = "baseline run (launch failed).log"
 
         runEvents.send(.baselineRepeatedAfterLaunchFailure(
@@ -232,8 +211,7 @@ final class MutationTestObserverTests: MuterTestCase {
             log: .make(testLog: "** TEST FAILED **", keptFileName: keptFileName)
         ))
 
-        XCTAssertEqual(fileManager.paths.last, "\(loggingDirectory)/\(keptFileName)")
-        XCTAssertEqual(fileManager.contents, Data("** TEST FAILED **".utf8))
+        XCTAssertFalse(fileManager.methodCalls.contains("createFile(atPath:contents:attributes:)"))
         XCTAssertEqual(printer.linesPassed, [
             "🔁 The simulator didn't launch the baseline's tests, so they ran again. "
                 + "The first run's log, baseline run (launch failed).log, says: "
@@ -647,6 +625,70 @@ final class MutationTestObserverTests: MuterTestCase {
             standardError.linesPassed,
             ["⏹ Stopped by a signal after testing 1 of 4 mutants. Mutation score so far: 100%."]
         )
+    }
+
+    // From the moment the run claims its folder, it holds the marker there, so no other run prunes the folder. A run
+    // that kept nothing else there removes the folder, marker and all.
+    func test_start_holdsTheRunsMarker_andAFolderHoldingOnlyItIsRemoved() throws {
+        let project = try makeTemporaryDirectory() + "/project"
+        current.fileManager = FileManagerIn(directory: project)
+        try sut.start()
+        let marker = sut.loggingDirectory + "/" + RunMarker.fileName
+
+        XCTAssertTrue(sut.loggingDirectory.hasPrefix(project + "_muter_logs/"), sut.loggingDirectory)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: sut.loggingDirectory), [RunMarker.fileName])
+        XCTAssertEqual(ResultsFile.probeLock(marker), .inUse, "held by the run")
+
+        sut.removeLoggingDirectoryIfEmpty()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sut.loggingDirectory))
+    }
+
+    // A kept log keeps the folder, and the marker in it, whose lock goes only with the run.
+    func test_aLogFolderWithAKeptLog_keepsItsMarker() throws {
+        let project = try makeTemporaryDirectory() + "/project"
+        current.fileManager = FileManagerIn(directory: project)
+        try sut.start()
+        try Data("log".utf8).write(to: URL(fileURLWithPath: sut.loggingDirectory + "/baseline run.log"))
+
+        sut.removeLoggingDirectoryIfEmpty()
+
+        XCTAssertEqual(
+            Set(try FileManager.default.contentsOfDirectory(atPath: sut.loggingDirectory)),
+            [RunMarker.fileName, "baseline run.log"]
+        )
+        XCTAssertEqual(ResultsFile.probeLock(sut.loggingDirectory + "/" + RunMarker.fileName), .inUse)
+    }
+
+    func test_prunedLogFolders_reachTheLogger() throws {
+        try sut.start()
+
+        runEvents.send(.logFoldersPruned(LogFolderPruning(
+            root: "/p_muter_logs",
+            keeping: 2,
+            left: [.init(folders: ["Oct 1, 2026 at 8:12 AM"], reason: .inUse)]
+        )))
+
+        XCTAssertEqual(printer.linesPassed, [
+            """
+            🧹 Left the log folders of 1 earlier run in /p_muter_logs, beyond the newest 2 runs (keepLogFolders: 2):
+            ⚠️ Left Oct 1, 2026 at 8:12 AM: another SwiftMutator run is using it.
+            """,
+        ])
+    }
+}
+
+/// The real file manager, but for the current directory, which is `directory`.
+private final class FileManagerIn: FileManager, @unchecked Sendable { // `directory` never changes
+    private let directory: String
+
+    init(directory: String) {
+        self.directory = directory
+        super.init()
+    }
+
+    override var currentDirectoryPath: String {
+        directory
     }
 }
 

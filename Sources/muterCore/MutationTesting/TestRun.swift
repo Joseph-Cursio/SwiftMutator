@@ -69,6 +69,9 @@ struct FinishedRun {
     let seconds: TimeInterval
     /// The run before this one, if the simulator failed to launch it, so that this one ran in its place.
     var launchFailure: LaunchFailure?
+    /// The file it wrote its output to, as given to the run, which recording it moves to the name its log is kept
+    /// under, or removes; nil if it has none.
+    var output: String?
 }
 
 extension FinishedRun {
@@ -106,5 +109,12 @@ extension FinishedRun {
             seconds: PerformMutationTesting.seconds(from: launched, to: ended),
             launchFailure: launchFailure
         )
+    }
+
+    /// This run, which wrote its output to `output`; to none, for an empty name.
+    func writing(to output: String) -> FinishedRun {
+        var run = self
+        run.output = output.isEmpty ? nil : output
+        return run
     }
 }

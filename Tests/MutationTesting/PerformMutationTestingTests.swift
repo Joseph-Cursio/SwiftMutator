@@ -175,25 +175,60 @@ final class PerformMutationTestingTests: MuterTestCase {
         ])
     }
 
-    func test_whenBaselineFails_thenItsLogIsStillPublishedForWritingToDisk() async throws {
+    func test_whenBaselineFails_thenItsLogIsStillKept() async throws {
+        state.loggingDirectory = "/logs"
+        ioDelegate.baselineTestLog = "error: no such module 'Calc'"
         ioDelegate.testSuiteOutcomes = [.buildError]
 
-        // The baseline's output is the only evidence of why Muter can't start, and nothing else records
-        // it — so it has to be published even though the run is about to be aborted.
-        let expect = expectation(forEvent: .baselineTestFailed) { event in
-            (event.object as? MutationTestLog)?.mutationPoint == nil
-        }
-
-        // …and not as `.newTestLogAvailable`, which announces "Determined baseline for mutation
-        // testing" and starts the progress bar — neither of which happened.
-        let announcedSuccess = expectation(forEvent: .newTestLogAvailable)
-        announcedSuccess.isInverted = true
+        // Not as `.newTestLogAvailable`, which announces "Determined baseline for mutation testing" and starts the
+        // progress bar, neither of which happened.
+        let sent = recordEvents(named: [.newTestLogAvailable])
 
         try await assertThrowsMuterError(
             await sut.run(with: state)
         ) { _ in }
 
-        await fulfillment(of: [expect, announcedSuccess], timeout: 2)
+        // The baseline's output is the only evidence of why Muter can't start, and nothing else records it.
+        XCTAssertEqual(
+            fileManager.createdFiles["/logs/baseline run.log"], Data("error: no such module 'Calc'".utf8)
+        )
+        XCTAssertEqual(ioDelegate.keptOutputs.map(\.output), ["/logs/running/baseline run"])
+        XCTAssertEqual(ioDelegate.keptOutputs.map(\.path), ["/logs/baseline run.log"])
+        XCTAssertEqual(sent().count, 0)
+    }
+
+    // Each log is written once: the file each run wrote is moved to the name its log is kept under, which a mutant's
+    // results line gives. The spy moves none, so each is written from its text instead.
+    func test_eachRunsOutput_isMovedToTheNameItsLogIsKeptUnder() async throws {
+        state.loggingDirectory = "/logs"
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+        ioDelegate.mutantTestLogs = ["first mutant's log", "second mutant's log"]
+
+        _ = try await sut.run(with: state)
+
+        // The kill's log names no failed test, so it is kept too.
+        let logs = try resultsFiles.records(MutantResult.self).map { try XCTUnwrap($0.log) }
+        XCTAssertEqual(logs, [
+            MutationTestLog.keptFileName(for: fileKey(0)), MutationTestLog.keptFileName(for: fileKey(1)),
+        ])
+        XCTAssertEqual(
+            ioDelegate.keptOutputs.map(\.path), ["/logs/baseline run.log"] + logs.map { "/logs/" + $0 }
+        )
+        XCTAssertEqual(ioDelegate.keptOutputs.map(\.output), ioDelegate.testLogs)
+        XCTAssertEqual(ioDelegate.keptOutputs.first?.output, "/logs/running/baseline run")
+        XCTAssertEqual(fileManager.createdFiles["/logs/" + logs[1]], Data("second mutant's log".utf8))
+    }
+
+    // As a state that bypasses the handler has: each run's output, in the current directory, is discarded.
+    func test_withNoLogFolder_eachRunsOutputIsDiscarded_andNoLogIsKept() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.keptOutputs.map(\.output), ioDelegate.testLogs)
+        XCTAssertEqual(ioDelegate.keptOutputs.map(\.path), [nil, nil, nil])
+        XCTAssertEqual(ioDelegate.keptOutputs.first?.output, "baseline run")
+        XCTAssertEqual(fileManager.createdFiles.keys.sorted(), [])
     }
 
     func test_whenBaselineFails_thenTheAbortReasonCarriesTheMutatedFilePaths() async throws {
@@ -487,19 +522,20 @@ final class PerformMutationTestingTests: MuterTestCase {
     }
 
     // Stopping the run kills the baseline run, which then fails. That says nothing about the project's tests, so the
-    // run stops without saying they failed, and writes no results file.
-    func test_aCancelledBaseline_throwsCancellation_andPostsNoBaselineFailure() async throws {
+    // run stops without saying they failed, and writes no results file. Its partial output stays where it ran, under no
+    // name that looks kept.
+    func test_aCancelledBaseline_throwsCancellation_andKeepsNoBaselineLog() async throws {
         state.loggingDirectory = "/logs"
         ioDelegate.testSuiteOutcomes = [.buildError]
         ioDelegate.whileRunningBaseline = { worker in
             if worker == 0 { withUnsafeCurrentTask { $0?.cancel() } }
         }
-        let sent = recordEvents(named: [.baselineTestFailed])
 
         let result = await runInItsOwnTask()
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        XCTAssertEqual(sent().count, 0)
+        XCTAssertEqual(fileManager.createdFiles.keys.sorted(), [])
+        XCTAssertEqual(ioDelegate.keptOutputs.count, 0)
         XCTAssertEqual(resultsFiles.directories, [])
     }
 
@@ -521,6 +557,9 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(sent().map(\.name), [])
         XCTAssertEqual(resultsFiles.directories, [])
         XCTAssertEqual(ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count, 0)
+        // The baseline's log was kept as it ended; the stopped timed run's output stays where it ran.
+        XCTAssertEqual(fileManager.createdFiles.keys.sorted(), ["/logs/baseline run.log"])
+        XCTAssertEqual(ioDelegate.keptOutputs.map(\.output), ["/logs/running/baseline run"])
     }
 
     func test_whenCancelledBeforeTheFirstMutant_noneRuns() async throws {
@@ -753,15 +792,44 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(repeated.mutant.testSuiteOutcome, .passed)
         XCTAssertEqual(repeated.line, "Simulator device failed to launch com.example.MacCloud-client-iOS.")
         XCTAssertEqual(repeated.log.testLog, launchFailed)
-        XCTAssertEqual(repeated.log.keptFileName, MutationTestLog.launchFailedFileName(for: records[0].log))
+        let firstLog = try XCTUnwrap(records[0].log)
+        XCTAssertEqual(repeated.log.keptFileName, MutationTestLog.launchFailedFileName(for: firstLog))
         let logs = sent().compactMap { $0.object as? MutationTestLog }.map(\.testLog)
         XCTAssertEqual(logs.dropFirst(), ["the second run's log", "testLog"])
+        // The first run's from its text, as the second wrote over its file; the second's from that file.
+        let launchFailedLog = "/logs/" + MutationTestLog.launchFailedFileName(for: firstLog)
+        XCTAssertEqual(fileManager.createdFiles[launchFailedLog], Data(launchFailed.utf8))
+        XCTAssertEqual(fileManager.createdFiles["/logs/" + firstLog], Data("the second run's log".utf8))
+        XCTAssertFalse(ioDelegate.keptOutputs.contains { $0.path == launchFailedLog })
+    }
+
+    // A kill by a test its line names keeps no log, but the run the simulator failed to launch before it keeps its
+    // own, which says why it ran again.
+    func test_aKillAfterALaunchFailure_keepsTheLaunchFailedLog_butNoneOfItsOwn() async throws {
+        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
+        state.loggingDirectory = "/logs"
+        let launchFailed = loadFixture("SimulatorTrouble/launch_preflightBusy.log")
+        let killing = "✘ Test sum() recorded an issue at SumTests.swift:12:5: Expectation failed: 3 == 4"
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed, .passed]
+        ioDelegate.mutantTestLogs = [launchFailed, killing, "testLog"]
+
+        _ = try await sut.run(with: state)
+
+        let records = try resultsFiles.records(MutantResult.self)
+        XCTAssertEqual(records.map(\.outcome), [.failed, .passed])
+        XCTAssertEqual(records[0].killedBy, [.init(name: "sum()", location: "SumTests.swift:12:5")])
+        XCTAssertNil(records[0].log)
+        let wouldBe = MutationTestLog.keptFileName(for: fileKey(0))
+        let launchFailedLog = "/logs/" + MutationTestLog.launchFailedFileName(for: wouldBe)
+        XCTAssertEqual(fileManager.createdFiles[launchFailedLog], Data(launchFailed.utf8))
+        XCTAssertNil(fileManager.createdFiles["/logs/" + wouldBe])
     }
 
     // A real baseline that found Xcode's clone of the simulator busy. It tested nothing, so it runs once more, and
     // mutation testing goes on from that run. The first run's log is kept beside the baseline's.
     func test_whenTheSimulatorFailsToLaunchTheBaseline_itRunsOnceMore_andTestingGoesOn() async throws {
         state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
+        state.loggingDirectory = "/logs"
         let launchFailed = loadFixture("SimulatorTrouble/launch_preflightBusy.log")
         ioDelegate.testSuiteOutcomes = [.failed, .passed, .failed, .failed]
         ioDelegate.baselineTestLogs = [launchFailed, "the second baseline's log"]
@@ -784,6 +852,9 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(log.keptFileName, "baseline run (launch failed).log")
         let baselineLog = try XCTUnwrap(sent()[1].object as? MutationTestLog)
         XCTAssertEqual(baselineLog.testLog, "the second baseline's log")
+        XCTAssertEqual(fileManager.createdFiles["/logs/baseline run (launch failed).log"], Data(launchFailed.utf8))
+        XCTAssertEqual(fileManager.createdFiles["/logs/baseline run.log"], Data("the second baseline's log".utf8))
+        XCTAssertEqual(ioDelegate.keptOutputs.filter { $0.output == "/logs/running/baseline run" }.count, 1)
     }
 
     // One more baseline at most, which fails mutation testing as any failed baseline does. A SwiftPM baseline has no
@@ -885,6 +956,10 @@ final class PerformMutationTestingTests: MuterTestCase {
             let kept = try XCTUnwrap(log)
             XCTAssertTrue(kept.hasPrefix("/logs/") && kept.hasSuffix(" (simulator gone).log"), kept)
             XCTAssertEqual(fileManager.createdFiles[kept], Data(gone.utf8))
+            // Moved from the file the run wrote.
+            let moved = try XCTUnwrap(ioDelegate.keptOutputs.last)
+            XCTAssertTrue(moved.output.hasPrefix("/logs/running/1_"), moved.output)
+            XCTAssertEqual(moved.path, kept)
         }
 
         XCTAssertEqual(ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count, 2, "no run again")
@@ -978,6 +1053,11 @@ final class PerformMutationTestingTests: MuterTestCase {
         ioDelegate.testSuiteOutcomes = [.passed, .passed]
         ioDelegate.mutantTestLogs = ["Test run with 3 tests passed.\n"]
         let sent = recordEvents(named: [.oneMutantTested])
+        var keptWhenSent: [String] = []
+        let observer = runEvents.observe(.oneMutantTested) { [fileManager] _ in
+            keptWhenSent = Array(fileManager.createdFiles.keys)
+        }
+        addTeardownBlock { observer.cancel() }
 
         _ = try await sut.run(with: state)
 
@@ -992,9 +1072,32 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(run.timeoutSeconds, 60)
         XCTAssertEqual(run.testLog, "Test run with 3 tests passed.\n")
         XCTAssertEqual(run.logPath, "/logs/" + MutationTestLog.keptFileName(for: key))
+        XCTAssertTrue(keptWhenSent.contains("/logs/" + MutationTestLog.keptFileName(for: key)), "\(keptWhenSent)")
         XCTAssertEqual(run.mutatedProject, "/project_mutated")
         XCTAssertEqual(run.buildSystem, .swift)
         XCTAssertEqual(run.testCommand, ["/usr/bin/swift", "test"])
+    }
+
+    // `--mutant` keeps its log, which the console names, even for a kill by a test its line names.
+    func test_aOneMutantRun_ofAKillByANamedTest_keepsItsLog() async throws {
+        let key = try selectOneTernary()
+        fileManager.fileContentsToReturn = Data(Self.ternarySource.utf8)
+        ioDelegate.testSuiteOutcomes = [.passed, .failed]
+        let killing = "✘ Test sum() recorded an issue at SumTests.swift:12:5: Expectation failed: 3 == 4"
+        ioDelegate.mutantTestLogs = [killing]
+        let sent = recordEvents(named: [.oneMutantTested])
+
+        _ = try await sut.run(with: state)
+
+        let run = try XCTUnwrap(sent().first?.object as? OneMutantRun)
+        XCTAssertEqual(run.outcome, .failed)
+        XCTAssertEqual(run.logPath, "/logs/" + MutationTestLog.keptFileName(for: key))
+        XCTAssertEqual(fileManager.createdFiles["/logs/" + MutationTestLog.keptFileName(for: key)], Data(killing.utf8))
+        let record = try XCTUnwrap(resultsFiles.records(MutantResult.self).first)
+        XCTAssertEqual(record.killedBy?.map(\.name), ["sum()"])
+        XCTAssertEqual(record.log, MutationTestLog.keptFileName(for: key))
+        let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
+        XCTAssertEqual(header.formatVersion, ResultsCoding.formatVersion)
     }
 
     // A test plan's file that changed since the plan was made, let through by --plan-ignoring, may no longer hold the

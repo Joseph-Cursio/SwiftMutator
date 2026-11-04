@@ -199,7 +199,7 @@ final class MutationTestHandlerTests: MuterTestCase {
     func test_allSteps() {
         sut = MutationTestHandler(options: .make())
 
-        XCTAssertEqual(sut.steps.count, 14)
+        XCTAssertEqual(sut.steps.count, 15)
 
         XCTAssertTypeEqual(sut.steps[safe: 0], UpdateCheck.self)
         XCTAssertTypeEqual(sut.steps[safe: 1], LoadConfiguration.self)
@@ -212,16 +212,17 @@ final class MutationTestHandlerTests: MuterTestCase {
         XCTAssertTypeEqual(sut.steps[safe: 7], DiscoverProjectCoverage.self)
         XCTAssertTypeEqual(sut.steps[safe: 8], DiscoverSourceFiles.self)
         XCTAssertTypeEqual(sut.steps[safe: 9], DiscoverMutationPoints.self)
-        XCTAssertTypeEqual(sut.steps[safe: 10], ApplySchemata.self)
-        XCTAssertTypeEqual(sut.steps[safe: 11], CheckMutantSwitches.self)
-        XCTAssertTypeEqual(sut.steps[safe: 12], BuildForTesting.self)
-        XCTAssertTypeEqual(sut.steps[safe: 13], PerformMutationTesting.self)
+        XCTAssertTypeEqual(sut.steps[safe: 10], PruneLogFolders.self)
+        XCTAssertTypeEqual(sut.steps[safe: 11], ApplySchemata.self)
+        XCTAssertTypeEqual(sut.steps[safe: 12], CheckMutantSwitches.self)
+        XCTAssertTypeEqual(sut.steps[safe: 13], BuildForTesting.self)
+        XCTAssertTypeEqual(sut.steps[safe: 14], PerformMutationTesting.self)
     }
 
     func test_steps_whenResuming() {
         sut = MutationTestHandler(options: .make(resumeURL: URL(fileURLWithPath: "/logs/results.jsonl")))
 
-        XCTAssertEqual(sut.steps.count, 15)
+        XCTAssertEqual(sut.steps.count, 16)
 
         XCTAssertTypeEqual(sut.steps[safe: 0], UpdateCheck.self)
         XCTAssertTypeEqual(sut.steps[safe: 1], LoadConfiguration.self)
@@ -231,7 +232,8 @@ final class MutationTestHandlerTests: MuterTestCase {
         XCTAssertTypeEqual(sut.steps[safe: 5], PreviousRunCleanUp.self)
         XCTAssertTypeEqual(sut.steps[safe: 6], CopyProjectToTempDirectory.self)
         XCTAssertTypeEqual(sut.steps[safe: 7], FingerprintProjectTree.self)
-        XCTAssertTypeEqual(sut.steps[safe: 14], PerformMutationTesting.self)
+        XCTAssertTypeEqual(sut.steps[safe: 11], PruneLogFolders.self)
+        XCTAssertTypeEqual(sut.steps[safe: 15], PerformMutationTesting.self)
     }
 
     // A reuse loads the earlier run's results file where a resume does, so it's refused as early.
@@ -341,6 +343,41 @@ final class MutationTestHandlerTests: MuterTestCase {
         XCTAssertTrue(fileManager.paths.contains(project.path + "_mutated"), "\(fileManager.paths)")
     }
 
+    // A run refused by another run of the project, or by any step before the lock, prunes no log folder; one that
+    // gets past the lock does.
+    func test_aRunRefusedBeforeTheLock_prunesNoLogFolder() async throws {
+        current.mutatedProjectLocker = MutatedProjectLock.Locker()
+        let project = URL(fileURLWithPath: try makeTemporaryDirectory()).appendingPathComponent("x")
+        let pruned = Locked(0)
+        let steps = { (before: [MutationStep]) -> [MutationStep] in
+            before + [
+                CreateMutatedProjectDirectoryURL(),
+                LockMutatedProject(),
+                PruneLogFolders { root, _, _, keeping in
+                    pruned.change { $0 += 1 }
+                    return LogFolderPruning(root: root, keeping: keeping)
+                },
+            ]
+        }
+        let state = { () -> MutationTestState in
+            let state = MutationTestState()
+            state.projectDirectoryURL = project
+            state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", keepLogFolders: 2)
+            return state
+        }
+        let other = try MutatedProjectLock.Locker().lock(URL(fileURLWithPath: project.path + "_mutated"))
+        let locked = MutationTestHandler(steps: steps([]), state: state())
+        let refused = MutationTestHandler(steps: steps([RefusingStep()]), state: state())
+
+        await AssertThrowsError(try await locked.run()) { XCTAssertTrue($0 is MutatedProjectLockError, "\($0)") }
+        await AssertThrowsError(try await refused.run()) { XCTAssertTrue($0 is ResumeRefused, "\($0)") }
+        XCTAssertEqual(pruned.value, 0)
+
+        other.release()
+        try await MutationTestHandler(steps: steps([]), state: state()).run()
+        XCTAssertEqual(pruned.value, 1)
+    }
+
     // A test plan's run is refused before it reads anything under the mutated project's path, which another run may
     // be rewriting. Checking the plan against the project reads only the project, although the copy was edited.
     func test_aRunOfATestPlan_whileAnotherRunUsesItsMutatedProject_readsNothingThere() async throws {
@@ -423,7 +460,7 @@ final class MutationTestHandlerTests: MuterTestCase {
             )
         )
 
-        XCTAssertEqual(sut.steps.count, 11)
+        XCTAssertEqual(sut.steps.count, 12)
         XCTAssertTypeEqual(sut.steps[safe: 0], UpdateCheck.self)
         XCTAssertTypeEqual(sut.steps[safe: 1], LoadConfiguration.self)
         XCTAssertTypeEqual(sut.steps[safe: 2], LoadMuterTestPlan.self)
@@ -435,9 +472,11 @@ final class MutationTestHandlerTests: MuterTestCase {
         XCTAssertTypeEqual(sut.steps[safe: 6], CheckMutantSwitches.self)
         // After the lock, in the copy as it is tested, which the results file records.
         XCTAssertTypeEqual(sut.steps[safe: 7], FingerprintProjectTree.self)
-        XCTAssertTypeEqual(sut.steps[safe: 8], BuildForTesting.self)
-        XCTAssertTypeEqual(sut.steps[safe: 9], ProjectMappings.self)
-        XCTAssertTypeEqual(sut.steps[safe: 10], PerformMutationTesting.self)
+        // Once the plan's code and copy can no longer refuse the run.
+        XCTAssertTypeEqual(sut.steps[safe: 8], PruneLogFolders.self)
+        XCTAssertTypeEqual(sut.steps[safe: 9], BuildForTesting.self)
+        XCTAssertTypeEqual(sut.steps[safe: 10], ProjectMappings.self)
+        XCTAssertTypeEqual(sut.steps[safe: 11], PerformMutationTesting.self)
     }
 
     func test_steps_whenRunWithoutMutating_resumes() throws {
@@ -448,7 +487,7 @@ final class MutationTestHandlerTests: MuterTestCase {
             )
         )
 
-        XCTAssertEqual(sut.steps.count, 12)
+        XCTAssertEqual(sut.steps.count, 13)
         XCTAssertTypeEqual(sut.steps[safe: 2], LoadMuterTestPlan.self)
         XCTAssertTypeEqual(sut.steps[safe: 3], CheckTestPlanSources.self)
         // After the plan, which it compares, and before the lock, as in a run's: a results file another session still
@@ -457,12 +496,16 @@ final class MutationTestHandlerTests: MuterTestCase {
         XCTAssertTypeEqual(sut.steps[safe: 5], LockMutatedProject.self)
         // Compares the copy with the one the last session tested.
         XCTAssertTypeEqual(sut.steps[safe: 8], FingerprintProjectTree.self)
-        XCTAssertTypeEqual(sut.steps[safe: 11], PerformMutationTesting.self)
+        // A changed copy refuses the resume, before any folder is removed.
+        XCTAssertTypeEqual(sut.steps[safe: 9], PruneLogFolders.self)
+        XCTAssertTypeEqual(sut.steps[safe: 12], PerformMutationTesting.self)
     }
 
-    // The copy gets only that mutant's switch, and the rest of the run is a whole run's.
+    // The copy gets only that mutant's switch, and the rest of the run is a whole run's, but for pruning log folders:
+    // a short probe, the run most likely to go alongside another, never removes theirs.
     func test_steps_whenRunningOneMutant() {
         let whole = MutationTestHandler(options: .make(skipCoverage: true)).steps.map { "\(type(of: $0))" }
+            .filter { $0 != "PruneLogFolders" }
         sut = MutationTestHandler(options: .make(skipCoverage: true, mutant: MutantReference(path: "B", line: 1)))
 
         var expected = whole
@@ -487,6 +530,8 @@ final class MutationTestHandlerTests: MuterTestCase {
         XCTAssertTypeEqual(sut.steps[safe: 3], SelectMutant.self)
         XCTAssertTypeEqual(sut.steps[safe: 4], CheckTestPlanSources.self)
         XCTAssertTypeEqual(sut.steps[safe: 5], LockMutatedProject.self)
+        // No pruning: a run of one mutant never removes other runs' log folders.
+        XCTAssertTypeEqual(sut.steps[safe: 6], CheckTestPlanCode.self)
         XCTAssertTypeEqual(sut.steps[safe: 11], PerformMutationTesting.self)
     }
 
@@ -508,7 +553,7 @@ final class MutationTestHandlerTests: MuterTestCase {
             )
         )
 
-        XCTAssertEqual(sut.steps.count, 13)
+        XCTAssertEqual(sut.steps.count, 14)
         XCTAssertTypeEqual(sut.steps[safe: 0], UpdateCheck.self)
         XCTAssertTypeEqual(sut.steps[safe: 1], LoadConfiguration.self)
         XCTAssertTypeEqual(sut.steps[safe: 2], CreateMutatedProjectDirectoryURL.self)
@@ -520,10 +565,58 @@ final class MutationTestHandlerTests: MuterTestCase {
         XCTAssertTypeEqual(sut.steps[safe: 7], DiscoverProjectCoverage.self)
         XCTAssertTypeEqual(sut.steps[safe: 8], DiscoverSourceFiles.self)
         XCTAssertTypeEqual(sut.steps[safe: 9], DiscoverMutationPoints.self)
-        XCTAssertTypeEqual(sut.steps[safe: 10], ApplySchemata.self)
+        XCTAssertTypeEqual(sut.steps[safe: 10], PruneLogFolders.self)
+        XCTAssertTypeEqual(sut.steps[safe: 11], ApplySchemata.self)
         // No plan is made whose code lacks a mutant's switch.
-        XCTAssertTypeEqual(sut.steps[safe: 11], CheckMutantSwitches.self)
-        XCTAssertTypeEqual(sut.steps[safe: 12], CreateMuterTestPlan.self)
+        XCTAssertTypeEqual(sut.steps[safe: 12], CheckMutantSwitches.self)
+        XCTAssertTypeEqual(sut.steps[safe: 13], CreateMuterTestPlan.self)
+    }
+
+    // After every step that can refuse the run or find nothing to test, so a run that ends that way removes nothing
+    // and never counts as one of the runs kept, and before the build and the test runs, so the space is freed before
+    // most logs are written. A run of one mutant has no pruning at all.
+    func test_pruneLogFolders_comesOnceNothingCanRefuseTheRun_andBeforeAnythingIsBuilt() throws {
+        let commands: [Run.Options] = [
+            .make(),
+            .make(since: "main"),
+            .make(skipCoverage: true),
+            .make(shard: Shard(index: 2, count: 4)),
+            .make(resumeURL: URL(fileURLWithPath: "/logs")),
+            .make(reuseURL: URL(fileURLWithPath: "/logs")),
+            .make(createTestPlan: true),
+            .make(testPlanURL: URL(fileURLWithPath: "/path/to/testplan")),
+            .make(testPlanURL: URL(fileURLWithPath: "/path/to/testplan"), resumeURL: URL(fileURLWithPath: "/logs")),
+        ]
+        // Each can refuse the run (`ResumeRefused`, `TestPlanRefused`, a lock in use), or find nothing to test
+        // (`NothingToMutate`, `EmptyShard`).
+        let before: [MutationStep.Type] = [
+            LoadConfiguration.self, SelectChangedCode.self, LoadResumeState.self, LoadMuterTestPlan.self,
+            CheckTestPlanSources.self, LockMutatedProject.self, CheckTestPlanCode.self, FingerprintProjectTree.self,
+            ListChangedSources.self, DiscoverSourceFiles.self, DiscoverMutationPoints.self,
+        ]
+        let after: [MutationStep.Type] = [
+            ApplySchemata.self, BuildForTesting.self, PerformMutationTesting.self, CreateMuterTestPlan.self,
+        ]
+
+        for options in commands {
+            let steps = MutationTestHandler(options: options).steps
+            let index = { (step: MutationStep.Type) in steps.firstIndex { type(of: $0) == step } }
+            let pruning = try XCTUnwrap(index(PruneLogFolders.self), "\(options)")
+            for step in before {
+                guard let earlier = index(step) else { continue }
+                XCTAssertLessThan(earlier, pruning, "\(step), \(options)")
+            }
+            for step in after {
+                guard let later = index(step) else { continue }
+                XCTAssertLessThan(pruning, later, "\(step), \(options)")
+            }
+        }
+        for options: Run.Options in [
+            .make(mutant: MutantReference(path: "Bar.swift", line: 12)),
+            .make(testPlanURL: URL(fileURLWithPath: "/path/to/testplan"), mutant: MutantReference(path: "B", line: 1)),
+        ] {
+            assertStepsDoesNotContain(MutationTestHandler(options: options).steps, PruneLogFolders.self)
+        }
     }
 
     private func assertStepsDoesNotContain(

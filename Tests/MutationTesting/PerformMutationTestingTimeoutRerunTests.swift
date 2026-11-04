@@ -84,6 +84,34 @@ final class PerformMutationTestingTimeoutRerunTests: MuterTestCase {
         XCTAssertEqual([tally.rerun, tally.killed, tally.changed], [1, 1, 1])
     }
 
+    // A rerun killed by a test its line names keeps no ` (rerun)` log, as any such kill keeps none; the first run's
+    // log, a timeout's, is kept.
+    func test_aRerunKilledByANamedTest_keepsNoLog() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .passed, .passed, .passed, .passed, .timeout, .passed, .passed]
+            + [.failed]
+        // The rerun is the last run, once the others are done.
+        ioDelegate.mutantTestLogs = Array(repeating: "testLog", count: 4) + [
+            "✘ Test sum() recorded an issue at SumTests.swift:12:5: Expectation failed: 3 == 4",
+        ]
+
+        _ = try await sut.run(with: state)
+
+        let records = try resultsFiles.records(MutantResult.self)
+        let timeout = try XCTUnwrap(records.first { $0.outcome == .timeout })
+        let rerun = try XCTUnwrap(records.last)
+        XCTAssertEqual(rerun.outcome, .failed)
+        XCTAssertEqual(rerun.killedBy, [.init(name: "sum()", location: "SumTests.swift:12:5")])
+        XCTAssertNil(rerun.log)
+        XCTAssertEqual(timeout.log, MutationTestLog.keptFileName(for: timeout.key))
+        XCTAssertNotNil(fileManager.createdFiles["/logs/" + MutationTestLog.keptFileName(for: timeout.key)])
+        XCTAssertNil(fileManager.createdFiles["/logs/" + MutationTestLog.rerunFileName(for: timeout.key)])
+        XCTAssertEqual(
+            ioDelegate.keptOutputs.filter { $0.path == nil }.map(\.output),
+            [ioDelegate.testLogs.last],
+            "the rerun's output is discarded"
+        )
+    }
+
     // A mutant that loops forever loops again: it stays a timeout, which the score counts as a survivor.
     func test_aTimeoutAgain_staysATimeout() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .passed, .passed, .passed, .failed, .timeout, .passed, .failed]

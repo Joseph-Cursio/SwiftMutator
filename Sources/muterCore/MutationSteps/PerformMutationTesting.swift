@@ -33,8 +33,9 @@ struct PerformMutationTesting: MutationStep {
 
     /// The folder in the run's log folder that each test run writes its output to while it runs. Never the mutated
     /// project or a clone, where a test that lists the package's files, or asks git for untracked ones, would see it.
-    /// Each run's file goes once its log is read back (`MutationTestingDelegate`), and the log folder keeps its own
-    /// copy, so only the output of runs a stop cut short stays.
+    /// Once a run is recorded, its file is moved to the name the log folder keeps its log under, or removed, so only
+    /// the output of runs that weren't recorded stays: those a stop cut short, and those that finished but weren't
+    /// recorded before a stop or an abort.
     static let testOutputFolderName = "running"
 
     /// Clones the mutated project for each extra parallel worker, and removes the clones afterwards.
@@ -243,19 +244,8 @@ private extension PerformMutationTesting {
             end: timeAfterRunningTestSuite
         ).duration
 
+        // A failing baseline's log, which `baseline` kept, is exactly what the user needs on disk.
         guard testSuiteOutcome == .passed else {
-            // A failing baseline is exactly when the user needs its output on disk, and nothing else
-            // records it. It gets its own event rather than `.newTestLogAvailable`, which also
-            // announces that a baseline was successfully determined and starts the progress bar or lines.
-            events.send(
-                .baselineTestFailed(MutationTestLog(
-                    mutationPoint: .none,
-                    testLog: testLog,
-                    timePerBuildTestCycle: timePerBuildTestCycle,
-                    remainingMutationPointsCount: .none
-                ))
-            )
-
             throw MuterError.mutationTestingAborted(
                 reason: .baselineTestFailed(
                     log: testLog,
@@ -321,16 +311,9 @@ private extension PerformMutationTesting {
             state: state
         )
         keepReused(reused, of: jobs, in: session, state: state)
-        // A reuse with nothing left to test ran the baseline only to check the changed project, so it keeps its log
-        // without the one that starts the progress bar or lines.
-        guard !plan.toRun.isEmpty else {
-            _ = fileManager.createFile(
-                atPath: (state.loggingDirectory as NSString).appendingPathComponent(MutationTestLog.baselineFileName),
-                contents: testLog.data(using: .utf8),
-                attributes: nil
-            )
-            return
-        }
+        // A reuse with nothing left to test ran the baseline only to check the changed project, so it sends no log to
+        // start the progress bar or lines. `baseline` kept its log.
+        guard !plan.toRun.isEmpty else { return }
 
         // The first estimate of the time left: every mutant to test, spread over the workers.
         events.send(
@@ -427,7 +410,8 @@ private extension PerformMutationTesting {
     }
 
     /// The session's header, for testing `plan.toRun` of the jobs `session.keys` are of, with `configuration`, the
-    /// effective one, on `workers` workers. A resumed session's says what it kept, and what its resume let through.
+    /// effective one, on `workers` workers. A resumed session's says what it kept, and what its resume let through. A
+    /// reuse's says whether any line it copies names no log.
     func header(
         of session: TestingSession,
         _ plan: ResumePlan,
@@ -459,7 +443,8 @@ private extension PerformMutationTesting {
             mutantsReused: resume == nil ? nil : plan.reused.count,
             waived: resume == nil ? nil : state.resumeWaived,
             forced: resume?.forced,
-            reusedFrom: resume?.isReuse == true ? resume?.path : nil
+            reusedFrom: resume?.isReuse == true ? resume?.path : nil,
+            copyingLinesWithoutLogs: Self.copiesLinesWithoutLogs(plan, state: state)
         )
     }
 
@@ -483,7 +468,7 @@ private extension PerformMutationTesting {
 
     /// The results `plan` keeps, by job index: as recorded for a resume, and for a reuse as the new results file
     /// records them (`MutantResult.reused`), each in its job's place, with where it was tested and what was let
-    /// through since.
+    /// through since, and with a log only if this run would keep one for it.
     func keptResults(_ plan: ResumePlan, of jobs: [MutantJob], state: AnyMutationTestState) -> [Int: MutantResult] {
         guard let resume = state.resumeState, resume.isReuse else { return plan.reused }
         return plan.reused.reduce(into: [:]) { kept, entry in
@@ -496,7 +481,8 @@ private extension PerformMutationTesting {
                 switchID: schema.id,
                 // What this run let through since the session that tested it, not since another session.
                 despiteChanges: state.reuseChanges?[entry.value.session]?.waived.isEmpty == false
-                    || !resume.forced.isEmpty
+                    || !resume.forced.isEmpty,
+                keepingLog: Self.keepsLog(of: entry.value, reusedBy: state)
             )
         }
     }
@@ -674,6 +660,7 @@ private extension PerformMutationTesting {
                 using: ioDelegate
             )
 
+            let output = testOutput(named: logFileName(forJobAt: index, job), state: state)
             let finished = await FinishedRun.make(
                 index: index,
                 worker: 0,
@@ -684,9 +671,9 @@ private extension PerformMutationTesting {
                 await ioDelegate.runTestSuite(
                     withSchemata: job.schema,
                     using: configuration,
-                    savingResultsIntoFileNamed: testOutput(named: logFileName(forJobAt: index, job), state: state)
+                    savingResultsIntoFileNamed: output
                 )
-            }
+            }.writing(to: output)
             try Self.throwIfCancelled(finished.run)
 
             try record(
@@ -882,7 +869,14 @@ private extension PerformMutationTesting {
         try Task.checkCancellation()
         // A failed one's log is what says why the run stopped, and the abort message is all that shows it otherwise.
         for run in runs.sorted(by: { $0.worker < $1.worker }) {
-            fileManager.keepLog(run.testLog, named: "baseline run worker \(run.worker).log", state: state)
+            let name = "baseline run worker \(run.worker)"
+            fileManager.keepLog(
+                run.testLog,
+                writtenTo: testOutput(named: name, state: state),
+                by: ioDelegate,
+                named: name + ".log",
+                state: state
+            )
         }
 
         // The lowest-numbered failure, so the same worker is named whichever build finished first.
@@ -924,18 +918,25 @@ private extension PerformMutationTesting {
 
         let directConfiguration = configuration.withDirectTestRun(direct)
         let start = instant()
+        let output = testOutput(named: "direct test run", state: state)
         let (outcome, testLog) = await ioDelegate.runTestsWithoutBuilding(
             using: directConfiguration,
-            savingResultsIntoFileNamed: testOutput(named: "direct test run", state: state)
+            savingResultsIntoFileNamed: output
         )
         // Stopping the run kills this run too, which then fails, but that says nothing about the project's tests.
         try Task.checkCancellation()
         let seconds = seconds(since: start)
-        if let reason = DirectTestRun.whyNot(baselineLog: baselineLog, outcome: outcome, log: testLog) {
-            fileManager.keepLog(testLog, named: "direct test run.log", state: state)
-            return notDirect(reason + " (its log is direct test run.log)")
+        let whyNot = DirectTestRun.whyNot(baselineLog: baselineLog, outcome: outcome, log: testLog)
+        fileManager.keepLog(
+            testLog,
+            writtenTo: output,
+            by: ioDelegate,
+            named: whyNot == nil ? TimedTestRun.logName : "direct test run.log",
+            state: state
+        )
+        if let whyNot {
+            return notDirect(whyNot + " (its log is direct test run.log)")
         }
-        fileManager.keepLog(testLog, named: "timed test run.log", state: state)
         return (directConfiguration, seconds)
     }
 
@@ -1056,11 +1057,12 @@ private extension PerformMutationTesting {
     }
 
     /// Writes `finished`'s result, the run of `job`'s mutant, or its `rerun`, to the results file, keeps its outcome in
-    /// `session`, and returns it with its log, kept under the name the line gives it. The result is written first, so
-    /// it is on disk before anything else happens. `configuration` is the effective one, whose baseline may have made
-    /// failed-test lines unreliable. A run on a simulator that is gone is never recorded, and aborts mutation testing
+    /// `session`, and returns it with its log, kept under the name the line gives it by moving the file the run wrote,
+    /// or discarded when the line names none (`keptLogName`). The result is written first, so it is on disk before
+    /// anything else happens. `configuration` is the effective one, whose baseline may have made failed-test lines
+    /// unreliable. A run on a simulator that is gone is never recorded, and aborts mutation testing
     /// (`abortingIfTheSimulatorIsGone`). A run the simulator failed to launch before this one is sent only once this
-    /// one's result is written (`sendingTheRunTheSimulatorFailedToLaunch`).
+    /// one's result is written (`sendingTheRunTheSimulatorFailedToLaunch`); its log is kept whatever this one's is.
     func keep(
         _ finished: FinishedRun,
         of job: MutantJob,
@@ -1082,6 +1084,9 @@ private extension PerformMutationTesting {
             durationSeconds: MutantResult.recordedSeconds(finished.seconds)
         )
         let log = rerun == nil ? MutationTestLog.keptFileName(for: key) : MutationTestLog.rerunFileName(for: key)
+        let keptLog = Self.keptLogName(
+            log, of: finished, failures: failures, configuration: configuration, state: state
+        )
         try abortingIfTheSimulatorIsGone(in: finished, logName: log, configuration: configuration, state: state)
         write(
             MutantResult(
@@ -1091,7 +1096,7 @@ private extension PerformMutationTesting {
                 failures: failures,
                 session: session.number,
                 finishedAt: now(),
-                log: log,
+                log: keptLog,
                 fileSHA256: state.projectTree?.files[key.path],
                 rerun: rerun
             ),
@@ -1099,7 +1104,11 @@ private extension PerformMutationTesting {
             isAMutant: true
         )
         session.outcomes[finished.index] = outcome
-        sendingTheRunTheSimulatorFailedToLaunch(before: finished, of: outcome, logName: log)
+        // Before any event, so a log the console names, such as `--mutant`'s, is there.
+        fileManager.keepLog(
+            finished.run.testLog, writtenTo: finished.output, by: ioDelegate, named: keptLog, state: state
+        )
+        sendingTheRunTheSimulatorFailedToLaunch(before: finished, of: outcome, logName: log, state: state)
 
         let mutationLog = MutationTestLog(
             mutationPoint: outcome.point,
@@ -1111,15 +1120,18 @@ private extension PerformMutationTesting {
         return (outcome, mutationLog)
     }
 
-    /// If the simulator failed to launch the run before `finished`, sends that run with `outcome`, `finished`'s, and
-    /// its log, which is kept beside `logName`, `finished`'s. Called once `finished`'s result is written, so the
-    /// results file has its line before the console says the mutant ran again or the first run's log is kept.
+    /// If the simulator failed to launch the run before `finished`, keeps its log beside `logName`, `finished`'s, and
+    /// sends that run with `outcome`, `finished`'s. Called once `finished`'s result is written, so the results file has
+    /// its line before the console says the mutant ran again or the first run's log is kept. The log is kept from
+    /// its text: the run in its place wrote over its file.
     func sendingTheRunTheSimulatorFailedToLaunch(
         before finished: FinishedRun,
         of outcome: MutationTestOutcome.Mutation,
-        logName: String
+        logName: String,
+        state: AnyMutationTestState
     ) {
         guard let failure = finished.launchFailure else { return }
+        fileManager.keepLog(failure.testLog, named: MutationTestLog.launchFailedFileName(for: logName), state: state)
         let log = MutationTestLog(
             mutationPoint: outcome.point,
             testLog: failure.testLog,
@@ -1134,27 +1146,34 @@ private extension PerformMutationTesting {
         )
     }
 
-    /// The baseline run's outcome and log. A baseline the simulator failed to launch says nothing about the tests
-    /// either, so it runs once more, as a mutant's run does (`SimulatorTrouble.launch`), and the first run's log is
-    /// sent to be kept, whatever the second comes to. The caller times both runs: the first paid for the build. A stop
-    /// throws.
+    /// The baseline run's outcome and log, which is kept, whatever it comes to. A baseline the simulator failed to
+    /// launch says nothing about the tests either, so it runs once more, as a mutant's run does
+    /// (`SimulatorTrouble.launch`), and the first run's log is kept and sent, whatever the second comes to. The caller
+    /// times both runs: the first paid for the build. A stop throws, and leaves the output where it ran.
     private func baseline(state: AnyMutationTestState) async throws -> (outcome: TestSuiteOutcome, testLog: String) {
+        let output = testOutput(named: "baseline run", state: state)
         let (baseline, launchFailure) = await TestRun.launchedOnceMore(ifNeededWith: state.muterConfiguration) {
             let (outcome, testLog) = await ioDelegate.benchmarkTests(
                 using: state.muterConfiguration,
-                savingResultsIntoFileNamed: testOutput(named: "baseline run", state: state)
+                savingResultsIntoFileNamed: output
             )
             return TestRun(outcome: outcome, testLog: testLog)
         }
         // Stopping the run kills the baseline run, which then fails, but that says nothing about the project's tests.
         try Task.checkCancellation()
+        // Now, so that a stop before the mutants' runs, or a failed baseline's abort, still has it.
+        fileManager.keepLog(
+            baseline.testLog, writtenTo: output, by: ioDelegate, named: MutationTestLog.baselineFileName, state: state
+        )
         if let launchFailure {
+            let keptFileName = MutationTestLog.launchFailedFileName(for: MutationTestLog.baselineFileName)
+            fileManager.keepLog(launchFailure.testLog, named: keptFileName, state: state)
             let log = MutationTestLog(
                 mutationPoint: .none,
                 testLog: launchFailure.testLog,
                 timePerBuildTestCycle: .none,
                 remainingMutationPointsCount: .none,
-                keptFileName: MutationTestLog.launchFailedFileName(for: MutationTestLog.baselineFileName)
+                keptFileName: keptFileName
             )
             events.send(.baselineRepeatedAfterLaunchFailure(line: launchFailure.line, log: log))
         }
@@ -1191,8 +1210,9 @@ private extension PerformMutationTesting {
         await workerSimulators.sweep(state.mutatedProjectDirectoryURL)
     }
 
-    /// Removes the run's test-output folder if it is empty, as it is once every run has been read back, so a finished
-    /// run's log folder holds only the logs it keeps. A stop leaves the folder, with the output of the runs under way.
+    /// Removes the run's test-output folder if it is empty, as it is once every recorded run's output is kept or
+    /// discarded, so a finished run's log folder holds only the logs it keeps. A stop or an abort leaves the folder,
+    /// with the output of the runs under way, or finished but not recorded.
     func removeTestOutputFolderIfEmpty(_ state: AnyMutationTestState) {
         guard !state.loggingDirectory.isEmpty else { return }
         let folder = (state.loggingDirectory as NSString).appendingPathComponent(Self.testOutputFolderName)
@@ -1272,19 +1292,20 @@ private extension PerformMutationTesting {
     }
 
     /// Copies each of the `reused` results' kept logs from the folder of the session that recorded it in `resume`'s
-    /// file into `loggingDirectory`, under the same name, which its new line names. A log that isn't there any more, or
-    /// can't be copied, is left out: the result doesn't depend on it.
+    /// file into `loggingDirectory`, under the same name, which its new line names. A result whose recorded or new line
+    /// names no log copies none, and a log that isn't there any more, or can't be copied, is left out: the result
+    /// doesn't depend on it.
     func copyLogs(of reused: [MutantResult], from resume: ResumeState, into loggingDirectory: String) {
         let folders = Dictionary(
             resume.recorded.headers.map { ($0.session, $0.logDirectory) },
             uniquingKeysWith: { _, last in last }
         )
         for result in reused {
-            guard let recorded = resume.recorded.latest[result.key], let folder = folders[recorded.session] else {
-                continue
-            }
-            let source = (folder as NSString).appendingPathComponent(recorded.log)
-            let destination = (loggingDirectory as NSString).appendingPathComponent(result.log)
+            guard let recorded = resume.recorded.latest[result.key], let folder = folders[recorded.session],
+                  let name = recorded.log, let destinationName = result.log
+            else { continue }
+            let source = (folder as NSString).appendingPathComponent(name)
+            let destination = (loggingDirectory as NSString).appendingPathComponent(destinationName)
             try? fileManager.copyItem(atPath: source, toPath: destination)
         }
     }

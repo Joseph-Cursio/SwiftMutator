@@ -17,6 +17,27 @@ final class MutationTestLogTests: XCTestCase {
         )
     }
 
+    // A kill by a failed test its line names keeps no log: `killedBy` and `firstFailedTestLine` stand in for it. Every
+    // other run keeps its log, and `keepAllLogs` keeps every one.
+    func test_isKept_keepsEveryLogButAKillsWhoseLineNamesATest() {
+        let named = [FailedTestLine.FailedTest(name: "sum()", location: "SumTests.swift:3:5")]
+        let kept = { (outcome: TestSuiteOutcome, killedBy: [FailedTestLine.FailedTest]?) in
+            MutationTestLog.isKept(outcome: outcome, killedBy: killedBy, keepingAll: false)
+        }
+
+        XCTAssertFalse(kept(.failed, named))
+        XCTAssertTrue(kept(.failed, []), "a kill whose line names no test")
+        XCTAssertTrue(kept(.failed, nil))
+        XCTAssertTrue(kept(.passed, nil))
+        XCTAssertTrue(kept(.runtimeError, named), "a crash")
+        XCTAssertTrue(kept(.timeout, named))
+        XCTAssertTrue(kept(.buildError, nil))
+        XCTAssertTrue(kept(.noCoverage, nil))
+        for outcome in TestSuiteOutcome.allCases {
+            XCTAssertTrue(MutationTestLog.isKept(outcome: outcome, killedBy: named, keepingAll: true), "\(outcome)")
+        }
+    }
+
     // Two executable targets' `main.swift`, or a file copied into two targets, with a mutant at the same place.
     func test_keptFileName_ofSameNamedFiles_differ() {
         let app = key(path: "Sources/App/Check.swift")

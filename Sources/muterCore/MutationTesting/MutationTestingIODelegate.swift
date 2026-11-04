@@ -1,3 +1,8 @@
+#if os(Linux)
+import Glibc
+#else
+import Darwin.C
+#endif
 import Foundation
 
 // A pure-Swift async injection seam (an I/O *dependency*), not an Objective-C delegate, so the
@@ -5,8 +10,9 @@ import Foundation
 // swiftlint:disable:next class_delegate_protocol
 protocol MutationTestingIODelegate: Sendable {
     /// Runs the test command with `schemata` switched on. Its output goes to `fileName`, a path relative to the
-    /// current directory or an absolute one, whose folder is made if need be. The file is removed once its log has
-    /// been read back, so only a run stopped before that leaves it.
+    /// current directory or an absolute one, whose folder is made if need be. The file stays once its log has been read
+    /// back, for the caller to keep or discard (`keepOutput(at:as:)`), so a run that is never recorded, one a stop cut
+    /// short or one that finished as a stop or an abort came, leaves it where it is.
     func runTestSuite(
         withSchemata schemata: MutationSchema,
         using configuration: MuterConfiguration,
@@ -76,6 +82,13 @@ protocol MutationTestingIODelegate: Sendable {
         at path: URL,
         named fileName: String
     ) async throws
+
+    /// Moves the output file a run wrote, `output`, named as given to `runTestSuite`, to `path`, replacing any file
+    /// there, or removes it when `path` is nil. Either path is relative to the current directory or an absolute one.
+    /// Only a regular file is moved or removed, never a folder or a symbolic link. Whether the file was moved: false
+    /// when there is none, or the move failed, and the output is then removed.
+    @discardableResult
+    func keepOutput(at output: String, as path: String?) -> Bool
 }
 
 extension MutationTestingIODelegate {
@@ -242,10 +255,8 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         skippingBuild: Bool? = nil,
         workingDirectory: URL? = nil
     ) async -> TestRun {
-        var openedLogUrl: URL?
         do {
             let (testProcessFileHandle, testLogUrl) = try fileHandle(for: fileName)
-            openedLogUrl = testLogUrl
             defer { try? testProcessFileHandle.close() }
 
             let process = try await testProcess(
@@ -276,9 +287,12 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             // CancellationError of its ending or of its time limit's task. Its outcome then says nothing
             // about the mutant, and its ending says so.
             let ending: TestRun.Ending = error is CancellationError || Task.isCancelled ? .cancelled : .couldNotRun
-            // A stopped run's output stays, to show what the run was doing; a run that never started has none.
-            if ending == .couldNotRun, let openedLogUrl {
-                try? FileManager.default.removeItem(at: openedLogUrl)
+            // A stopped run's output stays, to show what the run was doing. A run that never started has none, so
+            // whatever is at its output's name goes, even when it wasn't opened: an empty file made just before the
+            // open failed, or one left there before, would otherwise be kept as its log in place of this explanation.
+            // Only a file goes, never a folder.
+            if ending == .couldNotRun {
+                unlink(outputUrl(for: fileName).path)
             }
             return TestRun(
                 outcome: .buildError,
@@ -337,18 +351,22 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         // limit, or a test process that crashed mid-write, can end partway through a character. Strict
         // decoding threw on that, and the run was reported as a build error, outside the score.
         var testExecutionLog = try String(decoding: Data(contentsOf: logFileUrl), as: UTF8.self)
-        // Read back, the log is the run's: whatever records the run keeps a copy of it, in the run's log folder.
-        try? FileManager.default.removeItem(at: logFileUrl)
+        // Read back, the file stays: whatever records the run moves it to its log's kept name, or removes it.
         let testResult = TestSuiteOutcome.from(
             testLog: testExecutionLog,
             terminationStatus: exit.status,
             timeoutExecution: executionResult,
             failedTestLinesAreReliable: failedTestLinesAreReliable
         )
-        if case let .failedTest(line) = ending.reason {
-            testExecutionLog += Self.noteForRunStopped(at: line, after: testExecutionLog)
-        } else if case let .crashed(line) = ending.reason {
-            testExecutionLog += Self.noteForRunStopped(atCrash: line, after: testExecutionLog)
+        let note: String? = switch ending.reason {
+        case let .failedTest(line): Self.noteForRunStopped(at: line, after: testExecutionLog)
+        case let .crashed(line): Self.noteForRunStopped(atCrash: line, after: testExecutionLog)
+        default: nil
+        }
+        if let note {
+            testExecutionLog += note
+            // The file the log is kept from ends as the log does. Its process tree was killed, so nothing writes to it.
+            Self.append(note, to: logFileUrl)
         }
 
         let endedBy = TestRun.Ending(ending.reason)
@@ -433,6 +451,15 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
     /// The note that ends the log of a run stopped at a crash, as `noteForRunStopped(at:after:)` does.
     static func noteForRunStopped(atCrash crashLine: String, after log: String) -> String {
         note(stopped: "at a crash (stopAtFirstFailure); the test bundles after it", at: crashLine, after: log)
+    }
+
+    /// Appends `note` to the file at `url`. One that can't be written to keeps the log it has: the run's `testLog`
+    /// still ends with the note.
+    private static func append(_ note: String, to url: URL) {
+        guard let handle = try? FileHandle(forWritingTo: url) else { return }
+        defer { try? handle.close() }
+        _ = try? handle.seekToEnd()
+        try? handle.write(contentsOf: Data(note.utf8))
     }
 
     private static func note(stopped how: String, at line: String, after log: String) -> String {
@@ -540,6 +567,25 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         return process
     }
 
+    func keepOutput(at output: String, as path: String?) -> Bool {
+        let source = outputUrl(for: output).path
+        var status = stat()
+        // Never a folder, such as the mutated project that an empty name would resolve to, nor a link's target.
+        guard lstat(source, &status) == 0, status.st_mode & S_IFMT == S_IFREG else { return false }
+        // Atomic within a volume, and `running/` is in the log folder the log is kept in.
+        if let path, rename(source, outputUrl(for: path).path) == 0 {
+            return true
+        }
+        unlink(source)
+        return false
+    }
+
+    /// The file at `name`, a path relative to the current directory or an absolute one.
+    private func outputUrl(for name: String) -> URL {
+        let currentDirectory = URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
+        return URL(fileURLWithPath: name, relativeTo: currentDirectory).absoluteURL
+    }
+
     /// Opens `logFileName`, a path relative to the current directory or an absolute one, empty, making its folder if
     /// need be.
     func fileHandle(
@@ -548,8 +594,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         handle: FileHandle,
         logFileUrl: URL
     ) {
-        let currentDirectory = URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-        let testLogUrl = URL(fileURLWithPath: logFileName, relativeTo: currentDirectory).absoluteURL
+        let testLogUrl = outputUrl(for: logFileName)
         try FileManager.default.createDirectory(
             at: testLogUrl.deletingLastPathComponent(),
             withIntermediateDirectories: true

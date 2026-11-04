@@ -151,6 +151,29 @@ final class FileOperationTests: XCTestCase {
         }
     }
 
+    // A run's marker counts for nothing: a folder holding only that goes, marker and all, and one holding anything else
+    // stays.
+    func test_removeFolderIfEmpty_ignoringTheMarker_removesAFolderHoldingOnlyIt() throws {
+        let root = try makeTemporaryDirectory()
+        let marked = root + "/marked"
+        let kept = root + "/kept"
+        for folder in [marked, kept] {
+            try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: false)
+            try Data().write(to: URL(fileURLWithPath: folder + "/" + RunMarker.fileName))
+        }
+        try Data("kept".utf8).write(to: URL(fileURLWithPath: kept + "/baseline run.log"))
+
+        let disk = FileManager.default
+        XCTAssertTrue(removeFolderIfEmpty(atPath: marked, ignoring: [RunMarker.fileName], fileManager: disk))
+        XCTAssertFalse(removeFolderIfEmpty(atPath: kept, ignoring: [RunMarker.fileName], fileManager: disk))
+
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root), ["kept"])
+        XCTAssertEqual(
+            Set(try FileManager.default.contentsOfDirectory(atPath: kept)),
+            [RunMarker.fileName, "baseline run.log"]
+        )
+    }
+
     func test_removeFolderIfEmpty_ignoresAMissingFolder() throws {
         let root = try makeTemporaryDirectory()
 

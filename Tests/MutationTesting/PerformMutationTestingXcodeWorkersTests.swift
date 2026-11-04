@@ -93,6 +93,14 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
             fileManager.createdFiles["/logs/no-mutant run worker 1.log"],
             Data("timed test run log".utf8)
         )
+        // Each moves the output it wrote, so nothing is left in `running/`, nor written twice.
+        for index in 0 ... 1 {
+            let output = "/logs/running/no-mutant run worker \(index)"
+            XCTAssertTrue(
+                ioDelegate.keptOutputs.contains { $0 == (output, "/logs/no-mutant run worker \(index).log") },
+                "\(ioDelegate.keptOutputs)"
+            )
+        }
     }
 
     // The timed test run sets the default as SwiftPM's does: 5 times it, and once more for the second worker. The check
@@ -218,6 +226,17 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
         )
         XCTAssertEqual(fileManager.createdFiles["/logs/no-mutant run worker 1.log"], Data("timed test run log".utf8))
         XCTAssertNil(fileManager.createdFiles["/logs/no-mutant run worker 0 (launch failed).log"])
+        // The second run's output is moved; the first's, which it wrote over, is kept from its text.
+        XCTAssertTrue(
+            ioDelegate.keptOutputs.contains {
+                $0 == ("/logs/running/no-mutant run worker 1", "/logs/no-mutant run worker 1.log")
+            },
+            "\(ioDelegate.keptOutputs)"
+        )
+        XCTAssertFalse(
+            ioDelegate.keptOutputs.contains { $0.path == "/logs/no-mutant run worker 1 (launch failed).log" },
+            "\(ioDelegate.keptOutputs)"
+        )
     }
 
     // A second failure to launch it still falls back to one worker, and both runs keep their logs.

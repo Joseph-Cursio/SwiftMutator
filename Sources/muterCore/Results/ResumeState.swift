@@ -4,8 +4,8 @@ import Foundation
 /// (`--reuse`). A resume's `file` stays open and locked until SwiftMutator exits or mutation testing ends it, so no
 /// other run writes to the file meanwhile. The steps run one after another, so one step at a time uses `file`:
 /// `LoadResumeState` opens it, and mutation testing writes to it only through `TestingSession`, behind its lock, and
-/// closes it once the session is over. A reuse reads its file once and keeps nothing open: the new run writes a results
-/// file of its own.
+/// closes it once the session is over. A reuse reads its file once, and writes a results file of its own: it holds only
+/// shared locks on the earlier run's log folders (`reusedFolders`), which it copies kept logs from later.
 final class ResumeState: Equatable, @unchecked Sendable { // `file` is used by one step at a time
     /// The results file, found from what `--resume` or `--reuse` named.
     let path: String
@@ -21,6 +21,9 @@ final class ResumeState: Equatable, @unchecked Sendable { // `file` is used by o
     let forced: [String]
     /// A sentence for each change no result depends on.
     let notices: [String]
+    /// A reuse's shared locks on the earlier run's log folders, held as long as the state is, so no run prunes them
+    /// before their logs are copied; nil for a resume, whose `file` is locked.
+    let reusedFolders: ReusedFolders?
 
     init(
         path: String,
@@ -29,7 +32,8 @@ final class ResumeState: Equatable, @unchecked Sendable { // `file` is used by o
         lastHeader: ResultsHeader,
         provenance: Provenance,
         forced: [String],
-        notices: [String]
+        notices: [String],
+        reusedFolders: ReusedFolders? = nil
     ) {
         self.path = path
         self.file = file
@@ -38,6 +42,7 @@ final class ResumeState: Equatable, @unchecked Sendable { // `file` is used by o
         self.provenance = provenance
         self.forced = forced
         self.notices = notices
+        self.reusedFolders = reusedFolders
     }
 
     /// Whether the run reuses the file's results in a results file of its own, rather than resuming the file's run.

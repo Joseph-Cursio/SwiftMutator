@@ -11,6 +11,10 @@ enum RunEvent {
     /// What `--since` chose, before anything is copied.
     case changesSelected(ChangeSelection)
 
+    /// The earlier runs' log folders that `keepLogFolders:` removed and left, once some run was beyond the newest it
+    /// keeps, before anything is copied.
+    case logFoldersPruned(LogFolderPruning)
+
     case projectCopyStarted
     /// The paths that vanished while the project was being copied, as a build tool's temporary files do.
     case projectCopySkippedVanishedFiles([String])
@@ -71,7 +75,6 @@ enum RunEvent {
 
     case newMutationTestOutcomeAvailable(MutationTestOutcome.Mutation)
     case newTestLogAvailable(MutationTestLog)
-    case baselineTestFailed(MutationTestLog)
     case resultsFileCreated(path: String)
     /// Why the results file can't be created or written to.
     case resultsFileUnavailable(reason: String)
@@ -100,8 +103,8 @@ enum RunEvent {
 
 /// Delivers each of a run's events to whatever observes them, in the order they were added, at once and on the thread
 /// that sends the event. So an event has been handled when `send` returns, which the run relies on: the report is
-/// written before SwiftMutator exits, and a test's log is in the log folder before its file is removed. Events go out
-/// one at a time, whichever threads send them, so observers such as `Logger` need no lock of their own.
+/// written before SwiftMutator exits. Events go out one at a time, whichever threads send them, so observers such as
+/// `Logger` need no lock of their own.
 final class RunEvents: @unchecked Sendable { // `observers` and `nextObserver` are behind `lock`
     private let lock = NSLock()
     /// Held while an event is handed out, so that another thread's event waits for it. Recursive, so that an observer

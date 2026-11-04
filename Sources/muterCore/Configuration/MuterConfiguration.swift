@@ -52,6 +52,15 @@ struct MuterConfiguration: Equatable, Codable {
     /// whole number, 0 for none): nil leaves it to `defaultMutantsPerControlRun`. A control run changes no mutant's
     /// result, only which tests the reports call suspect, so a resume lets it change.
     let controlRunEvery: Int?
+    /// Whether every mutant's test run keeps its log (`keepAllLogs:`): nil and false keep a mutant's log only when its
+    /// results line can't stand in for it, true keeps every log. See `MutationTestLog.isKept`. Which logs are kept
+    /// changes no result, so a resume lets it change.
+    let keepAllLogs: Bool?
+    /// How many runs' log folders to keep in `<project>_muter_logs` (`keepLogFolders:`, a whole number, at least 2),
+    /// this run's included, so the run before it is always kept; nil, the default, removes none. A run's folders are
+    /// those of each of its sessions, and only a run with a results file counts. See `LogFolderPruning`. Which folders
+    /// are kept changes no result, so a resume lets it change.
+    let keepLogFolders: Int?
     /// Whether a line `FailedTestLine` matches shows a failed test. Not a configuration key: false once a
     /// passing baseline has printed such a line, or one `CrashLine` matches, as its tests print text shaped like a
     /// failure. Such a line then neither stops a mutant's run nor counts a timed-out run killed. A `var` only so
@@ -97,6 +106,8 @@ struct MuterConfiguration: Equatable, Codable {
         case suspectTestFilePercent
         case suspectTestMinimumFiles
         case controlRunEvery
+        case keepAllLogs
+        case keepLogFolders
     }
 
     init(
@@ -113,7 +124,9 @@ struct MuterConfiguration: Equatable, Codable {
         oneWorkerSimulator: Bool? = nil,
         suspectTestFilePercent: Int? = nil,
         suspectTestMinimumFiles: Int? = nil,
-        controlRunEvery: Int? = nil
+        controlRunEvery: Int? = nil,
+        keepAllLogs: Bool? = nil,
+        keepLogFolders: Int? = nil
     ) {
         testCommandExecutable = executable
         testCommandArguments = arguments
@@ -129,6 +142,8 @@ struct MuterConfiguration: Equatable, Codable {
         self.suspectTestFilePercent = suspectTestFilePercent
         self.suspectTestMinimumFiles = suspectTestMinimumFiles
         self.controlRunEvery = controlRunEvery
+        self.keepAllLogs = keepAllLogs
+        self.keepLogFolders = keepLogFolders
     }
 
     init(from decoder: Decoder) throws {
@@ -151,6 +166,8 @@ struct MuterConfiguration: Equatable, Codable {
         suspectTestFilePercent = try Self.whole(forKey: .suspectTestFilePercent, in: 1 ... 100, in: container)
         suspectTestMinimumFiles = try Self.whole(forKey: .suspectTestMinimumFiles, in: 1 ... Int.max, in: container)
         controlRunEvery = try Self.whole(forKey: .controlRunEvery, in: 0 ... Int.max, in: container)
+        keepAllLogs = try container.decodeIfPresent(Bool.self, forKey: .keepAllLogs)
+        keepLogFolders = try Self.whole(forKey: .keepLogFolders, in: 2 ... Int.max, in: container)
     }
 
     /// A whole number in `range`, or nil if `key` isn't set. Throws on any other value, so a typo is a configuration
@@ -180,6 +197,11 @@ struct MuterConfiguration: Equatable, Codable {
     /// How many mutants are tested for each control run: `controlRunEvery`, or the default; 0 for none.
     var mutantsPerControlRun: Int {
         controlRunEvery ?? Self.defaultMutantsPerControlRun
+    }
+
+    /// Whether every mutant's test run keeps its log: only when `keepAllLogs` is true.
+    var keepsAllLogs: Bool {
+        keepAllLogs == true
     }
 
     /// When a test is suspect, from `suspectTestFilePercent` and `suspectTestMinimumFiles`.

@@ -77,6 +77,8 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     /// couldn't be written.
     var switchOnError: Error?
     var switchOnFails: (MutationSchema) -> Bool = { _ in true }
+    /// Each run's output `keepOutput` was asked to move, and where to, nil to remove it, in order.
+    private(set) var keptOutputs: [(output: String, path: String?)] = []
     private var mutantRunCount = 0
 
     func backupFile(at path: String, using swapFilePaths: [FilePath: FilePath]) {
@@ -252,6 +254,13 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
             if let switchOnError, switchOnFails(schemata) { throw switchOnError }
             switchedOnTestRuns[path.appendingPathComponent(fileName).path] = schemata.id
         }
+    }
+
+    /// Moves nothing, as if the run had left no file, so a kept log is written from its text, as `createFile` shows.
+    /// Called concurrently by parallel workers' recording, so it takes the lock.
+    func keepOutput(at output: String, as path: String?) -> Bool {
+        lock.withLock { keptOutputs.append((output, path)) }
+        return false
     }
 
     func restoreFile(at path: String, using swapFilePaths: [FilePath: FilePath]) {

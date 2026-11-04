@@ -76,6 +76,62 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         }
     }
 
+    /// The earlier runs whose log folders `keepLogFolders` removed, up to 5 of them by name, then a line for each it
+    /// left and why. With none removed, a line first says where those left are, and why they would have gone.
+    func logFoldersPruned(_ pruning: LogFolderPruning) {
+        var lines: [String] = []
+        if pruning.removed.isEmpty, !pruning.left.isEmpty {
+            let runs = pruning.left.count == 1 ? "1 earlier run" : "\(pruning.left.count) earlier runs"
+            lines.append(
+                "🧹 Left the log folders of \(runs) in \(pruning.root), beyond the newest \(pruning.keeping) runs "
+                    + "(keepLogFolders: \(pruning.keeping)):"
+            )
+        } else if !pruning.removed.isEmpty {
+            let runs = pruning.removed.count == 1 ? "1 earlier run" : "\(pruning.removed.count) earlier runs"
+            lines.append(
+                "🧹 Removed the log folders of \(runs), \(Self.size(pruning.freedBytes)), from \(pruning.root), "
+                    + "keeping the newest \(pruning.keeping) runs (keepLogFolders: \(pruning.keeping)):"
+            )
+            lines += pruning.removed.prefix(5).map { removed in
+                "  " + removed.folders.joined(separator: ", ")
+                    + (removed.shard.map { " (shard \($0.index) of \($0.count))" } ?? "")
+            }
+            if pruning.removed.count > 5 {
+                lines.append("  … and \(pruning.removed.count - 5) more")
+            }
+        }
+        lines += pruning.left.map { left in
+            let folders = left.folders.joined(separator: ", ")
+            switch left.reason {
+            case .inUse:
+                return "⚠️ Left \(folders): another SwiftMutator run is using it."
+            case let .couldNotCheck(reason):
+                return "⚠️ Left \(folders): couldn't tell whether another SwiftMutator run is using it: \(reason)"
+            case let .foreignFiles(files):
+                let named = files.prefix(5).joined(separator: ", ")
+                    + (files.count > 5 ? " and \(files.count - 5) more" : "")
+                return "⚠️ Left \(folders): it holds files SwiftMutator didn't write: \(named)"
+            case let .couldNotRemove(reason):
+                return "⚠️ Couldn't remove \(folders): \(reason)"
+            }
+        }
+        guard !lines.isEmpty else { return }
+        print(lines.joined(separator: "\n"))
+    }
+
+    /// `bytes` in decimal units, to one decimal place: "1.9 GB", "512 bytes".
+    static func size(_ bytes: Int64) -> String {
+        let units = ["KB", "MB", "GB", "TB", "PB"]
+        guard bytes >= 1000 else { return bytes == 1 ? "1 byte" : "\(bytes) bytes" }
+        var value = Double(bytes) / 1000
+        var unit = 0
+        while value >= 999.95, unit < units.count - 1 {
+            value /= 1000
+            unit += 1
+        }
+        return String(format: "%.1f ", value) + units[unit]
+    }
+
     func projectCopyStarted() {
         print("✂️ Copying your project to a temporary directory for testing...")
     }

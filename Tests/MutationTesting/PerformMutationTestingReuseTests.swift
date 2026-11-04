@@ -37,6 +37,10 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
         ResultsEnd.make(testDurationSeconds: 100.5, recorded: 5),
     ]
 
+    private let keepingAllLogs = MuterConfiguration(
+        executable: "/usr/bin/swift", arguments: ["test"], keepAllLogs: true
+    )
+
     private lazy var sut = PerformMutationTesting(
         makeWorkerDirectories: { _, count in
             Array(repeating: URL(fileURLWithPath: "/project_mutated_worker1"), count: count)
@@ -77,7 +81,7 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
         XCTAssertEqual(try resultsFiles.kinds(), ["header", "mutant", "mutant", "mutant", "mutant", "end"])
         let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
         XCTAssertEqual(header.session, 1)
-        XCTAssertEqual(header.formatVersion, ResultsCoding.formatVersion)
+        XCTAssertEqual(header.formatVersion, ResultsCoding.omittedLogsFormatVersion, "its kills may keep no log")
         XCTAssertEqual(header.reusedFrom, earlierPath)
         XCTAssertEqual(header.mutantsReused, 2)
         XCTAssertEqual(header.mutantsToTest, 2)
@@ -90,6 +94,7 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
         let origin = ReusedFrom(resultsFile: earlierPath, session: 1, despiteChanges: false)
         XCTAssertEqual(mutants.map(\.reusedFrom), [origin, origin, nil, nil])
         XCTAssertEqual(mutants[1].killedBy, [sumTest], "how it was tested is as recorded")
+        XCTAssertEqual(mutants.map { $0.log != nil }, [true, false, true, true], "but for its log, by this run's rule")
         XCTAssertEqual(try resultsFiles.records(ResultsEnd.self).map(\.recorded), [4], "every mutant line it wrote")
         XCTAssertNil(
             fileManager.createdFiles["/project_muter_logs/now/\(ResultsFile.noteFileName)"],
@@ -109,8 +114,25 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
         XCTAssertLessThan(outcome.testDuration, 100)
     }
 
-    // Each kept result's log is copied into this run's folder under its own name, so the folder stands alone.
+    // Each kept result's log is copied into this run's folder under its own name, so the folder stands alone. A kill
+    // by a test its line names keeps none, as this run would keep none for it, so its log isn't carried forward.
     func test_aReuse_copiesTheKeptResultsLogs_intoItsOwnFolder() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+
+        _ = try await sut.run(with: state)
+
+        let copied = fileManager.copyPaths.filter { $0.source.hasPrefix("/project_muter_logs/earlier/") }
+        XCTAssertEqual(
+            copied.map(\.source), ["/project_muter_logs/earlier/RelationalOperatorReplacement @ Sum.swift-7-5.log"]
+        )
+        XCTAssertEqual(
+            copied.map(\.dest), ["/project_muter_logs/now/RelationalOperatorReplacement @ Sum.swift-7-5.log"]
+        )
+    }
+
+    // With `keepAllLogs`, every kept result's log is copied, the kill's too.
+    func test_aReuseKeepingAllLogs_copiesEveryKeptResultsLog() async throws {
+        state.muterConfiguration = keepingAllLogs
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
 
         _ = try await sut.run(with: state)
@@ -124,6 +146,39 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
             "/project_muter_logs/now/RelationalOperatorReplacement @ Sum.swift-7-5.log",
             "/project_muter_logs/now/RelationalOperatorReplacement @ Sum.swift-3-5.log",
         ])
+        let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
+        XCTAssertEqual(header.formatVersion, ResultsCoding.formatVersion, "every line it writes names a log")
+    }
+
+    // An earlier run that kept no log for its kill leaves its line with none, which this run copies as it is, so the
+    // new file needs format 4 though this run keeps every log it makes. Nothing is copied for it.
+    func test_aReuseKeepingAllLogs_ofResultsWithoutALog_isInFormat4() async throws {
+        state.muterConfiguration = keepingAllLogs
+        var lines = recorded
+        lines[0] = ResultsHeader.make(
+            formatVersion: ResultsCoding.omittedLogsFormatVersion,
+            mutantsDiscovered: 5,
+            mutantsToTest: 5,
+            project: tree,
+            logDirectory: "/project_muter_logs/earlier"
+        )
+        lines[4] = record(
+            of: "Sources/Sum.swift", line: 3, .failed, fileSHA256: "5a1c", killedBy: [sumTest], keptLog: false
+        )
+        try reuse(lines)
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+
+        _ = try await sut.run(with: state)
+
+        let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
+        XCTAssertEqual(header.formatVersion, ResultsCoding.omittedLogsFormatVersion)
+        let mutants = try resultsFiles.records(MutantResult.self)
+        XCTAssertEqual(mutants.map(\.path)[1], "Sources/Sum.swift")
+        XCTAssertNil(mutants[1].log)
+        XCTAssertEqual(
+            fileManager.copyPaths.map(\.source).filter { $0.hasPrefix("/project_muter_logs/earlier/") },
+            ["/project_muter_logs/earlier/RelationalOperatorReplacement @ Sum.swift-7-5.log"]
+        )
     }
 
     // `swift-mutator report` of the new file alone gives the run's own report, the reused results marked.
@@ -215,6 +270,8 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
             2: ReuseChanges(from: changed, to: changed, waiving: ["README.md"], readSource: { _ in nil }),
         ]
         state.resumeWaived = ["README.md"]
+        // So the kill's log is copied too.
+        state.muterConfiguration = keepingAllLogs
         ioDelegate.testSuiteOutcomes = [.passed, .passed, .passed]
 
         _ = try await sut.run(with: state)
@@ -252,6 +309,21 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
         XCTAssertEqual(try resultsFiles.kinds(), ["header", "mutant", "mutant", "mutant", "mutant", "end"])
         XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).first?.mutantsToTest, 0)
         XCTAssertTrue(fileManager.paths.contains("/project_muter_logs/now/baseline run.log"), "its log is kept")
+    }
+
+    // Without a log folder, as a state that bypasses the handler has, the baseline's output is discarded, and no log is
+    // written in the current directory, the mutated project.
+    func test_withNothingToTest_afterAChange_withNoLogFolder_keepsNoBaselineLog() async throws {
+        try reuse(heldEverywhere(), changes: [.init(path: "README.md", kind: .added)], waiving: ["README.md"])
+        state.resumeWaived = ["README.md"]
+        state.loggingDirectory = ""
+        ioDelegate.testSuiteOutcomes = [.passed]
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.keptOutputs.map(\.output), ["baseline run"])
+        XCTAssertEqual(ioDelegate.keptOutputs.map(\.path), [nil])
+        XCTAssertFalse(fileManager.paths.contains { $0.hasSuffix("baseline run.log") }, "\(fileManager.paths)")
     }
 
     // ...and a failing baseline then stops the run, as any run's does.
@@ -317,7 +389,8 @@ private extension PerformMutationTestingReuseTests {
         line: Int,
         _ outcome: TestSuiteOutcome,
         fileSHA256: String,
-        killedBy: [FailedTestLine.FailedTest]? = nil
+        killedBy: [FailedTestLine.FailedTest]? = nil,
+        keptLog: Bool = true
     ) -> MutantResult {
         let name = URL(fileURLWithPath: file).deletingPathExtension().lastPathComponent
         let operatorId = MutationOperator.Id.ror
@@ -331,7 +404,8 @@ private extension PerformMutationTestingReuseTests {
             outcome: outcome,
             endedBy: outcome == .timeout ? .timedOut : .exited,
             killedBy: killedBy,
-            fileSHA256: fileSHA256
+            fileSHA256: fileSHA256,
+            keptLog: keptLog
         )
     }
 
