@@ -69,8 +69,8 @@ are in `MutationTestHandler.swift`.
 
 ## Operators
 
-[`MutationOperators`](../Sources/muterCore/MutationOperators) holds the four operators:
-`RelationalOperatorReplacement` (`ROROperator.swift`), `RemoveSideEffects`,
+[`MutationOperators`](../Sources/muterCore/MutationOperators) holds the five operators:
+`RelationalOperatorReplacement` (`ROROperator.swift`), `RelationalBoundary`, `RemoveSideEffects`,
 `ChangeLogicalConnector` and `SwapTernary`. Each is a SwiftSyntax visitor, built on
 [`Visitors/MuterVisitor.swift`](../Sources/muterCore/Visitors/MuterVisitor.swift), which also
 skips code between `// muter:disable` and `// muter:enable`. Each mutant becomes a
@@ -139,16 +139,21 @@ Among the mutants it runs control runs, with no mutant on, to find flaky tests
 ([`ControlRuns.swift`](../Sources/muterCore/MutationSteps/ControlRuns.swift)). With several
 workers it runs the timeouts again at lower load at the end
 ([`MutationTesting/TimeoutReruns.swift`](../Sources/muterCore/MutationTesting/TimeoutReruns.swift)).
+With `propertyTestFilter`, it then tests again, with only the property tests, each kill whose
+recorded tests include none
+([`MutationSteps/PropertyReruns.swift`](../Sources/muterCore/MutationSteps/PropertyReruns.swift)).
 
 ## The results file
 
 Each result is written as it finishes, as a line of JSON in `results.jsonl` in the run's log
 folder, `<project>_muter_logs/<run>/`
 ([`Results/ResultsFile.swift`](../Sources/muterCore/Results/ResultsFile.swift)). Its lines are of
-five kinds: `header`, `retired`, `mutant`, `control` and `end`
-([`Results/ResultsRecords.swift`](../Sources/muterCore/Results/ResultsRecords.swift), and
+six kinds: `header`, `retired`, `mutant`, `control`, `propertyRerun` and `end`
+([`Results/ResultsRecords.swift`](../Sources/muterCore/Results/ResultsRecords.swift),
 [`Results/ControlRunResult.swift`](../Sources/muterCore/Results/ControlRunResult.swift) for
-`control`).
+`control`, and
+[`Results/PropertyRerunResult.swift`](../Sources/muterCore/Results/PropertyRerunResult.swift) for
+`propertyRerun`).
 [results-file.md](results-file.md) documents the format. `--resume` and `--reuse` read it back
 (`RecordedResults*.swift`, `ResumeCheck.swift`, `ResumePlan.swift`, `ReuseChanges.swift` in
 [`Results`](../Sources/muterCore/Results)). `Provenance.swift` records the SwiftMutator build and
