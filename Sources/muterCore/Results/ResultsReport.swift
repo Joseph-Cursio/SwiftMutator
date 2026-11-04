@@ -16,10 +16,13 @@ struct ResultsReport {
     let format: ReportFormat
     /// Where to save the report; nil prints it on standard output.
     let outputPath: String?
+    /// Where to save the run's `summary.json` (`RunSummary`); nil saves none.
+    let summaryPath: String?
 
-    init(format: ReportFormat, outputPath: String?) {
+    init(format: ReportFormat, outputPath: String?, summaryPath: String? = nil) {
         self.format = format
         self.outputPath = outputPath
+        self.summaryPath = summaryPath
     }
 
     /// Makes the report from the results files `paths` name: each the file itself, or the log folder of one of a run's
@@ -34,8 +37,12 @@ struct ResultsReport {
     func make(from paths: [String], forcing: Bool = false, ignoring: [String] = []) throws -> Bool {
         let files = Self.withoutNotedRepeats(try paths.map { try ResultsFile.locate(at: $0, using: fileManager) })
         if let outputPath {
-            try checkSaving(to: outputPath, from: files)
+            try checkSaving(.report, to: outputPath, from: files)
         }
+        if let summaryPath {
+            try checkSaving(.summary, to: summaryPath, from: files)
+        }
+        try checkTheReportAndSummaryDiffer()
         let read = try files.map { file in
             guard let data = fileManager.contents(atPath: file) else {
                 throw ResultsFileError.unreadable(path: file)
@@ -43,11 +50,15 @@ struct ResultsReport {
             return (path: file, recorded: try RecordedResults.read(data, path: file))
         }
         if read.count == 1, let only = read.first, only.recorded.headers.last?.shard == nil {
-            try report(only.recorded.mutationTestOutcome(), saying: only.recorded.statusLines(path: only.path))
+            try report(
+                only.recorded.mutationTestOutcome(resultsFile: only.path),
+                saying: only.recorded.statusLines(path: only.path),
+                ended: only.recorded.sessions.last?.end
+            )
             return only.recorded.stoppedOnAnError
         }
         let merged = try MergedShards.merge(read, forcing: forcing, ignoring: ignoring)
-        try report(merged.mutationTestOutcome(), saying: merged.statusLines())
+        try report(merged.mutationTestOutcome(), saying: merged.statusLines(), ended: merged.ending)
         return merged.lacksResults
     }
 
@@ -67,8 +78,9 @@ struct ResultsReport {
         }
     }
 
-    /// Prints or saves the report of `outcome`, then says `status` and the rest on standard error.
-    private func report(_ outcome: MutationTestOutcome, saying status: [String]) throws {
+    /// Prints or saves the report of `outcome`, then says `status` and the rest on standard error, and saves its
+    /// summary, of a run that `ended` so, if asked to.
+    private func report(_ outcome: MutationTestOutcome, saying status: [String], ended: ResultsEnd?) throws {
         let reporter = format.reporter
         // As a run does when each mutant finishes: only the Xcode format prints anything, a warning for each survivor.
         for mutation in outcome.mutations {
@@ -92,19 +104,51 @@ struct ResultsReport {
             errorPrinter(MuterTestReport.scoreLine(of: outcome))
             errorPrinter("Report saved to \(outputPath)")
         }
+        if let summaryPath {
+            // Checked again now that the report exists: two spellings of one new file, which differ only in case on a
+            // volume that ignores it, are known to be one only once it's there.
+            try checkTheReportAndSummaryDiffer()
+            let summary = RunSummary(of: outcome, ended: ended?.reason, endDetail: ended?.detail, report: outputPath)
+            guard ReportWriter.save(String(decoding: summary.json, as: UTF8.self), to: summaryPath, using: fileManager)
+            else {
+                throw MuterError.literal(reason: "SwiftMutator could not save the summary to \(summaryPath)")
+            }
+            errorPrinter("Summary saved to \(summaryPath)")
+        }
     }
 
-    /// Refuses an `outputPath` that saving the report at would destroy, before anything is printed: saving replaces
-    /// whatever is there, so a results file the report is made from, or a folder and everything in it.
-    private func checkSaving(to outputPath: String, from files: [String]) throws {
-        if files.contains(where: { ResultsFile.isSameFile(outputPath, $0) }) {
+    /// What `report` saves: the report itself, at `-o`, or the summary, at `--summary`.
+    private enum Saved: String {
+        case report
+        case summary
+
+        /// What the option that gives its path is called in a refusal.
+        var pathName: String {
+            switch self {
+            case .report: "output path"
+            case .summary: "summary path"
+            }
+        }
+    }
+
+    /// Refuses a `path` that saving `saved` at would destroy, before anything is printed: saving replaces whatever is
+    /// there, so a results file the report is made from, or a folder and everything in it.
+    private func checkSaving(_ saved: Saved, to path: String, from files: [String]) throws {
+        if files.contains(where: { ResultsFile.isSameFile(path, $0) }) {
             let file = files.count == 1 ? "the results file" : "one of the results files"
             throw MuterError.literal(
-                reason: "\(outputPath) is \(file) the report is made from: choose another output path"
+                reason: "\(path) is \(file) the report is made from: choose another \(saved.pathName)"
             )
         }
-        if (try? fileManager.contentsOfDirectory(atPath: outputPath)) != nil {
-            throw MuterError.literal(reason: "\(outputPath) is a folder: name the file to save the report to")
+        if (try? fileManager.contentsOfDirectory(atPath: path)) != nil {
+            throw MuterError.literal(reason: "\(path) is a folder: name the file to save the \(saved.rawValue) to")
+        }
+    }
+
+    /// Refuses to save the summary over the report.
+    private func checkTheReportAndSummaryDiffer() throws {
+        if let outputPath, let summaryPath, ResultsFile.isSameFile(outputPath, summaryPath) {
+            throw MuterError.literal(reason: "The report and the summary can't both be saved to \(outputPath)")
         }
     }
 }

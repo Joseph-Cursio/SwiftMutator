@@ -45,11 +45,12 @@ extension JobOrder {
 extension RecordedResults {
     /// The outcome the run would have reported had it ended now: each mutant's last record, in the order the run
     /// tested them, under the latest session's project paths, coverage (or whether it skipped it) and update notice,
-    /// with every session's test duration. For a finished run, exactly the outcome its own report was made from.
-    func mutationTestOutcome() -> MutationTestOutcome {
+    /// with every session's test duration, and the run's details naming `resultsFile`, the file's path, if given. For
+    /// a finished run, exactly the outcome its own report was made from.
+    func mutationTestOutcome(resultsFile: String? = nil) -> MutationTestOutcome {
         // `read` refuses a file without a header.
         guard let header = headers.last else { return MutationTestOutcome() }
-        return MutationTestOutcome(
+        var outcome = MutationTestOutcome(
             records: latest.values,
             under: header,
             testDuration: testDuration,
@@ -57,6 +58,8 @@ extension RecordedResults {
             sampleIsCutShort: latest.count < header.mutantsDiscovered,
             controlRuns: controlRuns
         )
+        outcome.run = resultsFile.flatMap { RunDetails(of: [($0, headers)]) }
+        return outcome
     }
 }
 
@@ -94,7 +97,9 @@ extension MutationTestOutcome {
                     originalProjectDirectoryUrl: projectDirectory,
                     mutatedProjectDirectoryURL: mutatedProjectDirectory,
                     killingTests: .init(record),
-                    reusedFrom: record.reusedFrom
+                    reusedFrom: record.reusedFrom,
+                    key: record.key,
+                    durationSeconds: record.durationSeconds
                 )
             }
         self.init(

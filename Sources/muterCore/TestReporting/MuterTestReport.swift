@@ -25,6 +25,8 @@ struct MuterTestReport {
     /// The one mutant `--mutant` tested, by its key's description, which the score is of; left out of the JSON
     /// otherwise.
     let mutant: String?
+    /// Where the results came from; left out of the JSON when not known.
+    let run: RunDetails?
 
     /// The report of `outcome`, with each mutant's line read by `readSource` from its original file.
     init(
@@ -58,6 +60,7 @@ struct MuterTestReport {
             cutShort: outcome.sampleIsCutShort
         )
         mutant = outcome.mutant
+        run = outcome.run
     }
 
     /// "One mutant tested with --mutant (Sources/Bar.swift:12:9 SwapTernary): its score isn't the project's."
@@ -154,14 +157,16 @@ extension MuterTestReport {
     struct FileReport: Codable {
         let fileName: FileName
         let path: FilePath
-        /// Its path relative to the project, as the plain and HTML reports show it; for a file outside the project,
-        /// its absolute path. Not in the JSON yet: a report read back has its `fileName`.
+        /// Its path relative to the project, as every report shows it but the Xcode format; for a file outside the
+        /// project, its absolute path. The JSON's `path`.
         let relativePath: String
         let mutationScore: Int
         let appliedOperators: [AppliedMutationOperator]
 
         enum CodingKeys: String, CodingKey {
             case fileName
+            // The JSON's `path` is relative to the project; the absolute one isn't in it.
+            case relativePath = "path"
             case mutationScore
             case appliedOperators
         }
@@ -186,12 +191,14 @@ extension MuterTestReport {
             mutationScore = try container.decode(Int.self, forKey: .mutationScore)
             appliedOperators = try container.decode([AppliedMutationOperator].self, forKey: .appliedOperators)
             path = ""
-            relativePath = fileName
+            // A report written before reports had it has the name alone.
+            relativePath = try container.decodeIfPresent(String.self, forKey: .relativePath) ?? fileName
         }
 
         func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encode(fileName, forKey: .fileName)
+            try container.encode(relativePath, forKey: .relativePath)
             try container.encode(mutationScore, forKey: .mutationScore)
             try container.encode(appliedOperators, forKey: .appliedOperators)
         }
@@ -223,6 +230,14 @@ extension MuterTestReport {
         /// the JSON, when the file can't be read, has changed since it was tested, or doesn't hold the change on one
         /// line.
         let sourceChange: SourceChange?
+        /// Its file's path relative to the project, where `mutationPoint` gives its path in the mutated copy; nil, and
+        /// left out of the JSON, for a file without coverage's row.
+        let path: String?
+        /// Its key's description, which `--mutant` takes: "Sources/Bar.swift:12:9 SwapTernary"; nil, and left out of
+        /// the JSON, when not known.
+        let key: String?
+        /// How long its run took, to the millisecond; nil, and left out of the JSON, when not known.
+        let durationSeconds: Double?
 
         enum CodingKeys: String, CodingKey {
             case mutationPoint
@@ -232,6 +247,9 @@ extension MuterTestReport {
             case killedOnlyBySuspectTests
             case reusedFrom
             case sourceChange
+            case path
+            case key
+            case durationSeconds
         }
 
         init(
@@ -241,7 +259,10 @@ extension MuterTestReport {
             killingTests: MutationTestOutcome.KillingTests? = nil,
             killedOnlyBySuspectTests: Bool? = nil,
             reusedFrom: ReusedFrom? = nil,
-            sourceChange: SourceChange? = nil
+            sourceChange: SourceChange? = nil,
+            path: String? = nil,
+            key: String? = nil,
+            durationSeconds: Double? = nil
         ) {
             self.mutationPoint = mutationPoint
             self.mutationSnapshot = mutationSnapshot
@@ -250,6 +271,9 @@ extension MuterTestReport {
             self.killedOnlyBySuspectTests = killedOnlyBySuspectTests
             self.reusedFrom = reusedFrom
             self.sourceChange = sourceChange
+            self.path = path
+            self.key = key
+            self.durationSeconds = durationSeconds
         }
 
         public init(from decoder: Decoder) throws {
@@ -266,6 +290,9 @@ extension MuterTestReport {
             killedOnlyBySuspectTests = try container.decodeIfPresent(Bool.self, forKey: .killedOnlyBySuspectTests)
             reusedFrom = try container.decodeIfPresent(ReusedFrom.self, forKey: .reusedFrom)
             sourceChange = try container.decodeIfPresent(SourceChange.self, forKey: .sourceChange)
+            path = try container.decodeIfPresent(String.self, forKey: .path)
+            key = try container.decodeIfPresent(String.self, forKey: .key)
+            durationSeconds = try container.decodeIfPresent(Double.self, forKey: .durationSeconds)
         }
     }
 }
@@ -293,7 +320,10 @@ private extension MuterTestReport {
                     killedOnlyBySuspectTests: KillingTestSummary.isSuspectOnlyKill(mutation, suspects: suspects)
                         ? true : nil,
                     reusedFrom: mutation.reusedFrom,
-                    sourceChange: sources.change(of: mutation)
+                    sourceChange: sources.change(of: mutation),
+                    path: mutation.relativePath,
+                    key: mutation.key?.description,
+                    durationSeconds: mutation.durationSeconds
                 )
             }
             return FileReport(
@@ -434,5 +464,6 @@ extension MuterTestReport: Codable {
         case shards
         case sample
         case mutant
+        case run
     }
 }

@@ -189,7 +189,7 @@ final class PerformMutationTestingControlRunTests: MuterTestCase {
         let recorded = try RecordedResults.read(data, path: "/logs/results.jsonl")
         XCTAssertEqual(recorded.unreadableLines, [])
         XCTAssertEqual(recorded.controlRuns, try resultsFiles.records(ControlRunResult.self))
-        let rebuilt = recorded.mutationTestOutcome()
+        let rebuilt = recorded.mutationTestOutcome(resultsFile: "/logs/results.jsonl")
         let outcome = try XCTUnwrap(outcome(of: changes))
         XCTAssertEqual(rebuilt.controlRuns, outcome.controlRuns)
         XCTAssertEqual(rebuilt.controlRuns.map(\.outcome), [.timeout, .failed])

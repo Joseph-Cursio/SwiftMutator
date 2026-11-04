@@ -18,6 +18,7 @@ func generateAppliedMutationOperatorsCLITable(
         killedBy.append(killers)
         reused.append(reuse)
     }
+    let durations = fileReports.flatMap(\.appliedOperators).map { CLITable.Row(value: $0.durationCell) }
 
     mutationTestResults = coloringFunction(mutationTestResults)
 
@@ -30,11 +31,14 @@ func generateAppliedMutationOperatorsCLITable(
     let killedByColumn = CLITable.Column(title: "Killed By", rows: killedBy)
     // Only when some result was reused from an earlier run, so a report without any is as it was.
     let reusedColumn = CLITable.Column(title: "Reused", rows: reused)
+    // Only when some mutant's duration is known.
+    let durationColumn = CLITable.Column(title: "Duration", rows: durations)
     return CLITable(
         padding: 3,
         columns: columns
             + (fileReports.showsKillingTests ? [killedByColumn] : [])
             + (fileReports.showsReuse ? [reusedColumn] : [])
+            + (fileReports.showsDurations ? [durationColumn] : [])
     )
 }
 
@@ -84,6 +88,12 @@ extension MuterTestReport.AppliedMutationOperator {
 }
 
 extension MuterTestReport.AppliedMutationOperator {
+    /// What the plain and HTML reports' Duration column shows: "2.4 s", to a tenth of a second; "-" when not known,
+    /// as for a file without coverage's row. Never empty, as `killedByCell`.
+    var durationCell: String {
+        durationSeconds.map(Logger.seconds) ?? "-"
+    }
+
     /// What the plain and HTML reports' Reused column shows: "yes" for a result reused from an earlier run, and
     /// "yes, despite changes" for one that changes were let through for since it was tested (`--reuse-ignoring`,
     /// `--force-reuse`, or their `--resume` counterparts); "-" for one this run tested. Never empty, as `killedByCell`.
@@ -102,6 +112,11 @@ extension [MuterTestReport.FileReport] {
     /// Whether some result was reused from an earlier run, so the reports show a Reused column.
     var showsReuse: Bool {
         contains { report in report.appliedOperators.contains { $0.reusedFrom != nil } }
+    }
+
+    /// Whether some mutant's duration is known, so the reports show a Duration column.
+    var showsDurations: Bool {
+        contains { report in report.appliedOperators.contains { $0.durationSeconds != nil } }
     }
 }
 

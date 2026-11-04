@@ -68,6 +68,7 @@ This started as a ranked review of SwiftMutator on 2 October 2026, at commit `4b
   - Two gaps in the suspect rule, part of [#82] (§2.2, PR #199). When the passing baseline printed a line that looks like a failed test, no mutant recorded its failing tests, so the reports named none and the rule had nothing to work on. Now each mutant's `killedBy` leaves out only the tests such lines name, whether the baseline's or an xcodebuild worker's check run's, and the header lists them in `failedTestLookalikes`. Those lines still neither stop a run nor count a timed-out run killed. The thresholds are configuration keys, `suspectTestFilePercent` and `suspectTestMinimumFiles`, 15 and 10 by default. They change only the reports, so a resume lets them change, and `report` takes them from the last session's header.
   - Control runs, item 4 of §2.2, part of [#82] (PR #200). A session runs the test command with no mutant on once for each 100 mutants it tests (`controlRunEvery`, 0 for none), halfway through each stretch, on whichever worker is free, under the mutants' time limit and load, never stopped at its first failed test. Each is a `control` line, with the tests it failed but for the baseline's lookalikes, and a kept log. A test that fails in one is flaky: suspect however few files it failed for mutants in, marked `flaky` in the reports' Suspect column, and named apart in the warning. The Killing Tests section says how many control runs didn't pass. A resumed run's report counts every session's, and a merge every shard's. An xcodebuild worker writes its `.xctestrun` with no mutant on first, and stops the run if it can't. On SwiftProjectLint's figures, a survivor's 6.9 s against a mutant's 2.4 s, one for each 100 mutants adds about 3%.
   - Readable reports, part of [#94] (§3, PR #201). The plain and HTML reports start with the survivors and the timeouts, which the score counts as survivors, by path, line and column. Every table names a file by its path in the project and a mutant by `path:line:col`, so two `Rules.swift` files are told apart. Each mutant's line, before and after, comes from its original file while the file's SHA-256 matches the one the run recorded, and is in the plain report's survivors, the HTML report's Changes column and the JSON report's `sourceChange`. Every report counts the mutants by outcome, and a run that saves its report, or `report -o`, prints the score.
+  - Run details in reports, the rest of [#94] (§3, PR #202). Each mutant's duration is in a Duration column of the plain and HTML reports, and the JSON gives each file its repo-relative `path` and each mutant its `path`, its `key`, which `--mutant` takes, and its `durationSeconds`. The plain and HTML reports end with a Run section, and the JSON has `run`: the results file, sessions, the SwiftMutator build, toolchain, workers, time limit and configuration. Every run that gets past its baseline writes `summary.json` beside its results file, with how it ended, the score, the counts and the duration, and `report --summary` writes one.
 
   Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#61, which are in the PRs themselves.
 - **Section numbers are the original ones,** so references in PRs and notes still work. A missing number is a finished section.
@@ -214,18 +215,7 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
 ## 3. Watching a run and using the report
 
 - **A heartbeat in a log file** ([#93]). Since PR #59, a log gets a line as each mutant finishes, and nothing in between. So while every worker is on a long mutant, such as one that runs to SwiftProjectLint's 181 s time limit (PR #57, at 4 workers), a hang looks like a slow run. After 60 s with nothing finished, print what each worker is running and for how long.
-- **Reports** ([#94]). They have shown each mutant's killing tests since PR #47, and since PR #201 the survivors first, each place as its repo-relative `path:line:col`, each mutant's line before and after, and the counts by outcome. Still to do:
-  - Show each mutant's duration. Today only `results.jsonl` has it.
-  - Add each mutant's repo-relative path and key to the JSON. Its paths point into the `_mutated` copy today.
-  - Write a `summary.json` with the score, the counts by outcome and the wall time.
-- **Provenance in reports** ([#94]). The results file's header records:
-  - the SwiftMutator build, as its executable's SHA-256 rather than a commit;
-  - the toolchain;
-  - the configuration;
-  - the worker count;
-  - the time limit.
-
-  Each mutant's line has its key, switch ID and duration. The reports show none of this; they should at least name the results file. Nothing compares two runs mutant by mutant yet.
+- **Comparing two runs.** Since PRs #201 and #202 ([#94]), each mutant's key and duration and the run's provenance are in the JSON report, and the score, counts and provenance in `summary.json`. Nothing compares two runs mutant by mutant yet.
 - **Exit codes** ([#96]). Add `--fail-under <pct>` or `scoreThreshold:`, with distinct exit codes for "below threshold", "timeouts", "baseline failed" and "aborted".
   - Today a finished run exits 0 whatever its score.
   - A stop by signal ends SwiftMutator by that same signal, so a shell reports 128 + its number (130, 143 or 129). A wrapper that reads the wait status sees a signal, not an exit code.

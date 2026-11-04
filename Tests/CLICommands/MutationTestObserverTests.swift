@@ -344,6 +344,29 @@ final class MutationTestObserverTests: MuterTestCase {
         XCTAssertEqual(printer.linesPassed.last, "💾 Each mutant's result is in \("/logs/results.jsonl".bold)")
     }
 
+    // Beside the results file, with how the run ended and where its report went: a finished run's, and a stopped
+    // one's with its partial report.
+    func test_aRunsEnd_writesItsSummaryBesideTheResultsFile() throws {
+        options = .make(reportURL: URL(fileURLWithPath: "/out/report.txt"))
+        try sut.start()
+        runEvents.send(.resultsFileCreated(path: "/logs/results.jsonl"))
+        let outcome = MutationTestOutcome.make(mutations: [.make(testSuiteOutcome: .failed), .make()])
+
+        runEvents.send(.mutationTestingFinished(outcome))
+
+        XCTAssertEqual(writeFile.pathPassed, "/logs/summary.json")
+        let finished = try JSONDecoder().decode(RunSummary.self, from: Data((writeFile.contentPassed ?? "").utf8))
+        XCTAssertEqual(finished, RunSummary(of: outcome, ended: .finished, report: "/out/report.txt"))
+
+        runEvents.send(.mutationTestingEndedEarly(.make(reason: .aborted, detail: "tooManyBuildErrors")))
+
+        let stopped = try JSONDecoder().decode(RunSummary.self, from: Data((writeFile.contentPassed ?? "").utf8))
+        XCTAssertEqual(stopped.ended, .aborted)
+        XCTAssertEqual(stopped.endDetail, "tooManyBuildErrors")
+        XCTAssertEqual(stopped.report, "/out/report.partial.txt")
+        XCTAssertEqual(stopped.mutants, 2)
+    }
+
     // The file then lacks every result after the failed write, which the warning said.
     func test_aResultsFileThatCouldNotBeWritten_isNotNamedAtTheEnd() throws {
         try sut.start()

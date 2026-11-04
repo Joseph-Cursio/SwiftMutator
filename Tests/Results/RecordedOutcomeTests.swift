@@ -567,7 +567,8 @@ private extension RecordedOutcomeTests {
 
     func rebuild(from lines: [String]) throws -> MutationTestOutcome {
         let data = Data((lines.joined(separator: "\n") + "\n").utf8)
-        return try RecordedResults.read(data, path: "/logs/results.jsonl").mutationTestOutcome()
+        return try RecordedResults.read(data, path: "/logs/results.jsonl")
+            .mutationTestOutcome(resultsFile: "/logs/results.jsonl")
     }
 
     func rebuild(_ records: any Encodable...) throws -> MutationTestOutcome {
@@ -600,7 +601,16 @@ private extension RecordedOutcomeTests {
             originalProjectDirectoryUrl: URL(fileURLWithPath: project),
             mutatedProjectDirectoryURL: URL(fileURLWithPath: project + "_mutated"),
             killingTests: killingTests,
-            reusedFrom: nil
+            reusedFrom: nil,
+            // As `mutantResult` records them.
+            key: MutantKey(
+                path: RepoRelativePath.of(filePath, under: URL(fileURLWithPath: project + "_mutated")),
+                mutationOperatorId: schema.mutationOperatorId,
+                line: schema.position.line,
+                column: schema.position.column,
+                occurrence: 0
+            ),
+            durationSeconds: 1.5
         )
     }
 
@@ -682,7 +692,8 @@ final class JobOrderTests: MuterTestCase {
         let encoder = ResultsCoding.encoder
         let records = try zip(jobs, keys).shuffled().map { try encoder.encode(mutantResult($0, $1)) }
         let file = try ([encoder.encode(ResultsHeader.make())] + records).reduce(Data()) { $0 + $1 + Data("\n".utf8) }
-        let rebuilt = try RecordedResults.read(file, path: "/logs/results.jsonl").mutationTestOutcome()
+        let rebuilt = try RecordedResults.read(file, path: "/logs/results.jsonl")
+            .mutationTestOutcome(resultsFile: "/logs/results.jsonl")
         XCTAssertEqual(rebuilt.mutations.map(\.point), jobs.map {
             MutationPoint(mutationOperatorId: $0.mutationOperatorId, filePath: $0.filePath, position: $0.position)
         })
@@ -705,7 +716,8 @@ final class JobOrderTests: MuterTestCase {
         let lines: [any Encodable] = [ResultsHeader.make(), kept, ResultsHeader.make(session: 2), tested]
         let file = try lines.map { try encoder.encode($0) }.reduce(Data()) { $0 + $1 + Data("\n".utf8) }
 
-        let rebuilt = try RecordedResults.read(file, path: "/logs/results.jsonl").mutationTestOutcome()
+        let rebuilt = try RecordedResults.read(file, path: "/logs/results.jsonl")
+            .mutationTestOutcome(resultsFile: "/logs/results.jsonl")
 
         XCTAssertEqual(rebuilt.mutations.map(\.point.mutationOperatorId), [.removeSideEffects, .swapTernary])
     }

@@ -19,7 +19,8 @@ extension MuterTestReport.AppliedMutationOperator {
         testSuiteOutcome: TestSuiteOutcome = .passed,
         killingTests: MutationTestOutcome.KillingTests? = nil,
         killedOnlyBySuspectTests: Bool? = nil,
-        reusedFrom: ReusedFrom? = nil
+        reusedFrom: ReusedFrom? = nil,
+        path: String? = nil
     ) -> Self {
         Self(
             mutationPoint: mutationPoint,
@@ -27,7 +28,8 @@ extension MuterTestReport.AppliedMutationOperator {
             testSuiteOutcome: testSuiteOutcome,
             killingTests: killingTests,
             killedOnlyBySuspectTests: killedOnlyBySuspectTests,
-            reusedFrom: reusedFrom
+            reusedFrom: reusedFrom,
+            path: path
         )
     }
 }
@@ -163,7 +165,9 @@ extension MutationTestOutcome.Mutation {
         originalProjectDirectoryUrl: URL = URL(fileURLWithPath: ""),
         mutatedProjectDirectoryURL: URL = URL(fileURLWithPath: ""),
         killingTests: MutationTestOutcome.KillingTests? = nil,
-        reusedFrom: ReusedFrom? = nil
+        reusedFrom: ReusedFrom? = nil,
+        key: MutantKey? = nil,
+        durationSeconds: Double? = nil
     ) -> Self {
         Self(
             testSuiteOutcome: testSuiteOutcome,
@@ -172,7 +176,9 @@ extension MutationTestOutcome.Mutation {
             originalProjectDirectoryUrl: originalProjectDirectoryUrl,
             mutatedProjectDirectoryURL: mutatedProjectDirectoryURL,
             killingTests: killingTests,
-            reusedFrom: reusedFrom
+            reusedFrom: reusedFrom,
+            key: key,
+            durationSeconds: durationSeconds
         )
     }
 }

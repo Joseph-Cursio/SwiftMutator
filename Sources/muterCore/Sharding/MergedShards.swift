@@ -169,7 +169,7 @@ extension MergedShards {
     /// A file that differs between the shards (`--merge-ignoring`) was tested as more than one version, so no
     /// report shows a mutant's line from it: the reference shard's hash says nothing of the others' mutants.
     func mutationTestOutcome() -> MutationTestOutcome {
-        let outcome = MutationTestOutcome(
+        var outcome = MutationTestOutcome(
             records: latest.values,
             under: reference.header,
             testDuration: parts.map(\.recorded.testDuration).max() ?? 0,
@@ -177,16 +177,29 @@ extension MergedShards {
             sampleIsCutShort: parts.contains { (1..<$0.header.mutantsDiscovered).contains($0.recorded.latest.count) },
             controlRuns: parts.flatMap(\.recorded.controlRuns)
         )
+        outcome.run = RunDetails(of: parts.map { ($0.path, $0.recorded.headers) })
         guard !waived.isEmpty else { return outcome }
         var digests = outcome.sourceDigests ?? [:]
         for path in waived {
             digests[path] = Self.differsBetweenShards
         }
-        return outcome.with(sourceDigests: digests)
+        outcome.sourceDigests = digests
+        return outcome
     }
 
     /// What stands for the hash of a file that differs between the shards: no file has it.
     static let differsBetweenShards = "differs between shards"
+
+    /// How the merged run ended, for its summary: as a shard that was aborted did, else one that was interrupted, else
+    /// as they all finished; nil when some shard's last session has no end line, or the file of a shard that holds
+    /// mutants wasn't given, as how that shard's run ended is unknown.
+    var ending: ResultsEnd? {
+        guard !absentShards.contains(where: { $0.mutants > 0 }) else { return nil }
+        let ends = parts.map { $0.recorded.sessions.last?.end }
+        guard ends.allSatisfy({ $0 != nil }) else { return nil }
+        let given = ends.compactMap { $0 }
+        return given.first { $0.reason == .aborted } ?? given.first { $0.reason == .interrupted } ?? given.first
+    }
 
     /// What `report` says on standard error of the merge: how many mutants it covers, each shard's file and how its run
     /// ended and which of its sessions tested its results, the shards whose files weren't given, and what may make the

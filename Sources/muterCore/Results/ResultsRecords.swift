@@ -341,6 +341,13 @@ struct MutantResult: Codable, Equatable {
 }
 
 extension MutantResult {
+    /// `seconds` to the millisecond, as a results line records a run's duration.
+    static func recordedSeconds(_ seconds: Double) -> Double {
+        (seconds * 1000).rounded() / 1000
+    }
+}
+
+extension MutantResult {
     /// The record of `finished`, the run of `schema`'s mutant, whose log showed `failures` failing
     /// (`failedTests(of:ignoring:)`).
     init(
@@ -368,7 +375,7 @@ extension MutantResult {
             outcome: run.outcome,
             endedBy: run.ending,
             exitStatus: run.ending == .exited ? run.exitStatus : nil,
-            durationSeconds: (finished.seconds * 1000).rounded() / 1000,
+            durationSeconds: Self.recordedSeconds(finished.seconds),
             worker: finished.worker,
             finishedAt: finishedAt,
             killedBy: failures?.tests,

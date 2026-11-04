@@ -96,6 +96,31 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(try resultsFiles.records(MutantResult.self).map(\.fileSHA256), [nil, nil])
     }
 
+    // The reports say where the results came from, as the header says, and each mutant's key and duration, as its line
+    // records them: to the millisecond, so that `report` of the file gives the same.
+    func test_theOutcome_namesTheResultsFile_andEachMutantsKeyAndDuration() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
+        let ticks = Locked<UInt64>(0)
+        current.instant = {
+            ticks.change { count in
+                count += 1
+                return DispatchTime(uptimeNanoseconds: count * 1_234_567_891)
+            }
+        }
+
+        let changes = try await sut.run(with: state)
+
+        guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
+            return XCTFail("Expected an outcome, got \(changes)")
+        }
+        let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
+        XCTAssertEqual(outcome.run, RunDetails(of: [("/logs/results.jsonl", [header])]))
+        let records = try resultsFiles.records(MutantResult.self)
+        XCTAssertEqual(outcome.mutations.compactMap(\.key), records.map(\.key))
+        XCTAssertEqual(outcome.mutations.compactMap(\.durationSeconds), records.map(\.durationSeconds))
+        XCTAssertEqual(outcome.mutations.map(\.durationSeconds), [1.235, 1.235])
+    }
+
     // A test plan's run records the plan it tested, and the plan's copy as it was tested, which each mutant's line
     // gives its file's hash from: the code its verdict came from, with any fix made by hand.
     func test_aTestPlansRun_recordsThePlan_andTheCopysHashes() async throws {
@@ -649,6 +674,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         }
         XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.failed, .failed])
         XCTAssertEqual(outcome.mutations.map(\.killingTests), [sumKilled, sumKilled], "worked out after a failed write")
+        XCTAssertNil(outcome.run, "the file lacks the results after the failed write, so the reports don't name it")
     }
 
     // A file without its header isn't a results file, so it isn't announced as one.

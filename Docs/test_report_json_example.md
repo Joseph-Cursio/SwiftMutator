@@ -100,9 +100,33 @@ UIKit+Helpers.swift                         1                         0
 Platform.swift                              1                         0
 ```
 
-## Counts and changed lines in the JSON report
+## Counts, changed lines and run details in the JSON report
 
-`-f json` gives the same report as JSON. Two keys give what [Reports](../README.md#reports) describes: the counts by outcome and the line each mutant changes. A report read back from one written before them has neither.
+`-f json` gives the same report as JSON. These keys give what [Reports](../README.md#reports) describes. A report read back from one written before them has none of them, and each file's `path` is then its `fileName`.
+
+### `path`, `key` and `durationSeconds`
+
+Each file report has `path`, its path relative to the project, beside `fileName`. Each applied operator has:
+
+| Key | Meaning |
+|---|---|
+| `path` | Its file's path relative to the project; absolute for a file outside it. `mutationPoint.filePath` is its path in the mutated copy. Left out of a file without coverage's row. |
+| `key` | Its key, as `--mutant` takes it and the results file's line records it: `Sources/Bar.swift:12:9 SwapTernary`, with ` (#2)` for a repeat of the same place and operator. |
+| `durationSeconds` | How long its run took, from launch to classification, to the millisecond, as its results line records it. |
+
+### `run`
+
+At the top level when the run wrote its results file in full: where the results came from. The build, toolchain and settings are those the last session that tested a mutant recorded; a resumed or reusing session with nothing left to test doesn't count, unless no session tested any. For a merged report, they are the first shard's.
+
+| Key | Meaning |
+|---|---|
+| `resultsFiles` | The results file, or each shard's, in shard order, for a merged report |
+| `sessions` | How many sessions made the results: the last session's number, more than 1 for a resumed run; for a merged report, every shard's added up |
+| `swiftMutator` | `version`, `executablePath` and `executableSHA256`, which stands in for the commit |
+| `toolchain` | `testCommandVersion`, `testExecutableSHA256` for a wrapper script, and `environment`: `SDKROOT`, `DEVELOPER_DIR` and `TOOLCHAINS` as set |
+| `workers` | The workers the mutants were tested with; 0 when no session tested any, as for a `--reuse` of an unchanged project |
+| `timeoutSeconds` and `timeoutIsDefault` | The time limit for a mutant's run, left out when none was set, and whether it is the default |
+| `configuration` | The configuration as loaded, under its own keys |
 
 ### `mutantsByOutcome`
 
@@ -191,9 +215,13 @@ Here is part of a report with two suspect tests. Most keys, file reports and tes
   "fileReports": [
     {
       "fileName": "ActorReentrancyVisitor.swift",
+      "path": "Sources/SwiftProjectLintCore/ActorReentrancyVisitor.swift",
       "appliedOperators": [
         {
           "testSuiteOutcome": "failed",
+          "path": "Sources/SwiftProjectLintCore/ActorReentrancyVisitor.swift",
+          "key": "Sources/SwiftProjectLintCore/ActorReentrancyVisitor.swift:41:24 RelationalOperatorReplacement",
+          "durationSeconds": 2.412,
           "killingTests": {
             "tests": [
               { "name": "testAnalyzeProjectPerformance()", "location": "ProjectLinterTests.swift:98:9" }

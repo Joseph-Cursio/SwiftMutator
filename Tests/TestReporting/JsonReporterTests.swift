@@ -57,7 +57,8 @@ final class JsonReporterTests: ReporterTestCase {
         ] as NSDictionary)
         let tests = try XCTUnwrap((kill["killingTests"] as? [String: Any])?["tests"] as? [[String: Any]])
         XCTAssertEqual(tests.last?.keys.sorted(), ["name"], "an XCTest name has no location")
-        XCTAssertEqual(survivor.keys.sorted(), ["mutationPoint", "mutationSnapshot", "testSuiteOutcome"])
+        // And its path in the project, which every mutant has.
+        XCTAssertEqual(survivor.keys.sorted(), ["mutationPoint", "mutationSnapshot", "path", "testSuiteOutcome"])
     }
 
     func test_theKillingTestSummary_isATopLevelKey_onlyWhenAKilledMutantRecordsItsTests() throws {
