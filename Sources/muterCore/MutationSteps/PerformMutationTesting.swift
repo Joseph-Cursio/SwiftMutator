@@ -151,6 +151,7 @@ struct PerformMutationTesting: MutationStep {
             suspectTestThresholds: state.muterConfiguration.suspectTestThresholds,
             failUnder: state.muterConfiguration.failUnder,
             propertyTests: state.muterConfiguration.propertyTests ?? [],
+            triage: Self.triageFile(of: state),
             controlRuns: Self.controlRuns(of: session, state: state),
             projectPath: state.projectDirectoryURL.path,
             mutatedProjectPath: state.mutatedProjectDirectoryURL.path,
@@ -579,6 +580,7 @@ private extension PerformMutationTesting {
                     suspectTestThresholds: state.muterConfiguration.suspectTestThresholds,
                     failUnder: state.muterConfiguration.failUnder,
                     propertyTests: state.muterConfiguration.propertyTests ?? [],
+                    triage: Self.triageFile(of: state),
                     controlRuns: Self.controlRuns(of: session, state: state),
                     projectPath: state.projectDirectoryURL.path,
                     mutatedProjectPath: state.mutatedProjectDirectoryURL.path,
@@ -589,6 +591,18 @@ private extension PerformMutationTesting {
                 reused: session.reused
             ))
         )
+    }
+
+    /// The project's triage file, as it is when the report is made, so a label given during a long run shows. Checked
+    /// as the run starts (`LoadConfiguration`), so one that broke since costs only its labels, never the run's report.
+    static func triageFile(of state: AnyMutationTestState) -> TriageFile? {
+        let path = TriageFile.path(in: state.projectDirectoryURL.path)
+        do {
+            return try TriageFile.load(at: path, using: dependency(\.fileManager))
+        } catch {
+            dependency(\.errorPrinter)("⚠️ The report shows no triage labels: \(error)")
+            return nil
+        }
     }
 
     /// Every discovered mutant, in job order: file by file as discovery mapped them, and in each file in its order.

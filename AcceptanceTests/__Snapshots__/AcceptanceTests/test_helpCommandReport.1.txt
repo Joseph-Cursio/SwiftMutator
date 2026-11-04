@@ -1,7 +1,7 @@
 OVERVIEW: Builds a report from a run's results file, or from its shards'
 results files merged.
 
-USAGE: swift-mutator report <results> ... [--format <format>] [--output <output>] [--fail-under <percent>] [--property-tests <glob> ...] [--force-merge] [--merge-ignoring <glob> ...] [--summary <path>]
+USAGE: swift-mutator report <results> ... [--format <format>] [--output <output>] [--fail-under <percent>] [--property-tests <glob> ...] [--force-merge] [--merge-ignoring <glob> ...] [--summary <path>] [--triage <path>]
 
 ARGUMENTS:
   <results>               A run's results file, or the log folder in
@@ -27,6 +27,9 @@ OPTIONS:
                           Repeatable. With one file, it does nothing.
   --summary <path>        Also save the run's summary.json, its score, counts
                           and details for scripts, at this path.
+  --triage <path>         Show the labels in this triage file, if not
+                          muter.triage.yml in the run's project, or in the
+                          current folder.
   --version               Show the version.
   -h, --help              Show help information.
 

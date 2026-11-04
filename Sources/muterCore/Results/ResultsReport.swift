@@ -25,19 +25,24 @@ struct ResultsReport {
     /// `--property-tests`: the globs that pick out property tests, in place of those the run's header records; nil
     /// keeps the header's.
     let propertyTests: [String]?
+    /// `--triage`: the triage file, which must be there; nil looks for `muter.triage.yml` in the run's project, then
+    /// in the current folder, and reports without labels if neither has one.
+    let triagePath: String?
 
     init(
         format: ReportFormat,
         outputPath: String?,
         summaryPath: String? = nil,
         failUnder: Double? = nil,
-        propertyTests: [String]? = nil
+        propertyTests: [String]? = nil,
+        triagePath: String? = nil
     ) {
         self.format = format
         self.outputPath = outputPath
         self.summaryPath = summaryPath
         self.failUnder = failUnder
         self.propertyTests = propertyTests
+        self.triagePath = triagePath
     }
 
     /// Makes the report from the results files `paths` name: each the file itself, or the log folder of one of a run's
@@ -73,6 +78,7 @@ struct ResultsReport {
         if read.count == 1, let only = read.first, only.recorded.headers.last?.shard == nil {
             var outcome = only.recorded.mutationTestOutcome(resultsFile: only.path)
             if let propertyTests { outcome.propertyTests = propertyTests }
+            outcome.triage = try triageFile(of: outcome)
             let status = only.recorded.exitStatus
             let gate = failUnder.map {
                 ScoreGate(
@@ -93,12 +99,30 @@ struct ResultsReport {
         let merged = try MergedShards.merge(read, forcing: forcing, ignoring: ignoring)
         var outcome = merged.mutationTestOutcome()
         if let propertyTests { outcome.propertyTests = propertyTests }
+        outcome.triage = try triageFile(of: outcome)
         let status = merged.exitStatus
         let gate = failUnder.map {
             ScoreGate(failUnder: $0, judging: outcome, unless: status == nil ? nil : .lacksResults)
         }
         try report(outcome, saying: merged.statusLines(), ended: merged.ending, gate: gate)
         return status ?? gate?.exitStatus
+    }
+
+    /// The triage file the report of `outcome` shows, which a broken one refuses: nothing is lost by fixing it and
+    /// asking again.
+    private func triageFile(of outcome: MutationTestOutcome) throws -> TriageFile? {
+        if let triagePath {
+            guard let file = try TriageFile.load(at: triagePath, using: fileManager) else {
+                throw MuterError.literal(reason: "There is no triage file at \(triagePath).")
+            }
+            return file
+        }
+        for folder in [outcome.projectPath, fileManager.currentDirectoryPath] where !folder.isEmpty {
+            if let file = try TriageFile.load(at: TriageFile.path(in: folder), using: fileManager) {
+                return file
+            }
+        }
+        return nil
     }
 
     /// The paths of the `found` files, less each that a resumed session's note named and that is the same file as one

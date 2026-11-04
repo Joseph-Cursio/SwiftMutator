@@ -60,7 +60,8 @@ struct PlainTextReporter: Reporter {
         """
 
         return survivorsMessage + appliedMutationsMessage + killingTestsMessage(from: report)
-            + propertyKillsMessage(from: report) + mutationScoresMessage + runMessage(from: report)
+            + propertyKillsMessage(from: report) + triageMessage(from: report) + mutationScoresMessage
+            + runMessage(from: report)
     }
 
     /// Where the results came from, after the scores; none when not known.
@@ -82,6 +83,7 @@ struct PlainTextReporter: Reporter {
             let place = MuterTestReport.place(mutant, in: survivor.relativePath)
             return ["\(place) \(verdict): \(mutant.mutationPoint.mutationOperatorId.rawValue)\(change)"]
                 + (mutant.sourceChange?.lines ?? []).map { "    " + $0 }
+                + (mutant.triage.map { ["    Triaged: \($0.text)"] } ?? [])
         }
         return [Self.survivorsIntroduction(survivors.count), ""] + lines
     }
@@ -128,6 +130,18 @@ struct PlainTextReporter: Reporter {
             (tableLines + [summary.shownPropertiesSentence].compactMap { $0 }).joined(separator: "\n"),
         ]
         return paragraphs.compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n\n") + "\n\n\n"
+    }
+
+    /// The Triage section, followed by the blank lines that end a section. None without a triage file with entries, so
+    /// such a report is as it was.
+    private func triageMessage(from report: MuterTestReport) -> String {
+        guard let summary = report.triageSummary else { return "" }
+        let paragraphs: [String?] = [
+            "------\nTriage\n------",
+            TriageSummary.introduction,
+            ([summary.countSentence] + [summary.labelSentence].compactMap { $0 }).joined(separator: "\n"),
+        ] + summary.attentionParagraphs.map { $0.joined(separator: "\n") }
+        return paragraphs.compactMap { $0 }.joined(separator: "\n\n") + "\n\n\n"
     }
 
     /// The score without suspect tests and which they are, each on a line of its own after the headline score, with
