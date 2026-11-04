@@ -59,9 +59,11 @@ final class AcceptanceTests: XCTestCase {
 
         // Each mutant's name ends with the hash of its file's path in the project, `ExampleApp/<file>`. Only the
         // survivors keep a log: Module.swift's mutant is killed by a test its results line names, which stands in for
-        // its log.
+        // its log. The configuration sets no time limit, so the limit comes from a timed test run, which keeps a log
+        // of its own.
         let expectedLogFiles = [
             "baseline run.log",
+            "timed test run.log",
             "ChangeLogicalConnector @ Module2.swift-2-17 3f9a9afeaa09cfa4.log",
             "RemoveSideEffects @ ViewController.swift-5-28 4d7bb557ed045e7d.log",
         ]
@@ -70,13 +72,14 @@ final class AcceptanceTests: XCTestCase {
             .map(contentsOfLogFile(named:))
             .count { $0.isEmpty }
 
-        // The run's results file is kept beside its logs.
+        // The run's results file and its summary are kept beside its logs.
         XCTAssertEqual(
             logFiles.sorted(),
-            (expectedLogFiles + ["results.jsonl"]).sorted()
+            (expectedLogFiles + ["results.jsonl", "summary.json"]).sorted()
         ) // Sort these so it's easier to reason about any erroneous failures
         XCTAssertEqual(numberOfEmptyLogFiles, 0)
         XCTAssertFalse(try contentsOfLogFile(named: "results.jsonl").isEmpty)
+        XCTAssertFalse(try contentsOfLogFile(named: "summary.json").isEmpty)
     }
 
     func test_runWithTestPlanCommand() throws {
@@ -145,12 +148,23 @@ final class AcceptanceTests: XCTestCase {
 
     func test_mutationTestTimeout() throws {
         let output = try muterWithTimeoutOutput
+        let lines = output.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let columns = { (line: String) in line.split(separator: " ").joined(separator: " ") }
 
-        XCTAssertTrue(output.contains("""
-        File                         Applied Mutation Operator       Mutation Test Result
-        ----                         -------------------------       --------------------
-        ProjectWithTimeout.swift:2   RelationalOperatorReplacement   time out
-        """))
+        // The mutant's row names it by its path in the project, its line and its column. How long it ran depends on
+        // the machine, so the row is checked up to its result.
+        let header = try XCTUnwrap(lines.firstIndex { $0.hasPrefix("File ") && $0.contains("Mutation Test Result") })
+        XCTAssertEqual(
+            columns(lines[header]),
+            "File Applied Mutation Operator Mutation Test Result Duration"
+        )
+        let row = try XCTUnwrap(lines.dropFirst(header + 2).first, output)
+        XCTAssertTrue(
+            columns(row).hasPrefix(
+                "Sources/ProjectWithTimeout/ProjectWithTimeout.swift:2:14 RelationalOperatorReplacement time out "
+            ),
+            row
+        )
     }
 
     func test_all_operatos() throws {
