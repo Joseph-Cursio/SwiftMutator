@@ -148,7 +148,10 @@ struct PerformMutationTesting: MutationStep {
             sample: state.sampleSelection,
             mutant: state.selectedMutant?.description,
             suspectTestThresholds: state.muterConfiguration.suspectTestThresholds,
-            controlRuns: Self.controlRuns(of: session, state: state)
+            controlRuns: Self.controlRuns(of: session, state: state),
+            projectPath: state.projectDirectoryURL.path,
+            mutatedProjectPath: state.mutatedProjectDirectoryURL.path,
+            sourceDigests: Self.sourceDigests(of: state)
         )
 
         events.send(.mutationTestingFinished(mutationTestOutcome))
@@ -575,7 +578,10 @@ private extension PerformMutationTesting {
                     sampleIsCutShort: session.outcomesInJobOrder.count < session.keys.count,
                     mutant: state.selectedMutant?.description,
                     suspectTestThresholds: state.muterConfiguration.suspectTestThresholds,
-                    controlRuns: Self.controlRuns(of: session, state: state)
+                    controlRuns: Self.controlRuns(of: session, state: state),
+                    projectPath: state.projectDirectoryURL.path,
+                    mutatedProjectPath: state.mutatedProjectDirectoryURL.path,
+                    sourceDigests: Self.sourceDigests(of: state)
                 ),
                 discovered: session.keys.count,
                 reused: session.reused
@@ -1287,5 +1293,17 @@ private extension PerformMutationTesting {
             )
         }
         sayingAFailure(written, in: session)
+    }
+}
+
+extension PerformMutationTesting {
+    /// Each project file's SHA-256 as it was tested, by its path in the project, which the reports check a file
+    /// against before showing a mutant's line from it: the project tree's, or for a run of a test plan, whose tree is
+    /// its rewritten copy, what the plan recorded of the project when it was made. nil for a plan in format 0, which
+    /// records nothing.
+    static func sourceDigests(of state: AnyMutationTestState) -> [String: String]? {
+        guard let plan = state.testPlan else { return state.projectTree?.files }
+        // A file with mutants that is a symbolic link is recorded by what its link's file held.
+        return plan.sources.map { $0.files.merging(plan.linkedFiles ?? [:]) { _, linked in linked } }
     }
 }

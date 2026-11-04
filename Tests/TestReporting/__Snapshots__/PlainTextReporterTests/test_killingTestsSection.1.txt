@@ -1,3 +1,12 @@
+-----------------
+Surviving Mutants
+-----------------
+
+These 2 mutants survived: your tests passed with each of them on, or ran out of time, which the score counts as surviving too. By path, line and column:
+
+Sources/File06.swift:21:21 survived: ChangeLogicalConnector
+Sources/File08.swift:27:27 timed out: ChangeLogicalConnector
+
 --------------------------
 Applied Mutation Operators
 --------------------------
@@ -6,27 +15,27 @@ These are all of the ways that SwiftMutator introduced changes into your code.
 
 In total, SwiftMutator introduced 19 mutants in 11 files.
 
-File              Applied Mutation Operator   Mutation Test Result            Killed By
-----              -------------------------   --------------------            ---------
-File01.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused01() (+1)
-File01.swift:7    ChangeLogicalConnector      mutant killed (test failure)    focused01() (+2)
-File02.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused02() (+1)
-File02.swift:9    ChangeLogicalConnector      mutant killed (test failure)    "adding every number in a long list gives the same total in… (+1)
-File03.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused03() (+1)
-File03.swift:12   ChangeLogicalConnector      mutant killed (test failure)    (none named)
-File04.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused04() (+1)
-File04.swift:15   ChangeLogicalConnector      mutant killed (test failure)    -
-File05.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused05() (+1)
-File05.swift:18   ChangeLogicalConnector      mutant killed (runtime error)   focused05()
-File06.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused06() (+1)
-File06.swift:21   ChangeLogicalConnector      mutant survived                 -
-File07.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused07() (+1)
-File07.swift:24   ChangeLogicalConnector      mutant killed (test failure)    -[AppTests.ParserTests testParsesEmptyInput]
-File08.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused08() (+1)
-File08.swift:27   ChangeLogicalConnector      time out                        -
-File09.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused09() (+1)
-File10.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused10()
-File11.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused11()
+File                         Applied Mutation Operator   Mutation Test Result            Killed By
+----                         -------------------------   --------------------            ---------
+Sources/File01.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    focused01() (+1)
+Sources/File01.swift:7:7     ChangeLogicalConnector      mutant killed (test failure)    focused01() (+2)
+Sources/File02.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    focused02() (+1)
+Sources/File02.swift:9:9     ChangeLogicalConnector      mutant killed (test failure)    "adding every number in a long list gives the same total in… (+1)
+Sources/File03.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    focused03() (+1)
+Sources/File03.swift:12:12   ChangeLogicalConnector      mutant killed (test failure)    (none named)
+Sources/File04.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    focused04() (+1)
+Sources/File04.swift:15:15   ChangeLogicalConnector      mutant killed (test failure)    -
+Sources/File05.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    focused05() (+1)
+Sources/File05.swift:18:18   ChangeLogicalConnector      mutant killed (runtime error)   focused05()
+Sources/File06.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    focused06() (+1)
+Sources/File06.swift:21:21   ChangeLogicalConnector      mutant survived                 -
+Sources/File07.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    focused07() (+1)
+Sources/File07.swift:24:24   ChangeLogicalConnector      mutant killed (test failure)    -[AppTests.ParserTests testParsesEmptyInput]
+Sources/File08.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    focused08() (+1)
+Sources/File08.swift:27:27   ChangeLogicalConnector      time out                        -
+Sources/File09.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    focused09() (+1)
+Sources/File10.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    focused10()
+Sources/File11.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    focused11()
 
 
 -------------
@@ -66,19 +75,20 @@ These are the mutation scores for your test suite, as well as the files that had
 Mutation scores ignore build errors.
 
 Of the 19 mutants introduced into your code, your test suite killed 17.
+By outcome: 17 killed, 1 survived, 1 timed out
 Mutation Score of Test Suite: 89%
 SwiftMutator could not gather coverage data from your project
 
-File           # of Introduced Mutants   Mutation Score
-----           -----------------------   --------------
-File01.swift   2                         100
-File02.swift   2                         100
-File03.swift   2                         100
-File04.swift   2                         100
-File05.swift   2                         100
-File06.swift   2                         50
-File07.swift   2                         100
-File08.swift   2                         50
-File09.swift   1                         100
-File10.swift   1                         100
-File11.swift   1                         100
+File                   # of Introduced Mutants   Mutation Score
+----                   -----------------------   --------------
+Sources/File01.swift   2                         100
+Sources/File02.swift   2                         100
+Sources/File03.swift   2                         100
+Sources/File04.swift   2                         100
+Sources/File05.swift   2                         100
+Sources/File06.swift   2                         50
+Sources/File07.swift   2                         100
+Sources/File08.swift   2                         50
+Sources/File09.swift   1                         100
+Sources/File10.swift   1                         100
+Sources/File11.swift   1                         100

@@ -222,6 +222,10 @@ final class MergedShardsTests: XCTestCase {
             merged.statusLines().last,
             "Merged although 2 project files differ between the shards (--merge-ignoring): README.md, notes.txt."
         )
+        // Either version could be the one a mutant was tested in, so no report shows a line from either.
+        let digests = try XCTUnwrap(merged.mutationTestOutcome().sourceDigests)
+        XCTAssertEqual(digests["README.md"], MergedShards.differsBetweenShards)
+        XCTAssertEqual(digests["notes.txt"], MergedShards.differsBetweenShards)
     }
 
     // Only the config file and the reports the runs write are left out, as each shard leaves out its own.

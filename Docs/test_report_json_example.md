@@ -100,9 +100,35 @@ UIKit+Helpers.swift                         1                         0
 Platform.swift                              1                         0
 ```
 
+## Counts and changed lines in the JSON report
+
+`-f json` gives the same report as JSON. Two keys give what [Reports](../README.md#reports) describes: the counts by outcome and the line each mutant changes. A report read back from one written before them has neither.
+
+### `mutantsByOutcome`
+
+At the top level, always, with every count, zeros included. The counts are as the progress lines give them, so a crash counts as a kill.
+
+| Key | Meaning |
+|---|---|
+| `killed` | Mutants a failed test or a crash killed |
+| `survived` | Mutants the tests passed with |
+| `timedOut` | Mutants whose run reached its time limit, which the score counts as survivors |
+| `buildErrors` | Mutants that didn't build, which the score leaves out |
+| `notCovered` | Mutants not tested for want of coverage |
+
+### `sourceChange`
+
+On each applied operator whose line was found in its original file, while that file is as it was tested. Left out otherwise.
+
+| Key | Meaning |
+|---|---|
+| `line` | The line's number, from 1 |
+| `before` | The line as the original file holds it |
+| `after` | The line as the mutant changes it. Left out for a removed statement that leaves nothing but spaces on its line. |
+
 ## Killing tests in the JSON report
 
-`-f json` gives the same report as JSON. Three keys name the tests that failed for each killed mutant, summarise them and mark suspect tests, as [Killing tests and suspect tests](../README.md#killing-tests-and-suspect-tests) describes. They appear only when some mutant's tests were recorded, and a survivor never has them, so its JSON is as it was before. Keys can come in any order.
+Three keys name the tests that failed for each killed mutant, summarise them and mark suspect tests, as [Killing tests and suspect tests](../README.md#killing-tests-and-suspect-tests) describes. They appear only when some mutant's tests were recorded, and a survivor never has them. Keys can come in any order.
 
 ### `killingTests`
 
@@ -161,6 +187,7 @@ Here is part of a report with two suspect tests. Most keys, file reports and tes
   "globalMutationScore": 92,
   "numberOfKilledMutants": 1024,
   "totalAppliedMutationOperators": 1103,
+  "mutantsByOutcome": { "killed": 1024, "survived": 75, "timedOut": 4, "buildErrors": 0, "notCovered": 0 },
   "fileReports": [
     {
       "fileName": "ActorReentrancyVisitor.swift",

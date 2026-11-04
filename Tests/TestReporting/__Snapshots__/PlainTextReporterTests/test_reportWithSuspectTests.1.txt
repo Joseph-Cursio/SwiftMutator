@@ -1,3 +1,11 @@
+-----------------
+Surviving Mutants
+-----------------
+
+This mutant survived: your tests passed with it on, or ran out of time, which the score counts as surviving too. By path, line and column:
+
+Sources/File08.swift:12:12 survived: ChangeLogicalConnector
+
 --------------------------
 Applied Mutation Operators
 --------------------------
@@ -6,22 +14,22 @@ These are all of the ways that SwiftMutator introduced changes into your code.
 
 In total, SwiftMutator introduced 14 mutants in 12 files.
 
-File              Applied Mutation Operator   Mutation Test Result            Killed By
-----              -------------------------   --------------------            ---------
-File01.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused01() (+1)
-File02.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused02() (+2)
-File03.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused03() (+2)
-File04.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused04() (+2)
-File05.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused05() (+2)
-File06.swift:3    ChangeLogicalConnector      mutant killed (test failure)    focused06() (+2)
-File07.swift:3    ChangeLogicalConnector      mutant killed (test failure)    timing() (+1) (suspect only)
-File07.swift:8    ChangeLogicalConnector      mutant killed (runtime error)   timing()
-File08.swift:3    ChangeLogicalConnector      mutant killed (test failure)    timing() (+1) (suspect only)
-File08.swift:12   ChangeLogicalConnector      mutant survived                 -
-File09.swift:3    ChangeLogicalConnector      mutant killed (test failure)    timing() (+1) (suspect only)
-File10.swift:3    ChangeLogicalConnector      mutant killed (test failure)    timing() (+1) (suspect only)
-File11.swift:3    ChangeLogicalConnector      mutant killed (test failure)    timing() (+1) (suspect only)
-File12.swift:3    ChangeLogicalConnector      mutant killed (test failure)    timing() (suspect only)
+File                         Applied Mutation Operator   Mutation Test Result            Killed By
+----                         -------------------------   --------------------            ---------
+Sources/File01.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    focused01() (+1)
+Sources/File02.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    focused02() (+2)
+Sources/File03.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    focused03() (+2)
+Sources/File04.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    focused04() (+2)
+Sources/File05.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    focused05() (+2)
+Sources/File06.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    focused06() (+2)
+Sources/File07.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    timing() (+1) (suspect only)
+Sources/File07.swift:8:8     ChangeLogicalConnector      mutant killed (runtime error)   timing()
+Sources/File08.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    timing() (+1) (suspect only)
+Sources/File08.swift:12:12   ChangeLogicalConnector      mutant survived                 -
+Sources/File09.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    timing() (+1) (suspect only)
+Sources/File10.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    timing() (+1) (suspect only)
+Sources/File11.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    timing() (+1) (suspect only)
+Sources/File12.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    timing() (suspect only)
 
 
 -------------
@@ -61,22 +69,23 @@ These are the mutation scores for your test suite, as well as the files that had
 Mutation scores ignore build errors.
 
 Of the 14 mutants introduced into your code, your test suite killed 13.
+By outcome: 13 killed, 1 survived
 Mutation Score of Test Suite: 92%
 Mutation Score without suspect tests: at least 50%
 Suspect tests: 2 (timing(), order()); see Killing Tests above
 SwiftMutator could not gather coverage data from your project
 
-File           # of Introduced Mutants   Mutation Score
-----           -----------------------   --------------
-File01.swift   1                         100
-File02.swift   1                         100
-File03.swift   1                         100
-File04.swift   1                         100
-File05.swift   1                         100
-File06.swift   1                         100
-File07.swift   2                         100
-File08.swift   2                         50
-File09.swift   1                         100
-File10.swift   1                         100
-File11.swift   1                         100
-File12.swift   1                         100
+File                   # of Introduced Mutants   Mutation Score
+----                   -----------------------   --------------
+Sources/File01.swift   1                         100
+Sources/File02.swift   1                         100
+Sources/File03.swift   1                         100
+Sources/File04.swift   1                         100
+Sources/File05.swift   1                         100
+Sources/File06.swift   1                         100
+Sources/File07.swift   2                         100
+Sources/File08.swift   2                         50
+Sources/File09.swift   1                         100
+Sources/File10.swift   1                         100
+Sources/File11.swift   1                         100
+Sources/File12.swift   1                         100

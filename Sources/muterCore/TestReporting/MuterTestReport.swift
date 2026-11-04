@@ -7,6 +7,9 @@ struct MuterTestReport {
     let globalMutationScore: Int
     let totalAppliedMutationOperators: Int
     let numberOfKilledMutants: Int
+    /// How many mutants came to each verdict, as the progress lines count them: a crash is a kill. nil only in a report
+    /// read back from one written before reports had it.
+    let mutantsByOutcome: OutcomeCounts?
     let projectCodeCoverage: Int?
     let fileReports: [FileReport]
     let timeElapsed: String
@@ -23,7 +26,11 @@ struct MuterTestReport {
     /// otherwise.
     let mutant: String?
 
-    init(from outcome: MutationTestOutcome = .init()) {
+    /// The report of `outcome`, with each mutant's line read by `readSource` from its original file.
+    init(
+        from outcome: MutationTestOutcome = .init(),
+        readingSourcesWith readSource: @escaping ReadFile = dependency(\.readSourceFile)
+    ) {
         let summary = KillingTestSummary(
             of: outcome.mutations, controlRuns: outcome.controlRuns, thresholds: outcome.suspectTestThresholds
         )
@@ -32,8 +39,14 @@ struct MuterTestReport {
         totalAppliedMutationOperators = outcome.mutations.count
         numberOfKilledMutants = outcome.mutations
             .count { $0.testSuiteOutcome == .failed || $0.testSuiteOutcome == .runtimeError }
+        mutantsByOutcome = OutcomeCounts(outcome.mutations.map(\.testSuiteOutcome))
         projectCodeCoverage = outcome.coverage == .null ? nil : outcome.coverage.percent
-        fileReports = MuterTestReport.fileReports(from: outcome, suspects: summary?.suspectIdentities ?? [])
+        var sources = ReportSources(read: readSource, digests: outcome.sourceDigests)
+        fileReports = MuterTestReport.fileReports(
+            from: outcome,
+            suspects: summary?.suspectIdentities ?? [],
+            sources: &sources
+        )
         timeElapsed = outcome.testDuration.formatted()
         since = outcome.since.map(SinceScope.init)
         shards = outcome.shards
@@ -141,6 +154,9 @@ extension MuterTestReport {
     struct FileReport: Codable {
         let fileName: FileName
         let path: FilePath
+        /// Its path relative to the project, as the plain and HTML reports show it; for a file outside the project,
+        /// its absolute path. Not in the JSON yet: a report read back has its `fileName`.
+        let relativePath: String
         let mutationScore: Int
         let appliedOperators: [AppliedMutationOperator]
 
@@ -150,9 +166,16 @@ extension MuterTestReport {
             case appliedOperators
         }
 
-        init(fileName: FileName, path: FilePath, mutationScore: Int, appliedOperators: [AppliedMutationOperator]) {
+        init(
+            fileName: FileName,
+            path: FilePath,
+            relativePath: String? = nil,
+            mutationScore: Int,
+            appliedOperators: [AppliedMutationOperator]
+        ) {
             self.fileName = fileName
             self.path = path
+            self.relativePath = relativePath ?? fileName
             self.mutationScore = mutationScore
             self.appliedOperators = appliedOperators
         }
@@ -163,6 +186,7 @@ extension MuterTestReport {
             mutationScore = try container.decode(Int.self, forKey: .mutationScore)
             appliedOperators = try container.decode([AppliedMutationOperator].self, forKey: .appliedOperators)
             path = ""
+            relativePath = fileName
         }
 
         func encode(to encoder: Encoder) throws {
@@ -175,8 +199,9 @@ extension MuterTestReport {
 }
 
 extension MuterTestReport.FileReport: Comparable {
+    /// By path, as the run tests them.
     static func < (lhs: MuterTestReport.FileReport, rhs: MuterTestReport.FileReport) -> Bool {
-        lhs.fileName.localizedStandardCompare(rhs.fileName) == .orderedAscending
+        lhs.relativePath < rhs.relativePath
     }
 }
 
@@ -194,6 +219,10 @@ extension MuterTestReport {
         /// Where it was tested, for a result the run reused from an earlier run (`--reuse`); left out of the JSON when
         /// nil.
         let reusedFrom: ReusedFrom?
+        /// The line it changes, before and after, from its original file (`MutantDiff.change`); nil, and left out of
+        /// the JSON, when the file can't be read, has changed since it was tested, or doesn't hold the change on one
+        /// line.
+        let sourceChange: SourceChange?
 
         enum CodingKeys: String, CodingKey {
             case mutationPoint
@@ -202,6 +231,7 @@ extension MuterTestReport {
             case killingTests
             case killedOnlyBySuspectTests
             case reusedFrom
+            case sourceChange
         }
 
         init(
@@ -210,7 +240,8 @@ extension MuterTestReport {
             testSuiteOutcome: TestSuiteOutcome,
             killingTests: MutationTestOutcome.KillingTests? = nil,
             killedOnlyBySuspectTests: Bool? = nil,
-            reusedFrom: ReusedFrom? = nil
+            reusedFrom: ReusedFrom? = nil,
+            sourceChange: SourceChange? = nil
         ) {
             self.mutationPoint = mutationPoint
             self.mutationSnapshot = mutationSnapshot
@@ -218,6 +249,7 @@ extension MuterTestReport {
             self.killingTests = killingTests
             self.killedOnlyBySuspectTests = killedOnlyBySuspectTests
             self.reusedFrom = reusedFrom
+            self.sourceChange = sourceChange
         }
 
         public init(from decoder: Decoder) throws {
@@ -233,47 +265,51 @@ extension MuterTestReport {
             killingTests = try container.decodeIfPresent(MutationTestOutcome.KillingTests.self, forKey: .killingTests)
             killedOnlyBySuspectTests = try container.decodeIfPresent(Bool.self, forKey: .killedOnlyBySuspectTests)
             reusedFrom = try container.decodeIfPresent(ReusedFrom.self, forKey: .reusedFrom)
+            sourceChange = try container.decodeIfPresent(SourceChange.self, forKey: .sourceChange)
         }
     }
 }
 
 private extension MuterTestReport {
-    /// Each file's report, with each kill only `suspects` were recorded failing for marked.
+    /// Each file's report, by path, with each kill only `suspects` were recorded failing for marked, and each mutant's
+    /// line from `sources`.
     static func fileReports(
         from outcome: MutationTestOutcome,
-        suspects: Set<FailedTestLine.TestIdentity>
+        suspects: Set<FailedTestLine.TestIdentity>,
+        sources: inout ReportSources
     ) -> [FileReport] {
         let outcomes = outcome.mutations
-        let filesWithoutCoverage = outcome.coverage.filesWithoutCoverage
+        let scores = mutationScoresOfFiles(from: outcomes)
+        let byFile = Dictionary(grouping: outcomes, by: \.point.filePath)
 
-        let scoreOfFiles = mutationScoresOfFiles(from: outcomes)
-            .sorted(by: ascendingFilenameOrder)
-            .map { mutationScoreByFilePath in
-                let filePath = mutationScoreByFilePath.key
-                let fileName = URL(fileURLWithPath: filePath).lastPathComponent
-                let mutationScore = mutationScoreByFilePath.value
-                let appliedOperators = outcomes
-                    .include { $0.point.filePath == mutationScoreByFilePath.key }
-                    .map {
-                        AppliedMutationOperator(
-                            mutationPoint: $0.point,
-                            mutationSnapshot: $0.snapshot,
-                            testSuiteOutcome: $0.testSuiteOutcome,
-                            killingTests: $0.killingTests,
-                            killedOnlyBySuspectTests: KillingTestSummary.isSuspectOnlyKill($0, suspects: suspects)
-                                ? true : nil,
-                            reusedFrom: $0.reusedFrom
-                        )
-                    }
-
-                return (fileName, filePath, mutationScore, appliedOperators)
+        let scoreOfFiles = byFile.keys.sorted().map { filePath in
+            let mutations = byFile[filePath] ?? []
+            let appliedOperators = mutations.map { mutation in
+                AppliedMutationOperator(
+                    mutationPoint: mutation.point,
+                    mutationSnapshot: mutation.snapshot,
+                    testSuiteOutcome: mutation.testSuiteOutcome,
+                    killingTests: mutation.killingTests,
+                    killedOnlyBySuspectTests: KillingTestSummary.isSuspectOnlyKill(mutation, suspects: suspects)
+                        ? true : nil,
+                    reusedFrom: mutation.reusedFrom,
+                    sourceChange: sources.change(of: mutation)
+                )
             }
-            .map(FileReport.init(fileName:path:mutationScore:appliedOperators:))
+            return FileReport(
+                fileName: URL(fileURLWithPath: filePath).lastPathComponent,
+                path: filePath,
+                relativePath: mutations.first?.relativePath,
+                mutationScore: scores[filePath] ?? 0,
+                appliedOperators: appliedOperators
+            )
+        }
 
-        let scoreOfFilesWithoutCoverage = filesWithoutCoverage.map { filePath in
+        let scoreOfFilesWithoutCoverage = outcome.coverage.filesWithoutCoverage.map { filePath in
             FileReport(
                 fileName: URL(fileURLWithPath: filePath).lastPathComponent,
                 path: filePath,
+                relativePath: outcome.relativePath(of: filePath),
                 mutationScore: 0,
                 appliedOperators: [
                     .init(
@@ -289,11 +325,98 @@ private extension MuterTestReport {
     }
 }
 
-private func ascendingFilenameOrder(
-    lhs: (key: String, value: Int),
-    rhs: (key: String, value: Int)
-) -> Bool {
-    lhs.key < rhs.key
+private extension MutationTestOutcome {
+    /// `path`, a file's in the mutated copy or in the project, relative to it; a path in neither as it is.
+    func relativePath(of path: String) -> String {
+        for root in [mutatedProjectPath, projectPath] where !root.isEmpty {
+            let relative = RepoRelativePath.of(path, under: URL(fileURLWithPath: root, isDirectory: true))
+            if !relative.hasPrefix("/") {
+                return relative
+            }
+        }
+        return path
+    }
+}
+
+/// The original files the reports show mutants' lines from, each read once, and none that has changed since it was
+/// tested: a mutant's line is found by its place, which an edit since would move.
+struct ReportSources {
+    private let read: ReadFile
+    /// Each file's SHA-256 as it was tested, by its path relative to the project; nil when not recorded. A file whose
+    /// hash isn't known, as one the tree doesn't hold or records as a symbolic link (`ProjectTree.linkPrefix`), may be
+    /// as it was: its change is taken only where it starts at the mutant's place.
+    private let digests: [String: String]?
+    private var texts: [String: (text: String, verified: Bool)?] = [:]
+
+    init(read: @escaping ReadFile, digests: [String: String]?) {
+        self.read = read
+        self.digests = digests
+    }
+
+    /// The line `mutation` changes, before and after; nil when its file can't be read, has changed since it was
+    /// tested, or doesn't hold the change on one line.
+    mutating func change(of mutation: MutationTestOutcome.Mutation) -> SourceChange? {
+        guard mutation.testSuiteOutcome != .noCoverage, let source = text(of: mutation) else { return nil }
+        return MutantDiff.change(
+            original: source.text,
+            snapshot: mutation.snapshot,
+            mutationOperatorId: mutation.point.mutationOperatorId,
+            line: mutation.point.position.line,
+            column: mutation.point.position.column,
+            atItsPlaceOnly: !source.verified
+        )
+    }
+
+    /// `mutation`'s original file's text, and whether its hash is the one recorded; nil when it can't be read, isn't
+    /// UTF-8, or has another hash than the one recorded.
+    private mutating func text(of mutation: MutationTestOutcome.Mutation) -> (text: String, verified: Bool)? {
+        let path = mutation.originalProjectPath
+        if let source = texts[path] {
+            return source
+        }
+        let source = read(path).flatMap { data -> (text: String, verified: Bool)? in
+            let recorded = (digests?[mutation.relativePath]
+                ?? digests?[mutation.relativePath.precomposedStringWithCanonicalMapping])
+                .flatMap { $0.hasPrefix(ProjectTree.linkPrefix) ? nil : $0 }
+            if let recorded, recorded != FileDigest.sha256(of: data) {
+                return nil
+            }
+            return String(data: data, encoding: .utf8).map { ($0, recorded != nil) }
+        }
+        texts[path] = .some(source)
+        return source
+    }
+}
+
+extension MuterTestReport {
+    /// The mutants the score counts as survivors, which are the ones to act on: those the tests passed with, and
+    /// those that timed out. By path, line and column.
+    var survivors: [(relativePath: String, appliedOperator: AppliedMutationOperator)] {
+        fileReports
+            .flatMap { report in
+                report.appliedOperators.map { (relativePath: report.relativePath, appliedOperator: $0) }
+            }
+            .filter { [.passed, .timeout].contains($0.appliedOperator.testSuiteOutcome) }
+            .sorted { lhs, rhs in
+                let left = lhs.appliedOperator.mutationPoint.position
+                let right = rhs.appliedOperator.mutationPoint.position
+                return (lhs.relativePath, left.line, left.column) < (rhs.relativePath, right.line, right.column)
+            }
+    }
+
+    /// "Sources/Foo/Rules.swift:42:17": a mutant's place, by its file's path relative to the project.
+    static func place(_ appliedOperator: AppliedMutationOperator, in relativePath: String) -> String {
+        let position = appliedOperator.mutationPoint.position
+        return "\(relativePath):\(position.line):\(position.column)"
+    }
+
+    /// "Mutation score: 83% (98 killed, 15 survived, 4 timed out)": what a run that saved its report, and `report`
+    /// that saved one, says of it. "Mutation score: none, as no mutant was tested" when none was.
+    static func scoreLine(of outcome: MutationTestOutcome) -> String {
+        let outcomes = outcome.mutations.map(\.testSuiteOutcome)
+        guard !outcomes.isEmpty else { return "Mutation score: none, as no mutant was tested" }
+        return "Mutation score: \(mutationScore(from: outcomes))% (\(OutcomeCounts(outcomes).tally))"
+    }
 }
 
 extension MuterTestReport: Equatable {}
@@ -302,6 +425,7 @@ extension MuterTestReport: Codable {
         case globalMutationScore
         case totalAppliedMutationOperators
         case numberOfKilledMutants
+        case mutantsByOutcome
         case projectCodeCoverage
         case fileReports
         case timeElapsed

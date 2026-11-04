@@ -214,6 +214,7 @@ extension MutationTestObserver {
             reportPath: reportPath,
             isExportingReport: !reportPath.isEmpty,
             didSaveReport: didSave,
+            scoreLine: MuterTestReport.scoreLine(of: outcome),
             suspectWarning: KillingTestSummary.warning(for: outcome)
         )
         resultsFilePath.map(logger.resultsFileKept(atPath:))

@@ -181,6 +181,19 @@ let css =
         width: 100%;
     }
 
+    .source-change {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .source-line {
+        padding: 4px 8px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        white-space: pre-wrap;
+        text-align: left;
+    }
+
     body {
       --text-white: #ffffff;
       --text-dark: #142136;

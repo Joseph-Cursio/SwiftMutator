@@ -157,6 +157,7 @@ final class PlainTextReporterTests: ReporterTestCase {
         XCTAssertTrue(plainText.contains("""
 
         Of the 14 mutants introduced into your code, your test suite killed 13.
+        By outcome: 13 killed, 1 survived
         Mutation Score of Test Suite: 92%
         Mutation Score without suspect tests: at least 50%
         Suspect tests: 2 (timing(), order()); see Killing Tests above

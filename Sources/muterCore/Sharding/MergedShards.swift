@@ -165,8 +165,11 @@ extension MergedShards {
     /// they are then its first files'. A shard with none, as one whose job was cancelled before its first mutant, or
     /// whose file isn't given, leaves the others a random part of the sample, as a shard's hash doesn't depend on the
     /// seed.
+    ///
+    /// A file that differs between the shards (`--merge-ignoring`) was tested as more than one version, so no
+    /// report shows a mutant's line from it: the reference shard's hash says nothing of the others' mutants.
     func mutationTestOutcome() -> MutationTestOutcome {
-        MutationTestOutcome(
+        let outcome = MutationTestOutcome(
             records: latest.values,
             under: reference.header,
             testDuration: parts.map(\.recorded.testDuration).max() ?? 0,
@@ -174,7 +177,16 @@ extension MergedShards {
             sampleIsCutShort: parts.contains { (1..<$0.header.mutantsDiscovered).contains($0.recorded.latest.count) },
             controlRuns: parts.flatMap(\.recorded.controlRuns)
         )
+        guard !waived.isEmpty else { return outcome }
+        var digests = outcome.sourceDigests ?? [:]
+        for path in waived {
+            digests[path] = Self.differsBetweenShards
+        }
+        return outcome.with(sourceDigests: digests)
     }
+
+    /// What stands for the hash of a file that differs between the shards: no file has it.
+    static let differsBetweenShards = "differs between shards"
 
     /// What `report` says on standard error of the merge: how many mutants it covers, each shard's file and how its run
     /// ended and which of its sessions tested its results, the shards whose files weren't given, and what may make the

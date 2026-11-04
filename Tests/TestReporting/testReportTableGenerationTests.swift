@@ -12,15 +12,15 @@ final class TestReportTableGenerationTests: MuterTestCase {
     func test_operatorsTable() {
         let expectedCLITable = CLITable(padding: 3, columns: [
             CLITable.Column(title: "File", rows: [
-                CLITable.Row(value: "file1.swift:0"),
-                CLITable.Row(value: "file1.swift:0"),
-                CLITable.Row(value: "file1.swift:0"),
-                CLITable.Row(value: "file2.swift:0"),
-                CLITable.Row(value: "file2.swift:0"),
-                CLITable.Row(value: "file3.swift:0"),
-                CLITable.Row(value: "file3.swift:0"),
-                CLITable.Row(value: "file3.swift:0"),
-                CLITable.Row(value: "file 4.swift:0"),
+                CLITable.Row(value: "/tmp/file1.swift:0:0"),
+                CLITable.Row(value: "/tmp/file1.swift:0:0"),
+                CLITable.Row(value: "/tmp/file1.swift:0:0"),
+                CLITable.Row(value: "/tmp/file2.swift:0:0"),
+                CLITable.Row(value: "/tmp/file2.swift:0:0"),
+                CLITable.Row(value: "/tmp/file3.swift:0:0"),
+                CLITable.Row(value: "/tmp/file3.swift:0:0"),
+                CLITable.Row(value: "/tmp/file3.swift:0:0"),
+                CLITable.Row(value: "/tmp/file 4.swift:0:0"),
             ]),
             CLITable.Column(title: "Applied Mutation Operator", rows: [
                 CLITable.Row(value: "RelationalOperatorReplacement"),
@@ -149,10 +149,10 @@ final class TestReportTableGenerationTests: MuterTestCase {
     func test_mutationScoreTable() {
         let expectedCLITable = CLITable(padding: 3, columns: [
             CLITable.Column(title: "File", rows: [
-                CLITable.Row(value: "file1.swift"),
-                CLITable.Row(value: "file2.swift"),
-                CLITable.Row(value: "file3.swift"),
-                CLITable.Row(value: "file 4.swift"),
+                CLITable.Row(value: "/tmp/file1.swift"),
+                CLITable.Row(value: "/tmp/file2.swift"),
+                CLITable.Row(value: "/tmp/file3.swift"),
+                CLITable.Row(value: "/tmp/file 4.swift"),
             ]),
             CLITable.Column(title: "# of Introduced Mutants", rows: [
                 CLITable.Row(value: "3"),

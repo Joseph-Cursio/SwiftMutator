@@ -47,7 +47,7 @@ private func operatorsToTableRows(fileReport: MuterTestReport.FileReport) -> [(
 )] {
     fileReport.appliedOperators.map {
         (
-            CLITable.Row(value: "\(fileReport.fileName):\($0.mutationPoint.position.line)"),
+            CLITable.Row(value: MuterTestReport.place($0, in: fileReport.relativePath)),
             CLITable.Row(value: $0.mutationPoint.mutationOperatorId.rawValue),
             CLITable.Row(value: $0.testSuiteOutcome.asMutationTestOutcome),
             CLITable.Row(value: $0.killedByCell),
@@ -130,7 +130,7 @@ func generateMutationScoresCLITable(
     var mutationScores = [CLITable.Row]()
 
     for fileReport in fileReports {
-        fileNames.append(CLITable.Row(value: fileReport.fileName))
+        fileNames.append(CLITable.Row(value: fileReport.relativePath))
         numberOfInsertedMutants.append(CLITable.Row(value: "\(fileReport.appliedOperators.count)"))
         mutationScores.append(CLITable.Row(value: "\(fileReport.mutationScore)"))
     }

@@ -112,7 +112,11 @@ extension MutationTestOutcome {
             sampleIsCutShort: sampleIsCutShort,
             mutant: header.mutant,
             suspectTestThresholds: header.configuration.suspectTestThresholds,
-            controlRuns: controlRuns.map(MutationTestOutcome.ControlRun.init)
+            controlRuns: controlRuns.map(MutationTestOutcome.ControlRun.init),
+            projectPath: header.projectPath,
+            mutatedProjectPath: header.mutatedProjectPath,
+            // A test plan's session records its rewritten copy, never the project.
+            sourceDigests: header.usingTestPlan ? nil : header.project?.files
         )
     }
 }

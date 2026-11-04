@@ -92,6 +92,7 @@ final class ReportCommandTests: MuterTestCase {
             standardError.linesPassed,
             [
                 "Report of 3 of 3 mutants, from \(resultsPath): the run finished.",
+                "Mutation score: 33% (1 killed, 2 survived)",
                 "Report saved to \(output)",
             ]
         )
@@ -229,6 +230,7 @@ final class ReportCommandTests: MuterTestCase {
         Mutation score: 33
         Mutants introduced into your code: 3
         Number of killed mutants: 1
+        Mutants by outcome: 1 killed, 2 survived
         """
 
         try await report(resultsPath, "-f", "xcode")
@@ -415,7 +417,11 @@ final class ReportCommandTests: MuterTestCase {
             try parsedJSON(JsonReporter().report(from: outcome))
         )
         XCTAssertEqual(printer.linesPassed, [PlainTextReporter().report(from: outcome)], "nothing more")
-        XCTAssertEqual(standardError.linesPassed, [status, warning, status, warning, "Report saved to \(output)"])
+        XCTAssertEqual(
+            standardError.linesPassed,
+            [status, warning, status, warning, "Mutation score: 90% (10 killed, 1 survived)"]
+                + ["Report saved to \(output)"]
+        )
     }
 
     // The run stopped before any mutant finished.

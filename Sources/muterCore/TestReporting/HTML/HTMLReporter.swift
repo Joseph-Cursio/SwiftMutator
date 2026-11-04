@@ -33,6 +33,8 @@ private func htmlReport(
                         from: testReport,
                         newVersion: outcome.newVersion
                     ),
+                    .divider("Surviving Mutants"),
+                    .survivors(from: testReport),
                     .divider("Mutation Operators per File"),
                     .mutationOperatorsPerFile(from: testReport),
                     .divider("Applied Mutation Operators"),
@@ -203,6 +205,7 @@ extension Node where Context: HTML.BodyContext {
                 " files."
             ),
             .p("⏰ SwiftMutator took \(testReport.timeElapsed) to run."),
+            .unwrap(testReport.mutantsByOutcome) { .p(.text("📊 By outcome: \($0.tally).")) },
             // Text only: the warning names tests, whose names can hold anything.
             .unwrap(testReport.suspectWarning) { .p(.text("⚠️ \($0)")) },
             .if(
@@ -248,7 +251,7 @@ extension Node where Context: HTML.BodyContext {
             .tbody(
                 .forEach(fileReports.sorted()) { report in
                     .tr(
-                        .td(.class("left-aligned"), "\(report.fileName)"),
+                        .td(.class("left-aligned"), .text(report.relativePath)),
                         .td(.class("right-aligned"), "\(report.appliedOperators.count)"),
                         .td(.class("right-aligned"), .style("color: \(report.scoreColor)"), "\(report.mutationScore)")
                     )
@@ -275,8 +278,8 @@ extension Node where Context: HTML.BodyContext {
 
     static func appliedOperatorsTable(from fileReports: [MuterTestReport.FileReport]) -> Self {
         let reports = fileReports.sorted().flatMap { report in
-            report.appliedOperators.compactMap { appliedOperator in
-                (fileName: report.fileName, appliedOperator: appliedOperator)
+            report.appliedOperators.map { appliedOperator in
+                (relativePath: report.relativePath, appliedOperator: appliedOperator)
             }
         }
         let showsKillingTests = fileReports.showsKillingTests
@@ -299,7 +302,7 @@ extension Node where Context: HTML.BodyContext {
                     .tr(
                         .td(
                             .class("left-aligned"),
-                            "\(report.fileName):\(report.appliedOperator.mutationPoint.position.line)"
+                            .text(MuterTestReport.place(report.appliedOperator, in: report.relativePath))
                         ),
                         .td(
                             .class("left-aligned"),
@@ -313,6 +316,47 @@ extension Node where Context: HTML.BodyContext {
                         .if(showsReuse, .td(.text(report.appliedOperator.reusedCell)))
                     )
                 }
+            )
+        )
+    }
+
+    /// The survivors, which are the mutants to act on, by path, line and column: each one's place, operator, verdict
+    /// and change. Not collapsible, so no script.
+    static func survivors(from testReport: MuterTestReport) -> Self {
+        let survivors = testReport.survivors
+        guard !survivors.isEmpty else {
+            return .div(.class("survivors"), .p("No mutant survived or timed out."))
+        }
+        return .div(
+            .class("survivors"),
+            .p(.text(PlainTextReporter.survivorsIntroduction(survivors.count))),
+            .table(
+                .id("survivors"),
+                .thead(
+                    .tr(
+                        .th("Place"),
+                        .th("Applied Mutation Operator"),
+                        .th("Changes"),
+                        .th("Mutation Test Result")
+                    )
+                ),
+                .tbody(
+                    .forEach(survivors) { survivor -> Node<HTML.TableContext> in
+                        .tr(
+                            .td(
+                                .class("left-aligned"),
+                                .text(MuterTestReport.place(survivor.appliedOperator, in: survivor.relativePath))
+                            ),
+                            .td(
+                                .class("left-aligned"),
+                                .raw("<wbr>\(survivor.appliedOperator.mutationPoint.mutationOperatorId.friendlyName)"
+                                    + "<wbr>")
+                            ),
+                            .td(.class("mutation-snapshot"), .diff(of: survivor.appliedOperator)),
+                            .td(.raw("\(survivor.appliedOperator.testSuiteOutcome.asIcon)"))
+                        )
+                    }
+                )
             )
         )
     }
@@ -375,7 +419,22 @@ extension Node where Context: HTML.BodyContext {
         )
     }
 
+    /// The line the mutant changes, before and after, when its original file gives it; else its snapshot's change.
+    /// Text nodes only: a line of code can hold anything.
     static func diff(of appliedOperator: MuterTestReport.AppliedMutationOperator) -> Self {
+        guard let change = appliedOperator.sourceChange else { return snapshotDiff(of: appliedOperator) }
+        return .div(
+            .class("source-change"),
+            .forEach(change.lines) { line in
+                .div(
+                    .class(line.hasPrefix("-") ? "source-line snapshot-before" : "source-line snapshot-after"),
+                    .text(line)
+                )
+            }
+        )
+    }
+
+    static func snapshotDiff(of appliedOperator: MuterTestReport.AppliedMutationOperator) -> Self {
         .div(
             .class("snapshot-changes"),
             .if(

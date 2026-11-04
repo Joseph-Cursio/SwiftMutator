@@ -49,6 +49,7 @@ final class LoggerTests: MuterTestCase {
             reportPath: "/path/to/report",
             isExportingReport: true,
             didSaveReport: true,
+            scoreLine: "Mutation score: 83% (98 killed, 15 survived, 4 timed out)",
             suspectWarning: nil
         )
 
@@ -302,6 +303,7 @@ final class LoggerTests: MuterTestCase {
             reportPath: "/out/report.txt",
             isExportingReport: true,
             didSaveReport: true,
+            scoreLine: "Mutation score: 90% (9 killed, 1 survived)",
             suspectWarning: warning
         )
         sut.mutationTestingFinished(
@@ -309,6 +311,7 @@ final class LoggerTests: MuterTestCase {
             reportPath: "",
             isExportingReport: false,
             didSaveReport: false,
+            scoreLine: "Mutation score: 90% (9 killed, 1 survived)",
             suspectWarning: warning
         )
         sut.mutationTestingFinished(
@@ -316,11 +319,14 @@ final class LoggerTests: MuterTestCase {
             reportPath: "/out/report.txt",
             isExportingReport: true,
             didSaveReport: false,
+            scoreLine: "Mutation score: 90% (9 killed, 1 survived)",
             suspectWarning: warning
         )
 
+        // Only a saved report, which isn't printed, has its score said.
         XCTAssertEqual(printer.linesPassed, [
             "🏁 SwiftMutator finished running!",
+            "📊 Mutation score: 90% (9 killed, 1 survived)",
             "📝 Report generated: \("/out/report.txt".bold)",
             "⚠️ \(warning)",
             "🏁 SwiftMutator finished running!",

@@ -19,7 +19,7 @@ struct ProgressLines {
     let total: Int
     let estimate: SimpleTimeEstimate
     private(set) var tested = 0
-    private var counts: [Verdict: Int] = [:]
+    private var counts: [MutantVerdict: Int] = [:]
 
     init(total: Int, estimate: SimpleTimeEstimate) {
         self.total = total
@@ -33,7 +33,7 @@ struct ProgressLines {
 
     /// Counts `mutant` as tested, and gives its line.
     mutating func line(after mutant: MutationTestOutcome.Mutation, at time: Date) -> String {
-        let verdict = Verdict(mutant.testSuiteOutcome)
+        let verdict = MutantVerdict(mutant.testSuiteOutcome)
         tested += 1
         counts[verdict, default: 0] += 1
         let place = "\(mutant.point.fileName):\(mutant.point.position.line):\(mutant.point.position.column)"
@@ -54,7 +54,7 @@ struct ProgressLines {
     private func line(at time: Date, mutant: String?) -> String {
         let percent = total > 0 ? tested * 100 / total : 100
         var parts = ["[\(Self.timeOfDay(time))] \(tested) of \(total) (\(percent)%)"]
-        let tally = Verdict.allCases.compactMap { verdict in
+        let tally = MutantVerdict.allCases.compactMap { verdict in
             counts[verdict].map { "\($0) \(verdict.words($0))" }
         }
         if !tally.isEmpty {
@@ -75,35 +75,5 @@ struct ProgressLines {
             return number < 10 ? "0\(number)" : "\(number)"
         }
         return digits.joined(separator: ":")
-    }
-
-    /// What a tested mutant came to, as the lines count it: the report's score counts a crash as a kill.
-    private enum Verdict: CaseIterable {
-        case killed
-        case survived
-        case timedOut
-        case buildError
-        case notCovered
-
-        init(_ outcome: TestSuiteOutcome) {
-            switch outcome {
-            case .failed, .runtimeError: self = .killed
-            case .passed: self = .survived
-            case .timeout: self = .timedOut
-            case .buildError: self = .buildError
-            case .noCoverage: self = .notCovered
-            }
-        }
-
-        /// What `count` mutants came to: "killed", or "build errors".
-        func words(_ count: Int) -> String {
-            switch self {
-            case .killed: return "killed"
-            case .survived: return "survived"
-            case .timedOut: return "timed out"
-            case .buildError: return count == 1 ? "build error" : "build errors"
-            case .notCovered: return "not covered"
-            }
-        }
     }
 }
