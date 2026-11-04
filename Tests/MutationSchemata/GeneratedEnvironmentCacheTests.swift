@@ -290,8 +290,9 @@ final class GeneratedEnvironmentCacheTests: GeneratedCodeTestCase {
             plain: ["main.swift": driver(#"print(check(5) ? "original" : "mutant")"#)],
             arguments: arguments
         )
-        // Its only mutant: `identifier` fails unless exactly one is picked.
-        return try (compiled.program, compiled.identifier(in: "Check.swift") { _ in true })
+        // Its RelationalOperatorReplacement mutant, as `value >= 1` gives what `value > 1` does for 5: `identifier`
+        // fails unless exactly one is picked.
+        return try (compiled.program, compiled.identifier(in: "Check.swift") { $0.mutationOperatorId == .ror })
     }
 
     /// Skips a test that compiles with `-default-isolation`, which compilers before Swift 6.2 don't take. Any

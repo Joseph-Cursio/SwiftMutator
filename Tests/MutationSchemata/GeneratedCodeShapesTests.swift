@@ -52,11 +52,15 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         )
 
         let mutants = { compiled.operators(in: "Lines.swift", onTheLineHolding: $0) }
-        XCTAssertEqual(mutants("if values.count > 1"), [.ror], "an if's condition")
+        XCTAssertEqual(mutants("if values.count > 1"), [.ror, .relationalBoundary], "an if's condition")
         XCTAssertEqual(mutants("values.isEmpty || values"), [.ror, .logicalOperator], "an else if's condition")
-        XCTAssertEqual(mutants("value > 1 ?"), [.ror, .swapTernary], "a component in a for body")
-        XCTAssertEqual(mutants("values.count >= 3"), [.ror, .logicalOperator, .swapTernary], "a component")
-        XCTAssertEqual(mutants("CommandLine.arguments"), [.ror], "a builder property's if condition")
+        XCTAssertEqual(mutants("value > 1 ?"), [.ror, .relationalBoundary, .swapTernary], "a component in a for body")
+        XCTAssertEqual(
+            mutants("values.count >= 3"), [.ror, .relationalBoundary, .logicalOperator, .swapTernary], "a component"
+        )
+        XCTAssertEqual(
+            mutants("CommandLine.arguments"), [.ror, .relationalBoundary], "a builder property's if condition"
+        )
         XCTAssertEqual(mutants("count != 1"), [.ror, .swapTernary], "a builder function's component")
 
         let original = "start,many,big,small,short,banner,with arguments,items"
@@ -103,9 +107,13 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         let compiled = try compileMutated(["Row.swift": row])
 
         let mutants = { compiled.operators(in: "Row.swift", onTheLineHolding: $0) }
-        XCTAssertEqual(mutants("Text(count > 1"), [.ror, .swapTernary], "a component in the body's VStack")
-        XCTAssertEqual(mutants("if count >= 3"), [.ror, .logicalOperator], "an if's condition in the VStack")
-        XCTAssertEqual(mutants(".opacity"), [.ror, .swapTernary], "a modifier's argument")
+        XCTAssertEqual(
+            mutants("Text(count > 1"), [.ror, .relationalBoundary, .swapTernary], "a component in the body's VStack"
+        )
+        XCTAssertEqual(
+            mutants("if count >= 3"), [.ror, .relationalBoundary, .logicalOperator], "an if's condition in the VStack"
+        )
+        XCTAssertEqual(mutants(".opacity"), [.ror, .relationalBoundary, .swapTernary], "a modifier's argument")
         XCTAssertEqual(mutants("count != 1"), [.ror, .swapTernary], "a view property that isn't body")
         #else
         throw XCTSkip("SwiftUI is only on Apple's platforms")
@@ -182,18 +190,26 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         let compiled = try compileMutated(["Opaque.swift": opaque], plain: ["main.swift": main])
 
         let mutants = { compiled.operators(in: "Opaque.swift", onTheLineHolding: $0) }
-        XCTAssertEqual(mutants("var label"), [.ror, .swapTernary], "a property's single expression")
-        XCTAssertEqual(mutants("var isBusy"), [.ror, .logicalOperator], "a property's single condition")
+        XCTAssertEqual(
+            mutants("var label"), [.ror, .relationalBoundary, .swapTernary], "a property's single expression"
+        )
+        XCTAssertEqual(
+            mutants("var isBusy"), [.ror, .relationalBoundary, .logicalOperator], "a property's single condition"
+        )
         XCTAssertEqual(mutants("get { count != 1 }"), [.ror], "a getter's single expression")
-        XCTAssertEqual(mutants("var sizes"), [.ror], "a closure in a body with no mutant of its own")
+        XCTAssertEqual(
+            mutants("var sizes"), [.ror, .relationalBoundary], "a closure in a body with no mutant of its own"
+        )
         XCTAssertEqual(mutants("func shape"), [.ror, .swapTernary], "a function's single expression")
-        XCTAssertEqual(mutants("return product"), [.ror, .swapTernary], "a body of several statements")
+        XCTAssertEqual(
+            mutants("return product"), [.ror, .relationalBoundary, .swapTernary], "a body of several statements"
+        )
         let chosen = compiled.mutants(in: "Opaque.swift", onTheLineHolding: "var chosen")
-        XCTAssertEqual(chosen.map(\.snapshot.before), [">"], "only the property's own mutant, not the closure's")
+        XCTAssertEqual(chosen.map(\.snapshot.before), [">", ">"], "only the property's own mutants, not the closure's")
         let picked = compiled.mutants(in: "Opaque.swift", onTheLineHolding: "func picked")
-        XCTAssertEqual(picked.map(\.snapshot.before), [">"], "only the function's own mutant, not the closure's")
+        XCTAssertEqual(picked.map(\.snapshot.before), [">", ">"], "only the function's own mutants, not the closure's")
         let gotten = compiled.mutants(in: "Opaque.swift", onTheLineHolding: "get { tagged")
-        XCTAssertEqual(gotten.map(\.snapshot.before), [">="], "only the getter's own mutant, not the closure's")
+        XCTAssertEqual(gotten.map(\.snapshot.before), [">=", ">="], "only the getter's own mutants, not the closure's")
 
         let tagged = #"("big", false)"#
         let original = "many \(tagged) \(tagged) \(tagged)\n"
@@ -251,14 +267,26 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         )
 
         let mutants = { compiled.operators(in: "Modes.swift", onTheLineHolding: $0) }
-        XCTAssertEqual(mutants("inactive big"), [.ror, .swapTernary], "the inactive #if clause")
-        XCTAssertEqual(mutants("? \"big\""), [.ror, .logicalOperator, .swapTernary], "the active #elseif clause")
+        XCTAssertEqual(mutants("inactive big"), [.ror, .relationalBoundary, .swapTernary], "the inactive #if clause")
+        XCTAssertEqual(
+            mutants("? \"big\""),
+            [.ror, .relationalBoundary, .logicalOperator, .swapTernary],
+            "the active #elseif clause"
+        )
         XCTAssertEqual(mutants("other big"), [.ror, .swapTernary], "the inactive #else clause")
-        XCTAssertEqual(mutants("var level"), [.ror, .swapTernary], "a getter in a #if clause of a type's members")
+        XCTAssertEqual(
+            mutants("var level"),
+            [.ror, .relationalBoundary, .swapTernary],
+            "a getter in a #if clause of a type's members"
+        )
         XCTAssertEqual(mutants("#elseif"), [], "a #if condition, in the file's statements")
         XCTAssertEqual(mutants("#if (SWIFTMUTATOR"), [], "a #if condition in parentheses, in the file's statements")
         XCTAssertEqual(mutants("#if os(Windows)"), [], "a #if condition in a function's statements")
-        XCTAssertEqual(mutants("return value > 1"), [.ror, .swapTernary], "a #if clause of a function's statements")
+        XCTAssertEqual(
+            mutants("return value > 1"),
+            [.ror, .relationalBoundary, .swapTernary],
+            "a #if clause of a function's statements"
+        )
         XCTAssertEqual(mutants("Int.max > 2"), [], "a type's stored property, in the file's statements")
         XCTAssertEqual(mutants("Int.max > 1"), [], "a type's stored property, in the file's statements")
         let rewritten = compiled.rewritten["Modes.swift"] ?? ""
@@ -302,16 +330,22 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         let compiled = try compileMutated(["main.swift": main])
 
         let mutants = { compiled.operators(in: "main.swift", onTheLineHolding: $0) }
-        XCTAssertEqual(mutants("func doubled"), [.ror, .swapTernary], "a function")
+        XCTAssertEqual(mutants("func doubled"), [.ror, .relationalBoundary, .swapTernary], "a function")
         XCTAssertEqual(mutants("let values"), [], "a global's initializer, in the file's statements")
-        XCTAssertEqual(mutants("total += value"), [.ror, .swapTernary], "a for body")
-        XCTAssertEqual(mutants("let isLarge"), [.ror], "a closure")
-        XCTAssertEqual(mutants("total >= 5"), [.ror, .logicalOperator, .swapTernary], "a #if clause of statements")
+        XCTAssertEqual(mutants("total += value"), [.ror, .relationalBoundary, .swapTernary], "a for body")
+        XCTAssertEqual(mutants("let isLarge"), [.ror, .relationalBoundary], "a closure")
+        XCTAssertEqual(
+            mutants("total >= 5"),
+            [.ror, .relationalBoundary, .logicalOperator, .swapTernary],
+            "a #if clause of statements"
+        )
         XCTAssertEqual(mutants("if total < 100"), [], "an if's condition, in the file's statements")
         XCTAssertEqual(mutants("print(isLarge"), [.swapTernary], "an if body")
 
         XCTAssertEqual(try run(compiled.program).output, "large\noriginal 10\n", "no mutant named")
-        let inTheClosure = try XCTUnwrap(compiled.mutants(in: "main.swift", onTheLineHolding: "let isLarge").first).id
+        let inTheClosure = try XCTUnwrap(
+            compiled.mutants(in: "main.swift", onTheLineHolding: "let isLarge").first { $0.mutationOperatorId == .ror }
+        ).id
         XCTAssertEqual(
             try run(compiled.program, switchingOn: inTheClosure).output,
             "large\nmutant 10\n",
@@ -409,7 +443,11 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         XCTAssertEqual(swapped("limit > 0 // positive"), 1, "a comment after the condition: \(swaps)")
         XCTAssertEqual(swapped("try await flag ?"), 1, "under try await: \(swaps)")
         let positive = compiled.mutants(in: "Ternaries.swift", onTheLineHolding: "func isPositive")
-        XCTAssertEqual(positive.map(\.mutationOperatorId), [.ror], "a body ending in a comment on its brace's line")
+        XCTAssertEqual(
+            positive.map(\.mutationOperatorId),
+            [.relationalBoundary, .ror],
+            "a body ending in a comment on its brace's line"
+        )
         let rewritten = compiled.rewritten["Ternaries.swift"] ?? ""
         XCTAssertTrue(
             rewritten.contains("(items.map { $0.tags.count })"),

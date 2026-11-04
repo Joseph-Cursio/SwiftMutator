@@ -40,6 +40,66 @@ struct ConditionalOperators {
 
       return a == 9 ? "what" : "goodbye"
     } else if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_c132952c484be782_RelationalBoundary_12_19_357"] != nil
+    {
+      let b = a == 5
+      let e = a != 1
+      let c = a >= 4
+      let d = a <= 10
+      let f = a < 5
+      let g = a >= 5
+
+      if a == 10 {
+        return "hello"
+      }
+
+      return a == 9 ? "goodbye" : "what"
+    } else if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_c132952c484be782_RelationalBoundary_11_19_335"] != nil
+    {
+      let b = a == 5
+      let e = a != 1
+      let c = a >= 4
+      let d = a <= 10
+      let f = a <= 5
+      let g = a > 5
+
+      if a == 10 {
+        return "hello"
+      }
+
+      return a == 9 ? "goodbye" : "what"
+    } else if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_c132952c484be782_RelationalBoundary_10_19_311"] != nil
+    {
+      let b = a == 5
+      let e = a != 1
+      let c = a >= 4
+      let d = a < 10
+      let f = a < 5
+      let g = a > 5
+
+      if a == 10 {
+        return "hello"
+      }
+
+      return a == 9 ? "goodbye" : "what"
+    } else if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_c132952c484be782_RelationalBoundary_9_19_288"] != nil
+    {
+      let b = a == 5
+      let e = a != 1
+      let c = a > 4
+      let d = a <= 10
+      let f = a < 5
+      let g = a > 5
+
+      if a == 10 {
+        return "hello"
+      }
+
+      return a == 9 ? "goodbye" : "what"
+    } else if __SwiftMutator_c132952c484be782.environment[
       "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_18_18_438"] != nil
     {
       let b = a == 5

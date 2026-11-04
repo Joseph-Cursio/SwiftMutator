@@ -118,8 +118,9 @@ final class MuterVisitorTests: MuterTestCase {
 
         let seconds = Date().timeIntervalSince(started)
         XCTAssertTrue(seconds < 5, "\(seconds) s")
-        // The region is the first function's body, so its three mutants go, and every other function keeps its three.
-        XCTAssertEqual(mappings.flatMap(\.mutationSchemata).count, 299 * 3)
+        // The region is the first function's body, so its four mutants go, and every other function keeps its four:
+        // `==` and `&&` get one each, and `>` gets RelationalOperatorReplacement's and RelationalBoundary's.
+        XCTAssertEqual(mappings.flatMap(\.mutationSchemata).count, 299 * 4)
     }
 
     func test_keepCoveredCodeAfterARegionWithoutCoverage() throws {
@@ -2610,10 +2611,25 @@ final class MuterVisitorTests: MuterTestCase {
         XCTAssertEqual(mutants(in: mappings), ["RemoveSideEffects@11", "RemoveSideEffects@12"])
     }
 
-    /// Each mutant as `<operator>@<line>`, in discovery's order.
-    private func mutants(in mappings: [SchemataMutationMapping]) -> [String] {
-        mappings
-            .flatMap(\.mutationSchemata)
+    /// Each mutant as `<operator>@<line>`, in discovery's order, but RelationalBoundary's. That operator mutates the
+    /// ordering operators that RelationalOperatorReplacement mutates, at the same places and judged by the same code's
+    /// coverage. So its mutants are checked to be at exactly the places of RelationalOperatorReplacement's mutants of
+    /// `<`, `<=`, `>` and `>=`, and then left out, so that each test names RelationalOperatorReplacement's alone.
+    private func mutants(
+        in mappings: [SchemataMutationMapping],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> [String] {
+        let schemata = mappings.flatMap(\.mutationSchemata)
+        let place = { (schema: MutationSchema) in "\(schema.filePath)@\(schema.position.utf8Offset)" }
+        let orderings = schemata
+            .filter { $0.mutationOperatorId == .ror && ["<", "<=", ">", ">="].contains($0.snapshot.before) }
+            .map(place)
+        let boundaries = schemata.filter { $0.mutationOperatorId == .relationalBoundary }.map(place)
+        XCTAssertEqual(boundaries.sorted(), orderings.sorted(), "the boundary mutants' places", file: file, line: line)
+
+        return schemata
+            .filter { $0.mutationOperatorId != .relationalBoundary }
             .map { "\($0.mutationOperatorId.rawValue)@\($0.position.line)" }
     }
 

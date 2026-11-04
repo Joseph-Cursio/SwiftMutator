@@ -86,17 +86,19 @@ final class TestPlanAcceptanceTests: XCTestCase {
         project = root.appendingPathComponent("project", isDirectory: true)
         markers = root.appendingPathComponent("markers", isDirectory: true)
         try FileManager.default.createDirectory(at: markers, withIntermediateDirectories: true)
+        // The comparisons are `!=`, which only RelationalOperatorReplacement mutates: four mutants in all. `<` or `>`
+        // would get a RelationalBoundary mutant too.
         try write(
             """
-            func isSmall(_ value: Int) -> Bool { value < 10 }
-            func isHuge(_ value: Int) -> Bool { value > 100 }
+            func isSmall(_ value: Int) -> Bool { value != 10 }
+            func isHuge(_ value: Int) -> Bool { value != 100 }
 
             """,
             to: "Sources/Lib/Bounds.swift"
         )
         try write(
             """
-            func isPositive(_ value: Int) -> Bool { value > 0 }
+            func isPositive(_ value: Int) -> Bool { value != 0 }
             func both(_ first: Bool, _ second: Bool) -> Bool { first && second }
 
             """,
@@ -147,7 +149,7 @@ final class TestPlanAcceptanceTests: XCTestCase {
 
     func test_aChangedMutatedSource_isRefusedWith7_andPlanIgnoringLetsItThrough() throws {
         try makeThePlan()
-        try write("func isSmall(_ value: Int) -> Bool { value < 12 }\n", to: "Sources/Lib/Bounds.swift")
+        try write("func isSmall(_ value: Int) -> Bool { value != 12 }\n", to: "Sources/Lib/Bounds.swift")
 
         let refused = try waitForEnd(of: launch(testPlan))
 
@@ -317,7 +319,7 @@ final class TestPlanAcceptanceTests: XCTestCase {
         let header = try XCTUnwrap(records(in: resultsFile).dropFirst(6).first)
         XCTAssertEqual(header["mutantsReused"] as? Int, 4)
 
-        try write("func isSmall(_ value: Int) -> Bool { value < 12 }\n", to: "Sources/Lib/Bounds.swift")
+        try write("func isSmall(_ value: Int) -> Bool { value != 12 }\n", to: "Sources/Lib/Bounds.swift")
         try makeThePlan()
         let lines = try kinds(in: resultsFile).count
 
@@ -342,7 +344,7 @@ final class TestPlanAcceptanceTests: XCTestCase {
         XCTAssertTrue(
             printed.contains(
                 """
-                🔬 Sources/Lib/Checks.swift:1:47 RelationalOperatorReplacement (changed > to <)
+                🔬 Sources/Lib/Checks.swift:1:47 RelationalOperatorReplacement (changed != to ==)
                 Switch: Checks_
                 """
             ),
@@ -352,8 +354,8 @@ final class TestPlanAcceptanceTests: XCTestCase {
             printed.contains(
                 """
                 Change:
-                  -1: func isPositive(_ value: Int) -> Bool { value > 0 }
-                  +1: func isPositive(_ value: Int) -> Bool { value < 0 }
+                  -1: func isPositive(_ value: Int) -> Bool { value != 0 }
+                  +1: func isPositive(_ value: Int) -> Bool { value == 0 }
                 Tests (log:
                 """
             ),

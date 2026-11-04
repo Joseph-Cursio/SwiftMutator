@@ -26,7 +26,7 @@ day, three of them with a fix. It has things SwiftMutator doesn't, among them:
   reported as "no coverage" and counts against the score, and a kill whose code never ran is tested
   again. SwiftMutator instead skips the code that one coverage run, before mutating, shows no test
   reaching, and leaves those mutants out of its score;
-- seven mutation operators, against SwiftMutator's four. Its default run uses three of them:
+- seven mutation operators, against SwiftMutator's five. Its default run uses three of them:
   logical operators, negated conditions and swapped ternaries. So by default it doesn't replace
   relational operators, as in `==` becoming `!=`, or remove calls, which SwiftMutator does;
   `--operator-tier experimental` runs all seven;
@@ -166,6 +166,19 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   `<project>_mutated.lock` and `<project>_mutated_worker1.active-mutant`. The log folder,
   `<project>_muter_logs`, keeps its name too, so scripts and CI paths that name it still work, and
   Spotlight still indexes it.
+- **Boundary mutants:** `RelationalBoundary` turns `<` into `<=`, `<=` into `<`, `>` into `>=` and
+  `>=` into `>` ([#102](https://github.com/Joseph-Cursio/SwiftMutator/issues/102)).
+  `RelationalOperatorReplacement` turns `<` into `>`, which almost any test kills; a boundary
+  mutant survives unless some test checks the edge value. It runs by default, beside
+  `RelationalOperatorReplacement`, so each ordering operator gets two mutants, and a run has one
+  more mutant for each one it mutates. A `--mutant` that gives such a place without an operator
+  names both, so it is refused with each one listed, ready to paste ([Testing one
+  mutant](#testing-one-mutant)). As the run's operators are no longer the four an older
+  SwiftMutator recorded, `--resume` and `--reuse` refuse a run it made without `--operators`. To
+  continue one, name its four operators, `--operators RelationalOperatorReplacement
+  RemoveSideEffects ChangeLogicalConnector SwapTernary`, with the `--force-resume` or
+  `--force-reuse` that a run by another SwiftMutator needs anyway. See
+  [mutation_operators.md](Docs/mutation_operators.md).
 - **Logging through the injected printer**, so log output can be captured and tested.
 
 Fixes that apply to Muter are offered upstream too.

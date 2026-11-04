@@ -30,6 +30,35 @@ if myValue != 50 {
 }
 ```
 
+## Relational Boundary
+The relational boundary operator, `RelationalBoundary`, will move the boundary of an ordering comparison based on this table:
+
+Original Operator | Changed Operator
+------------------|-----------------
+`<`|`<=`
+`<=`|`<`
+`>`|`>=`
+`>=`|`>`
+
+The purpose of this operator is to highlight whether your tests check the edge of each comparison. The negate conditionals operator above turns `<` into `>`, which almost any test kills. Turning `<` into `<=` changes the result only at the boundary value, so the mutant survives unless some test uses that value. Equality operators have no boundary, so `==` and `!=` are left to the negate conditionals operator. Each ordering operator gets a mutant from both operators, so a run has one more mutant for each `<`, `<=`, `>` and `>=` it mutates.
+
+As with the negate conditionals operator, only an operator in an expression is mutated: an operator's declaration, such as `static func < (lhs: Self, rhs: Self) -> Bool`, is not.
+
+### Mutating a boundary
+```swift
+if count < 10 {
+    // something happens here
+}
+```
+
+becomes
+
+```swift
+if count <= 10 {
+    // something happens here
+}
+```
+
 ## Change Logical Connector
 The change logical connector operator will change conditional operators in your code based on this table:
 

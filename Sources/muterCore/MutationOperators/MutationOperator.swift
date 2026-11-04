@@ -12,6 +12,7 @@ enum MutationOperator {
     // swiftlint:disable:next type_name - named in every operator and report as `MutationOperator.Id`
     enum Id: String, Codable, CaseIterable {
         case ror = "RelationalOperatorReplacement"
+        case relationalBoundary = "RelationalBoundary"
         case removeSideEffects = "RemoveSideEffects"
         case logicalOperator = "ChangeLogicalConnector"
         case swapTernary = "SwapTernary"
@@ -22,6 +23,8 @@ enum MutationOperator {
                 return RemoveSideEffectsOperator.Visitor.init
             case .ror:
                 return ROROperator.Visitor.init
+            case .relationalBoundary:
+                return RelationalBoundaryOperator.Visitor.init
             case .logicalOperator:
                 return ChangeLogicalConnectorOperator.Visitor.init
             case .swapTernary:

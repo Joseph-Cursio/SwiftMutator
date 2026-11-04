@@ -36,6 +36,35 @@ if myValue != 50 {
 }
 
 
+Relational Boundary
+
+The relational boundary operator will move the boundary of an ordering comparison based on this table:
+
++-------------------+------------------+
+| Original Operator | Changed Operator |
++-------------------+------------------+
+|         <         |        <=        |
+|        <=         |         <        |
+|         >         |        >=        |
+|        >=         |         >        |
++-------------------+------------------+
+
+The purpose of this operator is to highlight whether your tests check the edge of each comparison.
+Such a mutant survives unless some test uses the value at the boundary, where the two operators differ.
+
+Mutating a boundary
+
+if count < 10 {
+    // something happens here
+}
+
+becomes
+
+if count <= 10 {
+    // something happens here
+}
+
+
 Remove Side Effects
 
 The remove side effects operator will remove code it determines is causing a side effect.
