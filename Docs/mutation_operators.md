@@ -1,5 +1,5 @@
 # Mutation Operators
-Muter uses **mutation operators** to generate mutants in your source code. This is the list of currently available mutation operators.
+SwiftMutator uses **mutation operators** to generate mutants in your source code. This is the list of currently available mutation operators.
 
 ## Negate Conditionals
 The negate conditionals operator will invert conditional operators in your code based on this table:

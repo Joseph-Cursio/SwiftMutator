@@ -345,7 +345,7 @@ extension AcceptanceTests {
 
     func contentsOfFileAsData(_ path: String) throws -> Data {
         guard let data = FileManager.default.contents(atPath: path) else {
-            throw AcceptanceTestsError.reason("Unable to find a valid output file from a prior run of Muter at \(path)")
+            throw AcceptanceTestsError.reason("Unable to find a valid output file from a prior run of SwiftMutator at \(path)")
         }
         return data
     }

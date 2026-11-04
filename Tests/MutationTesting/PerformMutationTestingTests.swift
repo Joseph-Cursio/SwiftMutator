@@ -188,7 +188,7 @@ final class PerformMutationTestingTests: MuterTestCase {
             await sut.run(with: state)
         ) { _ in }
 
-        // The baseline's output is the only evidence of why Muter can't start, and nothing else records it.
+        // The baseline's output is the only evidence of why SwiftMutator can't start, and nothing else records it.
         XCTAssertEqual(
             fileManager.createdFiles["/logs/baseline run.log"], Data("error: no such module 'Calc'".utf8)
         )
@@ -242,7 +242,7 @@ final class PerformMutationTestingTests: MuterTestCase {
                 return
             }
 
-            // Naming the files Muter rewrote is what lets the message tell a broken mutant apart from
+            // Naming the files SwiftMutator rewrote is what lets the message tell a broken mutant apart from
             // a misconfigured test command.
             XCTAssertEqual(mutatedFilePaths, ["/some/path", "/some/path"])
         }

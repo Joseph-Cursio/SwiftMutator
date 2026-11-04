@@ -15,7 +15,7 @@ mkdir -p ./AcceptanceTests/samples/muter_logs
 
 cp -R ./Repositories ./AcceptanceTests
 
-echo "🧟‍♂️ Running Muter on an iOS codebase with a test suite..."
+echo "🧟‍♂️ Running SwiftMutator on an iOS codebase with a test suite..."
 cd ./AcceptanceTests/Repositories/ExampleApp
 
 echo " > Creating a configuration file..."
@@ -54,7 +54,7 @@ rm muter-mappings.json # cleanup the created mutation test run file for the next
 rm muter.conf.yml # cleanup the created configuration file for the next test run
 cd ../..
 
-echo "🧟‍♂️ Initializing Muter on an macOS codebase with a test suite..."
+echo "🧟‍♂️ Initializing SwiftMutator on a macOS codebase with a test suite..."
 cd ./Repositories/ExampleMacOSApp
 
 echo " > Creating a configuration file..."
@@ -65,14 +65,14 @@ echo " > Cleaning up after test..."
 rm muter.conf.yml # cleanup the created configuration file for the next test run
 cd ../..
 
-echo "🧟‍♂️ Running Muter on an empty example codebase..."
+echo "🧟‍♂️ Running SwiftMutator on an empty example codebase..."
 cd ./Repositories/EmptyExampleApp
 
 echo " > Running in CLI mode with custom configuration path..."
 "$muterdir"/swift-mutator --skip-coverage --skip-update-check --configuration "$(pwd)/configuration/muter.conf.yml" > "$samplesdir"/muters_empty_state_output.txt 2>"$samplesdir"/muters_empty_state_output.stderr.log
 cd ../..
 
-echo "🧟‍♂️ Running Muter on an example test suite that fails..."
+echo "🧟‍♂️ Running SwiftMutator on an example test suite that fails..."
 cd ./Repositories/ProjectWithFailures
 
 echo " > Running in CLI mode..."
@@ -81,7 +81,7 @@ rm -rf ../ProjectWithFailures_muter_logs 2>/dev/null
 rm -rf ../ProjectWithFailures_muter_logs
 cd ../..
 
-echo " > Running Muter in a project that times out..."
+echo " > Running SwiftMutator in a project that times out..."
 cd ./Repositories/ProjectWithTimeout
 
 rm -rf ../ProjectWithTimeout_muter_logs 2>/dev/null
@@ -90,7 +90,7 @@ rm -rf ../ProjectWithTimeout_muter_logs
 
 cd ../..
 
-echo "Running Muter's help command..."
+echo "Running SwiftMutator's help command..."
 cd ./Repositories/ExampleApp
 
 echo " > Running help command..."

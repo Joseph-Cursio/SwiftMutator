@@ -1,8 +1,8 @@
 import Foundation
 
 public enum MutationTestingAbortReason: Equatable, Sendable {
-    /// `mutatedFilePaths` are the files Muter rewrote to insert mutants. A compile error in one of
-    /// them points at Muter's own rewriting rather than at the user's configuration, so the message
+    /// `mutatedFilePaths` are the files SwiftMutator rewrote to insert mutants. A compile error in one of
+    /// them points at SwiftMutator's own rewriting rather than at the user's configuration, so the message
     /// needs them to tell the two apart.
     case baselineTestFailed(log: String, mutatedFilePaths: [String])
     /// The mutated project's baseline passed, but a parallel worker's clone of it, at `directory`,
@@ -47,7 +47,7 @@ extension MutationTestingAbortReason: CustomStringConvertible {
             return """
             SwiftMutator noticed the last 5 attempts to apply a mutation operator resulted in a build error within your code base.
             This is considered unlikely and abnormal. If you can reproduce this, please consider filing an issue at
-            https://github.com/muter-mutation-testing/muter/issues/
+            https://github.com/Joseph-Cursio/SwiftMutator/issues
             """
 
         case let .mutantNotSwitchedOn(id, description):
@@ -104,38 +104,38 @@ private extension MutationTestingAbortReason {
     ) -> String {
         if let error = CompilerError.first(in: log, inFilesAt: mutatedFilePaths) {
             return """
-            Muter could not establish a baseline because a file it had mutated failed to compile:
+            SwiftMutator could not establish a baseline because a file it had mutated failed to compile:
 
               \(error.description)
 
-            Muter rewrites the files it mutates before running your test suite, so a compile error in \
-            \(error.fileName) is most likely a bug in Muter's own rewriting rather than a problem with \
+            SwiftMutator rewrites the files it mutates before running your test suite, so a compile error in \
+            \(error.fileName) is most likely a bug in SwiftMutator's own rewriting rather than a problem with \
             your \(MuterConfiguration.fileNameWithExtension).
 
-            Please report this at https://github.com/muter-mutation-testing/muter/issues/ and include \
+            Please report this at https://github.com/Joseph-Cursio/SwiftMutator/issues and include \
             the log below. To rule out a pre-existing error, check that \(error.fileName) compiles in \
             your unmutated project.
             """
         }
 
         return """
-        Muter noticed that your test suite initially failed to compile or produced a test failure.
+        SwiftMutator noticed that your test suite initially failed to compile or produced a test failure.
 
         Assuming you have no build errors, this is usually due to misconfiguring the "executable" and \
-        "arguments" options inside of your \(MuterConfiguration.fileName).
+        "arguments" options inside of your \(MuterConfiguration.fileNameWithExtension).
         Alternatively, it could mean you have a nondeterministic test failure in your test suite.
 
-        We recommend you try your settings out in a terminal prior to using Muter for the best configuration experience.
-        We also recommend removing tests which you know are flaky from the set of tests that Muter exercises.
+        We recommend you try your settings out in a terminal prior to using SwiftMutator for the best configuration experience.
+        We also recommend removing tests which you know are flaky from the set of tests that SwiftMutator exercises.
         """
     }
 
     static func baselineTestFailedEvidence(log: String) -> String {
         guard !log.trimmed.isEmpty else {
             return """
-            Muter captured no output at all from your test command, so it has no log to show. That \
+            SwiftMutator captured no output at all from your test command, so it has no log to show. That \
             normally means the command never started — check that "executable" in \
-            \(MuterConfiguration.fileNameWithExtension) names a command Muter can launch.
+            \(MuterConfiguration.fileNameWithExtension) names a command SwiftMutator can launch.
             """
         }
 

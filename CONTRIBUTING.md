@@ -1,78 +1,175 @@
-# Contributing to Muter
+# Contributing to SwiftMutator
 
-## Getting a Feature to Work On
-The three pinned issues within our issue tracker are the highest priority issues to work on. If all of these are taken, or if these don't feel like something you would want to work on, then feel free to open an issue stating you'd like to work on something and we'll point you to an issue you could pick up. We're constantly reprioritizing our backlog, so the best way to find out what to work on is to ask!
+SwiftMutator is a fork of [Muter](https://github.com/muter-mutation-testing/muter), with one
+maintainer. Contributions are welcome. This page says how to find work, set up a toolchain, test a
+change and get it merged. [Docs/Architecture.md](Docs/Architecture.md) says how the code is laid
+out.
 
-## Submitting a Feature Request
-We're always open to feature requests. We may not be able to accommodate it in the next release, but it's super valuable for us to understand what you want.
+## Finding something to work on
 
-To request a feature, simply open an issue.
+- The [open issues](https://github.com/Joseph-Cursio/SwiftMutator/issues). None are pinned.
+- The [improvement review](Docs/improvement-review-2026-10-02.md), which lists known gaps and
+  what each would take.
 
-When requesting a feature, please be descriptive in what you are asking for - examples are super helpful, and links to prior art are also very helpful. We also think it's very important to understand any pain you are experiencing by not having a feature. Based on this information, we can look at other users' feature requests and determine where it falls in our priorities.
+Before you start on something big, say so on its issue, or open one. That way two people don't do
+the same work, and you can agree on the approach first.
 
-## Submitting a Pull Request
-When working on a feature or bug, fork Muter's repository and work on your own branch locally. Once you're ready to have it merged back in, open a pull request and tag whomever you've had conversation with about the issue.
+## Asking for a feature or reporting a bug
 
-Prefer rebasing over merging `master` into your PR branch if you need to bring it up-to-date. We're happy to work through any merge conflicts with you that you have difficulty understanding.
+Open an [issue](https://github.com/Joseph-Cursio/SwiftMutator/issues). For a feature, say what you
+want to do and what stops you now. Examples and links to other tools that do it help. For a bug,
+give the command you ran, your `muter.conf.yml`, SwiftMutator's output, and the version it prints
+when it starts.
 
-## Testing Philosophy
-Given that Muter is intended to perform a form of automated testing, it's extremely important that it has its own test suite which is very thorough and rigorous. It has very high code coverage, a very high mutation score, and has been entirely test-driven. It's important that any new code added to the code base doesn't significantly and adversely affect these metrics. We also feel it's important (though not required) for any contributor to practice test-driven development when working on Muter's codebase.
+Report a security problem privately instead: see [SECURITY.md](SECURITY.md).
 
-Because of the above, any pull requests which are adding features or bug fixes and omit new or updated tests won't be merged. We'll provide feedback on the tests that you should add, as well as how you can effectively backfill them without compromising the tests' quality. 
+## Toolchain
 
-We want to avoid having this conversation, so if you feel uncertain or nervous about how to test something, feel free to ask on your issue. After all, the contributors working on this project are giant testing nerds, and we would love to help you get better at writing tests! :D
+`Package.swift` targets macOS 13 or later. To build and test SwiftMutator on a Mac, you need:
 
-### Running Muter's Tests
+- **Xcode 26.6 or later.** Its Swift 6.3 is the oldest toolchain CI tests. Xcode 27 (Swift 6.4)
+  is the current one, and what the maintainer's Macs use. `Package.swift` says tools version 6.0,
+  but one dependency, swift-crypto, needs Swift 6.2 just to load its manifest, so nothing older
+  resolves the package.
+- **Xcode itself, not only the Command Line Tools,** for everything but the unit tests. The
+  acceptance tests need an iOS simulator: they run on an iPhone simulator of the sample
+  `ExampleApp`, so install an iOS runtime in Xcode's settings. The regression tests run xcodebuild
+  on two sample projects.
+- **SwiftLint 0.65.1**, the version CI runs (`brew install swiftlint` gets the latest, which may
+  find more).
 
-#### Unit Tests
-To run Muter's unit tests from the command line:
+Pick the Xcode with `xcode-select`, or with `DEVELOPER_DIR` for one shell, as CI does:
 
-```make test```
+```
+export DEVELOPER_DIR=/Applications/Xcode_26.6.app/Contents/Developer
+swift --version
+```
 
-This runs only the `muterTests` target. A plain `swift test` also runs the acceptance and regression targets. Their tests read samples that the scripts below generate, and they skip themselves while the `samples` folder doesn't exist. Once a script has run, they run too, and fail if what it generated is missing or wrong.
+The tests of the generated code compile it with `/usr/bin/xcrun swiftc`, so they use the selected
+Xcode's compiler, whichever `swift` is on your `PATH`. One of them builds with
+`-default-isolation MainActor`, and skips itself on a compiler older than Swift 6.2, which lacks
+it.
 
-Alternatively, you can generate an xcode project with the command:
+[swiftly](https://www.swift.org/install/macos/swiftly/) can install another Swift toolchain, for
+`swift build` and `swift test`. CI doesn't use it, and this page wasn't checked with it. The
+improvement review's runs used swiftly's Swift 6.3.3, with `SDKROOT` set to the Command Line
+Tools' `MacOSX26.5.sdk`. The acceptance and regression tests still need Xcode.
 
-```make project```
+Linux: the package builds with Swift 6.4 (`swift:6.4-noble`), but some unit tests fail there.
+[#130](https://github.com/Joseph-Cursio/SwiftMutator/issues/130) tracks that.
 
-and then run them from within xcode. These should be run frequently as you're developing a feature or bug fix.
+## Building and testing
 
-#### Acceptance and Regression Tests
-You must run these tests from the commandline as they depend on certain files having been generated from a run of Muter - if you run them from within Xcode, they will likely fail. For these reasons, we recommend you disable the test targets if you are using Xcode to work on a change. 
+```
+swift build          # debug build
+make test            # the unit tests: swift test --filter 'muterTests'
+swiftlint lint --strict
+```
 
-Additionally, these tests will overwrite any generated Xcode project you may be using as they rely on the project file to run the tests they focus on.
+`make test` runs only the `muterTests` target. A plain `swift test` also runs the acceptance and
+regression targets. Their tests read samples that the scripts below generate, and they skip
+themselves while the `samples` folder doesn't exist. Once a script has run, they run too, and fail
+if what it generated is missing or wrong. While you work, run the tests you touch with
+`swift test --filter <TestClass>`, then the whole unit suite before you open a pull request.
 
-Run the acceptance tests with:
+Snapshot tests compare against files in `__Snapshots__` folders. When a change means to alter
+output, update the snapshot file and check the diff. Don't loosen the test.
 
-```make acceptance-test```
+`make project` opens the package in Xcode (`xed .`). You can run the unit tests there. Don't run
+the acceptance or regression targets from Xcode: they depend on files the scripts generate.
 
+### Acceptance and regression tests
 
-Run the regression tests with:
+```
+make acceptance-test     # needs an iOS simulator
+make regression-test
+```
 
-```make regression-test```
+Each first runs `make build`: `swift package clean` and a debug build. The acceptance script
+copies `Repositories/` into `AcceptanceTests/` and runs the debug `swift-mutator` on the iOS
+sample `ExampleApp` several ways, saving the output in `AcceptanceTests/samples`. The regression
+script runs it on BonMot, FFCParserCombinator and ProjectWithConcurrency in `Repositories/`. Then
+each runs its test target, which checks the saved output.
 
-Run the acceptance tests often if you're making a change which impacts a user's workflow or journey through Muter's interface. Otherwise, you can get away with running them less frequently. At a bare minimum, ensure you run them prior to making a pull request.
+Run the acceptance tests when you change how a user runs SwiftMutator or what it prints. Run the
+regression tests when you change the reports. Run both before a pull request that touches either.
+CI runs neither.
 
-Run the regression tests often if you are making changes to Muter's test report. Otherwise, we want you to run them once prior to making a pull request.
+### Slow acceptance tests
 
-Both of these test suites are lengthy (~5 minutes). Budget your time accordingly, perhaps to coincide with a bathroom or tea break. :)
+`make slow-acceptance-test` runs whole SwiftMutator runs on a pinned SwiftProjectLint and checks
+every mutant's verdict against reference verdicts. It takes hours, so it isn't run for every pull
+request. See [AcceptanceTests/slow/README.md](AcceptanceTests/slow/README.md), which also covers
+`make slow-acceptance-reference` and `make slow-acceptance-selftest`.
 
-#### Continuous Integration
-GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) builds the package and runs the unit tests on every pull request and every push to `main`, on two toolchains:
+### Mutation testing SwiftMutator itself
 
-- `macos-26` with Xcode 26.6 (Swift 6.3). It is one Swift release and one macOS release behind the current ones, so a failure only here usually means code that needs the newest toolchain.
-- `xcode-27` with Xcode 27.0 (Swift 6.4), the current toolchain. GitHub still calls this runner image a preview.
-
-CI doesn't run the acceptance or regression tests, so run them locally as described above. If a job fails, the run's summary lists the errors and failing tests, and the full logs and any mismatched snapshots are attached to the run.
-
-#### Mutation Tests
-It's possible (and encouraged!) to run Muter on itself. To do this with the version of the code you've been working on, run:
+SwiftMutator can test itself, with the `muter.conf.yml` at the repository's root, which runs
+`swift test --filter muterTests`. To use the code you're working on:
 
 ```
 make install prefix=$(brew --prefix)
 make mutation-test
 ```
 
-The `mutation-test` action expects Muter to be on your `PATH`, so if you've installed Muter via homebrew, it's possible for you to use that version as well if you would like. Which version it will use when you have both depends on how you have your `PATH` variable set up. 
+`make install` builds a release `swift-mutator` and installs it into `$(prefix)/bin`, which is
+`/usr/local/bin` by default. `make mutation-test` runs `make clean`, which removes `.build`, then
+the `swift-mutator` on your `PATH`. There is no Homebrew formula for SwiftMutator, so that's the
+one you installed. `make uninstall` removes it. To tell a development build from another, change
+the version in [Sources/muterCore/version.swift](Sources/muterCore/version.swift) locally, but
+don't commit it.
 
-**Pro Tip:** If you're looking for an easy way to identify the between the two of them, we recommend updating `version.swift` with a development version string. However, don't commit this change.
+## Continuous integration
+
+GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs on every pull request
+and every push to `main`:
+
+- **Unit tests** on `macos-26` with Xcode 26.6 (Swift 6.3), and on `xcode-27` with Xcode 27.0
+  (Swift 6.4). Each builds the package and its tests, then runs `swift test --filter
+  '^muterTests\.'`, with snapshots never recorded. The first is one Swift release and one macOS
+  release behind the current ones, so a failure only there usually means code that needs the
+  newest toolchain. GitHub still calls the `xcode-27` image a preview.
+- **SwiftLint**, in SwiftLint's own 0.65.1 container. `.swiftlint.yml` sets `strict: true`, so a
+  warning fails it.
+- **Unit tests on Linux**, Swift 6.4, only on pushes to `main` and by hand, and never blocking
+  ([#130](https://github.com/Joseph-Cursio/SwiftMutator/issues/130)).
+
+CI doesn't run the acceptance or regression tests, so run them locally. If a unit-test job fails,
+the run's summary lists the errors and failing tests, and the full logs and any mismatched
+snapshots are attached to the run. SwiftLint's violations show as annotations on the pull
+request's files.
+
+## Pull requests
+
+1. Fork [Joseph-Cursio/SwiftMutator](https://github.com/Joseph-Cursio/SwiftMutator), and work on
+   a branch of your fork, cut from `main`. Branches here are named `<kind>/<name>`, where the kind
+   is one of `fix`, `feat`, `docs`, `perf`, `test`, `ci` and `chore`.
+2. Add or update tests for every change in behavior, and docs for every change a user sees.
+3. Run the unit tests and SwiftLint, and the acceptance and regression tests if the change calls
+   for them.
+4. Open a pull request against `main`. The template asks what changed and why, the issue it
+   closes, and what you tested.
+
+Pull requests are merged with a merge commit, not squashed or rebased. To bring yours up to date,
+merge `main` into it or rebase it on `main`, whichever you prefer. Ask on the pull request if a
+conflict is unclear.
+
+## Swift Package Index
+
+[.spi.yml](.spi.yml) holds the [Swift Package Index](https://swiftpackageindex.com)'s build
+settings. SPI tries every platform for its compatibility matrix by itself. The file only pins how
+it builds on macOS: with SwiftPM. The package isn't listed there yet. The maintainer has to
+submit it first.
+
+## Testing philosophy
+
+SwiftMutator is a testing tool, so its own tests need to be thorough. Most of its code was
+written test first. A change shouldn't lower its coverage or its mutation score.
+
+A pull request that adds a feature or fixes a bug without new or updated tests won't be merged.
+If you're unsure how to test something, ask on the issue before you write it, and we'll work it
+out together.
+
+## Code of conduct
+
+Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).

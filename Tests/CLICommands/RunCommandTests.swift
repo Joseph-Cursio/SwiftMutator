@@ -513,6 +513,8 @@ final class RunCommandTests: XCTestCase {
         XCTAssertTrue(other.contains("SwiftMutator has encountered an error"), other)
         XCTAssertTrue(other.contains("\(MuterError.noSourceFilesDiscovered)"), other)
         XCTAssertTrue(other.contains("please open an issue"), other)
+        XCTAssertTrue(other.contains("open an issue at\nhttps://github.com/Joseph-Cursio/SwiftMutator/issues"), other)
+        XCTAssertFalse(other.contains("muter-mutation-testing"), other)
     }
 
     // A script can tell a refused resume or reuse, and a run another holds a lock against, from an error, and from

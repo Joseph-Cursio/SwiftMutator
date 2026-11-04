@@ -36,7 +36,7 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
             You are running version \("\(version)".bold)
 
             Want help? Have suggestions? Want to get involved?
-             ↳ https://github.com/muter-mutation-testing/muter/issues
+             ↳ https://github.com/Joseph-Cursio/SwiftMutator/issues
             +--------------------------------------------------------+
 
             """
