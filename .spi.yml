@@ -1,0 +1,8 @@
+# The Swift Package Index's build settings (https://swiftpackageindex.com/swiftpackageindex/spimanifest/documentation/spimanifest).
+# SPI builds every platform for its compatibility matrix by itself; a config only changes how it builds on one.
+# swift-mutator is an executable for macOS, so this pins only the macOS build, with SwiftPM. There's no library
+# product or DocC catalog, so there are no documentation targets.
+version: 1
+builder:
+  configs:
+    - platform: macos-spm

@@ -1422,8 +1422,9 @@ each result by what changed since the session that tested it:
 
 `make test` runs the unit tests (the `muterTests` target). CI runs them on every pull request
 and every push to `main`, on two Xcode versions (see [ci.yml](.github/workflows/ci.yml)).
-[CONTRIBUTING.md](CONTRIBUTING.md) covers the acceptance and regression tests, which CI doesn't
-run.
+[CONTRIBUTING.md](CONTRIBUTING.md) covers the toolchain you need, the acceptance and regression
+tests, which CI doesn't run, and pull requests. [Docs/Architecture.md](Docs/Architecture.md) says
+how the code is laid out: the steps of a run, how a mutant is switched on, and the results file.
 
 ## License
 

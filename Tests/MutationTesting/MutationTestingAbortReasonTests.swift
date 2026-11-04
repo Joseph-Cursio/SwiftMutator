@@ -60,7 +60,7 @@ final class MutationTestingAbortReasonTests: MuterTestCase {
         )
     }
 
-    func test_whenBaselineFailedToCompileAMutatedFile_thenBlameMuterAndNameTheFileAndError() {
+    func test_whenBaselineFailedToCompileAMutatedFile_thenBlameSwiftMutatorAndNameTheFileAndError() {
         let log = """
         Building for debugging...
         /project_mutated/Sources/Calc/Calc.swift:8:24: error: expected expression after operator
@@ -76,15 +76,20 @@ final class MutationTestingAbortReasonTests: MuterTestCase {
             description.contains("Calc.swift:8:24: error: expected expression after operator"),
             description
         )
-        XCTAssertTrue(description.contains("bug in Muter's own rewriting"), description)
+        XCTAssertTrue(description.contains("bug in SwiftMutator's own rewriting"), description)
+        XCTAssertTrue(
+            description.contains("Please report this at https://github.com/Joseph-Cursio/SwiftMutator/issues "),
+            description
+        )
+        XCTAssertFalse(description.contains("muter-mutation-testing"), description)
         XCTAssertFalse(
             description.contains("misconfiguring"),
-            "A mutant that doesn't compile is Muter's fault, so the message must not point at the user's "
+            "A mutant that doesn't compile is SwiftMutator's fault, so the message must not point at the user's "
                 + "configuration:\n\(description)"
         )
     }
 
-    func test_whenBaselineFailedWithACompileErrorInAFileMuterDidNotMutate_thenKeepTheConfigurationHint() {
+    func test_whenBaselineFailedWithACompileErrorInAFileSwiftMutatorDidNotMutate_thenKeepTheConfigurationHint() {
         let log = """
         /project_mutated/Tests/CalcTests/CalcTests.swift:4:1: error: no such module 'Calc'
         """
@@ -95,7 +100,7 @@ final class MutationTestingAbortReasonTests: MuterTestCase {
         ).description
 
         XCTAssertTrue(description.contains("misconfiguring"), description)
-        XCTAssertFalse(description.contains("bug in Muter's own rewriting"), description)
+        XCTAssertFalse(description.contains("bug in SwiftMutator's own rewriting"), description)
         XCTAssertTrue(description.contains("no such module 'Calc'"), description)
     }
 
@@ -112,6 +117,16 @@ final class MutationTestingAbortReasonTests: MuterTestCase {
 
         XCTAssertTrue(description.contains("misconfiguring"), description)
         XCTAssertTrue(description.contains("test_inRange"), description)
+        XCTAssertTrue(description.contains("SwiftMutator noticed that your test suite"), description)
+        XCTAssertTrue(description.contains("options inside of your muter.conf.yml."), description)
+        XCTAssertFalse(description.contains("Muter "), description)
+    }
+
+    func test_whenTheLastFiveMutantsDidNotBuild_thenSendPeopleToSwiftMutatorsIssues() {
+        let description = MutationTestingAbortReason.tooManyBuildErrors.description
+
+        XCTAssertTrue(description.contains("\nhttps://github.com/Joseph-Cursio/SwiftMutator/issues"), description)
+        XCTAssertFalse(description.contains("muter-mutation-testing"), description)
     }
 
     func test_whenThereIsNoLog_thenSayThereIsNoneRatherThanPrintingAnEmptySection() {
@@ -120,7 +135,8 @@ final class MutationTestingAbortReasonTests: MuterTestCase {
             mutatedFilePaths: [mutatedFilePath]
         ).description
 
-        XCTAssertTrue(description.contains("captured no output at all"), description)
+        XCTAssertTrue(description.contains("SwiftMutator captured no output at all"), description)
+        XCTAssertTrue(description.contains("names a command SwiftMutator can launch"), description)
         XCTAssertFalse(
             description.contains("Here's the log"),
             "Promising a log and then printing nothing leaves the user with no evidence:\n\(description)"

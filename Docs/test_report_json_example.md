@@ -7,9 +7,9 @@ Here's your test report:
 Applied Mutation Operators
 --------------------------
 
-These are all of the ways that Muter introduced changes into your code.
+These are all of the ways that SwiftMutator introduced changes into your code.
 
-In total, Muter introduced 54 mutants in 14 files.
+In total, SwiftMutator introduced 54 mutants in 14 files.
 
 File                                           Applied Mutation Operator       Mutation Test Result
 ----                                           -------------------------       --------------------

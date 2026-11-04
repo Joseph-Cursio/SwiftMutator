@@ -5,7 +5,7 @@ Automated mutation testing for Swift 🕳️
 You are running version 0.1.0
 
 Want help? Have suggestions? Want to get involved?
- ↳ https://github.com/muter-mutation-testing/muter/issues
+ ↳ https://github.com/Joseph-Cursio/SwiftMutator/issues
 +--------------------------------------------------------+
 
 🔎 Checking for new versions...
