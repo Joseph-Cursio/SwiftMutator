@@ -595,7 +595,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
     func test_cloningTheMutatedProject_discardsItsModuleCaches() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
-        let project = root.appendingPathComponent("project_mutated")
+        let project = root.appendingPathComponent("project_mutated.noindex")
         let files = [
             "Sources/File.swift",
             ".build/debug/kept.o",
@@ -612,7 +612,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
 
         let clones = try await PerformMutationTesting.cloneMutatedProject(project, count: 1)
 
-        XCTAssertEqual(clones.map(\.path), [root.appendingPathComponent("project_mutated_worker1").path])
+        XCTAssertEqual(clones.map(\.path), [root.appendingPathComponent("project_mutated_worker1.noindex").path])
         let clone = try XCTUnwrap(clones.first)
         let exists = { (directory: URL, path: String) in
             FileManager.default.fileExists(atPath: directory.appendingPathComponent(path).path)
@@ -628,13 +628,13 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
     func test_whenCloningTheSecondWorkerFails_theFirstCloneAndTheSecondsPartialCopyAreRemoved() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
-        let project = root.appendingPathComponent("project_mutated")
+        let project = root.appendingPathComponent("project_mutated.noindex")
         let source = project.appendingPathComponent("Sources/File.swift")
         try FileManager.default.createDirectory(
             at: source.deletingLastPathComponent(), withIntermediateDirectories: true
         )
         try Data("let answer = 42".utf8).write(to: source)
-        let failingClone = root.appendingPathComponent("project_mutated_worker2")
+        let failingClone = root.appendingPathComponent("project_mutated_worker2.noindex")
 
         do {
             _ = try await PerformMutationTesting.cloneMutatedProject(project, count: 3) { project, clone in
@@ -651,7 +651,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
             XCTAssertEqual((error as? PerformMutationTesting.WorkerDirectoryError)?.clone.path, failingClone.path)
         }
 
-        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root.path), ["project_mutated"])
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root.path), ["project_mutated.noindex"])
         XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "let answer = 42", "the project is intact")
     }
 
@@ -660,7 +660,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         #if os(macOS)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
-        let missingProject = root.appendingPathComponent("project_mutated")
+        let missingProject = root.appendingPathComponent("project_mutated.noindex")
 
         do {
             _ = try await PerformMutationTesting.cloneMutatedProject(missingProject, count: 1)
@@ -675,14 +675,16 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         #endif
     }
 
+    // Each clone's file and link are named after it without `.noindex`, as SwiftMutators from before `.noindex` named
+    // them.
     func test_removeClones_removesEveryCloneGiven_andTheActiveMutantFileBesideIt() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
-        let project = root.appendingPathComponent("project_mutated")
+        let project = root.appendingPathComponent("project_mutated.noindex")
         try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
         try Data().write(to: root.appendingPathComponent("project_mutated.active-mutant"))
         let clones = try (1...3).map { index in
-            let clone = root.appendingPathComponent("project_mutated_worker\(index)")
+            let clone = root.appendingPathComponent("project_mutated_worker\(index).noindex")
             let object = clone.appendingPathComponent(".build/debug/File.o")
             try FileManager.default.createDirectory(
                 at: object.deletingLastPathComponent(), withIntermediateDirectories: true
@@ -700,7 +702,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         // The mutated project's own file goes at the end of the run. The links go, not what they lead to.
         XCTAssertEqual(
             try FileManager.default.contentsOfDirectory(atPath: root.path).sorted(),
-            ["project_mutated", "project_mutated.active-mutant"]
+            ["project_mutated.active-mutant", "project_mutated.noindex"]
         )
         XCTAssertTrue(FileManager.default.fileExists(atPath: "/bin/sh"))
     }
@@ -738,7 +740,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
 
         _ = try await sut.run(with: state)
 
-        XCTAssertEqual(fileManager.paths, ["/project_mutated.DerivedData"])
+        XCTAssertEqual(fileManager.paths, ["/project_mutated.DerivedData.noindex"])
     }
 
     // An xcodebuild project on a simulator gets one per worker, not a copy: every worker tests in the mutated project.

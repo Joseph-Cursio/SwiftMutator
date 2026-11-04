@@ -125,13 +125,14 @@ extension DirectTestRun {
     static let helperLinkSuffix = ".swiftpm-testing-helper"
 
     /// The link `script(in:)` starts the helpers through for a worker's folder, the mutated project or a clone:
-    /// `<folder>.swiftpm-testing-helper`, beside it, as the active-mutant file is. A process with no bundle
-    /// identifier, as the helper is, keeps its `UserDefaults` in a domain named after its executable's file, which a
-    /// link sets but a changed `argv[0]` doesn't. So each worker's tests get a domain of their own, where every worker
-    /// once shared the helper's, and with it every other `swift test` run on the Mac: tests that wrote a fixed key
-    /// there could fail another worker's tests, and kill mutants they don't check (#92).
+    /// `<stem>.swiftpm-testing-helper`, beside it, named after the folder without `.noindex` as the active-mutant file
+    /// is, so an older SwiftMutator's link and its tests' domain have the names this one gives them. A process with no
+    /// bundle identifier, as the helper is, keeps its `UserDefaults` in a domain named after its executable's file,
+    /// which a link sets but a changed `argv[0]` doesn't. So each worker's tests get a domain of their own, where every
+    /// worker once shared the helper's, and with it every other `swift test` run on the Mac: tests that wrote a fixed
+    /// key there could fail another worker's tests, and kill mutants they don't check (#92).
     static func helperLink(forWorkerIn folder: URL) -> URL {
-        folder.deletingLastPathComponent().appendingPathComponent(folder.lastPathComponent + helperLinkSuffix)
+        MutatedProjectNames.file(helperLinkSuffix, beside: folder)
     }
 
     /// The `UserDefaults` domain of the tests run directly in `folder`: the name of its helper link.

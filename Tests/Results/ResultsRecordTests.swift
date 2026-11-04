@@ -604,7 +604,7 @@ final class ResultsRecordTests: XCTestCase {
         let written = try line(header)
         XCTAssertTrue(
             written.contains(
-                #""testPlan":{"formatVersion":1,"path":"/project/muter-mappings.json","sha256":"abc","#
+                #""testPlan":{"formatVersion":2,"path":"/project/muter-mappings.json","sha256":"abc","#
                     + #""swiftMutatorVersion":"1.2.3"}"#
             ),
             written

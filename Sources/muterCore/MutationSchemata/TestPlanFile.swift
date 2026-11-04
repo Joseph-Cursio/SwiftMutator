@@ -7,7 +7,12 @@ import Foundation
 enum TestPlanCoding {
     /// The format this SwiftMutator writes. A format changes only for a change that a reader of the earlier one would
     /// misread. A new key needs none: readers ignore keys they don't know.
-    static let formatVersion = 1
+    ///
+    /// Format 2 is format 1 with a copy whose name ends in `.noindex`, as `<project>_mutated.noindex`. Its keys are
+    /// format 1's, but a SwiftMutator from before `.noindex` would lock `<project>_mutated.noindex.lock` for that copy,
+    /// while this one locks `<project>_mutated.lock` (`MutatedProjectNames.lockFile(of:)`), and a run of this one could
+    /// remove the copy while the older one tested in it. Such a SwiftMutator refuses format 2 before it locks anything.
+    static let formatVersion = 2
     /// The newest format this SwiftMutator reads. It refuses a plan in a newer one.
     static let newestFormatVersion = formatVersion
 
@@ -36,10 +41,10 @@ enum TestPlanCoding {
         return try String(decoding: encoder.encode(file), as: UTF8.self) + "\n"
     }
 
-    /// The plan at `path`, whose bytes are `data`, with its paths resolved: a format-1 copy's under `projectRoot`, the
-    /// folder the plan was made in, and its mutants' under the copy. A plan in format 0 holds absolute paths, which
-    /// are kept, and doesn't say what its mutants were chosen by or record the project's files. A plan in a format
-    /// newer than `newestFormatVersion` is refused.
+    /// The plan at `path`, whose bytes are `data`, with its paths resolved: a format-1 or later copy's under
+    /// `projectRoot`, the folder the plan was made in, and its mutants' under the copy. A plan in format 0 holds
+    /// absolute paths, which are kept, and doesn't say what its mutants were chosen by or record the project's files. A
+    /// plan in a format newer than `newestFormatVersion` is refused.
     static func read(_ data: Data, path: String, under projectRoot: URL) throws -> MuterTestPlan {
         guard let found = try JSONDecoder().decode(FormatVersion.self, from: data).formatVersion else {
             let file = try JSONDecoder().decode(LegacyTestPlanFile.self, from: data)
@@ -90,15 +95,15 @@ enum TestPlanCoding {
     }
 }
 
-/// A test plan as it is written, in format 1. Its paths are relative, so the project and its copy can move together:
-/// the copy's to the folder the plan was made in, and each mutant's to the copy. A path that isn't inside the folder
-/// it is relative to is kept absolute.
+/// A test plan as it is written, in format 1 or 2, which have the same keys. Its paths are relative, so the project and
+/// its copy can move together: the copy's to the folder the plan was made in, and each mutant's to the copy. A path
+/// that isn't inside the folder it is relative to is kept absolute.
 struct TestPlanFile: Codable, Equatable {
     let formatVersion: Int
     /// Recorded for people to read; never compared. Without the executable's SHA-256, so two builds of one version
     /// write the same plan.
     let swiftMutatorVersion: String
-    /// The copy of the project, relative to the folder the plan was made in, as `../Foo_mutated`.
+    /// The copy of the project, relative to the folder the plan was made in, as `../Foo_mutated.noindex`.
     let mutatedProject: String
     /// Left out when coverage wasn't gathered.
     let projectCoverage: Int?

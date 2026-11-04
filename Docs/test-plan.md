@@ -1,6 +1,6 @@
 # The test plan
 
-`swift-mutator mutate-without-running` copies the project to `<project>_mutated` beside it, as `run` does, puts every mutant's switch into the copy, and writes the test plan, `muter-mappings.json`, in the project folder. It tests nothing. `swift-mutator run-without-mutating muter-mappings.json` then tests the copy's mutants. In between you can fix the copy by hand, for example code that the rewriting left unable to compile.
+`swift-mutator mutate-without-running` copies the project to `<project>_mutated.noindex` beside it, as `run` does, puts every mutant's switch into the copy, and writes the test plan, `muter-mappings.json`, in the project folder. It tests nothing. `swift-mutator run-without-mutating muter-mappings.json` then tests the copy's mutants. In between you can fix the copy by hand, for example code that the rewriting left unable to compile.
 
 `mutate-without-running` takes `--files-to-mutate` and `--operators`, as `run` does, to choose which mutants the plan holds:
 
@@ -12,7 +12,7 @@ The plan records them, and a run of the plan records them in its results file, a
 
 ```
 💾 Mutation test plan created: /Users/me/Foo/muter-mappings.json (3 mutants in 1 file, operator SwapTernary)
-✏️ You can fix its copy, ../Foo_mutated, by hand before testing it.
+✏️ You can fix its copy, ../Foo_mutated.noindex, by hand before testing it.
 ▶️ Test it: swift-mutator run-without-mutating /Users/me/Foo/muter-mappings.json
 ⚠️ A later `swift-mutator run` or `mutate-without-running` of this project removes that copy, and any fix in it.
 ```
@@ -20,7 +20,7 @@ The plan records them, and a run of the plan records them in its results file, a
 ## Where it is, and where to run it
 
 - The plan is `muter-mappings.json` at the project's root. You can move or rename it: what it names is relative to the project folder, not to the plan.
-- Its paths are relative, so the project and its copy can move together. The copy's path is relative to the folder the plan was made in, normally `../<project>_mutated`. Each mutant's file is relative to the copy, as `Sources/Foo/Bar.swift`. A copy that shares no folder with the project but the root, as on another volume, is named by its absolute path, and so is a file outside the copy.
+- Its paths are relative, so the project and its copy can move together. The copy's path is relative to the folder the plan was made in, normally `../<project>_mutated.noindex`. Each mutant's file is relative to the copy, as `Sources/Foo/Bar.swift`. A copy that shares no folder with the project but the root, as on another volume, is named by its absolute path, and so is a file outside the copy.
 - Run `run-without-mutating` in the project folder, as `mutate-without-running` was: the plan's copy is found from the folder the command runs in, which is also where it loads `muter.conf.yml`. The configuration is loaded first: in a folder without `muter.conf.yml`, as the project's `Sources`, and without `--configuration`, the run stops on the missing file, with exit status 255, before it reads the plan. A run in a folder with a configuration that holds none of the files the plan mutates, nor any other file the plan recorded beside them, is refused (see [When a plan is refused](#when-a-plan-is-refused)).
 - A copy that moved can hold absolute paths in its `.build` folder or in Xcode's DerivedData, which still point to where it was. Remove the copy's `.build` after moving it.
 - A later `swift-mutator run` or `mutate-without-running` of the project removes the copy, with any fix you made in it. A plan whose copy isn't there is refused (see [When a plan is refused](#when-a-plan-is-refused)).
@@ -34,7 +34,7 @@ The plan is one JSON object, pretty-printed with two spaces, its keys sorted, it
   "filesToMutate" : [
 
   ],
-  "formatVersion" : 1,
+  "formatVersion" : 2,
   "mappings" : [
     {
       "filePath" : "Sources/Foo/Bar.swift",
@@ -60,7 +60,7 @@ The plan is one JSON object, pretty-printed with two spaces, its keys sorted, it
   "mutatedFiles" : {
     "Sources/Foo/Bar.swift" : "9f2c…"
   },
-  "mutatedProject" : "../Foo_mutated",
+  "mutatedProject" : "../Foo_mutated.noindex",
   "operators" : [
     "ChangeLogicalConnector",
     "RelationalOperatorReplacement",
@@ -86,7 +86,7 @@ The plan is one JSON object, pretty-printed with two spaces, its keys sorted, it
 
 | Key | Type | What it is |
 |---|---|---|
-| `formatVersion` | Int | The plan's format: 1. See [Compatibility](#compatibility). |
+| `formatVersion` | Int | The plan's format: 2. See [Compatibility](#compatibility). |
 | `swiftMutatorVersion` | String | The version of the SwiftMutator that made the plan. It is for you to read; SwiftMutator doesn't compare it. |
 | `mutatedProject` | String | The copy, relative to the folder the plan was made in. |
 | `projectCoverage` | Int | The project's code coverage, as a percentage. Left out when coverage wasn't gathered, as with `--skip-coverage`. |
@@ -113,8 +113,10 @@ The hashes are shortened here. The plan holds no date, host name, absolute path 
 
 - A format changes only for a change that a reader of the earlier one would misread. A new key needs none: readers ignore keys they don't know.
 - **Format 0** is the plan SwiftMutators wrote before format 1: no `formatVersion`, `mutatedProjectPath` in place of `mutatedProject`, absolute paths throughout, a `projectCoverage` of -1 when coverage wasn't gathered, no `operators`, `filesToMutate`, `sources` or `mutatedFiles`, and, from before the path hash, mutants without an `id`. This SwiftMutator still reads it. Its absolute paths are used as they are, wherever the command runs, and a run of it records every operator and no `--files-to-mutate`, as before. With no `sources`, the project isn't checked against it: the run says so, and goes ahead. A `swift test` plan made before the active-mutant file is refused, as before: make it again.
+- **Format 1** has format 2's keys. Its copy is named as SwiftMutators named it before the `.noindex` names, normally `../<project>_mutated`. This SwiftMutator reads it as before, and locks `<project>_mutated.lock` for its copy, the file the SwiftMutator that made it locks.
+- **Format 2** names a copy whose name ends in `.noindex`, normally `../<project>_mutated.noindex`. The lock keeps the name it had, `<project>_mutated.lock`, but a SwiftMutator from before the `.noindex` names would lock `<project>_mutated.noindex.lock` for that copy, and a later `run` would then remove the copy while it tested in it. So such a SwiftMutator refuses a format-2 plan as a newer format, with exit status 7, before it locks anything.
 - A plan in a **newer format** than this SwiftMutator reads is refused, with exit status 7.
-- An **older SwiftMutator** can't read a format-1 plan: it stops on the missing `mutatedProjectPath` before it locks, builds or tests anything. Test a plan with the SwiftMutator that made it, or a newer one.
+- A SwiftMutator from **before format 1** can't read a format-1 or format-2 plan: it stops on the missing `mutatedProjectPath` before it locks, builds or tests anything. Test a plan with the SwiftMutator that made it, or a newer one.
 
 ## When a plan is refused
 
@@ -160,7 +162,7 @@ The hashes are shortened here. The plan holds no date, host name, absolute path 
 
   ```
   SwiftMutator won't resume the run in '/…/results.jsonl', so that no result is reused that this run might not reproduce:
-    - 1 file of the test plan's copy, /Users/me/Foo_mutated, changed since the run's last session, as a fix by hand would: Sources/Foo/Bar.swift (changed).
+    - 1 file of the test plan's copy, /Users/me/Foo_mutated.noindex, changed since the run's last session, as a fix by hand would: Sources/Foo/Bar.swift (changed).
       If it can't change any test's result: --resume-ignoring 'Sources/Foo/Bar.swift'
       Mutants in a changed source file are tested again either way.
   Nothing was copied or removed.
@@ -169,7 +171,7 @@ The hashes are shortened here. The plan holds no date, host name, absolute path 
   With `--resume-ignoring`, the mutants in a changed file are tested again, and the other results kept, and the run says which files of the copy it let through:
 
   ```
-  ⚠️ Results are reused although 1 file of the test plan's copy, /Users/me/Foo_mutated, changed (--resume-ignoring): Sources/Foo/Bar.swift
+  ⚠️ Results are reused although 1 file of the test plan's copy, /Users/me/Foo_mutated.noindex, changed (--resume-ignoring): Sources/Foo/Bar.swift
   ```
 - Only the copy's own changes count. Its files are the ones the plan recorded and the last session tested, not the ones your project lists now, so a file you `git rm` in the project, or that another branch doesn't have, is still the copy's as it was. What SwiftMutator's build writes in the copy, which keeps it from one session to the next, is left out: for xcodebuild, its `-derivedDataPath` and `TestContents`. A `Package.resolved` the project didn't have when the plan was made, as one it ignores, is written by the copy's build: a change to it is only said, and the results are reused. Start the run again without `--resume` to test every mutant with the dependencies as they are resolved now.
 - `run --resume` with the results file of a run of a plan is refused for that alone: it doesn't compare your project with the plan's copy.
@@ -188,4 +190,4 @@ swift-mutator run-without-mutating muter-mappings.json --mutant 'Bar.swift:12:9'
 - It tests the plan's copy as it is, under the plan's lock, and never rewrites it: only the plan's list of mutants is narrowed to that one.
 - The project is checked against the plan as for a whole run, but only that mutant's file can refuse it. Its change is shown from your project's file, or, when that file changed since the plan was made and `--plan-ignoring` let it through, or the plan doesn't record it, as a plan in format 0 doesn't, as the mutant records it.
 - Its results file is a run of one mutant: no whole run resumes or reuses it, and `--resume` can't be given with `--mutant`.
-- `run --mutant` makes a copy of its own, `<project>_mutant`, so it never removes the plan's copy or a fix in it.
+- `run --mutant` makes a copy of its own, `<project>_mutant.noindex`, so it never removes the plan's copy or a fix in it.

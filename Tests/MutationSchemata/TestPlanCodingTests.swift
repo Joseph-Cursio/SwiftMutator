@@ -64,7 +64,7 @@ final class TestPlanCodingTests: XCTestCase {
         let text = try TestPlanCoding.encode(plan(), under: project)
 
         XCTAssertTrue(text.hasPrefix("{\n  \"filesToMutate\" : ["), text)
-        XCTAssertTrue(text.contains("\n  \"formatVersion\" : 1,\n  \"linkedFiles\" : {"), text)
+        XCTAssertTrue(text.contains("\n  \"formatVersion\" : 2,\n  \"linkedFiles\" : {"), text)
         XCTAssertTrue(text.hasSuffix("}\n"))
         XCTAssertFalse(text.hasSuffix("\n\n"))
     }
@@ -185,6 +185,21 @@ final class TestPlanCodingTests: XCTestCase {
         XCTAssertEqual(read.mutatedProjectURL.path, copy.path)
     }
 
+    // Format 1 has format 2's keys, and its copy, named as SwiftMutators from before `.noindex` named it, is read as
+    // it was: its lock is `project_mutated.lock`, the file the SwiftMutator that made it locks.
+    func test_aPlanInFormat1_readsAsItDid() throws {
+        let text = try TestPlanCoding.encode(plan(), under: project)
+            .replacingOccurrences(of: "\"formatVersion\" : 2,", with: "\"formatVersion\" : 1,")
+
+        let read = try read(text)
+
+        XCTAssertTrue(text.contains("\"mutatedProject\" : \"../project_mutated\""), text)
+        XCTAssertEqual(read.formatVersion, 1)
+        XCTAssertEqual(read.mutatedProjectURL, URL(fileURLWithPath: copy))
+        XCTAssertEqual(read.mappings.map(\.filePath), ["\(copy)/Sources/Max.swift", "\(copy)/Sources/Sum.swift"])
+        XCTAssertEqual(MutatedProjectLock.path(for: read.mutatedProjectURL), "\(copy).lock")
+    }
+
     // A plan written by a SwiftMutator from before format versions: one line, absolute paths, -1 for coverage that
     // wasn't gathered, and, from before the path hash, a mutant without an id.
     func test_aPlanInFormat0_readsWithItsAbsolutePaths() throws {
@@ -212,16 +227,16 @@ final class TestPlanCodingTests: XCTestCase {
 
     func test_aNewerFormat_isRefused_andExitsWith7() throws {
         let text = """
-        {"formatVersion": 2, "somethingNew": true}
+        {"formatVersion": 3, "somethingNew": true}
         """
 
         XCTAssertThrowsError(try read(text)) { error in
             let refused = error as? TestPlanRefused
-            XCTAssertEqual(refused, TestPlanRefused(path: planPath, reason: .newerFormat(found: 2)))
+            XCTAssertEqual(refused, TestPlanRefused(path: planPath, reason: .newerFormat(found: 3)))
             XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: error), .testPlanRefused)
             XCTAssertEqual(
                 "\(error)",
-                "SwiftMutator won't test the plan '\(planPath)': it is in test plan format 2, which only a newer "
+                "SwiftMutator won't test the plan '\(planPath)': it is in test plan format 3, which only a newer "
                     + "SwiftMutator can read. Test it with the SwiftMutator that made it, or make it again with "
                     + "`swift-mutator mutate-without-running`. Nothing was tested."
             )

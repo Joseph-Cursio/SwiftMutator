@@ -137,7 +137,7 @@ final class AcceptanceTests: XCTestCase {
     func test_mutationTestPlan() throws {
         let decodedTestPlan = try JSONDecoder().decode(TestPlanFile.self, from: createdTestPlan)
         XCTAssertEqual(decodedTestPlan.formatVersion, TestPlanCoding.formatVersion)
-        XCTAssertEqual(decodedTestPlan.mutatedProject, "../ExampleApp_mutated")
+        XCTAssertEqual(decodedTestPlan.mutatedProject, "../ExampleApp_mutated.noindex")
         XCTAssertEqual(decodedTestPlan.projectCoverage, 23)
         XCTAssertEqual(decodedTestPlan.mappings.count, 1)
         XCTAssertFalse(decodedTestPlan.mappings.contains { $0.filePath.hasPrefix("/") })

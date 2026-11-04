@@ -626,6 +626,18 @@ final class ResumeCheckTests: XCTestCase {
         )
     }
 
+    // A session an older SwiftMutator ran tested in `App_mutated`; this one tests in `App_mutated.noindex`.
+    func test_theSameFilesWithoutCoverage_inACopyAnOlderSwiftMutatorNamed_isNoChange() {
+        XCTAssertNil(
+            ResumeCheck.coverageChange(
+                from: coverage(78, ["/code/App_mutated/App/Untested.swift"]),
+                in: URL(fileURLWithPath: "/code/App_mutated"),
+                to: coverage(78, ["/code/App_mutated.noindex/App/Untested.swift"]),
+                in: URL(fileURLWithPath: "/code/App_mutated.noindex")
+            )
+        )
+    }
+
     // A file without coverage is left out whole, which matters more than the percent, whatever it did. Either way,
     // discovery can find more mutants or fewer.
     func test_otherFilesWithoutCoverage_isAChange_whateverThePercent() {

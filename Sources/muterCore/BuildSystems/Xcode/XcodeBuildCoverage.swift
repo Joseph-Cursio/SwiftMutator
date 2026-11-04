@@ -348,9 +348,9 @@ private extension CoverageReport {
     }
 
     /// The derived data the coverage run used: the folder above `Logs/Test` in `resultBundle`, the path of its result
-    /// bundle, which also holds the run's profile, under `Build/ProfileData`, and then that of its products. Those of
-    /// a Swift package whose folder isn't named after it are in other derived data, named after the folder, with the
-    /// same hash, and no profile: `PkgProbe_mutated-<hash>` rather than `PkgProbe-<hash>`, as in SwiftMutator's copy
+    /// bundle, which also holds the run's profile, under `Build/ProfileData`, and then that of its products. Those of a
+    /// Swift package whose folder isn't named after it are in other derived data, named after the folder, with the same
+    /// hash, and no profile: `PkgProbe_mutated.noindex-<hash>` rather than `PkgProbe-<hash>`, as in SwiftMutator's copy
     /// of a project. `-resultBundlePath` moves the result bundle, and `SYMROOT` or `BUILD_DIR` the products, but
     /// neither moves the profile. So with `-resultBundlePath`, such a package's profile can't be found, unless
     /// `-derivedDataPath` puts all of it in one folder.

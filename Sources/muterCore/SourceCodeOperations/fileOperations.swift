@@ -20,8 +20,9 @@ func sourceCode(fromFileAt path: String) -> SourceCodeInfo? {
 
 // MARK: - Logging Directory
 
-/// Creates `<project>_muter_logs/<timestamp>` next to the project, the same way
-/// the mutated copy is `<project>_mutated`. Never inside the project: a log
+/// Creates `<project>_muter_logs/<timestamp>` next to the project, as the
+/// mutated copy is `<project>_mutated.noindex`, though the log folder's name
+/// has no `.noindex`, so Spotlight indexes it. Never inside the project: a log
 /// folder there is copied into the next run's mutated project and shows up as
 /// untracked files in the user's repository.
 ///

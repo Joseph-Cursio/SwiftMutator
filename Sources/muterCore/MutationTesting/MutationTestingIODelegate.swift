@@ -146,11 +146,13 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
     static let activeMutantFileSuffix = ".active-mutant"
 
     /// The file `activeMutantFileKey` names for a worker's folder, the mutated project or a clone:
-    /// `<folder>.active-mutant`, beside it. Never in it: the folder is a whole copy of the project, `.git` included,
-    /// so a test that lists the package's hidden files, or needs a clean `git status`, would see it. Its path is the
-    /// same for every run of the worker, as one environment for them all needs, and for every SwiftMutator run.
+    /// `<stem>.active-mutant`, beside it, named after the folder without `.noindex`, as SwiftMutators from before
+    /// `.noindex` named it (`MutatedProjectNames.file(_:beside:)`). Never in it: the folder is a whole copy of the
+    /// project, `.git` included, so a test that lists the package's hidden files, or needs a clean `git status`, would
+    /// see it. Its path is the same for every run of the worker, as one environment for them all needs, and for every
+    /// SwiftMutator run.
     static func activeMutantFile(forWorkerIn folder: URL) -> URL {
-        folder.deletingLastPathComponent().appendingPathComponent(folder.lastPathComponent + activeMutantFileSuffix)
+        MutatedProjectNames.file(activeMutantFileSuffix, beside: folder)
     }
 
     func benchmarkTests(

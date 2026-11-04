@@ -571,7 +571,7 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
     private var worker0: MuterConfiguration.XcodeWorker {
         MuterConfiguration.XcodeWorker(
             testRunFile: "muter.xctestrun",
-            derivedData: "/project_mutated.DerivedData",
+            derivedData: "/project_mutated.DerivedData.noindex",
             destination: "platform=iOS Simulator,id=SIM-0",
             parallelTestingOff: true,
             testDiagnosticsOff: true
@@ -596,7 +596,7 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
     private func assertTestedOnTheDestination(file: StaticString = #filePath, line: UInt = #line) {
         let firstWorker = MuterConfiguration.XcodeWorker(
             testRunFile: "muter.xctestrun",
-            derivedData: "/project_mutated.DerivedData",
+            derivedData: "/project_mutated.DerivedData.noindex",
             testDiagnosticsOff: true
         )
         XCTAssertEqual(

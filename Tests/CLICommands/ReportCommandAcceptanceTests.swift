@@ -149,10 +149,49 @@ final class ReportCommandAcceptanceTests: XCTestCase {
         let visibleNames = { (folder: URL) in
             Set(try FileManager.default.contentsOfDirectory(atPath: folder.path).filter { !$0.hasPrefix(".") })
         }
-        XCTAssertEqual(try visibleNames(root.appendingPathComponent("project_mutated")), try visibleNames(project))
+        XCTAssertEqual(
+            try visibleNames(root.appendingPathComponent("project_mutated.noindex")),
+            try visibleNames(project)
+        )
         let kept = try FileManager.default.contentsOfDirectory(atPath: onlyLogFolder().path)
         XCTAssertFalse(kept.contains("running"), "\(kept)")
         XCTAssertTrue(kept.contains("baseline run.log"), "\(kept)")
+    }
+
+    // The first run after an upgrade removes what an older SwiftMutator left beside the project under the names it
+    // gave them, its copy with a hand fix in it too, and leaves its own folders, each of whose names ends in
+    // `.noindex`. The files beside a folder keep their names, so those of the copy and of worker 1 are this run's own
+    // too, which it removes as it ends whether or not its cleanup found them: those planted are of a worker this run,
+    // with 2, doesn't have, which only the cleanup removes.
+    func test_theFirstRunAfterAnUpgrade_removesWhatAnOlderSwiftMutatorLeft() throws {
+        let folders = [
+            "project_mutated", "project_mutated_worker1", "project_mutated.DerivedData",
+            "project_mutated_worker3.DerivedData",
+        ]
+        for folder in folders {
+            let url = root.appendingPathComponent(folder, isDirectory: true)
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            try "".write(to: url.appendingPathComponent("fixed-by-hand"), atomically: true, encoding: .utf8)
+        }
+        let activeMutantFile = root.appendingPathComponent("project_mutated_worker3.active-mutant")
+        try "".write(to: activeMutantFile, atomically: true, encoding: .utf8)
+        let helperLink = root.appendingPathComponent("project_mutated_worker3.swiftpm-testing-helper")
+        try FileManager.default.createSymbolicLink(atPath: helperLink.path, withDestinationPath: "/usr/bin/true")
+
+        let run = try runSwiftMutator(["run", "--skip-update-check", "--skip-coverage"])
+
+        XCTAssertEqual(run.status, 0, run.standardError)
+        let names = try FileManager.default.contentsOfDirectory(atPath: root.path)
+        for old in folders + [activeMutantFile.lastPathComponent, helperLink.lastPathComponent] {
+            XCTAssertFalse(names.contains(old), "\(old) is left: \(names)")
+        }
+        XCTAssertTrue(names.contains("project_mutated.noindex"), "\(names)")
+        XCTAssertTrue(names.contains("project_mutated.lock"), "\(names)")
+        let left = names.filter {
+            $0.hasSuffix(".active-mutant") || $0.hasSuffix(".swiftpm-testing-helper") || $0.contains("_worker")
+                || $0.contains(".DerivedData")
+        }
+        XCTAssertEqual(left, [], "\(names)")
     }
 
     // The name a mutant's results line gives is the file its log was kept in, and no two mutants share one. Only the

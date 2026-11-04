@@ -62,7 +62,7 @@ final class TestPlanAcceptanceTests: XCTestCase {
     private var markers: URL!
     private var hangMarker: URL { markers.appendingPathComponent("hang") }
     private var plan: URL { project.appendingPathComponent("muter-mappings.json") }
-    private var copy: URL { root.appendingPathComponent("project_mutated", isDirectory: true) }
+    private var copy: URL { root.appendingPathComponent("project_mutated.noindex", isDirectory: true) }
     private let makePlan = ["mutate-without-running", "--skip-update-check", "--skip-coverage"]
     private let testPlan = ["run-without-mutating", "--skip-update-check", "muter-mappings.json"]
 
@@ -234,7 +234,7 @@ final class TestPlanAcceptanceTests: XCTestCase {
         XCTAssertTrue(
             refused.output.contains(
                 // Named by its path from the folder the command ran in, which may differ by a symbolic link.
-                "/project_mutated, changed since the run's last session"
+                "/project_mutated.noindex, changed since the run's last session"
             ),
             refused.output
         )
@@ -364,7 +364,7 @@ final class TestPlanAcceptanceTests: XCTestCase {
             printed
         )
         XCTAssertTrue(printed.contains("Verdict: killed by check() (1 failed test), in "), printed)
-        XCTAssertTrue(printed.contains("/project_mutated\nTo run its tests with it on:\n"), printed)
+        XCTAssertTrue(printed.contains("/project_mutated.noindex\nTo run its tests with it on:\n"), printed)
         let tests = ranLines()
         XCTAssertEqual(tests.count, 2, "\(tests)")
         XCTAssertEqual(tests.first, "baseline")
@@ -389,7 +389,7 @@ final class TestPlanAcceptanceTests: XCTestCase {
         XCTAssertTrue(alone.standardOutput.contains("Verdict: survived, in "), alone.output)
         XCTAssertTrue(
             alone.standardOutput.contains("Mutated project kept, with the mutant switched off: ")
-                && alone.standardOutput.contains("/project_mutant\n"),
+                && alone.standardOutput.contains("/project_mutant.noindex\n"),
             alone.output
         )
         XCTAssertEqual(

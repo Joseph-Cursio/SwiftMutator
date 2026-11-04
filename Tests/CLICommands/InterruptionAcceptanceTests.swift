@@ -41,7 +41,7 @@ final class InterruptionAcceptanceTests: XCTestCase {
             slowMutants:*) [ -s "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE" ] && slow;;
             baseline:*) [ -s "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE" ] || hang;;
             mutantsWithALargeWorkerClone:*)
-                case "$worker" in *_worker1) [ -d "$worker/files" ] || (fill "$worker/files");; esac;;
+                case "$worker" in *_worker1.noindex) [ -d "$worker/files" ] || (fill "$worker/files");; esac;;
         esac
         [ -s "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE" ] && hang
         exit 0
@@ -143,8 +143,8 @@ final class InterruptionAcceptanceTests: XCTestCase {
             XCTAssertEqual(lines.last?["reason"] as? String, "interrupted")
             XCTAssertEqual(lines.last?["detail"] as? String, "SIGINT")
         }
-        XCTAssertFalse(exists("project_mutated_worker1"), "the worker clone is removed")
-        XCTAssertTrue(exists("project_mutated"), "the mutated project is kept, for the next run to remove")
+        XCTAssertFalse(exists("project_mutated_worker1.noindex"), "the worker clone is removed")
+        XCTAssertTrue(exists("project_mutated.noindex"), "the mutated project is kept, for the next run to remove")
         XCTAssertFalse(exists("project_mutated.active-mutant"), "the mutated project's active-mutant file is removed")
         XCTAssertFalse(exists("project_mutated_worker1.active-mutant"), "the worker's active-mutant file is removed")
         // What the two runs under way wrote is kept in the log folder, and none of SwiftMutator's files is in the copy.
@@ -198,7 +198,7 @@ final class InterruptionAcceptanceTests: XCTestCase {
         if mutator.isRunning { signalProcess(mutator, SIGSTOP) }
         let held = waitUntil(within: 5) { self.isStopped(mutator.processIdentifier) || !mutator.isRunning }
         XCTAssertTrue(held, "SwiftMutator wasn't held")
-        guard mutator.isRunning, exists("project_mutated_worker1") else {
+        guard mutator.isRunning, exists("project_mutated_worker1.noindex") else {
             if mutator.isRunning { signalProcess(mutator, SIGCONT) }
             assertDied(mutator, by: SIGTERM)
             assertNoTestProcessIsLeft()
@@ -274,7 +274,7 @@ final class InterruptionAcceptanceTests: XCTestCase {
             XCTAssertEqual(lines.last?["reason"] as? String, "interrupted")
             XCTAssertEqual(lines.last?["detail"] as? String, "SIGHUP")
         }
-        XCTAssertFalse(exists("project_mutated_worker1"), "the worker clone is removed")
+        XCTAssertFalse(exists("project_mutated_worker1.noindex"), "the worker clone is removed")
         guard repeated else { throw XCTSkip("SwiftMutator stopped before a second SIGHUP could reach it") }
     }
 
@@ -574,7 +574,7 @@ final class InterruptionAcceptanceTests: XCTestCase {
             let all = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
             return Set(all.filter { !$0.hasPrefix(".") })
         }
-        return names(root.appendingPathComponent("project_mutated")).subtracting(names(project)).sorted()
+        return names(root.appendingPathComponent("project_mutated.noindex")).subtracting(names(project)).sorted()
     }
 
     private func records(in file: URL) throws -> [[String: Any]] {

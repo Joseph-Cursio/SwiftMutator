@@ -503,17 +503,19 @@ final class ConfigurationParsingTests: MuterTestCase {
     }
 
     // Beside the copy, so neither its fingerprint nor the build its runs test from sees it.
+    // Its name ends in `.noindex`, so Spotlight skips it, whether the copy's name does or, as a test plan's copy made
+    // by an older SwiftMutator, doesn't.
     func test_aWorkersDerivedData_isBesideTheMutatedProject() {
-        let mutated = URL(fileURLWithPath: "/path/App_mutated")
-
-        XCTAssertEqual(
-            MuterConfiguration.XcodeWorker.derivedData(ofWorker: 0, in: mutated),
-            "/path/App_mutated.DerivedData"
-        )
-        XCTAssertEqual(
-            MuterConfiguration.XcodeWorker.derivedData(ofWorker: 3, in: mutated),
-            "/path/App_mutated_worker3.DerivedData"
-        )
+        for mutated in ["/path/App_mutated.noindex", "/path/App_mutated"].map(URL.init(fileURLWithPath:)) {
+            XCTAssertEqual(
+                MuterConfiguration.XcodeWorker.derivedData(ofWorker: 0, in: mutated),
+                "/path/App_mutated.DerivedData.noindex"
+            )
+            XCTAssertEqual(
+                MuterConfiguration.XcodeWorker.derivedData(ofWorker: 3, in: mutated),
+                "/path/App_mutated_worker3.DerivedData.noindex"
+            )
+        }
     }
 
     // Not a configuration key: neither the configuration file nor a results file's header holds it.
