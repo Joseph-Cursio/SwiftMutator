@@ -250,6 +250,19 @@ final class MutationTestObserverTests: MuterTestCase {
         )
     }
 
+    func test_workersShareUserDefaults_isPrinted() throws {
+        try sut.start()
+
+        runEvents.send(.workersShareUserDefaults)
+
+        XCTAssertEqual(
+            printer.linesPassed.last,
+            "ℹ️ Workers running through `swift test` share `UserDefaults.standard`: tests that write to it can fail "
+                + "each other and kill mutants they don't check. See \"Tests that share state across workers\" in "
+                + "the README."
+        )
+    }
+
     func test_resumePlanned_reachesTheLogger() throws {
         try sut.start()
 

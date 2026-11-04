@@ -69,7 +69,9 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   each in its own APFS clone of the mutated project. Each clone is built once before testing, which
   costs one extra build per worker but keeps tests that write files next to their sources from
   sharing them across workers. An xcodebuild project that tests on a simulator gets one simulator
-  per worker instead, from one build (see [xcodebuild workers](#xcodebuild-workers)).
+  per worker instead, from one build (see [xcodebuild workers](#xcodebuild-workers)). What tests
+  share outside the copy can still give false kills (see
+  [Tests that share state across workers](#tests-that-share-state-across-workers)).
 - **One environment for every `swift test` run:** a mutant is switched on by its ID in a file
   beside the worker's folder, such as `MyPackage_mutated.active-mutant`, not by a variable of its
   own, so your tests don't find it among the package's files or in its `git status`. For a package
@@ -103,10 +105,8 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
     before each mutant's run, so no mutant sees what an earlier one wrote. The links and domains go
     at the end of the run.
   - **Still shared:** what the baselines and `swift test` runs write, a suite you open with a fixed
-    `UserDefaults(suiteName:)`, the keychain, fixed temporary paths and ports. The fix for those
-    belongs in your tests: give each test its own store, for example a suite named with a UUID that
-    the test removes afterwards. Until then, `mutationTestWorkers: 1` avoids it, at the cost of
-    speed.
+    `UserDefaults(suiteName:)`, the keychain, fixed temporary paths and ports (see
+    [Tests that share state across workers](#tests-that-share-state-across-workers)).
 - **A default timeout:** without `mutationTestTimeout`, a mutant's test run stops after a limit
   based on how long your tests take, so a mutant that loops forever can't hang the run.
   SwiftMutator times one run of a mutant's test command with no mutant on, just after the
@@ -601,9 +601,9 @@ Measured on SwiftProjectLint's whole repo, 2,463 mutants, on an 18-core Mac, wit
   as the load rises, so the gain falls off fast; two runs with 4 workers differed by 13%. On that
   machine 4 was a safe choice, and 6 or 8 helped a little; a machine with fewer cores will do best
   with fewer. More workers also make false kills from tests that share state outside the project
-  more likely, such as `UserDefaults`
-  ([#92](https://github.com/Joseph-Cursio/SwiftMutator/issues/92)): with 8 workers they killed 9
-  mutants that most runs didn't.
+  more likely (see [Tests that share state across workers](#tests-that-share-state-across-workers)):
+  with 8 workers, before direct runs kept each worker's `UserDefaults` apart, tests that write them
+  killed 9 mutants that most runs didn't.
 - **Release-mode tests.** With `arguments: [test, -c, release, -Xswiftc, -enable-testing]` the same
   run took 19 min instead of 27, with about the same verdicts. `-enable-testing` keeps
   `@testable import` working. The tests ran 2.8 times as fast, but the builds took longer and setup
@@ -615,6 +615,63 @@ Measured on SwiftProjectLint's whole repo, 2,463 mutants, on an 18-core Mac, wit
   - Release mode can also lose kills without any warning: an `assert` or `assertionFailure` isn't
     evaluated, and code and tests under `#if DEBUG` drop out. `precondition` is still checked. If
     your code relies on them, compare a release run's survivors with a debug run's.
+
+#### Tests that share state across workers
+
+Workers test at the same time, as the same user. Each has its own copy of the project, but nothing
+outside it. So a test that writes a fixed key, file or port can fail another worker's test, which
+kills a mutant that test doesn't check. That's a false kill, and it raises the score.
+
+What workers share:
+
+- A suite you open with a fixed `UserDefaults(suiteName:)`, the keychain, fixed temporary paths and
+  ports.
+- `UserDefaults.standard`, and `@AppStorage` without a `store:`, when mutants' tests run through
+  `swift test`, as they always do on Linux. On macOS, [direct runs](#why-a-fork-of-muter) keep these
+  apart, but one XCTest test in a package means no direct runs. A run with more than one worker
+  prints a line when this applies, whether or not your tests use `UserDefaults`.
+
+This is about SwiftPM workers. Each [xcodebuild worker](#xcodebuild-workers) tests on a simulator of
+its own, with its own `UserDefaults` and keychain.
+
+Here is what that does, on a small package with 12 mutants, whose tests check none of its code, so
+every kill is false. Each test writes a value of its own to a fixed key, and checks it's still there:
+
+| The test's store | Workers | False kills |
+| --- | --- | --- |
+| `UserDefaults.standard`, in direct runs | 2 | 0 |
+| `UserDefaults.standard`, in `swift test` runs | 2 | 12 |
+| `UserDefaults(suiteName:)`, a fixed name | 2 | 12 |
+| `UserDefaults(suiteName:)`, a fixed name | 1 | 0 |
+| `UserDefaults(suiteName:)`, a new UUID in each test | 2 | 0 |
+
+**The fix belongs in your tests.** Inject the store, so a test can pass one of its own, and give
+`@AppStorage` a `store:`. A stand-in that keeps its values in memory leaves nothing behind. A test
+that needs a real `UserDefaults` can open a suite named with a UUID:
+
+```swift
+let name = "MyTests.\(UUID().uuidString)"
+let store = try #require(UserDefaults(suiteName: name))
+defer { store.removePersistentDomain(forName: name) }
+```
+
+A fixed suite name won't do, as every worker opens the same suite. `removePersistentDomain` empties
+the suite, but leaves an empty file in `~/Library/Preferences` for each run of the test: 16 from
+that run of 12 mutants. Removing the file in the test doesn't always work, as 5 of about 16 came
+back, so remove them once the run is over:
+
+```bash
+rm ~/Library/Preferences/MyTests.*.plist
+```
+
+Until the tests are fixed, `mutationTestWorkers: 1` avoids false kills like these, at the cost of
+speed.
+
+**Control runs can find these tests.** A control run runs beside the other workers, with no mutant
+on, so a test that fails in one is marked flaky, and the reports count a kill only such tests were
+recorded failing for as one without them. There's one for each 100 mutants by default, so none in
+a run below 100 (see [Control runs](#control-runs)). With `controlRunEvery: 4` on the fixed suite's
+run above, all 3 control runs failed and named the test, and each kill read `(suspect only)`.
 
 #### xcodebuild workers
 

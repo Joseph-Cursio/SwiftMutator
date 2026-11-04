@@ -29,6 +29,7 @@ extension RunEvent {
         case workersChosen
         case stopAtFirstFailureTurnedOff
         case testBundlesNotRunDirectly
+        case workersShareUserDefaults
         case controlRunFinished
         case timeoutRerunsStarted
         case timeoutRerunFinished
@@ -81,6 +82,7 @@ extension RunEvent {
         case .workersChosen: .workersChosen
         case .stopAtFirstFailureTurnedOff: .stopAtFirstFailureTurnedOff
         case .testBundlesNotRunDirectly: .testBundlesNotRunDirectly
+        case .workersShareUserDefaults: .workersShareUserDefaults
         case .controlRunFinished: .controlRunFinished
         case .timeoutRerunsStarted: .timeoutRerunsStarted
         case .timeoutRerunFinished: .timeoutRerunFinished
@@ -113,7 +115,7 @@ extension RunEvent {
         switch self {
         case .muterLaunched, .updateCheckStarted, .projectCopyStarted, .projectCoverageDiscoveryStarted,
              .sourceFileDiscoveryStarted, .mutationsDiscoveryStarted, .mutationTestingStarted, .mutantRunsStarted,
-             .muterMutationTestPlanLoaded, .testPlanSourcesUnchecked:
+             .workersShareUserDefaults, .muterMutationTestPlanLoaded, .testPlanSourcesUnchecked:
             nil
         case let .updateCheckFinished(newVersion): newVersion
         case let .changesSelected(selection): selection

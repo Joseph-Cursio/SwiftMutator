@@ -8,6 +8,12 @@ import XCTest
 final class PerformMutationTestingDirectRunTests: MuterTestCase {
     private let state = MutationTestState()
     private let sut = PerformMutationTesting(makeWorkerDirectories: { _, _ in [] }, removeWorkerDirectories: { _ in })
+    private let twoWorkers = PerformMutationTesting(
+        makeWorkerDirectories: { _, count in
+            Array(repeating: URL(fileURLWithPath: "/project_mutated_worker1"), count: count)
+        },
+        removeWorkerDirectories: { _ in }
+    )
     private let direct = DirectTestRun(
         helper: "/toolchain/usr/libexec/swift/pm/swiftpm-testing-helper",
         productsFolder: ".build/out/Products/Debug",
@@ -160,6 +166,94 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
         XCTAssertEqual(probed.value, [])
     }
 
+    // Workers that run through `swift test` share `UserDefaults.standard`, which only a direct run's don't (#92).
+    func test_workersOnSwiftTest_areWarnedTheyShareUserDefaults() async throws {
+        try useTwoWorkers()
+        ioDelegate.baselineTestLog = "Executed 4 tests, with 0 failures (0 unexpected) in 0.1 (0.1) seconds\n"
+            + baselineLog
+        let warnings = recordWarnings()
+
+        _ = try await twoWorkers.run(with: state)
+
+        XCTAssertEqual(warnings(), 1)
+    }
+
+    func test_workersThatFailTheDirectRun_areWarned() async throws {
+        try useTwoWorkers()
+        ioDelegate.testRunsWithoutBuilding = [(.runtimeError, "")]
+        let warnings = recordWarnings()
+
+        _ = try await twoWorkers.run(with: state)
+
+        XCTAssertEqual(warnings(), 1)
+    }
+
+    // On Linux, which says nothing of direct runs, workers share them just the same.
+    func test_workersWithAProbeThatGivesNoReason_areWarned() async throws {
+        try useTwoWorkers()
+        current.directTestRun = { _, _ in .failure(.init(reason: nil)) }
+        let warnings = recordWarnings()
+
+        _ = try await twoWorkers.run(with: state)
+
+        XCTAssertEqual(warnings(), 1)
+    }
+
+    func test_workersThatRunDirectly_arentWarned() async throws {
+        try useTwoWorkers()
+        ioDelegate.testRunsWithoutBuilding = [
+            (.passed, "✔ Test run with 12 tests in 3 suites passed after 0.4 seconds."),
+        ]
+        let warnings = recordWarnings()
+
+        _ = try await twoWorkers.run(with: state)
+
+        XCTAssertEqual(ioDelegate.configurations.map(\.directTestRun), [direct, direct])
+        XCTAssertEqual(warnings(), 0)
+    }
+
+    func test_oneWorkerOnSwiftTest_isntWarned() async throws {
+        ioDelegate.baselineTestLog = "Executed 4 tests, with 0 failures (0 unexpected) in 0.1 (0.1) seconds\n"
+            + baselineLog
+        let warnings = recordWarnings()
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.configurations.map(\.directTestRun), [nil])
+        XCTAssertEqual(warnings(), 0)
+    }
+
+    // One asked for two workers but with one mutant to test gets one.
+    func test_moreWorkersThanMutants_isntWarned() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
+        )
+        ioDelegate.baselineTestLog = "Executed 4 tests, with 0 failures (0 unexpected) in 0.1 (0.1) seconds\n"
+            + baselineLog
+        let warnings = recordWarnings()
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(warnings(), 0)
+    }
+
+    /// A run of two mutants on two workers. The baseline, the clone's build, then the mutants.
+    private func useTwoWorkers() throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
+        )
+        state.mutationMapping = try [makeSchemataMapping(), makeSchemataMapping(line: 2)]
+        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
+    }
+
+    /// How many times `workersShareUserDefaults` has been sent from now on.
+    private func recordWarnings() -> () -> Int {
+        let count = Locked(0)
+        let token = runEvents.observe(.workersShareUserDefaults) { _ in count.change { $0 += 1 } }
+        addTeardownBlock { token.cancel() }
+        return { count.value }
+    }
+
     /// The reason of each `testBundlesNotRunDirectly` sent from now on.
     private func recordNotices() -> () -> [String] {
         let reasons = Locked<[String]>([])
@@ -172,7 +266,7 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
         return { reasons.value }
     }
 
-    private func makeSchemataMapping() throws -> SchemataMutationMapping {
+    private func makeSchemataMapping(line: Int = 1) throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
             filePath: "/some/path",
             (
@@ -182,7 +276,7 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
                         filePath: "/tmp/project/file.swift",
                         mutationOperatorId: .ror,
                         syntaxMutation: "",
-                        position: MutationPosition(utf8Offset: 1, line: 1, column: 0),
+                        position: MutationPosition(utf8Offset: line, line: line, column: 0),
                         snapshot: .null
                     ),
                 ]

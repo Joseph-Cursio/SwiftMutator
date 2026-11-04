@@ -364,6 +364,11 @@ private extension PerformMutationTesting {
             if configuration.testSuiteTimeout == nil {
                 testRunSeconds = direct.seconds
             }
+            // Only a direct run's tests have `UserDefaults` of their own. Sent on Linux too, which never runs directly,
+            // and which keeps the shared domain in `~/.config/<package>-test-runner.plist`.
+            if pool.count > 1, configuration.directTestRun == nil {
+                events.send(.workersShareUserDefaults)
+            }
         }
         configuration = Self.onFirstXcodeWorker(configuration, state, pool.xcodeWorkers.first)
         // An xcodebuild run's is on the first worker, as its mutants run, after any check runs, which paid for each

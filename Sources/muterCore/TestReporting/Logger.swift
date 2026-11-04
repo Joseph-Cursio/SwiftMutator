@@ -477,6 +477,14 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         print("ℹ️ Each mutant's tests run through `swift test`, which takes about a second longer per mutant: \(reason)")
     }
 
+    func workersShareUserDefaults() {
+        print(
+            "ℹ️ Workers running through `swift test` share `UserDefaults.standard`: tests that write to it can fail "
+                + "each other and kill mutants they don't check. See \"Tests that share state across workers\" in "
+                + "the README."
+        )
+    }
+
     func resultsFileCreated(atPath path: String) {
         print("💾 SwiftMutator saves each mutant's result as it finishes, in \(path.bold)")
     }
