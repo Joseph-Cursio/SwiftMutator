@@ -1,0 +1,54 @@
+Test Suite 'All tests' started at 2026-11-04 10:23:22.016.
+Test Suite 'All tests' passed at 2026-11-04 10:23:22.017.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'All tests' started at 2026-11-04 10:23:22.087.
+Test Suite 'All tests' passed at 2026-11-04 10:23:22.087.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'All tests' started at 2026-11-04 10:23:22.209.
+Test Suite 'All tests' passed at 2026-11-04 10:23:22.211.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+◇ Test run started.
+↳ Testing Library Version: 2403
+↳ Target Platform: arm64e-apple-macos14.0
+📊 File Path Variations:
+   Path: '/simple.swift' -> 0 issues
+   Path: '/path/to/nested/file.swift' -> 0 issues
+   Path: 'relative/path.swift' -> 0 issues
+   Path: 'C:\Windows\Style\Path.swift' -> 0 issues
+   Path: '/path with spaces/file.swift' -> 0 issues
+   Path: '/path/with/unicode/文件.swift' -> 0 issues
+✘ Test mixedChainOnlyFlagsBadPairs() recorded an issue at ModifierOrderVisitorTests.swift:239:9: Expectation failed: visitor.detectedIssues.count == 1
+🔍 Testing nested navigation detection...
+🔍 Detected issues: 1
+  Issue 1: Nested NavigationView detected, this can cause issues
+📊 Performance Category Filtering:
+   Input: View with potentially expensive nested loops
+   Performance issues found: 0
+📊 Multiple Category Filtering:
+   Input: View with state, performance, and accessibility concerns
+   Categories: [SwiftProjectLintModels.PatternCategory.stateManagement, SwiftProjectLintModels.PatternCategory.performance, SwiftProjectLintModels.PatternCategory.accessibility]
+   Issues found: 0
+📊 State Management Category Filtering:
+   Input: View with state variables and potential unused state
+   State category only: 0 issues
+   All categories: 0 issues
+   State-specific issues:
+⚠️  SLOW TEST: testPerformanceVisitorForEachWithID took 0:00:05 (threshold: 0:00:05)
+⚠️  SLOW TEST: testArchitectureVisitorMissingDependencyInjection took 0:00:06 (threshold: 0:00:05)
+⚠️  SLOW TEST: testArchitectureVisitorValidArchitecture took 0:00:06 (threshold: 0:00:05)
+⚠️  SLOW TEST: testArchitectureVisitorFatView took 0:00:06 (threshold: 0:00:05)
+⚠️  SLOW TEST: testSwiftSyntaxPatternDetectorSingleFile took 0:00:06 (threshold: 0:00:05)
+⚠️  SLOW TEST: testSwiftSyntaxPatternDetectorCrossFile took 0:00:06 (threshold: 0:00:05)
+✘ Test run with 4294 tests in 500 suites failed after 12.028 seconds with 1 issue.
+◇ Test run started.
+↳ Testing Library Version: 2403
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 112 tests in 16 suites passed after 0.042 seconds.
+◇ Test run started.
+↳ Testing Library Version: 2403
+↳ Target Platform: arm64e-apple-macos14.0
+WARNING: PatternRegistry is nil. Returning empty pattern categories.
+WARNING: PatternRegistry is nil. Returning empty pattern categories.
+✔ Test run with 203 tests in 28 suites passed after 0.427 seconds.
+Note: Some test targets reported failures:
+  - CoreTests (Swift Testing)
