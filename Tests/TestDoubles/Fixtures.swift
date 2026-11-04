@@ -52,12 +52,14 @@ extension MutationTestOutcome {
     static func make(
         mutations: [Mutation] = [],
         coverage: Coverage = .null,
-        failUnder: Double? = nil
+        failUnder: Double? = nil,
+        propertyTests: [String] = []
     ) -> MutationTestOutcome {
         MutationTestOutcome(
             mutations: mutations,
             coverage: coverage,
-            failUnder: failUnder
+            failUnder: failUnder,
+            propertyTests: propertyTests
         )
     }
 
@@ -575,7 +577,8 @@ func configurationWithEveryFieldSet(
         controlRunEvery: 50,
         keepAllLogs: true,
         keepLogFolders: 3,
-        failUnder: 80
+        failUnder: 80,
+        propertyTests: ["*Properties*"]
     )
     .withDirectTestRun(DirectTestRun(
         helper: "/toolchain/usr/libexec/swift/pm/swiftpm-testing-helper",

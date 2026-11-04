@@ -136,6 +136,20 @@ func generateKillingTestsCLITable(from summary: KillingTestSummary) -> CLITable 
     ])
 }
 
+/// The Examples and Properties section's table: each property test's name, cut as the Killed By column cuts it, the
+/// file its issues were recorded in, and the kills it made.
+func generatePropertyKillsCLITable(from summary: PropertyKillSummary) -> CLITable {
+    let column = { (title: String, cell: (PropertyKillSummary.Property) -> String) in
+        CLITable.Column(title: title, rows: summary.properties.map { CLITable.Row(value: cell($0)) })
+    }
+    return CLITable(padding: 3, columns: [
+        column("Property") { MuterTestReport.AppliedMutationOperator.shownName($0.name) },
+        column("File") { $0.file ?? "-" },
+        column("Mutants") { "\($0.mutants)" },
+        column("Only Recorded Killer Of") { "\($0.onlyRecordedKillerOf)" },
+    ])
+}
+
 func generateMutationScoresCLITable(
     from fileReports: [MuterTestReport.FileReport],
     coloringFunction: ([CLITable.Row]) -> [CLITable.Row] = applyMutationScoreColor

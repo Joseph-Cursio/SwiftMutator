@@ -29,6 +29,9 @@ extension Run {
         let timeout: Double?
         /// `--fail-under`: the percent below which a finished run's score fails it, in place of `failUnder`.
         let failUnder: Double?
+        /// `--property-tests`: the globs that pick out property tests, in place of `propertyTests`; nil when none was
+        /// given.
+        let propertyTests: [String]?
         let createTestPlan: Bool
         /// The results file, or the log folder of one of its sessions, of the run that `--resume` continues.
         let resumeURL: URL?
@@ -77,6 +80,7 @@ extension Run {
             workers: Int? = nil,
             timeout: Double? = nil,
             failUnder: Double? = nil,
+            propertyTests: [String]? = nil,
             createTestPlan: Bool = false,
             resumeURL: URL? = nil,
             reuseURL: URL? = nil,
@@ -99,6 +103,7 @@ extension Run {
             self.workers = workers
             self.timeout = timeout
             self.failUnder = failUnder
+            self.propertyTests = propertyTests
             self.resumeURL = resumeURL
             self.reuseURL = reuseURL
             self.resumeIgnoring = resumeIgnoring
@@ -136,6 +141,7 @@ extension Run.Options: Equatable {
             lhs.workers == rhs.workers &&
             lhs.timeout == rhs.timeout &&
             lhs.failUnder == rhs.failUnder &&
+            lhs.propertyTests == rhs.propertyTests &&
             lhs.createTestPlan == rhs.createTestPlan &&
             lhs.resumeURL == rhs.resumeURL &&
             lhs.reuseURL == rhs.reuseURL &&

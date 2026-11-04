@@ -117,6 +117,7 @@ extension MutationTestOutcome {
             sampleIsCutShort: sampleIsCutShort,
             mutant: header.mutant,
             suspectTestThresholds: header.configuration.suspectTestThresholds,
+            propertyTests: header.configuration.propertyTests ?? [],
             controlRuns: controlRuns.map(MutationTestOutcome.ControlRun.init),
             projectPath: header.projectPath,
             mutatedProjectPath: header.mutatedProjectPath,

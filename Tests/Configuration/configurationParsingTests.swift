@@ -217,6 +217,24 @@ final class ConfigurationParsingTests: MuterTestCase {
         }
     }
 
+    func test_parsePropertyTests() throws {
+        let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
+        let globs = { (line: String) in try MuterConfiguration(from: Data("\(swiftTest)\n\(line)".utf8)) }
+
+        let set = try globs("propertyTests: ['*Properties*', SortSpec.swift]")
+        XCTAssertEqual(set.propertyTests, ["*Properties*", "SortSpec.swift"])
+        XCTAssertNil(try MuterConfiguration(from: Data(swiftTest.utf8)).propertyTests)
+        // An empty glob matches no test, and a single string isn't a list: each is a configuration error.
+        for line in ["propertyTests: ['']", "propertyTests: '*Properties*'", "propertyTests: 3"] {
+            XCTAssertThrowsError(try globs(line), line)
+        }
+        // Written back as they were, so a header records them, and `--property-tests` replaces them.
+        XCTAssertEqual(try MuterConfiguration(from: set.asData), set)
+        let overridden = set.overriding(workers: nil, timeout: nil, propertyTests: ["*Spec*"])
+        XCTAssertEqual(overridden.propertyTests, ["*Spec*"])
+        XCTAssertEqual(set.overriding(workers: nil, timeout: nil).propertyTests, set.propertyTests)
+    }
+
     func test_parseKeepAllLogs() throws {
         let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
         let keeping = { (line: String) in try MuterConfiguration(from: Data("\(swiftTest)\n\(line)".utf8)) }

@@ -63,7 +63,8 @@ struct Report: AsyncParsableCommand {
             format: reportOptions.reportFormat,
             outputPath: reportOptions.reportURL?.path,
             summaryPath: summary?.path,
-            failUnder: reportOptions.failUnder
+            failUnder: reportOptions.failUnder,
+            propertyTests: reportOptions.propertyTestGlobs
         )
         if let status = try report.make(from: results.map(\.path), forcing: forceMerge, ignoring: mergeIgnoring) {
             throw status
