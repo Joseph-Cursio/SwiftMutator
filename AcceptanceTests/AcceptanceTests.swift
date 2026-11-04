@@ -151,20 +151,24 @@ final class AcceptanceTests: XCTestCase {
         let lines = output.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         let columns = { (line: String) in line.split(separator: " ").joined(separator: " ") }
 
-        // The mutant's row names it by its path in the project, its line and its column. How long it ran depends on
-        // the machine, so the row is checked up to its result.
+        // Each mutant's row names it by its path in the project, its line and its column. How long it ran depends on
+        // the machine, so each row is checked up to its result. The `>=` gets two mutants, which both time out, as the
+        // test sleeps for longer than the limit whatever `foo` does.
         let header = try XCTUnwrap(lines.firstIndex { $0.hasPrefix("File ") && $0.contains("Mutation Test Result") })
         XCTAssertEqual(
             columns(lines[header]),
             "File Applied Mutation Operator Mutation Test Result Duration"
         )
-        let row = try XCTUnwrap(lines.dropFirst(header + 2).first, output)
-        XCTAssertTrue(
-            columns(row).hasPrefix(
-                "Sources/ProjectWithTimeout/ProjectWithTimeout.swift:2:14 RelationalOperatorReplacement time out "
-            ),
-            row
-        )
+        let rows = lines.dropFirst(header + 2).prefix { !$0.isEmpty }
+        XCTAssertEqual(rows.count, 2, output)
+        for (row, mutationOperator) in zip(rows, ["RelationalBoundary", "RelationalOperatorReplacement"]) {
+            XCTAssertTrue(
+                columns(row).hasPrefix(
+                    "Sources/ProjectWithTimeout/ProjectWithTimeout.swift:2:14 \(mutationOperator) time out "
+                ),
+                row
+            )
+        }
     }
 
     func test_all_operatos() throws {

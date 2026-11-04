@@ -50,6 +50,10 @@ OPTIONS:
   --fail-under <percent>  Exit with status 2 when the headline mutation score
                           is below this percent, from 0 to 100, once the report
                           is written. For a run, in place of failUnder.
+  --property-tests <glob> Split the report's kills between example tests and
+                          the property tests this glob matches by name or by
+                          the file their issue was recorded in; * matches any
+                          characters. Repeatable. In place of propertyTests.
   --resume <results>      Continue a stopped run from its results file, or the
                           log folder of any of its sessions. Only mutants
                           without a result that still holds are tested.
