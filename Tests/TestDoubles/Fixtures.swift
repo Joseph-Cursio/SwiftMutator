@@ -245,7 +245,7 @@ private extension MutationTestOutcome {
         )
     }
 
-    /// A mutant on `line` of `file`, with `killingTests` recorded.
+    /// A mutant on `line` of `file`, in the copy of a project at /tmp/project, with `killingTests` recorded.
     static func mutant(
         _ outcome: TestSuiteOutcome,
         _ file: Int,
@@ -255,9 +255,11 @@ private extension MutationTestOutcome {
         Mutation.make(
             testSuiteOutcome: outcome,
             point: .make(
-                filePath: String(format: "/tmp/project/Sources/File%02d.swift", file),
+                filePath: String(format: "/tmp/project_mutated/Sources/File%02d.swift", file),
                 position: .init(integerLiteral: line)
             ),
+            originalProjectDirectoryUrl: URL(fileURLWithPath: "/tmp/project"),
+            mutatedProjectDirectoryURL: URL(fileURLWithPath: "/tmp/project_mutated"),
             killingTests: killingTests
         )
     }

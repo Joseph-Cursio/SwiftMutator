@@ -124,6 +124,37 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(try resultsFiles.records(MutantResult.self).map(\.fileSHA256), ["5a1c", "77e0"])
     }
 
+    // The reports check a mutant's original file against its hash before showing its line: the project's, which a
+    // test plan's run records only as the plan does, as its own tree is the rewritten copy's.
+    func test_theHashesTheReportsCheck_areTheProjects_evenForATestPlansRun() {
+        let tree = makeProjectTree(["Sources/Sum.swift": "5a1c", "Sources/Product.swift": "77e0"])
+        state.apply([.projectTreeFingerprinted(tree)])
+        XCTAssertEqual(PerformMutationTesting.sourceDigests(of: state), tree.files)
+
+        let plan = { (sources: ProjectTree?, linkedFiles: [String: String]?) in
+            LoadedTestPlan(
+                path: "/project/muter-mappings.json",
+                sha256: "9e1f",
+                formatVersion: TestPlanCoding.formatVersion,
+                swiftMutatorVersion: muterCore.version,
+                scope: nil,
+                sources: sources,
+                mutatedFiles: nil,
+                linkedFiles: linkedFiles,
+                mutatedPaths: []
+            )
+        }
+        let project = makeProjectTree(["Sources/Sum.swift": "0b1d", "Sources/Link.swift": "link:9a9a"])
+        state.apply([.testPlanLoaded(plan(project, ["Sources/Link.swift": "4e4e"]))])
+        XCTAssertEqual(
+            PerformMutationTesting.sourceDigests(of: state),
+            ["Sources/Sum.swift": "0b1d", "Sources/Link.swift": "4e4e"]
+        )
+
+        state.apply([.testPlanLoaded(plan(nil, nil))])
+        XCTAssertNil(PerformMutationTesting.sourceDigests(of: state), "a plan in format 0 records nothing")
+    }
+
     // No more workers run than there are mutants, and the header says how many ran.
     func test_theHeadersWorkers_areTheEffectiveCount_whenMoreAreConfiguredThanThereAreMutants() async throws {
         state.muterConfiguration = MuterConfiguration(

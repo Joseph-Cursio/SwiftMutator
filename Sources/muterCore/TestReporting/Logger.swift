@@ -638,13 +638,14 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         return largestShare * cycle
     }
 
-    /// Where the report went, or the report itself, then the report's `suspectWarning`
-    /// (`KillingTestSummary.warning(for:)`), if it has one: the run's last word on its score.
+    /// Where the report went, with the score (`MuterTestReport.scoreLine(of:)`), or the report itself, then the
+    /// report's `suspectWarning` (`KillingTestSummary.warning(for:)`), if it has one: the run's last word on its score.
     func mutationTestingFinished(
         report: String,
         reportPath: String,
         isExportingReport: Bool,
         didSaveReport: Bool,
+        scoreLine: String,
         suspectWarning: String?
     ) {
         print("🏁 SwiftMutator finished running!")
@@ -658,6 +659,7 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
                 """
             )
         } else if didSaveReport {
+            print("📊 \(scoreLine)")
             print("📝 Report generated: \(reportPath.bold)")
         } else {
             print(report)

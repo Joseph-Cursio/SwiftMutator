@@ -20,6 +20,7 @@ struct XcodeReporter: Reporter {
         Mutation score: \(report.globalMutationScore)
         Mutants introduced into your code: \(report.totalAppliedMutationOperators)
         Number of killed mutants: \(report.numberOfKilledMutants)
+        Mutants by outcome: \(OutcomeCounts(outcome.mutations.map(\.testSuiteOutcome)).tally)
         """
         guard let suspects = report.suspectSummary, let warning = report.suspectWarning else { return summary }
         let scoreWithoutSuspects = suspects.scoreWithoutSuspects(mutationScore: report.globalMutationScore)

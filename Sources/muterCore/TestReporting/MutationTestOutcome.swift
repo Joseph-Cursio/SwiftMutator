@@ -24,6 +24,13 @@ struct MutationTestOutcome {
     let suspectTestThresholds: SuspectTestThresholds
     /// The control runs, with no mutant on, of every session the outcome covers, in the order they're recorded.
     let controlRuns: [ControlRun]
+    /// The project, and its mutated copy, by their absolute paths: what the reports give each file's path relative to.
+    /// "" when not known.
+    let projectPath: String
+    let mutatedProjectPath: String
+    /// Each project file's SHA-256 as it was tested, by its path relative to the project (`ProjectTree.files`): the
+    /// reports show a mutant's line from its original file only while that file is as it was. nil when not recorded.
+    let sourceDigests: [String: String]?
 
     init(
         mutations: [Mutation] = [],
@@ -37,7 +44,10 @@ struct MutationTestOutcome {
         sampleIsCutShort: Bool = false,
         mutant: String? = nil,
         suspectTestThresholds: SuspectTestThresholds = .standard,
-        controlRuns: [ControlRun] = []
+        controlRuns: [ControlRun] = [],
+        projectPath: String = "",
+        mutatedProjectPath: String = "",
+        sourceDigests: [String: String]? = nil
     ) {
         self.mutations = mutations
         self.coverage = coverage
@@ -51,10 +61,36 @@ struct MutationTestOutcome {
         self.mutant = mutant
         self.suspectTestThresholds = suspectTestThresholds
         self.controlRuns = controlRuns
+        self.projectPath = projectPath
+        self.mutatedProjectPath = mutatedProjectPath
+        self.sourceDigests = sourceDigests
     }
 }
 
 extension MutationTestOutcome: Equatable {}
+
+extension MutationTestOutcome {
+    /// This outcome, with `sourceDigests` in place of its own.
+    func with(sourceDigests: [String: String]?) -> MutationTestOutcome {
+        MutationTestOutcome(
+            mutations: mutations,
+            coverage: coverage,
+            coverageSkipped: coverageSkipped,
+            testDuration: testDuration,
+            newVersion: newVersion,
+            since: since,
+            shards: shards,
+            sample: sample,
+            sampleIsCutShort: sampleIsCutShort,
+            mutant: mutant,
+            suspectTestThresholds: suspectTestThresholds,
+            controlRuns: controlRuns,
+            projectPath: projectPath,
+            mutatedProjectPath: mutatedProjectPath,
+            sourceDigests: sourceDigests
+        )
+    }
+}
 
 extension MutationTestOutcome {
     struct Mutation: Equatable {
@@ -62,6 +98,9 @@ extension MutationTestOutcome {
         let point: MutationPoint
         let snapshot: MutationOperator.Snapshot
         let originalProjectPath: String
+        /// Its file's path relative to the project, as the reports show it: "Sources/Foo/Rules.swift". A file outside
+        /// the mutated copy keeps its absolute path.
+        let relativePath: String
         /// The tests its run's log showed failing, as its results line records them. nil when none were recorded: a
         /// survivor, a build error, or a mutant tested before SwiftMutator recorded them when the baseline printed a
         /// line shaped like a failed test.
@@ -90,10 +129,8 @@ extension MutationTestOutcome {
             self.killingTests = killingTests
             self.reusedFrom = reusedFrom
 
-            originalProjectPath = RepoRelativePath.resolve(
-                RepoRelativePath.of(mutationPoint.filePath, under: mutatedProjectDirectoryURL),
-                under: originalProjectDirectoryUrl.path
-            )
+            relativePath = RepoRelativePath.of(mutationPoint.filePath, under: mutatedProjectDirectoryURL)
+            originalProjectPath = RepoRelativePath.resolve(relativePath, under: originalProjectDirectoryUrl.path)
         }
     }
 

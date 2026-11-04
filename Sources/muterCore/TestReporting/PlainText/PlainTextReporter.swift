@@ -3,6 +3,15 @@ import Foundation
 struct PlainTextReporter: Reporter {
     func report(from outcome: MutationTestOutcome) -> String {
         let report = MuterTestReport(from: outcome)
+        let survivorsMessage = """
+        -----------------
+        Surviving Mutants
+        -----------------
+
+        \(survivorLines(from: report).joined(separator: "\n"))
+
+
+        """
         let appliedMutationsMessage = """
         --------------------------
         Applied Mutation Operators
@@ -39,6 +48,7 @@ struct PlainTextReporter: Reporter {
         ) mutants introduced into your code, your test suite killed \(
             report.numberOfKilledMutants
         ).
+        By outcome: \(report.mutantsByOutcome?.tally ?? "")
         \(mutationScoreMessage)\(suspectScoreLines(from: report))
         \(projectCoverageMessage)\(report.since.map { "\n" + $0.sentence } ?? "")\(
             report.shards.map { "\n" + $0.sentence(sampled: report.sample != nil) } ?? ""
@@ -49,7 +59,32 @@ struct PlainTextReporter: Reporter {
         \(generateMutationScoresCLITable(from: report.fileReports).description)
         """
 
-        return appliedMutationsMessage + killingTestsMessage(from: report) + mutationScoresMessage
+        return survivorsMessage + appliedMutationsMessage + killingTestsMessage(from: report) + mutationScoresMessage
+    }
+
+    /// The survivors, which are the mutants to act on, each at its place, then the line it changes, before and
+    /// after, when its original file gives it. The place starts the line, so an editor or terminal can open it.
+    private func survivorLines(from report: MuterTestReport) -> [String] {
+        let survivors = report.survivors
+        guard !survivors.isEmpty else { return ["No mutant survived or timed out."] }
+        let lines = survivors.flatMap { survivor -> [String] in
+            let mutant = survivor.appliedOperator
+            let description = mutant.mutationSnapshot.description
+            let change = description.isEmpty ? "" : " (\(description))"
+            let verdict = MutantVerdict(mutant.testSuiteOutcome).words(1)
+            let place = MuterTestReport.place(mutant, in: survivor.relativePath)
+            return ["\(place) \(verdict): \(mutant.mutationPoint.mutationOperatorId.rawValue)\(change)"]
+                + (mutant.sourceChange?.lines ?? []).map { "    " + $0 }
+        }
+        return [Self.survivorsIntroduction(survivors.count), ""] + lines
+    }
+
+    /// "These 3 mutants survived: your tests passed with each of them on, or ran out of time, which the score counts
+    /// as surviving too. By path, line and column:"
+    static func survivorsIntroduction(_ count: Int) -> String {
+        let (these, them) = count == 1 ? ("This mutant", "it") : ("These \(count) mutants", "each of them")
+        return "\(these) survived: your tests passed with \(them) on, or ran out of time, which the score counts as "
+            + "surviving too. By path, line and column:"
     }
 
     /// The Killing Tests section, followed by the blank lines that end a section. None when no killed mutant has its

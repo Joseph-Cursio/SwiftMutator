@@ -1,3 +1,11 @@
+-----------------
+Surviving Mutants
+-----------------
+
+This mutant survived: your tests passed with it on, or ran out of time, which the score counts as surviving too. By path, line and column:
+
+/tmp/project/file3.swift:0:0 survived: RelationalOperatorReplacement (from != to ==)
+
 --------------------------
 Applied Mutation Operators
 --------------------------
@@ -6,9 +14,9 @@ These are all of the ways that SwiftMutator introduced changes into your code.
 
 In total, SwiftMutator introduced 1 mutants in 1 files.
 
-File            Applied Mutation Operator       Mutation Test Result
-----            -------------------------       --------------------
-file3.swift:0   RelationalOperatorReplacement   mutant survived
+File                           Applied Mutation Operator       Mutation Test Result
+----                           -------------------------       --------------------
+/tmp/project/file3.swift:0:0   RelationalOperatorReplacement   mutant survived
 
 
 --------------------
@@ -22,9 +30,10 @@ These are the mutation scores for your test suite, as well as the files that had
 Mutation scores ignore build errors.
 
 Of the 1 mutants introduced into your code, your test suite killed 0.
+By outcome: 1 survived
 Mutation Score of Test Suite: 0%
 SwiftMutator could not gather coverage data from your project
 
-File          # of Introduced Mutants   Mutation Score
-----          -----------------------   --------------
-file3.swift   1                         0
+File                       # of Introduced Mutants   Mutation Score
+----                       -----------------------   --------------
+/tmp/project/file3.swift   1                         0

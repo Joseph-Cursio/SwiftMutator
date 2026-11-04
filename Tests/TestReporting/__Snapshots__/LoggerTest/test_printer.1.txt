@@ -48,4 +48,5 @@ Percentage complete:  100% [------------------------------] ETC: 0 min
 💾 Configuration file created at: /path/to/config-file
 ⬆️ SwiftMutator mutation test plan loaded
 🏁 SwiftMutator finished running!
+📊 Mutation score: 83% (98 killed, 15 survived, 4 timed out)
 📝 Report generated: /path/to/report

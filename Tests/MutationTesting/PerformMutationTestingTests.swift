@@ -73,7 +73,11 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(
             result, [
                 .mutationTestOutcomeGenerated(
-                    MutationTestOutcome(mutations: expectedTestOutcomes)
+                    MutationTestOutcome(
+                        mutations: expectedTestOutcomes,
+                        projectPath: "/project",
+                        mutatedProjectPath: "/project_mutated"
+                    )
                 ),
             ]
         )
@@ -414,7 +418,11 @@ final class PerformMutationTestingTests: MuterTestCase {
 
         XCTAssertEqual(result, [
             .mutationTestOutcomeGenerated(
-                MutationTestOutcome(mutations: expectedTestOutcomes)
+                MutationTestOutcome(
+                    mutations: expectedTestOutcomes,
+                    projectPath: "/project",
+                    mutatedProjectPath: "/project_mutated"
+                )
             ),
         ])
     }

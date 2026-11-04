@@ -6,12 +6,9 @@ enum MutantDiff {
     /// is on that code's last line.
     static let linesAbove = 5
 
-    /// "-12:     return a ? b : c" and "+12:     return a ? c : b": the line of `original`, the original file's text,
-    /// that holds the mutant's `snapshot.before`, and that line as the mutant changes it. A removed statement's line
-    /// has no `+` line if nothing but spaces is left of it. The change is the one that starts at the mutant's column,
-    /// as an operator's does, or else the only one on the nearest line, from the mutant's own up to `linesAbove` above
-    /// it. nil when there is no such change: a line that holds `before` more than once, or code that spans lines,
-    /// which `before` gives on one line, or a file that isn't the one the mutant was found in.
+    /// "-12:     return a ? b : c" and "+12:     return a ? c : b": `change`'s line before and after, which a run of
+    /// one mutant prints. A removed statement's line has no `+` line if nothing but spaces is left of it. nil when
+    /// `change` finds none.
     static func lines(
         original: String,
         snapshot: MutationOperator.Snapshot,
@@ -19,6 +16,29 @@ enum MutantDiff {
         line: Int,
         column: Int
     ) -> [String]? {
+        change(
+            original: original,
+            snapshot: snapshot,
+            mutationOperatorId: mutationOperatorId,
+            line: line,
+            column: column
+        )?.lines
+    }
+
+    /// The line of `original`, the original file's text, that holds the mutant's `snapshot.before`, and that line as
+    /// the mutant changes it. The change is the one that starts at the mutant's column, as an operator's does, or else
+    /// the only one on the nearest line, from the mutant's own up to `linesAbove` above it, unless `atItsPlaceOnly`:
+    /// that line could be another, in a file that may have changed since. nil when there is no such change: a line
+    /// that holds `before` more than once, or code that spans lines, which `before` gives on one line, or a file that
+    /// isn't the one the mutant was found in.
+    static func change(
+        original: String,
+        snapshot: MutationOperator.Snapshot,
+        mutationOperatorId: MutationOperator.Id,
+        line: Int,
+        column: Int,
+        atItsPlaceOnly: Bool = false
+    ) -> SourceChange? {
         let needle = Array(snapshot.before.utf8)
         let fileLines = Array(original.utf8)
             .split(separator: UInt8(ascii: "\n"), omittingEmptySubsequences: false)
@@ -28,7 +48,7 @@ enum MutantDiff {
         var found: (line: Int, offset: Int)?
         if occurrences(of: needle, in: fileLines[line - 1]).contains(column - 1) {
             found = (line, column - 1)
-        } else {
+        } else if !atItsPlaceOnly {
             for number in stride(from: line, through: max(line - linesAbove, 1), by: -1) {
                 let offsets = occurrences(of: needle, in: fileLines[number - 1])
                 guard !offsets.isEmpty else { continue }
@@ -42,10 +62,12 @@ enum MutantDiff {
         let text = fileLines[found.line - 1]
         let changed = Array(text[..<found.offset]) + Array(replacement(snapshot, mutationOperatorId).utf8)
             + Array(text[(found.offset + needle.count)...])
-        let before = "-\(found.line): " + String(decoding: text, as: UTF8.self)
         let after = String(decoding: changed, as: UTF8.self)
-        guard !after.trimmingCharacters(in: .whitespaces).isEmpty else { return [before] }
-        return [before, "+\(found.line): " + after]
+        return SourceChange(
+            line: found.line,
+            before: String(decoding: text, as: UTF8.self),
+            after: after.trimmingCharacters(in: .whitespaces).isEmpty ? nil : after
+        )
     }
 
     /// "- a ? b : c" and "+ a ? c : b": the change as the mutant's snapshot gives it, on one line each, for when
@@ -71,5 +93,20 @@ enum MutantDiff {
         return (0...(line.count - needle.count)).filter { start in
             line[start..<(start + needle.count)].elementsEqual(needle)
         }
+    }
+}
+
+/// The line a mutant changes, as its original file holds it and as the mutant makes it (`MutantDiff.change`). The
+/// JSON report holds it as `{line, before, after?}`.
+struct SourceChange: Codable, Equatable {
+    /// From 1.
+    let line: Int
+    let before: String
+    /// nil for a removed statement that leaves nothing but spaces on its line.
+    let after: String?
+
+    /// "-12:     return a ? b : c" and "+12:     return a ? c : b"; a line removed whole has no `+` line.
+    var lines: [String] {
+        ["-\(line): \(before)"] + (after.map { ["+\(line): \($0)"] } ?? [])
     }
 }

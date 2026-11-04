@@ -50,6 +50,7 @@ final class XcodeReporterTests: ReporterTestCase {
             Mutation score: 33
             Mutants introduced into your code: 3
             Number of killed mutants: 1
+            Mutants by outcome: 1 killed, 2 survived
             """
         )
     }
@@ -75,6 +76,7 @@ final class XcodeReporterTests: ReporterTestCase {
             Mutation score: 84
             Mutants introduced into your code: 13
             Number of killed mutants: 11
+            Mutants by outcome: 11 killed, 2 survived
             Mutation score without suspect tests: 53
             warning: SwiftMutator: 1 test may fail whatever the mutant: it failed for mutants in at least 15% of the \
             10 files with a killed mutant (timing() in 10). Without its failures, the mutation score would be 53%, \
@@ -98,6 +100,7 @@ final class XcodeReporterTests: ReporterTestCase {
             Mutation score: 92
             Mutants introduced into your code: 14
             Number of killed mutants: 13
+            Mutants by outcome: 13 killed, 1 survived
             Mutation score without suspect tests: at least 50
             warning: SwiftMutator: 2 tests may fail whatever the mutant: they failed for mutants in at least 15% of \
             the 12 files with a killed mutant (timing() in 12, order() in 10). Without their failures, the mutation \

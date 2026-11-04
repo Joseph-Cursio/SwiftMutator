@@ -88,6 +88,8 @@ struct ResultsReport {
         // As a run ends with it, without the run's emoji: it is said of the report, as the status lines are.
         KillingTestSummary.warning(for: outcome).map(errorPrinter)
         if let outputPath {
+            // The report itself isn't printed, so its score is.
+            errorPrinter(MuterTestReport.scoreLine(of: outcome))
             errorPrinter("Report saved to \(outputPath)")
         }
     }

@@ -53,6 +53,8 @@ class MuterTestCase: XCTestCase {
             process: { [process] in process },
             prepareCode: { [prepareCode] in prepareCode.prepare($0) },
             writeFile: { [writeFile] in try writeFile.writeFile($0, $1) },
+            // No report reads a real file: a test that shows a mutant's line gives it.
+            readSourceFile: { _ in nil },
             server: server,
             now: { [fixedNow] in fixedNow },
             instant: { DispatchTime(uptimeNanoseconds: 1) },

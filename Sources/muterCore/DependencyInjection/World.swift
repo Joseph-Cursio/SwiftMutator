@@ -49,6 +49,8 @@ typealias Flush = @Sendable () -> Void
 typealias Printer = @Sendable (String) -> Void
 typealias WriteFile = @Sendable (String, String) throws -> Void
 typealias LoadSourceCode = @Sendable (String) -> SourceCodeInfo?
+/// A file's bytes, by its absolute path, or nil if it can't be read.
+typealias ReadFile = @Sendable (String) -> Data?
 typealias ProjectCoverage = @Sendable (BuildSystem) -> BuildSystemCoverage?
 typealias Now = @Sendable () -> Date
 typealias Instant = @Sendable () -> DispatchTime
@@ -92,6 +94,8 @@ struct World: Sendable {
     var prepareCode: SourceCodePreparation = { PrepareSourceCode().prepareSourceCode($0) }
     var writeFile: WriteFile = { try $0.write(toFile: $1, atomically: true, encoding: .utf8) }
     var loadSourceCode: LoadSourceCode = { sourceCode(fromFileAt: $0) }
+    /// The original files the reports show each mutant's line from.
+    var readSourceFile: ReadFile = { FileManager.default.contents(atPath: $0) }
     var projectCoverage: ProjectCoverage = { BuildSystem.coverage(for: $0) }
     var server: Server = URLSession.shared
     var now: Now = { Date() }

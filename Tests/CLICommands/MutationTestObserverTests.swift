@@ -380,7 +380,11 @@ final class MutationTestObserverTests: MuterTestCase {
         )
         XCTAssertEqual(fileManager.paths.suffix(2), ["/out/report.txt", "/out/report.txt"])
         XCTAssertEqual(fileManager.contents, Data(PlainTextReporter().report(from: outcome).raw.utf8))
-        XCTAssertEqual(printer.linesPassed.last, "📝 Report generated: \("/out/report.txt".bold)")
+        // The report isn't printed, so its score is.
+        XCTAssertEqual(printer.linesPassed.suffix(2), [
+            "📊 Mutation score: 50% (1 killed, 1 survived)",
+            "📝 Report generated: \("/out/report.txt".bold)",
+        ])
     }
 
     // Rainbow colours the plain report when standard output is a terminal, wherever the report goes: the file gets it

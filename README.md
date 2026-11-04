@@ -308,6 +308,49 @@ it's a tty, and `TERM` is set and isn't `dumb`. `NO_COLOR` turns off the colour,
 The Swift files a run finds, then how many mutants are in each file that has any, are listed only
 with `--verbose`.
 
+## Reports
+
+The plain and HTML reports start with the mutants to act on: those that survived, and those that
+timed out, which the score counts as survivors too. They are listed by path, line and column, each
+with the line it changes, before and after:
+
+```
+Sources/Lint/Rules.swift:42:17 survived: RelationalOperatorReplacement (changed == to !=)
+    -42:         if count == limit {
+    +42:         if count != limit {
+```
+
+- **Paths in the project.** The tables of mutants and of files name each file by its path relative
+  to the project, and a mutant by `path:line:column`, so two files called `Rules.swift` are told
+  apart. A file outside the project keeps its absolute path. The Killing Tests table names a test's
+  file as its log recorded it. The Xcode format keeps the absolute paths Xcode needs, and the JSON
+  report's paths are as they were.
+- **The changed line** comes from the original file, never the mutated copy, whose code holds
+  every switch. It is shown only while the file is as it was tested: its SHA-256 must match the
+  one the run recorded, so an edit made since, which could move the line, shows the change as the
+  mutant's snapshot gives it instead. So does a change that spans lines, as a multi-line ternary
+  does. Where no hash can be checked, the line is shown only if the change starts exactly at the
+  mutant's line and column. That is the case for `swift-mutator report` of a test plan's run,
+  whose session records the plan's rewritten copy, and for a file that is a symbolic link, which
+  the run records by where it points. A merged report shows no line from a file that
+  `--merge-ignoring` let differ between the shards. The HTML report shows the line in its Changes
+  column for every mutant. The JSON report holds it as `sourceChange`: `line`, `before` and
+  `after`, which a removed statement that leaves nothing on its line doesn't have.
+- **Counts by outcome.** Every report counts the mutants by outcome as the progress lines do, with
+  a crash counted as a kill: `By outcome: 98 killed, 15 survived, 4 timed out, 3 build errors` in
+  the plain and HTML reports, `Mutants by outcome:` in the Xcode format, and `mutantsByOutcome` in
+  the JSON report, with every count, zeros included.
+- **The score when a run ends.** A run that saves its report with `-o` doesn't print it, so it
+  prints the score and the counts before saying where the report went:
+
+  ```
+  📊 Mutation score: 83% (98 killed, 15 survived, 4 timed out, 3 build errors)
+  📝 Report generated: report.html
+  ```
+
+  `swift-mutator report -o` says the same on standard error, without the emoji, before
+  `Report saved to`.
+
 ## Configuration
 
 SwiftMutator reads Muter's `muter.conf.yml`, so existing Muter configurations work unchanged,
@@ -795,6 +838,7 @@ only suspect tests were recorded failing for as a survivor:
 
 ```
 Of the 1103 mutants introduced into your code, your test suite killed 1024.
+By outcome: 1024 killed, 75 survived, 4 timed out
 Mutation Score of Test Suite: 92%
 Mutation Score without suspect tests: 72%
 Suspect tests: 2 (testAnalyzeProjectPerformance(), everyFormatRendersTheSameBytesForAnyArrivalOrder()); see Killing Tests above
