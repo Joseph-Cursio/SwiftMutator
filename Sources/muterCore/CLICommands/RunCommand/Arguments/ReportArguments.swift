@@ -39,4 +39,26 @@ struct ReportArguments: ParsableArguments {
         }
     )
     var failUnder: Double?
+
+    @Option(
+        name: .customLong("property-tests"),
+        help: ArgumentHelp(
+            "Split the report's kills between example tests and the property tests this glob matches by name or by "
+                + "the file their issue was recorded in; * matches any characters. Repeatable. In place of "
+                + "propertyTests.",
+            valueName: "glob"
+        )
+    )
+    var propertyTests: [String] = []
+
+    /// `--property-tests`' globs, or nil when none was given, which leaves the configuration's.
+    var propertyTestGlobs: [String]? {
+        propertyTests.isEmpty ? nil : propertyTests
+    }
+
+    func validate() throws {
+        if let problem = PropertyTestPattern.problem(with: propertyTests) {
+            throw ValidationError("--property-tests: \(problem).")
+        }
+    }
 }

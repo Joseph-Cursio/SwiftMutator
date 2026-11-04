@@ -65,6 +65,11 @@ struct MuterConfiguration: Equatable, Codable {
     /// (`failUnder:`, `ScoreGate`); nil, the default, checks none. It changes no result, so a resume lets it change.
     /// A `var` only so `overriding` can copy `self` and change just this field.
     private(set) var failUnder: Double?
+    /// The globs that pick out property tests (`propertyTests:`, `PropertyTestPattern`), which the reports split each
+    /// kill by (`PropertyKillSummary`); nil, the default, splits none. They change only what the reports say, never a
+    /// mutant's result, so a resume lets them change. A `var` only so `overriding` can copy `self` and change just this
+    /// field.
+    private(set) var propertyTests: [String]?
     /// Whether a line `FailedTestLine` matches shows a failed test. Not a configuration key: false once a
     /// passing baseline has printed such a line, or one `CrashLine` matches, as its tests print text shaped like a
     /// failure. Such a line then neither stops a mutant's run nor counts a timed-out run killed. A `var` only so
@@ -113,6 +118,7 @@ struct MuterConfiguration: Equatable, Codable {
         case keepAllLogs
         case keepLogFolders
         case failUnder
+        case propertyTests
     }
 
     init(
@@ -132,7 +138,8 @@ struct MuterConfiguration: Equatable, Codable {
         controlRunEvery: Int? = nil,
         keepAllLogs: Bool? = nil,
         keepLogFolders: Int? = nil,
-        failUnder: Double? = nil
+        failUnder: Double? = nil,
+        propertyTests: [String]? = nil
     ) {
         testCommandExecutable = executable
         testCommandArguments = arguments
@@ -151,6 +158,7 @@ struct MuterConfiguration: Equatable, Codable {
         self.keepAllLogs = keepAllLogs
         self.keepLogFolders = keepLogFolders
         self.failUnder = failUnder
+        self.propertyTests = propertyTests
     }
 
     init(from decoder: Decoder) throws {
@@ -176,6 +184,24 @@ struct MuterConfiguration: Equatable, Codable {
         keepAllLogs = try container.decodeIfPresent(Bool.self, forKey: .keepAllLogs)
         keepLogFolders = try Self.whole(forKey: .keepLogFolders, in: 2 ... Int.max, in: container)
         failUnder = try Self.percent(forKey: .failUnder, in: container)
+        propertyTests = try Self.globs(forKey: .propertyTests, in: container)
+    }
+
+    /// A list of globs, or nil if `key` isn't set. Throws on an empty glob, which would match nothing, and on a value
+    /// that isn't a list of strings, so a typo is a configuration error rather than "unset".
+    private static func globs(
+        forKey key: CodingKeys,
+        in container: KeyedDecodingContainer<CodingKeys>
+    ) throws -> [String]? {
+        guard let globs = try container.decodeIfPresent([String].self, forKey: key) else { return nil }
+        if let error = PropertyTestPattern.problem(with: globs) {
+            throw DecodingError.dataCorruptedError(
+                forKey: key,
+                in: container,
+                debugDescription: "\(key.stringValue): \(error)"
+            )
+        }
+        return globs
     }
 
     /// A percent from 0 to 100, or nil if `key` isn't set, written as `--fail-under` takes it (`ScoreGate.percent`):
@@ -232,6 +258,7 @@ struct MuterConfiguration: Equatable, Codable {
         try container.encodeIfPresent(keepAllLogs, forKey: .keepAllLogs)
         try container.encodeIfPresent(keepLogFolders, forKey: .keepLogFolders)
         try container.encodeIfPresent(failUnder.map(WrittenPercent.init), forKey: .failUnder)
+        try container.encodeIfPresent(propertyTests, forKey: .propertyTests)
     }
 
     /// A percent, written in JSON as a number and in YAML as a plain scalar, both in decimal digits
@@ -439,14 +466,20 @@ struct MuterConfiguration: Equatable, Codable {
         return copy
     }
 
-    /// This configuration with `--workers`', `--timeout`'s and `--fail-under`'s values, when given, in place of
-    /// `mutationTestWorkers`, `mutationTestTimeout` and `failUnder`: a run records and compares them as it does the
-    /// keys.
-    func overriding(workers: Int?, timeout: Double?, failUnder: Double? = nil) -> MuterConfiguration {
+    /// This configuration with `--workers`', `--timeout`'s, `--fail-under`'s and `--property-tests`' values, when
+    /// given, in place of `mutationTestWorkers`, `mutationTestTimeout`, `failUnder` and `propertyTests`: a run records
+    /// and compares them as it does the keys.
+    func overriding(
+        workers: Int?,
+        timeout: Double?,
+        failUnder: Double? = nil,
+        propertyTests: [String]? = nil
+    ) -> MuterConfiguration {
         var copy = self
         if let workers { copy.mutationTestWorkers = workers }
         if let timeout { copy.testSuiteTimeout = timeout }
         if let failUnder { copy.failUnder = failUnder }
+        if let propertyTests { copy.propertyTests = propertyTests }
         return copy
     }
 

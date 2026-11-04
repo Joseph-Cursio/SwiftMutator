@@ -16,6 +16,9 @@ struct MuterTestReport {
     /// The tests that failed for the most killed mutants, and which are suspect. nil when no mutant a failed test
     /// killed has its tests recorded, and then left out of the JSON.
     let killingTestSummary: KillingTestSummary?
+    /// The kills split between example tests and the property tests `propertyTests` picks out. nil without
+    /// `propertyTests`, and then left out of the JSON.
+    let propertyKillSummary: PropertyKillSummary?
     /// What `--since` chose, when it did; left out of the JSON otherwise.
     let since: SinceScope?
     /// The shards of a `--shard` split the report covers, when it covers only some; left out of the JSON otherwise.
@@ -37,6 +40,7 @@ struct MuterTestReport {
             of: outcome.mutations, controlRuns: outcome.controlRuns, thresholds: outcome.suspectTestThresholds
         )
         killingTestSummary = summary
+        propertyKillSummary = PropertyKillSummary(of: outcome.mutations, globs: outcome.propertyTests)
         globalMutationScore = mutationScore(from: outcome.mutations.map { $0.testSuiteOutcome })
         totalAppliedMutationOperators = outcome.mutations.count
         numberOfKilledMutants = outcome.mutations
@@ -460,6 +464,7 @@ extension MuterTestReport: Codable {
         case fileReports
         case timeElapsed
         case killingTestSummary
+        case propertyKillSummary
         case since
         case shards
         case sample

@@ -139,6 +139,7 @@ struct Run: RunCommand {
             workers: testing.workers,
             timeout: testing.timeout,
             failUnder: reportOptions.failUnder,
+            propertyTests: reportOptions.propertyTestGlobs,
             resumeURL: resuming.resume,
             reuseURL: reuse,
             // Only one of each pair can be given: `validate()` ties each to its own option.

@@ -59,8 +59,8 @@ struct PlainTextReporter: Reporter {
         \(generateMutationScoresCLITable(from: report.fileReports).description)
         """
 
-        return survivorsMessage + appliedMutationsMessage + killingTestsMessage(from: report) + mutationScoresMessage
-            + runMessage(from: report)
+        return survivorsMessage + appliedMutationsMessage + killingTestsMessage(from: report)
+            + propertyKillsMessage(from: report) + mutationScoresMessage + runMessage(from: report)
     }
 
     /// Where the results came from, after the scores; none when not known.
@@ -110,6 +110,22 @@ struct PlainTextReporter: Reporter {
             summary.noVerdictSentence,
             summary.controlRunSentences.joined(separator: "\n"),
             summary.suspectSentences(mutationScore: report.globalMutationScore).joined(separator: "\n"),
+        ]
+        return paragraphs.compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n\n") + "\n\n\n"
+    }
+
+    /// The Examples and Properties section, followed by the blank lines that end a section. None without
+    /// `propertyTests`, so such a report is as it was.
+    private func propertyKillsMessage(from report: MuterTestReport) -> String {
+        guard let summary = report.propertyKillSummary else { return "" }
+        let tableLines = summary.properties.isEmpty ? [] : generatePropertyKillsCLITable(from: summary).description
+            .split(separator: "\n")
+            .map(String.init)
+        let paragraphs: [String?] = [
+            "-----------------------\nExamples and Properties\n-----------------------",
+            PropertyKillSummary.introduction + " " + summary.globSentence,
+            summary.splitSentences.joined(separator: "\n"),
+            (tableLines + [summary.shownPropertiesSentence].compactMap { $0 }).joined(separator: "\n"),
         ]
         return paragraphs.compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n\n") + "\n\n\n"
     }

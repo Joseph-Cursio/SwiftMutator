@@ -274,3 +274,41 @@ Here is part of a report with two suspect tests. Most keys, file reports and tes
   }
 }
 ```
+
+### `propertyKillSummary`
+
+At the top level, when `propertyTests` or `--property-tests` gives globs: the kills split between example tests and property tests (see [Example tests and property tests](../README.md#example-tests-and-property-tests)). Its counts are of the mutants the headline score is of, every one but a build error, so its four kill counts add up to `killedMutants`.
+
+| Key | Meaning |
+|---|---|
+| `globs` | The globs that picked out the property tests |
+| `scoredMutants` | The mutants the headline score is of: every one but a build error |
+| `killedMutants` | Those a failed test or a crash killed, as `numberOfKilledMutants` counts them |
+| `killedOnlyByExamples` | Killed mutants whose recorded tests are all examples |
+| `killedOnlyByProperties` | Killed mutants whose recorded tests are all properties |
+| `killedByBoth` | Killed mutants that name tests of both kinds |
+| `killedNamingNoTest` | Killed mutants that name no failed test, such as a crash's, which count as neither |
+| `incompleteExampleOnlyKills` | Of `killedOnlyByExamples`, how many may not name every test that failed: a property may have failed too |
+| `incompletePropertyOnlyKills` | Of `killedOnlyByProperties`, how many may not name every test that failed: an example may have failed too |
+| `distinctProperties` | How many property tests failed for a killed mutant |
+| `properties` | The 10 that failed for the most killed mutants, ties broken by name and then file, each as `{name, file, mutants, onlyRecordedKillerOf}`: `file` as a test's in `killingTestSummary`, left out for XCTest; `mutants`, how many killed mutants it failed for; `onlyRecordedKillerOf`, how many of them recorded it as the only test that failed |
+
+With made-up counts:
+
+```json
+"propertyKillSummary": {
+  "globs": ["*Properties*"],
+  "scoredMutants": 1103,
+  "killedMutants": 1024,
+  "killedOnlyByExamples": 812,
+  "killedOnlyByProperties": 61,
+  "killedByBoth": 151,
+  "killedNamingNoTest": 0,
+  "incompleteExampleOnlyKills": 36,
+  "incompletePropertyOnlyKills": 2,
+  "distinctProperties": 14,
+  "properties": [
+    { "name": "everyFormatRendersTheSameBytesForAnyArrivalOrder()", "file": "ReportOrderDeterminismLawsTests.swift", "mutants": 101, "onlyRecordedKillerOf": 8 }
+  ]
+}
+```

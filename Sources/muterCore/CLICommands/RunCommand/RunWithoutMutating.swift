@@ -46,6 +46,7 @@ struct RunWithoutMutating: RunCommand {
             workers: testing.workers,
             timeout: testing.timeout,
             failUnder: reportOptions.failUnder,
+            propertyTests: reportOptions.propertyTestGlobs,
             resumeURL: resuming.resume,
             resumeIgnoring: resuming.resumeIgnoring,
             forceResume: resuming.forceResume,

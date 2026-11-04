@@ -22,12 +22,22 @@ struct ResultsReport {
     /// `--fail-under`: the percent below which the report's score fails it (`ScoreGate`); nil checks none. Never the
     /// run's `failUnder`, which a CI job that didn't ask for it would then be failed by.
     let failUnder: Double?
+    /// `--property-tests`: the globs that pick out property tests, in place of those the run's header records; nil
+    /// keeps the header's.
+    let propertyTests: [String]?
 
-    init(format: ReportFormat, outputPath: String?, summaryPath: String? = nil, failUnder: Double? = nil) {
+    init(
+        format: ReportFormat,
+        outputPath: String?,
+        summaryPath: String? = nil,
+        failUnder: Double? = nil,
+        propertyTests: [String]? = nil
+    ) {
         self.format = format
         self.outputPath = outputPath
         self.summaryPath = summaryPath
         self.failUnder = failUnder
+        self.propertyTests = propertyTests
     }
 
     /// Makes the report from the results files `paths` name: each the file itself, or the log folder of one of a run's
@@ -61,7 +71,8 @@ struct ResultsReport {
             return (path: file, recorded: try RecordedResults.read(data, path: file))
         }
         if read.count == 1, let only = read.first, only.recorded.headers.last?.shard == nil {
-            let outcome = only.recorded.mutationTestOutcome(resultsFile: only.path)
+            var outcome = only.recorded.mutationTestOutcome(resultsFile: only.path)
+            if let propertyTests { outcome.propertyTests = propertyTests }
             let status = only.recorded.exitStatus
             let gate = failUnder.map {
                 ScoreGate(
@@ -80,7 +91,8 @@ struct ResultsReport {
             return status ?? gate?.exitStatus
         }
         let merged = try MergedShards.merge(read, forcing: forcing, ignoring: ignoring)
-        let outcome = merged.mutationTestOutcome()
+        var outcome = merged.mutationTestOutcome()
+        if let propertyTests { outcome.propertyTests = propertyTests }
         let status = merged.exitStatus
         let gate = failUnder.map {
             ScoreGate(failUnder: $0, judging: outcome, unless: status == nil ? nil : .lacksResults)

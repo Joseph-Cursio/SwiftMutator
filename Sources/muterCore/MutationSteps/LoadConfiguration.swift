@@ -42,7 +42,8 @@ struct LoadConfiguration: MutationStep {
                 .overriding(
                     workers: state.runOptions.workers,
                     timeout: state.runOptions.timeout,
-                    failUnder: state.runOptions.failUnder
+                    failUnder: state.runOptions.failUnder,
+                    propertyTests: state.runOptions.propertyTests
                 )
             return [
                 .projectDirectoryUrlDiscovered(URL(fileURLWithPath: fileManager.currentDirectoryPath)),

@@ -25,6 +25,10 @@ struct MutationTestOutcome {
     /// The run's threshold for its score, its configuration's `failUnder` or `--fail-under`'s, which `ScoreGate`
     /// checks; nil without one, and for an outcome read from a results file, as `report` checks only its own flag.
     let failUnder: Double?
+    /// The globs that pick out property tests (`PropertyTestPattern`), which the reports split the kills by
+    /// (`PropertyKillSummary`): the run's configuration's, or its last session's as its header records it, unless
+    /// `report --property-tests` gives others. Empty splits none.
+    var propertyTests: [String]
     /// The control runs, with no mutant on, of every session the outcome covers, in the order they're recorded.
     let controlRuns: [ControlRun]
     /// The project, and its mutated copy, by their absolute paths: what the reports give each file's path relative to.
@@ -51,6 +55,7 @@ struct MutationTestOutcome {
         mutant: String? = nil,
         suspectTestThresholds: SuspectTestThresholds = .standard,
         failUnder: Double? = nil,
+        propertyTests: [String] = [],
         controlRuns: [ControlRun] = [],
         projectPath: String = "",
         mutatedProjectPath: String = "",
@@ -69,6 +74,7 @@ struct MutationTestOutcome {
         self.mutant = mutant
         self.suspectTestThresholds = suspectTestThresholds
         self.failUnder = failUnder
+        self.propertyTests = propertyTests
         self.controlRuns = controlRuns
         self.projectPath = projectPath
         self.mutatedProjectPath = mutatedProjectPath

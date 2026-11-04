@@ -45,6 +45,12 @@ private func htmlReport(
                             .killingTestsTable(summary, mutationScore: testReport.globalMutationScore)
                         )
                     },
+                    .unwrap(testReport.propertyKillSummary) { summary in
+                        .group(
+                            .divider("Examples and Properties"),
+                            .propertyKillsTable(summary)
+                        )
+                    },
                     .unwrap(testReport.run) { run in
                         .group(
                             .divider("Run"),
@@ -426,6 +432,33 @@ extension Node where Context: HTML.BodyContext {
             .unwrap(summary.noVerdictSentence) { .p(.text($0)) },
             .forEach(summary.controlRunSentences) { .p(.text($0)) },
             .forEach(summary.suspectSentences(mutationScore: mutationScore)) { .p(.text($0)) }
+        )
+    }
+
+    /// The Examples and Properties section: how the kills split between the kinds of test, then the property tests,
+    /// with every name whole. Text nodes only, as in the Killing Tests section.
+    static func propertyKillsTable(_ summary: PropertyKillSummary) -> Self {
+        .div(
+            .class("killing-tests"),
+            .p(.text(PropertyKillSummary.introduction + " " + summary.globSentence)),
+            .forEach(summary.splitSentences) { .p(.text($0)) },
+            .if(
+                !summary.properties.isEmpty,
+                .table(
+                    .thead(.tr(.th("Property"), .th("File"), .th("Mutants"), .th("Only Recorded Killer Of"))),
+                    .tbody(
+                        .forEach(summary.properties) { property -> Node<HTML.TableContext> in
+                            .tr(
+                                .td(.class("left-aligned"), .text(property.name)),
+                                .td(.class("left-aligned"), .text(property.file ?? "-")),
+                                .td(.class("right-aligned"), .text("\(property.mutants)")),
+                                .td(.class("right-aligned"), .text("\(property.onlyRecordedKillerOf)"))
+                            )
+                        }
+                    )
+                )
+            ),
+            .unwrap(summary.shownPropertiesSentence) { .p(.text($0)) }
         )
     }
 
