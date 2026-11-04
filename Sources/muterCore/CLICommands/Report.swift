@@ -52,21 +52,21 @@ struct Report: AsyncParsableCommand {
 
     init() {}
 
-    /// The status `report` exits with, once the report is made, for a run that stopped on an error: the one the run
-    /// itself exited with (`RunCommand.run(with:)`), so a script that checks the report fails as one that checked the
-    /// run would. A run that finished, was interrupted, or has no end line yet exits 0. Shards' files exit with it when
-    /// the report is known to lack results (`MergedShards.lacksResults`).
-    static let stoppedOnAnError = ExitCode.stoppedOnAnError
-
+    /// Makes the report, then exits with the status `ResultsReport.make` gives once it is made: for a run that
+    /// stopped on an error, the one the run itself exited with (`RunCommand.run(with:)`), 4 or 255, so a script that
+    /// checks the report fails as one that checked the run would; for shards whose merged report is known to lack
+    /// results (`MergedShards.lacksResults`), the status of the first shard that stopped on an error, 4 or 255, and
+    /// otherwise 4 (`MergedShards.exitStatus`); else 2 for a score below `--fail-under`. A run that finished, was
+    /// interrupted, or has no end line yet otherwise exits 0.
     func run() async throws {
         let report = ResultsReport(
             format: reportOptions.reportFormat,
             outputPath: reportOptions.reportURL?.path,
-            summaryPath: summary?.path
+            summaryPath: summary?.path,
+            failUnder: reportOptions.failUnder
         )
-        let stopped = try report.make(from: results.map(\.path), forcing: forceMerge, ignoring: mergeIgnoring)
-        if stopped {
-            throw Self.stoppedOnAnError
+        if let status = try report.make(from: results.map(\.path), forcing: forceMerge, ignoring: mergeIgnoring) {
+            throw status
         }
     }
 }

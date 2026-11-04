@@ -49,6 +49,25 @@ final class LoadConfigurationTests: MuterTestCase {
         XCTAssertNotEqual(fromFile, configuration)
     }
 
+    // As --workers and --timeout do: the header records it, and a resume only says it changed.
+    func test_failUnderFlag_replacesItsKey() async throws {
+        fileManager.fileExistsToReturn = [false, true]
+        fileManager.fileContentsToReturn = loadYAMLConfiguration()
+        state.runOptions = .make(failUnder: 72.5)
+
+        let result = try await sut.run(with: state)
+
+        guard case let .configurationParsed(configuration)? = result.last else { return XCTFail("\(result)") }
+        XCTAssertEqual(configuration.failUnder, 72.5)
+        let fromFile = try XCTUnwrap(MuterConfiguration.fromFixture(
+            at: "\(fixturesDirectory)/\(MuterConfiguration.legacyFileNameWithExtension)"
+        ))
+        XCTAssertNil(fromFile.failUnder)
+        XCTAssertEqual(fromFile.overriding(workers: nil, timeout: nil, failUnder: 72.5), configuration)
+        XCTAssertEqual(configuration.overriding(workers: nil, timeout: nil, failUnder: nil), configuration)
+        XCTAssertEqual(configuration.overriding(workers: nil, timeout: nil, failUnder: 90).failUnder, 90)
+    }
+
     func test_migrationToYaml() async throws {
         fileManager.fileExistsToReturn = [true, false]
         fileManager.fileContentsToReturn = loadJSONConfiguration()

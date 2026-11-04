@@ -48,6 +48,15 @@ final class InterruptionsTests: MuterTestCase {
         XCTAssertNil(current.interruption.signal)
     }
 
+    // A run's verdict on its score comes back this way, for the run to exit with.
+    func test_withoutASignal_returnsWhatTheWorkGave() async throws {
+        let ended = await makeInterruptions().run { 42 }
+
+        XCTAssertNil(ended.signal)
+        XCTAssertEqual(try ended.result.get(), 42)
+        XCTAssertTrue(observer.stopped)
+    }
+
     // Every run under way then records itself cancelled before anything kills its process, so no run that stopping
     // ended is recorded as a mutant's result.
     func test_theFirstSignal_cancelsTheWork_beforeKillingDescendants() throws {
@@ -514,7 +523,7 @@ private final class Gate: Sendable {
 /// runs ends within seconds, however the test goes.
 private final class Running: @unchecked Sendable { // `ended` is written before `finished` opens, and read after
     private let finished = Gate()
-    private var ended: Interruptions.Ended?
+    private var ended: Interruptions.Ended<Void>?
 
     init(_ interruptions: Interruptions, _ work: @escaping @Sendable () async throws -> Void) {
         Task.detached { [self] in
@@ -524,7 +533,7 @@ private final class Running: @unchecked Sendable { // `ended` is written before 
     }
 
     /// How the run ended, or nil if it hasn't within `timeout` seconds.
-    func wait(within timeout: TimeInterval = 5) -> Interruptions.Ended? {
+    func wait(within timeout: TimeInterval = 5) -> Interruptions.Ended<Void>? {
         finished.wait(within: timeout) ? ended : nil
     }
 }

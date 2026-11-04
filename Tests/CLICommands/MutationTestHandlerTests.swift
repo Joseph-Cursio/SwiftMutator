@@ -181,6 +181,30 @@ final class MutationTestHandlerTests: MuterTestCase {
         assertTheRunsLogFolderIsRemoved()
     }
 
+    // The verdict the run exits with, from the observer, which judged the outcome its last step sent.
+    func test_aFinishedRun_givesItsVerdictOnItsScore() async throws {
+        givenThereAreNoFailuresInAnyOfItSteps()
+        stepSpy3.whileRunning = { [runEvents] in
+            runEvents.send(.mutationTestingFinished(.make([.failed, .passed], failUnder: 80)))
+        }
+
+        let gate = try await sut.run()
+
+        XCTAssertEqual(gate?.verdict, .failed)
+        XCTAssertEqual(gate?.failUnder, 80)
+    }
+
+    func test_aFinishedRunWithoutAThreshold_givesNoVerdict() async throws {
+        givenThereAreNoFailuresInAnyOfItSteps()
+        stepSpy3.whileRunning = { [runEvents] in
+            runEvents.send(.mutationTestingFinished(.make([.failed, .passed])))
+        }
+
+        let gate = try await sut.run()
+
+        XCTAssertNil(gate)
+    }
+
     /// Asserts that the run listed its own log folder at the end, found it empty and removed it, and only it: the
     /// logs' root, which another run may be claiming a folder in, stays.
     private func assertTheRunsLogFolderIsRemoved(file: StaticString = #filePath, line: UInt = #line) {

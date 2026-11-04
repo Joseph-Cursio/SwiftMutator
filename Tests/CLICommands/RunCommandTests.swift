@@ -6,7 +6,7 @@ import XCTest
 /// `Interruptions`.
 final class RunCommandTests: XCTestCase {
     func test_withoutASignal_theWorksErrorIsShown() {
-        let ended = Interruptions.Ended(result: .failure(MuterError.noSourceFilesDiscovered), signal: nil)
+        let ended = Interruptions.Ended<Void>(result: .failure(MuterError.noSourceFilesDiscovered), signal: nil)
 
         XCTAssertEqual(ended.errorToShow as? MuterError, .noSourceFilesDiscovered)
     }
@@ -19,8 +19,8 @@ final class RunCommandTests: XCTestCase {
     // Stopping has been said, and what the work threw then, such as the failure of a process the stop killed, says
     // nothing about the project.
     func test_afterASignal_anErrorTheStopMayHaveCaused_isNotShown() {
-        let cancelled = Interruptions.Ended(result: .failure(CancellationError()), signal: SIGINT)
-        let copyFailed = Interruptions.Ended(
+        let cancelled = Interruptions.Ended<Void>(result: .failure(CancellationError()), signal: SIGINT)
+        let copyFailed = Interruptions.Ended<Void>(
             result: .failure(MuterError.projectCopyFailed(reason: "cp was killed")),
             signal: SIGTERM
         )
@@ -40,7 +40,7 @@ final class RunCommandTests: XCTestCase {
         ]
 
         for abort in aborts {
-            let ended = Interruptions.Ended(result: .failure(abort), signal: SIGINT)
+            let ended = Interruptions.Ended<Void>(result: .failure(abort), signal: SIGINT)
             XCTAssertEqual(ended.errorToShow as? MuterError, abort)
         }
     }
@@ -58,6 +58,7 @@ final class RunCommandTests: XCTestCase {
         XCTAssertNotEqual(Run.Options.make(shard: Shard(index: 1, count: 2)), .make())
         XCTAssertNotEqual(Run.Options.make(planIgnoring: ["Sources/*"]), .make())
         XCTAssertNotEqual(Run.Options.make(mutant: MutantReference(path: "Bar.swift", line: 12)), .make())
+        XCTAssertNotEqual(Run.Options.make(failUnder: 80), .make())
     }
 
     // Both commands that test mutants take it, and `run` skips coverage for it, which only leaves files and code out of
@@ -516,7 +517,11 @@ final class RunCommandTests: XCTestCase {
 
     // A script can tell a refused resume or reuse, and a run another holds a lock against, from an error, and from
     // each other: after the first, a new run starts, and after the second, waiting for the other run lets it through.
+    // A low score, a failed baseline and an abort each have one too.
     func test_eachOutcome_exitsWithItsOwnStatus() {
+        XCTAssertEqual(ExitCode.scoreBelowThreshold.rawValue, 2)
+        XCTAssertEqual(ExitCode.baselineFailed.rawValue, 3)
+        XCTAssertEqual(ExitCode.abortedMidRun.rawValue, 4)
         XCTAssertEqual(ExitCode.resumeRefused.rawValue, 5)
         XCTAssertEqual(ExitCode.anotherRunHoldsTheLock.rawValue, 6)
         XCTAssertEqual(ExitCode.testPlanRefused.rawValue, 7)
@@ -570,8 +575,8 @@ final class RunCommandTests: XCTestCase {
             MutatedProjectLockError.cannotLock(path: "/x.lock", errno: EACCES),
             ResultsFileError.newerFormat(path: "/logs/results.jsonl", version: 3),
             ChangeSelectionError.unknownRef("origin/main"),
-            MuterError.mutationTestingAborted(reason: .tooManyBuildErrors),
             MuterError.noSourceFilesDiscovered,
+            MuterError.configurationParsingError(reason: "failUnder must be a number from 0 to 100, not 101"),
         ]
         for error in errors {
             XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: error), .stoppedOnAnError, "\(error)")
@@ -580,6 +585,105 @@ final class RunCommandTests: XCTestCase {
         XCTAssertNil(ExitCode.exitStatus(afterRunFailedWith: nothing))
         let empty = EmptyShard(shard: Shard(index: 3, count: 4), mutantsInAllShards: 2)
         XCTAssertNil(ExitCode.exitStatus(afterRunFailedWith: empty))
+        for (reason, status) in Self.everyAbortReason {
+            XCTAssertEqual(
+                ExitCode.exitStatus(afterRunFailedWith: MuterError.mutationTestingAborted(reason: reason)),
+                status,
+                "\(reason)"
+            )
+        }
+    }
+
+    /// One of each abort reason, with the status a run it stopped exits with: 3 when no mutant was tested because a
+    /// baseline failed, 4 for the rest. Built from every kind of reason, so a new kind is in it or the tests don't
+    /// compile.
+    static var everyAbortReason: [(MutationTestingAbortReason, ExitCode)] {
+        MutationTestingAbortReason.Kind.allCases.map { kind in
+            let reason = sampleAbortReason(of: kind)
+            let status: ExitCode = switch kind {
+            case .baselineTestFailed, .workerBaselineTestFailed: .baselineFailed
+            case .tooManyBuildErrors, .mutantNotSwitchedOn, .controlRunNotSwitchedOff, .simulatorUnavailable,
+                 .unknownError: .abortedMidRun
+            }
+            return (reason, status)
+        }
+    }
+
+    /// An abort reason of `kind`. No `default`, so a new kind needs one.
+    static func sampleAbortReason(of kind: MutationTestingAbortReason.Kind) -> MutationTestingAbortReason {
+        switch kind {
+        case .baselineTestFailed: .baselineTestFailed(log: "", mutatedFilePaths: [])
+        case .workerBaselineTestFailed: .workerBaselineTestFailed(worker: 2, directory: "/x_worker2", log: "")
+        case .tooManyBuildErrors: .tooManyBuildErrors
+        case .mutantNotSwitchedOn: .mutantNotSwitchedOn(id: "Foo_1", description: "no space left")
+        case .controlRunNotSwitchedOff: .controlRunNotSwitchedOff(number: 1, description: "no space left")
+        case .simulatorUnavailable: .simulatorUnavailable(worker: 1, line: "device not found", log: nil)
+        case .unknownError: .unknownError(description: "?")
+        }
+    }
+
+    // Each sample abort reason is of the kind it stands for, so every kind, and so every case, has a sample.
+    func test_everyAbortReason_hasOneOfEachKind() {
+        let kinds = Self.everyAbortReason.map(\.0.kind)
+        XCTAssertEqual(kinds, MutationTestingAbortReason.Kind.allCases)
+    }
+
+    // The verdict decides the status of a run that ended without failing or a signal; a failure's status wins.
+    func test_aRunsVerdictOnItsScore_decidesItsStatus() {
+        let below = ScoreGate(failUnder: 80, judging: .make([.failed, .passed]))
+        let meets = ScoreGate(failUnder: 50, judging: .make([.failed, .passed]))
+        let oneMutant = ScoreGate(failUnder: 80, judging: .make([.passed], mutant: "Foo.swift:3:9"))
+        let ended = { (gate: ScoreGate?) in Interruptions.Ended<ScoreGate?>(result: .success(gate), signal: nil) }
+
+        XCTAssertEqual(ended(below).exitStatus, .scoreBelowThreshold)
+        XCTAssertNil(ended(meets).exitStatus)
+        XCTAssertNil(ended(oneMutant).exitStatus)
+        XCTAssertNil(ended(nil).exitStatus)
+        let aborted = Interruptions.Ended<ScoreGate?>(
+            result: .failure(MuterError.mutationTestingAborted(reason: .tooManyBuildErrors)),
+            signal: nil
+        )
+        XCTAssertEqual(aborted.exitStatus, .abortedMidRun)
+        let nothing = Interruptions.Ended<ScoreGate?>(
+            result: .failure(NothingToMutate(reason: .noSwiftFileChanged, selection: .make())),
+            signal: nil
+        )
+        XCTAssertNil(nothing.exitStatus)
+    }
+
+    // On each command that tests mutants, in place of failUnder, and on `report`; never `mutate-without-running`,
+    // which tests nothing.
+    func test_failUnder_reachesTheRunOptions_ofEachCommandThatTests_andTheHelp() throws {
+        let run = try XCTUnwrap(MuterCommand.parseAsRoot(["run", "--fail-under", "80"]) as? Run)
+        XCTAssertEqual(run.runOptions.failUnder, 80)
+        let plan = try MuterCommand.parseAsRoot(["run-without-mutating", "--fail-under", "72.5", "plan.json"])
+        XCTAssertEqual(try XCTUnwrap(plan as? RunWithoutMutating).runOptions.failUnder, 72.5)
+        XCTAssertNil(try XCTUnwrap(MuterCommand.parseAsRoot(["run"]) as? Run).runOptions.failUnder)
+        let report = try XCTUnwrap(MuterCommand.parseAsRoot(["report", "r.jsonl", "--fail-under", "0"]) as? Report)
+        XCTAssertEqual(report.reportOptions.failUnder, 0)
+        XCTAssertThrowsError(try MuterCommand.parseAsRoot(["mutate-without-running", "--fail-under", "80"]))
+        for help in [Run.helpMessage(columns: 200), RunWithoutMutating.helpMessage(columns: 200)]
+            + [Report.helpMessage(columns: 200)] {
+            XCTAssertTrue(help.contains("\n  --fail-under <percent>"), help)
+        }
+        XCTAssertFalse(MutateWithoutRunning.helpMessage(columns: 200).contains("--fail-under"))
+    }
+
+    func test_aFailUnderThatIsntAPercent_isAUsageError() {
+        let refused = ["-1", "100.1", "101", "nan", "inf", "eighty", "1e2", "0x50", "+80", "80.", ".5", "8 0"]
+            + ["8_0", "1:20", "0.0000001", "33.3333333"]
+        for value in refused {
+            for command in [["run"], ["report", "r.jsonl"]] {
+                assertUsageError(
+                    command + ["--fail-under=\(value)"],
+                    "The value '\(value)' is invalid for '--fail-under <percent>': give a percent from 0 to 100, with "
+                        + "at most 6 decimals, such as 80 or 72.5."
+                )
+            }
+        }
+        for value in ["0", "100", "72.5", "0.05", "080", "0.000001", "33.333333"] {
+            XCTAssertNoThrow(try MuterCommand.parseAsRoot(["run", "--fail-under", value]), value)
+        }
     }
 
     // git couldn't answer, or there is nothing to mutate: each says what happened, and neither is a bug.

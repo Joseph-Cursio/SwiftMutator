@@ -23,7 +23,7 @@ extension RunCommand {
             // too, even when an abort came first.
             Interruptions.exit(by: signal)
         }
-        if case let .failure(error) = ended.result, let status = ExitCode.exitStatus(afterRunFailedWith: error) {
+        if let status = ended.exitStatus {
             Foundation.exit(status.rawValue)
         }
     }
@@ -35,8 +35,9 @@ extension RunCommand {
     /// `--since` that git couldn't answer, and one with nothing to mutate or a shard with no mutant, neither of which
     /// is a failure, are printed as they are: each is an expected outcome, and its message says what to do. The
     /// refusals of a resume, a lock or a plan also exit with a status of their own, which
-    /// `ExitCode.exitStatus(afterRunFailedWith:)` gives; a refused `--mutant` exits as an error does. Anything else
-    /// comes inside the banner that asks for a bug report.
+    /// `ExitCode.exitStatus(afterRunFailedWith:)` gives, as do a failed baseline and an abort, which come inside the
+    /// banner; a refused `--mutant` exits as an error does. Anything else comes inside the banner that asks for a bug
+    /// report.
     static func message(showing error: Error) -> String {
         switch error {
         case is ResumeRefused, MutatedProjectLockError.inUse, is TestPlanRefused, is MutantRefused,
@@ -68,5 +69,19 @@ extension Interruptions.Ended {
         guard signal != nil else { return error }
         guard case MuterError.mutationTestingAborted = error else { return nil }
         return error
+    }
+}
+
+extension Interruptions.Ended where Value == ScoreGate? {
+    /// The status a run command exits with once its work has ended without a signal, which it dies by instead: a
+    /// failure's (`ExitCode.exitStatus(afterRunFailedWith:)`), else the verdict on its score's (`ScoreGate`), and nil,
+    /// so 0, for a run that finished without failing its threshold.
+    var exitStatus: ExitCode? {
+        switch result {
+        case let .failure(error):
+            ExitCode.exitStatus(afterRunFailedWith: error)
+        case let .success(gate):
+            gate?.exitStatus
+        }
     }
 }

@@ -366,6 +366,25 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(sent().count, 0)
     }
 
+    // The observer judges the outcome by it, a finished one's or an early end's, which said nothing of it.
+    func test_theOutcome_carriesTheConfigurationsFailUnder() async throws {
+        state.muterConfiguration = MuterConfiguration(failUnder: 72.5)
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        let finished = recordEvents(named: [.mutationTestingFinished])
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(finished().compactMap { ($0.object as? MutationTestOutcome)?.failUnder }, [72.5])
+
+        state.mutationMapping = try Array(repeating: makeSchemataMapping(), count: 6)
+        ioDelegate.testSuiteOutcomes = [.passed, .failed] + Array(repeating: .buildError, count: 5)
+        let ended = recordEvents(named: [.mutationTestingEndedEarly])
+
+        await assertThrowsMuterError(try await sut.run(with: state)) { _ in }
+
+        XCTAssertEqual(ended().compactMap { ($0.object as? EarlyEnd)?.outcome.failUnder }, [72.5])
+    }
+
     // The jobs and their keys are there before the baseline runs, so only its passing tells a stop that has something
     // to report from one that hasn't. A stop during the baseline sends no early end; one just after it passed sends
     // one, with nothing tested yet and every mutant discovered.

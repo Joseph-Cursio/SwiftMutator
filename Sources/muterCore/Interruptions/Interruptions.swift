@@ -70,9 +70,10 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
     /// continued, every time limit that had passed would fire at once, even for tests that had ended.
     static let observedSignals = stoppingSignals + [SIGQUIT, SIGTSTP]
 
-    /// How the work ended, and the signal that stopped it, if one came while it ran.
-    struct Ended {
-        let result: Result<Void, Error>
+    /// How the work ended, with what it gave if it didn't throw, and the signal that stopped it, if one came while it
+    /// ran.
+    struct Ended<Value> {
+        let result: Result<Value, Error>
         let signal: Int32?
     }
 
@@ -118,13 +119,13 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
     /// first or not. Once a signal came, the caller is to exit by it, which a second signal meanwhile still does at
     /// once. Last, once nothing is left to kill, it does what the work set to do after it ended (`afterWorkEnds`),
     /// which a second signal still cuts short.
-    func run(_ work: @escaping @Sendable () async throws -> Void) async -> Ended {
+    func run<Value: Sendable>(_ work: @escaping @Sendable () async throws -> Value) async -> Ended<Value> {
         let task = Task { try await work() }
         observer.start(observing: Self.observedSignals, on: queue) { [self] signal in
             if signal == SIGTSTP {
                 suspendUnlessStopping()
             } else {
-                received(signal, stopping: task)
+                received(signal, stopping: { task.cancel() })
             }
         }
         let result = await task.result
@@ -146,7 +147,8 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
     }
 
     /// On `queue`. Nothing that stops a run may start a process: the sweep would kill it.
-    private func received(_ signal: Int32, stopping task: Task<Void, Error>) {
+    /// `cancel` cancels the work's task.
+    private func received(_ signal: Int32, stopping cancel: @Sendable () -> Void) {
         guard record.record(signal) else {
             // When its terminal closes, zsh sends the job SIGHUP twice, about a millisecond apart. Nobody is left to
             // ask for a stop at once, and `gracePeriod` still bounds the stop.
@@ -157,7 +159,7 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
         guard signal != SIGQUIT else { return stopAtOnce(by: signal) }
         // First: every run's cancellation handler then records it cancelled before anything kills its process, so no
         // run that stopping ended is recorded as a mutant's result.
-        task.cancel()
+        cancel()
         // Then what no cancellation reaches, now and every `sweepInterval` until the work ends: coverage, `cp`, `find`,
         // `which` and the steps' later processes, which a step starts one after another.
         killDescendants()

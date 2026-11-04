@@ -89,6 +89,29 @@ final class MuterTestReportTests: MuterTestCase {
         XCTAssertEqual(actualMutationScores, expectedMutationScores)
     }
 
+    // The headline exactly, which `--fail-under` compares; the reports truncate it.
+    func test_exactMutationScore_leavesOutBuildErrors() throws {
+        XCTAssertEqual(try XCTUnwrap(exactMutationScore(from: [.failed, .passed, .passed])), 100.0 / 3, accuracy: 1e-12)
+        XCTAssertEqual(exactMutationScore(from: [.failed, .runtimeError, .passed, .timeout, .buildError]), 50)
+        XCTAssertNil(exactMutationScore(from: []))
+        XCTAssertNil(exactMutationScore(from: [.buildError, .buildError]))
+        XCTAssertEqual(mutationScore(from: [.buildError, .buildError]), 0)
+        XCTAssertEqual(mutationScore(from: []), -1)
+    }
+
+    // It multiplies before it divides, so a whole percent isn't shown one lower: 29 / 50 * 100 is 57.99999999999999.
+    func test_aScoreThatIsAWholePercent_isShownAsIt() {
+        let killed = { (killed: Int, scored: Int) in
+            Array(repeating: TestSuiteOutcome.failed, count: killed)
+                + Array(repeating: .passed, count: scored - killed)
+        }
+        XCTAssertEqual(exactMutationScore(from: killed(29, 50)), 58)
+        XCTAssertEqual(mutationScore(from: killed(29, 50)), 58)
+        XCTAssertEqual(mutationScore(from: killed(29, 100)), 29)
+        // Truncated, not rounded, until #89 decides.
+        XCTAssertEqual(mutationScore(from: killed(50, 75)), 66)
+    }
+
     func test_aReportWithKillingTests_roundTrips() throws {
         let report = MuterTestReport(from: .make(mutations: [
             .make(

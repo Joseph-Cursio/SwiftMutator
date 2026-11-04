@@ -47,6 +47,9 @@ OPTIONS:
                           place of mutationTestTimeout. At most a day, 86400.
   -f, --format <format>   The report format: plain, json, html, xcode
   -o, --output <output>   Output file for the report to be saved.
+  --fail-under <percent>  Exit with status 2 when the headline mutation score
+                          is below this percent, from 0 to 100, once the report
+                          is written. For a run, in place of failUnder.
   --resume <results>      Continue a stopped run from its results file, or the
                           log folder of any of its sessions. Only mutants
                           without a result that still holds are tested.

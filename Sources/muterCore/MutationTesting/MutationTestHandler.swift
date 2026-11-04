@@ -32,7 +32,10 @@ final class MutationTestHandler {
         )
     }
 
-    func run() async throws {
+    /// Runs the steps, and gives the finished run's verdict on its score against its `failUnder` (`ScoreGate`): nil
+    /// without one. A run that doesn't finish throws, or, stopped by a signal, ends with no verdict.
+    @discardableResult
+    func run() async throws -> ScoreGate? {
         try startObserver()
         // However the run ends, whether refused, failed, stopped or finished, it removes a log folder it kept nothing
         // in. Every step has returned by then, and events are handled as they are sent, so nothing is still writing
@@ -40,6 +43,7 @@ final class MutationTestHandler {
         defer { observer.removeLoggingDirectoryIfEmpty() }
         notifyMuterLaunched()
         try await runMutationsSteps()
+        return observer.scoreGate
     }
 
     /// Starts the observer, which creates the run's log folder, and hands that folder to the steps. `run()` removes

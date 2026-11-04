@@ -493,6 +493,18 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         print("💾 Each mutant's result is in \(path.bold)")
     }
 
+    /// The verdict on the score against the run's threshold, as the run's last line, on standard output with the rest:
+    /// ✅ when it passes, ❌ when it is below, ⚠️ when it isn't checked. Nothing for a run that ended early.
+    func scoreGateChecked(_ gate: ScoreGate) {
+        guard let line = gate.line else { return }
+        let emoji = switch gate.passed {
+        case .some(true): "✅"
+        case .some(false): "❌"
+        case .none: "⚠️"
+        }
+        print("\(emoji) \(line)")
+    }
+
     func newMutationTestLogAvailable(mutationTestLog: MutationTestLog) {
         if mutationTestLog.mutationPoint == nil {
             print(

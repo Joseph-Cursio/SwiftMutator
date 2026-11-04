@@ -1,3 +1,4 @@
+import ArgumentParser
 @testable import muterCore
 import XCTest
 
@@ -333,6 +334,41 @@ final class RecordedResultsStatusTests: XCTestCase {
             recorded.resultSources,
             "Of these, none were tested in the last session, session 2, and 2 in session 1."
         )
+    }
+
+    // `report` exits as the run did: for each kind of abort reason (`RunCommandTests.everyAbortReason` has one of
+    // each), as `ExitCode.exitStatus(afterRunFailedWith:)` gives it; 255 for any other error; 0 for a run that didn't
+    // stop on one.
+    func test_theStatusTheRunExitedWith_followsItsEndLine() throws {
+        for (reason, status) in RunCommandTests.everyAbortReason {
+            let error = MuterError.mutationTestingAborted(reason: reason)
+            let end = ResultsEnd.make(reason: .aborted, detail: ResultsEnd.detail(for: error))
+            XCTAssertEqual(end.exitStatus, status, "\(reason)")
+            XCTAssertEqual(end.exitStatus, ExitCode.exitStatus(afterRunFailedWith: error), "\(reason)")
+            XCTAssertEqual(try read(file(header, sum, end)).exitStatus, status, "\(reason)")
+            // The end line's code is the reason's kind, which is how the status is found again.
+            XCTAssertEqual(end.detail?.hasPrefix(reason.kind.rawValue), true, "\(reason)")
+        }
+        for detail in ["MuterError", nil] {
+            XCTAssertEqual(ResultsEnd.make(reason: .aborted, detail: detail).exitStatus, .stoppedOnAnError)
+        }
+        XCTAssertNil(ResultsEnd.make(reason: .finished).exitStatus)
+        XCTAssertNil(ResultsEnd.make(reason: .interrupted, detail: "SIGINT").exitStatus)
+        XCTAssertNil(try read(file(header, sum)).exitStatus)
+    }
+
+    // A run that didn't finish says how many of its mutants have results with its verdict on the score.
+    func test_unfinishedProgress_ofARunThatLacksResults() throws {
+        XCTAssertNil(try read(file(header, sum, ResultsEnd.make(reason: .finished))).unfinishedProgress)
+        XCTAssertEqual(
+            try read(file(header, sum, ResultsEnd.make(reason: .interrupted))).unfinishedProgress,
+            ScoreGate.Progress(results: 1, discovered: 3)
+        )
+        XCTAssertEqual(try read(file(header, sum)).unfinishedProgress, ScoreGate.Progress(results: 1, discovered: 3))
+        // Stopped after its last mutant's result, so none is missing.
+        let third = MutantResult.make(path: "Sources/Third.swift")
+        let lastResult = try read(file(header, sum, product, third, ResultsEnd.make(reason: .interrupted)))
+        XCTAssertNil(lastResult.unfinishedProgress)
     }
 }
 

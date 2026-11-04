@@ -231,6 +231,31 @@ final class RunDetailsReportTests: MuterTestCase {
         XCTAssertEqual(try JSONDecoder().decode(RunSummary.self, from: summary.json), summary)
     }
 
+    // The verdict on the score, for a script that gates on it without reading the text; only with a threshold.
+    func test_theSummary_withAThreshold_holdsItsVerdict() throws {
+        let outcome = MutationTestOutcome.make([.failed, .passed, .passed], failUnder: 50)
+        let gate = ScoreGate(failUnder: 50, judging: outcome)
+        let summary = RunSummary(of: outcome, ended: .finished, report: nil, gate: gate)
+
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: summary.json) as? NSDictionary)
+        XCTAssertEqual(json["gate"] as? NSDictionary, ["failUnder": 50, "passed": false, "score": 100.0 / 3])
+        let text = String(decoding: summary.json, as: UTF8.self)
+        XCTAssertTrue(text.contains(#""failUnder" : 50,"#), text)
+        XCTAssertEqual(try JSONDecoder().decode(RunSummary.self, from: summary.json), summary)
+        let unchecked = RunSummary(
+            of: outcome,
+            ended: .aborted,
+            report: nil,
+            gate: ScoreGate(failUnder: 50, judging: outcome, unless: .endedEarly)
+        )
+        let uncheckedJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: unchecked.json) as? NSDictionary)
+        XCTAssertEqual(uncheckedJSON["gate"] as? NSDictionary, ["failUnder": 50, "notChecked": "endedEarly"])
+        XCTAssertFalse(
+            String(decoding: RunSummary(of: outcome, ended: .finished, report: nil).json, as: UTF8.self)
+                .contains("gate")
+        )
+    }
+
     // Beside the results file, which a resumed run keeps in its first session's folder; without one, in the log
     // folder; nowhere without either.
     func test_theSummarysPath_isBesideTheResultsFile() {

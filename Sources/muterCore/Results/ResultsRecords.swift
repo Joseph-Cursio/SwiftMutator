@@ -536,8 +536,9 @@ struct ResultsEnd: Codable, Equatable {
     /// have `reusedFrom`, and `rerun` too if a rerun gave them.
     let recorded: Int
 
-    /// A short code for why mutation testing stopped with `error`, never a log: the abort reason's name, the worker
-    /// whose baseline failed, or else the error's type. None for a cancellation, which `interrupted` says.
+    /// A short code for why mutation testing stopped with `error`, never a log: the abort reason's kind
+    /// (`MutationTestingAbortReason.Kind`), with the worker or control run it names, or else the error's type. None
+    /// for a cancellation, which `interrupted` says.
     static func detail(for error: Error) -> String? {
         if error is CancellationError {
             return nil
@@ -545,21 +546,14 @@ struct ResultsEnd: Codable, Equatable {
         guard case let MuterError.mutationTestingAborted(reason) = error else {
             return String(describing: type(of: error))
         }
+        let code = reason.kind.rawValue
         switch reason {
-        case .baselineTestFailed:
-            return "baselineTestFailed"
-        case let .workerBaselineTestFailed(worker, _, _):
-            return "workerBaselineTestFailed(worker: \(worker))"
-        case .tooManyBuildErrors:
-            return "tooManyBuildErrors"
-        case .mutantNotSwitchedOn:
-            return "mutantNotSwitchedOn"
+        case let .workerBaselineTestFailed(worker, _, _), let .simulatorUnavailable(worker, _, _):
+            return "\(code)(worker: \(worker))"
         case let .controlRunNotSwitchedOff(number, _):
-            return "controlRunNotSwitchedOff(number: \(number))"
-        case let .simulatorUnavailable(worker, _, _):
-            return "simulatorUnavailable(worker: \(worker))"
-        case .unknownError:
-            return "unknownError"
+            return "\(code)(number: \(number))"
+        case .baselineTestFailed, .tooManyBuildErrors, .mutantNotSwitchedOn, .unknownError:
+            return code
         }
     }
 }

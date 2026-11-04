@@ -36,8 +36,40 @@ struct RunSummary: Codable, Equatable {
     /// The report `-o` saved, or `report -o` did; nil when none was saved.
     let report: String?
     let run: RunDetails?
+    /// The verdict on the score against the threshold `--fail-under` or `failUnder` set (`ScoreGate`); nil without
+    /// one.
+    let gate: Gate?
 
-    init(of outcome: MutationTestOutcome, ended: ResultsEnd.Reason?, endDetail: String? = nil, report: String?) {
+    /// `{"failUnder": 80, "passed": false, "score": 71.42857142857143}`.
+    struct Gate: Codable, Equatable {
+        /// The threshold checked, a percent.
+        let failUnder: Double
+        /// The exact headline score it was compared with; nil when it wasn't checked, or nothing was scored.
+        let score: Double?
+        /// Whether the score is at or above it, as it is when nothing was scored; nil when it wasn't checked.
+        let passed: Bool?
+        /// Why it wasn't checked; nil when it was.
+        let notChecked: ScoreGate.NotChecked?
+
+        init(_ gate: ScoreGate) {
+            failUnder = gate.failUnder
+            passed = gate.passed
+            score = passed == nil ? nil : gate.score
+            if case let .notChecked(reason) = gate.verdict {
+                notChecked = reason
+            } else {
+                notChecked = nil
+            }
+        }
+    }
+
+    init(
+        of outcome: MutationTestOutcome,
+        ended: ResultsEnd.Reason?,
+        endDetail: String? = nil,
+        report: String?,
+        gate: ScoreGate? = nil
+    ) {
         let outcomes = outcome.mutations.map(\.testSuiteOutcome)
         let score = outcomes.isEmpty ? nil : muterCore.mutationScore(from: outcomes)
         let suspects = KillingTestSummary(
@@ -60,6 +92,7 @@ struct RunSummary: Codable, Equatable {
         shards = outcome.shards
         self.report = report
         run = outcome.run
+        self.gate = gate.map(Gate.init)
     }
 
     /// Its JSON, pretty-printed with sorted keys, so two summaries diff cleanly.

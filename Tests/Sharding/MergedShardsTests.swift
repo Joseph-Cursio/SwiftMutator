@@ -448,6 +448,34 @@ final class MergedShardsTests: XCTestCase {
         )
     }
 
+    // A shard's run that stopped on an error gives `report` the status it exited with, the first such shard's by its
+    // index; one that lacks results otherwise, interrupted or missing, gives 4, as the whole run didn't test every
+    // mutant. A shard whose baseline failed has no file, so it is missing.
+    func test_exitStatus_ofAMergeThatLacksResults() throws {
+        let complete = try merge(
+            file("/a/results.jsonl", header(1), sum3, sum9, end()),
+            file("/b/results.jsonl", header(2), alpha5, end())
+        )
+        XCTAssertNil(complete.exitStatus)
+        let interrupted = try merge(
+            file("/a/results.jsonl", header(1), sum3, end(.interrupted, detail: "SIGTERM")),
+            file("/b/results.jsonl", header(2), alpha5, end())
+        )
+        XCTAssertEqual(interrupted.exitStatus, .abortedMidRun)
+        let missing = try merge(file("/a/results.jsonl", header(1), sum3, sum9, end()))
+        XCTAssertEqual(missing.exitStatus, .abortedMidRun)
+        let stopped = try merge(
+            file("/b/results.jsonl", header(2), end(.aborted, detail: "MuterError")),
+            file("/a/results.jsonl", header(1), sum3, end(.aborted, detail: "tooManyBuildErrors"))
+        )
+        XCTAssertEqual(stopped.exitStatus, .abortedMidRun)
+        let unexpected = try merge(
+            file("/b/results.jsonl", header(2), end(.aborted, detail: "tooManyBuildErrors")),
+            file("/a/results.jsonl", header(1), sum3, end(.aborted, detail: "MuterError"))
+        )
+        XCTAssertEqual(unexpected.exitStatus, .stoppedOnAnError)
+    }
+
     // Coverage that differed between the machines can leave out mutants that only some of them discovered.
     func test_discoveriesThatDiffer_areSaid() throws {
         let merged = try merge(
