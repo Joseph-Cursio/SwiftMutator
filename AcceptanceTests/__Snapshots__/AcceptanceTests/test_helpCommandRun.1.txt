@@ -8,7 +8,8 @@ OPTIONS:
                           Only mutate a given list of source code files.
   --operators <operators> The list of mutant operators to be used:
                           RelationalOperatorReplacement, RelationalBoundary,
-                          RemoveSideEffects, ChangeLogicalConnector, SwapTernary
+                          RemoveSideEffects, ChangeLogicalConnector,
+                          SwapTernary, NegateConditional
   --skip-operators <skip-operators>
                           The mutant operators to leave out, in place of
                           skipOperators.

@@ -114,6 +114,46 @@ final class MutantDiffTests: XCTestCase {
         XCTAssertNil(fromLine(8))
     }
 
+    // A condition over several lines isn't found at its place, as the snapshot gives it on one line, and its mutant is
+    // placed at its start, so a copy above is another condition's.
+    func test_aNegatedConditionOverSeveralLines_isntTakenForACopyAbove() {
+        let snapshot = MutationOperator.Snapshot(before: "a && b", after: "!(a && b)", description: "")
+        let original = "    if a && b { return 1 }\n    if a &&\n        b { return 2 }\n"
+
+        XCTAssertNil(
+            MutantDiff.lines(
+                original: original, snapshot: snapshot, mutationOperatorId: .negateConditional, line: 2, column: 8
+            )
+        )
+    }
+
+    // `if!(` doesn't parse, and isn't what the operator writes.
+    func test_aNegatedConditionTouchingItsKeyword_isShownWithTheSpaceItGets() {
+        let snapshot = MutationOperator.Snapshot(before: "(b)", after: "!((b))", description: "")
+
+        XCTAssertEqual(
+            MutantDiff.lines(
+                original: "} else if(b) {",
+                snapshot: snapshot,
+                mutationOperatorId: .negateConditional,
+                line: 1,
+                column: 10
+            ),
+            ["-1: } else if(b) {", "+1: } else if !((b)) {"]
+        )
+    }
+
+    func test_aNegatedCondition_isShownWithoutASpaceItDoesntGet() {
+        let snapshot = MutationOperator.Snapshot(before: "b", after: "!(b)", description: "")
+
+        XCTAssertEqual(
+            MutantDiff.lines(
+                original: "if b {", snapshot: snapshot, mutationOperatorId: .negateConditional, line: 1, column: 4
+            ),
+            ["-1: if b {", "+1: if !(b) {"]
+        )
+    }
+
     // A removed statement leaves nothing of its line, or what else the line holds.
     func test_aRemovedStatement_hasNoPlusLine_unlessSomethingIsLeftOfItsLine() {
         let snapshot = MutationOperator.Snapshot(before: "save()", after: "removed line", description: "removed line")

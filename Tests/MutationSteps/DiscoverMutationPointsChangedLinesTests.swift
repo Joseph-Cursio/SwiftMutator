@@ -38,7 +38,10 @@ final class DiscoverMutationPointsChangedLinesTests: MuterTestCase {
     func test_anOperatorWhoseOperandChanged_isKept() async throws {
         let kept = try await mutants(changing: [LineRange(first: 3, last: 3)])
 
-        XCTAssertEqual(kept.map(\.operatorAndLine), ["RelationalBoundary:2", "RelationalOperatorReplacement:2"])
+        XCTAssertEqual(
+            kept.map(\.operatorAndLine),
+            ["NegateConditional:2", "RelationalBoundary:2", "RelationalOperatorReplacement:2"]
+        )
     }
 
     func test_aChangedStatement_isKept_andTheUnchangedOnesAreNot() async throws {
@@ -51,13 +54,16 @@ final class DiscoverMutationPointsChangedLinesTests: MuterTestCase {
     func test_anExpressionLinesWereRemovedFrom_isKept() async throws {
         let kept = try await mutants(removingAfter: [2])
 
-        XCTAssertEqual(kept.map(\.operatorAndLine), ["RelationalBoundary:2", "RelationalOperatorReplacement:2"])
+        XCTAssertEqual(
+            kept.map(\.operatorAndLine),
+            ["NegateConditional:2", "RelationalBoundary:2", "RelationalOperatorReplacement:2"]
+        )
     }
 
     func test_withoutChangedLines_everyMutantOfAChangedFileIsKept() async throws {
         let kept = try await mutants(changing: [LineRange(first: 8, last: 8)], changedLines: false)
 
-        XCTAssertEqual(kept.count, 5)
+        XCTAssertEqual(kept.count, 6)
     }
 
     func test_noMutantOnAChangedLine_leavesNothingToMutate() async throws {

@@ -176,6 +176,27 @@ final class MutationTestingAbortReasonTests: MuterTestCase {
         )
     }
 
+    // Swift Build's driver has no colon after the column, and comes straight after whatever the progress line printed.
+    func test_compilerErrorParsing_readsTheDriversForm() {
+        let log = """
+        error: /project/A.swift:7:131 #_hasSymbol may only be used as condition
+        [28 / 51] Serror: /project/B.swift:1:2 expected: something
+        error: SwiftCompile normal arm64 /project/C.swift failed with a nonzero exit code.
+        note: error: /project/D.swift:1:2 quoted
+        error: relative/E.swift:1:2 not a path SwiftMutator can place
+        """
+
+        XCTAssertEqual(CompilerError.all(in: log), [
+            CompilerError(
+                filePath: "/project/A.swift",
+                line: 7,
+                column: 131,
+                message: "#_hasSymbol may only be used as condition"
+            ),
+            CompilerError(filePath: "/project/B.swift", line: 1, column: 2, message: "expected: something"),
+        ])
+    }
+
     func test_compilerErrorParsing_readsAColonInAPath_andCRLFs() {
         let log = "/Users/a:b/A.swift:1:2: error: first\r\n/Users/a:b/A.swift:3:4: error: second: with a colon\r\n"
 

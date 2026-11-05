@@ -8,7 +8,8 @@ import XCTest
 final class ShardRunTests: MuterTestCase {
     private let state = MutationTestState()
 
-    // Line 2 `<`, with two mutants, lines 8 and 9 statements RemoveSideEffects removes, line 13 `==`: five mutants.
+    // Line 2 `<`, with two mutants, and its condition, negated, lines 8 and 9 statements RemoveSideEffects removes,
+    // line 13 `==`: six mutants.
     private let source = """
     func check(index: Int, items: [Int]) -> Bool {
         guard index <
@@ -64,7 +65,7 @@ final class ShardRunTests: MuterTestCase {
             return XCTFail("Expected the shard first, got \(changes)")
         }
         XCTAssertEqual(selection.shard, shard)
-        XCTAssertEqual(selection.mutantsInAllShards, 5)
+        XCTAssertEqual(selection.mutantsInAllShards, 6)
         state.apply(changes)
         XCTAssertEqual(state.shardSelection, selection)
     }

@@ -7,11 +7,11 @@ import XCTest
 /// `where` clause.
 final class RelationalBoundaryOperatorTests: MuterTestCase {
     private lazy var sourceWithConditionalLogic = fixtureSource(
-        at: "\(mutationExamplesDirectory)/NegateConditionals/sampleWithConditionalOperators.swift"
+        at: "\(mutationExamplesDirectory)/RelationalOperatorReplacement/sampleWithConditionalOperators.swift"
     )
 
     private lazy var conditionalConformanceConstraints = fixtureSource(
-        at: "\(mutationExamplesDirectory)/NegateConditionals/conditionalConformanceConstraints.swift"
+        at: "\(mutationExamplesDirectory)/RelationalOperatorReplacement/conditionalConformanceConstraints.swift"
     )
 
     private lazy var sourceWithoutMutableCode = fixtureSource(

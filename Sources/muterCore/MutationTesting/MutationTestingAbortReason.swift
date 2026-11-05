@@ -146,7 +146,7 @@ private extension MutationTestingAbortReason {
     }
 }
 
-/// A `file:line:column: error: message` diagnostic parsed out of a compiler or test log.
+/// A compile error parsed out of a compiler or test log: mostly `file:line:column: error: message`.
 struct CompilerError: Hashable, Sendable {
     let filePath: String
     let line: Int
@@ -198,9 +198,17 @@ extension CompilerError {
         #"^((?:(?!: ).)+?):([0-9]+):([0-9]+):\s+error:\s+(\S.*?)\s*$"#
     )
 
+    /// `error: /path/to/File.swift:12:34 #_hasSymbol may only be used as condition…`, as Swift Build's driver prints an
+    /// error it finds before compiling, with no colon after the column, and glued to whatever the progress line had
+    /// printed: `[28 / 51] Serror: /path/…`. Only an absolute path, so that `error: <a path> failed…` isn't one.
+    private static let driverDiagnostic = NSRegularExpression.regexWithPattern(
+        #"^[^:]*?error:\s+(/(?:(?!: ).)+?):([0-9]+):([0-9]+)\s+(\S.*?)\s*$"#
+    )
+
     private static func from(logLine: String) -> CompilerError? {
         let whole = NSRange(logLine.startIndex..., in: logLine)
-        guard let match = diagnostic.firstMatch(in: logLine, range: whole),
+        guard let match = diagnostic.firstMatch(in: logLine, range: whole)
+            ?? driverDiagnostic.firstMatch(in: logLine, range: whole),
               let path = Range(match.range(at: 1), in: logLine),
               let line = Range(match.range(at: 2), in: logLine).flatMap({ Int(logLine[$0]) }),
               let column = Range(match.range(at: 3), in: logLine).flatMap({ Int(logLine[$0]) }),

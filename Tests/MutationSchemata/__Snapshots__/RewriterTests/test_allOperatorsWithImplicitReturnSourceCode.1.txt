@@ -25,6 +25,21 @@ struct ConditionalOperators {
 
       return a == 9 ? "goodbye" : "what"
     } else if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_c132952c484be782_NegateConditional_14_12_373"] != nil
+    {
+      let b = a == 5
+      let e = a != 1
+      let c = a >= 4
+      let d = a <= 10
+      let f = a < 5
+      let g = a > 5
+
+      if !(a == 10) {
+        return "hello"
+      }
+
+      return a == 9 ? "goodbye" : "what"
+    } else if __SwiftMutator_c132952c484be782.environment[
       "sampleWithAllOperators_c132952c484be782_SwapTernary_18_43_463"] != nil
     {
       let b = a == 5
@@ -448,6 +463,13 @@ public enum Enum {
         "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_146_26_3366"] != nil
       {
         if something != nil {
+          return 0
+        }
+        return 10
+      } else if __SwiftMutator_c132952c484be782.environment[
+        "sampleWithAllOperators_c132952c484be782_NegateConditional_146_16_3356"] != nil
+      {
+        if !(something == nil) {
           return 0
         }
         return 10
