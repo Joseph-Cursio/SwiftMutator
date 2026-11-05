@@ -43,6 +43,8 @@ final class FileManagerSpy: Spy, FileSystemManager, @unchecked Sendable {
     var createDirectoryErrorsToThrow: [Error?] = []
     var subpathsToReturn: [String]?
     var fileExistsToReturn: [Bool] = []
+    /// Whether `createFile` succeeds, as it returns; what it wrote is recorded either way.
+    var createFileToReturn = true
     var contentsAtPathSortedToReturn: [String] = []
     var contentsOfDirectoryToReturn: [String] = []
 
@@ -82,7 +84,7 @@ final class FileManagerSpy: Spy, FileSystemManager, @unchecked Sendable {
         contents = data
         createdFiles[path] = data ?? Data()
 
-        return true
+        return createFileToReturn
     }
 
     func copyItem(
