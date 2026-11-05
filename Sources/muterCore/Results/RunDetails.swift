@@ -4,7 +4,7 @@ import Foundation
 /// sessions made them, then the SwiftMutator build, the toolchain and the settings the mutants were tested with, as the
 /// last session that tested any recorded them. A session with nothing left to test, which tests none, doesn't count,
 /// unless it is the only one. For a merged report, the sessions are every shard's added up, and the rest is the first
-/// shard's. The JSON report and `summary.json` hold it as `run`.
+/// shard's that tested any. The JSON report and `summary.json` hold it as `run`.
 struct RunDetails: Codable, Equatable {
     /// The results files the report is of: the run's, or each shard's for a merged report.
     let resultsFiles: [String]
@@ -26,7 +26,7 @@ struct RunDetails: Codable, Equatable {
     /// without a header.
     init?(of files: [(path: String, headers: [ResultsHeader])]) {
         guard let last = files.first?.headers.last else { return nil }
-        let tested = files.first?.headers.last { $0.workers > 0 } ?? last
+        let tested = files.lazy.compactMap { $0.headers.last { $0.workers > 0 } }.first ?? last
         resultsFiles = files.map(\.path)
         sessions = files.reduce(0) { $0 + ($1.headers.last?.session ?? 0) }
         swiftMutator = tested.provenance.swiftMutator

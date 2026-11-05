@@ -477,6 +477,45 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         print("ℹ️ Each mutant's tests run through `swift test`, which takes about a second longer per mutant: \(reason)")
     }
 
+    func buildingAgainWithoutMutants(count: Int) {
+        let mutants = count == 1 ? "1 mutant is, so SwiftMutator is building again without it"
+            : "\(count) mutants are, so SwiftMutator is building again without them"
+        print("🔁 The build failed where \(mutants).")
+    }
+
+    func stoppedTakingOutMutants(afterBuilds builds: Int) {
+        print(
+            "⚠️ SwiftMutator takes mutants out after at most \(builds) failed builds, so the errors below may still be "
+                + "mutants'. Leave their files out with --files-to-mutate or `exclude`, or their operators with "
+                + "--skip-operators."
+        )
+    }
+
+    /// Which mutants the run won't test, and why, each as `--mutant` takes it. A list long enough to scroll the run's
+    /// start away is cut short: each mutant's log, and the results file, have the rest. No line says `warning:` or
+    /// `error:` after a file's place, which Xcode would take for an issue of its own.
+    func mutantsLeftOutOfTheBuild(_ leftOut: MutantsLeftOut) {
+        let count = leftOut.mutants.count
+        let shown = leftOut.mutants.prefix(MutantsLeftOut.namedAtMost).map { "  \($0.line)" }
+        let more = count > shown.count ? ["  … and \(count - shown.count) more: each one's log says why"] : []
+        let withOthers = leftOut.mutants.count { $0.mutant.blame != .itself }
+        let said = switch (count, withOthers) {
+        case (1, 0):
+            "1 mutant doesn't compile, so SwiftMutator took it out of the build, and won't test it. The score leaves "
+                + "it out, the reports list it as a build error, and --resume tries it again:"
+        case (_, 0):
+            "\(count) mutants don't compile, so SwiftMutator took them out of the build, and won't test them. The "
+                + "score leaves them out, the reports list them as build errors, and --resume tries them again:"
+        default:
+            "SwiftMutator took \(count) mutants out of the build, and won't test them: the compiler's errors could be "
+                + "pinned on \(count - withOthers), and \(withOthers) went with others around the errors, and may "
+                + "compile. The score leaves them out, the reports list them as build errors, and --resume tries them "
+                + "again:"
+        }
+        let nothingLeft = leftOut.toTest == 0 ? ["⚠️ That leaves no mutant to test."] : []
+        print((["⚠️ \(said)"] + shown + more + nothingLeft).joined(separator: "\n"))
+    }
+
     func workersShareUserDefaults() {
         print(
             "ℹ️ Workers running through `swift test` share `UserDefaults.standard`: tests that write to it can fail "
@@ -753,7 +792,8 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         isExportingReport: Bool,
         didSaveReport: Bool,
         scoreLine: String,
-        suspectWarning: String?
+        suspectWarning: String?,
+        buildErrorWarning: String? = nil
     ) {
         print("🏁 SwiftMutator finished running!")
 
@@ -777,6 +817,9 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         if let suspectWarning {
             print("⚠️ \(suspectWarning)")
         }
+        if let buildErrorWarning {
+            print("⚠️ \(buildErrorWarning)")
+        }
     }
 
     /// How many lines of a run of one mutant's log are printed whole. A longer log is printed from its last
@@ -795,8 +838,12 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         lines.append(run.logPath.map { "Tests (log: \($0)):" } ?? "Tests:")
         lines += Self.shown(log: run.testLog, kept: run.logPath != nil).map { $0.isEmpty ? "" : "  " + $0 }
         lines.append("Verdict: " + Self.verdict(of: run))
-        lines.append("Mutated project kept, with the mutant switched off: \(run.mutatedProject)")
-        lines += Self.switchingOn(run)
+        if run.leftOutOfTheBuild {
+            lines.append("Mutated project kept, without the mutant: \(run.mutatedProject)")
+        } else {
+            lines.append("Mutated project kept, with the mutant switched off: \(run.mutatedProject)")
+            lines += Self.switchingOn(run)
+        }
         lines.forEach { print($0) }
         if let reportPath {
             print(
@@ -839,7 +886,7 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         case .timeout:
             return "timed out after " + seconds(run.timeoutSeconds ?? run.seconds)
         case .buildError:
-            return "build error" + took
+            return run.leftOutOfTheBuild ? "didn't compile, so its tests didn't run" : "build error" + took
         case .noCoverage:
             return "not covered"
         }
@@ -921,15 +968,20 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         }
         let score = "Mutation score so far: "
             + "\(mutationScore(from: earlyEnd.outcome.mutations.map(\.testSuiteOutcome)))%."
-        let tested = results - earlyEnd.reused
+        let tested = results - earlyEnd.reused - earlyEnd.leftOut
+        let didNotCompile = earlyEnd.leftOut == 0
+            ? ""
+            : "\(earlyEnd.leftOut) more \(earlyEnd.leftOut == 1 ? "was" : "were") taken out of the build. "
         guard earlyEnd.reused > 0 else {
-            return "⏹ Stopped \(stoppedBy) after testing \(tested) of \(earlyEnd.discovered) mutants. " + score
+            return "⏹ Stopped \(stoppedBy) after testing \(tested) of \(earlyEnd.discovered) mutants. "
+                + didNotCompile + score
         }
         let left = earlyEnd.discovered - earlyEnd.reused
         let progress = tested == 0
             ? "before any of the \(left) mutants left finished"
             : "after testing \(tested) of the \(left) mutants left"
-        return "⏹ Stopped \(stoppedBy) \(progress): \(results) of \(earlyEnd.discovered) have results. " + score
+        return "⏹ Stopped \(stoppedBy) \(progress): \(results) of \(earlyEnd.discovered) have results. "
+            + didNotCompile + score
     }
 
     /// `text` as one word for a POSIX shell, so that a printed command pastes whatever the path holds: log folders are

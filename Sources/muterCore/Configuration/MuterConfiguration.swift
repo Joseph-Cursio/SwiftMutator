@@ -664,6 +664,12 @@ extension MuterConfiguration {
         }
     }
 
+    /// `buildForTestingArguments` for a build after one that failed, which only what changed needs: without the `clean`
+    /// that adds, and any argument of the test command's own that says the same is left alone.
+    var rebuildForTestingArguments: [String] {
+        Array(buildForTestingArguments.dropLast(2)) + ["build-for-testing"]
+    }
+
     var derivedDataPath: String {
         guard let index = derivedDataArgumentIndex() else {
             return defaultDerivedData

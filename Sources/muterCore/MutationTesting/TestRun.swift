@@ -14,7 +14,8 @@ struct TestRun: Equatable {
         case stoppedAtCrash
         /// Its task was cancelled, so `outcome` says nothing about the mutant.
         case cancelled
-        /// Its log couldn't be opened or read, or its command couldn't start; `testLog` says why.
+        /// Its log couldn't be opened or read, or its command couldn't start; `testLog` says why. Also a mutant that
+        /// doesn't compile, whose tests were never run (`CompileRecovery`).
         case couldNotRun
     }
 

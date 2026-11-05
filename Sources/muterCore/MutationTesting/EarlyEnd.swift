@@ -12,4 +12,6 @@ struct EarlyEnd {
     let discovered: Int
     /// How many of `outcome`'s mutants are earlier sessions' results that a resumed session kept; 0 for a first one.
     let reused: Int
+    /// How many of `outcome`'s mutants weren't tested, as they don't compile (`CompileRecovery`).
+    var leftOut = 0
 }

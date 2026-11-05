@@ -213,13 +213,15 @@ mutant on its own (see [Testing one mutant](#testing-one-mutant)).
 
 `run`, `mutate-without-running` and `run-without-mutating` exit with:
 
-- **0** when the run finished, and its score isn't below `--fail-under` or `failUnder` (see
+- **0** when the run finished, and met `--fail-under` or `failUnder` (see
   [Failing on a low score](#failing-on-a-low-score)), and when there is nothing to mutate, as for a
   `--since` change with no Swift file, or a `--shard` that holds no mutant.
-- **2** when the run finished with its headline score below `--fail-under` or `failUnder`. Every
-  report, the results file and `summary.json` were written first.
+- **2** when the run finished with its headline score below `--fail-under` or `failUnder`, or with
+  every mutant a build error, whatever the threshold. Every report, the results file and
+  `summary.json` were written first.
 - **3** when the baseline run, with no mutant on, failed in the project's copy or in a parallel
-  worker's clone of it. Nothing was tested.
+  worker's clone of it, for any reason but
+  [mutants that don't compile](#mutants-that-dont-compile) outside a test plan. Nothing was tested.
 - **4** when an error stopped mutation testing partway, such as 5 build errors in a row, or a
   simulator that went away. The results so far are kept, and the run can be resumed.
 - **5** when a `--resume` or `--reuse` is refused, as the results might not hold for this run
@@ -238,7 +240,7 @@ mutant on its own (see [Testing one mutant](#testing-one-mutant)).
   path exits with 1.
 - **255** for any other error, such as a missing configuration or one that doesn't parse, a
   `--mutant` that names no mutant, a `--since` that git can't answer, or a project that doesn't
-  build for testing.
+  build for testing, even without its mutants that don't compile.
 - **128 plus the signal** when a signal stopped the run: 130 for SIGINT, 143 for SIGTERM and 129 for
   SIGHUP (see [Stopping a run](#stopping-a-run)).
 
@@ -271,9 +273,14 @@ for the key a configuration error, 255.
 
   The score shows as many decimals as the threshold has, at least one, truncated, so it never
   shows on the other side of the threshold.
-- **When nothing was scored**, as for a run whose every mutant was a build error, it passes:
-  nothing measured falls short. A run with nothing to mutate, as for a `--since` change with no
-  Swift file, or a `--shard` that holds no mutant, exits with 0 as before, and says nothing of it.
+- **When nothing was scored.** A run whose every mutant was a build error, as when none compiles,
+  fails, with status 2: there was something to measure, and nothing shows the threshold is met. A
+  run with nothing to mutate, as for a `--since` change with no Swift file, or a `--shard` that
+  holds no mutant, exits with 0 as before, and says nothing of it.
+- **Mutants left out of the score.** The score leaves out build errors, so taking mutants that don't
+  compile out of a run can raise it, and the verdict's line says how many there were. A mutant taken out
+  with others may compile, so taking it out can't help a run pass: the threshold is checked against
+  the headline score with such mutants counted as not killed, and the line gives that score.
 - **What isn't checked.** A run of one mutant (`--mutant`), whose score isn't the project's, and a
   shard of a `--shard` split, whose score isn't the whole run's, say so in their last line and exit
   with 0; check the merged report with `report --fail-under` instead (see
@@ -289,6 +296,55 @@ for the key a configuration error, 255.
 - **summary.json** records the verdict in `gate` (see [summary.json](#summaryjson)).
 
 A resume lets the threshold change, as no result depends on it: the change is only said.
+
+## Mutants that don't compile
+
+All of a run's mutants are compiled into one build, so one that doesn't compile would fail the build
+of all the others. A mutant can fail to compile where the rewrite is right: `<` to `<=` on a type that
+defines only `<`.
+
+So when a run's baseline fails to compile, SwiftMutator matches each error in a rewritten file to the
+mutants at fault, writes the file again without them, and builds again, until the build passes, no
+mutant can be blamed, or 20 builds have failed:
+
+```
+🔁 The build failed where 1 mutant is, so SwiftMutator is building again without it.
+💾 SwiftMutator saves each mutant's result as it finishes, in /Users/me/Foo_muter_logs/…/results.jsonl
+⚠️ 1 mutant doesn't compile, so SwiftMutator took it out of the build, and won't test it. The score leaves it out, the reports list it as a build error, and --resume tries it again:
+  Sources/Foo/Version.swift:9:19 RelationalBoundary (changed < to <=): binary operator '<=' cannot be applied to two 'Version' operands
+```
+
+- **What it records.** Each one is a build error, in the results file and in every report, with a log
+  of its own that gives the compiler's error. Its tests never ran, so it counts for neither the score
+  nor the 5 build errors in a row that stop a run. The run ends by saying how many there were.
+- **Which mutants it blames.** An error in a mutant's own code takes out that mutant. An error on a
+  list of mutants as a whole takes out the list. An error elsewhere, such as a missing `return`, takes
+  out the mutants around it that remove a statement, and if it stays, the other mutants of the
+  function, accessor or closure around it, or if it has none, of its file. The warning says how many
+  went with others, and may compile, and `--fail-under` counts those as not killed. The compiler can report one error of many per build, and each
+  build takes time, so after 5 failed builds errors are blamed on the code around them, and after 10
+  on their files.
+- **What still stops a run.** An error in a file with no mutants left, in a file SwiftMutator didn't
+  rewrite, or in an `import`, is your project's own: the run stops as it would have, exiting with 3,
+  or with 255 for xcodebuild, with the log of the last build. An error in the code SwiftMutator adds
+  to a file, a switch's condition or the environment it reads, stops the run too. No mutant is to
+  blame for it, and it is a bug in SwiftMutator: please report it. So does a 21st failed build, which
+  can take a project with mutants that don't compile in very many files: leave those files out with
+  `--files-to-mutate` or `exclude`, or their operators with `--skip-operators`.
+- **The failed builds' logs** are in the run's log folder, as `failed build 1.log` and so on. The
+  last build's is too, as `baseline run.log` when it was a baseline.
+- **Resuming.** `--resume` tests build errors again, so each session finds these mutants again, which
+  costs the failed builds again, even with nothing else left to test.
+- **Test plans.** A test plan's run tests its copy as it is, and stops at a compile error: fix it in
+  the copy, or make the plan again without its operator (`--skip-operators`). See
+  [The test plan](Docs/test-plan.md).
+- **Limit.** Under `-diagnostic-style=llvm` the compiler doesn't count a lone carriage return as a
+  line break, so in a file that has any, an error can be blamed on the wrong mutants. They are still
+  reported as build errors.
+
+If every mutant fails to compile, nothing is tested, and a run with a threshold fails. A run with none
+exits with 0, as a finished run does, having said it tested nothing. `summary.json` then has no
+`mutationScore`, and the Xcode format lists the warning as an issue.
 
 ## Test plans
 
@@ -506,7 +562,7 @@ swift-mutator triage 'Sources/Lint/Rules.swift:42:17 RelationalBoundary' --remov
   an identical line that an edit shifted onto that key, so identical lines an equal distance apart
   can each take the next one's label. The note is there to catch this.
 - **What the report asks you to look at.** Labels that followed their code, labels on mutants that
-  no longer survive, as a test now kills them, and labels that match no mutant, up to 10 of each. The
+  no longer survive, as a test now kills them, labels on mutants that weren't tested, as they were build errors, and labels that match no mutant, up to 10 of each. The
   JSON report lists them all.
 - **Results of part of a project.** Results that leave out some of a file's mutants say nothing about
   those, so no label follows its code in them, and a label whose mutant isn't in them matches nothing.
@@ -583,7 +639,7 @@ status and its log say why it stopped.
 | `shards` | When it covers only some shards of a `--shard` split, so its score isn't the whole run's: `indices`, `count` and `mutantsInAllShards`, as the JSON report's. |
 | `report` | The report `-o` saved, or a stopped run's partial report. Left out when none was saved. |
 | `run` | As the JSON report's. Left out when the results file couldn't be made, or written in full. |
-| `gate` | With a `--fail-under` or `failUnder`, the verdict on the score: `failUnder`, the threshold checked; `score`, the exact score compared; `passed`; or, when it wasn't checked, `notChecked`, one of `oneMutant`, `shard`, `endedEarly`, `stoppedOnAnError` and `lacksResults`, without `score` and `passed`. A run whose every mutant was a build error has `passed` true and no `score`. Left out without a threshold. See [Failing on a low score](#failing-on-a-low-score). |
+| `gate` | With a `--fail-under` or `failUnder`, the verdict on the score: `failUnder`, the threshold checked; `score`, the exact score compared, which is `mutationScore`'s but with any mutant taken out of the build with others counted as not killed; `passed`; or, when it wasn't checked, `notChecked`, one of `oneMutant`, `shard`, `endedEarly`, `stoppedOnAnError` and `lacksResults`, without `score` and `passed`. A run whose every mutant was a build error has `passed` false and no `score`. Left out without a threshold. See [Failing on a low score](#failing-on-a-low-score). |
 | `formatVersion` | 1. It goes up only when a key is taken out or changes its meaning. |
 
 `swift-mutator report --summary <path>` writes one from a results file, or from shards' files
@@ -1186,7 +1242,8 @@ swift-mutator report "../SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM" -f 
   an abort, such as 5 build errors in a row, and 255 for any other error, so a script that checks
   the report fails as one that checked the run would. A run whose baseline failed has no results
   file to report, or, resumed, keeps the earlier session's end, so `report` never exits with 3.
-- **It exits with status 2** when `--fail-under` is given and the score is below it, once the report
+- **It exits with status 2** when `--fail-under` is given and the score is below it, or every mutant
+  was a build error, once the report
   is made (see [Failing on a low score](#failing-on-a-low-score)). A run's error status wins, and
   then the score isn't checked.
 
@@ -1508,7 +1565,8 @@ take that folder too. The report at the end covers every mutant, kept or tested,
   so a kept one can't raise it. A timeout of a session on several workers is kept only once it was
   [run again](#timeouts-are-run-again): one that a stop, or a SwiftMutator from before reruns, left
   unconfirmed is tested again, and retesting can only raise the score. These are tested again:
-  - build errors, including test runs that couldn't start;
+  - build errors, including test runs that couldn't start, and
+    [mutants that don't compile](#mutants-that-dont-compile);
   - mutants in a file that changed, and mutations that changed;
   - mutants whose place and operator appear more than once in a file, as they share a switch ID;
   - timeouts of a session on several workers that weren't run again, which the summary counts as

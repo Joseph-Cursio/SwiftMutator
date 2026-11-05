@@ -104,17 +104,16 @@ private extension MutationTestingAbortReason {
     ) -> String {
         if let error = CompilerError.first(in: log, inFilesAt: mutatedFilePaths) {
             return """
-            SwiftMutator could not establish a baseline because a file it had mutated failed to compile:
+            SwiftMutator could not establish a baseline because a file it had rewritten failed to compile:
 
               \(error.description)
 
-            SwiftMutator rewrites the files it mutates before running your test suite, so a compile error in \
-            \(error.fileName) is most likely a bug in SwiftMutator's own rewriting rather than a problem with \
-            your \(MuterConfiguration.fileNameWithExtension).
-
-            Please report this at https://github.com/Joseph-Cursio/SwiftMutator/issues and include \
-            the log below. To rule out a pre-existing error, check that \(error.fileName) compiles in \
-            your unmutated project.
+            First check that \(error.fileName) compiles in your unmutated project. If it does: a test plan's run tests \
+            its copy as it is, so there this is most likely a mutant that doesn't compile. Fix it in the copy, or make the \
+            plan again without its operator. Any other run takes such a mutant out of the build, so there this is most \
+            likely a bug in SwiftMutator's own rewriting rather than a problem with your \
+            \(MuterConfiguration.fileNameWithExtension). Please report that bug at \
+            https://github.com/Joseph-Cursio/SwiftMutator/issues and include the log below.
             """
         }
 
@@ -148,7 +147,7 @@ private extension MutationTestingAbortReason {
 }
 
 /// A `file:line:column: error: message` diagnostic parsed out of a compiler or test log.
-struct CompilerError: Equatable {
+struct CompilerError: Hashable, Sendable {
     let filePath: String
     let line: Int
     let column: Int
@@ -164,41 +163,57 @@ struct CompilerError: Equatable {
 }
 
 extension CompilerError {
-    /// The first compile error in `log` reported against any of `filePaths`.
-    ///
-    /// Matching is by file name rather than full path: the log's paths point into SwiftMutator's copy of the
-    /// project, while the paths SwiftMutator records for its mutants are relative to the original.
+    /// The first compile error in `log` reported against any of `filePaths`, the rewritten files in the project's copy,
+    /// as the build's paths are. Compared in `canonicalPath` form, as the build and SwiftMutator can spell one file
+    /// differently: a file of the same name in another target, whose error isn't SwiftMutator's, isn't one of them.
     static func first(
         in log: String,
         inFilesAt filePaths: [String]
     ) -> CompilerError? {
-        let fileNames = Set(filePaths.map(\.lastPathComponent))
+        let rewritten = Set(filePaths.map(\.canonicalPath))
 
-        return all(in: log).first { fileNames.contains($0.fileName) }
+        return all(in: log).first { error in
+            guard error.filePath.hasPrefix("/") else {
+                // A build that runs `swiftc` on paths relative to the copy prints them so.
+                let relative = error.filePath.hasPrefix("./") ? String(error.filePath.dropFirst(2)) : error.filePath
+                return rewritten.contains { $0.hasSuffix("/" + relative) }
+            }
+            return rewritten.contains(error.filePath.canonicalPath)
+        }
     }
 
+    /// Every compile error `log` shows, without colour codes, as `swift build` prints them to a log, whatever the path
+    /// holds. Each is listed each time it is printed: xcodebuild prints an error once per architecture.
     static func all(in log: String) -> [CompilerError] {
-        log.split(separator: "\n").compactMap { from(logLine: String($0)) }
+        log.split(whereSeparator: \.isNewline).compactMap { line in
+            guard line.contains("error:") else { return nil }
+            return from(logLine: FailedTestLine.withoutColours(line))
+        }
     }
 
-    /// Parses one `/path/to/File.swift:12:34: error: expected expression` line. The message runs to the
-    /// end of the line; anything that doesn't have exactly this shape is not a diagnostic.
+    /// `/path/to/File.swift:12:34: error: expected expression`. The path holds no `: `, so a diagnostic quoted after a
+    /// label, such as `note: /path/File.swift:1:1: error: …`, isn't taken for one. The message runs to the end of the
+    /// line; anything that doesn't have exactly this shape is not a diagnostic.
+    private static let diagnostic = NSRegularExpression.regexWithPattern(
+        #"^((?:(?!: ).)+?):([0-9]+):([0-9]+):\s+error:\s+(\S.*?)\s*$"#
+    )
+
     private static func from(logLine: String) -> CompilerError? {
-        let components = logLine.split(separator: ":", maxSplits: 4, omittingEmptySubsequences: false)
-        guard components.count == 5,
-              let line = Int(components[1]),
-              let column = Int(components[2]),
-              String(components[3]).trimmed == "error",
-              !String(components[4]).trimmed.isEmpty
+        let whole = NSRange(logLine.startIndex..., in: logLine)
+        guard let match = diagnostic.firstMatch(in: logLine, range: whole),
+              let path = Range(match.range(at: 1), in: logLine),
+              let line = Range(match.range(at: 2), in: logLine).flatMap({ Int(logLine[$0]) }),
+              let column = Range(match.range(at: 3), in: logLine).flatMap({ Int(logLine[$0]) }),
+              let message = Range(match.range(at: 4), in: logLine)
         else {
             return nil
         }
 
         return CompilerError(
-            filePath: String(components[0]),
+            filePath: String(logLine[path]),
             line: line,
             column: column,
-            message: String(components[4]).trimmed
+            message: String(logLine[message])
         )
     }
 }

@@ -24,8 +24,9 @@ struct ReportArguments: ParsableArguments {
     @Option(
         name: .customLong("fail-under"),
         help: ArgumentHelp(
-            "Exit with status 2 when the headline mutation score is below this percent, from 0 to 100, "
-                + "once the report is written. For a run, in place of failUnder.",
+            "Exit with status 2 when the headline mutation score, counting any mutant taken out of the build with "
+                + "others as not killed, is below this percent, from 0 to 100, or every mutant was a build error, once "
+                + "the report is written. For a run, in place of failUnder.",
             valueName: "percent"
         ),
         transform: { text in

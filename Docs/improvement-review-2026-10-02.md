@@ -79,6 +79,7 @@ This started as a ranked review of SwiftMutator on 2 October 2026, at commit `4b
   - A second pass over kills with the property tests alone, step 2 of [#105] (§5, PR #211). With `propertyTestFilter`, a list of test filters that select the property tests as the test command takes them, each kill whose recorded tests include no property test is tested again with only those tests, fail-fast, after the mutants and any timeout reruns, on the same workers. A crash that names no test and `--mutant`'s one mutant aren't. The filtered tests run once with no mutant on first, and if they ran no test or didn't pass, no kill is tested again and the run says why, since `swift test` with a filter that matches nothing exits 0. Each rerun is a `propertyRerun` line after the mutant's own, which it never replaces. A kill a property failed for too counts as by both, and one every property passed for as by examples alone, not as a list that may be incomplete. On a small sorting package, with fail-fast stopping three kills at an example, the split came to 1 by examples alone, 2 by properties alone and 3 by both, as a run that stopped at no failure had recorded. The JSON report's per-mutant entries don't show the rerun yet. Triage labels, step 3, are left.
   - Workers' shared `UserDefaults`, [#92] (from Open bugs, PRs #173 and #216). Tests that write fixed keys in `UserDefaults.standard` can overwrite each other's values across workers, which gave SwiftProjectLint 4 false kills on 2 October, and 9 with 8 workers on 31 October ([release-and-workers-2026-10.md](release-and-workers-2026-10.md)). PR #173 fixed it for direct runs on macOS: the helper has no bundle identifier, so its domain is named after its executable's file, and each worker now starts it through its own link, `<folder>.swiftpm-testing-helper`, whose domain the script empties before each run. SwiftProjectLint's 8-worker run on 31 October then had no kills by `UserDefaults` tests that the other runs didn't have, and took 24.5 minutes, against 23.6. `CFFIXED_USER_HOME` doesn't isolate `UserDefaults` on macOS 27, and it also moves `NSHomeDirectory()`, which breaks the swiftly toolchain proxy. The rest is documented, as the fix belongs in the project's tests: the README's Tests that share state across workers lists what stays shared, and how to fix it. On a package of 12 mutants whose tests check none of its code, with 2 workers, a fixed `UserDefaults(suiteName:)` gave 12 false kills, as did `UserDefaults.standard` once one XCTest test sent the runs through `swift test`; `UserDefaults.standard` in direct runs and a UUID suite gave none, and so did the fixed suite with 1 worker. A UUID suite leaves an empty file in `~/Library/Preferences` for each run of the test, even after `removePersistentDomain`. A run with more than one worker now prints a line when its mutants run through `swift test`, including on Linux, where two copies of a package read each other's `UserDefaults.standard`, kept in `~/.config/<package>-test-runner.plist`. It can't tell whether the tests use `UserDefaults`, so it also prints for those that don't, and it says nothing of a fixed suite, which workers share in direct runs too.
   - Triage labels for survivors, step 3 of [#105], which closes it (§5, PR #215). `swift-mutator triage <mutant> --results <file> --label <label>` records a survivor's label and note in `muter.triage.yml`, and the plain text, HTML and JSON reports show them. No score changes. An entry holds what its mutant changes as well as its key: a label follows code that moved to the one mutant left with the same file, operator, change and line, and otherwise labels nothing and is listed, so it never lands on a different mutant on a guess. Reading it changes no result, so `ProjectTree` leaves the file out, and labelling refuses no `--resume` and tests nothing again in a `--reuse`.
+  - Mutants that don't compile (§2.6, [#87], PR #?). One no longer ends a run at its baseline. A failed build's errors are mapped to mutants by line and column in that build's rewritten text, those mutants are taken out, and it builds again, in the baseline for SwiftPM and in `BuildForTesting` for xcodebuild, so a build that passes costs nothing more. They record as `buildError`, with no new format, a log of their own, and no effect on the 5-in-a-row abort. The proposal's own build step and restoring files from the project weren't needed: mutants keep their places in the mapping, since keys, resume and shard merges depend on them, and only the rewrite leaves them out. An error in SwiftMutator's own code, a switch's condition or the environment cache, still stops the run, so a rewriting bug can't pass for mutants that don't compile, as does one in an `import`. This also fixed `CompilerError`, which couldn't read SwiftPM's coloured logs at all, and matched files by name. A run whose every mutant is a build error now fails `--fail-under`, where it used to pass, and a mutant taken out with others, which may compile, counts as not killed there, through an optional `leftOutWithOthers` key on its line that needs no format bump.
   - Choosing operators, part of [#111] (§6, PR #218). An `operators` key, with `--operators` winning, and a deny-list, `--skip-operators` and `skipOperators`, all of which refuse a name that isn't an operator. `mutate-without-running` had `--operators` already. The reports explain each operator they use in a line: a legend in the plain text report, a tooltip in the HTML report and `operatorExplanations` in the JSON. A configuration error now keeps YAML's reason, which named the key, rather than saying the file isn't JSON.
 
   Their write-ups are in [this file at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md), except those of PRs #49 and #52–#61, which are in the PRs themselves.
@@ -185,7 +186,6 @@ Discovery has merged mutants by full path since PR #25. Deferred:
   - So same-named files, and repeated mutants at one place, overwrite each other's kept log. The results file's `log` field then points both mutants at one file.
   - The raw log each test process writes doesn't have this flaw. It goes in `running/` in the run's log folder, as `<job number>_<file name>_<operator>_<offset>_<line>_<column>.log` (`PerformMutationTesting.swift:677-679`, `MutationTestingIODelegate.swift:434-446`), and the job number keeps two runs under way at once apart. Without it, repeats, which are tested next to each other, could share one file, and the first to finish would remove it before the other read it.
   - Log folders are named to the minute (`fileOperations.swift:35`). So two runs or sessions started in the same minute share a folder, and a retested mutant's log overwrites the earlier one.
-- **Compiler errors** ([#87]). `CompilerError.first` (`MutationTestingAbortReason.swift:128-138`) matches compiler errors to files by name, so with same-named files a failed baseline's message can name the wrong one.
 
 ### 2.4 Discovery and target membership: what's left
 
@@ -193,19 +193,6 @@ Discovery keeps only the files that the coverage data names, after describe or t
 - **Runs without coverage.** With `--skip-coverage`, or when coverage fails, an xcodebuild project, a package tested through xcodebuild and a wrapper script are walked, and every target of a SwiftPM package and of its local packages is mutated, but test, plugin and snippet targets. So an example app or an unused target gets mutants no test can kill again. The target membership in an Xcode project file, or each product's targets in describe, would still say which files count.
 - **Code that runs only in a process the tests start.** SwiftPM's coverage reads the test bundles, so a package's executable that its tests run with `Process` isn't in the data, nor is a library only it links, and their files aren't mutated, though such a test could kill their mutants. Discovery mutated them before it used the coverage data's files. Adding the executables the coverage run built as llvm-cov objects would bring them back, and count their lines.
 - **Generated sources that git ignores.** An xcodebuild project's walk still leaves out a source that a build step generates and git ignores, even if a target compiles it, which discovery mutated before it skipped ignored paths. The coverage data names it, but a build step that regenerates it would overwrite its mutants.
-
-### 2.6 One uncompilable mutant switch aborts the whole run
-
-Tracked in [#87].
-
-- **What happens.** A compile error in any of the ~300 rewritten files fails the baseline (`PerformMutationTesting.swift:194-226`). That ends the run after the copy, discovery and a ~95 s baseline. Stryker puts the offending mutants back instead, and cargo-mutants and mull mark them "unviable".
-- **Proposal.**
-  1. Make the build of the mutated project its own step. For SwiftPM it happens inside the baseline test run today.
-  2. On failure, match each compiler error's path to a rewritten file, by full path in the copy, and restore that file from the original project. `CompilerError.all(in:)` (`MutationTestingAbortReason.swift:141-143`) already parses the errors.
-  3. Record its mutants as "unviable", left out of the score but listed in the report.
-  4. Rebuild incrementally, and repeat for a few rounds.
-  5. Always print a loud warning naming the files that were dropped.
-- **Effect.** Losing a handful of mutants, about 8 here, instead of all 2,497.
 
 ### 2.7 Timeouts and the score
 
@@ -250,7 +237,7 @@ PR #27 fixed truncated logs, fractional time limits and identical statements. A 
 
 ## 5. Example tests and property tests
 
-Added on 7 October, from a discussion of using property-based tests (PBT) alongside mutation testing. Not in the suggested order: it's a feature, not a fix, and its first step only reads existing results. Tracked in [#105].
+Added on 7 October, from a discussion of using property-based tests (PBT) alongside mutation testing. Tracked in [#105].
 
 - **The idea.** Report which kind of test kills each mutant, so the score can be split by kind. It can also show how much each property constrains the code: mutants make a measure of a property's strength.
 - **What exists.** Each `mutant` line in `results.jsonl` has `killedBy`: each failing test's name and `file:line:col`, at most 20 (`ResultsRecords.swift:226-228`, `FailedTestLine.swift:95`). A test's file or suite can mark it as a property test, so no new recording is needed to start.
@@ -280,7 +267,7 @@ Added on 21 October, from a comparison with swift-mutation-testing v1.6.3 (`937f
 
 - **Operators.**
   - NegateConditional, which wraps `if`, `guard` and `while` conditions in `!( )` ([#106]). SwiftMutator's docs call the relational swap "Negate Conditionals", which it isn't.
-  - Arithmetic and boolean-literal operators, which wait for [#87] so that one that doesn't compile can't end a run, and tiers, which wait for each operator's numbers ([#111]).
+  - Arithmetic and boolean-literal operators, which [#87] has made safe, as one that doesn't compile no longer ends a run, and tiers, which wait for each operator's numbers ([#111]).
   - RemoveSideEffects: the blocks it skips, and a deny-list matched by name, with `assert` and `precondition` added ([#112]).
   - Every link of a ternary chain, identical branches, loops and `#if` conditions ([#113]).
 - **Discovery and the build.**
@@ -307,10 +294,6 @@ Added on 21 October, from a comparison with swift-mutation-testing v1.6.3 (`937f
 
 - **One mutant per line.** On 2 October, 2,478 inserted mutants sat on 2,205 lines, so a cap would save at most 11%. That was before PR #25 inserted every mutant, but that run's 2,487 logs give the same 11%.
 - **One long-lived test process for many mutants.** PR #13's per-process environment cache, and other static state that persists between mutants, make this unsafe.
-
-## Suggested order
-
-1. **Unviable mutants** (§2.6, [#87]), so that one bad mutant can't cost a whole run.
 
 ## Outside this repo
 

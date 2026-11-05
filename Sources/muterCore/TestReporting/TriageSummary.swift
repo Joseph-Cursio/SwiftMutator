@@ -143,6 +143,9 @@ struct TriageSummary: Codable, Equatable {
     let moved: [Moved]
     let noLongerSurviving: [NoLongerSurviving]
     let unmatched: [Unmatched]
+    /// Labels on mutants that were build errors, as those that didn't compile are: they weren't tested, so this says
+    /// nothing of the label. nil without any.
+    var notTested: [NoLongerSurviving]?
 }
 
 extension TriageSummary {
@@ -179,6 +182,11 @@ extension TriageSummary {
                 let saved = item.savedAs == item.mutant ? "" : ", saved as \(item.savedAs)"
                 return "\(item.mutant) (\(item.label.words)): \(item.verdict)\(saved)"
             },
+            paragraph(
+                notTested ?? [],
+                one: "label is on a mutant that wasn't tested, as it was a build error, so it may still hold:",
+                many: "labels are on mutants that weren't tested, as they were build errors, so they may still hold:"
+            ) { "\($0.mutant) (\($0.label.words))" },
             paragraph(
                 unmatched,
                 one: "label matches no mutant in these results, as its code changed or it wasn't tested:",
@@ -221,15 +229,21 @@ extension MuterTestReport {
 
         var labels: [TriageLabel: Int] = [:]
         var noLongerSurviving: [TriageSummary.NoLongerSurviving] = []
+        var notTested: [TriageSummary.NoLongerSurviving] = []
         for match in matches.matches {
             let mutant = mutants[match.index]
             guard [.passed, .timeout].contains(mutant.testSuiteOutcome) else {
-                noLongerSurviving.append(TriageSummary.NoLongerSurviving(
+                let item = TriageSummary.NoLongerSurviving(
                     mutant: mutant.key ?? match.entry.mutant.description,
                     label: match.entry.label,
                     verdict: MutantVerdict(mutant.testSuiteOutcome).words(1),
                     savedAs: match.entry.mutant.description
-                ))
+                )
+                if mutant.testSuiteOutcome == .buildError {
+                    notTested.append(item)
+                } else {
+                    noLongerSurviving.append(item)
+                }
                 continue
             }
             labels[match.entry.label, default: 0] += 1
@@ -256,7 +270,8 @@ extension MuterTestReport {
                 )
             },
             noLongerSurviving: noLongerSurviving,
-            unmatched: matches.unmatched.map { .init(mutant: $0.mutant.description, label: $0.label) }
+            unmatched: matches.unmatched.map { .init(mutant: $0.mutant.description, label: $0.label) },
+            notTested: notTested.isEmpty ? nil : notTested
         )
         return (fileReports, summary)
     }

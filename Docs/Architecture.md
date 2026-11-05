@@ -55,8 +55,9 @@ applies the changes the step returns. The steps are in
 15. `PruneLogFolders`: removes old runs' log folders beyond `keepLogFolders`.
 16. `ApplySchemata`: rewrites each file with mutants in the copy (see below).
 17. `CheckMutantSwitches`: reads the files back, and stops the run if a mutant's switch is missing.
-18. `BuildForTesting`: xcodebuild only. Runs `build-for-testing`, copies the products to
-    `TestContents` in the copy, and reads the `.xctestrun` file.
+18. `BuildForTesting`: xcodebuild only. Runs `build-for-testing`, without any mutant that doesn't
+    compile (`CompileRecovery`, see below), copies the products to `TestContents` in the copy, and
+    reads the `.xctestrun` file.
 19. `PerformMutationTesting`: tests the mutants (see below).
 
 `mutate-without-running` runs steps 1, 2, 5 to 9 and 11 to 13, then `PruneLogFolders`, `ApplySchemata`,
@@ -118,7 +119,11 @@ Spotlight out. The lock is in
 [`MutatedProjectLock.swift`](../Sources/muterCore/MutationTesting/MutatedProjectLock.swift).
 
 `PerformMutationTesting` runs the baseline, the tests with no mutant on, which also makes the one
-build. Unless `mutationTestTimeout` is set, a timed test run then sets the time limit ([`MutantTimeLimits.swift`](../Sources/muterCore/MutationSteps/MutantTimeLimits.swift),
+build. A build every mutant shares can fail on one of them, so [`CompileRecovery.swift`](../Sources/muterCore/MutationSteps/CompileRecovery.swift)
+takes the mutants a failed build's errors are in out of the code, from the prepared text
+`ApplySchemata` keeps, and it builds again. They stay in `mutationMapping`, as their keys, and the
+counts a resume and a shard merge check, depend on every mutant being there, and each gets a result
+line. Under xcodebuild `BuildForTesting` does this instead. Unless `mutationTestTimeout` is set, a timed test run then sets the time limit ([`MutantTimeLimits.swift`](../Sources/muterCore/MutationSteps/MutantTimeLimits.swift),
 [`TimedTestRun.swift`](../Sources/muterCore/MutationSteps/TimedTestRun.swift)). Then
 [`WorkerPool.swift`](../Sources/muterCore/MutationSteps/WorkerPool.swift) tests the mutants,
 `mutationTestWorkers` at a time:

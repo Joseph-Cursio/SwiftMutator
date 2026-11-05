@@ -99,6 +99,17 @@ extension MutationTestOutcome {
 }
 
 extension MutationTestOutcome {
+    /// What a run ends with when some of its mutants were build errors, as those that don't compile are: they weren't
+    /// tested, and neither the score nor a passing `--fail-under` says so. nil without any, and for one mutant's run,
+    /// whose verdict says it.
+    var buildErrorWarning: String? {
+        let count = mutations.count { $0.testSuiteOutcome == .buildError }
+        guard count > 0, mutant == nil else { return nil }
+        return count == 1
+            ? "1 mutant was a build error, so it wasn't tested, and the score leaves it out."
+            : "\(count) mutants were build errors, so they weren't tested, and the score leaves them out."
+    }
+
     struct Mutation: Equatable {
         let testSuiteOutcome: TestSuiteOutcome
         let point: MutationPoint
@@ -121,6 +132,9 @@ extension MutationTestOutcome {
         /// For a kill whose recorded tests include no property test: how the property tests alone came out with it on
         /// (`PropertyRerunResult`); nil when they weren't run again for it.
         var propertyRerun: PropertyRerun?
+        /// Whether it was taken out of the build with others, as the compiler's error could be any of theirs
+        /// (`LeftOutMutant.Blame`), so it may compile. As its results line records it.
+        var leftOutWithOthers = false
 
         /// `killingTests`, `reusedFrom`, `key` and `durationSeconds` have no default: the run, `swift-mutator report`
         /// and `--resume` must each pass theirs.

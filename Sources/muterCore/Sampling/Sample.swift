@@ -123,6 +123,8 @@ struct SampleScope: Codable, Equatable {
     /// A shard's results are a random part of it, as its hash doesn't depend on the seed, so a shard's report, and a
     /// merge of some of the shards, have one.
     let marginOfError: Double?
+    /// True when no mutant of the sample was scored, as when none compiled, so there is no score to give a margin of.
+    var noneScored: Bool?
 
     /// `selection`'s sample, of which a report has `tested` results; those that counted toward the score (all but build
     /// errors) number `scored`, and `killed` of them were killed. The results are `cutShort` when a run, or a shard's,
@@ -133,7 +135,8 @@ struct SampleScope: Codable, Equatable {
         mutantsSampledFrom = selection.mutantsSampledFrom
         mutantsTested = tested
         seed = selection.seed
-        marginOfError = cutShort ? nil : Self.marginOfError(
+        noneScored = scored == 0 && tested > 0 ? true : nil
+        marginOfError = cutShort || noneScored == true ? nil : Self.marginOfError(
             killed: killed,
             scored: scored,
             sampled: tested,
@@ -170,6 +173,10 @@ struct SampleScope: Codable, Equatable {
     var sentence: String {
         let tested = "Only a sample of \(mutantsSampled) of the \(mutantsSampledFrom) mutants discovered was tested "
             + "(seed \(seed))"
+        guard noneScored != true else {
+            return "Only a sample of \(mutantsSampled) of the \(mutantsSampledFrom) mutants discovered was chosen "
+                + "(seed \(seed)), and every one with a result was a build error, so there is no score and no margin."
+        }
         guard let margin else {
             return tested + ", and \(mutantsTested) of them have a result, so no margin is given: the others have none "
                 + "yet, so these are the first ones tested, not a random part of the sample."

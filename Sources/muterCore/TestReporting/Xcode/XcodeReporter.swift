@@ -22,7 +22,12 @@ struct XcodeReporter: Reporter {
         Number of killed mutants: \(report.numberOfKilledMutants)
         Mutants by outcome: \(OutcomeCounts(outcome.mutations.map(\.testSuiteOutcome)).tally)
         """
-        guard let suspects = report.suspectSummary, let warning = report.suspectWarning else { return summary }
+        // A warning without a file and line, which Xcode lists without a location: a mutant that was a build error has
+        // no survivor's warning to show it wasn't tested.
+        let buildErrors = outcome.buildErrorWarning.map { "\nwarning: SwiftMutator: \($0)" } ?? ""
+        guard let suspects = report.suspectSummary, let warning = report.suspectWarning else {
+            return summary + buildErrors
+        }
         let scoreWithoutSuspects = suspects.scoreWithoutSuspects(mutationScore: report.globalMutationScore)
         // "at least" when it is a lower bound, as the other formats say; the score stays a bare number, as above.
         let atLeast = suspects.scoreWithoutSuspectsIsALowerBound ? "at least " : ""
@@ -31,7 +36,7 @@ struct XcodeReporter: Reporter {
 
         Mutation score without suspect tests: \(atLeast)\(scoreWithoutSuspects)
         warning: SwiftMutator: \(warning)
-        """
+        """ + buildErrors
     }
 
     private func outcomeIntoXcodeString(outcome: MutationTestOutcome.Mutation) -> String {

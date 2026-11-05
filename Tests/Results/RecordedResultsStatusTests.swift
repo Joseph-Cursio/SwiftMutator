@@ -80,7 +80,7 @@ final class RecordedResultsStatusTests: XCTestCase {
             recorded.statusLines(path: path),
             [
                 "Report of 1 of 1 mutants, from /logs/results.jsonl: the run finished.",
-                "One mutant tested with --mutant (\(key)): its score isn't the project's.",
+                "One mutant chosen with --mutant (\(key)): its score isn't the project's.",
             ]
         )
         XCTAssertEqual(recorded.mutationTestOutcome().mutant, key)

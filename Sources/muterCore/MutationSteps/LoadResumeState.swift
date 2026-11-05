@@ -146,10 +146,14 @@ struct LoadResumeState: MutationStep {
 }
 
 extension LoadResumeState {
-    /// The longest time limit any of `recorded`'s results was tested under: its sessions' longest. nil when that isn't
-    /// known: no session recorded one, or a result was kept by `--reuse`, which doesn't record the earlier run's.
+    /// The longest time limit any of `recorded`'s results was tested under: the longest of its sessions that tested
+    /// any. A session that tested none, as with nothing left to test or none that compiled, can have a limit no result
+    /// ran under; with no other, any limit holds. nil when that isn't known: no session that tested any recorded one,
+    /// or a result was kept by `--reuse`, which doesn't record the earlier run's.
     static func longestLimit(of recorded: RecordedResults) -> Double? {
         guard !recorded.latest.values.contains(where: { $0.reusedFrom != nil }) else { return nil }
-        return recorded.headers.compactMap(\.timeoutSeconds).max()
+        let tested = recorded.headers.filter { $0.workers > 0 }
+        guard !tested.isEmpty || recorded.latest.isEmpty else { return 0 }
+        return (tested.isEmpty ? recorded.headers : tested).compactMap(\.timeoutSeconds).max()
     }
 }

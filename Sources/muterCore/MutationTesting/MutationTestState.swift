@@ -55,6 +55,13 @@ protocol AnyMutationTestState: AnyObject {
     /// The one mutant `--mutant` chose, which is then the only one in `mutationMapping`; nil without `--mutant`, and
     /// until it is chosen.
     var selectedMutant: MutantKey? { get }
+    /// Each file with mutants as discovery prepared it, by its path in the copy, which `ApplySchemata` overwrites, so
+    /// that a mutant that doesn't compile can be left out of a new rewrite (`CompileRecovery`); empty until then, and
+    /// in a run of a test plan, whose copy is what the plan was made with.
+    var preparedSources: [FilePath: String] { get }
+    /// The mutants, by switch ID, that `BuildForTesting` took out of the build, as they don't compile; empty for any
+    /// other build system, which takes them out as its baseline builds.
+    var mutantsLeftOut: [String: LeftOutMutant] { get }
 
     func apply(_ stateChanges: [MutationTestState.Change])
 }
@@ -89,6 +96,8 @@ final class MutationTestState: AnyMutationTestState {
     var candidatePaths: [FilePath]?
     var testPlan: LoadedTestPlan?
     var selectedMutant: MutantKey?
+    var preparedSources: [FilePath: String] = [:]
+    var mutantsLeftOut: [String: LeftOutMutant] = [:]
 
     init() {}
 
@@ -127,6 +136,8 @@ extension MutationTestState {
         case testPlanLoaded(LoadedTestPlan)
         case mutantSelected(MutantKey)
         case operatorsChosen(MutationOperatorList)
+        case preparedSourcesKept([FilePath: String])
+        case mutantsLeftOutOfTheBuild([String: LeftOutMutant])
     }
 }
 
@@ -191,6 +202,10 @@ extension MutationTestState {
                 selectedMutant = key
             case let .operatorsChosen(operators):
                 mutationOperatorList = operators
+            case let .preparedSourcesKept(sources):
+                preparedSources = sources
+            case let .mutantsLeftOutOfTheBuild(mutants):
+                mutantsLeftOut = mutants
             }
         }
     }
