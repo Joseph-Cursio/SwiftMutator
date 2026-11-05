@@ -58,7 +58,7 @@ extension MuterError: CustomStringConvertible {
             return """
             SwiftMutator wasn't able to discover any code it could mutation test.
 
-            This is likely caused by misconfiguring SwiftMutator, usually by excluding a directory that contains your code.
+            This is likely caused by misconfiguring SwiftMutator, usually by excluding a directory that contains your code, or by choosing operators that don't apply to it, with --operators, --skip-operators, or the operators and skipOperators keys.
             """
         case let .mutationTestingAborted(reason):
             return """

@@ -33,6 +33,9 @@ struct MuterTestReport {
     let mutant: String?
     /// Where the results came from; left out of the JSON when not known.
     let run: RunDetails?
+    /// What each operator the report's mutants used does, by its name. nil without mutants, and then left out of the
+    /// JSON.
+    let operatorExplanations: [String: String]?
 
     /// The report of `outcome`, with each mutant's line read by `readSource` from its original file.
     init(
@@ -74,6 +77,8 @@ struct MuterTestReport {
         )
         mutant = outcome.mutant
         run = outcome.run
+        let explained = outcome.mutations.map(\.point.mutationOperatorId).map { ($0.rawValue, $0.explanation) }
+        operatorExplanations = explained.isEmpty ? nil : Dictionary(explained) { first, _ in first }
     }
 
     /// "One mutant tested with --mutant (Sources/Bar.swift:12:9 SwapTernary): its score isn't the project's."
@@ -487,5 +492,6 @@ extension MuterTestReport: Codable {
         case sample
         case mutant
         case run
+        case operatorExplanations
     }
 }

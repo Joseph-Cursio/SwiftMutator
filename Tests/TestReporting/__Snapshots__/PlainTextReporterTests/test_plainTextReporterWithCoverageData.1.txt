@@ -18,6 +18,9 @@ File                           Applied Mutation Operator       Mutation Test Res
 ----                           -------------------------       --------------------
 /tmp/project/file3.swift:0:0   RelationalOperatorReplacement   mutant survived
 
+What these operators do:
+RelationalOperatorReplacement: Reverses a comparison: equal becomes not equal, and less than becomes greater than.
+
 
 --------------------
 Mutation Test Scores

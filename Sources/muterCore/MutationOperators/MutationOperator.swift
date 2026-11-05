@@ -6,6 +6,12 @@ typealias MutationOperatorList = [MutationOperator.Id]
 
 extension [MutationOperator.Id] {
     static let allOperators = MutationOperator.Id.allCases
+
+    /// Each operator once, where it first appears: an operator listed twice would test each of its mutants twice.
+    var withoutRepeats: Self {
+        var seen: Set<MutationOperator.Id> = []
+        return filter { seen.insert($0).inserted }
+    }
 }
 
 enum MutationOperator {
@@ -34,6 +40,22 @@ enum MutationOperator {
 
         static var description: String {
             allCases.map(\.rawValue).joined(separator: ", ")
+        }
+
+        /// What it does, in a line, for the reports. In words alone, as the HTML report puts it in an attribute.
+        var explanation: String {
+            switch self {
+            case .ror:
+                return "Reverses a comparison: equal becomes not equal, and less than becomes greater than."
+            case .relationalBoundary:
+                return "Moves a comparison's boundary: less than and at most swap, as do greater than and at least."
+            case .removeSideEffects:
+                return "Removes a call whose result isn't used, to check that a test notices its side effect is gone."
+            case .logicalOperator:
+                return "Swaps a logical AND for OR, and OR for AND."
+            case .swapTernary:
+                return "Swaps the two branches of a ternary expression."
+            }
         }
     }
 

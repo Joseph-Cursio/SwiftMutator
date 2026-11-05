@@ -126,6 +126,7 @@ extension MutationTestState {
         case candidatePathsListed([FilePath])
         case testPlanLoaded(LoadedTestPlan)
         case mutantSelected(MutantKey)
+        case operatorsChosen(MutationOperatorList)
     }
 }
 
@@ -188,6 +189,8 @@ extension MutationTestState {
                 }
             case let .mutantSelected(key):
                 selectedMutant = key
+            case let .operatorsChosen(operators):
+                mutationOperatorList = operators
             }
         }
     }

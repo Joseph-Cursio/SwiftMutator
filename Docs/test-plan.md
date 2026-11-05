@@ -2,7 +2,7 @@
 
 `swift-mutator mutate-without-running` copies the project to `<project>_mutated.noindex` beside it, as `run` does, puts every mutant's switch into the copy, and writes the test plan, `muter-mappings.json`, in the project folder. It tests nothing. `swift-mutator run-without-mutating muter-mappings.json` then tests the copy's mutants. In between you can fix the copy by hand, for example code that the rewriting left unable to compile.
 
-`mutate-without-running` takes `--files-to-mutate` and `--operators`, as `run` does, to choose which mutants the plan holds:
+`mutate-without-running` takes `--files-to-mutate`, `--operators` and `--skip-operators`, and follows the `operators` and `skipOperators` keys, as `run` does, to choose which mutants the plan holds:
 
 ```
 swift-mutator mutate-without-running --files-to-mutate Sources/Foo/Bar.swift --operators SwapTernary
@@ -91,7 +91,7 @@ The plan is one JSON object, pretty-printed with two spaces, its keys sorted, it
 | `swiftMutatorVersion` | String | The version of the SwiftMutator that made the plan. It is for you to read; SwiftMutator doesn't compare it. |
 | `mutatedProject` | String | The copy, relative to the folder the plan was made in. |
 | `projectCoverage` | Int | The project's code coverage, as a percentage. Left out when coverage wasn't gathered, as with `--skip-coverage`. |
-| `operators` | [String] | The operators the mutants were chosen by, sorted: those `--operators` named, or every one. |
+| `operators` | [String] | The operators the mutants were chosen by, sorted: what `--operators`, `--skip-operators` and the `operators` and `skipOperators` keys left, or every one. |
 | `filesToMutate` | [String] | The files the mutants were chosen from, as `--files-to-mutate` gave them; empty when it wasn't given. |
 | `sources` | Object | The project's own files when the plan was made, before any was rewritten, which a run of the plan checks the project against: `files`, each file's SHA-256 by its path relative to the project; `excluded`, the paths left out, such as `muter.conf.yml`; `listedBy`, `git`, or `walk` outside a repository; and `treeSHA256`, over them all. They are found as a run's results file records them (see [The results file](results-file.md)). |
 | `mutatedFiles` | Object | The SHA-256 of each file with mutants as the plan left it in the copy, by its path relative to the copy. A run of the plan names the files that differ, as after a fix by hand, and tests them as they are; it never refuses them. |

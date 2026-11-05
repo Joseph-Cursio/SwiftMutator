@@ -73,6 +73,109 @@ final class DiscoverMutationPointsTests: MuterTestCase {
 
     // A project without a mutant has none of its own to name, so it's refused as a mutant that isn't there, not
     // reported as a failure to file.
+    // A mutant nested in an opaque body is pruned once another operator mutates the body's own statements. A run under
+    // skipOperators tested and reported it, so `--mutant` has to find it too.
+    func test_aMutantNamed_thatOnlyTheConfiguredOperatorsKeep_isFound() async throws {
+        let file = try opaqueBodyFile()
+        state.sourceFileCandidates = [file]
+        state.muterConfiguration = MuterConfiguration(skipOperators: [.swapTernary])
+        state.runOptions = .make(
+            mutationOperatorsList: .allOperators,
+            mutant: MutantReference(path: file, line: 5, mutationOperatorId: .ror)
+        )
+
+        let result = try await sut.run(with: state)
+
+        guard case let .mutationMappingsDiscovered(mappings) = try XCTUnwrap(result.first) else {
+            return XCTFail("Expected mappings, got \(result)")
+        }
+        XCTAssertEqual(mappings.flatMap(\.mutationSchemata).map(\.mutationOperatorId), [.ror])
+    }
+
+    // Preparing a file rewrites it in the project's copy, so a second time would move every mutant in it.
+    func test_aMutantNamed_thatOnlyTheConfiguredOperatorsKeep_preparesTheFileOnce() async throws {
+        let file = try opaqueBodyFile()
+        let preparations = PreparationCount()
+        prepareCode.sourceCodeToReturn = {
+            preparations.add()
+            return muterCore.sourceCode(fromFileAt: $0).map { (source: $0, changes: .null) }
+        }
+        state.sourceFileCandidates = [file]
+        state.muterConfiguration = MuterConfiguration(skipOperators: [.swapTernary])
+        state.runOptions = .make(
+            mutationOperatorsList: .allOperators,
+            mutant: MutantReference(path: file, line: 5, mutationOperatorId: .ror)
+        )
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(preparations.count, 1)
+    }
+
+    func test_aMutantNamed_thatEveryOperatorsDiscoveryFinds_keepsThoseMutants() async throws {
+        let file = try opaqueBodyFile()
+        state.sourceFileCandidates = [file]
+        state.muterConfiguration = MuterConfiguration(skipOperators: [.swapTernary])
+        state.runOptions = .make(
+            mutationOperatorsList: .allOperators,
+            mutant: MutantReference(path: file, line: 7, mutationOperatorId: .swapTernary)
+        )
+
+        let result = try await sut.run(with: state)
+
+        guard case let .mutationMappingsDiscovered(mappings) = try XCTUnwrap(result.first) else {
+            return XCTFail("Expected mappings, got \(result)")
+        }
+        XCTAssertEqual(mappings.flatMap(\.mutationSchemata).map(\.mutationOperatorId), [.swapTernary])
+    }
+
+    func test_aChangeWithNoMutant_ofFewerOperators_namesThem() async throws {
+        state.sourceFileCandidates = ["\(fixturesDirectory)/sourceWithoutMutableCode.swift"]
+        state.mutationOperatorList = [.swapTernary, .ror]
+        state.changeSelection = .make()
+
+        do {
+            _ = try await sut.run(with: state)
+            XCTFail("Expected nothing to mutate")
+        } catch let error as NothingToMutate {
+            XCTAssertEqual(error.chosenOperators, [.swapTernary, .ror])
+            XCTAssertTrue(
+                error.description.contains(
+                    "none of the operators chosen (SwapTernary, RelationalOperatorReplacement) mutates any code in it"
+                ),
+                error.description
+            )
+        }
+
+        state.mutationOperatorList = .allOperators
+        do {
+            _ = try await sut.run(with: state)
+            XCTFail("Expected nothing to mutate")
+        } catch let error as NothingToMutate {
+            XCTAssertNil(error.chosenOperators)
+            XCTAssertTrue(error.description.contains("no operator mutates any code in it"), error.description)
+        }
+    }
+
+    /// A file whose opaque getter holds a nested comparison, on line 5, and a ternary of its own, on line 7.
+    private func opaqueBodyFile() throws -> String {
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString).swift")
+        try """
+        struct Row: View {
+            let count: Int
+            let isExpanded: Bool
+            private var toggle: some View {
+                Button { } label: { Image(systemName: count == 1 ? "up" : "down") }
+                    .padding()
+                    .accessibilityLabel(isExpanded ? "Collapse" : "Expand")
+            }
+        }
+        """.write(to: file, atomically: true, encoding: .utf8)
+        addTeardownBlock { try? FileManager.default.removeItem(at: file) }
+        return file.path
+    }
+
     func test_withAMutantNamed_aProjectWithoutMutants_refusesTheMutant() async throws {
         state.sourceFileCandidates = [
             "\(fixturesDirectory)/sourceWithoutMutableCode.swift",
@@ -379,5 +482,16 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         }
 
         return mappings.flatMap(\.mutationSchemata).map(\.position.line).sorted()
+    }
+}
+
+private final class PreparationCount: @unchecked Sendable { // `stored` is behind `lock`
+    private let lock = NSLock()
+    private var stored = 0
+
+    var count: Int { lock.withLock { stored } }
+
+    func add() {
+        lock.withLock { stored += 1 }
     }
 }

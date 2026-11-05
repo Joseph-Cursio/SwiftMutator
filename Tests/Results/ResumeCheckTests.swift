@@ -221,6 +221,42 @@ final class ResumeCheckTests: XCTestCase {
         )
     }
 
+    // The operators themselves are compared, however they were chosen, so the keys that choose them say nothing more.
+    func test_keysChoosingTheSameOperators_areNoDifference() {
+        let recorded = current(configuration: MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], operators: [.ror, .swapTernary]
+        ))
+        let changed = current(configuration: MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], skipOperators: [.logicalOperator]
+        ))
+
+        let verdict = check(changed, recorded: header(of: recorded))
+
+        XCTAssertEqual(verdict.refusals, [])
+        XCTAssertEqual(verdict.notices, [])
+    }
+
+    func test_keysChoosingOtherOperators_refuseOnce_byTheOperators() {
+        let recorded = current(configuration: MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], operators: [.ror]
+        ))
+        let changed = current(
+            configuration: MuterConfiguration(
+                executable: "/usr/bin/swift", arguments: ["test"], operators: [.swapTernary]
+            ),
+            operators: ["SwapTernary"]
+        )
+
+        let verdict = check(changed, recorded: header(of: recorded))
+
+        XCTAssertEqual(verdict.refusals, [
+            .selectionChanged(.init(
+                name: "operators", was: #"["RelationalOperatorReplacement"]"#, isNow: #"["SwapTernary"]"#
+            )),
+        ])
+        XCTAssertEqual(verdict.notices, [])
+    }
+
     func test_configurationValues_areSortedKeysJSON() {
         XCTAssertEqual(
             ResumeCheck.configurationDifferences(MuterConfiguration(), configurationWithEveryFieldSet()),
@@ -239,8 +275,10 @@ final class ResumeCheckTests: XCTestCase {
                 .init(name: "mutationTestTimeout", was: nil, isNow: "30"),
                 .init(name: "mutationTestWorkers", was: nil, isNow: "4"),
                 .init(name: "oneWorkerSimulator", was: nil, isNow: "true"),
+                .init(name: "operators", was: nil, isNow: #"["RelationalOperatorReplacement","SwapTernary"]"#),
                 .init(name: "propertyTestFilter", was: nil, isNow: #"["Properties"]"#),
                 .init(name: "propertyTests", was: nil, isNow: #"["*Properties*"]"#),
+                .init(name: "skipOperators", was: nil, isNow: #"["SwapTernary"]"#),
                 .init(name: "stopAtFirstFailure", was: nil, isNow: "false"),
                 .init(name: "suspectTestFilePercent", was: nil, isNow: "30"),
                 .init(name: "suspectTestMinimumFiles", was: nil, isNow: "5"),

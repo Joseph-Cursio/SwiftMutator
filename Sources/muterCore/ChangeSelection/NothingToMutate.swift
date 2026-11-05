@@ -21,6 +21,9 @@ struct NothingToMutate: Error, Equatable, CustomStringConvertible {
 
     let reason: Reason
     let selection: ChangeSelection
+    /// The operators the run was left with, when it wasn't left with them all, which a reason about mutants names: an
+    /// operator left out might have mutated the change.
+    var chosenOperators: MutationOperatorList?
 
     var description: String {
         let since = "since the merge base of \(selection.shownRef) and HEAD (\(selection.shortMergeBase))"
@@ -37,12 +40,19 @@ struct NothingToMutate: Error, Equatable, CustomStringConvertible {
                 + "no target compiles \(count == 1 ? "it" : "them"), "
                 + "or the tests don't cover \(count == 1 ? "it" : "them")"
         case let .noMutantInChangedFiles(count):
-            why = "\(files(count)) changed \(since), and no operator mutates any code in "
+            let none = chosenOperators.map { "none of the operators chosen (\(Self.listed($0))) mutates" }
+                ?? "no operator mutates"
+            why = "\(files(count)) changed \(since), and \(none) any code in "
                 + (count == 1 ? "it" : "them")
         case .noMutantOnChangedLines:
-            why = "No mutant is on a line added or changed \(since)"
+            let mutant = chosenOperators.map { "No mutant of the operators chosen (\(Self.listed($0)))" } ?? "No mutant"
+            why = "\(mutant) is on a line added or changed \(since)"
         }
         return "ℹ️ \(why), so there is nothing to mutate."
+    }
+
+    private static func listed(_ operators: MutationOperatorList) -> String {
+        operators.map(\.rawValue).joined(separator: ", ")
     }
 
     private func files(_ count: Int) -> String {

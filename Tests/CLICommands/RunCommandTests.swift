@@ -465,6 +465,49 @@ final class RunCommandTests: XCTestCase {
     }
 
     // Both commands list the two options first, as `run` always has.
+    func test_skipOperators_reachesTheRunOptions_ofRunAndMutateWithoutRunning() throws {
+        let chosen = ["--skip-operators", "SwapTernary", "RemoveSideEffects"]
+        let run = try XCTUnwrap(MuterCommand.parseAsRoot(["run"] + chosen) as? Run).runOptions
+        let mutate = try XCTUnwrap(
+            MuterCommand.parseAsRoot(["mutate-without-running"] + chosen) as? MutateWithoutRunning
+        ).runOptions
+
+        for options in [run, mutate] {
+            XCTAssertEqual(options.skipOperators, [.swapTernary, .removeSideEffects])
+            XCTAssertFalse(options.operatorsAreNamed)
+        }
+        let plain = try XCTUnwrap(MuterCommand.parseAsRoot(["run"]) as? Run).runOptions
+        XCTAssertNil(plain.skipOperators)
+        XCTAssertFalse(plain.operatorsAreNamed)
+        let namedArguments = ["--operators", "SwapTernary", "SwapTernary"]
+        let namedRun = try XCTUnwrap(MuterCommand.parseAsRoot(["run"] + namedArguments) as? Run).runOptions
+        let namedMutate = try XCTUnwrap(
+            MuterCommand.parseAsRoot(["mutate-without-running"] + namedArguments) as? MutateWithoutRunning
+        ).runOptions
+        for options in [namedRun, namedMutate] {
+            XCTAssertTrue(options.operatorsAreNamed)
+            XCTAssertEqual(options.mutationOperatorsList, [.swapTernary], "named twice, used once")
+        }
+    }
+
+    func test_anUnknownOperator_isRefused_byBothOptions_ofBothCommands() {
+        for command in ["run", "mutate-without-running"] {
+            for (option, value) in [("--operators", "operators"), ("--skip-operators", "skip-operators")] {
+                assertUsageError(
+                    [command, option, "SwapTernery"],
+                    "The value 'SwapTernery' is invalid for '\(option) <\(value)>': \(MutationOperator.Id.description)"
+                )
+            }
+        }
+    }
+
+    func test_mutant_refusesSkipOperators() {
+        assertUsageError(
+            ["run", "--mutant", "Bar.swift:12:9", "--skip-operators", "SwapTernary"],
+            "--mutant can't be given with --skip-operators."
+        )
+    }
+
     func test_operatorsAndFilesToMutate_comeFirstInTheHelp_ofRunAndMutateWithoutRunning() {
         for help in [Run.helpMessage(columns: 200), MutateWithoutRunning.helpMessage(columns: 200)] {
             let options = help.components(separatedBy: "OPTIONS:\n").last ?? ""

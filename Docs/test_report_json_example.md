@@ -275,6 +275,16 @@ Here is part of a report with two suspect tests. Most keys, file reports and tes
 }
 ```
 
+### `operatorExplanations`
+
+At the top level, when the report has mutants: what each operator its mutants used does, in a line, by the name in their `mutationOperatorId`. The plain text report lists the same lines after its table of mutants, and the HTML report shows each one when you hold the pointer over the operator's name.
+
+```json
+"operatorExplanations": {
+  "SwapTernary": "Swaps the two branches of a ternary expression."
+}
+```
+
 ### `triageSummary`
 
 At the top level, when a triage file has entries: how far the survivors have been triaged (see [Triaging survivors](../README.md#triaging-survivors)). It changes no score. Each labelled survivor in `appliedOperators` also has `triage`, with its `label` and any `note`.

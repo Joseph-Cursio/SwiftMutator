@@ -17,7 +17,8 @@ struct DiscoverMutationPoints: MutationStep {
             inFilesAt: state.sourceFileCandidates,
             configuration: state.muterConfiguration,
             coverage: state.projectCoverage,
-            projectRoot: state.mutatedProjectDirectoryURL
+            projectRoot: state.mutatedProjectDirectoryURL,
+            namedMutant: NamedMutant(state)
         )
         let discovered = state.changeSelection.map {
             Self.mutants(of: all, onLinesChangedIn: $0, under: state.mutatedProjectDirectoryURL)
@@ -29,7 +30,12 @@ struct DiscoverMutationPoints: MutationStep {
                 let reason: NothingToMutate.Reason = all.isEmpty
                     ? .noMutantInChangedFiles(count: state.sourceFileCandidates.count)
                     : .noMutantOnChangedLines
-                throw NothingToMutate(reason: reason, selection: selection)
+                let operators = state.mutationOperatorList
+                throw NothingToMutate(
+                    reason: reason,
+                    selection: selection,
+                    chosenOperators: Set(operators) == Set(MutationOperatorList.allOperators) ? nil : operators
+                )
             }
             // The mutant `--mutant` names isn't there, which its refusal says, as for a project that has others.
             if let reference = state.runOptions.mutant {
@@ -88,7 +94,8 @@ private extension DiscoverMutationPoints {
         inFilesAt filePaths: [String],
         configuration: MuterConfiguration,
         coverage: Coverage,
-        projectRoot: URL
+        projectRoot: URL,
+        namedMutant: NamedMutant? = nil
     ) async -> [SchemataMutationMapping] {
         var swiftFiles = filePaths.filter(pathContainsDotSwift).makeIterator()
 
@@ -108,7 +115,8 @@ private extension DiscoverMutationPoints {
                             inFile: sourceCode,
                             configuration: configuration,
                             coverage: coverage.coverage(ofFile: path),
-                            projectRoot: projectRoot
+                            projectRoot: projectRoot,
+                            namedMutant: namedMutant
                         )
                     }
                 }
@@ -131,7 +139,8 @@ private extension DiscoverMutationPoints {
         inFile sourceCode: PreparedSourceCode,
         configuration: MuterConfiguration,
         coverage: FileCoverage,
-        projectRoot: URL
+        projectRoot: URL,
+        namedMutant: NamedMutant? = nil
     ) -> [SchemataMutationMapping] {
         let source = sourceCode.source.code
 
@@ -159,11 +168,21 @@ private extension DiscoverMutationPoints {
 
         // Pruning has to see every operator's mutants for the file at once: an outer mutant from
         // one operator conflicts with a nested one from another.
-        var merged = mappings.mergeByFilePath()
-        for index in merged.indices {
-            merged[index].dropNestedSchemataInOpaqueBodies(of: source)
+        func pruned(_ mappings: [SchemataMutationMapping]) -> [SchemataMutationMapping] {
+            var merged = mappings.mergeByFilePath()
+            for index in merged.indices {
+                merged[index].dropNestedSchemataInOpaqueBodies(of: source)
+            }
+            return merged.filter { !$0.isEmpty }
         }
-        return merged.filter { !$0.isEmpty }
+        let every = pruned(mappings)
+        guard let namedMutant, !namedMutant.isHeld(by: every, under: projectRoot) else { return every }
+        let fewer = pruned(mappings.compactMap { mapping in
+            var kept = mapping
+            kept.keepOnly { namedMutant.configuredOperators.contains($0.mutationOperatorId) }
+            return kept.isEmpty ? nil : kept
+        })
+        return namedMutant.isHeld(by: fewer, under: projectRoot) ? fewer : every
     }
 
     /// With `--changed-lines`, of each file's mutants, those on lines `selection` says changed; without, all of them.
@@ -194,3 +213,25 @@ private func autoreleasepool<Result>(invoking body: () throws -> Result) rethrow
     try body()
 }
 #endif
+
+/// The mutant `--mutant` names, for a file whose mutants lack it. `--mutant` discovers every operator, but a mutant
+/// nested in an opaque body is pruned when an operator it doesn't use mutates the body's own statements. So a run under
+/// `operators` or `skipOperators` can test and report a mutant that every operator's discovery prunes. Only the keys'
+/// operators keep it then, and as it alone gets tested, it conflicts with nothing.
+struct NamedMutant: Sendable {
+    let reference: MutantReference
+    let configuredOperators: MutationOperatorList
+
+    /// nil unless `--mutant` is given and the configuration's keys leave some operators.
+    init?(_ state: AnyMutationTestState) {
+        guard let reference = state.runOptions.mutant,
+              let operators = try? state.runOptions.operatorsFromTheKeys(of: state.muterConfiguration)
+        else { return nil }
+        self.reference = reference.relative(toFirstOf: [state.projectDirectoryURL, state.mutatedProjectDirectoryURL])
+        configuredOperators = operators
+    }
+
+    func isHeld(by mappings: [SchemataMutationMapping], under root: URL) -> Bool {
+        MutantKey.keys(for: mappings.flatMap(\.mutationSchemata), under: root).contains(where: reference.matches)
+    }
+}

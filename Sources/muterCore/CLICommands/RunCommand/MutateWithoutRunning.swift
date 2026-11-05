@@ -18,6 +18,8 @@ struct MutateWithoutRunning: RunCommand {
         Run.Options(
             filesToMutate: selection.filesToMutate,
             mutationOperatorsList: selection.mutationOperatorsList,
+            operatorsAreNamed: selection.operatorsAreNamed,
+            skipOperators: selection.skippedOperators,
             skipCoverage: options.skipCoverage,
             skipUpdateCheck: options.skipUpdateCheck,
             verbose: options.verbose,

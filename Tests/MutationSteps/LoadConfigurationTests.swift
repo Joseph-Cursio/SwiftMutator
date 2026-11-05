@@ -30,6 +30,39 @@ final class LoadConfigurationTests: MuterTestCase {
         ])
     }
 
+    func test_theConfigurationsOperators_areChosen_whichTheStateThenHolds() async throws {
+        fileManager.fileExistsToReturn = [false, true]
+        fileManager.fileContentsToReturn = Data("""
+        executable: /usr/bin/swift
+        arguments: [test]
+        operators: [SwapTernary, RemoveSideEffects]
+        skipOperators: [RemoveSideEffects]
+        """.utf8)
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result.last, .operatorsChosen([.swapTernary]))
+        state.apply(result)
+        XCTAssertEqual(state.mutationOperatorList, [.swapTernary])
+    }
+
+    func test_leavingEveryOperatorOut_refusesTheRun() async throws {
+        fileManager.fileExistsToReturn = [false, true]
+        fileManager.fileContentsToReturn = Data("""
+        executable: /usr/bin/swift
+        arguments: [test]
+        operators: [SwapTernary]
+        skipOperators: [SwapTernary]
+        """.utf8)
+
+        do {
+            _ = try await sut.run(with: state)
+            XCTFail("Expected a refusal")
+        } catch {
+            XCTAssertTrue("\(error)".contains("Every operator is left out"), "\(error)")
+        }
+    }
+
     // Now, so a typo in a label doesn't wait for the end of a long run.
     func test_aBrokenTriageFile_refusesTheRun() async throws {
         fileManager.fileExistsToReturn = [false, true]
