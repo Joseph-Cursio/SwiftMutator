@@ -118,9 +118,9 @@ struct Run: RunCommand {
 
     /// The options the command line gives the run. Without `--seed`, a `--sample` gets a seed chosen afresh each time,
     /// so `run()` asks once. `--mutant` skips coverage, which only leaves files and code out of discovery. It leaves
-    /// the files and the operators alone: its path may be the end of one, and a wrong operator is refused with the
-    /// mutants near its place, whatever their operators, so every file is discovered with every operator, and
-    /// `SelectMutant` picks the mutant.
+    /// the files and the operators alone, the configuration's too: its path may be the end of one, and a wrong operator
+    /// is refused with the mutants near its place, whatever their operators, so every file is discovered with every
+    /// operator, and `SelectMutant` picks the mutant.
     var runOptions: Run.Options {
         Run.Options(
             filesToMutate: selection.filesToMutate,
@@ -132,6 +132,8 @@ struct Run: RunCommand {
             reportFormat: reportOptions.reportFormat,
             reportURL: reportOptions.reportURL,
             mutationOperatorsList: selection.mutationOperatorsList,
+            operatorsAreNamed: selection.operatorsAreNamed,
+            skipOperators: selection.skippedOperators,
             skipCoverage: options.skipCoverage || lone.mutant != nil,
             skipUpdateCheck: options.skipUpdateCheck,
             verbose: options.verbose,
@@ -192,6 +194,7 @@ private extension Run {
         guard lone.mutant != nil else { return }
         let others: [(option: String, isGiven: Bool)] = [
             ("--operators", !selection.operators.isEmpty),
+            ("--skip-operators", !selection.skipOperators.isEmpty),
             ("--files-to-mutate", !selection.filesToMutate.isEmpty),
             ("--since", since != nil),
             // 1/1 is the whole run.

@@ -297,8 +297,10 @@ writes a test plan, `muter-mappings.json`, without testing anything, so you can 
 first, such as code the rewriting left unable to compile. `swift-mutator run-without-mutating
 muter-mappings.json` then tests it. See [The test plan](Docs/test-plan.md).
 
-- **Choosing the mutants.** Like `run`, `mutate-without-running` takes `--files-to-mutate` and
-  `--operators`. The plan records them, and so does the results file of a run that tests it.
+- **Choosing the mutants.** Like `run`, `mutate-without-running` takes `--files-to-mutate`,
+  `--operators` and `--skip-operators`, and follows the `operators` and `skipOperators` keys. The
+  plan records the result, and so does the results file of a run that tests it, which then looks at
+  neither key.
 - **Fixing the copy by hand.** The run tests the copy as it is, and says which files with mutants
   differ from what `mutate-without-running` wrote. Its results file records each file's SHA-256 as
   tested.
@@ -371,7 +373,7 @@ To run its tests with it on:
   project is checked against the plan as for a whole run, but only a change to that mutant's file
   refuses it: one to a file with the plan's other mutants is only said.
 - For an xcodebuild project, only the switch's environment variable is named, not a command.
-- `--mutant` can't be given with `--operators`, `--files-to-mutate`, `--since`, `--shard`,
+- `--mutant` can't be given with `--operators`, `--skip-operators`, `--files-to-mutate`, `--since`, `--shard`,
   `--sample`, `--resume` or `--reuse`. A run of one mutant prints no Continue line: the same command
   tests it again. Its reports, the one `-o` saves and those `report` makes of its results file,
   say its score isn't the project's, and the JSON report gives the mutant as `mutant`.
@@ -611,6 +613,8 @@ the JSON file alone. The options are documented in
 | `failUnder` | A percent from 0 to 100, up to 6 decimals: a finished run whose headline score is below it exits with 2, once its reports are written (default: unset, which checks none; see [Failing on a low score](#failing-on-a-low-score)) |
 | `propertyTests` | A list of globs that pick out property tests, by name or by the file their issue was recorded in, so the reports split the kills between example tests and property tests (default: unset, which splits none; see [Example tests and property tests](#example-tests-and-property-tests)) |
 | `propertyTestFilter` | A list of test filters that select the property tests alone, as `swift test --filter` or xcodebuild's `-only-testing:` takes them: once every mutant is tested, each kill whose recorded tests include no property test is tested again with only those tests (default: unset, which tests none again; needs `propertyTests`) |
+| `operators` | A list of the operators to use, at least one (default: all of them). See [Choosing the operators](#choosing-the-operators) |
+| `skipOperators` | A list of the operators to leave out (default: none). See [Choosing the operators](#choosing-the-operators) |
 | `buildTimeout` | Seconds before the coverage run, which builds your project and runs its tests with coverage on, is stopped. Mutation testing then goes on without coverage, as after any coverage failure. For now it limits only the coverage run, not the baseline or other builds (default: no limit) |
 
 `--workers N` and `--timeout S`, on `run` and `run-without-mutating`, set `mutationTestWorkers`
@@ -627,6 +631,30 @@ once says so, and one that uses fewer workers than asked says why:
 👷 Testing 3 mutants at a time, though 4 workers were asked for: only 3 are left to test.
 👷 Testing one mutant at a time, though 4 workers were asked for: a Mac app's test runs share its UserDefaults, saved state and container, so workers would see each other's.
 ```
+
+### Choosing the operators
+
+Every operator runs by default. `swift-mutator operator all` explains them. To use fewer, name them
+in `muter.conf.yml`, or on the command line for one run:
+
+```yaml
+# Only these operators.
+operators: [RelationalOperatorReplacement, ChangeLogicalConnector]
+# Or every operator but these. With both keys, these are left out of `operators`.
+skipOperators: [RemoveSideEffects]
+```
+
+- **`--operators`** wins over both keys, so it can use an operator that `skipOperators` leaves out.
+- **`--skip-operators`** is taken in place of `skipOperators`, and leaves operators out of
+  `--operators`, or else of `operators`, or else of them all.
+- **A name that isn't an operator is refused,** in either key or option, before the run starts, as
+  is a choice that leaves no operator, and an empty `operators`.
+- **A resume or a reuse compares the operators chosen,** not how they were chosen: a change of these
+  keys that chooses the same operators is no difference.
+- **A test plan's run and `--mutant`** don't narrow to the keys. A plan holds its own operators, and
+  `--mutant` looks for its mutant among them all, even one the keys leave out. If that misses it, it
+  tries the keys' operators, as a mutant nested in a `some` body can be kept only with fewer operators.
+  A mutant that only a run with `--operators` kept this way can't be named.
 
 ### Timeouts are run again
 
@@ -948,7 +976,8 @@ swift-mutator run --shard 1/2
 - **`--shard 1/1`** is the whole run, so a matrix of one entry needs no special case.
 - **One shard at a time on one machine.** Every shard of a project uses the same mutated copy,
   `<project>_mutated.noindex`, so a second one started while the first runs is refused.
-- **It combines** with `--since`, `--changed-lines`, `--files-to-mutate` and `--operators`, which
+- **It combines** with `--since`, `--changed-lines`, `--files-to-mutate`, `--operators` and
+  `--skip-operators`, which
   choose the mutants that are split.
 - **Resuming.** The results file's header records the shard, and a resume must give the same one;
   the Continue line keeps it. `--reuse` keeps the earlier run's results for this shard's mutants,
@@ -1039,7 +1068,8 @@ where the whole run takes 46. It scored 78%, and the whole run 77%; the report g
   hash doesn't depend on the seed, so a shard's mutants are a random part of the sample: its own
   report, and a merge of some of the shards, give a margin from their results, unless a shard given
   has some of its results but not all.
-- **It combines** with `--since`, `--changed-lines`, `--files-to-mutate` and `--operators`, which
+- **It combines** with `--since`, `--changed-lines`, `--files-to-mutate`, `--operators` and
+  `--skip-operators`, which
   choose the mutants it is taken from, and with `--shard`, which splits the sample. A sampled split
   needs `--seed`, so that its shards share one sample, and `report` merges them.
 - **Resuming.** The results file's header records the sample, and a resume must take the same one,
@@ -1529,9 +1559,9 @@ SwiftMutator copies the project is refused after the copy, so that message doesn
 
 | Since the last session | Resuming |
 |---|---|
-| A configuration key changed, other than `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests` and `propertyTestFilter` | Refused: start a new run |
+| A configuration key changed, other than `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests` and `propertyTestFilter`; `operators` and `skipOperators` are compared by the operators they choose, in the next rows | Refused: start a new run |
 | `mutationTestTimeout` (or `--timeout`) is at least as long as every session's `timeoutSeconds` | Goes ahead, says so, and tests the timeouts under a shorter limit again |
-| `--operators`, `--files-to-mutate` or `--skip-coverage` changed | Refused: start a new run |
+| The operators chosen, by `--operators`, `--skip-operators`, `operators` or `skipOperators`, `--files-to-mutate` or `--skip-coverage` changed | Refused: start a new run |
 | `--since`'s merge base or `--changed-lines` changed, or `--since` given in one session only | Refused: start a new run. `--reuse` doesn't compare them |
 | `--shard` changed, or given in one session only | Refused: start a new run. `--reuse` doesn't compare it |
 | `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests` or `propertyTestFilter` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |

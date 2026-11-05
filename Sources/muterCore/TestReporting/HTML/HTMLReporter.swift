@@ -327,6 +327,10 @@ extension Node where Context: HTML.BodyContext {
                         ),
                         .td(
                             .class("left-aligned"),
+                            .attribute(
+                                named: "title",
+                                value: report.appliedOperator.mutationPoint.mutationOperatorId.explanation
+                            ),
                             .raw("<wbr>\(report.appliedOperator.mutationPoint.mutationOperatorId.friendlyName)<wbr>")
                         ),
                         .td(.class("mutation-snapshot"), .diff(of: report.appliedOperator)),
@@ -372,6 +376,10 @@ extension Node where Context: HTML.BodyContext {
                             ),
                             .td(
                                 .class("left-aligned"),
+                                .attribute(
+                                    named: "title",
+                                    value: survivor.appliedOperator.mutationPoint.mutationOperatorId.explanation
+                                ),
                                 .raw("<wbr>\(survivor.appliedOperator.mutationPoint.mutationOperatorId.friendlyName)"
                                     + "<wbr>")
                             ),

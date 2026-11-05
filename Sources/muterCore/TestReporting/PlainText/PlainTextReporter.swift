@@ -21,7 +21,9 @@ struct PlainTextReporter: Reporter {
 
         In total, SwiftMutator introduced \(report.totalAppliedMutationOperators) mutants in \(report.fileReports.count) files.
 
-        \(generateAppliedMutationOperatorsCLITable(from: report.fileReports).description)
+        \(generateAppliedMutationOperatorsCLITable(from: report.fileReports).description)\(
+            operatorLegend(from: report)
+        )
 
 
         """
@@ -62,6 +64,13 @@ struct PlainTextReporter: Reporter {
         return survivorsMessage + appliedMutationsMessage + killingTestsMessage(from: report)
             + propertyKillsMessage(from: report) + triageMessage(from: report) + mutationScoresMessage
             + runMessage(from: report)
+    }
+
+    /// What each operator in the table does, after a blank line; none without mutants.
+    private func operatorLegend(from report: MuterTestReport) -> String {
+        guard let explanations = report.operatorExplanations else { return "" }
+        let lines = explanations.sorted { $0.key < $1.key }.map { "\($0.key): \($0.value)" }
+        return "\nWhat these operators do:\n" + lines.joined(separator: "\n") + "\n"
     }
 
     /// Where the results came from, after the scores; none when not known.

@@ -16,6 +16,10 @@ extension Run {
         /// `--sample` and `--seed`: of the mutants discovered, before any shard is taken, only this sample is tested.
         let sample: Sample?
         let mutationOperatorsList: MutationOperatorList
+        /// Whether `mutationOperatorsList` is what `--operators` named, which wins over the configuration's keys.
+        let operatorsAreNamed: Bool
+        /// `--skip-operators`: the operators to leave out, in place of `skipOperators`; nil when it wasn't given.
+        let skipOperators: [MutationOperator.Id]?
         let skipCoverage: Bool
         let skipUpdateCheck: Bool
         /// `--verbose`: the run lists how many mutants are in each file that has any, and the Swift files it found, if
@@ -72,6 +76,8 @@ extension Run {
             reportFormat: ReportFormat = .plain,
             reportURL: URL? = nil,
             mutationOperatorsList: MutationOperatorList = .allOperators,
+            operatorsAreNamed: Bool = false,
+            skipOperators: [MutationOperator.Id]? = nil,
             skipCoverage: Bool,
             skipUpdateCheck: Bool,
             verbose: Bool = false,
@@ -98,6 +104,8 @@ extension Run {
             self.verbose = verbose
             self.createTestPlan = createTestPlan
             self.mutationOperatorsList = mutationOperatorsList
+            self.operatorsAreNamed = operatorsAreNamed
+            self.skipOperators = skipOperators
             self.configurationURL = configurationURL
             self.testPlanURL = testPlanURL
             self.workers = workers
@@ -133,6 +141,8 @@ extension Run.Options: Equatable {
             lhs.shard == rhs.shard &&
             lhs.sample == rhs.sample &&
             lhs.mutationOperatorsList == rhs.mutationOperatorsList &&
+            lhs.operatorsAreNamed == rhs.operatorsAreNamed &&
+            lhs.skipOperators == rhs.skipOperators &&
             lhs.skipCoverage == rhs.skipCoverage &&
             lhs.skipUpdateCheck == rhs.skipUpdateCheck &&
             lhs.verbose == rhs.verbose &&

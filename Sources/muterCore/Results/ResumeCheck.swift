@@ -8,6 +8,13 @@ enum ResumeCheck {
     /// on a simulator of its own (`oneWorkerSimulator`), can change a kill's kind, but not whether it is killed.
     /// `failUnder` judges the score once the run finishes, never a result, and `propertyTests` only splits the kills
     /// the reports count, which `propertyTestFilter`'s runs only settle.
+    /// The keys that choose the operators, which `selectionDifferences` compares, however they were chosen. So a change
+    /// of these keys that chooses the same operators is no difference, and one that doesn't is said once.
+    static let keysComparedByTheirSelection: Set = [
+        MuterConfiguration.CodingKeys.operators.stringValue,
+        MuterConfiguration.CodingKeys.skipOperators.stringValue,
+    ]
+
     static let keysThatDontAffectOutcomes: Set = [
         MuterConfiguration.CodingKeys.mutationTestWorkers.stringValue,
         MuterConfiguration.CodingKeys.stopAtFirstFailure.stringValue,
@@ -124,8 +131,9 @@ enum ResumeCheck {
         }
     }
 
-    /// Compared: every configuration key but `keysThatDontAffectOutcomes`; the operators, `filesToMutate` (both as
-    /// sets), `skipCoverage` and `--mutant`'s mutant; and what identifies the SwiftMutator build, the toolchain and the
+    /// Compared: every configuration key but `keysThatDontAffectOutcomes` and `keysComparedByTheirSelection`; the
+    /// operators, `filesToMutate` (both as sets),
+    /// `skipCoverage` and `--mutant`'s mutant; and what identifies the SwiftMutator build, the toolchain and the
     /// SDK. Not compared: SwiftMutator's version and path, which its SHA-256 covers; the process, host and arguments;
     /// and the effective `timeoutSeconds`, `stopsAtFirstFailure` and `failedTestLinesAreReliable`, which follow from
     /// the configuration, the baseline and the timed test run. Only the build and toolchain differences are ever
@@ -144,7 +152,8 @@ enum ResumeCheck {
         longestLimit: Double? = nil
     ) -> Verdict {
         var verdict = Verdict()
-        for difference in configurationDifferences(recorded.configuration, current.configuration) {
+        for difference in configurationDifferences(recorded.configuration, current.configuration)
+            where !keysComparedByTheirSelection.contains(difference.name) {
             judge(difference, into: &verdict, for: purpose, longestLimit: longestLimit)
         }
         verdict.refusals += selectionDifferences(recorded, current).map(ResumeRefusal.selectionChanged)

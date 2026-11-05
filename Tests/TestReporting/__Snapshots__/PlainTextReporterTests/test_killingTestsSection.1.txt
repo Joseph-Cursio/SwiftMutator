@@ -37,6 +37,9 @@ Sources/File09.swift:3:3     ChangeLogicalConnector      mutant killed (test fai
 Sources/File10.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    focused10()
 Sources/File11.swift:3:3     ChangeLogicalConnector      mutant killed (test failure)    focused11()
 
+What these operators do:
+ChangeLogicalConnector: Swaps a logical AND for OR, and OR for AND.
+
 
 -------------
 Killing Tests

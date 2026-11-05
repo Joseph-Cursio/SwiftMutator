@@ -9,6 +9,9 @@ OPTIONS:
   --operators <operators> The list of mutant operators to be used:
                           RelationalOperatorReplacement, RelationalBoundary,
                           RemoveSideEffects, ChangeLogicalConnector, SwapTernary
+  --skip-operators <skip-operators>
+                          The mutant operators to leave out, in place of
+                          skipOperators.
   --since <ref>           Only mutate the Swift files changed since the merge
                           base of this git ref and HEAD: committed,
                           uncommitted, and new files git doesn't ignore. The

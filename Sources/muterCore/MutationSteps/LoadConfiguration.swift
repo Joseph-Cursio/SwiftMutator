@@ -56,10 +56,11 @@ struct LoadConfiguration: MutationStep {
                 at: TriageFile.path(in: fileManager.currentDirectoryPath),
                 using: fileManager
             )
+            let operators = try state.runOptions.chosenOperators(given: resolved)
             return [
                 .projectDirectoryUrlDiscovered(URL(fileURLWithPath: fileManager.currentDirectoryPath)),
                 .configurationParsed(resolved),
-            ]
+            ] + (operators.map { [.operatorsChosen($0)] } ?? [])
         } catch let error as MuterError {
             throw error
         } catch {

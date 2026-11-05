@@ -107,7 +107,7 @@ struct TestPlanFile: Codable, Equatable {
     let mutatedProject: String
     /// Left out when coverage wasn't gathered.
     let projectCoverage: Int?
-    /// The operators the mutants were chosen by, `--operators` or every one, by name and sorted.
+    /// The operators the mutants were chosen by (`Run.Options.chosenOperators(given:)`), by name and sorted.
     let operators: [String]
     /// The files the mutants were chosen from, `--files-to-mutate` as given; empty when it wasn't.
     let filesToMutate: [String]

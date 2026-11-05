@@ -70,6 +70,12 @@ struct MuterConfiguration: Equatable, Codable {
     /// mutant's result, so a resume lets them change. A `var` only so `overriding` can copy `self` and change just this
     /// field.
     private(set) var propertyTests: [String]?
+    /// The operators a run mutates with (`operators:`, at least one); nil, the default, means all of them.
+    /// `--operators` wins over this key and over `skipOperators`. See `Run.Options.chosenOperators(given:)`.
+    let operators: [MutationOperator.Id]?
+    /// The operators a run leaves out (`skipOperators:`), of `operators` or of all of them; `--skip-operators` is taken
+    /// in its place. nil and an empty list leave none out.
+    let skipOperators: [MutationOperator.Id]?
     /// What selects the property tests alone, for the runs that test a killed mutant again with only them
     /// (`propertyTestFilter:`, `PropertyReruns`): each entry is given to `swift test` as `--filter <entry>`, and to
     /// xcodebuild as `-only-testing:<entry>`. nil, the default, runs none. A kill whose recorded tests include no
@@ -130,6 +136,8 @@ struct MuterConfiguration: Equatable, Codable {
         case failUnder
         case propertyTests
         case propertyTestFilter
+        case operators
+        case skipOperators
     }
 
     init(
@@ -151,7 +159,9 @@ struct MuterConfiguration: Equatable, Codable {
         keepLogFolders: Int? = nil,
         failUnder: Double? = nil,
         propertyTests: [String]? = nil,
-        propertyTestFilter: [String]? = nil
+        propertyTestFilter: [String]? = nil,
+        operators: [MutationOperator.Id]? = nil,
+        skipOperators: [MutationOperator.Id]? = nil
     ) {
         testCommandExecutable = executable
         testCommandArguments = arguments
@@ -172,6 +182,8 @@ struct MuterConfiguration: Equatable, Codable {
         self.failUnder = failUnder
         self.propertyTests = propertyTests
         self.propertyTestFilter = propertyTestFilter
+        self.operators = operators
+        self.skipOperators = skipOperators
     }
 
     init(from decoder: Decoder) throws {
@@ -199,6 +211,36 @@ struct MuterConfiguration: Equatable, Codable {
         failUnder = try Self.percent(forKey: .failUnder, in: container)
         propertyTests = try Self.globs(forKey: .propertyTests, in: container)
         propertyTestFilter = try Self.globs(forKey: .propertyTestFilter, in: container)
+        operators = try Self.operators(forKey: .operators, in: container)
+        // A blank `operators:` is an empty list, not an unset key, which would use every operator.
+        let isBlank = container.contains(.operators) ? try container.decodeNil(forKey: .operators) : false
+        if isBlank || operators?.isEmpty == true {
+            throw DecodingError.dataCorruptedError(
+                forKey: .operators,
+                in: container,
+                debugDescription: "operators must name at least one operator. Leave it out to use them all."
+            )
+        }
+        skipOperators = try Self.operators(forKey: .skipOperators, in: container)
+    }
+
+    /// The operators `key` names, or nil if it isn't set. Throws on a name that isn't an operator, and on a value that
+    /// isn't a list of strings, so a typo is a configuration error rather than an operator left in or out.
+    private static func operators(
+        forKey key: CodingKeys,
+        in container: KeyedDecodingContainer<CodingKeys>
+    ) throws -> [MutationOperator.Id]? {
+        try container.decodeIfPresent([String].self, forKey: key)?.map { name in
+            guard let found = MutationOperator.Id(rawValue: name) else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: key,
+                    in: container,
+                    debugDescription: "\(key.stringValue): \(name) isn't an operator. "
+                        + "The operators are: \(MutationOperator.Id.description)"
+                )
+            }
+            return found
+        }
     }
 
     /// A list of globs, or of test filters, or nil if `key` isn't set. Throws on an empty entry, which would select
@@ -274,6 +316,8 @@ struct MuterConfiguration: Equatable, Codable {
         try container.encodeIfPresent(failUnder.map(WrittenPercent.init), forKey: .failUnder)
         try container.encodeIfPresent(propertyTests, forKey: .propertyTests)
         try container.encodeIfPresent(propertyTestFilter, forKey: .propertyTestFilter)
+        try container.encodeIfPresent(operators, forKey: .operators)
+        try container.encodeIfPresent(skipOperators, forKey: .skipOperators)
     }
 
     /// A percent, written in JSON as a number and in YAML as a plain scalar, both in decimal digits
@@ -543,7 +587,13 @@ struct MuterConfiguration: Equatable, Codable {
         do {
             self = try YAMLDecoder().decode(MuterConfiguration.self, from: data)
         } catch {
-            self = try JSONDecoder().decode(MuterConfiguration.self, from: data)
+            let yamlError = error
+            do {
+                self = try JSONDecoder().decode(MuterConfiguration.self, from: data)
+            } catch {
+                // YAML's reason, which names the key at fault, rather than that the file isn't JSON.
+                throw yamlError
+            }
         }
     }
 }

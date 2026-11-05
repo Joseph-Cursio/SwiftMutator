@@ -653,6 +653,33 @@ final class ConfigurationParsingTests: MuterTestCase {
         }
     }
 
+    func test_operatorKeys_areRead_andAnythingElseIsAConfigurationError() throws {
+        let start = "executable: /usr/bin/swift\narguments: [test]\n"
+        let read = { (line: String) in try MuterConfiguration(from: Data((start + line).utf8)) }
+
+        let set = try read("operators: [SwapTernary, RelationalBoundary]\nskipOperators: [SwapTernary]")
+        XCTAssertEqual(set.operators, [.swapTernary, .relationalBoundary])
+        XCTAssertEqual(set.skipOperators, [.swapTernary])
+        XCTAssertEqual(try read("skipOperators: []").skipOperators, [])
+        let neither = try read("")
+        XCTAssertNil(neither.operators)
+        XCTAssertNil(neither.skipOperators)
+
+        let wrong = [
+            ("operators: [SwapTernery]", "SwapTernery isn't an operator"),
+            ("skipOperators: [SwapTernery]", "SwapTernery isn't an operator"),
+            ("operators: []", "must name at least one operator"),
+            ("operators:", "must name at least one operator"),
+            ("operators: SwapTernary", ""),
+            ("skipOperators: 3", ""),
+        ]
+        for (line, reason) in wrong {
+            XCTAssertThrowsError(try read(line), line) { error in
+                XCTAssertTrue(reason.isEmpty || "\(error)".contains(reason), "\(error)")
+            }
+        }
+    }
+
     func test_everyKey_isWritten_andReadBack() throws {
         // encode(to:) is written by hand, so a key added to CodingKeys but not written there would be lost from every
         // results header and never compared on a resume.

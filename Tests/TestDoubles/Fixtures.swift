@@ -579,7 +579,9 @@ func configurationWithEveryFieldSet(
         keepLogFolders: 3,
         failUnder: 80,
         propertyTests: ["*Properties*"],
-        propertyTestFilter: ["Properties"]
+        propertyTestFilter: ["Properties"],
+        operators: [.ror, .swapTernary],
+        skipOperators: [.swapTernary]
     )
     .withDirectTestRun(DirectTestRun(
         helper: "/toolchain/usr/libexec/swift/pm/swiftpm-testing-helper",

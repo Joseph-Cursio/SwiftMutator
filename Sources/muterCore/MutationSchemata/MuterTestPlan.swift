@@ -48,7 +48,7 @@ struct MuterTestPlan: Equatable {
     }
 }
 
-/// What a test plan's mutants were chosen by: `--operators` and `--files-to-mutate`, as `mutate-without-running` was
+/// What a test plan's mutants were chosen by: the operators and `--files-to-mutate`, as `mutate-without-running` was
 /// given them. A run that tests the plan records them in its results file, as a run that discovers its own mutants
 /// records its options.
 struct TestPlanScope: Equatable, Sendable {
