@@ -6,7 +6,7 @@ ARGUMENTS:
   <operator>                  Available operators are:
                           RelationalOperatorReplacement, RelationalBoundary,
                           RemoveSideEffects, ChangeLogicalConnector,
-                          SwapTernary
+                          SwapTernary, NegateConditional
                               For all operators use: all
 
 OPTIONS:

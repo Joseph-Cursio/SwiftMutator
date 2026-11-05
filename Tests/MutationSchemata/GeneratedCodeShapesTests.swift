@@ -52,14 +52,20 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         )
 
         let mutants = { compiled.operators(in: "Lines.swift", onTheLineHolding: $0) }
-        XCTAssertEqual(mutants("if values.count > 1"), [.ror, .relationalBoundary], "an if's condition")
-        XCTAssertEqual(mutants("values.isEmpty || values"), [.ror, .logicalOperator], "an else if's condition")
+        XCTAssertEqual(
+            mutants("if values.count > 1"), [.ror, .relationalBoundary, .negateConditional], "an if's condition"
+        )
+        XCTAssertEqual(
+            mutants("values.isEmpty || values"), [.ror, .logicalOperator, .negateConditional], "an else if's condition"
+        )
         XCTAssertEqual(mutants("value > 1 ?"), [.ror, .relationalBoundary, .swapTernary], "a component in a for body")
         XCTAssertEqual(
             mutants("values.count >= 3"), [.ror, .relationalBoundary, .logicalOperator, .swapTernary], "a component"
         )
         XCTAssertEqual(
-            mutants("CommandLine.arguments"), [.ror, .relationalBoundary], "a builder property's if condition"
+            mutants("CommandLine.arguments"),
+            [.ror, .relationalBoundary, .negateConditional],
+            "a builder property's if condition"
         )
         XCTAssertEqual(mutants("count != 1"), [.ror, .swapTernary], "a builder function's component")
 
@@ -111,7 +117,9 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
             mutants("Text(count > 1"), [.ror, .relationalBoundary, .swapTernary], "a component in the body's VStack"
         )
         XCTAssertEqual(
-            mutants("if count >= 3"), [.ror, .relationalBoundary, .logicalOperator], "an if's condition in the VStack"
+            mutants("if count >= 3"),
+            [.ror, .relationalBoundary, .logicalOperator, .negateConditional],
+            "an if's condition in the VStack"
         )
         XCTAssertEqual(mutants(".opacity"), [.ror, .relationalBoundary, .swapTernary], "a modifier's argument")
         XCTAssertEqual(mutants("count != 1"), [.ror, .swapTernary], "a view property that isn't body")
@@ -339,7 +347,7 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
             [.ror, .relationalBoundary, .logicalOperator, .swapTernary],
             "a #if clause of statements"
         )
-        XCTAssertEqual(mutants("if total < 100"), [.ror, .relationalBoundary], "an if's condition, its own switch")
+        XCTAssertEqual(mutants("if total < 100"), [.negateConditional, .ror, .relationalBoundary], "an if's condition")
         XCTAssertEqual(mutants("print(isLarge"), [.swapTernary], "an if body")
 
         XCTAssertEqual(try run(compiled.program).output, "large\noriginal 10\n", "no mutant named")

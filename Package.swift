@@ -38,6 +38,7 @@ let package = Package(
                 .product(name: "Plot", package: "plot"),
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftParser", package: "swift-syntax"),
+                .product(name: "SwiftOperators", package: "swift-syntax"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Yams", package: "yams"),
                 .product(name: "Version", package: "Version"),

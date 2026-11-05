@@ -69,6 +69,13 @@
         column: 19
     )
 ), OperatorIdAndPositionAssert(
+    id: .negateConditional,
+    position: MutationPosition(
+        utf8Offset: 373,
+        line: 14,
+        column: 12
+    )
+), OperatorIdAndPositionAssert(
     id: .ror,
     position: MutationPosition(
         utf8Offset: 375,
@@ -200,6 +207,13 @@
         utf8Offset: 3107,
         line: 133,
         column: 44
+    )
+), OperatorIdAndPositionAssert(
+    id: .negateConditional,
+    position: MutationPosition(
+        utf8Offset: 3356,
+        line: 146,
+        column: 16
     )
 ), OperatorIdAndPositionAssert(
     id: .ror,

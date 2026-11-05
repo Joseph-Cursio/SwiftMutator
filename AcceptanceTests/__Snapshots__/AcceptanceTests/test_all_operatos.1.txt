@@ -161,3 +161,25 @@ func stringify(_ a: Bool -> String {
     return a ? "false" : "true"
 }
 
+
+
+Negate Conditional
+
+The negate conditional operator will wrap each expression condition of an if, guard or while in !( ).
+Conditions that aren't expressions, such as if let, case and #available, are left alone, and so are the literals true and false.
+While the relational operator replacement operator is on, so is a condition that is one == or != comparison, which that operator already negates.
+
+The purpose of this operator is to highlight whether your tests tell the two branches apart.
+A negated while condition can loop until the mutant's time limit, which counts as a survivor.
+
+Mutating a condition
+
+if isValid && !isEmpty {
+    // something happens here
+}
+
+becomes
+
+if !(isValid && !isEmpty) {
+    // something happens here
+}

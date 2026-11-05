@@ -13,6 +13,7 @@ final class OperatorTests: MuterTestCase {
             .removeSideEffects: "Remove Side Effects",
             .logicalOperator: "Change Logical Connector",
             .swapTernary: "Swap Ternary",
+            .negateConditional: "Negate Conditional",
         ]
 
         for id in MutationOperator.Id.allCases {
@@ -47,7 +48,9 @@ final class OperatorTests: MuterTestCase {
         XCTAssertEqual(printer.linesPassed, [])
         XCTAssertEqual(
             MutationOperator.Id.description,
-            "RelationalOperatorReplacement, RelationalBoundary, RemoveSideEffects, ChangeLogicalConnector, SwapTernary"
+            "RelationalOperatorReplacement, RelationalBoundary, RemoveSideEffects, ChangeLogicalConnector, "
+                + "SwapTernary, "
+                + "NegateConditional"
         )
     }
 

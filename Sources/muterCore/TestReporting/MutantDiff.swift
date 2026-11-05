@@ -48,7 +48,7 @@ enum MutantDiff {
         var found: (line: Int, offset: Int)?
         if occurrences(of: needle, in: fileLines[line - 1]).contains(column - 1) {
             found = (line, column - 1)
-        } else if !atItsPlaceOnly {
+        } else if !atItsPlaceOnly, !isPlacedWhereItsChangeStarts(mutationOperatorId) {
             for number in stride(from: line, through: max(line - linesAbove, 1), by: -1) {
                 let offsets = occurrences(of: needle, in: fileLines[number - 1])
                 guard !offsets.isEmpty else { continue }
@@ -60,7 +60,11 @@ enum MutantDiff {
         guard let found else { return nil }
 
         let text = fileLines[found.line - 1]
-        let changed = Array(text[..<found.offset]) + Array(replacement(snapshot, mutationOperatorId).utf8)
+        // `if(a)` becomes `if !((a))`, with a space the operator adds, as `if!(` doesn't parse.
+        let isTouching = mutationOperatorId == .negateConditional
+            && text[..<found.offset].last.map { !Character(UnicodeScalar($0)).isWhitespace } == true
+        let changed = Array(text[..<found.offset]) + (isTouching ? [UInt8(ascii: " ")] : [])
+            + Array(replacement(snapshot, mutationOperatorId).utf8)
             + Array(text[(found.offset + needle.count)...])
         let after = String(decoding: changed, as: UTF8.self)
         return SourceChange(
@@ -76,6 +80,12 @@ enum MutantDiff {
         let before = "- " + snapshot.before
         let after = replacement(snapshot, mutationOperatorId)
         return after.isEmpty ? [before] : [before, "+ " + after]
+    }
+
+    /// Whether an operator's mutants are placed at the start of what they change, so a copy on a line above is never
+    /// their own: a condition over several lines isn't found at its place, as `before` gives it on one line.
+    private static func isPlacedWhereItsChangeStarts(_ mutationOperatorId: MutationOperator.Id) -> Bool {
+        mutationOperatorId == .negateConditional
     }
 
     /// What the mutant puts in place of `snapshot.before`: nothing for a removed statement, whose snapshot says

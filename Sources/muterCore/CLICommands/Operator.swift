@@ -256,6 +256,42 @@ extension MutationOperator.Id {
                 """.onCodeBlock
             )
             """
+        case .negateConditional:
+            return """
+
+            \("Negate Conditional".bold)
+
+            The \("negate conditional".italic) operator will wrap each expression condition of an \("if".onCodeEscape), \(
+                "guard".onCodeEscape) or \("while".onCodeEscape) in \("!( )".onCodeEscape).
+            Conditions that aren't expressions, such as \("if let".onCodeEscape), \("case".onCodeEscape) and \(
+                "#available".onCodeEscape), are left alone, and so are the literals \("true".onCodeEscape) and \(
+                "false".onCodeEscape).
+            While the relational operator replacement operator is on, so is a condition that is one \("==".onCodeEscape) or \(
+                "!=".onCodeEscape) comparison, which that operator already negates.
+
+            The purpose of this operator is to highlight whether your tests tell the two branches apart.
+            A negated \("while".onCodeEscape) condition can loop until the mutant's time limit, which counts as a survivor.
+
+            \("Mutating a condition".bold)
+
+            \(
+                """
+                \("if".asKeyword) isValid && !isEmpty {
+                    \("// something happens here".asComment)
+                }
+                """.onCodeBlock
+            )
+
+            becomes
+
+            \(
+                """
+                \("if".asKeyword) !(isValid && !isEmpty) {
+                    \("// something happens here".asComment)
+                }
+                """.onCodeBlock
+            )
+            """
         case .swapTernary:
             return """
 

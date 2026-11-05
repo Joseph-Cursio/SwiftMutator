@@ -73,9 +73,9 @@ are in `MutationTestHandler.swift`.
 
 ## Operators
 
-[`MutationOperators`](../Sources/muterCore/MutationOperators) holds the five operators:
+[`MutationOperators`](../Sources/muterCore/MutationOperators) holds the six operators:
 `RelationalOperatorReplacement` (`ROROperator.swift`), `RelationalBoundary`, `RemoveSideEffects`,
-`ChangeLogicalConnector` and `SwapTernary`. Each is a SwiftSyntax visitor, built on
+`ChangeLogicalConnector`, `SwapTernary` and `NegateConditional`. Each is a SwiftSyntax visitor, built on
 [`Visitors/MuterVisitor.swift`](../Sources/muterCore/Visitors/MuterVisitor.swift), which also
 skips code between `// muter:disable` and `// muter:enable`. Each mutant becomes a
 `MutationSchema`: its operator, its position, its ID and the code it puts in place, grouped by file

@@ -1,8 +1,8 @@
 # Mutation Operators
 SwiftMutator uses **mutation operators** to generate mutants in your source code. This is the list of currently available mutation operators.
 
-## Negate Conditionals
-The negate conditionals operator will invert conditional operators in your code based on this table:
+## Relational Operator Replacement
+The relational operator replacement operator, `RelationalOperatorReplacement`, will invert relational operators in your code based on this table:
 
 Original Operator | Negated Operator
 ------------------|-----------------
@@ -40,9 +40,9 @@ Original Operator | Changed Operator
 `>`|`>=`
 `>=`|`>`
 
-The purpose of this operator is to highlight whether your tests check the edge of each comparison. The negate conditionals operator above turns `<` into `>`, which almost any test kills. Turning `<` into `<=` changes the result only at the boundary value, so the mutant survives unless some test uses that value. Equality operators have no boundary, so `==` and `!=` are left to the negate conditionals operator. Each ordering operator gets a mutant from both operators, so a run has one more mutant for each `<`, `<=`, `>` and `>=` it mutates.
+The purpose of this operator is to highlight whether your tests check the edge of each comparison. The relational operator replacement operator above turns `<` into `>`, which almost any test kills. Turning `<` into `<=` changes the result only at the boundary value, so the mutant survives unless some test uses that value. Equality operators have no boundary, so `==` and `!=` are left to the relational operator replacement operator. Each ordering operator gets a mutant from both operators, so a run has one more mutant for each `<`, `<=`, `>` and `>=` it mutates.
 
-As with the negate conditionals operator, only an operator in an expression is mutated: an operator's declaration, such as `static func < (lhs: Self, rhs: Self) -> Bool`, is not.
+As with the relational operator replacement operator, only an operator in an expression is mutated: an operator's declaration, such as `static func < (lhs: Self, rhs: Self) -> Bool`, is not.
 
 ### Mutating a boundary
 ```swift
@@ -143,3 +143,40 @@ The Swap Ternary operator will swap ternary operators in your code based on this
 | `<condition> ? <expression1> : <expression2>` | `<condition> ? <expression2> : <expression1>` |
 
 The purpose of this operator is to highlight how your tests respond to changes in logic. A well-engineered test suite will be able to fail clearly in response to different logical constraints.
+
+## Negate Conditional
+
+The negate conditional operator, `NegateConditional`, will wrap each expression condition of an `if`, `guard` or `while` in `!( )`. Each condition of a list gets a mutant of its own: `if a, b` gets `if !(a), b` and `if a, !(b)`.
+
+The purpose of this operator is to highlight whether your tests tell the two branches apart. Unlike the relational operator replacement operator, it covers conditions with no comparison in them, such as `if isValid`, and it treats a condition as a whole, so `if isValid && !isEmpty` becomes `if !(isValid && !isEmpty)`.
+
+Some conditions are left alone:
+
+* **Conditions that aren't expressions:** `if let`, `case` and `#available`. An expression beside one in the list still gets its mutant, so `if let value, value.isReady` becomes `if let value, !(value.isReady)`.
+* **The literals `true` and `false`.** To the compiler `while true` never ends, so a function can end without a `return` after it. Negated, the loop can end, and the function no longer compiles.
+* **A condition that is one `==` or `!=` comparison, while `RelationalOperatorReplacement` is on.** `!(a % 2 == 0)` is the same mutant as that operator's `a % 2 != 0`, so it isn't tested twice. `a == b && c` isn't one. `!(a < b)` is `a >= b`, where that operator gives `a > b`, so ordering comparisons get both. `===` and `!==` are negated, as no other operator changes them.
+* **`#_hasSymbol`,** which can only be a condition itself, and a condition that ends in `#endif`, which nothing can follow on its line.
+
+The condition of `repeat`-`while`, a ternary and a `case`'s `where` aren't mutated.
+
+A negated `while` condition can loop forever. The mutant is then stopped at its time limit and ends as a timeout, which the score counts as a survivor, unless the log already shows a failed test or a crash. With several workers it is [run again](../README.md#timeouts-are-run-again), at the cost of a second limit.
+
+A few negated conditions don't compile, and are [left out as build errors](../README.md#mutants-that-dont-compile), at the cost of a rebuild:
+
+* A condition the compiler works out, as in `let running = true; while running { ... }` with no code after the loop. Only the literals are recognized.
+* A condition whose type came from `if`, when the module declares a `!` of its own: `if .random()` can then be ambiguous.
+
+### Mutating a condition
+```swift
+if isValid && !isEmpty {
+    // something happens here
+}
+```
+
+becomes
+
+```swift
+if !(isValid && !isEmpty) {
+    // something happens here
+}
+```

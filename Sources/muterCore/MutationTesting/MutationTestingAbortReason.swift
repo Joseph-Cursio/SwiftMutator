@@ -117,6 +117,23 @@ private extension MutationTestingAbortReason {
             """
         }
 
+        if let crash = crashThatMayBeAStackOverflow(in: log, mutatedFilePaths: mutatedFilePaths) {
+            return """
+            SwiftMutator could not establish a baseline because a test process crashed, with no mutant switched on:
+
+              \(crash.line)
+
+            First check that your tests pass in your unmutated project. If they do, \(crash.reason) a stack overflow. \
+            Each mutant adds a copy of the code around it, and a debug build gives each copy's local variables their own \
+            stack space, so a function can need many times the stack it did, and one that recurses deeply can run out.
+
+            On a Mac, the crash report in ~/Library/Logs/DiagnosticReports says "Thread stack size exceeded" if that's \
+            what happened, and the function that repeats at the top of its crashed thread is the one. Leave that \
+            function's file out with the "exclude" option in your \(MuterConfiguration.fileNameWithExtension), or put \
+            // muter:disable before the function and // muter:enable after it. A test plan needs making again after that.
+            """
+        }
+
         return """
         SwiftMutator noticed that your test suite initially failed to compile or produced a test failure.
 
@@ -127,6 +144,22 @@ private extension MutationTestingAbortReason {
         We recommend you try your settings out in a terminal prior to using SwiftMutator for the best configuration experience.
         We also recommend removing tests which you know are flaky from the set of tests that SwiftMutator exercises.
         """
+    }
+
+    /// The line of a baseline's `log` that shows a crash that running out of stack could have caused, and how sure that
+    /// is. Nothing in a log says it was: only a crash report does. xcodebuild doesn't give the signal, and restarts
+    /// after a timeout too. nil when SwiftMutator rewrote no file, as nothing then has grown.
+    static func crashThatMayBeAStackOverflow(
+        in log: String,
+        mutatedFilePaths: [String]
+    ) -> (line: String, reason: String)? {
+        guard !mutatedFilePaths.isEmpty else { return nil }
+        if let line = CrashLine.firstMemoryFault(inLog: log) {
+            return (line, "the likely reason is")
+        }
+        let restarted = log.split(whereSeparator: \.isNewline)
+            .first { $0.hasPrefix("Restarting after unexpected exit, crash, or test timeout") }
+        return restarted.map { (String($0), "one possible reason is") }
     }
 
     static func baselineTestFailedEvidence(log: String) -> String {
@@ -146,7 +179,7 @@ private extension MutationTestingAbortReason {
     }
 }
 
-/// A `file:line:column: error: message` diagnostic parsed out of a compiler or test log.
+/// A compile error parsed out of a compiler or test log: mostly `file:line:column: error: message`.
 struct CompilerError: Hashable, Sendable {
     let filePath: String
     let line: Int
@@ -238,9 +271,17 @@ extension CompilerError {
         #"^((?:(?!: ).)+?):([0-9]+):([0-9]+):\s+error:\s+(\S.*?)\s*$"#
     )
 
+    /// `error: /path/to/File.swift:12:34 #_hasSymbol may only be used as condition…`, as Swift Build's driver prints an
+    /// error it finds before compiling, with no colon after the column, and glued to whatever the progress line had
+    /// printed: `[28 / 51] Serror: /path/…`. Only an absolute path, so that `error: <a path> failed…` isn't one.
+    private static let driverDiagnostic = NSRegularExpression.regexWithPattern(
+        #"^[^:]*?error:\s+(/(?:(?!: ).)+?):([0-9]+):([0-9]+)\s+(\S.*?)\s*$"#
+    )
+
     private static func from(logLine: String) -> CompilerError? {
         let whole = NSRange(logLine.startIndex..., in: logLine)
-        guard let match = diagnostic.firstMatch(in: logLine, range: whole),
+        guard let match = diagnostic.firstMatch(in: logLine, range: whole)
+            ?? driverDiagnostic.firstMatch(in: logLine, range: whole),
               let path = Range(match.range(at: 1), in: logLine),
               let line = Range(match.range(at: 2), in: logLine).flatMap({ Int(logLine[$0]) }),
               let column = Range(match.range(at: 3), in: logLine).flatMap({ Int(logLine[$0]) }),

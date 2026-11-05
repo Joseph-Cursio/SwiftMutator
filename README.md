@@ -26,7 +26,7 @@ day, three of them with a fix. It has things SwiftMutator doesn't, among them:
   reported as "no coverage" and counts against the score, and a kill whose code never ran is tested
   again. SwiftMutator instead skips the code that one coverage run, before mutating, shows no test
   reaching, and leaves those mutants out of its score;
-- seven mutation operators, against SwiftMutator's five. Its default run uses three of them:
+- seven mutation operators, against SwiftMutator's six. Its default run uses three of them:
   logical operators, negated conditions and swapped ternaries. So by default it doesn't replace
   relational operators, as in `==` becoming `!=`, or remove calls, which SwiftMutator does;
   `--operator-tier experimental` runs all seven;
@@ -182,6 +182,14 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   RemoveSideEffects ChangeLogicalConnector SwapTernary`, with the `--force-resume` or
   `--force-reuse` that a run by another SwiftMutator needs anyway. See
   [mutation_operators.md](Docs/mutation_operators.md).
+- **Negated conditions:** `NegateConditional` wraps each expression condition of `if`, `guard` and
+  `while` in `!( )`, which sends the code down the other branch
+  ([#106](https://github.com/Joseph-Cursio/SwiftMutator/issues/106)). It runs by default, and adds
+  42% to SwiftProjectLint's mutants, of which 1 of 313 sampled timed out. While
+  `RelationalOperatorReplacement` is on, a condition that is one `==` or `!=` comparison is left to
+  that operator, whose swap is the same mutant, and `--mutant` still finds such a mutant that a run
+  without that operator reported. A run recorded before it is continued as above, by naming that
+  run's operators with `--operators`. See [mutation_operators.md](Docs/mutation_operators.md).
 - **Logging through the injected printer**, so log output can be captured and tested.
 
 Fixes that apply to Muter are offered upstream too.
@@ -349,6 +357,24 @@ or a shard can't hold a mutant that was dropped.
 ```text
 ℹ️ SwiftMutator left out 3 mutants with nowhere to put a switch, so no report covers them. --verbose lists them.
 ```
+
+## When the baseline crashes
+
+Every mutant is compiled into one build, so a function's code is there once for each mutant in it. A
+debug build gives each copy's local variables their own stack space. On SwiftProjectLint, one file's 44
+mutants took a function's frame from 3,408 to 12,928 bytes, and another's from 4,064 to 46,112, so a
+recursion that fit its thread's stack no longer did. The test process then crashes in the baseline, with
+no mutant on, and the run stops with exit status 3.
+
+SwiftMutator says when a baseline's log shows a crash that could be this: a test process ended by SIGBUS
+or SIGSEGV under `swift test`, and more doubtfully, xcodebuild's `Restarting after unexpected exit,
+crash, or test timeout`. A log can't show that it was: on a Mac, the crash report in
+`~/Library/Logs/DiagnosticReports` says `Thread stack size exceeded`, under the function that repeats at
+the top of the crashed thread. Swift Testing's tests under xcodebuild leave no such line, only the test's
+name under `Failing tests:`.
+
+To go on, leave that function out: its file with `exclude`, or the function alone with `// muter:disable`
+before it and `// muter:enable` after it.
 
 ## Mutants that don't compile
 

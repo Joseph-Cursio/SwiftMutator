@@ -28,9 +28,26 @@ enum CrashLine {
             .map(FailedTestLine.withoutColours)
     }
 
+    /// The first line of `log` that shows a test process ended by a bad memory access, without colour codes: SIGBUS or
+    /// SIGSEGV, the signals that running out of stack ends a process with, though not only that.
+    static func firstMemoryFault(inLog log: String) -> String? {
+        log.split(whereSeparator: { $0 == "\n" || $0 == "\r\n" })
+            .first { line in
+                guard matches(line) else { return false }
+                let text = FailedTestLine.withoutColours(line)
+                let whole = NSRange(text.startIndex..., in: text)
+                guard let match = crashRegEx.firstMatch(in: text, range: whole),
+                      let signal = Range(match.range(at: 1), in: text).flatMap({ Int32(text[$0]) })
+                else { return false }
+                return signal == SIGBUS || signal == SIGSEGV
+            }
+            .map(FailedTestLine.withoutColours)
+    }
+
     private static var crashRegEx: NSRegularExpression {
         NSRegularExpression.regexWithPattern(
-            #"^(?:error: )?(?:Process '.*' exited|Exited) with (?:unexpected )?signal code (?!(?:1|2|9|15)\b)[0-9]+\b"#
+            #"^(?:error: )?(?:Process '.*' exited|Exited) with (?:unexpected )?signal code "#
+                + #"(?!(?:1|2|9|15)\b)([0-9]+)\b"#
         )
     }
 }

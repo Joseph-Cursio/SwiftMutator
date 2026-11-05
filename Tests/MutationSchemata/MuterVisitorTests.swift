@@ -98,7 +98,7 @@ final class MuterVisitorTests: MuterTestCase {
         let mutants = mappings
             .flatMap(\.mutationSchemata)
             .map { "\($0.mutationOperatorId.rawValue)@\($0.position.line)" }
-        XCTAssertEqual(mutants, ["ChangeLogicalConnector@4"])
+        XCTAssertEqual(Set(mutants), ["ChangeLogicalConnector@4", "NegateConditional@4"])
     }
 
     // Every node's coverage check asks for its start and end. A location converter made for each took a pass over the
@@ -153,7 +153,7 @@ final class MuterVisitorTests: MuterTestCase {
         let mutants = mappings
             .flatMap(\.mutationSchemata)
             .map { "\($0.mutationOperatorId.rawValue)@\($0.position.line)" }
-        XCTAssertEqual(mutants, ["RelationalOperatorReplacement@8"])
+        XCTAssertEqual(Set(mutants), ["NegateConditional@4", "RelationalOperatorReplacement@8"])
     }
 
     // The right-hand side of `&&` is a closure with a region of its own, and no node of its own: the sequence
@@ -2615,6 +2615,7 @@ final class MuterVisitorTests: MuterTestCase {
     /// ordering operators that RelationalOperatorReplacement mutates, at the same places and judged by the same code's
     /// coverage. So its mutants are checked to be at exactly the places of RelationalOperatorReplacement's mutants of
     /// `<`, `<=`, `>` and `>=`, and then left out, so that each test names RelationalOperatorReplacement's alone.
+    /// NegateConditional's are left out too, as its condition is judged in `NegateConditionalOperatorTests`.
     private func mutants(
         in mappings: [SchemataMutationMapping],
         file: StaticString = #filePath,
@@ -2629,7 +2630,7 @@ final class MuterVisitorTests: MuterTestCase {
         XCTAssertEqual(boundaries.sorted(), orderings.sorted(), "the boundary mutants' places", file: file, line: line)
 
         return schemata
-            .filter { $0.mutationOperatorId != .relationalBoundary }
+            .filter { ![.relationalBoundary, .negateConditional].contains($0.mutationOperatorId) }
             .map { "\($0.mutationOperatorId.rawValue)@\($0.position.line)" }
     }
 

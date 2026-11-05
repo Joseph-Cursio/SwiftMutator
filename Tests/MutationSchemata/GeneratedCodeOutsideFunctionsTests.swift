@@ -204,6 +204,32 @@ final class GeneratedCodeOutsideFunctionsTests: GeneratedCodeTestCase {
         )
     }
 
+    /// NegateConditional wraps a whole condition, so its switch goes around the statement, like any other's.
+    func test_aMainFilesCondition_isNegated() throws {
+        let main = """
+        import Darwin
+
+        signal(SIGTRAP) { _ in _exit(70) }
+        var total = 0
+        if CommandLine.arguments.count > 0 && total == 0 { total += 1 }
+        guard total == 1 && CommandLine.arguments.count > 0 else { exit(3) }
+        let chosen = if total == 1 && CommandLine.arguments.count > 0 { "first" } else { "second" }
+        print(total, chosen)
+        """
+        let compiled = try compileMutated(["main.swift": main], arguments: ["-swift-version", "5"])
+
+        XCTAssertEqual(try run(compiled.program).output, "1 first\n")
+        let negated = { (text: String) in
+            try XCTUnwrap(
+                compiled.mutants(in: "main.swift", onTheLineHolding: text)
+                    .first { $0.mutationOperatorId == .negateConditional }?.id
+            )
+        }
+        XCTAssertEqual(try run(compiled.program, switchingOn: negated("total += 1")).status, 3)
+        XCTAssertEqual(try run(compiled.program, switchingOn: negated("guard ")).status, 3)
+        XCTAssertEqual(try run(compiled.program, switchingOn: negated("let chosen")).output, "1 second\n")
+    }
+
     func test_mutantsWithNoPlaceForASwitch_areLeftOut_andSaidToBe() throws {
         let source = SourceCodeInfo(
             path: "/path/to/project/Sources/main.swift",

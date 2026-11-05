@@ -185,6 +185,8 @@ private extension DiscoverMutationPoints {
 
                 visitor.sourceCodePreparationChange = sourceCode.changes
                 visitor.projectRoot = projectRoot
+                (visitor as? NegateConditionalOperator.Visitor)?.leavesEqualityChecksAlone =
+                    operators.contains(.ror) && namedMutant == nil
 
                 visitor.walk(source)
                 noPlaceForASwitch += visitor.droppedMutants
@@ -212,10 +214,13 @@ private extension DiscoverMutationPoints {
             return DiscoveredFile(mappings: merged.filter { !$0.isEmpty }, dropped: dropped)
         }
         let every = pruned(mappings)
-        guard let namedMutant, !namedMutant.isHeld(by: every.mappings, under: projectRoot) else { return every }
+        guard let namedMutant,
+              let configuredOperators = namedMutant.configuredOperators,
+              !namedMutant.isHeld(by: every.mappings, under: projectRoot)
+        else { return every }
         let fewer = pruned(mappings.compactMap { mapping in
             var kept = mapping
-            kept.keepOnly { namedMutant.configuredOperators.contains($0.mutationOperatorId) }
+            kept.keepOnly { configuredOperators.contains($0.mutationOperatorId) }
             return kept.isEmpty ? nil : kept
         })
         return namedMutant.isHeld(by: fewer.mappings, under: projectRoot) ? fewer : every
@@ -256,15 +261,14 @@ private func autoreleasepool<Result>(invoking body: () throws -> Result) rethrow
 /// operators keep it then, and as it alone gets tested, it conflicts with nothing.
 struct NamedMutant: Sendable {
     let reference: MutantReference
-    let configuredOperators: MutationOperatorList
+    /// What the configuration's keys leave; nil when they say nothing, or leave no operators.
+    let configuredOperators: MutationOperatorList?
 
-    /// nil unless `--mutant` is given and the configuration's keys leave some operators.
+    /// nil unless `--mutant` is given.
     init?(_ state: AnyMutationTestState) {
-        guard let reference = state.runOptions.mutant,
-              let operators = try? state.runOptions.operatorsFromTheKeys(of: state.muterConfiguration)
-        else { return nil }
+        guard let reference = state.runOptions.mutant else { return nil }
         self.reference = reference.relative(toFirstOf: [state.projectDirectoryURL, state.mutatedProjectDirectoryURL])
-        configuredOperators = operators
+        configuredOperators = try? state.runOptions.operatorsFromTheKeys(of: state.muterConfiguration)
     }
 
     func isHeld(by mappings: [SchemataMutationMapping], under root: URL) -> Bool {
