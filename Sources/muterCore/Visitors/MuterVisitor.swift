@@ -111,11 +111,15 @@ class MuterVisitor: SyntaxAnyVisitor {
         coverage.functions.isEmpty || executionCounts.ran(node)
     }
 
+    /// Where `node` starts. Before its leading trivia, unless asked otherwise, which for a node that starts a line is
+    /// the end of the line before.
     func startLocation(
-        for node: SyntaxProtocol
+        for node: SyntaxProtocol,
+        afterLeadingTrivia: Bool = false
     ) -> MutationPosition {
         let sourceLocation = node.startLocation(
-            converter: locationConverter
+            converter: locationConverter,
+            afterLeadingTrivia: afterLeadingTrivia
         )
 
         return mutationPosition(

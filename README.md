@@ -26,7 +26,7 @@ day, three of them with a fix. It has things SwiftMutator doesn't, among them:
   reported as "no coverage" and counts against the score, and a kill whose code never ran is tested
   again. SwiftMutator instead skips the code that one coverage run, before mutating, shows no test
   reaching, and leaves those mutants out of its score;
-- seven mutation operators, against SwiftMutator's five. Its default run uses three of them:
+- seven mutation operators, against SwiftMutator's six. Its default run uses three of them:
   logical operators, negated conditions and swapped ternaries. So by default it doesn't replace
   relational operators, as in `==` becoming `!=`, or remove calls, which SwiftMutator does;
   `--operator-tier experimental` runs all seven;
@@ -179,6 +179,14 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   RemoveSideEffects ChangeLogicalConnector SwapTernary`, with the `--force-resume` or
   `--force-reuse` that a run by another SwiftMutator needs anyway. See
   [mutation_operators.md](Docs/mutation_operators.md).
+- **Negated conditions:** `NegateConditional` wraps each expression condition of `if`, `guard` and
+  `while` in `!( )`, which sends the code down the other branch
+  ([#106](https://github.com/Joseph-Cursio/SwiftMutator/issues/106)). It runs by default, and adds
+  42% to SwiftProjectLint's mutants, of which 1 of 313 sampled timed out. While
+  `RelationalOperatorReplacement` is on, a condition that is one `==` or `!=` comparison is left to
+  that operator, whose swap is the same mutant, and `--mutant` still finds such a mutant that a run
+  without that operator reported. A run recorded before it is continued as above, by naming that
+  run's operators with `--operators`. See [mutation_operators.md](Docs/mutation_operators.md).
 - **Logging through the injected printer**, so log output can be captured and tested.
 
 Fixes that apply to Muter are offered upstream too.

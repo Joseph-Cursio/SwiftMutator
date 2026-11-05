@@ -157,6 +157,48 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         }
     }
 
+    // RelationalOperatorReplacement's swap of `a == b` is the mutant NegateConditional would make, so it isn't made
+    // twice, and only while that operator is on.
+    func test_aLoneEqualityCheck_isNegatedOnlyWithoutRelationalOperatorReplacement() async throws {
+        let operators: (MutationOperatorList) async throws -> [MutationOperator.Id] = { list in
+            let file = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).swift")
+            try "func f(a: Int, b: Int) { if a == b { print(a) } }\n".write(to: file, atomically: true, encoding: .utf8)
+            self.addTeardownBlock { try? FileManager.default.removeItem(at: file) }
+            self.state.sourceFileCandidates = [file.path]
+            self.state.mutationOperatorList = list
+            self.state.apply(try await self.sut.run(with: self.state))
+            return self.state.mutationMapping.flatMap(\.mutationSchemata).map(\.mutationOperatorId)
+        }
+
+        let withAll = try await operators(.allOperators)
+        XCTAssertEqual(withAll, [.ror])
+        let alone = try await operators([.negateConditional])
+        XCTAssertEqual(alone, [.negateConditional])
+        let besideOthers = try await operators([.negateConditional, .logicalOperator])
+        XCTAssertEqual(besideOthers, [.negateConditional])
+    }
+
+    // `--mutant` discovers every operator, and must still find the mutant a run with NegateConditional alone reported.
+    func test_aMutantNamed_findsTheNegationOfALoneEqualityCheck() async throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).swift")
+        try "func f(a: Int, b: Int) { if a == b { print(a) } }\n".write(to: file, atomically: true, encoding: .utf8)
+        addTeardownBlock { try? FileManager.default.removeItem(at: file) }
+        state.sourceFileCandidates = [file.path]
+        state.mutationOperatorList = .allOperators
+        state.runOptions = .make(mutant: try MutantReference.parse("\(file.lastPathComponent):1:29 NegateConditional"))
+
+        state.projectDirectoryURL = file.deletingLastPathComponent()
+        state.mutatedProjectDirectoryURL = file.deletingLastPathComponent()
+
+        state.apply(try await sut.run(with: state))
+        state.apply(try await SelectMutant().run(with: state))
+
+        let mutants = state.mutationMapping.flatMap(\.mutationSchemata)
+        XCTAssertEqual(mutants.map(\.mutationOperatorId), [.negateConditional])
+        XCTAssertEqual(mutants.map(\.position.line), [1])
+        XCTAssertEqual(mutants.map(\.position.column), [29])
+    }
+
     /// A file whose opaque getter holds a nested comparison, on line 5, and a ternary of its own, on line 7.
     private func opaqueBodyFile() throws -> String {
         let file = FileManager.default.temporaryDirectory

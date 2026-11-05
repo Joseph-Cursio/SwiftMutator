@@ -22,6 +22,7 @@ enum MutationOperator {
         case removeSideEffects = "RemoveSideEffects"
         case logicalOperator = "ChangeLogicalConnector"
         case swapTernary = "SwapTernary"
+        case negateConditional = "NegateConditional"
 
         var visitor: VisitorInitializer {
             switch self {
@@ -35,6 +36,8 @@ enum MutationOperator {
                 return ChangeLogicalConnectorOperator.Visitor.init
             case .swapTernary:
                 return SwapTernaryOperator.Visitor.init
+            case .negateConditional:
+                return NegateConditionalOperator.Visitor.init
             }
         }
 
@@ -55,6 +58,8 @@ enum MutationOperator {
                 return "Swaps a logical AND for OR, and OR for AND."
             case .swapTernary:
                 return "Swaps the two branches of a ternary expression."
+            case .negateConditional:
+                return "Negates a condition of an if, guard or while, which sends the code down the other branch."
             }
         }
     }

@@ -99,7 +99,7 @@ final class ApplySchemataTests: MuterTestCase {
     // tree has different node identities and would match none of them, writing
     // the file back with no mutation switches at all.
     func test_writesMutationSwitchesWhenSourceIsNotCached() async throws {
-        let path = "\(mutationExamplesDirectory)/NegateConditionals/sampleWithConditionalOperators.swift"
+        let path = "\(mutationExamplesDirectory)/RelationalOperatorReplacement/sampleWithConditionalOperators.swift"
         let source = try XCTUnwrap(sourceCode(fromFileAt: path))
         let mappings = generateSchemataMappings(for: source)
         let schemata = mappings.flatMap(\.mutationSchemata)

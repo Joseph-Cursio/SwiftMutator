@@ -152,20 +152,19 @@ final class AcceptanceTests: XCTestCase {
         let columns = { (line: String) in line.split(separator: " ").joined(separator: " ") }
 
         // Each mutant's row names it by its path in the project, its line and its column. How long it ran depends on
-        // the machine, so each row is checked up to its result. The `>=` gets two mutants, which both time out, as the
-        // test sleeps for longer than the limit whatever `foo` does.
+        // the machine, so each row is checked up to its result. The `if value >= 0` gets three mutants, which all time
+        // out, as the test sleeps for longer than the limit whatever `foo` does.
         let header = try XCTUnwrap(lines.firstIndex { $0.hasPrefix("File ") && $0.contains("Mutation Test Result") })
         XCTAssertEqual(
             columns(lines[header]),
             "File Applied Mutation Operator Mutation Test Result Duration"
         )
         let rows = lines.dropFirst(header + 2).prefix { !$0.isEmpty }
-        XCTAssertEqual(rows.count, 2, output)
-        for (row, mutationOperator) in zip(rows, ["RelationalBoundary", "RelationalOperatorReplacement"]) {
+        XCTAssertEqual(rows.count, 3, output)
+        let mutants = ["2:8 NegateConditional", "2:14 RelationalBoundary", "2:14 RelationalOperatorReplacement"]
+        for (row, mutant) in zip(rows, mutants) {
             XCTAssertTrue(
-                columns(row).hasPrefix(
-                    "Sources/ProjectWithTimeout/ProjectWithTimeout.swift:2:14 \(mutationOperator) time out "
-                ),
+                columns(row).hasPrefix("Sources/ProjectWithTimeout/ProjectWithTimeout.swift:\(mutant) time out "),
                 row
             )
         }

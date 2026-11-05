@@ -557,6 +557,7 @@ private extension MutationOperator.Id {
         case .removeSideEffects: "Remove Side Effects"
         case .logicalOperator: "Change Logical Connector"
         case .swapTernary: "Swap Ternary"
+        case .negateConditional: "Negate Conditional"
         }
     }
 }

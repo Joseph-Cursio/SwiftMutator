@@ -4,7 +4,7 @@ import XCTest
 
 final class ROROperatorTests: MuterTestCase {
     private lazy var sourceWithConditionalLogic = fixtureSource(
-        at: "\(mutationExamplesDirectory)/NegateConditionals/sampleWithConditionalOperators.swift"
+        at: "\(mutationExamplesDirectory)/RelationalOperatorReplacement/sampleWithConditionalOperators.swift"
     )
 
     private lazy var sourceWithoutMutableCode = fixtureSource(
@@ -12,7 +12,7 @@ final class ROROperatorTests: MuterTestCase {
     )
 
     private lazy var conditionalConformanceConstraints = fixtureSource(
-        at: "\(mutationExamplesDirectory)/NegateConditionals/conditionalConformanceConstraints.swift"
+        at: "\(mutationExamplesDirectory)/RelationalOperatorReplacement/conditionalConformanceConstraints.swift"
     )
 
     func test_visitor() throws {
