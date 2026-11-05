@@ -282,6 +282,20 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         }
     }
 
+    /// How many mutants discovery found and can't test, and with `verbose`, each one.
+    func mutantsDropped(_ dropped: [DroppedMutant], verbose: Bool = false) {
+        guard !dropped.isEmpty else { return }
+        let count = dropped.count == 1 ? "1 mutant" : "\(dropped.count) mutants"
+        print(
+            "ℹ️ SwiftMutator left out \(count) with nowhere to put a switch, so no report covers "
+                + (dropped.count == 1 ? "it" : "them")
+                + (verbose ? ":" : ". --verbose lists them.")
+        )
+        if verbose {
+            print(dropped.map(\.line).joined(separator: "\n"))
+        }
+    }
+
     /// How many of a resumed run's results still hold, and how many mutants are left to test and why; then how its
     /// discovery differs from the last session's, each change no result depends on, and what `--force-resume` and
     /// `--resume-ignoring` let through. A run that reuses an earlier run's results says the same, with `--reuse`'s

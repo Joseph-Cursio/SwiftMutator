@@ -217,11 +217,51 @@ extension CompilerError {
 
     /// Every compile error `log` shows, without colour codes, as `swift build` prints them to a log, whatever the path
     /// holds. Each is listed each time it is printed: xcodebuild prints an error once per architecture.
+    ///
+    /// An error in a macro's expansion is reported in a buffer that is no file of the project. The note after it says
+    /// where the expanded code came from, and it counts as an error there: otherwise a macro that copies a mutated
+    /// value to where it can't compile could be pinned on no mutant, and would stop the run.
     static func all(in log: String) -> [CompilerError] {
-        log.split(whereSeparator: \.isNewline).compactMap { line in
-            guard line.contains("error:") else { return nil }
-            return from(logLine: FailedTestLine.withoutColours(line))
+        let lines = log.split(whereSeparator: \.isNewline)
+        return lines.indices.compactMap { index in
+            let line = lines[index]
+            guard line.contains("error:"), let error = from(logLine: FailedTestLine.withoutColours(line)) else {
+                return nil
+            }
+            guard error.isInAMacroExpansion else { return error }
+            return lines[(index + 1)...].prefix(notesLookedAtAfterAnExpansionsError)
+                .lazy.compactMap { origin(ofExpansionNamedBy: $0) }.first
+                .map { CompilerError(filePath: $0.path, line: $0.line, column: $0.column, message: error.message) }
+                ?? error
         }
+    }
+
+    /// How many lines after an error in a macro's expansion are looked at for the note that names its origin.
+    private static let notesLookedAtAfterAnExpansionsError = 3
+
+    /// `macro expansion @State:13:41`, or a generated buffer's path, as a compiler with another diagnostic style gives.
+    private var isInAMacroExpansion: Bool {
+        filePath.hasPrefix("macro expansion ") || filePath.contains("@__swiftmacro_")
+    }
+
+    /// `` `- /path/to/File.swift:12:34: note: expanded code originates here ``.
+    private static let expansionOrigin = NSRegularExpression.regexWithPattern(
+        #"(/(?:(?!: ).)+?):([0-9]+):([0-9]+):\s+note:\s+expanded code originates here\s*$"#
+    )
+
+    private static func origin(
+        ofExpansionNamedBy line: Substring
+    ) -> (path: String, line: Int, column: Int)? {
+        guard line.contains("expanded code originates here") else { return nil }
+        let text = FailedTestLine.withoutColours(line)
+        guard let match = expansionOrigin.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let path = Range(match.range(at: 1), in: text),
+              let number = Range(match.range(at: 2), in: text).flatMap({ Int(text[$0]) }),
+              let column = Range(match.range(at: 3), in: text).flatMap({ Int(text[$0]) })
+        else {
+            return nil
+        }
+        return (String(text[path]), number, column)
     }
 
     /// `/path/to/File.swift:12:34: error: expected expression`. The path holds no `: `, so a diagnostic quoted after a

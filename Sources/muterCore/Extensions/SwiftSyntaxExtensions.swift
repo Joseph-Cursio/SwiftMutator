@@ -1,5 +1,23 @@
 import SwiftSyntax
 
+/// The code a mutant's switch holds a copy of in each branch.
+enum MutationSwitchPlace {
+    /// A statement list, the place for all but the code below.
+    case statements(CodeBlockItemListSyntax)
+    /// One statement of a list at a file's top level that holds a declaration.
+    case statement(CodeBlockItemSyntax)
+    /// A stored property's or a global's initial value, or a default argument.
+    case initialValue(ExprSyntax)
+
+    var code: any SyntaxProtocol {
+        switch self {
+        case let .statements(list): list
+        case let .statement(statement): statement
+        case let .initialValue(value): value
+        }
+    }
+}
+
 extension SyntaxProtocol {
     var escapedDescription: String {
         description.replacingOccurrences(
@@ -40,17 +58,40 @@ extension SyntaxProtocol {
         }
     }
 
-    /// Whether the statement list a mutation would be switched in cannot hold the `if` switch.
+    /// Where the switch of a mutant of this code goes, or nil when it has nowhere to go.
     ///
-    /// A stored-property initializer has no statement list of its own, so walking up reaches the
-    /// file's top level (or a top-level `#if`). Wrapping that list in an `if` moves its imports and
-    /// type declarations into a local scope, which does not compile. A file-scope list of plain
-    /// statements (top-level code in `main.swift` or a script) can be switched, so only a list
-    /// holding a declaration is refused.
-    var cannotHoldMutationSwitch: Bool {
+    /// That is the nearest statement list, but for a list at a file's top level that holds a declaration: wrapping it
+    /// in an `if` moves its imports and types into a local scope, which doesn't compile. A stored property's initial
+    /// value and a default argument have no statement list of their own, so walking up from them reaches such a list,
+    /// and so does a statement in a `main.swift` with an `import`. The switch then goes around the value, or the
+    /// statement, alone. What is left has no such place: a macro alone at a file's or a type's top level, an
+    /// attribute's arguments, a `guard let` or `guard case` at the top level, and the two values
+    /// `InitializerClauseSyntax.canHoldASwitch` refuses.
+    var mutationSwitchPlace: MutationSwitchPlace? {
         let list = codeBlockItemListSyntax
-        return list.isFileScope
-            && list.contains { Syntax($0.item).asProtocol(DeclSyntaxProtocol.self) != nil }
+        guard list.isFileScope, list.containsDeclaration else {
+            return .statements(list)
+        }
+        // A macro expands its arguments from their syntax, so the switch has to go around the outermost one.
+        var outermost = Syntax(self)
+        var ancestor: Syntax? = outermost
+        while let current = ancestor {
+            if current.is(MacroExpansionExprSyntax.self) || current.is(MacroExpansionDeclSyntax.self) {
+                outermost = current
+            }
+            ancestor = current.parent
+        }
+        ancestor = outermost
+        while let current = ancestor {
+            if let clause = current.as(InitializerClauseSyntax.self), clause.isADeclarationsValue {
+                return clause.canHoldASwitch ? .initialValue(clause.value) : nil
+            }
+            if let statement = current.as(CodeBlockItemSyntax.self) {
+                return statement.declaresNothingAfterIt ? .statement(statement) : nil
+            }
+            ancestor = current.parent
+        }
+        return nil
     }
 
     func appendingLeadingTrivia(
@@ -244,5 +285,73 @@ private extension CodeBlockItemListSyntax {
             ancestor = current.parent
         }
         return nil
+    }
+}
+
+extension InitializerClauseSyntax {
+    /// Whether this is a `let` or `var`'s value or a parameter's default. Not an `if let`'s or an `if case`'s value,
+    /// which belongs to its statement, nor an enum case's raw value, which has to be a literal.
+    var isADeclarationsValue: Bool {
+        parent?.is(PatternBindingSyntax.self) == true || isADefaultArgument
+    }
+
+    /// A default argument can't be an `if` expression, which the compiler allows only as a statement's value.
+    var isADefaultArgument: Bool {
+        parent?.is(FunctionParameterSyntax.self) == true || parent?.is(EnumCaseParameterSyntax.self) == true
+    }
+
+    /// Whether this value, or a type around it, has an attribute. The attribute can be a macro that copies the value
+    /// into a call, as `@State`, `@TaskLocal` and `@Model` do, where an `if` expression doesn't compile.
+    var isUnderAnAttribute: Bool {
+        var ancestor = parent
+        while let current = ancestor {
+            if let declaration = current.asProtocol(WithAttributesSyntax.self), !declaration.attributes.isEmpty {
+                return true
+            }
+            ancestor = current.parent
+        }
+        return false
+    }
+
+    /// A branch that starts with `#line` is read as the old form of `#sourceLocation`, and the result of a closure
+    /// called on the spot can't be converted to a parameter's non-escaping function type.
+    var canHoldASwitch: Bool {
+        !value.trimmedDescription.hasPrefix("#line") && !isTheDefaultOfANonEscapingFunction
+    }
+
+    /// `() -> Int = …`. An `@escaping` one can take a closure's result, and an `@autoclosure` one's default is its
+    /// value.
+    private var isTheDefaultOfANonEscapingFunction: Bool {
+        guard var type = parent?.as(FunctionParameterSyntax.self)?.type else { return false }
+        while let attributed = type.as(AttributedTypeSyntax.self) {
+            let names = attributed.attributes.compactMap {
+                $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription
+            }
+            if names.contains("escaping") || names.contains("autoclosure") { return false }
+            type = attributed.baseType
+        }
+        return type.is(FunctionTypeSyntax.self)
+    }
+}
+
+extension CodeBlockItemSyntax {
+    /// Whether the `if` of a switch can go around this statement, as it declares nothing the code after it could use.
+    /// A `guard let` or `guard case` might, and a macro alone, such as `#Preview`, can declare anything; a macro inside
+    /// a statement yields a value.
+    var declaresNothingAfterIt: Bool {
+        switch item {
+        case .decl:
+            return false
+        case let .expr(expression):
+            return !expression.is(MacroExpansionExprSyntax.self)
+        case let .stmt(statement):
+            guard let guardStatement = statement.as(GuardStmtSyntax.self) else { return true }
+            return guardStatement.conditions.allSatisfy { element in
+                switch element.condition {
+                case .optionalBinding, .matchingPattern: false
+                default: true
+                }
+            }
+        }
     }
 }

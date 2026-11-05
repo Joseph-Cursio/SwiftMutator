@@ -149,6 +149,9 @@ struct ResultsHeader: Codable, Equatable {
     var failedTestLookalikes: [FailedTestLine.TestIdentity]?
     let mutantsDiscovered: Int
     let mutantsToTest: Int
+    /// How many mutants discovery found and can't test, as their switches have nowhere to go; absent when none. Of all
+    /// the code discovery looked at, with `--sample` and `--shard` too.
+    var mutantsDropped: Int?
     /// The project's files, as the mutated copy held them before discovery rewrote it. In a session that tested a
     /// test plan, which copies nothing, the plan's copy as it was tested: rewritten, and with any fix made by hand,
     /// which a resume of its run compares the copy with. Absent from a session that an earlier SwiftMutator ran on a
@@ -276,6 +279,7 @@ extension ResultsHeader {
                 ? nil : configuration.failedTestLookalikes.sorted(),
             mutantsDiscovered: mutantsDiscovered,
             mutantsToTest: mutantsToTest,
+            mutantsDropped: state.droppedMutants.isEmpty ? nil : state.droppedMutants.count,
             project: projectDelta == nil ? state.projectTree : nil,
             projectDelta: projectDelta,
             mutantsReused: mutantsReused,

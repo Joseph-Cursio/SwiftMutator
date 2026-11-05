@@ -19,6 +19,7 @@ protocol AnyMutationTestState: AnyObject {
     var sourceFileCandidates: [FilePath] { get }
     var mutationPoints: [MutationPoint] { get }
     var mutationMapping: [SchemataMutationMapping] { get }
+    var droppedMutants: [DroppedMutant] { get }
     var sourceCodeByFilePath: [FilePath: SourceFileSyntax] { get }
     var filesToMutate: [String] { get }
     var mutationTestOutcome: MutationTestOutcome { get }
@@ -82,6 +83,7 @@ final class MutationTestState: AnyMutationTestState {
     var sourceFileCandidates: [FilePath] = []
     var mutationPoints: [MutationPoint] = []
     var mutationMapping: [SchemataMutationMapping] = []
+    var droppedMutants: [DroppedMutant] = []
     var sourceCodeByFilePath: [FilePath: SourceFileSyntax] = [:]
     var mutationTestOutcome: MutationTestOutcome = .init()
     var loggingDirectory = ""
@@ -121,6 +123,7 @@ extension MutationTestState {
         case sourceFileCandidatesDiscovered([FilePath])
         case mutationPointsDiscovered([MutationPoint])
         case mutationMappingsDiscovered([SchemataMutationMapping])
+        case mutantsDropped([DroppedMutant])
         case sourceCodeParsed([FilePath: SourceFileSyntax])
         case mutationTestOutcomeGenerated(MutationTestOutcome)
         case loggingDirectoryCreated(String)
@@ -167,6 +170,8 @@ extension MutationTestState {
                 self.mutationPoints = mutationPoints
             case let .mutationMappingsDiscovered(mutationMapping):
                 self.mutationMapping = mutationMapping
+            case let .mutantsDropped(droppedMutants):
+                self.droppedMutants = droppedMutants
             case let .sourceCodeParsed(sourceCodeByFilePath):
                 self.sourceCodeByFilePath = sourceCodeByFilePath
             case let .mutationTestOutcomeGenerated(mutationTestOutcome):

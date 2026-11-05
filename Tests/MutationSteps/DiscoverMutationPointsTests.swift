@@ -60,6 +60,53 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         XCTAssertEqual(removeSideEffectsSchemata?.count, 2)
     }
 
+    func test_saysWhichMutantsItDropped() async throws {
+        let file = try droppingFile()
+        state.sourceFileCandidates = [file]
+
+        let result = try await sut.run(with: state)
+
+        let dropped = try XCTUnwrap(result.lazy.compactMap { change -> [DroppedMutant]? in
+            guard case let .mutantsDropped(dropped) = change else { return nil }
+            return dropped
+        }.first)
+        XCTAssertEqual(Set(dropped.map(\.position.line)), [3])
+        XCTAssertEqual(Set(dropped.map(\.mutationOperatorId)), [.ror, .relationalBoundary, .swapTernary])
+        XCTAssertEqual(Set(dropped.map(\.reason)), [.noPlaceForASwitch])
+    }
+
+    func test_aMutantNamed_saysNoneWasDropped() async throws {
+        let file = try droppingFile()
+        state.sourceFileCandidates = [file]
+        state.runOptions = Run.Options(
+            skipCoverage: true,
+            skipUpdateCheck: true,
+            configurationURL: nil,
+            mutant: MutantReference(path: file, line: 4, column: nil)
+        )
+
+        let result = try? await sut.run(with: state)
+
+        XCTAssertFalse((result ?? []).contains { change in
+            if case .mutantsDropped = change { return true }
+            return false
+        })
+    }
+
+    /// A file with a mutant that has no place for a switch, on line 3, and one that does, on line 4.
+    private func droppingFile() throws -> String {
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("dropping-\(UUID().uuidString).swift")
+        try """
+        import Foundation
+        let value = CommandLine.arguments.count
+        guard let name = value > 1 ? "name" : nil else { exit(1) }
+        print(name, value > 2)
+        """.write(to: file, atomically: true, encoding: .utf8)
+        addTeardownBlock { try? FileManager.default.removeItem(at: file) }
+        return file.path
+    }
+
     func test_shouldIgnoreUknownOperators() async throws {
         state.sourceFileCandidates = [
             "\(fixturesDirectory)/sourceWithoutMutableCode.swift",

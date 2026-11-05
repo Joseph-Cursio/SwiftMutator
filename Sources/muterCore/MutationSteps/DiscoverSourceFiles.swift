@@ -156,8 +156,31 @@ private extension DiscoverSourceFiles {
         // project holds far more files than Swift sources.
         .exclude(anyOf(filesWithoutCoverage, root: rootPath))
         // A file the coverage data doesn't name has no code in any binary the tests ran, as an example app's or an
-        // unused target's hasn't, so no test could kill its mutants. Without coverage, none is left out for this.
-        .include(filesInCoverage.map { anyOf($0, root: rootPath) } ?? { _ in true })
+        // unused target's hasn't, so no test could kill its mutants. Without coverage, none is left out for this. The
+        // exception is a file of globals' and static properties' values, which have no coverage regions, beside a file
+        // the data names, so in what looks like a target the tests ran.
+        .include(filesInCoverage.map { covered in
+            let isCovered = anyOf(covered, root: rootPath)
+            let root = rootPath.canonicalPath
+            let folders = Set(covered.map { coveredFolder(of: $0, root: rootPath) }).subtracting([root])
+            return { path in
+                isCovered(path) || (isBeside(folders, path, root: root) && CoverageRegions.holdsOnlyValues(path))
+            }
+        } ?? { _ in true })
+    }
+
+    private func coveredFolder(of path: FilePath, root: FilePath) -> String {
+        URL(fileURLWithPath: (path.hasPrefix("/") ? path : append(root: root, to: path)).canonicalPath)
+            .deletingLastPathComponent().path
+    }
+
+    /// Whether the folder of the file at `path` is one of `folders`, holds one, or is in one, but for the project's
+    /// own.
+    private func isBeside(_ folders: Set<String>, _ path: FilePath, root: String) -> Bool {
+        let folder = URL(fileURLWithPath: path.canonicalPath).deletingLastPathComponent().path
+        return folder != root && folders.contains { covered in
+            covered == folder || covered.hasPrefix(folder + "/") || folder.hasPrefix(covered + "/")
+        }
     }
 
     /// Whether a path is one of `list`, the coverage's. Matches by canonical path, since the coverage tools may spell a

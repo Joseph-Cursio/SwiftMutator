@@ -272,7 +272,7 @@ Added on 21 October, from a comparison with swift-mutation-testing v1.6.3 (`937f
   - RemoveSideEffects: the blocks it skips, and a deny-list matched by name, with `assert` and `precondition` added ([#112]).
   - Every link of a ternary chain, identical branches, loops and `#if` conditions ([#113]).
 - **Discovery and the build.**
-  - Mutants outside function bodies are dropped without a word, and a `main.swift` with an `import` loses all its top-level ones ([#107]).
+  - Mutants outside function bodies (done, [#107], PR #222). Stored-property and global values and default arguments are switched in the value, as an `if` expression so that `CompileRecovery` can tell the branches apart, and a `main.swift`'s statements each by itself. What still has nowhere to put a switch is counted at the end of discovery, listed with `--verbose`, and in the results file's header.
   - A mutant in an `@inlinable` body fails the shared build, because the support enum is `fileprivate` (checked with Swift 6.4, [#108]).
   - Inactive `#if` branches are left out only through coverage ([#114]).
   - Declaration-scoped and next-line suppression, test-helper excludes, folders in `--files-to-mutate` and an `--exclude` flag ([#115]).

@@ -37,6 +37,8 @@ enum RunEvent {
     /// With `--sample` or `--shard`, in place of `mutationsDiscoveryFinished`: the sample and the shard tested, and
     /// their mutants.
     case mutantsSelected(sample: SampleSelection?, shard: ShardSelection?, mutations: [SchemataMutationMapping])
+    /// The mutants discovery found and can't test, as their switches have nowhere to go.
+    case mutantsDropped([DroppedMutant])
 
     /// What a resumed run keeps of its results file and tests again, before anything is tested.
     case resumePlanned(ResumeSummary)

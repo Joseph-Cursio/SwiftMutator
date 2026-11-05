@@ -117,6 +117,8 @@ extension MutationTestObserver {
                 sample: sample.map { (selection: $0, seedIsChosen: runOptions.sample?.seedIsChosen ?? false) },
                 shard: shard
             )
+        case let .mutantsDropped(dropped):
+            logger.mutantsDropped(dropped, verbose: runOptions.verbose)
 
         case let .resumePlanned(summary):
             logger.resumePlanned(summary)

@@ -8,6 +8,42 @@ final class ResultsRecordTests: XCTestCase {
     private let finishedAt = Date(timeIntervalSince1970: 1_791_119_882.125)
     private let mutatedRoot = URL(fileURLWithPath: "/project_mutated")
 
+    func test_aHeaderCountsTheDroppedMutants_andLeavesOutNone() throws {
+        let state = MutationTestState()
+        let header = {
+            ResultsHeader(
+                session: 1,
+                startedAt: Date(timeIntervalSince1970: 0),
+                state: state,
+                logDirectory: "/logs",
+                configuration: .init(executable: "swift", arguments: []),
+                baselineSeconds: 1,
+                workers: 1,
+                mutantsDiscovered: 1,
+                mutantsToTest: 1,
+                provenance: .fixture
+            )
+        }
+        XCTAssertNil(header().mutantsDropped)
+        XCTAssertFalse(String(decoding: try JSONEncoder().encode(header()), as: UTF8.self).contains("mutantsDropped"))
+
+        state.droppedMutants = [
+            DroppedMutant(
+                path: "main.swift",
+                mutationOperatorId: .ror,
+                position: .null,
+                snapshot: .null,
+                lines: nil,
+                reason: .noPlaceForASwitch
+            ),
+        ]
+
+        XCTAssertEqual(header().mutantsDropped, 1)
+        XCTAssertTrue(
+            String(decoding: try JSONEncoder().encode(header()), as: UTF8.self).contains(#""mutantsDropped":1"#)
+        )
+    }
+
     func test_aMutantRecordRoundTrips() throws {
         let record = makeMutantRecord(fileSHA256: "404db321")
 

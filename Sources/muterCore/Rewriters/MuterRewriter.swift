@@ -91,4 +91,61 @@ final class MuterRewriter: SyntaxRewriter {
             returningItsMacro: node.isAMacroItsBodyReturns
         )
     }
+
+    /// A statement at a file's top level, beside declarations, which can't go in the switch.
+    override func visit(_ node: CodeBlockItemSyntax) -> CodeBlockItemSyntax {
+        guard let mutationSchemata = schemataMappings.schemata(at: .statement(node)) else {
+            return super.visit(node)
+        }
+        let childrenRewritten = super.visit(node)
+        // A `;` stays after the switch, for a statement that follows on its line.
+        let list = CodeBlockItemListSyntax([childrenRewritten.with(\.semicolon, nil)])
+        let switched = MutationSwitch.apply(
+            mutationSchemata: mutationSchemata,
+            with: list,
+            onALineStartingWith: MutationSwitch.startOfTheFirstLine(of: node),
+            readingEnvironmentFrom: environmentCacheName
+        )
+        guard let statement = switched.first else { return childrenRewritten }
+        return statement.with(\.semicolon, node.semicolon)
+    }
+
+    /// A stored property's or a global's initial value, or a default argument, which have no statement list. Its
+    /// switch is an `if` expression, so that each branch type-checks by itself, as a body's does, and `CompileRecovery`
+    /// can tell the branches apart. A closure called on the spot holds it where that can't compile: a default argument,
+    /// a macro alone as a branch (`MutationSwitch.apply`), and under an attribute that may copy the value into a call.
+    /// The closure can't stand everywhere: `try` and `await` in a `main.swift`'s value would have to go around its
+    /// call.
+    override func visit(_ node: InitializerClauseSyntax) -> InitializerClauseSyntax {
+        guard let mutationSchemata = schemataMappings.schemata(at: .initialValue(node.value)) else {
+            return super.visit(node)
+        }
+        let childrenRewritten = super.visit(node)
+        let isAMacro = node.value.is(MacroExpansionExprSyntax.self)
+        let inAClosure = isAMacro || node.isADefaultArgument || node.isUnderAnAttribute
+        // The value's line break and indentation go before the closure's brace, which would otherwise touch the `=`,
+        // or end a comment after it.
+        let value = inAClosure ? childrenRewritten.value.with(\.leadingTrivia, []) : childrenRewritten.value
+        let switched = MutationSwitch.apply(
+            mutationSchemata: mutationSchemata,
+            with: CodeBlockItemListSyntax([CodeBlockItemSyntax(item: .expr(value))]),
+            onALineStartingWith: MutationSwitch.startOfTheFirstLine(of: node.value),
+            readingEnvironmentFrom: environmentCacheName,
+            returningItsMacro: isAMacro
+        )
+        guard inAClosure else {
+            guard case let .expr(switchedValue)? = switched.first?.item else { return childrenRewritten }
+            return childrenRewritten.with(\.value, switchedValue)
+        }
+        let call = FunctionCallExprSyntax(
+            calledExpression: ClosureExprSyntax(
+                leftBrace: .leftBraceToken(leadingTrivia: childrenRewritten.value.leadingTrivia),
+                statements: switched
+            ),
+            leftParen: .leftParenToken(),
+            arguments: [],
+            rightParen: .rightParenToken()
+        )
+        return childrenRewritten.with(\.value, ExprSyntax(call))
+    }
 }

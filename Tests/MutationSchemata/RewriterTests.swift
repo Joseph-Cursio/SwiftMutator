@@ -65,7 +65,8 @@ final class RewriterTests: MuterTestCase {
     // A stored-property initializer has no statement list of its own, so its mutations were
     // keyed to the nearest one walking up: the file's top level, or a top-level `#if`. Wrapping
     // that list in the mutation switch puts imports and type declarations inside an `if`, which
-    // does not compile, and the shared baseline build of every mutant fails with it.
+    // does not compile, and the shared baseline build of every mutant fails with it. Its switch goes
+    // around the value alone.
     func test_doesNotWrapFileScopeStatementsInAMutationSwitch() throws {
         let source = SourceCodeInfo(
             path: "/path/to/probe.swift",
@@ -89,12 +90,16 @@ final class RewriterTests: MuterTestCase {
         let mapping = try XCTUnwrap(generateSchemataMappings(for: source).first)
 
         let lines = mapping.mutationSchemata.map(\.position.line)
-        XCTAssertEqual(Set(lines), [6], "only the comparison inside check(_:) can be switched")
+        XCTAssertEqual(Set(lines), [4, 6, 12], "the values' comparisons are kept, and check(_:)'s")
 
         let rewritten = MuterRewriter(mapping).rewrite(source.code).description
         XCTAssertEqual(fileScopeSwitches(in: rewritten), [], rewritten)
-        // A branch for each of the comparison's mutants, RelationalOperatorReplacement's and RelationalBoundary's.
-        XCTAssertEqual(rewritten.components(separatedBy: ".environment[").count - 1, 2, "check(_:)'s switch is gone")
+        XCTAssertEqual(
+            rewritten.components(separatedBy: ".environment[").count - 1,
+            mapping.mutationSchemata.count,
+            "a branch for each mutant"
+        )
+        XCTAssertTrue(rewritten.contains("static let isLarge = if __SwiftMutator_"), rewritten)
 
         // The shape the bug made: the file's statements, and a top-level `#if` clause's, each wrapped in a switch.
         // The check finds both, so its finding none above means none was added.

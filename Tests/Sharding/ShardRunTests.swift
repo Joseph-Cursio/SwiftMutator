@@ -70,6 +70,32 @@ final class ShardRunTests: MuterTestCase {
         XCTAssertEqual(state.shardSelection, selection)
     }
 
+    func test_aShardWithNoMutant_stillSaysWhatWasDropped() async throws {
+        try prepare(source: """
+        import Foundation
+        func other(a: Int) -> Bool {
+            return a == 3
+        }
+        guard let name = Int.max > 1 ? "name" : nil else { exit(1) }
+        """)
+        let discovered = try await keys(discovering: nil)
+        let only = try XCTUnwrap(discovered.first)
+        state.runOptions = .make(shard: Shard(index: Shard.index(ofPlace: only, among: 2) == 1 ? 2 : 1, count: 2))
+        var dropped: [DroppedMutant] = []
+        let subscription = current.events.observe { event in
+            if case let .mutantsDropped(mutants) = event {
+                dropped += mutants
+            }
+        }
+        defer { subscription.cancel() }
+
+        await AssertThrowsError(try await DiscoverMutationPoints().run(with: state)) { error in
+            XCTAssertTrue(error is EmptyShard, "\(error)")
+        }
+
+        XCTAssertEqual(dropped.map(\.position.line), [5, 5, 5])
+    }
+
     func test_aShardWithNoMutant_leavesNothingToMutate() async throws {
         try prepare(source: "func other(a: Int) -> Bool {\n    return a == 3\n}\n")
         let discovered = try await keys(discovering: nil)

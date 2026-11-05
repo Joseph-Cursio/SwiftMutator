@@ -376,15 +376,15 @@ final class NegateConditionalOperatorTests: MuterTestCase {
         XCTAssertEqual(mutants.map(\.snapshot.after), ["!(a)"])
     }
 
-    // A property's initializer has no statement list of its own, so its mutant couldn't be switched.
-    func test_anIfExpressionInAStoredProperty_isLeftAlone() {
+    // A property's initializer has no statement list of its own, so its mutant's switch goes around the value.
+    func test_anIfExpressionInAStoredProperty_isNegated() {
         let code = """
         struct S {
             let value = if flag { 1 } else { 2 }
         }
         """
 
-        XCTAssertEqual(negations(in: code), [])
+        XCTAssertEqual(negations(in: code), ["!(flag)"])
     }
 
     func test_anIfExpressionInAStatement_isNegated() {
