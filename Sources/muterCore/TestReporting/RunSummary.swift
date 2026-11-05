@@ -44,9 +44,11 @@ struct RunSummary: Codable, Equatable {
     struct Gate: Codable, Equatable {
         /// The threshold checked, a percent.
         let failUnder: Double
-        /// The exact headline score it was compared with; nil when it wasn't checked, or nothing was scored.
+        /// The exact score it was compared with: the headline score, but with any mutant taken out of the build with
+        /// others counted as not killed. nil when it wasn't checked, or nothing was scored.
         let score: Double?
-        /// Whether the score is at or above it, as it is when nothing was scored; nil when it wasn't checked.
+        /// Whether it was met: the score is at or above it, or there was nothing to score; false when every mutant was
+        /// a build error, or a run that didn't finish has no result yet; nil when it wasn't checked.
         let passed: Bool?
         /// Why it wasn't checked; nil when it was.
         let notChecked: ScoreGate.NotChecked?
@@ -71,7 +73,7 @@ struct RunSummary: Codable, Equatable {
         gate: ScoreGate? = nil
     ) {
         let outcomes = outcome.mutations.map(\.testSuiteOutcome)
-        let score = outcomes.isEmpty ? nil : muterCore.mutationScore(from: outcomes)
+        let score = exactMutationScore(from: outcomes).map { Int($0) }
         let suspects = KillingTestSummary(
             of: outcome.mutations,
             controlRuns: outcome.controlRuns,

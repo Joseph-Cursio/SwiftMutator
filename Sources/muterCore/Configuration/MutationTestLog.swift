@@ -20,6 +20,12 @@ struct MutationTestLog {
 extension MutationTestLog {
     static let baselineFileName = "baseline run.log"
 
+    /// The name of the file the run's log folder keeps the `number`th build's log in that failed on mutants that don't
+    /// compile (`CompileRecovery`), which the next build, under its own name, would otherwise write over.
+    static func failedBuildFileName(_ number: Int) -> String {
+        "failed build \(number).log"
+    }
+
     /// Whether a mutant's run with `outcome`, whose log showed the tests `killedBy` failing, keeps its log: every run
     /// but one killed by a failed test that its results line names, as `killedBy` and `firstFailedTestLine` stand in
     /// for that log. So a survivor, a crash, a timeout and a build error keep theirs, as does a kill whose line names

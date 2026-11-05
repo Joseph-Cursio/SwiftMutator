@@ -296,6 +296,7 @@ At the top level, when a triage file has entries: how far the survivors have bee
 | `triaged` | Those with a label |
 | `byLabel` | Each label's `label` and how many `mutants` have it, zeros included |
 | `moved` | Labels that followed their code: `from`, the place the file gives, `now`, and `label` |
+| `notTested` | Labels on mutants that were build errors, so weren't tested, in the same form as `noLongerSurviving`. Left out without any. |
 | `noLongerSurviving` | Labels on mutants that came to something else: `mutant`, `label`, `verdict`, such as `killed`, and `savedAs`, the key the file holds it by |
 | `unmatched` | Labels that match no mutant in the results: `mutant` and `label` |
 

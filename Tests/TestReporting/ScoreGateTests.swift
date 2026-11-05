@@ -47,8 +47,9 @@ final class ScoreGateTests: MuterTestCase {
         XCTAssertEqual(judged.score, 50)
     }
 
-    // Nothing measured falls short, so a change that touches no Swift code doesn't fail.
-    func test_nothingScored_passes() {
+    // Nothing measured falls short, so a change that touches no Swift code doesn't fail. But with mutants that were all
+    // build errors, as when none compiles, nothing was measured that there was to measure, and the run can't pass.
+    func test_nothingToScore_passes_andNothingButBuildErrors_fails() {
         let none = ScoreGate(failUnder: 80, judging: .make([]))
         XCTAssertEqual(none.verdict, .nothingScored(tested: 0))
         XCTAssertNil(none.exitStatus)
@@ -57,10 +58,93 @@ final class ScoreGateTests: MuterTestCase {
         XCTAssertEqual(none.line, "No mutant was tested, so no score falls short of the required 80%.")
         let buildErrors = gate(killed: 0, of: 0, buildErrors: 2, failUnder: 80)
         XCTAssertEqual(buildErrors.verdict, .nothingScored(tested: 2))
-        XCTAssertNil(buildErrors.exitStatus)
+        XCTAssertEqual(buildErrors.passed, false)
+        XCTAssertEqual(buildErrors.exitStatus, .scoreBelowThreshold)
+        XCTAssertEqual(buildErrors.line, "Every mutant was a build error, so nothing shows the required 80% is met.")
+    }
+
+    // Those without one may yet compile, and be tested.
+    func test_aRunNotFinished_saysItsResultsWereBuildErrors() {
+        let unfinished = ScoreGate(
+            failUnder: 10,
+            judging: .make([.buildError, .buildError]),
+            progress: .init(results: 2, discovered: 9)
+        )
+
+        XCTAssertEqual(unfinished.passed, false)
         XCTAssertEqual(
-            buildErrors.line,
-            "Every mutant tested was a build error, so no score falls short of the required 80%."
+            unfinished.line,
+            "Every mutant with a result was a build error, so nothing shows the required 10% is met. "
+                + "Only 2 of 9 mutants have results, as the run didn't finish."
+        )
+    }
+
+    // A run killed or stopped after its header, or still under way: mutants are known, and none has a result. A CI job
+    // shaped like `run || true; report --fail-under 80` must not go green on it.
+    func test_aRunNotFinishedWithNoResults_fails() {
+        let noResults = ScoreGate(failUnder: 80, judging: .make([]), progress: .init(results: 0, discovered: 4))
+
+        XCTAssertEqual(noResults.verdict, .nothingScored(tested: 0))
+        XCTAssertEqual(noResults.passed, false)
+        XCTAssertEqual(noResults.exitStatus, .scoreBelowThreshold)
+        XCTAssertNil(noResults.score)
+        XCTAssertEqual(
+            noResults.line,
+            "No mutant was tested, so nothing shows the required 80% is met. "
+                + "Only 0 of 4 mutants have results, as the run didn't finish."
+        )
+    }
+
+    // A threshold of 0 otherwise can't fail, but nothing was measured.
+    func test_nothingButBuildErrors_failsEvenAThresholdOfZero() {
+        XCTAssertEqual(gate(killed: 0, of: 0, buildErrors: 2, failUnder: 0).exitStatus, .scoreBelowThreshold)
+    }
+
+    // They may compile, so taking them out can't help a run pass: 2 of 2 tested would be 100%.
+    func test_mutantsTakenOutWithOthers_countAsNotKilled_inTheScoreChecked() {
+        var withOthers = MutationTestOutcome.Mutation.make(testSuiteOutcome: .buildError)
+        withOthers.leftOutWithOthers = true
+        let outcome = MutationTestOutcome(
+            mutations: [.make(testSuiteOutcome: .failed), .make(testSuiteOutcome: .failed)]
+                + Array(repeating: withOthers, count: 6)
+                + [.make(testSuiteOutcome: .buildError)]
+        )
+
+        let gate = ScoreGate(failUnder: 80, judging: outcome)
+
+        XCTAssertEqual(gate.verdict, .failed)
+        XCTAssertEqual(gate.score, 25)
+        XCTAssertEqual(gate.exitStatus, .scoreBelowThreshold)
+        XCTAssertEqual(
+            gate.line,
+            "Mutation score 25.0% is below the required 80%. 6 mutants went out of the build with others, and count "
+                + "here as not killed. 1 mutant was a build error, and isn't scored."
+        )
+        XCTAssertEqual(MuterTestReport(from: outcome).globalMutationScore, 100, "the headline score stays as it is")
+    }
+
+    // Nothing was tested, so there is no score at all, whatever the threshold.
+    func test_onlyMutantsTakenOutWithOthers_areNothingScored_evenAtAThresholdOfZero() {
+        var withOthers = MutationTestOutcome.Mutation.make(testSuiteOutcome: .buildError)
+        withOthers.leftOutWithOthers = true
+
+        let gate = ScoreGate(failUnder: 0, judging: MutationTestOutcome(mutations: [withOthers, withOthers]))
+
+        XCTAssertEqual(gate.verdict, .nothingScored(tested: 2))
+        XCTAssertNil(gate.score)
+        XCTAssertEqual(gate.passed, false)
+        XCTAssertEqual(gate.line, "Every mutant was a build error, so nothing shows the required 0% is met.")
+    }
+
+    // Leaving mutants out raises the score, so a line about the score says some are left out.
+    func test_theLine_saysHowManyAreLeftOut() {
+        XCTAssertEqual(
+            gate(killed: 1, of: 2, buildErrors: 3, failUnder: 50).line,
+            "Mutation score 50.0% meets the required 50%. 3 mutants were build errors, and aren't scored."
+        )
+        XCTAssertEqual(
+            gate(killed: 1, of: 2, buildErrors: 1, failUnder: 80).line,
+            "Mutation score 50.0% is below the required 80%. 1 mutant was a build error, and isn't scored."
         )
     }
 

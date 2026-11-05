@@ -12,9 +12,11 @@ ARGUMENTS:
 OPTIONS:
   -f, --format <format>   The report format: plain, json, html, xcode
   -o, --output <output>   Output file for the report to be saved.
-  --fail-under <percent>  Exit with status 2 when the headline mutation score
-                          is below this percent, from 0 to 100, once the report
-                          is written. For a run, in place of failUnder.
+  --fail-under <percent>  Exit with status 2 when the headline mutation score,
+                          counting any mutant taken out of the build with
+                          others as not killed, is below this percent, from 0
+                          to 100, or every mutant was a build error, once the
+                          report is written. For a run, in place of failUnder.
   --property-tests <glob> Split the report's kills between example tests and
                           the property tests this glob matches by name or by
                           the file their issue was recorded in; * matches any

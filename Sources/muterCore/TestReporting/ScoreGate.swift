@@ -1,10 +1,13 @@
 import ArgumentParser
 import Foundation
 
-/// The verdict of a run, or of `report`, on its headline score against the threshold `--fail-under` or `failUnder`
-/// sets. It compares the exact score (`exactMutationScore(killed:of:)`), never the whole percent the reports show, so
-/// a change in how the score is shown can't change it, and a score equal to the threshold passes. A score below it
-/// exits 2 (`ExitCode.scoreBelowThreshold`), once every report is written.
+/// The verdict of a run, or of `report`, on its score against the threshold `--fail-under` or `failUnder` sets: the
+/// headline score, but with any mutant taken out of the build with others counted as not killed, as it may compile, so
+/// taking it out can't help a run pass. It compares the exact score (`exactMutationScore(killed:of:)`), never the whole
+/// percent the reports show, so a change in how the score is shown can't change it, and a score equal to the threshold
+/// passes. A score below it,
+/// or every mutant a build error, whatever the threshold, exits 2 (`ExitCode.scoreBelowThreshold`), once every report
+/// is written.
 struct ScoreGate: Equatable, Sendable {
     /// The thresholds `--fail-under` and `failUnder` take.
     static let percents: ClosedRange<Double> = 0 ... 100
@@ -14,9 +17,16 @@ struct ScoreGate: Equatable, Sendable {
 
     /// The threshold, a percent from 0 to 100.
     let failUnder: Double
-    /// The mutants killed, and those scored, of which the score is.
+    /// The mutants killed, and those scored, of which the score is. Those scored include any that went out of the build
+    /// with others.
     let killed: Int
     let scored: Int
+    /// The mutants that were build errors, which the score leaves out, so a passing score doesn't speak for them, but
+    /// for those that went out of the build with others.
+    let buildErrors: Int
+    /// The mutants taken out of the build with others, as the compiler's error could be any of theirs, so they may
+    /// compile, which the score counts as not killed.
+    let leftOutWithOthers: Int
     let verdict: Verdict
     /// How many of the mutants discovered have results, for `report` of a run that didn't finish; nil otherwise.
     let progress: Progress?
@@ -31,7 +41,9 @@ struct ScoreGate: Equatable, Sendable {
         case passed
         /// The score is below the threshold.
         case failed
-        /// No mutant was scored, so no score falls short: none was `tested`, or every one was a build error.
+        /// No mutant was scored. With none `tested` and none to test, no score falls short. With some still to test
+        /// (`progress`), or every one a build error, as when none compiles (`CompileRecovery`), nothing shows the
+        /// threshold is met, and it isn't.
         case nothingScored(tested: Int)
         /// The score isn't the project's, or isn't known to be, so the threshold isn't checked.
         case notChecked(NotChecked)
@@ -52,9 +64,10 @@ struct ScoreGate: Equatable, Sendable {
     }
 
     /// The verdict on `outcome` against `failUnder`: not checked, for the reason `unless` gives, for a run of one
-    /// mutant, or for some shards of a split; else passed when nothing was scored, as nothing measured falls short, so
-    /// a change that touches no Swift code doesn't fail; else as its score compares. `progress`, of a run that didn't
-    /// finish, is said with the verdict.
+    /// mutant, or for some shards of a split; else passed when there was nothing to score, as nothing measured falls
+    /// short, so a change that touches no Swift code doesn't fail; else failed when every mutant was a build error, or
+    /// a run that didn't finish has no result for its mutants; else as its score compares. `progress`, of a run that
+    /// didn't finish, is said with the verdict.
     init(
         failUnder: Double,
         judging outcome: MutationTestOutcome,
@@ -63,9 +76,12 @@ struct ScoreGate: Equatable, Sendable {
     ) {
         let outcomes = outcome.mutations.map(\.testSuiteOutcome)
         let mutants = scoredMutants(in: outcomes)
+        let withOthers = outcome.mutations.count(where: \.leftOutWithOthers)
         self.failUnder = failUnder
         killed = mutants.killed
-        scored = mutants.scored
+        scored = mutants.scored + withOthers
+        buildErrors = outcomes.count { $0 == .buildError } - withOthers
+        leftOutWithOthers = withOthers
         self.progress = progress
         if let notChecked {
             verdict = .notChecked(notChecked)
@@ -73,32 +89,35 @@ struct ScoreGate: Equatable, Sendable {
             verdict = .notChecked(.oneMutant)
         } else if outcome.shards != nil {
             verdict = .notChecked(.shard)
-        } else if let score = exactMutationScore(killed: mutants.killed, of: mutants.scored) {
+        } else if mutants.scored > 0, let score = exactMutationScore(killed: mutants.killed, of: scored) {
             verdict = score < failUnder ? .failed : .passed
         } else {
             verdict = .nothingScored(tested: outcomes.count)
         }
     }
 
-    /// The exact headline score; nil when no mutant was scored.
+    /// The exact score compared with the threshold; nil when no mutant was tested and scored.
     var score: Double? {
-        exactMutationScore(killed: killed, of: scored)
+        if case .nothingScored = verdict { return nil }
+        return exactMutationScore(killed: killed, of: scored)
     }
 
-    /// Whether the score is checked and isn't below the threshold, which nothing scored isn't; nil when it isn't
-    /// checked.
+    /// Whether the score is checked and the threshold is met, which a run with nothing to mutate does. One that hasn't
+    /// a result yet for any mutant it discovered doesn't, nor does one whose every mutant was a build error. nil when
+    /// it isn't checked.
     var passed: Bool? {
         switch verdict {
-        case .passed, .nothingScored: true
-        case .failed: false
+        case .passed: true
+        case .nothingScored(tested: 0): progress == nil
+        case .failed, .nothingScored: false
         case .notChecked: nil
         }
     }
 
-    /// The status a command exits with for this verdict: `scoreBelowThreshold` for a score below the threshold, and
-    /// nil, so 0, otherwise.
+    /// The status a command exits with for this verdict: `scoreBelowThreshold` when the threshold isn't met, and nil,
+    /// so 0, otherwise.
     var exitStatus: ExitCode? {
-        verdict == .failed ? .scoreBelowThreshold : nil
+        passed == false ? .scoreBelowThreshold : nil
     }
 
     /// What the run, or `report`, says of the verdict, last: "Mutation score 71.4% is below the required 80%." No
@@ -112,14 +131,30 @@ struct ScoreGate: Equatable, Sendable {
         case .failed:
             sentence = "Mutation score \(shownScore)% is below the required \(threshold)."
         case .nothingScored(tested: 0):
-            sentence = "No mutant was tested, so no score falls short of the required \(threshold)."
+            sentence = progress == nil
+                ? "No mutant was tested, so no score falls short of the required \(threshold)."
+                : "No mutant was tested, so nothing shows the required \(threshold) is met."
         case .nothingScored:
-            sentence = "Every mutant tested was a build error, so no score falls short of the required \(threshold)."
+            let mutants = progress == nil ? "Every mutant was" : "Every mutant with a result was"
+            sentence = "\(mutants) a build error, so nothing shows the required \(threshold) is met."
         case let .notChecked(reason):
             return Self.notCheckedSentence(reason, failUnder: failUnder)
         }
-        guard let progress else { return sentence }
-        return sentence + " Only \(progress.results) of \(progress.discovered) mutants have results, as the run "
+        var left = ""
+        if case .nothingScored = verdict {} else {
+            if leftOutWithOthers > 0 {
+                left += leftOutWithOthers == 1
+                    ? " 1 mutant went out of the build with others, and counts here as not killed."
+                    : " \(leftOutWithOthers) mutants went out of the build with others, and count here as not killed."
+            }
+            if buildErrors > 0 {
+                left += buildErrors == 1
+                    ? " 1 mutant was a build error, and isn't scored."
+                    : " \(buildErrors) mutants were build errors, and aren't scored."
+            }
+        }
+        guard let progress else { return sentence + left }
+        return sentence + left + " Only \(progress.results) of \(progress.discovered) mutants have results, as the run "
             + "didn't finish."
     }
 

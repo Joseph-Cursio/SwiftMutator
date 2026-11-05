@@ -2,20 +2,22 @@ import ArgumentParser
 
 /// The statuses SwiftMutator's own commands exit with, besides 0, a usage error's 64, `report`'s 1 for a results file
 /// it can't read, and 128 plus the signal for a run a signal stopped (`Interruptions.exit(by:)`): 2 for a score below
-/// `--fail-under`, 3 for a failed baseline, 4 for mutation testing an error stopped partway, 5, 6 and 7 for a refused
-/// resume, lock or test plan, and 255 for any other error.
+/// `--fail-under`, or every mutant a build error, 3 for a failed baseline, 4 for mutation testing an error stopped
+/// partway, 5, 6 and 7 for a refused resume, lock or test plan, and 255 for any other error.
 extension ExitCode {
     /// A command stopped on any other error, such as a missing configuration, a configuration that doesn't parse, a
     /// `--mutant` that names no mutant, a `--since` that git can't answer, or a project that doesn't build for testing.
     /// It exits 255, through -1, as SwiftMutator always has.
     static let stoppedOnAnError = ExitCode(-1)
 
-    /// The headline score is below the threshold `--fail-under` or `failUnder` sets (`ScoreGate`). Every report, the
+    /// The headline score is below the threshold `--fail-under` or `failUnder` sets, or every mutant was a build error
+    /// (`ScoreGate`). Every report, the
     /// results file and `summary.json` were written first, as for any finished run.
     static let scoreBelowThreshold = ExitCode(2)
 
     /// The baseline run, with no mutant on, failed in the project's copy or in a parallel worker's clone of it
-    /// (`MutationTestingAbortReason.baselineTestFailed` and `.workerBaselineTestFailed`), so no mutant was tested.
+    /// (`MutationTestingAbortReason.baselineTestFailed` and `.workerBaselineTestFailed`), so no mutant was tested. A
+    /// failure no mutant that doesn't compile explains (`CompileRecovery`).
     /// `report` never exits with it: a run whose baseline failed has no results file, or a resumed one's keeps the
     /// earlier session's end, so a shard whose baseline failed is a shard missing from the merge, which exits 4.
     static let baselineFailed = ExitCode(3)

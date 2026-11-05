@@ -5,6 +5,8 @@ struct BuildForTesting: MutationStep {
     private var fileManager: FileSystemManager
     @Dependency(\.process)
     private var process: ProcessFactory
+    @Dependency(\.events)
+    private var events: RunEvents
 
     /// The folder in the project's copy that the build is copied to, which the tests run from.
     static let testContentsFolder = "TestContents"
@@ -27,7 +29,7 @@ struct BuildForTesting: MutationStep {
 
         do {
             let buildDirectory = try buildDirectory(state.muterConfiguration)
-            try await runBuildForTestingCommand(state.muterConfiguration)
+            let leftOut = try await buildLeavingOutMutants(state: state)
             let tempDebugURL = createTestContetsUrl(state.mutatedProjectDirectoryURL)
             try copyBuildArtifactsAtPath(buildDirectory, to: tempDebugURL.path)
 
@@ -37,7 +39,7 @@ struct BuildForTesting: MutationStep {
             return [
                 .projectXCTestRun(xcTestRun),
                 .testDiagnosticsOptionChecked(canBeTurnedOff: canTurnOffTestDiagnostics),
-            ]
+            ] + (leftOut.isEmpty ? [] : [.mutantsLeftOutOfTheBuild(leftOut)])
         } catch {
             throw MuterError.literal(reason: "\(error)")
         }
@@ -47,13 +49,49 @@ struct BuildForTesting: MutationStep {
         configuration.derivedDataPath
     }
 
+    /// Builds for testing, with any mutant that fails the build taken out of the code, until it no longer fails on
+    /// one (`CompileRecovery`), and gives those mutants. Each failed build's log is kept, the one that stops the run
+    /// too, as only standard output has it. Later builds aren't clean ones: only what changed needs building again. A
+    /// build a stop killed is never read.
+    private func buildLeavingOutMutants(state: AnyMutationTestState) async throws -> [String: LeftOutMutant] {
+        var recovery = CompileRecovery(of: state)
+        var arguments = state.muterConfiguration.buildForTestingArguments
+        while true {
+            guard let failure = try await runBuildForTestingCommand(state.muterConfiguration, arguments) else {
+                return recovery?.leftOut ?? [:]
+            }
+            let buildLog = MutationTestLog.failedBuildFileName((recovery?.failedBuilds ?? 0) + 1)
+            guard !Task.isCancelled else { throw failure }
+            fileManager.keepLog(failure.output, named: buildLog, state: state)
+            guard var trying = recovery,
+                  let count = try await trying.takeOutMutants(failing: failure.output, keptAs: buildLog)
+            else {
+                if recovery?.stopsAtTheMostBuilds == true {
+                    events.send(.stoppedTakingOutMutants(afterBuilds: CompileRecovery.maximumBuilds))
+                }
+                throw failure
+            }
+            recovery = trying
+            events.send(.buildingAgainWithoutMutants(count: count))
+            arguments = state.muterConfiguration.rebuildForTestingArguments
+        }
+    }
+
+    /// A build that failed: what it wrote to standard output, and why it stops the run.
+    private struct FailedBuild: Error, CustomStringConvertible {
+        let output: String
+        let description: String
+    }
+
+    /// Runs the build, and says how it failed, if it did.
     private func runBuildForTestingCommand(
-        _ configuration: MuterConfiguration
-    ) async throws {
+        _ configuration: MuterConfiguration,
+        _ arguments: [String]
+    ) async throws -> FailedBuild? {
         let buildProcess = process()
         guard let output: String = await buildProcess.runProcess(
             url: configuration.testCommandExecutable,
-            arguments: configuration.buildForTestingArguments
+            arguments: arguments
         ).flatMap(\.nilIfEmpty)
         else {
             throw MuterError.literal(reason: "Could not run test with -build-for-testing argument")
@@ -62,10 +100,10 @@ struct BuildForTesting: MutationStep {
         // Checked only after the output guard: a process that never launched has no exit status, and
         // reading it raises. Without this check a failed build surfaced later as a missing xctestrun.
         guard buildProcess.terminationStatus == 0 else {
-            throw MuterError.literal(
-                reason: buildFailureReason(output, status: buildProcess.terminationStatus)
-            )
+            let reason = buildFailureReason(output, status: buildProcess.terminationStatus)
+            return FailedBuild(output: output, description: reason)
         }
+        return nil
     }
 
     /// How long `takesNoTestDiagnostics` waits for the test command's `-help`, in seconds. xcodebuild's takes

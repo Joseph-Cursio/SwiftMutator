@@ -81,9 +81,9 @@ struct MuterTestReport {
         operatorExplanations = explained.isEmpty ? nil : Dictionary(explained) { first, _ in first }
     }
 
-    /// "One mutant tested with --mutant (Sources/Bar.swift:12:9 SwapTernary): its score isn't the project's."
+    /// "One mutant chosen with --mutant (Sources/Bar.swift:12:9 SwapTernary): its score isn't the project's."
     static func oneMutantSentence(_ mutant: String) -> String {
-        "One mutant tested with --mutant (\(mutant)): its score isn't the project's."
+        "One mutant chosen with --mutant (\(mutant)): its score isn't the project's."
     }
 }
 

@@ -233,19 +233,18 @@ private extension PerformMutationTesting {
         // An xcodebuild run's workers' simulators boot while the baseline runs, which, with its build, takes longer.
         // If the baseline fails, or is stopped, their boot is cancelled, and awaited, as this scope ends. A stop once
         // it has passed cuts the boot short, which then throws.
-        let simulators = try await simulatorWorkerSetup.make(for: plan.toRun.count, state: state)
+        // A simulator tests only what is in the build, which `BuildForTesting` has already built.
+        let simulators = try await simulatorWorkerSetup.make(
+            for: plan.leavingOut { state.mutantsLeftOut[jobs[$0].schema.id] != nil }.toRun.count,
+            state: state
+        )
         // The boot is given the dependency it uses, not the step.
         let booting = workerSimulators
         async let booted = SimulatorWorkerSetup.boot(simulators, on: booting)
 
-        let initialTime = Date()
-        let (testSuiteOutcome, testLog) = try await baseline(state: state)
-
-        let timeAfterRunningTestSuite = Date()
-        let timePerBuildTestCycle = DateInterval(
-            start: initialTime,
-            end: timeAfterRunningTestSuite
-        ).duration
+        let (testSuiteOutcome, testLog, timePerBuildTestCycle, leftOut) = try await baselineLeavingOutMutants(
+            state: state
+        )
 
         // A failing baseline's log, which `baseline` kept, is exactly what the user needs on disk.
         guard testSuiteOutcome == .passed else {
@@ -256,6 +255,10 @@ private extension PerformMutationTesting {
                 )
             )
         }
+
+        // The mutants that don't compile have a result, written below, so they count in the header and a resume's plan,
+        // and aren't in anything that tests them.
+        let testing = plan.leavingOut { leftOut[jobs[$0].schema.id] != nil }
 
         // One mutant's run shows every test it fails, not only the first.
         var muterConfiguration = state.selectedMutant == nil
@@ -281,14 +284,14 @@ private extension PerformMutationTesting {
             try await booted, log: testLog, destination: state.muterConfiguration.firstDestination
         )
         let pool = try await workers(
-            testing: plan, on: checked, with: muterConfiguration, state: state, session: session
+            testing: testing, on: checked, with: muterConfiguration, state: state, session: session
         )
         muterConfiguration = pool.configuration
         let workers = pool.count
         let (configuration, testRunSeconds) = try await mutantRuns(
             muterConfiguration,
             on: pool,
-            testing: plan,
+            testing: testing,
             baselineLog: testLog,
             baselineSeconds: timePerBuildTestCycle,
             state: state
@@ -314,9 +317,11 @@ private extension PerformMutationTesting {
             state: state
         )
         keepReused(reused, of: jobs, in: session, state: state)
-        // A reuse with nothing left to test ran the baseline only to check the changed project, so it sends no log to
-        // start the progress bar or lines. `baseline` kept its log.
-        guard !plan.toRun.isEmpty else { return }
+        keepLeftOut(leftOut, testing: plan, leaving: testing.toRun.count, of: jobs, in: session, state: state)
+        // A reuse with nothing left to test ran the baseline only to check the changed project, as a run whose mutants
+        // don't compile has only built it, so it sends no log to start the progress bar or lines. `baseline` kept its
+        // log.
+        guard !testing.toRun.isEmpty else { return }
 
         // The first estimate of the time left: every mutant to test, spread over the workers.
         events.send(
@@ -324,13 +329,13 @@ private extension PerformMutationTesting {
                 mutationPoint: .none,
                 testLog: testLog,
                 timePerBuildTestCycle: timePerBuildTestCycle,
-                remainingMutationPointsCount: plan.toRun.count,
+                remainingMutationPointsCount: testing.toRun.count,
                 workers: workers,
                 testRunSeconds: testRunSeconds
             ))
         )
 
-        let tasks = Self.tasks(plan.toRun, controlRunEvery: Self.controlRunEvery(state, configuration))
+        let tasks = Self.tasks(testing.toRun, controlRunEvery: Self.controlRunEvery(state, configuration))
         if workers > 1 {
             try await testMutationsInParallel(
                 jobs, tasks, workers: workers, using: state, configuration: configuration, session: session
@@ -524,34 +529,6 @@ private extension PerformMutationTesting {
         }
     }
 
-    /// The outcome of `job`'s mutant, which `testSuiteOutcome` says, with the tests that killed it, as the report shows
-    /// it.
-    static func outcome(
-        _ testSuiteOutcome: TestSuiteOutcome,
-        of job: MutantJob,
-        state: AnyMutationTestState,
-        killingTests: MutationTestOutcome.KillingTests?,
-        reusedFrom: ReusedFrom? = nil,
-        key: MutantKey,
-        durationSeconds: Double
-    ) -> MutationTestOutcome.Mutation {
-        MutationTestOutcome.Mutation(
-            testSuiteOutcome: testSuiteOutcome,
-            mutationPoint: MutationPoint(
-                mutationOperatorId: job.schema.mutationOperatorId,
-                filePath: job.schema.filePath,
-                position: job.schema.position
-            ),
-            mutationSnapshot: job.schema.snapshot,
-            originalProjectDirectoryUrl: state.projectDirectoryURL,
-            mutatedProjectDirectoryURL: state.mutatedProjectDirectoryURL,
-            killingTests: killingTests,
-            reusedFrom: reusedFrom,
-            key: key,
-            durationSeconds: durationSeconds
-        )
-    }
-
     /// Sends what mutation testing that stopped early tested, and the results a resumed session kept, for the partial
     /// report and the summary, once the baseline has passed. Before then there is nothing to report, and an abort says
     /// why.
@@ -593,7 +570,8 @@ private extension PerformMutationTesting {
                     run: Self.runDetails(of: session, state: state)
                 ),
                 discovered: session.keys.count,
-                reused: session.reused
+                reused: session.reused,
+                leftOut: session.leftOut
             ))
         )
     }
@@ -1040,34 +1018,6 @@ private extension PerformMutationTesting {
         }
     }
 
-    /// What `schema`'s mutant, keyed `key`, changes, as `MutantDiff` finds it in its original file, `outcome`'s, never
-    /// the copy, whose code holds every switch. As its snapshot gives it when the original file can't be read, or can't
-    /// be told to be as the mutant was found in it: a test plan's file that changed since the plan was made, let
-    /// through by `--plan-ignoring`, and one that a plan doesn't record, as a plan in format 0 records none.
-    func change(
-        of schema: MutationSchema,
-        key: MutantKey,
-        in outcome: MutationTestOutcome.Mutation,
-        state: AnyMutationTestState
-    ) -> [String] {
-        let fallback = MutantDiff.fallback(snapshot: schema.snapshot, mutationOperatorId: schema.mutationOperatorId)
-        guard let data = fileManager.contents(atPath: outcome.originalProjectPath),
-              let original = String(data: data, encoding: .utf8)
-        else { return fallback }
-        if let plan = state.testPlan {
-            // A file with mutants that is a symbolic link is recorded by what its link's file held.
-            let planned = plan.linkedFiles?[key.path] ?? plan.sources?.files[key.path]
-            guard planned == FileDigest.sha256(of: data) else { return fallback }
-        }
-        return MutantDiff.lines(
-            original: original,
-            snapshot: schema.snapshot,
-            mutationOperatorId: schema.mutationOperatorId,
-            line: key.line,
-            column: key.column
-        ) ?? fallback
-    }
-
     /// Records `finished`, the run that tested `job`'s timed-out mutant again (`keep`), counts it in `tally`, and sends
     /// its event. Never its outcome's or its log's events, which would count the mutant in the progress again, and
     /// never toward the build errors in a row: a build error here says nothing of the mutants before it.
@@ -1187,40 +1137,6 @@ private extension PerformMutationTesting {
                 mutant: outcome, worker: finished.worker, line: failure.line, log: log
             ))
         )
-    }
-
-    /// The baseline run's outcome and log, which is kept, whatever it comes to. A baseline the simulator failed to
-    /// launch says nothing about the tests either, so it runs once more, as a mutant's run does
-    /// (`SimulatorTrouble.launch`), and the first run's log is kept and sent, whatever the second comes to. The caller
-    /// times both runs: the first paid for the build. A stop throws, and leaves the output where it ran.
-    private func baseline(state: AnyMutationTestState) async throws -> (outcome: TestSuiteOutcome, testLog: String) {
-        let output = testOutput(named: "baseline run", state: state)
-        let (baseline, launchFailure) = await TestRun.launchedOnceMore(ifNeededWith: state.muterConfiguration) {
-            let (outcome, testLog) = await ioDelegate.benchmarkTests(
-                using: state.muterConfiguration,
-                savingResultsIntoFileNamed: output
-            )
-            return TestRun(outcome: outcome, testLog: testLog)
-        }
-        // Stopping the run kills the baseline run, which then fails, but that says nothing about the project's tests.
-        try Task.checkCancellation()
-        // Now, so that a stop before the mutants' runs, or a failed baseline's abort, still has it.
-        fileManager.keepLog(
-            baseline.testLog, writtenTo: output, by: ioDelegate, named: MutationTestLog.baselineFileName, state: state
-        )
-        if let launchFailure {
-            let keptFileName = MutationTestLog.launchFailedFileName(for: MutationTestLog.baselineFileName)
-            fileManager.keepLog(launchFailure.testLog, named: keptFileName, state: state)
-            let log = MutationTestLog(
-                mutationPoint: .none,
-                testLog: launchFailure.testLog,
-                timePerBuildTestCycle: .none,
-                remainingMutationPointsCount: .none,
-                keptFileName: keptFileName
-            )
-            events.send(.baselineRepeatedAfterLaunchFailure(line: launchFailure.line, log: log))
-        }
-        return (baseline.outcome, baseline.testLog)
     }
 
     /// The file a mutant's run writes its output to while it runs. Its job's number comes first, so two runs under way

@@ -44,7 +44,12 @@ final class ProcessSpy: MuterProcess, @unchecked Sendable {
 
     /// Each process `runProcess` was asked for, its executable first, in order.
     private(set) var processesRun: [[String]] = []
+    /// The status each process `runProcess` runs ends with, in order, before `terminationStatus` stands for the rest.
+    var statusesToReturn: [Int32] = []
     func runProcess(url: String, arguments args: [String]) -> Data? {
+        if !statusesToReturn.isEmpty {
+            terminationStatus = statusesToReturn.removeFirst()
+        }
         executableURL = URL(string: url)
         arguments = args
         processesRun.append([url] + args)

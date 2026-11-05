@@ -24,4 +24,7 @@ struct OneMutantRun: Equatable {
     let buildSystem: BuildSystem
     /// The test command, its executable first, which builds as the baseline's does.
     let testCommand: [String]
+    /// Whether it was taken out of the build, as it doesn't compile (`CompileRecovery`), so its tests never ran, and
+    /// the mutated project has no switch for it.
+    var leftOutOfTheBuild = false
 }

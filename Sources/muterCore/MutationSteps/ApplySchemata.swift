@@ -1,6 +1,5 @@
 import Foundation
 import SwiftParser
-import SwiftSyntax
 
 struct ApplySchemata: MutationStep {
     @Dependency(\.writeFile)
@@ -9,14 +8,15 @@ struct ApplySchemata: MutationStep {
     func run(
         with state: AnyMutationTestState
     ) async throws -> [MutationTestState.Change] {
+        var preparedSources: [FilePath: String] = [:]
         for mutationMap in state.mutationMapping {
             // Mappings are keyed by code-block position and text (`CodeBlockKey`), so a
             // fresh parse of the file matches them as well as the discovery tree would.
-            let sourceCode: SourceFileSyntax
+            let prepared: String
             if let cached = state.sourceCodeByFilePath[mutationMap.filePath] {
-                sourceCode = cached
-            } else if let parsed = loadSourceCode(from: mutationMap.filePath) {
-                sourceCode = parsed
+                prepared = cached.description
+            } else if let loaded = loadSourceCode(from: mutationMap.filePath) {
+                prepared = loaded
             } else if mutationMap.isEmpty {
                 continue
             } else {
@@ -24,9 +24,7 @@ struct ApplySchemata: MutationStep {
                 throw MuterError.literal(reason: Self.couldNotRead(mutationMap))
             }
 
-            let newFile = await Self.onAStackOfItsOwn {
-                MuterRewriter(mutationMap).visit(sourceCode).description
-            }
+            let newFile = await Self.rewritten(prepared, with: mutationMap)
 
             do {
                 try writeFile(
@@ -36,9 +34,22 @@ struct ApplySchemata: MutationStep {
             } catch {
                 throw MuterError.literal(reason: error.localizedDescription)
             }
+
+            if !mutationMap.isEmpty {
+                preparedSources[mutationMap.filePath] = prepared
+            }
         }
 
-        return []
+        return preparedSources.isEmpty ? [] : [.preparedSourcesKept(preparedSources)]
+    }
+
+    /// `prepared`, a file's code as discovery prepared it, with the switches of `mapping`'s mutants, and the
+    /// environment cache they read if it has any. A file's rewrite starts from this code, so a rewrite can leave a
+    /// mutant out.
+    static func rewritten(_ prepared: String, with mapping: SchemataMutationMapping) async -> String {
+        await onAStackOfItsOwn {
+            MuterRewriter(mapping).visit(Parser.parse(source: prepared)).description
+        }
     }
 
     /// Why a file with mutants that can't be read, or isn't UTF-8, stops the run.
@@ -60,7 +71,7 @@ struct ApplySchemata: MutationStep {
     /// level. The threads Swift concurrency runs this step on have stacks of about 512 KiB, which ran out at about
     /// 520 mutants in one list in a debug build, or about 4,500 in a release one: the run died with a bus error
     /// after discovery. `work` and what it returns cross to that thread and back, so they are Sendable.
-    private static func onAStackOfItsOwn<Value: Sendable>(_ work: @escaping @Sendable () -> Value) async -> Value {
+    static func onAStackOfItsOwn<Value: Sendable>(_ work: @escaping @Sendable () -> Value) async -> Value {
         await withCheckedContinuation { continuation in
             let thread = Thread {
                 continuation.resume(returning: work())
@@ -70,12 +81,10 @@ struct ApplySchemata: MutationStep {
         }
     }
 
-    private func loadSourceCode(from path: String) -> SourceFileSyntax? {
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
-              let source = String(data: data, encoding: .utf8)
-        else {
+    private func loadSourceCode(from path: String) -> String? {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
             return nil
         }
-        return Parser.parse(source: source)
+        return String(data: data, encoding: .utf8)
     }
 }

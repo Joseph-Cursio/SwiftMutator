@@ -292,8 +292,9 @@ extension ResultsHeader {
     }
 }
 
-/// One tested mutant: its key, how its run ended, and the tests that killed it. Only a run that wasn't cancelled
-/// has one, so `endedBy` is never `cancelled`.
+/// One mutant's result: its key, how its run ended, and the tests that killed it. Only a run that wasn't cancelled
+/// has one, so `endedBy` is never `cancelled`. A mutant taken out of the build, as it doesn't compile, has one with no
+/// run: a `buildError` that `couldNotRun`, in no time on no worker (`leftOutOfTheBuild`).
 struct MutantResult: Codable, Equatable {
     var kind = "mutant"
     let session: Int
@@ -342,6 +343,9 @@ struct MutantResult: Codable, Equatable {
     /// (`MutationTestLog.rerunFileName(for:)`). A result reused from such a line keeps it, with `reusedFrom`, though
     /// the reusing session didn't run the mutant.
     var rerun: Rerun?
+    /// True on the line of a mutant taken out of the build with others (`LeftOutMutant.Blame`), as the compiler's error
+    /// could be any of theirs, so it may compile: `--fail-under` counts it as not killed. Absent otherwise.
+    var leftOutWithOthers: Bool?
 
     var key: MutantKey {
         MutantKey(
@@ -355,6 +359,40 @@ struct MutantResult: Codable, Equatable {
 }
 
 extension MutantResult {
+    /// The record of `schema`'s mutant, which didn't compile, so was taken out of the build, and whose tests never ran.
+    /// Its `log` says why.
+    static func leftOutOfTheBuild(
+        key: MutantKey,
+        schema: MutationSchema,
+        session: Int,
+        finishedAt: Date,
+        log: String,
+        fileSHA256: String?
+    ) -> MutantResult {
+        MutantResult(
+            session: session,
+            path: key.path,
+            line: key.line,
+            column: key.column,
+            occurrence: key.occurrence,
+            utf8Offset: schema.position.utf8Offset,
+            mutationOperatorId: schema.mutationOperatorId,
+            switchID: schema.id,
+            snapshot: schema.snapshot,
+            outcome: .buildError,
+            endedBy: .couldNotRun,
+            exitStatus: nil,
+            durationSeconds: 0,
+            worker: 0,
+            finishedAt: finishedAt,
+            killedBy: nil,
+            failedTestCount: nil,
+            firstFailedTestLine: nil,
+            log: log,
+            fileSHA256: fileSHA256
+        )
+    }
+
     /// `seconds` to the millisecond, as a results line records a run's duration.
     static func recordedSeconds(_ seconds: Double) -> Double {
         (seconds * 1000).rounded() / 1000
@@ -531,9 +569,10 @@ struct ResultsEnd: Codable, Equatable {
     /// How long this session's mutation testing took. For a first session, exactly its `MutationTestOutcome`'s
     /// `testDuration`; a resumed session's outcome adds the earlier sessions'.
     let testDurationSeconds: Double
-    /// How many mutant lines the session wrote: those of the mutants it tested, those of the mutants it tested again,
-    /// which have `rerun`, and in a session that reuses an earlier run's results, those of the results it kept, which
-    /// have `reusedFrom`, and `rerun` too if a rerun gave them.
+    /// How many mutant lines the session wrote: those of the mutants it tested, those of the mutants it took out of the
+    /// build, which have no run behind them, those of the mutants it tested again, which have `rerun`, and in a session
+    /// that reuses an earlier run's results, those of the results it kept, which have `reusedFrom`, and `rerun` too if
+    /// a rerun gave them.
     let recorded: Int
 
     /// A short code for why mutation testing stopped with `error`, never a log: the abort reason's kind

@@ -30,6 +30,9 @@ extension RunEvent {
         case stopAtFirstFailureTurnedOff
         case testBundlesNotRunDirectly
         case workersShareUserDefaults
+        case buildingAgainWithoutMutants
+        case stoppedTakingOutMutants
+        case mutantsLeftOutOfTheBuild
         case controlRunFinished
         case timeoutRerunsStarted
         case timeoutRerunFinished
@@ -83,6 +86,9 @@ extension RunEvent {
         case .stopAtFirstFailureTurnedOff: .stopAtFirstFailureTurnedOff
         case .testBundlesNotRunDirectly: .testBundlesNotRunDirectly
         case .workersShareUserDefaults: .workersShareUserDefaults
+        case .buildingAgainWithoutMutants: .buildingAgainWithoutMutants
+        case .stoppedTakingOutMutants: .stoppedTakingOutMutants
+        case .mutantsLeftOutOfTheBuild: .mutantsLeftOutOfTheBuild
         case .controlRunFinished: .controlRunFinished
         case .timeoutRerunsStarted: .timeoutRerunsStarted
         case .timeoutRerunFinished: .timeoutRerunFinished
@@ -118,6 +124,9 @@ extension RunEvent {
              .workersShareUserDefaults, .muterMutationTestPlanLoaded, .testPlanSourcesUnchecked:
             nil
         case let .updateCheckFinished(newVersion): newVersion
+        case let .buildingAgainWithoutMutants(count): count
+        case let .stoppedTakingOutMutants(builds): builds
+        case let .mutantsLeftOutOfTheBuild(leftOut): leftOut
         case let .changesSelected(selection): selection
         case let .logFoldersPruned(pruning): pruning
         case let .projectCopySkippedVanishedFiles(paths): paths

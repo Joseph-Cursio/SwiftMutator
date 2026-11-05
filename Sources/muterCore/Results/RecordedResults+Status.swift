@@ -33,9 +33,12 @@ extension RecordedResults {
         var testedLast = 0
         var testedEarlier: [Int: Int] = [:]
         var kept: [String: Int] = [:]
+        var notRun = 0
         for result in latest.values {
             if let origin = result.reusedFrom {
                 kept[origin.resultsFile, default: 0] += 1
+            } else if result.endedBy == .couldNotRun {
+                notRun += 1
             } else if result.session == last {
                 testedLast += 1
             } else {
@@ -49,7 +52,13 @@ extension RecordedResults {
         default: "\(testedLast) were tested"
         }
         let keptPhrase = Self.keptPhrase(kept)
-        guard sessions.count > 1 else { return keptPhrase.map { "Of these, \(tested) and \($0)." } }
+        let notRunPhrase = notRun == 0
+            ? nil
+            : "\(notRun) didn't run, as \(notRun == 1 ? "it" : "they") couldn't build or start"
+        guard sessions.count > 1 else {
+            let also = notRunPhrase.map { ", \($0)," } ?? ""
+            return keptPhrase.map { "Of these, \(tested)\(also) and \($0)." }
+        }
         var phrases = ["\(tested) in the last session, session \(last)"]
         let earlier = testedEarlier.sorted { $0.key < $1.key }.map { "\($0.value) in session \($0.key)" }
         if earlier.count == 1 {
@@ -59,6 +68,9 @@ extension RecordedResults {
         }
         if let keptPhrase {
             phrases.append(keptPhrase)
+        }
+        if let notRunPhrase {
+            phrases.append(notRunPhrase)
         }
         let final = phrases.removeLast()
         return "Of these, " + (phrases.isEmpty ? final : phrases.joined(separator: ", ") + ", and " + final) + "."

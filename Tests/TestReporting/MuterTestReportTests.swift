@@ -6,7 +6,7 @@ final class MuterTestReportTests: MuterTestCase {
     // console's notice, so it says itself that its score is one mutant's.
     func test_theReportsOfOneMutant_sayItsScoreIsntTheProjects() throws {
         let key = "Sources/Bar.swift:12:9 SwapTernary"
-        let sentence = "One mutant tested with --mutant (Sources/Bar.swift:12:9 SwapTernary): "
+        let sentence = "One mutant chosen with --mutant (Sources/Bar.swift:12:9 SwapTernary): "
             + "its score isn't the project's."
         let outcome = MutationTestOutcome(mutant: key)
 

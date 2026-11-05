@@ -47,6 +47,20 @@ final class ApplySchemataTests: MuterTestCase {
         XCTAssertEqual(result.count, 0) // ApplySchemata returns empty changes
     }
 
+    // Once it has written over a file, this is the only copy of the code a rewrite can start from.
+    func test_keepsEachFileWithMutantsAsItWasPrepared() async throws {
+        let directory = try makeTemporaryDirectory()
+        let path = "\(directory)/Check.swift"
+        let prepared = "func check(_ value: Int) -> Bool {\n    return value > 1\n}\n"
+        try Data(prepared.utf8).write(to: URL(fileURLWithPath: path))
+        let source = SourceCodeInfo(path: path, code: Parser.parse(source: prepared))
+        state.mutationMapping = try [XCTUnwrap(generateSchemataMappings(for: source).first)]
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result, [.preparedSourcesKept([path: prepared])])
+    }
+
     func test_skipsFilesWithMissingSource() async throws {
         // Setup: Create a mutation mapping for a non-existent file
         let testFilePath = "/nonexistent/path/to/file.swift"

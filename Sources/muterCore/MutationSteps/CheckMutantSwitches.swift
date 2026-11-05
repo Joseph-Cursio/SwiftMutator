@@ -8,8 +8,10 @@ import Foundation
 ///
 /// A switch is found by its mutant's ID as a quoted string, which is all a switch made by any SwiftMutator has in
 /// common. The environment cache a switch reads isn't checked: a switch without it fails the build every mutant
-/// shares, which stops the run anyway, and `CheckTestPlanCode` refuses `swift test` code from before the
-/// active-mutant file. This proves a switch is there, not that a run switched it on.
+/// shares, which stops the run anyway, as `CompileRecovery` blames no mutant for a compile error in a switch's
+/// condition or the cache, and `CheckTestPlanCode` refuses `swift test` code from before the active-mutant file. This
+/// proves a switch is there, not that a run switched it on. `CompileRecovery` checks the files it writes again in the
+/// same way.
 struct CheckMutantSwitches: MutationStep {
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager

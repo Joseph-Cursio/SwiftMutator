@@ -14,7 +14,8 @@ struct ResumePlan: Equatable {
     enum Reason: String, CaseIterable {
         /// No result of its key is recorded, or a `retired` line retired it.
         case notRecorded
-        /// Its result was a build error, as every run that couldn't start is: resuming is how to try it again.
+        /// Its result was a build error, as every run that couldn't start is, and every mutant that didn't compile:
+        /// resuming is how to try it again.
         case buildError
         /// Its file's hash isn't the one its result recorded, or one of them is missing.
         case fileChanged
@@ -55,6 +56,19 @@ struct ResumePlan: Equatable {
 }
 
 extension ResumePlan {
+    /// This plan, without the jobs to test that `isLeftOut`, by index, as they aren't in the build. Only for what is to
+    /// be tested: its results file records them, so the header and a resume's summary go by the whole plan.
+    func leavingOut(_ isLeftOut: (Int) -> Bool) -> ResumePlan {
+        ResumePlan(
+            reused: reused,
+            toRun: toRun.filter { !isLeftOut($0) },
+            retestedBecause: retestedBecause,
+            retired: retired,
+            noLongerDiscovered: noLongerDiscovered,
+            outsideTheSample: outsideTheSample
+        )
+    }
+
     /// The plan for the jobs whose keys are `keys` and whose mutations are `snapshots`, one each in job order, given
     /// the results file's `recorded` results (`RecordedResults.latest`) and the hashes of this run's project files by
     /// their paths relative to the project (`ProjectTree.files`), as keys' paths are. A reuse passes what changed since

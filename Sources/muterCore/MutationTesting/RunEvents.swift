@@ -53,6 +53,15 @@ enum RunEvent {
     case testBundlesNotRunDirectly(reason: String)
     /// More than one worker tests mutants through `swift test`, so their tests share `UserDefaults.standard` (#92).
     case workersShareUserDefaults
+    /// The build failed on `count` mutants' code, which `CompileRecovery` took out, before it builds again. Only a
+    /// build that passes shows they were at fault: the project itself may not compile.
+    case buildingAgainWithoutMutants(count: Int)
+    /// `CompileRecovery` has taken out mutants after `afterBuilds` failed builds, its most, and the next failed too, so
+    /// its errors may still be mutants'. The failure then stops the run.
+    case stoppedTakingOutMutants(afterBuilds: Int)
+    /// The mutants the run won't test, as they don't compile, once the build without them has passed and their results
+    /// are written.
+    case mutantsLeftOutOfTheBuild(MutantsLeftOut)
     /// A control run, with no mutant on, among the mutants, once its line is written. Never counted in the progress.
     case controlRunFinished(ControlRunFinished)
     /// Once every mutant is tested on more than one worker, the timeouts that are tested again, on fewer.

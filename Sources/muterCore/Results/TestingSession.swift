@@ -32,6 +32,12 @@ final class TestingSession: @unchecked Sendable { // `file`, `mutantLines` and `
     /// How many of `outcomes` are earlier sessions' results that a resumed session kept rather than tested again, or an
     /// earlier run's that a session reusing them kept.
     var reused = 0
+    /// How many of `outcomes` are mutants that didn't compile, so weren't in the build (`CompileRecovery`), and whose
+    /// tests never ran.
+    var leftOut = 0
+    /// The jobs, by index, whose switch isn't in this session's build (`CompileRecovery`), whether their outcome is a
+    /// build error or a result kept from an earlier session. Nothing can test them here.
+    var notInTheBuild: Set<Int> = []
     /// The jobs, by index, whose result an earlier session recorded as a build error, which a resumed session tests
     /// again. It tests them one after another, where the first session tested other mutants between them, so one that
     /// fails to build again doesn't count toward the build errors in a row that stop mutation testing.
@@ -57,8 +63,9 @@ final class TestingSession: @unchecked Sendable { // `file`, `mutantLines` and `
 
     /// nil until the header is written, and for good if the file couldn't be created.
     var results: ResultsRecording? { writing.withLock { file } }
-    /// How many mutant lines the session recorded, written or not: one for each mutant it tested or kept from an
-    /// earlier run, and a second for each it tested again (`rerun`). So it can be more than the session's mutants.
+    /// How many mutant lines the session recorded, written or not: one for each mutant it tested, left out of the build
+    /// or kept from an earlier run, and a second for each it tested again (`rerun`). So it can be more than the
+    /// session's mutants.
     var recorded: Int { writing.withLock { mutantLines } }
 
     /// Makes `file` the session's results file, and writes `firstLines`, its header first, in one write while no end

@@ -3,7 +3,7 @@ import TestingExtensions
 import XCTest
 
 final class MutationTestingAbortReasonTests: MuterTestCase {
-    private let mutatedFilePath = "/project/Sources/Calc/Calc.swift"
+    private let mutatedFilePath = "/project_mutated/Sources/Calc/Calc.swift"
 
     func test_whenAMutantCannotBeSwitchedOn_thenNameItAndWhy() {
         let description = MutationTestingAbortReason.mutantNotSwitchedOn(
@@ -78,14 +78,14 @@ final class MutationTestingAbortReasonTests: MuterTestCase {
         )
         XCTAssertTrue(description.contains("bug in SwiftMutator's own rewriting"), description)
         XCTAssertTrue(
-            description.contains("Please report this at https://github.com/Joseph-Cursio/SwiftMutator/issues "),
+            description.contains("Please report that bug at https://github.com/Joseph-Cursio/SwiftMutator/issues "),
             description
         )
         XCTAssertFalse(description.contains("muter-mutation-testing"), description)
         XCTAssertFalse(
             description.contains("misconfiguring"),
-            "A mutant that doesn't compile is SwiftMutator's fault, so the message must not point at the user's "
-                + "configuration:\n\(description)"
+            "A rewritten file that doesn't compile is no fault of the configuration, so the message mustn't blame it:\n"
+                + description
         )
     }
 
@@ -164,5 +164,54 @@ final class MutationTestingAbortReasonTests: MuterTestCase {
                 ),
             ]
         )
+    }
+
+    // SwiftPM colours what it writes to a log: the parser once found no error at all in one.
+    func test_compilerErrorParsing_readsColouredLines() {
+        let log = "/project/A.swift:15:19: \u{1B}[1;31merror: \u{1B}[1;39mbinary operator '>'\u{1B}[0;0m\n"
+
+        XCTAssertEqual(
+            CompilerError.all(in: log),
+            [CompilerError(filePath: "/project/A.swift", line: 15, column: 19, message: "binary operator '>'")]
+        )
+    }
+
+    func test_compilerErrorParsing_readsAColonInAPath_andCRLFs() {
+        let log = "/Users/a:b/A.swift:1:2: error: first\r\n/Users/a:b/A.swift:3:4: error: second: with a colon\r\n"
+
+        XCTAssertEqual(
+            CompilerError.all(in: log),
+            [
+                CompilerError(filePath: "/Users/a:b/A.swift", line: 1, column: 2, message: "first"),
+                CompilerError(filePath: "/Users/a:b/A.swift", line: 3, column: 4, message: "second: with a colon"),
+            ]
+        )
+    }
+
+    // A file of the same name in another target isn't a file SwiftMutator rewrote.
+    func test_aFileOfTheSameNameElsewhere_isntBlamedOnTheRewriting() {
+        let log = "/project/Other/Calc.swift:1:1: error: its own"
+
+        XCTAssertNil(CompilerError.first(in: log, inFilesAt: [mutatedFilePath]))
+
+        let description = MutationTestingAbortReason.baselineTestFailed(
+            log: log,
+            mutatedFilePaths: [mutatedFilePath]
+        ).description
+        XCTAssertTrue(description.contains("misconfiguring"), description)
+    }
+
+    // Colours and all, as a real log has it: it may be a project's own error, so that is what's checked first.
+    func test_whenARewrittenFileFailsToCompile_thenSayToCheckTheProjectFirst() {
+        let log = "\(mutatedFilePath):8:24: \u{1B}[1;31merror: \u{1B}[1;39mexpected expression\u{1B}[0;0m\n"
+
+        let description = MutationTestingAbortReason.baselineTestFailed(
+            log: log,
+            mutatedFilePaths: [mutatedFilePath]
+        ).description
+
+        XCTAssertTrue(description.contains("Calc.swift:8:24: error: expected expression"), description)
+        XCTAssertTrue(description.contains("First check that Calc.swift compiles"), description)
+        XCTAssertTrue(description.contains("bug in SwiftMutator's own rewriting"), description)
     }
 }

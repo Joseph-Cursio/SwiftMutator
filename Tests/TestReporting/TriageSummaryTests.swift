@@ -240,6 +240,9 @@ final class TriageSummaryTests: MuterTestCase {
                 verdict: "killed",
                 savedAs: key(line: 4).description
             ),
+        ])
+        // It wasn't tested, so nothing shows the label no longer holds.
+        XCTAssertEqual(summary.notTested, [
             .init(
                 mutant: key(line: 5).description,
                 label: .outOfScope,

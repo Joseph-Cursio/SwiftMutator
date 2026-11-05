@@ -134,6 +134,12 @@ extension MutationTestObserver {
             logger.testBundlesNotRunDirectly(reason: reason)
         case .workersShareUserDefaults:
             logger.workersShareUserDefaults()
+        case let .buildingAgainWithoutMutants(count):
+            logger.buildingAgainWithoutMutants(count: count)
+        case let .stoppedTakingOutMutants(builds):
+            logger.stoppedTakingOutMutants(afterBuilds: builds)
+        case let .mutantsLeftOutOfTheBuild(leftOut):
+            logger.mutantsLeftOutOfTheBuild(leftOut)
         case let .controlRunFinished(control):
             logger.controlRunFinished(control)
         case let .timeoutRerunsStarted(reruns):
@@ -237,7 +243,8 @@ extension MutationTestObserver {
             isExportingReport: !reportPath.isEmpty,
             didSaveReport: didSave,
             scoreLine: MuterTestReport.scoreLine(of: outcome),
-            suspectWarning: KillingTestSummary.warning(for: outcome)
+            suspectWarning: KillingTestSummary.warning(for: outcome),
+            buildErrorWarning: outcome.buildErrorWarning
         )
         resultsFilePath.map(logger.resultsFileKept(atPath:))
         gate.map(logger.scoreGateChecked)
