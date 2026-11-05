@@ -287,8 +287,8 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
             [.ror, .relationalBoundary, .swapTernary],
             "a #if clause of a function's statements"
         )
-        XCTAssertEqual(mutants("Int.max > 2"), [], "a type's stored property, in the file's statements")
-        XCTAssertEqual(mutants("Int.max > 1"), [], "a type's stored property, in the file's statements")
+        XCTAssertEqual(mutants("Int.max > 2"), [.ror, .relationalBoundary], "a stored property, switched in its value")
+        XCTAssertEqual(mutants("Int.max > 1"), [.ror, .relationalBoundary], "a stored property, switched in its value")
         let rewritten = compiled.rewritten["Modes.swift"] ?? ""
         XCTAssertFalse(
             rewritten.contains("\nif __SwiftMutator_"),
@@ -307,9 +307,9 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
     }
 
     /// A `main.swift` of top-level code. Its own statements hold a declaration, the `ProcessInfo` import added in
-    /// front if nothing else, so a mutant there is refused; one in a `for` or `if` body, a closure, a function, or a
-    /// `#if` clause of statements only is switched there. The switches read the cache declared after them, at the
-    /// file's end.
+    /// front if nothing else, so a mutant there is switched in its statement or a global's value alone; one in a `for`
+    /// or `if` body, a closure, a function, or a `#if` clause of statements only is switched there. The switches read
+    /// the cache declared after them, at the file's end.
     func test_theGeneratedCodeBuildsInTopLevelCode() throws {
         let main = driver("""
         func doubled(_ value: Int) -> Int { value > 0 ? value * 2 : 0 }
@@ -331,7 +331,7 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
 
         let mutants = { compiled.operators(in: "main.swift", onTheLineHolding: $0) }
         XCTAssertEqual(mutants("func doubled"), [.ror, .relationalBoundary, .swapTernary], "a function")
-        XCTAssertEqual(mutants("let values"), [], "a global's initializer, in the file's statements")
+        XCTAssertEqual(mutants("let values"), [.ror, .relationalBoundary, .swapTernary], "a global's value")
         XCTAssertEqual(mutants("total += value"), [.ror, .relationalBoundary, .swapTernary], "a for body")
         XCTAssertEqual(mutants("let isLarge"), [.ror, .relationalBoundary], "a closure")
         XCTAssertEqual(
@@ -339,7 +339,7 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
             [.ror, .relationalBoundary, .logicalOperator, .swapTernary],
             "a #if clause of statements"
         )
-        XCTAssertEqual(mutants("if total < 100"), [], "an if's condition, in the file's statements")
+        XCTAssertEqual(mutants("if total < 100"), [.ror, .relationalBoundary], "an if's condition, its own switch")
         XCTAssertEqual(mutants("print(isLarge"), [.swapTernary], "an if body")
 
         XCTAssertEqual(try run(compiled.program).output, "large\noriginal 10\n", "no mutant named")

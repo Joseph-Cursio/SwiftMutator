@@ -22,6 +22,7 @@ extension RunEvent {
         case mutationsDiscoveryStarted
         case mutationsDiscoveryFinished
         case mutantsSelected
+        case mutantsDropped
         case resumePlanned
         case mutationTestingStarted
         case mutantRunsStarted
@@ -78,6 +79,7 @@ extension RunEvent {
         case .mutationsDiscoveryStarted: .mutationsDiscoveryStarted
         case .mutationsDiscoveryFinished: .mutationsDiscoveryFinished
         case .mutantsSelected: .mutantsSelected
+        case .mutantsDropped: .mutantsDropped
         case .resumePlanned: .resumePlanned
         case .mutationTestingStarted: .mutationTestingStarted
         case .mutantRunsStarted: .mutantRunsStarted
@@ -137,6 +139,7 @@ extension RunEvent {
         case let .sourceFileDiscoveryFinished(sourceFileCandidates): sourceFileCandidates
         case let .mutationsDiscoveryFinished(mappings): mappings
         case let .mutantsSelected(sample, shard, mappings): (sample, shard, mappings)
+        case let .mutantsDropped(dropped): dropped
         case let .resumePlanned(summary): summary
         case let .workersChosen(choice): choice
         case let .stillTesting(still): still

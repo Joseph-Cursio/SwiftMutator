@@ -64,7 +64,10 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   switched around the macro, not inside it, where the macro would expand the switch along with the
   mutant and fail to build. A body whose value is the macro returns it from each branch. A macro at a
   file's or a type's top level, such as `#Preview`, has nothing around it that can hold a switch, so
-  its mutants are left out.
+  its mutants are left out, and [said to be](#mutants-outside-function-bodies).
+- **Mutants outside function bodies:** a stored property's initial value, a global, a default argument
+  and a `main.swift`'s statements are mutated too, each switched by itself
+  (see [Mutants outside function bodies](#mutants-outside-function-bodies)).
 - **Parallel workers:** `mutationTestWorkers: N` tests N mutants at once on SwiftPM projects,
   each in its own APFS clone of the mutated project. Each clone is built once before testing, which
   costs one extra build per worker but keeps tests that write files next to their sources from
@@ -297,6 +300,55 @@ for the key a configuration error, 255.
 - **summary.json** records the verdict in `gate` (see [summary.json](#summaryjson)).
 
 A resume lets the threshold change, as no result depends on it: the change is only said.
+
+## Mutants outside function bodies
+
+Every mutant is a branch of a switch around a copy of its code, usually its statement list. A file's top level can't
+hold one when it has a declaration: an `if` around an `import` or a type doesn't compile. So the switch goes around
+less:
+
+| Code | What the switch goes around |
+|---|---|
+| A stored property's or a global's initial value: `static let isLarge = size > 1` | The value, as an `if` expression, or as an `if` expression in a closure called on the spot when the value or a type around it has an attribute, which may be a macro that copies the value into a call, as `@State` does |
+| A default argument: `func load(retry: Bool = count > 1)` | The value, as an `if` expression in a closure called on the spot, since a default argument can't be an `if` expression |
+| A statement in a `main.swift` with an `import`: `if count > 1 { … }`, `total = count > 1 ? 1 : 2`, or a `guard` with neither `let` nor `case` | The statement |
+
+Your tests see the same code either way: the original branch holds the code as it was, and each mutant's holds it with
+the one change. An initial value that is a macro alone, such as `#Predicate { $0 > 1 }`, is returned from each branch of
+a closure called on the spot, as a macro can't be a branch's value by itself.
+
+Coverage says less about this code. Swift's coverage has a region for an instance property's initial value, and for the
+right-hand side of `&&`, `||` or `??` anywhere, but none for the rest of a global's or a `static` property's value, or
+of a default argument. So it can't show that a test never reached those, and their mutants are tested either way. One
+no test reaches survives, and counts against the score, so `// muter:disable` or `exclude` can leave out a default that
+is there for callers your tests aren't. Two more things follow:
+
+- A file with nothing but such values is named by no coverage data. SwiftMutator keeps it when a file the data does name
+  shares its folder, or a folder inside or around it, as that looks like a target the tests ran. Other such files are
+  left out with the rest of what the tests don't reach, as a file at 0% is, however many values it has.
+- A SwiftPM test doesn't run an executable's `main.swift`, so with coverage that file reads 0% and is left out. Its
+  statements are mutated with `--skip-coverage` or `--files-to-mutate`, or when tests do run it.
+
+Some code still has nowhere to put a switch, and its mutants are dropped:
+
+- a macro that is a statement or a declaration by itself at a file's or a type's top level, such as `#Preview { … }`,
+  which can declare anything;
+- an attribute's arguments, as in `@Wrapper(limit > 1) var value`;
+- a `guard let` or `guard case` at a file's top level, which may bind a name the code after it uses;
+- a value that starts with `#line`, which a branch would read as a directive;
+- the default of a parameter of a non-escaping function type, which a closure's result can't convert to;
+- a block nested in a `some` body that has mutants of its own, and a closure passed to what looks like a type's
+  initializer, `VStack { … }`, in a value that has mutants of its own and no type of its own named. In each, a nested
+  switch could give one branch of the `if` expression around it another type.
+
+Discovery ends with how many it dropped, `--verbose` lists each one, and the results file's header records the count as
+[`mutantsDropped`](Docs/results-file.md#header). With `--changed-lines`, only those on changed lines count. A `--mutant`
+run says nothing about them, and `--sample` and `--shard` count them for all the code discovery looked at, since a sample
+or a shard can't hold a mutant that was dropped.
+
+```text
+ℹ️ SwiftMutator left out 3 mutants with nowhere to put a switch, so no report covers them. --verbose lists them.
+```
 
 ## Mutants that don't compile
 

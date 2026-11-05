@@ -315,15 +315,16 @@ struct MutantLocator {
         return inFinalElseOf.map { .wholeSwitch(chain: chain(around: $0)) } ?? .outside
     }
 
-    /// Every mutant in the nearest function, accessor, initializer, closure or initial value around a place that has
-    /// any. A missing `return`, a `guard` that falls through, a use before initialization and opaque types that don't
-    /// match are all reported on code around the switch at fault.
+    /// Every mutant in the nearest function, accessor, initializer, closure, initial value or parameter around a
+    /// place that has any. A missing `return`, a `guard` that falls through, a use before initialization and opaque
+    /// types that don't match are all reported on code around the switch at fault.
     func mutantsInEnclosingBody(line: Int, column: Int) -> [String] {
         var ancestor = token(line: line, column: column)?.parent
         while let node = ancestor {
             if node.is(ClosureExprSyntax.self) || node.is(FunctionDeclSyntax.self)
                 || node.is(InitializerDeclSyntax.self) || node.is(AccessorDeclSyntax.self)
-                || node.is(PatternBindingSyntax.self) || node.is(SubscriptDeclSyntax.self) {
+                || node.is(PatternBindingSyntax.self) || node.is(SubscriptDeclSyntax.self)
+                || node.is(FunctionParameterSyntax.self) || node.is(EnumCaseParameterSyntax.self) {
                 let mutants = node.tokens(viewMode: .sourceAccurate).compactMap { token -> String? in
                     guard token.tokenKind == .keyword(.if), let link = token.parent?.as(IfExprSyntax.self) else {
                         return nil

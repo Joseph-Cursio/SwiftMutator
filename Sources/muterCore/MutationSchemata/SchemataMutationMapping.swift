@@ -12,18 +12,42 @@ typealias MutationSchemata = [MutationSchema]
 /// fresh node identities, so the rewriter's lookup never matched what discovery inserted — schemata
 /// were silently never applied and every mutant was reported as "survived" (0% score). Two parses of
 /// the same bytes yield the same offset + text, so this key is stable across re-parsing.
+///
+/// A body's one statement has the same offset and text as the body, so the key says which of them it is of, or the
+/// rewriter would switch both.
 struct CodeBlockKey: Hashable {
+    enum Kind: Hashable {
+        case statements
+        case statement
+        case initialValue
+    }
+
     let offset: Int
     let text: String
+    let kind: Kind
 
     init(_ node: CodeBlockItemListSyntax) {
-        offset = node.positionAfterSkippingLeadingTrivia.utf8Offset
-        text = node.description
+        self.init(of: node, kind: .statements)
+    }
+
+    init(_ place: MutationSwitchPlace) {
+        switch place {
+        case let .statements(list): self.init(list)
+        case let .statement(statement): self.init(of: statement, kind: .statement)
+        case let .initialValue(value): self.init(of: value, kind: .initialValue)
+        }
     }
 
     init(offset: Int, text: String) {
         self.offset = offset
         self.text = text
+        kind = .statements
+    }
+
+    private init(of node: some SyntaxProtocol, kind: Kind) {
+        offset = node.positionAfterSkippingLeadingTrivia.utf8Offset
+        text = node.description
+        self.kind = kind
     }
 }
 
@@ -101,10 +125,23 @@ struct SchemataMutationMapping: Sendable {
         mappings[key, default: []].append(contentsOf: schemata)
     }
 
+    mutating func add(
+        at place: MutationSwitchPlace,
+        _ schemata: MutationSchema
+    ) {
+        let key = CodeBlockKey(place)
+        codeBlockText[key] = place.code.description
+        mappings[key, default: []].append(schemata)
+    }
+
     func schemata(
         _ codeBlockSyntax: CodeBlockItemListSyntax
     ) -> MutationSchemata? {
         mappings[CodeBlockKey(codeBlockSyntax)]
+    }
+
+    func schemata(at place: MutationSwitchPlace) -> MutationSchemata? {
+        mappings[CodeBlockKey(place)]
     }
 
     /// Drops the mutants of every block nested inside a mutated opaque-typed, non-builder body.
@@ -113,18 +150,36 @@ struct SchemataMutationMapping: Sendable {
     /// nested switch inside a builder closure (a SwiftUI `label:`, say) turns the default branch's
     /// view into `_ConditionalContent<…>` while the mutant branches keep the original type, and the
     /// shared build of every mutant fails. The nested mutants go rather than being misreported; the
-    /// body's own mutants stay. `source` must be the tree the mappings were discovered in.
-    mutating func dropNestedSchemataInOpaqueBodies(of source: SourceFileSyntax) {
+    /// body's own mutants stay. `source` must be the tree the mappings were discovered in. It returns those it drops.
+    @discardableResult
+    mutating func dropNestedSchemataInOpaqueBodies(of source: SourceFileSyntax) -> MutationSchemata {
+        var dropped: MutationSchemata = []
         let lists = CodeBlockListCollector.lists(in: source)
         let opaqueBodies = lists.filter { mappings[CodeBlockKey($0)] != nil && $0.isOpaqueNonBuilderBody }
 
         for body in opaqueBodies {
             for nested in lists where nested.isNested(inside: body) {
                 let key = CodeBlockKey(nested)
+                dropped += mappings[key] ?? []
                 mappings[key] = nil
                 codeBlockText[key] = nil
             }
         }
+        // A value's switch is an `if` expression too, and a builder closure can give the type it makes a type of its
+        // own. Which closures are builders' can't be told from the syntax, but a generic type's initializer is what
+        // makes that type, and a type the value's annotation names can't depend on the closure.
+        for list in lists where mappings[CodeBlockKey(list)] != nil {
+            guard let value = list.valueWhoseTypeCanDependOnIt,
+                  mappings[CodeBlockKey(.initialValue(value))] != nil
+            else {
+                continue
+            }
+            let key = CodeBlockKey(list)
+            dropped += mappings[key] ?? []
+            mappings[key] = nil
+            codeBlockText[key] = nil
+        }
+        return dropped
     }
 
     /// Keeps only the mutants `isKept` keeps, and the blocks left with any.
@@ -297,6 +352,25 @@ private final class CodeBlockListCollector: SyntaxVisitor {
 }
 
 private extension CodeBlockItemListSyntax {
+    /// The stored property's or global's value this list is in, when it's in a closure passed to what looks like a
+    /// type's initializer, `VStack { … }`, and the value's type isn't named, or is `some …`.
+    var valueWhoseTypeCanDependOnIt: ExprSyntax? {
+        var isInATypesClosure = false
+        var ancestor = parent
+        while let current = ancestor {
+            if let closure = current.as(ClosureExprSyntax.self), closure.isPassedToAType {
+                isInATypesClosure = true
+            }
+            if let clause = current.as(InitializerClauseSyntax.self), clause.isADeclarationsValue {
+                guard isInATypesClosure, let binding = clause.parent?.as(PatternBindingSyntax.self) else { return nil }
+                let type = binding.typeAnnotation?.type
+                return type == nil || type?.isOpaque == true ? clause.value : nil
+            }
+            ancestor = current.parent
+        }
+        return nil
+    }
+
     func isNested(inside outer: CodeBlockItemListSyntax) -> Bool {
         var ancestor = parent
         while let current = ancestor {
@@ -334,6 +408,27 @@ private extension CodeBlockItemListSyntax {
                 }
                 ancestor = current.parent
             }
+        }
+        return false
+    }
+}
+
+private extension ClosureExprSyntax {
+    /// Whether this closure is an argument of a call to a capitalized name, as a type's initializer is.
+    var isPassedToAType: Bool {
+        var ancestor = parent
+        while let current = ancestor {
+            if let call = current.as(FunctionCallExprSyntax.self) {
+                let name = call.calledExpression.as(DeclReferenceExprSyntax.self)?.baseName.text
+                    ?? call.calledExpression.as(MemberAccessExprSyntax.self)?.declName.baseName.text
+                    ?? call.calledExpression.as(GenericSpecializationExprSyntax.self)?.expression.trimmedDescription
+                return name?.first?.isUppercase == true
+            }
+            guard current.is(LabeledExprSyntax.self) || current.is(LabeledExprListSyntax.self)
+                || current.is(MultipleTrailingClosureElementSyntax.self)
+                || current.is(MultipleTrailingClosureElementListSyntax.self)
+            else { return false }
+            ancestor = current.parent
         }
         return false
     }

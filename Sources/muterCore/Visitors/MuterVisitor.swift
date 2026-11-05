@@ -43,6 +43,8 @@ class MuterVisitor: SyntaxAnyVisitor {
     var projectRoot: URL?
 
     private(set) var schemataMappings: SchemataMutationMapping
+    /// The mutants of this code with nowhere to put a switch, which aren't in `schemataMappings`.
+    private(set) var droppedMutants: [DroppedMutant] = []
 
     /// One for the whole file: making one takes a pass over the whole file, and every node's coverage check asks for
     /// a location, so making them each time took minutes on a long file in a debug build.
@@ -160,7 +162,7 @@ class MuterVisitor: SyntaxAnyVisitor {
     /// changed the first instead. `nil` if the offsets don't line up, and the text search is used.
     static func range(
         of node: SyntaxProtocol,
-        in block: CodeBlockItemListSyntax,
+        in block: SyntaxProtocol,
         description: String
     ) -> Range<String.Index>? {
         let offset = node.position.utf8Offset - block.position.utf8Offset
@@ -175,19 +177,21 @@ class MuterVisitor: SyntaxAnyVisitor {
         return start ..< end
     }
 
+    /// `code`'s text with `mutatedSyntax` in place of `node`, parsed as a statement list, which a branch of a switch
+    /// holds whichever place the switch is in.
     func transform(
         node: SyntaxProtocol,
-        mutatedSyntax: SyntaxProtocol
+        mutatedSyntax: SyntaxProtocol,
+        in code: SyntaxProtocol
     ) -> CodeBlockItemListSyntax {
-        let codeBlockItemListSyntax = node.codeBlockItemListSyntax
-        let codeBlockDescription = codeBlockItemListSyntax.description
+        let codeBlockDescription = code.description
         let mutationDescription = mutatedSyntax.description
-        let range = Self.range(of: node, in: codeBlockItemListSyntax, description: codeBlockDescription)
+        let range = Self.range(of: node, in: code, description: codeBlockDescription)
             ?? codeBlockDescription.range(of: node.description)
         let codeBlockTree = Parser.parse(source: codeBlockDescription)
         guard let range
         else {
-            return codeBlockItemListSyntax
+            return codeBlockTree.statements
         }
 
         // The incremental parse reuses every statement after the edit, so the edit must be exact
@@ -242,30 +246,41 @@ class MuterVisitor: SyntaxAnyVisitor {
             return
         }
 
-        // A stored-property initializer has no statement list of its own; walking up reaches the
-        // file's top level, where a switch around declarations cannot compile. Skip it rather than
-        // break the build every mutant shares.
-        guard !syntax.cannotHoldMutationSwitch else {
+        let lines = lines(of: span ?? changed ?? syntax)
+        guard let place = syntax.mutationSwitchPlace else {
+            droppedMutants.append(DroppedMutant(
+                path: mutantPath,
+                mutationOperatorId: mutationOperatorId,
+                position: position,
+                snapshot: snapshot,
+                lines: lines,
+                reason: .noPlaceForASwitch
+            ))
             return
         }
 
         var schemata = makeSchemata(
             with: syntax,
             mutation: mutation,
+            in: place,
             at: position,
             for: snapshot
         )
-        schemata.lines = lines(of: span ?? changed ?? syntax)
+        schemata.lines = lines
 
-        schemataMappings.add(
-            syntax.codeBlockItemListSyntax,
-            schemata
-        )
+        schemataMappings.add(at: place, schemata)
+    }
+
+    /// The path a dropped mutant is listed by: relative to the project, or the file's name in a test of one file.
+    private var mutantPath: String {
+        projectRoot.map { RepoRelativePath.of(sourceCodeInfo.path, under: $0) }
+            ?? URL(fileURLWithPath: sourceCodeInfo.path).lastPathComponent
     }
 
     func makeSchemata(
         with syntax: SyntaxProtocol,
         mutation: SyntaxProtocol,
+        in place: MutationSwitchPlace,
         at position: MutationPosition,
         for snapshot: MutationOperator.Snapshot
     ) -> MutationSchema {
@@ -274,7 +289,8 @@ class MuterVisitor: SyntaxAnyVisitor {
             mutationOperatorId: mutationOperatorId,
             syntaxMutation: transform(
                 node: syntax,
-                mutatedSyntax: mutation
+                mutatedSyntax: mutation,
+                in: place.code
             ),
             position: position,
             snapshot: snapshot,

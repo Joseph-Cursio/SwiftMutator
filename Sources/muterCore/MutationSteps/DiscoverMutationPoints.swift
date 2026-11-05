@@ -12,7 +12,7 @@ struct DiscoverMutationPoints: MutationStep {
     ) async throws -> [MutationTestState.Change] {
         events.send(.mutationsDiscoveryStarted)
 
-        let all = await discoverMutationPoints(
+        let found = await discoverMutationPoints(
             forOperators: state.mutationOperatorList,
             inFilesAt: state.sourceFileCandidates,
             configuration: state.muterConfiguration,
@@ -20,11 +20,15 @@ struct DiscoverMutationPoints: MutationStep {
             projectRoot: state.mutatedProjectDirectoryURL,
             namedMutant: NamedMutant(state)
         )
+        let all = found.flatMap(\.mappings)
+        let dropped = Self.droppedMutants(of: found, selection: state.changeSelection, mutant: state.runOptions.mutant)
         let discovered = state.changeSelection.map {
             Self.mutants(of: all, onLinesChangedIn: $0, under: state.mutatedProjectDirectoryURL)
         } ?? all
 
         guard discovered.count >= 1 else {
+            // The refusal comes next, so this is the end of discovery.
+            events.send(.mutantsDropped(dropped))
             // A change can touch only code no operator mutates, as declarations: nothing to mutate, not a failure.
             if let selection = state.changeSelection {
                 let reason: NothingToMutate.Reason = all.isEmpty
@@ -58,6 +62,7 @@ struct DiscoverMutationPoints: MutationStep {
         if let shard = state.runOptions.shard {
             let (kept, selection) = mappings.keepingOnly(shard, under: state.mutatedProjectDirectoryURL)
             guard !kept.isEmpty else {
+                events.send(.mutantsDropped(dropped))
                 throw EmptyShard(
                     shard: shard,
                     mutantsInAllShards: selection.mutantsInAllShards,
@@ -73,17 +78,42 @@ struct DiscoverMutationPoints: MutationStep {
         } else {
             events.send(.mutantsSelected(sample: sampleSelection, shard: shardSelection, mutations: mappings))
         }
+        events.send(.mutantsDropped(dropped))
 
         return selected + [
             .mutationMappingsDiscovered(mappings),
             // Pass empty dictionary - ApplySchemata will re-parse files on demand
             // This prevents memory exhaustion on large codebases (2000+ files)
             .sourceCodeParsed([:]),
-        ]
+        ] + (dropped.isEmpty ? [] : [.mutantsDropped(dropped)])
     }
 }
 
 private extension DiscoverMutationPoints {
+    /// A file's mutants, and those it had to drop.
+    struct DiscoveredFile {
+        let mappings: [SchemataMutationMapping]
+        let dropped: [DroppedMutant]
+    }
+
+    /// The mutants discovery dropped, of the code a run looks at. A `--mutant` run tests one mutant, and how many
+    /// others were dropped says nothing about it.
+    static func droppedMutants(
+        of files: [DiscoveredFile],
+        selection: ChangeSelection?,
+        mutant: MutantReference?
+    ) -> [DroppedMutant] {
+        guard mutant == nil else { return [] }
+        return files.flatMap(\.dropped)
+            .filter { dropped in
+                guard let selection, selection.changedLines else { return true }
+                return selection.file(at: dropped.path)?.isChanged(
+                    dropped.lines ?? dropped.position.line...dropped.position.line
+                ) ?? false
+            }
+            .sorted { ($0.path, $0.position.utf8Offset) < ($1.path, $1.position.utf8Offset) }
+    }
+
     /// How many files are parsed and walked at once, which bounds the syntax trees held in memory.
     static let maxConcurrency = 8
 
@@ -96,10 +126,10 @@ private extension DiscoverMutationPoints {
         coverage: Coverage,
         projectRoot: URL,
         namedMutant: NamedMutant? = nil
-    ) async -> [SchemataMutationMapping] {
+    ) async -> [DiscoveredFile] {
         var swiftFiles = filePaths.filter(pathContainsDotSwift).makeIterator()
 
-        return await withTaskGroup(of: [SchemataMutationMapping].self) { group in
+        return await withTaskGroup(of: DiscoveredFile.self) { group in
             func discoverNext() {
                 guard let path = swiftFiles.next() else { return }
                 group.addTask {
@@ -107,7 +137,7 @@ private extension DiscoverMutationPoints {
                     // pool drains.
                     autoreleasepool {
                         guard let sourceCode = prepareSourceCode(path) else {
-                            return []
+                            return DiscoveredFile(mappings: [], dropped: [])
                         }
 
                         return discoverNewSchemataMappings(
@@ -125,9 +155,9 @@ private extension DiscoverMutationPoints {
             for _ in 0..<Self.maxConcurrency {
                 discoverNext()
             }
-            var discovered: [SchemataMutationMapping] = []
-            while let mappings = await group.next() {
-                discovered += mappings
+            var discovered: [DiscoveredFile] = []
+            while let file = await group.next() {
+                discovered.append(file)
                 discoverNext()
             }
             return discovered
@@ -141,8 +171,9 @@ private extension DiscoverMutationPoints {
         coverage: FileCoverage,
         projectRoot: URL,
         namedMutant: NamedMutant? = nil
-    ) -> [SchemataMutationMapping] {
+    ) -> DiscoveredFile {
         let source = sourceCode.source.code
+        var noPlaceForASwitch: [DroppedMutant] = []
 
         let mappings: [SchemataMutationMapping] = operators
             .accumulate(into: []) { newSchemataMappings, mutationOperatorId in
@@ -156,6 +187,7 @@ private extension DiscoverMutationPoints {
                 visitor.projectRoot = projectRoot
 
                 visitor.walk(source)
+                noPlaceForASwitch += visitor.droppedMutants
 
                 let schemataMapping = visitor.schemataMappings
 
@@ -166,23 +198,27 @@ private extension DiscoverMutationPoints {
                 }
             }
 
+        let path = RepoRelativePath.of(sourceCode.source.path, under: projectRoot)
+
         // Pruning has to see every operator's mutants for the file at once: an outer mutant from
         // one operator conflicts with a nested one from another.
-        func pruned(_ mappings: [SchemataMutationMapping]) -> [SchemataMutationMapping] {
+        func pruned(_ mappings: [SchemataMutationMapping]) -> DiscoveredFile {
             var merged = mappings.mergeByFilePath()
+            var dropped = noPlaceForASwitch
             for index in merged.indices {
-                merged[index].dropNestedSchemataInOpaqueBodies(of: source)
+                dropped += merged[index].dropNestedSchemataInOpaqueBodies(of: source)
+                    .map { DroppedMutant($0, path: path, reason: .nestedInAnOpaqueBody) }
             }
-            return merged.filter { !$0.isEmpty }
+            return DiscoveredFile(mappings: merged.filter { !$0.isEmpty }, dropped: dropped)
         }
         let every = pruned(mappings)
-        guard let namedMutant, !namedMutant.isHeld(by: every, under: projectRoot) else { return every }
+        guard let namedMutant, !namedMutant.isHeld(by: every.mappings, under: projectRoot) else { return every }
         let fewer = pruned(mappings.compactMap { mapping in
             var kept = mapping
             kept.keepOnly { namedMutant.configuredOperators.contains($0.mutationOperatorId) }
             return kept.isEmpty ? nil : kept
         })
-        return namedMutant.isHeld(by: fewer, under: projectRoot) ? fewer : every
+        return namedMutant.isHeld(by: fewer.mappings, under: projectRoot) ? fewer : every
     }
 
     /// With `--changed-lines`, of each file's mutants, those on lines `selection` says changed; without, all of them.

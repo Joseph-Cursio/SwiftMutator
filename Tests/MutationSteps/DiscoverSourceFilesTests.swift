@@ -166,6 +166,42 @@ final class DiscoverSourceFilesTests: MuterTestCase {
         XCTAssertEqual(result, [.sourceFileCandidatesDiscovered(["\(root.path)/Other.swift"])])
     }
 
+    /// Coverage has no regions for a global's or a static property's value, so its data doesn't name a file of nothing
+    /// else, though the tests can read them. A file with code that it doesn't name is in no binary the tests ran.
+    func test_keepsAFileOfValuesOnly_besideAFileTheCoverageNames_andNoOther() async throws {
+        current.fileManager = FileManager.default
+        let root = try URL(fileURLWithPath: makeTemporaryDirectory()).resolvingSymlinksInPath()
+        let values = "public enum Limits { public static let big = Int.max > 1 }\n"
+        for (path, code) in [
+            ("Sources/Lib/Lib.swift", "public func lib() {}\n"),
+            ("Sources/Lib/Constants.swift", values),
+            ("Sources/Lib/Nested/Keys.swift", values),
+            ("Sources/Lib/Unlinked.swift", "public func notInTheTests() {}\n"),
+            ("Sources/Other/Constants.swift", values),
+            ("TopLevel.swift", values),
+        ] {
+            let file = root.appendingPathComponent(path)
+            try FileManager.default.createDirectory(
+                at: file.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try code.write(to: file, atomically: true, encoding: .utf8)
+        }
+        state.muterConfiguration = MuterConfiguration(executable: "", arguments: [])
+        state.mutatedProjectDirectoryURL = root
+        state.projectCoverage = Coverage.make(filesInCoverage: ["Sources/Lib/Lib.swift"])
+
+        let result = try await sut.run(with: state)
+
+        XCTAssertEqual(result, [
+            .sourceFileCandidatesDiscovered([
+                "\(root.path)/Sources/Lib/Constants.swift",
+                "\(root.path)/Sources/Lib/Lib.swift",
+                "\(root.path)/Sources/Lib/Nested/Keys.swift",
+            ]),
+        ])
+    }
+
     func test_shouldIgnoreFilesWithoutCoverage() async throws {
         current.fileManager = FileManager.default
 
