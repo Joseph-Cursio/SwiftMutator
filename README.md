@@ -306,6 +306,24 @@ for the key a configuration error, 255.
 
 A resume lets the threshold change, as no result depends on it: the change is only said.
 
+## When the baseline crashes
+
+Every mutant is compiled into one build, so a function's code is there once for each mutant in it. A
+debug build gives each copy's local variables their own stack space. On SwiftProjectLint, one file's 44
+mutants took a function's frame from 3,408 to 12,928 bytes, and another's from 4,064 to 46,112, so a
+recursion that fit its thread's stack no longer did. The test process then crashes in the baseline, with
+no mutant on, and the run stops with exit status 3.
+
+SwiftMutator says when a baseline's log shows a crash that could be this: a test process ended by SIGBUS
+or SIGSEGV under `swift test`, and more doubtfully, xcodebuild's `Restarting after unexpected exit,
+crash, or test timeout`. A log can't show that it was: on a Mac, the crash report in
+`~/Library/Logs/DiagnosticReports` says `Thread stack size exceeded`, under the function that repeats at
+the top of the crashed thread. Swift Testing's tests under xcodebuild leave no such line, only the test's
+name under `Failing tests:`.
+
+To go on, leave that function out: its file with `exclude`, or the function alone with `// muter:disable`
+before it and `// muter:enable` after it.
+
 ## Mutants that don't compile
 
 All of a run's mutants are compiled into one build, so one that doesn't compile would fail the build
