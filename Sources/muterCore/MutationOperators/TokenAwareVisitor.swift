@@ -35,12 +35,6 @@ class TokenAwareVisitor: MuterVisitor {
         return super.visit(node)
     }
 
-    override func visit(_ node: SequenceExprSyntax) -> SyntaxVisitorContinueKind {
-        node.isInsideCompilerDirective
-            ? .skipChildren
-            : .visitChildren
-    }
-
     private func oppositeOperator(for tokenKind: TokenKind) -> String? {
         guard case let .binaryOperator(`operator`) = tokenKind else {
             return nil
@@ -66,11 +60,5 @@ class TokenAwareVisitor: MuterVisitor {
         )
 
         return Syntax(tokenSyntax)
-    }
-}
-
-private extension SequenceExprSyntax {
-    var isInsideCompilerDirective: Bool {
-        parent?.is(IfConfigClauseSyntax.self) == true
     }
 }

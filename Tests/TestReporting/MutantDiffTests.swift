@@ -31,6 +31,42 @@ final class MutantDiffTests: XCTestCase {
         ])
     }
 
+    func test_aLaterLinkOfAChain_givesItsLine() throws {
+        let source = """
+        func pick(_ a: Bool, _ b: Bool) -> Int {
+            return a ? 1 : b ? 2 : 3
+        }
+
+        """
+        let schema = try XCTUnwrap(
+            schemata(SwapTernaryOperator.Visitor.init, in: source).first { $0.snapshot.before == "b ? 2 : 3" }
+        )
+
+        XCTAssertEqual(diff(of: schema, in: source), [
+            "-2:     return a ? 1 : b ? 2 : 3",
+            "+2:     return a ? 1 : b ? 3 :  2",
+        ])
+    }
+
+    // A later link is placed at its `?`, so the same code on a line above is another ternary, not its own.
+    func test_aLaterLinkOverSeveralLines_isntTakenForTheSameCodeOnALineAbove() throws {
+        let source = """
+        func pick(_ a: Bool, _ b: Bool) -> Int {
+            let first = b ? 2 : 3
+            let second = a ? 1
+                : b ? 2
+                : 3
+            return first + second
+        }
+
+        """
+        let schema = try XCTUnwrap(
+            schemata(SwapTernaryOperator.Visitor.init, in: source).first { $0.position.line == 4 }
+        )
+
+        XCTAssertNil(diff(of: schema, in: source))
+    }
+
     // The snapshot gives a node that spans lines on one line, which no line of the file holds.
     func test_aMultiLineNode_fallsBackToTheSnapshot() throws {
         let source = """

@@ -98,4 +98,19 @@ final class RelationalBoundaryOperatorTests: MuterTestCase {
         XCTAssertNotEqual(replacementMutant.id, boundaryMutant.id)
         XCTAssertTrue(boundaryMutant.id.contains("_RelationalBoundary_"), boundaryMutant.id)
     }
+
+    func test_aCompilerDirectivesCondition_isLeftAlone_howeverDeepItIs() throws {
+        let source = try sourceCode("""
+        func f(a: Int, b: Int) {
+            #if !(VALUE < 1)
+            run(a < b)
+            #endif
+        }
+        """)
+        let visitor = RelationalBoundaryOperator.Visitor(sourceCodeInfo: .init(path: "/path/to/file", code: source))
+
+        visitor.walk(source)
+
+        XCTAssertEqual(visitor.schemataMappings.mutationSchemata.map(\.position.line), [3])
+    }
 }

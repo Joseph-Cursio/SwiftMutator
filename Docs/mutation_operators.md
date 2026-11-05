@@ -1,6 +1,8 @@
 # Mutation Operators
 SwiftMutator uses **mutation operators** to generate mutants in your source code. This is the list of currently available mutation operators.
 
+No operator mutates the condition of a `#if` or `#elseif`. Such a mutant would change which branch compiles, and a branch written for another platform may not build, which would fail the build every mutant shares. This doesn't change what happens to the code inside the clauses.
+
 ## Relational Operator Replacement
 The relational operator replacement operator, `RelationalOperatorReplacement`, will invert relational operators in your code based on this table:
 
@@ -97,6 +99,8 @@ The Remove Side Effects operator will remove code it determines is causing a sid
 
 The purpose of this operator is to highlight how your tests respond to the absence of expected side effects.
 
+Removing a line from a `while` or `repeat` body can make the loop endless, as removing `directories.removeLast()` from `while !directories.isEmpty` does. The mutant is then stopped at its time limit and ends as a timeout, which the score counts as a survivor, unless the log already shows a failed test or a crash. These mutants are kept, as there's no telling them from the rest: on SwiftProjectLint, 5 of the 36 in such bodies timed out, while a rule that skips a call whose receiver is in the loop's condition would have caught at most 3 of those 5 and dropped 10 others, 8 of which tests killed.
+
 ### Mutating an explicitly discarded return result
 
 ```swift
@@ -143,6 +147,14 @@ The Swap Ternary operator will swap ternary operators in your code based on this
 | `<condition> ? <expression1> : <expression2>` | `<condition> ? <expression2> : <expression1>` |
 
 The purpose of this operator is to highlight how your tests respond to changes in logic. A well-engineered test suite will be able to fail clearly in response to different logical constraints.
+
+Each link of a chain gets a mutant of its own: `a ? b : c ? d : e` gets `a ? c ? d : e : b` and `a ? b : c ? e : d`.
+
+Some ternaries are left alone:
+
+* **One whose two branches are the same code,** as in `c ? x : x`, whatever their spacing or comments. No test could tell the mutant from the original.
+* **One with an `as` cast among the terms of its expression,** as in `a ? 1 : 2 as Int`. A cast in parentheses or in the first branch doesn't count.
+* **One followed by an assignment in the same expression,** as an assignment binds more loosely than `?:`.
 
 ## Negate Conditional
 

@@ -369,6 +369,53 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         )
     }
 
+    /// Each link of a chain gets a swap of its own, in whatever a link can hold: an assignment or a closure that can't
+    /// end the list without parentheses, a comment between links, `try` before the chain, an interpolation, a value
+    /// outside a function.
+    func test_theGeneratedCodeBuildsForEveryLinkOfATernaryChain() throws {
+        let chains = """
+        nonisolated(unsafe) var total = 0
+        func work() {}
+        func load(_ value: Int) throws -> Int { value }
+
+        let label = total > 1 ? "many" : total > 0 ? "one" : "none"
+
+        func assign(_ a: Bool, _ b: Bool) {
+            a ? total = 1 : b ? total += 1 : work()
+            b ? work() : a ? total = 2 : (total = 3)
+        }
+
+        func close(_ a: Bool, _ b: Bool) -> Int {
+            guard a ? true : b ? { false }() : a else { return 0 }
+            return 1
+        }
+
+        func commented(_ a: Bool, _ b: Bool) -> Int {
+            return a ? 1 // first
+                // second
+                : b ? 2 /* third */
+                : 3 // fourth
+        }
+
+        func attempt(_ a: Bool, _ b: Bool) throws -> Int {
+            return try a ? load(1) : b ? load(2) : load(3) + 1
+        }
+
+        func interpolate(_ a: Bool, _ b: Bool) -> String {
+            return "\\(a ? 1 : b ? 2 : 3)"
+        }
+        """
+        let main = driver("""
+        assign(true, false)
+        print(close(true, false), commented(true, false), interpolate(true, false), label)
+        print(try attempt(true, false))
+        """)
+        let compiled = try compileMutated(["Chains.swift": chains], plain: ["main.swift": main])
+
+        let swaps = compiled.mutants(in: "Chains.swift").filter { $0.mutationOperatorId == .swapTernary }
+        XCTAssertEqual(swaps.count, 14, "\(swaps.map(\.snapshot.before))")
+    }
+
     /// A ternary's swap moves its whole else branch, however long: a chain, a nested ternary, a call with a closure,
     /// optional chaining, an interpolation, an operator, a branch over several lines with a comment, a postfix `#if`
     /// ending either branch, in a statement or a call, a comment between the condition and the `?`, a `try await`
@@ -439,7 +486,9 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         XCTAssertEqual(swapped("items.count > limit"), 1, "a chain's first link: \(swaps)")
         XCTAssertEqual(swapped("items.count > 1"), 1, "a ternary holding a nested one: \(swaps)")
         XCTAssertEqual(swapped("limit > 2"), 1, "the nested ternary: \(swaps)")
-        XCTAssertEqual(swapped("items.isEmpty"), 2, "a call with a closure, in either branch: \(swaps)")
+        XCTAssertEqual(swapped("items.isEmpty ? \"none\""), 1, "a chain's later link: \(swaps)")
+        XCTAssertEqual(swapped("items.isEmpty ? [] : items.map"), 1, "a closure in the else branch: \(swaps)")
+        XCTAssertEqual(swapped("items.isEmpty ? items.map"), 1, "a closure in the then branch: \(swaps)")
         XCTAssertEqual(swapped("limit > 0 ? {"), 1, "closures: \(swaps)")
         XCTAssertEqual(swapped("limit > 0 ? items.compactMap"), 1, "an operator in the else branch: \(swaps)")
         XCTAssertEqual(swapped("items.count == 1"), 1, "in an interpolation: \(swaps)")
