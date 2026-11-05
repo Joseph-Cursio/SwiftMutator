@@ -292,7 +292,8 @@ for the key a configuration error, 255.
   `failUnder` isn't checked again. A run that stopped on an error exits as it did, and shards whose
   merged report lacks results exit with 4, without checking. A run that was interrupted, or has no
   end line, is checked on what it tested, and the verdict says how many of its mutants have
-  results.
+  results. With none yet for the mutants it discovered, as when it was stopped just after its
+  baseline, it exits with 2: nothing shows the threshold is met.
 - **summary.json** records the verdict in `gate` (see [summary.json](#summaryjson)).
 
 A resume lets the threshold change, as no result depends on it: the change is only said.
@@ -1242,8 +1243,8 @@ swift-mutator report "../SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM" -f 
   an abort, such as 5 build errors in a row, and 255 for any other error, so a script that checks
   the report fails as one that checked the run would. A run whose baseline failed has no results
   file to report, or, resumed, keeps the earlier session's end, so `report` never exits with 3.
-- **It exits with status 2** when `--fail-under` is given and the score is below it, or every mutant
-  was a build error, once the report
+- **It exits with status 2** when `--fail-under` is given and the score is below it, every mutant
+  was a build error, or a run that didn't finish has no results, once the report
   is made (see [Failing on a low score](#failing-on-a-low-score)). A run's error status wins, and
   then the score isn't checked.
 

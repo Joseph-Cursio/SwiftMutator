@@ -41,8 +41,9 @@ struct ScoreGate: Equatable, Sendable {
         case passed
         /// The score is below the threshold.
         case failed
-        /// No mutant was scored. With none `tested`, no score falls short. With every one a build error, as when none
-        /// compiles (`CompileRecovery`), nothing shows the threshold is met, and it isn't.
+        /// No mutant was scored. With none `tested` and none to test, no score falls short. With some still to test
+        /// (`progress`), or every one a build error, as when none compiles (`CompileRecovery`), nothing shows the
+        /// threshold is met, and it isn't.
         case nothingScored(tested: Int)
         /// The score isn't the project's, or isn't known to be, so the threshold isn't checked.
         case notChecked(NotChecked)
@@ -64,8 +65,9 @@ struct ScoreGate: Equatable, Sendable {
 
     /// The verdict on `outcome` against `failUnder`: not checked, for the reason `unless` gives, for a run of one
     /// mutant, or for some shards of a split; else passed when there was nothing to score, as nothing measured falls
-    /// short, so a change that touches no Swift code doesn't fail; else failed when every mutant was a build error;
-    /// else as its score compares. `progress`, of a run that didn't finish, is said with the verdict.
+    /// short, so a change that touches no Swift code doesn't fail; else failed when every mutant was a build error, or
+    /// a run that didn't finish has no result for its mutants; else as its score compares. `progress`, of a run that
+    /// didn't finish, is said with the verdict.
     init(
         failUnder: Double,
         judging outcome: MutationTestOutcome,
@@ -100,11 +102,13 @@ struct ScoreGate: Equatable, Sendable {
         return exactMutationScore(killed: killed, of: scored)
     }
 
-    /// Whether the score is checked and the threshold is met, which a run with nothing to score does, and one whose
-    /// every mutant was a build error doesn't; nil when it isn't checked.
+    /// Whether the score is checked and the threshold is met, which a run with nothing to mutate does. One that hasn't
+    /// a result yet for any mutant it discovered doesn't, nor does one whose every mutant was a build error. nil when
+    /// it isn't checked.
     var passed: Bool? {
         switch verdict {
-        case .passed, .nothingScored(tested: 0): true
+        case .passed: true
+        case .nothingScored(tested: 0): progress == nil
         case .failed, .nothingScored: false
         case .notChecked: nil
         }
@@ -127,7 +131,9 @@ struct ScoreGate: Equatable, Sendable {
         case .failed:
             sentence = "Mutation score \(shownScore)% is below the required \(threshold)."
         case .nothingScored(tested: 0):
-            sentence = "No mutant was tested, so no score falls short of the required \(threshold)."
+            sentence = progress == nil
+                ? "No mutant was tested, so no score falls short of the required \(threshold)."
+                : "No mutant was tested, so nothing shows the required \(threshold) is met."
         case .nothingScored:
             let mutants = progress == nil ? "Every mutant was" : "Every mutant with a result was"
             sentence = "\(mutants) a build error, so nothing shows the required \(threshold) is met."

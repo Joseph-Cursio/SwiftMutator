@@ -66,8 +66,9 @@ struct Report: AsyncParsableCommand {
     /// stopped on an error, the one the run itself exited with (`RunCommand.run(with:)`), 4 or 255, so a script that
     /// checks the report fails as one that checked the run would; for shards whose merged report is known to lack
     /// results (`MergedShards.lacksResults`), the status of the first shard that stopped on an error, 4 or 255, and
-    /// otherwise 4 (`MergedShards.exitStatus`); else 2 for a score below `--fail-under`, or every mutant a build error.
-    /// A run that finished, was interrupted, or has no end line yet otherwise exits 0.
+    /// otherwise 4 (`MergedShards.exitStatus`); else 2 for a score below `--fail-under`, every mutant a build error, or
+    /// a run that didn't finish with no results. A run that finished, was interrupted, or has no end line yet otherwise
+    /// exits 0.
     func run() async throws {
         let report = ResultsReport(
             format: reportOptions.reportFormat,

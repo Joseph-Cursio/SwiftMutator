@@ -806,6 +806,35 @@ final class ReportCommandTests: MuterTestCase {
         }
     }
 
+    // Stopped after its header, or still under way: mutants are known and none has a result, so nothing shows the
+    // threshold is met. A CI job shaped like `run || true; report --fail-under 80` must not go green on it.
+    func test_failUnder_ofARunThatDidntFinish_withNoResults_exits2() async throws {
+        for end in [ResultsEnd.make(reason: .interrupted, detail: "SIGTERM"), nil] {
+            try write([ResultsHeader.make()] + [end].compactMap { $0 }, to: resultsPath)
+
+            await AssertThrowsError(try await report(resultsPath, "--fail-under", "50")) { error in
+                XCTAssertEqual(error as? ExitCode, .scoreBelowThreshold)
+            }
+            XCTAssertEqual(
+                standardError.linesPassed.last,
+                "No mutant was tested, so nothing shows the required 50% is met. Only 0 of 3 mutants have results, as "
+                    + "the run didn't finish."
+            )
+        }
+    }
+
+    // With no mutant to test, nothing falls short: a change that touches no Swift code doesn't fail.
+    func test_failUnder_ofARunWithNothingToMutate_exits0() async throws {
+        try write(ResultsHeader.make(mutantsDiscovered: 0, mutantsToTest: 0), to: resultsPath)
+
+        try await report(resultsPath, "--fail-under", "50")
+
+        XCTAssertEqual(
+            standardError.linesPassed.last,
+            "No mutant was tested, so no score falls short of the required 50%."
+        )
+    }
+
     // The merged score is the whole run's.
     func test_failUnder_ofMergedShards_checksTheMergedScore() async throws {
         let first = "\(directory)/1.jsonl"

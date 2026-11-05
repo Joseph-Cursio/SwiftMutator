@@ -48,7 +48,7 @@ struct RunSummary: Codable, Equatable {
         /// others counted as not killed. nil when it wasn't checked, or nothing was scored.
         let score: Double?
         /// Whether it was met: the score is at or above it, or there was nothing to score; false when every mutant was
-        /// a build error; nil when it wasn't checked.
+        /// a build error, or a run that didn't finish has no result yet; nil when it wasn't checked.
         let passed: Bool?
         /// Why it wasn't checked; nil when it was.
         let notChecked: ScoreGate.NotChecked?

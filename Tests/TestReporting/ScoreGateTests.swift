@@ -79,6 +79,22 @@ final class ScoreGateTests: MuterTestCase {
         )
     }
 
+    // A run killed or stopped after its header, or still under way: mutants are known, and none has a result. A CI job
+    // shaped like `run || true; report --fail-under 80` must not go green on it.
+    func test_aRunNotFinishedWithNoResults_fails() {
+        let noResults = ScoreGate(failUnder: 80, judging: .make([]), progress: .init(results: 0, discovered: 4))
+
+        XCTAssertEqual(noResults.verdict, .nothingScored(tested: 0))
+        XCTAssertEqual(noResults.passed, false)
+        XCTAssertEqual(noResults.exitStatus, .scoreBelowThreshold)
+        XCTAssertNil(noResults.score)
+        XCTAssertEqual(
+            noResults.line,
+            "No mutant was tested, so nothing shows the required 80% is met. "
+                + "Only 0 of 4 mutants have results, as the run didn't finish."
+        )
+    }
+
     // A threshold of 0 otherwise can't fail, but nothing was measured.
     func test_nothingButBuildErrors_failsEvenAThresholdOfZero() {
         XCTAssertEqual(gate(killed: 0, of: 0, buildErrors: 2, failUnder: 0).exitStatus, .scoreBelowThreshold)
