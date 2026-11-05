@@ -13,12 +13,15 @@ struct LoadConfiguration: MutationStep {
         do {
             let hasJSON = hasJsonInProjectAtPath(configurationPath)
             let hasYAML = hasYamlInProjectAtPath(configurationPath)
-            let canLoadConfiguration = hasJSON || hasYAML
+            // A YAML file wins over a legacy file beside it, which migrating would overwrite. A `.yml` that
+            // `--configuration` names is the one file it means, there or not.
+            let namesItsFile = state.runOptions.configurationURL?.path.pathContainsConfigExtension == true
+            let isLegacy = hasJSON && !hasYAML && !namesItsFile
 
-            guard canLoadConfiguration,
+            guard hasYAML || isLegacy,
                   let configurationData = loadConfigurationDataAtPath(
                       configurationPath,
-                      legacy: hasJSON
+                      legacy: isLegacy
                   )
             else {
                 throw MuterError.configurationParsingError(
@@ -28,8 +31,8 @@ struct LoadConfiguration: MutationStep {
 
             let configuration = try MuterConfiguration(from: configurationData)
 
-            if hasJSON {
-                try migrateToYAMLAtPath(configurationPath, configurationData)
+            if isLegacy {
+                try migrateToYAMLAtPath(configurationPath, configuration)
             }
 
             guard isConfigurationValid(configuration) else {
@@ -128,30 +131,31 @@ struct LoadConfiguration: MutationStep {
     }
 
     private func loadConfigurationDataAtPath(
-        _ currentDirectory: String,
+        _ path: String,
         legacy: Bool
     ) -> Data? {
         fileManager.contents(
             atPath: legacy
-                ? "/\(MuterConfiguration.legacyFileNameWithExtension)"
-                : currentDirectory
+                ? "\(path.pathWithoutFileName)/\(MuterConfiguration.legacyFileNameWithExtension)"
+                : path
         )
     }
 
+    /// Writes `configuration` as YAML beside the legacy file, then removes that file. If the write fails, the legacy
+    /// file stays, so the settings aren't lost and the next run tries again.
     private func migrateToYAMLAtPath(
         _ path: String,
-        _ configurationData: Data
+        _ configuration: MuterConfiguration
     ) throws {
-        let configuration = try JSONDecoder().decode(MuterConfiguration.self, from: configurationData)
-
-        try fileManager
-            .removeItem(atPath: "\(path.pathWithoutFileName)/\(MuterConfiguration.legacyFileNameWithExtension)")
-
-        _ = fileManager.createFile(
+        let wrote = fileManager.createFile(
             atPath: "\(path.pathWithoutFileName)/\(MuterConfiguration.fileNameWithExtension)",
             contents: try configuration.asData,
             attributes: nil
         )
+        guard wrote else { return }
+
+        try fileManager
+            .removeItem(atPath: "\(path.pathWithoutFileName)/\(MuterConfiguration.legacyFileNameWithExtension)")
     }
 
     private func legacyPath(_ path: String) -> String {
