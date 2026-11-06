@@ -62,7 +62,8 @@ final class InterruptionRecord: @unchecked Sendable { // `first`, `atOnce` and `
 
 /// Runs a command's work so that SIGINT, SIGTERM and SIGHUP stop it cleanly, SIGQUIT at once, and SIGTSTP suspends
 /// it. Each process SwiftMutator starts leads a process group of its own, so a terminal's Ctrl-C or Ctrl-Z reaches
-/// SwiftMutator alone, and stopping or suspending them is up to it.
+/// SwiftMutator alone, and stopping or suspending them is up to it. As every way a run ends passes through here, this
+/// also keeps the Mac from going to sleep for as long as the work runs (`IdleSleepPrevention`).
 final class Interruptions: @unchecked Sendable { // `timers` is touched only on `queue`
     static let stoppingSignals = [SIGINT, SIGTERM, SIGHUP]
     /// Ctrl-\ sends SIGQUIT, whose default action, as a SIGKILL does, would leave test processes running, and no end
@@ -88,6 +89,7 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
     private let suspend: @Sendable () -> Void
     private let exit: @Sendable (Int32) -> Void
     private let say: @Sendable (String) -> Void
+    private let idleSleep: IdleSleepPrevention
     private let gracePeriod: TimeInterval
     private let sweepInterval: TimeInterval
     private let queue = DispatchQueue(label: "SwiftMutator.interruptions")
@@ -101,6 +103,7 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
         suspend: @escaping @Sendable () -> Void = { ProcessTree.suspendThisProcessAndItsDescendants() },
         exit: @escaping @Sendable (Int32) -> Void = { Interruptions.exit(by: $0) },
         say: @escaping @Sendable (String) -> Void = { fputs($0 + "\n", stderr) },
+        idleSleep: IdleSleepPrevention = IdleSleepPrevention(),
         gracePeriod: TimeInterval = 30,
         sweepInterval: TimeInterval = 0.25
     ) {
@@ -109,6 +112,7 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
         self.suspend = suspend
         self.exit = exit
         self.say = say
+        self.idleSleep = idleSleep
         self.gracePeriod = gracePeriod
         self.sweepInterval = sweepInterval
     }
@@ -118,8 +122,10 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
     /// `gracePeriod` seconds without `work` ending, ends SwiftMutator at once, by the first signal. So does a SIGQUIT,
     /// first or not. Once a signal came, the caller is to exit by it, which a second signal meanwhile still does at
     /// once. Last, once nothing is left to kill, it does what the work set to do after it ended (`afterWorkEnds`),
-    /// which a second signal still cuts short.
+    /// which a second signal still cuts short. The Mac stays awake until all that is done, unless the run is suspended.
     func run<Value: Sendable>(_ work: @escaping @Sendable () async throws -> Value) async -> Ended<Value> {
+        idleSleep.begin()
+        defer { idleSleep.end() }
         let task = Task { try await work() }
         observer.start(observing: Self.observedSignals, on: queue) { [self] signal in
             if signal == SIGTSTP {
@@ -176,11 +182,14 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
 
     /// On `queue`, which waits here while SwiftMutator is suspended: a signal meanwhile is handled once it continues.
     /// No time limit counts the time suspended. A run that is stopping isn't suspended: it is about to end, and its
-    /// grace period would count the time.
+    /// grace period would count the time. Nothing runs while it is suspended, so the Mac is free to sleep, for however
+    /// long that lasts. `run` can't return meanwhile, as it waits for `queue`, so it ends what this begins again.
     private func suspendUnlessStopping() {
         guard record.signal == nil else { return }
         suspensions.begin()
+        idleSleep.end()
         suspend()
+        idleSleep.begin()
         suspensions.end()
     }
 
@@ -192,6 +201,7 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
             + "SwiftMutator removes worker copies and simulators it leaves behind when it next runs."
     ) {
         killDescendants()
+        idleSleep.end()
         // Before saying anything: a standard error nobody reads could hold it up.
         record.stoppingAtOnce()
         say(message)

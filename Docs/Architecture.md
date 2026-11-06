@@ -209,7 +209,8 @@ prints through `Logger.swift`.
   dependency a step reads with `@Dependency`, so tests can replace the file system, processes and
   clock.
 - [`Shell`](../Sources/muterCore/Shell): starting, watching and stopping test processes.
-- [`Interruptions`](../Sources/muterCore/Interruptions): stopping on Ctrl-C, SIGTERM and SIGHUP.
+- [`Interruptions`](../Sources/muterCore/Interruptions): stopping on Ctrl-C, SIGTERM and SIGHUP, and keeping
+  the Mac awake while a run goes on.
 - [`Sampling`](../Sources/muterCore/Sampling) and [`Sharding`](../Sources/muterCore/Sharding):
   `--sample`, and `--shard` with merging shards' results.
 - [`CLICommands/ExitStatus.swift`](../Sources/muterCore/CLICommands/ExitStatus.swift): the exit
