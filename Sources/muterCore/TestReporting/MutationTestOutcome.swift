@@ -152,6 +152,8 @@ extension MutationTestOutcome {
         /// Whether its block ran in its run, as its results line records it (`TestRun.activated`); nil when that is
         /// unknown.
         var activated: Bool?
+        /// Why its run was tested again, as its results line records it; nil for a first run.
+        var rerun: MutantResult.Rerun?
 
         /// `killingTests`, `reusedFrom`, `key` and `durationSeconds` have no default: the run, `swift-mutator report`
         /// and `--resume` must each pass theirs.

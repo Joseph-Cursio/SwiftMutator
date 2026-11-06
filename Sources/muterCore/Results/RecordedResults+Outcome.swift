@@ -106,6 +106,7 @@ extension MutationTestOutcome {
                 mutation.propertyRerun = propertyReruns[record.key]?.rerun
                 mutation.leftOutWithOthers = record.leftOutWithOthers == true
                 mutation.activated = record.activated
+                mutation.rerun = record.rerun
                 return mutation
             }
         self.init(

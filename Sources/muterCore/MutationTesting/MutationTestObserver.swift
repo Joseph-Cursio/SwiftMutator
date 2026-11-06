@@ -157,6 +157,19 @@ extension MutationTestObserver {
             }
         case let .unprovenRunsRerunFinished(tally):
             logger.unprovenRunsRerunFinished(tally)
+        case let .suspectKillRerunsSkipped(log):
+            logger.suspectKillRerunsSkipped(log: log)
+        case let .suspectKillRerunsStarted(reruns):
+            logger.suspectKillRerunsStarted(reruns)
+        case let .suspectKillRerun(mutation, changed):
+            // As a timeout's: a verdict that didn't change is no news, and the logger's outcome counts the progress.
+            if changed {
+                runOptions.reportOptions.reporter.newMutationTestOutcomeAvailable(
+                    outcomeWithFlush: MutationOutcomeWithFlush(mutation: mutation, fflush: flushStdOut)
+                )
+            }
+        case let .suspectKillRerunsFinished(tally):
+            logger.suspectKillRerunsFinished(tally)
         case let .timeoutRerunsStarted(reruns):
             logger.timeoutRerunsStarted(reruns)
         case let .timeoutRerunFinished(rerun):

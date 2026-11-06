@@ -57,6 +57,12 @@ extension MutationTestLog {
         noting("rerun", in: keptFileName(for: key))
     }
 
+    /// The name of the file the run's log folder keeps the log of a kill tested again alone in
+    /// (`MutantResult.Rerun.onlySuspectTestsFailed`).
+    static func suspectRerunFileName(for key: MutantKey) -> String {
+        noting("alone", in: keptFileName(for: key))
+    }
+
     /// The name of the file the run's log folder keeps the log of `key`'s property rerun in, the run of the property
     /// tests alone with its mutant on (`PropertyReruns`): `keptFileName(for:)` with ` (properties)` before `.log`.
     static func propertyRerunFileName(for key: MutantKey) -> String {

@@ -17,9 +17,14 @@ struct KillingTestSummary: Codable, Equatable {
         let onlyRecordedFailureOf: Int
         /// How many control runs, with no mutant on, it failed in: one or more makes it flaky.
         let failedControlRuns: Int
-        /// Whether it may fail whatever the mutant: it failed for mutants in so many of the files (`isSuspect`), or in
-        /// a control run.
+        /// Whether it may fail whatever the mutant (`isSuspect(reachesEnoughFiles:…)`).
         let suspect: Bool
+        /// When a mutant it failed for was tested again alone: how many times it failed again, and how many it didn't,
+        /// or failed with the mutant's code not running (`MutantResult.Rerun.TestAlone`).
+        var failedAgainAlone = 0
+        var notReproducedAlone = 0
+        /// Whether those runs took it off the suspect tests, though it failed for mutants in enough files.
+        var clearedAlone = false
     }
 
     /// A test that failed in a control run, with no mutant on, so is flaky, whether or not it failed for a mutant.
@@ -29,6 +34,9 @@ struct KillingTestSummary: Codable, Equatable {
         let file: String?
         /// How many control runs it failed in.
         let controlRuns: Int
+        /// As a `Test`'s: a test flaky for what it did alone may have failed in no control run.
+        var failedAgainAlone = 0
+        var notReproducedAlone = 0
     }
 
     /// Mutants a failed test killed whose tests were recorded, even as none.
@@ -40,8 +48,11 @@ struct KillingTestSummary: Codable, Equatable {
     /// Mutants naming tests that may not name every test that failed: their run stopped at its first failed test or
     /// its time limit, or more failed than a list holds.
     let incompleteLists: Int
-    /// How many mutated files have a killed mutant that names a test: what `suspectFilePercent` is a share of.
+    /// How many mutated files have a mutant whose first run a failed test that it names killed: what
+    /// `suspectFilePercent` is a share of.
     let filesWithKills: Int
+    /// How many have a killed mutant that names a test now, when kills that no longer failed alone leave fewer.
+    var filesWithKillsLeft: Int?
     /// The share of `filesWithKills` a test must have failed for mutants in to be suspect, and how many files with a
     /// kill there must be before any test can be (`SuspectTestThresholds`).
     let suspectFilePercent: Int
@@ -64,8 +75,15 @@ struct KillingTestSummary: Codable, Equatable {
     let controlRuns: Int
     let failedControlRuns: Int
     let failedControlRunsNamingNoTest: Int
-    /// Every test that failed in a control run, those that failed in the most first, then by name and file.
+    /// Every test that failed in a control run, or didn't fail again often enough alone (`isFlakyAlone`), those with
+    /// the most such runs first, then by name and file.
     let flakyTests: [FlakyTest]
+    /// How many killed mutants were tested again alone, of this run's own, and how many of them no longer failed, so
+    /// count as survivors or not covered.
+    var killsTestedAlone = 0
+    var killsThatSurvivedAlone = 0
+    /// Of `suspectOnlyKills`, how many weren't tested again alone, so count as kills on the first run's word.
+    var suspectOnlyKillsNotTestedAlone = 0
 
     /// Whether a test that failed for mutants in `files` of the `filesWithKills` files is suspect under `thresholds`.
     /// Integer arithmetic, so a run and its `report` always agree.
@@ -76,6 +94,36 @@ struct KillingTestSummary: Codable, Equatable {
     ) -> Bool {
         filesWithKills >= thresholds.minimumFiles && files >= thresholds.minimumFiles
             && files * 100 >= thresholds.filePercent * filesWithKills
+    }
+
+    /// How many times a test must fail again alone, and never not, to be cleared. A kill it really makes always fails
+    /// again, while a test that fails 30% of the time whatever the mutant passes three times in only 2.7% of cases.
+    static let failuresAloneThatClearATest = 3
+    /// How many times a test must fail again alone for each time it didn't, for that time to count as chance. Less, and
+    /// it is flaky: one that often fails with no mutant to blame wouldn't pass a baseline at much above this.
+    static let failuresAlonePerExemption = 4
+
+    /// Whether what a test did alone shows that it fails whatever the mutant.
+    static func isFlakyAlone(failedAgain: Int, notReproduced: Int) -> Bool {
+        notReproduced > 0 && failedAgain < failuresAlonePerExemption * notReproduced
+    }
+
+    /// Whether what a test did alone shows that the mutants it failed for made it fail.
+    static func isClearedAlone(failedAgain: Int, notReproduced: Int) -> Bool {
+        failedAgain >= failuresAloneThatClearATest && notReproduced == 0
+    }
+
+    /// Whether a test may fail whatever the mutant: it failed in a control run, it didn't fail again often enough
+    /// alone, or it reaches enough files, which what it did alone can clear. Nothing clears a failed control run.
+    static func isSuspect(
+        reachesEnoughFiles: Bool,
+        failedControlRuns: Int,
+        failedAgainAlone: Int,
+        notReproducedAlone: Int
+    ) -> Bool {
+        failedControlRuns > 0
+            || isFlakyAlone(failedAgain: failedAgainAlone, notReproduced: notReproducedAlone)
+            || reachesEnoughFiles && !isClearedAlone(failedAgain: failedAgainAlone, notReproduced: notReproducedAlone)
     }
 
     /// Whether `mutation` is a kill only `suspects` were recorded failing for. Its list must name a test: one that
@@ -92,8 +140,13 @@ struct KillingTestSummary: Codable, Equatable {
 }
 
 extension KillingTestSummary {
-    /// The summary of `mutations`, whose suspect tests are those `thresholds` picks and those that failed in any of
-    /// `controlRuns`: nil when no mutant a failed test killed has its tests recorded.
+    /// The summary of `mutations`, whose suspect tests are those `thresholds` picks, those that failed in any of
+    /// `controlRuns`, and those a kill tested again alone shows to be flaky, less those it clears: nil when no mutant a
+    /// failed test killed has its tests recorded, in its first run or since.
+    ///
+    /// How far a test reaches is measured on first runs alone. A kill tested again alone may be a survivor now, and its
+    /// list runs to the end where its first run's stopped, so counting those would let reruns change which tests are
+    /// suspect, and so which kills are tested, for reasons that have nothing to do with the tests.
     init?(
         of mutations: [MutationTestOutcome.Mutation],
         controlRuns: [MutationTestOutcome.ControlRun] = [],
@@ -103,7 +156,26 @@ extension KillingTestSummary {
         let recorded = killed.compactMap { mutation in
             mutation.killingTests.map { (path: mutation.point.filePath, killing: $0) }
         }
-        guard !recorded.isEmpty else { return nil }
+        let firstRuns: [FirstRun] = mutations.compactMap { mutation in
+            let killing = mutation.testSuiteOutcome == .failed ? mutation.killingTests : nil
+            let only = killing.flatMap { $0.count == 1 ? $0.tests.first.map(FailedTestLine.TestIdentity.init) : nil }
+            if let alone = mutation.rerun?.alone {
+                // A kill still failing says which test failed alone, which a list that stopped at its first can't.
+                let onlyFirst = alone.count == 1 ? alone.first?.identity : nil
+                return FirstRun(
+                    path: mutation.point.filePath,
+                    tests: alone.map(\.identity),
+                    onlyFailure: killing == nil ? onlyFirst : only
+                )
+            }
+            guard let killing, !killing.tests.isEmpty else { return nil }
+            return FirstRun(
+                path: mutation.point.filePath,
+                tests: killing.tests.map(FailedTestLine.TestIdentity.init),
+                onlyFailure: only
+            )
+        }
+        guard !recorded.isEmpty || !firstRuns.isEmpty else { return nil }
         let failedControlRuns = controlRuns.filter { $0.outcome != .passed }
         var flaky: [FailedTestLine.TestIdentity: Int] = [:]
         for run in failedControlRuns {
@@ -112,16 +184,29 @@ extension KillingTestSummary {
             }
         }
         let named = recorded.filter { !$0.killing.tests.isEmpty }
-        let filesWithKills = Set(named.map(\.path)).count
+        let filesWithKills = Set(firstRuns.map(\.path)).count
+        let filesWithKillsLeft = Set(named.map(\.path)).count
 
         var tallies: [FailedTestLine.TestIdentity: Tally] = [:]
-        for (path, killing) in named {
+        for first in firstRuns {
             // Each test once for each mutant, however many of its lines a list holds.
-            for identity in Set(killing.tests.map(FailedTestLine.TestIdentity.init)) {
-                tallies[identity, default: Tally()].add(path)
+            for identity in Set(first.tests) {
+                tallies[identity, default: Tally()].add(first.path)
             }
-            if killing.count == 1, let only = killing.tests.first {
-                tallies[.init(only), default: Tally()].onlyRecordedFailureOf += 1
+            if let only = first.onlyFailure {
+                tallies[only, default: Tally()].onlyRecordedFailureOf += 1
+            }
+        }
+        var evidence: [FailedTestLine.TestIdentity: Evidence] = [:]
+        for test in mutations.flatMap({ $0.rerun?.alone ?? [] }) {
+            switch test.result {
+            case MutantResult.Rerun.TestAlone.failedAgain:
+                evidence[test.identity, default: Evidence()].failedAgain += 1
+            case MutantResult.Rerun.TestAlone.passed, MutantResult.Rerun.TestAlone.failedWithItsCodeNotRunning:
+                evidence[test.identity, default: Evidence()].notReproduced += 1
+            default:
+                // None, or one a later SwiftMutator added, which says nothing this one can read.
+                break
             }
         }
         // A total order, so every report lists the same tests the same way.
@@ -132,6 +217,7 @@ extension KillingTestSummary {
                     tally,
                     filesWithKills: filesWithKills,
                     failedControlRuns: flaky[identity] ?? 0,
+                    evidence: evidence[identity] ?? Evidence(),
                     thresholds: thresholds
                 )
             }
@@ -139,6 +225,7 @@ extension KillingTestSummary {
 
         let suspects = Set(ranked.filter(\.suspect).map(\.identity))
         let suspectOnly = mutations.map { Self.isSuspectOnlyKill($0, suspects: suspects) }
+        let testedAlone = mutations.filter(\.wasTestedAlone)
         let suspectOnlyKills = zip(mutations, suspectOnly).filter(\.1).map(\.0)
         // Counted as survivors, the headline's way.
         let scoreWithoutThem = mutationScore(
@@ -153,20 +240,36 @@ extension KillingTestSummary {
             killedMutantsNotRecorded: killed.count - recorded.count,
             incompleteLists: named.count { !$0.killing.isComplete },
             filesWithKills: filesWithKills,
+            filesWithKillsLeft: filesWithKillsLeft < filesWithKills ? filesWithKillsLeft : nil,
             suspectFilePercent: thresholds.filePercent,
             suspectMinimumFiles: thresholds.minimumFiles,
             suspectsChecked: filesWithKills >= thresholds.minimumFiles,
             distinctTests: ranked.count,
-            tests: Array(ranked.prefix(Self.shownTests)) + ranked.dropFirst(Self.shownTests).filter(\.suspect),
+            tests: Array(ranked.prefix(Self.shownTests))
+                + ranked.dropFirst(Self.shownTests).filter { $0.suspect || $0.clearedAlone },
             suspectOnlyKills: suspectOnlyKills.count,
             suspectOnlyKillsWithIncompleteLists: suspectOnlyKills.count { $0.killingTests?.isComplete == false },
             mutationScoreWithoutSuspectOnlyKills: suspectOnlyKills.isEmpty ? nil : scoreWithoutThem,
             controlRuns: controlRuns.count,
             failedControlRuns: failedControlRuns.count,
             failedControlRunsNamingNoTest: failedControlRuns.count { $0.failedTests?.tests.isEmpty != false },
-            flakyTests: flaky
-                .sorted { ($1.value, $0.key) < ($0.value, $1.key) }
-                .map { FlakyTest(name: $0.key.name, file: $0.key.file, controlRuns: $0.value) }
+            flakyTests: Set(flaky.keys).union(ranked.filter(\.isFlaky).map(\.identity))
+                .map { identity in
+                    FlakyTest(
+                        name: identity.name,
+                        file: identity.file,
+                        controlRuns: flaky[identity] ?? 0,
+                        failedAgainAlone: evidence[identity]?.failedAgain ?? 0,
+                        notReproducedAlone: evidence[identity]?.notReproduced ?? 0
+                    )
+                }
+                .sorted { lhs, rhs in
+                    (rhs.controlRuns + rhs.notReproducedAlone, lhs.identity)
+                        < (lhs.controlRuns + lhs.notReproducedAlone, rhs.identity)
+                },
+            killsTestedAlone: testedAlone.count,
+            killsThatSurvivedAlone: testedAlone.count { [.passed, .noCoverage].contains($0.testSuiteOutcome) },
+            suspectOnlyKillsNotTestedAlone: suspectOnlyKills.count { !$0.wasTestedAlone }
         )
     }
 }
@@ -185,7 +288,8 @@ extension KillingTestSummary {
         if naming > 0 {
             let (mutants, name, them) = naming == 1
                 ? ("1 killed mutant", "names", "it") : ("\(naming) killed mutants", "name", "them")
-            let files = filesWithKills == 1 ? "1 file" : "\(filesWithKills) files"
+            let filesLeft = filesWithKillsLeft ?? filesWithKills
+            let files = filesLeft == 1 ? "1 file" : "\(filesLeft) files"
             sentences.append("\(mutants) \(name) the tests that failed for \(them), in \(files).")
         }
         if incompleteLists > 0 {
@@ -225,8 +329,8 @@ extension KillingTestSummary {
     /// Says why no test can be suspect, when too few files have a killed mutant that names a test.
     var noVerdictSentence: String? {
         guard !suspectsChecked else { return nil }
-        return "Suspect tests are looked for once \(suspectMinimumFiles) files have a killed mutant that names a "
-            + "test; this report has \(filesWithKills)."
+        return "Tests aren't judged by how many files they reach until \(suspectMinimumFiles) files have a killed "
+            + "mutant that names a test; this report has \(filesWithKills)."
     }
 
     /// What the control runs came to, and the flaky tests that failed in them, each with how many: none without
@@ -238,8 +342,11 @@ extension KillingTestSummary {
             : "\(failedControlRuns) of the \(controlRuns) control runs"
         let didIt = failedControlRuns == 0 ? "passed" : "didn't pass"
         var sentences = ["\(runs), with no mutant on and under the same load as the mutants, \(didIt)."]
-        if !flakyTests.isEmpty {
-            let named = Self.names(of: flakyTests) { "\($0.name) in \($0.controlRuns)" }
+        let failedOne = flakyTests
+            .filter { $0.controlRuns > 0 }
+            .sorted { ($1.controlRuns, $0.identity) < ($0.controlRuns, $1.identity) }
+        if !failedOne.isEmpty {
+            let named = Self.names(of: failedOne) { "\($0.name) in \($0.controlRuns)" }
             sentences.append("A test that failed in one is flaky, so it is suspect: \(named).")
         }
         if failedControlRunsNamingNoTest > 0 {
@@ -255,29 +362,83 @@ extension KillingTestSummary {
         return sentences
     }
 
+    /// What testing kills again alone came to, and what it made of the tests: none without such a run.
+    var testedAloneSentences: [String] {
+        guard killsTestedAlone > 0 else { return [] }
+        let kills = killsTestedAlone == 1 ? "1 killed mutant" : "\(killsTestedAlone) killed mutants"
+        let was = killsTestedAlone == 1 ? "was" : "were"
+        let came = switch (killsTestedAlone, killsThatSurvivedAlone) {
+        case (1, 0): "It failed again or crashed, so it still counts as killed."
+        case (1, _): "It no longer failed, so it counts as a survivor or not covered."
+        case (_, 0): "Each failed again or crashed, so each still counts as killed."
+        case (_, 1): "1 of them no longer failed, so it counts as a survivor or not covered."
+        default: "\(killsThatSurvivedAlone) of them no longer failed, so they count as survivors or not covered."
+        }
+        var sentences = [
+            "\(kills) that suspect tests failed for \(was) tested again, one at a time with no other mutant running, "
+                + "to find out whether the failures come from the mutant or the tests. \(came)",
+            "The table counts a mutant tested again as its first run had it, so it leaves out a test that failed only "
+                + "when tested again.",
+        ]
+        let flaky = flakyTests.filter { $0.notReproducedAlone > 0 && $0.controlRuns == 0 }
+        if !flaky.isEmpty {
+            let named = Self.names(of: flaky) {
+                "\($0.name) failed again in \($0.failedAgainAlone) of \($0.notReproducedAlone + $0.failedAgainAlone)"
+            }
+            sentences.append("A test that doesn't fail again often enough alone is flaky, so it is suspect: \(named).")
+        }
+        let cleared = tests.filter(\.clearedAlone)
+        if !cleared.isEmpty {
+            let named = Self.names(of: cleared) { "\($0.name) in \($0.failedAgainAlone)" }
+            sentences.append(
+                "A test that failed again every time alone isn't suspect, however far it reaches: \(named)."
+            )
+        }
+        if suspectOnlyKillsNotTestedAlone > 0 {
+            let (mutants, were, count) = suspectOnlyKillsNotTestedAlone == 1
+                ? ("1 mutant", "wasn't", "counts") : ("\(suspectOnlyKillsNotTestedAlone) mutants", "weren't", "count")
+            sentences.append(
+                "\(mutants) only suspect tests failed for \(were) settled by this, and \(count) as killed on the first "
+                    + "run's word: past suspectKillReruns, reused, or with a rerun that timed out or failed to build."
+            )
+        }
+        return sentences
+    }
+
     /// What the section says of its suspect tests, given the headline `mutationScore`: why they are suspect, what
     /// the score would be without them, and how to leave one out. None when there are none.
     func suspectSentences(mutationScore: Int) -> [String] {
         guard !suspects.isEmpty else { return [] }
         let these = suspects.count == 1 ? "1 suspect test" : "\(suspects.count) suspect tests"
         let theirKills = switch suspectOnlyKills {
+        case 0 where killsThatSurvivedAlone > 0:
+            "No mutant counts as killed only by suspect tests any more."
         case 0: "Another test was recorded failing for each mutant a suspect test failed for."
         case 1: "Only suspect tests were recorded failing for 1 mutant."
         default: "Only suspect tests were recorded failing for \(suspectOnlyKills) mutants."
         }
-        let byTheRule = suspects.filter { $0.failedControlRuns == 0 }
-        let flaky = suspects.count - byTheRule.count
-        let why = if flaky == 0 {
+        let byTheRule = suspects.filter { !$0.isFlaky }
+        let inControlRuns = suspects.filter { $0.failedControlRuns > 0 }
+        let alone = suspects.filter { $0.isFlaky && $0.failedControlRuns == 0 }
+        let why = switch (inControlRuns.isEmpty, alone.isEmpty, byTheRule.isEmpty) {
+        case (true, true, _):
             "\(these) failed for mutants in at least \(suspectFilePercent)% of the \(filesWithKills) files with a "
-                + "killed mutant. A test of the mutated code rarely does that; a test that is timing-sensitive, or "
-                + "flaky under load, does."
-        } else if byTheRule.isEmpty {
+                + "killed mutant. A test that is timing-sensitive, or flaky under load, does that, and so can a broad "
+                + "test of the mutated code."
+        case (false, true, true):
             "\(these) failed in a control run, with no mutant on and under the same load, so may fail whatever the "
                 + "mutant."
-        } else {
-            "Of \(these), \(flaky) failed in a control run, with no mutant on and under the same load, and "
-                + "\(byTheRule.count) for mutants in at least \(suspectFilePercent)% of the \(filesWithKills) files "
-                + "with a killed mutant, which a test of the mutated code rarely does."
+        case (true, false, true):
+            "\(these) didn't fail again often enough when tested alone, so may fail whatever the mutant."
+        default:
+            "Of \(these), " + Self.listed([
+                inControlRuns.isEmpty ? nil : "\(inControlRuns.count) failed in a control run, with no mutant on and "
+                    + "under the same load",
+                alone.isEmpty ? nil : "\(alone.count) didn't fail again often enough when tested alone",
+                byTheRule.isEmpty ? nil : "\(byTheRule.count) failed for mutants in at least \(suspectFilePercent)% of "
+                    + "the \(filesWithKills) files with a killed mutant, as a flaky test or a broad test of the "
+                    + "mutated code can",
+            ]) + "."
         }
         var sentences = [why, theirKills + " " + scoreSentence(mutationScore: mutationScore)]
         if scoreWithoutSuspectsIsALowerBound {
@@ -339,17 +500,25 @@ extension KillingTestSummary {
         guard !suspects.isEmpty else { return nil }
         let (these, they) = suspects.count == 1 ? ("1 test", "it") : ("\(suspects.count) tests", "they")
         let flaky = suspects.filter { $0.failedControlRuns > 0 }
-        let byTheRule = suspects.filter { $0.failedControlRuns == 0 }
+        let alone = suspects.filter { $0.isFlaky && $0.failedControlRuns == 0 }
+        let byTheRule = suspects.filter { !$0.isFlaky }
+        let notAgain = "didn't fail again often enough when tested alone (" + Self.names(of: alone) {
+            "\($0.name) failed again in \($0.failedAgainAlone) of \($0.notReproducedAlone + $0.failedAgainAlone)"
+        } + ")"
         let inControlRuns = "failed in a control run, with no mutant on "
             + "(\(Self.names(of: flaky) { "\($0.name) in \($0.failedControlRuns) of \(controlRuns)" }))"
         let forMutants = "for mutants in at least \(suspectFilePercent)% of the \(filesWithKills) files with a killed "
             + "mutant (\(Self.names(of: byTheRule) { "\($0.name) in \($0.files)" }))"
-        let why = if flaky.isEmpty {
-            "\(they) failed \(forMutants)"
-        } else if byTheRule.isEmpty {
-            "\(they) \(inControlRuns)"
-        } else {
-            "\(flaky.count) \(inControlRuns), and \(byTheRule.count) failed \(forMutants)"
+        let why = switch (flaky.isEmpty, alone.isEmpty, byTheRule.isEmpty) {
+        case (true, true, _): "\(they) failed \(forMutants)"
+        case (false, true, true): "\(they) \(inControlRuns)"
+        case (true, false, true): "\(they) \(notAgain)"
+        default:
+            Self.listed([
+                flaky.isEmpty ? nil : "\(flaky.count) \(inControlRuns)",
+                alone.isEmpty ? nil : "\(alone.count) \(notAgain)",
+                byTheRule.isEmpty ? nil : "\(byTheRule.count) failed \(forMutants)",
+            ])
         }
         return "\(these) may fail whatever the mutant: \(why). " + scoreSentence(mutationScore: mutationScore)
     }
@@ -373,6 +542,13 @@ extension KillingTestSummary {
             + "\(shownScoreWithoutSuspects(mutationScore: mutationScore)), not \(mutationScore)%."
     }
 
+    /// `clauses` that aren't nil, in a sentence: "a, and b", or "a, b, and c".
+    private static func listed(_ clauses: [String?]) -> String {
+        let present = clauses.compactMap { $0 }
+        guard let last = present.last, present.count > 1 else { return present.joined() }
+        return present.dropLast().joined(separator: ", ") + ", and " + last
+    }
+
     /// The first 3 of `tests` as `describe` says them, then how many more.
     private static func names<Named>(of tests: [Named], _ describe: (Named) -> String) -> String {
         let shown = tests.prefix(3).map(describe)
@@ -386,10 +562,40 @@ extension KillingTestSummary.Test {
         .init(name: name, file: file)
     }
 
-    /// Its Suspect cell in the reports' tables: "flaky" when it failed in a control run, "yes" when it is suspect for
-    /// the files it failed for mutants in, "-" otherwise.
+    /// Whether it fails whatever the mutant, as a control run or what it did alone shows.
+    var isFlaky: Bool {
+        failedControlRuns > 0
+            || KillingTestSummary.isFlakyAlone(failedAgain: failedAgainAlone, notReproduced: notReproducedAlone)
+    }
+
+    /// Its Suspect cell in the reports' tables: "flaky" when a control run or what it did alone shows it is, "yes" when
+    /// it is suspect for the files it failed for mutants in, "cleared" when it would be but failed again every time
+    /// alone, "-" otherwise.
     var suspectCell: String {
-        failedControlRuns > 0 ? "flaky" : suspect ? "yes" : "-"
+        isFlaky ? "flaky" : suspect ? "yes" : clearedAlone ? "cleared" : "-"
+    }
+}
+
+extension KillingTestSummary.FlakyTest {
+    /// Which test it is, as each mutant's list tells them apart.
+    var identity: FailedTestLine.TestIdentity {
+        .init(name: name, file: file)
+    }
+}
+
+extension KillingTestSummary {
+    /// The tests suspect by their reach or a control run, or that were flaky alone, whatever else they did alone. What
+    /// a session chooses kills to test from, so that a chance failure alone in an earlier session can't cancel the
+    /// rest.
+    var suspectsWhateverTheyDidAlone: Set<FailedTestLine.TestIdentity> {
+        Set(tests.filter { $0.suspect || $0.clearedAlone }.map(\.identity))
+    }
+}
+
+extension MutationTestOutcome.Mutation {
+    /// Whether this run tested it again alone, not a run it was reused from.
+    var wasTestedAlone: Bool {
+        rerun?.because == MutantResult.Rerun.onlySuspectTestsFailed && reusedFrom == nil
     }
 }
 
@@ -405,6 +611,20 @@ private extension KillingTestSummary {
             files.insert(path)
         }
     }
+
+    /// What failed in a mutant's first run.
+    struct FirstRun {
+        let path: FilePath
+        let tests: [FailedTestLine.TestIdentity]
+        /// The test recorded as the only one that failed for it.
+        let onlyFailure: FailedTestLine.TestIdentity?
+    }
+
+    /// What a test did when mutants it failed for were tested again alone.
+    struct Evidence {
+        var failedAgain = 0
+        var notReproduced = 0
+    }
 }
 
 private extension KillingTestSummary.Test {
@@ -413,8 +633,14 @@ private extension KillingTestSummary.Test {
         _ tally: KillingTestSummary.Tally,
         filesWithKills: Int,
         failedControlRuns: Int,
+        evidence: KillingTestSummary.Evidence,
         thresholds: SuspectTestThresholds
     ) {
+        let reachesEnoughFiles = KillingTestSummary.isSuspect(
+            files: tally.files.count,
+            filesWithKills: filesWithKills,
+            thresholds: thresholds
+        )
         self.init(
             name: identity.name,
             file: identity.file,
@@ -422,11 +648,19 @@ private extension KillingTestSummary.Test {
             files: tally.files.count,
             onlyRecordedFailureOf: tally.onlyRecordedFailureOf,
             failedControlRuns: failedControlRuns,
-            suspect: failedControlRuns > 0 || KillingTestSummary.isSuspect(
-                files: tally.files.count,
-                filesWithKills: filesWithKills,
-                thresholds: thresholds
-            )
+            suspect: KillingTestSummary.isSuspect(
+                reachesEnoughFiles: reachesEnoughFiles,
+                failedControlRuns: failedControlRuns,
+                failedAgainAlone: evidence.failedAgain,
+                notReproducedAlone: evidence.notReproduced
+            ),
+            failedAgainAlone: evidence.failedAgain,
+            notReproducedAlone: evidence.notReproduced,
+            clearedAlone: reachesEnoughFiles && failedControlRuns == 0
+                && KillingTestSummary.isClearedAlone(
+                    failedAgain: evidence.failedAgain,
+                    notReproduced: evidence.notReproduced
+                )
         )
     }
 }
@@ -443,6 +677,8 @@ struct SuspectTestThresholds: Equatable {
 
     /// Measured on SwiftProjectLint's runs (killers-lab, 2026-10-06): no good test reached 15% of those files, in
     /// whole runs or in 1,634 smaller sub-runs (8.8% at most), while the tests that failed under load reached 23–97%.
-    /// In fewer than 10 files, a focused test reaches 40%.
+    /// In fewer than 10 files, a focused test reaches 40%. That doesn't hold on a smaller project: on 2026-11-06 good
+    /// tests reached 37% of SwiftCloneDetector's 30 files and 42% of SwiftEffectInference's 19. So the rule says only
+    /// which kills to test again alone, which is what settles it (`isSuspect(reachesEnoughFiles:…)`).
     static let standard = SuspectTestThresholds(filePercent: 15, minimumFiles: 10)
 }

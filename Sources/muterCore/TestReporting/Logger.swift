@@ -772,6 +772,39 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         print("🔁 Tested them again: \(came.joined(separator: ", ")).")
     }
 
+    /// "⚠️ Not testing any kill again alone: the tests didn't pass alone with no mutant on. Its log: tests alone.log"
+    func suspectKillRerunsSkipped(log: String?) {
+        let itsLog = log.map { " Its log: \($0)" } ?? ""
+        print("⚠️ Not testing any kill again alone: the tests didn't pass alone with no mutant on.\(itsLog)")
+    }
+
+    /// "🔁 Running 3 kills again, one at a time: only tests that may fail whatever the mutant failed for them."
+    func suspectKillRerunsStarted(_ reruns: SuspectKillReruns) {
+        let kills = reruns.count == 1 ? "1 kill" : "\(reruns.count) kills"
+        let them = reruns.count == 1 ? "it" : "them"
+        let leftOut = switch reruns.leftOut {
+        case 0: ""
+        case 1: " 1 more is over suspectKillReruns."
+        default: " \(reruns.leftOut) more are over suspectKillReruns."
+        }
+        print(
+            "🔁 Running \(kills) again, one at a time: only tests that may fail whatever the mutant failed for "
+                + "\(them).\(leftOut)"
+        )
+    }
+
+    /// "🔁 Tested them again: 1 still killed, 2 survived."
+    func suspectKillRerunsFinished(_ tally: SuspectKillRerunTally) {
+        let counts = [
+            (tally.killed, "still killed"),
+            (tally.survived, "survived"),
+            (tally.notCovered, "not covered"),
+            (tally.unsettled, "timed out or failed to build, so still count as killed"),
+        ]
+        let came = counts.compactMap { count, words in count > 0 ? "\(count) \(words)" : nil }
+        print("🔁 Tested them again: \(came.joined(separator: ", ")).")
+    }
+
     /// "🔁 The simulator didn't launch the tests for Rules.swift:42:17 (changed == to !=), so they ran again: …": a
     /// mutant's run that ran again in place of one the simulator failed to launch, with the line that showed it, while
     /// the progress bar is still to be redrawn. Not a progress line: the progress counts the second run.

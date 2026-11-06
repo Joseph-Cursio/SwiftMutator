@@ -344,7 +344,8 @@ struct MutantResult: Codable, Equatable {
     var reusedFrom: ReusedFrom?
     /// On the line of a run that tested the mutant again in the same session, after the line of its first run, which
     /// it replaces as every later line of a key does: why, and at what load. Its `log` is a log of its own
-    /// (`MutationTestLog.rerunFileName(for:)`). A result reused from such a line keeps it, with `reusedFrom`, though
+    /// (`MutationTestLog.rerunFileName(for:)`, or `suspectRerunFileName(for:)` for a kill tested again alone). A result
+    /// reused from such a line keeps it, with `reusedFrom`, though
     /// the reusing session didn't run the mutant.
     var rerun: Rerun?
     /// True on the line of a mutant taken out of the build with others (`LeftOutMutant.Blame`), as the compiler's error
@@ -471,12 +472,47 @@ extension MutantResult {
         /// A first run that failed or timed out without showing its mutant's block ran, in a session whose other runs
         /// show they can: a flaky test or a crash at launch may have failed it.
         static let codeNotShownRunning = "codeNotShownRunning"
+        /// A first run that failed with only suspect tests naming it, or with one a test too few other kills name, for
+        /// finding out which: a kill a test really makes fails again alone, and one a flaky test made mostly doesn't.
+        static let onlySuspectTestsFailed = "onlySuspectTestsFailed"
 
         /// Why, such as `timeout`. A string, not an enum, so that a reason a later SwiftMutator adds doesn't make the
         /// line unreadable: a reader would skip it, and the first run's result would stand in its place.
         let because: String
         /// How many mutants were tested at once while it was tested again.
         let workers: Int
+        /// For `onlySuspectTestsFailed`: the tests that failed in the first run, whose line this one replaces, and what
+        /// this run's log shows of each. So how far a test reaches is measured on first runs alone, and every report
+        /// can tell what the rerun said from the results file.
+        var alone: [TestAlone]?
+
+        /// A test that failed in a mutant's first run, and what it did when the mutant was tested again alone.
+        struct TestAlone: Codable, Equatable {
+            /// It failed again, with the mutant's code shown running or showing nothing.
+            static let failedAgain = "failedAgain"
+            /// Its line shows it passing, or the whole run passed.
+            static let passed = "passed"
+            /// It failed again though the mutant's code didn't run, so it doesn't fail for the mutant.
+            static let failedWithItsCodeNotRunning = "failedWithItsCodeNotRunning"
+
+            let name: String
+            let file: String?
+            /// nil when the log shows nothing of it, as a crash or a time limit may leave it, or when the rerun's
+            /// evidence is another file's (`withoutEvidence`). A string, as `because` is.
+            let result: String?
+
+            var identity: FailedTestLine.TestIdentity {
+                .init(name: name, file: file)
+            }
+        }
+
+        /// This rerun as a reuse keeps it: which tests failed first still measures their reach, but what they did alone
+        /// was on code and tests that may since have changed, as a reused run's control runs are never counted.
+        var withoutEvidence: Rerun {
+            var copy = self
+            copy.alone = alone?.map { .init(name: $0.name, file: $0.file, result: nil) }
+            return copy
+        }
     }
 }
 
@@ -544,7 +580,7 @@ extension MutantResult {
             firstFailedTestLine: firstFailedTestLine,
             log: keepingLog ? log : nil,
             fileSHA256: fileSHA256,
-            rerun: rerun
+            rerun: rerun?.withoutEvidence
         )
         copy.activated = activated
         copy.reusedFrom = ReusedFrom(

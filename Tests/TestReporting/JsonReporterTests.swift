@@ -90,9 +90,12 @@ final class JsonReporterTests: ReporterTestCase {
             "killedMutants",
             "killedMutantsNamingNoTest",
             "killedMutantsNotRecorded",
+            "killsTestedAlone",
+            "killsThatSurvivedAlone",
             "suspectFilePercent",
             "suspectMinimumFiles",
             "suspectOnlyKills",
+            "suspectOnlyKillsNotTestedAlone",
             "suspectOnlyKillsWithIncompleteLists",
             "suspectsChecked",
             "tests",
@@ -109,6 +112,9 @@ final class JsonReporterTests: ReporterTestCase {
                 "onlyRecordedFailureOf": 0,
                 "failedControlRuns": 0,
                 "suspect": false,
+                "failedAgainAlone": 0,
+                "notReproducedAlone": 0,
+                "clearedAlone": false,
             ],
             [
                 "name": "sum()",
@@ -118,6 +124,9 @@ final class JsonReporterTests: ReporterTestCase {
                 "onlyRecordedFailureOf": 0,
                 "failedControlRuns": 0,
                 "suspect": false,
+                "failedAgainAlone": 0,
+                "notReproducedAlone": 0,
+                "clearedAlone": false,
             ],
         ] as NSArray)
 

@@ -273,6 +273,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             // Never a baseline, the mutated project's or a worker's: whether it passes decides whether mutation
             // testing can start, so it always runs to its end. A run with no mutant switched on is one too.
             let stopsAtFirstFailure = !isBenchmark && schemata != .null && configuration.stopsAtFirstFailure
+                && !configuration.runsGoToTheirEnd
             var run = try await runTestProcess(
                 process,
                 logFileUrl: testLogUrl,

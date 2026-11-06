@@ -39,6 +39,10 @@ extension RunEvent {
         case unprovenRunsRerunStarted
         case unprovenRunRerun
         case unprovenRunsRerunFinished
+        case suspectKillRerunsSkipped
+        case suspectKillRerunsStarted
+        case suspectKillRerun
+        case suspectKillRerunsFinished
         case timeoutRerunsStarted
         case timeoutRerunFinished
         case timeoutRerunsFinished
@@ -100,6 +104,10 @@ extension RunEvent {
         case .unprovenRunsRerunStarted: .unprovenRunsRerunStarted
         case .unprovenRunRerun: .unprovenRunRerun
         case .unprovenRunsRerunFinished: .unprovenRunsRerunFinished
+        case .suspectKillRerunsSkipped: .suspectKillRerunsSkipped
+        case .suspectKillRerunsStarted: .suspectKillRerunsStarted
+        case .suspectKillRerun: .suspectKillRerun
+        case .suspectKillRerunsFinished: .suspectKillRerunsFinished
         case .timeoutRerunsStarted: .timeoutRerunsStarted
         case .timeoutRerunFinished: .timeoutRerunFinished
         case .timeoutRerunsFinished: .timeoutRerunsFinished
@@ -158,6 +166,10 @@ extension RunEvent {
         case let .unprovenRunsRerunStarted(count): count
         case let .unprovenRunRerun(mutation, _): mutation
         case let .unprovenRunsRerunFinished(tally): tally
+        case let .suspectKillRerunsSkipped(log): log as Any
+        case let .suspectKillRerunsStarted(reruns): reruns
+        case let .suspectKillRerun(mutation, _): mutation
+        case let .suspectKillRerunsFinished(tally): tally
         case let .timeoutRerunsStarted(reruns): reruns
         case let .timeoutRerunFinished(rerun): rerun
         case let .timeoutRerunsFinished(tally): tally

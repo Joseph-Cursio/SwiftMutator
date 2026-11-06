@@ -528,6 +528,7 @@ private extension PerformMutationTesting {
                 activated: result.activated
             )
             outcome.propertyRerun = reruns[result.key]?.rerun
+            outcome.rerun = result.rerun
             session.outcomes[index] = outcome
             session.reused += 1
             events.send(.newMutationTestOutcomeAvailable(outcome))
@@ -704,6 +705,14 @@ private extension PerformMutationTesting {
             configuration: configuration,
             session: session
         )
+        try await rerunSuspectKills(
+            of: jobs,
+            on: PoolWorker(directory: state.mutatedProjectDirectoryURL, configuration: configuration),
+            from: state.projectXCTestRun,
+            using: state,
+            configuration: configuration,
+            session: session
+        )
         try await rerunPropertyTests(
             of: jobs,
             on: [PoolWorker(directory: state.mutatedProjectDirectoryURL, configuration: configuration)],
@@ -806,6 +815,14 @@ private extension PerformMutationTesting {
             of: jobs,
             on: pool[0],
             includingTimeouts: false,
+            using: state,
+            configuration: configuration,
+            session: session
+        )
+        try await rerunSuspectKills(
+            of: jobs,
+            on: pool[0],
+            from: state.projectXCTestRun,
             using: state,
             configuration: configuration,
             session: session
@@ -1267,7 +1284,7 @@ extension PerformMutationTesting {
         // file, or after a failed write. One scan of the log serves both.
         let failures = MutantResult.failedTests(of: finished.run, ignoring: configuration.failedTestLookalikes)
         let key = session.keys[finished.index]
-        let outcome = Self.outcome(
+        var outcome = Self.outcome(
             finished.run.outcome,
             of: job,
             state: state,
@@ -1276,7 +1293,13 @@ extension PerformMutationTesting {
             durationSeconds: MutantResult.recordedSeconds(finished.seconds),
             activated: finished.run.activated
         )
-        let log = rerun == nil ? MutationTestLog.keptFileName(for: key) : MutationTestLog.rerunFileName(for: key)
+        outcome.rerun = rerun
+        let log = switch rerun?.because {
+        case nil: MutationTestLog.keptFileName(for: key)
+        // A kill can be tested again for not showing its code ran, and then for this, each with a log of its own.
+        case MutantResult.Rerun.onlySuspectTestsFailed: MutationTestLog.suspectRerunFileName(for: key)
+        default: MutationTestLog.rerunFileName(for: key)
+        }
         let keptLog = Self.keptLogName(
             log, of: finished, failures: failures, configuration: configuration, state: state
         )

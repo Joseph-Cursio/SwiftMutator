@@ -152,6 +152,8 @@ Among the mutants it runs control runs, with no mutant on, to find flaky tests
 ([`ControlRuns.swift`](../Sources/muterCore/MutationSteps/ControlRuns.swift)). With several
 workers it runs the timeouts again at lower load at the end
 ([`MutationTesting/TimeoutReruns.swift`](../Sources/muterCore/MutationTesting/TimeoutReruns.swift)).
+It tests again, alone, the kills only suspect tests failed for
+([`MutationSteps/SuspectKillReruns.swift`](../Sources/muterCore/MutationSteps/SuspectKillReruns.swift)).
 With `propertyTestFilter`, it then tests again, with only the property tests, each kill whose
 recorded tests include none
 ([`MutationSteps/PropertyReruns.swift`](../Sources/muterCore/MutationSteps/PropertyReruns.swift)).

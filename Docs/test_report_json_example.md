@@ -178,19 +178,23 @@ At the top level, when a mutant a failed test killed has its tests recorded. A m
 | `killedMutantsNamingNoTest` | Of those, how many name no test |
 | `killedMutantsNotRecorded` | Mutants a failed test killed with no tests recorded |
 | `incompleteLists` | Of the mutants naming tests, how many may not name every test that failed |
-| `filesWithKills` | How many mutated files have a killed mutant that names a test: what `suspectFilePercent` is a share of |
+| `filesWithKills` | How many mutated files have a mutant whose first run a failed test that it names killed: what `suspectFilePercent` is a share of |
+| `filesWithKillsLeft` | How many have a killed mutant that names a test now. Left out unless kills that no longer failed alone leave fewer |
 | `suspectFilePercent` | The share of `filesWithKills`, in percent, that a test must have failed for mutants in to be suspect: the configuration's `suspectTestFilePercent`, 15 by default |
 | `suspectMinimumFiles` | The configuration's `suspectTestMinimumFiles`, 10 by default: how many files with a kill there must be, and a test must have failed for mutants in, for it to be suspect |
 | `suspectsChecked` | Whether `filesWithKills` is at least `suspectMinimumFiles`, so that a test can be suspect |
 | `distinctTests` | How many different tests failed for those mutants |
-| `tests` | The 10 tests that failed for the most mutants, ties broken by name and then file, then every other suspect test |
+| `tests` | The 10 tests that failed for the most mutants, ties broken by name and then file, then every other suspect or cleared test. A mutant tested again alone counts as its first run had it, whether or not it still fails |
 | `suspectOnlyKills` | Mutants only suspect tests were recorded failing for |
 | `suspectOnlyKillsWithIncompleteLists` | Of those, how many may not name every test that failed. When it isn't 0, the score without suspect tests is a lower bound. |
 | `mutationScoreWithoutSuspectOnlyKills` | The mutation score with those mutants counted as survivors, worked out as `globalMutationScore` is. Left out when `suspectOnlyKills` is 0. |
 | `controlRuns` | How many control runs, with no mutant on, the run's sessions ran among the mutants (see [Control runs](../README.md#control-runs)) |
 | `failedControlRuns` | Of those, how many didn't pass: they failed, crashed or timed out |
 | `failedControlRunsNamingNoTest` | Of those, how many named no failed test |
-| `flakyTests` | Every test that failed in a control run, as `{name, file, controlRuns}`, `controlRuns` being how many it failed in: those that failed in the most first, then by name and file. `file` is left out for XCTest. |
+| `killsTestedAlone` | How many killed mutants this run tested again alone (see [Kills tested again alone](../README.md#kills-tested-again-alone)) |
+| `killsThatSurvivedAlone` | Of those, how many no longer failed, so count as survivors or not covered |
+| `suspectOnlyKillsNotTestedAlone` | Of `suspectOnlyKills`, how many weren't tested again, so count as kills on the first run's word |
+| `flakyTests` | Every test that failed in a control run or didn't fail again often enough alone, as `{name, file, controlRuns, failedAgainAlone, notReproducedAlone}`, `controlRuns` being how many it failed in: those with the most such runs first, then by name and file. `file` is left out for XCTest. |
 
 Each of its `tests`:
 
@@ -202,7 +206,10 @@ Each of its `tests`:
 | `files` | How many mutated files those mutants are in |
 | `onlyRecordedFailureOf` | How many of them recorded it as the only test that failed |
 | `failedControlRuns` | How many control runs it failed in: one or more makes it flaky |
-| `suspect` | Whether it is suspect: it failed in a control run, or `files` is at least `suspectMinimumFiles` and at least `suspectFilePercent`% of `filesWithKills` |
+| `suspect` | Whether it is suspect: it failed in a control run, didn't fail again often enough alone, or `files` is at least `suspectMinimumFiles` and at least `suspectFilePercent`% of `filesWithKills` and `clearedAlone` is false |
+| `failedAgainAlone` | How many times it failed again when a mutant it had failed for was tested alone |
+| `notReproducedAlone` | How many times it passed then, or failed with the mutant's code not running |
+| `clearedAlone` | Whether those runs took it off the suspect tests: it failed again at least 3 times and never didn't |
 
 Here is part of a report with two suspect tests. Most keys, file reports and tests are left out:
 
@@ -252,7 +259,10 @@ Here is part of a report with two suspect tests. Most keys, file reports and tes
         "files": 128,
         "onlyRecordedFailureOf": 202,
         "failedControlRuns": 0,
-        "suspect": true
+        "suspect": true,
+        "failedAgainAlone": 0,
+        "notReproducedAlone": 0,
+        "clearedAlone": false
       },
       {
         "name": "everyFormatRendersTheSameBytesForAnyArrivalOrder()",
@@ -261,7 +271,10 @@ Here is part of a report with two suspect tests. Most keys, file reports and tes
         "files": 60,
         "onlyRecordedFailureOf": 8,
         "failedControlRuns": 0,
-        "suspect": true
+        "suspect": true,
+        "failedAgainAlone": 0,
+        "notReproducedAlone": 0,
+        "clearedAlone": false
       }
     ],
     "suspectOnlyKills": 228,
@@ -270,7 +283,10 @@ Here is part of a report with two suspect tests. Most keys, file reports and tes
     "controlRuns": 0,
     "failedControlRuns": 0,
     "failedControlRunsNamingNoTest": 0,
-    "flakyTests": []
+    "flakyTests": [],
+    "killsTestedAlone": 0,
+    "killsThatSurvivedAlone": 0,
+    "suspectOnlyKillsNotTestedAlone": 228
   }
 }
 ```

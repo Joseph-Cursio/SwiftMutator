@@ -497,6 +497,7 @@ extension Node where Context: HTML.BodyContext {
             .unwrap(summary.shownTestsSentence) { .p(.text($0)) },
             .unwrap(summary.noVerdictSentence) { .p(.text($0)) },
             .forEach(summary.controlRunSentences) { .p(.text($0)) },
+            .forEach(summary.testedAloneSentences) { .p(.text($0)) },
             .forEach(summary.suspectSentences(mutationScore: mutationScore)) { .p(.text($0)) }
         )
     }

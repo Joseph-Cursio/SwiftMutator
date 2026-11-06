@@ -66,6 +66,42 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
         try reuse(recorded)
     }
 
+    // A reused line says which tests failed in its first run, for their reach, but nothing of what they did alone on
+    // code that may have changed, as a reused run's control runs don't count. Nor is a reused kill tested again.
+    func test_aReuse_keepsAKillTestedAlone_withoutWhatItsTestsDid() async throws {
+        let alone = MutantResult.Rerun(
+            because: MutantResult.Rerun.onlySuspectTestsFailed,
+            workers: 1,
+            alone: [.init(name: "sum()", file: "SumTests.swift", result: MutantResult.Rerun.TestAlone.failedAgain)]
+        )
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], suspectTestFilePercent: 1, suspectTestMinimumFiles: 1
+        )
+        try reuse([
+            ResultsHeader.make(
+                mutantsDiscovered: 2,
+                mutantsToTest: 2,
+                project: tree,
+                logDirectory: "/project_muter_logs/earlier"
+            ),
+            record(of: "Sources/Sum.swift", line: 3, .failed, fileSHA256: "5a1c", killedBy: [sumTest], rerun: alone),
+            ResultsEnd.make(testDurationSeconds: 100.5, recorded: 1),
+        ])
+        ioDelegate.testSuiteOutcomes = [.passed, .passed, .passed, .passed]
+
+        let changes = try await sut.run(with: state)
+
+        let kept = try XCTUnwrap(resultsFiles.records(MutantResult.self).first { $0.path == "Sources/Sum.swift" })
+        XCTAssertEqual(kept.rerun?.because, MutantResult.Rerun.onlySuspectTestsFailed)
+        XCTAssertEqual(kept.rerun?.alone?.map(\.name), ["sum()"])
+        XCTAssertEqual(kept.rerun?.alone?.map(\.result), [nil])
+        XCTAssertFalse(ioDelegate.testLogs.contains { $0.contains("_rerun_") }, "\(ioDelegate.testLogs)")
+        guard case let .mutationTestOutcomeGenerated(outcome)? = changes.first else {
+            return XCTFail("Expected an outcome, got \(changes)")
+        }
+        XCTAssertEqual(KillingTestSummary(of: outcome.mutations)?.killsTestedAlone, 0)
+    }
+
     // The earlier file is only read: the run's own file is made in its log folder, as a first session's is, and holds
     // the kept results right after its header, before those it tests.
     func test_aReuse_writesAFileOfItsOwn_startingWithTheResultsItKeeps() async throws {
@@ -390,7 +426,8 @@ private extension PerformMutationTestingReuseTests {
         _ outcome: TestSuiteOutcome,
         fileSHA256: String,
         killedBy: [FailedTestLine.FailedTest]? = nil,
-        keptLog: Bool = true
+        keptLog: Bool = true,
+        rerun: MutantResult.Rerun? = nil
     ) -> MutantResult {
         let name = URL(fileURLWithPath: file).deletingPathExtension().lastPathComponent
         let operatorId = MutationOperator.Id.ror
@@ -405,6 +442,7 @@ private extension PerformMutationTestingReuseTests {
             endedBy: outcome == .timeout ? .timedOut : .exited,
             killedBy: killedBy,
             fileSHA256: fileSHA256,
+            rerun: rerun,
             keptLog: keptLog
         )
     }
