@@ -55,7 +55,7 @@ focused04()   File04Tests.swift   1         1       0                          -
 focused05()   File05Tests.swift   1         1       0                          -
 focused06()   File06Tests.swift   1         1       0                          -
 
-2 suspect tests failed for mutants in at least 15% of the 12 files with a killed mutant. A test of the mutated code rarely does that; a test that is timing-sensitive, or flaky under load, does.
+2 suspect tests failed for mutants in at least 15% of the 12 files with a killed mutant. A test that is timing-sensitive, or flaky under load, does that, and so can a broad test of the mutated code.
 Only suspect tests were recorded failing for 6 mutants. Without their failures, the mutation score would be at least 50%, not 92%.
 Some of those runs stopped at their first failed test, so other tests may have failed too: the score without suspect tests is a lower bound, and the Only Recorded Failure Of counts may be high.
 If a suspect test also fails without a mutant under the same load, leave it out of mutation runs: skip it while the environment variable IS_MUTER_RUNNING is YES, which SwiftMutator sets for the baseline and every mutant's test run.

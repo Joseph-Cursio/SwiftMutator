@@ -189,7 +189,8 @@ final class ResumeCheckTests: XCTestCase {
             verdict.notices,
             [
                 "buildTimeout was not set and is 600 now, which no result depends on.",
-                "controlRunEvery was not set and is 50 now, which no result depends on.",
+                "controlRunEvery was not set and is 50 now, which no recorded result depends on, though it chooses "
+                    + "which kills are tested again alone.",
                 "failUnder was not set and is 80 now, which no result depends on.",
                 "keepAllLogs was not set and is true now, which no result depends on.",
                 "keepLogFolders was not set and is 3 now, which no result depends on.",
@@ -198,8 +199,12 @@ final class ResumeCheckTests: XCTestCase {
                 #"propertyTestFilter was not set and is ["Properties"] now, which no result depends on."#,
                 #"propertyTests was not set and is ["*Properties*"] now, which no result depends on."#,
                 "stopAtFirstFailure was not set and is false now, which no result depends on.",
-                "suspectTestFilePercent was not set and is 30 now, which no result depends on.",
-                "suspectTestMinimumFiles was not set and is 5 now, which no result depends on.",
+                "suspectKillReruns was not set and is 25 now, which no recorded result depends on, though it chooses "
+                    + "which kills are tested again alone.",
+                "suspectTestFilePercent was not set and is 30 now, which no recorded result depends on, though it "
+                    + "chooses which kills are tested again alone.",
+                "suspectTestMinimumFiles was not set and is 5 now, which no recorded result depends on, though it "
+                    + "chooses which kills are tested again alone.",
             ]
         )
     }
@@ -280,6 +285,7 @@ final class ResumeCheckTests: XCTestCase {
                 .init(name: "propertyTests", was: nil, isNow: #"["*Properties*"]"#),
                 .init(name: "skipOperators", was: nil, isNow: #"["SwapTernary"]"#),
                 .init(name: "stopAtFirstFailure", was: nil, isNow: "false"),
+                .init(name: "suspectKillReruns", was: nil, isNow: "25"),
                 .init(name: "suspectTestFilePercent", was: nil, isNow: "30"),
                 .init(name: "suspectTestMinimumFiles", was: nil, isNow: "5"),
             ]

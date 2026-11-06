@@ -284,7 +284,8 @@ decimals, such as `80` or `72.5`; anything else, such as `1e2` or `0x50`, is a u
 for the key a configuration error, 255.
 
 - **Which score.** The headline score, the one every report prints, which counts kills by suspect
-  tests too. The exact score is compared, killed over scored, never the whole percent the reports
+  tests too, but not one that [no longer failed when tested again alone](#kills-tested-again-alone).
+  The exact score is compared, killed over scored, never the whole percent the reports
   show, so a change in how the score is shown can't change the verdict, and a score equal to the
   threshold passes: 29 killed of 50 scored is 58%, and passes `--fail-under 58`.
 - **When it is checked.** Once the run finishes, after every report, the results file and
@@ -800,6 +801,7 @@ the JSON file alone. The options are documented in
 | `suspectTestFilePercent` | The share of the files with a killed mutant naming a test, from 1 to 100, that a test must have failed for mutants in to be suspect (default 15; see [Killing tests and suspect tests](#killing-tests-and-suspect-tests)) |
 | `suspectTestMinimumFiles` | How many files with such a kill there must be, at least 1, before a test can be suspect, and how many of them it must have failed for mutants in (default 10) |
 | `controlRunEvery` | How many mutants to test for each control run, a run with no mutant on among theirs, whose failed tests are flaky (a whole number; 0 for none; default 100; see [Control runs](#control-runs)) |
+| `suspectKillReruns` | How many kills a run tests again alone because only suspect tests failed for them (a whole number; 0 for none; default 100; see [Kills tested again alone](#kills-tested-again-alone)) |
 | `keepAllLogs` | Keep the log of every mutant's test run, a kill's too (default false: a mutant killed by a failed test its results line names keeps none; see [Results file](#results-file)) |
 | `keepLogFolders` | How many runs' log folders to keep in `<project>_muter_logs`, this run's included: a whole number, at least 2, so the run before this one is always kept. Earlier runs' folders beyond it are removed once nothing can refuse the run, before its build (default: unset, which removes none; see [Results file](#results-file)) |
 | `failUnder` | A percent from 0 to 100, up to 6 decimals: a finished run whose headline score is below it exits with 2, once its reports are written (default: unset, which checks none; see [Failing on a low score](#failing-on-a-low-score)) |
@@ -1421,13 +1423,15 @@ still named.
 under the load of several workers. Such a test makes a mutant count as killed when no test checks
 it, which raises the score. SwiftMutator calls a test *suspect* when it failed for mutants in at
 least 15% of the files that have a killed mutant naming a test, and in at least 10 of those files.
-A test of the mutated code rarely does that. With fewer than 10 such files the report gives no
+A test that is timing-sensitive or flaky does that, and so can a broad test of the mutated code. With fewer than 10 such files the report gives no
 verdict, and says so. `suspectTestFilePercent` and `suspectTestMinimumFiles` change the 15% and
-the 10. They change only what the reports say, so a resume lets them change. The results file
-records them, and `swift-mutator report` uses those of the run's last session.
+the 10. They change no result already recorded, only what the reports say and which kills a later
+session [tests again alone](#kills-tested-again-alone), so a resume lets them change. The results
+file records them, and `swift-mutator report` uses those of the run's last session.
 
-When there are suspect tests, the headline score, the killed count and the exit status stay as
-they are: `--fail-under` checks the headline score. Every report also gives the score without the suspect tests, which counts each kill that
+A kill that no longer fails when tested again alone counts as a survivor, in the headline score and
+for `--fail-under`. Any other kill by suspect tests still counts: `--fail-under` checks the headline
+score. Every report also gives the score without the suspect tests, which counts each kill that
 only suspect tests were recorded failing for as a survivor:
 
 ```
@@ -1459,9 +1463,10 @@ Suspect tests: 2 (testAnalyzeProjectPerformance(), everyFormatRendersTheSameByte
 - **"At least".** A kill that only suspect tests were recorded failing for may have stopped at its
   first failed test, so another test might have failed for it too. The score without suspect tests
   is then a lower bound, and the reports say "at least 72%".
-- **What to do.** A suspect test is a suspicion, not a verdict. A broad end-to-end or golden-output
-  test can fail for mutants in that many files, and be right to. If a suspect test also fails
-  without a mutant, under the same load, leave it out of mutation runs. SwiftMutator sets the
+- **What to do.** A test marked `yes` is a suspicion, not a verdict: a broad end-to-end or
+  golden-output test can fail for mutants in that many files, and be right to. One marked `flaky`
+  fails whatever the mutant: it failed in a control run, or didn't fail again often enough alone. If a
+  suspect test also fails without a mutant, leave it out of mutation runs. SwiftMutator sets the
   environment variable `IS_MUTER_RUNNING` to `YES` for the baseline and every mutant's test run, so
   a test can skip itself there:
 
@@ -1473,14 +1478,65 @@ Suspect tests: 2 (testAnalyzeProjectPerformance(), everyFormatRendersTheSameByte
   In XCTest, start the test with
   `try XCTSkipIf(ProcessInfo.processInfo.environment["IS_MUTER_RUNNING"] == "YES")`.
 - **Limits.**
-  - The default thresholds come from one project's runs. In SwiftProjectLint's, no test of the
-    mutated code reached more than 8.8% of the files, in whole runs or in 1,634 smaller ones. The
-    tests that failed under load reached 23–97%. A project whose good tests reach further, such as
-    one with broad end-to-end tests, may need a higher `suspectTestFilePercent`.
+  - The rule alone can't tell a broad test from a flaky one. In SwiftProjectLint's runs, no test of
+    the mutated code reached more than 8.8% of the files, and tests that failed under load reached
+    23–97%. But on 6 November 2026, good tests reached 37% of SwiftCloneDetector's 30 files and 42%
+    of SwiftEffectInference's 19, which only the 10-file floor kept most of from being suspect. So
+    the rule chooses which kills to [test again alone](#kills-tested-again-alone), and that settles
+    it. A test with too few kills to judge stays as the rule has it.
   - The rule misses a test that fails in fewer than about 3% of runs, or about 5% when runs stop
     at their first failed test. Such a test is worth about 1 point of score at most: on
     SwiftProjectLint, 0.16. A control run catches one only if it fails there: 25 control runs
     give a test that fails in 3% of runs about an even chance.
+
+#### Kills tested again alone
+
+Once every mutant is tested, each kill only suspect tests failed for is tested again, one at a time
+with no other mutant running and with no stop at its first failed test. A kill a test really makes
+fails again. One a flaky test made mostly doesn't. On SwiftCloneDetector on 6 November 2026, all 7
+kills the rule blamed on a good test failed again, in all 21 runs. With a test added that fails 5% of
+the time, 7 of its 11 kills survived, and the test failed again in only 1.
+
+- **The verdict.** The rerun replaces the first run in the results file and every report. A kill
+  that no longer fails is a survivor, or not covered if its code didn't run, so the headline score and
+  `--fail-under` can go down. One that fails again or crashes stays killed, and now names every test
+  that failed. A rerun that times out or fails to build says nothing of the mutant, so the kill stands.
+- **The test.** A test the log shows failing failed. One it doesn't show passed, if the run exited by
+  itself with no crash and named what failed. A run a crash cut short says nothing of a test it doesn't
+  name, and neither does a failure by another test of the same name.
+  - It is *flaky*, however few files it reached, when it passed alone, or failed with the mutant's
+    code not running, more than once for every 4 times it failed again.
+  - It is *cleared*, and no longer suspect, when it failed again at least 3 times and never didn't.
+    A test that fails 30% of the time whatever the mutant does that only 2.7% of the time.
+  - Otherwise the rule decides. Nothing clears a test that failed in a control run.
+- **How many.** At most `suspectKillReruns`, 100 by default, in a whole run, however many sessions it
+  takes. Each suspect test gets 3 first, from other kills that name it if it has too few of its own,
+  so that it can be judged and no test uses up the limit. The rest of the limit goes to the kills only
+  suspect tests failed for, spread evenly in job order. Past it, a kill counts on the first run's word,
+  and the report says how many did. `suspectKillReruns: 0` tests none.
+- **The cost.** Each rerun takes as long as a survivor's run, one at a time, plus one run at the start
+  with no mutant on: if the tests don't pass alone, no kill is tested again, and the run says so. So
+  the most it adds is `suspectKillReruns` runs of your whole test suite. On SwiftProjectLint's 6.9 s for
+  a survivor, that is about 12 minutes on a run of about 8 hours. It can be much more of a small run:
+  SwiftEffectInference's 100 reruns at 11 s took 19 minutes on an 18-minute run, with
+  `suspectTestMinimumFiles` lowered to 5 so that the rule flagged dozens of its good tests, all of which
+  they cleared. With the default 10, no test there is suspect, and it adds nothing. On SwiftCloneDetector
+  it added about a second. `--mutant` runs none.
+- **Measuring reach.** A test's reach counts each mutant's first run, so a rerun's longer list or a flip
+  can't change which tests are suspect.
+- **Resuming.** A resumed run tests the kills an earlier session didn't, up to what is left of the
+  limit, but only if it has a mutant left to test: with none, it has no baseline to start from, as
+  property reruns don't either. So a run stopped during these reruns, with no other mutant left, keeps
+  the kills it hasn't tested.
+- **Reuse and shards.** `--reuse` tests no reused kill again, and doesn't count what a test did alone
+  on code that may have changed, as it doesn't count a reused run's control runs. A flip stays. Each
+  shard chooses by what it alone reaches, so a merged report's flips can differ from a whole run's.
+- **Limits.**
+  - A rerun alone can't tell a mutant that makes a test fail only under load from a flaky test: both
+    pass alone, so such a kill becomes a survivor.
+  - Only a kill the rule picks is tested. A test that fails 5% of the time reached 9 to 13 of
+    SwiftCloneDetector's 30 files, so the 10-file floor let one of 3 runs through, and its kills
+    stood. Lowering `suspectTestMinimumFiles` catches more, at the cost above.
 
 #### Control runs
 
@@ -1753,12 +1809,12 @@ SwiftMutator copies the project is refused after the copy, so that message doesn
 
 | Since the last session | Resuming |
 |---|---|
-| A configuration key changed, other than `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests` and `propertyTestFilter`; `operators` and `skipOperators` are compared by the operators they choose, in the next rows | Refused: start a new run |
+| A configuration key changed, other than `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests` and `propertyTestFilter`; `operators` and `skipOperators` are compared by the operators they choose, in the next rows | Refused: start a new run |
 | `mutationTestTimeout` (or `--timeout`) is at least as long as every session's `timeoutSeconds` | Goes ahead, says so, and tests the timeouts under a shorter limit again |
 | The operators chosen, by `--operators`, `--skip-operators`, `operators` or `skipOperators`, `--files-to-mutate` or `--skip-coverage` changed | Refused: start a new run |
 | `--since`'s merge base or `--changed-lines` changed, or `--since` given in one session only | Refused: start a new run. `--reuse` doesn't compare them |
 | `--shard` changed, or given in one session only | Refused: start a new run. `--reuse` doesn't compare it |
-| `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests` or `propertyTestFilter` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
+| `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests` or `propertyTestFilter` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
 | SwiftMutator, the toolchain or the SDK changed | Refused, unless `--force-resume` is given |
 | Project files changed, were added or were removed | Refused, unless a `--resume-ignoring` glob matches each one |
 | Another SwiftMutator holds the file, because its run is still going | Refused with status 6, naming the process that holds it, and its host: wait for that run to end. If an older SwiftMutator holds it, which doesn't say, it names the process and host that wrote the file's last session, which may not be the one |

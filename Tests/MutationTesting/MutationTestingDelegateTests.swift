@@ -1039,6 +1039,9 @@ final class MutationTestingDelegateTests: MuterTestCase {
             ),
             // On by default, but a wrapper script counts as `swift test` only with `buildSystem: swift`.
             MuterConfiguration(executable: "/tmp/run-tests.sh", arguments: ["test"], testSuiteTimeOut: 60),
+            // A kill tested again alone, in the environment of a run that stops.
+            MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], testSuiteTimeOut: 60)
+                .goingToEachRunsEnd(),
             // Switched on, but xcodebuild runs can't be stopped.
             MuterConfiguration(
                 executable: "/tmp/xcodebuild",

@@ -194,9 +194,11 @@ def command_check(args):
     # A result `--reuse` kept keeps the `rerun` it was tested with, though its own session never ran it again.
     reruns = [line for line in run.lines if line.get("rerun", {}).get("because") == "timeout" and not line.get("reusedFrom")]
     unproven = sum(line.get("rerun", {}).get("because") == "codeNotShownRunning" and not line.get("reusedFrom") for line in run.lines)
+    alone = sum(line.get("rerun", {}).get("because") == "onlySuspectTestsFailed" and not line.get("reusedFrom") for line in run.lines)
     print(f"check {args.results}: {len(found)} mutants, {dict(collections.Counter(verdict(r) for r in run.latest.values()))}, "
           f"{len(reruns)} timeouts run again, {sum(line['outcome'] != 'timeout' for line in reruns)} changed, "
-          f"{unproven} failed runs run again for not showing their code ran")
+          f"{unproven} failed runs run again for not showing their code ran, "
+          f"{alone} kills tested again alone")
     return fail(problems, "check")
 
 

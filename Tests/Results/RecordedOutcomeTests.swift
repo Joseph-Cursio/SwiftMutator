@@ -92,7 +92,7 @@ final class RecordedOutcomeTests: MuterTestCase {
             try makeMapping(String(format: "/project_mutated/Sources/F%02d.swift", index), lines: [3])
         }.mergeByFilePath()
         state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 1
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 1, suspectKillReruns: 0
         )
         // The baseline, then 11 kills and a survivor. Each kill's log names timing(), and the even ones' a focused
         // test too; the second run stopped at its first failed test.
@@ -127,6 +127,47 @@ final class RecordedOutcomeTests: MuterTestCase {
         try assertTheResultsFileRebuilds(runOutcome)
     }
 
+    // What kills tested again alone came to is on their lines, so a report from the file says what the run's own did.
+    func test_aRunThatTestedKillsAgainAlone_reportsTheSameFromItsFile_inEveryFormat() async throws {
+        state.mutationMapping = try (0 ..< 4).map { index in
+            try makeMapping("/project_mutated/Sources/F\(index).swift", lines: [3])
+        }.mergeByFilePath()
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift",
+            arguments: ["test"],
+            mutationTestWorkers: 1,
+            suspectTestFilePercent: 50,
+            suspectTestMinimumFiles: 2
+        )
+        let timing = "✘ Test timing() recorded an issue at TimingTests.swift:9:5: Expectation failed: 1.2 < 1"
+        let sum = "✘ Test sum() recorded an issue at SumTests.swift:3:5: Expectation failed"
+        let passed = "✔ Test run with 2 tests in 0 suites passed after 0.001 seconds."
+        // The baseline, then kills in 3 of 4 files by timing(), and a survivor; then each kill alone: one fails again,
+        // one passes, and one fails only by another test while timing() is shown passing.
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed, .failed, .passed, .failed, .passed, .failed]
+        ioDelegate.mutantTestLogs = [
+            timing, timing, timing, passed, timing, passed, "✔ Test timing() passed after 0.1 seconds.\n" + sum,
+        ]
+
+        let changes = try await sut.run(with: state)
+
+        guard case let .mutationTestOutcomeGenerated(runOutcome)? = changes.first else {
+            return XCTFail("Expected an outcome, got \(changes)")
+        }
+        let report = MuterTestReport(from: runOutcome)
+        let summary = try XCTUnwrap(report.killingTestSummary)
+        XCTAssertEqual(summary.killsTestedAlone, 3)
+        XCTAssertEqual(summary.killsThatSurvivedAlone, 1)
+        XCTAssertEqual(report.globalMutationScore, 50)
+        XCTAssertEqual(summary.flakyTests.map(\.name), ["timing()"])
+        XCTAssertEqual(summary.flakyTests.first?.notReproducedAlone, 2)
+        XCTAssertTrue(PlainTextReporter().report(from: runOutcome).contains("tested again, one at a time"))
+        XCTAssertTrue(
+            XcodeReporter().report(from: runOutcome).contains("didn't fail again often enough when tested alone")
+        )
+        try assertTheResultsFileRebuilds(runOutcome)
+    }
+
     // The configuration's thresholds reach the run's report, and the header records them for the file's.
     func test_aRunsSuspectTestThresholds_reachItsReport_andTheReportFromItsFile() async throws {
         state.mutationMapping = try (0 ..< 4).map { index in
@@ -137,7 +178,8 @@ final class RecordedOutcomeTests: MuterTestCase {
             arguments: ["test"],
             mutationTestWorkers: 1,
             suspectTestFilePercent: 60,
-            suspectTestMinimumFiles: 3
+            suspectTestMinimumFiles: 3,
+            suspectKillReruns: 0
         )
         // timing() fails for the mutants in 3 of the 4 files, 75%; sum() for 1.
         let timing = "✘ Test timing() recorded an issue at TimingTests.swift:9:5: Expectation failed: 1.2 < 1.0"

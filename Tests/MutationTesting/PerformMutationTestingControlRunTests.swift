@@ -258,7 +258,8 @@ final class PerformMutationTestingControlRunTests: MuterTestCase {
             executable: "/usr/bin/swift",
             arguments: ["test"],
             mutationTestWorkers: workers,
-            controlRunEvery: controlRunEvery
+            controlRunEvery: controlRunEvery,
+            suspectKillReruns: 0
         )
     }
 

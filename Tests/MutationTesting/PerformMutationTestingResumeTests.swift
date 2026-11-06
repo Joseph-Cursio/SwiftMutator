@@ -79,6 +79,49 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         )
     }
 
+    // A resume tests the kills an earlier session didn't, out of what that session left of the limit, and leaves those
+    // it did, so stopping a run doesn't test more than running it through.
+    func test_aResume_testsAloneOnlyWhatTheEarlierSessionDidnt_withinTheLimitLeft() async throws {
+        let alone = MutantResult.Rerun(
+            because: MutantResult.Rerun.onlySuspectTestsFailed,
+            workers: 1,
+            alone: [.init(name: "sum()", file: "SumTests.swift", result: MutantResult.Rerun.TestAlone.failedAgain)]
+        )
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift",
+            arguments: ["test"],
+            suspectTestFilePercent: 1,
+            suspectTestMinimumFiles: 1,
+            suspectKillReruns: 2
+        )
+        state.resumeState = try ResumeState.make(
+            path: resultsPath,
+            lines: [
+                ResultsHeader.make(
+                    mutantsDiscovered: 4, mutantsToTest: 4, project: tree, configuration: state.muterConfiguration
+                ),
+                record(of: "Sources/Product.swift", line: 7, .failed, fileSHA256: "77e0", killedBy: [sumTest]),
+                record(
+                    of: "Sources/Sum.swift", line: 3, .failed, fileSHA256: "5a1c", killedBy: [sumTest], rerun: alone
+                ),
+                ResultsEnd.make(reason: .interrupted, detail: "SIGINT", testDurationSeconds: 100.5, recorded: 2),
+            ],
+            file: resultsFiles.openForResume(at: resultsPath),
+            provenance: checkedProvenance,
+            forced: [],
+            notices: []
+        )
+        // The baseline, the 2 mutants never tested, and Product.swift's kill alone.
+        ioDelegate.testSuiteOutcomes = [.passed, .passed, .passed, .failed]
+        ioDelegate.mutantTestLogs = ["testLog", "testLog", "✘ Test sum() recorded an issue at SumTests.swift:3:5: No"]
+
+        _ = try await sut.run(with: state)
+
+        let reruns = ioDelegate.testLogs.filter { $0.contains("_rerun_") }
+        XCTAssertEqual(reruns.count, 1, "\(ioDelegate.testLogs)")
+        XCTAssertTrue(reruns.first?.contains("Product.swift") == true, "\(reruns)")
+    }
+
     // Product.swift's survivor and Sum.swift's kill still hold. Quotient.swift's build error and Total.swift's mutant,
     // which was never tested, are what is left.
     func test_recordedMutantsAreNotTestedAgain() async throws {

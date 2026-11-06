@@ -44,14 +44,19 @@ struct MuterConfiguration: Equatable, Codable {
     /// or more mutants to test, false never. Several workers test on simulators of their own whatever it says.
     let oneWorkerSimulator: Bool?
     /// When a test is suspect (`suspectTestFilePercent:`, from 1 to 100, and `suspectTestMinimumFiles:`, at least 1):
-    /// nil leaves each to `SuspectTestThresholds.standard`. They change only what the reports say, never a mutant's
-    /// result, so a resume lets them change (`ResumeCheck.keysThatDontAffectOutcomes`), as it does `failUnder`.
+    /// nil leaves each to `SuspectTestThresholds.standard`. They change no result already recorded, only what the
+    /// reports say and which kills a later session tests again alone, so a resume lets them change
+    /// (`ResumeCheck.keysThatDontAffectOutcomes`), as it does `failUnder`.
     let suspectTestFilePercent: Int?
     let suspectTestMinimumFiles: Int?
     /// How many mutants to test for each control run, a run with no mutant on among theirs (`controlRunEvery:`, a
     /// whole number, 0 for none): nil leaves it to `defaultMutantsPerControlRun`. A control run changes no mutant's
-    /// result, only which tests the reports call suspect, so a resume lets it change.
+    /// result, only which tests are suspect, so which kills are tested again alone, so a resume lets it change.
     let controlRunEvery: Int?
+    /// How many kills a run tests again alone for only suspect tests failing for them (`suspectKillReruns:`, a whole
+    /// number, 0 for none): nil leaves it to `defaultSuspectKillReruns`. It changes no result already recorded, so a
+    /// resume lets it change.
+    let suspectKillReruns: Int?
     /// Whether every mutant's test run keeps its log (`keepAllLogs:`): nil and false keep a mutant's log only when its
     /// results line can't stand in for it, true keeps every log. See `MutationTestLog.isKept`. Which logs are kept
     /// changes no result, so a resume lets it change.
@@ -87,6 +92,11 @@ struct MuterConfiguration: Equatable, Codable {
     /// failure. Such a line then neither stops a mutant's run nor counts a timed-out run killed. A `var` only so
     /// `withUnreliableFailedTestLines` can copy `self` and change just this field.
     private(set) var failedTestLinesAreReliable = true
+    /// Whether a mutant's run goes on past its first failed test, whatever `stopsAtFirstFailure` says, so that its log
+    /// shows every test that fails. Not a configuration key, and apart from `stopAtFirstFailure`, as these runs keep
+    /// the environment and the unbuffered output of the session's others. A `var` only so `goingToEachRunsEnd` can
+    /// copy `self` and change just this field.
+    private(set) var runsGoToTheirEnd = false
     /// The tests that a passing baseline's lines showed failing, which a mutant's list of failed tests leaves out, as
     /// those lines are the tests' own text, printed whatever the mutant. Not a configuration key; a `var` only so
     /// `withUnreliableFailedTestLines` can copy `self` and change just this field.
@@ -131,6 +141,7 @@ struct MuterConfiguration: Equatable, Codable {
         case suspectTestFilePercent
         case suspectTestMinimumFiles
         case controlRunEvery
+        case suspectKillReruns
         case keepAllLogs
         case keepLogFolders
         case failUnder
@@ -155,6 +166,7 @@ struct MuterConfiguration: Equatable, Codable {
         suspectTestFilePercent: Int? = nil,
         suspectTestMinimumFiles: Int? = nil,
         controlRunEvery: Int? = nil,
+        suspectKillReruns: Int? = nil,
         keepAllLogs: Bool? = nil,
         keepLogFolders: Int? = nil,
         failUnder: Double? = nil,
@@ -177,6 +189,7 @@ struct MuterConfiguration: Equatable, Codable {
         self.suspectTestFilePercent = suspectTestFilePercent
         self.suspectTestMinimumFiles = suspectTestMinimumFiles
         self.controlRunEvery = controlRunEvery
+        self.suspectKillReruns = suspectKillReruns
         self.keepAllLogs = keepAllLogs
         self.keepLogFolders = keepLogFolders
         self.failUnder = failUnder
@@ -206,6 +219,7 @@ struct MuterConfiguration: Equatable, Codable {
         suspectTestFilePercent = try Self.whole(forKey: .suspectTestFilePercent, in: 1 ... 100, in: container)
         suspectTestMinimumFiles = try Self.whole(forKey: .suspectTestMinimumFiles, in: 1 ... Int.max, in: container)
         controlRunEvery = try Self.whole(forKey: .controlRunEvery, in: 0 ... Int.max, in: container)
+        suspectKillReruns = try Self.whole(forKey: .suspectKillReruns, in: 0 ... Int.max, in: container)
         keepAllLogs = try container.decodeIfPresent(Bool.self, forKey: .keepAllLogs)
         keepLogFolders = try Self.whole(forKey: .keepLogFolders, in: 2 ... Int.max, in: container)
         failUnder = try Self.percent(forKey: .failUnder, in: container)
@@ -311,6 +325,7 @@ struct MuterConfiguration: Equatable, Codable {
         try container.encodeIfPresent(suspectTestFilePercent, forKey: .suspectTestFilePercent)
         try container.encodeIfPresent(suspectTestMinimumFiles, forKey: .suspectTestMinimumFiles)
         try container.encodeIfPresent(controlRunEvery, forKey: .controlRunEvery)
+        try container.encodeIfPresent(suspectKillReruns, forKey: .suspectKillReruns)
         try container.encodeIfPresent(keepAllLogs, forKey: .keepAllLogs)
         try container.encodeIfPresent(keepLogFolders, forKey: .keepLogFolders)
         try container.encodeIfPresent(failUnder.map(WrittenPercent.init), forKey: .failUnder)
@@ -363,6 +378,23 @@ struct MuterConfiguration: Equatable, Codable {
     /// How many mutants are tested for each control run: `controlRunEvery`, or the default; 0 for none.
     var mutantsPerControlRun: Int {
         controlRunEvery ?? Self.defaultMutantsPerControlRun
+    }
+
+    /// Enough to judge many suspect tests, at `PerformMutationTesting.rerunsForEachSuspectTest` each. A rerun takes as
+    /// long as a survivor's run, so on SwiftProjectLint's 6.9 s the most this adds is about 12 minutes to about 8
+    /// hours.
+    static let defaultSuspectKillReruns = 100
+
+    /// How many kills a run tests again alone: `suspectKillReruns`, or the default; 0 for none.
+    var killsToTestAgainAlone: Int {
+        suspectKillReruns ?? Self.defaultSuspectKillReruns
+    }
+
+    /// This configuration with a mutant's run going to its end, past its first failed test (`runsGoToTheirEnd`).
+    func goingToEachRunsEnd() -> MuterConfiguration {
+        var copy = self
+        copy.runsGoToTheirEnd = true
+        return copy
     }
 
     /// Whether every mutant's test run keeps its log: only when `keepAllLogs` is true.

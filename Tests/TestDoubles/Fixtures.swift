@@ -575,6 +575,7 @@ func configurationWithEveryFieldSet(
         suspectTestFilePercent: 30,
         suspectTestMinimumFiles: 5,
         controlRunEvery: 50,
+        suspectKillReruns: 25,
         keepAllLogs: true,
         keepLogFolders: 3,
         failUnder: 80,
@@ -600,8 +601,9 @@ func configurationWithEveryFieldSet(
     ))
     // So `testFilterArguments` is set too, as for a property rerun's runs.
     .withPropertyTestFilter() ?? MuterConfiguration()
+    let goingToItsEnd = configuration.goingToEachRunsEnd()
     return failedTestLinesAreReliable
-        ? configuration : configuration.withUnreliableFailedTestLines(printedIn: [failedTestLookalikeLog])
+        ? goingToItsEnd : goingToItsEnd.withUnreliableFailedTestLines(printedIn: [failedTestLookalikeLog])
 }
 
 /// A passing baseline's log with a line shaped like a failed test, which the test printed itself.

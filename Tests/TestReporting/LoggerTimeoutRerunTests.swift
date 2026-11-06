@@ -128,6 +128,28 @@ final class LoggerTimeoutRerunTests: MuterTestCase {
         XCTAssertTrue(printer.linesPassed[1].hasPrefix("⚠️ The 1 mutant's test run didn't show whether its code ran"))
     }
 
+    func test_suspectKillReruns_sayHowManyAndWhatTheyCameTo() {
+        var tally = SuspectKillRerunTally()
+        tally.add(.failed)
+        tally.add(.runtimeError)
+        tally.add(.passed)
+        tally.add(.timeout)
+
+        sut.suspectKillRerunsStarted(SuspectKillReruns(count: 4, leftOut: 2))
+        sut.suspectKillRerunsFinished(tally)
+        sut.suspectKillRerunsStarted(SuspectKillReruns(count: 1, leftOut: 0))
+        sut.suspectKillRerunsSkipped(log: "alone.log")
+
+        XCTAssertEqual(printer.linesPassed, [
+            "🔁 Running 4 kills again, one at a time: only tests that may fail whatever the mutant failed for them. "
+                + "2 more are over suspectKillReruns.",
+            "🔁 Tested them again: 2 still killed, 1 survived, "
+                + "1 timed out or failed to build, so still count as killed.",
+            "🔁 Running 1 kill again, one at a time: only tests that may fail whatever the mutant failed for it.",
+            "⚠️ Not testing any kill again alone: the tests didn't pass alone with no mutant on. Its log: alone.log",
+        ])
+    }
+
     func test_unprovenRunsRerun_sayHowManyAndWhatTheyCameTo() {
         var tally = UnprovenRunTally()
         tally.add(.make(testSuiteOutcome: .noCoverage))

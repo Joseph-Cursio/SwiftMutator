@@ -4,7 +4,8 @@ import Foundation
 /// what only `--force-resume` lets through, and what changed that no result depends on. The project's files are
 /// compared apart, by `ProjectTree.changes(since:)`, and coverage once it is gathered, by `coverageChange`.
 enum ResumeCheck {
-    /// Configuration keys no outcome depends on: a change is only said. Where one worker tests, on the destination or
+    /// Configuration keys no recorded outcome depends on: a change is only said, though some choose which kills a later
+    /// session tests again alone (`keysThatChooseKillsToTestAgain`). Where one worker tests, on the destination or
     /// on a simulator of its own (`oneWorkerSimulator`), can change a kill's kind, but not whether it is killed.
     /// `failUnder` judges the score once the run finishes, never a result, and `propertyTests` only splits the kills
     /// the reports count, which `propertyTestFilter`'s runs only settle.
@@ -15,6 +16,15 @@ enum ResumeCheck {
         MuterConfiguration.CodingKeys.skipOperators.stringValue,
     ]
 
+    /// Those of `keysThatDontAffectOutcomes` that change no result recorded, but do choose which kills are tested again
+    /// alone, so can change what a later session makes of a kill.
+    static let keysThatChooseKillsToTestAgain: Set = [
+        MuterConfiguration.CodingKeys.suspectTestFilePercent.stringValue,
+        MuterConfiguration.CodingKeys.suspectTestMinimumFiles.stringValue,
+        MuterConfiguration.CodingKeys.controlRunEvery.stringValue,
+        MuterConfiguration.CodingKeys.suspectKillReruns.stringValue,
+    ]
+
     static let keysThatDontAffectOutcomes: Set = [
         MuterConfiguration.CodingKeys.mutationTestWorkers.stringValue,
         MuterConfiguration.CodingKeys.stopAtFirstFailure.stringValue,
@@ -23,6 +33,7 @@ enum ResumeCheck {
         MuterConfiguration.CodingKeys.suspectTestFilePercent.stringValue,
         MuterConfiguration.CodingKeys.suspectTestMinimumFiles.stringValue,
         MuterConfiguration.CodingKeys.controlRunEvery.stringValue,
+        MuterConfiguration.CodingKeys.suspectKillReruns.stringValue,
         MuterConfiguration.CodingKeys.keepAllLogs.stringValue,
         MuterConfiguration.CodingKeys.keepLogFolders.stringValue,
         MuterConfiguration.CodingKeys.failUnder.stringValue,
@@ -235,9 +246,10 @@ enum ResumeCheck {
         longestLimit: Double?
     ) {
         if keysThatDontAffectOutcomes.contains(difference.name) {
-            verdict.notices.append(
-                "\(difference.name) \(difference.change(absent: "not set")), which no result depends on."
-            )
+            let effect = keysThatChooseKillsToTestAgain.contains(difference.name)
+                ? "which no recorded result depends on, though it chooses which kills are tested again alone"
+                : "which no result depends on"
+            verdict.notices.append("\(difference.name) \(difference.change(absent: "not set")), \(effect).")
         } else if purpose == .merge || difference.name != timeLimitKey {
             verdict.refusals.append(.configurationChanged(difference))
         } else if isALongerTimeLimit(difference, thanEvery: longestLimit) {

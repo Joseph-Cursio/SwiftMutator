@@ -73,6 +73,13 @@ enum RunEvent {
     /// What one of them came to, and whether that isn't what its first run came to.
     case unprovenRunRerun(MutationTestOutcome.Mutation, changed: Bool)
     case unprovenRunsRerunFinished(UnprovenRunTally)
+    /// The tests didn't pass alone with no mutant on, so no kill is tested again alone: `log` holds that run.
+    case suspectKillRerunsSkipped(log: String?)
+    /// Kills only suspect tests failed for are about to be tested again alone.
+    case suspectKillRerunsStarted(SuspectKillReruns)
+    /// What one of them came to, and whether that isn't what its first run came to.
+    case suspectKillRerun(MutationTestOutcome.Mutation, changed: Bool)
+    case suspectKillRerunsFinished(SuspectKillRerunTally)
     /// Once every mutant is tested on more than one worker, the timeouts that are tested again, on fewer.
     case timeoutRerunsStarted(TimeoutReruns)
     /// A timeout tested again, once its line is written. Never counted in the progress, which counted its first run.

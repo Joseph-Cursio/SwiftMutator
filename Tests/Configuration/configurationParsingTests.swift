@@ -205,6 +205,18 @@ final class ConfigurationParsingTests: MuterTestCase {
         XCTAssertEqual(try MuterConfiguration(from: set.asData), set)
     }
 
+    func test_parseSuspectKillReruns() throws {
+        let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
+        let limit = { (line: String) in try MuterConfiguration(from: Data("\(swiftTest)\n\(line)".utf8)) }
+
+        XCTAssertEqual(try limit("suspectKillReruns: 250").killsToTestAgainAlone, 250)
+        XCTAssertEqual(try limit("suspectKillReruns: 0").killsToTestAgainAlone, 0)
+        XCTAssertEqual(try MuterConfiguration(from: Data(swiftTest.utf8)).killsToTestAgainAlone, 100)
+        for line in ["suspectKillReruns: -1", "suspectKillReruns: many", "suspectKillReruns: 2.5"] {
+            XCTAssertThrowsError(try limit(line), line)
+        }
+    }
+
     func test_parseControlRunEvery() throws {
         let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
         let every = { (line: String) in try MuterConfiguration(from: Data("\(swiftTest)\n\(line)".utf8)) }

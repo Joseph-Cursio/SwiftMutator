@@ -124,10 +124,11 @@ final class PlainTextReporterTests: ReporterTestCase {
         let plainText = PlainTextReporter().report(from: outcome)
 
         XCTAssertTrue(plainText.contains(
-            "\nSuspect tests are looked for once 10 files have a killed mutant that names a test; this report has 3.\n"
+            "\nTests aren't judged by how many files they reach until 10 files have a killed mutant that names a test; "
+                + "this report has 3.\n"
         ))
         XCTAssertEqual(try suspectCells(in: plainText), ["timing()": "-"])
-        XCTAssertFalse(PlainTextReporter().report(from: .withKillingTests).contains("Suspect tests are looked for"))
+        XCTAssertFalse(PlainTextReporter().report(from: .withKillingTests).contains("Tests aren't judged by"))
     }
 
     func test_killingTestsSection_marksEachSuspectTest() throws {
