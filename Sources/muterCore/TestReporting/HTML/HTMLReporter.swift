@@ -558,6 +558,8 @@ private extension MutationOperator.Id {
         case .logicalOperator: "Change Logical Connector"
         case .swapTernary: "Swap Ternary"
         case .negateConditional: "Negate Conditional"
+        case .arithmeticOperator: "Change Arithmetic Operator"
+        case .flipBooleanLiteral: "Flip Boolean Literal"
         }
     }
 }

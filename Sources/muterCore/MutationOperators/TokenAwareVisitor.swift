@@ -7,16 +7,21 @@ class TokenAwareVisitor: MuterVisitor {
     override func visit(_ node: BinaryOperatorExprSyntax) -> SyntaxVisitorContinueKind {
         let `operator` = node.operator
         guard canMutateToken(`operator`),
+              canMutate(node),
               let oppositeOperator = oppositeOperator(for: `operator`.tokenKind)
         else {
             return .visitChildren
         }
 
-        let position = startLocation(for: node)
+        // The older operators keep the place their recorded results name, before any line break and comment.
+        let position = startLocation(for: node, afterLeadingTrivia: mutationOperatorId == .arithmeticOperator)
+        // The token's text, as a comment beside the operator would read as part of the change. The older operators keep
+        // the node's, comment and all, which is what triage labels and recorded results compare with.
+        let before = mutationOperatorId == .arithmeticOperator ? `operator`.text : node.description.trimmed
         let snapshot = MutationOperator.Snapshot(
-            before: node.description.trimmed,
+            before: before,
             after: oppositeOperator,
-            description: "changed \(node.description.trimmed) to \(oppositeOperator)"
+            description: "changed \(before) to \(oppositeOperator)"
         )
 
         add(
@@ -33,6 +38,11 @@ class TokenAwareVisitor: MuterVisitor {
         )
 
         return super.visit(node)
+    }
+
+    /// Whether an operator can change this one, whose token it does change.
+    func canMutate(_: BinaryOperatorExprSyntax) -> Bool {
+        true
     }
 
     private func oppositeOperator(for tokenKind: TokenKind) -> String? {

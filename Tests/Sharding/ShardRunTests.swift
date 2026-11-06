@@ -65,7 +65,7 @@ final class ShardRunTests: MuterTestCase {
             return XCTFail("Expected the shard first, got \(changes)")
         }
         XCTAssertEqual(selection.shard, shard)
-        XCTAssertEqual(selection.mutantsInAllShards, 6)
+        XCTAssertEqual(selection.mutantsInAllShards, 10)
         state.apply(changes)
         XCTAssertEqual(state.shardSelection, selection)
     }

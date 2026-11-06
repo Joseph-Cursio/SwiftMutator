@@ -285,6 +285,16 @@ func f() {
 }
 ```
 
+A tag can also sit beside code, and that code stays off either way. A `disable` covers the statement or element it ends, as well as what follows. An `enable` takes effect after the code it's beside:
+
+```swift
+// muter:disable
+functionA() // muter:enable
+functionB() // functionB is mutated, functionA isn't
+```
+
+Only `//` comments count. Of several tags together, the last one decides.
+
 ## Mutant Schemata
 
 Muter uses a technique called mutant schemata. This builds a copy of your code with all known mutations inserted at once, but they are disabled by flags. Then your tests are run repeatedly, activating a different mutant each time via environment variables. This is a huge win performance, but comes with a caveat:

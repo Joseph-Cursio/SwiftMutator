@@ -9,7 +9,8 @@ OPTIONS:
   --operators <operators> The list of mutant operators to be used:
                           RelationalOperatorReplacement, RelationalBoundary,
                           RemoveSideEffects, ChangeLogicalConnector,
-                          SwapTernary, NegateConditional
+                          SwapTernary, NegateConditional,
+                          ChangeArithmeticOperator, FlipBooleanLiteral
   --skip-operators <skip-operators>
                           The mutant operators to leave out, in place of
                           skipOperators.

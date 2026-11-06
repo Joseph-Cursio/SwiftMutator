@@ -26,14 +26,15 @@ day, three of them with a fix. It has things SwiftMutator doesn't, among them:
   reported as "no coverage" and counts against the score, and a kill whose code never ran is tested
   again. SwiftMutator instead skips the code that one coverage run, before mutating, shows no test
   reaching, and leaves those mutants out of its score;
-- seven mutation operators, against SwiftMutator's six. Its default run uses three of them:
-  logical operators, negated conditions and swapped ternaries. So by default it doesn't replace
-  relational operators, as in `==` becoming `!=`, or remove calls, which SwiftMutator does;
-  `--operator-tier experimental` runs all seven;
 - on SwiftPM packages, recovery from mutants that don't compile, without giving up its shared
   build;
 - a quality gate for CI: a minimum score, and no new survivors against a committed baseline;
 - SARIF, SonarQube, Markdown and Stryker-compatible JSON reports.
+
+Its default run uses three of its seven operators: logical operators, negated conditions and
+swapped ternaries. So by default it doesn't replace relational operators, as in `==` becoming `!=`,
+or remove calls, arithmetic or boolean literals. `--operator-tier experimental` runs all seven.
+SwiftMutator runs its eight by default.
 
 SwiftMutator differs in how it keeps tests apart. Each of its workers tests in its own full
 copy of the project, `.git` included. swift-mutation-testing tests in a sandbox whose unchanged
@@ -190,6 +191,23 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   that operator, whose swap is the same mutant, and `--mutant` still finds such a mutant that a run
   without that operator reported. A run recorded before it is continued as above, by naming that
   run's operators with `--operators`. See [mutation_operators.md](Docs/mutation_operators.md).
+- **Arithmetic and boolean literals:** `ChangeArithmeticOperator` swaps `+` and `-`, swaps `*` and
+  `/`, and turns `%` into `*`, as well as their assignment forms. `FlipBooleanLiteral` turns `true`
+  into `false` and back ([#111](https://github.com/Joseph-Cursio/SwiftMutator/issues/111)). Both
+  run by default, and add 28% to SwiftProjectLint's mutants and 20% to SwiftCloneDetector's. As `+`
+  and `+=` also join strings and arrays, they get a mutant only with a sign that their operands are
+  numbers. Of 270 arithmetic mutants on those two projects, 1 didn't compile, and 9 timed out. There
+  are no tiers of operators, as the numbers per operator don't call for them. A run recorded before
+  these operators is continued as above, by naming that run's operators with `--operators`. See
+  [mutation_operators.md](Docs/mutation_operators.md#what-each-operator-catches-and-costs).
+- **Disable tags act once, by where they are:** the nodes that share a `// muter:disable` or
+  `// muter:enable` used to take turns acting on it, so a tag beside code could silently fail,
+  depending on how many nodes shared it. Now a tag beside code leaves that code off: a `disable`
+  covers what it ends and what follows, and an `enable` starts after it. A `disable` or `enable` on a
+  block's last statement no longer reaches its earlier statements, and a tag inside a statement now
+  counts for `RemoveSideEffects` on the statements after it. So a file with such tags can find
+  different mutants. See
+  [Disable muter in code](Docs/Muter-README.md#disable-muter-in-code).
 - **Logging through the injected printer**, so log output can be captured and tested.
 
 Fixes that apply to Muter are offered upstream too.

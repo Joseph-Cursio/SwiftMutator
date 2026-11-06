@@ -292,6 +292,78 @@ extension MutationOperator.Id {
                 """.onCodeBlock
             )
             """
+        case .arithmeticOperator:
+            return """
+
+            \("Change Arithmetic Operator".bold)
+
+            This operator will change arithmetic operators in your code based on this table:
+
+            +-------------------+------------------+
+            | Original Operator | Changed Operator |
+            +-------------------+------------------+
+            |        \(" + ".onCodeEscape)        |        \(" - ".onCodeEscape)       |
+            |        \(" - ".onCodeEscape)        |        \(" + ".onCodeEscape)       |
+            |        \(" * ".onCodeEscape)        |        \(" / ".onCodeEscape)       |
+            |        \(" / ".onCodeEscape)        |        \(" * ".onCodeEscape)       |
+            |        \(" % ".onCodeEscape)        |        \(" * ".onCodeEscape)       |
+            |       \(" += ".onCodeEscape)        |       \(" -= ".onCodeEscape)       |
+            |       \(" -= ".onCodeEscape)        |       \(" += ".onCodeEscape)       |
+            |       \(" *= ".onCodeEscape)        |       \(" /= ".onCodeEscape)       |
+            |       \(" /= ".onCodeEscape)        |       \(" *= ".onCodeEscape)       |
+            |       \(" %= ".onCodeEscape)        |       \(" *= ".onCodeEscape)       |
+            +-------------------+------------------+
+
+            \("+".onCodeEscape) and \("+=".onCodeEscape) also join strings and arrays, so they change only with a sign of numbers beside them: a numeric literal, a name such as \(
+                "items.count".onCodeEscape), or an arithmetic operator other than those two.
+            One that changes nothing, as in \("x * 1".onCodeEscape), is left alone.
+
+            The purpose of this operator is to highlight whether your tests check the value a calculation gives.
+
+            \("Mutating a calculation".bold)
+
+            \(
+                """
+                \("let".asKeyword) next = index + \("1".asTypeDeclaration)
+                """.onCodeBlock
+            )
+
+            becomes
+
+            \(
+                """
+                \("let".asKeyword) next = index - \("1".asTypeDeclaration)
+                """.onCodeBlock
+            )
+            """
+        case .flipBooleanLiteral:
+            return """
+
+            \("Flip Boolean Literal".bold)
+
+            The \("flip boolean literal".italic) operator will turn \("true".onCodeEscape) into \("false".onCodeEscape) and \(
+                "false".onCodeEscape) into \("true".onCodeEscape).
+            A literal that is a whole condition, as in \("while true".onCodeEscape), or in a pattern, as in \(
+                "case true:".onCodeEscape), is left alone, as a flipped one often doesn't compile.
+
+            The purpose of this operator is to highlight whether your tests check the values your code gives and is given.
+
+            \("Mutating a literal".bold)
+
+            \(
+                """
+                \("return".asKeyword) \("true".asKeyword)
+                """.onCodeBlock
+            )
+
+            becomes
+
+            \(
+                """
+                \("return".asKeyword) \("false".asKeyword)
+                """.onCodeBlock
+            )
+            """
         case .swapTernary:
             return """
 

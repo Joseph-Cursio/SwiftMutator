@@ -97,6 +97,13 @@
         column: 43
     )
 ), OperatorIdAndPositionAssert(
+    id: .flipBooleanLiteral,
+    position: MutationPosition(
+        utf8Offset: 530,
+        line: 22,
+        column: 16
+    )
+), OperatorIdAndPositionAssert(
     id: .ror,
     position: MutationPosition(
         utf8Offset: 586,
@@ -111,6 +118,13 @@
         column: 37
     )
 ), OperatorIdAndPositionAssert(
+    id: .flipBooleanLiteral,
+    position: MutationPosition(
+        utf8Offset: 678,
+        line: 32,
+        column: 16
+    )
+), OperatorIdAndPositionAssert(
     id: .logicalOperator,
     position: MutationPosition(
         utf8Offset: 684,
@@ -118,11 +132,32 @@
         column: 22
     )
 ), OperatorIdAndPositionAssert(
+    id: .flipBooleanLiteral,
+    position: MutationPosition(
+        utf8Offset: 687,
+        line: 32,
+        column: 25
+    )
+), OperatorIdAndPositionAssert(
+    id: .flipBooleanLiteral,
+    position: MutationPosition(
+        utf8Offset: 750,
+        line: 36,
+        column: 16
+    )
+), OperatorIdAndPositionAssert(
     id: .logicalOperator,
     position: MutationPosition(
         utf8Offset: 755,
         line: 36,
         column: 21
+    )
+), OperatorIdAndPositionAssert(
+    id: .flipBooleanLiteral,
+    position: MutationPosition(
+        utf8Offset: 758,
+        line: 36,
+        column: 24
     )
 ), OperatorIdAndPositionAssert(
     id: .removeSideEffects,
@@ -181,6 +216,20 @@
         column: 16
     )
 ), OperatorIdAndPositionAssert(
+    id: .flipBooleanLiteral,
+    position: MutationPosition(
+        utf8Offset: 2903,
+        line: 125,
+        column: 20
+    )
+), OperatorIdAndPositionAssert(
+    id: .flipBooleanLiteral,
+    position: MutationPosition(
+        utf8Offset: 2910,
+        line: 125,
+        column: 27
+    )
+), OperatorIdAndPositionAssert(
     id: .swapTernary,
     position: MutationPosition(
         utf8Offset: 2915,
@@ -195,11 +244,32 @@
         column: 36
     )
 ), OperatorIdAndPositionAssert(
+    id: .flipBooleanLiteral,
+    position: MutationPosition(
+        utf8Offset: 3087,
+        line: 133,
+        column: 24
+    )
+), OperatorIdAndPositionAssert(
+    id: .flipBooleanLiteral,
+    position: MutationPosition(
+        utf8Offset: 3094,
+        line: 133,
+        column: 31
+    )
+), OperatorIdAndPositionAssert(
     id: .swapTernary,
     position: MutationPosition(
         utf8Offset: 3100,
         line: 133,
         column: 37
+    )
+), OperatorIdAndPositionAssert(
+    id: .flipBooleanLiteral,
+    position: MutationPosition(
+        utf8Offset: 3102,
+        line: 133,
+        column: 39
     )
 ), OperatorIdAndPositionAssert(
     id: .swapTernary,

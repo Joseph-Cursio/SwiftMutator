@@ -40,7 +40,13 @@ final class DiscoverMutationPointsChangedLinesTests: MuterTestCase {
 
         XCTAssertEqual(
             kept.map(\.operatorAndLine),
-            ["NegateConditional:2", "RelationalBoundary:2", "RelationalOperatorReplacement:2"]
+            [
+                "NegateConditional:2",
+                "RelationalBoundary:2",
+                "RelationalOperatorReplacement:2",
+                "ChangeArithmeticOperator:3",
+                "FlipBooleanLiteral:3",
+            ]
         )
     }
 
@@ -56,14 +62,19 @@ final class DiscoverMutationPointsChangedLinesTests: MuterTestCase {
 
         XCTAssertEqual(
             kept.map(\.operatorAndLine),
-            ["NegateConditional:2", "RelationalBoundary:2", "RelationalOperatorReplacement:2"]
+            [
+                "NegateConditional:2",
+                "RelationalBoundary:2",
+                "RelationalOperatorReplacement:2",
+                "ChangeArithmeticOperator:3",
+            ]
         )
     }
 
     func test_withoutChangedLines_everyMutantOfAChangedFileIsKept() async throws {
         let kept = try await mutants(changing: [LineRange(first: 8, last: 8)], changedLines: false)
 
-        XCTAssertEqual(kept.count, 6)
+        XCTAssertEqual(kept.count, 10)
     }
 
     func test_noMutantOnAChangedLine_leavesNothingToMutate() async throws {

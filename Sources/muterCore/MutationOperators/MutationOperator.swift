@@ -23,6 +23,8 @@ enum MutationOperator {
         case logicalOperator = "ChangeLogicalConnector"
         case swapTernary = "SwapTernary"
         case negateConditional = "NegateConditional"
+        case arithmeticOperator = "ChangeArithmeticOperator"
+        case flipBooleanLiteral = "FlipBooleanLiteral"
 
         var visitor: VisitorInitializer {
             switch self {
@@ -38,6 +40,10 @@ enum MutationOperator {
                 return SwapTernaryOperator.Visitor.init
             case .negateConditional:
                 return NegateConditionalOperator.Visitor.init
+            case .arithmeticOperator:
+                return ChangeArithmeticOperator.Visitor.init
+            case .flipBooleanLiteral:
+                return FlipBooleanLiteralOperator.Visitor.init
             }
         }
 
@@ -60,6 +66,10 @@ enum MutationOperator {
                 return "Swaps the two branches of a ternary expression."
             case .negateConditional:
                 return "Negates a condition of an if, guard or while, which sends the code down the other branch."
+            case .arithmeticOperator:
+                return "Swaps arithmetic: plus and minus swap, as do times and divide, and remainder becomes times."
+            case .flipBooleanLiteral:
+                return "Turns the literal true into false, and false into true."
             }
         }
     }

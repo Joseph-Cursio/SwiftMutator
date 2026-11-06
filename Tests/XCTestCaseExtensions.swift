@@ -3,6 +3,11 @@ import TestingExtensions
 import XCTest
 
 class MuterTestCase: XCTestCase {
+    /// The operators `generateSchemataMappings` discovers with.
+    var operatorsToDiscoverWith: MutationOperatorList {
+        .allOperators
+    }
+
     private(set) var runEvents = RunEvents()
     private(set) var fileManager = FileManagerSpy()
     private(set) var ioDelegate = MutationTestingDelegateSpy()
@@ -90,7 +95,7 @@ class MuterTestCase: XCTestCase {
         changes: MutationSourceCodePreparationChange = .null,
         coverage: FileCoverage
     ) -> [SchemataMutationMapping] {
-        MutationOperator.Id.allCases
+        operatorsToDiscoverWith
             .accumulate(into: []) { newSchemataMappings, mutationOperatorId in
                 let visitor = mutationOperatorId.visitor(
                     .init(),

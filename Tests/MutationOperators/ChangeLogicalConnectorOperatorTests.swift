@@ -112,6 +112,30 @@ final class ChangeLogicalConnectorOperatorTests: MuterTestCase {
     // The reparse of the mutated block was told where the edit is in characters, not UTF-8 bytes.
     // Multi-byte text on an earlier line put the edit before the connector's statement, so the
     // reparse reused that statement unmutated: the mutant was the original, reported as survived.
+    // A triage label and a recorded result compare this text, so a comment stays in it for the older operators.
+    func test_aCommentBesideTheOperator_staysInTheSnapshot() throws {
+        let source = try sourceCode(
+            """
+            func f() -> Bool {
+                return a && // both must hold
+                    b
+            }
+            """
+        )
+        let visitor = ChangeLogicalConnectorOperator.Visitor(sourceCodeInfo: .init(path: "/path/to/file", code: source))
+        visitor.walk(source)
+
+        let mutant = try XCTUnwrap(visitor.schemataMappings.mutationSchemata.first)
+        XCTAssertEqual(
+            mutant.snapshot,
+            .init(
+                before: "&& // both must hold",
+                after: "||",
+                description: "changed && // both must hold to ||"
+            )
+        )
+    }
+
     func test_changesAConnectorAfterMultiByteText() throws {
         let source = try sourceCode(
             """

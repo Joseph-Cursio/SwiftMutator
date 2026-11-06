@@ -6,6 +6,13 @@ import XCTest
 // swiftlint:disable file_length - a test for each kind of code the visitor meets, until they're split by operator
 // swiftlint:disable:next type_body_length
 final class MuterVisitorTests: MuterTestCase {
+    /// These tests judge coverage and `muter:disable` tags, and list the mutants they expect. Their code is full of
+    /// `+`s and literals, whose mutants would say nothing more: those operators' own tests show they're judged in the
+    /// same way.
+    override var operatorsToDiscoverWith: MutationOperatorList {
+        super.operatorsToDiscoverWith.filter { ![.arithmeticOperator, .flipBooleanLiteral].contains($0) }
+    }
+
     private var samplePath: String!
 
     override func setUpWithError() throws {

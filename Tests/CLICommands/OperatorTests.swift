@@ -14,6 +14,8 @@ final class OperatorTests: MuterTestCase {
             .logicalOperator: "Change Logical Connector",
             .swapTernary: "Swap Ternary",
             .negateConditional: "Negate Conditional",
+            .arithmeticOperator: "Change Arithmetic Operator",
+            .flipBooleanLiteral: "Flip Boolean Literal",
         ]
 
         for id in MutationOperator.Id.allCases {
@@ -50,7 +52,7 @@ final class OperatorTests: MuterTestCase {
             MutationOperator.Id.description,
             "RelationalOperatorReplacement, RelationalBoundary, RemoveSideEffects, ChangeLogicalConnector, "
                 + "SwapTernary, "
-                + "NegateConditional"
+                + "NegateConditional, ChangeArithmeticOperator, FlipBooleanLiteral"
         )
     }
 
@@ -58,7 +60,7 @@ final class OperatorTests: MuterTestCase {
         XCTAssertThrowsError(try MuterCommand.parseAsRoot(["operator"]))
         XCTAssertTrue(try MuterCommand.parseAsRoot(["operator", "SwapTernary"]) is Operator)
 
-        let help = Operator.helpMessage(columns: 200)
+        let help = Operator.helpMessage(columns: 400)
         XCTAssertTrue(help.contains(MutationOperator.Id.description), help)
         XCTAssertTrue(help.contains("For all operators use: all"), help)
         XCTAssertTrue(help.contains("Available operators are: "), help)
@@ -70,6 +72,7 @@ final class OperatorTests: MuterTestCase {
         let swaps: [(MutationOperator.Id, [String: String])] = [
             (.ror, ROROperator.Visitor(sourceCodeInfo: source).oppositeOperatorMapping),
             (.logicalOperator, ChangeLogicalConnectorOperator.Visitor(sourceCodeInfo: source).oppositeOperatorMapping),
+            (.arithmeticOperator, ChangeArithmeticOperator.Visitor(sourceCodeInfo: source).oppositeOperatorMapping),
         ]
 
         for (id, mapping) in swaps {

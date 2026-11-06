@@ -57,7 +57,7 @@ final class SampleRunTests: MuterTestCase {
         guard case let .sampleSelected(selection)? = changes.first else {
             return XCTFail("Expected the sample first, got \(changes)")
         }
-        XCTAssertEqual(selection, SampleSelection(size: 3, seed: 7, mutantsSampledFrom: 6, mutantsSampled: 3))
+        XCTAssertEqual(selection, SampleSelection(size: 3, seed: 7, mutantsSampledFrom: 10, mutantsSampled: 3))
         state.apply(changes)
         XCTAssertEqual(state.sampleSelection, selection)
     }
@@ -123,8 +123,8 @@ final class SampleRunTests: MuterTestCase {
         await AssertThrowsError(try await DiscoverMutationPoints().run(with: state)) { error in
             XCTAssertEqual(
                 "\(error)",
-                "ℹ️ Shard \(empty.index) of 2 doesn't hold the only mutant in the sample, of the 6 discovered, so there "
-                    + "is nothing to mutate."
+                "ℹ️ Shard \(empty.index) of 2 doesn't hold the only mutant in the sample, of the 10 discovered, so "
+                    + "there is nothing to mutate."
             )
         }
         let selection = SampleSelection(size: 2, seed: 7, mutantsSampledFrom: 9, mutantsSampled: 2)

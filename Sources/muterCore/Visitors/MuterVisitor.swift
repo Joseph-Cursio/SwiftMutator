@@ -27,10 +27,17 @@ extension MutationSourceCodePreparationChange: Nullable {
     }
 }
 
+private struct TagEffect {
+    let position: AbsolutePosition
+    let disables: Bool
+}
+
 class MuterVisitor: SyntaxAnyVisitor {
     private let muterDisableTag = "muter:disable"
     private let muterEnabledTag = "muter:enable"
     private(set) var isDisabled = false
+    /// Each tag comment's effect, by where it starts. Worked out once, from the whole file.
+    private var tagEffects: [TagEffect]?
 
     let configuration: MuterConfiguration?
     let sourceCodeInfo: SourceCodeInfo
@@ -99,19 +106,57 @@ class MuterVisitor: SyntaxAnyVisitor {
         // A mutant of a `#if` condition changes which branch compiles, and a branch for another platform may not build,
         // which fails the build every mutant shares.
         guard node.parent?.as(IfConfigClauseSyntax.self)?.condition?.id != node.id else {
-            // A tag comment inside the condition applies to the code after it, though the condition isn't walked.
-            node.tokens(viewMode: .sourceAccurate).forEach(checkNodeForDisableTag)
             return .skipChildren
         }
 
         return super.visitAny(node)
     }
 
+    /// Asks where `node` is, not which nodes came before it, as nodes that share a comment would each act on it.
     func checkNodeForDisableTag(_ node: SyntaxProtocol) {
-        isDisabled = isDisabled
-            && !node.containsLineComment(muterEnabledTag)
-            || !isDisabled
-            && node.containsLineComment(muterDisableTag)
+        let effects = tagEffects ?? makeTagEffects(in: node.root)
+        tagEffects = effects
+        let position = node.positionAfterSkippingLeadingTrivia
+        isDisabled = effects.last { $0.position <= position }?.disables ?? false
+    }
+
+    /// A comment on a line of its own takes effect from there. One beside code leaves that code off: a `disable` covers
+    /// the statement or element it ends, and an `enable` starts after it.
+    private func makeTagEffects(in root: Syntax) -> [TagEffect] {
+        var effects: [TagEffect] = []
+        for token in root.tokens(viewMode: .sourceAccurate) {
+            if let disables = lastTag(in: token.leadingTrivia) {
+                effects.append(TagEffect(position: token.position, disables: disables))
+            }
+            if let disables = lastTag(in: token.trailingTrivia) {
+                let position = disables
+                    ? outermostNode(endingWith: token).positionAfterSkippingLeadingTrivia
+                    : token.endPositionBeforeTrailingTrivia
+                effects.append(TagEffect(position: position, disables: disables))
+            }
+        }
+        return effects.sorted { $0.position < $1.position }
+    }
+
+    /// Whether the last tag in `trivia` is a `disable`; nil if it holds none.
+    private func lastTag(in trivia: Trivia) -> Bool? {
+        for case let .lineComment(comment) in trivia.reversed() {
+            if comment.contains(muterDisableTag) { return true }
+            if comment.contains(muterEnabledTag) { return false }
+        }
+        return nil
+    }
+
+    /// Stops short of a list of statements or members, whose last one `token` may end, but which holds others too.
+    private func outermostNode(endingWith token: TokenSyntax) -> Syntax {
+        var node = Syntax(token)
+        while let parent = node.parent,
+              !parent.is(CodeBlockItemListSyntax.self),
+              !parent.is(MemberBlockItemListSyntax.self),
+              parent.lastToken(viewMode: .sourceAccurate)?.id == token.id {
+            node = parent
+        }
+        return node
     }
 
     /// Whether the tests ran `node`, by the innermost region that holds all of it.

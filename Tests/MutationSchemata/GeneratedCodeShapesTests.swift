@@ -314,6 +314,88 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         )
     }
 
+    /// The arithmetic and literal mutants that have nowhere but a value to go, as well as those in statements, and a
+    /// `+` beside what shows it holds numbers. All of them must compile together, each in a branch of its own.
+    func test_theGeneratedCodeBuildsForArithmeticAndLiterals() throws {
+        let code = """
+        struct Settings {
+            var isOn = true
+            var limit = 2 * 3
+            static let threshold = 10 - 4
+            lazy var isLazy = false
+            func scaled(by factor: Int = 4 / 2, isExact: Bool = false) -> Int {
+                isExact ? limit : limit * factor
+            }
+        }
+
+        let isGlobal = false
+        nonisolated(unsafe) var counter = 7 % 4
+
+        func count(_ items: [Int]) -> Int {
+            var total = 0
+            for item in items {
+                total += 1
+                total -= item
+            }
+            total *= 2
+            total /= 2
+            total %= 100
+            return total + items.count
+        }
+
+        func flags(_ value: Bool) -> (Bool, Bool) {
+            switch value {
+            case true: return (true, value == false)
+            case false: return (false, value == true)
+            }
+        }
+
+        func loop() -> Int {
+            while true {
+                if counter > 0 { return counter }
+                counter += 1
+            }
+        }
+
+        func branch() -> Int {
+            if true { return 1 }
+        }
+
+        func text(_ name: String, _ more: [Int]) -> String {
+            var result = name + "!"
+            result += name
+            return result + String(more.count + 1) + name
+        }
+
+        #if true
+        let compiled = false
+        #endif
+        """
+        let compiled = try compileMutated(["Shapes.swift": code])
+
+        let mutants = { compiled.operators(in: "Shapes.swift", onTheLineHolding: $0) }
+        XCTAssertEqual(mutants("var isOn"), [.flipBooleanLiteral], "a stored property")
+        XCTAssertEqual(mutants("var limit"), [.arithmeticOperator], "a stored property's calculation")
+        XCTAssertEqual(mutants("static let threshold"), [.arithmeticOperator], "a static property")
+        XCTAssertEqual(mutants("lazy var"), [.flipBooleanLiteral], "a lazy property")
+        XCTAssertEqual(mutants("func scaled"), [.arithmeticOperator, .flipBooleanLiteral], "default arguments")
+        XCTAssertEqual(mutants("let isGlobal"), [.flipBooleanLiteral], "a global")
+        XCTAssertEqual(mutants("var counter ="), [.arithmeticOperator], "a global's calculation")
+        XCTAssertEqual(mutants("total += 1"), [.arithmeticOperator], "an assignment form")
+        XCTAssertEqual(mutants("return total +"), [.arithmeticOperator], "a count")
+        XCTAssertEqual(
+            mutants("case true:"),
+            [.ror, .flipBooleanLiteral],
+            "what a case runs, but not its pattern"
+        )
+        XCTAssertEqual(mutants("while true"), [], "a whole condition")
+        XCTAssertEqual(mutants("if true { return 1 }"), [], "a whole condition")
+        XCTAssertEqual(mutants("#if true"), [], "a directive's condition")
+        XCTAssertEqual(mutants("var result"), [], "a + of strings")
+        XCTAssertEqual(mutants("result += name"), [], "a += of strings")
+        XCTAssertEqual(mutants("let compiled"), [.flipBooleanLiteral], "a directive's code")
+    }
+
     /// A `main.swift` of top-level code. Its own statements hold a declaration, the `ProcessInfo` import added in
     /// front if nothing else, so a mutant there is switched in its statement or a global's value alone; one in a `for`
     /// or `if` body, a closure, a function, or a `#if` clause of statements only is switched there. The switches read
@@ -338,7 +420,11 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         let compiled = try compileMutated(["main.swift": main])
 
         let mutants = { compiled.operators(in: "main.swift", onTheLineHolding: $0) }
-        XCTAssertEqual(mutants("func doubled"), [.ror, .relationalBoundary, .swapTernary], "a function")
+        XCTAssertEqual(
+            mutants("func doubled"),
+            [.ror, .relationalBoundary, .swapTernary, .arithmeticOperator],
+            "a function"
+        )
         XCTAssertEqual(mutants("let values"), [.ror, .relationalBoundary, .swapTernary], "a global's value")
         XCTAssertEqual(mutants("total += value"), [.ror, .relationalBoundary, .swapTernary], "a for body")
         XCTAssertEqual(mutants("let isLarge"), [.ror, .relationalBoundary], "a closure")

@@ -509,7 +509,7 @@ final class RunCommandTests: XCTestCase {
     }
 
     func test_operatorsAndFilesToMutate_comeFirstInTheHelp_ofRunAndMutateWithoutRunning() {
-        for help in [Run.helpMessage(columns: 200), MutateWithoutRunning.helpMessage(columns: 200)] {
+        for help in [Run.helpMessage(columns: 400), MutateWithoutRunning.helpMessage(columns: 400)] {
             let options = help.components(separatedBy: "OPTIONS:\n").last ?? ""
             XCTAssertTrue(options.hasPrefix("  --files-to-mutate <files-to-mutate>"), help)
             XCTAssertTrue(options.contains("\n  --operators <operators> "), help)

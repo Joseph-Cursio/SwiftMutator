@@ -9,7 +9,7 @@ private enum AcceptanceTestsError: Error {
 
 final class AcceptanceTests: XCTestCase {
     private let messages = (
-        mutationScoreOfTestSuite: "Mutation Score of Test Suite: 33%",
+        mutationScoreOfTestSuite: "Mutation Score of Test Suite: 16%",
         mutationScoresHeader: """
         --------------------
         Mutation Test Scores
@@ -44,12 +44,12 @@ final class AcceptanceTests: XCTestCase {
 
         XCTAssertTrue(output.contains("_mutated"))
 
-        XCTAssertTrue(output.contains("In total, SwiftMutator introduced 3 mutants in 3 files."))
+        XCTAssertTrue(output.contains("In total, SwiftMutator introduced 6 mutants in 4 files."))
 
         // Standard output is a file, so a line in place of the bar: once when the baseline passes, with no mutant
-        // tested, and once as each of the 3 mutants finishes. Nothing moves the cursor, and nothing is coloured.
-        XCTAssertEqual(try numberOfProgressUpdates(in: output), 4)
-        XCTAssertEqual(try numberOfDurationEstimates(in: output), 4)
+        // tested, and once as each of the 6 mutants finishes. Nothing moves the cursor, and nothing is coloured.
+        XCTAssertEqual(try numberOfProgressUpdates(in: output), 7)
+        XCTAssertEqual(try numberOfDurationEstimates(in: output), 7)
         XCTAssertFalse(output.contains("\u{1B}"))
 
         XCTAssertTrue(output.contains(messages.mutationScoresHeader))
@@ -65,6 +65,9 @@ final class AcceptanceTests: XCTestCase {
             "baseline run.log",
             "timed test run.log",
             "ChangeLogicalConnector @ Module2.swift-2-17 3f9a9afeaa09cfa4.log",
+            "FlipBooleanLiteral @ AppDelegate.swift-9-16 a37026e7c9359c5a.log",
+            "FlipBooleanLiteral @ Module2.swift-2-12 3f9a9afeaa09cfa4.log",
+            "FlipBooleanLiteral @ Module2.swift-2-20 3f9a9afeaa09cfa4.log",
             "RemoveSideEffects @ ViewController.swift-5-28 4d7bb557ed045e7d.log",
         ]
 
@@ -97,7 +100,7 @@ final class AcceptanceTests: XCTestCase {
     func test_xcodeFormat() throws {
         let output = try muterXcodeOutput
 
-        XCTAssertEqual(try numberOfXcodeFormattedMessages(in: output), 1)
+        XCTAssertEqual(try numberOfXcodeFormattedMessages(in: output), 2)
         // Without --verbose, no file's mutant count is listed.
         XCTAssertEqual(try numberOfDiscoveredFileLists(in: output), 0)
     }
