@@ -12,6 +12,8 @@ final class InterruptionsTests: MuterTestCase {
     private let said = Events()
     /// Opens when the stand-in for exiting is called, where SwiftMutator would have ended.
     private let exited = Gate()
+    /// "held" each time idle sleep was stopped, and "released" each time it was let happen again.
+    private let idleSleep = Events()
 
     // MARK: - InterruptionRecord
 
@@ -373,26 +375,115 @@ final class InterruptionsTests: MuterTestCase {
         XCTAssertEqual(said.all, [])
     }
 
+    // MARK: - Keeping the Mac awake
+
+    func test_theMacStaysAwake_whileTheWorkRuns_andNotOnceItHasFinished() async {
+        let idleSleep = idleSleep
+
+        let during = await makeInterruptions().run { idleSleep.all }
+
+        XCTAssertEqual(try during.result.get(), ["held"])
+        XCTAssertEqual(idleSleep.all, ["held", "released"])
+    }
+
+    func test_theMacCanSleep_onceTheWorkHasThrown() async {
+        let ended = await makeInterruptions().run { throw WorkError() }
+
+        XCTAssertThrowsError(try ended.result.get())
+        XCTAssertEqual(idleSleep.all, ["held", "released"])
+    }
+
+    // By the time the caller exits by the signal.
+    func test_theMacCanSleep_onceASignalHasStoppedTheWork() throws {
+        let started = Gate()
+        let running = Running(makeInterruptions()) { try await waitUntilCancelled(opening: started) {} }
+        XCTAssertTrue(started.wait())
+        waitUntilObserving()
+        XCTAssertEqual(idleSleep.all, ["held"])
+
+        XCTAssertTrue(observer.send(SIGTERM))
+        let ended = try XCTUnwrap(running.wait())
+
+        XCTAssertEqual(ended.signal, SIGTERM)
+        XCTAssertEqual(idleSleep.all, ["held", "released"])
+    }
+
+    // SwiftMutator ends with the work still running, so `run` never gets to end it.
+    func test_stoppingAtOnce_letsTheMacSleep_beforeExiting() throws {
+        let exited = exited
+        let idleSleep = idleSleep
+        let atExit = Events()
+        let running = Running(makeInterruptions(onExit: { atExit.append(idleSleep.all.joined(separator: " ")) })) {
+            exited.wait()
+        }
+        waitUntilObserving()
+
+        XCTAssertTrue(observer.send(SIGQUIT))
+        _ = try XCTUnwrap(running.wait())
+
+        XCTAssertEqual(atExit.all, ["held released"])
+    }
+
+    // A run left suspended shouldn't keep a Mac awake for days.
+    func test_theMacCanSleep_whileSuspended_andStaysAwakeOnceContinued() throws {
+        let finish = Gate()
+        let idleSleep = idleSleep
+        let whileSuspended = Events()
+        let interruptions = makeInterruptions(suspend: { whileSuspended.append(idleSleep.all.joined(separator: " ")) })
+        let running = Running(interruptions) { finish.wait() }
+        waitUntilObserving()
+
+        XCTAssertTrue(observer.send(SIGTSTP))
+        XCTAssertTrue(Self.waitUntil(within: 5) { idleSleep.all.count == 3 }, "\(idleSleep.all)")
+        XCTAssertEqual(idleSleep.all, ["held", "released", "held"], "still running, so it is held again")
+        finish.open()
+        _ = try XCTUnwrap(running.wait())
+
+        XCTAssertEqual(whileSuspended.all, ["held released"])
+        XCTAssertEqual(idleSleep.all, ["held", "released", "held", "released"])
+    }
+
+    // It is about to end, so it stays held until it does.
+    func test_aSIGTSTP_whileStopping_keepsTheMacAwakeUntilTheWorkEnds() throws {
+        let started = Gate()
+        let running = Running(makeInterruptions()) { try await waitUntilCancelled(opening: started) {} }
+        XCTAssertTrue(started.wait())
+        waitUntilObserving()
+
+        XCTAssertTrue(observer.send(SIGINT))
+        XCTAssertTrue(observer.send(SIGTSTP))
+        _ = try XCTUnwrap(running.wait())
+
+        XCTAssertEqual(idleSleep.all, ["held", "released"])
+    }
+
     // MARK: - Helpers
 
     /// Long grace periods and sweep intervals by default, so that only a test about them sees them.
     private func makeInterruptions(
         gracePeriod: TimeInterval = 60,
         sweepInterval: TimeInterval = 60,
-        suspend: @escaping @Sendable () -> Void = {}
+        suspend: @escaping @Sendable () -> Void = {},
+        onExit: @escaping @Sendable () -> Void = {}
     ) -> Interruptions {
         let events = events
         let said = said
         let exited = exited
+        let idleSleep = idleSleep
         return Interruptions(
             observer: observer,
             killDescendants: { events.append("killed") },
             suspend: suspend,
             exit: { signal in
+                onExit()
                 events.append("exited by \(InterruptionRecord.name(of: signal))")
                 exited.open()
             },
             say: { said.append($0) },
+            idleSleep: IdleSleepPrevention(hold: {
+                idleSleep.append("held")
+                return { idleSleep.append("released") }
+            }),
             gracePeriod: gracePeriod,
             sweepInterval: sweepInterval
         )

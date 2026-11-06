@@ -279,7 +279,7 @@ Added on 21 October, from a comparison with swift-mutation-testing v1.6.3 (`937f
   - Recording whether each mutant's code ran (done, [#109], PR #225). Survivors whose code never ran read as not covered, kills and lone-worker timeouts whose code never ran are tested again, and five `swift test` runs that show nothing, against coverage, stop the run. A host that can't write its marker keeps today's verdicts. The score's formula doesn't change, which stays with [#89].
   - Parallel SwiftPM runs by default, keeping one writable copy per worker. swift-mutation-testing's shared folder gives false kills (ericodx/swift-mutation-testing#187, [#116]).
   - Time limits for the build, coverage and baseline, and the baseline's failing tests named ([#117]).
-  - Keeping the Mac awake during a run ([#118]).
+  - Keeping the Mac awake during a run (done, [#118]). On macOS a run holds `.idleSystemSleepDisabled` until it ends, however it ends, which also holds on battery, unlike swift-mutation-testing's assertion. It lets go while Ctrl-Z has the run suspended. Closing the lid still sleeps the Mac.
 - **Reports, CI and distribution.**
   - Stryker JSON, SARIF and a Markdown summary, several from one run ([#119]).
   - CI gates against a committed baseline: new survivors and score drops ([#120]).

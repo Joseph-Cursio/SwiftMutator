@@ -1637,6 +1637,18 @@ propertyTests:
   globs its header records. The JSON report's `propertyKillSummary` holds the section (see
   [the example](Docs/test_report_json_example.md#propertykillsummary)).
 
+## Keeping the Mac awake
+
+A whole-project run can take hours. On macOS, `run`, `run-without-mutating` and
+`mutate-without-running`, resumed runs included, keep the Mac from going to sleep while it is idle,
+on battery too, so `caffeinate` isn't needed. `pmset -g assertions` lists this as a
+`PreventUserIdleSystemSleep` assertion named "SwiftMutator is running mutation tests". It ends with
+the run, however the run ends, and for as long as Ctrl-Z has
+[suspended](#stopping-a-run) the run, as nothing is running then.
+
+The display can still sleep. Closing the lid still sleeps the Mac, and the run then makes no
+progress until the Mac wakes. Linux is left as it is.
+
 ## Stopping a run
 
 Press Ctrl-C once to stop a run and keep what it tested. SIGTERM, which `kill` sends, and SIGHUP,
