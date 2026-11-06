@@ -200,6 +200,14 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   are no tiers of operators, as the numbers per operator don't call for them. A run recorded before
   these operators is continued as above, by naming that run's operators with `--operators`. See
   [mutation_operators.md](Docs/mutation_operators.md#what-each-operator-catches-and-costs).
+- **Disable tags act once, by where they are:** the nodes that share a `// muter:disable` or
+  `// muter:enable` used to take turns acting on it, so a tag beside code could silently fail,
+  depending on how many nodes shared it. Now a tag beside code leaves that code off: a `disable`
+  covers what it ends and what follows, and an `enable` starts after it. A `disable` or `enable` on a
+  block's last statement no longer reaches its earlier statements, and a tag inside a statement now
+  counts for `RemoveSideEffects` on the statements after it. So a file with such tags can find
+  different mutants. See
+  [Disable muter in code](Docs/Muter-README.md#disable-muter-in-code).
 - **Logging through the injected printer**, so log output can be captured and tested.
 
 Fixes that apply to Muter are offered upstream too.

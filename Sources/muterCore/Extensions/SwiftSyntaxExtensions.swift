@@ -147,11 +147,6 @@ extension SyntaxProtocol {
     var allChildren: SyntaxChildren {
         children(viewMode: .all)
     }
-
-    func containsLineComment(_ comment: String) -> Bool {
-        leadingTrivia.containsLineComment(comment)
-            || trailingTrivia.containsLineComment(comment)
-    }
 }
 
 extension SyntaxChildren {
@@ -185,24 +180,6 @@ extension FunctionDeclSyntax {
 extension ReturnClauseSyntax {
     var isReturningVoid: Bool {
         ["Void", "()"].contains(type.withoutTrivia().description.trimmed)
-    }
-}
-
-extension SwiftSyntax.Trivia {
-    func containsLineComment(_ comment: String) -> Bool {
-        contains { piece in
-            if case let .lineComment(commentText) = piece {
-                return commentText.contains(comment)
-            } else {
-                return false
-            }
-        }
-    }
-}
-
-extension Trivia? {
-    func containsLineComment(_ comment: String) -> Bool {
-        map { $0.containsLineComment(comment) } ?? false
     }
 }
 
