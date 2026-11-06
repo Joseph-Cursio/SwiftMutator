@@ -542,6 +542,11 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         )
     }
 
+    func testBundlesWroteInTheProject(path: String) {
+        let place = path.isEmpty ? "the top folder" : path
+        print("ℹ️ Workers can't share one build: a run of your tests, with no mutant on, changed \(place) in the copy.")
+    }
+
     func resultsFileCreated(atPath path: String) {
         print("💾 SwiftMutator saves each mutant's result as it finishes, in \(path.bold)")
     }

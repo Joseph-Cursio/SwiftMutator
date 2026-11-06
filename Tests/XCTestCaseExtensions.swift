@@ -58,6 +58,8 @@ class MuterTestCase: XCTestCase {
             process: { [process] in process },
             prepareCode: { [prepareCode] in prepareCode.prepare($0) },
             writeFile: { [writeFile] in try writeFile.writeFile($0, $1) },
+            // Never in the real temporary directory, which would keep a folder for each test's folder.
+            makeFolder: { _ in },
             // No report reads a real file: a test that shows a mutant's line gives it.
             readSourceFile: { _ in nil },
             server: server,
@@ -74,7 +76,11 @@ class MuterTestCase: XCTestCase {
             // Never git in the checkout the tests run in: a test of --since gives its own.
             selectChanges: { _, _, _ in .failure(.gitFailed(arguments: [], errors: "not stubbed")) },
             // Never the test runner's own.
-            commandLineArguments: ["run"]
+            commandLineArguments: ["run"],
+            // Never a real folder, and nothing to compare, so workers have clones unless a test says otherwise.
+            projectFiles: { _ in nil },
+            // Never the Mac's own, so a SwiftPM run tests one mutant at a time unless a test says otherwise.
+            processorCount: 1
         )
     }
 

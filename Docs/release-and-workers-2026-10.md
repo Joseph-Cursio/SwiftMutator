@@ -1,4 +1,4 @@
-# Measured: release-mode tests and the worker count
+# Measured: release-mode tests, the worker count and a shared build
 
 On 31 October 2026, for [#70](https://github.com/Joseph-Cursio/SwiftMutator/issues/70), SwiftProjectLint's whole repo was run seven times: with 2, 3, 4, 6 and 8 workers, with 4 workers, the review's setting, a second time, and once with its tests built in release mode. This file records what each setting did to time and to verdicts. Each setting ran once, except 4 workers, and the two 4-worker runs differed by 13% in time, so read small differences with that in mind.
 
@@ -94,3 +94,55 @@ Each mutant's majority verdict across the seven runs, with failed and runtime er
 
 - Two mutants were off the majority in three runs: `ContextSymbolTable.swift:96`, a relational operator that 3 runs killed and 4 didn't, and `ContextSymbolTable.swift:98`, a removed call that 3 runs didn't kill. `OnceContractViolationTests` walks a dictionary, so they are killed only when its declarations come in one order. `PrimitiveNamedForDomainTypeVisitor.swift:77` and `:105` are flaky the same way.
 - `DemeterChainFilter.swift:207` and `LocalTypeCollector.swift:25` were killed only in the 4-worker run under load, by "enabledRuleNames loads saved rules from UserDefaults on init" and "saveEnabledRules persists to UserDefaults and loads back". Every other run, release included, called them survivors.
+
+## Workers sharing one build
+
+On 6 November 2026, for [#116](https://github.com/Joseph-Cursio/SwiftMutator/issues/116), SwiftProjectLint was run four times with 4 workers, twice with a clone for each worker and twice with every worker on one build.
+
+| | Clones, 1st | Shared, 1st | Shared, 2nd | Clones, 2nd |
+|---|---|---|---|---|
+| Whole run | 534 s | 392 s | 402 s | 540 s |
+| Start to the first result | 203 s | 75 s | 73 s | 195 s |
+| After that | 331 s | 317 s | 329 s | 345 s |
+| CPU time, user and system | 83.3 min | 57.2 min | 59.2 min | 89.0 min |
+| Baseline | 55.3 s | 54.8 s | 53.3 s | 54.1 s |
+| Timed test run | 13.4 s | 13.6 s | 13.7 s | 12.2 s |
+| Mean seconds per mutant | 7.74 | 7.89 | 8.20 | 8.61 |
+| Mean seconds per survivor | 23.9 | 23.7 | 24.7 | 25.7 |
+| Mean seconds per killed mutant | 3.54 | 3.78 | 3.91 | 4.15 |
+| Killed, survived | 119, 31 | 119, 31 | 119, 31 | 119, 31 |
+
+- **The saving is the setup.** The first result came about 125 s sooner, the time to copy three clones and build them, and the run ended about 140 s sooner: 26% of 537 s. The rest of the run took 323 s against 338 s, a difference smaller than that between the two clone runs, and a mutant's mean time didn't change beyond the runs' own spread. CPU time fell by about 32%.
+- **The saving doesn't grow with the run.** A whole run of the 1,771 mutants wasn't timed. The rate here, and a stopped run of 382 mutants at 17 s each, put it at one to two hours, so about 2 min is about 2–3% of it.
+- **Verdicts.** All four runs gave each of the 150 mutants the same outcome. Which test failed first differed for 64–72 mutants between any two runs, as much between two runs of one kind as between kinds, so that follows test order.
+- **The check.** A walk with the same calls over the copy's 27,741 files and folders, `.build` included, took about 0.3 s, and a run takes two. SwiftProjectLint's tests wrote nothing there.
+- **Tests that write in the project.** A scratch package whose tests write a fixture next to their source, some removing it again, and check none of its code, so that every kill is false, was told `changed Tests/NextToTests`, got a clone for each worker, and had no kills. Another whose tests write only in their own temporary directory shared a build, and had no kills either. Neither test could show a test that writes in the project only with a mutant on, which the check can't see.
+- **Disk.** Not measured. The copy's `.build` is 1.9 GB, and a clone rewrites much of its own.
+
+### A small run
+
+The rule of one worker for each 50 mutants exists to pay back clones, so a shared build doesn't follow it. These six runs tested 40 mutants, from `--sample 40 --seed 116`, one after another in this order: 4 workers on one build, one worker, 4 workers with clones, then the same in reverse.
+
+| | One build, 1st | One worker, 1st | Clones, 1st | Clones, 2nd | One worker, 2nd | One build, 2nd |
+|---|---|---|---|---|---|---|
+| Whole run | 150 s | 214 s | 275 s | 266 s | 217 s | 144 s |
+| Start to the first result | 74 s | 70 s | 195 s | 194 s | 71 s | 73 s |
+| After that | 77 s | 144 s | 80 s | 72 s | 146 s | 72 s |
+| CPU time, user and system | 15.7 min | 14.8 min | 41.8 min | 41.7 min | 14.8 min | 15.6 min |
+| Mean seconds per mutant | 6.47 | 3.46 | 6.54 | 5.69 | 3.50 | 5.96 |
+| Time limit | 104 s | 64 s | 103 s | 101 s | 64 s | 104 s |
+
+- **4 workers on one build took 32% less time than one worker,** 147 s against 216 s, for about the same CPU time. Testing the mutants took about half as long. A mutant's own run took about 1.8 times as long under the load.
+- **4 workers with clones took 25% more than one worker,** which is what the rule of 50 mutants avoids for them.
+- **Verdicts.** Each run gave 36 kills and 4 survivors, and all six gave each mutant the same outcome.
+- **Not timed:** a run of a few mutants, or on a much smaller project, where the first result's wait is shorter and each worker's share smaller.
+
+### Setup
+
+| | |
+|---|---|
+| Machine | Apple M5 Pro, 6 performance and 12 efficiency cores, 64 GB, Xcode 27.2 (Swift 6.4.2). |
+| SwiftMutator | A release build of the #116 branch, on `main` at `9f5c74f4`, before edits that changed only comments, messages and when the check runs. The small runs used a build with those edits and this rule's change, with no count set for the 4-worker runs on one build. |
+| Project | A clone of SwiftProjectLint at `b674e29a`, the slow test tier's commit, with `Packages/SwiftProjectLintRules/**`, `**/BuiltInRules.swift` and `**/PatternCategory.swift` excluded and the five tests that tier skips, as they fail in the copy or their verdicts follow the load. |
+| Command | `swift-mutator run --skip-coverage --skip-update-check --sample 150 --seed 116`, with `mutationTestWorkers: 4` and `workersShareBuild` true or false. |
+| Runs | One after another, in the table's order, each once no other run was going and the 1-minute load was under 4. Each run's own load averaged 50 to 86, with peaks past 100, so a mutant's time here is far from an idle machine's. |

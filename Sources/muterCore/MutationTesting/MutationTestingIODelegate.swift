@@ -120,6 +120,8 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
     private var testingTimeOutExecutor: TestingTimeoutExecutorFactory
     @Dependency(\.writeFile)
     private var writeFile: WriteFile
+    @Dependency(\.makeFolder)
+    private var makeFolder: MakeFolder
 
     /// The `.xctestrun` file, at the mutated project's root, that `switchOn` writes and a mutant's xcodebuild run
     /// tests from, unless its configuration's `xcodeWorker` names another.
@@ -589,6 +591,10 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             let activeMutantFile = Self.activeMutantFile(forWorkerIn: folder).path
             try writeFile(marker.map { schemata.id + "\n" + $0.path } ?? "", activeMutantFile)
             process.environment?[activeMutantFileKey] = activeMutantFile
+            // The same for each of the worker's runs too. `swift` stops at once if TMPDIR names no folder.
+            let temporary = WorkerTemporaryFolder(forWorkerIn: folder, under: FileManager.default.temporaryDirectory)
+            try makeFolder(temporary.path)
+            process.environment?.merge(temporary.environment) { _, own in own }
         } else if let marker {
             process.environment?[schemata.id] = "YES"
             process.environment?[activationMarkerKey] = marker.path
@@ -609,8 +615,9 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             process.arguments = testCommandArguments
             process.executableURL = URL(fileURLWithPath: configuration.testCommandExecutable)
         }
-        if let workingDirectory {
-            process.currentDirectoryURL = workingDirectory
+        // Workers that share a build have only a name each, which holds no folder to start in.
+        if let folder = (skipsBuild ? configuration.directTestRun?.sharedBuild : nil) ?? workingDirectory {
+            process.currentDirectoryURL = folder
         }
         process.standardOutput = fileHandle
         process.standardError = fileHandle

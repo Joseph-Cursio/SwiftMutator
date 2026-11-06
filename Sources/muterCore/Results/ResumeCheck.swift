@@ -27,6 +27,7 @@ enum ResumeCheck {
 
     static let keysThatDontAffectOutcomes: Set = [
         MuterConfiguration.CodingKeys.mutationTestWorkers.stringValue,
+        MuterConfiguration.CodingKeys.workersShareBuild.stringValue,
         MuterConfiguration.CodingKeys.stopAtFirstFailure.stringValue,
         MuterConfiguration.CodingKeys.buildTimeout.stringValue,
         MuterConfiguration.CodingKeys.oneWorkerSimulator.stringValue,

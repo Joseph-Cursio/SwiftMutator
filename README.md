@@ -33,13 +33,15 @@ or remove calls, arithmetic or boolean literals. `--operator-tier experimental` 
 SwiftMutator runs its eight by default.
 
 SwiftMutator differs in how it keeps tests apart. Each of its workers tests in its own full
-copy of the project, `.git` included. swift-mutation-testing tests in a sandbox whose unchanged
+copy of the project, `.git` included, unless a run of the tests with no mutant on writes nothing
+in the copy, when they share one (see [Workers and release mode](#workers-and-release-mode)).
+swift-mutation-testing tests in a sandbox whose unchanged
 files are links to your project's files, so a test that rewrites one in place, such as a fixture,
 changes your project, and a test that runs `git` can fail. On a package, its workers share that
-sandbox, so tests that write files there at fixed paths can give false kills. In both tools,
-workers share the temporary directory. On macOS, SwiftMutator gives each worker's directly run
-tests their own `UserDefaults` (see Test bundles run directly); swift-mutation-testing's workers
-share them ([#92](https://github.com/Joseph-Cursio/SwiftMutator/issues/92)).
+sandbox, so tests that write files there at fixed paths can give false kills, and its workers share
+the temporary directory, where each of SwiftMutator's has its own. On macOS, SwiftMutator gives each
+worker's directly run tests their own `UserDefaults` (see Test bundles run directly);
+swift-mutation-testing's workers share them ([#92](https://github.com/Joseph-Cursio/SwiftMutator/issues/92)).
 
 swift-mutation-testing needs macOS 15 or later, and installs with Homebrew.
 [Docs/smt-trial-2026-10.md](Docs/smt-trial-2026-10.md) compares the two tools as they were on
@@ -65,13 +67,17 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
 - **Mutants outside function bodies:** a stored property's initial value, a global, a default argument
   and a `main.swift`'s statements are mutated too, each switched by itself
   (see [Mutants outside function bodies](#mutants-outside-function-bodies)).
-- **Parallel workers:** `mutationTestWorkers: N` tests N mutants at once on SwiftPM projects,
-  each in its own APFS clone of the mutated project. Each clone is built once before testing, which
-  costs one extra build per worker but keeps tests that write files next to their sources from
-  sharing them across workers. An xcodebuild project that tests on a simulator gets one simulator
-  per worker instead, from one build (see [xcodebuild workers](#xcodebuild-workers)). What tests
-  share outside the copy can still give false kills (see
-  [Tests that share state across workers](#tests-that-share-state-across-workers)).
+- **Parallel workers:** a SwiftPM project tests several mutants at once by default, each in its own
+  APFS clone of the mutated project (see [Workers and release mode](#workers-and-release-mode)).
+  `mutationTestWorkers: N` or `--workers N` chooses how many. Each clone is built once before
+  testing, which costs one extra build, and about one build folder of disk, per worker, but keeps
+  tests that write files next to their sources from sharing them across workers. A run whose tests
+  wrote nothing in the copy, with no mutant on, makes no clones, and its workers test from one build,
+  on macOS when mutants' test bundles run directly. Each worker has its own temporary directory too.
+  An xcodebuild project that tests on a simulator can have one simulator
+  per worker instead, from one build, when `mutationTestWorkers` or `--workers` asks for them (see
+  [xcodebuild workers](#xcodebuild-workers)). What tests share outside the copy can still give false
+  kills (see [Tests that share state across workers](#tests-that-share-state-across-workers)).
 - **One environment for every `swift test` run:** a mutant is switched on by its ID in a file
   beside the worker's folder, such as `MyPackage_mutated.active-mutant`, not by a variable of its
   own, so your tests don't find it among the package's files or in its `git status`. For a package
@@ -244,9 +250,11 @@ mutant on its own (see [Testing one mutant](#testing-one-mutant)).
 - **2** when the run finished with its headline score below `--fail-under` or `failUnder`, or with
   every mutant a build error, whatever the threshold. Every report, the results file and
   `summary.json` were written first.
-- **3** when the baseline run, with no mutant on, failed in the project's copy or in a parallel
-  worker's clone of it, for any reason but
-  [mutants that don't compile](#mutants-that-dont-compile) outside a test plan. Nothing was tested.
+- **3** when the baseline run, with no mutant on, failed in the project's copy, or in a parallel
+  worker's clone of it when `mutationTestWorkers` or `--workers` asked for those workers, for any
+  reason but [mutants that don't compile](#mutants-that-dont-compile) outside a test plan. Nothing
+  was tested. A clone that fails with the default count of workers makes the run test one mutant at a
+  time instead.
 - **4** when an error stopped mutation testing partway, such as 5 build errors in a row, or a
   simulator that went away. The results so far are kept, and the run can be resumed.
 - **5** when a `--resume` or `--reuse` is refused, as the results might not hold for this run
@@ -794,7 +802,8 @@ the JSON file alone. The options are documented in
 
 | Key | Meaning |
 |---|---|
-| `mutationTestWorkers` | How many mutants to test at once (SwiftPM projects, and xcodebuild projects that test on a simulator, which get one simulator per worker; default 1) |
+| `mutationTestWorkers` | How many mutants to test at once (SwiftPM projects, and xcodebuild projects that test on a simulator, which get one simulator per worker; default for SwiftPM: half the processors, at most 4, and, when each needs a clone, fewer for fewer than 150 mutants, see [Workers and release mode](#workers-and-release-mode); for others: 1) |
+| `workersShareBuild` | Whether a SwiftPM run's workers may test from one build when a direct run of the tests, with no mutant on, wrote nothing in the copy (default: `true`; `false` gives each worker a clone, see [Workers and release mode](#workers-and-release-mode)) |
 | `mutationTestTimeout` | Seconds before a mutant's test run is stopped (default: based on a timed test run; see above) |
 | `oneWorkerSimulator` | Whether one xcodebuild worker tests on a simulator SwiftMutator makes (absent: when the project and its baseline show it is faster; true: whenever the destination is a simulator; false: never; see [One worker on a simulator of its own](#one-worker-on-a-simulator-of-its-own)) |
 | `stopAtFirstFailure` | Stop a mutant's test run at its first failed test, or at a test process's crash, either of which already decides that it is killed (SwiftPM projects only; never the baseline; default true) |
@@ -822,6 +831,8 @@ least as long as every session's limit tests only the timeouts again (see
 once says so, and one that uses fewer workers than asked says why:
 
 ```
+👷 Testing 4 mutants at a time, each in a copy of the project of its own, by default: `--workers` or `mutationTestWorkers` sets another count.
+👷 Testing 4 mutants at a time, from one build, as your tests wrote nothing in the project.
 👷 Testing 3 mutants at a time, though 4 workers were asked for: only 3 are left to test.
 👷 Testing one mutant at a time, though 4 workers were asked for: a Mac app's test runs share its UserDefaults, saved state and container, so workers would see each other's.
 ```
@@ -905,14 +916,73 @@ Measured on SwiftProjectLint's whole repo, 2,463 mutants, on an 18-core Mac, wit
 `--skip-coverage` and one run per setting
 ([Docs/release-and-workers-2026-10.md](Docs/release-and-workers-2026-10.md)):
 
-- **`mutationTestWorkers`** (default 1). 2 workers took 39 min, 3 took 30, 4 took 27, 6 took 24
-  and 8 took 24. Each worker past the first adds a clone and its build, and every test run slows
-  as the load rises, so the gain falls off fast; two runs with 4 workers differed by 13%. On that
-  machine 4 was a safe choice, and 6 or 8 helped a little; a machine with fewer cores will do best
-  with fewer. More workers also make false kills from tests that share state outside the project
-  more likely (see [Tests that share state across workers](#tests-that-share-state-across-workers)):
-  with 8 workers, before direct runs kept each worker's `UserDefaults` apart, tests that write them
-  killed 9 mutants that most runs didn't.
+- **`mutationTestWorkers`.** 2 workers took 39 min, 3 took 30, 4 took 27, 6 took 24 and 8 took 24.
+  Each worker past the first adds a clone and its build, and every test run slows as the load rises,
+  so the gain falls off fast; two runs with 4 workers differed by 13%. On that machine 4 was a safe
+  choice, and 6 or 8 helped a little; a machine with fewer cores will do best with fewer. More workers
+  also make false kills from tests that share state outside the project more likely (see
+  [Tests that share state across workers](#tests-that-share-state-across-workers)): with 8 workers,
+  before direct runs kept each worker's `UserDefaults` apart, tests that write them killed 9 mutants
+  that most runs didn't.
+
+  **The default.** A SwiftPM project with no `mutationTestWorkers` or `--workers` tests on half the
+  machine's processors, at most 4, and, as a clone costs about one build, on one more worker for each
+  50 mutants: 1 below 50, 2 from 50, 3 from 100 and 4 from 150. Each clone adds about one build folder
+  of disk while the run lasts. Workers that [share one build](#workers-and-release-mode) need no clone,
+  so that rule doesn't hold them back: only the machine and the number of mutants do. Other build systems default to 1, as an xcodebuild
+  worker needs a simulator of its own, about 3 GB at its peak. The default was set from the one project
+  measured here, on one 18-core machine; `mutationTestWorkers: 1` gives what it was before.
+
+  A clone whose baseline fails, or that can't be copied, as with a suite that can't run beside a copy
+  of itself or a disk that fills up, makes a default run test one mutant at a time, and say so, rather
+  than stop:
+
+  ```
+  👷 Testing one mutant at a time instead: worker 1's copy of the project didn't pass the baseline the first one passed (its log is baseline run worker 1.log), so your tests may not run beside a copy of themselves, or the builds ran out of disk space or memory. `mutationTestWorkers: 1` skips trying.
+  ```
+
+  With a count you asked for, the same failure stops the run, with status 3.
+
+  **One build.** Clones are for tests that write in the project, so a run whose tests don't needs none.
+  On macOS, the run that checks [direct runs](#why-a-fork-of-muter) also compares the copy's files
+  before and after it, every file and folder's size and time, `.build` included, so a fixture a test
+  writes and removes shows too. If nothing changed, the workers test from the copy's build, with no
+  clone made or built, and each keeps its own temporary directory, `UserDefaults` and active-mutant
+  file. If anything changed, each gets a clone, and the run says what changed:
+
+  ```
+  ℹ️ Workers can't share one build: a run of your tests, with no mutant on, changed Tests/MyTests in the copy.
+  ```
+
+  On 150 mutants sampled from SwiftProjectLint, with 4 workers and two runs of each
+  ([Docs/release-and-workers-2026-10.md](Docs/release-and-workers-2026-10.md#workers-sharing-one-build)):
+
+  | | Whole run | To the first result | CPU time |
+  | --- | --- | --- | --- |
+  | A clone for each worker | 534 s, 540 s | 203 s, 195 s | 83 min, 89 min |
+  | One build | 392 s, 402 s | 75 s, 73 s | 57 min, 59 min |
+
+  That is about 2 min less for the three clones' copies and builds, and about 1.9 GB of disk less for
+  each, going by the copy's build folder. Mutants tested no faster, and all four runs gave all 150
+  the same verdict. The saving is the same whatever the run's length, so it is 26% of this run, and,
+  as a whole run of those 1,771 mutants takes an hour or two, which wasn't timed, about 2–3% of that.
+  The check adds about 0.6 s, for those 27,741 files and folders.
+
+  With no clones to pay back, a small run uses every worker. On 40 mutants of the same project, two runs
+  of each, all 40 got the same verdict in all six runs:
+
+  | | Whole run | Testing the mutants, after the first result | CPU time |
+  | --- | --- | --- | --- |
+  | One worker | 214 s, 217 s | 144 s, 146 s | 15 min, 15 min |
+  | 4 workers, a clone for each | 275 s, 266 s | 80 s, 72 s | 42 min, 42 min |
+  | 4 workers, one build | 150 s, 144 s | 77 s, 72 s | 16 min, 16 min |
+
+  A small run whose tests do write in the copy stays on one worker, as a clone wouldn't pay back there,
+  and prints the line above.
+
+  The check runs with no mutant on, so it can't see a test that writes in the project only when a
+  mutant sends it there. Another worker can then read what it wrote. `workersShareBuild: false` gives
+  each worker a clone whatever the check finds.
 - **Release-mode tests.** With `arguments: [test, -c, release, -Xswiftc, -enable-testing]` the same
   run took 19 min instead of 27, with about the same verdicts. `-enable-testing` keeps
   `@testable import` working. The tests ran 2.8 times as fast, but the builds took longer and setup
@@ -927,9 +997,20 @@ Measured on SwiftProjectLint's whole repo, 2,463 mutants, on an 18-core Mac, wit
 
 #### Tests that share state across workers
 
-Workers test at the same time, as the same user. Each has its own copy of the project, but nothing
-outside it. So a test that writes a fixed key, file or port can fail another worker's test, which
-kills a mutant that test doesn't check. That's a false kill, and it raises the score.
+Workers test at the same time, as the same user. Each has its own copy of the project, or shares
+one that [its tests didn't write in](#workers-and-release-mode), and its own temporary directory, but
+nothing else outside the project. So a test that writes a fixed key, file or
+port can fail another worker's test, which kills a mutant that test doesn't check. That's a false
+kill, and it raises the score.
+
+Each SwiftPM worker's temporary directory is `sm-<hash>` in the usual one, named the same for each of
+its runs, as SwiftPM's manifest cache needs. `TMPDIR` names it for every run. On macOS Foundation's
+`NSTemporaryDirectory()` and `FileManager.temporaryDirectory` don't follow `TMPDIR`, so each worker's
+runs also set `DIRHELPER_USER_DIR_SUFFIX`, which moves them there, and moves the system's cache
+directory the same way. macOS doesn't document that variable, so a later macOS could drop it, and
+Foundation's temporary directory would then be shared again; a test here checks it. What the runs
+leave there goes at the end of the run. macOS keeps an empty `sm-<hash>` folder, one for each worker's
+folder, which the next run of that project uses again.
 
 What workers share:
 
@@ -1669,7 +1750,8 @@ which a closed terminal sends, stop it the same way. SwiftMutator then:
    in full. A run of a test plan's command is `run-without-mutating` again, with the plan and
    `--resume`.
 5. Removes its worker clones, `<project>_mutated_worker<n>.noindex`, the active-mutant files and
-   activation markers beside the mutated project and the clones, and an xcodebuild run's derived data,
+   activation markers beside the mutated project and the clones, what SwiftPM workers' runs left in
+   their temporary directories, and an xcodebuild run's derived data,
    `<project>_mutated.DerivedData.noindex` and `<project>_mutated_worker<n>.DerivedData.noindex`,
    with its workers' `muter-worker<n>.xctestrun` files. The mutated project,
    `<project>_mutated.noindex`, is kept, as after a finished run. Last, it deletes the simulators an xcodebuild run made for its workers, named
@@ -1678,8 +1760,8 @@ which a closed terminal sends, stop it the same way. SwiftMutator then:
 6. Exits by the same signal, so the shell sees status 130 for SIGINT, 143 for SIGTERM or 129 for
    SIGHUP, and a script or loop that runs SwiftMutator stops too.
 
-A stop before the baseline has passed, or during the timed test run after it, has nothing to keep:
-the results file starts only after both.
+A stop before the baseline has passed, or while the worker clones build or the timed test run runs
+after it, has nothing to keep: the results file starts only after them all.
 
 - **The partial report.** With `-o report.txt`, the mutants tested so far are reported in
   `report.partial.txt` beside it, in the format `-f` chose, and `-o report` gives `report.partial`.
@@ -1821,12 +1903,12 @@ SwiftMutator copies the project is refused after the copy, so that message doesn
 
 | Since the last session | Resuming |
 |---|---|
-| A configuration key changed, other than `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests` and `propertyTestFilter`; `operators` and `skipOperators` are compared by the operators they choose, in the next rows | Refused: start a new run |
+| A configuration key changed, other than `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests` and `propertyTestFilter`; `operators` and `skipOperators` are compared by the operators they choose, in the next rows | Refused: start a new run |
 | `mutationTestTimeout` (or `--timeout`) is at least as long as every session's `timeoutSeconds` | Goes ahead, says so, and tests the timeouts under a shorter limit again |
 | The operators chosen, by `--operators`, `--skip-operators`, `operators` or `skipOperators`, `--files-to-mutate` or `--skip-coverage` changed | Refused: start a new run |
 | `--since`'s merge base or `--changed-lines` changed, or `--since` given in one session only | Refused: start a new run. `--reuse` doesn't compare them |
 | `--shard` changed, or given in one session only | Refused: start a new run. `--reuse` doesn't compare it |
-| `mutationTestWorkers`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests` or `propertyTestFilter` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
+| `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests` or `propertyTestFilter` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
 | SwiftMutator, the toolchain or the SDK changed | Refused, unless `--force-resume` is given |
 | Project files changed, were added or were removed | Refused, unless a `--resume-ignoring` glob matches each one |
 | Another SwiftMutator holds the file, because its run is still going | Refused with status 6, naming the process that holds it, and its host: wait for that run to end. If an older SwiftMutator holds it, which doesn't say, it names the process and host that wrote the file's last session, which may not be the one |
