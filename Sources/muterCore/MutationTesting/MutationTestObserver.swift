@@ -136,6 +136,8 @@ extension MutationTestObserver {
             logger.testBundlesNotRunDirectly(reason: reason)
         case .workersShareUserDefaults:
             logger.workersShareUserDefaults()
+        case let .testBundlesWroteInTheProject(path):
+            logger.testBundlesWroteInTheProject(path: path)
         case let .buildingAgainWithoutMutants(count):
             logger.buildingAgainWithoutMutants(count: count)
         case let .stoppedTakingOutMutants(builds):

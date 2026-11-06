@@ -128,6 +128,68 @@ final class WorkerChoiceTests: XCTestCase {
         XCTAssertNil(choice.sentence)
     }
 
+    func test_severalWorkersByDefault_sayHowToChooseAnotherCount() {
+        XCTAssertEqual(
+            WorkerChoice(asked: 4, used: 3, unsupportedReason: nil, mutantsToTest: 120, isDefaultCount: true).sentence,
+            "👷 Testing 3 mutants at a time, each in a copy of the project of its own, by default: `--workers` or "
+                + "`mutationTestWorkers` sets another count."
+        )
+    }
+
+    // Fewer than the most by default is no surprise, and asked for nothing.
+    func test_oneWorkerByDefault_forFewMutants_saysNothing() {
+        XCTAssertNil(
+            WorkerChoice(asked: 4, used: 1, unsupportedReason: nil, mutantsToTest: 10, isDefaultCount: true).sentence
+        )
+    }
+
+    func test_aDefaultRunThatFellBack_saysWhy() {
+        let choice = WorkerChoice(
+            asked: 4, used: 1, unsupportedReason: "the reason", mutantsToTest: 90, fellBack: true, isDefaultCount: true
+        )
+
+        XCTAssertEqual(choice.sentence, "👷 Testing one mutant at a time instead: the reason.")
+    }
+
+    func test_theDefaultCount_isOnlyThatOfASwiftPMRunWithoutOne() {
+        current.processorCount = 18
+        let swift = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+        let xcode = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
+
+        let byDefault = WorkerChoice(swift, used: 4, mutantsToTest: 500)
+        let asked = WorkerChoice(swift.overriding(workers: 4, timeout: nil), used: 4, mutantsToTest: 500)
+
+        XCTAssertTrue(byDefault.isDefaultCount)
+        XCTAssertEqual(byDefault.asked, 4)
+        XCTAssertFalse(asked.isDefaultCount)
+        XCTAssertFalse(WorkerChoice(xcode, used: 1, mutantsToTest: 500).isDefaultCount)
+    }
+
+    func test_workersThatShareABuild_sayWhy() {
+        XCTAssertEqual(
+            WorkerChoice(asked: 4, used: 4, unsupportedReason: nil, mutantsToTest: 40, sharesBuild: true).sentence,
+            "👷 Testing 4 mutants at a time, from one build, as your tests wrote nothing in the project."
+        )
+    }
+
+    func test_workersThatShareABuildByDefault_sayHowToChooseAnotherCount() {
+        XCTAssertEqual(
+            WorkerChoice(
+                asked: 4, used: 3, unsupportedReason: nil, mutantsToTest: 120, isDefaultCount: true, sharesBuild: true
+            ).sentence,
+            "👷 Testing 3 mutants at a time by default, from one build, as your tests wrote nothing in the project: "
+                + "`--workers` or `mutationTestWorkers` sets another count."
+        )
+    }
+
+    func test_fewerWorkersThatShareABuild_sayWhy() {
+        XCTAssertEqual(
+            WorkerChoice(asked: 4, used: 3, unsupportedReason: nil, mutantsToTest: 3, sharesBuild: true).sentence,
+            "👷 Testing 3 mutants at a time, from one build, as your tests wrote nothing in the project, though 4 "
+                + "workers were asked for: only 3 are left to test."
+        )
+    }
+
     // What the configuration asks for, with --workers in place of the key.
     func test_theAskedCount_isTheConfigurations() {
         let xcode = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"], mutationTestWorkers: 3)

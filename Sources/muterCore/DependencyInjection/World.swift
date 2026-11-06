@@ -48,6 +48,8 @@ typealias ProcessFactory = @Sendable () -> Process
 typealias Flush = @Sendable () -> Void
 typealias Printer = @Sendable (String) -> Void
 typealias WriteFile = @Sendable (String, String) throws -> Void
+/// Makes the folder at a path, which only its owner can use, and those it is in.
+typealias MakeFolder = @Sendable (String) throws -> Void
 typealias LoadSourceCode = @Sendable (String) -> SourceCodeInfo?
 /// A file's bytes, by its absolute path, or nil if it can't be read.
 typealias ReadFile = @Sendable (String) -> Data?
@@ -93,6 +95,11 @@ struct World: Sendable {
     var process: ProcessFactory = { MuterProcessFactory.makeProcess() }
     var prepareCode: SourceCodePreparation = { PrepareSourceCode().prepareSourceCode($0) }
     var writeFile: WriteFile = { try $0.write(toFile: $1, atomically: true, encoding: .utf8) }
+    var makeFolder: MakeFolder = {
+        try FileManager.default.createDirectory(
+            atPath: $0, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]
+        )
+    }
     var loadSourceCode: LoadSourceCode = { sourceCode(fromFileAt: $0) }
     /// The original files the reports show each mutant's line from.
     var readSourceFile: ReadFile = { FileManager.default.contents(atPath: $0) }
@@ -119,6 +126,10 @@ struct World: Sendable {
     var suspensions = Suspensions()
     /// A wait on the system's uptime clock, which counts the time suspended, unlike `suspensions.sleep(for:)`.
     var sleep: Sleep = { try await Task.sleep(nanoseconds: $0) }
+    /// A project's files, to see whether a run of its tests wrote any.
+    var projectFiles: @Sendable (URL) -> ProjectFiles? = { ProjectFiles.read(in: $0) }
+    /// How many processors can run at once, which a SwiftPM run's default worker count goes by.
+    var processorCount = ProcessInfo.processInfo.activeProcessorCount
 }
 
 extension World {

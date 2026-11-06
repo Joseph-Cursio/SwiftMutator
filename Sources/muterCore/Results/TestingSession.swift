@@ -58,7 +58,8 @@ final class TestingSession: @unchecked Sendable { // `file`, `mutantLines` and `
     var timeoutsNotShownToRunTheirCode: [Int] = []
     /// The control runs recorded so far, in the order they finished, written or not.
     var controlRuns: [ControlRunResult] = []
-    /// The worker clones made so far, removed however mutation testing ends.
+    /// The worker clones made so far, removed however mutation testing ends, with what's beside them. Workers that
+    /// share a build have these names and no folders.
     var clones: [URL] = []
     /// The xcodebuild workers given a simulator each, in worker order, once their simulators have booted. Their
     /// `.xctestrun` files and derived data, but worker 0's `.xctestrun`, are removed however mutation testing ends.

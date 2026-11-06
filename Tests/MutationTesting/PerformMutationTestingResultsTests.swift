@@ -626,8 +626,9 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(try resultsFiles.records(ResultsEnd.self).map(\.reason), [.finished])
     }
 
-    // Stopping the run kills the clones' builds, which then fail, but no clone was at fault.
-    func test_aCancelledWorkerBuild_endsInterrupted() async throws {
+    // Stopping the run kills the clones' builds, which then fail, but no clone was at fault. The clones come before the
+    // results, as the baseline does, so there is nothing yet to end.
+    func test_aCancelledWorkerBuild_startsNoResults() async throws {
         state.muterConfiguration = MuterConfiguration(
             executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
         )
@@ -640,11 +641,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         let result = await mutationTesting.run { [sut, state] in try await sut.run(with: state) }
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        XCTAssertEqual(try resultsFiles.kinds(), ["header", "end"])
-        let end = try XCTUnwrap(resultsFiles.records(ResultsEnd.self).first)
-        XCTAssertEqual(end.reason, .interrupted)
-        XCTAssertNil(end.detail)
-        XCTAssertEqual(end.recorded, 0)
+        XCTAssertEqual(try resultsFiles.kinds(), [])
     }
 
     // Removing large clones can take seconds, and a second signal in that time exits at once, so the end line comes

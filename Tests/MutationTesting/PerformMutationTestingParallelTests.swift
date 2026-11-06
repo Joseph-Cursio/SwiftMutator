@@ -327,10 +327,10 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
 
         XCTAssertEqual(ioDelegate.methodCalls.prefix(3), [
             "benchmarkTests(using:savingResultsIntoFileNamed:)",
-            timedRun,
             "benchmarkTests(using:savingResultsIntoFileNamed:workingDirectory:)",
+            timedRun,
         ])
-        XCTAssertEqual(ioDelegate.testLogs.prefix(3), ["baseline run", "timed test run", "baseline run worker 1"])
+        XCTAssertEqual(ioDelegate.testLogs.prefix(3), ["baseline run", "baseline run worker 1", "timed test run"])
     }
 
     // Never in the mutated project or a clone, where a test that lists the package's files, or asks git for untracked
@@ -347,14 +347,14 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         XCTAssertEqual(ioDelegate.testLogs.count, 5, "\(ioDelegate.testLogs)")
         XCTAssertEqual(
             ioDelegate.testLogs.prefix(3),
-            ["/logs/running/baseline run", "/logs/running/timed test run", "/logs/running/baseline run worker 1"]
+            ["/logs/running/baseline run", "/logs/running/baseline run worker 1", "/logs/running/timed test run"]
         )
         XCTAssertEqual(ioDelegate.testLogs.filter { !$0.hasPrefix("/logs/running/") }, [])
     }
 
     // Each run's file is moved to the name its log is kept under. A failed worker baseline's is what says why the run
     // stopped.
-    func test_theTimedRunsAndEachWorkerBaselinesLogs_areKeptInTheLogFolder_aFailedOnesToo() async throws {
+    func test_eachWorkerBaselinesLog_isKeptInTheLogFolder_aFailedOneToo() async throws {
         state.muterConfiguration = MuterConfiguration(
             executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
         )
@@ -370,16 +370,16 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
 
         XCTAssertEqual(
             fileManager.paths.filter { $0.hasSuffix(".log") },
-            ["/logs/baseline run.log", "/logs/timed test run.log", "/logs/baseline run worker 1.log"]
+            ["/logs/baseline run.log", "/logs/baseline run worker 1.log"]
         )
         XCTAssertEqual(fileManager.contents, Data("testLog".utf8), "the worker baseline's log, kept last")
         XCTAssertEqual(
             ioDelegate.keptOutputs.map(\.output),
-            ["/logs/running/baseline run", "/logs/running/timed test run", "/logs/running/baseline run worker 1"]
+            ["/logs/running/baseline run", "/logs/running/baseline run worker 1"]
         )
         XCTAssertEqual(
             ioDelegate.keptOutputs.map(\.path),
-            ["/logs/baseline run.log", "/logs/timed test run.log", "/logs/baseline run worker 1.log"]
+            ["/logs/baseline run.log", "/logs/baseline run worker 1.log"]
         )
     }
 
@@ -424,6 +424,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
 
         XCTAssertFalse(ioDelegate.methodCalls.contains { $0.hasPrefix("runTestSuite") })
         XCTAssertEqual(removedClones, [[workerClone]])
+        XCTAssertEqual(try resultsFiles.kinds(), [], "the clones come before the results, as the baseline does")
     }
 
     func test_whenCancelled_noFurtherMutantStarts_andNothingMoreIsRecorded() async throws {
@@ -467,8 +468,8 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
             executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
         )
         ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
-        // The baseline's log is the last thing sent before the worker clones are made.
-        _ = cancelMutationTesting(whenSent: .newTestLogAvailable)
+        // Saying how many workers there are is the last thing before the worker clones are made.
+        _ = cancelMutationTesting(whenSent: .workersChosen)
 
         let result = await runInItsOwnTask()
 

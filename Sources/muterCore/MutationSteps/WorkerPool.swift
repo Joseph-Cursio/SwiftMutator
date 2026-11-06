@@ -69,8 +69,9 @@ extension PerformMutationTesting {
     }
 
     /// A worker that tests mutants at once with the others: the folder its runs start in, and the configuration they
-    /// run with. A SwiftPM worker's folder is its own, the mutated project or a clone of it, and every worker shares
-    /// one configuration. An xcodebuild worker's configuration names what is its own instead
+    /// run with. A SwiftPM worker's folder is its own, the mutated project or a clone of it, or, when workers share a
+    /// build (`DirectTestRun.sharedBuild`), the name of a clone that was never made, and every worker shares one
+    /// configuration. An xcodebuild worker's configuration names what is its own instead
     /// (`MuterConfiguration.XcodeWorker`), whatever folder it runs in.
     struct PoolWorker {
         let directory: URL

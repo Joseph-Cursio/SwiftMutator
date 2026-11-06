@@ -26,10 +26,15 @@ struct MuterConfiguration: Equatable, Codable {
     /// clone of the mutated project, because `swift test` locks the package's build directory. Each clone is built
     /// once before testing, so the paths compiled into its tests point into it. An xcodebuild worker tests on a
     /// simulator of its own, from the mutated project's one build (see `XcodeWorker`). Other projects, and xcodebuild
-    /// projects that test elsewhere, test one at a time (`parallelWorkersUnsupportedReason`); so do nil and 1, though
-    /// one xcodebuild worker may still test on a simulator of its own (`oneWorkerSimulator`). A `var` only so
-    /// `overriding` can copy `self` and change just this field.
+    /// projects that test elsewhere, test one at a time (`parallelWorkersUnsupportedReason`); so does 1, though one
+    /// xcodebuild worker may still test on a simulator of its own (`oneWorkerSimulator`). nil leaves it to
+    /// `workerCount(testing:)`: several on a SwiftPM project, and otherwise one. A `var` only so `overriding` can copy
+    /// `self` and change just this field.
     private(set) var mutationTestWorkers: Int?
+    /// Whether a SwiftPM run's workers may share the mutated project's build rather than each have a clone
+    /// (`workersShareBuild:`): nil and true when a direct run of the tests with no mutant on wrote nothing in the
+    /// project, false never.
+    let workersShareBuild: Bool?
     /// Optional explicit build system from the `buildSystem:` config key. When set it overrides the
     /// executable-basename heuristic — needed when `executable` is a wrapper script (e.g. one that
     /// restores env / forwards SIMCTL_CHILD_ vars) whose filename isn't literally `xcodebuild`/`swift`.
@@ -136,6 +141,7 @@ struct MuterConfiguration: Equatable, Codable {
         case buildTimeout
         case explicitBuildSystem = "buildSystem"
         case mutationTestWorkers
+        case workersShareBuild
         case stopAtFirstFailure
         case oneWorkerSimulator
         case suspectTestFilePercent
@@ -160,6 +166,7 @@ struct MuterConfiguration: Equatable, Codable {
         testSuiteTimeOut timeout: Double? = nil,
         buildSystem: BuildSystem? = nil,
         mutationTestWorkers workers: Int? = nil,
+        workersShareBuild: Bool? = nil,
         stopAtFirstFailure: Bool? = nil,
         buildTimeout: Double? = nil,
         oneWorkerSimulator: Bool? = nil,
@@ -183,6 +190,7 @@ struct MuterConfiguration: Equatable, Codable {
         testSuiteTimeout = timeout
         explicitBuildSystem = buildSystem
         mutationTestWorkers = workers
+        self.workersShareBuild = workersShareBuild
         self.stopAtFirstFailure = stopAtFirstFailure
         self.buildTimeout = buildTimeout
         self.oneWorkerSimulator = oneWorkerSimulator
@@ -213,6 +221,7 @@ struct MuterConfiguration: Equatable, Codable {
         explicitBuildSystem = (try container.decodeIfPresent(String.self, forKey: .explicitBuildSystem))
             .map(BuildSystem.init(rawValue:))
         mutationTestWorkers = try container.decodeIfPresent(Int.self, forKey: .mutationTestWorkers)
+        workersShareBuild = try container.decodeIfPresent(Bool.self, forKey: .workersShareBuild)
         // Throws on a value that isn't a Boolean, so a typo is a configuration error rather than "unset".
         stopAtFirstFailure = try container.decodeIfPresent(Bool.self, forKey: .stopAtFirstFailure)
         oneWorkerSimulator = try container.decodeIfPresent(Bool.self, forKey: .oneWorkerSimulator)
@@ -320,6 +329,7 @@ struct MuterConfiguration: Equatable, Codable {
         try container.encodeIfPresent(buildTimeout, forKey: .buildTimeout)
         try container.encodeIfPresent(explicitBuildSystem, forKey: .explicitBuildSystem)
         try container.encodeIfPresent(mutationTestWorkers, forKey: .mutationTestWorkers)
+        try container.encodeIfPresent(workersShareBuild, forKey: .workersShareBuild)
         try container.encodeIfPresent(stopAtFirstFailure, forKey: .stopAtFirstFailure)
         try container.encodeIfPresent(oneWorkerSimulator, forKey: .oneWorkerSimulator)
         try container.encodeIfPresent(suspectTestFilePercent, forKey: .suspectTestFilePercent)
@@ -419,14 +429,42 @@ struct MuterConfiguration: Equatable, Codable {
             ?? (try container.decodeIfPresent(Int.self, forKey: key)).flatMap(Double.init)
     }
 
-    /// The number of mutants to test at once: `mutationTestWorkers`, at least 1, for a SwiftPM project and for an
-    /// xcodebuild project whose first `-destination` is a simulator; always 1 for the others, for the reason
+    /// The most workers a SwiftPM run uses when `mutationTestWorkers` doesn't say. On SwiftProjectLint on an 18-core
+    /// Mac on 31 October, 2 workers took 39 min, 3 took 30, 4 took 27, 6 took 24 and 8 took 24, where two runs with 4
+    /// differed by 13%, and only 8 showed clearly more false kills from tests that share state (#70).
+    static let mostDefaultWorkers = 4
+
+    /// How many mutants a SwiftPM run with no `mutationTestWorkers` tests for each clone it makes. A clone costs about
+    /// a baseline build, which only enough mutants pay back. On SwiftProjectLint a clone took about 25 s, and took the
+    /// wall time of a mutant from about 0.9 s with 2 workers to 0.7 s with 3 and 0.6 s with 4 (#70):
+    /// about 100 mutants pay for the third worker, and about 150 for the third and fourth together.
+    static let mutantsForEachDefaultWorker = 50
+
+    /// The most mutants to test at once, however many there are to test: `mutationTestWorkers`, at least 1, or else
+    /// `defaultWorkerCount`, for a SwiftPM project and for an xcodebuild
+    /// project whose first `-destination` is a simulator; always 1 for the others, for the reason
     /// `parallelWorkersUnsupportedReason` gives. An xcodebuild run that can't give each worker a simulator still tests
     /// one mutant at a time (see `SimulatorWorkerSetup`), and one xcodebuild worker may test on a simulator of its own
     /// (`oneWorkerSimulator`).
     var workerCount: Int {
         guard parallelWorkersUnsupportedReason == nil else { return 1 }
-        return max(1, mutationTestWorkers ?? 1)
+        return max(1, mutationTestWorkers ?? defaultWorkerCount)
+    }
+
+    /// How many mutants a run tests at once when `mutationTestWorkers` doesn't say: on a SwiftPM project, half the
+    /// processors, as each worker's tests already run in parallel, and at most `mostDefaultWorkers`. Otherwise 1: an
+    /// xcodebuild worker needs a simulator of its own, which takes about 3 GB at its peak.
+    var defaultWorkerCount: Int {
+        guard buildSystem == .swift else { return 1 }
+        return max(1, min(Self.mostDefaultWorkers, dependency(\.processorCount) / 2))
+    }
+
+    /// The number of mutants to test at once when `mutants` are to test, never more than they are: `workerCount`, or,
+    /// when `mutationTestWorkers` doesn't say and each worker past the first needs a clone, only as many as they pay
+    /// back (`mutantsForEachDefaultWorker`). Workers `sharingBuild` have no such cost to pay back.
+    func workerCount(testing mutants: Int, sharingBuild: Bool = false) -> Int {
+        guard mutationTestWorkers == nil, !sharingBuild else { return min(workerCount, mutants) }
+        return min(workerCount, 1 + mutants / Self.mutantsForEachDefaultWorker, mutants)
     }
 
     /// Why this test command can't test more than one mutant at once, completing a sentence such as "Testing one

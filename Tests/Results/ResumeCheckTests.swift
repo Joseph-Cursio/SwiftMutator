@@ -205,6 +205,7 @@ final class ResumeCheckTests: XCTestCase {
                     + "chooses which kills are tested again alone.",
                 "suspectTestMinimumFiles was not set and is 5 now, which no recorded result depends on, though it "
                     + "chooses which kills are tested again alone.",
+                "workersShareBuild was not set and is false now, which no result depends on.",
             ]
         )
     }
@@ -288,6 +289,7 @@ final class ResumeCheckTests: XCTestCase {
                 .init(name: "suspectKillReruns", was: nil, isNow: "25"),
                 .init(name: "suspectTestFilePercent", was: nil, isNow: "30"),
                 .init(name: "suspectTestMinimumFiles", was: nil, isNow: "5"),
+                .init(name: "workersShareBuild", was: nil, isNow: "false"),
             ]
         )
     }

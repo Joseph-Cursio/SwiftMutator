@@ -83,6 +83,7 @@ final class ConfigurationParsingTests: MuterTestCase {
         XCTAssertEqual(try MuterConfiguration(from: whole.asData), whole)
     }
 
+    // On one processor, as every test's world has it, unless it says otherwise.
     func test_workerCount_isOneWithoutTheKey_orWithoutASimulatorForXcodebuild() throws {
         let swift = try MuterConfiguration(from: Data("executable: /usr/bin/swift\narguments: [test]".utf8))
         let xcode = try MuterConfiguration(
@@ -93,6 +94,65 @@ final class ConfigurationParsingTests: MuterTestCase {
         XCTAssertEqual(swift.workerCount, 1)
         XCTAssertEqual(xcode.workerCount, 1)
         XCTAssertEqual(zero.workerCount, 1)
+    }
+
+    // Half the processors, as each worker's tests already run in parallel, and at most 4.
+    func test_theDefaultWorkerCount_forSwiftPM_goesByTheProcessors() {
+        let swift = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+        let counts = [1: 1, 2: 1, 3: 1, 4: 2, 6: 3, 8: 4, 18: 4, 64: 4]
+
+        for (processors, count) in counts {
+            current.processorCount = processors
+            XCTAssertEqual(swift.defaultWorkerCount, count, "\(processors)")
+            XCTAssertEqual(swift.workerCount, count, "\(processors)")
+        }
+    }
+
+    func test_theDefaultWorkerCount_isOneForEveryOtherBuildSystem() {
+        current.processorCount = 18
+        let others = [
+            MuterConfiguration(executable: "/usr/bin/make", arguments: ["test"]),
+            MuterConfiguration(
+                executable: "/usr/bin/xcodebuild", arguments: ["-destination", "platform=macOS", "test"]
+            ),
+            MuterConfiguration(
+                executable: "/usr/bin/xcodebuild",
+                arguments: ["-destination", "platform=iOS Simulator,name=iPhone 17", "test"]
+            ),
+        ]
+
+        for other in others {
+            XCTAssertEqual(other.defaultWorkerCount, 1, other.testCommandExecutable)
+            XCTAssertEqual(other.workerCount(testing: 500), 1, other.testCommandExecutable)
+        }
+    }
+
+    // A clone costs about a baseline build, so the default adds a worker only for enough mutants to pay it back.
+    func test_workerCountTesting_goesByTheMutants_unlessTheCountIsSet() {
+        current.processorCount = 18
+        let swift = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+        let asked = swift.overriding(workers: 8, timeout: nil)
+
+        let byDefault = [0: 0, 1: 1, 49: 1, 50: 2, 99: 2, 100: 3, 150: 4, 5000: 4]
+        for (mutants, count) in byDefault {
+            XCTAssertEqual(swift.workerCount(testing: mutants), count, "\(mutants)")
+        }
+        let whenSet = [0: 0, 1: 1, 3: 3, 49: 8, 5000: 8]
+        for (mutants, count) in whenSet {
+            XCTAssertEqual(asked.workerCount(testing: mutants), count, "\(mutants)")
+        }
+    }
+
+    // Workers that share a build need no clone, so only the mutants and the count limit them.
+    func test_workerCountTesting_sharingABuild_needsNoMutantsToPayItBack() {
+        current.processorCount = 18
+        let swift = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+
+        let sharing = [0: 0, 1: 1, 3: 3, 4: 4, 49: 4, 5000: 4]
+        for (mutants, count) in sharing {
+            XCTAssertEqual(swift.workerCount(testing: mutants, sharingBuild: true), count, "\(mutants)")
+        }
+        XCTAssertEqual(swift.overriding(workers: 2, timeout: nil).workerCount(testing: 49, sharingBuild: true), 2)
     }
 
     // Each worker gets a simulator of its own, like the one the first `-destination` names; one named by its id alone
