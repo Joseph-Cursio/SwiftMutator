@@ -161,7 +161,8 @@ final class MutantReferenceTests: XCTestCase {
                 XCTAssertEqual(
                     (error as? ValidationError)?.message,
                     "\(word) isn't an operator: give one of RelationalOperatorReplacement, RelationalBoundary, "
-                        + "RemoveSideEffects, ChangeLogicalConnector, SwapTernary, NegateConditional.",
+                        + "RemoveSideEffects, ChangeLogicalConnector, SwapTernary, NegateConditional, "
+                        + "ChangeArithmeticOperator, FlipBooleanLiteral.",
                     text
                 )
             }

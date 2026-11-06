@@ -64,7 +64,9 @@ The plan is one JSON object, pretty-printed with two spaces, its keys sorted, it
   },
   "mutatedProject" : "../Foo_mutated.noindex",
   "operators" : [
+    "ChangeArithmeticOperator",
     "ChangeLogicalConnector",
+    "FlipBooleanLiteral",
     "NegateConditional",
     "RelationalBoundary",
     "RelationalOperatorReplacement",

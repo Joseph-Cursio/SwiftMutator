@@ -90,7 +90,7 @@ enum MutantDiff {
     /// Whether an operator's mutants are placed at the start of what they change, so a copy on a line above is never
     /// their own: a condition over several lines isn't found at its place, as `before` gives it on one line.
     private static func isPlacedWhereItsChangeStarts(_ mutationOperatorId: MutationOperator.Id) -> Bool {
-        mutationOperatorId == .negateConditional
+        [.negateConditional, .flipBooleanLiteral, .arithmeticOperator].contains(mutationOperatorId)
     }
 
     /// Whether a swapped ternary is placed at a `?`, as only a later link of a chain is. A first link is placed where

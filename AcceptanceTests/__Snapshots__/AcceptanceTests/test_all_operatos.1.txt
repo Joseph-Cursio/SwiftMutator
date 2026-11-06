@@ -183,3 +183,52 @@ becomes
 if !(isValid && !isEmpty) {
     // something happens here
 }
+
+
+Change Arithmetic Operator
+
+This operator will change arithmetic operators in your code based on this table:
+
++-------------------+------------------+
+| Original Operator | Changed Operator |
++-------------------+------------------+
+|         +         |         -        |
+|         -         |         +        |
+|         *         |         /        |
+|         /         |         *        |
+|         %         |         *        |
+|        +=         |        -=        |
+|        -=         |        +=        |
+|        *=         |        /=        |
+|        /=         |        *=        |
+|        %=         |        *=        |
++-------------------+------------------+
+
++ and += also join strings and arrays, so they change only with a sign of numbers beside them: a numeric literal, a name such as items.count, or an arithmetic operator other than those two.
+One that changes nothing, as in x * 1, is left alone.
+
+The purpose of this operator is to highlight whether your tests check the value a calculation gives.
+
+Mutating a calculation
+
+let next = index + 1
+
+becomes
+
+let next = index - 1
+
+
+Flip Boolean Literal
+
+The flip boolean literal operator will turn true into false and false into true.
+A literal that is a whole condition, as in while true, or in a pattern, as in case true:, is left alone, as a flipped one often doesn't compile.
+
+The purpose of this operator is to highlight whether your tests check the values your code gives and is given.
+
+Mutating a literal
+
+return true
+
+becomes
+
+return false

@@ -192,3 +192,108 @@ if !(isValid && !isEmpty) {
     // something happens here
 }
 ```
+
+## Change Arithmetic Operator
+
+The `ChangeArithmeticOperator` operator will change arithmetic operators in your code based on this table:
+
+Original Operator | Changed Operator
+------------------|-----------------
+`+`|`-`
+`-`|`+`
+`*`|`/`
+`/`|`*`
+`%`|`*`
+
+Their assignment forms, `+=`, `-=`, `*=`, `/=` and `%=`, change in the same way.
+
+The purpose of this operator is to highlight whether your tests check the value a calculation gives.
+
+Only an operator in an expression is mutated: not an operator's declaration, nor `+` passed as a function in `reduce(0, +)`. The wrapping operators, such as `&+`, a prefix `-` and the shifts aren't mutated.
+
+`+` and `+=` get a mutant only with a sign that their operands are numbers, as they also join strings and arrays, which `-` can't take apart, and a syntax tree has no types. On SwiftProjectLint, a mutant for every `+` failed to compile often enough to reach a run's limit of failed builds, which stops the run. The sign can be, in the same run of arithmetic:
+
+* A numeric literal, as in `index + 1` or `count += 1`.
+* A name that counts something: `items.count`, `count` or `lineCount`.
+* A negative number, as in `a + -b`.
+* An arithmetic operator other than `+` and `+=`, as in `a * b + c` or `a - b + c`.
+
+Any other operator, an assignment, a cast or a ternary ends the run, so the `1` of `a + b == 1` is no sign, nor is the `1` of `"item" + (n == 1 ? "" : "s")`. As `+=` takes all that follows, what follows it is a sign only if the run reaches the end. So `price + tax` isn't mutated, though `price - tax` is.
+
+Some other operators are left alone:
+
+* **One that changes nothing:** `x + 0`, `x - 0`, `x * 1`, `x / 1`, `x * -1`, `x / -1`, and their assignment forms, whose mutants give the same value. `0 + x` and `1 * x` are mutated, as `0 - x` and `1 / x` differ.
+* **`x * 0` with an integer literal,** as dividing an integer by a literal zero doesn't compile. `x * 0.0` is mutated.
+* **One in a run with a string or array literal,** as in `"Total: " + count` or `dir / name + ".swift"`, as those aren't numbers. A literal inside a call doesn't count, so the `+` of `g("a") + 1` is mutated.
+* **A `*` touching a comment,** as in `a */* why */ b`, which as `/` would start a line comment.
+
+A few of these mutants don't compile, and are [left out as build errors](../README.md#mutants-that-dont-compile), at the cost of a rebuild:
+
+* A `*` of values that have no `/`, such as a `Numeric` generic, and a type's own `/`, such as a path's.
+* A `+` whose sign misleads, as in `name + displayCount` between two strings.
+* A `-` that takes values `+` can't, as `a - b` between two `ContinuousClock.Instant`s.
+* Literals that overflow once changed, as in `let a: UInt = 1 + 2`, and a bound pushed past itself, as `Int.max - 1` becoming `Int.max + 1` or `Int.max / 2` becoming `Int.max * 2`.
+
+A mutant that compiles can stop the tests instead: subtracting can overflow, and dividing can divide by zero. Either crash counts as killing the mutant.
+
+### Mutating a calculation
+```swift
+let next = index + 1
+```
+
+becomes
+
+```swift
+let next = index - 1
+```
+
+## Flip Boolean Literal
+
+The flip boolean literal operator, `FlipBooleanLiteral`, will turn `true` into `false` and `false` into `true`, in a value, an argument, a default argument or a `return`.
+
+The purpose of this operator is to highlight whether your tests check the values your code gives and is given.
+
+Some literals are left alone:
+
+* **A literal that is a whole condition,** as in `while true`, `if true` or `repeat { ... } while true`, with or without parentheses. To the compiler `while true` never ends and `if true` is always taken, so the code after them can go without a `return` or a value it needs. Flipped, it no longer compiles. Nor does such a literal test anything.
+* **A literal in a pattern,** as in `case true:`, `case (true, _):`, `case .on(false):` or `if case true = value`. Flipping one in a `switch` usually leaves it not exhaustive. What a `case` runs and its `where` clause are mutated.
+
+A few flipped literals don't compile, and are [left out as build errors](../README.md#mutants-that-dont-compile), at the cost of a rebuild and sometimes of the function's other mutants: one the compiler sees through to treat a loop as endless or a branch as always taken, as in `while !false`, `if !false` or `let running = true; while running {}`.
+
+`x == true` gets a mutant here and another from `RelationalOperatorReplacement`, as `x == false` and `x != true` differ when `x` is an optional.
+
+### Mutating a literal
+```swift
+return true
+```
+
+becomes
+
+```swift
+return false
+```
+
+## What each operator catches and costs
+
+SwiftMutator has no tiers of operators: all eight run by default, and `--operators`, `--skip-operators` and the `operators` and `skipOperators` keys narrow a run. These numbers, from each run's `results.jsonl`, are why. Killed and survived are shares of the mutants tested, so they leave out build errors.
+
+Operator | SwiftProjectLint: mutants | Killed | Survived | Timed out | Build errors | SwiftCloneDetector: mutants | Killed | Survived | Timed out | Build errors
+---------|-----|-----|-----|---|---|-----|-----|-----|---|---
+`NegateConditional` | 122 | 89% | 9% | 2 | 0 | 90 | 92% | 8% | 0 | 0
+`RelationalOperatorReplacement` | 185 | 86% | 13% | 1 | 0 | 115 | 77% | 22% | 1 | 0
+`RemoveSideEffects` | 94 | 81% | 18% | 1 | 0 | 45 | 89% | 11% | 0 | 0
+`FlipBooleanLiteral` | 1335 | 79% | 20% | 6 | 0 | 25 | 72% | 28% | 0 | 0
+`SwapTernary` | 19 | 79% | 21% | 0 | 0 | 23 | 52% | 48% | 0 | 0
+`ChangeArithmeticOperator` | 217 | 61% | 35% | 8 | 1 | 53 | 68% | 30% | 1 | 0
+`ChangeLogicalConnector` | 51 | 61% | 39% | 0 | 0 | 27 | 63% | 37% | 0 | 0
+`RelationalBoundary` | 29 | 48% | 52% | 0 | 0 | 88 | 35% | 65% | 0 | 0
+
+Measured on 5 November 2026, on SwiftProjectLint `76fcfca9` at 4 workers and SwiftCloneDetector `e03e865` with all eight. On SwiftProjectLint, the two new operators ran in full, and the six older ones as a random sample of 500 of their 5,534 mutants, so their counts there are small. `FlipBooleanLiteral`'s run there came before the last changes to `ChangeArithmeticOperator`, which don't touch its mutants: four plans since find the same ones, but for up to 2 fewer or 1 more as coverage runs reach a little more or less of the project.
+
+* **Nearly every mutant builds.** 1 of these 2,518 mutants was a build error. On its own five projects, swift-mutation-testing counts 12.1% of its arithmetic mutants and 11.5% of its boolean-literal ones as unviable, and it keeps both out of its default tier. Its rules and its projects differ, so the figures aren't like for like.
+* **Kill rates don't sort the operators into tiers.** `SwapTernary` is 79% on one project and 52% on the other, a wider gap than between most operators. `ChangeLogicalConnector` and `SwapTernary` are in swift-mutation-testing's default tier, yet here they score below `RelationalOperatorReplacement` and `RemoveSideEffects`, which aren't. A low rate can also be an operator doing its job: a `RelationalBoundary` mutant survives unless a test checks the edge value.
+* **Survivors can cluster.** 55 of `ChangeArithmeticOperator`'s 76 survivors on SwiftProjectLint track a depth: a recursive call's `depth + 1`, or a counter such as `typeNestingDepth -= 1`.
+* **The cost differs more than the catch.** `FlipBooleanLiteral` gave 1,335 mutants on one project and 25 on the other. The two new operators together add 28% to SwiftProjectLint's mutants and 20% to SwiftCloneDetector's. On SwiftProjectLint a mutant took 8.6 s on average under the six older operators, 9.4 s under `FlipBooleanLiteral` and 14.1 s under `ChangeArithmeticOperator`.
+* **Arithmetic times out most.** On SwiftProjectLint 3.7% of its mutants timed out, against 0.8% for the six older operators and 0.4% for `FlipBooleanLiteral`. All 8 were `+=` or `-=`, as in `index += 1`, and running them again took 14 of that 32-minute run's minutes.
+
+A project that finds an operator too costly can turn it off, as with `skipOperators: [FlipBooleanLiteral]`. Two projects are few, and numbers from more could change this.
