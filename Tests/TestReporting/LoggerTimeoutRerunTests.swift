@@ -118,4 +118,29 @@ final class LoggerTimeoutRerunTests: MuterTestCase {
                 + "so 2 mutants are left to test (1 never tested, 1 timeout under a shorter limit).",
         ])
     }
+
+    func test_activationNotShown_saysHowManyAndWhatMayBeWrong() {
+        sut.activationNotShown(runs: 3)
+        sut.activationNotShown(runs: 1)
+
+        XCTAssertTrue(printer.linesPassed[0].hasPrefix("⚠️ None of 3 mutants' test runs showed whether their code ran"))
+        XCTAssertTrue(printer.linesPassed[0].contains("Their test host may be unable to write"))
+        XCTAssertTrue(printer.linesPassed[1].hasPrefix("⚠️ The 1 mutant's test run didn't show whether its code ran"))
+    }
+
+    func test_unprovenRunsRerun_sayHowManyAndWhatTheyCameTo() {
+        var tally = UnprovenRunTally()
+        tally.add(.make(testSuiteOutcome: .noCoverage))
+        var unproven = MutationTestOutcome.Mutation.make(testSuiteOutcome: .failed)
+        unproven.activated = false
+        tally.add(unproven)
+
+        sut.unprovenRunsRerunStarted(count: 2)
+        sut.unprovenRunsRerunFinished(tally)
+
+        XCTAssertEqual(printer.linesPassed, [
+            "🔁 Running 2 failed test runs again, one at a time: their mutants' code didn't run in them.",
+            "🔁 Tested them again: 1 failed again without their code running, 1 not covered.",
+        ])
+    }
 }

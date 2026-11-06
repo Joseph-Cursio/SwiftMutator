@@ -192,9 +192,11 @@ def command_check(args):
         problems.append(f"the last session ended {run.ends[-1].get('reason') if run.ends else 'without an end line'}")
     problems += [f"{k}: a timeout its session never ran again at lower load" for k in timeouts_not_rerun(run)]
     # A result `--reuse` kept keeps the `rerun` it was tested with, though its own session never ran it again.
-    reruns = [line for line in run.lines if line.get("rerun") and not line.get("reusedFrom")]
+    reruns = [line for line in run.lines if line.get("rerun", {}).get("because") == "timeout" and not line.get("reusedFrom")]
+    unproven = sum(line.get("rerun", {}).get("because") == "codeNotShownRunning" and not line.get("reusedFrom") for line in run.lines)
     print(f"check {args.results}: {len(found)} mutants, {dict(collections.Counter(verdict(r) for r in run.latest.values()))}, "
-          f"{len(reruns)} timeouts run again, {sum(line['outcome'] != 'timeout' for line in reruns)} changed")
+          f"{len(reruns)} timeouts run again, {sum(line['outcome'] != 'timeout' for line in reruns)} changed, "
+          f"{unproven} failed runs run again for not showing their code ran")
     return fail(problems, "check")
 
 

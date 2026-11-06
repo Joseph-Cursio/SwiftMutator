@@ -41,6 +41,7 @@ struct TimeoutRerunTally: Equatable {
     private(set) var rerun = 0
     private(set) var killed = 0
     private(set) var survived = 0
+    private(set) var notCovered = 0
     private(set) var timedOutAgain = 0
     private(set) var buildErrors = 0
 
@@ -61,7 +62,30 @@ struct TimeoutRerunTally: Equatable {
         case .passed: survived += 1
         case .timeout: timedOutAgain += 1
         case .buildError: buildErrors += 1
-        case .noCoverage: break
+        case .noCoverage: notCovered += 1
+        }
+    }
+}
+
+/// What the runs tested again, for failing without showing their mutants' blocks ran, came to, so far.
+struct UnprovenRunTally: Equatable {
+    /// Failed again, and showed their blocks ran this time.
+    private(set) var killed = 0
+    /// Failed again, and still didn't show it: the warning at the end of the run (`unprovenKillWarning`).
+    private(set) var killedWithoutRunning = 0
+    private(set) var survived = 0
+    private(set) var notCovered = 0
+    private(set) var timedOut = 0
+    private(set) var buildErrors = 0
+
+    mutating func add(_ mutation: MutationTestOutcome.Mutation) {
+        switch mutation.testSuiteOutcome {
+        case .failed, .runtimeError:
+            if mutation.activated == true { killed += 1 } else { killedWithoutRunning += 1 }
+        case .passed: survived += 1
+        case .noCoverage: notCovered += 1
+        case .timeout: timedOut += 1
+        case .buildError: buildErrors += 1
         }
     }
 }

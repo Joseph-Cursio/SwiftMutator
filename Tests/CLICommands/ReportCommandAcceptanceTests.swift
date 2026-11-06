@@ -14,7 +14,7 @@ final class ReportCommandAcceptanceTests: XCTestCase {
     /// The issue's line can stop a run there, as `buildSystem: swift` stops runs at their first failed test, so whether
     /// a run exits by itself depends on timing; the run and the report read the same results line either way.
     private static let testCommand = """
-        mutant=$(cat "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE" 2>/dev/null)
+        mutant=$(head -n 1 "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE" 2>/dev/null)
         case "$mutant" in
             Checks_*)
                 echo "✘ Test check() recorded an issue at ChecksTests.swift:3:5: Expectation failed"

@@ -142,7 +142,7 @@ final class ApplySchemataTests: MuterTestCase {
         _ = try await sut.run(with: state)
 
         let written = try XCTUnwrap(writeFile.contentPassed)
-        XCTAssertEqual(written.components(separatedBy: "] != nil {").count - 1, 5_000)
+        XCTAssertEqual(written.components(separatedBy: "] != nil, ").count - 1, 5_000)
     }
 
     func test_handlesEmptyMutationMapping() async throws {

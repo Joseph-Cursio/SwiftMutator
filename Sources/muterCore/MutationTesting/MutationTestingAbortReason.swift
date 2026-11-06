@@ -18,6 +18,10 @@ public enum MutationTestingAbortReason: Equatable, Sendable {
     /// The simulator that worker `worker`'s xcodebuild run tested on is gone, as `line` of the run's log says: every
     /// run on it would fail without testing its mutant. `log` is where that run's log is kept, if it is.
     case simulatorUnavailable(worker: Int, line: String, log: String?)
+    /// None of the first `runs` mutants' `swift test` runs showed it read the mutants' switches, though coverage says
+    /// the tests reach those mutants: no mutant was switched on, or no run can say so, and every verdict would mean
+    /// nothing.
+    case noMutantCodeShownRunning(runs: Int)
     case unknownError(description: String)
 }
 
@@ -64,6 +68,16 @@ extension MutationTestingAbortReason: CustomStringConvertible {
             as flaky the tests that failed for a mutant the run may have tested.
 
             \(description)
+            """
+
+        case let .noMutantCodeShownRunning(runs):
+            return """
+            SwiftMutator stopped after \(runs) mutants: none of their test runs read the mutants' switches, though the \
+            coverage run shows the tests reach these mutants, so no mutant was switched on, and every one would have \
+            survived. A test command that runs `swift test` through a wrapper must pass \(activeMutantFileKey) on to \
+            it.
+
+            --resume tests these mutants again once that is fixed.
             """
 
         case let .simulatorUnavailable(worker, line, log):

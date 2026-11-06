@@ -85,14 +85,15 @@ extension PerformMutationTesting {
         }
     }
 
-    /// Removes each clone, the active-mutant file and helper link beside it, and its tests' `UserDefaults`, on a
-    /// thread of its own: one large clone takes a
+    /// Removes each clone, the active-mutant file, helper link and activation folder beside it, and its tests'
+    /// `UserDefaults`, on a thread of its own: one large clone takes a
     /// fraction of a second or more to remove, and a run that is stopping does this last, when a second signal exits
     /// at once and leaves the rest behind.
     static func removeClones(_ directories: [URL]) {
         DispatchQueue.concurrentPerform(iterations: directories.count) { index in
             let clone = directories[index]
             try? FileManager.default.removeItem(at: MutationTestingDelegate.activeMutantFile(forWorkerIn: clone))
+            try? FileManager.default.removeItem(at: MutatedProjectNames.activationFolder(of: clone))
             DirectTestRun.removeOwnDefaults(forWorkerIn: clone)
             try? FileManager.default.removeItem(at: clone)
         }

@@ -22,10 +22,6 @@ of the four issues this project's maintainer reported to it
 [#188](https://github.com/ericodx/swift-mutation-testing/issues/188)) was closed within about a
 day, three of them with a fix. It has things SwiftMutator doesn't, among them:
 
-- a check, as each mutant is tested, that its code actually ran. A mutant no test reaches is
-  reported as "no coverage" and counts against the score, and a kill whose code never ran is tested
-  again. SwiftMutator instead skips the code that one coverage run, before mutating, shows no test
-  reaching, and leaves those mutants out of its score;
 - on SwiftPM packages, recovery from mutants that don't compile, without giving up its shared
   build;
 - a quality gate for CI: a minimum score, and no new survivors against a committed baseline;
@@ -145,7 +141,7 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   with mutants that can't be read. Under xcodebuild, a mutant whose `muter.xctestrun`, or its
   worker's `muter-worker<n>.xctestrun`, can't be written stops mutation testing, since the file
   left by the run before would switch that mutant on. These prove a switch is there, not that a
-  run switched it on.
+  run switched it on: [whether a mutant's code ran](#whether-a-mutants-code-ran) does that.
 - **xcodebuild mutant runs leave no derived data behind:** each mutant's `xcodebuild
   test-without-building` keeps its derived data in `<project>_mutated.DerivedData.noindex`, beside
   the copy, emptied before each run and removed when the run ends, and each other worker's in
@@ -346,7 +342,7 @@ a closure called on the spot, as a macro can't be a branch's value by itself.
 Coverage says less about this code. Swift's coverage has a region for an instance property's initial value, and for the
 right-hand side of `&&`, `||` or `??` anywhere, but none for the rest of a global's or a `static` property's value, or
 of a default argument. So it can't show that a test never reached those, and their mutants are tested either way. One
-no test reaches survives, and counts against the score, so `// muter:disable` or `exclude` can leave out a default that
+no test reaches is [not covered](#whether-a-mutants-code-ran), and counts against the score, so `// muter:disable` or `exclude` can leave out a default that
 is there for callers your tests aren't. Two more things follow:
 
 - A file with nothing but such values is named by no coverage data. SwiftMutator keeps it when a file the data does name
@@ -542,7 +538,8 @@ each mutant finishes instead, and flushes each line as it prints it:
 [13:13:25] 1103 of 2497 (44%) | 838 killed, 262 survived, 3 timed out | 47 min left | survived at Rules.swift:42:17 (changed == to !=)
 ```
 
-So `tail -f run.log` follows the run, and `grep 'survived at' run.log` lists the survivors so far.
+So `tail -f run.log` follows the run, and `grep 'survived at' run.log` lists the survivors so far,
+and `grep 'not covered at' run.log` the mutants [no test reached](#whether-a-mutants-code-ran).
 A resumed run's lines count only the mutants it tests, so they leave out the results it kept;
 `swift-mutator report` gives them all. Standard output counts as a terminal where colour can show:
 it's a tty, and `TERM` is set and isn't `dumb`. `NO_COLOR` turns off the colour, not the bar.
@@ -550,11 +547,53 @@ it's a tty, and `TERM` is set and isn't `dumb`. `NO_COLOR` turns off the colour,
 The Swift files a run finds, then how many mutants are in each file that has any, are listed only
 with `--verbose`.
 
+### Whether a mutant's code ran
+
+Each mutant's run records whether its code ran, as `activated` on its line in the
+[results file](Docs/results-file.md#mutant). The generated code creates a marker file the first time
+the mutant's block runs in a test process, and a second file the first time the process reads any
+mutant's switch, which shows it could have made the first. They sit in
+`<project>_mutated.Activation.noindex`, beside the project.
+
+- **A survivor whose code never ran is _not covered_.** No test reached it, so nothing could have
+  killed it. The reports list these apart from survivors, and the progress lines and counts say
+  "not covered". The score counts them as it counts survivors, so they weigh against it, and a
+  survivor turning into one changes neither the score nor `--fail-under`. Its line in the results
+  file still says `passed`, with `activated: false`. A label in the triage file stays on it.
+- **A kill whose code never ran is tested again, by itself.** A flaky test or a crash at launch may
+  have failed it, and what this run shows stands in its place: a kill if its code runs and its tests
+  fail, a survivor if its code runs and they pass, not covered if neither. So a kill can turn out not
+  to be one, which lowers the score, and `--fail-under` with it, by correcting it. One that fails
+  again without running its code stays a kill, and the run ends with a warning, its log kept. Its
+  tests fail whatever the mutant, so there's no other verdict to give it.
+- **A timeout whose code never ran** is tested again the same way, on one worker. With more, every
+  timeout is [tested again](#timeouts-are-run-again) already.
+- **Not every run can show this.** In a session none of whose runs shows either file, every verdict
+  stands as it would have, with no `activated`, nothing is tested again, and the session says so. A
+  sandboxed test host can't write beside the project, as a run under the App Sandbox showed, and a test
+  on a device can't reach it, though a test host on a simulator can. A run of a test plan made by an older SwiftMutator has no markers
+  either. A scheme that mixes the two has one limit: if its unhosted tests can write and a mutant
+  runs only in a sandboxed host, that mutant reads as not having run.
+- **A run that switches on no mutant stops.** After five mutants' `swift test` runs show nothing,
+  though coverage says the tests reach them, SwiftMutator stops rather than report every mutant as
+  a survivor: a wrapper script is probably dropping `SWIFTMUTATOR_ACTIVE_MUTANT_FILE`. Without
+  coverage, under xcodebuild, or for a test plan, it only warns, as any of those can be healthy.
+  `--resume` tests that session's mutants again.
+
+A marker says the block around the mutant was entered, not that the mutated expression ran: an early
+`return` above it can leave a mutant unrun with its marker made. So "not covered" is the strong
+signal, and with coverage on it should be rare, as the coverage run has already left out the code
+no test reaches. On SwiftCloneDetector it found none with coverage on, and 8 of the 15 mutants
+coverage leaves out with `--skip-coverage`. The other 7 are in blocks the tests enter.
+
+`run --mutant` reports what its one run shows and tests nothing again.
+
 ## Reports
 
 The plain and HTML reports start with the mutants to act on: those that survived, and those that
-timed out, which the score counts as survivors too. They are listed by path, line and column, each
-with the line it changes, before and after:
+timed out, which the score counts as survivors too, then any [no test reached](#whether-a-mutants-code-ran),
+in a section of their own. They are listed by path, line and column, each with the line it changes,
+before and after:
 
 ```
 Sources/Lint/Rules.swift:42:17 survived: RelationalOperatorReplacement (changed == to !=)
@@ -583,7 +622,7 @@ Sources/Lint/Rules.swift:42:17 survived: RelationalOperatorReplacement (changed 
   column for every mutant. The JSON report holds it as `sourceChange`: `line`, `before` and
   `after`, which a removed statement that leaves nothing on its line doesn't have.
 - **Counts by outcome.** Every report counts the mutants by outcome as the progress lines do, with
-  a crash counted as a kill: `By outcome: 98 killed, 15 survived, 4 timed out, 3 build errors` in
+  a crash counted as a kill: `By outcome: 98 killed, 15 survived, 4 timed out, 3 build errors, 2 not covered` in
   the plain and HTML reports, `Mutants by outcome:` in the Xcode format, and `mutantsByOutcome` in
   the JSON report, with every count, zeros included.
 - **The score when a run ends.** A run that saves its report with `-o` doesn't print it, so it
@@ -627,7 +666,7 @@ swift-mutator triage 'Sources/Lint/Rules.swift:42:17 RelationalBoundary' --remov
 ```
 
 - **The labels.** `missing-test`, `equivalent`, `out-of-scope` and `tool-limitation`.
-- **Which mutants take one.** Those that survived or timed out in the run `--results` names, its
+- **Which mutants take one.** Those that survived, timed out or no test reached in the run `--results` names, its
   results file or a log folder. The mutant is named as `--mutant` names one, and a name that fits
   several lists them. Labelling a mutant again replaces its label, and keeps every other, saving
   those that followed their code at their new places.
@@ -713,7 +752,7 @@ status and its log say why it stopped.
 {
   "durationSeconds" : 1712.4,
   "ended" : "finished",
-  "formatVersion" : 1,
+  "formatVersion" : 2,
   "mutants" : 1103,
   "mutantsByOutcome" : { "buildErrors" : 0, "killed" : 1024, "notCovered" : 0, "survived" : 75, "timedOut" : 4 },
   "mutationScore" : 92,
@@ -737,7 +776,7 @@ status and its log say why it stopped.
 | `report` | The report `-o` saved, or a stopped run's partial report. Left out when none was saved. |
 | `run` | As the JSON report's. Left out when the results file couldn't be made, or written in full. |
 | `gate` | With a `--fail-under` or `failUnder`, the verdict on the score: `failUnder`, the threshold checked; `score`, the exact score compared, which is `mutationScore`'s but with any mutant taken out of the build with others counted as not killed; `passed`; or, when it wasn't checked, `notChecked`, one of `oneMutant`, `shard`, `endedEarly`, `stoppedOnAnError` and `lacksResults`, without `score` and `passed`. A run whose every mutant was a build error has `passed` false and no `score`. Left out without a threshold. See [Failing on a low score](#failing-on-a-low-score). |
-| `formatVersion` | 1. It goes up only when a key is taken out or changes its meaning. |
+| `formatVersion` | 2, since `mutantsByOutcome.survived` no longer holds [mutants no test reached](#whether-a-mutants-code-ran), which are in `notCovered`. It goes up only when a key is taken out or changes its meaning. |
 
 `swift-mutator report --summary <path>` writes one from a results file, or from shards' files
 merged. It never replaces the results file or the report.
@@ -1561,8 +1600,8 @@ which a closed terminal sends, stop it the same way. SwiftMutator then:
    commands are left out when no mutant has a result, or when the results file couldn't be written
    in full. A run of a test plan's command is `run-without-mutating` again, with the plan and
    `--resume`.
-5. Removes its worker clones, `<project>_mutated_worker<n>.noindex`, the active-mutant files beside
-   the mutated project and the clones, and an xcodebuild run's derived data,
+5. Removes its worker clones, `<project>_mutated_worker<n>.noindex`, the active-mutant files and
+   activation markers beside the mutated project and the clones, and an xcodebuild run's derived data,
    `<project>_mutated.DerivedData.noindex` and `<project>_mutated_worker<n>.DerivedData.noindex`,
    with its workers' `muter-worker<n>.xctestrun` files. The mutated project,
    `<project>_mutated.noindex`, is kept, as after a finished run. Last, it deletes the simulators an xcodebuild run made for its workers, named
@@ -1596,7 +1635,7 @@ the results file starts only after both.
   process of its own, which SwiftMutator didn't start, and doesn't suspend. A run that is
   stopping isn't suspended: it is about to end.
 - **Leftovers.** The next `run` removes `<project>_mutated.noindex` and any worker clones,
-  active-mutant files and `.DerivedData.noindex` folders an earlier run left behind, such as one
+  active-mutant files and `.DerivedData.noindex` and `.Activation.noindex` folders an earlier run left behind, such as one
   stopped at once, killed with SIGKILL, or crashed. It also removes what a SwiftMutator from before
   the `.noindex` names left under the names it gave them, `<project>_mutated` with any fix in it,
   `<project>_mutated_worker<n>`, the `.DerivedData` folders and the files beside them, so the first

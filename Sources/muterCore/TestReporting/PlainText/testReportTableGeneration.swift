@@ -53,7 +53,7 @@ private func operatorsToTableRows(fileReport: MuterTestReport.FileReport) -> [(
         (
             CLITable.Row(value: MuterTestReport.place($0, in: fileReport.relativePath)),
             CLITable.Row(value: $0.mutationPoint.mutationOperatorId.rawValue),
-            CLITable.Row(value: $0.testSuiteOutcome.asMutationTestOutcome),
+            CLITable.Row(value: $0.outcomeWords),
             CLITable.Row(value: $0.killedByCell),
             CLITable.Row(value: $0.reusedCell)
         )
@@ -180,6 +180,7 @@ func applyMutationTestResultsColor(to rows: [CLITable.Row]) -> [CLITable.Row] {
         let coloredValue = [
             TestSuiteOutcome.passed.asMutationTestOutcome,
             TestSuiteOutcome.buildError.asMutationTestOutcome,
+            MuterTestReport.AppliedMutationOperator.notCoveredWords,
         ].contains($0.value)
             ? $0.value.red
             : $0.value.green

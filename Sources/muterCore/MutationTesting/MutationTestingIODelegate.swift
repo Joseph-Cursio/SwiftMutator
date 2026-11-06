@@ -273,13 +273,19 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             // Never a baseline, the mutated project's or a worker's: whether it passes decides whether mutation
             // testing can start, so it always runs to its end. A run with no mutant switched on is one too.
             let stopsAtFirstFailure = !isBenchmark && schemata != .null && configuration.stopsAtFirstFailure
-            return try await runTestProcess(
+            var run = try await runTestProcess(
                 process,
                 logFileUrl: testLogUrl,
                 withTimeout: timeout,
                 stoppingAtFirstFailure: stopsAtFirstFailure,
                 failedTestLinesAreReliable: configuration.failedTestLinesAreReliable
             )
+            if schemata != .null {
+                run.activated = readActivation(
+                    of: marker(of: schemata, using: configuration, workingDirectory: workingDirectory)
+                )
+            }
+            return run
 
         } catch {
             // Reaching here means the test command never ran — the log file couldn't be opened, or
@@ -310,6 +316,38 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
                 ending: ending
             )
         }
+    }
+
+    /// `schemata`'s marker for runs with `configuration` in `workingDirectory`, or the current directory if nil.
+    private func marker(
+        of schemata: MutationSchema,
+        using configuration: MuterConfiguration,
+        workingDirectory: URL?
+    ) -> ActivationMarker {
+        let folder = workingDirectory ?? URL(fileURLWithPath: fileManager.currentDirectoryPath)
+        let testRunFile = configuration.buildSystem == .xcodebuild
+            ? configuration.xcodeWorker?.testRunFile ?? Self.muterTestRunFileName
+            : nil
+        return ActivationMarker(of: schemata, forWorkerIn: folder, testRunFile: testRunFile)
+    }
+
+    /// Empties `marker`'s place for the run about to start, so that it shows that run alone, and makes its folder. On
+    /// the real disk, as a run's output is: its test process writes there, from outside this process.
+    private func clearActivation(of marker: ActivationMarker) {
+        let files = FileManager.default
+        try? files.removeItem(atPath: marker.path)
+        try? files.removeItem(atPath: marker.reachedPath)
+        try? files.createDirectory(
+            atPath: (marker.path as NSString).deletingLastPathComponent,
+            withIntermediateDirectories: true
+        )
+    }
+
+    /// What `marker` shows of the run that has just ended (`TestRun.activated`), and removes it.
+    private func readActivation(of marker: ActivationMarker) -> Bool? {
+        defer { clearActivation(of: marker) }
+        if FileManager.default.fileExists(atPath: marker.path) { return true }
+        return FileManager.default.fileExists(atPath: marker.reachedPath) ? false : nil
     }
 
     private func runTestProcess(
@@ -482,7 +520,10 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         named fileName: String
     ) async throws {
         let updated = testRun.updateEnvironmentVariable(
-            setting: schemata == .null ? nil : schemata.id
+            setting: schemata == .null ? nil : schemata.id,
+            activationMarker: schemata == .null
+                ? nil
+                : ActivationMarker(of: schemata, forWorkerIn: path, testRunFile: fileName).path
         )
 
         let data = try PropertyListSerialization.data(
@@ -532,23 +573,30 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             process.environment?[unbufferedOutputKey] = unbufferedOutputValue
         }
 
+        let marker = schemata == .null
+            ? nil
+            : marker(of: schemata, using: configuration, workingDirectory: workingDirectory)
+        marker.map(clearActivation)
+
         if configuration.buildSystem == .swift {
             // SwiftPM keys its cache of compiled package manifests on the whole environment, so a variable of the
             // mutant's own made every run recompile every manifest. A worker's runs, baseline included, name one file
             // instead, written here before the run starts and read lazily by the generated code. A worker runs one
             // test process at a time (see PerformMutationTesting.testMutationsInParallel), so nothing rewrites it
-            // during a run.
+            // during a run. Its second line names the run's activation marker.
             let folder = workingDirectory ?? URL(fileURLWithPath: fileManager.currentDirectoryPath)
             let activeMutantFile = Self.activeMutantFile(forWorkerIn: folder).path
-            try writeFile(schemata == .null ? "" : schemata.id, activeMutantFile)
+            try writeFile(marker.map { schemata.id + "\n" + $0.path } ?? "", activeMutantFile)
             process.environment?[activeMutantFileKey] = activeMutantFile
-        } else if schemata != .null {
+        } else if let marker {
             process.environment?[schemata.id] = "YES"
+            process.environment?[activationMarkerKey] = marker.path
             // Also forward the activation var into an iOS Simulator test host. When xcodebuild spawns
             // tests in the simulator, CoreSimulator only propagates env vars prefixed `SIMCTL_CHILD_`
             // into the simulated process; a bare var set on this (parent) process never reaches the
             // test host, so the mutant wouldn't activate. Complements the xctestrun `EnvironmentVariables` path.
             process.environment?["SIMCTL_CHILD_\(schemata.id)"] = "YES"
+            process.environment?["SIMCTL_CHILD_\(activationMarkerKey)"] = marker.path
         }
 
         if skipsBuild, let direct = configuration.directTestRun {

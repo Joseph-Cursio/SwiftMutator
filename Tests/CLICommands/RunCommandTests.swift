@@ -648,7 +648,7 @@ final class RunCommandTests: XCTestCase {
             let status: ExitCode = switch kind {
             case .baselineTestFailed, .workerBaselineTestFailed: .baselineFailed
             case .tooManyBuildErrors, .mutantNotSwitchedOn, .controlRunNotSwitchedOff, .simulatorUnavailable,
-                 .unknownError: .abortedMidRun
+                 .noMutantCodeShownRunning, .unknownError: .abortedMidRun
             }
             return (reason, status)
         }
@@ -660,6 +660,7 @@ final class RunCommandTests: XCTestCase {
         case .baselineTestFailed: .baselineTestFailed(log: "", mutatedFilePaths: [])
         case .workerBaselineTestFailed: .workerBaselineTestFailed(worker: 2, directory: "/x_worker2", log: "")
         case .tooManyBuildErrors: .tooManyBuildErrors
+        case .noMutantCodeShownRunning: .noMutantCodeShownRunning(runs: 5)
         case .mutantNotSwitchedOn: .mutantNotSwitchedOn(id: "Foo_1", description: "no space left")
         case .controlRunNotSwitchedOff: .controlRunNotSwitchedOff(number: 1, description: "no space left")
         case .simulatorUnavailable: .simulatorUnavailable(worker: 1, line: "device not found", log: nil)

@@ -411,7 +411,7 @@ struct ReportSources {
     /// The line `mutation` changes, before and after; nil when its file can't be read, has changed since it was
     /// tested, or doesn't hold the change on one line.
     mutating func change(of mutation: MutationTestOutcome.Mutation) -> SourceChange? {
-        guard mutation.testSuiteOutcome != .noCoverage, let source = text(of: mutation) else { return nil }
+        guard let source = text(of: mutation) else { return nil }
         return MutantDiff.change(
             original: source.text,
             snapshot: mutation.snapshot,
@@ -443,6 +443,26 @@ struct ReportSources {
     }
 }
 
+extension MuterTestReport.AppliedMutationOperator {
+    /// What the reports' tables say of a mutant not covered, whose tests ran, where a file's row says it was skipped.
+    static let notCoveredWords = "not covered"
+
+    /// Whether this is a mutant whose code no test reached, rather than a file's row for having no coverage.
+    var isANotCoveredMutant: Bool {
+        testSuiteOutcome == .noCoverage && key != nil
+    }
+
+    /// Whether a person can label it (`TriageSummary`): a mutant the tests didn't kill, which they can act on.
+    var takesATriageLabel: Bool {
+        [.passed, .timeout].contains(testSuiteOutcome) || isANotCoveredMutant
+    }
+
+    /// Its outcome, as the reports' tables say it.
+    var outcomeWords: String {
+        isANotCoveredMutant ? Self.notCoveredWords : testSuiteOutcome.asMutationTestOutcome
+    }
+}
+
 extension MuterTestReport {
     /// The mutants the score counts as survivors, which are the ones to act on: those the tests passed with, and
     /// those that timed out. By path, line and column.
@@ -452,6 +472,21 @@ extension MuterTestReport {
                 report.appliedOperators.map { (relativePath: report.relativePath, appliedOperator: $0) }
             }
             .filter { [.passed, .timeout].contains($0.appliedOperator.testSuiteOutcome) }
+            .sorted { lhs, rhs in
+                let left = lhs.appliedOperator.mutationPoint.position
+                let right = rhs.appliedOperator.mutationPoint.position
+                return (lhs.relativePath, left.line, left.column) < (rhs.relativePath, right.line, right.column)
+            }
+    }
+
+    /// The mutants whose code no test reached, whose tests passed without running it, by path, line and column. Never a
+    /// file's row for having no coverage, which has no place in it.
+    var notCovered: [(relativePath: String, appliedOperator: AppliedMutationOperator)] {
+        fileReports
+            .flatMap { report in
+                report.appliedOperators.map { (relativePath: report.relativePath, appliedOperator: $0) }
+            }
+            .filter(\.appliedOperator.isANotCoveredMutant)
             .sorted { lhs, rhs in
                 let left = lhs.appliedOperator.mutationPoint.position
                 let right = rhs.appliedOperator.mutationPoint.position

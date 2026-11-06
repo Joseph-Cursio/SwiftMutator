@@ -3,6 +3,8 @@ import Foundation
 /// Refuses a test plan whose copy of the project isn't there, and a `swift test` plan whose mutated code was made by a
 /// SwiftMutator from before the active-mutant file. It reads the mutated project's files, so it comes after
 /// `LockMutatedProject`: until then another run of the project could be removing them, or copying and rewriting them.
+/// A plan whose code writes no activation marker still runs: its runs show nothing (`TestRun.activated`), so its
+/// verdicts stand as they would have.
 struct CheckTestPlanCode: MutationStep {
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager

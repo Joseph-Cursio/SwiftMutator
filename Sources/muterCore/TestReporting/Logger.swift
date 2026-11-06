@@ -457,6 +457,10 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
             return "\(count) timeout\(one ? "" : "s") under a shorter limit"
         case .timedOut:
             return "\(count) timeout\(one ? "" : "s")"
+        case .codeNotShownRunning:
+            return "\(count) failed without running \(one ? "its" : "their") code"
+        case .sessionShowedNoCodeRunning:
+            return "\(count) from a session that switched on no mutant"
         case .otherFileChanged:
             return "\(count) as other project files changed"
         case .testsChanged:
@@ -726,11 +730,46 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         let counts = [
             (tally.killed, "killed"),
             (tally.survived, "survived"),
+            (tally.notCovered, "not covered"),
             (tally.buildErrors, tally.buildErrors == 1 ? "build error" : "build errors"),
             (tally.timedOutAgain, "timed out again"),
         ]
         let came = counts.compactMap { count, words in count > 0 ? "\(count) \(words)" : nil }
         print("🔁 Ran \(timeouts) again, and \(changed) changed: \(came.joined(separator: ", ")).")
+    }
+
+    /// "⚠️ None of 40 mutants' test runs showed whether their code ran…": a run that can't tell survivors from mutants
+    /// no test reached, or kills from flaky tests, as a test host that can't write there can't.
+    func activationNotShown(runs: Int) {
+        let (these, its, itsHost, itsCommand) = runs == 1
+            ? ("The 1 mutant's test run didn't show", "its", "Its test host", "its test command")
+            : ("None of \(runs) mutants' test runs showed", "their", "Their test host", "their test command")
+        print(
+            "⚠️ \(these) whether \(its) code ran, so verdicts stand as the runs had them, and no survivor reads as not "
+                + "covered. \(itsHost) may be unable to write beside the mutated project, \(itsCommand) may not pass "
+                + "the marker on, or a test plan's code may come from an older SwiftMutator."
+        )
+    }
+
+    /// "🔁 Running 3 failed test runs again, one at a time: their mutants' code didn't run in them."
+    func unprovenRunsRerunStarted(count: Int) {
+        let runs = count == 1 ? "1 failed test run" : "\(count) failed test runs"
+        let them = count == 1 ? "its mutant's code didn't run in it" : "their mutants' code didn't run in them"
+        print("🔁 Running \(runs) again, one at a time: \(them).")
+    }
+
+    /// "🔁 Tested them again: 1 killed, 2 not covered."
+    func unprovenRunsRerunFinished(_ tally: UnprovenRunTally) {
+        let counts = [
+            (tally.killed, "killed"),
+            (tally.killedWithoutRunning, "failed again without their code running"),
+            (tally.survived, "survived"),
+            (tally.notCovered, "not covered"),
+            (tally.timedOut, "timed out"),
+            (tally.buildErrors, tally.buildErrors == 1 ? "build error" : "build errors"),
+        ]
+        let came = counts.compactMap { count, words in count > 0 ? "\(count) \(words)" : nil }
+        print("🔁 Tested them again: \(came.joined(separator: ", ")).")
     }
 
     /// "🔁 The simulator didn't launch the tests for Rules.swift:42:17 (changed == to !=), so they ran again: …": a
@@ -807,7 +846,8 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         didSaveReport: Bool,
         scoreLine: String,
         suspectWarning: String?,
-        buildErrorWarning: String? = nil
+        buildErrorWarning: String? = nil,
+        unprovenKillWarning: String? = nil
     ) {
         print("🏁 SwiftMutator finished running!")
 
@@ -833,6 +873,9 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         }
         if let buildErrorWarning {
             print("⚠️ \(buildErrorWarning)")
+        }
+        if let unprovenKillWarning {
+            print("⚠️ \(unprovenKillWarning)")
         }
     }
 

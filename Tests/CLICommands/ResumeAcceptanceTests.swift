@@ -13,7 +13,7 @@ final class ResumeAcceptanceTests: XCTestCase {
     /// the baseline passes. The issue's line can stop a run there, as `buildSystem: swift` stops runs at their first
     /// failed test.
     private static let testCommand = """
-        mutant=$(cat "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE" 2>/dev/null)
+        mutant=$(head -n 1 "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE" 2>/dev/null)
         echo "${mutant:-baseline}" >> "$RESUME_TEST_MARKERS/ran"
         case "$mutant" in
             Checks_*)

@@ -108,4 +108,28 @@ final class XcodeReporterTests: ReporterTestCase {
             """
         )
     }
+
+    // A mutant no test reached is one to act on, as a survivor is, so it gets a warning at its place too.
+    func test_aMutantNotCovered_getsAWarningOfItsOwn() {
+        let mutation = MutationTestOutcome.Mutation.make(
+            testSuiteOutcome: .noCoverage,
+            point: MutationPoint(
+                mutationOperatorId: .ror,
+                filePath: "/tmp/project/file.swift",
+                position: .firstPosition
+            ),
+            snapshot: .make(before: "==", after: "!=", description: "changed from == to !="),
+            originalProjectDirectoryUrl: URL(string: "/user/project")!
+        )
+
+        XcodeReporter().newMutationTestOutcomeAvailable(
+            outcomeWithFlush: MutationOutcomeWithFlush(mutation: mutation, fflush: {})
+        )
+
+        XCTAssertEqual(printer.linesPassed.count, 1)
+        XCTAssertTrue(
+            printer.linesPassed.first?.contains("warning: No test reached this mutant: changed from == to !=") == true,
+            "\(printer.linesPassed)"
+        )
+    }
 }

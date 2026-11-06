@@ -278,7 +278,7 @@ Added on 21 October, from a comparison with swift-mutation-testing v1.6.3 (`937f
   - Declaration-scoped and next-line suppression, test-helper excludes, folders in `--files-to-mutate` and an `--exclude` flag ([#115]).
   - xcodebuild mutant runs keep only `-destination` of the user's arguments ([#123]).
 - **Verdicts and runs.**
-  - Recording whether each mutant's code ran: no-coverage verdicts, integrity warnings and reruns of kills whose code never ran ([#109]).
+  - Recording whether each mutant's code ran (done, [#109], not yet in a PR). Survivors whose code never ran read as not covered, kills and lone-worker timeouts whose code never ran are tested again, and five `swift test` runs that show nothing, against coverage, stop the run. A host that can't write its marker keeps today's verdicts. The score's formula doesn't change, which stays with [#89].
   - Parallel SwiftPM runs by default, keeping one writable copy per worker. swift-mutation-testing's shared folder gives false kills (ericodx/swift-mutation-testing#187, [#116]).
   - Time limits for the build, coverage and baseline, and the baseline's failing tests named ([#117]).
   - Keeping the Mac awake during a run ([#118]).

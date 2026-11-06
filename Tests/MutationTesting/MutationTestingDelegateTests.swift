@@ -131,7 +131,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
         XCTAssertNil(testProcess.environment?[schemata.id])
         XCTAssertNil(testProcess.environment?["SIMCTL_CHILD_\(schemata.id)"])
         XCTAssertEqual(testProcess.environment?[activeMutantFileKey], activeMutantFile)
-        XCTAssertEqual(writeFile.contentPassed, schemata.id)
+        XCTAssertEqual(writeFile.contentPassed?.components(separatedBy: "\n").first, schemata.id)
         XCTAssertEqual(writeFile.pathPassed, activeMutantFile)
         XCTAssertEqual(testProcess.environment?[isMuterRunningKey], isMuterRunningValue)
         XCTAssertEqual(testProcess.arguments, ["test", "--skip-build", "--quiet"])
@@ -222,7 +222,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
             )
 
             let activeMutantFile = "\(folder)\(activeMutantFileSuffix)"
-            XCTAssertEqual(writeFile.contentPassed, schemata.id, folder)
+            XCTAssertEqual(writeFile.contentPassed?.components(separatedBy: "\n").first, schemata.id, folder)
             XCTAssertEqual(writeFile.pathPassed, activeMutantFile, folder)
             XCTAssertEqual(testProcess.environment?[activeMutantFileKey], activeMutantFile, folder)
         }
@@ -269,7 +269,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
         )
 
         let activeMutantFile = "\(outputFolder)\(activeMutantFileSuffix)"
-        XCTAssertEqual(writeFile.contentPassed, schemata.id)
+        XCTAssertEqual(writeFile.contentPassed?.components(separatedBy: "\n").first, schemata.id)
         XCTAssertEqual(writeFile.pathPassed, activeMutantFile)
         XCTAssertEqual(testProcess.environment?[activeMutantFileKey], activeMutantFile)
         XCTAssertNil(testProcess.environment?[schemata.id])
@@ -337,7 +337,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
         let activeMutantFile = "\(outputFolder)\(activeMutantFileSuffix)"
         XCTAssertEqual(testProcess.executableURL?.path, "/bin/sh")
         XCTAssertEqual(testProcess.environment?[activeMutantFileKey], activeMutantFile)
-        XCTAssertEqual(writeFile.contentPassed, schemata.id)
+        XCTAssertEqual(writeFile.contentPassed?.components(separatedBy: "\n").first, schemata.id)
         XCTAssertEqual(writeFile.pathPassed, activeMutantFile)
         let script = try XCTUnwrap(testProcess.arguments?.last)
         XCTAssertFalse(script.contains(activeMutantFileKey), script)

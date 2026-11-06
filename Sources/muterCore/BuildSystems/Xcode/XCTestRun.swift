@@ -29,11 +29,12 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
         }
     }
 
-    /// The plist with `key`, a mutant's switch, and `IS_MUTER_RUNNING` set in every test target's
-    /// `EnvironmentVariables`. With no `key`, only `IS_MUTER_RUNNING`: a run with no mutant on, as SwiftMutator's runs
-    /// of the tests are.
+    /// The plist with `key`, a mutant's switch, `activationMarker`, its marker's path, and `IS_MUTER_RUNNING` set in
+    /// every test target's `EnvironmentVariables`. With no `key`, only `IS_MUTER_RUNNING`: a run with no mutant on, as
+    /// SwiftMutator's runs of the tests are.
     func updateEnvironmentVariable(
-        setting key: String?
+        setting key: String?,
+        activationMarker: String? = nil
     ) -> [String: AnyHashable] {
         var copy = plist
         let testConfigurationsKey = "TestConfigurations"
@@ -48,7 +49,8 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
                         if let newTestTarget = testTarget as? [String: AnyHashable] {
                             return updateEnvironmentVariables(
                                 forConfiguration: newTestTarget,
-                                key: key
+                                key: key,
+                                activationMarker: activationMarker
                             ) as AnyHashable
                         }
                         return testTarget
@@ -68,7 +70,8 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
                 if let testConfiguration = plistValue as? [String: AnyHashable] {
                     copy[plistEntry] = updateEnvironmentVariables(
                         forConfiguration: testConfiguration,
-                        key: key
+                        key: key,
+                        activationMarker: activationMarker
                     )
                 }
             }
@@ -79,7 +82,8 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
 
     private func updateEnvironmentVariables(
         forConfiguration configuration: [String: AnyHashable],
-        key: String?
+        key: String?,
+        activationMarker: String?
     ) -> [String: AnyHashable] {
         let environmentVariablesKey = "EnvironmentVariables"
         var configuration = configuration
@@ -93,6 +97,9 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
         var allEnvironmentVariables = configuration[environmentVariablesKey] as? [String: AnyHashable] ?? [:]
         if let key {
             allEnvironmentVariables[key] = isMuterRunningValue
+        }
+        if let activationMarker {
+            allEnvironmentVariables[activationMarkerKey] = activationMarker
         }
         allEnvironmentVariables[isMuterRunningKey] = isMuterRunningValue
 

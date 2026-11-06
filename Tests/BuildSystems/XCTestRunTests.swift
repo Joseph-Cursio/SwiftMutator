@@ -116,5 +116,25 @@ final class XCTestRunTests: MuterTestCase {
 
         return try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: AnyHashable] ?? [:]
     }
+
+    func test_aMutantsMarker_isInEveryTestTargetsEnvironment() throws {
+        let testRun = XCTestRun(["Tests": ["BlueprintName": "Tests"] as [String: AnyHashable]])
+
+        let updated = testRun.updateEnvironmentVariable(setting: "mutant", activationMarker: "/marker")
+
+        let target = try XCTUnwrap(updated["Tests"] as? [String: AnyHashable])
+        let environment = try XCTUnwrap(target["EnvironmentVariables"] as? [String: AnyHashable])
+        XCTAssertEqual(environment[activationMarkerKey], "/marker")
+    }
+
+    func test_aRunWithNoMutantOn_hasNoMarker() throws {
+        let testRun = XCTestRun(["Tests": ["BlueprintName": "Tests"] as [String: AnyHashable]])
+
+        let updated = testRun.updateEnvironmentVariable(setting: nil)
+
+        let target = try XCTUnwrap(updated["Tests"] as? [String: AnyHashable])
+        let environment = try XCTUnwrap(target["EnvironmentVariables"] as? [String: AnyHashable])
+        XCTAssertNil(environment[activationMarkerKey])
+    }
 }
 #endif

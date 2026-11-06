@@ -138,7 +138,7 @@ At the top level, always, with every count, zeros included. The counts are as th
 | `survived` | Mutants the tests passed with |
 | `timedOut` | Mutants whose run reached its time limit, which the score counts as survivors |
 | `buildErrors` | Mutants that didn't build, which the score leaves out |
-| `notCovered` | Mutants not tested for want of coverage |
+| `notCovered` | Mutants whose tests passed without running their code, which the score counts as survivors |
 
 ### `sourceChange`
 
@@ -292,7 +292,8 @@ At the top level, when a triage file has entries: how far the survivors have bee
 | Key | Meaning |
 |---|---|
 | `file` | The triage file's path |
-| `survivors` | The mutants that survived or timed out |
+| `survivors` | The mutants that survived, timed out or no test reached |
+| `notCovered` | How many of them no test reached; left out when none |
 | `triaged` | Those with a label |
 | `byLabel` | Each label's `label` and how many `mutants` have it, zeros included |
 | `moved` | Labels that followed their code: `from`, the place the file gives, `now`, and `label` |

@@ -12,7 +12,8 @@ extension PerformMutationTesting {
         configuration: MuterConfiguration,
         state: AnyMutationTestState
     ) -> String? {
-        let keeps = state.selectedMutant != nil || MutationTestLog.isKept(
+        // A kill whose code didn't run keeps its log: it is what the warning about it has to show.
+        let keeps = state.selectedMutant != nil || finished.run.activated == false || MutationTestLog.isKept(
             outcome: finished.run.outcome, killedBy: failures?.tests, keepingAll: configuration.keepsAllLogs
         )
         return keeps ? log : nil
@@ -21,7 +22,7 @@ extension PerformMutationTesting {
     /// Whether a session that reuses `result`, a result of an earlier run, keeps a log for it, by the rule its own
     /// mutants' runs go by, so a reuse doesn't carry an earlier run's kills' logs forward.
     static func keepsLog(of result: MutantResult, reusedBy state: AnyMutationTestState) -> Bool {
-        MutationTestLog.isKept(
+        result.activated == false || MutationTestLog.isKept(
             outcome: result.outcome, killedBy: result.killedBy, keepingAll: state.muterConfiguration.keepsAllLogs
         )
     }

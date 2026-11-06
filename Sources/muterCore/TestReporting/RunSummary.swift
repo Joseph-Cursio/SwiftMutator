@@ -6,8 +6,9 @@ import Foundation
 /// `swift-mutator report --summary` writes one from a results file.
 struct RunSummary: Codable, Equatable {
     static let fileName = "summary.json"
-    /// Raised when a key is taken out or changes its meaning; a new key doesn't raise it.
-    static let formatVersion = 1
+    /// Raised when a key is taken out or changes its meaning; a new key doesn't raise it. 2: `mutantsByOutcome`'s
+    /// `survived` no longer holds mutants no test reached, which `notCovered` does.
+    static let formatVersion = 2
 
     var formatVersion = RunSummary.formatVersion
     /// "finished", "interrupted" or "aborted", as the results file's end line says; nil when a run's last session has

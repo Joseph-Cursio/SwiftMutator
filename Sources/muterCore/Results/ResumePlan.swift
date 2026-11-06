@@ -31,6 +31,12 @@ struct ResumePlan: Equatable {
         case timeoutUnderShorterLimit
         /// A reuse: it timed out, which a run under less load may not.
         case timedOut
+        /// Its run failed or timed out without its mutant's block running, and its session stopped before it tested it
+        /// again.
+        case codeNotShownRunning
+        /// Its session stopped as none of its runs showed they read the mutants' switches, so nothing it recorded
+        /// says anything of the mutant.
+        case sessionShowedNoCodeRunning
         /// A reuse: a project file other than a test file changed, and no `--reuse-ignoring` glob let it through.
         case otherFileChanged
         /// A reuse: test files changed, and it survived, or no unchanged test that killed it still holds.
@@ -86,9 +92,11 @@ extension ResumePlan {
         limits: [Int: Double] = [:],
         limit: Double? = nil,
         reusing changes: [Int: ReuseChanges]? = nil,
-        leftOut: Set<MutantKey> = []
+        leftOut: Set<MutantKey> = [],
+        sessionsShowingNoCode: Set<Int> = []
     ) -> ResumePlan {
         let places = Dictionary(keys.map { (Place($0), 1) }, uniquingKeysWith: +)
+        let sessionsShowingActivation = Set(recorded.values.filter { $0.activated != nil }.map(\.session))
         var reused: [Int: MutantResult] = [:]
         var toRun: [Int] = []
         var reasons: [Reason: Int] = [:]
@@ -100,6 +108,11 @@ extension ResumePlan {
                 // A reuse tests every timeout again, a resume those its session didn't, or tested under a shorter
                 // limit.
                 reason = reasonToRetest(record, fileHash: fileHashes[key.path], snapshot: snapshots[index])
+                    ?? reasonToRetest(
+                        record,
+                        showingNoCodeIn: sessionsShowingNoCode,
+                        showingActivation: sessionsShowingActivation
+                    )
                     ?? (changes.map { reasonToRetest(record, after: $0[record.session]) }
                         ?? reasonToRetest(
                             record,
@@ -153,6 +166,32 @@ extension ResumePlan {
             return .mutationChanged
         }
         return nil
+    }
+
+    /// Why neither a resume nor a reuse keeps `record`, whose file is unchanged, as what it says of its mutant's run
+    /// doesn't hold: its session stopped as no run showed anything (`showingNoCode`), or stopped before it tested again
+    /// a run that failed without showing its block ran. A line with no `activated` is such a run only in a session
+    /// that `showingActivation` names; in any other it predates the key or can't show it, and stands.
+    private static func reasonToRetest(
+        _ record: MutantResult,
+        showingNoCodeIn sessions: Set<Int>,
+        showingActivation: Set<Int>
+    ) -> Reason? {
+        guard record.reusedFrom == nil else { return nil }
+        if sessions.contains(record.session) {
+            return .sessionShowedNoCodeRunning
+        }
+        guard [.failed, .runtimeError, .timeout].contains(record.outcome), record.rerun == nil else { return nil }
+        let unproven = record.activated == false
+            || record.activated == nil && showingActivation.contains(record.session)
+        return unproven ? .codeNotShownRunning : nil
+    }
+
+    /// The sessions of `sessions`, a results file's, that stopped as none of their runs showed they read the mutants'
+    /// switches.
+    static func showingNoCode(_ sessions: [RecordedResults.Session]) -> Set<Int> {
+        let code = MutationTestingAbortReason.Kind.noMutantCodeShownRunning.rawValue
+        return Set(sessions.filter { $0.end?.detail == code }.map(\.header.session))
     }
 
     /// The workers of each session in `headers`, a results file's, by its number: the last header's of a number, as

@@ -392,7 +392,10 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         _ = try await sut.run(with: state)
 
         XCTAssertEqual(fileManager.contentsOfDirectoryAtPath, ["/logs/running"])
-        XCTAssertEqual(fileManager.paths.filter { !$0.hasSuffix(".log") }, ["/logs/running"])
+        XCTAssertEqual(
+            fileManager.paths.filter { !$0.hasSuffix(".log") },
+            ["/project_mutated.Activation.noindex", "/logs/running"]
+        )
     }
 
     // A stop leaves the output of the runs under way, all there is to say what they were doing.
@@ -403,7 +406,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
 
         _ = try await sut.run(with: state)
 
-        XCTAssertEqual(fileManager.paths.filter { !$0.hasSuffix(".log") }, [])
+        XCTAssertEqual(fileManager.paths.filter { !$0.hasSuffix(".log") }, ["/project_mutated.Activation.noindex"])
     }
 
     func test_aWorkerCloneWhoseBaselineFails_stopsTheRun() async throws {
@@ -716,7 +719,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
 
         _ = try await sut.run(with: state)
 
-        XCTAssertEqual(fileManager.paths, ["/project_mutated.active-mutant"])
+        XCTAssertEqual(fileManager.paths, ["/project_mutated.Activation.noindex", "/project_mutated.active-mutant"])
     }
 
     func test_aStoppedSwiftPMRun_removesTheActiveMutantFileBesideTheMutatedProject() async throws {
@@ -729,7 +732,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         let result = await runInItsOwnTask()
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        XCTAssertEqual(fileManager.paths, ["/project_mutated.active-mutant"])
+        XCTAssertEqual(fileManager.paths, ["/project_mutated.Activation.noindex", "/project_mutated.active-mutant"])
         XCTAssertEqual(removedClones, [[workerClone]])
     }
 
@@ -740,7 +743,10 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
 
         _ = try await sut.run(with: state)
 
-        XCTAssertEqual(fileManager.paths, ["/project_mutated.DerivedData.noindex"])
+        XCTAssertEqual(
+            fileManager.paths,
+            ["/project_mutated.Activation.noindex", "/project_mutated.DerivedData.noindex"]
+        )
     }
 
     // An xcodebuild project on a simulator gets one per worker, not a copy: every worker tests in the mutated project.

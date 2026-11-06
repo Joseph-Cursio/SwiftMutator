@@ -77,6 +77,7 @@ extension MutationTestingAbortReason {
         case mutantNotSwitchedOn
         case controlRunNotSwitchedOff
         case simulatorUnavailable
+        case noMutantCodeShownRunning
         case unknownError
 
         /// The status a run that stopped for a reason of this kind exits with: `baselineFailed` when no mutant was
@@ -87,7 +88,7 @@ extension MutationTestingAbortReason {
             case .baselineTestFailed, .workerBaselineTestFailed:
                 return .baselineFailed
             case .tooManyBuildErrors, .mutantNotSwitchedOn, .controlRunNotSwitchedOff, .simulatorUnavailable,
-                 .unknownError:
+                 .noMutantCodeShownRunning, .unknownError:
                 return .abortedMidRun
             }
         }
@@ -102,6 +103,7 @@ extension MutationTestingAbortReason {
         case .mutantNotSwitchedOn: .mutantNotSwitchedOn
         case .controlRunNotSwitchedOff: .controlRunNotSwitchedOff
         case .simulatorUnavailable: .simulatorUnavailable
+        case .noMutantCodeShownRunning: .noMutantCodeShownRunning
         case .unknownError: .unknownError
         }
     }

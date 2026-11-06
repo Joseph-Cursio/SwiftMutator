@@ -26,6 +26,8 @@ enum MutatedProjectNames {
     static let workerInfix = "_worker"
     /// Follows a worker's folder's stem in its derived data folder's name, before `.noindex`.
     static let derivedDataSuffix = ".DerivedData"
+    /// Follows a worker's folder's stem in its activation markers' folder's name, before `.noindex`.
+    static let activationSuffix = ".Activation"
     /// Follows a copy's stem in its lock file's name.
     static let lockSuffix = ".lock"
 
@@ -73,6 +75,13 @@ enum MutatedProjectNames {
             .appendingPathComponent(folder + derivedDataSuffix + unindexedSuffix)
     }
 
+    /// The folder of the activation markers (`ActivationMarker`) of runs in `folder`, a copy or a clone, beside it:
+    /// `<stem>.Activation.noindex`. Never in it, where a test that lists the package's files would see them. An
+    /// xcodebuild worker has no clone, so its runs share the copy's.
+    static func activationFolder(of folder: URL) -> URL {
+        file(activationSuffix + unindexedSuffix, beside: folder)
+    }
+
     /// The lock file of `copy`, beside it: `<stem>.lock`, so `<project>_mutated.lock` for both `<project>_mutated` and
     /// `<project>_mutated.noindex`.
     static func lockFile(of copy: URL) -> String {
@@ -87,9 +96,9 @@ enum MutatedProjectNames {
     }
 
     /// Whether `name`, beside the copy whose stem is `stem`, is something a run of that copy makes, other than the
-    /// lock: the copy, a clone or a derived data folder, under its name or under the one a SwiftMutator from before
-    /// `.noindex` gave it, or an active-mutant file or helper link beside the copy or a clone. Never `<stem>.lock`, the
-    /// log folder, or a name that only starts like these.
+    /// lock: the copy, a clone, a derived data or activation folder, under its name or under the one a SwiftMutator
+    /// from before `.noindex` gave it, or an active-mutant file or helper link beside the copy or a clone. Never
+    /// `<stem>.lock`, the log folder, or a name that only starts like these.
     static func isLeftover(_ name: String, of stem: String) -> Bool {
         if name.hasSuffix(unindexedSuffix) {
             return isFolder(String(name.dropLast(unindexedSuffix.count)), of: stem)
@@ -101,10 +110,11 @@ enum MutatedProjectNames {
         return folder == stem || isWorkerClone(folder, of: stem)
     }
 
-    /// Whether `name`, without `.noindex`, is the copy whose stem is `stem`, one of its clones, or the derived data
-    /// folder of one of its workers.
+    /// Whether `name`, without `.noindex`, is the copy whose stem is `stem`, one of its clones, or the derived data or
+    /// activation folder of one of its workers.
     private static func isFolder(_ name: String, of stem: String) -> Bool {
-        let worker = name.hasSuffix(derivedDataSuffix) ? String(name.dropLast(derivedDataSuffix.count)) : name
+        let suffix = [derivedDataSuffix, activationSuffix].first(where: name.hasSuffix)
+        let worker = String(name.dropLast(suffix?.count ?? 0))
         return worker == stem || isWorkerClone(worker, of: stem)
     }
 

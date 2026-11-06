@@ -28,6 +28,7 @@ final class PerformMutationTestingTests: MuterTestCase {
 
     func test_whenBaselinePasses_thenRunMutationTesting() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        ioDelegate.mutantActivations = [nil, nil]
 
         let result = try await sut.run(with: state)
 
@@ -415,6 +416,7 @@ final class PerformMutationTestingTests: MuterTestCase {
     }
 
     func test_whenEncountersFiveNonConsecutiveBuildErrors_thenPerformMutationTesting() async throws {
+        ioDelegate.mutantActivations = Array(repeating: nil, count: 5)
         ioDelegate.testSuiteOutcomes = [
             .passed,
             .buildError,

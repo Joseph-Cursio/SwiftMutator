@@ -99,7 +99,10 @@ switch, and the copy is built once.
   an enum to each rewritten file, `__SwiftMutator_` and a hash of the file's name. Its
   `static let environment` reads the process environment once. If
   `SWIFTMUTATOR_ACTIVE_MUTANT_FILE` is set, it also switches on the ID on the first line of the
-  file that variable names.
+  file that variable names, and reads the run's activation marker from its second. `static let ran`
+  creates that marker the first time a switch's condition holds, as each mutant's `if` reads it after
+  its own check, and reading `environment` creates `<marker>.reached`
+  ([`MutationTesting/ActivationMarker.swift`](../Sources/muterCore/MutationTesting/ActivationMarker.swift)).
 - [`MutationTesting/MutationTestingIODelegate.swift`](../Sources/muterCore/MutationTesting/MutationTestingIODelegate.swift)
   switches a mutant on for a test run. For SwiftPM it writes the ID to the worker's
   `<project>_mutated.active-mutant` file, beside its folder, and names that file in the
@@ -118,7 +121,8 @@ An xcodebuild mutant runs `test-without-building` on the `.xctestrun` file.
 [`MutationTesting/MutatedProjectNames.swift`](../Sources/muterCore/MutationTesting/MutatedProjectNames.swift)
 names everything SwiftMutator makes beside the project: the copy, `<project>_mutated.noindex`
 (`<project>_mutant.noindex` for `--mutant`), each extra worker's clone,
-`<project>_mutated_worker<n>.noindex`, and xcodebuild's derived data folders. `.noindex` keeps
+`<project>_mutated_worker<n>.noindex`, xcodebuild's derived data folders and the activation
+markers' folders. `.noindex` keeps
 Spotlight out. The lock is in
 [`MutatedProjectLock.swift`](../Sources/muterCore/MutationTesting/MutatedProjectLock.swift).
 

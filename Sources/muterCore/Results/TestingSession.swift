@@ -47,6 +47,15 @@ final class TestingSession: @unchecked Sendable { // `file`, `mutantLines` and `
     /// Each mutant's outcome by job index: a kept result's once the header is written, and a tested one's as it is
     /// recorded, so mutation testing that stops early still has them.
     var outcomes: [Int: MutationTestOutcome.Mutation] = [:]
+    /// Whether any mutant's run in this session showed whether its block ran (`TestRun.activated`), so its test command
+    /// passes the marker on and its test host can write there.
+    var activationShown = false
+    /// How many of this session's mutants' runs, built and run, showed neither.
+    var runsShowingNoActivation = 0
+    /// The jobs, by index, whose first run in this session failed without showing their block ran.
+    var killsNotShownToRunTheirCode: [Int] = []
+    /// The jobs, by index, whose first run in this session timed out without showing their block ran.
+    var timeoutsNotShownToRunTheirCode: [Int] = []
     /// The control runs recorded so far, in the order they finished, written or not.
     var controlRuns: [ControlRunResult] = []
     /// The worker clones made so far, removed however mutation testing ends.

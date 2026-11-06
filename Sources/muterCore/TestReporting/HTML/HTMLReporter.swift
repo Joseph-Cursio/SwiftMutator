@@ -35,6 +35,7 @@ private func htmlReport(
                     ),
                     .divider("Surviving Mutants"),
                     .survivors(from: testReport),
+                    .notCovered(from: testReport),
                     .divider("Mutation Operators per File"),
                     .mutationOperatorsPerFile(from: testReport),
                     .divider("Applied Mutation Operators"),
@@ -335,7 +336,7 @@ extension Node where Context: HTML.BodyContext {
                         ),
                         .td(.class("mutation-snapshot"), .diff(of: report.appliedOperator)),
                         .td(
-                            .raw("\(report.appliedOperator.testSuiteOutcome.asIcon)")
+                            .raw(report.appliedOperator.outcomeIcon)
                         ),
                         .if(showsKillingTests, .td(.class("left-aligned"), .killedBy(report.appliedOperator))),
                         .if(showsReuse, .td(.text(report.appliedOperator.reusedCell))),
@@ -389,6 +390,51 @@ extension Node where Context: HTML.BodyContext {
                             .if(
                                 testReport.triageSummary != nil,
                                 .td(.class("left-aligned"), .text(survivor.appliedOperator.triage?.text ?? "-"))
+                            )
+                        )
+                    }
+                )
+            )
+        )
+    }
+
+    /// The mutants not covered, by path, line and column, as the survivors are shown; nothing when there are none.
+    static func notCovered(from testReport: MuterTestReport) -> Self {
+        let mutants = testReport.notCovered
+        guard !mutants.isEmpty else { return .empty }
+        return .div(
+            .class("survivors"),
+            .p(.text(PlainTextReporter.notCoveredIntroduction(mutants.count))),
+            .table(
+                .id("not-covered"),
+                .thead(
+                    .tr(
+                        .th("Place"),
+                        .th("Applied Mutation Operator"),
+                        .th("Changes"),
+                        .if(testReport.triageSummary != nil, .th("Triage"))
+                    )
+                ),
+                .tbody(
+                    .forEach(mutants) { item -> Node<HTML.TableContext> in
+                        .tr(
+                            .td(
+                                .class("left-aligned"),
+                                .text(MuterTestReport.place(item.appliedOperator, in: item.relativePath))
+                            ),
+                            .td(
+                                .class("left-aligned"),
+                                .attribute(
+                                    named: "title",
+                                    value: item.appliedOperator.mutationPoint.mutationOperatorId.explanation
+                                ),
+                                .raw("<wbr>\(item.appliedOperator.mutationPoint.mutationOperatorId.friendlyName)"
+                                    + "<wbr>")
+                            ),
+                            .td(.class("mutation-snapshot"), .diff(of: item.appliedOperator)),
+                            .if(
+                                testReport.triageSummary != nil,
+                                .td(.class("left-aligned"), .text(item.appliedOperator.triage?.text ?? "-"))
                             )
                         )
                     }
@@ -518,7 +564,7 @@ extension Node where Context: HTML.BodyContext {
         .div(
             .class("snapshot-changes"),
             .if(
-                appliedOperator.testSuiteOutcome == .noCoverage,
+                appliedOperator.testSuiteOutcome == .noCoverage && !appliedOperator.isANotCoveredMutant,
                 .span(
                     .class("snapshot-no-coverage"),
                     ""
@@ -561,6 +607,18 @@ private extension MutationOperator.Id {
         case .arithmeticOperator: "Change Arithmetic Operator"
         case .flipBooleanLiteral: "Flip Boolean Literal"
         }
+    }
+}
+
+private extension MuterTestReport.AppliedMutationOperator {
+    /// Its outcome's icon, titled as the tables say it. A mutant not covered has a survivor's icon, as its tests ran
+    /// and passed, and the score counts it as one, where a file's row has the icon of one that was skipped.
+    var outcomeIcon: String {
+        guard isANotCoveredMutant else { return testSuiteOutcome.asIcon }
+        return TestSuiteOutcome.passed.asIcon.replacingOccurrences(
+            of: TestSuiteOutcome.passed.asMutationTestOutcome,
+            with: outcomeWords
+        )
     }
 }
 
