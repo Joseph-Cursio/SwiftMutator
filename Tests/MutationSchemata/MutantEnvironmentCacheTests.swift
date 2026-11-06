@@ -47,7 +47,7 @@ final class MutantEnvironmentCacheTests: MuterTestCase {
     // SwiftPM keys its cache of compiled package manifests on the whole environment, so a `swift test`
     // run can't name its mutant in a variable of the mutant's own without recompiling every manifest.
     // It names a file instead, holding the mutant's ID, and the cache adds that ID as if it were set.
-    // Only the first line counts, so a file written by hand with `echo` works too.
+    // Its second line, if any, names the run's activation marker, so a file written by hand with `echo` works too.
     func test_theCacheAddsTheMutantNamedInTheActiveMutantFile() throws {
         let rewritten = try rewrite("""
         func check(_ value: Int) -> Bool {
@@ -57,8 +57,15 @@ final class MutantEnvironmentCacheTests: MuterTestCase {
 
         XCTAssertTrue(rewritten.contains(#"environment["SWIFTMUTATOR_ACTIVE_MUTANT_FILE"]"#), rewritten)
         XCTAssertTrue(rewritten.contains("String(contentsOfFile: path, encoding: .utf8)"), rewritten)
-        XCTAssertTrue(rewritten.contains("contents.prefix { !$0.isNewline }"), rewritten)
-        XCTAssertTrue(rewritten.contains(#"environment[identifier] = "YES""#), rewritten)
+        XCTAssertTrue(
+            rewritten.contains("contents.split(maxSplits: 1, omittingEmptySubsequences: false) { $0.isNewline }"),
+            rewritten
+        )
+        XCTAssertTrue(rewritten.contains(#"environment[String(identifier)] = "YES""#), rewritten)
+        XCTAssertTrue(
+            rewritten.contains(#"environment["SWIFTMUTATOR_ACTIVATION_MARKER"] = String(lines[1])"#),
+            rewritten
+        )
     }
 
     // A file the tests can't read would otherwise switch no mutant on, and every mutant would survive.

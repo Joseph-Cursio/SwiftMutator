@@ -17,6 +17,56 @@ final class ResumePlanTests: XCTestCase {
         )
     }
 
+    // A session that stopped before it tested the kill again leaves the first run's line, which proves nothing.
+    func test_aKillWhoseCodeDidntRun_andThatWasntTestedAgain_isTestedAgain() {
+        let keys = (1...4).map { key(line: $0) }
+        var unproven = record(of: keys[0], outcome: .failed)
+        unproven.activated = false
+        var settled = record(of: keys[1], outcome: .failed)
+        settled.activated = false
+        settled.rerun = MutantResult.Rerun(because: MutantResult.Rerun.codeNotShownRunning, workers: 1)
+        var survivor = record(of: keys[2], outcome: .passed)
+        survivor.activated = false
+        // Its session's other runs show they can say, so a run that says nothing, as a crash at launch, is one too.
+        let showedNothing = record(of: keys[3], outcome: .runtimeError)
+
+        let made = plan(keys, recorded: [unproven, settled, survivor, showedNothing])
+
+        XCTAssertEqual(made.toRun, [0, 3])
+        XCTAssertEqual(made.retestedBecause, [.codeNotShownRunning: 2])
+    }
+
+    // A line from before the key, or from a host that can't write, says nothing, and stands. So does a result kept
+    // from an earlier run, which this file's session didn't test.
+    func test_aKillThatShowsNothing_inASessionThatShowedNothing_orReused_isKept() {
+        let keys = (1...3).map { key(line: $0) }
+        let older = record(of: keys[0], outcome: .failed)
+        var reused = record(of: keys[1], outcome: .failed)
+        reused.reusedFrom = ReusedFrom(resultsFile: "/old.jsonl", session: 1, despiteChanges: false)
+        XCTAssertEqual(plan(keys, recorded: [older, reused]).toRun, [2])
+
+        var showing = record(of: keys[2], outcome: .passed)
+        showing.activated = true
+        XCTAssertEqual(plan(keys, recorded: [reused, showing]).toRun, [0])
+    }
+
+    // Nothing such a session recorded says anything of its mutants, whatever it recorded.
+    func test_everyResultOfASessionThatShowedNoCodeRunning_isTestedAgain() {
+        let keys = (1...2).map { key(line: $0) }
+        let records = [record(of: keys[0], outcome: .passed), record(of: keys[1], outcome: .failed)]
+
+        let made = ResumePlan.make(
+            keys: keys,
+            snapshots: keys.map { _ in Self.mutation },
+            recorded: Dictionary(uniqueKeysWithValues: records.map { ($0.key, $0) }),
+            fileHashes: Self.hashes,
+            sessionsShowingNoCode: [records[0].session]
+        )
+
+        XCTAssertEqual(made.toRun, [0, 1])
+        XCTAssertEqual(made.retestedBecause, [.sessionShowedNoCodeRunning: 2])
+    }
+
     func test_reusesKillsSurvivorsAndTimeouts() {
         // A timeout counts in the score like a survivor, so reusing one can never overstate it. The session tested one
         // mutant at a time, as low a load as any.
@@ -187,7 +237,9 @@ final class ResumePlanTests: XCTestCase {
         // Every reason but a reuse's.
         XCTAssertEqual(
             Set(plan.retestedBecause.keys),
-            Set(ResumePlan.Reason.allCases).subtracting([.timedOut, .otherFileChanged, .testsChanged])
+            Set(ResumePlan.Reason.allCases).subtracting([
+                .timedOut, .otherFileChanged, .testsChanged, .codeNotShownRunning, .sessionShowedNoCodeRunning,
+            ])
         )
         XCTAssertEqual(plan.retestedBecause.values.reduce(0, +), plan.toRun.count)
     }

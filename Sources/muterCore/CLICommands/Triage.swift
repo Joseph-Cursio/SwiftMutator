@@ -118,14 +118,14 @@ struct Triage: AsyncParsableCommand {
     private func addLabel(_ label: TriageLabel, to reference: MutantReference, from results: String) throws {
         let run = try read(results)
         let found = try Self.oneMutant(reference, in: run)
-        guard [.passed, .timeout].contains(found.testSuiteOutcome),
+        guard found.takesATriageLabel,
               let foundKey = found.key,
               let key = MutantKey(wholeDescription: foundKey)
         else {
             let verdict = MutantVerdict(found.testSuiteOutcome).words(1)
             throw MuterError.literal(
                 reason: "\(found.key ?? reference.description) didn't survive this run (\(verdict)): only a mutant "
-                    + "that survived or timed out takes a label."
+                    + "that survived, timed out or no test reached takes a label."
             )
         }
 

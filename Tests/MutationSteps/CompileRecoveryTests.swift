@@ -616,7 +616,9 @@ private extension CompileRecoveryTests {
 
     /// The range of the first token of `id`'s branch.
     func branchBody(of id: String, in code: String) throws -> Range<String.Index> {
-        let condition = try XCTUnwrap(code.range(of: "\"\(id)\"] != nil {"), code)
+        let id = try XCTUnwrap(code.range(of: "\"\(id)\"] != nil"), code)
+        let brace = try XCTUnwrap(code[id.upperBound...].firstIndex(of: "{"), code)
+        let condition = brace ..< code.index(after: brace)
         let start = try XCTUnwrap(code[condition.upperBound...].firstIndex { !$0.isWhitespace && !$0.isNewline }, code)
         return start ..< code.index(after: start)
     }

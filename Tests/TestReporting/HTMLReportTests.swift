@@ -122,4 +122,25 @@ final class HTMLReportTests: MuterTestCase {
         XCTAssertFalse(html.contains("⚠️"))
         XCTAssertFalse(html.contains("suspect only"))
     }
+
+    // Its tests ran, so nothing says it was skipped, and it is listed apart from the survivors.
+    func test_aMutantNotCovered_isListedApart_andSaidToBeNotCovered() {
+        let notCovered = MutationTestOutcome.Mutation.make(
+            testSuiteOutcome: .noCoverage,
+            point: MutationPoint(
+                mutationOperatorId: .ror,
+                filePath: "/project_mutated/Sources/Unreached.swift",
+                position: MutationPosition(utf8Offset: 0, line: 7, column: 3)
+            ),
+            snapshot: .make(before: ">", after: "<", description: "changed > to <"),
+            key: MutantKey(path: "Sources/Unreached.swift", mutationOperatorId: .ror, line: 7, column: 3, occurrence: 0)
+        )
+
+        let html = HTMLReporter().report(from: .make(mutations: [notCovered]))
+
+        XCTAssertTrue(html.contains(#"<table id="not-covered">"#), html)
+        XCTAssertTrue(html.contains("No test reached this mutant"), html)
+        XCTAssertTrue(html.contains("<title>not covered</title>"), html)
+        XCTAssertFalse(html.contains("skipped (no coverage)"), html)
+    }
 }

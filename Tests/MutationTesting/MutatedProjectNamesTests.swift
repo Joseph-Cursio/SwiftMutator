@@ -139,4 +139,18 @@ final class MutatedProjectNamesTests: XCTestCase {
             XCTAssertFalse(MutatedProjectNames.isLeftover(name, of: "x_mutated"), name)
         }
     }
+
+    func test_activationFolders_areBesideTheirWorkersFolders_andAreLeftovers() {
+        let copy = URL(fileURLWithPath: "/runs/p_mutated.noindex")
+        let clone = URL(fileURLWithPath: "/runs/p_mutated_worker2.noindex")
+
+        XCTAssertEqual(MutatedProjectNames.activationFolder(of: copy).path, "/runs/p_mutated.Activation.noindex")
+        XCTAssertEqual(
+            MutatedProjectNames.activationFolder(of: clone).path,
+            "/runs/p_mutated_worker2.Activation.noindex"
+        )
+        XCTAssertTrue(MutatedProjectNames.isLeftover("p_mutated.Activation.noindex", of: "p_mutated"))
+        XCTAssertTrue(MutatedProjectNames.isLeftover("p_mutated_worker2.Activation.noindex", of: "p_mutated"))
+        XCTAssertFalse(MutatedProjectNames.isLeftover("other.Activation.noindex", of: "p_mutated"))
+    }
 }

@@ -350,6 +350,12 @@ struct MutantResult: Codable, Equatable {
     /// True on the line of a mutant taken out of the build with others (`LeftOutMutant.Blame`), as the compiler's error
     /// could be any of theirs, so it may compile: `--fail-under` counts it as not killed. Absent otherwise.
     var leftOutWithOthers: Bool?
+    /// Whether the mutant's block ran in this run (`TestRun.activated`): true if it did, false if the run reached
+    /// mutated code but not that block, which makes a `passed` run a mutant not covered. Absent when the run showed
+    /// neither, as on a test host that can't write its marker, and on any line older than this key: nothing is known
+    /// then. A run that tested the mutant again (`rerun`) records false for showing neither too, as its session showed
+    /// that its runs can say.
+    var activated: Bool?
 
     var key: MutantKey {
         MutantKey(
@@ -441,6 +447,7 @@ extension MutantResult {
             fileSHA256: fileSHA256,
             rerun: rerun
         )
+        activated = run.activated
     }
 
     /// The tests a killed, crashed or timed-out run's log shows failing, but for `lookalikes`: those a passing
@@ -461,6 +468,9 @@ extension MutantResult {
         /// A first run that timed out: under the load of every worker, a slow test can pass the limit that it keeps
         /// to under less.
         static let timeout = "timeout"
+        /// A first run that failed or timed out without showing its mutant's block ran, in a session whose other runs
+        /// show they can: a flaky test or a crash at launch may have failed it.
+        static let codeNotShownRunning = "codeNotShownRunning"
 
         /// Why, such as `timeout`. A string, not an enum, so that a reason a later SwiftMutator adds doesn't make the
         /// line unreadable: a reader would skip it, and the first run's result would stand in its place.
@@ -536,6 +546,7 @@ extension MutantResult {
             fileSHA256: fileSHA256,
             rerun: rerun
         )
+        copy.activated = activated
         copy.reusedFrom = ReusedFrom(
             resultsFile: origin?.resultsFile ?? resultsFile,
             session: origin?.session ?? self.session,
@@ -595,7 +606,7 @@ struct ResultsEnd: Codable, Equatable {
             return "\(code)(worker: \(worker))"
         case let .controlRunNotSwitchedOff(number, _):
             return "\(code)(number: \(number))"
-        case .baselineTestFailed, .tooManyBuildErrors, .mutantNotSwitchedOn, .unknownError:
+        case .baselineTestFailed, .tooManyBuildErrors, .mutantNotSwitchedOn, .noMutantCodeShownRunning, .unknownError:
             return code
         }
     }

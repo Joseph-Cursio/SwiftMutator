@@ -139,8 +139,8 @@ extension PerformMutationTesting {
         }
     }
 
-    /// The outcome of `job`'s mutant, which `testSuiteOutcome` says, with the tests that killed it, as the report shows
-    /// it.
+    /// The outcome of `job`'s mutant, which `testSuiteOutcome` says, given whether its block ran, with the tests that
+    /// killed it, as the report shows it.
     static func outcome(
         _ testSuiteOutcome: TestSuiteOutcome,
         of job: MutantJob,
@@ -148,10 +148,11 @@ extension PerformMutationTesting {
         killingTests: MutationTestOutcome.KillingTests?,
         reusedFrom: ReusedFrom? = nil,
         key: MutantKey,
-        durationSeconds: Double
+        durationSeconds: Double,
+        activated: Bool? = nil
     ) -> MutationTestOutcome.Mutation {
-        MutationTestOutcome.Mutation(
-            testSuiteOutcome: testSuiteOutcome,
+        var mutation = MutationTestOutcome.Mutation(
+            testSuiteOutcome: testSuiteOutcome.judged(activated: activated),
             mutationPoint: MutationPoint(
                 mutationOperatorId: job.schema.mutationOperatorId,
                 filePath: job.schema.filePath,
@@ -165,6 +166,8 @@ extension PerformMutationTesting {
             key: key,
             durationSeconds: durationSeconds
         )
+        mutation.activated = activated
+        return mutation
     }
 
     /// What `schema`'s mutant, keyed `key`, changes, as `MutantDiff` finds it in its original file, `outcome`'s, never

@@ -5,7 +5,7 @@ struct XcodeReporter: Reporter {
     func newMutationTestOutcomeAvailable(outcomeWithFlush: MutationOutcomeWithFlush) {
         let outcome = outcomeWithFlush.mutation
 
-        guard outcome.testSuiteOutcome == .passed else {
+        guard [.passed, .noCoverage].contains(outcome.testSuiteOutcome) else {
             return
         }
 
@@ -24,7 +24,8 @@ struct XcodeReporter: Reporter {
         """
         // A warning without a file and line, which Xcode lists without a location: a mutant that was a build error has
         // no survivor's warning to show it wasn't tested.
-        let buildErrors = outcome.buildErrorWarning.map { "\nwarning: SwiftMutator: \($0)" } ?? ""
+        let buildErrors = [outcome.buildErrorWarning, outcome.unprovenKillWarning].compactMap { $0 }
+            .map { "\nwarning: SwiftMutator: \($0)" }.joined()
         guard let suspects = report.suspectSummary, let warning = report.suspectWarning else {
             return summary + buildErrors
         }
@@ -42,9 +43,11 @@ struct XcodeReporter: Reporter {
     private func outcomeIntoXcodeString(outcome: MutationTestOutcome.Mutation) -> String {
         // {full_path_to_file}{:line}{:character}: {error,warning}: {content}
 
-        "\(outcome.originalProjectPath):" +
+        let verdict = outcome.testSuiteOutcome == .noCoverage
+            ? "No test reached this mutant"
+            : "Your test suite did not kill this mutant"
+        return "\(outcome.originalProjectPath):" +
             "\(outcome.point.position.line):\(outcome.point.position.column): " +
-            "warning: " +
-            "Your test suite did not kill this mutant: \(outcome.snapshot.description)"
+            "warning: \(verdict): \(outcome.snapshot.description)"
     }
 }

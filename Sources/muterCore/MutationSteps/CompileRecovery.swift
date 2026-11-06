@@ -345,9 +345,10 @@ struct MutantLocator {
         tree.token(at: converter.position(ofLine: line, column: column))
     }
 
-    /// `<cache>.environment["<id>"] != nil`, the one condition `MutationSwitch` writes; nil for a project's own `if`.
+    /// `<cache>.environment["<id>"] != nil`, the first of the two conditions `MutationSwitch` writes; nil for a
+    /// project's own `if`.
     private func mutantID(of link: IfExprSyntax) -> String? {
-        guard link.conditions.count == 1,
+        guard link.conditions.count == 2,
               case let .expression(condition)? = link.conditions.first?.condition,
               let call = condition.as(SequenceExprSyntax.self)?.elements.first?.as(SubscriptCallExprSyntax.self),
               let member = call.calledExpression.as(MemberAccessExprSyntax.self),

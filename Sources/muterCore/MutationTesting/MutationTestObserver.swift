@@ -144,6 +144,19 @@ extension MutationTestObserver {
             logger.mutantsLeftOutOfTheBuild(leftOut)
         case let .controlRunFinished(control):
             logger.controlRunFinished(control)
+        case let .activationNotShown(runs):
+            logger.activationNotShown(runs: runs)
+        case let .unprovenRunsRerunStarted(count):
+            logger.unprovenRunsRerunStarted(count: count)
+        case let .unprovenRunRerun(mutation, changed):
+            // As a timeout's: a verdict that didn't change is no news, and the logger's outcome counts the progress.
+            if changed {
+                runOptions.reportOptions.reporter.newMutationTestOutcomeAvailable(
+                    outcomeWithFlush: MutationOutcomeWithFlush(mutation: mutation, fflush: flushStdOut)
+                )
+            }
+        case let .unprovenRunsRerunFinished(tally):
+            logger.unprovenRunsRerunFinished(tally)
         case let .timeoutRerunsStarted(reruns):
             logger.timeoutRerunsStarted(reruns)
         case let .timeoutRerunFinished(rerun):
@@ -246,7 +259,8 @@ extension MutationTestObserver {
             didSaveReport: didSave,
             scoreLine: MuterTestReport.scoreLine(of: outcome),
             suspectWarning: KillingTestSummary.warning(for: outcome),
-            buildErrorWarning: outcome.buildErrorWarning
+            buildErrorWarning: outcome.buildErrorWarning,
+            unprovenKillWarning: outcome.unprovenKillWarning
         )
         resultsFilePath.map(logger.resultsFileKept(atPath:))
         gate.map(logger.scoreGateChecked)

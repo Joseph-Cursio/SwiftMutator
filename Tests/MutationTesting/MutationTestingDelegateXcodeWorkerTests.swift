@@ -28,7 +28,13 @@ final class MutationTestingDelegateXcodeWorkerTests: MuterTestCase {
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: outputFolder), ["muter-worker2.xctestrun"])
         XCTAssertEqual(
             try environmentVariables(in: "muter-worker2.xctestrun"),
-            [schemata.id: isMuterRunningValue, isMuterRunningKey: isMuterRunningValue]
+            [
+                schemata.id: isMuterRunningValue,
+                activationMarkerKey: ActivationMarker(
+                    of: schemata, forWorkerIn: outputFolderURL, testRunFile: "muter-worker2.xctestrun"
+                ).path,
+                isMuterRunningKey: isMuterRunningValue,
+            ]
         )
     }
 
@@ -99,5 +105,15 @@ final class MutationTestingDelegateXcodeWorkerTests: MuterTestCase {
         let plist = try XCTUnwrap(PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
         let target = try XCTUnwrap(plist["Tests"] as? [String: Any])
         return try XCTUnwrap(target["EnvironmentVariables"] as? [String: String])
+    }
+
+    // Repeated mutants share an ID, and two workers can test them at once from one folder.
+    func test_twoWorkersMarkersDiffer_forOneMutant() throws {
+        let schemata = try MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1))
+
+        XCTAssertNotEqual(
+            ActivationMarker(of: schemata, forWorkerIn: outputFolderURL, testRunFile: "muter.xctestrun"),
+            ActivationMarker(of: schemata, forWorkerIn: outputFolderURL, testRunFile: "muter-worker1.xctestrun")
+        )
     }
 }

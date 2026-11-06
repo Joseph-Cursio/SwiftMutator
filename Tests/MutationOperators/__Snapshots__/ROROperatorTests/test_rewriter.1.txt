@@ -2,7 +2,7 @@ struct Example {
   func something(_ a: Int) -> String {
     if __SwiftMutator_f62a2b186cd06e07.environment[
       "sampleWithConditionalOperators_f62a2b186cd06e07_RelationalOperatorReplacement_3_19_76"]
-      != nil
+      != nil, __SwiftMutator_f62a2b186cd06e07.ran
     {
       let b = a != 5
       let e = a != 1
@@ -18,7 +18,7 @@ struct Example {
       return a == 9 ? "goodbye" : "what"
     } else if __SwiftMutator_f62a2b186cd06e07.environment[
       "sampleWithConditionalOperators_f62a2b186cd06e07_RelationalOperatorReplacement_14_18_272"]
-      != nil
+      != nil, __SwiftMutator_f62a2b186cd06e07.ran
     {
       let b = a == 5
       let e = a != 1
@@ -34,7 +34,7 @@ struct Example {
       return a != 9 ? "goodbye" : "what"
     } else if __SwiftMutator_f62a2b186cd06e07.environment[
       "sampleWithConditionalOperators_f62a2b186cd06e07_RelationalOperatorReplacement_10_14_209"]
-      != nil
+      != nil, __SwiftMutator_f62a2b186cd06e07.ran
     {
       let b = a == 5
       let e = a != 1
@@ -50,7 +50,7 @@ struct Example {
       return a == 9 ? "goodbye" : "what"
     } else if __SwiftMutator_f62a2b186cd06e07.environment[
       "sampleWithConditionalOperators_f62a2b186cd06e07_RelationalOperatorReplacement_8_19_191"]
-      != nil
+      != nil, __SwiftMutator_f62a2b186cd06e07.ran
     {
       let b = a == 5
       let e = a != 1
@@ -66,7 +66,7 @@ struct Example {
       return a == 9 ? "goodbye" : "what"
     } else if __SwiftMutator_f62a2b186cd06e07.environment[
       "sampleWithConditionalOperators_f62a2b186cd06e07_RelationalOperatorReplacement_7_19_169"]
-      != nil
+      != nil, __SwiftMutator_f62a2b186cd06e07.ran
     {
       let b = a == 5
       let e = a != 1
@@ -82,7 +82,7 @@ struct Example {
       return a == 9 ? "goodbye" : "what"
     } else if __SwiftMutator_f62a2b186cd06e07.environment[
       "sampleWithConditionalOperators_f62a2b186cd06e07_RelationalOperatorReplacement_6_19_145"]
-      != nil
+      != nil, __SwiftMutator_f62a2b186cd06e07.ran
     {
       let b = a == 5
       let e = a != 1
@@ -98,7 +98,7 @@ struct Example {
       return a == 9 ? "goodbye" : "what"
     } else if __SwiftMutator_f62a2b186cd06e07.environment[
       "sampleWithConditionalOperators_f62a2b186cd06e07_RelationalOperatorReplacement_5_19_122"]
-      != nil
+      != nil, __SwiftMutator_f62a2b186cd06e07.ran
     {
       let b = a == 5
       let e = a != 1
@@ -114,7 +114,7 @@ struct Example {
       return a == 9 ? "goodbye" : "what"
     } else if __SwiftMutator_f62a2b186cd06e07.environment[
       "sampleWithConditionalOperators_f62a2b186cd06e07_RelationalOperatorReplacement_4_19_99"]
-      != nil
+      != nil, __SwiftMutator_f62a2b186cd06e07.ran
     {
       let b = a == 5
       let e = a == 1
@@ -153,7 +153,7 @@ internal func isBare() throws -> Bool {
   return try self.cachedIsBareRepo.memoize(body: {
     if __SwiftMutator_f62a2b186cd06e07.environment[
       "sampleWithConditionalOperators_f62a2b186cd06e07_RelationalOperatorReplacement_30_23_658"]
-      != nil
+      != nil, __SwiftMutator_f62a2b186cd06e07.ran
     {
       let output = try callGit(
         "rev-parse",
@@ -180,11 +180,23 @@ internal func isBare() throws -> Bool {
       guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
         fatalError("SwiftMutator could not read the active mutant from \(path)")
       }
-      let identifier = String(contents.prefix { !$0.isNewline })
-      if !identifier.isEmpty {
-        environment[identifier] = "YES"
+      let lines = contents.split(maxSplits: 1, omittingEmptySubsequences: false) { $0.isNewline }
+      if let identifier = lines.first, !identifier.isEmpty {
+        environment[String(identifier)] = "YES"
+      }
+      if lines.count > 1, !lines[1].isEmpty {
+        environment["SWIFTMUTATOR_ACTIVATION_MARKER"] = String(lines[1])
       }
     }
+    if let marker = environment["SWIFTMUTATOR_ACTIVATION_MARKER"] {
+      try? "".write(toFile: marker + ".reached", atomically: false, encoding: .utf8)
+    }
     return environment
+  }()
+  @usableFromInline nonisolated static let ran: Bool = {
+    if let marker = environment["SWIFTMUTATOR_ACTIVATION_MARKER"] {
+      try? "".write(toFile: marker, atomically: false, encoding: .utf8)
+    }
+    return true
   }()
 }

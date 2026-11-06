@@ -101,7 +101,7 @@ How the mutants were matched:
 - **64 SwiftMutator survivors are "no coverage" in SMT.** SMT recorded that the mutated code never ran (`activated: false`).
   - SwiftMutator ran with `--skip-coverage`, so it had no coverage step.
   - With coverage on, its file and region filter might have skipped some of these mutants. That wasn't measured.
-  - What SwiftMutator has no equivalent for is SMT's check of each mutant (#109).
+  - SwiftMutator had no equivalent then for SMT's check of each mutant. It has since #109, whose marker covers the mutant's own block, where SMT's covers the function.
 - **8 are killed by one tool and not the other.** Each was rerun alone with `swift-mutation-testing reproduce <fingerprint>`. That runs one mutant through the whole suite, all three bundles, with no stop at the first failure. All 8 survived, or came out "no coverage", with every test passing.
   - Passing once doesn't prove a kill was false, though.
   - For 2 of them, reading the code shows the mutant does change behaviour, and only some test orders reveal it.

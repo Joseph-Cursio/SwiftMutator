@@ -302,13 +302,22 @@ enum MutationSwitch {
                                         .withTrailingTrivia(.spaces(1))
                                 )
                             ),
-                            ExprSyntax(
-                                NilLiteralExprSyntax(
-                                    nilKeyword: .keyword(.nil)
-                                        .withTrailingTrivia(.spaces(1))
-                                )
-                            ),
+                            ExprSyntax(NilLiteralExprSyntax(nilKeyword: .keyword(.nil))),
                         ])
+                    )
+                ),
+                trailingComma: .commaToken(trailingTrivia: .spaces(1))
+            ),
+            // After the mutant's own condition, so it is read only once that one holds, which a file's one `ran` needs
+            // to say that its one mutant ran. In the condition, not the branch: a branch that is a single expression,
+            // an `if` expression's, has no room for a statement.
+            ConditionElementSyntax(
+                condition: ConditionElementSyntax.Condition(
+                    MemberAccessExprSyntax(
+                        base: DeclReferenceExprSyntax(baseName: .identifier(environmentCacheName)),
+                        declName: DeclReferenceExprSyntax(
+                            baseName: .identifier("ran").withTrailingTrivia(.spaces(1))
+                        )
                     )
                 ),
                 trailingComma: nil

@@ -110,6 +110,20 @@ extension MutationTestOutcome {
             : "\(count) mutants were build errors, so they weren't tested, and the score leaves them out."
     }
 
+    /// What a run ends with when some of its kills' mutants never ran, as far as it tested them: another cause failed
+    /// their tests, such as a flaky test or a crash at launch, and the score counts them as killed all the same. A
+    /// stopped run may not have tested them again yet, which `--resume` does. nil without any, and for one mutant's
+    /// run, whose log shows it.
+    var unprovenKillWarning: String? {
+        let count = mutations.count { [.failed, .runtimeError].contains($0.testSuiteOutcome) && $0.activated == false }
+        guard count > 0, mutant == nil else { return nil }
+        return count == 1
+            ? "1 kill's code never ran, though its tests failed: a flaky test or a crash at launch may be to blame, "
+            + "and the score counts it as killed. Its log is kept."
+            : "\(count) kills' code never ran, though their tests failed: a flaky test or a crash at launch may be to "
+            + "blame, and the score counts them as killed. Their logs are kept."
+    }
+
     struct Mutation: Equatable {
         let testSuiteOutcome: TestSuiteOutcome
         let point: MutationPoint
@@ -135,6 +149,9 @@ extension MutationTestOutcome {
         /// Whether it was taken out of the build with others, as the compiler's error could be any of theirs
         /// (`LeftOutMutant.Blame`), so it may compile. As its results line records it.
         var leftOutWithOthers = false
+        /// Whether its block ran in its run, as its results line records it (`TestRun.activated`); nil when that is
+        /// unknown.
+        var activated: Bool?
 
         /// `killingTests`, `reusedFrom`, `key` and `durationSeconds` have no default: the run, `swift-mutator report`
         /// and `--resume` must each pass theirs.

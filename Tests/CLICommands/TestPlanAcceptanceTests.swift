@@ -12,7 +12,7 @@ final class TestPlanAcceptanceTests: XCTestCase {
     /// but first hangs in each while the `hang` marker exists, writing down its own ID and its `sleep`'s. The mutants
     /// in Bounds.swift survive, and the baseline passes.
     private static let testCommand = """
-        mutant=$(cat "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE" 2>/dev/null)
+        mutant=$(head -n 1 "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE" 2>/dev/null)
         echo "${mutant:-baseline}" >> "$PLAN_TEST_MARKERS/ran"
         case "$mutant" in
             Checks_*)

@@ -35,9 +35,17 @@ final class MuterRewriter: SyntaxRewriter {
     ///
     /// The cache also adds the mutant named in the file `activeMutantFileKey` names, as if its own
     /// variable were set: a `swift test` run can't set that variable, because SwiftPM keys its cache of
-    /// compiled package manifests on the whole environment. Only the file's first line counts, so a file
-    /// written with `echo` works too. A file that can't be read stops the tests: switching no mutant on
+    /// compiled package manifests on the whole environment. The file's first line names the mutant and the
+    /// rest, if any, the run's activation marker (`activationMarkerKey`), whose path may hold a line break, so a
+    /// file written with `echo` works too. A file that can't be read stops the tests: switching no mutant on
     /// would let every mutant survive.
+    ///
+    /// Reading the cache creates `<marker>.reached`: the run got its marker's path and can write there. `ran`, the
+    /// condition after a mutant's own, creates the marker: the mutant's block ran. Each is created once per process,
+    /// and any later process's write leaves it there, so `swift test --parallel` is safe. A write that fails does
+    /// nothing: a test process with no marker reads as one that can't show it ran (`ActivationMarker`). `String`'s
+    /// `write(toFile:)` because a file that imports only `class Foundation.ProcessInfo` sees no `FileManager`, yet
+    /// sees `String`'s members. The body reads a bare `environment[`, so `\(cache).environment[` still finds switches.
     override func visit(_ node: SourceFileSyntax) -> SourceFileSyntax {
         let rewritten = super.visit(node)
         guard rewritten.description.contains("\(environmentCacheName).environment[") else {
@@ -54,12 +62,24 @@ final class MuterRewriter: SyntaxRewriter {
                     guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
                         fatalError("SwiftMutator could not read the active mutant from \\(path)")
                     }
-                    let identifier = String(contents.prefix { !$0.isNewline })
-                    if !identifier.isEmpty {
-                        environment[identifier] = "YES"
+                    let lines = contents.split(maxSplits: 1, omittingEmptySubsequences: false) { $0.isNewline }
+                    if let identifier = lines.first, !identifier.isEmpty {
+                        environment[String(identifier)] = "YES"
+                    }
+                    if lines.count > 1, !lines[1].isEmpty {
+                        environment["\(activationMarkerKey)"] = String(lines[1])
                     }
                 }
+                if let marker = environment["\(activationMarkerKey)"] {
+                    try? "".write(toFile: marker + "\(ActivationMarker.reachedSuffix)", atomically: false, encoding: .utf8)
+                }
                 return environment
+            }()
+            @usableFromInline nonisolated static let ran: Bool = {
+                if let marker = environment["\(activationMarkerKey)"] {
+                    try? "".write(toFile: marker, atomically: false, encoding: .utf8)
+                }
+                return true
             }()
         }
 

@@ -358,7 +358,9 @@ private extension CompileRecoveryRunTests {
     }
 
     func branchPlace(of id: String, in code: String) throws -> (line: Int, column: Int) {
-        let condition = try XCTUnwrap(code.range(of: "\"\(id)\"] != nil {"), code)
+        let id = try XCTUnwrap(code.range(of: "\"\(id)\"] != nil"), code)
+        let brace = try XCTUnwrap(code[id.upperBound...].firstIndex(of: "{"), code)
+        let condition = brace ..< code.index(after: brace)
         let start = try XCTUnwrap(code[condition.upperBound...].firstIndex { !$0.isWhitespace && !$0.isNewline })
         let before = code[..<start].utf8
         let lineStart = before.lastIndex(of: UInt8(ascii: "\n")).map { before.index(after: $0) } ?? before.startIndex

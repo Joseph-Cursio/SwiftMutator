@@ -11,7 +11,7 @@ struct PlainTextReporter: Reporter {
         \(survivorLines(from: report).joined(separator: "\n"))
 
 
-        """
+        """ + notCoveredMessage(from: report)
         let appliedMutationsMessage = """
         --------------------------
         Applied Mutation Operators
@@ -95,6 +95,40 @@ struct PlainTextReporter: Reporter {
                 + (mutant.triage.map { ["    Triaged: \($0.text)"] } ?? [])
         }
         return [Self.survivorsIntroduction(survivors.count), ""] + lines
+    }
+
+    /// The Mutants Not Covered section, followed by the blank lines that end a section. None when no mutant is not
+    /// covered.
+    private func notCoveredMessage(from report: MuterTestReport) -> String {
+        let mutants = report.notCovered
+        guard !mutants.isEmpty else { return "" }
+        let lines = mutants.flatMap { item -> [String] in
+            let mutant = item.appliedOperator
+            let description = mutant.mutationSnapshot.description
+            let change = description.isEmpty ? "" : " (\(description))"
+            let place = MuterTestReport.place(mutant, in: item.relativePath)
+            return ["\(place): \(mutant.mutationPoint.mutationOperatorId.rawValue)\(change)"]
+                + (mutant.sourceChange?.lines ?? []).map { "    " + $0 }
+                + (mutant.triage.map { ["    Triaged: \($0.text)"] } ?? [])
+        }
+        return """
+        --------------------
+        Mutants Not Covered
+        --------------------
+
+        \(Self.notCoveredIntroduction(mutants.count))
+
+        \(lines.joined(separator: "\n"))
+
+
+        """
+    }
+
+    /// "No test reached these 3 mutants: …": what the reports say of the mutants not covered.
+    static func notCoveredIntroduction(_ count: Int) -> String {
+        let (mutants, them) = count == 1 ? ("this mutant", "its") : ("these \(count) mutants", "their")
+        return "No test reached \(mutants): your tests passed without running \(them) blocks, and the score counts "
+            + "\(count == 1 ? "it" : "them") as not killed. By path, line and column:"
     }
 
     /// "These 3 mutants survived: your tests passed with each of them on, or ran out of time, which the score counts

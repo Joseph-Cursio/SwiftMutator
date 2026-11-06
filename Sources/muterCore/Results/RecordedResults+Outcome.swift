@@ -85,7 +85,7 @@ extension MutationTestOutcome {
             .sorted { $0.order < $1.order }
             .map { record, order in
                 var mutation = MutationTestOutcome.Mutation(
-                    testSuiteOutcome: record.outcome,
+                    testSuiteOutcome: record.outcome.judged(activated: record.activated),
                     mutationPoint: MutationPoint(
                         mutationOperatorId: record.mutationOperatorId,
                         filePath: order.filePath,
@@ -105,6 +105,7 @@ extension MutationTestOutcome {
                 )
                 mutation.propertyRerun = propertyReruns[record.key]?.rerun
                 mutation.leftOutWithOthers = record.leftOutWithOthers == true
+                mutation.activated = record.activated
                 return mutation
             }
         self.init(

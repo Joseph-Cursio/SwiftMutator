@@ -184,6 +184,24 @@ final class TriageSummaryTests: MuterTestCase {
         XCTAssertEqual(matched([entry(line: 3)], [keyless]).unmatched, 1)
     }
 
+    // A label on a mutant no test reached may still hold: nothing tested it to say otherwise.
+    func test_aMutantNotCovered_keepsItsLabel_andCountsAmongThoseToTriage() throws {
+        let labelled = report(
+            [(line: 3, outcome: .noCoverage), (line: 4, outcome: .passed)],
+            entries: [entry(line: 3, text: nil, before: nil, after: nil)]
+        )
+
+        let result = MuterTestReport(from: labelled)
+        let summary = try XCTUnwrap(result.triageSummary)
+
+        XCTAssertEqual(summary.survivors, 2)
+        XCTAssertEqual(summary.triaged, 1)
+        XCTAssertEqual(summary.noLongerSurviving, [])
+        XCTAssertEqual(result.notCovered.map(\.appliedOperator.triage?.label), [.equivalent])
+        XCTAssertEqual(summary.notCovered, 1)
+        XCTAssertTrue(summary.countSentence.hasPrefix("Of the 2 mutants that survived, timed out or no test reached,"))
+    }
+
     // MARK: - What the reports say
 
     private func report(

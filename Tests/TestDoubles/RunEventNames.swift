@@ -35,6 +35,10 @@ extension RunEvent {
         case stoppedTakingOutMutants
         case mutantsLeftOutOfTheBuild
         case controlRunFinished
+        case activationNotShown
+        case unprovenRunsRerunStarted
+        case unprovenRunRerun
+        case unprovenRunsRerunFinished
         case timeoutRerunsStarted
         case timeoutRerunFinished
         case timeoutRerunsFinished
@@ -92,6 +96,10 @@ extension RunEvent {
         case .stoppedTakingOutMutants: .stoppedTakingOutMutants
         case .mutantsLeftOutOfTheBuild: .mutantsLeftOutOfTheBuild
         case .controlRunFinished: .controlRunFinished
+        case .activationNotShown: .activationNotShown
+        case .unprovenRunsRerunStarted: .unprovenRunsRerunStarted
+        case .unprovenRunRerun: .unprovenRunRerun
+        case .unprovenRunsRerunFinished: .unprovenRunsRerunFinished
         case .timeoutRerunsStarted: .timeoutRerunsStarted
         case .timeoutRerunFinished: .timeoutRerunFinished
         case .timeoutRerunsFinished: .timeoutRerunsFinished
@@ -146,6 +154,10 @@ extension RunEvent {
         case let .stopAtFirstFailureTurnedOff(reason): reason
         case let .testBundlesNotRunDirectly(reason): reason
         case let .controlRunFinished(control): control
+        case let .activationNotShown(runs): runs
+        case let .unprovenRunsRerunStarted(count): count
+        case let .unprovenRunRerun(mutation, _): mutation
+        case let .unprovenRunsRerunFinished(tally): tally
         case let .timeoutRerunsStarted(reruns): reruns
         case let .timeoutRerunFinished(rerun): rerun
         case let .timeoutRerunsFinished(tally): tally

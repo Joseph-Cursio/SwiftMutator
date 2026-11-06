@@ -1,7 +1,8 @@
 struct Example {
   func containsSideEffect() -> Int {
     if __SwiftMutator_b772dfa836344677.environment[
-      "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_3_27_80"] != nil
+      "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_3_27_80"] != nil,
+      __SwiftMutator_b772dfa836344677.ran
     {
       return 1
     } else {
@@ -12,7 +13,8 @@ struct Example {
 
   func containsSideEffect() -> Int {
     if __SwiftMutator_b772dfa836344677.environment[
-      "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_10_27_186"] != nil
+      "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_10_27_186"] != nil,
+      __SwiftMutator_b772dfa836344677.ran
     {
       print("something")
     } else {
@@ -28,7 +30,8 @@ struct Example {
 
   func causesAnotherSideEffect() {
     if __SwiftMutator_b772dfa836344677.environment[
-      "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_20_62_423"] != nil
+      "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_20_62_423"] != nil,
+      __SwiftMutator_b772dfa836344677.ran
     {
       let key = "some key"
       let value = aFunctionThatReturnsAValue()
@@ -52,7 +55,8 @@ struct Example {
 
   func containsAVoidFunctionCallThatSpansManyLine() {
     if __SwiftMutator_b772dfa836344677.environment[
-      "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_39_6_906"] != nil
+      "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_39_6_906"] != nil,
+      __SwiftMutator_b772dfa836344677.ran
     {
     } else {
       functionCall(
@@ -66,7 +70,8 @@ struct Example {
   func sideEffectsInsideLoopsAndGuard() {
     guard true else {
       if __SwiftMutator_b772dfa836344677.environment[
-        "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_44_19_994"] != nil
+        "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_44_19_994"] != nil,
+        __SwiftMutator_b772dfa836344677.ran
       {
         return
       } else {
@@ -76,7 +81,8 @@ struct Example {
     }
     while true {
       if __SwiftMutator_b772dfa836344677.environment[
-        "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_48_19_1049"] != nil
+        "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_48_19_1049"] != nil,
+        __SwiftMutator_b772dfa836344677.ran
       {
       } else {
         sideEffect()
@@ -85,7 +91,8 @@ struct Example {
 
     for item in items {
       if __SwiftMutator_b772dfa836344677.environment[
-        "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_52_19_1099"] != nil
+        "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_52_19_1099"] != nil,
+        __SwiftMutator_b772dfa836344677.ran
       {
       } else {
         sideEffect()
@@ -94,7 +101,8 @@ struct Example {
 
     repeat {
       if __SwiftMutator_b772dfa836344677.environment[
-        "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_56_19_1138"] != nil
+        "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_56_19_1138"] != nil,
+        __SwiftMutator_b772dfa836344677.ran
       {
       } else {
         sideEffect()
@@ -117,11 +125,23 @@ struct Example {
       guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
         fatalError("SwiftMutator could not read the active mutant from \(path)")
       }
-      let identifier = String(contents.prefix { !$0.isNewline })
-      if !identifier.isEmpty {
-        environment[identifier] = "YES"
+      let lines = contents.split(maxSplits: 1, omittingEmptySubsequences: false) { $0.isNewline }
+      if let identifier = lines.first, !identifier.isEmpty {
+        environment[String(identifier)] = "YES"
+      }
+      if lines.count > 1, !lines[1].isEmpty {
+        environment["SWIFTMUTATOR_ACTIVATION_MARKER"] = String(lines[1])
       }
     }
+    if let marker = environment["SWIFTMUTATOR_ACTIVATION_MARKER"] {
+      try? "".write(toFile: marker + ".reached", atomically: false, encoding: .utf8)
+    }
     return environment
+  }()
+  @usableFromInline nonisolated static let ran: Bool = {
+    if let marker = environment["SWIFTMUTATOR_ACTIVATION_MARKER"] {
+      try? "".write(toFile: marker, atomically: false, encoding: .utf8)
+    }
+    return true
   }()
 }

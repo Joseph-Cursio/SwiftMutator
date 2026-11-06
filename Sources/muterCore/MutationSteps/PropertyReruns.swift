@@ -44,12 +44,13 @@ extension PerformMutationTesting {
     /// The jobs, by index in job order, whose kill this session tests again with the property tests alone: each a
     /// failed test killed, whose recorded tests include none `globs` match, and with no property rerun yet. A kill that
     /// names no test, such as a crash's, isn't: there is no example to tell it from. Nor is a kept kill whose mutant
-    /// isn't in this session's build: with no switch to turn on, every property test would pass.
+    /// isn't in this session's build: with no switch to turn on, every property test would pass. Nor is a kill whose
+    /// code didn't run, as they would pass then too.
     static func propertyRerunCandidates(in session: TestingSession, globs: [String]) -> [Int] {
         let patterns = globs.map(PropertyTestPattern.init)
         return session.outcomes.sorted { $0.key < $1.key }.compactMap { index, mutation in
             guard !session.notInTheBuild.contains(index), mutation.testSuiteOutcome == .failed,
-                  mutation.propertyRerun == nil,
+                  mutation.propertyRerun == nil, mutation.activated != false,
                   let tests = mutation.killingTests?.tests, !tests.isEmpty,
                   !tests.contains(where: { test in patterns.contains { $0.matches(.init(test)) } })
             else { return nil }

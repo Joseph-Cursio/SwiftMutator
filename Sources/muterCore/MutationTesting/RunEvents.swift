@@ -66,6 +66,13 @@ enum RunEvent {
     case mutantsLeftOutOfTheBuild(MutantsLeftOut)
     /// A control run, with no mutant on, among the mutants, once its line is written. Never counted in the progress.
     case controlRunFinished(ControlRunFinished)
+    /// None of `runs` mutants' runs showed whether their blocks ran, so their verdicts stand as the runs had them.
+    case activationNotShown(runs: Int)
+    /// `count` runs that failed or timed out without showing their mutants' blocks ran are about to be tested again.
+    case unprovenRunsRerunStarted(count: Int)
+    /// What one of them came to, and whether that isn't what its first run came to.
+    case unprovenRunRerun(MutationTestOutcome.Mutation, changed: Bool)
+    case unprovenRunsRerunFinished(UnprovenRunTally)
     /// Once every mutant is tested on more than one worker, the timeouts that are tested again, on fewer.
     case timeoutRerunsStarted(TimeoutReruns)
     /// A timeout tested again, once its line is written. Never counted in the progress, which counted its first run.

@@ -134,8 +134,10 @@ struct TriageSummary: Codable, Equatable {
 
     /// The triage file.
     let file: String
-    /// The mutants that survived or timed out, as the reports list them.
+    /// The mutants that survived, timed out or no test reached, as the reports list them.
     let survivors: Int
+    /// How many of them no test reached; nil without any.
+    var notCovered: Int?
     /// Those with a label.
     let triaged: Int
     /// Every label, zeros included.
@@ -151,12 +153,14 @@ struct TriageSummary: Codable, Equatable {
 extension TriageSummary {
     static let introduction = "Labels people gave surviving mutants. They change no score."
 
-    /// "Of the 15 mutants that survived or timed out, 9 are triaged in muter.triage.yml, and 6 aren't."
+    /// "Of the 15 mutants that survived or timed out, 9 are triaged in muter.triage.yml, and 6 aren't." With mutants
+    /// not covered among them, "that survived, timed out or no test reached".
     var countSentence: String {
         let name = (file as NSString).lastPathComponent
         let untriaged = survivors - triaged
         let mutants = survivors == 1 ? "the 1 mutant" : "the \(survivors) mutants"
-        return "Of \(mutants) that survived or timed out, \(triaged) \(triaged == 1 ? "is" : "are") triaged in "
+        let kinds = (notCovered ?? 0) > 0 ? "survived, timed out or no test reached" : "survived or timed out"
+        return "Of \(mutants) that \(kinds), \(triaged) \(triaged == 1 ? "is" : "are") triaged in "
             + "\(name), and \(untriaged) \(untriaged == 1 ? "isn't" : "aren't")."
     }
 
@@ -232,7 +236,7 @@ extension MuterTestReport {
         var notTested: [TriageSummary.NoLongerSurviving] = []
         for match in matches.matches {
             let mutant = mutants[match.index]
-            guard [.passed, .timeout].contains(mutant.testSuiteOutcome) else {
+            guard mutant.takesATriageLabel else {
                 let item = TriageSummary.NoLongerSurviving(
                     mutant: mutant.key ?? match.entry.mutant.description,
                     label: match.entry.label,
@@ -254,14 +258,16 @@ extension MuterTestReport {
             )
         }
 
+        let notCovered = mutants.count(where: \.isANotCoveredMutant)
         let summary = TriageSummary(
             file: file.path,
-            survivors: mutants.count { [.passed, .timeout].contains($0.testSuiteOutcome) },
+            survivors: mutants.count(where: \.takesATriageLabel),
+            notCovered: notCovered > 0 ? notCovered : nil,
             triaged: labels.values.reduce(0, +),
             byLabel: TriageLabel.allCases.map { .init(label: $0, mutants: labels[$0] ?? 0) },
             // One that no longer survives is said once, there.
             moved: matches.matches.filter {
-                $0.moved && [.passed, .timeout].contains(mutants[$0.index].testSuiteOutcome)
+                $0.moved && mutants[$0.index].takesATriageLabel
             }.map {
                 .init(
                     from: $0.entry.mutant.description,

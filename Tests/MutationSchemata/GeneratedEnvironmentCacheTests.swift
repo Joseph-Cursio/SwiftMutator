@@ -31,6 +31,50 @@ final class GeneratedEnvironmentCacheTests: GeneratedCodeTestCase {
         XCTAssertTrue(unreadable.errors.contains("could not read the active mutant"), unreadable.errors)
     }
 
+    // The marker says the mutant's block ran, and the file beside it that the run read the mutants' switches. Neither
+    // may change what the code does.
+    func test_theGeneratedCodeShowsWhetherTheMutantsBlockRan() throws {
+        let (program, identifier) = try compileMutatedCheck()
+        let activeMutantFile = directory.appendingPathComponent("active-mutant")
+        let marker = directory.appendingPathComponent("marker")
+        let reached = URL(fileURLWithPath: marker.path + ActivationMarker.reachedSuffix)
+        let file = [activeMutantFileKey: activeMutantFile.path]
+
+        try write(identifier + "\n" + marker.path, to: activeMutantFile)
+        XCTAssertEqual(try run(program, adding: file).output, "mutant\n")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: marker.path), "the mutant's block ran")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: reached.path), "the run read its switches")
+
+        try FileManager.default.removeItem(at: marker)
+        try FileManager.default.removeItem(at: reached)
+        try write("Elsewhere_RelationalOperatorReplacement_1_1_0\n" + marker.path, to: activeMutantFile)
+        XCTAssertEqual(try run(program, adding: file).output, "original\n")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path), "another mutant's block didn't run")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: reached.path), "the run read its switches")
+
+        // As xcodebuild's and other test commands' runs are told.
+        try FileManager.default.removeItem(at: reached)
+        let environment = [identifier: "YES", activationMarkerKey: marker.path]
+        XCTAssertEqual(try run(program, adding: environment).output, "mutant\n")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: marker.path), "the mutant's block ran")
+
+        // A line break in the marker's path, as a project's folder may hold, stays in it.
+        let awkward = directory.appendingPathComponent("two\nlines")
+        try FileManager.default.createDirectory(at: awkward, withIntermediateDirectories: true)
+        let inIt = awkward.appendingPathComponent("marker")
+        try write(identifier + "\n" + inIt.path, to: activeMutantFile)
+        XCTAssertEqual(try run(program, adding: file).output, "mutant\n")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: inIt.path), "the whole path, line break and all")
+
+        // A place it can't write, as a sandboxed test host has, changes nothing.
+        let nowhere = directory.appendingPathComponent("no/such/folder/marker").path
+        try write(identifier + "\n" + nowhere, to: activeMutantFile)
+        XCTAssertEqual(try run(program, adding: file).output, "mutant\n", "a marker that can't be written")
+        // Nor does no marker at all, as the command `--mutant` prints gives none.
+        try write(identifier, to: activeMutantFile)
+        XCTAssertEqual(try run(program, adding: file).output, "mutant\n", "no marker named")
+    }
+
     /// Under `-default-isolation MainActor` the cache's enum is isolated to the main actor, and a mutant in
     /// nonisolated code must still be able to read it.
     func test_theGeneratedCodeBuildsInAModuleIsolatedToTheMainActorByDefault() throws {

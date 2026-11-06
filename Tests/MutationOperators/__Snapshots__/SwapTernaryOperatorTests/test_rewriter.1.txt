@@ -4,11 +4,13 @@
 
 func someCode(_ a: Bool, _ b: Bool) -> Bool {
   if __SwiftMutator_f9848bd2ed9970c6.environment[
-    "sampleWithNestedTernaryOperator_f9848bd2ed9970c6_SwapTernary_6_40_143"] != nil
+    "sampleWithNestedTernaryOperator_f9848bd2ed9970c6_SwapTernary_6_40_143"] != nil,
+    __SwiftMutator_f9848bd2ed9970c6.ran
   {
     return a ? false : b ? true : false
   } else if __SwiftMutator_f9848bd2ed9970c6.environment[
-    "sampleWithNestedTernaryOperator_f9848bd2ed9970c6_SwapTernary_6_33_136"] != nil
+    "sampleWithNestedTernaryOperator_f9848bd2ed9970c6_SwapTernary_6_33_136"] != nil,
+    __SwiftMutator_f9848bd2ed9970c6.ran
   {
     return a ? b ? false : true : false
   } else {
@@ -22,11 +24,23 @@ func someCode(_ a: Bool, _ b: Bool) -> Bool {
       guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
         fatalError("SwiftMutator could not read the active mutant from \(path)")
       }
-      let identifier = String(contents.prefix { !$0.isNewline })
-      if !identifier.isEmpty {
-        environment[identifier] = "YES"
+      let lines = contents.split(maxSplits: 1, omittingEmptySubsequences: false) { $0.isNewline }
+      if let identifier = lines.first, !identifier.isEmpty {
+        environment[String(identifier)] = "YES"
+      }
+      if lines.count > 1, !lines[1].isEmpty {
+        environment["SWIFTMUTATOR_ACTIVATION_MARKER"] = String(lines[1])
       }
     }
+    if let marker = environment["SWIFTMUTATOR_ACTIVATION_MARKER"] {
+      try? "".write(toFile: marker + ".reached", atomically: false, encoding: .utf8)
+    }
     return environment
+  }()
+  @usableFromInline nonisolated static let ran: Bool = {
+    if let marker = environment["SWIFTMUTATOR_ACTIVATION_MARKER"] {
+      try? "".write(toFile: marker, atomically: false, encoding: .utf8)
+    }
+    return true
   }()
 }
