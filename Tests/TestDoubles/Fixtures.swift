@@ -569,6 +569,7 @@ func configurationWithEveryFieldSet(
         testSuiteTimeOut: timeout,
         buildSystem: .swift,
         mutationTestWorkers: 4,
+        workersShareBuild: false,
         stopAtFirstFailure: false,
         buildTimeout: 600,
         oneWorkerSimulator: true,

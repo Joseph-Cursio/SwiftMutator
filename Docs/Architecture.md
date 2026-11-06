@@ -131,13 +131,25 @@ build. A build every mutant shares can fail on one of them, so [`CompileRecovery
 takes the mutants a failed build's errors are in out of the code, from the prepared text
 `ApplySchemata` keeps, and it builds again. They stay in `mutationMapping`, as their keys, and the
 counts a resume and a shard merge check, depend on every mutant being there, and each gets a result
-line. Under xcodebuild `BuildForTesting` does this instead. Unless `mutationTestTimeout` is set, a timed test run then sets the time limit ([`MutantTimeLimits.swift`](../Sources/muterCore/MutationSteps/MutantTimeLimits.swift),
-[`TimedTestRun.swift`](../Sources/muterCore/MutationSteps/TimedTestRun.swift)). Then
+line. Under xcodebuild `BuildForTesting` does this instead. The workers are then set up, which can
+leave fewer than planned, and unless `mutationTestTimeout` is set a timed test run sets the time limit
+for that many ([`MutantTimeLimits.swift`](../Sources/muterCore/MutationSteps/MutantTimeLimits.swift),
+[`TimedTestRun.swift`](../Sources/muterCore/MutationSteps/TimedTestRun.swift)). Only then does the
+results file get its header, which records them. Then
 [`WorkerPool.swift`](../Sources/muterCore/MutationSteps/WorkerPool.swift) tests the mutants,
-`mutationTestWorkers` at a time:
+`mutationTestWorkers` at a time, or as many as `MuterConfiguration.workerCount(testing:sharingBuild:)` gives when
+that isn't set:
 
 - SwiftPM: worker 0 tests in the copy. Each other worker tests in a clone of it, built once
-  ([`WorkerClones.swift`](../Sources/muterCore/MutationSteps/WorkerClones.swift)).
+  ([`WorkerClones.swift`](../Sources/muterCore/MutationSteps/WorkerClones.swift)). With the default
+  count, a clone that can't be made or doesn't pass its baseline leaves one worker; with a count that
+  was asked for, it stops the run. Every worker's runs have a temporary folder of their own
+  ([`BuildSystems/Swift/WorkerTemporaryFolder.swift`](../Sources/muterCore/BuildSystems/Swift/WorkerTemporaryFolder.swift)).
+  No clones are made when mutants run their test bundles directly and the run that checks that wrote
+  nothing in the copy
+  ([`BuildSystems/Swift/ProjectFiles.swift`](../Sources/muterCore/BuildSystems/Swift/ProjectFiles.swift)):
+  every worker then tests from the copy's build (`DirectTestRun.sharedBuild`), and is only a name for
+  what is its own beside the copy.
 - xcodebuild: every worker tests the one build, each on a simulator of its own
   ([`SimulatorWorkerSetup.swift`](../Sources/muterCore/MutationSteps/SimulatorWorkerSetup.swift),
   [`BuildSystems/Xcode/WorkerSimulators.swift`](../Sources/muterCore/BuildSystems/Xcode/WorkerSimulators.swift)).

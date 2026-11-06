@@ -31,6 +31,7 @@ extension RunEvent {
         case stopAtFirstFailureTurnedOff
         case testBundlesNotRunDirectly
         case workersShareUserDefaults
+        case testBundlesWroteInTheProject
         case buildingAgainWithoutMutants
         case stoppedTakingOutMutants
         case mutantsLeftOutOfTheBuild
@@ -96,6 +97,7 @@ extension RunEvent {
         case .stopAtFirstFailureTurnedOff: .stopAtFirstFailureTurnedOff
         case .testBundlesNotRunDirectly: .testBundlesNotRunDirectly
         case .workersShareUserDefaults: .workersShareUserDefaults
+        case .testBundlesWroteInTheProject: .testBundlesWroteInTheProject
         case .buildingAgainWithoutMutants: .buildingAgainWithoutMutants
         case .stoppedTakingOutMutants: .stoppedTakingOutMutants
         case .mutantsLeftOutOfTheBuild: .mutantsLeftOutOfTheBuild
@@ -141,6 +143,7 @@ extension RunEvent {
              .sourceFileDiscoveryStarted, .mutationsDiscoveryStarted, .mutationTestingStarted, .mutantRunsStarted,
              .workersShareUserDefaults, .muterMutationTestPlanLoaded, .testPlanSourcesUnchecked:
             nil
+        case let .testBundlesWroteInTheProject(path): path
         case let .updateCheckFinished(newVersion): newVersion
         case let .buildingAgainWithoutMutants(count): count
         case let .stoppedTakingOutMutants(builds): builds

@@ -12,7 +12,8 @@ import Foundation
 struct DirectTestRun: Equatable, Sendable {
     /// `swiftpm-testing-helper`, in the toolchain of the test command's `swift`.
     let helper: String
-    /// The build's products folder, relative to the project, so each worker's clone runs its own build.
+    /// The build's products folder, relative to the project, so each worker's clone runs its own build, unless
+    /// `sharedBuild` names one for them all.
     let productsFolder: String
     /// The test bundles' names, in name order.
     let bundles: [String]
@@ -24,6 +25,9 @@ struct DirectTestRun: Equatable, Sendable {
     /// What follows `test` in a mutant's `swift test` command, `--skip-build` included. `swift test` passes its own
     /// arguments to each helper, which reads the test filters among them and ignores the rest.
     let arguments: [String]
+    /// The folder whose build, and whose copy of the project, every worker's runs use, when workers share one build
+    /// rather than each have a clone (`sharingBuild(of:)`). Nil when each folder runs its own.
+    var sharedBuild: URL?
 
     /// Why the bundles can't be run directly. A nil `reason` isn't worth telling: on Linux, say, or when `executable`
     /// isn't `swift` itself, as for a wrapper.
@@ -41,8 +45,18 @@ extension DirectTestRun {
             bundles: bundles,
             testFiles: testFiles,
             platformDeveloperFolder: platformDeveloperFolder,
-            arguments: arguments + more
+            arguments: arguments + more,
+            sharedBuild: sharedBuild
         )
+    }
+
+    /// This run with every worker's runs starting in `project`, on its build. What else is a worker's own goes by its
+    /// folder's name, which then needs no folder: its active-mutant file, helper link, `UserDefaults`, activation
+    /// markers and temporary folder.
+    func sharingBuild(of project: URL) -> DirectTestRun {
+        var copy = self
+        copy.sharedBuild = project
+        return copy
     }
 
     /// The `/bin/sh` script that runs each bundle in `folder`, the mutated project or a worker's clone, in the order
@@ -75,7 +89,7 @@ extension DirectTestRun {
               helper=\(Logger.shellQuoted(helper))
             fi
             """
-        let products = folder.appendingPathComponent(productsFolder).path
+        let products = (sharedBuild ?? folder).appendingPathComponent(productsFolder).path
         let passedOn = arguments.map(Logger.shellQuoted).joined(separator: " ")
         let runs = bundles(forMutantIn: filePath).map { bundle in
             let executable = Logger.shellQuoted("\(products)/\(bundle).xctest/Contents/MacOS/\(bundle)")
@@ -120,7 +134,7 @@ extension DirectTestRun {
     /// The variables `swift test` sets for its test processes in `folder`: where the bundles find their frameworks and
     /// the package's dynamic libraries, and no colour. `script(in:)` sets them.
     func environment(in folder: URL) -> [String: String] {
-        let products = folder.appendingPathComponent(productsFolder).path
+        let products = (sharedBuild ?? folder).appendingPathComponent(productsFolder).path
         return [
             "DYLD_FRAMEWORK_PATH": [
                 "\(platformDeveloperFolder)/Library/Frameworks",

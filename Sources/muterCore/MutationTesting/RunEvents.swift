@@ -55,6 +55,8 @@ enum RunEvent {
     case testBundlesNotRunDirectly(reason: String)
     /// More than one worker tests mutants through `swift test`, so their tests share `UserDefaults.standard` (#92).
     case workersShareUserDefaults
+    /// A direct run of the tests, with no mutant on, changed `path` in the project, so workers keep a clone each.
+    case testBundlesWroteInTheProject(path: String)
     /// The build failed on `count` mutants' code, which `CompileRecovery` took out, before it builds again. Only a
     /// build that passes shows they were at fault: the project itself may not compile.
     case buildingAgainWithoutMutants(count: Int)

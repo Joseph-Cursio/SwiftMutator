@@ -25,6 +25,8 @@ struct PerformMutationTesting: MutationStep {
     private var workerSimulators: WorkerSimulating
     @Dependency(\.sleep)
     private var sleep: Sleep
+    @Dependency(\.projectFiles)
+    private var projectFiles: @Sendable (URL) -> ProjectFiles?
 
     private let simulatorWorkerSetup = SimulatorWorkerSetup()
     private let timedTestRun = TimedTestRun()
@@ -40,10 +42,18 @@ struct PerformMutationTesting: MutationStep {
 
     /// Clones the mutated project for each extra parallel worker, and removes the clones afterwards.
     /// Injected so tests don't touch the disk.
-    private let makeWorkerDirectories: (_ mutatedProject: URL, _ count: Int) async throws -> [URL]
-    private let removeWorkerDirectories: (_ directories: [URL]) -> Void
+    let makeWorkerDirectories: (_ mutatedProject: URL, _ count: Int) async throws -> [URL]
+    let removeWorkerDirectories: (_ directories: [URL]) -> Void
     /// The mutants under way, for the line that names them once none has finished for a while.
     let heartbeat = Heartbeat()
+
+    /// What the run that checks direct runs left: the configuration its mutants run with, how long it took, and
+    /// whether it wrote nothing in the project.
+    struct DirectRuns {
+        let configuration: MuterConfiguration
+        let seconds: TimeInterval?
+        let wroteNothing: Bool
+    }
 
     init(
         makeWorkerDirectories: @escaping (URL, Int) async throws -> [URL] = PerformMutationTesting.cloneMutatedProject,
@@ -74,9 +84,10 @@ struct PerformMutationTesting: MutationStep {
         // After the end line and anything sent about an early end: removing large clones can take seconds, and a
         // second signal in that time exits at once. A clone left behind is removed when SwiftMutator next runs.
         // The mutated project is kept, for a look after the run, but not the active-mutant file beside it, nor the
-        // helper link and the tests' `UserDefaults` of direct runs, nor the derived data of xcodebuild's mutant runs,
-        // which holds one run's at most, nor the `.xctestrun` files of xcodebuild workers beyond the first. They go
-        // first: they take no time. Their simulators go once the work has ended (`SimulatorWorkerSetup`).
+        // helper link and the tests' `UserDefaults` of direct runs, nor its temporary folder, nor the derived data of
+        // xcodebuild's mutant runs, which holds one run's at most, nor the `.xctestrun` files of xcodebuild workers
+        // beyond the first. They go first: they take no time. Their simulators go once the work has ended
+        // (`SimulatorWorkerSetup`).
         defer {
             try? fileManager.removeItem(
                 atPath: MutatedProjectNames.activationFolder(of: state.mutatedProjectDirectoryURL).path
@@ -87,6 +98,7 @@ struct PerformMutationTesting: MutationStep {
                 )
                 try? fileManager.removeItem(atPath: activeMutantFile.path)
                 DirectTestRun.removeOwnDefaults(forWorkerIn: state.mutatedProjectDirectoryURL)
+                WorkerTemporaryFolder.remove(forWorkerIn: state.mutatedProjectDirectoryURL)
             }
             if state.muterConfiguration.buildSystem == .xcodebuild {
                 let derivedData = MuterConfiguration.XcodeWorker.derivedData(
@@ -286,8 +298,15 @@ private extension PerformMutationTesting {
         let checked = try await simulatorWorkerSetup.checkedAgainstTheBaseline(
             try await booted, log: testLog, destination: state.muterConfiguration.firstDestination
         )
+        // Before the workers: a direct run that wrote nothing in the project lets them share one build.
+        let direct = try await directRuns(of: testing, muterConfiguration, baselineLog: testLog, state: state)
         let pool = try await workers(
-            testing: testing, on: checked, with: muterConfiguration, state: state, session: session
+            testing: testing,
+            on: checked,
+            with: direct.configuration,
+            mayShareBuild: direct.wroteNothing,
+            state: state,
+            session: session
         )
         muterConfiguration = pool.configuration
         let workers = pool.count
@@ -295,7 +314,7 @@ private extension PerformMutationTesting {
             muterConfiguration,
             on: pool,
             testing: testing,
-            baselineLog: testLog,
+            directRunSeconds: direct.seconds,
             baselineSeconds: timePerBuildTestCycle,
             state: state
         )
@@ -348,16 +367,36 @@ private extension PerformMutationTesting {
         }
     }
 
+    /// `configuration` with a SwiftPM run's mutants running their test bundles directly when a run that checks it,
+    /// which times it too, passes (`runningTestBundlesDirectly`), and whether that run wrote nothing in the project.
+    /// A reuse with nothing left to test ran the baseline only to see that the changed tests pass. One mutant's run
+    /// saves no more than either costs. The project's files are read only for a run that could share a build.
+    func directRuns(
+        of plan: ResumePlan,
+        _ configuration: MuterConfiguration,
+        baselineLog: String,
+        state: AnyMutationTestState
+    ) async throws -> DirectRuns {
+        guard configuration.buildSystem == .swift, !plan.toRun.isEmpty, state.selectedMutant == nil else {
+            return DirectRuns(configuration: configuration, seconds: nil, wroteNothing: false)
+        }
+        return try await runningTestBundlesDirectly(
+            configuration,
+            baselineLog: baselineLog,
+            watchingFiles: configuration.workersShareBuild != false
+                && configuration.workerCount(testing: plan.toRun.count, sharingBuild: true) > 1,
+            state: state
+        )
+    }
+
     /// The configuration `pool` tests `plan`'s mutants with, from `configuration`, the effective one: on the first
     /// xcodebuild worker, and with the default time limit unless one is configured, from the baseline's
-    /// `baselineSeconds` or a timed test run. A SwiftPM run's mutants run their test bundles directly when a run that
-    /// checks it, which times it too, passes (`runningTestBundlesDirectly`). Also the timed test run's seconds, if one
-    /// passed.
+    /// `baselineSeconds`, `directRunSeconds` or a timed test run. Also the timed test run's seconds, if one passed.
     func mutantRuns(
         _ configuration: MuterConfiguration,
         on pool: SimulatorWorkerSetup.Workers,
         testing plan: ResumePlan,
-        baselineLog: String,
+        directRunSeconds: TimeInterval?,
         baselineSeconds: TimeInterval,
         state: AnyMutationTestState
     ) async throws -> (configuration: MuterConfiguration, testRunSeconds: TimeInterval?) {
@@ -367,11 +406,9 @@ private extension PerformMutationTesting {
         // saves no more than either costs, so its time limit is the configured one, or the baseline's default.
         let timesATestRun = !plan.toRun.isEmpty && state.selectedMutant == nil
         if configuration.buildSystem == .swift, timesATestRun {
-            let direct = try await runningTestBundlesDirectly(configuration, baselineLog: baselineLog, state: state)
-            configuration = direct.configuration
             // The run that checked the direct runs is a mutant's run with no mutant on, which needn't run again.
             if configuration.testSuiteTimeout == nil {
-                testRunSeconds = direct.seconds
+                testRunSeconds = directRunSeconds
             }
             // Only a direct run's tests have `UserDefaults` of their own. Sent on Linux too, which never runs directly,
             // and which keeps the shared domain in `~/.config/<package>-test-runner.plist`.
@@ -396,33 +433,54 @@ private extension PerformMutationTesting {
     /// for, once they are known. A clone costs a copy and about a baseline build, and a simulator a boot, so there are
     /// never more workers than mutants to test. An xcodebuild run's `simulators` are checked first, which can fall back
     /// to one worker on the test command's destination, and can make failed-test lines unreliable
-    /// (`SimulatorWorkerSetup`). A lone worker's said to test on a simulator of its own only when it does.
+    /// (`SimulatorWorkerSetup`). A lone worker's said to test on a simulator of its own only when it does. A SwiftPM
+    /// run's clones are then made and built (`clonesMade`), here rather than later, as without them a default run tests
+    /// on one worker, which its time limit and its results file's header must say. A stop meanwhile throws a
+    /// CancellationError, with nothing yet to report. With `mayShareBuild`, a SwiftPM run needs no clones: its workers
+    /// beyond the first are only names, in `session` as clones are, and test from the mutated project's build.
     func workers(
         testing plan: ResumePlan,
         on simulators: SimulatorWorkerSetup.Simulators,
         with configuration: MuterConfiguration,
+        mayShareBuild: Bool,
         state: AnyMutationTestState,
         session: TestingSession
     ) async throws -> SimulatorWorkerSetup.Workers {
         let workers = try await simulatorWorkerSetup.workers(
-            min(configuration.workerCount, plan.toRun.count),
+            configuration.workerCount(testing: plan.toRun.count, sharingBuild: mayShareBuild),
             on: simulators,
             configuration: configuration,
             state: state,
             session: session,
             testOutput: { testOutput(named: $0, state: state) }
         )
+        let sharesBuild = workers.count > 1 && mayShareBuild
         if !plan.toRun.isEmpty {
             let choice = WorkerChoice(
                 configuration,
                 used: workers.count,
                 mutantsToTest: plan.toRun.count,
                 unsupportedReason: workers.unavailable,
-                ownSimulator: !workers.xcodeWorkers.isEmpty
+                ownSimulator: !workers.xcodeWorkers.isEmpty,
+                sharesBuild: sharesBuild
             )
             events.send(.workersChosen(choice))
         }
-        return workers
+        guard configuration.buildSystem == .swift, workers.count > 1 else { return workers }
+        if sharesBuild, let direct = configuration.directTestRun {
+            try Task.checkCancellation()
+            let project = state.mutatedProjectDirectoryURL
+            session.clones = (1..<workers.count).map { MutatedProjectNames.clone($0, of: project) }
+            return SimulatorWorkerSetup.Workers(
+                count: workers.count,
+                unavailable: nil,
+                configuration: configuration.withDirectTestRun(direct.sharingBuild(of: project)),
+                xcodeWorkers: []
+            )
+        }
+        return try await clonesMade(
+            for: workers, testing: plan, configuration: configuration, state: state, session: session
+        )
     }
 
     /// The session's header, for testing `plan.toRun` of the jobs `session.keys` are of, with `configuration`, the
@@ -747,8 +805,9 @@ private extension PerformMutationTesting {
     /// active-mutant file, written just before the run (see `MutationTestingDelegate.testProcess`), so the clones' code
     /// never needs rewriting, and under xcodebuild in the worker's `.xctestrun` (`runPool`). Outcomes are recorded,
     /// and their events sent, as they finish. The timeouts are then tested again, on fewer workers (`rerunTimeouts`).
-    /// The clones are kept in `session`, and `run(with:)` removes them once the end line is written. Once mutation
-    /// testing is cancelled, no clone is made, no mutant starts, and none that returns is recorded.
+    /// The clones are in `session`, made and built by `workers(testing:on:with:mayShareBuild:state:session:)`, and
+    /// `run(with:)` removes them once the end line is written. Once mutation testing is cancelled, no mutant starts,
+    /// and none that returns is recorded.
     func testMutationsInParallel(
         _ jobs: [MutantJob],
         _ tasks: [PoolTask],
@@ -757,7 +816,6 @@ private extension PerformMutationTesting {
         configuration: MuterConfiguration,
         session: TestingSession
     ) async throws {
-        // A clone costs a copy and about one baseline build, which a stopped run would only throw away.
         try Task.checkCancellation()
         let pool: [PoolWorker]
         if configuration.buildSystem == .xcodebuild {
@@ -765,7 +823,9 @@ private extension PerformMutationTesting {
                 PoolWorker(directory: state.mutatedProjectDirectoryURL, configuration: configuration.forXcodeWorker($0))
             }
         } else {
-            pool = try await cloneWorkers(workers, using: state, configuration: configuration, session: session)
+            pool = ([state.mutatedProjectDirectoryURL] + session.clones).map {
+                PoolWorker(directory: $0, configuration: configuration)
+            }
         }
 
         var buildErrors = 0
@@ -879,89 +939,21 @@ private extension PerformMutationTesting {
         events.send(.timeoutRerunsFinished(tally))
     }
 
-    /// `count` SwiftPM workers: the mutated project, and a clone of it for each other, built, and kept in `session`.
-    func cloneWorkers(
-        _ count: Int,
-        using state: AnyMutationTestState,
-        configuration: MuterConfiguration,
-        session: TestingSession
-    ) async throws -> [PoolWorker] {
-        let clones: [URL]
-        do {
-            clones = try await makeWorkerDirectories(state.mutatedProjectDirectoryURL, count - 1)
-        } catch {
-            // Stopping the run kills a `cp` under way, which then fails.
-            try Task.checkCancellation()
-            throw error
-        }
-        session.clones = clones
-        try await buildWorkerDirectories(clones, using: state)
-        return ([state.mutatedProjectDirectoryURL] + clones).map {
-            PoolWorker(directory: $0, configuration: configuration)
-        }
-    }
-
-    /// Builds each worker clone once, by running the baseline test command in it. A clone is copied
-    /// after the mutated project was built, and `swift test --skip-build` would otherwise run the test
-    /// binaries built there: `#filePath` and every other path compiled into them would still point into
-    /// the mutated project, so tests that write files next to their sources would share those files
-    /// across workers, fail each other, and kill mutants they never tested. A clone whose baseline
-    /// doesn't pass stops the run, naming the worker: the same command just passed in the mutated
-    /// project, so the configuration isn't what's wrong. A run stopped meanwhile blames no clone:
-    /// stopping kills the builds under way, which then fail.
-    func buildWorkerDirectories(_ clones: [URL], using state: AnyMutationTestState) async throws {
-        let configuration = state.muterConfiguration
-        let runs = await withTaskGroup(of: (worker: Int, outcome: TestSuiteOutcome, testLog: String).self) { group in
-            for (index, clone) in clones.enumerated() {
-                let fileName = testOutput(named: "baseline run worker \(index + 1)", state: state)
-                // A clone's build is given the values and the dependency it uses, not the step or the state.
-                group.addTask { [ioDelegate] in
-                    let run = await ioDelegate.benchmarkTests(
-                        using: configuration,
-                        savingResultsIntoFileNamed: fileName,
-                        workingDirectory: clone
-                    )
-                    return (index + 1, run.outcome, run.testLog)
-                }
-            }
-            return await group.reduce(into: []) { $0.append($1) }
-        }
-        try Task.checkCancellation()
-        // A failed one's log is what says why the run stopped, and the abort message is all that shows it otherwise.
-        for run in runs.sorted(by: { $0.worker < $1.worker }) {
-            let name = "baseline run worker \(run.worker)"
-            fileManager.keepLog(
-                run.testLog,
-                writtenTo: testOutput(named: name, state: state),
-                by: ioDelegate,
-                named: name + ".log",
-                state: state
-            )
-        }
-
-        // The lowest-numbered failure, so the same worker is named whichever build finished first.
-        if let failed = runs.filter({ $0.outcome != .passed }).min(by: { $0.worker < $1.worker }) {
-            throw MuterError.mutationTestingAborted(
-                reason: .workerBaselineTestFailed(
-                    worker: failed.worker,
-                    directory: clones[failed.worker - 1].path,
-                    log: failed.testLog
-                )
-            )
-        }
-    }
-
     /// `configuration` with mutants' tests run without `swift test`, if a run of them with no mutant on, once the
     /// baseline has built the project, passes and runs the tests the baseline's log shows, with how long it took. Else
-    /// `configuration` as it is, and why, unless it isn't worth saying. A run that fails the check keeps its log.
+    /// `configuration` as it is, and why, unless it isn't worth saying. A run that fails the check keeps its log. With
+    /// `watchingFiles`, the project's files are read before and after that run, each path's size and time, `.build`
+    /// included: anything it wrote there, even if it removed it again, means workers can't share a build.
     func runningTestBundlesDirectly(
         _ configuration: MuterConfiguration,
         baselineLog: String,
+        watchingFiles: Bool,
         state: AnyMutationTestState
-    ) async throws -> (configuration: MuterConfiguration, seconds: TimeInterval?) {
+    ) async throws -> DirectRuns {
+        let notRunDirectly = DirectRuns(configuration: configuration, seconds: nil, wroteNothing: false)
         let notDirect = { (reason: String) in
             events.send(.testBundlesNotRunDirectly(reason: reason))
-            return (configuration, TimeInterval?.none)
+            return notRunDirectly
         }
         let direct: DirectTestRun
         switch await directTestRun(configuration, state.mutatedProjectDirectoryURL) {
@@ -969,7 +961,7 @@ private extension PerformMutationTesting {
             direct = probed
         case let .failure(unavailable):
             try Task.checkCancellation()
-            return unavailable.reason.map(notDirect) ?? (configuration, nil)
+            return unavailable.reason.map(notDirect) ?? notRunDirectly
         }
         try Task.checkCancellation()
         if DirectTestRun.ranXCTestTests(in: baselineLog) {
@@ -977,6 +969,7 @@ private extension PerformMutationTesting {
         }
 
         let directConfiguration = configuration.withDirectTestRun(direct)
+        let filesBefore = watchingFiles ? projectFiles(state.mutatedProjectDirectoryURL) : nil
         let start = instant()
         let output = testOutput(named: "direct test run", state: state)
         let (outcome, testLog) = await ioDelegate.runTestsWithoutBuilding(
@@ -986,6 +979,7 @@ private extension PerformMutationTesting {
         // Stopping the run kills this run too, which then fails, but that says nothing about the project's tests.
         try Task.checkCancellation()
         let seconds = seconds(since: start)
+        let filesAfter = watchingFiles ? projectFiles(state.mutatedProjectDirectoryURL) : nil
         let whyNot = DirectTestRun.whyNot(baselineLog: baselineLog, outcome: outcome, log: testLog)
         fileManager.keepLog(
             testLog,
@@ -997,7 +991,15 @@ private extension PerformMutationTesting {
         if let whyNot {
             return notDirect(whyNot + " (its log is direct test run.log)")
         }
-        return (directConfiguration, seconds)
+        let firstChange = filesAfter.flatMap { filesBefore?.firstChange(in: $0) }
+        if let firstChange {
+            events.send(.testBundlesWroteInTheProject(path: firstChange))
+        }
+        return DirectRuns(
+            configuration: directConfiguration,
+            seconds: seconds,
+            wroteNothing: filesBefore != nil && filesAfter != nil && firstChange == nil
+        )
     }
 
     /// The seconds from `start` to now, on the monotonic clock.
