@@ -90,6 +90,7 @@ private extension [MutationStep] {
             ListChangedSources(),
             DiscoverProjectCoverage(),
             DiscoverSourceFiles(),
+            DiscoverBuildConditions(),
             DiscoverMutationPoints(),
             // Before the copy is rewritten, so it gets only that mutant's switch, and builds as quickly as it can.
             SelectMutant(),
@@ -145,6 +146,7 @@ private extension [MutationStep] {
             FingerprintProjectTree(),
             DiscoverProjectCoverage(),
             DiscoverSourceFiles(),
+            DiscoverBuildConditions(),
             DiscoverMutationPoints(),
             // Once the run can't find nothing to mutate.
             PruneLogFolders(),

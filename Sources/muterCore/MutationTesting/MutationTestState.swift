@@ -17,6 +17,9 @@ protocol AnyMutationTestState: AnyObject {
     var testDiagnosticsCanBeTurnedOff: Bool { get }
     var projectCoverage: Coverage { get }
     var sourceFileCandidates: [FilePath] { get }
+    /// What the build compiles with, for discovery to tell which `#if` branches it leaves out; nil if that can't be
+    /// told.
+    var buildConditions: ProjectBuildConditions? { get }
     var mutationPoints: [MutationPoint] { get }
     var mutationMapping: [SchemataMutationMapping] { get }
     var droppedMutants: [DroppedMutant] { get }
@@ -81,6 +84,7 @@ final class MutationTestState: AnyMutationTestState {
     var testDiagnosticsCanBeTurnedOff = false
     var projectCoverage: Coverage = .null
     var sourceFileCandidates: [FilePath] = []
+    var buildConditions: ProjectBuildConditions?
     var mutationPoints: [MutationPoint] = []
     var mutationMapping: [SchemataMutationMapping] = []
     var droppedMutants: [DroppedMutant] = []
@@ -121,6 +125,7 @@ extension MutationTestState {
         case testDiagnosticsOptionChecked(canBeTurnedOff: Bool)
         case projectCoverage(Coverage)
         case sourceFileCandidatesDiscovered([FilePath])
+        case buildConditionsDiscovered(ProjectBuildConditions)
         case mutationPointsDiscovered([MutationPoint])
         case mutationMappingsDiscovered([SchemataMutationMapping])
         case mutantsDropped([DroppedMutant])
@@ -166,6 +171,8 @@ extension MutationTestState {
                 self.projectCoverage = projectCoverage
             case let .sourceFileCandidatesDiscovered(sourceFileCandidates):
                 self.sourceFileCandidates = sourceFileCandidates
+            case let .buildConditionsDiscovered(buildConditions):
+                self.buildConditions = buildConditions
             case let .mutationPointsDiscovered(mutationPoints):
                 self.mutationPoints = mutationPoints
             case let .mutationMappingsDiscovered(mutationMapping):

@@ -18,6 +18,7 @@ extension RunEvent {
         case projectCoverageTestsFailed
         case sourceFileDiscoveryStarted
         case packageSourceFilesUnavailable
+        case buildConditionsUnavailable
         case sourceFileDiscoveryFinished
         case mutationsDiscoveryStarted
         case mutationsDiscoveryFinished
@@ -84,6 +85,7 @@ extension RunEvent {
         case .projectCoverageTestsFailed: .projectCoverageTestsFailed
         case .sourceFileDiscoveryStarted: .sourceFileDiscoveryStarted
         case .packageSourceFilesUnavailable: .packageSourceFilesUnavailable
+        case .buildConditionsUnavailable: .buildConditionsUnavailable
         case .sourceFileDiscoveryFinished: .sourceFileDiscoveryFinished
         case .mutationsDiscoveryStarted: .mutationsDiscoveryStarted
         case .mutationsDiscoveryFinished: .mutationsDiscoveryFinished
@@ -155,6 +157,7 @@ extension RunEvent {
         case let .projectCoverageDiscoveryFinished(failure): failure
         case let .projectCoverageTestsFailed(failed): failed
         case let .packageSourceFilesUnavailable(reason): reason
+        case let .buildConditionsUnavailable(reason): reason
         case let .sourceFileDiscoveryFinished(sourceFileCandidates): sourceFileCandidates
         case let .mutationsDiscoveryFinished(mappings): mappings
         case let .mutantsSelected(sample, shard, mappings): (sample, shard, mappings)
