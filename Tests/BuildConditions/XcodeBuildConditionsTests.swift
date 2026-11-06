@@ -233,14 +233,17 @@ final class XcodeBuildConditionsTests: MuterTestCase {
     func test_noBuildSettings_isAFailure() async throws {
         process.commandResult = { [self] _ in result(of: []) }
 
-        let result = await XcodeBuildConditions.conditions(
+        let conditions = await XcodeBuildConditions.conditions(
             inProjectAt: project,
             testedBy: MuterConfiguration(executable: xcodebuild, arguments: ["test"]),
             process: current.process,
             fileManager: FileManager.default
         )
 
-        XCTAssertEqual(result, .failure(BuildConditionsUnavailable(reason: "xcodebuild reported no build settings")))
+        XCTAssertEqual(
+            conditions,
+            .failure(BuildConditionsUnavailable(reason: "xcodebuild reported no build settings"))
+        )
     }
 
     func test_xcodebuildFailing_isAFailure() async throws {
