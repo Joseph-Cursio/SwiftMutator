@@ -270,7 +270,7 @@ Added on 21 October, from a comparison with swift-mutation-testing v1.6.3 (`937f
 - **Operators.**
   - Arithmetic and boolean-literal operators, which [#87] has made safe, as one that doesn't compile no longer ends a run, and tiers, which wait for each operator's numbers ([#111]).
   - RemoveSideEffects: the blocks it skips, and a deny-list matched by name, with `assert` and `precondition` added ([#112]).
-  - Every link of a ternary chain, identical branches, loops and `#if` conditions ([#113]).
+  - Operator refinements (done, [#113], PR #223). SwapTernary gets a mutant for each link of a chain and none for identical branches, and no operator mutates a `#if` condition. Loops got no rule: on SwiftProjectLint `76fcfca9`, 5 of the 36 RemoveSideEffects mutants in `while` or `repeat` bodies timed out, and skipping a call whose receiver is in the condition would have caught at most 3 of those and dropped 10 others, 8 of them killed.
 - **Discovery and the build.**
   - Mutants outside function bodies (done, [#107], PR #222). Stored-property and global values and default arguments are switched in the value, as an `if` expression so that `CompileRecovery` can tell the branches apart, and a `main.swift`'s statements each by itself. What still has nowhere to put a switch is counted at the end of discovery, listed with `--verbose`, and in the results file's header.
   - A mutant in an `@inlinable` body fails the shared build, because the support enum is `fileprivate` (checked with Swift 6.4, [#108]).

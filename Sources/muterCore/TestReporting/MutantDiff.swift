@@ -49,7 +49,12 @@ enum MutantDiff {
         if occurrences(of: needle, in: fileLines[line - 1]).contains(column - 1) {
             found = (line, column - 1)
         } else if !atItsPlaceOnly, !isPlacedWhereItsChangeStarts(mutationOperatorId) {
-            for number in stride(from: line, through: max(line - linesAbove, 1), by: -1) {
+            let isOnItsOwnLine = isALaterLinkOfATernaryChain(
+                mutationOperatorId,
+                at: column - 1,
+                in: fileLines[line - 1]
+            )
+            for number in stride(from: line, through: isOnItsOwnLine ? line : max(line - linesAbove, 1), by: -1) {
                 let offsets = occurrences(of: needle, in: fileLines[number - 1])
                 guard !offsets.isEmpty else { continue }
                 guard offsets.count == 1 else { return nil }
@@ -86,6 +91,17 @@ enum MutantDiff {
     /// their own: a condition over several lines isn't found at its place, as `before` gives it on one line.
     private static func isPlacedWhereItsChangeStarts(_ mutationOperatorId: MutationOperator.Id) -> Bool {
         mutationOperatorId == .negateConditional
+    }
+
+    /// Whether a swapped ternary is placed at a `?`, as only a later link of a chain is. A first link is placed where
+    /// its whole expression ends, which a `?` can't follow. A later link's `?` is inside what it changes, so a copy on
+    /// a line above is never its own.
+    private static func isALaterLinkOfATernaryChain(
+        _ mutationOperatorId: MutationOperator.Id,
+        at offset: Int,
+        in line: [UInt8]
+    ) -> Bool {
+        mutationOperatorId == .swapTernary && line.indices.contains(offset) && line[offset] == UInt8(ascii: "?")
     }
 
     /// What the mutant puts in place of `snapshot.before`: nothing for a removed statement, whose snapshot says

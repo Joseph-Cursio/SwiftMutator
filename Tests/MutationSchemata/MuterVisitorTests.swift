@@ -797,7 +797,7 @@ final class MuterVisitorTests: MuterTestCase {
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
             "ChangeLogicalConnector@14", "RelationalOperatorReplacement@18", "SwapTernary@10", "SwapTernary@14",
-            "SwapTernary@18",
+            "SwapTernary@18", "SwapTernary@18",
         ])
     }
 

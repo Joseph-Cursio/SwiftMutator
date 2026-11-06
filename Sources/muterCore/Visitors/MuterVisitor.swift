@@ -96,6 +96,14 @@ class MuterVisitor: SyntaxAnyVisitor {
     override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
         checkNodeForDisableTag(node)
 
+        // A mutant of a `#if` condition changes which branch compiles, and a branch for another platform may not build,
+        // which fails the build every mutant shares.
+        guard node.parent?.as(IfConfigClauseSyntax.self)?.condition?.id != node.id else {
+            // A tag comment inside the condition applies to the code after it, though the condition isn't walked.
+            node.tokens(viewMode: .sourceAccurate).forEach(checkNodeForDisableTag)
+            return .skipChildren
+        }
+
         return super.visitAny(node)
     }
 

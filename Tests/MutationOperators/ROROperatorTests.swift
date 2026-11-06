@@ -112,4 +112,24 @@ final class ROROperatorTests: MuterTestCase {
         let mutations = visitor.schemataMappings.mutationSchemata.map { $0.syntaxMutation.description.trimmed.inlined }
         XCTAssertEqual(mutations, [#"let label = "バルーンの表示判定" print(label) return a != b"#])
     }
+
+    func test_aCompilerDirectivesCondition_isLeftAlone_howeverDeepItIs() throws {
+        let source = try sourceCode("""
+        func f(a: Int, b: Int) {
+            #if !(swift(>=5.9) && VALUE == 1)
+            run(a == b)
+            #elseif (compiler(<6) || VALUE != 2)
+            run(a != b)
+            #endif
+        }
+        """)
+        let visitor = ROROperator.Visitor(sourceCodeInfo: .init(path: "/path/to/file", code: source))
+
+        visitor.walk(source)
+
+        XCTAssertEqual(
+            visitor.schemataMappings.mutationSchemata.map(\.position.line).sorted(),
+            [3, 5]
+        )
+    }
 }

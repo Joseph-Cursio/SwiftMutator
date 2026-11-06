@@ -169,4 +169,69 @@ final class ChangeLogicalConnectorOperatorTests: MuterTestCase {
         let mutations = visitor.schemataMappings.mutationSchemata.map(\.syntaxMutation.description)
         XCTAssertEqual(mutations, ["\n    let \u{064B}x = b\n    return a || \u{064B}x"])
     }
+
+    // A mutant of one changes which branch compiles, and a branch for another platform may not build, which fails the
+    // build every mutant shares. Parentheses and `!` nest it deeper than the clause's own child.
+    func test_aCompilerDirectivesCondition_isLeftAlone_howeverDeepItIs() throws {
+        let conditions = [
+            "#if os(iOS) || os(tvOS)",
+            "#if (os(iOS) || os(tvOS))",
+            "#if !(os(iOS) && DEBUG)",
+            "#if !(!(os(iOS) && DEBUG) || TEST)",
+            "#if DEBUG\n    run()\n    #elseif !(os(iOS) && TEST)",
+        ]
+
+        for condition in conditions {
+            XCTAssertEqual(try connectorMutants(in: condition + "\n    run()\n    #endif"), [], condition)
+        }
+    }
+
+    // The condition isn't walked, but a tag comment in it still applies to the code after it.
+    func test_aDisableCommentInACompilerDirectivesCondition_isStillRead() throws {
+        let code = """
+        #if (os(iOS) || // muter:disable
+            os(tvOS))
+            let first = a && b
+            #endif
+        """
+
+        XCTAssertEqual(try connectorMutants(in: code), [])
+    }
+
+    func test_anEnableCommentInACompilerDirectivesCondition_isStillRead() throws {
+        let code = """
+        // muter:disable
+            #if (os(iOS) || // muter:enable
+            os(tvOS))
+            let first = a && b
+            #endif
+        """
+
+        XCTAssertEqual(try connectorMutants(in: code), ["||"])
+    }
+
+    func test_theCodeInACompilerDirectivesClause_isStillMutated() throws {
+        let code = """
+        #if !(os(iOS) && DEBUG)
+            let first = a && b
+            #elseif (os(tvOS) || TEST)
+            let second = c || d
+            #else
+            let third = e && f
+            #endif
+        """
+
+        XCTAssertEqual(try connectorMutants(in: code), ["||", "&&", "||"])
+    }
+
+    private func connectorMutants(in body: String) throws -> [String] {
+        let source = try sourceCode("func f(a: Bool, b: Bool) {\n    \(body)\n}")
+        let visitor = ChangeLogicalConnectorOperator.Visitor(
+            sourceCodeInfo: .init(path: "/path/to/file", code: source)
+        )
+
+        visitor.walk(source)
+
+        return visitor.schemataMappings.mutationSchemata.map(\.snapshot.after)
+    }
 }
