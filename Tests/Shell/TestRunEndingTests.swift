@@ -11,6 +11,24 @@ final class TestRunEndingTests: XCTestCase {
         XCTAssertEqual(ending.reason, .timedOut)
     }
 
+    // A run SwiftMutator killed can leave a process in its group, and one that ended by itself has nothing of
+    // SwiftMutator's to clean up.
+    func test_wasKilled_whenAnythingButTheExitEndedTheRun() {
+        let killedBy: [TestRunEnding.Reason] = [
+            .timedOut, .cancelled, .failedTest(line: "failed"), .crashed(line: "crashed"),
+        ]
+        for reason in killedBy {
+            let ending = TestRunEnding()
+            XCTAssertFalse(ending.wasKilled, "nothing has ended it yet")
+            XCTAssertTrue(ending.record(reason))
+            XCTAssertTrue(ending.wasKilled, "\(reason)")
+        }
+
+        let ending = TestRunEnding()
+        XCTAssertTrue(ending.record(.exited))
+        XCTAssertFalse(ending.wasKilled)
+    }
+
     // A time limit or a cancellation that comes after the exit may not kill the process: the system
     // may have given its ID to another process.
     func test_recordingTheExit_stopsAnyKill() {

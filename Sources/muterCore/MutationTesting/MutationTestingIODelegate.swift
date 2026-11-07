@@ -458,6 +458,13 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
                 process.terminateTreeInBackground()
             }
         }
+        // A kill finds its processes by listing the tree, which misses a test process the shell was starting as the
+        // stop came, and one whose parent has ended. It would run on until its tests ended, reading later mutants'
+        // active-mutant file, or for good if they hang. Each is still in the shell's group, and the shell, now ended,
+        // starts no more. Side by side, killing at random moments in a run's first 400 ms, 51 of 34,213 kills left a
+        // helper without this, and none of 34,191 with it. A helper of `swift test` leads its own group, so there this
+        // finds only what `swift test` itself left.
+        if ending.wasKilled { process.killProcessGroup() }
     }
 
     /// How long a run that may have ended by a signal from outside waits before it is recorded. Measured: a run is

@@ -89,6 +89,59 @@ final class ProcessTreeTests: XCTestCase {
         XCTAssertEqual(everyProcess.filter { !isGone($0) }, [], "still running")
     }
 
+    // A process the kill can't list, as its parent has ended: as one the shell was starting as the stop came, it stays
+    // in the shell's process group. The group's kill finds it.
+    func test_killProcessGroup_killsWhatTheTreesKillCouldntList() throws {
+        let root = Foundation.Process()
+        root.executableURL = URL(fileURLWithPath: "/bin/sh")
+        // Named only once the subshell has ended, as until then a listing still finds the sleep through it.
+        root.arguments = [
+            "-c",
+            "(/bin/sleep 61.35 & echo $! > escaped.tmp); mv escaped.tmp escaped; exec /bin/sleep 61.36",
+        ]
+        root.currentDirectoryURL = directory
+        try root.run()
+        launched.append(root)
+        var escaped: Int32?
+        _ = waitUntil(within: 5) {
+            escaped = pid(writtenTo: "escaped")
+            return escaped != nil
+        }
+        let stray = try XCTUnwrap(escaped)
+        unconfirmedGone.insert(stray)
+
+        root.terminateTree()
+        // On Linux, Foundation hears of the exit only once the stray has gone, and the kernel says so at once. On
+        // macOS, Foundation has reaped the shell, so the kernel has nothing to say about it.
+        XCTAssertTrue(waitUntil(within: 2) { root.hasExited() || !root.isRunning }, "the shell is still running")
+        XCTAssertFalse(isGone(stray), "the tree's kill listed it, so this tests nothing")
+
+        root.killProcessGroup()
+
+        XCTAssertTrue(waitUntil(within: 2) { isGone(stray) }, "still running")
+    }
+
+    // A process with its ID that hasn't ended is what the system gave the ID to once the process had been reaped, as
+    // when SwiftMutator was stopped meanwhile, so neither it nor its group is SwiftMutator's to kill.
+    func test_killProcessGroup_leavesAProcessWithThatIDAlone() throws {
+        let tree = try launchTree()
+
+        tree.root.killProcessGroup()
+
+        Thread.sleep(forTimeInterval: 0.1)
+        XCTAssertTrue(tree.root.isRunning, "it was killed")
+        XCTAssertFalse(isGone(tree.sleeper), "its group was killed")
+    }
+
+    // kill(0, …) would signal this test's own process group, and kill(-1, …) every process it may signal.
+    func test_killProcessGroup_ofAProcessThatNeverLaunched_signalsNothing() {
+        let neverLaunched = Foundation.Process()
+
+        neverLaunched.killProcessGroup()
+
+        XCTAssertEqual(neverLaunched.processIdentifier, 0)
+    }
+
     // What a stopping SwiftMutator does to its own descendants, with a tree this test started as the root:
     // the test runner's own descendants include other tests' processes.
     func test_terminateDescendants_killsEveryDescendant_butNotTheRoot() throws {

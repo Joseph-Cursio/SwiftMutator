@@ -38,6 +38,9 @@ final class ScriptedProcessSpy: MuterProcess, @unchecked Sendable { // shared st
     private var reason: Foundation.Process.TerminationReason = .exit
     private var started = false
     private var killCount = 0
+    private var groupKillCount = 0
+    private var ended = false
+    private var endedAtGroupKill: Bool?
 
     init(_ script: [Step], deadline: TimeInterval = 5) {
         self.script = script
@@ -55,12 +58,16 @@ final class ScriptedProcessSpy: MuterProcess, @unchecked Sendable { // shared st
     /// Whether it was run, and so plays its script.
     var hasStarted: Bool { lock.withLock { started } }
     var terminateTreeCallCount: Int { lock.withLock { killCount } }
+    /// How many kills of its group came, and whether it had ended by the first of them.
+    var killProcessGroupCallCount: Int { lock.withLock { groupKillCount } }
+    var hadEndedAtTheGroupKill: Bool? { lock.withLock { endedAtGroupKill } }
 
     func run() throws {
         lock.withLock { started = true }
         let handler = terminationHandler
         Thread.detachNewThread { [self] in
             play()
+            lock.withLock { ended = true }
             // This isn't a Foundation.Process, so the handler gets a stand-in.
             handler?(Foundation.Process())
         }
@@ -99,6 +106,13 @@ final class ScriptedProcessSpy: MuterProcess, @unchecked Sendable { // shared st
     func terminateTree() {
         lock.withLock { killCount += 1 }
         kills.signal()
+    }
+
+    func killProcessGroup() {
+        lock.withLock {
+            groupKillCount += 1
+            if endedAtGroupKill == nil { endedAtGroupKill = ended }
+        }
     }
 
     func runProcess(url: String, arguments args: [String]) -> Data? { nil }

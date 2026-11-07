@@ -62,6 +62,10 @@ protocol MuterProcess: AnyObject, Sendable {
     /// Declared here so it dynamically dispatches to conformers/test doubles rather than binding statically.
     func terminateTree()
 
+    /// SIGKILL whatever is left of the process group this process led, once it has ended (default impl: `kill`).
+    /// Declared here for test doubles.
+    func killProcessGroup()
+
     /// Whether the process has exited, though Foundation may not have reaped it yet. Declared here for test doubles.
     func hasExited() -> Bool
 }
@@ -131,6 +135,21 @@ extension MuterProcess {
         ProcessTree.terminate(root: processIdentifier, descendants: ProcessTree.descendants(of:)) { pid, signal in
             kill(pid, signal)
         }
+    }
+
+    /// SIGKILLs the processes left in the group this process led, as every process SwiftMutator starts leads one. For
+    /// once SwiftMutator has killed it and it has ended (see `MutationTestingDelegate.runToExit`). A group with a
+    /// process left keeps its ID from going to a new process. An empty one is no group, so nothing is signalled.
+    func killProcessGroup() {
+        let pid = processIdentifier
+        // A process that never launched has the ID 0: `kill(0, …)` signals SwiftMutator's own group, and `kill(-1, …)`
+        // every process it may signal.
+        guard pid > 1 else { return }
+        // Once it has been reaped, a process with its ID is another's, and so is the group that one may lead. That
+        // takes every other ID being given out, over 4 minutes at 400 a second, so SwiftMutator stopped just here, as
+        // by Ctrl-Z.
+        guard hasExited() || getpgid(pid) == -1 else { return }
+        kill(-pid, SIGKILL)
     }
 
     /// Asks the kernel, without reaping the process: Foundation still reaps it, and reads how it ended. A process
