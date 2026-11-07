@@ -30,23 +30,49 @@ enum ProcessTree {
         usleep(settlingMicroseconds)
     }
 
+    /// How long a kill waits before it first checks that its processes ended. None measured read as ended in under
+    /// 50 µs, so a check made at once would only find them all running. A small process took a median of 0.4 ms, and a
+    /// `swiftpm-testing-helper` running SwiftProjectLint's tests, with 57 threads, a median of 11 ms.
+    static let firstKillPauseMicroseconds: useconds_t = 1000
+
+    /// The longest a kill waits between two checks.
+    static let longestKillPauseMicroseconds: useconds_t = 10000
+
+    /// How long a kill pauses in all, at most, for a process SIGKILL can't end, as one held in the kernel. It holds up
+    /// the worker, or a second signal behind a stopping run's sweep, for that long, and longer under load, as pauses
+    /// run long. The longest any kill measured took, in 344,979 stops at a load average of about 65, was 354 ms.
+    static let longestKillWaitMicroseconds: useconds_t = 1_000_000
+
+    /// What a kill does after its SIGKILLs: it checks that each process ended, and sends SIGKILL again to each that
+    /// didn't. A process just sent SIGSTOP can be left suspended with the SIGKILL pending, at 0% CPU, until another
+    /// signal wakes it. Its parent dies, so no later listing finds it, and it outlives the run. One real
+    /// `swiftpm-testing-helper` was left so in 57,744 stops (macOS 27), and one found after a run of SwiftProjectLint,
+    /// at PPID 1 and 0% CPU, had stayed for hours, until a SIGTERM. A second SIGKILL sent at once doesn't help: 6 of
+    /// 90,000 were left. One sent 0.2 to 50 ms later does: none of 369,838, with about 16 expected. Side by side at the
+    /// same load, stopping a small many-threaded process, a kill with no check left 17 of 295,734, and this one none of
+    /// 276,464.
+    struct KillCheck {
+        /// When a process started, or nil once it has ended, so that a process its ID went to gets no signal.
+        var startTime: (Int32) -> UInt64? = MutatedProjectLock.startTime(of:)
+        var pause: (useconds_t) -> Void = { usleep($0) }
+    }
+
     /// Stops `root` and every descendant, parents first, and lists them again until a listing finds
     /// nothing new. Then it SIGKILLs them all, root last. Killed from one listing, a running `swift test`
     /// could start the next test bundle's runner between the listing and the kill, and that runner would
     /// be left running. A stopped process starts nothing, but a child can start one before its own stop,
-    /// so the tree is listed again. `root` 0, a process that never launched, gets no signal: `kill` would
-    /// read it as SwiftMutator's own process group.
+    /// so the tree is listed again. It returns once they have ended (see `KillCheck`). `root` 0, a process that never
+    /// launched, gets no signal: `kill` would read it as SwiftMutator's own process group.
     static func terminate(
         root: Int32,
         descendants: (Int32) -> [Int32],
+        checking check: KillCheck = KillCheck(),
         signal send: (_ pid: Int32, _ signal: Int32) -> Void
     ) {
         guard root > 0 else { return }
         send(root, SIGSTOP)
         let stopped = stopDescendants(of: root, descendants: descendants, signal: send)
-        for pid in stopped + [root] {
-            send(pid, SIGKILL) // SIGKILL also ends a stopped process
-        }
+        killUntilEnded(stopped + [root], checking: check, signal: send)
     }
 
     /// `terminate` without ever signalling `root`, for SwiftMutator's own process, which
@@ -55,11 +81,32 @@ enum ProcessTree {
     static func terminateDescendants(
         of root: Int32,
         descendants: (Int32) -> [Int32],
+        checking check: KillCheck = KillCheck(),
         signal send: (_ pid: Int32, _ signal: Int32) -> Void
     ) {
         guard root > 0 else { return }
-        for pid in stopDescendants(of: root, descendants: descendants, signal: send) {
-            send(pid, SIGKILL)
+        let stopped = stopDescendants(of: root, descendants: descendants, signal: send)
+        killUntilEnded(stopped, checking: check, signal: send)
+    }
+
+    /// SIGKILLs `processes`, in that order, then sends SIGKILL again to each that hasn't ended, as `KillCheck` says,
+    /// until none is left or it has paused for `longestKillWaitMicroseconds`.
+    private static func killUntilEnded(
+        _ processes: [Int32],
+        checking check: KillCheck,
+        signal send: (_ pid: Int32, _ signal: Int32) -> Void
+    ) {
+        // Before the first SIGKILL, as a process can end from then on, and its ID go to another.
+        var running = processes.compactMap { pid in check.startTime(pid).map { (pid: pid, started: $0) } }
+        processes.forEach { send($0, SIGKILL) }
+        var pause = firstKillPauseMicroseconds
+        var waited: useconds_t = 0
+        while !running.isEmpty, waited < longestKillWaitMicroseconds {
+            check.pause(pause)
+            waited += pause
+            running = running.filter { check.startTime($0.pid) == $0.started }
+            running.forEach { send($0.pid, SIGKILL) }
+            pause = min(pause * 2, longestKillPauseMicroseconds)
         }
     }
 

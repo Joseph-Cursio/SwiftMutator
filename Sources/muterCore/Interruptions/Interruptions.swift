@@ -162,10 +162,11 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
             stopAtOnce(by: record.signal ?? signal)
             return
         }
-        guard signal != SIGQUIT else { return stopAtOnce(by: signal) }
         // First: every run's cancellation handler then records it cancelled before anything kills its process, so no
-        // run that stopping ended is recorded as a mutant's result.
+        // run that stopping ended is recorded as a mutant's result. A worker that wasn't cancelled would also start its
+        // next mutant's tests as soon as this one's are killed, and exiting would leave those running.
         cancel()
+        guard signal != SIGQUIT else { return stopAtOnce(by: signal) }
         // Then what no cancellation reaches, now and every `sweepInterval` until the work ends: coverage, `cp`, `find`,
         // `which` and the steps' later processes, which a step starts one after another.
         killDescendants()
