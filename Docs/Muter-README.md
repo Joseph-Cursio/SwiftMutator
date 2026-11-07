@@ -89,7 +89,7 @@ A **mutation score** is provided at the end of every run of Muter. The score is 
 
 `mutation score = number of mutants killed / total number of mutants`
 
-For example, if your test suite killed 50 mutants of the 75 introduced by Muter, your score would be 67%. A well-engineered test suite should strive to be as close to 100% as possible.
+For example, if your test suite killed 50 mutants of the 75 introduced by Muter, your score would be 66%: SwiftMutator truncates the score to a whole percent, and counts a mutant killed when a failed test or a crash killed it, out of every mutant that built. A timeout counts as not killed. A well-engineered test suite should strive to be as close to 100% as possible.
 
 Muter not only provides a mutation score for your entire test suite, but it also generates individual scores for the files it has mutated.
 

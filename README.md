@@ -8,7 +8,9 @@ SwiftMutator is based on [Muter](https://github.com/muter-mutation-testing/muter
 contributors, and keeps its history. Muter introduces small changes (*mutants*) into your
 code, such as `==` becoming `!=` or a call being removed, and runs your tests against each one.
 A mutant your tests don't catch shows a behavior your tests don't check. The mutation score is
-the share of mutants caught.
+the share of mutants caught: those a failed test or a crash killed, as a percent of every mutant
+that built, truncated to a whole percent, so 50 of 75 is 66%. A mutant that times out with no
+failure or crash in its log isn't caught, as [timeouts](#timeouts-are-run-again) explains.
 
 ## Also look at swift-mutation-testing
 
@@ -934,6 +936,12 @@ That was SwiftProjectLint's `--sample 200 --seed 157871` under `--timeout 24`, o
 one test run alone takes about 14 s. The reruns took 5 of the run's 15 minutes. All 15 that changed
 survive in a whole run under the default limit, and of the 4 that timed out again, 3 time out there too;
 the fourth is killed there, after more than 24 s.
+
+A timeout that a failed test or a crash in its log doesn't explain still counts as a survivor,
+unlike Stryker, which counts it as killed. No test was shown to catch the mutant, and as above, a
+timeout is often a mutant that was only slow. One whose log shows a failed test is killed, and one
+that shows a crash counts as a crash
+([#89](https://github.com/Joseph-Cursio/SwiftMutator/issues/89)).
 
 The rerun's result is the one the report gives. The results file keeps both: the rerun's line, with
 `rerun`, follows the first run's. Each keeps a log of its own by the rule for mutants' logs (see
