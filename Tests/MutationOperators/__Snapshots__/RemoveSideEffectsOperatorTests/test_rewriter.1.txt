@@ -12,16 +12,9 @@ struct Example {
   }
 
   func containsSideEffect() -> Int {
-    if __SwiftMutator_b772dfa836344677.environment[
-      "sampleWithSideEffects_b772dfa836344677_RemoveSideEffects_10_27_186"] != nil,
-      __SwiftMutator_b772dfa836344677.ran
-    {
-      print("something")
-    } else {
-      print("something")
+    print("something")
 
-      _ = causesSideEffect()
-    }
+    _ = causesSideEffect()
   }
 
   @discardableResult func causesSideEffect() -> Int {

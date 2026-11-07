@@ -338,16 +338,9 @@ struct SideEffects {
   }
 
   func containsSideEffect() -> Int {
-    if __SwiftMutator_c132952c484be782.environment[
-      "sampleWithAllOperators_c132952c484be782_RemoveSideEffects_49_31_984"] != nil,
-      __SwiftMutator_c132952c484be782.ran
-    {
-      print("something")
-    } else {
-      print("something")
+    print("something")
 
-      _ = causesSideEffect()
-    }
+    _ = causesSideEffect()
   }
 
   @discardableResult

@@ -447,13 +447,15 @@ private extension PatternBindingSyntax {
     }
 }
 
-private extension TypeSyntax {
+extension TypeSyntax {
+    /// Whether the type is `some …`.
     var isOpaque: Bool {
         self.as(SomeOrAnyTypeSyntax.self)?.someOrAnySpecifier.tokenKind == .keyword(.some)
     }
 }
 
-private extension AttributeListSyntax {
+extension AttributeListSyntax {
+    /// Whether one of the attributes is a result builder, by a name that ends in `Builder`, as `@ViewBuilder` does.
     var containsResultBuilder: Bool {
         contains { element in
             element.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true

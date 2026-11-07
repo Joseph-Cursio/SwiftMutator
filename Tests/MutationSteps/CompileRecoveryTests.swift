@@ -429,13 +429,16 @@ final class CompileRecoveryTests: MuterTestCase {
     }
 
     // A missing `return` comes of a statement that is gone: the rest may be innocent, and go only if it stays.
+    // RemoveSideEffects keeps a call that ends a function that returns a value, but not one that ends a `repeat` body
+    // there.
     func test_anErrorAroundAMutantThatRemovesAStatement_takesThatOneOutFirst() async throws {
         let code = """
         func die() -> Never { fatalError() }
         func check(_ value: Int) -> Bool {
             if value > 1 { return true }
-            if value < 0 { return false }
-            die()
+            repeat {
+                die()
+            } while value < 0
         }
 
         """
