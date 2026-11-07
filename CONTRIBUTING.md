@@ -89,7 +89,8 @@ Each first runs `make build`: `swift package clean` and a debug build. The accep
 copies `Repositories/` into `AcceptanceTests/` and runs the debug `swift-mutator` on the iOS
 sample `ExampleApp` several ways, saving the output in `AcceptanceTests/samples`. The regression
 script runs it on BonMot, FFCParserCombinator and ProjectWithConcurrency in `Repositories/`. Then
-each runs its test target, which checks the saved output.
+each runs its test target, which checks the saved output. The regression script stops first at a
+run that fails or writes no report, with that run's status or 1.
 
 Run the acceptance tests when you change how a user runs SwiftMutator or what it prints. Run the
 regression tests when you change the reports. Run both before a pull request that touches either.
