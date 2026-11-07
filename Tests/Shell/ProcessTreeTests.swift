@@ -89,6 +89,19 @@ final class ProcessTreeTests: XCTestCase {
         XCTAssertEqual(everyProcess.filter { !isGone($0) }, [], "still running")
     }
 
+    // A worker moves on to its next mutant once the kill returns, so it must return only once they have ended.
+    func test_terminateTree_returnsOnceEveryDescendantHasEnded() throws {
+        let tree = try launchTree()
+        let descendants = tree.descendants
+        XCTAssertFalse(descendants.isEmpty)
+
+        tree.root.terminateTree()
+
+        XCTAssertEqual(descendants.filter { MutatedProjectLock.startTime(of: $0) != nil }, [], "still running")
+        // A zombie has ended but is still there. Once gone, tearDown won't signal whatever process gets its ID.
+        _ = waitUntil(within: 2) { descendants.allSatisfy(self.isGone) }
+    }
+
     // A process the kill can't list, as its parent has ended: as one the shell was starting as the stop came, it stays
     // in the shell's process group. The group's kill finds it.
     func test_killProcessGroup_killsWhatTheTreesKillCouldntList() throws {

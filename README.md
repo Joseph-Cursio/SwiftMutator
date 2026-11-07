@@ -381,6 +381,56 @@ or a shard can't hold a mutant that was dropped.
 ℹ️ SwiftMutator left out 3 mutants with nowhere to put a switch, so no report covers them. --verbose lists them.
 ```
 
+## Code an `#if` leaves out
+
+A mutant in code the build doesn't compile can never be killed, and would count as a survivor. So discovery evaluates
+each `#if` against the build the run tests, and drops the mutants in the branches it leaves out. Coverage does some of
+this too, but it has no record of a whole declaration in an `#if`, and none at all with `--skip-coverage`.
+
+SwiftMutator works out what the build compiles with from the build itself, so an iOS Simulator run mutates `#if os(iOS)`
+and drops `#if os(macOS)`:
+
+| Asked | `swift test` | `xcodebuild` |
+|---|---|---|
+| `os`, `arch`, `targetEnvironment` | This machine, unless `--triple`, `--arch`, `--swift-sdk`, `--destination` or `--sdk` builds for another | `-showBuildSettings`, which follows `-destination` |
+| Custom conditions, such as `DEBUG` | `DEBUG` in a debug build, `SWIFT_PACKAGE`, each target's `.define`s and `-D` flags in `unsafeFlags`, and `-Xswiftc -D` in `arguments` | `SWIFT_ACTIVE_COMPILATION_CONDITIONS` and the `-D` flags in `OTHER_SWIFT_FLAGS` |
+| `canImport` | The SDK's modules | The SDK's modules |
+
+Whatever it can't tell, it leaves alone: the branch keeps its mutants, and coverage can still filter them out as before.
+So what it can't work out doesn't cost you code your build compiles. These stay undecided:
+
+- `swift(…)`, `compiler(…)`, `hasFeature(…)` and `hasAttribute(…)`, and `canImport` of a submodule or with a version;
+- `canImport` of a module in no SDK, which may be a package's, and any `canImport` in a Mac Catalyst build;
+- `arch(…)` in a build for several architectures, as a generic destination is, unless it is none of them;
+- a condition only some targets set. SwiftPM says which targets compile each file, so there it's only those targets'.
+  xcodebuild doesn't, so there it's all the targets it reports, for the test bundles and for the scheme;
+- with xcodebuild, a condition no reported target sets but that a `project.pbxproj`, `.xcconfig` or package manifest in
+  the project names, as it may be set for a target that wasn't reported; and any other `SWIFT_` condition, as Xcode sets
+  `SWIFT_PACKAGE` for a local package's code;
+- with SwiftPM, a package's traits, and a `.define` that a trait enables.
+
+A later clause can still be decided after an undecided one: after `#if canImport(SomePackage)`, an `#elseif os(iOS)` is
+left out of a macOS build, and an `#elseif os(macOS)` rules out the `#else` after it.
+
+`canImport` reads a module that only another platform's SDK has as absent, so a package of yours named after one, say
+`CarPlay` on macOS, would have its `canImport` branch read as left out.
+
+If the conditions can't be read at all, as for a test command that isn't `swift`, a Swift package's scheme under
+xcodebuild, which has no build settings, or `-xctestrun`, SwiftMutator says so and every branch keeps its mutants:
+
+```text
+ℹ️ SwiftMutator couldn't tell which `#if` branches the build compiles: xcodebuild reported no build settings.
+Every branch keeps its mutants, unless coverage shows that the build left it out.
+```
+
+Otherwise discovery ends with how many it dropped, `--verbose` lists each one, and they count towards
+[`mutantsDropped`](Docs/results-file.md#header), as those [with nowhere to put a switch](#mutants-outside-function-bodies)
+do. Code under `// muter:disable` isn't counted. A mutant in such a branch no longer exists for `--mutant` to name.
+
+```text
+ℹ️ SwiftMutator left out 15 mutants in `#if` branches this build doesn't compile, so no report covers them. --verbose lists them.
+```
+
 ## When the baseline crashes
 
 Every mutant is compiled into one build, so a function's code is there once for each mutant in it. A

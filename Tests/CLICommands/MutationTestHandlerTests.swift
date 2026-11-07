@@ -223,7 +223,7 @@ final class MutationTestHandlerTests: MuterTestCase {
     func test_allSteps() {
         sut = MutationTestHandler(options: .make())
 
-        XCTAssertEqual(sut.steps.count, 15)
+        XCTAssertEqual(sut.steps.count, 16)
 
         XCTAssertTypeEqual(sut.steps[safe: 0], UpdateCheck.self)
         XCTAssertTypeEqual(sut.steps[safe: 1], LoadConfiguration.self)
@@ -235,18 +235,19 @@ final class MutationTestHandlerTests: MuterTestCase {
         XCTAssertTypeEqual(sut.steps[safe: 6], FingerprintProjectTree.self)
         XCTAssertTypeEqual(sut.steps[safe: 7], DiscoverProjectCoverage.self)
         XCTAssertTypeEqual(sut.steps[safe: 8], DiscoverSourceFiles.self)
-        XCTAssertTypeEqual(sut.steps[safe: 9], DiscoverMutationPoints.self)
-        XCTAssertTypeEqual(sut.steps[safe: 10], PruneLogFolders.self)
-        XCTAssertTypeEqual(sut.steps[safe: 11], ApplySchemata.self)
-        XCTAssertTypeEqual(sut.steps[safe: 12], CheckMutantSwitches.self)
-        XCTAssertTypeEqual(sut.steps[safe: 13], BuildForTesting.self)
-        XCTAssertTypeEqual(sut.steps[safe: 14], PerformMutationTesting.self)
+        XCTAssertTypeEqual(sut.steps[safe: 9], DiscoverBuildConditions.self)
+        XCTAssertTypeEqual(sut.steps[safe: 10], DiscoverMutationPoints.self)
+        XCTAssertTypeEqual(sut.steps[safe: 11], PruneLogFolders.self)
+        XCTAssertTypeEqual(sut.steps[safe: 12], ApplySchemata.self)
+        XCTAssertTypeEqual(sut.steps[safe: 13], CheckMutantSwitches.self)
+        XCTAssertTypeEqual(sut.steps[safe: 14], BuildForTesting.self)
+        XCTAssertTypeEqual(sut.steps[safe: 15], PerformMutationTesting.self)
     }
 
     func test_steps_whenResuming() {
         sut = MutationTestHandler(options: .make(resumeURL: URL(fileURLWithPath: "/logs/results.jsonl")))
 
-        XCTAssertEqual(sut.steps.count, 16)
+        XCTAssertEqual(sut.steps.count, 17)
 
         XCTAssertTypeEqual(sut.steps[safe: 0], UpdateCheck.self)
         XCTAssertTypeEqual(sut.steps[safe: 1], LoadConfiguration.self)
@@ -256,8 +257,8 @@ final class MutationTestHandlerTests: MuterTestCase {
         XCTAssertTypeEqual(sut.steps[safe: 5], PreviousRunCleanUp.self)
         XCTAssertTypeEqual(sut.steps[safe: 6], CopyProjectToTempDirectory.self)
         XCTAssertTypeEqual(sut.steps[safe: 7], FingerprintProjectTree.self)
-        XCTAssertTypeEqual(sut.steps[safe: 11], PruneLogFolders.self)
-        XCTAssertTypeEqual(sut.steps[safe: 15], PerformMutationTesting.self)
+        XCTAssertTypeEqual(sut.steps[safe: 12], PruneLogFolders.self)
+        XCTAssertTypeEqual(sut.steps[safe: 16], PerformMutationTesting.self)
     }
 
     // A reuse loads the earlier run's results file where a resume does, so it's refused as early.
@@ -578,7 +579,7 @@ final class MutationTestHandlerTests: MuterTestCase {
             )
         )
 
-        XCTAssertEqual(sut.steps.count, 14)
+        XCTAssertEqual(sut.steps.count, 15)
         XCTAssertTypeEqual(sut.steps[safe: 0], UpdateCheck.self)
         XCTAssertTypeEqual(sut.steps[safe: 1], LoadConfiguration.self)
         XCTAssertTypeEqual(sut.steps[safe: 2], CreateMutatedProjectDirectoryURL.self)
@@ -589,12 +590,13 @@ final class MutationTestHandlerTests: MuterTestCase {
         XCTAssertTypeEqual(sut.steps[safe: 6], FingerprintProjectTree.self)
         XCTAssertTypeEqual(sut.steps[safe: 7], DiscoverProjectCoverage.self)
         XCTAssertTypeEqual(sut.steps[safe: 8], DiscoverSourceFiles.self)
-        XCTAssertTypeEqual(sut.steps[safe: 9], DiscoverMutationPoints.self)
-        XCTAssertTypeEqual(sut.steps[safe: 10], PruneLogFolders.self)
-        XCTAssertTypeEqual(sut.steps[safe: 11], ApplySchemata.self)
+        XCTAssertTypeEqual(sut.steps[safe: 9], DiscoverBuildConditions.self)
+        XCTAssertTypeEqual(sut.steps[safe: 10], DiscoverMutationPoints.self)
+        XCTAssertTypeEqual(sut.steps[safe: 11], PruneLogFolders.self)
+        XCTAssertTypeEqual(sut.steps[safe: 12], ApplySchemata.self)
         // No plan is made whose code lacks a mutant's switch.
-        XCTAssertTypeEqual(sut.steps[safe: 12], CheckMutantSwitches.self)
-        XCTAssertTypeEqual(sut.steps[safe: 13], CreateMuterTestPlan.self)
+        XCTAssertTypeEqual(sut.steps[safe: 13], CheckMutantSwitches.self)
+        XCTAssertTypeEqual(sut.steps[safe: 14], CreateMuterTestPlan.self)
     }
 
     // After every step that can refuse the run or find nothing to test, so a run that ends that way removes nothing

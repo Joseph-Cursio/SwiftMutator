@@ -50,10 +50,12 @@ applies the changes the step returns. The steps are in
     [`BuildSystems`](../Sources/muterCore/BuildSystems)). `--skip-coverage` drops it.
 12. `DiscoverSourceFiles`: picks the Swift files to mutate, minus `exclude`
     (`SourceFileExcludes.swift`, `ExcludeGlob.swift`).
-13. `DiscoverMutationPoints`: parses each file and runs every operator's visitor over it. Each mutant goes in a
-    `MutationSwitchPlace`, usually its statement list. A file's top level can't hold a switch when it has a
-    declaration, so there the place is the initial value or the statement, and a mutant with neither is a
-    `DroppedMutant`, which the run counts and `--verbose` lists.
+13. `DiscoverBuildConditions`, then `DiscoverMutationPoints`: the first works out what the build compiles with
+    ([`BuildConditions`](../Sources/muterCore/BuildConditions)). The second parses each file and runs every operator's
+    visitor over it. Each mutant goes in a `MutationSwitchPlace`, usually its statement list. A file's top level can't
+    hold a switch when it has a declaration, so there the place is the initial value or the statement, and a mutant with
+    neither is a `DroppedMutant`, which the run counts and `--verbose` lists. So is a mutant in an `#if` branch the build
+    leaves out; a branch it can't decide keeps its mutants.
 14. `SelectMutant`: with `--mutant`, keeps only that mutant.
 15. `PruneLogFolders`: removes old runs' log folders beyond `keepLogFolders`.
 16. `ApplySchemata`: rewrites each file with mutants in the copy (see below).

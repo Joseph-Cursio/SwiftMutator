@@ -272,7 +272,7 @@ Added on 21 October, from a comparison with swift-mutation-testing v1.6.3 (`937f
 - **Discovery and the build.**
   - Mutants outside function bodies (done, [#107], PR #222). Stored-property and global values and default arguments are switched in the value, as an `if` expression so that `CompileRecovery` can tell the branches apart, and a `main.swift`'s statements each by itself. What still has nowhere to put a switch is counted at the end of discovery, listed with `--verbose`, and in the results file's header.
   - A mutant in an `@inlinable` body fails the shared build, because the support enum is `fileprivate` (checked with Swift 6.4, [#108]).
-  - Inactive `#if` branches are left out only through coverage ([#114]).
+  - Inactive `#if` branches (done, [#114]). Discovery evaluates each `#if` with `SwiftIfConfig` against the build the run tests, read from `swift package dump-package` and `describe`, or from `xcodebuild -showBuildSettings`, which follows `-destination`, so an iOS Simulator run mutates `#if os(iOS)` and drops `#if os(macOS)`. It reaches whole declarations and runs with `--skip-coverage`, which coverage can't. An `#if` it can't decide keeps its mutants, and coverage stays as a second filter. A Swift package's scheme under xcodebuild has no build settings, so its `#if`s are still left to coverage.
   - Declaration-scoped and next-line suppression, test-helper excludes, folders in `--files-to-mutate` and an `--exclude` flag ([#115]).
   - xcodebuild mutant runs keep only `-destination` of the user's arguments ([#123]).
 - **Verdicts and runs.**

@@ -194,6 +194,16 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         printMessage("🔎 Discovering Swift files which SwiftMutator will analyze...")
     }
 
+    /// Why SwiftMutator can't tell which `#if` branches the build compiles, and what discovery does instead.
+    func buildConditionsUnavailable(reason: String) {
+        print(
+            """
+            ℹ️ SwiftMutator couldn't tell which `#if` branches the build compiles: \(reason).
+            Every branch keeps its mutants, unless coverage shows that the build left it out.
+            """
+        )
+    }
+
     /// Why the Swift files a SwiftPM package's targets compile couldn't be listed, and what discovery does instead.
     func packageSourceFilesUnavailable(reason: String) {
         // SwiftPM's errors often end in one.
@@ -284,10 +294,17 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
 
     /// How many mutants discovery found and can't test, and with `verbose`, each one.
     func mutantsDropped(_ dropped: [DroppedMutant], verbose: Bool = false) {
+        let inactive = dropped.filter { $0.reason == .inInactiveIfConfig }
+        let noPlace = dropped.filter { $0.reason != .inInactiveIfConfig }
+        mutantsDropped(noPlace, why: "with nowhere to put a switch", verbose: verbose)
+        mutantsDropped(inactive, why: "in `#if` branches this build doesn't compile", verbose: verbose)
+    }
+
+    private func mutantsDropped(_ dropped: [DroppedMutant], why: String, verbose: Bool) {
         guard !dropped.isEmpty else { return }
         let count = dropped.count == 1 ? "1 mutant" : "\(dropped.count) mutants"
         print(
-            "ℹ️ SwiftMutator left out \(count) with nowhere to put a switch, so no report covers "
+            "ℹ️ SwiftMutator left out \(count) \(why), so no report covers "
                 + (dropped.count == 1 ? "it" : "them")
                 + (verbose ? ":" : ". --verbose lists them.")
         )

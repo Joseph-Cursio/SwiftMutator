@@ -88,6 +88,59 @@ final class MutationTestObserverTests: MuterTestCase {
         )
     }
 
+    func test_whyTheBuildConditionsCouldntBeHad_reachesTheLogger() throws {
+        try sut.start()
+
+        runEvents.send(.buildConditionsUnavailable(reason: "xcodebuild reported no build settings"))
+
+        XCTAssertEqual(printer.linesPassed, [
+            """
+            ℹ️ SwiftMutator couldn't tell which `#if` branches the build compiles: xcodebuild reported no build settings.
+            Every branch keeps its mutants, unless coverage shows that the build left it out.
+            """,
+        ])
+    }
+
+    func test_mutantsInInactiveIfs_areCountedApartFromThoseWithNoPlaceForASwitch() throws {
+        try sut.start()
+
+        runEvents.send(.mutantsDropped([
+            droppedMutant(line: 1, reason: .noPlaceForASwitch),
+            droppedMutant(line: 2, reason: .inInactiveIfConfig),
+            droppedMutant(line: 3, reason: .inInactiveIfConfig),
+        ]))
+
+        XCTAssertEqual(printer.linesPassed, [
+            "ℹ️ SwiftMutator left out 1 mutant with nowhere to put a switch, so no report covers it. "
+                + "--verbose lists them.",
+            "ℹ️ SwiftMutator left out 2 mutants in `#if` branches this build doesn't compile, so no report covers them. "
+                + "--verbose lists them.",
+        ])
+    }
+
+    func test_mutantsInInactiveIfs_withVerbose_areListed() throws {
+        options = .make(verbose: true)
+        try sut.start()
+
+        runEvents.send(.mutantsDropped([droppedMutant(line: 2, reason: .inInactiveIfConfig)]))
+
+        XCTAssertEqual(printer.linesPassed, [
+            "ℹ️ SwiftMutator left out 1 mutant in `#if` branches this build doesn't compile, so no report covers it:",
+            "Sources/App.swift:2:3 RelationalOperatorReplacement: in an `#if` branch this build doesn't compile",
+        ])
+    }
+
+    private func droppedMutant(line: Int, reason: DroppedMutant.Reason) -> DroppedMutant {
+        DroppedMutant(
+            path: "Sources/App.swift",
+            mutationOperatorId: .ror,
+            position: MutationPosition(utf8Offset: 0, line: line, column: 3),
+            snapshot: .null,
+            lines: line...line,
+            reason: reason
+        )
+    }
+
     func test_whyCoverageFailed_reachesTheLogger() throws {
         try sut.start()
 
