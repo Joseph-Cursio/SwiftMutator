@@ -24,9 +24,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Not xcode-27: on 2026-11-07 every iOS build and test there took about twice as long, with the same 3
+        # processors, and the job 51 and 54 minutes against 24 and 30 here.
         include:
-          - runner: xcode-27
-            xcode: '27.0'
+          - runner: macos-26
+            xcode: '26.6'
     env:
       DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
     steps:
