@@ -54,6 +54,14 @@ extension SyntaxProtocol {
                 list = enclosing
                 continue
             }
+            // A closure holding an `if` no longer has one expression, so its result is no longer worked out together
+            // with the code around it. In `let base = parent.map { path(of: $0, depth: depth + 1) } ?? root`, that
+            // settles `??` on a `String` before reading the closure, whose `String?` then doesn't fit. Around the
+            // whole statement, the closure stays as it was.
+            if let enclosing = list.enclosingListOutsideACoalescedClosure {
+                list = enclosing
+                continue
+            }
             return list
         }
     }
@@ -72,11 +80,13 @@ extension SyntaxProtocol {
         guard list.isFileScope, list.containsDeclaration else {
             return .statements(list)
         }
-        // A macro expands its arguments from their syntax, so the switch has to go around the outermost one.
+        // A macro expands its arguments from their syntax, so the switch has to go around the outermost one, and
+        // around a closure that `codeBlockItemListSyntax` moved it out of.
         var outermost = Syntax(self)
         var ancestor: Syntax? = outermost
         while let current = ancestor {
-            if current.is(MacroExpansionExprSyntax.self) || current.is(MacroExpansionDeclSyntax.self) {
+            if current.is(MacroExpansionExprSyntax.self) || current.is(MacroExpansionDeclSyntax.self)
+                || current.as(ClosureExprSyntax.self)?.statements.enclosingListOutsideACoalescedClosure != nil {
                 outermost = current
             }
             ancestor = current.parent
@@ -244,6 +254,23 @@ private extension CodeBlockItemListSyntax {
         return outermostMacro?.parent?.ancestorOrSelf(mapping: { $0.as(CodeBlockItemListSyntax.self) })
     }
 
+    /// The statement list around the code when this list is the one statement of a closure on the left of a `??`, or
+    /// of a closure that is itself that statement.
+    var enclosingListOutsideACoalescedClosure: CodeBlockItemListSyntax? {
+        guard count == 1, let closure = parent?.as(ClosureExprSyntax.self) else { return nil }
+        var node = Syntax(closure)
+        while let current = node.parent {
+            if let outer = current.as(CodeBlockItemListSyntax.self) {
+                return outer.enclosingListOutsideACoalescedClosure
+            }
+            if let elements = current.as(ExprListSyntax.self) {
+                return elements.isCoalescing(node) ? current.ancestorOrSelf(mapping: { $0.as(Self.self) }) : nil
+            }
+            node = current
+        }
+        return nil
+    }
+
     var containsDeclaration: Bool {
         contains { Syntax($0.item).asProtocol(DeclSyntaxProtocol.self) != nil }
     }
@@ -262,6 +289,15 @@ private extension CodeBlockItemListSyntax {
             ancestor = current.parent
         }
         return nil
+    }
+}
+
+private extension ExprListSyntax {
+    /// Whether `element` is followed by a `??`.
+    func isCoalescing(_ element: Syntax) -> Bool {
+        guard let index = firstIndex(where: { Syntax($0).id == element.id }) else { return false }
+        let next = self.index(after: index)
+        return next < endIndex && self[next].as(BinaryOperatorExprSyntax.self)?.operator.text == "??"
     }
 }
 
