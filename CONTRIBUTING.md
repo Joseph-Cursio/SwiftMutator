@@ -153,13 +153,16 @@ the maintainer can bypass it. It names the jobs, so a change of runner or Xcode,
 job, needs the ruleset changed too.
 
 [.github/workflows/regression-tests.yml](.github/workflows/regression-tests.yml) runs
-`make regression-test` on `main` once a day and by hand, on `xcode-27`, in about 15 minutes. It
-never runs on a pull request, so it blocks nothing. If it fails, the reports on `main` no longer
-match the snapshots: the run's summary lists the failed tests, and the reports, mismatched snapshots
-and logs are attached to the run.
+`make regression-test` on `main` once a day and by hand, on `xcode-27`, in about 15 minutes.
+[.github/workflows/acceptance-tests.yml](.github/workflows/acceptance-tests.yml) runs
+`make acceptance-test` the same way, on `macos-26` with Xcode 26.6, in about 30 minutes; on
+`xcode-27` it took twice as long. Neither runs on a pull request, so neither blocks anything. If one
+fails, the run's summary lists the failed tests, or the run of SwiftMutator that exited with the
+wrong status, and the reports or samples, mismatched snapshots and logs are attached to the run. A
+failed regression run means the reports on `main` no longer match the snapshots.
 
-CI doesn't run the acceptance tests, and runs the regression tests only as above, so run them
-locally before a pull request that calls for them. If a unit-test job fails,
+So run the acceptance and regression tests locally before a pull request that calls for them. If a
+unit-test job fails,
 the run's summary lists the errors and failing tests, and the full logs and any mismatched
 snapshots are attached to the run. SwiftLint's violations show as annotations on the pull
 request's files.
