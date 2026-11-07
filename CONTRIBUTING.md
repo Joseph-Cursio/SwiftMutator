@@ -91,12 +91,14 @@ copies `Repositories/` into `AcceptanceTests/` and runs the debug `swift-mutator
 sample `ExampleApp` several ways, saving the output in `AcceptanceTests/samples`. The regression
 script runs it on BonMot, FFCParserCombinator and ProjectWithConcurrency in `Repositories/`. Then
 each runs its test target, which checks the saved output. The regression script stops first at a
-run that fails or writes no report, with that run's status or 1.
+run that fails or writes no report, with that run's status or 1. The acceptance script stops, with
+1, at a run that exits with any status but the one it expects: 0 for most, 255 for the project
+with nothing to mutate, and 3 for the one whose baseline fails.
 
 Run the acceptance tests when you change how a user runs SwiftMutator or what it prints. Run the
 regression tests when you change the reports, which adding or changing an operator does. Run both
-before a pull request that touches either. CI runs neither on a pull request, and runs the
-regression tests on `main` once a day.
+before a pull request that touches either. CI runs neither on a pull request, and runs both on
+`main` once a day.
 
 To re-record the regression snapshots, run `make regression-test`, read how each report in
 `RegressionTests/samples` differs from its snapshot, delete the snapshots in
@@ -151,13 +153,16 @@ the maintainer can bypass it. It names the jobs, so a change of runner or Xcode,
 job, needs the ruleset changed too.
 
 [.github/workflows/regression-tests.yml](.github/workflows/regression-tests.yml) runs
-`make regression-test` on `main` once a day and by hand, on `xcode-27`, in about 15 minutes. It
-never runs on a pull request, so it blocks nothing. If it fails, the reports on `main` no longer
-match the snapshots: the run's summary lists the failed tests, and the reports, mismatched snapshots
-and logs are attached to the run.
+`make regression-test` on `main` once a day and by hand, on `xcode-27`, in about 15 minutes.
+[.github/workflows/acceptance-tests.yml](.github/workflows/acceptance-tests.yml) runs
+`make acceptance-test` the same way, on `macos-26` with Xcode 26.6, in about 30 minutes; on
+`xcode-27` it took twice as long. Neither runs on a pull request, so neither blocks anything. If one
+fails, the run's summary lists the failed tests, or the run of SwiftMutator that exited with the
+wrong status, and the reports or samples, mismatched snapshots and logs are attached to the run. A
+failed regression run means the reports on `main` no longer match the snapshots.
 
-CI doesn't run the acceptance tests, and runs the regression tests only as above, so run them
-locally before a pull request that calls for them. If a unit-test job fails,
+So run the acceptance and regression tests locally before a pull request that calls for them. If a
+unit-test job fails,
 the run's summary lists the errors and failing tests, and the full logs and any mismatched
 snapshots are attached to the run. SwiftLint's violations show as annotations on the pull
 request's files.

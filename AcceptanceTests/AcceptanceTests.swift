@@ -120,6 +120,23 @@ final class AcceptanceTests: XCTestCase {
         XCTAssertFalse(output.contains(messages.appliedMutationOperatorsHeader))
     }
 
+    // ProjectWithFailures has a test that always fails, so the run stops at its baseline. Its own failure has to be in
+    // the log: a project that doesn't build stops the run too, as this one did, unnoticed, once Xcode dropped its
+    // deployment target.
+    func test_failingBaseline() throws {
+        let output = try muterAbortedTestingOutput
+
+        XCTAssertTrue(
+            output.contains(
+                "SwiftMutator noticed that your test suite initially failed to compile or produced a test failure."
+            )
+        )
+        XCTAssertTrue(output.contains("testAlwaysFails] : failed - it's important that this fails"), output)
+        XCTAssertFalse(output.contains(messages.mutationScoresHeader))
+        XCTAssertFalse(output.contains(messages.mutationScoreOfTestSuite))
+        XCTAssertFalse(output.contains(messages.appliedMutationOperatorsHeader))
+    }
+
     func test_initCommandOniOSProject() throws {
         let decodedConfiguration = try MuterConfiguration(from: createdIOSConfiguration)
         XCTAssertEqual(decodedConfiguration.testCommandExecutable, "/usr/bin/xcodebuild")
