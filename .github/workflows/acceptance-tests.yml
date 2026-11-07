@@ -1,0 +1,99 @@
+# Runs `make acceptance-test`: SwiftMutator on the sample projects in Repositories/, its iOS app on a simulator, then
+# the checks of what each run printed and wrote. Too slow to hold up a pull request, so this runs on main once a day and
+# by hand, and blocks nothing. A failure means main's output no longer passes the checks in AcceptanceTests/, or a run
+# exited with a status it shouldn't: the run's summary says which.
+name: Acceptance tests
+
+on:
+  schedule:
+    - cron: '47 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash # bash --noprofile --norc -eo pipefail, so `| tee` keeps the exit status
+
+jobs:
+  acceptance-tests:
+    name: Acceptance tests (${{ matrix.runner }}, Xcode ${{ matrix.xcode }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: xcode-27
+            xcode: '27.0'
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Show toolchain and simulators
+        run: |
+          if [ ! -d "$DEVELOPER_DIR" ]; then
+            echo "::error::$DEVELOPER_DIR is not on this runner image. Installed Xcodes:"
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          sw_vers
+          xcodebuild -version
+          swift --version
+          echo "Processors: $(sysctl -n hw.ncpu), $(uname -m)"
+          xcrun simctl list runtimes
+          echo "Toolchain: $(xcodebuild -version | paste -sd ' ' -); $(swift --version 2>&1 | head -n 1)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run the acceptance tests
+        env:
+          SNAPSHOT_TESTING_RECORD: never
+          SNAPSHOT_ARTIFACTS: ${{ runner.temp }}/snapshot-failures
+        run: make acceptance-test 2>&1 | tee "$RUNNER_TEMP/acceptance.log"
+
+      - name: Check that the acceptance tests ran
+        run: |
+          # The tests skip without samples, and swift test exits 0, with only a warning, when --filter matches nothing.
+          passed=$(grep -cE "Test Case '-\[muterAcceptanceTests\.AcceptanceTests test_[A-Za-z_]+\]' passed" "$RUNNER_TEMP/acceptance.log" || true)
+          expected=$(grep -cE '^    func test_' AcceptanceTests/AcceptanceTests.swift)
+          grep -h 'name=iPhone' AcceptanceTests/samples/created_iOS_config.yml >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+          echo "Acceptance tests passed: ${passed:-0} of $expected" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${passed:-0}" -lt "$expected" ]; then
+            echo "::error::Expected $expected acceptance tests to pass, and $passed did."
+            exit 1
+          fi
+
+      - name: Summarize failures
+        if: failure()
+        run: |
+          {
+            echo '### Errors and failed tests'
+            echo '```text'
+            grep -h -E 'error:|Test Case .* failed|with [1-9][0-9]* failures?|SwiftMutator exited with' \
+              "$RUNNER_TEMP/acceptance.log" 2>/dev/null \
+              | sed "s|$GITHUB_WORKSPACE/||g" | head -n 200 || true
+            echo '```'
+            echo "The samples, the mismatched snapshots and the log are attached to this run as an artifact."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Pack the samples
+        if: failure()
+        # In a tar file, as the samples hold log folders with the time in their names, and an artifact's paths can't
+        # hold a colon.
+        run: tar -czf "$RUNNER_TEMP/acceptance-samples.tar.gz" AcceptanceTests/samples 2>/dev/null || true
+
+      - name: Upload the samples, mismatched snapshots and log
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: acceptance-failure-${{ matrix.runner }}-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/acceptance.log
+            ${{ runner.temp }}/snapshot-failures/
+            ${{ runner.temp }}/acceptance-samples.tar.gz
+          if-no-files-found: ignore
+          retention-days: 14
