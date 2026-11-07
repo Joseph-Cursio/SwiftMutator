@@ -18,6 +18,7 @@ struct DiscoverMutationPoints: MutationStep {
             configuration: state.muterConfiguration,
             coverage: state.projectCoverage,
             projectRoot: state.mutatedProjectDirectoryURL,
+            buildConditions: state.buildConditions,
             namedMutant: NamedMutant(state)
         )
         let all = found.flatMap(\.mappings)
@@ -125,6 +126,7 @@ private extension DiscoverMutationPoints {
         configuration: MuterConfiguration,
         coverage: Coverage,
         projectRoot: URL,
+        buildConditions: ProjectBuildConditions? = nil,
         namedMutant: NamedMutant? = nil
     ) async -> [DiscoveredFile] {
         var swiftFiles = filePaths.filter(pathContainsDotSwift).makeIterator()
@@ -146,6 +148,7 @@ private extension DiscoverMutationPoints {
                             configuration: configuration,
                             coverage: coverage.coverage(ofFile: path),
                             projectRoot: projectRoot,
+                            buildConditions: buildConditions,
                             namedMutant: namedMutant
                         )
                     }
@@ -170,10 +173,14 @@ private extension DiscoverMutationPoints {
         configuration: MuterConfiguration,
         coverage: FileCoverage,
         projectRoot: URL,
+        buildConditions: ProjectBuildConditions? = nil,
         namedMutant: NamedMutant? = nil
     ) -> DiscoveredFile {
         let source = sourceCode.source.code
-        var noPlaceForASwitch: [DroppedMutant] = []
+        let path = RepoRelativePath.of(sourceCode.source.path, under: projectRoot)
+        var droppedByVisitors: [DroppedMutant] = []
+        // Worked out once, for all the operators: the walk evaluates each `#if` in the file.
+        let inactiveRegions = buildConditions?.conditions(ofFile: path).inactiveRegions(in: source) ?? []
 
         let mappings: [SchemataMutationMapping] = operators
             .accumulate(into: []) { newSchemataMappings, mutationOperatorId in
@@ -185,11 +192,12 @@ private extension DiscoverMutationPoints {
 
                 visitor.sourceCodePreparationChange = sourceCode.changes
                 visitor.projectRoot = projectRoot
+                visitor.inactiveRegions = inactiveRegions
                 (visitor as? NegateConditionalOperator.Visitor)?.leavesEqualityChecksAlone =
                     operators.contains(.ror) && namedMutant == nil
 
                 visitor.walk(source)
-                noPlaceForASwitch += visitor.droppedMutants
+                droppedByVisitors += visitor.droppedMutants
 
                 let schemataMapping = visitor.schemataMappings
 
@@ -200,13 +208,11 @@ private extension DiscoverMutationPoints {
                 }
             }
 
-        let path = RepoRelativePath.of(sourceCode.source.path, under: projectRoot)
-
         // Pruning has to see every operator's mutants for the file at once: an outer mutant from
         // one operator conflicts with a nested one from another.
         func pruned(_ mappings: [SchemataMutationMapping]) -> DiscoveredFile {
             var merged = mappings.mergeByFilePath()
-            var dropped = noPlaceForASwitch
+            var dropped = droppedByVisitors
             for index in merged.indices {
                 dropped += merged[index].dropNestedSchemataInOpaqueBodies(of: source)
                     .map { DroppedMutant($0, path: path, reason: .nestedInAnOpaqueBody) }

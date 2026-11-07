@@ -149,8 +149,8 @@ struct ResultsHeader: Codable, Equatable {
     var failedTestLookalikes: [FailedTestLine.TestIdentity]?
     let mutantsDiscovered: Int
     let mutantsToTest: Int
-    /// How many mutants discovery found and can't test, as their switches have nowhere to go; absent when none. Of all
-    /// the code discovery looked at, with `--sample` and `--shard` too.
+    /// How many mutants discovery found and can't test, as their switches have nowhere to go, or an `#if` leaves their
+    /// code out of the build; absent when none. Of all the code discovery looked at, with `--sample` and `--shard` too.
     var mutantsDropped: Int?
     /// The project's files, as the mutated copy held them before discovery rewrote it. In a session that tested a
     /// test plan, which copies nothing, the plan's copy as it was tested: rewritten, and with any fix made by hand,

@@ -51,6 +51,21 @@ enum SwiftPackageSources {
     /// which can add or take out targets in `#if` blocks.
     private static let forwardedOptionsWithValues = ["-Xmanifest", "-Xbuild-tools-swiftc"]
 
+    /// A package in the project, as `swift package describe` gives it.
+    struct Package: Equatable {
+        /// The path `swift package` was given for it: `root`, or a folder in it.
+        let path: FilePath
+        let targets: [Target]
+
+        /// A target of a type under test.
+        struct Target: Equatable {
+            /// nil only if describe didn't name it; a target's name is what ties it to its manifest's settings.
+            let name: String?
+            /// The Swift files it compiles, relative to the project at `root`.
+            let files: [FilePath]
+        }
+    }
+
     /// The Swift files, relative to the project at `root`, that the tested package compiles, and those of the local
     /// packages in the project that it depends on, at any depth: every target's but those of `typesNotUnderTest`. The
     /// tested package is the one that the test command in `configuration` names with `--package-path`, relative to
@@ -63,6 +78,18 @@ enum SwiftPackageSources {
         testedBy configuration: MuterConfiguration,
         process: ProcessFactory
     ) async -> Result<[FilePath], Failure> {
+        await packages(inProjectAt: root, testedBy: configuration, process: process).map { packages in
+            Set(packages.flatMap(\.targets).flatMap(\.files)).sorted()
+        }
+    }
+
+    /// The tested package and the local packages in the project that it depends on, at any depth, as `files` describes
+    /// them.
+    static func packages(
+        inProjectAt root: FilePath,
+        testedBy configuration: MuterConfiguration,
+        process: ProcessFactory
+    ) async -> Result<[Package], Failure> {
         let swift = configuration.testCommandExecutable
         guard (swift as NSString).lastPathComponent == "swift" else {
             return .failure(.notSwift(swift))
@@ -80,7 +107,7 @@ enum SwiftPackageSources {
         }
         let options = forwardedOptions(in: configuration.testCommandArguments)
 
-        var files: Set<FilePath> = []
+        var packages: [Package] = []
         var described: Set<FilePath> = []
         var toDescribe: [FilePath] = [testedPackage]
         while let package = toDescribe.popLast() {
@@ -96,21 +123,26 @@ enum SwiftPackageSources {
                 return .failure(failure)
             }
 
-            for target in description.targets where !typesNotUnderTest.contains(target.type) {
-                for source in target.sources ?? [] where source.hasSuffix(".swift") {
-                    let sourcePath = joined(package, target.path ?? "", source)
-                    if let inProject = projectPath(ofSource: sourcePath, in: root, canonicalRoot: canonicalRoot) {
-                        files.insert(inProject)
+            let targets = description.targets
+                .filter { !typesNotUnderTest.contains($0.type) }
+                .map { target in
+                    let files = (target.sources ?? []).filter { $0.hasSuffix(".swift") }.compactMap { source in
+                        projectPath(
+                            ofSource: joined(package, target.path ?? "", source),
+                            in: root,
+                            canonicalRoot: canonicalRoot
+                        )
                     }
+                    return Package.Target(name: target.name, files: files)
                 }
-            }
+            packages.append(Package(path: path, targets: targets))
             // The package at `root`, too, when the tested one is in a folder of the project and depends on it.
             toDescribe += description.dependencies
                 .compactMap(\.path)
                 .compactMap { projectPath(of: $0, in: root, canonicalRoot: canonicalRoot) }
         }
 
-        return .success(files.sorted())
+        return .success(packages)
     }
 
     /// The fields of `swift package describe --type json` that say which files a package compiles.
@@ -126,6 +158,8 @@ enum SwiftPackageSources {
         }
 
         struct Target: Decodable {
+            /// Always there in what SwiftPM prints.
+            let name: String?
             let type: String
             /// Relative to the package. A binary target has no sources.
             let path: String?
@@ -178,7 +212,7 @@ enum SwiftPackageSources {
 
     /// The options among `arguments` that describe is given too, in their order, each option with a value as given:
     /// `-Xmanifest <flag>` or `-Xmanifest=<flag>`.
-    private static func forwardedOptions(in arguments: [String]) -> [String] {
+    static func forwardedOptions(in arguments: [String]) -> [String] {
         var options: [String] = []
         for (index, argument) in arguments.enumerated() {
             let isOptionWithItsValue = forwardedOptionsWithValues.contains { argument.hasPrefix($0 + "=") }
