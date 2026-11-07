@@ -67,6 +67,14 @@ final class TestRunEnding: @unchecked Sendable { // all state is behind `lock`
         return record(.timedOut)
     }
 
+    /// Whether SwiftMutator ended the run by killing its process, rather than the process ending by itself.
+    var wasKilled: Bool {
+        switch reason {
+        case .timedOut, .cancelled, .failedTest, .crashed: return true
+        case .exited, nil: return false
+        }
+    }
+
     /// Why the run ended, or nil if nothing has ended it yet.
     var reason: Reason? { lock.withLock { recorded } }
 

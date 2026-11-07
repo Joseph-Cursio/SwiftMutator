@@ -855,6 +855,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
         wait(for: [runEnded], timeout: 10)
 
         XCTAssertEqual(testProcess.terminateTreeCallCount, 1, file: file, line: line)
+        XCTAssertEqual(testProcess.killProcessGroupCallCount, 1, file: file, line: line)
         XCTAssertLessThan(Date().timeIntervalSince(cancelled), 3, file: file, line: line)
     }
 
@@ -917,6 +918,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
         let result = try await runMutantsTests(on: testProcess, using: configuration)
 
         XCTAssertEqual(result.outcome, .timeout, file: file, line: line)
+        XCTAssertEqual(testProcess.killProcessGroupCallCount, 1, file: file, line: line)
         // Well under the process's own deadline, so the time limit, not that deadline, ended the run.
         XCTAssertLessThan(Date().timeIntervalSince(started), 3, file: file, line: line)
         // A second kill would come from a GCD thread, so it could land after the run returned.
@@ -967,6 +969,9 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
         XCTAssertEqual(result.outcome, .failed)
         XCTAssertEqual(testProcess.terminateTreeCallCount, 1)
+        // Only once it has ended, so that a shell has started the last process it will.
+        XCTAssertEqual(testProcess.killProcessGroupCallCount, 1)
+        XCTAssertEqual(testProcess.hadEndedAtTheGroupKill, true)
         // Well under the process's own deadline, so the failed test, not that deadline, ended the run.
         XCTAssertLessThan(Date().timeIntervalSince(started), 3)
     }
@@ -1116,6 +1121,8 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
         XCTAssertEqual(result.outcome, .failed)
         XCTAssertEqual(testProcess.terminateTreeCallCount, 0)
+        // What a process that ended by itself left running, as a server a test left up, is its own business.
+        XCTAssertEqual(testProcess.killProcessGroupCallCount, 0)
         XCTAssertFalse(result.testLog.contains("[SwiftMutator]"), result.testLog)
     }
 

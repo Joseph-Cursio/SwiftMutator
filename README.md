@@ -1826,7 +1826,8 @@ after it, has nothing to keep: the results file starts only after them all.
   `results.jsonl` with an `end` line whose `detail` names the first signal, unless it had already
   written one, and exits by the first signal. But the partial report is there only if it had
   already written it, and worker clones, their active-mutant files, derived data and worker
-  simulators can be left behind. A SIGHUP after a first SIGHUP is ignored, because zsh sends two
+  simulators can be left behind, as can a test process whose parent had already ended, which runs
+  until its tests end. A SIGHUP after a first SIGHUP is ignored, because zsh sends two
   when its terminal closes: closing a terminal stops a run the same way as one Ctrl-C.
 - **Suspending.** Ctrl-Z suspends SwiftMutator with every process it started, which the terminal's
   Ctrl-Z doesn't reach: each leads a process group of its own. `fg` or `bg` continues them all. No
