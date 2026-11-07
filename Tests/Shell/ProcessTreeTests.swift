@@ -89,6 +89,19 @@ final class ProcessTreeTests: XCTestCase {
         XCTAssertEqual(everyProcess.filter { !isGone($0) }, [], "still running")
     }
 
+    // A worker moves on to its next mutant once the kill returns, so it must return only once they have ended.
+    func test_terminateTree_returnsOnceEveryDescendantHasEnded() throws {
+        let tree = try launchTree()
+        let descendants = tree.descendants
+        XCTAssertFalse(descendants.isEmpty)
+
+        tree.root.terminateTree()
+
+        XCTAssertEqual(descendants.filter { MutatedProjectLock.startTime(of: $0) != nil }, [], "still running")
+        // A zombie has ended but is still there. Once gone, tearDown won't signal whatever process gets its ID.
+        _ = waitUntil(within: 2) { descendants.allSatisfy(self.isGone) }
+    }
+
     // What a stopping SwiftMutator does to its own descendants, with a tree this test started as the root:
     // the test runner's own descendants include other tests' processes.
     func test_terminateDescendants_killsEveryDescendant_butNotTheRoot() throws {
