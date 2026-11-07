@@ -5,8 +5,8 @@ libdir = $(prefix)/lib
 repodir = $(shell pwd)
 builddir = $(repodir)/.build
 
+# An incremental build: `make clean` removes .build when a clean one is needed.
 build:
-	@swift package clean
 	@swift build -c debug $(flags)
 
 build-release: 
