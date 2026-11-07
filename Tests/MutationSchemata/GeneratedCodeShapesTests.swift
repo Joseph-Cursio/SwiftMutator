@@ -636,6 +636,99 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         _ = try compileMutated(["Sum.swift": sum])
     }
 
+    /// An `if` in a closure on the left of a `??` settles the `??` before the closure is read, so a closure that gives
+    /// an optional doesn't compile, with nothing around to name the type: "value of optional type 'String?' must be
+    /// unwrapped to a value of type 'String'". Whatever the operator. So the switch goes around the statement, or the
+    /// value at a file's or a type's top level, and the closure stays as it was. Seen on SwiftProjectLint.
+    func test_theGeneratedCodeBuildsInAClosureOnTheLeftOfACoalescing() throws {
+        let paths = """
+        func look(_ key: Int) -> String? { key == 2 ? "found" : nil }
+        func look(if isFound: Bool) -> String? { isFound ? "found" : nil }
+
+        let global = Optional(1).map { look($0 + 1) } ?? "none"
+
+        struct Holder {
+            let stored = Optional(1).map { look($0 + 1) } ?? "none"
+        }
+
+        func defaulted(_ value: String? = Optional(1).map { look($0 + 1) } ?? "none") -> String? { value }
+
+        func arithmetic(_ key: Int?) -> String? {
+            let found = key.map { look($0 + 1) } ?? "none"
+            guard let found else { return nil }
+            return found
+        }
+
+        func comparison(_ key: Int?) -> String? {
+            let base = key.map { look(if: $0 > 0) } ?? "none"
+            return base
+        }
+
+        func logical(_ key: Int?, _ other: Bool) -> String? {
+            let base = key.map { look(if: other && $0 != 9) } ?? "none"
+            return base
+        }
+
+        func returned(_ key: Int?) -> String? {
+            let base = key.map { return look($0 * 2) } ?? "none"
+            return base
+        }
+
+        func chained(_ key: Int?) -> String? {
+            let base = key.map { look($0 - -1) }.map { $0 } ?? "none"
+            return base
+        }
+
+        func parenthesized(_ key: Int?) -> String? {
+            let base = (key.map { look($0 + 1) }) ?? "none"
+            return base
+        }
+
+        func nested(_ key: Int?) -> String?? {
+            let base = key.map { Optional($0).map { look($0 + 1) } } ?? "none"
+            return base
+        }
+
+        func local(_ key: Int?) -> String? {
+            struct Inner {
+                let stored = Optional(1).map { look($0 + 1) } ?? "none"
+            }
+            func given(_ value: String? = Optional(1).map { look($0 + 1) } ?? "none") -> String? { value }
+            return Inner().stored ?? given()
+        }
+        """
+        let main = driver(#"""
+        let results: [String?] = [
+            global, Holder().stored, defaulted(), arithmetic(1), comparison(1), logical(1, true), returned(1),
+            chained(1), parenthesized(1), nested(1) ?? "gone", local(1),
+        ]
+        print(results.map { $0 ?? "nil" }.joined(separator: ","))
+        """#)
+        let compiled = try compileMutated(["Paths.swift": paths], plain: ["main.swift": main])
+
+        let mutants = { compiled.operators(in: "Paths.swift", onTheLineHolding: $0) }
+        XCTAssertEqual(mutants("let found ="), [.arithmeticOperator], "an arithmetic operator")
+        XCTAssertEqual(mutants("look(if: $0 > 0)"), [.ror, .relationalBoundary], "a comparison")
+        XCTAssertEqual(mutants("look(if: other"), [.ror, .logicalOperator], "a logical operator")
+        XCTAssertEqual(mutants("return look($0 * 2)"), [.arithmeticOperator], "a closure's return")
+        XCTAssertEqual(mutants("look($0 - -1)"), [.arithmeticOperator], "a chain")
+        XCTAssertEqual(mutants("(key.map"), [.arithmeticOperator], "parentheses")
+        XCTAssertEqual(mutants("Optional($0).map"), [.arithmeticOperator], "a closure in that closure")
+        XCTAssertEqual(mutants("let global"), [.arithmeticOperator], "a global's value")
+        XCTAssertEqual(mutants("func defaulted"), [.arithmeticOperator], "a default argument")
+        XCTAssertEqual(mutants("func given"), [.arithmeticOperator], "a local function's default argument")
+
+        let everything = Array(repeating: "found", count: 11).joined(separator: ",")
+        XCTAssertEqual(try run(compiled.program).output, everything + "\n", "no mutant named")
+
+        let arithmetic = try XCTUnwrap(compiled.mutants(in: "Paths.swift", onTheLineHolding: "let found =").first)
+        XCTAssertEqual(
+            try run(compiled.program, switchingOn: arithmetic.id).output.components(separatedBy: ",")[3],
+            "nil",
+            "the arithmetic mutant's change"
+        )
+    }
+
     /// RemoveSideEffects removing the call to a function that never returns, the last statement of a `guard` body or
     /// of a function that returns a value, leaves code that falls through: "'guard' body must not fall through" and
     /// "missing return in global function expected to return 'Int'". Only a full build finds the first; a type check
