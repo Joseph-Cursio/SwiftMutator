@@ -14,8 +14,15 @@ final class FileManagerCanaryTests: XCTestCase {
             #if os(Linux)
             XCTAssertTrue(temporaryDirectory.absoluteString.contains("/tmp/TemporaryItems/"))
             #else
+            // Under SwiftMutator, as in `make mutation-test`, a worker's runs get their own temporary folder in `T`,
+            // named by `DIRHELPER_USER_DIR_SUFFIX` (WorkerTemporaryFolder).
+            let suffix = ProcessInfo.processInfo.environment["DIRHELPER_USER_DIR_SUFFIX"] ?? ""
+            let workerFolder = suffix.isEmpty ? "" : suffix + "/"
             XCTAssertTrue(temporaryDirectory.absoluteString.contains("/var/folders"))
-            XCTAssertTrue(temporaryDirectory.absoluteString.contains("/T/TemporaryItems/"))
+            XCTAssertTrue(
+                temporaryDirectory.absoluteString.contains("/T/\(workerFolder)TemporaryItems/"),
+                temporaryDirectory.absoluteString
+            )
             #endif
         } catch {
             XCTFail("Expected no errors, but got \(error)")
