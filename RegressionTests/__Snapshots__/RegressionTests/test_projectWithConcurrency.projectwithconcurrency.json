@@ -101,5 +101,8 @@
     "timedOut" : 0
   },
   "numberOfKilledMutants" : 0,
+  "operatorExplanations" : {
+    "RemoveSideEffects" : "Removes a call whose result isn't used, to check that a test notices its side effect is gone."
+  },
   "totalAppliedMutationOperators" : 4
 }

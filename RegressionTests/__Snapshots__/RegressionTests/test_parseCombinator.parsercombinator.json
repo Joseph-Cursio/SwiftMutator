@@ -3,6 +3,28 @@
     {
       "appliedOperators" : [
         {
+          "key" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift:88:19 NegateConditional",
+          "mutationPoint" : {
+            "mutationOperatorId" : "NegateConditional",
+            "position" : {
+              "column" : 19,
+              "line" : 88
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "!(max == nil || result.count < max!)",
+            "before" : "max == nil || result.count < max!",
+            "description" : "negated the condition"
+          },
+          "path" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift",
+          "sourceChange" : {
+            "after" : "            while !(max == nil || result.count < max!), let (element, newRemainder) = self.parse(remainder) {",
+            "before" : "            while max == nil || result.count < max!, let (element, newRemainder) = self.parse(remainder) {",
+            "line" : 88
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
           "key" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift:88:23 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
@@ -45,6 +67,28 @@
             "line" : 88
           },
           "testSuiteOutcome" : "runtimeError"
+        },
+        {
+          "key" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift:88:46 RelationalBoundary",
+          "mutationPoint" : {
+            "mutationOperatorId" : "RelationalBoundary",
+            "position" : {
+              "column" : 46,
+              "line" : 88
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "<=",
+            "before" : "<",
+            "description" : "changed < to <="
+          },
+          "path" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift",
+          "sourceChange" : {
+            "after" : "            while max == nil || result.count <= max!, let (element, newRemainder) = self.parse(remainder) {",
+            "before" : "            while max == nil || result.count < max!, let (element, newRemainder) = self.parse(remainder) {",
+            "line" : 88
+          },
+          "testSuiteOutcome" : "failed"
         },
         {
           "key" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift:88:46 RelationalOperatorReplacement",
@@ -90,6 +134,50 @@
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift:92:16 NegateConditional",
+          "mutationPoint" : {
+            "mutationOperatorId" : "NegateConditional",
+            "position" : {
+              "column" : 16,
+              "line" : 92
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "!(result.count < min)",
+            "before" : "result.count < min",
+            "description" : "negated the condition"
+          },
+          "path" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift",
+          "sourceChange" : {
+            "after" : "            if !(result.count < min) {",
+            "before" : "            if result.count < min {",
+            "line" : 92
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift:92:29 RelationalBoundary",
+          "mutationPoint" : {
+            "mutationOperatorId" : "RelationalBoundary",
+            "position" : {
+              "column" : 29,
+              "line" : 92
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "<=",
+            "before" : "<",
+            "description" : "changed < to <="
+          },
+          "path" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift",
+          "sourceChange" : {
+            "after" : "            if result.count <= min {",
+            "before" : "            if result.count < min {",
+            "line" : 92
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
           "key" : "Sources\/FFCParserCombinator\/FFCParserCombinator.swift:92:29 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
@@ -119,6 +207,28 @@
     {
       "appliedOperators" : [
         {
+          "key" : "Sources\/FFCParserCombinator\/StringParsing.swift:42:51 NegateConditional",
+          "mutationPoint" : {
+            "mutationOperatorId" : "NegateConditional",
+            "position" : {
+              "column" : 51,
+              "line" : 42
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "!(condition(char))",
+            "before" : "condition(char)",
+            "description" : "negated the condition"
+          },
+          "path" : "Sources\/FFCParserCombinator\/StringParsing.swift",
+          "sourceChange" : {
+            "after" : "        guard let char: Character = stream.first, !(condition(char)) else { return nil }",
+            "before" : "        guard let char: Character = stream.first, condition(char) else { return nil }",
+            "line" : 42
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
           "key" : "Sources\/FFCParserCombinator\/StringParsing.swift:103:73 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
@@ -139,6 +249,28 @@
             "line" : 103
           },
           "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/FFCParserCombinator\/StringParsing.swift:180:50 ChangeArithmeticOperator",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ChangeArithmeticOperator",
+            "position" : {
+              "column" : 50,
+              "line" : 180
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\/",
+            "before" : "*",
+            "description" : "changed * to \/"
+          },
+          "path" : "Sources\/FFCParserCombinator\/StringParsing.swift",
+          "sourceChange" : {
+            "after" : "        let decimalExponent = { (s, m) in Int(m) \/ (s == .minus ? -1 : 1) } <^> floatingPointE *> sign <&> UInt.parser",
+            "before" : "        let decimalExponent = { (s, m) in Int(m) * (s == .minus ? -1 : 1) } <^> floatingPointE *> sign <&> UInt.parser",
+            "line" : 180
+          },
+          "testSuiteOutcome" : "passed"
         },
         {
           "key" : "Sources\/FFCParserCombinator\/StringParsing.swift:180:55 RelationalOperatorReplacement",
@@ -183,6 +315,28 @@
             "line" : 180
           },
           "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/FFCParserCombinator\/StringParsing.swift:204:38 RelationalBoundary",
+          "mutationPoint" : {
+            "mutationOperatorId" : "RelationalBoundary",
+            "position" : {
+              "column" : 38,
+              "line" : 204
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : ">=",
+            "before" : ">",
+            "description" : "changed > to >="
+          },
+          "path" : "Sources\/FFCParserCombinator\/StringParsing.swift",
+          "sourceChange" : {
+            "after" : "                let sign: String = e >= 0 ? \"+\" : \"\"",
+            "before" : "                let sign: String = e > 0 ? \"+\" : \"\"",
+            "line" : 204
+          },
+          "testSuiteOutcome" : "passed"
         },
         {
           "key" : "Sources\/FFCParserCombinator\/StringParsing.swift:204:38 RelationalOperatorReplacement",
@@ -318,18 +472,27 @@
         }
       ],
       "fileName" : "StringParsing.swift",
-      "mutationScore" : 100,
+      "mutationScore" : 83,
       "path" : "Sources\/FFCParserCombinator\/StringParsing.swift"
     }
   ],
-  "globalMutationScore" : 100,
+  "globalMutationScore" : 90,
   "mutantsByOutcome" : {
     "buildErrors" : 0,
-    "killed" : 14,
+    "killed" : 19,
     "notCovered" : 0,
-    "survived" : 0,
+    "survived" : 2,
     "timedOut" : 0
   },
-  "numberOfKilledMutants" : 14,
-  "totalAppliedMutationOperators" : 14
+  "numberOfKilledMutants" : 19,
+  "operatorExplanations" : {
+    "ChangeArithmeticOperator" : "Swaps arithmetic: plus and minus swap, as do times and divide, and remainder becomes times.",
+    "ChangeLogicalConnector" : "Swaps a logical AND for OR, and OR for AND.",
+    "NegateConditional" : "Negates a condition of an if, guard or while, which sends the code down the other branch.",
+    "RelationalBoundary" : "Moves a comparison's boundary: less than and at most swap, as do greater than and at least.",
+    "RelationalOperatorReplacement" : "Reverses a comparison: equal becomes not equal, and less than becomes greater than.",
+    "RemoveSideEffects" : "Removes a call whose result isn't used, to check that a test notices its side effect is gone.",
+    "SwapTernary" : "Swaps the two branches of a ternary expression."
+  },
+  "totalAppliedMutationOperators" : 21
 }

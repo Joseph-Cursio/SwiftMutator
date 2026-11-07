@@ -54,6 +54,233 @@
     {
       "appliedOperators" : [
         {
+          "key" : "Sources\/Emphasis.swift:40:12 NegateConditional",
+          "mutationPoint" : {
+            "mutationOperatorId" : "NegateConditional",
+            "position" : {
+              "column" : 12,
+              "line" : 40
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "!(contains(.italic))",
+            "before" : "contains(.italic)",
+            "description" : "negated the condition"
+          },
+          "path" : "Sources\/Emphasis.swift",
+          "sourceChange" : {
+            "after" : "        if !(contains(.italic)) {",
+            "before" : "        if contains(.italic) {",
+            "line" : 40
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/Emphasis.swift:43:12 NegateConditional",
+          "mutationPoint" : {
+            "mutationOperatorId" : "NegateConditional",
+            "position" : {
+              "column" : 12,
+              "line" : 43
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "!(contains(.bold))",
+            "before" : "contains(.bold)",
+            "description" : "negated the condition"
+          },
+          "path" : "Sources\/Emphasis.swift",
+          "sourceChange" : {
+            "after" : "        if !(contains(.bold)) {",
+            "before" : "        if contains(.bold) {",
+            "line" : 43
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/Emphasis.swift:46:12 NegateConditional",
+          "mutationPoint" : {
+            "mutationOperatorId" : "NegateConditional",
+            "position" : {
+              "column" : 12,
+              "line" : 46
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "!(contains(.expanded))",
+            "before" : "contains(.expanded)",
+            "description" : "negated the condition"
+          },
+          "path" : "Sources\/Emphasis.swift",
+          "sourceChange" : {
+            "after" : "        if !(contains(.expanded)) {",
+            "before" : "        if contains(.expanded) {",
+            "line" : 46
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Emphasis.swift:49:12 NegateConditional",
+          "mutationPoint" : {
+            "mutationOperatorId" : "NegateConditional",
+            "position" : {
+              "column" : 12,
+              "line" : 49
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "!(contains(.condensed))",
+            "before" : "contains(.condensed)",
+            "description" : "negated the condition"
+          },
+          "path" : "Sources\/Emphasis.swift",
+          "sourceChange" : {
+            "after" : "        if !(contains(.condensed)) {",
+            "before" : "        if contains(.condensed) {",
+            "line" : 49
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/Emphasis.swift:52:12 NegateConditional",
+          "mutationPoint" : {
+            "mutationOperatorId" : "NegateConditional",
+            "position" : {
+              "column" : 12,
+              "line" : 52
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "!(contains(.vertical))",
+            "before" : "contains(.vertical)",
+            "description" : "negated the condition"
+          },
+          "path" : "Sources\/Emphasis.swift",
+          "sourceChange" : {
+            "after" : "        if !(contains(.vertical)) {",
+            "before" : "        if contains(.vertical) {",
+            "line" : 52
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/Emphasis.swift:55:12 NegateConditional",
+          "mutationPoint" : {
+            "mutationOperatorId" : "NegateConditional",
+            "position" : {
+              "column" : 12,
+              "line" : 55
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "!(contains(.uiOptimized))",
+            "before" : "contains(.uiOptimized)",
+            "description" : "negated the condition"
+          },
+          "path" : "Sources\/Emphasis.swift",
+          "sourceChange" : {
+            "after" : "        if !(contains(.uiOptimized)) {",
+            "before" : "        if contains(.uiOptimized) {",
+            "line" : 55
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Emphasis.swift:58:12 NegateConditional",
+          "mutationPoint" : {
+            "mutationOperatorId" : "NegateConditional",
+            "position" : {
+              "column" : 12,
+              "line" : 58
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "!(contains(.tightLineSpacing))",
+            "before" : "contains(.tightLineSpacing)",
+            "description" : "negated the condition"
+          },
+          "path" : "Sources\/Emphasis.swift",
+          "sourceChange" : {
+            "after" : "        if !(contains(.tightLineSpacing)) {",
+            "before" : "        if contains(.tightLineSpacing) {",
+            "line" : 58
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Emphasis.swift:61:12 NegateConditional",
+          "mutationPoint" : {
+            "mutationOperatorId" : "NegateConditional",
+            "position" : {
+              "column" : 12,
+              "line" : 61
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "!(contains(.looseLineSpacing))",
+            "before" : "contains(.looseLineSpacing)",
+            "description" : "negated the condition"
+          },
+          "path" : "Sources\/Emphasis.swift",
+          "sourceChange" : {
+            "after" : "        if !(contains(.looseLineSpacing)) {",
+            "before" : "        if contains(.looseLineSpacing) {",
+            "line" : 61
+          },
+          "testSuiteOutcome" : "passed"
+        }
+      ],
+      "fileName" : "Emphasis.swift",
+      "mutationScore" : 50,
+      "path" : "Sources\/Emphasis.swift"
+    },
+    {
+      "appliedOperators" : [
+        {
+          "key" : "Sources\/FontFeatures.swift:34:19 NegateConditional",
+          "mutationPoint" : {
+            "mutationOperatorId" : "NegateConditional",
+            "position" : {
+              "column" : 19,
+              "line" : 34
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "!(featureProviders.count > 0)",
+            "before" : "featureProviders.count > 0",
+            "description" : "negated the condition"
+          },
+          "path" : "Sources\/FontFeatures.swift",
+          "sourceChange" : {
+            "after" : "            guard !(featureProviders.count > 0) else {",
+            "before" : "            guard featureProviders.count > 0 else {",
+            "line" : 34
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/FontFeatures.swift:34:42 RelationalBoundary",
+          "mutationPoint" : {
+            "mutationOperatorId" : "RelationalBoundary",
+            "position" : {
+              "column" : 42,
+              "line" : 34
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : ">=",
+            "before" : ">",
+            "description" : "changed > to >="
+          },
+          "path" : "Sources\/FontFeatures.swift",
+          "sourceChange" : {
+            "after" : "            guard featureProviders.count >= 0 else {",
+            "before" : "            guard featureProviders.count > 0 else {",
+            "line" : 34
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
           "key" : "Sources\/FontFeatures.swift:34:42 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
@@ -74,6 +301,50 @@
             "line" : 34
           },
           "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/FontFeatures.swift:40:19 NegateConditional",
+          "mutationPoint" : {
+            "mutationOperatorId" : "NegateConditional",
+            "position" : {
+              "column" : 19,
+              "line" : 40
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "!(newFeatures.count > 0)",
+            "before" : "newFeatures.count > 0",
+            "description" : "negated the condition"
+          },
+          "path" : "Sources\/FontFeatures.swift",
+          "sourceChange" : {
+            "after" : "            guard !(newFeatures.count > 0) else {",
+            "before" : "            guard newFeatures.count > 0 else {",
+            "line" : 40
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/FontFeatures.swift:40:37 RelationalBoundary",
+          "mutationPoint" : {
+            "mutationOperatorId" : "RelationalBoundary",
+            "position" : {
+              "column" : 37,
+              "line" : 40
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : ">=",
+            "before" : ">",
+            "description" : "changed > to >="
+          },
+          "path" : "Sources\/FontFeatures.swift",
+          "sourceChange" : {
+            "after" : "            guard newFeatures.count >= 0 else {",
+            "before" : "            guard newFeatures.count > 0 else {",
+            "line" : 40
+          },
+          "testSuiteOutcome" : "passed"
         },
         {
           "key" : "Sources\/FontFeatures.swift:40:37 RelationalOperatorReplacement",
@@ -99,8 +370,59 @@
         }
       ],
       "fileName" : "FontFeatures.swift",
-      "mutationScore" : 100,
+      "mutationScore" : 66,
       "path" : "Sources\/FontFeatures.swift"
+    },
+    {
+      "appliedOperators" : [
+        {
+          "key" : "Sources\/FontInspector.swift:21:28 FlipBooleanLiteral",
+          "mutationPoint" : {
+            "mutationOperatorId" : "FlipBooleanLiteral",
+            "position" : {
+              "column" : 28,
+              "line" : 21
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "true",
+            "before" : "false",
+            "description" : "changed false to true"
+          },
+          "path" : "Sources\/FontInspector.swift",
+          "sourceChange" : {
+            "after" : "                    return true",
+            "before" : "                    return false",
+            "line" : 21
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/FontInspector.swift:42:81 FlipBooleanLiteral",
+          "mutationPoint" : {
+            "mutationOperatorId" : "FlipBooleanLiteral",
+            "position" : {
+              "column" : 81,
+              "line" : 42
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "true",
+            "before" : "false",
+            "description" : "changed false to true"
+          },
+          "path" : "Sources\/FontInspector.swift",
+          "sourceChange" : {
+            "after" : "        public func availableFontFeatures(includeIdentifiers includeIDs: Bool = true) -> String {",
+            "before" : "        public func availableFontFeatures(includeIdentifiers includeIDs: Bool = false) -> String {",
+            "line" : 42
+          },
+          "testSuiteOutcome" : "noCoverage"
+        }
+      ],
+      "fileName" : "FontInspector.swift",
+      "mutationScore" : 0,
+      "path" : "Sources\/FontInspector.swift"
     },
     {
       "appliedOperators" : [
@@ -122,6 +444,50 @@
           "sourceChange" : {
             "before" : "            debug.replaceCharacters(in: replacement.range, with: \"<BON:\\(replacement.string)\/>\")",
             "line" : 57
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/NSAttributedString+BonMot.swift:70:98 FlipBooleanLiteral",
+          "mutationPoint" : {
+            "mutationOperatorId" : "FlipBooleanLiteral",
+            "position" : {
+              "column" : 98,
+              "line" : 70
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "true",
+            "before" : "false",
+            "description" : "changed false to true"
+          },
+          "path" : "Sources\/NSAttributedString+BonMot.swift",
+          "sourceChange" : {
+            "after" : "            let transformed = original.applyingTransform(StringTransform.toUnicodeName, reverse: true)",
+            "before" : "            let transformed = original.applyingTransform(StringTransform.toUnicodeName, reverse: false)",
+            "line" : 70
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/NSAttributedString+BonMot.swift:72:20 NegateConditional",
+          "mutationPoint" : {
+            "mutationOperatorId" : "NegateConditional",
+            "position" : {
+              "column" : 20,
+              "line" : 72
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "!(transformed.hasPrefix(unassignedPrefix) && transformed.hasSuffix(unassignedSuffix))",
+            "before" : "transformed.hasPrefix(unassignedPrefix) && transformed.hasSuffix(unassignedSuffix)",
+            "description" : "negated the condition"
+          },
+          "path" : "Sources\/NSAttributedString+BonMot.swift",
+          "sourceChange" : {
+            "after" : "                if !(transformed.hasPrefix(unassignedPrefix) && transformed.hasSuffix(unassignedSuffix)) {",
+            "before" : "                if transformed.hasPrefix(unassignedPrefix) && transformed.hasSuffix(unassignedSuffix) {",
+            "line" : 72
           },
           "testSuiteOutcome" : "failed"
         },
@@ -170,7 +536,7 @@
         }
       ],
       "fileName" : "NSAttributedString+BonMot.swift",
-      "mutationScore" : 66,
+      "mutationScore" : 80,
       "path" : "Sources\/NSAttributedString+BonMot.swift"
     },
     {
@@ -368,10 +734,54 @@
             "line" : 23
           },
           "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Tracking.swift:27:30 ChangeArithmeticOperator",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ChangeArithmeticOperator",
+            "position" : {
+              "column" : 30,
+              "line" : 27
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\/",
+            "before" : "*",
+            "description" : "changed * to \/"
+          },
+          "path" : "Sources\/Tracking.swift",
+          "sourceChange" : {
+            "after" : "            return pointSize \/ (adobeTracking \/ AdobeTrackingDivisor)",
+            "before" : "            return pointSize * (adobeTracking \/ AdobeTrackingDivisor)",
+            "line" : 27
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/Tracking.swift:27:47 ChangeArithmeticOperator",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ChangeArithmeticOperator",
+            "position" : {
+              "column" : 47,
+              "line" : 27
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "*",
+            "before" : "\/",
+            "description" : "changed \/ to *"
+          },
+          "path" : "Sources\/Tracking.swift",
+          "sourceChange" : {
+            "after" : "            return pointSize * (adobeTracking * AdobeTrackingDivisor)",
+            "before" : "            return pointSize * (adobeTracking \/ AdobeTrackingDivisor)",
+            "line" : 27
+          },
+          "testSuiteOutcome" : "failed"
         }
       ],
       "fileName" : "Tracking.swift",
-      "mutationScore" : 0,
+      "mutationScore" : 66,
       "path" : "Sources\/Tracking.swift"
     },
     {
@@ -459,10 +869,98 @@
             "line" : 159
           },
           "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/UIKit\/TextAlignmentConstraint.swift:194:43 ChangeArithmeticOperator",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ChangeArithmeticOperator",
+            "position" : {
+              "column" : 43,
+              "line" : 194
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "+",
+            "before" : "-",
+            "description" : "changed - to +"
+          },
+          "path" : "Sources\/UIKit\/TextAlignmentConstraint.swift",
+          "sourceChange" : {
+            "after" : "        let difference = distanceFromTop2 + distanceFromTop1",
+            "before" : "        let difference = distanceFromTop2 - distanceFromTop1",
+            "line" : 194
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/UIKit\/TextAlignmentConstraint.swift:208:45 ChangeArithmeticOperator",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ChangeArithmeticOperator",
+            "position" : {
+              "column" : 45,
+              "line" : 208
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "+",
+            "before" : "-",
+            "description" : "changed - to +"
+          },
+          "path" : "Sources\/UIKit\/TextAlignmentConstraint.swift",
+          "sourceChange" : {
+            "after" : "            distanceFromTop = topToBaseline + font.capHeight",
+            "before" : "            distanceFromTop = topToBaseline - font.capHeight",
+            "line" : 208
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/UIKit\/TextAlignmentConstraint.swift:210:45 ChangeArithmeticOperator",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ChangeArithmeticOperator",
+            "position" : {
+              "column" : 45,
+              "line" : 210
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "+",
+            "before" : "-",
+            "description" : "changed - to +"
+          },
+          "path" : "Sources\/UIKit\/TextAlignmentConstraint.swift",
+          "sourceChange" : {
+            "after" : "            distanceFromTop = topToBaseline + font.xHeight",
+            "before" : "            distanceFromTop = topToBaseline - font.xHeight",
+            "line" : 210
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/UIKit\/TextAlignmentConstraint.swift:225:12 NegateConditional",
+          "mutationPoint" : {
+            "mutationOperatorId" : "NegateConditional",
+            "position" : {
+              "column" : 12,
+              "line" : 225
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "!(item.responds(to: TextAlignmentConstraint.fontSelector))",
+            "before" : "item.responds(to: TextAlignmentConstraint.fontSelector)",
+            "description" : "negated the condition"
+          },
+          "path" : "Sources\/UIKit\/TextAlignmentConstraint.swift",
+          "sourceChange" : {
+            "after" : "        if !(item.responds(to: TextAlignmentConstraint.fontSelector)) {",
+            "before" : "        if item.responds(to: TextAlignmentConstraint.fontSelector) {",
+            "line" : 225
+          },
+          "testSuiteOutcome" : "failed"
         }
       ],
       "fileName" : "TextAlignmentConstraint.swift",
-      "mutationScore" : 75,
+      "mutationScore" : 87,
       "path" : "Sources\/UIKit\/TextAlignmentConstraint.swift"
     },
     {
@@ -595,6 +1093,94 @@
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/XMLBuilder.swift:282:47 FlipBooleanLiteral",
+          "mutationPoint" : {
+            "mutationOperatorId" : "FlipBooleanLiteral",
+            "position" : {
+              "column" : 47,
+              "line" : 282
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "true",
+            "before" : "false",
+            "description" : "changed false to true"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "        self.parser.shouldProcessNamespaces = true",
+            "before" : "        self.parser.shouldProcessNamespaces = false",
+            "line" : 282
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:283:53 FlipBooleanLiteral",
+          "mutationPoint" : {
+            "mutationOperatorId" : "FlipBooleanLiteral",
+            "position" : {
+              "column" : 53,
+              "line" : 283
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "true",
+            "before" : "false",
+            "description" : "changed false to true"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "        self.parser.shouldReportNamespacePrefixes = true",
+            "before" : "        self.parser.shouldReportNamespacePrefixes = false",
+            "line" : 283
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:284:53 FlipBooleanLiteral",
+          "mutationPoint" : {
+            "mutationOperatorId" : "FlipBooleanLiteral",
+            "position" : {
+              "column" : 53,
+              "line" : 284
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "true",
+            "before" : "false",
+            "description" : "changed false to true"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "        self.parser.shouldResolveExternalEntities = true",
+            "before" : "        self.parser.shouldResolveExternalEntities = false",
+            "line" : 284
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:289:15 NegateConditional",
+          "mutationPoint" : {
+            "mutationOperatorId" : "NegateConditional",
+            "position" : {
+              "column" : 15,
+              "line" : 289
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "!(parser.parse())",
+            "before" : "parser.parse()",
+            "description" : "negated the condition"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "        guard !(parser.parse()) else {",
+            "before" : "        guard parser.parse() else {",
+            "line" : 289
+          },
+          "testSuiteOutcome" : "runtimeError"
+        },
+        {
           "key" : "Sources\/XMLBuilder.swift:291:37 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
@@ -657,6 +1243,72 @@
             "after" : "            let shiftColumn = (line == 1 && options.contains(.doNotWrapXML) != false)",
             "before" : "            let shiftColumn = (line == 1 && options.contains(.doNotWrapXML) == false)",
             "line" : 291
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:291:80 FlipBooleanLiteral",
+          "mutationPoint" : {
+            "mutationOperatorId" : "FlipBooleanLiteral",
+            "position" : {
+              "column" : 80,
+              "line" : 291
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "true",
+            "before" : "false",
+            "description" : "changed false to true"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "            let shiftColumn = (line == 1 && options.contains(.doNotWrapXML) == true)",
+            "before" : "            let shiftColumn = (line == 1 && options.contains(.doNotWrapXML) == false)",
+            "line" : 291
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:292:107 ChangeArithmeticOperator",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ChangeArithmeticOperator",
+            "position" : {
+              "column" : 107,
+              "line" : 292
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "-",
+            "before" : "+",
+            "description" : "changed + to -"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "            let shiftSize = XMLBuilder.internalTopLevelElement.lengthOfBytes(using: String.Encoding.utf8) - 2",
+            "before" : "            let shiftSize = XMLBuilder.internalTopLevelElement.lengthOfBytes(using: String.Encoding.utf8) + 2",
+            "line" : 292
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:293:46 ChangeArithmeticOperator",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ChangeArithmeticOperator",
+            "position" : {
+              "column" : 46,
+              "line" : 293
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "+",
+            "before" : "-",
+            "description" : "changed - to +"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "            let column = parser.columnNumber + (shiftColumn ? shiftSize : 0)",
+            "before" : "            let column = parser.columnNumber - (shiftColumn ? shiftSize : 0)",
+            "line" : 293
           },
           "testSuiteOutcome" : "failed"
         },
@@ -812,7 +1464,7 @@
         }
       ],
       "fileName" : "XMLBuilder.swift",
-      "mutationScore" : 93,
+      "mutationScore" : 86,
       "path" : "Sources\/XMLBuilder.swift"
     },
     {
@@ -838,15 +1490,25 @@
       "path" : "Sources\/Platform.swift"
     }
   ],
-  "globalMutationScore" : 80,
+  "globalMutationScore" : 73,
   "mutantsByOutcome" : {
     "buildErrors" : 0,
-    "killed" : 28,
-    "notCovered" : 0,
-    "survived" : 7,
+    "killed" : 47,
+    "notCovered" : 1,
+    "survived" : 16,
     "timedOut" : 0
   },
-  "numberOfKilledMutants" : 28,
+  "numberOfKilledMutants" : 47,
+  "operatorExplanations" : {
+    "ChangeArithmeticOperator" : "Swaps arithmetic: plus and minus swap, as do times and divide, and remainder becomes times.",
+    "ChangeLogicalConnector" : "Swaps a logical AND for OR, and OR for AND.",
+    "FlipBooleanLiteral" : "Turns the literal true into false, and false into true.",
+    "NegateConditional" : "Negates a condition of an if, guard or while, which sends the code down the other branch.",
+    "RelationalBoundary" : "Moves a comparison's boundary: less than and at most swap, as do greater than and at least.",
+    "RelationalOperatorReplacement" : "Reverses a comparison: equal becomes not equal, and less than becomes greater than.",
+    "RemoveSideEffects" : "Removes a call whose result isn't used, to check that a test notices its side effect is gone.",
+    "SwapTernary" : "Swaps the two branches of a ternary expression."
+  },
   "projectCodeCoverage" : 78,
-  "totalAppliedMutationOperators" : 35
+  "totalAppliedMutationOperators" : 64
 }
