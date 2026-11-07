@@ -847,7 +847,12 @@ merged. It never replaces the results file or the report.
 SwiftMutator reads Muter's `muter.conf.yml`, so existing Muter configurations work unchanged,
 except an xcodebuild project's `coverageThreshold`. Muter read that one as a fraction from 0 to 1,
 so any value of 1 or more left out every file. It's a percentage from 0 to 100 now, as it always
-was for SwiftPM: `0.5` means 0.5%, so write `50` for half. An older `muter.conf.json` beside it is
+was for SwiftPM: `0.5` means 0.5%, so write `50` for half. `excludeCalls` is the other: Muter
+looked for each name anywhere in a statement's text, comments included, so `log` also kept
+`catalog.update()`. A name now matches the name a call is called by: `log` matches `log(…)`,
+`self.log(…)`, `super.log(…)` and `Logger.log(…)`, but not `logger.log(…)`, which takes
+`logger.log`. A statement is kept if any call in it matches, one in a closure it passes too, or if
+it passes a function that matches, as `events.forEach(log)` does. An older `muter.conf.json` beside it is
 converted to `muter.conf.yml` and removed, unless a `muter.conf.yml` is there, which wins and leaves
 the JSON file alone. The options are documented in
 [Muter's README](Docs/Muter-README.md#configuration-options); SwiftMutator adds:

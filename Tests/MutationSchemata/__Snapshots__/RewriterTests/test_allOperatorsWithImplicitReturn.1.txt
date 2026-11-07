@@ -169,13 +169,6 @@
 ), OperatorIdAndPositionAssert(
     id: .removeSideEffects,
     position: MutationPosition(
-        utf8Offset: 984,
-        line: 49,
-        column: 31
-    )
-), OperatorIdAndPositionAssert(
-    id: .removeSideEffects,
-    position: MutationPosition(
         utf8Offset: 1256,
         line: 60,
         column: 66

@@ -188,8 +188,13 @@ extension FunctionDeclSyntax {
 }
 
 extension ReturnClauseSyntax {
+    /// Whether the type is `Void`, however it's written: `()`, `Swift.Void` or `(Void)` too.
     var isReturningVoid: Bool {
-        ["Void", "()"].contains(type.withoutTrivia().description.trimmed)
+        var text = type.trimmedDescription.filter { !$0.isWhitespace }
+        while text.count > 2, text.hasPrefix("("), text.hasSuffix(")") {
+            text = String(text.dropFirst().dropLast())
+        }
+        return ["Void", "Swift.Void", "()"].contains(text)
     }
 }
 
