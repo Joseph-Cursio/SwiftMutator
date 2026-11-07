@@ -147,7 +147,8 @@ and every push to `main`:
 
 A pull request can't be merged into `main` until both macOS unit-test jobs and SwiftLint pass. A
 ruleset on `main` requires them. It doesn't require the branch to be up to date with `main`, and
-the maintainer can bypass it.
+the maintainer can bypass it. It names the jobs, so a change of runner or Xcode, which renames a
+job, needs the ruleset changed too.
 
 [.github/workflows/regression-tests.yml](.github/workflows/regression-tests.yml) runs
 `make regression-test` on `main` once a day and by hand, on `xcode-27`, in about 15 minutes. It

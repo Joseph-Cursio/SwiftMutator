@@ -27,6 +27,7 @@ defaults:
 
 jobs:
   unit-tests:
+    # main's ruleset requires these jobs, and SwiftLint, by name: change it with a runner or Xcode.
     name: Unit tests (${{ matrix.runner }}, Xcode ${{ matrix.xcode }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
