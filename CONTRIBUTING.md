@@ -85,7 +85,8 @@ make acceptance-test     # needs an iOS simulator
 make regression-test
 ```
 
-Each first runs `make build`: `swift package clean` and a debug build. The acceptance script
+Each first runs `make build`, an incremental debug build. `make clean` removes `.build` if you
+need to build from scratch, after changing Xcode for one. The acceptance script
 copies `Repositories/` into `AcceptanceTests/` and runs the debug `swift-mutator` on the iOS
 sample `ExampleApp` several ways, saving the output in `AcceptanceTests/samples`. The regression
 script runs it on BonMot, FFCParserCombinator and ProjectWithConcurrency in `Repositories/`. Then
@@ -120,8 +121,9 @@ make mutation-test
 ```
 
 `make install` builds a release `swift-mutator` and installs it into `$(prefix)/bin`, which is
-`/usr/local/bin` by default. `make mutation-test` runs `make clean`, which removes `.build`, then
-the `swift-mutator` on your `PATH`. There is no Homebrew formula for SwiftMutator, so that's the
+`/usr/local/bin` by default. `make mutation-test` runs the `swift-mutator` on your `PATH`. It
+leaves your `.build` alone. Removing it first gave the same results and saved no time, as the
+copied build files aren't reused in the copy. There is no Homebrew formula for SwiftMutator, so that's the
 one you installed. `make uninstall` removes it. To tell a development build from another, change
 the version in [Sources/muterCore/version.swift](Sources/muterCore/version.swift) locally, but
 don't commit it.
@@ -135,11 +137,17 @@ and every push to `main`:
   (Swift 6.4). Each builds the package and its tests, then runs `swift test --filter
   '^muterTests\.'`, with snapshots never recorded. The first is one Swift release and one macOS
   release behind the current ones, so a failure only there usually means code that needs the
-  newest toolchain. GitHub still calls the `xcode-27` image a preview.
+  newest toolchain. GitHub still calls the `xcode-27` image a preview. Each job restores `.build`
+  as the last push to `main` left it, for the same toolchain and `Package.resolved`, so the
+  dependencies aren't built again. Only pushes to `main` save it.
 - **SwiftLint**, in SwiftLint's own 0.65.1 container. `.swiftlint.yml` sets `strict: true`, so a
   warning fails it.
 - **Unit tests on Linux**, Swift 6.4, only on pushes to `main` and by hand, and never blocking
   ([#130](https://github.com/Joseph-Cursio/SwiftMutator/issues/130)).
+
+A pull request can't be merged into `main` until both macOS unit-test jobs and SwiftLint pass. A
+ruleset on `main` requires them. It doesn't require the branch to be up to date with `main`, and
+the maintainer can bypass it.
 
 [.github/workflows/regression-tests.yml](.github/workflows/regression-tests.yml) runs
 `make regression-test` on `main` once a day and by hand, on `xcode-27`, in about 15 minutes. It

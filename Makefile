@@ -50,7 +50,8 @@ slow-acceptance-reference:
 slow-acceptance-selftest:
 	@python3 -I AcceptanceTests/slow/test_verdicts.py
 
-mutation-test: clean
+# No clean first: the copied build files aren't reused in the run's copy, so removing .build saved no time.
+mutation-test:
 	swift-mutator
 
 .PHONY: build clean test run install uninstall release slow-acceptance-test slow-acceptance-reference slow-acceptance-selftest
