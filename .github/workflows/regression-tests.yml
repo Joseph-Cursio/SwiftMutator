@@ -1,0 +1,98 @@
+# Runs `make regression-test`: SwiftMutator on three projects in Repositories/, each report compared with its snapshot.
+# At about 15 minutes that's too slow to hold up a pull request, so this runs on main once a day and by hand, and blocks
+# nothing. A failure means main's reports no longer match the snapshots: see CONTRIBUTING.md on re-recording them.
+name: Regression tests
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash # bash --noprofile --norc -eo pipefail, so `| tee` keeps the exit status
+
+jobs:
+  regression-tests:
+    name: Regression tests (${{ matrix.runner }}, Xcode ${{ matrix.xcode }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The closest to the toolchain the snapshots are recorded with. macos-26 gives the same reports, but takes
+          # about 24 minutes, with its slowest mutant near FFCParserCombinator's time limit.
+          - runner: xcode-27
+            xcode: '27.0'
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Show toolchain
+        run: |
+          if [ ! -d "$DEVELOPER_DIR" ]; then
+            echo "::error::$DEVELOPER_DIR is not on this runner image. Installed Xcodes:"
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          sw_vers
+          xcodebuild -version
+          swift --version
+          echo "Processors: $(sysctl -n hw.ncpu), $(uname -m)"
+          echo "Toolchain: $(xcodebuild -version | paste -sd ' ' -); $(swift --version 2>&1 | head -n 1)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run the regression tests
+        env:
+          SNAPSHOT_TESTING_RECORD: never
+          SNAPSHOT_ARTIFACTS: ${{ runner.temp }}/snapshot-failures
+        run: make regression-test 2>&1 | tee "$RUNNER_TEMP/regression.log"
+
+      - name: Check that the snapshot tests ran
+        run: |
+          # The tests skip without samples, and swift test exits 0, with only a warning, when --filter matches nothing.
+          passed=$(grep -cE "Test Case '-\[muterRegressionTests\.RegressionTests test_[A-Za-z]+\]' passed" "$RUNNER_TEMP/regression.log" || true)
+          grep -E 'Mutation score' "$RUNNER_TEMP/regression.log" >> "$GITHUB_STEP_SUMMARY" || true
+          echo "Snapshot tests passed: ${passed:-0}" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${passed:-0}" -lt 3 ]; then
+            echo "::error::Expected 3 snapshot tests to pass, and $passed did."
+            exit 1
+          fi
+
+      - name: Summarize failures
+        if: failure()
+        run: |
+          {
+            echo '### Errors and failed tests'
+            echo '```text'
+            grep -h -E 'error:|Test Case .* failed|with [1-9][0-9]* failures?|SwiftMutator (failed|wrote)|Mutation score' \
+              "$RUNNER_TEMP/regression.log" 2>/dev/null \
+              | sed "s|$GITHUB_WORKSPACE/||g" | head -n 200 || true
+            echo '```'
+            echo "The reports, the mismatched snapshots and the logs are attached to this run as an artifact."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Pack the runs' logs
+        if: failure()
+        # In a tar file, as each log folder's name has the time in it, and an artifact's paths can't hold a colon.
+        run: tar -czf "$RUNNER_TEMP/muter-logs.tar.gz" Repositories/*_muter_logs 2>/dev/null || true
+
+      - name: Upload the reports, mismatched snapshots and logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: regression-failure-${{ matrix.runner }}-attempt-${{ github.run_attempt }}
+          path: |
+            RegressionTests/samples/
+            ${{ runner.temp }}/regression.log
+            ${{ runner.temp }}/snapshot-failures/
+            ${{ runner.temp }}/muter-logs.tar.gz
+          if-no-files-found: ignore
+          retention-days: 14
