@@ -9,3 +9,6 @@ arguments:
 executable: /usr/bin/xcodebuild
 exclude: []
 excludeCalls: []
+# Well above what a crash takes: xcodebuild relaunches the runner, about 7 s on a Mac and up to 160 s on a CI runner, and
+# a run stopped at the limit can come out differently. No mutant here hangs.
+mutationTestTimeout: 300
