@@ -27,6 +27,7 @@ defaults:
 
 jobs:
   unit-tests:
+    # main's ruleset requires these jobs, and SwiftLint, by name: change it with a runner or Xcode.
     name: Unit tests (${{ matrix.runner }}, Xcode ${{ matrix.xcode }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
@@ -51,6 +52,7 @@ jobs:
           persist-credentials: false
 
       - name: Show toolchain
+        id: toolchain
         run: |
           if [ ! -d "$DEVELOPER_DIR" ]; then
             echo "::error::$DEVELOPER_DIR is not on this runner image. Installed Xcodes:"
@@ -63,6 +65,21 @@ jobs:
           echo "swift: $(command -v swift)"
           echo "macOS SDK: $(xcrun --sdk macosx --show-sdk-version)"
           echo "Toolchain: $(xcodebuild -version | paste -sd ' ' -); $(swift --version 2>&1 | head -n 1)" >> "$GITHUB_STEP_SUMMARY"
+          # For the cache key: modules built by another compiler build can't be imported, and an image update
+          # can change the build behind the same Xcode folder.
+          toolchain=$({ xcodebuild -version; swift --version 2>&1; xcrun --sdk macosx --show-sdk-version; } | shasum -a 256)
+          echo "hash=${toolchain:0:16}" >> "$GITHUB_OUTPUT"
+
+      # .build as the last push to main left it, for the same toolchain and Package.resolved, so the dependencies
+      # aren't fetched and built again. Checking out gives every file this run's time, so SwiftMutator's own modules
+      # build again anyway. Pull requests only restore it: a cache saved by a pull request is visible to that pull
+      # request alone, and would push main's out of the repository's cache storage.
+      - name: Restore .build
+        id: build-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .build
+          key: build-${{ matrix.runner }}-${{ steps.toolchain.outputs.hash }}-${{ hashFiles('Package.resolved') }}
 
       - name: Resolve dependencies from Package.resolved
         run: swift package resolve --force-resolved-versions
@@ -70,6 +87,14 @@ jobs:
       - name: Build package and tests
         timeout-minutes: 20
         run: swift build --build-tests --force-resolved-versions 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      # Before the tests, so that a failing test doesn't stop it, and .build holds only what the build wrote.
+      - name: Save .build
+        if: github.event_name != 'pull_request' && steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: .build
+          key: ${{ steps.build-cache.outputs.cache-primary-key }}
 
       - name: Run unit tests (muterTests)
         timeout-minutes: 20
