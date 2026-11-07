@@ -172,6 +172,23 @@ final class InterruptionsTests: MuterTestCase {
         XCTAssertTrue(said.all.first?.hasPrefix("⏹ Stopping at once.") == true, "\(said.all)")
     }
 
+    // A worker not cancelled would start its next mutant's tests as soon as this one's are killed: nothing would kill
+    // them once SwiftMutator had exited.
+    func test_aSIGQUIT_cancelsTheWork_beforeKillingDescendants() throws {
+        let started = Gate()
+        let events = events
+        let running = Running(makeInterruptions()) {
+            try await waitUntilCancelled(opening: started) { events.append("cancelled") }
+        }
+        XCTAssertTrue(started.wait())
+        waitUntilObserving()
+
+        XCTAssertTrue(observer.send(SIGQUIT))
+        _ = try XCTUnwrap(running.wait())
+
+        XCTAssertEqual(Array(events.all.prefix(3)), ["cancelled", "killed", "exited by SIGQUIT"])
+    }
+
     func test_aSIGQUIT_whileStopping_exitsByTheFirstSignal() throws {
         let exited = exited
         let running = Running(makeInterruptions()) { exited.wait() }

@@ -48,6 +48,9 @@ class MuterVisitor: SyntaxAnyVisitor {
     /// The mutated project's folder, which each mutant's switch ID gives its file's path from (`MutationSchema.id`).
     /// Discovery sets it; a test of one file can leave it out.
     var projectRoot: URL?
+    /// The code an `#if` leaves out of the build. Discovery sets it, when it can tell; a test of one file can leave it
+    /// out, and then every branch keeps its mutants.
+    var inactiveRegions: [Range<AbsolutePosition>] = []
 
     private(set) var schemataMappings: SchemataMutationMapping
     /// The mutants of this code with nowhere to put a switch, which aren't in `schemataMappings`.
@@ -296,6 +299,13 @@ class MuterVisitor: SyntaxAnyVisitor {
             return
         }
 
+        // Before coverage, which can also skip such code, so that a run says the same with coverage and without.
+        guard !isInInactiveRegion(changed ?? syntax) else {
+            let lines = lines(of: span ?? changed ?? syntax)
+            drop(reason: .inInactiveIfConfig, at: position, snapshot: snapshot, lines: lines)
+            return
+        }
+
         // Checked by the node it changes, not by the nodes around it. A region the tests never ran can start inside
         // all of them, as the right-hand side of `a && b > c`, which is a closure of its own, does: such a mutant could
         // only survive. And a local function's or type's code can run though the code that declares it never did.
@@ -305,14 +315,7 @@ class MuterVisitor: SyntaxAnyVisitor {
 
         let lines = lines(of: span ?? changed ?? syntax)
         guard let place = syntax.mutationSwitchPlace else {
-            droppedMutants.append(DroppedMutant(
-                path: mutantPath,
-                mutationOperatorId: mutationOperatorId,
-                position: position,
-                snapshot: snapshot,
-                lines: lines,
-                reason: .noPlaceForASwitch
-            ))
+            drop(reason: .noPlaceForASwitch, at: position, snapshot: snapshot, lines: lines)
             return
         }
 
@@ -326,6 +329,27 @@ class MuterVisitor: SyntaxAnyVisitor {
         schemata.lines = lines
 
         schemataMappings.add(at: place, schemata)
+    }
+
+    private func isInInactiveRegion(_ node: SyntaxProtocol) -> Bool {
+        let position = node.positionAfterSkippingLeadingTrivia
+        return inactiveRegions.contains { $0.contains(position) }
+    }
+
+    private func drop(
+        reason: DroppedMutant.Reason,
+        at position: MutationPosition,
+        snapshot: MutationOperator.Snapshot,
+        lines: ClosedRange<Int>
+    ) {
+        droppedMutants.append(DroppedMutant(
+            path: mutantPath,
+            mutationOperatorId: mutationOperatorId,
+            position: position,
+            snapshot: snapshot,
+            lines: lines,
+            reason: reason
+        ))
     }
 
     /// The path a dropped mutant is listed by: relative to the project, or the file's name in a test of one file.

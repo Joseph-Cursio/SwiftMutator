@@ -30,6 +30,8 @@ enum RunEvent {
     /// Why the Swift files a SwiftPM package's targets compile couldn't be listed, so discovery looks in the whole
     /// project.
     case packageSourceFilesUnavailable(reason: String)
+    /// Why SwiftMutator can't tell which `#if` branches the build compiles.
+    case buildConditionsUnavailable(reason: String)
     case sourceFileDiscoveryFinished([FilePath])
 
     case mutationsDiscoveryStarted
