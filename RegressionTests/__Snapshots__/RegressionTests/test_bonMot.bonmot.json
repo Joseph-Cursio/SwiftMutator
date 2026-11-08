@@ -321,28 +321,6 @@
     {
       "appliedOperators" : [
         {
-          "key" : "Sources\/FontFeatures.swift:34:19 NegateConditional",
-          "mutationPoint" : {
-            "mutationOperatorId" : "NegateConditional",
-            "position" : {
-              "column" : 19,
-              "line" : 34
-            }
-          },
-          "mutationSnapshot" : {
-            "after" : "!(featureProviders.count > 0)",
-            "before" : "featureProviders.count > 0",
-            "description" : "negated the condition"
-          },
-          "path" : "Sources\/FontFeatures.swift",
-          "sourceChange" : {
-            "after" : "            guard !(featureProviders.count > 0) else {",
-            "before" : "            guard featureProviders.count > 0 else {",
-            "line" : 34
-          },
-          "testSuiteOutcome" : "failed"
-        },
-        {
           "key" : "Sources\/FontFeatures.swift:34:42 RelationalBoundary",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalBoundary",
@@ -374,37 +352,37 @@
             }
           },
           "mutationSnapshot" : {
-            "after" : "<",
+            "after" : "!=",
             "before" : ">",
-            "description" : "changed > to <"
+            "description" : "changed > to !="
           },
           "path" : "Sources\/FontFeatures.swift",
           "sourceChange" : {
-            "after" : "            guard featureProviders.count < 0 else {",
+            "after" : "            guard featureProviders.count != 0 else {",
             "before" : "            guard featureProviders.count > 0 else {",
             "line" : 34
           },
-          "testSuiteOutcome" : "failed"
+          "testSuiteOutcome" : "passed"
         },
         {
-          "key" : "Sources\/FontFeatures.swift:40:19 NegateConditional",
+          "key" : "Sources\/FontFeatures.swift:34:45 RelationalOperatorReplacement",
           "mutationPoint" : {
-            "mutationOperatorId" : "NegateConditional",
+            "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
-              "column" : 19,
-              "line" : 40
+              "column" : 45,
+              "line" : 34
             }
           },
           "mutationSnapshot" : {
-            "after" : "!(newFeatures.count > 0)",
-            "before" : "newFeatures.count > 0",
-            "description" : "negated the condition"
+            "after" : "false",
+            "before" : "featureProviders.count > 0",
+            "description" : "replaced the comparison with false"
           },
           "path" : "Sources\/FontFeatures.swift",
           "sourceChange" : {
-            "after" : "            guard !(newFeatures.count > 0) else {",
-            "before" : "            guard newFeatures.count > 0 else {",
-            "line" : 40
+            "after" : "            guard false else {",
+            "before" : "            guard featureProviders.count > 0 else {",
+            "line" : 34
           },
           "testSuiteOutcome" : "failed"
         },
@@ -440,13 +418,35 @@
             }
           },
           "mutationSnapshot" : {
-            "after" : "<",
+            "after" : "!=",
             "before" : ">",
-            "description" : "changed > to <"
+            "description" : "changed > to !="
           },
           "path" : "Sources\/FontFeatures.swift",
           "sourceChange" : {
-            "after" : "            guard newFeatures.count < 0 else {",
+            "after" : "            guard newFeatures.count != 0 else {",
+            "before" : "            guard newFeatures.count > 0 else {",
+            "line" : 40
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/FontFeatures.swift:40:40 RelationalOperatorReplacement",
+          "mutationPoint" : {
+            "mutationOperatorId" : "RelationalOperatorReplacement",
+            "position" : {
+              "column" : 40,
+              "line" : 40
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "false",
+            "before" : "newFeatures.count > 0",
+            "description" : "replaced the comparison with false"
+          },
+          "path" : "Sources\/FontFeatures.swift",
+          "sourceChange" : {
+            "after" : "            guard false else {",
             "before" : "            guard newFeatures.count > 0 else {",
             "line" : 40
           },
@@ -475,7 +475,7 @@
         }
       ],
       "fileName" : "FontFeatures.swift",
-      "mutationScore" : 71,
+      "mutationScore" : 42,
       "path" : "Sources\/FontFeatures.swift"
     },
     {
@@ -1115,22 +1115,44 @@
     {
       "appliedOperators" : [
         {
-          "key" : "Sources\/Tracking.swift:23:21 RelationalOperatorReplacement",
+          "key" : "Sources\/Tracking.swift:23:16 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
-              "column" : 21,
+              "column" : 16,
               "line" : 23
             }
           },
           "mutationSnapshot" : {
-            "after" : "!=",
-            "before" : "==",
-            "description" : "changed == to !="
+            "after" : "true",
+            "before" : "font == nil",
+            "description" : "replaced the comparison with true"
           },
           "path" : "Sources\/Tracking.swift",
           "sourceChange" : {
-            "after" : "            if font != nil {",
+            "after" : "            if true {",
+            "before" : "            if font == nil {",
+            "line" : 23
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Tracking.swift:23:27 RelationalOperatorReplacement",
+          "mutationPoint" : {
+            "mutationOperatorId" : "RelationalOperatorReplacement",
+            "position" : {
+              "column" : 27,
+              "line" : 23
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "false",
+            "before" : "font == nil",
+            "description" : "replaced the comparison with false"
+          },
+          "path" : "Sources\/Tracking.swift",
+          "sourceChange" : {
+            "after" : "            if false {",
             "before" : "            if font == nil {",
             "line" : 23
           },
@@ -1182,7 +1204,7 @@
         }
       ],
       "fileName" : "Tracking.swift",
-      "mutationScore" : 66,
+      "mutationScore" : 50,
       "path" : "Sources\/Tracking.swift"
     },
     {
@@ -1409,110 +1431,220 @@
           "testSuiteOutcome" : "passed"
         },
         {
-          "key" : "Sources\/XMLBuilder.swift:143:61 RelationalOperatorReplacement",
+          "key" : "Sources\/XMLBuilder.swift:143:54 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
-              "column" : 61,
+              "column" : 54,
               "line" : 143
             }
           },
           "mutationSnapshot" : {
-            "after" : "!=",
-            "before" : "==",
-            "description" : "changed == to !="
+            "after" : "true",
+            "before" : "string == name",
+            "description" : "replaced the comparison with true"
           },
           "path" : "Sources\/XMLBuilder.swift",
           "sourceChange" : {
-            "after" : "                case let .style(string, style) where string != name:",
+            "after" : "                case let .style(string, style) where true:",
             "before" : "                case let .style(string, style) where string == name:",
             "line" : 143
           },
           "testSuiteOutcome" : "failed"
         },
         {
-          "key" : "Sources\/XMLBuilder.swift:145:66 RelationalOperatorReplacement",
+          "key" : "Sources\/XMLBuilder.swift:143:68 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
-              "column" : 66,
+              "column" : 68,
+              "line" : 143
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "false",
+            "before" : "string == name",
+            "description" : "replaced the comparison with false"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "                case let .style(string, style) where false:",
+            "before" : "                case let .style(string, style) where string == name:",
+            "line" : 143
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:145:59 RelationalOperatorReplacement",
+          "mutationPoint" : {
+            "mutationOperatorId" : "RelationalOperatorReplacement",
+            "position" : {
+              "column" : 59,
               "line" : 145
             }
           },
           "mutationSnapshot" : {
-            "after" : "!=",
-            "before" : "==",
-            "description" : "changed == to !="
+            "after" : "true",
+            "before" : "string == name",
+            "description" : "replaced the comparison with true"
           },
           "path" : "Sources\/XMLBuilder.swift",
           "sourceChange" : {
-            "after" : "                case let .styleBlock(string, block) where string != name:",
+            "after" : "                case let .styleBlock(string, block) where true:",
             "before" : "                case let .styleBlock(string, block) where string == name:",
             "line" : 145
           },
           "testSuiteOutcome" : "failed"
         },
         {
-          "key" : "Sources\/XMLBuilder.swift:162:66 RelationalOperatorReplacement",
+          "key" : "Sources\/XMLBuilder.swift:145:73 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
-              "column" : 66,
+              "column" : 73,
+              "line" : 145
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "false",
+            "before" : "string == name",
+            "description" : "replaced the comparison with false"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "                case let .styleBlock(string, block) where false:",
+            "before" : "                case let .styleBlock(string, block) where string == name:",
+            "line" : 145
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:162:59 RelationalOperatorReplacement",
+          "mutationPoint" : {
+            "mutationOperatorId" : "RelationalOperatorReplacement",
+            "position" : {
+              "column" : 59,
               "line" : 162
             }
           },
           "mutationSnapshot" : {
-            "after" : "!=",
-            "before" : "==",
-            "description" : "changed == to !="
+            "after" : "true",
+            "before" : "string == name",
+            "description" : "replaced the comparison with true"
           },
           "path" : "Sources\/XMLBuilder.swift",
           "sourceChange" : {
-            "after" : "                case let .enter(string, composable) where string != name:",
+            "after" : "                case let .enter(string, composable) where true:",
             "before" : "                case let .enter(string, composable) where string == name:",
             "line" : 162
           },
           "testSuiteOutcome" : "failed"
         },
         {
-          "key" : "Sources\/XMLBuilder.swift:164:66 RelationalOperatorReplacement",
+          "key" : "Sources\/XMLBuilder.swift:162:73 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
-              "column" : 66,
+              "column" : 73,
+              "line" : 162
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "false",
+            "before" : "string == name",
+            "description" : "replaced the comparison with false"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "                case let .enter(string, composable) where false:",
+            "before" : "                case let .enter(string, composable) where string == name:",
+            "line" : 162
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:164:59 RelationalOperatorReplacement",
+          "mutationPoint" : {
+            "mutationOperatorId" : "RelationalOperatorReplacement",
+            "position" : {
+              "column" : 59,
               "line" : 164
             }
           },
           "mutationSnapshot" : {
-            "after" : "!=",
-            "before" : "==",
-            "description" : "changed == to !="
+            "after" : "true",
+            "before" : "string == name",
+            "description" : "replaced the comparison with true"
           },
           "path" : "Sources\/XMLBuilder.swift",
           "sourceChange" : {
-            "after" : "                case let .enterBlock(string, block) where string != name:",
+            "after" : "                case let .enterBlock(string, block) where true:",
             "before" : "                case let .enterBlock(string, block) where string == name:",
             "line" : 164
           },
           "testSuiteOutcome" : "failed"
         },
         {
-          "key" : "Sources\/XMLBuilder.swift:177:65 RelationalOperatorReplacement",
+          "key" : "Sources\/XMLBuilder.swift:164:73 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
-              "column" : 65,
+              "column" : 73,
+              "line" : 164
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "false",
+            "before" : "string == name",
+            "description" : "replaced the comparison with false"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "                case let .enterBlock(string, block) where false:",
+            "before" : "                case let .enterBlock(string, block) where string == name:",
+            "line" : 164
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:177:58 RelationalOperatorReplacement",
+          "mutationPoint" : {
+            "mutationOperatorId" : "RelationalOperatorReplacement",
+            "position" : {
+              "column" : 58,
               "line" : 177
             }
           },
           "mutationSnapshot" : {
-            "after" : "!=",
-            "before" : "==",
-            "description" : "changed == to !="
+            "after" : "true",
+            "before" : "string == name",
+            "description" : "replaced the comparison with true"
           },
           "path" : "Sources\/XMLBuilder.swift",
           "sourceChange" : {
-            "after" : "                case let .exitBlock(string, block) where string != name:",
+            "after" : "                case let .exitBlock(string, block) where true:",
+            "before" : "                case let .exitBlock(string, block) where string == name:",
+            "line" : 177
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:177:72 RelationalOperatorReplacement",
+          "mutationPoint" : {
+            "mutationOperatorId" : "RelationalOperatorReplacement",
+            "position" : {
+              "column" : 72,
+              "line" : 177
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "false",
+            "before" : "string == name",
+            "description" : "replaced the comparison with false"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "                case let .exitBlock(string, block) where false:",
             "before" : "                case let .exitBlock(string, block) where string == name:",
             "line" : 177
           },
@@ -1646,22 +1778,44 @@
           "testSuiteOutcome" : "failed"
         },
         {
-          "key" : "Sources\/XMLBuilder.swift:291:37 RelationalOperatorReplacement",
+          "key" : "Sources\/XMLBuilder.swift:291:32 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
-              "column" : 37,
+              "column" : 32,
               "line" : 291
             }
           },
           "mutationSnapshot" : {
-            "after" : "!=",
-            "before" : "==",
-            "description" : "changed == to !="
+            "after" : "true",
+            "before" : "line == 1",
+            "description" : "replaced the comparison with true"
           },
           "path" : "Sources\/XMLBuilder.swift",
           "sourceChange" : {
-            "after" : "            let shiftColumn = (line != 1 && options.contains(.doNotWrapXML) == false)",
+            "after" : "            let shiftColumn = (true && options.contains(.doNotWrapXML) == false)",
+            "before" : "            let shiftColumn = (line == 1 && options.contains(.doNotWrapXML) == false)",
+            "line" : 291
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:291:41 RelationalOperatorReplacement",
+          "mutationPoint" : {
+            "mutationOperatorId" : "RelationalOperatorReplacement",
+            "position" : {
+              "column" : 41,
+              "line" : 291
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "false",
+            "before" : "line == 1",
+            "description" : "replaced the comparison with false"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "            let shiftColumn = (false && options.contains(.doNotWrapXML) == false)",
             "before" : "            let shiftColumn = (line == 1 && options.contains(.doNotWrapXML) == false)",
             "line" : 291
           },
@@ -1690,26 +1844,26 @@
           "testSuiteOutcome" : "failed"
         },
         {
-          "key" : "Sources\/XMLBuilder.swift:291:77 RelationalOperatorReplacement",
+          "key" : "Sources\/XMLBuilder.swift:291:45 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
-              "column" : 77,
+              "column" : 45,
               "line" : 291
             }
           },
           "mutationSnapshot" : {
-            "after" : "!=",
-            "before" : "==",
-            "description" : "changed == to !="
+            "after" : "true",
+            "before" : "options.contains(.doNotWrapXML) == false",
+            "description" : "replaced the comparison with true"
           },
           "path" : "Sources\/XMLBuilder.swift",
           "sourceChange" : {
-            "after" : "            let shiftColumn = (line == 1 && options.contains(.doNotWrapXML) != false)",
+            "after" : "            let shiftColumn = (line == 1 && true)",
             "before" : "            let shiftColumn = (line == 1 && options.contains(.doNotWrapXML) == false)",
             "line" : 291
           },
-          "testSuiteOutcome" : "failed"
+          "testSuiteOutcome" : "passed"
         },
         {
           "key" : "Sources\/XMLBuilder.swift:291:80 FlipBooleanLiteral",
@@ -1728,6 +1882,28 @@
           "path" : "Sources\/XMLBuilder.swift",
           "sourceChange" : {
             "after" : "            let shiftColumn = (line == 1 && options.contains(.doNotWrapXML) == true)",
+            "before" : "            let shiftColumn = (line == 1 && options.contains(.doNotWrapXML) == false)",
+            "line" : 291
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:291:85 RelationalOperatorReplacement",
+          "mutationPoint" : {
+            "mutationOperatorId" : "RelationalOperatorReplacement",
+            "position" : {
+              "column" : 85,
+              "line" : 291
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "false",
+            "before" : "options.contains(.doNotWrapXML) == false",
+            "description" : "replaced the comparison with false"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "            let shiftColumn = (line == 1 && false)",
             "before" : "            let shiftColumn = (line == 1 && options.contains(.doNotWrapXML) == false)",
             "line" : 291
           },
@@ -1822,26 +1998,48 @@
           "testSuiteOutcome" : "failed"
         },
         {
-          "key" : "Sources\/XMLBuilder.swift:308:27 RelationalOperatorReplacement",
+          "key" : "Sources\/XMLBuilder.swift:308:15 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
-              "column" : 27,
+              "column" : 15,
               "line" : 308
             }
           },
           "mutationSnapshot" : {
-            "after" : "==",
-            "before" : "!=",
-            "description" : "changed != to =="
+            "after" : "true",
+            "before" : "elementName != XMLBuilder.internalTopLevelElement",
+            "description" : "replaced the comparison with true"
           },
           "path" : "Sources\/XMLBuilder.swift",
           "sourceChange" : {
-            "after" : "        guard elementName == XMLBuilder.internalTopLevelElement else { return }",
+            "after" : "        guard true else { return }",
             "before" : "        guard elementName != XMLBuilder.internalTopLevelElement else { return }",
             "line" : 308
           },
-          "testSuiteOutcome" : "failed"
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:308:64 RelationalOperatorReplacement",
+          "mutationPoint" : {
+            "mutationOperatorId" : "RelationalOperatorReplacement",
+            "position" : {
+              "column" : 64,
+              "line" : 308
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "false",
+            "before" : "elementName != XMLBuilder.internalTopLevelElement",
+            "description" : "replaced the comparison with false"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "        guard false else { return }",
+            "before" : "        guard elementName != XMLBuilder.internalTopLevelElement else { return }",
+            "line" : 308
+          },
+          "testSuiteOutcome" : "runtimeError"
         },
         {
           "key" : "Sources\/XMLBuilder.swift:314:50 RemoveSideEffects",
@@ -2071,22 +2269,44 @@
           "testSuiteOutcome" : "failed"
         },
         {
-          "key" : "Sources\/XMLBuilder.swift:355:27 RelationalOperatorReplacement",
+          "key" : "Sources\/XMLBuilder.swift:355:15 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
             "position" : {
-              "column" : 27,
+              "column" : 15,
               "line" : 355
             }
           },
           "mutationSnapshot" : {
-            "after" : "==",
-            "before" : "!=",
-            "description" : "changed != to =="
+            "after" : "true",
+            "before" : "elementName != XMLBuilder.internalTopLevelElement",
+            "description" : "replaced the comparison with true"
           },
           "path" : "Sources\/XMLBuilder.swift",
           "sourceChange" : {
-            "after" : "        guard elementName == XMLBuilder.internalTopLevelElement else { return }",
+            "after" : "        guard true else { return }",
+            "before" : "        guard elementName != XMLBuilder.internalTopLevelElement else { return }",
+            "line" : 355
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:355:64 RelationalOperatorReplacement",
+          "mutationPoint" : {
+            "mutationOperatorId" : "RelationalOperatorReplacement",
+            "position" : {
+              "column" : 64,
+              "line" : 355
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "false",
+            "before" : "elementName != XMLBuilder.internalTopLevelElement",
+            "description" : "replaced the comparison with false"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "        guard false else { return }",
             "before" : "        guard elementName != XMLBuilder.internalTopLevelElement else { return }",
             "line" : 355
           },
@@ -2094,7 +2314,7 @@
         }
       ],
       "fileName" : "XMLBuilder.swift",
-      "mutationScore" : 87,
+      "mutationScore" : 83,
       "path" : "Sources\/XMLBuilder.swift"
     },
     {
@@ -2120,26 +2340,26 @@
       "path" : "Sources\/Platform.swift"
     }
   ],
-  "globalMutationScore" : 75,
+  "globalMutationScore" : 72,
   "mutantsByOutcome" : {
     "buildErrors" : 0,
-    "killed" : 71,
+    "killed" : 75,
     "notCovered" : 1,
-    "survived" : 22,
+    "survived" : 28,
     "timedOut" : 0
   },
-  "numberOfKilledMutants" : 71,
+  "numberOfKilledMutants" : 75,
   "operatorExplanations" : {
     "ChangeArithmeticOperator" : "Swaps arithmetic: plus and minus swap, as do times and divide, and remainder becomes times.",
     "ChangeLogicalConnector" : "Swaps a logical AND for OR, and OR for AND.",
     "FlipBooleanLiteral" : "Turns the literal true into false, and false into true.",
     "NegateConditional" : "Negates a condition of an if, guard or while, which sends the code down the other branch.",
     "RelationalBoundary" : "Moves a comparison's boundary: less than and at most swap, as do greater than and at least.",
-    "RelationalOperatorReplacement" : "Reverses a comparison: equal becomes not equal, and less than becomes greater than.",
+    "RelationalOperatorReplacement" : "Replaces a comparison with true or false, and turns less than and greater than into not equal, and at most and at least into equal.",
     "RemoveSideEffects" : "Removes a call whose result isn't used, to check that a test notices its side effect is gone.",
     "ReplaceBooleanValue" : "Replaces a Bool that is returned or stored with true, and in a second mutant with false.",
     "SwapTernary" : "Swaps the two branches of a ternary expression."
   },
   "projectCodeCoverage" : 78,
-  "totalAppliedMutationOperators" : 94
+  "totalAppliedMutationOperators" : 104
 }

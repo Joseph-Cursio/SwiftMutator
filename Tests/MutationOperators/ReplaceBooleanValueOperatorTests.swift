@@ -3,19 +3,30 @@ import XCTest
 
 /// ReplaceBooleanValue replaces a Bool that is returned or stored with `true`, and in a second mutant with `false`.
 final class ReplaceBooleanValueOperatorTests: MuterTestCase {
-    private func visitor(walking code: String, coverage: FileCoverage = .empty) throws -> MuterVisitor {
+    private func visitor(
+        walking code: String,
+        leavingComparisonsAlone: Bool = false,
+        coverage: FileCoverage = .empty
+    ) throws -> MuterVisitor {
         let source = try sourceCode(code)
         let visitor = ReplaceBooleanValueOperator.Visitor(
             sourceCodeInfo: .init(path: "/path/to/file", code: source),
             coverage: coverage
         )
+        visitor.leavesComparisonsAlone = leavingComparisonsAlone
         visitor.walk(source)
         return visitor
     }
 
     /// The values that get the pair of mutants, in the order of the file, each once. Fails unless each one has both.
-    private func values(in code: String, file: StaticString = #filePath, line: UInt = #line) throws -> [String] {
-        let schemata = try visitor(walking: code).schemataMappings.mutationSchemata
+    private func values(
+        in code: String,
+        leavingComparisonsAlone: Bool = false,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> [String] {
+        let schemata = try visitor(walking: code, leavingComparisonsAlone: leavingComparisonsAlone)
+            .schemataMappings.mutationSchemata
         let trues = schemata.filter { $0.snapshot.after == "true" }.map(\.snapshot.before)
         let falses = schemata.filter { $0.snapshot.after == "false" }.map(\.snapshot.before)
         XCTAssertEqual(trues, falses, "each value gets both mutants", file: file, line: line)
@@ -333,6 +344,67 @@ final class ReplaceBooleanValueOperatorTests: MuterTestCase {
     func test_aValueTouchingAKeyword_isKeptApartFromIt() throws {
         XCTAssertEqual(try mutants(of: "func f() -> Bool { return(a < b) }"), ["return true", "return false"])
         XCTAssertEqual(try mutants(of: "func f() { let x=a<b }"), ["let x=true", "let x=false"])
+    }
+
+    // MARK: RelationalOperatorReplacement's mutants
+
+    // That operator replaces such a comparison with its constants, and with the swap it gives an ordering comparison
+    // they stand for this pair: where `a < b` is false, its swap `a != b` is true wherever `true` is wrong too.
+    func test_aComparison_isLeftToRelationalOperatorReplacement_whenThatOperatorIsOn() throws {
+        for value in [
+            "a == b", "a != b", "a < b", "a <= b", "a > b", "a >= b", "a + 1 < b", "(a < b)", "a.count == b.count",
+        ] {
+            let code = "func f() { let x = \(value) }"
+            XCTAssertEqual(try values(in: code, leavingComparisonsAlone: true), [], value)
+            XCTAssertEqual(try values(in: code), [value], value)
+        }
+        for code in [
+            "func f() -> Bool { return a < b }",
+            "func f() -> Bool { a == b }",
+            "func f() throws -> Bool { try load() >= b }",
+            "func f() async -> Bool { await load() != b }",
+            "func f() { let x: Bool = a <= b }",
+            "func f() { let x: Bool? = a > b }",
+        ] {
+            XCTAssertEqual(try values(in: code, leavingComparisonsAlone: true), [], code)
+        }
+    }
+
+    // That operator leaves out all of a comparison's mutants when a directive leaves out one, here its swap, placed
+    // where the operator's leading trivia starts, after `x)`, and then nothing stands for this pair, whose places,
+    // where the value starts and ends, the directive doesn't reach.
+    func test_aComparisonWhoseMutantsADirectiveLeavesOut_staysThisOperators() throws {
+        let code = """
+        func f() -> Bool {
+            return load(
+                // muter:disable-next-line
+                x)
+                < b
+        }
+        """
+        XCTAssertEqual(
+            try values(in: code, leavingComparisonsAlone: true),
+            ["load( // muter:disable-next-line x) < b"]
+        )
+    }
+
+    // `&&`, `||`, `!` and an identity check are this operator's still, and so is a comparison under any of them.
+    func test_everythingElse_staysThisOperators_besideRelationalOperatorReplacement() throws {
+        for value in [
+            "a === b", "a !== b", "a && b", "a < b && c", "a == b || c", "!(a < b)", "!visible", "a < b ? c : d",
+        ] {
+            let code = "func f() -> Bool { \(value) }"
+            XCTAssertEqual(try values(in: code, leavingComparisonsAlone: true), [value], value)
+        }
+        XCTAssertEqual(
+            try values(in: "func f() -> Bool { items.isEmpty }", leavingComparisonsAlone: true),
+            ["items.isEmpty"]
+        )
+        // An operator the standard table doesn't hold isn't known to be a comparison.
+        XCTAssertEqual(
+            try values(in: "func f() -> Bool { a <> b == c }", leavingComparisonsAlone: true),
+            ["a <> b == c"]
+        )
     }
 
     // MARK: Where the shared rules apply

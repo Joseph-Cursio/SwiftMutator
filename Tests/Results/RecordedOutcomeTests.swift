@@ -761,7 +761,7 @@ final class JobOrderTests: MuterTestCase {
         let zetaLines = jobs
             .filter { $0.fileName == "Zeta.swift" && $0.mutationOperatorId == .ror }
             .map(\.position.line)
-        XCTAssertEqual(zetaLines, [9, 10], "lines compare as numbers, not as the text of a switch ID")
+        XCTAssertEqual(zetaLines, [9, 9, 10, 10], "lines compare as numbers, not as the text of a switch ID")
         // In line order whatever the operator, not each operator's mutants in turn.
         for file in Set(jobs.map(\.filePath)) {
             let places = jobs.filter { $0.filePath == file }.map { [$0.position.line, $0.position.column] }

@@ -9,6 +9,13 @@ import SwiftSyntax
 /// type.
 enum ReplaceBooleanValueOperator {
     final class Visitor: MuterVisitor {
+        /// Whether to leave a value whose last operator is a comparison, `==`, `!=`, `<`, `<=`, `>` or `>=`, alone, as
+        /// RelationalOperatorReplacement replaces such a comparison with its constants, which with the swap it gives
+        /// an ordering comparison stand for this pair (`ROROperator.comparisonGivenAConstant(in:)`). Set when that
+        /// operator is on, but not for `--mutant`, which discovers every operator and must still find the mutant a run
+        /// with this operator alone reported.
+        var leavesComparisonsAlone = false
+
         convenience init(
             configuration: MuterConfiguration? = nil,
             sourceCodeInfo: SourceCodeInfo,
@@ -29,7 +36,8 @@ enum ReplaceBooleanValueOperator {
             guard next == .visitChildren,
                   let value = node.as(ExprSyntax.self),
                   let site = value.booleanValueSite,
-                  value.counts(asABooleanWrittenAs: site.writtenType)
+                  value.counts(asABooleanWrittenAs: site.writtenType),
+                  !isLeftToRelationalOperatorReplacement(value)
             else {
                 return next
             }
@@ -57,6 +65,16 @@ enum ReplaceBooleanValueOperator {
                 )
             }
             return next
+        }
+
+        /// Whether RelationalOperatorReplacement's mutants of the comparison `value` ends with stand for this pair. Not
+        /// when a directive leaves them out, which leaves out all of a comparison's mutants when it leaves out one.
+        private func isLeftToRelationalOperatorReplacement(_ value: ExprSyntax) -> Bool {
+            guard leavesComparisonsAlone, let comparison = ROROperator.comparisonGivenAConstant(in: value) else {
+                return false
+            }
+            let places = placesOfTheMutants(ofTheComparisonWith: comparison)
+            return !places.contains(where: { isLeftOutByADirective($0, in: value.root) })
         }
 
         /// The literal in place of `value`, with the trivia on either side of it left outside: a `//` comment after the

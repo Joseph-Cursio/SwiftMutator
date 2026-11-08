@@ -10,9 +10,10 @@ final class SourceSpanTests: MuterTestCase {
         line: Int = 1,
         utf8Column: Int,
         before: String = "==",
-        by operatorId: MutationOperator.Id = .ror
+        by operatorId: MutationOperator.Id = .ror,
+        after: String = ""
     ) -> SourceSpan? {
-        SourceLines(text).span(of: before, placedAt: line, utf8Column: utf8Column, by: operatorId)
+        SourceLines(text).span(of: before, placedAt: line, utf8Column: utf8Column, by: operatorId, after: after)
     }
 
     private func position(_ line: Int, _ column: Int) -> SourceSpan.Position {
@@ -170,6 +171,25 @@ final class SourceSpanTests: MuterTestCase {
         }
     }
 
+    // A comparison's `true` is placed where it starts and its `false` where it ends, as a replaced Bool's are, and
+    // both span the comparison, comments and all; its swap spans its operator alone.
+    func test_aComparisonsConstants_spanTheComparison_fromEitherEnd_andItsSwapTheOperator() {
+        let text = "    return a.count <= /* or less */ b"
+        let comparison = SourceSpan(start: position(1, 12), end: position(1, 38))
+        let before = "a.count <= /* or less */ b"
+
+        XCTAssertEqual(span(text, utf8Column: 12, before: before, after: "true"), comparison)
+        XCTAssertEqual(span(text, utf8Column: 38, before: before, after: "false"), comparison)
+        XCTAssertEqual(span(text, utf8Column: 20, before: "<=", after: "=="), SourceSpan(
+            start: position(1, 20),
+            end: position(1, 22)
+        ))
+        for (column, after) in [(12, "true"), (38, "false")] {
+            let unread = SourceSpan(placedAt: 1, utf8Column: column, before: before, by: .ror, after: after)
+            XCTAssertEqual(unread, comparison, after)
+        }
+    }
+
     // Without the file's text, as for one that can't be read, the columns stay as SwiftSyntax counts them, and code
     // placed where it ends is taken to end there.
     func test_withoutTheLine_theColumnsStayInBytes() {
@@ -193,7 +213,7 @@ final class SourceSpanTests: MuterTestCase {
                 && b else { return 0 }
             guard a
                 // both must hold
-                && b, a ==  // why
+                && b, a <  // why
                 b else { return 0 }
             if a &&
                 b {
@@ -218,11 +238,17 @@ final class SourceSpanTests: MuterTestCase {
             "\(operators)"
         )
         for (schema, text) in found {
-            let before = SourceLines.code(of: schema.snapshot.before, by: schema.mutationOperatorId)
+            let before = MutantDiff.isAConstant(schema.snapshot, by: schema.mutationOperatorId)
+                ? schema.snapshot.before
+                : SourceLines.code(of: schema.snapshot.before, by: schema.mutationOperatorId)
             XCTAssertEqual(text?.inlined, before.inlined, "\(schema.mutationOperatorId)")
         }
         XCTAssertTrue(found.contains { $0.schema.snapshot.before.hasPrefix("// both must hold") && $0.text == "&&" })
-        XCTAssertTrue(found.contains { $0.schema.snapshot.before.hasSuffix("// why") && $0.text == "==" })
+        XCTAssertTrue(found.contains { $0.schema.snapshot.before.hasSuffix("// why") && $0.text == "<" })
+        XCTAssertTrue(found.contains { mutant in
+            mutant.schema.snapshot.after == "false"
+                && mutant.text.map { $0.hasPrefix("a <") && $0.contains("// why") && $0.hasSuffix("b") } == true
+        })
 
         let fixture = try spans(of: ToolReportFixture.rules).map(\.schema)
         let places = Set(fixture.map { "\($0.mutationOperatorId) \($0.position.line):\($0.position.column)" })
@@ -248,7 +274,8 @@ final class SourceSpanTests: MuterTestCase {
                     of: schema.snapshot.before,
                     placedAt: position.line,
                     utf8Column: position.column,
-                    by: schema.mutationOperatorId
+                    by: schema.mutationOperatorId,
+                    after: schema.snapshot.after
                 ),
                 "\(schema.mutationOperatorId) \(schema.snapshot.before) at \(position.line):\(position.column)"
             )
@@ -265,8 +292,8 @@ final class SourceSpanTests: MuterTestCase {
 
         let found = try spans(of: "func f() -> Bool {\r\r\n    // x\r    return a == b\n}\n")
             .filter { $0.schema.mutationOperatorId == .ror }
-        XCTAssertEqual(found.map(\.schema.position.line), [4])
-        XCTAssertEqual(found.map(\.text), ["=="])
+        XCTAssertEqual(found.map(\.schema.position.line), [4, 4])
+        XCTAssertEqual(found.map(\.text), ["a == b", "a == b"])
     }
 
     // A Windows line break is one; `\r\n` is one Character, which a split on "\n" wouldn't find.

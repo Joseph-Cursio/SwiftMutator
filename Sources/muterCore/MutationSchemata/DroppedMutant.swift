@@ -24,7 +24,7 @@ struct DroppedMutant: Equatable, Sendable {
     let lines: ClosedRange<Int>?
     let reason: Reason
 
-    /// `Sources/App/main.swift:9:19 RelationalOperatorReplacement (changed > to <): nested in …`
+    /// `Sources/App/main.swift:9:19 RelationalOperatorReplacement (changed > to !=): nested in …`
     var line: String {
         let change = snapshot.description.isEmpty ? "" : " (\(snapshot.description))"
         let why = switch reason {

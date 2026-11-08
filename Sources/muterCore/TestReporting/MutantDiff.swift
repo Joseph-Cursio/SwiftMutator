@@ -49,8 +49,9 @@ enum MutantDiff {
         if occurrences(of: needle, in: fileLines[line - 1]).contains(column - 1) {
             found = (line, column - 1)
         } else if !atItsPlaceOnly, !isPlacedWhereItsChangeStarts(mutationOperatorId) {
-            // A replaced Bool's `false` is placed where the value ends, on the line that holds it if it's on one.
-            let isOnItsOwnLine = mutationOperatorId == .replaceBooleanValue
+            // A replaced Bool's or comparison's `false` is placed where it ends, on the line that holds it if it's on
+            // one.
+            let isOnItsOwnLine = isAConstant(snapshot, by: mutationOperatorId)
                 || isALaterLinkOfATernaryChain(mutationOperatorId, at: column - 1, in: fileLines[line - 1])
             for number in stride(from: line, through: isOnItsOwnLine ? line : max(line - linesAbove, 1), by: -1) {
                 let offsets = occurrences(of: needle, in: fileLines[number - 1])
@@ -65,13 +66,14 @@ enum MutantDiff {
         let text = fileLines[found.line - 1]
         let rest = text[(found.offset + needle.count)...]
         // `if(a)` becomes `if !((a))`, with a space the operator adds, as `if!(` doesn't parse; and `return(a < b)`
-        // becomes `return true`, as a replaced Bool is kept apart from a name or keyword it would touch.
-        let isTouching = switch mutationOperatorId {
-        case .negateConditional: text[..<found.offset].last.map { !Character(UnicodeScalar($0)).isWhitespace } == true
-        case .replaceBooleanValue: text[..<found.offset].last.map(isPartOfAName) == true
-        default: false
+        // becomes `return true`, as a replaced Bool or comparison is kept apart from a name or keyword it would touch.
+        let isAConstant = isAConstant(snapshot, by: mutationOperatorId)
+        let isTouching = if mutationOperatorId == .negateConditional {
+            text[..<found.offset].last.map { !Character(UnicodeScalar($0)).isWhitespace } == true
+        } else {
+            isAConstant && text[..<found.offset].last.map(isPartOfAName) == true
         }
-        let isTouchingAfter = mutationOperatorId == .replaceBooleanValue && rest.first.map(isPartOfAName) == true
+        let isTouchingAfter = isAConstant && rest.first.map(isPartOfAName) == true
         let changed = Array(text[..<found.offset]) + (isTouching ? [UInt8(ascii: " ")] : [])
             + Array(replacement(snapshot, mutationOperatorId).utf8)
             + (isTouchingAfter ? [UInt8(ascii: " ")] : []) + Array(rest)
@@ -89,6 +91,19 @@ enum MutantDiff {
         let before = "- " + snapshot.before
         let after = replacement(snapshot, mutationOperatorId)
         return after.isEmpty ? [before] : [before, "+ " + after]
+    }
+
+    /// Whether the mutant replaces code with `true` or `false`, placed where that code starts for `true` and where it
+    /// ends for `false`: a replaced Bool's, and a comparison's constant, whose `after` is a literal, where a swap's is
+    /// an operator.
+    static func isAConstant(_ snapshot: MutationOperator.Snapshot, by mutationOperatorId: MutationOperator.Id) -> Bool {
+        isAConstant(after: snapshot.after, by: mutationOperatorId)
+    }
+
+    /// Whether a mutant of `mutationOperatorId` that puts `after` in place of its code replaces it with a constant
+    /// (`isAConstant(_:by:)`).
+    static func isAConstant(after: String, by mutationOperatorId: MutationOperator.Id) -> Bool {
+        mutationOperatorId == .replaceBooleanValue || mutationOperatorId == .ror && ["true", "false"].contains(after)
     }
 
     /// Whether `byte` can be part of a name or a keyword, which a replaced Bool next to it would join.

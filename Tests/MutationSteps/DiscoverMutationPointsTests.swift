@@ -48,7 +48,7 @@ final class DiscoverMutationPointsTests: MuterTestCase {
             .mutationSchemata
             .include { $0.mutationOperatorId == .ror }
 
-        XCTAssertEqual(rorSchemata?.count, 2)
+        XCTAssertEqual(rorSchemata?.count, 4)
 
         let sampleWithSpacesForDiscoveringMutations = mappings
             .first { $0.fileName.contains("sample With Spaces For Discovering Mutations") }
@@ -315,7 +315,8 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         guard case let .mutationMappingsDiscovered(mappings) = try XCTUnwrap(result.first) else {
             return XCTFail("Expected mappings, got \(result)")
         }
-        XCTAssertEqual(mappings.flatMap(\.mutationSchemata).map(\.mutationOperatorId), [.ror])
+        // `count == 1`'s two constants, which a reference without a column names both of.
+        XCTAssertEqual(mappings.flatMap(\.mutationSchemata).map(\.mutationOperatorId), [.ror, .ror])
     }
 
     // Preparing a file rewrites it in the project's copy, so a second time would move every mutant in it.
@@ -383,46 +384,92 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         }
     }
 
-    // RelationalOperatorReplacement's swap of `a == b` is the mutant NegateConditional would make, so it isn't made
-    // twice, and only while that operator is on.
-    func test_aLoneEqualityCheck_isNegatedOnlyWithoutRelationalOperatorReplacement() async throws {
-        let operators: (MutationOperatorList) async throws -> [MutationOperator.Id] = { list in
-            let file = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).swift")
-            try "func f(a: Int, b: Int) { if a == b { print(a) } }\n".write(to: file, atomically: true, encoding: .utf8)
-            self.addTeardownBlock { try? FileManager.default.removeItem(at: file) }
-            self.state.sourceFileCandidates = [file.path]
-            self.state.mutationOperatorList = list
-            self.state.apply(try await self.sut.run(with: self.state))
-            return self.state.mutationMapping.flatMap(\.mutationSchemata).map(\.mutationOperatorId)
+    // RelationalOperatorReplacement's constants stand for the negation of a lone comparison, so it isn't made too, and
+    // only while that operator is on.
+    func test_aLoneComparison_isNegatedOnlyWithoutRelationalOperatorReplacement() async throws {
+        for (code, ror) in [
+            ("func f(a: Int, b: Int) { if a == b { print(a) } }\n", [MutationOperator.Id.ror, .ror]),
+            ("func f(a: Int, b: Int) { if a < b { print(a) } }\n", [.ror, .ror]),
+        ] {
+            let withAll = try await operators(discoveredIn: code, by: .allOperators)
+            XCTAssertEqual(withAll.filter { $0 != .relationalBoundary }, ror, code)
+            let alone = try await operators(discoveredIn: code, by: [.negateConditional])
+            XCTAssertEqual(alone, [.negateConditional], code)
+            let besideOthers = try await operators(discoveredIn: code, by: [.negateConditional, .logicalOperator])
+            XCTAssertEqual(besideOthers, [.negateConditional], code)
         }
+    }
 
-        let withAll = try await operators(.allOperators)
-        XCTAssertEqual(withAll, [.ror])
-        let alone = try await operators([.negateConditional])
-        XCTAssertEqual(alone, [.negateConditional])
-        let besideOthers = try await operators([.negateConditional, .logicalOperator])
-        XCTAssertEqual(besideOthers, [.negateConditional])
+    // RelationalOperatorReplacement's constants replace a comparison that is a value too, so ReplaceBooleanValue leaves
+    // it to them while that operator is on.
+    func test_aComparisonThatIsAValue_isReplacedByReplaceBooleanValueOnlyWithoutRelationalOperatorReplacement()
+        async throws {
+        let code = "func f(a: Int, b: Int) -> Bool { return a < b }\n"
+
+        let withAll = try await operators(discoveredIn: code, by: .allOperators)
+        XCTAssertEqual(withAll.sorted { $0.rawValue < $1.rawValue }, [.relationalBoundary, .ror, .ror])
+        let alone = try await operators(discoveredIn: code, by: [.replaceBooleanValue])
+        XCTAssertEqual(alone, [.replaceBooleanValue, .replaceBooleanValue])
+        let besideOthers = try await operators(discoveredIn: code, by: [.replaceBooleanValue, .relationalBoundary])
+        XCTAssertEqual(besideOthers.sorted { $0.rawValue < $1.rawValue }, [
+            .relationalBoundary, .replaceBooleanValue, .replaceBooleanValue,
+        ])
+        let other = try await operators(discoveredIn: "func f(a: Bool) -> Bool { return !a }\n", by: .allOperators)
+        XCTAssertEqual(other, [.replaceBooleanValue, .replaceBooleanValue])
+    }
+
+    /// The operators of the mutants discovery finds in `code` with `list`, in the order of the file.
+    private func operators(discoveredIn code: String, by list: MutationOperatorList) async throws
+        -> [MutationOperator.Id] {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).swift")
+        try code.write(to: file, atomically: true, encoding: .utf8)
+        addTeardownBlock { try? FileManager.default.removeItem(at: file) }
+        state.sourceFileCandidates = [file.path]
+        state.mutationOperatorList = list
+        state.apply(try await sut.run(with: state))
+        return state.mutationMapping.flatMap(\.mutationSchemata).map(\.mutationOperatorId)
     }
 
     // `--mutant` discovers every operator, and must still find the mutant a run with NegateConditional alone reported.
-    func test_aMutantNamed_findsTheNegationOfALoneEqualityCheck() async throws {
+    func test_aMutantNamed_findsTheNegationOfALoneComparison() async throws {
+        for (code, column) in [
+            ("func f(a: Int, b: Int) { if a == b { print(a) } }\n", 29),
+            ("func f(a: Int, b: Int) { if a < b { print(a) } }\n", 29),
+        ] {
+            let mutants = try await mutants(named: "1:\(column) NegateConditional", in: code)
+            XCTAssertEqual(mutants.map(\.mutationOperatorId), [.negateConditional], code)
+            XCTAssertEqual(mutants.map(\.position.line), [1], code)
+            XCTAssertEqual(mutants.map(\.position.column), [column], code)
+        }
+    }
+
+    // `--mutant` must still find each mutant a run with ReplaceBooleanValue alone reported.
+    func test_aMutantNamed_findsTheReplacedBoolOfAComparison() async throws {
+        let code = "func f(a: Int, b: Int) -> Bool { return a < b }\n"
+        for (column, after) in [(41, "true"), (46, "false")] {
+            let mutants = try await mutants(named: "1:\(column) ReplaceBooleanValue", in: code)
+            XCTAssertEqual(mutants.map(\.mutationOperatorId), [.replaceBooleanValue])
+            XCTAssertEqual(mutants.map(\.position.column), [column])
+            XCTAssertEqual(mutants.map(\.snapshot.after), [after])
+        }
+    }
+
+    /// The mutants a run of all the operators with `--mutant` selects in `code`, given its mutant as `line:column
+    /// Operator`.
+    private func mutants(named reference: String, in code: String) async throws -> [MutationSchema] {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).swift")
-        try "func f(a: Int, b: Int) { if a == b { print(a) } }\n".write(to: file, atomically: true, encoding: .utf8)
+        try code.write(to: file, atomically: true, encoding: .utf8)
         addTeardownBlock { try? FileManager.default.removeItem(at: file) }
         state.sourceFileCandidates = [file.path]
         state.mutationOperatorList = .allOperators
-        state.runOptions = .make(mutant: try MutantReference.parse("\(file.lastPathComponent):1:29 NegateConditional"))
-
+        state.runOptions = .make(mutant: try MutantReference.parse("\(file.lastPathComponent):\(reference)"))
         state.projectDirectoryURL = file.deletingLastPathComponent()
         state.mutatedProjectDirectoryURL = file.deletingLastPathComponent()
 
         state.apply(try await sut.run(with: state))
         state.apply(try await SelectMutant().run(with: state))
 
-        let mutants = state.mutationMapping.flatMap(\.mutationSchemata)
-        XCTAssertEqual(mutants.map(\.mutationOperatorId), [.negateConditional])
-        XCTAssertEqual(mutants.map(\.position.line), [1])
-        XCTAssertEqual(mutants.map(\.position.column), [29])
+        return state.mutationMapping.flatMap(\.mutationSchemata)
     }
 
     /// A file whose opaque getter holds a nested comparison, on line 5, and a ternary of its own, on line 7.
@@ -480,9 +527,9 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         }
     }
 
-    // The two copies have mutants at one place, RelationalOperatorReplacement's and RelationalBoundary's, beside
-    // ReplaceBooleanValue's two. Their switch IDs named the file alone, so testing either copy's mutant switched on the
-    // other copy's too.
+    // The two copies have mutants at one place, RelationalOperatorReplacement's swap and RelationalBoundary's, beside
+    // the former's constant, which ReplaceBooleanValue leaves the value to. Their switch IDs named the file alone, so
+    // testing either copy's mutant switched on the other copy's too.
     func test_givesFilesWithTheSameNameSwitchIDsOfTheirOwn() async throws {
         let paths = try makeSourceFiles(at: ["First/Module.swift", "Second/Module.swift"])
         state.sourceFileCandidates = paths
@@ -495,12 +542,12 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         }
 
         let ids = mappings.flatMap(\.mutationSchemata).map(\.id)
-        XCTAssertEqual(ids.count, 8)
-        XCTAssertEqual(Set(ids).count, 8, "\(ids)")
-        for id in ids.prefix(4) {
+        XCTAssertEqual(ids.count, 6)
+        XCTAssertEqual(Set(ids).count, 6, "\(ids)")
+        for id in ids.prefix(3) {
             XCTAssertTrue(id.hasPrefix("Module_\("First/Module.swift".stableHash)_"), id)
         }
-        for id in ids.suffix(4) {
+        for id in ids.suffix(3) {
             XCTAssertTrue(id.hasPrefix("Module_\("Second/Module.swift".stableHash)_"), id)
         }
     }
@@ -645,7 +692,7 @@ final class DiscoverMutationPointsTests: MuterTestCase {
 
         let mutatedLines = try await discoveredMutantLines()
 
-        XCTAssertEqual(mutatedLines, [3, 3, 3, 3])
+        XCTAssertEqual(mutatedLines, [3, 3, 3])
     }
 
     func test_shouldIgnoreMutantsWithoutCoverage_reportedThroughASymbolicLink() async throws {
@@ -658,7 +705,7 @@ final class DiscoverMutationPointsTests: MuterTestCase {
 
         let mutatedLines = try await discoveredMutantLines()
 
-        XCTAssertEqual(mutatedLines, [3, 3, 3, 3])
+        XCTAssertEqual(mutatedLines, [3, 3, 3])
     }
 
     func test_shouldIgnoreMutantsWithoutCoverage_inAFileReachedThroughASymbolicLink() async throws {
@@ -670,7 +717,7 @@ final class DiscoverMutationPointsTests: MuterTestCase {
 
         let mutatedLines = try await discoveredMutantLines()
 
-        XCTAssertEqual(mutatedLines, [3, 3, 3, 3])
+        XCTAssertEqual(mutatedLines, [3, 3, 3])
     }
 
     // A file an app shares with its extension has a copy of each function in each binary: in this real export, where
@@ -714,11 +761,12 @@ final class DiscoverMutationPointsTests: MuterTestCase {
 
         let mutatedLines = try await discoveredMutantLines()
 
-        XCTAssertEqual(mutatedLines, [5, 5, 5, 5, 9, 9])
+        XCTAssertEqual(mutatedLines, [5, 5, 5, 9, 9])
     }
 
     /// Mutants on line 1, in a function the tests never run, and on line 3, in one they do: each `<` or `>` gets
-    /// RelationalOperatorReplacement's mutant and RelationalBoundary's, and each value ReplaceBooleanValue's two.
+    /// RelationalOperatorReplacement's two and RelationalBoundary's, as ReplaceBooleanValue leaves a comparison to the
+    /// first.
     private func writeSourceWithAnUncoveredFunction(to path: String) throws {
         try """
         func isNegative(_ value: Int) -> Bool { value < 0 }

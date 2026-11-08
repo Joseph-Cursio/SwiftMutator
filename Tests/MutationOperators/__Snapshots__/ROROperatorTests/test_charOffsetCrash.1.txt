@@ -1,8 +1,15 @@
 if __SwiftMutator_5915ae76dd16886a.environment[
-  "file_5915ae76dd16886a_RelationalOperatorReplacement_1_10_9"] != nil,
+  "file_5915ae76dd16886a_RelationalOperatorReplacement_1_4_3"] != nil,
   __SwiftMutator_5915ae76dd16886a.ran
 {
-  if value != "バルーンの表示判定" {
+  if true {
+
+  }
+} else if __SwiftMutator_5915ae76dd16886a.environment[
+  "file_5915ae76dd16886a_RelationalOperatorReplacement_1_42_41"] != nil,
+  __SwiftMutator_5915ae76dd16886a.ran
+{
+  if false {
 
   }
 } else {

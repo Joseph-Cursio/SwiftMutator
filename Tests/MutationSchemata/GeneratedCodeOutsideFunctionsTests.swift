@@ -180,26 +180,28 @@ final class GeneratedCodeOutsideFunctionsTests: GeneratedCodeTestCase {
             try run(compiled.program).output,
             "found\nfirst\nsecond\ntrue\nfalse 120\n"
         )
-        let mutant = { (text: String) in
+        // RelationalOperatorReplacement's mutant on the line that holds `text` that puts `after` in place.
+        let mutant = { (text: String, after: String) in
             try XCTUnwrap(
-                compiled.mutants(in: "main.swift", onTheLineHolding: text).first { $0.mutationOperatorId == .ror }?.id
+                compiled.mutants(in: "main.swift", onTheLineHolding: text)
+                    .first { $0.mutationOperatorId == .ror && $0.snapshot.after == after }?.id
             )
         }
         XCTAssertEqual(
-            try run(compiled.program, switchingOn: mutant("> 5 { total")).output,
+            try run(compiled.program, switchingOn: mutant("> 5 { total", "!=")).output,
             "found\nfirst\nsecond\ntrue\nfalse 121\n"
         )
-        XCTAssertEqual(try run(compiled.program, switchingOn: mutant("guard ")).status, 3)
+        XCTAssertEqual(try run(compiled.program, switchingOn: mutant("guard ", "false")).status, 3)
         XCTAssertEqual(
-            try run(compiled.program, switchingOn: mutant("let bigger")).output,
+            try run(compiled.program, switchingOn: mutant("let bigger", "!=")).output,
             "found\nfirst\nsecond\ntrue\ntrue 120\n"
         )
         XCTAssertEqual(
-            try run(compiled.program, switchingOn: mutant("print(\"first\")")).output,
+            try run(compiled.program, switchingOn: mutant("print(\"first\")", "false")).output,
             "found\nsecond\ntrue\nfalse 120\n"
         )
         XCTAssertEqual(
-            try run(compiled.program, switchingOn: mutant("print(total > 100)")).output,
+            try run(compiled.program, switchingOn: mutant("print(total > 100)", "false")).output,
             "found\nfirst\nsecond\nfalse\nfalse 120\n"
         )
     }
@@ -249,11 +251,11 @@ final class GeneratedCodeOutsideFunctionsTests: GeneratedCodeTestCase {
         visitor.walk(source.code)
 
         XCTAssertEqual(visitor.schemataMappings.mutationSchemata.count, 0)
-        XCTAssertEqual(visitor.droppedMutants.map(\.position.line), [4, 5, 6, 7])
+        XCTAssertEqual(visitor.droppedMutants.map(\.position.line), [4, 4, 5, 5, 6, 6, 7, 7])
         XCTAssertEqual(Set(visitor.droppedMutants.map(\.reason)), [.noPlaceForASwitch])
         XCTAssertEqual(
             visitor.droppedMutants.first?.line,
-            "Sources/main.swift:4:24 RelationalOperatorReplacement (changed > to <): "
+            "Sources/main.swift:4:27 RelationalOperatorReplacement (replaced the comparison with false): "
                 + "in code at a file's or a type's top level that can hold no switch"
         )
     }
@@ -268,7 +270,8 @@ final class GeneratedCodeOutsideFunctionsTests: GeneratedCodeTestCase {
         visitor.walk(source.code)
 
         let rewritten = MuterRewriter(visitor.schemataMappings).rewrite(source.code).description
-        XCTAssertEqual(rewritten.components(separatedBy: ".environment[").count - 1, 1, rewritten)
+        // The swap and the constant, each once.
+        XCTAssertEqual(rewritten.components(separatedBy: ".environment[").count - 1, 2, rewritten)
     }
 
     /// `CompileRecovery` can only pin an error on a mutant whose branch is an `if` of a switch.
@@ -289,14 +292,18 @@ final class GeneratedCodeOutsideFunctionsTests: GeneratedCodeTestCase {
         let locator = MutantLocator(rewritten: code, filePath: source.path)
         let converter = SourceLocationConverter(fileName: source.path, tree: Parser.parse(source: code))
 
-        for (mutated, line) in [("1 < 2", 3), ("3 < 4", 4)] {
-            let id = try XCTUnwrap(mapping.mutationSchemata.first { $0.position.line == line }?.id)
+        for (mutated, line) in [("1 != 2", 3), ("3 != 4", 4)] {
+            let id = try XCTUnwrap(
+                mapping.mutationSchemata.first { $0.position.line == line && $0.snapshot.after == "!=" }?.id
+            )
             let place = try XCTUnwrap(code.range(of: mutated))
             let location = converter.location(for: AbsolutePosition(utf8Offset: code.utf8.distance(
                 from: code.utf8.startIndex,
                 to: place.lowerBound
             )))
-            XCTAssertEqual(locator.place(line: location.line, column: location.column), .branch(id, chain: [id]))
+            // The swap and the constant share the value's switch, each a branch of its own, the later one first.
+            let chain = Array(mapping.mutationSchemata.filter { $0.position.line == line }.map(\.id).reversed())
+            XCTAssertEqual(locator.place(line: location.line, column: location.column), .branch(id, chain: chain))
         }
     }
 }
@@ -360,8 +367,9 @@ final class GeneratedCodeUnderAttributesTests: GeneratedCodeTestCase {
         )
 
         XCTAssertEqual(try run(compiled.program).output, "false false\n")
-        // Two of each default, and ReplaceBooleanValue's two of each body's `flag`.
-        XCTAssertEqual(compiled.mutants(in: "Values.swift").count, 8)
+        // Three of each default, RelationalOperatorReplacement's two and RelationalBoundary's, and
+        // ReplaceBooleanValue's two of each body's `flag`.
+        XCTAssertEqual(compiled.mutants(in: "Values.swift").count, 10)
     }
 
     func test_valuesThatCantHoldASwitch_areDropped() throws {
@@ -377,8 +385,8 @@ final class GeneratedCodeUnderAttributesTests: GeneratedCodeTestCase {
         let visitor = MutationOperator.Id.ror.visitor(.init(), source, .empty)
         visitor.walk(source.code)
 
-        XCTAssertEqual(visitor.droppedMutants.map(\.position.line), [3, 4, 7])
-        XCTAssertEqual(visitor.schemataMappings.mutationSchemata.map(\.position.line), [5, 6])
+        XCTAssertEqual(visitor.droppedMutants.map(\.position.line), [3, 3, 4, 4, 7, 7])
+        XCTAssertEqual(visitor.schemataMappings.mutationSchemata.map(\.position.line), [5, 5, 6, 6])
     }
 
     /// A value's switch is an `if` expression, whose branches must share a type: a switch in a builder closure of a
@@ -397,7 +405,9 @@ final class GeneratedCodeUnderAttributesTests: GeneratedCodeTestCase {
 
         XCTAssertEqual(Set(dropped.map(\.position.line)), [1, 2])
         XCTAssertEqual(Set(mapping.mutationSchemata.map(\.position.line)), [1, 2, 3, 4, 5])
-        XCTAssertEqual(mapping.mutationSchemata.filter { $0.position.line == 1 }.map(\.snapshot.before), [">", ">"])
+        XCTAssertEqual(
+            mapping.mutationSchemata.filter { $0.position.line == 1 }.map(\.snapshot.before), [">", ">", "1 > 2"]
+        )
     }
 
     func test_aMacroExpansionsError_isPlacedWhereItsCodeCameFrom() {

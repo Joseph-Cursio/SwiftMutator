@@ -208,13 +208,15 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   `<project>_muter_logs`, keeps its name too, so scripts and CI paths that name it still work, and
   Spotlight still indexes it.
 - **Boundary mutants:** `RelationalBoundary` turns `<` into `<=`, `<=` into `<`, `>` into `>=` and
-  `>=` into `>` ([#102](https://github.com/Joseph-Cursio/SwiftMutator/issues/102)).
-  `RelationalOperatorReplacement` turns `<` into `>`, which almost any test kills; a boundary
+  `>=` into `>` ([#102](https://github.com/Joseph-Cursio/SwiftMutator/issues/102)). A boundary
   mutant survives unless some test checks the edge value. It runs by default, beside
-  `RelationalOperatorReplacement`, so each ordering operator gets two mutants, and a run has one
-  more mutant for each one it mutates. A `--mutant` that gives such a place without an operator
-  names both, so it is refused with each one listed, ready to paste ([Testing one
-  mutant](#testing-one-mutant)). As the run's operators are no longer the four an older
+  `RelationalOperatorReplacement`, which gives an ordering operator two more mutants (see
+  Comparisons, below), so a run has one more mutant for each one it mutates. A `--mutant` that
+  gives such a place without an operator names both, so it is refused with each one listed, ready
+  to paste ([Testing one mutant](#testing-one-mutant)). So does a place where a
+  `RelationalOperatorReplacement` constant starts or ends a condition or a Bool value, as
+  `NegateConditional` and `ReplaceBooleanValue` mutate it there too under `--mutant`; give the
+  operator, as the refusal lists it. As the run's operators are no longer the four an older
   SwiftMutator recorded, `--resume` and `--reuse` refuse a run it made without `--operators`. To
   continue one, name its four operators, `--operators RelationalOperatorReplacement
   RemoveSideEffects ChangeLogicalConnector SwapTernary`, with the `--force-resume` or
@@ -224,10 +226,11 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   `while` in `!( )`, which sends the code down the other branch
   ([#106](https://github.com/Joseph-Cursio/SwiftMutator/issues/106)). It runs by default, and adds
   42% to SwiftProjectLint's mutants, of which 1 of 313 sampled timed out. While
-  `RelationalOperatorReplacement` is on, a condition that is one `==` or `!=` comparison is left to
-  that operator, whose swap is the same mutant, and `--mutant` still finds such a mutant that a run
-  without that operator reported. A run recorded before it is continued as above, by naming that
-  run's operators with `--operators`. See [mutation_operators.md](Docs/mutation_operators.md).
+  `RelationalOperatorReplacement` is on, a condition that is one comparison is left to that
+  operator, whose constant a test can't kill without killing the negation too, and `--mutant` still
+  finds such a mutant that a run without that operator reported. A run recorded before it is
+  continued as above, by naming that run's operators with `--operators`. See
+  [mutation_operators.md](Docs/mutation_operators.md).
 - **Arithmetic and boolean literals:** `ChangeArithmeticOperator` swaps `+` and `-`, swaps `*` and
   `/`, and turns `%` into `*`, as well as their assignment forms. `FlipBooleanLiteral` turns `true`
   into `false` and back ([#111](https://github.com/Joseph-Cursio/SwiftMutator/issues/111)). Both
@@ -242,11 +245,35 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   closure that writes its return type returns, and a `let` or `var`'s initial value. The tree has
   no types, so a value counts when its type is written as `Bool`, or when it is a comparison,
   `&&`, `||` or `!`. So `return items.isEmpty` in a function that returns `Bool`, or
-  `let hidden = !visible`, gets mutants that no other operator gives. It runs by default. A run
-  recorded before it is continued as above, by naming that run's operators with `--operators`,
-  and a baseline file written before it is refused, as it records the run's operators (see
-  [Failing on new survivors](#failing-on-new-survivors)). See
+  `let hidden = !visible`, gets mutants that no other operator gives. It runs by default. While
+  `RelationalOperatorReplacement` is on, a value that is a comparison is left to that operator's
+  constants, as below. A run recorded before it is continued as above, by naming that run's
+  operators with `--operators`, and a baseline file written before it is refused, as it records the
+  run's operators (see [Failing on new survivors](#failing-on-new-survivors)). See
   [mutation_operators.md](Docs/mutation_operators.md#replace-boolean-value).
+- **Comparisons:** `RelationalOperatorReplacement` gives an ordering comparison the mutants of
+  Kaminski, Ammann and Offutt's sufficient set, whose tests, with `RelationalBoundary`'s, kill every
+  other mutant of its operator, and an equality check both constants in place of the set's `<=` and
+  `>=`. An ordering comparison's operator is swapped, `<` and `>` for `!=`, `<=` and `>=` for `==`,
+  where it used to be reversed, `<` to `>`, and the comparison is replaced with a constant, `false`
+  for `<` and `>` and `true` for `<=` and `>=`: `a + 1 < b` becomes `false`. An equality check is
+  replaced with `true`, and in a second mutant with `false`, where `==` used to become `!=`. So each
+  comparison gets two mutants where it got one, and with `RelationalBoundary`'s an ordering one gets
+  three. A comparison that is a statement of its own, as Nimble's `expect(x) == 1`, one in a
+  sequence with an operator of the project's own precedence, and one that holds a closure's only
+  `$0`, as in `filter { $0 > 1 }`, get only the swap, `==` to `!=` too. While it is on,
+  `NegateConditional` and `ReplaceBooleanValue` leave a comparison it gives a constant to it. A
+  comparison that decides a `while` or `repeat`-`while` loop gets no constant that would keep the
+  loop going until the time limit. The operator keeps its name, but nearly every one of its mutants
+  changes, so a baseline file written before sees its old survivors as not tested and its new ones
+  as new, and a run fails on them until a whole run writes a new file (see [Failing on new
+  survivors](#failing-on-new-survivors)). A triage label on one of its mutants from before matches
+  no mutant now, except on an equality check's swap where it still gets one, as a statement of its
+  own, and its mutants need labelling again (see [Triaging survivors](#triaging-survivors)). A
+  `--resume` or `--reuse` of a run recorded before is refused, as by any other SwiftMutator; with
+  `--force-resume` or `--force-reuse`, its results for this operator's mutants are tested again, as
+  each one's mutation is no longer the one recorded. See
+  [mutation_operators.md](Docs/mutation_operators.md#relational-operator-replacement).
 - **Choosing the files** ([#115](https://github.com/Joseph-Cursio/SwiftMutator/issues/115)): the
   default excludes also leave out test doubles and helpers, `/Mocks/`, `/Stubs/`, `/Fakes/`,
   `/TestHelpers/`, `/TestSupport/`, `Mock.swift` and `Spec.swift`, and `/Snippets/` and
@@ -626,7 +653,17 @@ is read as the run starts, and replaced at the end.
   baseline file written with it. An upgrade that adds an operator that runs by default, as
   `ReplaceBooleanValue` did, changes the operators of a run that names none, so a file written
   before it is refused until a whole run writes a new one; to keep the old file meanwhile, leave the
-  new operator out, as with `skipOperators: [ReplaceBooleanValue]` in `muter.conf.yml`.
+  new operator out, as with `skipOperators: [ReplaceBooleanValue]` in `muter.conf.yml`. An upgrade
+  that changes what an operator's mutants are, as `RelationalOperatorReplacement`'s Kaminski set
+  did, isn't refused, as the operators are the same: the file's survivors of the old mutants are
+  not tested, and the new mutants' survivors are new, so the check fails. Its mutants are harder
+  to kill than the old ones, so the score falls too, and `--max-score-drop`, which compares with
+  the file's `score`, can fail as well. The survivors of `NegateConditional` on a condition that is
+  one comparison, and of `ReplaceBooleanValue` on a comparison value, are not tested either, as
+  those operators now leave such code to it. Write a new file with a whole run after such an
+  upgrade, or, for the first run only, let it through with `--max-new-survivors` set to its count
+  of new survivors and without `--max-score-drop` (and with any `--fail-under` loosened). The note of a file written by another version comes only when the
+  version number differs, which a build of `main` may not change.
   `executable` isn't compared: it is an absolute path, which differs between machines. A missing
   file, one that can't be read, an unknown key, a newer format and a `score` no run gives, as more
   killed than scored, are refused the same way.
@@ -722,7 +759,9 @@ without `--baseline`, is a usage error, 64. There is no key for it in `muter.con
   only mutants of code no test ran (see
   [When only such code changed](#failing-on-new-survivors)), which tested none. Check a split's
   merged report with `report --baseline … --max-score-drop` instead. A run that a signal or an error
-  stopped exits for that, and says nothing of it.
+  stopped exits for that, and says nothing of it. Nor does the check know that an upgrade changed
+  what an operator's mutants are, as `RelationalOperatorReplacement`'s Kaminski set did, which can
+  lower the score with no change to the tests (see [Failing on new survivors](#failing-on-new-survivors)).
 - **`report --max-score-drop`** compares a results file's score, or every shard's merged, and says its
   verdict on standard error. It doesn't compare a run that didn't finish, one that stopped on an
   error, merged shards that lack results or miss a shard, nor shards whose runs didn't discover the
@@ -1012,19 +1051,23 @@ and reports name it, `path:line[:column] [Operator]`, with as much of its path a
 apart:
 
 ```
-swift-mutator run --mutant 'Rules.swift:42:17'
+swift-mutator run --mutant 'Rules.swift:42:17 RelationalOperatorReplacement'
 swift-mutator run-without-mutating muter-mappings.json --mutant 'Sources/Foo/Rules.swift:42:17 RelationalOperatorReplacement'
 ```
+
+At a place where only one mutant is, `path:line` or `path:line:column` alone is enough; where two
+operators mutate the same place, as `RelationalBoundary` and `RelationalOperatorReplacement` do at
+`<`, the operator is needed.
 
 It runs the baseline, then the mutant's tests with `stopAtFirstFailure` off, so the log names every
 test that fails, and prints, in place of the report:
 
 ```
-🔬 Sources/Foo/Rules.swift:42:17 RelationalOperatorReplacement (changed == to !=)
+🔬 Sources/Foo/Rules.swift:42:17 RelationalOperatorReplacement (changed < to !=)
 Switch: Rules_9c41…_RelationalOperatorReplacement_42_17_1388
 Change:
-  -42:         guard rule.kind == .error else { return }
-  +42:         guard rule.kind != .error else { return }
+  -42:         while i < rules.count {
+  +42:         while i != rules.count {
 Tests (log: /…/Foo_muter_logs/…/RelationalOperatorReplacement @ Rules.swift-42-17 9c41….log):
   ✘ Test errorsAreReported() recorded an issue at RulesTests.swift:12:9: Expectation failed
   …
@@ -1068,7 +1111,7 @@ the log with cursor movements. So SwiftMutator prints a line once the baseline p
 each mutant finishes instead, and flushes each line as it prints it:
 
 ```
-[13:13:25] 1103 of 2497 (44%) | 838 killed, 262 survived, 3 timed out | 47 min left | survived at Rules.swift:42:17 (changed == to !=)
+[13:13:25] 1103 of 2497 (44%) | 838 killed, 262 survived, 3 timed out | 47 min left | survived at Rules.swift:42:17 (changed < to !=)
 ```
 
 So `tail -f run.log` follows the run, and `grep 'survived at' run.log` lists the survivors so far,
@@ -1143,9 +1186,9 @@ in a section of their own. They are listed by path, line and column, each with t
 before and after:
 
 ```
-Sources/Lint/Rules.swift:42:17 survived: RelationalOperatorReplacement (changed == to !=)
-    -42:         if count == limit {
-    +42:         if count != limit {
+Sources/Lint/Rules.swift:42:17 survived: RelationalOperatorReplacement (changed < to !=)
+    -42:         while i < limit {
+    +42:         while i != limit {
 ```
 
 - **Paths in the project.** The tables of mutants and of files name each file by its path relative
@@ -1342,7 +1385,7 @@ test.
 tested, in the form Xcode reads from a build step's output, with the file's absolute path:
 
 ```
-/Users/me/MyApp/Sources/Core.swift:10:22: warning: Your test suite did not kill this mutant: changed >= to <=
+/Users/me/MyApp/Sources/Core.swift:10:22: warning: Your test suite did not kill this mutant: changed >= to ==
 ```
 
 A timeout and a build error get no warning of their own. At the end it prints the score and the

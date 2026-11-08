@@ -93,7 +93,7 @@ final class RelationalBoundaryOperatorTests: MuterTestCase {
         let replacementMutant = try XCTUnwrap(replacement.schemataMappings.mutationSchemata.first)
         let boundaryMutant = try XCTUnwrap(boundary.schemataMappings.mutationSchemata.first)
         XCTAssertEqual(replacementMutant.position, boundaryMutant.position)
-        XCTAssertEqual(replacementMutant.snapshot.after, ">")
+        XCTAssertEqual(replacementMutant.snapshot.after, "!=")
         XCTAssertEqual(boundaryMutant.snapshot.after, "<=")
         XCTAssertNotEqual(replacementMutant.id, boundaryMutant.id)
         XCTAssertTrue(boundaryMutant.id.contains("_RelationalBoundary_"), boundaryMutant.id)

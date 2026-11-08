@@ -63,11 +63,11 @@ final class DiscoverUncoveredMutantsTests: MuterTestCase {
         let changes = try await DiscoverMutationPoints().run(with: state)
 
         let uncovered = uncoveredMutants(in: changes)
-        XCTAssertEqual(uncovered.map(\.key.line), [1, 1])
+        XCTAssertEqual(uncovered.map(\.key.line), [1, 1, 1])
         XCTAssertEqual(Set(uncovered.map(\.mutationOperatorId)), [.ror, .relationalBoundary])
-        XCTAssertEqual(Set(uncovered.map(\.snapshot.before)), ["<"])
+        XCTAssertEqual(Set(uncovered.map(\.snapshot.before)), ["<", "value < 0"])
         let tested = try keys(of: changes)
-        XCTAssertEqual(tested.map(\.line), [3, 3])
+        XCTAssertEqual(tested.map(\.line), [3, 3, 3])
         XCTAssertEqual(Set(tested + uncovered.map(\.key)), Set(everyKey))
     }
 
@@ -98,7 +98,9 @@ final class DiscoverUncoveredMutantsTests: MuterTestCase {
         XCTAssertEqual(uncoveredMutants(in: changes).map(\.key), wholeRun.sorted { $0.comesBefore($1) })
         XCTAssertEqual(Set(uncoveredMutants(in: changes).map(\.path)), ["Check.swift"])
         XCTAssertEqual(prepared.paths, [covered])
-        XCTAssertEqual(try keys(of: changes).map(\.path), ["Sign.swift", "Sign.swift", "Sign.swift", "Sign.swift"])
+        XCTAssertEqual(try keys(of: changes).map(\.path), [
+            "Sign.swift", "Sign.swift", "Sign.swift", "Sign.swift", "Sign.swift", "Sign.swift",
+        ])
     }
 
     // One with no place for a switch is dropped with coverage off too, an inactive `#if` leaves its code out of the
@@ -237,12 +239,12 @@ final class DiscoverUncoveredMutantsTests: MuterTestCase {
         let only = try await onlyUncoveredMutants(of: state)
 
         XCTAssertEqual(only.selection, selection)
-        XCTAssertEqual(only.uncovered, 2)
+        XCTAssertEqual(only.uncovered, 3)
         XCTAssertEqual(only.check.passed, false)
         guard case let .checked(comparison) = only.check.verdict else { return XCTFail("\(only.check)") }
         XCTAssertEqual(comparison.newSurvivors.map(\.mutant), [
-            "Sign.swift:1:47 RelationalBoundary",
-            "Sign.swift:1:47 RelationalOperatorReplacement",
+            "Sign.swift:1:47 RelationalBoundary", "Sign.swift:1:47 RelationalOperatorReplacement",
+            "Sign.swift:1:50 RelationalOperatorReplacement",
         ].sorted())
         XCTAssertTrue(comparison.newSurvivors.allSatisfy(\.notCovered))
         XCTAssertEqual(comparison.notTested, 1)
@@ -250,12 +252,12 @@ final class DiscoverUncoveredMutantsTests: MuterTestCase {
         XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: only), .scoreBelowThreshold)
         XCTAssertTrue(Run.message(showing: only).hasPrefix(
             "ℹ️ No mutant is left to test in the code --since chose, since the merge base of main and HEAD "
-                + "(ba5e000), but it holds 2 mutants of code no test ran, compared with the baseline file "
-                + "muter.baseline.yml.\n❌ 2 new survivors against the baseline file muter.baseline.yml"
+                + "(ba5e000), but it holds 3 mutants of code no test ran, compared with the baseline file "
+                + "muter.baseline.yml.\n❌ 3 new survivors against the baseline file muter.baseline.yml"
         ), Run.message(showing: only))
 
         // Allowed, they pass, and the run exits 0.
-        state.runOptions = .make(baseline: "muter.baseline.yml", maxNewSurvivors: 2)
+        state.runOptions = .make(baseline: "muter.baseline.yml", maxNewSurvivors: 3)
         let allowed = try await onlyUncoveredMutants(of: state)
         XCTAssertEqual(allowed.check.passed, true)
         XCTAssertNil(ExitCode.exitStatus(afterRunFailedWith: allowed))
@@ -266,7 +268,7 @@ final class DiscoverUncoveredMutantsTests: MuterTestCase {
         // score of the code --since chose isn't compared, and no kill is doubtful, as none was tested.
         state.runOptions = .make(
             baseline: "muter.baseline.yml",
-            maxNewSurvivors: 2,
+            maxNewSurvivors: 3,
             maxScoreDrop: 2,
             maxDoubtfulKills: 0
         )
