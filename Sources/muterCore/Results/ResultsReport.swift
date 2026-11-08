@@ -36,6 +36,12 @@ struct ResultsReport {
     let baselinePath: String?
     /// `--max-new-survivors`: how many new survivors pass the comparison with `baselinePath`'s file.
     let maxNewSurvivors: Int
+    /// `--max-score-drop`: how many points the score may fall below `baselinePath`'s file's (`ScoreDropCheck`); nil
+    /// compares none.
+    let maxScoreDrop: Double?
+    /// `--max-doubtful-kills`: how many kills the results' evidence may leave in doubt (`DoubtfulKillsCheck`); nil
+    /// counts none.
+    let maxDoubtfulKills: Int?
     /// `--write-baseline`: where to save the report's survivors as a baseline file (`BaselineFile`), made absolute as
     /// the flags are read; nil saves none. Only a whole run's results make one, a merge of every shard's too, when the
     /// shards discovered the same mutants.
@@ -51,6 +57,8 @@ struct ResultsReport {
         triagePath: String? = nil,
         baselinePath: String? = nil,
         maxNewSurvivors: Int = 0,
+        maxScoreDrop: Double? = nil,
+        maxDoubtfulKills: Int? = nil,
         writeBaselinePath: String? = nil
     ) {
         self.format = format
@@ -62,6 +70,8 @@ struct ResultsReport {
         self.triagePath = triagePath
         self.baselinePath = baselinePath
         self.maxNewSurvivors = maxNewSurvivors
+        self.maxScoreDrop = maxScoreDrop
+        self.maxDoubtfulKills = maxDoubtfulKills
         self.writeBaselinePath = writeBaselinePath
     }
 
@@ -79,7 +89,9 @@ struct ResultsReport {
     /// checked the run would; for shards whose merge lacks results, a stopped shard's, or else 4
     /// (`MergedShards.exitStatus`); otherwise 2 when a check failed (`RunChecks`): the score against `failUnder`
     /// (`ScoreGate`), or the survivors against `baselinePath`'s file (`NewSurvivorsCheck`), which check what the file
-    /// holds, of a run that was interrupted too, and say so. An error's status wins, and nothing is checked.
+    /// holds, of a run that was interrupted too, and say so; the score against the file's (`ScoreDropCheck`), which
+    /// only a whole run's results compare; or the doubtful kills (`DoubtfulKillsCheck`). An error's status wins, and
+    /// nothing is checked.
     ///
     /// The baseline file is read before the results files, and refused (`BaselineRefused`), before anything is said,
     /// when it can't be read, or records another scope than the results' header, unless they compare no survivors:
@@ -126,6 +138,15 @@ struct ResultsReport {
                         + "first mutant."
                 )
             }
+            if let baselinePath, maxScoreDrop != nil {
+                errorPrinter(
+                    "The score isn't compared with the baseline file \(baselinePath)'s: the run stopped before its "
+                        + "first mutant."
+                )
+            }
+            if maxDoubtfulKills != nil {
+                errorPrinter("Doubtful kills aren't counted: the run stopped before its first mutant.")
+            }
             if let writeBaselinePath {
                 let because = "the run stopped before its first mutant"
                 errorPrinter(BaselineFileSaving.leftOut(path: writeBaselinePath, because: because).plainLine)
@@ -171,6 +192,22 @@ struct ResultsReport {
             },
             newSurvivors: baseline.map {
                 newSurvivorsCheck($0, of: outcome, unless: notChecked, progress: only.recorded.unfinishedProgress)
+            },
+            scoreDrop: scoreDropCheck(
+                baseline,
+                of: outcome,
+                unless: stopped ? .stoppedOnAnError : nil,
+                progress: only.recorded.unfinishedProgress
+            ),
+            doubtfulKills: maxDoubtfulKills.map {
+                DoubtfulKillsCheck(
+                    maxDoubtfulKills: $0,
+                    judging: outcome,
+                    // With mutants left, a resume tests them, then the suspect kills again alone; with none left, it
+                    // reruns nothing, so the kills are counted as they are.
+                    unless: stopped ? .stoppedOnAnError : only.recorded.unfinishedProgress.map { _ in .unfinished },
+                    progress: only.recorded.unfinishedProgress
+                )
             }
         )
         let incomplete = if stopped {
@@ -215,7 +252,23 @@ struct ResultsReport {
             scoreGate: failUnder.map {
                 ScoreGate(failUnder: $0, judging: outcome, unless: lacksResults ? .lacksResults : nil)
             },
-            newSurvivors: baseline.map { newSurvivorsCheck($0, of: outcome, unless: notChecked) }
+            newSurvivors: baseline.map { newSurvivorsCheck($0, of: outcome, unless: notChecked) },
+            // Shards that discovered different mutants may each lack results for some, which `--write-baseline`
+            // refuses too, so their score isn't a whole run's.
+            scoreDrop: scoreDropCheck(
+                baseline,
+                of: outcome,
+                unless: lacksResults ? .lacksResults : (merged.discoveriesAgree ? nil : .discoveriesDiffer)
+            ),
+            // A shard that didn't finish lacks results, so isn't counted either.
+            doubtfulKills: maxDoubtfulKills.map {
+                DoubtfulKillsCheck(
+                    maxDoubtfulKills: $0,
+                    judging: outcome,
+                    unless: lacksResults ? .lacksResults : nil,
+                    suspectsByMutant: lacksResults ? nil : merged.suspectTestsByMutant
+                )
+            }
         )
         let incomplete = if lacksResults {
             "the merged report lacks results"
@@ -243,6 +296,24 @@ struct ResultsReport {
             maxNewSurvivors: maxNewSurvivors,
             judging: outcome,
             version: MutationTestObserver.version(of: outcome),
+            unless: notChecked,
+            progress: progress
+        )
+    }
+
+    /// With `maxScoreDrop`, the verdict on `outcome`'s score against `baseline`'s, not checked for the reason `unless`
+    /// gives, nor for the results of a run that didn't finish, whose `progress` it says; nil without either.
+    private func scoreDropCheck(
+        _ baseline: BaselineFile?,
+        of outcome: MutationTestOutcome,
+        unless notChecked: ScoreDropCheck.NotChecked?,
+        progress: ScoreGate.Progress? = nil
+    ) -> ScoreDropCheck? {
+        guard let baseline, let maxScoreDrop else { return nil }
+        return ScoreDropCheck(
+            baseline: baseline,
+            maxScoreDrop: maxScoreDrop,
+            judging: outcome,
             unless: notChecked,
             progress: progress
         )
@@ -345,8 +416,7 @@ struct ResultsReport {
                 endDetail: ended?.detail,
                 report: outputPath,
                 reports: reports.map(\.path),
-                gate: checks.scoreGate,
-                newSurvivors: checks.newSurvivors
+                checks: checks
             )
             guard ReportWriter.save(String(decoding: summary.json, as: UTF8.self), to: summaryPath, using: fileManager)
             else {
@@ -359,6 +429,8 @@ struct ResultsReport {
             newSurvivors.versionNotice.map(errorPrinter)
             newSurvivors.lines.forEach(errorPrinter)
         }
+        checks.scoreDrop?.line.map(errorPrinter)
+        checks.doubtfulKills?.lines.forEach(errorPrinter)
     }
 
     /// Saves `report` at `path`, then checks the files saved still differ: two spellings of one new file, which differ

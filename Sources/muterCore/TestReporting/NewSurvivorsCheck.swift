@@ -246,23 +246,34 @@ struct NewSurvivorsCheck: Equatable, Sendable {
 }
 
 /// The verdicts a finished run, or `report`, ends with, each of the check its flag asks for, nil without it: the score
-/// against `--fail-under` (`ScoreGate`), and the survivors against a baseline file (`NewSurvivorsCheck`).
+/// against `--fail-under` (`ScoreGate`), the survivors against a baseline file (`NewSurvivorsCheck`), the score
+/// against the baseline file's (`ScoreDropCheck`), and the kills its evidence doesn't back (`DoubtfulKillsCheck`), in
+/// the order they're said.
 struct RunChecks: Equatable, Sendable {
     var scoreGate: ScoreGate?
     var newSurvivors: NewSurvivorsCheck?
+    var scoreDrop: ScoreDropCheck?
+    var doubtfulKills: DoubtfulKillsCheck?
 
-    init(scoreGate: ScoreGate? = nil, newSurvivors: NewSurvivorsCheck? = nil) {
+    init(
+        scoreGate: ScoreGate? = nil,
+        newSurvivors: NewSurvivorsCheck? = nil,
+        scoreDrop: ScoreDropCheck? = nil,
+        doubtfulKills: DoubtfulKillsCheck? = nil
+    ) {
         self.scoreGate = scoreGate
         self.newSurvivors = newSurvivors
+        self.scoreDrop = scoreDrop
+        self.doubtfulKills = doubtfulKills
     }
 
     /// Whether no check was asked for.
     var isEmpty: Bool {
-        scoreGate == nil && newSurvivors == nil
+        scoreGate == nil && newSurvivors == nil && scoreDrop == nil && doubtfulKills == nil
     }
 
     /// The status a command exits with when a check failed, `scoreBelowThreshold`; nil, so 0, otherwise.
     var exitStatus: ExitCode? {
-        scoreGate?.exitStatus ?? newSurvivors?.exitStatus
+        scoreGate?.exitStatus ?? newSurvivors?.exitStatus ?? scoreDrop?.exitStatus ?? doubtfulKills?.exitStatus
     }
 }

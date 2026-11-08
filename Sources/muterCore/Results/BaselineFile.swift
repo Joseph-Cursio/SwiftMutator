@@ -377,8 +377,9 @@ extension BaselineFile {
     }
 
     /// The baseline file at `path`, `~` expanded. Refused, with why (`BaselineRefused`): no file there, one that can't
-    /// be read, text that isn't UTF-8 or YAML, a key it doesn't know, such as a misspelled one, a newer format, and an
-    /// entry that names no whole mutant, an outcome it doesn't know, or a mutant twice.
+    /// be read, text that isn't UTF-8 or YAML, a key it doesn't know, such as a misspelled one, a newer format, a score
+    /// whose counts no run gives, as more killed than scored, and an entry that names no whole mutant, an outcome it
+    /// doesn't know, or a mutant twice.
     static func load(at path: String, using fileManager: FileSystemManager) throws -> BaselineFile {
         let expanded = URL.expandingTilde(path)
         let refusal = { (problem: String) in BaselineRefused(path: path, reasons: [problem]) }
@@ -411,6 +412,15 @@ extension BaselineFile {
 
     private init(path: String, written: Written) throws {
         let refusal = { (problem: String) in BaselineRefused(path: path, reasons: [problem]) }
+        // A hand edit or a merge's conflict can leave counts no run gives, whose score `--max-score-drop` would
+        // compare as if it were one: above 100%, or below 0, which turns the comparison around.
+        let score = written.score
+        guard score.killed >= 0, score.scored >= 0, score.killed <= score.scored else {
+            throw refusal(
+                "Its score counts killed \(score.killed) of \(score.scored) scored: give scored from 0 up, and "
+                    + "killed from 0 to scored."
+            )
+        }
         var seen: Set<MutantKey> = []
         let survivors = try (written.survivors ?? []).map { entry in
             guard let mutant = MutantKey(wholeDescription: entry.mutant) else {

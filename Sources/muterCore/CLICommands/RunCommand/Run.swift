@@ -146,6 +146,8 @@ struct Run: RunCommand {
             failUnder: reportOptions.failUnder,
             baseline: reportOptions.baseline,
             maxNewSurvivors: reportOptions.allowedNewSurvivors,
+            maxScoreDrop: reportOptions.maxScoreDrop,
+            maxDoubtfulKills: reportOptions.maxDoubtfulKills,
             writeBaseline: reportOptions.writeBaseline,
             propertyTests: reportOptions.propertyTestGlobs,
             resumeURL: resuming.resume,

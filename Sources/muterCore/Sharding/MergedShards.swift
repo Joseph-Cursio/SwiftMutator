@@ -202,6 +202,27 @@ extension MergedShards {
         return outcome
     }
 
+    /// Each shard's suspect tests (`KillingTestSummary.suspectIdentities`), by the key of each mutant the shard has a
+    /// result for: those its own results give, with its own control runs and thresholds, as its run judged them when it
+    /// chose which kills to test again alone. A test that reaches enough files only across the shards is suspect in
+    /// none of them, so no shard tested its kills again alone, and no run of one could: `--max-doubtful-kills` judges
+    /// each kill by these, not by the merge's suspects, which the merged reports show.
+    var suspectTestsByMutant: DoubtfulKillsCheck.SuspectsByMutant {
+        var suspects: DoubtfulKillsCheck.SuspectsByMutant = [:]
+        for part in parts {
+            let outcome = part.recorded.mutationTestOutcome()
+            let shardSuspects = KillingTestSummary(
+                of: outcome.mutations,
+                controlRuns: outcome.controlRuns,
+                thresholds: outcome.suspectTestThresholds
+            )?.suspectIdentities ?? []
+            for key in part.recorded.latest.keys {
+                suspects[key] = shardSuspects
+            }
+        }
+        return suspects
+    }
+
     /// The mutants of code no test ran of every shard given, as their last sessions' headers record them: their union,
     /// each once by its key, sorted by it. A shard records those it holds (`Shard.holds`), so each is in one shard's.
     /// nil when a shard's header doesn't record them, which isn't to say it has none

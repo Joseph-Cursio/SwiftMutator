@@ -86,6 +86,43 @@ struct ReportArguments: ParsableArguments {
     var maxNewSurvivors: Int?
 
     @Option(
+        name: .customLong("max-score-drop"),
+        help: ArgumentHelp(
+            "With --baseline, exit with status 2 when the score, counted as --fail-under counts it, is more than "
+                + "this many points below the baseline file's, from 0 to 100, once the report is written. Flaky tests "
+                + "alone move the score a point or two between runs, so 0 fails at random. Only a whole run's score is "
+                + "compared.",
+            valueName: "points"
+        ),
+        transform: { text in
+            guard let points = ScoreDropCheck.points(text) else {
+                throw ValidationError(
+                    "give a number of points from 0 to 100, with at most \(ScoreGate.maximumDecimals) decimals, "
+                        + "such as 2 or 0.5."
+                )
+            }
+            return points
+        }
+    )
+    var maxScoreDrop: Double?
+
+    @Option(
+        name: .customLong("max-doubtful-kills"),
+        help: ArgumentHelp(
+            "Exit with status 2 when more kills than this whole number are doubtful, once the report is written: "
+                + "those only suspect tests made that no rerun alone settled, and those whose code never ran.",
+            valueName: "count"
+        ),
+        transform: { text in
+            guard let count = DoubtfulKillsCheck.allowed(text) else {
+                throw ValidationError("give a whole number of kills, 0 or more, such as 3.")
+            }
+            return count
+        }
+    )
+    var maxDoubtfulKills: Int?
+
+    @Option(
         name: .customLong("write-baseline"),
         help: ArgumentHelp(
             "Save the survivors to a baseline file at this path, such as muter.baseline.yml, for --baseline to "
@@ -140,13 +177,17 @@ struct ReportArguments: ParsableArguments {
     }
 
     /// Refuses two reports at one path, for every command: a run's at another's partial report too is refused by
-    /// `validateForARun()`, as `report` writes none. `--max-new-survivors` says only what `--baseline` allows.
+    /// `validateForARun()`, as `report` writes none. `--max-new-survivors` and `--max-score-drop` say only what
+    /// `--baseline` allows.
     func validate() throws {
         if let problem = PropertyTestPattern.problem(with: propertyTests) {
             throw ValidationError("--property-tests: \(problem).")
         }
         if maxNewSurvivors != nil, baseline == nil {
             throw ValidationError("--max-new-survivors only applies with --baseline.")
+        }
+        if maxScoreDrop != nil, baseline == nil {
+            throw ValidationError("--max-score-drop only applies with --baseline.")
         }
         try refuseAClash(ofARun: false)
     }

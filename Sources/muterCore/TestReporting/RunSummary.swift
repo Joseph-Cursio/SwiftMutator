@@ -45,6 +45,12 @@ struct RunSummary: Codable, Equatable {
     let gate: Gate?
     /// The verdict on the survivors against `--baseline`'s file (`NewSurvivorsCheck`); nil, and left out, without it.
     let newSurvivors: NewSurvivors?
+    /// The verdict on the score against `--baseline`'s file's (`ScoreDropCheck`); nil, and left out, without
+    /// `--max-score-drop`.
+    let scoreDrop: ScoreDrop?
+    /// The verdict on the kills the run's evidence doesn't back (`DoubtfulKillsCheck`); nil, and left out, without
+    /// `--max-doubtful-kills`.
+    let doubtfulKills: DoubtfulKills?
 
     /// `{"failUnder": 80, "passed": false, "score": 71.42857142857143}`.
     struct Gate: Codable, Equatable {
@@ -120,6 +126,90 @@ struct RunSummary: Codable, Equatable {
         }
     }
 
+    /// `{"baseline": "muter.baseline.yml", "maxScoreDrop": 2, "passed": false, "baselineScore": 82.6, "score": 80.1,
+    /// "drop": 2.5}`.
+    struct ScoreDrop: Codable, Equatable {
+        /// The baseline file, as given.
+        let baseline: String
+        let maxScoreDrop: Double
+        /// The file's exact score, and the run's, as `gate` has it, and how many points the run's fell below the
+        /// file's, negative for a rise; each nil when they weren't compared.
+        let baselineScore: Double?
+        let score: Double?
+        let drop: Double?
+        /// Whether the score fell no more than `maxScoreDrop`; nil when they weren't compared.
+        let passed: Bool?
+        /// Why they weren't compared; nil when they were.
+        let notChecked: ScoreDropCheck.NotChecked?
+
+        init(_ check: ScoreDropCheck) {
+            baseline = check.baseline
+            maxScoreDrop = check.maxScoreDrop
+            baselineScore = check.baselineScorePercent
+            score = check.score
+            drop = check.drop
+            passed = check.passed
+            if case let .notChecked(reason) = check.verdict {
+                notChecked = reason
+            } else {
+                notChecked = nil
+            }
+        }
+    }
+
+    /// `{"maxDoubtfulKills": 0, "passed": false, "count": 3, "suspectOnly": 2, "codeNeverRan": 1, "mutants": [...]}`.
+    struct DoubtfulKills: Codable, Equatable {
+        let maxDoubtfulKills: Int
+        /// Whether there are no more doubtful kills than `maxDoubtfulKills`; nil when they weren't counted.
+        let passed: Bool?
+        /// Why they weren't counted; nil when they were.
+        let notChecked: DoubtfulKillsCheck.NotChecked?
+        /// How many kills are doubtful, each once; of them, how many only suspect tests made, which no rerun alone
+        /// settled, and how many whose code never ran, which may be the same ones; 0 when they weren't counted.
+        let count: Int
+        let suspectOnly: Int
+        let codeNeverRan: Int
+        /// Each by its key's description, in the run's order.
+        let mutants: [String]
+
+        init(_ check: DoubtfulKillsCheck) {
+            maxDoubtfulKills = check.maxDoubtfulKills
+            passed = check.passed
+            if case let .notChecked(reason) = check.verdict {
+                notChecked = reason
+            } else {
+                notChecked = nil
+            }
+            let kills = check.doubtfulKills
+            count = kills.count
+            suspectOnly = kills.count(where: \.suspectOnly)
+            codeNeverRan = kills.count(where: \.codeNeverRan)
+            mutants = kills.map(\.mutant)
+        }
+    }
+
+    /// The summary of `outcome`, with the verdicts of `checks`.
+    init(
+        of outcome: MutationTestOutcome,
+        ended: ResultsEnd.Reason?,
+        endDetail: String? = nil,
+        report: String?,
+        reports: [String] = [],
+        checks: RunChecks
+    ) {
+        self.init(
+            of: outcome,
+            ended: ended,
+            endDetail: endDetail,
+            report: report,
+            reports: reports,
+            gate: checks.scoreGate,
+            newSurvivors: checks.newSurvivors,
+            scoreDrop: checks.scoreDrop,
+            doubtfulKills: checks.doubtfulKills
+        )
+    }
+
     init(
         of outcome: MutationTestOutcome,
         ended: ResultsEnd.Reason?,
@@ -127,7 +217,9 @@ struct RunSummary: Codable, Equatable {
         report: String?,
         reports: [String] = [],
         gate: ScoreGate? = nil,
-        newSurvivors: NewSurvivorsCheck? = nil
+        newSurvivors: NewSurvivorsCheck? = nil,
+        scoreDrop: ScoreDropCheck? = nil,
+        doubtfulKills: DoubtfulKillsCheck? = nil
     ) {
         let outcomes = outcome.mutations.map(\.testSuiteOutcome)
         let score = exactMutationScore(from: outcomes).map { Int($0) }
@@ -154,6 +246,8 @@ struct RunSummary: Codable, Equatable {
         run = outcome.run
         self.gate = gate.map(Gate.init)
         self.newSurvivors = newSurvivors.map(NewSurvivors.init)
+        self.scoreDrop = scoreDrop.map(ScoreDrop.init)
+        self.doubtfulKills = doubtfulKills.map(DoubtfulKills.init)
     }
 
     /// Its JSON, pretty-printed with sorted keys, so two summaries diff cleanly.

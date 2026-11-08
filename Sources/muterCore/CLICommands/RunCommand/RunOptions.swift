@@ -47,6 +47,12 @@ extension Run {
         /// `--max-new-survivors`: how many new survivors the comparison with `baseline` lets pass, 0 unless given; nil
         /// without `baseline`.
         let maxNewSurvivors: Int?
+        /// `--max-score-drop`: how many points a finished whole run's score may fall below `baseline`'s file's
+        /// (`ScoreDropCheck`); nil without it, and without `baseline`.
+        let maxScoreDrop: Double?
+        /// `--max-doubtful-kills`: how many kills a finished run's evidence may leave in doubt
+        /// (`DoubtfulKillsCheck`); nil without it.
+        let maxDoubtfulKills: Int?
         /// `--write-baseline`: where a finished whole run saves its survivors as a baseline file (`BaselineFile`),
         /// made absolute as the flags are read, as the run saves it from the project's copy; nil without it.
         let writeBaseline: String?
@@ -108,6 +114,8 @@ extension Run {
             failUnder: Double? = nil,
             baseline: String? = nil,
             maxNewSurvivors: Int? = nil,
+            maxScoreDrop: Double? = nil,
+            maxDoubtfulKills: Int? = nil,
             writeBaseline: String? = nil,
             propertyTests: [String]? = nil,
             createTestPlan: Bool = false,
@@ -138,6 +146,8 @@ extension Run {
             self.failUnder = failUnder
             self.baseline = baseline
             self.maxNewSurvivors = baseline == nil ? nil : maxNewSurvivors ?? 0
+            self.maxScoreDrop = baseline == nil ? nil : maxScoreDrop
+            self.maxDoubtfulKills = maxDoubtfulKills
             self.writeBaseline = writeBaseline
             self.propertyTests = propertyTests
             self.resumeURL = resumeURL
@@ -184,6 +194,8 @@ extension Run.Options: Equatable {
             lhs.failUnder == rhs.failUnder &&
             lhs.baseline == rhs.baseline &&
             lhs.maxNewSurvivors == rhs.maxNewSurvivors &&
+            lhs.maxScoreDrop == rhs.maxScoreDrop &&
+            lhs.maxDoubtfulKills == rhs.maxDoubtfulKills &&
             lhs.writeBaseline == rhs.writeBaseline &&
             lhs.propertyTests == rhs.propertyTests &&
             lhs.createTestPlan == rhs.createTestPlan &&

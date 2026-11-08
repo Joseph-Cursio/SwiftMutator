@@ -57,6 +57,68 @@ final class BaselineFlagTests: XCTestCase {
         }
     }
 
+    // On each command that tests mutants, and on `report`, as `--max-new-survivors` is.
+    func test_maxScoreDrop_andMaxDoubtfulKills_reachEachCommand_andTheHelp() throws {
+        let arguments = ["--baseline", "b.yml", "--max-score-drop", "2.5", "--max-doubtful-kills", "0"]
+        let run = try XCTUnwrap(MuterCommand.parseAsRoot(["run"] + arguments) as? Run).runOptions
+        XCTAssertEqual(run.maxScoreDrop, 2.5)
+        XCTAssertEqual(run.maxDoubtfulKills, 0)
+        let plan = try XCTUnwrap(
+            MuterCommand.parseAsRoot(["run-without-mutating"] + arguments + ["plan.json"]) as? RunWithoutMutating
+        )
+        XCTAssertEqual(plan.runOptions.maxScoreDrop, 2.5)
+        XCTAssertEqual(plan.runOptions.maxDoubtfulKills, 0)
+        let report = try XCTUnwrap(MuterCommand.parseAsRoot(["report", "r.jsonl"] + arguments) as? Report)
+        XCTAssertEqual(report.reportOptions.maxScoreDrop, 2.5)
+        XCTAssertEqual(report.reportOptions.maxDoubtfulKills, 0)
+        XCTAssertNotEqual(Run.Options.make(baseline: "b.yml", maxScoreDrop: 2), .make(baseline: "b.yml"))
+        XCTAssertNotEqual(Run.Options.make(maxDoubtfulKills: 0), .make())
+
+        let plain = try XCTUnwrap(MuterCommand.parseAsRoot(["run"]) as? Run).runOptions
+        XCTAssertNil(plain.maxScoreDrop)
+        XCTAssertNil(plain.maxDoubtfulKills)
+        // It counts what was tested, with or without a baseline file.
+        let alone = try XCTUnwrap(MuterCommand.parseAsRoot(["run", "--max-doubtful-kills", "3"]) as? Run).runOptions
+        XCTAssertEqual(alone.maxDoubtfulKills, 3)
+
+        for help in [Run.helpMessage(columns: 200), RunWithoutMutating.helpMessage(columns: 200)]
+            + [Report.helpMessage(columns: 200)] {
+            for option in ["--max-score-drop <points>", "--max-doubtful-kills <count>"] {
+                XCTAssertTrue(help.contains("\n  \(option)"), help)
+            }
+        }
+    }
+
+    func test_maxScoreDrop_withoutBaseline_orABadValue_isAUsageError() {
+        for command in [["run"], ["report", "r.jsonl"], ["run-without-mutating", "plan.json"]] {
+            assertUsageError(command + ["--max-score-drop", "2"], "--max-score-drop only applies with --baseline.")
+        }
+        for value in ["-1", "100.5", "1e2", "0.0000001", "x"] {
+            assertUsageError(
+                ["run", "--baseline", "b.yml", "--max-score-drop=\(value)"],
+                "The value '\(value)' is invalid for '--max-score-drop <points>': give a number of points from 0 to "
+                    + "100, with at most 6 decimals, such as 2 or 0.5."
+            )
+        }
+        for value in ["-1", "1.5", "x"] {
+            assertUsageError(
+                ["report", "r.jsonl", "--max-doubtful-kills=\(value)"],
+                "The value '\(value)' is invalid for '--max-doubtful-kills <count>': give a whole number of kills, 0 "
+                    + "or more, such as 3."
+            )
+        }
+    }
+
+    // They are flags, not configuration, so a resume doesn't compare them: a resume may give them or not.
+    func test_aResume_takesTheNewFlags() {
+        XCTAssertNoThrow(
+            try MuterCommand.parseAsRoot([
+                "run", "--resume", "/logs/results.jsonl", "--baseline", "b.yml", "--max-score-drop", "2",
+                "--max-doubtful-kills", "0",
+            ])
+        )
+    }
+
     // A baseline file holds a whole run's survivors.
     func test_writeBaseline_withAnOptionThatLeavesMutantsOut_isAUsageError() {
         let limits = [

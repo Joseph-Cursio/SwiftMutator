@@ -31,8 +31,9 @@ final class MutationTestObserver {
     private var sinceMergeBase: String?
     /// The run of the one mutant `--mutant` tests, which the end of the run prints in place of the report.
     private var oneMutantRun: OneMutantRun?
-    /// The finished run's verdicts, which the run exits with: on its score against its `failUnder`, and on its
-    /// survivors against `--baseline`'s file. Each nil without its flag, and both for a run that didn't finish.
+    /// The finished run's verdicts, which the run exits with: on its score against its `failUnder`, on its survivors
+    /// and its score against `--baseline`'s file, and on its doubtful kills. Each nil without its flag, and all for a
+    /// run that didn't finish.
     private(set) var checks = RunChecks()
     /// The finished run's verdict on its score against its `failUnder`; nil without one, and for a run that didn't
     /// finish.
@@ -268,12 +269,14 @@ extension MutationTestObserver {
     }
 
     /// Makes the run's checks first, so the reports can show them (`MutationTestOutcome.checks`): with a `failUnder`,
-    /// the verdict on the score (`ScoreGate`), and with `--baseline`, the verdict on the survivors against its file
-    /// (`NewSurvivorsCheck`), which the run then exits with. Then saves the reports, then the baseline file
-    /// `--write-baseline` asks for, then the summary, which records the verdicts too. Then says the run finished, and
-    /// prints its report, or where it went, or for a run of one mutant (`--mutant`) what it changes, its tests' log
-    /// and its verdict, and where a requested report went; then where each other report went
-    /// (`MutationTestOutcome.reports`), where the baseline file went, and where each result is; and last the verdicts.
+    /// the verdict on the score (`ScoreGate`), with `--baseline`, the verdict on the survivors against its file
+    /// (`NewSurvivorsCheck`), and on the score against its file's with `--max-score-drop` (`ScoreDropCheck`), and with
+    /// `--max-doubtful-kills`, the verdict on the kills (`DoubtfulKillsCheck`), which the run then exits with. Then
+    /// saves the reports, then the baseline file `--write-baseline` asks for, then the summary, which records the
+    /// verdicts too. Then says the run finished, and prints its report, or where it went, or for a run of one mutant
+    /// (`--mutant`) what it changes, its tests' log and its verdict, and where a requested report went; then where each
+    /// other report went (`MutationTestOutcome.reports`), where the baseline file went, and where each result is; and
+    /// last the verdicts.
     private func mutationTestingFinished(_ finished: MutationTestOutcome) {
         var outcome = finished
         let checks = Self.checks(of: outcome)
@@ -292,8 +295,7 @@ extension MutationTestObserver {
             ended: .finished,
             report: didSave ? reportPath : nil,
             reports: others.filter(\.saved).map(\.path),
-            gate: checks.scoreGate,
-            newSurvivors: checks.newSurvivors
+            checks: checks
         ))
 
         if let oneMutantRun {
@@ -319,14 +321,17 @@ extension MutationTestObserver {
         say(checks)
     }
 
-    /// The verdicts, last: the score's, then the survivors'.
+    /// The verdicts, last: the score's, the survivors', the score's against the baseline file's, then the kills'.
     private func say(_ checks: RunChecks) {
         checks.scoreGate.map(logger.scoreGateChecked)
         checks.newSurvivors.map(logger.newSurvivorsChecked)
+        checks.scoreDrop.map(logger.scoreDropChecked)
+        checks.doubtfulKills.map(logger.doubtfulKillsChecked)
     }
 
-    /// The checks the run of `outcome` asked for: with its `failUnder`, the score's, and with `--baseline`'s file, the
-    /// survivors'; each not checked, as a run that `endedEarly` says why it stopped itself.
+    /// The checks the run of `outcome` asked for: with its `failUnder`, the score's; with `--baseline`'s file, the
+    /// survivors', and with `--max-score-drop` too, the score's against the file's; and with `--max-doubtful-kills`,
+    /// the kills'. Each not checked, as a run that `endedEarly` says why it stopped itself.
     static func checks(of outcome: MutationTestOutcome, endedEarly: Bool = false) -> RunChecks {
         RunChecks(
             scoreGate: outcome.failUnder.map {
@@ -340,6 +345,19 @@ extension MutationTestObserver {
                     version: version(of: outcome),
                     unless: endedEarly ? .endedEarly : nil
                 )
+            },
+            scoreDrop: outcome.baseline.flatMap { baseline in
+                outcome.maxScoreDrop.map {
+                    ScoreDropCheck(
+                        baseline: baseline,
+                        maxScoreDrop: $0,
+                        judging: outcome,
+                        unless: endedEarly ? .endedEarly : nil
+                    )
+                }
+            },
+            doubtfulKills: outcome.maxDoubtfulKills.map {
+                DoubtfulKillsCheck(maxDoubtfulKills: $0, judging: outcome, unless: endedEarly ? .endedEarly : nil)
             }
         )
     }
@@ -376,9 +394,9 @@ extension MutationTestObserver {
     /// it, and says what was tested, and the command that continues the run: SwiftMutator's own arguments, resuming
     /// from the results file. Without a requested report there is no partial one: the summary and the results file say
     /// what was tested, and a report printed to the terminal would run to thousands of lines. A run of one mutant
-    /// (`--mutant`) can't be resumed, and gets no such command: the same command tests it again. With a `failUnder`, or
-    /// `--baseline`, the summary records that it wasn't checked, and nothing is said of it: the run's end says why it
-    /// stopped, and it exits for that. It saves no baseline file, and says so.
+    /// (`--mutant`) can't be resumed, and gets no such command: the same command tests it again. With a `failUnder`,
+    /// `--baseline` or `--max-doubtful-kills`, the summary records that each check wasn't made, and nothing is said of
+    /// it: the run's end says why it stopped, and it exits for that. It saves no baseline file, and says so.
     private func mutationTestingEndedEarly(_ earlyEnd: EarlyEnd) {
         var partialReport: (path: String, saved: Bool)?
         var otherPartialReports: [(path: String, saved: Bool)] = []
@@ -400,8 +418,7 @@ extension MutationTestObserver {
             endDetail: earlyEnd.detail,
             report: partialReport.flatMap { $0.saved ? $0.path : nil },
             reports: otherPartialReports.filter(\.saved).map(\.path),
-            gate: checks.scoreGate,
-            newSurvivors: checks.newSurvivors
+            checks: checks
         ))
         let continueCommand = runOptions.mutant != nil ? nil : resultsFilePath.map {
             ResumeHint.command(
