@@ -142,6 +142,88 @@ final class MarkdownReporterTests: MuterTestCase {
         AssertSnapshot(report(outcome))
     }
 
+    // The verdict of each check the run was asked for, after the headline and warnings, with the new survivors in a
+    // table whose cells stay cells.
+    func test_theChecks_areShownNearTheTop() {
+        var outcome = MutationTestOutcome(
+            mutations: [mutant(.failed, line: 2), mutant(.passed, line: 4), mutant(.passed, line: 8)],
+            projectPath: project.path,
+            mutatedProjectPath: copy.path
+        )
+        let gate = ScoreGate(failUnder: 50, judging: outcome)
+        let newSurvivors = NewSurvivorsCheck(
+            baseline: "muter.baseline.yml",
+            maxNewSurvivors: 0,
+            verdict: .checked(.init(
+                newSurvivors: [
+                    .init(mutant: "Sources/Rules.swift:4:9 RelationalOperatorReplacement", before: "==", after: "!="),
+                    .init(
+                        mutant: "Sources/Rules.swift:8:9 RelationalOperatorReplacement",
+                        before: "a || b",
+                        after: "a"
+                    ),
+                ],
+                stillSurvive: 41,
+                fixed: 3,
+                notTested: 0,
+                matchedWithoutLine: 0
+            )),
+            versionNotice: "The baseline file muter.baseline.yml was written by SwiftMutator 0.0.9, and these "
+                + "survivors by 0.1.0: a new or changed operator's mutants may show as new survivors."
+        )
+        outcome.checks = RunChecks(scoreGate: gate, newSurvivors: newSurvivors)
+
+        let markdown = report(outcome)
+
+        AssertSnapshot(markdown)
+        XCTAssertLessThan(
+            markdown.range(of: "### Checks")?.lowerBound ?? markdown.endIndex,
+            markdown.range(of: "### Scores by file")?.lowerBound ?? markdown.startIndex
+        )
+    }
+
+    // A new survivor of code no test ran says so in its row, as the run's line does.
+    func test_aNewSurvivorNoTestRan_isMarkedInTheChecksTable() {
+        var outcome = MutationTestOutcome(mutations: [mutant(.passed, line: 4)])
+        outcome.checks = RunChecks(newSurvivors: NewSurvivorsCheck(
+            baseline: "muter.baseline.yml",
+            maxNewSurvivors: 0,
+            verdict: .checked(.init(
+                newSurvivors: [
+                    .init(mutant: "Sources/New.swift:4:9 RelationalOperatorReplacement", before: "<", after: ">"),
+                    .init(
+                        mutant: "Sources/New.swift:9:9 RelationalOperatorReplacement",
+                        before: "*",
+                        after: "/",
+                        notCovered: true
+                    ),
+                ],
+                stillSurvive: 0,
+                fixed: 0,
+                notTested: 0,
+                matchedWithoutLine: 0
+            ))
+        ))
+
+        let rows = report(outcome).split(separator: "\n").filter { $0.contains("Sources/New.swift") }
+
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertFalse(rows[0].contains("coverage left it out"), String(rows[0]))
+        XCTAssertTrue(rows[1].hasSuffix("(coverage left it out) |"), String(rows[1]))
+    }
+
+    // A check that wasn't made, as for a run that ended early, shows nothing: such a report is as it was.
+    func test_withoutChecks_thereIsNoChecksSection() {
+        var outcome = MutationTestOutcome(mutations: [mutant(.passed, line: 4)])
+        let plain = report(outcome)
+        outcome.checks = RunChecks(
+            newSurvivors: NewSurvivorsCheck(baseline: "b.yml", maxNewSurvivors: 0, verdict: .notChecked(.endedEarly))
+        )
+
+        XCTAssertFalse(plain.contains("### Checks"))
+        XCTAssertEqual(report(outcome), plain)
+    }
+
     func test_withoutMutants() {
         AssertSnapshot(report(MutationTestOutcome()))
     }

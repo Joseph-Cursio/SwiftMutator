@@ -1,4 +1,5 @@
 import Foundation
+import SwiftParser
 
 struct PrepareSourceCode {
     @Dependency(\.writeFile)
@@ -6,8 +7,12 @@ struct PrepareSourceCode {
     @Dependency(\.loadSourceCode)
     private var loadSourceCode: LoadSourceCode
 
+    /// The file at `path` as discovery mutates it, with the import and the comments that turn linters off, which it
+    /// writes back, unless not `writing`: a file coverage leaves out is walked for its mutants, which are counted as
+    /// not covered, at the lines and columns the same file would give them, but nothing is made of them in the copy.
     func prepareSourceCode(
-        _ path: String
+        _ path: String,
+        writing: Bool = true
     ) -> PreparedSourceCode? {
         guard let source = loadSourceCode(path) else {
             return nil
@@ -25,6 +30,10 @@ struct PrepareSourceCode {
         let changes = MutationSourceCodePreparationChange(
             newLines: numberOfNewLines
         )
+
+        guard writing else {
+            return (source: SourceCodeInfo(path: path, code: Parser.parse(source: newSourceCode)), changes: changes)
+        }
 
         do {
             try writeFile(

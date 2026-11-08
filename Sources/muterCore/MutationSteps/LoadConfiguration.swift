@@ -100,7 +100,8 @@ struct LoadConfiguration: MutationStep {
     }
 
     /// The reports a run with `options` and `configuration` saves, by how a refusal names each: `-o`'s, then those of
-    /// `--report`, or else of `reports:`, resolved against the project's folder, the current one.
+    /// `--report`, or else of `reports:`, resolved against the project's folder, the current one, then
+    /// `--write-baseline`'s file.
     private static func outputs(
         of options: Run.Options,
         _ configuration: MuterConfiguration,
@@ -108,8 +109,16 @@ struct LoadConfiguration: MutationStep {
     ) -> [ReportRequest.Output] {
         let option = options.reports == nil ? "reports:" : "--report"
         let folder = URL(fileURLWithPath: fileManager.currentDirectoryPath)
-        return (options.reportOptions.path.map { [("-o \($0)", $0)] } ?? [])
-            + configuration.reportRequests(in: folder).map { ("\(option) \($0)", $0.path) }
+        // Appended one at a time: as one sum of optional arrays of tuples, Xcode 26's compiler can give up on it.
+        var outputs: [ReportRequest.Output] = []
+        if let path = options.reportOptions.path {
+            outputs.append(("-o \(path)", path))
+        }
+        outputs += configuration.reportRequests(in: folder).map { ("\(option) \($0)", $0.path) }
+        if let writeBaseline = options.writeBaseline {
+            outputs.append(("--write-baseline \(writeBaseline)", URL.expandingTilde(writeBaseline)))
+        }
+        return outputs
     }
 
     /// Turns a bare command name in `executable` into the absolute path it resolves to on `PATH`.

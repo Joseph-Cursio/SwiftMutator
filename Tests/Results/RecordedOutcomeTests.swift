@@ -359,6 +359,52 @@ final class RecordedOutcomeTests: MuterTestCase {
         XCTAssertEqual(rebuilt.suspectTestThresholds, SuspectTestThresholds(filePercent: 40, minimumFiles: 10))
     }
 
+    // A resumed session discovers them again, so its header's replace the last session's, as every scope field does;
+    // and none of them is a mutation, whose counts the reports show.
+    func test_theMutantsOfCodeNoTestRan_comeFromTheLatestHeader_andAreNoMutation() throws {
+        let jobs = fixtureJobs()
+        let uncovered = { (line: Int) in
+            UncoveredMutant(
+                key: MutantKey(
+                    path: "Sources/New.swift",
+                    mutationOperatorId: .ror,
+                    line: line,
+                    column: 9,
+                    occurrence: 0
+                ),
+                snapshot: .make(before: "<", after: ">")
+            )
+        }
+        var first = ResultsHeader.make()
+        first.mutantsNotCovered = [uncovered(4), uncovered(8)]
+        var second = ResultsHeader.make(session: 2, startedAt: ResultsHeader.fixedStart + 3600)
+        second.mutantsNotCovered = [uncovered(8)]
+
+        let rebuilt = try rebuild(
+            first,
+            mutantResult(jobs[0].schema, jobs[0].key),
+            ResultsEnd.make(testDurationSeconds: 100.5, recorded: 1),
+            second,
+            ResultsEnd.make(session: 2, testDurationSeconds: 20.25, recorded: 0)
+        )
+
+        XCTAssertEqual(rebuilt.uncoveredMutants, [uncovered(8)])
+        XCTAssertEqual(rebuilt.mutations.count, 1)
+        XCTAssertEqual(try rebuild(first, ResultsEnd.make(recorded: 0)).uncoveredMutants, [uncovered(4), uncovered(8)])
+        XCTAssertEqual(try rebuild(ResultsHeader.make(), ResultsEnd.make(recorded: 0)).uncoveredMutants, [])
+        // With coverage on, a header without them didn't record them, as an older SwiftMutator's: they aren't known,
+        // and no baseline file is made of the results.
+        let older = try rebuild(ResultsHeader.make(skipCoverage: false), ResultsEnd.make(recorded: 0))
+        XCTAssertNil(older.uncoveredMutants)
+        var whole = MutationTestOutcome()
+        XCTAssertNil(whole.whyNoBaselineFile)
+        whole.uncoveredMutants = older.uncoveredMutants
+        XCTAssertEqual(whole.whyNoBaselineFile, MutationTestOutcome.uncoveredMutantsUnknown)
+        var none = ResultsHeader.make(skipCoverage: false)
+        none.mutantsNotCovered = []
+        XCTAssertEqual(try rebuild(none, ResultsEnd.make(recorded: 0)).uncoveredMutants, [])
+    }
+
     // A resumed session retires the results it doesn't stand by, and records again those it tests again.
     func test_aRetiredKey_isLeftOutOfTheReport() throws {
         let jobs = fixtureJobs()

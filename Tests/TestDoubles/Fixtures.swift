@@ -453,6 +453,9 @@ extension Run.Options {
         timeout: Double? = nil,
         buildTimeout: Double? = nil,
         failUnder: Double? = nil,
+        baseline: String? = nil,
+        maxNewSurvivors: Int? = nil,
+        writeBaseline: String? = nil,
         createTestPlan: Bool = false,
         resumeURL: URL? = nil,
         reuseURL: URL? = nil,
@@ -481,6 +484,9 @@ extension Run.Options {
             timeout: timeout,
             buildTimeout: buildTimeout,
             failUnder: failUnder,
+            baseline: baseline,
+            maxNewSurvivors: maxNewSurvivors,
+            writeBaseline: writeBaseline,
             createTestPlan: createTestPlan,
             resumeURL: resumeURL,
             reuseURL: reuseURL,
@@ -640,7 +646,8 @@ extension MuterTestPlan {
         sources: ProjectTree? = nil,
         mutatedFiles: [String: String]? = nil,
         linkedFiles: [String: String]? = nil,
-        mappings: [SchemataMutationMapping] = []
+        mappings: [SchemataMutationMapping] = [],
+        mutantsNotCovered: [UncoveredMutant]? = nil
     ) -> MuterTestPlan {
         MuterTestPlan(
             mutatedProjectURL: URL(fileURLWithPath: mutatedProjectPath),
@@ -649,7 +656,8 @@ extension MuterTestPlan {
             sources: sources,
             mutatedFiles: mutatedFiles,
             linkedFiles: linkedFiles,
-            mappings: mappings
+            mappings: mappings,
+            mutantsNotCovered: mutantsNotCovered
         )
     }
 

@@ -71,6 +71,20 @@ OPTIONS:
                           others as not killed, is below this percent, from 0
                           to 100, or every mutant was a build error, once the
                           report is written. For a run, in place of failUnder.
+  --baseline <path>       Compare the survivors with those of this baseline
+                          file, which --write-baseline saved, and exit with
+                          status 2 when more are new than --max-new-survivors
+                          allows, once the report is written. Only the mutants
+                          tested are compared. Exit with status 8 if the file
+                          can't be read, or records another scope: other
+                          operators, or another configuration.
+  --max-new-survivors <count>
+                          With --baseline, how many new survivors pass: a whole
+                          number, 0 or more. 0 when not given.
+  --write-baseline <path> Save the survivors to a baseline file at this path,
+                          such as muter.baseline.yml, for --baseline to compare
+                          later runs with. Only a whole run's results make one.
+                          It may be --baseline's own file, which is read first.
   --property-tests <glob> Split the report's kills between example tests and
                           the property tests this glob matches by name or by
                           the file their issue was recorded in; * matches any

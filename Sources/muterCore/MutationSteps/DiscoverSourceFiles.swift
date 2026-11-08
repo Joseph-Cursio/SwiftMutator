@@ -40,17 +40,19 @@ struct DiscoverSourceFiles: MutationStep {
             listed = try await candidatePaths(in: state)
         }
         let sourceFileCandidates: [FilePath]
+        let uncovered: [FilePath]
         if state.filesToMutate.isEmpty {
-            sourceFileCandidates = discoverSourceFiles(
+            (sourceFileCandidates, uncovered) = discoverSourceFiles(
                 among: (listed ?? []).filter(isChosen(by: state)),
                 in: state
             )
         } else {
-            let (files, unmatched) = filesToMutate(in: state)
+            let (files, uncoveredFiles, unmatched) = filesToMutate(in: state)
             if !unmatched.isEmpty {
                 events.send(.filesToMutateUnmatched(unmatched))
             }
             sourceFileCandidates = files
+            uncovered = uncoveredFiles
         }
 
         let failure: MuterError = state.filesToMutate.isEmpty
@@ -59,14 +61,39 @@ struct DiscoverSourceFiles: MutationStep {
 
         events.send(.sourceFileDiscoveryFinished(sourceFileCandidates))
 
+        // With `--baseline`, the mutants of a file coverage leaves out are compared, so a run with no file to mutate
+        // but such a file goes on to find them: a change that adds only a file no test reaches has new survivors.
+        // Discovery ends it then, as it does when no mutant is left (`DiscoverMutationPoints`).
+        let comparesUncovered = !uncovered.isEmpty && Self.comparesUncoveredMutants(state)
         if let selection = state.changeSelection {
-            try check(sourceFileCandidates, against: selection, in: state)
+            try check(
+                sourceFileCandidates,
+                andUncovered: uncovered,
+                against: selection,
+                comparesUncovered: comparesUncovered,
+                in: state
+            )
         }
-        if !sourceFileCandidates.isEmpty {
+        if !sourceFileCandidates.isEmpty || comparesUncovered {
             return [.sourceFileCandidatesDiscovered(sourceFileCandidates)]
+                + (uncovered.isEmpty ? [] : [.uncoveredSourceFilesDiscovered(uncovered)])
         } else {
             throw failure
         }
+    }
+
+    /// Whether a run compares the mutants of code no test ran: with `--baseline`, but for a run of one mutant, which
+    /// compares no survivors.
+    static func comparesUncoveredMutants(_ state: AnyMutationTestState) -> Bool {
+        state.runOptions.baseline != nil && state.runOptions.mutant == nil
+    }
+
+    /// Why `--since` leaves nothing to mutate when it leaves no file to: discovery leaves out each changed file that
+    /// the excludes don't.
+    static func noFileDiscovered(_ selection: ChangeSelection, in state: AnyMutationTestState) -> NothingToMutate {
+        let isExcluded = SourceFileExcludes.matcher(state.muterConfiguration.excludeFileList)
+        let count = selection.files.filter { !isExcluded($0.path) }.count
+        return NothingToMutate(reason: .noFileDiscovered(count: count), selection: selection)
     }
 }
 
@@ -78,15 +105,20 @@ private extension DiscoverSourceFiles {
         return { chosen.contains($0.precomposedStringWithCanonicalMapping) }
     }
 
-    /// That `--since` left a file to mutate, and that each is as git compared it: the copy is made after, and the lines
-    /// of a file changed in between would be wrong.
-    func check(_ candidates: [FilePath], against selection: ChangeSelection, in state: AnyMutationTestState) throws {
-        guard !candidates.isEmpty else {
-            let isExcluded = SourceFileExcludes.matcher(state.muterConfiguration.excludeFileList)
-            let count = selection.files.filter { !isExcluded($0.path) }.count
-            throw NothingToMutate(reason: .noFileDiscovered(count: count), selection: selection)
+    /// That `--since` left a file to mutate, or one coverage leaves out whose mutants the run compares
+    /// (`comparesUncovered`), and that each is as git compared it, and each file coverage leaves out, whose mutants
+    /// are counted as not covered: the copy is made after, and the lines of a file changed in between would be wrong.
+    func check(
+        _ candidates: [FilePath],
+        andUncovered uncovered: [FilePath],
+        against selection: ChangeSelection,
+        comparesUncovered: Bool,
+        in state: AnyMutationTestState
+    ) throws {
+        guard !candidates.isEmpty || comparesUncovered else {
+            throw Self.noFileDiscovered(selection, in: state)
         }
-        for candidate in candidates {
+        for candidate in candidates + uncovered {
             let path = RepoRelativePath.of(candidate, under: state.mutatedProjectDirectoryURL)
                 .precomposedStringWithCanonicalMapping
             guard let file = selection.file(at: path) else { continue }
@@ -155,7 +187,12 @@ private extension DiscoverSourceFiles {
         return paths.filter { notIgnored.contains($0) || renamedInCase.contains($0.lowercased()) }
     }
 
-    private func discoverSourceFiles(among candidatePaths: [FilePath], in state: AnyMutationTestState) -> [FilePath] {
+    /// The Swift files to mutate among `candidatePaths`, and those coverage leaves out as a whole, whose mutants are
+    /// counted as not covered.
+    private func discoverSourceFiles(
+        among candidatePaths: [FilePath],
+        in state: AnyMutationTestState
+    ) -> (files: [FilePath], uncovered: [FilePath]) {
         discoverSourceFiles(
             among: candidatePaths,
             inDirectoryAt: state.mutatedProjectDirectoryURL.path,
@@ -171,29 +208,34 @@ private extension DiscoverSourceFiles {
         excludingPathsIn providedExcludeList: [FilePath],
         ignoringFilesWithoutCoverage filesWithoutCoverage: [FilePath],
         keepingOnly filesInCoverage: [FilePath]?
-    ) -> [FilePath] {
+    ) -> (files: [FilePath], uncovered: [FilePath]) {
         let isExcluded = SourceFileExcludes.matcher(providedExcludeList)
 
-        return includeSwiftFiles(
+        let swiftFiles = includeSwiftFiles(
             from: candidatePaths
                 .exclude(isExcluded)
                 .map { append(root: rootPath, to: $0) }
         )
         // Only Swift files are checked against coverage: each check resolves the path on disk, and a
         // project holds far more files than Swift sources.
-        .exclude(anyOf(filesWithoutCoverage, root: rootPath))
+        let isWithoutCoverage = anyOf(filesWithoutCoverage, root: rootPath)
+        // The coverage names each of these, so none is left out below for being unknown to it.
+        let uncovered = filesWithoutCoverage.isEmpty ? [] : swiftFiles.include(isWithoutCoverage)
         // A file the coverage data doesn't name has no code in any binary the tests ran, as an example app's or an
         // unused target's hasn't, so no test could kill its mutants. Without coverage, none is left out for this. The
         // exception is a file of globals' and static properties' values, which have no coverage regions, beside a file
         // the data names, so in what looks like a target the tests ran.
-        .include(filesInCoverage.map { covered in
-            let isCovered = anyOf(covered, root: rootPath)
-            let root = rootPath.canonicalPath
-            let folders = Set(covered.map { coveredFolder(of: $0, root: rootPath) }).subtracting([root])
-            return { path in
-                isCovered(path) || (isBeside(folders, path, root: root) && CoverageRegions.holdsOnlyValues(path))
-            }
-        } ?? { _ in true })
+        let files = swiftFiles
+            .exclude(isWithoutCoverage)
+            .include(filesInCoverage.map { covered in
+                let isCovered = anyOf(covered, root: rootPath)
+                let root = rootPath.canonicalPath
+                let folders = Set(covered.map { coveredFolder(of: $0, root: rootPath) }).subtracting([root])
+                return { path in
+                    isCovered(path) || (isBeside(folders, path, root: root) && CoverageRegions.holdsOnlyValues(path))
+                }
+            } ?? { _ in true })
+        return (files, uncovered)
     }
 
     private func coveredFolder(of path: FilePath, root: FilePath) -> String {
@@ -221,11 +263,13 @@ private extension DiscoverSourceFiles {
     }
 
     /// The Swift files `--files-to-mutate` names, past the excludes and the coverage filter, as discovery leaves out
-    /// any other file, and its entries that leave none. An entry is a file, a folder, which names every Swift file in
-    /// it that isn't hidden or in a hidden folder, or a glob, as `exclude` takes one, whose matches are each a file
-    /// or a folder. It is relative to the project, unless it is an absolute path in it. A file named twice, in
-    /// letters of another case too, is mutated once.
-    private func filesToMutate(in state: AnyMutationTestState) -> ([FilePath], [UnmatchedFilesToMutate]) {
+    /// any other file, those of them the coverage filter leaves out, and its entries that leave none. An entry is a
+    /// file, a folder, which names every Swift file in it that isn't hidden or in a hidden folder, or a glob, as
+    /// `exclude` takes one, whose matches are each a file or a folder. It is relative to the project, unless it is an
+    /// absolute path in it. A file named twice, in letters of another case too, is mutated once.
+    private func filesToMutate(
+        in state: AnyMutationTestState
+    ) -> ([FilePath], uncovered: [FilePath], [UnmatchedFilesToMutate]) {
         let root = state.mutatedProjectDirectoryURL.path
         let named = state.filesToMutate.map { entry in
             (entry, swiftFiles(namedBy: entry, in: state.projectDirectoryURL, copiedTo: root))
@@ -236,7 +280,7 @@ private extension DiscoverSourceFiles {
         }
         var seen: Set<FilePath> = []
         let unique = named.flatMap(\.1).filter { seen.insert($0.canonicalPath).inserted }
-        let files = discoverSourceFiles(among: unique.compactMap(inTheProject).sorted(), in: state)
+        let (files, uncovered) = discoverSourceFiles(among: unique.compactMap(inTheProject).sorted(), in: state)
 
         let kept = Set(files.map(\.canonicalPath))
         let isExcluded = SourceFileExcludes.matcher(state.muterConfiguration.excludeFileList)
@@ -256,7 +300,7 @@ private extension DiscoverSourceFiles {
             }
             return UnmatchedFilesToMutate(entry: entry, reason: reason)
         }
-        return (files, unmatched)
+        return (files, uncovered, unmatched)
     }
 
     /// The paths in the copy at `root` of the Swift files `entry` names, whether or not they exist. An absolute path

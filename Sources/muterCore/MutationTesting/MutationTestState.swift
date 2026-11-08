@@ -66,6 +66,22 @@ protocol AnyMutationTestState: AnyObject {
     /// The mutants, by switch ID, that `BuildForTesting` took out of the build, as they don't compile; empty for any
     /// other build system, which takes them out as its baseline builds.
     var mutantsLeftOut: [String: LeftOutMutant] { get }
+    /// `--baseline`'s file, loaded and checked as the run starts (`LoadBaselineFile`), whose survivors the finished
+    /// run's are compared with; nil without `--baseline`, and until then.
+    var baselineFile: BaselineFile? { get }
+    /// With `--baseline`, the mutants discovery found and `--shard`, `--sample` or `--changed-lines` left out, which a
+    /// baseline file's entries for them are paired with (`BaselineMatches`); empty otherwise, and until discovery.
+    var unselectedMutants: [UnselectedMutant] { get }
+    /// The Swift files discovery would mutate but that coverage leaves out as a whole, at or below `coverageThreshold`,
+    /// as a file of a target the tests build that no test reaches is, by their paths in the copy: their mutants are
+    /// counted as not covered (`UncoveredMutant`). A file the coverage data doesn't name, of a target no test builds,
+    /// isn't one. Empty with `--skip-coverage`, and until source files are discovered.
+    var uncoveredSourceFiles: [FilePath] { get }
+    /// The mutants of code no test ran, which a run makes none of, of the code it chose (`UncoveredMutant`), sorted by
+    /// key: from discovery, or from the test plan a run tests, which records those `mutate-without-running` found.
+    /// Empty with `--skip-coverage`; nil when they aren't known: until discovery, for `--mutant`, which compares no
+    /// survivors, and for a test plan that doesn't record them, as one an older SwiftMutator made.
+    var uncoveredMutants: [UncoveredMutant]? { get }
 
     func apply(_ stateChanges: [MutationTestState.Change])
 }
@@ -104,6 +120,10 @@ final class MutationTestState: AnyMutationTestState {
     var selectedMutant: MutantKey?
     var preparedSources: [FilePath: String] = [:]
     var mutantsLeftOut: [String: LeftOutMutant] = [:]
+    var baselineFile: BaselineFile?
+    var unselectedMutants: [UnselectedMutant] = []
+    var uncoveredSourceFiles: [FilePath] = []
+    var uncoveredMutants: [UncoveredMutant]?
 
     init() {}
 
@@ -146,6 +166,10 @@ extension MutationTestState {
         case operatorsChosen(MutationOperatorList)
         case preparedSourcesKept([FilePath: String])
         case mutantsLeftOutOfTheBuild([String: LeftOutMutant])
+        case baselineFileLoaded(BaselineFile)
+        case mutantsNotSelected([UnselectedMutant])
+        case uncoveredSourceFilesDiscovered([FilePath])
+        case mutantsNotCovered([UncoveredMutant])
     }
 }
 
@@ -218,6 +242,14 @@ extension MutationTestState {
                 preparedSources = sources
             case let .mutantsLeftOutOfTheBuild(mutants):
                 mutantsLeftOut = mutants
+            case let .baselineFileLoaded(file):
+                baselineFile = file
+            case let .mutantsNotSelected(mutants):
+                unselectedMutants = mutants
+            case let .uncoveredSourceFilesDiscovered(files):
+                uncoveredSourceFiles = files
+            case let .mutantsNotCovered(mutants):
+                uncoveredMutants = mutants
             }
         }
     }

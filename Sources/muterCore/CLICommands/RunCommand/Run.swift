@@ -144,6 +144,9 @@ struct Run: RunCommand {
             timeout: testing.timeout,
             buildTimeout: options.buildTimeout,
             failUnder: reportOptions.failUnder,
+            baseline: reportOptions.baseline,
+            maxNewSurvivors: reportOptions.allowedNewSurvivors,
+            writeBaseline: reportOptions.writeBaseline,
             propertyTests: reportOptions.propertyTestGlobs,
             resumeURL: resuming.resume,
             reuseURL: reuse,
@@ -165,8 +168,11 @@ struct Run: RunCommand {
     /// sampled split, and a resume of a sample, need it to take the same one: a seed SwiftMutator chose would differ.
     /// `--mutant` names its mutant alone, so no other option that chooses mutants, nor one that continues a run, can
     /// be given with it. A stopped run writes each report's partial report beside it, which no other report may take.
+    /// A baseline file holds a whole run's survivors, so `--write-baseline` can't be given with an option that tests
+    /// only some of the project's mutants.
     func validate() throws {
         try reportOptions.validateForARun()
+        try validateWriteBaseline()
         if since != nil, !selection.filesToMutate.isEmpty {
             throw ValidationError("--since and --files-to-mutate can't be given together.")
         }
@@ -194,6 +200,23 @@ struct Run: RunCommand {
 }
 
 private extension Run {
+    func validateWriteBaseline() throws {
+        guard reportOptions.writeBaseline != nil else { return }
+        let limits: [(option: String, isGiven: Bool)] = [
+            ("--mutant", lone.mutant != nil),
+            // 1/1 is the whole run.
+            ("--shard", (shard?.count ?? 1) > 1),
+            ("--sample", sample != nil),
+            ("--since", since != nil),
+            ("--files-to-mutate", !selection.filesToMutate.isEmpty),
+        ]
+        if let limit = limits.first(where: \.isGiven) {
+            throw ValidationError(
+                "--write-baseline can't be given with \(limit.option): a baseline file holds a whole run's survivors."
+            )
+        }
+    }
+
     func validateMutant() throws {
         guard lone.mutant != nil else { return }
         let others: [(option: String, isGiven: Bool)] = [

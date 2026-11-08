@@ -24,6 +24,11 @@ struct MuterTestPlan: Equatable {
     /// a link, and for a plan that doesn't record them.
     let linkedFiles: [String: String]?
     let mappings: [SchemataMutationMapping]
+    /// The mutants of code no test ran, which the plan makes none of (`UncoveredMutant`), keyed by their paths relative
+    /// to the copy, and so to the project, sorted by key, so that a run of the plan compares them with `--baseline`'s
+    /// file, and records them in its results file, as a run that discovers its own mutants does; empty when there are
+    /// none, as with `--skip-coverage`. nil for a plan that doesn't record them, as an older SwiftMutator's.
+    let mutantsNotCovered: [UncoveredMutant]?
 
     init(
         formatVersion: Int = TestPlanCoding.formatVersion,
@@ -34,7 +39,8 @@ struct MuterTestPlan: Equatable {
         sources: ProjectTree? = nil,
         mutatedFiles: [String: String]? = nil,
         linkedFiles: [String: String]? = nil,
-        mappings: [SchemataMutationMapping]
+        mappings: [SchemataMutationMapping],
+        mutantsNotCovered: [UncoveredMutant]? = nil
     ) {
         self.formatVersion = formatVersion
         self.swiftMutatorVersion = swiftMutatorVersion
@@ -45,6 +51,7 @@ struct MuterTestPlan: Equatable {
         self.mutatedFiles = mutatedFiles
         self.linkedFiles = linkedFiles
         self.mappings = mappings
+        self.mutantsNotCovered = mutantsNotCovered
     }
 }
 

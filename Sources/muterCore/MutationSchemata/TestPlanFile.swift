@@ -36,7 +36,8 @@ enum TestPlanCoding {
             sources: plan.sources,
             mutatedFiles: plan.mutatedFiles,
             linkedFiles: plan.linkedFiles,
-            mappings: plan.mappings.map { $0.relative(to: plan.mutatedProjectURL) }
+            mappings: plan.mappings.map { $0.relative(to: plan.mutatedProjectURL) },
+            mutantsNotCovered: plan.mutantsNotCovered
         )
         return try String(decoding: encoder.encode(file), as: UTF8.self) + "\n"
     }
@@ -77,7 +78,8 @@ enum TestPlanCoding {
             sources: file.sources,
             mutatedFiles: file.mutatedFiles,
             linkedFiles: file.linkedFiles,
-            mappings: file.mappings.map { $0.resolved(under: copy) }
+            mappings: file.mappings.map { $0.resolved(under: copy) },
+            mutantsNotCovered: file.mutantsNotCovered
         )
     }
 
@@ -123,6 +125,10 @@ struct TestPlanFile: Codable, Equatable {
     let linkedFiles: [String: String]?
     /// By file, each file's mutants in the order mutation testing runs them.
     let mappings: [SchemataMutationMapping]
+    /// The mutants of code no test ran, which the plan makes none of, with their paths relative to the copy, sorted by
+    /// key (`MuterTestPlan.mutantsNotCovered`); empty when there are none. A new key, so the format is the same: a
+    /// plan from before it leaves it out, and its run records none, so it writes no baseline file.
+    var mutantsNotCovered: [UncoveredMutant]?
 }
 
 /// A test plan as SwiftMutators from before `TestPlanFile` wrote it, which is format 0: with no `formatVersion`,

@@ -278,7 +278,7 @@ final class MutationTestHandlerTests: MuterTestCase {
             runEvents.send(.mutationTestingFinished(.make([.failed, .passed], failUnder: 80)))
         }
 
-        let gate = try await sut.run()
+        let gate = try await sut.run().scoreGate
 
         XCTAssertEqual(gate?.verdict, .failed)
         XCTAssertEqual(gate?.failUnder, 80)
@@ -290,9 +290,10 @@ final class MutationTestHandlerTests: MuterTestCase {
             runEvents.send(.mutationTestingFinished(.make([.failed, .passed])))
         }
 
-        let gate = try await sut.run()
+        let checks = try await sut.run()
 
-        XCTAssertNil(gate)
+        XCTAssertEqual(checks, RunChecks())
+        XCTAssertTrue(checks.isEmpty)
     }
 
     /// Asserts that the run listed its own log folder at the end, found it empty and removed it, and only it: the

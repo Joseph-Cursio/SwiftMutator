@@ -83,6 +83,8 @@ enum ResumeRefusal: Equatable, CustomStringConvertible {
     /// One of the other reports names the results file itself: `--report`'s if `isTheFlags`, and else the
     /// configuration's `reports:`.
     case otherReportWouldReplaceTheResultsFile(ReportRequest, isTheFlags: Bool)
+    /// `--write-baseline` names the results file itself, which saving the baseline file at the end would replace.
+    case baselineFileWouldReplaceTheResultsFile(String)
 
     /// How many changed files are named, each with a `--resume-ignoring` flag; the rest are counted.
     static let changedFilesNamed = 10
@@ -165,6 +167,9 @@ enum ResumeRefusal: Equatable, CustomStringConvertible {
                 ? "--report \(Logger.shellQuoted(request.description)) is"
                 : "reports: names \(Logger.shellQuoted(request.description)),"
             return "\(named) the results file itself, which the report would replace. Save that report to another file."
+        case let .baselineFileWouldReplaceTheResultsFile(path):
+            return "--write-baseline \(Logger.shellQuoted(path)) is the results file itself, which the baseline file "
+                + "would replace. Save the baseline file to another file."
         }
     }
 

@@ -1,9 +1,10 @@
 import Foundation
 
-/// A short report in Markdown, for a GitHub job summary or a pull request's comment: the score, the counts, the
-/// scores of up to `mostFiles` files, and the mutants to act on, up to `mostListed` of each kind, as the JSON report
-/// lists them all. GitHub keeps at most 1 MiB of a step's summary. Every line is made from the outcome alone, in the
-/// order the other reports give it, so two reports of one outcome are the same.
+/// A short report in Markdown, for a GitHub job summary or a pull request's comment: the score, the verdicts of the
+/// checks the run was asked for, the counts, the scores of up to `mostFiles` files, and the mutants to act on, up to
+/// `mostListed` of each kind, as the JSON report lists them all. GitHub keeps at most 1 MiB of a step's summary. Every
+/// line is made from the outcome alone, in the order the other reports give it, so two reports of one outcome are the
+/// same.
 struct MarkdownReporter: Reporter {
     /// How many surviving mutants the report names, and how many not covered.
     static let mostListed = 100
@@ -17,6 +18,7 @@ struct MarkdownReporter: Reporter {
             ["## Mutation testing"],
             headline(of: report, outcome),
             warnings(of: report, outcome),
+            checks(of: outcome),
             [counts(of: report)].compactMap { $0 },
             scoresByFile(of: report),
             survivors(of: report),
@@ -50,6 +52,50 @@ struct MarkdownReporter: Reporter {
         [report.suspectWarning, outcome.buildErrorWarning, outcome.unprovenKillWarning]
             .compactMap { $0 }
             .map { "> ⚠️ " + MarkdownText.plain($0) }
+    }
+
+    /// The verdict of each check the run, or `report`, was asked for (`MutationTestOutcome.checks`), as the run's last
+    /// lines say them, each a paragraph with ✅ when it passed, ❌ when it failed and ⚠️ when it wasn't checked: the
+    /// score's against `--fail-under`, then the survivors' against `--baseline`'s file, with a table of the new
+    /// survivors, the first `mostListed`. None when no check was asked for, so such a report is as it was.
+    private func checks(of outcome: MutationTestOutcome) -> [String] {
+        guard let checks = outcome.checks else { return [] }
+        var paragraphs: [String] = []
+        if let gate = checks.scoreGate, let line = gate.line {
+            paragraphs.append(Self.mark(gate.passed) + " " + MarkdownText.plain(line))
+        }
+        var table: [String] = []
+        if let check = checks.newSurvivors, let line = check.line {
+            if let notice = check.versionNotice {
+                paragraphs.append("⚠️ " + MarkdownText.plain(notice))
+            }
+            paragraphs.append(Self.mark(check.passed) + " " + MarkdownText.plain(line))
+            if case let .checked(comparison) = check.verdict, !comparison.newSurvivors.isEmpty {
+                let rows = comparison.newSurvivors.prefix(Self.mostListed).map { survivor in
+                    [
+                        MarkdownText.codeInCell(survivor.mutant),
+                        MarkdownText.codeInCell(survivor.before) + " → " + MarkdownText.codeInCell(survivor.after)
+                            + (survivor.notCovered ? NewSurvivorsCheck.NewSurvivor.notCoveredNote : ""),
+                    ]
+                }
+                let more = comparison.newSurvivors.count - Self.mostListed
+                // The JSON report doesn't list them, and `report` saves a summary only with --summary.
+                let rest = "…and \(more) more, which a run's summary.json lists, as `report`'s does with --summary."
+                table = [MarkdownText.table(header: ["New survivor", "Change"], alignments: [false, false], rows: rows)]
+                    + (more > 0 ? [rest] : [])
+            }
+        }
+        guard !paragraphs.isEmpty else { return [] }
+        return ["### Checks"] + paragraphs + table
+    }
+
+    /// ✅ for a check that passed, ❌ for one that failed, ⚠️ for one that wasn't checked.
+    private static func mark(_ passed: Bool?) -> String {
+        switch passed {
+        case .some(true): "✅"
+        case .some(false): "❌"
+        case .none: "⚠️"
+        }
     }
 
     /// One row of how many mutants came to each verdict some came to, and their total; none without mutants.

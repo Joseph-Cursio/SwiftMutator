@@ -97,6 +97,8 @@ struct World: Sendable {
     var ioDelegate: MutationTestingIODelegate = MutationTestingDelegate()
     var process: ProcessFactory = { MuterProcessFactory.makeProcess() }
     var prepareCode: SourceCodePreparation = { PrepareSourceCode().prepareSourceCode($0) }
+    /// The same, without writing the file back: for a file coverage leaves out, whose mutants are counted, not made.
+    var readPreparedCode: SourceCodePreparation = { PrepareSourceCode().prepareSourceCode($0, writing: false) }
     var writeFile: WriteFile = { try $0.write(toFile: $1, atomically: true, encoding: .utf8) }
     var makeFolder: MakeFolder = {
         try FileManager.default.createDirectory(

@@ -165,7 +165,7 @@ struct PerformMutationTesting: MutationStep {
         let thisSession = now().timeIntervalSince(session.startedAt)
         endResults(of: session, .finished, testDuration: thisSession)
 
-        let mutationTestOutcome = MutationTestOutcome(
+        var mutationTestOutcome = MutationTestOutcome(
             mutations: session.outcomesInJobOrder,
             coverage: state.projectCoverage.limited(
                 to: state.changeSelection,
@@ -189,6 +189,7 @@ struct PerformMutationTesting: MutationStep {
             sourceDigests: Self.sourceDigests(of: state),
             run: Self.runDetails(of: session, state: state)
         )
+        Self.addBaseline(of: state, to: &mutationTestOutcome)
 
         events.send(.mutationTestingFinished(mutationTestOutcome))
 
@@ -612,41 +613,60 @@ private extension PerformMutationTesting {
         testDuration: TimeInterval
     ) {
         guard session.baselinePassed else { return }
+        var outcome = MutationTestOutcome(
+            mutations: session.outcomesInJobOrder,
+            coverage: state.projectCoverage.limited(
+                to: state.changeSelection,
+                inCopyAt: state.mutatedProjectDirectoryURL
+            ),
+            coverageSkipped: state.runOptions.skipCoverage,
+            testDuration: testDuration,
+            newVersion: state.newVersion,
+            since: state.changeSelection,
+            shards: state.shardSelection?.scopeAlone,
+            sample: state.sampleSelection,
+            // As `report` of the results file judges it: a run can stop after its last mutant's result.
+            sampleIsCutShort: session.outcomesInJobOrder.count < session.keys.count,
+            mutant: state.selectedMutant?.description,
+            suspectTestThresholds: state.muterConfiguration.suspectTestThresholds,
+            failUnder: state.muterConfiguration.failUnder,
+            propertyTests: state.muterConfiguration.propertyTests ?? [],
+            reports: state.muterConfiguration.reportRequests(in: state.projectDirectoryURL),
+            triage: Self.triageFile(of: state),
+            controlRuns: Self.controlRuns(of: session, state: state),
+            projectPath: state.projectDirectoryURL.path,
+            mutatedProjectPath: state.mutatedProjectDirectoryURL.path,
+            sourceDigests: Self.sourceDigests(of: state),
+            run: Self.runDetails(of: session, state: state)
+        )
+        Self.addBaseline(of: state, to: &outcome)
         events.send(
             .mutationTestingEndedEarly(EarlyEnd(
                 reason: reason,
                 detail: detail,
-                outcome: MutationTestOutcome(
-                    mutations: session.outcomesInJobOrder,
-                    coverage: state.projectCoverage.limited(
-                        to: state.changeSelection,
-                        inCopyAt: state.mutatedProjectDirectoryURL
-                    ),
-                    coverageSkipped: state.runOptions.skipCoverage,
-                    testDuration: testDuration,
-                    newVersion: state.newVersion,
-                    since: state.changeSelection,
-                    shards: state.shardSelection?.scopeAlone,
-                    sample: state.sampleSelection,
-                    // As `report` of the results file judges it: a run can stop after its last mutant's result.
-                    sampleIsCutShort: session.outcomesInJobOrder.count < session.keys.count,
-                    mutant: state.selectedMutant?.description,
-                    suspectTestThresholds: state.muterConfiguration.suspectTestThresholds,
-                    failUnder: state.muterConfiguration.failUnder,
-                    propertyTests: state.muterConfiguration.propertyTests ?? [],
-                    reports: state.muterConfiguration.reportRequests(in: state.projectDirectoryURL),
-                    triage: Self.triageFile(of: state),
-                    controlRuns: Self.controlRuns(of: session, state: state),
-                    projectPath: state.projectDirectoryURL.path,
-                    mutatedProjectPath: state.mutatedProjectDirectoryURL.path,
-                    sourceDigests: Self.sourceDigests(of: state),
-                    run: Self.runDetails(of: session, state: state)
-                ),
+                outcome: outcome,
                 discovered: session.keys.count,
                 reused: session.reused,
                 leftOut: session.leftOut
             ))
         )
+    }
+
+    /// Gives `outcome` what the end of the run compares its survivors with, and saves them by: `--baseline`'s file, as
+    /// loaded when the run started (`LoadBaselineFile`), and `--max-new-survivors`; the run's scope, which a baseline
+    /// file records, as `report` of the results file has it from their header; and its `--files-to-mutate`, of which
+    /// no file is written; and the mutants of code no test ran, which a baseline file records as survivors. With
+    /// `--baseline`'s file, the mutants the run left out, which its entries for them are paired with.
+    static func addBaseline(of state: AnyMutationTestState, to outcome: inout MutationTestOutcome) {
+        outcome.baseline = state.baselineFile
+        if state.baselineFile != nil {
+            outcome.unselectedMutants = state.unselectedMutants
+        }
+        // With `--skip-coverage` every mutant is made, so none is left for not being covered.
+        outcome.uncoveredMutants = state.uncoveredMutants ?? (state.runOptions.skipCoverage ? [] : nil)
+        outcome.maxNewSurvivors = state.runOptions.maxNewSurvivors ?? 0
+        outcome.baselineScope = LoadBaselineFile.scope(of: state)
+        outcome.filesToMutate = state.filesToMutate
     }
 
     /// The project's triage file, as it is when the report is made, so a label given during a long run shows. Checked

@@ -153,6 +153,39 @@ final class LoadMuterTestPlanTests: MuterTestCase {
         XCTAssertEqual(state.testPlan?.linkedFiles, ["Sources/Check.swift": "abc"])
     }
 
+    // A run of the plan compares the mutants of code no test ran that it records, as a run that discovers its own
+    // does; a plan that doesn't record them, as an older SwiftMutator's, leaves them unknown, as does `--mutant`,
+    // whose run compares no survivors.
+    func test_theMutantsOfCodeNoTestRanThePlanRecords_reachTheState() async throws {
+        let uncovered = UncoveredMutant(
+            key: MutantKey(path: "Sources/New.swift", mutationOperatorId: .ror, line: 4, column: 9, occurrence: 0),
+            snapshot: .make(before: "<", after: ">", description: "changed < to >")
+        )
+        state.runOptions = .make(testPlanURL: URL(fileURLWithPath: testPlanPath))
+        state.projectDirectoryURL = project
+        fileManager.fileContentsToReturn = MuterTestPlan.make(mutantsNotCovered: [uncovered]).toData(under: project)
+
+        state.apply(try await sut.run(with: state))
+        XCTAssertEqual(state.uncoveredMutants, [uncovered])
+
+        let older = MutationTestState()
+        older.runOptions = state.runOptions
+        older.projectDirectoryURL = project
+        fileManager.fileContentsToReturn = MuterTestPlan.make().toData(under: project)
+        older.apply(try await sut.run(with: older))
+        XCTAssertNil(older.uncoveredMutants)
+
+        let lone = MutationTestState()
+        lone.runOptions = .make(
+            testPlanURL: URL(fileURLWithPath: testPlanPath),
+            mutant: MutantReference(path: "Sources/Check.swift", line: 2, column: nil)
+        )
+        lone.projectDirectoryURL = project
+        fileManager.fileContentsToReturn = MuterTestPlan.make(mutantsNotCovered: [uncovered]).toData(under: project)
+        lone.apply(try await sut.run(with: lone))
+        XCTAssertNil(lone.uncoveredMutants)
+    }
+
     func test_theLoadedPlan_isKeptInTheState() async throws {
         state.runOptions = .make(testPlanURL: URL(fileURLWithPath: testPlanPath))
         state.projectDirectoryURL = project

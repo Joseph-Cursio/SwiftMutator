@@ -131,5 +131,8 @@ extension MutationTestOutcome {
             // A test plan's session records its rewritten copy, never the project.
             sourceDigests: header.usingTestPlan ? nil : header.project?.files
         )
+        baselineScope = BaselineScope(header: header)
+        filesToMutate = header.filesToMutate
+        uncoveredMutants = header.knownMutantsNotCovered
     }
 }

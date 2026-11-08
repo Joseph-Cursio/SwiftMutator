@@ -168,6 +168,11 @@ final class LoadConfigurationTests: MuterTestCase {
                     + "to the same file"
             ),
             (
+                .make(writeBaseline: "\(fixturesDirectory)/summary.md"),
+                "reports: markdown:\(fixturesDirectory)/summary.md and --write-baseline "
+                    + "\(fixturesDirectory)/summary.md would save to the same file"
+            ),
+            (
                 .make(reportURL: URL(fileURLWithPath: "\(fixturesDirectory)/summary.partial.md")),
                 "-o \(fixturesDirectory)/summary.partial.md would save where reports: "
                     + "markdown:\(fixturesDirectory)/summary.md's partial report goes when a run stops"
@@ -205,6 +210,11 @@ final class LoadConfigurationTests: MuterTestCase {
             (
                 .make(reportURL: URL(fileURLWithPath: "\(fixturesDirectory)/Docs"), reports: []),
                 "\(fixturesDirectory)/Docs is a folder: name the file to save the report to, in -o "
+                    + "\(fixturesDirectory)/Docs."
+            ),
+            (
+                .make(reports: [], writeBaseline: "\(fixturesDirectory)/Docs"),
+                "\(fixturesDirectory)/Docs is a folder: name the file to save the report to, in --write-baseline "
                     + "\(fixturesDirectory)/Docs."
             ),
         ]

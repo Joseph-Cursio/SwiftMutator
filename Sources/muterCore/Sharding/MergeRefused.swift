@@ -110,7 +110,7 @@ enum MergeRefusal: Equatable, CustomStringConvertible {
         case .testPlanRun, .testPlanChanged, .testPlanNotRecorded:
             return "A run that tests a test plan has no shards to merge."
         case .inUse, .filesChanged, .copyChanged, .reportWouldReplaceTheResultsFile,
-             .otherReportWouldReplaceTheResultsFile, .stoppedBeforeFirstMutant:
+             .otherReportWouldReplaceTheResultsFile, .baselineFileWouldReplaceTheResultsFile, .stoppedBeforeFirstMutant:
             return refusal.description
         }
     }
