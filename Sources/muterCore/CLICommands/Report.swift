@@ -46,7 +46,8 @@ struct Report: AsyncParsableCommand {
             "Also save the run's summary.json, its score, counts and details for scripts, at this path.",
             valueName: "path"
         ),
-        transform: { URL(fileURLWithPath: $0) }
+        // A leading `~` is the home folder, as for `-o`.
+        transform: { URL(fileURLWithPath: URL.expandingTilde($0)) }
     )
     var summary: URL?
 

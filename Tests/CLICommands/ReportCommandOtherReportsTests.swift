@@ -109,7 +109,9 @@ final class ReportCommandOtherReportsTests: MuterTestCase {
 
     // As -o's: the results file still holds everything, so nothing more is said.
     func test_whenAnOtherReportCannotBeSaved_itFails() async throws {
-        let missing = "\(directory)/missing/summary.md"
+        // A file where its folder would be, which no folder can be made in place of.
+        XCTAssertTrue(FileManager.default.createFile(atPath: "\(directory)/notAFolder", contents: nil))
+        let missing = "\(directory)/notAFolder/summary.md"
 
         await assertRefused(
             try await report(resultsPath, "-o", "\(directory)/report.txt", "--report", "markdown:\(missing)"),

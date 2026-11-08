@@ -797,13 +797,15 @@ give it once for each. A run without `--report` saves those the `reports:` key l
 `reports: [markdown:summary.md, html:report.html]`; `--report` takes their place. Either way `-f`'s
 report is still the one printed when there is no `-o`, and the others are only saved, each said with
 its own `📝 Report generated:` line, or a warning when it couldn't be saved, which changes no exit
-status. A relative path is resolved against the current folder, the project's for a run, and a
-leading `~` is your home folder, which a shell doesn't expand after `markdown:`. Two reports can't
-share a file, nor can a run's take the path of another's partial report, and a path that is a folder
-is refused before the run starts: saving would replace it. Two spellings of one file, such as
-`Report.md` and `report.md` on a volume that ignores case, are found only once the first is saved,
-so the second isn't saved, and is said as not saved. `xcode` isn't taken: its warnings are printed
-as each mutant finishes, which only `-f xcode` does.
+status. A folder on the way to a report's path, `-o`'s too, is made if it isn't there, so
+`--report sarif:out/mutants.sarif` needs no `mkdir out` first; one that can't be made, as where a file is,
+leaves the report unsaved. A relative path is resolved against the current folder, the project's for
+a run, and a leading `~` is your home folder, for `-o` too, which a shell doesn't expand after
+`markdown:` or `--output=`. Two reports can't share a file, nor can a run's take the path of
+another's partial report, and a path that is a folder is refused before the run starts: saving would
+replace it. Two spellings of one file, such as `Report.md` and `report.md` on a volume that ignores
+case, are found only once the first is saved, so the second isn't saved, and is said as not saved.
+`xcode` isn't taken: its warnings are printed as each mutant finishes, which only `-f xcode` does.
 
 `swift-mutator report` takes `--report` too, never the `reports:` its results file's header records,
 which would replace the run's own files. Each report is checked as `-o`'s is, and said with its own
