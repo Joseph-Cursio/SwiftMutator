@@ -136,9 +136,15 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
         ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 4)
         let nanoseconds = Locked<UInt64>(1)
         current.instant = { DispatchTime(uptimeNanoseconds: nanoseconds.value) }
+        // The two check runs go at once on one clock, so either may span the other's time too: only one takes any, so
+        // the slowest is 90 s however they interleave. Then the timed test run.
         let runs = Locked(0)
         ioDelegate.whileRunningTestsWithoutBuilding = {
-            let seconds: UInt64 = runs.change { $0 += 1; return $0 } <= 2 ? 90 : 10
+            let seconds: UInt64 = switch runs.change({ $0 += 1; return $0 }) {
+            case 1: 90
+            case 2: 0
+            default: 10
+            }
             nanoseconds.change { $0 += seconds * 1_000_000_000 }
         }
 
