@@ -100,6 +100,28 @@ final class ReadableReportTests: MuterTestCase {
         XCTAssertTrue(html.contains(">Sources/Rules.swift</td>"), html)
     }
 
+    // Stryker's report keys each file by its path in the project, with its text; SARIF gives it relative to
+    // %SRCROOT%, with the code the survivor changes and its line.
+    func test_theStrykerAndSarifReports_nameEachFileByItsPathInTheProject() throws {
+        current.readSourceFile = readingRules()
+        let outcome = outcome([
+            mutant(.passed, "Sources/Rules.swift", line: 2, column: 10),
+            mutant(.failed, "Sources/Lint/Rules.swift", line: 3, column: 1),
+        ])
+
+        let stryker = StrykerReporter().strykerReport(of: outcome)
+        XCTAssertEqual(stryker.files.keys.sorted(), ["Sources/Lint/Rules.swift", "Sources/Rules.swift"])
+        XCTAssertEqual(stryker.files["Sources/Rules.swift"]?.source, rules)
+        XCTAssertEqual(stryker.projectRoot, "/work/Foo")
+        let sarif = try XCTUnwrap(SarifReporter().sarifLog(of: outcome).runs.first)
+        let location = try XCTUnwrap(sarif.results.first?.locations.first?.physicalLocation)
+        XCTAssertEqual(sarif.results.count, 1)
+        XCTAssertEqual(location.artifactLocation, .init(uri: "Sources/Rules.swift", uriBaseId: "%SRCROOT%"))
+        XCTAssertEqual(location.region.snippet?.text, "==")
+        XCTAssertEqual(location.contextRegion?.snippet.text, "    if a == b && a > 0 { return true }")
+        XCTAssertEqual(sarif.originalUriBaseIds?["%SRCROOT%"]?.uri, "file:///work/Foo/")
+    }
+
     // A file without coverage is named by its path in the copy, or in the project.
     func test_aFileWithoutCoverage_isNamedByItsPathInTheProject() {
         let outcome = MutationTestOutcome(

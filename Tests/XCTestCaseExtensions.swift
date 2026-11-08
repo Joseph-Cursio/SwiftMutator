@@ -62,6 +62,8 @@ class MuterTestCase: XCTestCase {
             makeFolder: { _ in },
             // No report reads a real file: a test that shows a mutant's line gives it.
             readSourceFile: { _ in nil },
+            // Never the checkout the tests run in: a test of the SARIF report's paths gives its own.
+            projectInWorkTree: { _ in nil },
             server: server,
             now: { [fixedNow] in fixedNow },
             instant: { DispatchTime(uptimeNanoseconds: 1) },

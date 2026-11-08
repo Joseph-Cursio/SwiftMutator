@@ -380,7 +380,7 @@ private extension MuterTestReport {
     }
 }
 
-private extension MutationTestOutcome {
+extension MutationTestOutcome {
     /// `path`, a file's in the mutated copy or in the project, relative to it; a path in neither as it is.
     func relativePath(of path: String) -> String {
         for root in [mutatedProjectPath, projectPath] where !root.isEmpty {

@@ -106,7 +106,7 @@ enum MutantDiff {
 
     /// What the mutant puts in place of `snapshot.before`: nothing for a removed statement, whose snapshot says
     /// "removed line".
-    private static func replacement(
+    static func replacement(
         _ snapshot: MutationOperator.Snapshot,
         _ mutationOperatorId: MutationOperator.Id
     ) -> String {

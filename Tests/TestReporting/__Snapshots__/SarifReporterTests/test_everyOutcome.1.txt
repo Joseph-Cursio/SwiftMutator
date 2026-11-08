@@ -1,0 +1,229 @@
+{
+  "$schema" : "https://json.schemastore.org/sarif-2.1.0.json",
+  "runs" : [
+    {
+      "columnKind" : "utf16CodeUnits",
+      "invocations" : [
+        {
+          "executionSuccessful" : true
+        }
+      ],
+      "originalUriBaseIds" : {
+        "%SRCROOT%" : {
+          "uri" : "file:///work/My%20Foo/"
+        }
+      },
+      "results" : [
+        {
+          "level" : "warning",
+          "locations" : [
+            {
+              "physicalLocation" : {
+                "artifactLocation" : {
+                  "uri" : "file:///elsewhere/Shared.swift"
+                },
+                "contextRegion" : {
+                  "endLine" : 1,
+                  "snippet" : {
+                    "text" : "let same = a == b"
+                  },
+                  "startLine" : 1
+                },
+                "region" : {
+                  "endColumn" : 16,
+                  "endLine" : 1,
+                  "snippet" : {
+                    "text" : "=="
+                  },
+                  "startColumn" : 14,
+                  "startLine" : 1
+                }
+              }
+            }
+          ],
+          "message" : {
+            "text" : "Your test suite did not kill this mutant: changed == to !="
+          },
+          "partialFingerprints" : {
+            "primaryLocationLineHash" : "2c7bac8c4630cfd6b55e57a21880fcbe148e22c39088e26af1a70956f77e3fe3",
+            "swiftMutatorMutant/v1" : "2c7bac8c4630cfd6b55e57a21880fcbe148e22c39088e26af1a70956f77e3fe3"
+          },
+          "ruleId" : "RelationalOperatorReplacement",
+          "ruleIndex" : 0
+        },
+        {
+          "level" : "warning",
+          "locations" : [
+            {
+              "physicalLocation" : {
+                "artifactLocation" : {
+                  "uri" : "Sources/Rules.swift",
+                  "uriBaseId" : "%SRCROOT%"
+                },
+                "contextRegion" : {
+                  "endLine" : 3,
+                  "snippet" : {
+                    "text" : "    return a < b"
+                  },
+                  "startLine" : 3
+                },
+                "region" : {
+                  "endColumn" : 15,
+                  "endLine" : 3,
+                  "snippet" : {
+                    "text" : "<"
+                  },
+                  "startColumn" : 14,
+                  "startLine" : 3
+                }
+              }
+            }
+          ],
+          "message" : {
+            "text" : "Your test suite did not kill this mutant: changed < to >"
+          },
+          "partialFingerprints" : {
+            "primaryLocationLineHash" : "f9750a2ee9733ff469f6c01529bd93b59f74da78cf3198c2bdfcb52a52be31d9",
+            "swiftMutatorMutant/v1" : "f9750a2ee9733ff469f6c01529bd93b59f74da78cf3198c2bdfcb52a52be31d9"
+          },
+          "ruleId" : "RelationalOperatorReplacement",
+          "ruleIndex" : 0
+        },
+        {
+          "level" : "warning",
+          "locations" : [
+            {
+              "physicalLocation" : {
+                "artifactLocation" : {
+                  "uri" : "Sources/Rules.swift",
+                  "uriBaseId" : "%SRCROOT%"
+                },
+                "contextRegion" : {
+                  "endLine" : 8,
+                  "snippet" : {
+                    "text" : "    flag\n        ? 1\n        : 2"
+                  },
+                  "startLine" : 6
+                },
+                "region" : {
+                  "endColumn" : 12,
+                  "endLine" : 8,
+                  "snippet" : {
+                    "text" : "flag\n        ? 1\n        : 2"
+                  },
+                  "startColumn" : 5,
+                  "startLine" : 6
+                }
+              }
+            }
+          ],
+          "message" : {
+            "text" : "Your test suite did not kill this mutant: swapped ternary (timed out)"
+          },
+          "partialFingerprints" : {
+            "primaryLocationLineHash" : "6b63a315e4b935813a7852821cb3cc2b58e0d9fc6479218d47c0f7c92ed5c0d7",
+            "swiftMutatorMutant/v1" : "6b63a315e4b935813a7852821cb3cc2b58e0d9fc6479218d47c0f7c92ed5c0d7"
+          },
+          "ruleId" : "SwapTernary",
+          "ruleIndex" : 2
+        },
+        {
+          "level" : "note",
+          "locations" : [
+            {
+              "physicalLocation" : {
+                "artifactLocation" : {
+                  "uri" : "Sources/Rules.swift",
+                  "uriBaseId" : "%SRCROOT%"
+                },
+                "contextRegion" : {
+                  "endLine" : 15,
+                  "snippet" : {
+                    "text" : "    items.append(1)"
+                  },
+                  "startLine" : 15
+                },
+                "region" : {
+                  "endColumn" : 20,
+                  "endLine" : 15,
+                  "snippet" : {
+                    "text" : "items.append(1)"
+                  },
+                  "startColumn" : 5,
+                  "startLine" : 15
+                }
+              }
+            }
+          ],
+          "message" : {
+            "text" : "No test reached this mutant: removed line"
+          },
+          "partialFingerprints" : {
+            "primaryLocationLineHash" : "4aaee512df15393995b454b793b12324aa4d63c4e3495e3242d153217576dc85",
+            "swiftMutatorMutant/v1" : "4aaee512df15393995b454b793b12324aa4d63c4e3495e3242d153217576dc85"
+          },
+          "ruleId" : "RemoveSideEffects",
+          "ruleIndex" : 1
+        }
+      ],
+      "tool" : {
+        "driver" : {
+          "informationUri" : "https://github.com/Joseph-Cursio/SwiftMutator",
+          "name" : "SwiftMutator",
+          "rules" : [
+            {
+              "defaultConfiguration" : {
+                "level" : "warning"
+              },
+              "fullDescription" : {
+                "text" : "Reverses a comparison: equal becomes not equal, and less than becomes greater than."
+              },
+              "help" : {
+                "text" : "Reverses a comparison: equal becomes not equal, and less than becomes greater than."
+              },
+              "id" : "RelationalOperatorReplacement",
+              "name" : "RelationalOperatorReplacement",
+              "shortDescription" : {
+                "text" : "Relational Operator Replacement"
+              }
+            },
+            {
+              "defaultConfiguration" : {
+                "level" : "warning"
+              },
+              "fullDescription" : {
+                "text" : "Removes a call whose result isn't used, to check that a test notices its side effect is gone."
+              },
+              "help" : {
+                "text" : "Removes a call whose result isn't used, to check that a test notices its side effect is gone."
+              },
+              "id" : "RemoveSideEffects",
+              "name" : "RemoveSideEffects",
+              "shortDescription" : {
+                "text" : "Remove Side Effects"
+              }
+            },
+            {
+              "defaultConfiguration" : {
+                "level" : "warning"
+              },
+              "fullDescription" : {
+                "text" : "Swaps the two branches of a ternary expression."
+              },
+              "help" : {
+                "text" : "Swaps the two branches of a ternary expression."
+              },
+              "id" : "SwapTernary",
+              "name" : "SwapTernary",
+              "shortDescription" : {
+                "text" : "Swap Ternary"
+              }
+            }
+          ],
+          "version" : "1.2.3"
+        }
+      }
+    }
+  ],
+  "version" : "2.1.0"
+}

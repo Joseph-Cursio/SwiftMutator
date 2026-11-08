@@ -6,6 +6,8 @@ enum ReportFormat: String, CaseIterable {
     case html
     case xcode
     case markdown
+    case stryker
+    case sarif
 
     static var description: String {
         allCases.map(\.rawValue).joined(separator: ", ")
@@ -23,6 +25,10 @@ enum ReportFormat: String, CaseIterable {
             return XcodeReporter()
         case .markdown:
             return MarkdownReporter()
+        case .stryker:
+            return StrykerReporter()
+        case .sarif:
+            return SarifReporter()
         }
     }
 }

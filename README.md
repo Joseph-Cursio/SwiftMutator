@@ -27,7 +27,7 @@ day, three of them with a fix. It has things SwiftMutator doesn't, among them:
 - on SwiftPM packages, recovery from mutants that don't compile, without giving up its shared
   build;
 - a quality gate for CI: a minimum score, and no new survivors against a committed baseline;
-- SARIF, SonarQube, Markdown and Stryker-compatible JSON reports.
+- a SonarQube report.
 
 Its default run uses three of its seven operators: logical operators, negated conditions and
 swapped ternaries. So by default it doesn't replace relational operators, as in `==` becoming `!=`,
@@ -221,10 +221,12 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   with 3. So does an xcodebuild project that doesn't build for testing, which exited with 255. A
   failed baseline's message lists its failed tests, up to 20, before its log. See
   [Time limits before the first mutant](#time-limits-before-the-first-mutant).
-- **Several reports from one run, and a Markdown report** ([#119](https://github.com/Joseph-Cursio/SwiftMutator/issues/119)):
+- **Several reports from one run, and Markdown, Stryker and SARIF reports** ([#119](https://github.com/Joseph-Cursio/SwiftMutator/issues/119)):
   `--report format:path`, repeatable, or the `reports:` key, saves more reports beside `-f`'s, each in
   its own format, from one run or one `swift-mutator report`. `-f markdown` makes a short report for a
-  GitHub job summary. See [Reports](#reports).
+  GitHub job summary, `-f stryker` the JSON Stryker's report viewer and dashboard read, with every
+  killing test, and `-f sarif` the SARIF GitHub code scanning reads, which follows each survivor across
+  runs. See [Reports](#reports).
 - **Disable tags act once, by where they are:** the nodes that share a `// muter:disable` or
   `// muter:enable` used to take turns acting on it, so a tag beside code could silently fail,
   depending on how many nodes shared it. Now a tag beside code leaves that code off: a `disable`
@@ -751,7 +753,8 @@ Sources/Lint/Rules.swift:42:17 survived: RelationalOperatorReplacement (changed 
   `--merge-ignoring` let differ between the shards. The HTML report shows the line in its Changes
   column for every mutant. The JSON report holds it as `sourceChange`: `line`, `before` and
   `after`, which a removed statement that leaves nothing on its line doesn't have.
-- **Counts by outcome.** Every report counts the mutants by outcome as the progress lines do, with
+- **Counts by outcome.** Every report but the Stryker and SARIF ones, which list mutants alone, counts
+  the mutants by outcome as the progress lines do, with
   a crash counted as a kill: `By outcome: 98 killed, 15 survived, 4 timed out, 3 build errors, 2 not covered` in
   the plain and HTML reports, `Mutants by outcome:` in the Xcode format, and `mutantsByOutcome` in
   the JSON report, with every count, zeros included.
@@ -823,6 +826,97 @@ the run's results file instead:
 ```yaml
 - run: swift-mutator report -f markdown "path/to/results.jsonl" >> "$GITHUB_STEP_SUMMARY"
 ```
+
+### The Stryker and SARIF reports
+
+Both are JSON for other tools, with keys sorted, so a report of the same results and files is the
+same each time. Both give each mutant's place with columns in UTF-16 code units, as those tools count
+them, where SwiftMutator's other reports count bytes, as SwiftSyntax does: an `é` before a mutant is
+one column here and two there. A mutant's place covers the code it changes, from its first character
+to just past its last, over several lines where the code spans them. It is found in the file from
+where the operator puts the mutant, which isn't always where the code starts: a removed statement
+or a swapped ternary is put where it ends, and an `&&` or `==` that starts a line at the end of the
+line above. Where the file no longer holds that code, as one changed since the run may not, the
+place is the mutant's whole line.
+
+`-f stryker` writes [mutation-testing-elements](https://github.com/stryker-mutator/mutation-testing-elements)
+JSON, schema version 2, which Stryker's dashboard and report viewer read. Each file is listed by its
+path in the project, a file outside it by its absolute path, with its source, so the viewer shows
+each mutant in its code. Each mutant has its key as its `id`, the same from run to run, its operator,
+what it puts in place of the code, its description, its place, its status, every test recorded
+killing it, up to 20, and its duration in milliseconds. A kill and a crash are `Killed`, with
+`statusReason` saying a crash was one; a survivor is `Survived`, a timeout `Timeout`, a build error
+`CompileError`, with `statusReason` when it was left out with others and may compile, and a mutant no
+test reached `NoCoverage`. A file no test ran is listed without mutants. The tests are under
+`testFiles` by name, all under the file `""`, as a results file records no test's file. The source is
+read when the report is made, so `swift-mutator report` of an old results file shows the code as it is
+now, even if it has changed since the run, and its mutants may no longer line up with it.
+
+**Stryker's score counts timeouts as detected**, as its `Timeout` status is, where SwiftMutator's
+counts them as survivors. So when a mutant timed out, the score Stryker's viewer shows is higher than
+the one SwiftMutator prints.
+
+To look at the report, put it beside an HTML page that loads the viewer, and serve the folder, as by
+`python3 -m http.server`, since a browser won't let a page opened as a file read the report:
+
+```html
+<!DOCTYPE html>
+<html>
+<body>
+  <mutation-test-report-app src="mutants.json" title-postfix="SwiftMutator"></mutation-test-report-app>
+  <script defer src="https://www.unpkg.com/mutation-testing-elements"></script>
+</body>
+</html>
+```
+
+`-f sarif` writes SARIF 2.1.0 for GitHub code scanning. Each mutant that survived or timed out is a
+`warning`, and each no test reached a `note`, under a rule for its operator, with the message the
+Xcode format gives and `(timed out)` after a timeout's. Kills and build errors aren't results. A path
+is relative to `%SRCROOT%`, the root of the git work tree the project is in, as GitHub reads a
+relative path from the repository's root, so a package in a folder of its repository has that folder
+in its paths. Outside a work tree, `%SRCROOT%` is the project's folder. `swift-mutator report` finds
+the work tree from the project's folder the run recorded, or, where that folder is gone, as for a
+results file from another machine, from the current folder, so run it in the project's folder there. A
+file outside the project has its absolute `file://` URI. A result's `region` is the code the mutant
+changes, with that code as its `snippet`, and its `contextRegion` the lines that code is on, whole.
+
+Each result's `partialFingerprints` has its fingerprint, a SHA-256 of its file's path, its operator,
+the text of the line its code starts on, what it changes, how many lines above in the file read the
+same, and where on its line, after the indent, its code starts. It leaves out the line's number, so an
+edit above a survivor keeps its alert. The repeats are counted in the file, not among the mutants a
+run tested, so a shard or a `--since` run gives a mutant the fingerprint a whole run does. Upload a
+report of the whole run to the branch whose alerts it tracks, though: GitHub closes, as fixed, each
+alert of the same `category` that its latest upload there leaves out, so a shard's report, or a
+`--since` or stopped run's, would close the alerts of every mutant it didn't test. Merge the shards
+first, with `swift-mutator report -f sarif` of every shard's results file, or give each upload a
+`category` of its own. GitHub reads only `primaryLocationLineHash`, which `upload-sarif` would
+otherwise fill with a hash of the line, alike for two mutants on one line, so the report puts the
+fingerprint there, and as `swiftMutatorMutant/v1` for other tools. GitHub takes at most 25,000 results
+from a run and shows the 5,000 most severe, so the report keeps the warnings first, then the notes,
+and past 25,000 says how many it left out in `resultsLeftOut` under the run's `properties`, and in a
+notification. In GitHub Actions:
+
+```yaml
+permissions:
+  security-events: write
+  # Only in a private repository: to check out the code, and for upload-sarif to read the run.
+  contents: read
+  actions: read
+
+steps:
+  # ...check out and build, as for any run...
+  - run: swift-mutator --report sarif:mutants.sarif
+  - uses: github/codeql-action/upload-sarif@v4
+    if: always() && hashFiles('mutants.sarif') != ''
+    with:
+      sarif_file: mutants.sarif
+      category: mutation-testing
+```
+
+`if: always()` uploads the alerts when `--fail-under` fails the step too, and `hashFiles` skips the
+upload when the run wrote no report: one whose build or baseline failed writes none, and one stopped
+partway writes only `mutants.partial.sarif`, which would close the alerts of the mutants it didn't
+test.
 
 ### Triaging survivors
 

@@ -596,21 +596,6 @@ extension Node where Context: HTML.BodyContext {
     }
 }
 
-private extension MutationOperator.Id {
-    var friendlyName: String {
-        switch self {
-        case .ror: "Relational Operator Replacement"
-        case .relationalBoundary: "Relational Boundary"
-        case .removeSideEffects: "Remove Side Effects"
-        case .logicalOperator: "Change Logical Connector"
-        case .swapTernary: "Swap Ternary"
-        case .negateConditional: "Negate Conditional"
-        case .arithmeticOperator: "Change Arithmetic Operator"
-        case .flipBooleanLiteral: "Flip Boolean Literal"
-        }
-    }
-}
-
 private extension MuterTestReport.AppliedMutationOperator {
     /// Its outcome's icon, titled as the tables say it. A mutant not covered has a survivor's icon, as its tests ran
     /// and passed, and the score counts it as one, where a file's row has the icon of one that was skipped.

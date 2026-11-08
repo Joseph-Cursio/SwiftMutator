@@ -51,6 +51,20 @@ enum MutationOperator {
             allCases.map(\.rawValue).joined(separator: ", ")
         }
 
+        /// Its name in words, as the HTML report and SARIF's rules show it.
+        var friendlyName: String {
+            switch self {
+            case .ror: "Relational Operator Replacement"
+            case .relationalBoundary: "Relational Boundary"
+            case .removeSideEffects: "Remove Side Effects"
+            case .logicalOperator: "Change Logical Connector"
+            case .swapTernary: "Swap Ternary"
+            case .negateConditional: "Negate Conditional"
+            case .arithmeticOperator: "Change Arithmetic Operator"
+            case .flipBooleanLiteral: "Flip Boolean Literal"
+            }
+        }
+
         /// What it does, in a line, for the reports. In words alone, as the HTML report puts it in an attribute.
         var explanation: String {
             switch self {

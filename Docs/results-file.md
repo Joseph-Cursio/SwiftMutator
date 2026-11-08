@@ -334,7 +334,7 @@ New keys and new kinds of line are added without changing `formatVersion`, so a 
 `swift-mutator report` makes a run's report from its results file, in any of the formats `run` writes:
 
 ```
-swift-mutator report <results>… [-f plain|json|html|xcode] [-o <path>] [--fail-under <percent>] [--summary <path>] [--force-merge] [--merge-ignoring <glob>]…
+swift-mutator report <results>… [-f plain|json|html|xcode|markdown|stryker|sarif] [-o <path>] [--fail-under <percent>] [--summary <path>] [--force-merge] [--merge-ignoring <glob>]…
 ```
 
 One results file is reported as it is. The results files of a `run --shard` split's shards, one alone included, are merged first ([Shards](#shards)).
@@ -350,7 +350,7 @@ It only reads the results file: it mutates nothing, prints no banner and makes n
   - A folder with none, and no note, is refused.
   - So is a folder with several, one for each run that started in that minute, as a folder from before each run got its own can hold. The error names them in the order the runs started in, so you can pass the one you want.
   - A path that isn't a folder is read as a results file.
-- **`-f`** chooses the format, as in `run`: `plain` (the default), `json`, `html`, `xcode` or `markdown`.
+- **`-f`** chooses the format, as in `run`: `plain` (the default), `json`, `html`, `xcode`, `markdown`, `stryker` or `sarif`.
 - **`-o`** saves the report at that path, replacing any file there.
   - The path is used exactly as given. A report of a stopped run isn't named `.partial`, as `run`'s partial report is, because you chose the name.
   - A path that would destroy what is there is refused before anything is printed: the results file itself, by any name (through a symbolic link, a hard link, or a different case on a case-insensitive volume), and a folder.
@@ -372,9 +372,10 @@ The report is made from each mutant's last line (see [Reading it](#reading-it)) 
   1. **The HTML footer** gives the time the report was made.
   2. **The Xcode format's warnings**, one for each survivor, come in the order the run tested the mutants. A run with several workers prints them as its mutants finish. The warnings are the same, and so is the summary.
   3. **The plain report's colours** are added when standard output is a terminal, unless `NO_COLOR` is set. The same rule applies to `run` and `report`, so the reports match when both write to a terminal, or neither does.
-  4. **JSON keys** can come in a different order. The JSON is the same once it is parsed.
+  4. **JSON keys** can come in a different order in the JSON report. The JSON is the same once it is parsed. The Stryker and SARIF reports sort theirs.
   5. **The results file's path** in the Run section and the JSON's `run` is spelled as `report` found it, from the path or folder it was given, which can differ from the run's spelling, as through a symbolic link.
-- **A run that was stopped by a signal or an error** gets a report of the mutants it tested, made the same way. It matches the partial report the run wrote beside its `-o`, if it wrote one, with the same five exceptions. The end line's `testDurationSeconds` gives the test duration.
+  6. **The source the Stryker report embeds**, and the columns and fingerprints the Stryker and SARIF reports take from it, are read from each file as it is when the report is made: a report of an old results file shows today's code, even where it has changed since the run. The SARIF report's paths are from the work tree the project's folder is in when the report is made, and where that folder is gone, as for a results file from another machine, from the work tree the current folder is in.
+- **A run that was stopped by a signal or an error** gets a report of the mutants it tested, made the same way. It matches the partial report the run wrote beside its `-o`, if it wrote one, with the same six exceptions. The end line's `testDurationSeconds` gives the test duration.
 - **A run with no end line**, which is still going, was killed or crashed, gets a report of the mutants it tested. The test duration runs from the header's `startedAt` to the last mutant's `finishedAt`.
 - **A run stopped before any mutant finished** has no `mutant` lines, and gets an empty report: `Report of 0 of 2497 mutants`.
 - **Lines that don't read** are skipped, as a reader should skip them, and the status says which.

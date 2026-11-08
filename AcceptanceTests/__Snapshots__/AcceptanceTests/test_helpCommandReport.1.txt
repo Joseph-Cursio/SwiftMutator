@@ -10,7 +10,8 @@ ARGUMENTS:
                           are merged into one report.
 
 OPTIONS:
-  -f, --format <format>   The report format: plain, json, html, xcode, markdown
+  -f, --format <format>   The report format: plain, json, html, xcode,
+                          markdown, stryker, sarif
   -o, --output <output>   Output file for the report to be saved.
   --report <format:path>  Also save a report in another format, as format:path,
                           such as markdown:summary.md. Repeatable. For a run,
