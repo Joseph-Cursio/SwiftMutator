@@ -58,7 +58,8 @@ final class ReportCommandAcceptanceTests: XCTestCase {
         let sources = project.appendingPathComponent("Sources/Lib", isDirectory: true)
         try FileManager.default.createDirectory(at: sources, withIntermediateDirectories: true)
         // The comparisons are `!=`, which only RelationalOperatorReplacement mutates: four mutants in all. `<` or `>`
-        // would get a RelationalBoundary mutant too.
+        // would get a RelationalBoundary mutant too. The configuration leaves out ReplaceBooleanValue, which would add
+        // two for each function.
         try """
         func isPositive(_ value: Int) -> Bool { value != 0 }
         func both(_ first: Bool, _ second: Bool) -> Bool { first && second }
@@ -82,6 +83,7 @@ final class ReportCommandAcceptanceTests: XCTestCase {
         buildSystem: swift
         mutationTestWorkers: 2
         mutationTestTimeout: 60
+        skipOperators: [ReplaceBooleanValue]
 
         """.write(to: project.appendingPathComponent("muter.conf.yml"), atomically: true, encoding: .utf8)
     }

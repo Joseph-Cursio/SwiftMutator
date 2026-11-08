@@ -232,3 +232,25 @@ return true
 becomes
 
 return false
+
+
+Replace Boolean Value
+
+The replace boolean value operator will replace a Bool value with true, and in a second mutant with false.
+A value is what a return gives, the one expression of a body that returns it, or the initial value of a let or var.
+It counts when its type is written as Bool, or when it is a comparison, &&, || or !.
+A literal, an if or switch expression, and a closure that doesn't write its return type are left alone.
+
+The purpose of this operator is to highlight whether your tests see a value both true and false.
+
+Mutating a value
+
+return items.isEmpty
+
+becomes
+
+return true
+
+and
+
+return false

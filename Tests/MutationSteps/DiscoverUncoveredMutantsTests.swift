@@ -33,7 +33,9 @@ final class DiscoverUncoveredMutantsTests: MuterTestCase {
         try super.setUpWithError()
 
         project = try makeTemporaryDirectory()
-        state.mutationOperatorList = .allOperators
+        // But ReplaceBooleanValue, whose two mutants of each value would say nothing more: its own tests show code no
+        // test ran is judged for it as for the others.
+        state.mutationOperatorList = MutationOperatorList.allOperators.filter { $0 != .replaceBooleanValue }
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: project, isDirectory: true)
         state.projectDirectoryURL = URL(fileURLWithPath: "/project", isDirectory: true)
         prepareCode.sourceCodeToReturn = { [prepared] path in
@@ -312,7 +314,7 @@ final class DiscoverUncoveredMutantsTests: MuterTestCase {
         XCTAssertEqual(only.check.passed, false)
 
         let whole = MutationTestState()
-        whole.mutationOperatorList = .allOperators
+        whole.mutationOperatorList = state.mutationOperatorList
         whole.mutatedProjectDirectoryURL = state.mutatedProjectDirectoryURL
         whole.projectDirectoryURL = state.projectDirectoryURL
         whole.muterConfiguration = state.muterConfiguration

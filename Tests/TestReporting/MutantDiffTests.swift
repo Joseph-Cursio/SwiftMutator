@@ -14,6 +14,38 @@ final class MutantDiffTests: XCTestCase {
         ])
     }
 
+    // A replaced Bool's `true` is placed where the value starts, and its `false` where it ends, on the same line.
+    func test_bothMutantsOfAReplacedBool_giveTheirLine() throws {
+        let source = """
+        func isIdle(_ queue: [Int]) -> Bool {
+            return queue.isEmpty
+        }
+
+        """
+        let schemata = schemata(ReplaceBooleanValueOperator.Visitor.init, in: source)
+
+        XCTAssertEqual(schemata.map { diff(of: $0, in: source) }, [
+            ["-2:     return queue.isEmpty", "+2:     return true"],
+            ["-2:     return queue.isEmpty", "+2:     return false"],
+        ])
+    }
+
+    // `return(a < b)` becomes `return true`, as the mutant keeps the literal apart from the keyword.
+    func test_aReplacedBoolTouchingItsKeyword_isShownWithTheSpaceItGets() throws {
+        let source = """
+        func f(_ a: Int, _ b: Int) -> Bool {
+            return(a < b)
+        }
+
+        """
+        let schemata = schemata(ReplaceBooleanValueOperator.Visitor.init, in: source)
+
+        XCTAssertEqual(schemata.map { diff(of: $0, in: source) }, [
+            ["-2:     return(a < b)", "+2:     return true"],
+            ["-2:     return(a < b)", "+2:     return false"],
+        ])
+    }
+
     // A swapped ternary's mutant is at its end, so its change is the only one on its line.
     func test_aOneLineMatch_givesTheLineBeforeAndAfter() throws {
         let source = """

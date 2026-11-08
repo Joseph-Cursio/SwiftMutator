@@ -127,7 +127,7 @@ final class DiscoverMutationPointsTests: MuterTestCase {
             print(flag && a > 1)
             let chosen = flag ? 1 : 2
             if !flag { total = 3 }
-            print(true)
+            let isDone = !flag || true
             do { record(total) }
             return total + chosen
         """
@@ -480,8 +480,9 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         }
     }
 
-    // The two copies have mutants at one place, RelationalOperatorReplacement's and RelationalBoundary's. Their switch
-    // IDs named the file alone, so testing either copy's mutant switched on the other copy's too.
+    // The two copies have mutants at one place, RelationalOperatorReplacement's and RelationalBoundary's, beside
+    // ReplaceBooleanValue's two. Their switch IDs named the file alone, so testing either copy's mutant switched on the
+    // other copy's too.
     func test_givesFilesWithTheSameNameSwitchIDsOfTheirOwn() async throws {
         let paths = try makeSourceFiles(at: ["First/Module.swift", "Second/Module.swift"])
         state.sourceFileCandidates = paths
@@ -494,12 +495,12 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         }
 
         let ids = mappings.flatMap(\.mutationSchemata).map(\.id)
-        XCTAssertEqual(ids.count, 4)
-        XCTAssertEqual(Set(ids).count, 4, "\(ids)")
-        for id in ids.prefix(2) {
+        XCTAssertEqual(ids.count, 8)
+        XCTAssertEqual(Set(ids).count, 8, "\(ids)")
+        for id in ids.prefix(4) {
             XCTAssertTrue(id.hasPrefix("Module_\("First/Module.swift".stableHash)_"), id)
         }
-        for id in ids.suffix(2) {
+        for id in ids.suffix(4) {
             XCTAssertTrue(id.hasPrefix("Module_\("Second/Module.swift".stableHash)_"), id)
         }
     }
@@ -644,7 +645,7 @@ final class DiscoverMutationPointsTests: MuterTestCase {
 
         let mutatedLines = try await discoveredMutantLines()
 
-        XCTAssertEqual(mutatedLines, [3, 3])
+        XCTAssertEqual(mutatedLines, [3, 3, 3, 3])
     }
 
     func test_shouldIgnoreMutantsWithoutCoverage_reportedThroughASymbolicLink() async throws {
@@ -657,7 +658,7 @@ final class DiscoverMutationPointsTests: MuterTestCase {
 
         let mutatedLines = try await discoveredMutantLines()
 
-        XCTAssertEqual(mutatedLines, [3, 3])
+        XCTAssertEqual(mutatedLines, [3, 3, 3, 3])
     }
 
     func test_shouldIgnoreMutantsWithoutCoverage_inAFileReachedThroughASymbolicLink() async throws {
@@ -669,7 +670,7 @@ final class DiscoverMutationPointsTests: MuterTestCase {
 
         let mutatedLines = try await discoveredMutantLines()
 
-        XCTAssertEqual(mutatedLines, [3, 3])
+        XCTAssertEqual(mutatedLines, [3, 3, 3, 3])
     }
 
     // A file an app shares with its extension has a copy of each function in each binary: in this real export, where
@@ -713,11 +714,11 @@ final class DiscoverMutationPointsTests: MuterTestCase {
 
         let mutatedLines = try await discoveredMutantLines()
 
-        XCTAssertEqual(mutatedLines, [5, 5, 9, 9])
+        XCTAssertEqual(mutatedLines, [5, 5, 5, 5, 9, 9])
     }
 
     /// Mutants on line 1, in a function the tests never run, and on line 3, in one they do: each `<` or `>` gets
-    /// RelationalOperatorReplacement's mutant and RelationalBoundary's.
+    /// RelationalOperatorReplacement's mutant and RelationalBoundary's, and each value ReplaceBooleanValue's two.
     private func writeSourceWithAnUncoveredFunction(to path: String) throws {
         try """
         func isNegative(_ value: Int) -> Bool { value < 0 }

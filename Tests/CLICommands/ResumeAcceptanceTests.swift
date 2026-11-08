@@ -89,7 +89,8 @@ final class ResumeAcceptanceTests: XCTestCase {
         try FileManager.default.createDirectory(at: sources, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: markers, withIntermediateDirectories: true)
         // The comparisons are `!=`, which only RelationalOperatorReplacement mutates: four mutants in all. `<` or `>`
-        // would get a RelationalBoundary mutant too.
+        // would get a RelationalBoundary mutant too. The configuration leaves out ReplaceBooleanValue, which would add
+        // two for each function.
         try """
         func isSmall(_ value: Int) -> Bool { value != 10 }
         func isHuge(_ value: Int) -> Bool { value != 100 }
@@ -113,6 +114,7 @@ final class ResumeAcceptanceTests: XCTestCase {
         buildSystem: swift
         mutationTestWorkers: 1
         mutationTestTimeout: 600
+        skipOperators: [ReplaceBooleanValue]
 
         """.write(to: project.appendingPathComponent("muter.conf.yml"), atomically: true, encoding: .utf8)
     }

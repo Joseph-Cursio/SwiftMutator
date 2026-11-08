@@ -5,6 +5,12 @@ import TestingExtensions
 import XCTest
 
 final class CheckMutantSwitchesTests: MuterTestCase {
+    /// Without ReplaceBooleanValue, the fixture's mutants are no more than a refusal names one by one
+    /// (`CheckMutantSwitches.namedPerFile`).
+    override var operatorsToDiscoverWith: MutationOperatorList {
+        super.operatorsToDiscoverWith.filter { $0 != .replaceBooleanValue }
+    }
+
     private let state = MutationTestState()
     private let sut = CheckMutantSwitches()
 

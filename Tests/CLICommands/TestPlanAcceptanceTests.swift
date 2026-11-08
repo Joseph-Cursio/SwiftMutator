@@ -87,7 +87,8 @@ final class TestPlanAcceptanceTests: XCTestCase {
         markers = root.appendingPathComponent("markers", isDirectory: true)
         try FileManager.default.createDirectory(at: markers, withIntermediateDirectories: true)
         // The comparisons are `!=`, which only RelationalOperatorReplacement mutates: four mutants in all. `<` or `>`
-        // would get a RelationalBoundary mutant too.
+        // would get a RelationalBoundary mutant too. The configuration leaves out ReplaceBooleanValue, which would add
+        // two for each function.
         try write(
             """
             func isSmall(_ value: Int) -> Bool { value != 10 }
@@ -385,7 +386,10 @@ final class TestPlanAcceptanceTests: XCTestCase {
         XCTAssertEqual(switchedOn.status, 1, switchedOn.output)
         XCTAssertEqual(ranLines().last, mutant)
 
-        let alone = try waitForEnd(of: launch(["run", "--skip-update-check", "--mutant", "Bounds.swift:2"]))
+        // `--mutant` looks among every operator, whatever the configuration leaves out, so it names this one.
+        let alone = try waitForEnd(
+            of: launch(["run", "--skip-update-check", "--mutant", "Bounds.swift:2 RelationalOperatorReplacement"])
+        )
 
         XCTAssertEqual(alone.status, 0, alone.output)
         XCTAssertTrue(alone.standardOutput.contains("Verdict: survived, in "), alone.output)
@@ -417,6 +421,7 @@ final class TestPlanAcceptanceTests: XCTestCase {
         buildSystem: swift
         mutationTestWorkers: 1
         mutationTestTimeout: 600
+        skipOperators: [ReplaceBooleanValue]
 
         """
     }

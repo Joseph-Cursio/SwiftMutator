@@ -71,6 +71,7 @@ The plan is one JSON object, pretty-printed with two spaces, its keys sorted, it
     "RelationalBoundary",
     "RelationalOperatorReplacement",
     "RemoveSideEffects",
+    "ReplaceBooleanValue",
     "SwapTernary"
   ],
   "projectCoverage" : 72,

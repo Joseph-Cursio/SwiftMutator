@@ -15,7 +15,8 @@ OPTIONS:
                           RelationalOperatorReplacement, RelationalBoundary,
                           RemoveSideEffects, ChangeLogicalConnector,
                           SwapTernary, NegateConditional,
-                          ChangeArithmeticOperator, FlipBooleanLiteral
+                          ChangeArithmeticOperator, FlipBooleanLiteral,
+                          ReplaceBooleanValue
   --skip-operators <skip-operators>
                           The mutant operators to leave out, in place of
                           skipOperators.

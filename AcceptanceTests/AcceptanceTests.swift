@@ -9,7 +9,7 @@ private enum AcceptanceTestsError: Error {
 
 final class AcceptanceTests: XCTestCase {
     private let messages = (
-        mutationScoreOfTestSuite: "Mutation Score of Test Suite: 16%",
+        mutationScoreOfTestSuite: "Mutation Score of Test Suite: 30%",
         mutationScoresHeader: """
         --------------------
         Mutation Test Scores
@@ -44,12 +44,12 @@ final class AcceptanceTests: XCTestCase {
 
         XCTAssertTrue(output.contains("_mutated"))
 
-        XCTAssertTrue(output.contains("In total, SwiftMutator introduced 6 mutants in 4 files."))
+        XCTAssertTrue(output.contains("In total, SwiftMutator introduced 10 mutants in 4 files."))
 
         // Standard output is a file, so a line in place of the bar: once when the baseline passes, with no mutant
-        // tested, and once as each of the 6 mutants finishes. Nothing moves the cursor, and nothing is coloured.
-        XCTAssertEqual(try numberOfProgressUpdates(in: output), 7)
-        XCTAssertEqual(try numberOfDurationEstimates(in: output), 7)
+        // tested, and once as each of the 10 mutants finishes. Nothing moves the cursor, and nothing is coloured.
+        XCTAssertEqual(try numberOfProgressUpdates(in: output), 11)
+        XCTAssertEqual(try numberOfDurationEstimates(in: output), 11)
         XCTAssertFalse(output.contains("\u{1B}"))
 
         XCTAssertTrue(output.contains(messages.mutationScoresHeader))
@@ -58,9 +58,9 @@ final class AcceptanceTests: XCTestCase {
         XCTAssertTrue(output.contains(messages.appliedMutationOperatorsHeader))
 
         // Each mutant's name ends with the hash of its file's path in the project, `ExampleApp/<file>`. Only the
-        // survivors keep a log: Module.swift's mutant is killed by a test its results line names, which stands in for
-        // its log. The configuration sets no time limit, so the limit comes from a timed test run, which keeps a log
-        // of its own.
+        // survivors keep a log: Module.swift's mutants are killed by a test their results lines name, which stands in
+        // for their logs. The configuration sets no time limit, so the limit comes from a timed test run, which keeps a
+        // log of its own.
         let expectedLogFiles = [
             "baseline run.log",
             "timed test run.log",
@@ -68,6 +68,8 @@ final class AcceptanceTests: XCTestCase {
             "FlipBooleanLiteral @ AppDelegate.swift-9-16 a37026e7c9359c5a.log",
             "FlipBooleanLiteral @ Module2.swift-2-12 3f9a9afeaa09cfa4.log",
             "FlipBooleanLiteral @ Module2.swift-2-20 3f9a9afeaa09cfa4.log",
+            "ReplaceBooleanValue @ Module2.swift-2-12 3f9a9afeaa09cfa4.log",
+            "ReplaceBooleanValue @ Module2.swift-2-25 3f9a9afeaa09cfa4.log",
             "RemoveSideEffects @ ViewController.swift-5-28 4d7bb557ed045e7d.log",
         ]
 
@@ -108,7 +110,7 @@ final class AcceptanceTests: XCTestCase {
     func test_filesToMutate() throws {
         let output = try muterFilesToMutateOutput
 
-        XCTAssertTrue(output.contains("In total, SwiftMutator discovered 1 mutants in 1 files"))
+        XCTAssertTrue(output.contains("In total, SwiftMutator discovered 3 mutants in 1 files"))
     }
 
     func test_muterDoesntDiscoverAnyMutationOperators() throws {

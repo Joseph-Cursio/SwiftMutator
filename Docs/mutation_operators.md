@@ -294,9 +294,65 @@ becomes
 return false
 ```
 
+## Replace Boolean Value
+
+The replace boolean value operator, `ReplaceBooleanValue`, will replace a Bool value with `true`, and in a second mutant with `false`, as PIT's `TRUE_RETURNS` and `FALSE_RETURNS` do.
+
+The purpose of this operator is to highlight whether your tests see a value both true and false. A value such as `return items.isEmpty`, `var isReady: Bool { flag }` or `let hidden = !visible` holds no comparison, `&&` or literal, so no other operator mutates it. A test that sees the value only when it is true kills the `false` mutant and lets the `true` one survive. The pair also stands for the value's negation: a test that tells `true` from `false` tells the value from its opposite.
+
+A value is:
+
+* **What a body returns:** the value of a `return`, or the one expression of a body that returns it, in a function, a getter of a computed property, a `get` accessor, a subscript, or a closure whose signature writes its return type, as in `{ (item) -> Bool in item.isReady }`.
+* **The initial value of a `let` or `var` of one name,** in a function, or as a stored property, a `static` or a global. A stored property's, a `static`'s and a global's value are switched in the value itself, as other operators' mutants there are (see [Mutants outside function bodies](../README.md#mutants-outside-function-bodies)).
+
+A syntax tree has no types, so a value counts when the code shows it is a Bool:
+
+* **Its type is written as `Bool`,** or `Swift.Bool`: the return type of what returns it, or the binding's annotation, as in `let ok: Bool = check()`. `Bool?`, `some`, a typealias and a generic parameter are other types to the tree, so `func f() -> Bool? { flag }` gets no mutant, and nor does `let empty = items.isEmpty`.
+* **The last thing it works out is a comparison** (`==`, `!=`, `<`, `<=`, `>`, `>=`, `===` or `!==`), **`&&`, `||` or a prefix `!`,** inside any parentheses, `try`, `try!` and `await`, when no type is written, or the type written is `Bool` or an optional `Bool` (`Bool?`, `Bool!`, `Optional<Bool>`). A value under any other written type, as in `func f() -> SQLExpression { a == b }`, `-> Int` or `var x: Binding<Bool> { !$y }`, gets no mutant, as its operator is an overload that gives that type. The tree isn't folded, so that takes the operators' precedence: `a + 1 < b` counts, and `a < b ? c : d` and `flag ?? (a < b)` don't. An operator the standard library doesn't declare, whose precedence isn't known, doesn't count, though a type written as `Bool` still does.
+
+Some values are left alone:
+
+* **A literal,** as in `return true`, which `FlipBooleanLiteral` flips.
+* **An `if` or `switch` expression, and its branches:** neither the whole expression nor a branch's value is replaced, though a `return` inside an `if` or `switch` statement still is.
+* **What a closure that doesn't write its return type returns,** as in `items.filter { $0.isReady }`. Such closures are mostly predicates passed to `filter`, `sorted` or `contains`, and each would add a pair. A `return` in one is the closure's, even inside a function that returns `Bool`.
+* **`if let`, `guard let` and `case let`, a tuple's names, `_`, an assignment** such as `isReady = a < b`, and a default argument.
+* **A value under `try?`,** which makes an optional: `true` in its place would no longer be one.
+* **What returns nothing:** an initializer's `return nil`, a setter and an observer such as `didSet`.
+
+The `true` mutant is placed where the value starts, and the `false` one where it ends, so each has a place, and a switch, of its own, and `--mutant` can name either.
+
+A few of these mutants don't compile, and are [left out as build errors](../README.md#mutants-that-dont-compile), at the cost of a rebuild: a comparison with no type written that a module declares to give something other than a Bool, as a query builder's `==` that gives a filter does in `static let isAdult = Column("age") >= 18`. Neither `true` nor `false` is such a value. A stored property's, a `static`'s or a global's value is switched as an `if` expression, so the build error is blamed on its whole switch, which also leaves out the other operators' mutants of that value.
+
+Some make the compiler warn, which is a build error only [with warnings as errors](../README.md#before-a-long-run): a local whose only reader was the replaced value, as `count` in `let count = items.count; return count > 0`, which is now never used, as Swift warns of a `let` or `var` that is initialized and never read; and a local `let` that is now `true` or `false`, read later by an `if`, `guard`, `while` or `?:`, whose other branch the compiler says will never be executed.
+
+A mutant that compiles can loop forever, as a `false` that a loop waits on to be `true` does, and is then stopped at its time limit and ends as a timeout. One that sends recursion down the branch that doesn't stop crashes, which counts as killing it.
+
+### Mutating a value
+```swift
+var isIdle: Bool {
+    queue.isEmpty
+}
+```
+
+becomes
+
+```swift
+var isIdle: Bool {
+    true
+}
+```
+
+and
+
+```swift
+var isIdle: Bool {
+    false
+}
+```
+
 ## What each operator catches and costs
 
-SwiftMutator has no tiers of operators: all eight run by default, and `--operators`, `--skip-operators` and the `operators` and `skipOperators` keys narrow a run. These numbers, from each run's `results.jsonl`, are why. Killed and survived are shares of the mutants tested, so they leave out build errors.
+SwiftMutator has no tiers of operators: all nine run by default, and `--operators`, `--skip-operators` and the `operators` and `skipOperators` keys narrow a run. These numbers, from each run's `results.jsonl`, are why. Killed and survived are shares of the mutants tested, so they leave out build errors.
 
 Operator | SwiftProjectLint: mutants | Killed | Survived | Timed out | Build errors | SwiftCloneDetector: mutants | Killed | Survived | Timed out | Build errors
 ---------|-----|-----|-----|---|---|-----|-----|-----|---|---

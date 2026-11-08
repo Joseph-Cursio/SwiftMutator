@@ -201,6 +201,7 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         XCTAssertEqual(
             mutants("var label"), [.ror, .relationalBoundary, .swapTernary], "a property's single expression"
         )
+        // A `some` type written isn't `Bool`, so ReplaceBooleanValue leaves these alone.
         XCTAssertEqual(
             mutants("var isBusy"), [.ror, .relationalBoundary, .logicalOperator], "a property's single condition"
         )
@@ -295,8 +296,16 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
             [.ror, .relationalBoundary, .swapTernary],
             "a #if clause of a function's statements"
         )
-        XCTAssertEqual(mutants("Int.max > 2"), [.ror, .relationalBoundary], "a stored property, switched in its value")
-        XCTAssertEqual(mutants("Int.max > 1"), [.ror, .relationalBoundary], "a stored property, switched in its value")
+        XCTAssertEqual(
+            mutants("Int.max > 2"),
+            [.ror, .relationalBoundary, .replaceBooleanValue],
+            "a stored property, switched in its value"
+        )
+        XCTAssertEqual(
+            mutants("Int.max > 1"),
+            [.ror, .relationalBoundary, .replaceBooleanValue],
+            "a stored property, switched in its value"
+        )
         let rewritten = compiled.rewritten["Modes.swift"] ?? ""
         XCTAssertFalse(
             rewritten.contains("\nif __SwiftMutator_"),
@@ -396,6 +405,79 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         XCTAssertEqual(mutants("let compiled"), [.flipBooleanLiteral], "a directive's code")
     }
 
+    /// Each place a Bool value is replaced: a value with `try` or `await` in it, a `let` read later, a getter's,
+    /// a subscript's and a closure's one expression, and the values that have no statement list. All of them must
+    /// compile together, each in a branch of its own, and each of a value's two mutants is switched on by itself.
+    func test_theGeneratedCodeBuildsForReplacedBooleanValues() throws {
+        let code = """
+        struct Flags {
+            var count: Int
+            var isLarge = CommandLine.arguments.count > 5
+            static let isDebug: Bool = CommandLine.arguments.contains("--debug")
+            lazy var isLazy = !CommandLine.arguments.isEmpty
+            var isEmpty: Bool { count == 0 }
+            var isSmall: Bool { get { return count < 3 } }
+            var isLoaded: Bool { get throws { try load(count) } }
+            subscript(index: Int) -> Bool { index < count }
+        }
+
+        let isGlobal = CommandLine.arguments.count < 100
+
+        func load(_ count: Int) throws -> Bool { count >= 0 }
+
+        func fetch(_ count: Int) async -> Bool { count != 7 }
+
+        func check(_ items: [Int]) async throws -> Bool {
+            let isLoaded = try load(items.count) && items.isEmpty
+            let isFetched = !(await fetch(items.count))
+            let isLarge = { (item: Int) -> Bool in item > 1 }
+            print(isLoaded, isFetched, items.filter(isLarge).count)
+            return try await fetch(items.count) == load(1) // why
+        }
+
+        func noted(_ value: Int) -> Bool {
+            return(value > 1)
+        }
+        """
+        let main = driver("""
+        var flags = Flags(count: 2)
+        print(flags.isLarge, Flags.isDebug, flags.isLazy, flags.isEmpty, flags.isSmall, try flags.isLoaded, flags[1])
+        print(isGlobal, try await check([1, 2]), noted(0), noted(2))
+        """)
+        let compiled = try compileMutated(["Values.swift": code], plain: ["main.swift": main])
+
+        let replaced = { (text: String) -> Int in
+            compiled.mutants(in: "Values.swift", onTheLineHolding: text)
+                .filter { $0.mutationOperatorId == .replaceBooleanValue }.count
+        }
+        XCTAssertEqual(replaced("var isLarge"), 2, "a stored property")
+        XCTAssertEqual(replaced("static let isDebug"), 2, "a static property written as Bool")
+        XCTAssertEqual(replaced("lazy var"), 2, "a lazy property")
+        XCTAssertEqual(replaced("var isEmpty"), 2, "a getter's one expression")
+        XCTAssertEqual(replaced("var isSmall"), 2, "a get accessor's return")
+        XCTAssertEqual(replaced("get throws"), 2, "a throwing getter's try")
+        XCTAssertEqual(replaced("subscript"), 2, "a subscript")
+        XCTAssertEqual(replaced("let isGlobal"), 2, "a global")
+        XCTAssertEqual(replaced("func load"), 2, "a function's one expression")
+        XCTAssertEqual(replaced("let isLoaded"), 2, "a let with try, read later")
+        XCTAssertEqual(replaced("let isFetched"), 2, "a let with await, read later")
+        XCTAssertEqual(replaced("let isLarge = {"), 2, "a closure that writes its return type")
+        XCTAssertEqual(replaced("return try await"), 2, "a return with try and await, and a comment")
+        XCTAssertEqual(replaced("return(value"), 2, "a value touching return")
+        XCTAssertEqual(replaced("print("), 0, "an argument")
+
+        let first = "false false true false true true true\nfalse false 1\n"
+        XCTAssertEqual(try run(compiled.program).output, first + "true true false true\n", "no mutant named")
+        // Each of the pair is switched on by itself: `noted(0)` and `noted(2)` give each value.
+        for (after, output) in [("true", "true true true true\n"), ("false", "true true false false\n")] {
+            let id = try compiled.identifier(in: "Values.swift") {
+                $0.mutationOperatorId == .replaceBooleanValue && $0.snapshot.before == "(value > 1)"
+                    && $0.snapshot.after == after
+            }
+            XCTAssertEqual(try run(compiled.program, switchingOn: id).output, first + output, after)
+        }
+    }
+
     /// A `main.swift` of top-level code. Its own statements hold a declaration, the `ProcessInfo` import added in
     /// front if nothing else, so a mutant there is switched in its statement or a global's value alone; one in a `for`
     /// or `if` body, a closure, a function, or a `#if` clause of statements only is switched there. The switches read
@@ -427,7 +509,7 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         )
         XCTAssertEqual(mutants("let values"), [.ror, .relationalBoundary, .swapTernary], "a global's value")
         XCTAssertEqual(mutants("total += value"), [.ror, .relationalBoundary, .swapTernary], "a for body")
-        XCTAssertEqual(mutants("let isLarge"), [.ror, .relationalBoundary], "a closure")
+        XCTAssertEqual(mutants("let isLarge"), [.ror, .relationalBoundary, .replaceBooleanValue], "a closure")
         XCTAssertEqual(
             mutants("total >= 5"),
             [.ror, .relationalBoundary, .logicalOperator, .swapTernary],
@@ -588,7 +670,7 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         let positive = compiled.mutants(in: "Ternaries.swift", onTheLineHolding: "func isPositive")
         XCTAssertEqual(
             positive.map(\.mutationOperatorId),
-            [.relationalBoundary, .ror],
+            [.replaceBooleanValue, .relationalBoundary, .ror, .replaceBooleanValue],
             "a body ending in a comment on its brace's line"
         )
         let rewritten = compiled.rewritten["Ternaries.swift"] ?? ""

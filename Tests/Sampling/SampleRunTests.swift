@@ -30,7 +30,9 @@ final class SampleRunTests: MuterTestCase {
 
     override func setUp() {
         super.setUp()
-        state.mutationOperatorList = .allOperators
+        // But ReplaceBooleanValue, so that the counts these tests give stay the other operators': how a sample takes
+        // its mutants doesn't depend on which operator made them.
+        state.mutationOperatorList = MutationOperatorList.allOperators.filter { $0 != .replaceBooleanValue }
         prepareCode.sourceCodeToReturn = {
             muterCore.sourceCode(fromFileAt: $0).map { (source: $0, changes: .null) }
         }

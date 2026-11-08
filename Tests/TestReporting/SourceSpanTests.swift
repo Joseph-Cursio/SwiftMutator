@@ -150,6 +150,26 @@ final class SourceSpanTests: MuterTestCase {
         XCTAssertFalse(found.isFound)
     }
 
+    // A replaced Bool's `true` is placed where its value starts and its `false` where it ends: both span the value.
+    // Without the file's text, the snapshot's `after` says which end the place is.
+    func test_aReplacedBool_spansItsValue_fromEitherEnd() {
+        let text = "    return items.isEmpty"
+        let value = SourceSpan(start: position(1, 12), end: position(1, 25))
+
+        XCTAssertEqual(span(text, utf8Column: 12, before: "items.isEmpty", by: .replaceBooleanValue), value)
+        XCTAssertEqual(span(text, utf8Column: 25, before: "items.isEmpty", by: .replaceBooleanValue), value)
+        for (column, after) in [(12, "true"), (25, "false")] {
+            let unread = SourceSpan(
+                placedAt: 1,
+                utf8Column: column,
+                before: "items.isEmpty",
+                by: .replaceBooleanValue,
+                after: after
+            )
+            XCTAssertEqual(unread, value, after)
+        }
+    }
+
     // Without the file's text, as for one that can't be read, the columns stay as SwiftSyntax counts them, and code
     // placed where it ends is taken to end there.
     func test_withoutTheLine_theColumnsStayInBytes() {
