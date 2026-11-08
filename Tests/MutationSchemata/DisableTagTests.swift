@@ -170,7 +170,7 @@ final class DisableTagTests: MuterTestCase {
             work(3)
         }
         """
-        XCTAssertEqual(try removedStatements(in: code), ["work(3)"])
+        XCTAssertEqual(try removedStatements(in: code), ["// muter:enable work(2)", "work(3)"])
     }
 
     // A comment's place decides, so one in a line of code that isn't its end takes effect from there.

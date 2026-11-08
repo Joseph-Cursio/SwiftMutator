@@ -8,7 +8,8 @@ enum RemoveSideEffectsOperator {
 
         /// The calls a statement is never removed for, whatever `excludeCalls` adds. Each is matched by the name it's
         /// called by, as `name(_:matchesAnyOf:)` says. The assertions are here because tests rarely take their
-        /// failing path, so removing one nearly always survives.
+        /// failing path, so removing one nearly always survives. An initializer that delegates must call `super.init`
+        /// or `self.init`.
         static let alwaysExcludedCalls = [
             "print",
             "debugPrint",
@@ -19,6 +20,8 @@ enum RemoveSideEffectsOperator {
             "assertionFailure",
             "exit",
             "abort",
+            "super.init",
+            "self.init",
         ]
 
         /// The types whose calls take, release or wait for a lock. Removing one can leave a later call waiting for
@@ -76,60 +79,37 @@ enum RemoveSideEffectsOperator {
             return kind
         }
 
-        override func visit(_ node: ForStmtSyntax) -> SyntaxVisitorContinueKind {
-            removeSideEffectAt(node.body)
-
-            return super.visit(node)
-        }
-
-        override func visit(_ node: GuardStmtSyntax) -> SyntaxVisitorContinueKind {
-            removeSideEffectAt(node.body)
-
-            return super.visit(node)
-        }
-
-        override func visit(_ node: WhileStmtSyntax) -> SyntaxVisitorContinueKind {
-            removeSideEffectAt(node.body)
-
-            return super.visit(node)
-        }
-
-        override func visit(_ node: RepeatStmtSyntax) -> SyntaxVisitorContinueKind {
-            removeSideEffectAt(node.body)
-
-            return super.visit(node)
-        }
-
-        override func visit(_ node: DoStmtSyntax) -> SyntaxVisitorContinueKind {
-            removeSideEffectAt(node.body)
-
-            return super.visit(node)
-        }
-
-        override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind {
-            guard let body = node.body,
-                  !node.hasImplicitReturn,
-                  !containsNodesThatWillBeVisited(body)
-            else {
-                return super.visit(node)
+        /// Every body: a function's, an initializer's or a deinitializer's, an accessor's, a closure's, a loop's, a
+        /// `guard`, `do`, `catch`, `if`, `else` or `defer` body, and a `switch` case. Not a file's top level, nor a
+        /// `#if` clause's.
+        ///
+        /// A branch of an `if` or `switch` that is a value is left out, as the mutant's switch around its statements
+        /// would turn the branch into an `if` statement, which has no value.
+        override func visit(_ node: CodeBlockItemListSyntax) -> SyntaxVisitorContinueKind {
+            if node.isABody, !node.isABranchOfAValue, !node.isInABuilderThatTakesNoIf {
+                removeSideEffects(from: node)
             }
 
-            removeSideEffectAt(body)
-
             return super.visit(node)
         }
 
-        private func removeSideEffectAt(_ body: CodeBlockSyntax) {
-            let statements = body.statements
+        private func removeSideEffects(from statements: CodeBlockItemListSyntax) {
             // Only a call that never returns, such as a project's own `usage()`, which the deny-list can't know of,
             // can end code that control must never reach the end of. Removing it leaves code that falls through,
-            // which doesn't compile, and fails the build every mutant shares.
-            let keptStatement = statements.mustNotFallThrough ? statements.lastStatement : nil
-            for statement in body.statements where statementContainsMutableToken(statement) {
+            // which doesn't compile, and fails the build every mutant shares. And the one statement of a closure
+            // or a getter can be its value, as `transform($0)` is `items.map { transform($0) }`'s.
+            let keepsTheLast = statements.mustKeepItsLastStatement
+                || statements.mayEndInACallThatInitializationReliesOn
+            let keptStatement = keepsTheLast ? statements.lastStatement : nil
+            for statement in statements where statementContainsMutableToken(statement, in: statements) {
                 if statement.id == keptStatement?.id {
                     continue
                 }
-                let newCodeBlockItemList = statements.removing(statement)
+                var newCodeBlockItemList = statements.removing(statement)
+                // A `switch` case must hold a statement.
+                if newCodeBlockItemList.isEmpty, statements.parent?.is(SwitchCaseSyntax.self) == true {
+                    newCodeBlockItemList = [statement.replacedByDoingNothing]
+                }
 
                 let position = endLocation(for: statement)
                 let snapshot = MutationOperator.Snapshot(
@@ -150,10 +130,14 @@ enum RemoveSideEffectsOperator {
             }
         }
 
-        private func statementContainsMutableToken(_ statement: CodeBlockItemListSyntax.Element) -> Bool {
+        private func statementContainsMutableToken(
+            _ statement: CodeBlockItemListSyntax.Element,
+            in statements: CodeBlockItemListSyntax
+        ) -> Bool {
             let doesntContainVariableAssignment = doesntContainVariableAssignment(statement.allChildren)
             let containsDiscardedResult = discardsAResult(statement)
-            let containsFunctionCall = statement.item.is(FunctionCallExprSyntax.self)
+            let containsFunctionCall = statement.item.withoutTryOrAwait.is(FunctionCallExprSyntax.self)
+                && !(statements.mayBeABuildersParts && Self.makesAValueOfAType(statement.item))
 
             let found = CallCollector(viewMode: .sourceAccurate)
             found.walk(statement)
@@ -164,6 +148,32 @@ enum RemoveSideEffectsOperator {
             return doesntContainVariableAssignment
                 && callsNothingItMustKeep
                 && (containsDiscardedResult || containsFunctionCall)
+        }
+
+        /// Whether the statement makes a value of a type, as `Text("a")`, `Text("a").bold()`, `WindowGroup { … }` or
+        /// `CharacterClass.anyOf("ab")` do: a call of a type, or of a type's member. In code that may be a
+        /// result builder's, that is one of its parts, which isn't a side effect, and whose builder may take no `if`,
+        /// so the mutant's switch wouldn't build. `Task { … }`, which starts work, is the exception.
+        static func makesAValueOfAType(_ item: some SyntaxProtocol) -> Bool {
+            guard var call = item.withoutTryOrAwait.as(FunctionCallExprSyntax.self) else {
+                return false
+            }
+            // The call a chain of modifiers starts from.
+            while let base = call.calledExpression.as(MemberAccessExprSyntax.self)?.base,
+                  let baseCall = base.as(FunctionCallExprSyntax.self) {
+                call = baseCall
+            }
+            var parts = name(of: call.calledExpression).split(separator: ".").map { $0.prefix { $0 != "<" } }
+            guard !parts.contains("Task") else {
+                return false
+            }
+            if parts.count > 1, parts.last == "init" {
+                parts.removeLast()
+            }
+            // `Text`, `SwiftUI.Text` or `CharacterClass.anyOf`, but not `NotificationCenter.default.post`, a method of
+            // a value.
+            let isAType = { (part: Substring?) in part?.first?.isUppercase == true }
+            return isAType(parts.last) || parts.count == 2 && isAType(parts.first)
         }
 
         /// `_ = expr` or `let _ = expr`: a statement whose only effect is evaluating `expr`.
@@ -277,21 +287,6 @@ enum RemoveSideEffectsOperator {
                 .filter { $0 != "?" && $0 != "!" }
                 .joined()
         }
-
-        // This is to avoid false positives for code block items such as do statement
-        // We are going to visit them individually
-        private func containsNodesThatWillBeVisited(_ node: CodeBlockSyntax) -> Bool {
-            let skippableNodes: [SyntaxProtocol.Type] = [
-                ForStmtSyntax.self,
-                GuardStmtSyntax.self,
-                WhileStmtSyntax.self,
-                RepeatStmtSyntax.self,
-                DoStmtSyntax.self,
-            ]
-            return node.statements.contains { statement in
-                skippableNodes.contains { statement.item.is($0) }
-            }
-        }
     }
 }
 
@@ -402,6 +397,260 @@ private final class LockCollector: SyntaxVisitor {
 }
 
 private extension CodeBlockItemListSyntax {
+    /// Whether these are a body's statements, of anything but a file's top level or a `#if` clause.
+    var isABody: Bool {
+        guard let parent else {
+            return false
+        }
+        return parent.is(CodeBlockSyntax.self) || parent.is(ClosureExprSyntax.self)
+            || parent.is(AccessorBlockSyntax.self) || parent.is(SwitchCaseSyntax.self)
+    }
+
+    /// The closure, getter, function or other declaration whose code these statements are, through the `if`, `switch`,
+    /// loop and `do` statements between.
+    var owner: Syntax? {
+        var node = parent
+        while let current = node {
+            if current.is(ClosureExprSyntax.self) || current.is(AccessorBlockSyntax.self) || current.is(DeclSyntax.self)
+                && !current.is(IfConfigDeclSyntax.self) && !current.is(VariableDeclSyntax.self) {
+                return current
+            }
+            node = current.parent
+        }
+        return nil
+    }
+
+    /// Whether these may be a result builder's parts: in a closure whose type isn't written and that returns no value,
+    /// or a getter or function marked `@…Builder` or of a `some` type.
+    var mayBeABuildersParts: Bool {
+        guard let owner else {
+            return false
+        }
+        if let closure = owner.as(ClosureExprSyntax.self) {
+            return closure.signature?.returnClause == nil && !closure.returnsAValue
+        }
+        // A `return` of a value turns the builder off.
+        if let function = owner.as(FunctionDeclSyntax.self) {
+            return (function.attributes.containsResultBuilder || function.signature.returnClause?.type.isOpaque == true)
+                && !(function.body.map { ValueReturnFinder.findsAValueReturn(in: Syntax($0.statements)) } ?? false)
+        }
+        if let accessorBlock = owner.as(AccessorBlockSyntax.self),
+           case let .getter(statements) = accessorBlock.accessors {
+            return Self.mayBeAResultBuilder(owner) && !ValueReturnFinder.findsAValueReturn(in: Syntax(statements))
+        }
+        guard let accessor = owner.as(AccessorDeclSyntax.self), accessor.accessorSpecifier.tokenKind == .keyword(.get)
+        else {
+            return false
+        }
+        return Self.mayBeAResultBuilder(owner)
+            && !(accessor.body.map { ValueReturnFinder.findsAValueReturn(in: Syntax($0.statements)) } ?? false)
+    }
+
+    /// Whether these are the parts of a result builder known to take no `if`, where no mutant's switch builds: an
+    /// App's or a Scene's `SceneBuilder`, a `WidgetBundleBuilder`, an `AppShortcutsBuilder`, and the
+    /// `RegexComponentBuilder` of `Regex { … }`, `wholeMatch { … }` and the like. It's a closure passed to one, a
+    /// `Group` among another's parts, or a getter or function marked with one or of a `some` type it builds.
+    var isInABuilderThatTakesNoIf: Bool {
+        guard let owner else {
+            return false
+        }
+        if let closure = owner.as(ClosureExprSyntax.self) {
+            guard let callee = closure.callee else {
+                return false
+            }
+            let parts = RemoveSideEffectsOperator.Visitor.name(of: callee).split(separator: ".")
+                .map { String($0.prefix { $0 != "<" }) }
+            if parts.contains(where: Self.regexBuilderTypes.contains)
+                || parts.last.map(Self.regexAlgorithms.contains) == true {
+                return true
+            }
+            // The statement the `Group` is, with any modifiers on it, as `Group { … }.defaultSize(…)`.
+            var node = closure.parent
+            while let base = node, let member = base.parent?.as(MemberAccessExprSyntax.self),
+                  member.base?.id == base.id, let call = member.parent?.as(FunctionCallExprSyntax.self) {
+                node = Syntax(call)
+            }
+            let statement = node?.parent?.as(CodeBlockItemSyntax.self)
+            return parts.last == "Group"
+                && statement?.parent?.as(CodeBlockItemListSyntax.self)?.isInABuilderThatTakesNoIf == true
+        }
+        // A `some` type makes a builder only of code with no `return` of a value.
+        let isABuilder = !ValueReturnFinder.findsAValueReturn(in: Syntax(self))
+        if let function = owner.as(FunctionDeclSyntax.self) {
+            return function.attributes.namesAnIflessBuilder
+                || isABuilder && function.signature.returnClause.map { Self.isAnIflessBuildersType($0.type) } ?? false
+        }
+        var ancestor = owner.parent
+        while let node = ancestor {
+            if let binding = node.as(PatternBindingSyntax.self) {
+                let declaration = binding.parent?.parent?.as(VariableDeclSyntax.self)
+                return declaration?.attributes.namesAnIflessBuilder == true
+                    || isABuilder && binding.typeAnnotation.map { Self.isAnIflessBuildersType($0.type) } ?? false
+                    || binding.pattern.as(IdentifierPatternSyntax.self)?.identifier.text == "appShortcuts"
+            }
+            if let subscriptDecl = node.as(SubscriptDeclSyntax.self) {
+                return subscriptDecl.attributes.namesAnIflessBuilder
+                    || isABuilder && Self.isAnIflessBuildersType(subscriptDecl.returnClause.type)
+            }
+            ancestor = node.parent
+        }
+        return false
+    }
+
+    private static let regexBuilderTypes: Set<String> = [
+        "Regex", "Capture", "TryCapture", "Local", "One", "OneOrMore", "ZeroOrMore", "Optionally", "Repeat", "ChoiceOf",
+        "Lookahead", "NegativeLookahead", "Anchor",
+    ]
+
+    /// The string methods that take a `RegexComponentBuilder` closure, but for the names that are common elsewhere,
+    /// as `contains` and `split`.
+    private static let regexAlgorithms: Set<String> = [
+        "wholeMatch", "firstMatch", "prefixMatch", "matches", "replacing", "replace", "firstRange", "ranges",
+        "trimmingPrefix", "trimPrefix",
+    ]
+
+    /// `some Scene`, `some Widget` or `some RegexComponent`.
+    private static func isAnIflessBuildersType(_ type: TypeSyntax) -> Bool {
+        guard let opaque = type.as(SomeOrAnyTypeSyntax.self), type.isOpaque else {
+            return false
+        }
+        let name = opaque.constraint.trimmedDescription.split(separator: ".").last
+        return ["Scene", "Widget", "RegexComponent"].contains(name)
+    }
+
+    /// Whether the last statement must stay: control must never reach the end, or the statement is the code's value
+    /// on its own.
+    var mustKeepItsLastStatement: Bool {
+        mustNotFallThrough || isAValueOnItsOwn
+    }
+
+    /// Whether these are the one statement of code that returns a value, and may be that value, as a closure's
+    /// `transform($0)` or a result builder's one part is. Removing it leaves no value. A closure whose type isn't
+    /// written is taken to return one.
+    var isAValueOnItsOwn: Bool {
+        onlyStatement?.mayBeAValue == true && returnsItsValue
+    }
+
+    /// The one item that isn't a declaration of a function, a type, a macro such as `#warning`, or a `#if`, when there
+    /// is one, which may be the code's value though those follow it.
+    var onlyStatement: Element? {
+        var found: Element?
+        // A loop, as `filter` makes new nodes, whose ids aren't the list's.
+        for item in self where item.item.as(DeclSyntax.self).map({ $0.is(VariableDeclSyntax.self) }) ?? true {
+            guard found == nil else {
+                return nil
+            }
+            found = item
+        }
+        return found
+    }
+
+    /// Whether these statements' code returns a value that a statement of theirs may be: a closure whose return type
+    /// isn't written or isn't `Void`, a getter, a function that returns a value, or a branch of a value.
+    var returnsItsValue: Bool {
+        guard let parent else {
+            return false
+        }
+        if let closure = parent.as(ClosureExprSyntax.self) {
+            return closure.signature?.returnClause.map { !$0.isReturningVoid } ?? true
+        }
+        if parent.is(AccessorBlockSyntax.self) {
+            return true
+        }
+        let owner = parent.as(CodeBlockSyntax.self)?.parent
+        if let function = owner?.as(FunctionDeclSyntax.self) {
+            return function.signature.returnClause.map { !$0.isReturningVoid } ?? false
+        }
+        return owner?.as(AccessorDeclSyntax.self)?.accessorSpecifier.tokenKind == .keyword(.get) || isABranchOfAValue
+    }
+
+    /// Whether these are a branch of an `if` or `switch` that is a value: one that isn't a statement, as in
+    /// `let x = if …`, or the one statement of code whose value it is, with no `return` in it.
+    var isABranchOfAValue: Bool {
+        guard let branching = enclosingIfOrSwitch else {
+            return false
+        }
+        var node = branching
+        let wrappers: [SyntaxProtocol.Type] = [IfExprSyntax.self, ExpressionStmtSyntax.self, LabeledStmtSyntax.self]
+        while let parent = node.parent, wrappers.contains(where: { parent.is($0) }) {
+            node = parent
+        }
+        guard let item = node.parent?.as(CodeBlockItemSyntax.self),
+              var list = item.parent?.as(CodeBlockItemListSyntax.self)
+        else {
+            return true
+        }
+        guard list.onlyStatement?.id == item.id, item.mayBeAValue, !ValueReturnFinder.findsAnyReturn(in: node) else {
+            return false
+        }
+        // A `#if` that holds only it, as around a whole body, isn't a statement of its own.
+        while list.parent?.is(IfConfigClauseSyntax.self) == true,
+              let ifConfig = list.parent?.parent?.parent?.parent?.as(CodeBlockItemSyntax.self),
+              let outer = ifConfig.parent?.as(CodeBlockItemListSyntax.self),
+              outer.allSatisfy({ $0.id == ifConfig.id || $0.item.is(MacroExpansionDeclSyntax.self) }) {
+            list = outer
+        }
+        return list.returnsItsValue
+    }
+
+    /// The `if` whose branch these are, or the `switch` whose case.
+    private var enclosingIfOrSwitch: Syntax? {
+        if let ifExpr = parent?.as(CodeBlockSyntax.self)?.parent?.as(IfExprSyntax.self) {
+            return Syntax(ifExpr)
+        }
+        var ancestor = parent?.as(SwitchCaseSyntax.self)?.parent
+        while let node = ancestor {
+            if node.is(SwitchExprSyntax.self) {
+                return node
+            }
+            guard node.is(SwitchCaseListSyntax.self) || node.is(IfConfigClauseSyntax.self)
+                || node.is(IfConfigClauseListSyntax.self) || node.is(IfConfigDeclSyntax.self)
+            else {
+                return nil
+            }
+            ancestor = node.parent
+        }
+        return nil
+    }
+
+    /// Whether these are a branch, an `if` or `else` body, a case, a `do` or a `catch` body, whose last statement may
+    /// be a call that never returns which definite initialization relies on: in an initializer, or after a variable
+    /// declared without a value, as `let data: Data` before `do { data = try load() } catch { die() }`. Removing it
+    /// leaves a constant or a stored property unset, which doesn't compile. So may an initializer's own last
+    /// statement, as a stub's `unimplemented()`, or `usage()` after an `if` that sets a property and returns.
+    var mayEndInACallThatInitializationReliesOn: Bool {
+        guard let parent else {
+            return false
+        }
+        let owner = parent.as(CodeBlockSyntax.self)?.parent
+        if owner?.is(InitializerDeclSyntax.self) == true {
+            return true
+        }
+        guard parent.is(SwitchCaseSyntax.self) || owner?.is(IfExprSyntax.self) == true
+            || owner?.is(CatchClauseSyntax.self) == true || owner?.is(DoStmtSyntax.self) == true
+        else {
+            return false
+        }
+        var node = Syntax(self)
+        while let current = node.parent {
+            if current.is(InitializerDeclSyntax.self) {
+                return true
+            }
+            if current.is(FunctionDeclSyntax.self) || current.is(ClosureExprSyntax.self)
+                || current.is(AccessorDeclSyntax.self) || current.is(AccessorBlockSyntax.self)
+                || current.is(DeinitializerDeclSyntax.self) {
+                return false
+            }
+            if let item = current.as(CodeBlockItemSyntax.self),
+               let list = item.parent?.as(CodeBlockItemListSyntax.self),
+               list.prefix(while: { $0.id != item.id }).contains(where: \.declaresAVariableWithoutAValue) {
+                return true
+            }
+            node = current
+        }
+        return false
+    }
+
     /// The last item but a declaration of a function or a type, which can follow the code that ends a block, or a
     /// `#if`. A `#if` may end the code in one build and not in another, as `#if os(Linux) flush() #endif` after a
     /// call that never returns does, so the statement before it is kept too.
@@ -422,19 +671,23 @@ private extension CodeBlockItemListSyntax {
 
     /// Whether control must never reach the end of these statements: those of a `guard` body; of a function or a
     /// getter that returns a value, `Never` included, but for a result builder's, each of whose statements is a part of
-    /// its value, which is taken to be one marked `@…Builder` or of a `some` type; of a closure declared to return a
-    /// value; and of a `do` or `catch` body, an `if` or `else` branch, a `switch` case or a `#if` clause that ends one
-    /// of those. A closure whose type isn't written, and a `repeat` body, which can end in its condition, are taken to
-    /// fall through.
+    /// its value, which is taken to be one marked `@…Builder` or of a `some` type, with no `return` of a value; of a
+    /// closure declared to return a
+    /// value, or whose type isn't written but which returns one; and of a `do` or `catch` body, an `if` or `else`
+    /// branch, a `switch` case or a `#if` clause that ends one of those, or of an `if` or `switch` that is a value. A
+    /// closure whose type isn't written and that returns nothing, and a `repeat` body, which can end in its condition,
+    /// are taken to fall through.
     var mustNotFallThrough: Bool {
         guard let parent else {
             return false
         }
         if let closure = parent.as(ClosureExprSyntax.self) {
-            return closure.signature?.returnClause.map { !$0.isReturningVoid } ?? false
+            return closure.signature?.returnClause.map { !$0.isReturningVoid }
+                ?? (closure.returnsAValue || closure.isGivenAValueReturningType || closure.isCalledForItsValue)
         }
+        // A `return` of a value turns a builder off.
         if parent.is(AccessorBlockSyntax.self) {
-            return !Self.mayBeAResultBuilder(parent)
+            return !Self.mayBeAResultBuilder(parent) || ValueReturnFinder.findsAValueReturn(in: Syntax(self))
         }
         if let switchCase = parent.as(SwitchCaseSyntax.self) {
             var ancestor = switchCase.parent
@@ -461,11 +714,13 @@ private extension CodeBlockItemListSyntax {
             guard let returnClause = function.signature.returnClause else {
                 return false
             }
-            return !returnClause.isReturningVoid && !function.attributes.containsResultBuilder
-                && !returnClause.type.isOpaque
+            let mayBeABuilder = function.attributes.containsResultBuilder || returnClause.type.isOpaque
+            return !returnClause.isReturningVoid
+                && (!mayBeABuilder || ValueReturnFinder.findsAValueReturn(in: Syntax(self)))
         }
         if let accessor = owner.as(AccessorDeclSyntax.self) {
-            return accessor.accessorSpecifier.tokenKind == .keyword(.get) && !Self.mayBeAResultBuilder(owner)
+            return accessor.accessorSpecifier.tokenKind == .keyword(.get)
+                && (!Self.mayBeAResultBuilder(owner) || ValueReturnFinder.findsAValueReturn(in: Syntax(self)))
         }
         if owner.is(DoStmtSyntax.self) || owner.is(IfExprSyntax.self) {
             return Self.endsCodeThatMustNotFallThrough(owner)
@@ -503,13 +758,16 @@ private extension CodeBlockItemListSyntax {
         while let parent = node.parent, wrappers.contains(where: { parent.is($0) }) {
             node = parent
         }
-        guard let item = node.parent?.as(CodeBlockItemSyntax.self),
-              let list = item.parent?.as(CodeBlockItemListSyntax.self),
+        // An `if` or `switch` that isn't a statement is a value, as in `let x = if …`, each of whose branches is.
+        guard let item = node.parent?.as(CodeBlockItemSyntax.self) else {
+            return node.is(IfExprSyntax.self) || node.is(SwitchExprSyntax.self)
+        }
+        guard let list = item.parent?.as(CodeBlockItemListSyntax.self),
               [list.last(countingIfConfigs: true)?.id, list.lastStatement?.id].contains(item.id)
         else {
             return false
         }
-        return list.mustNotFallThrough
+        return list.mustKeepItsLastStatement
     }
 
     /// The list without `statement`, which is matched by identity rather than text, because an identical
@@ -537,5 +795,184 @@ private extension CodeBlockItemListSyntax {
             remaining.append(kept)
         }
         return CodeBlockItemListSyntax(remaining)
+    }
+}
+
+private extension CodeBlockItemSyntax {
+    /// Whether the statement declares a variable or constant with no value, which code after it must give one.
+    var declaresAVariableWithoutAValue: Bool {
+        let bindings = item.as(VariableDeclSyntax.self)?.bindings
+        return bindings?.contains { $0.initializer == nil && $0.accessorBlock == nil } ?? false
+    }
+
+    /// Whether the statement may be its code's value: an expression, or a `switch` or an `if` with an `else` all the
+    /// way down whose every branch is one statement or ends in `throw`, which can be one.
+    var mayBeAValue: Bool {
+        guard let expression = item.as(ExpressionStmtSyntax.self)?.expression ?? item.as(ExprSyntax.self) else {
+            return false
+        }
+        var branches: [CodeBlockItemListSyntax] = []
+        if let switchExpr = expression.as(SwitchExprSyntax.self) {
+            branches = switchExpr.cases.compactMap { $0.as(SwitchCaseSyntax.self)?.statements }
+        } else if var ifExpr = expression.as(IfExprSyntax.self) {
+            while true {
+                branches.append(ifExpr.body.statements)
+                switch ifExpr.elseBody {
+                case let .codeBlock(block):
+                    branches.append(block.statements)
+                case let .ifExpr(next):
+                    ifExpr = next
+                    continue
+                case nil:
+                    return false
+                }
+                break
+            }
+        } else {
+            return true
+        }
+        // A branch of a value is one expression, or ends in `throw`.
+        return branches.allSatisfy { $0.count == 1 || $0.last?.item.is(ThrowStmtSyntax.self) == true }
+    }
+
+    /// `do {}` in the statement's place, with its line and comments, for a `switch` case it was the only statement of.
+    /// It does nothing, and unlike `break` it builds in a result builder, as `SourceLocationRemover`'s does.
+    var replacedByDoingNothing: CodeBlockItemSyntax {
+        let doNothing = DoStmtSyntax(
+            doKeyword: .keyword(.do, trailingTrivia: .space),
+            body: CodeBlockSyntax(statements: [])
+        )
+        var replacement = CodeBlockItemSyntax(item: .stmt(StmtSyntax(doNothing)))
+        replacement.leadingTrivia = leadingTrivia
+        replacement.trailingTrivia = trailingTrivia
+        return replacement
+    }
+}
+
+private extension SyntaxProtocol {
+    /// The expression under any `try` and `await`, as `save()` is in `try await save()`.
+    var withoutTryOrAwait: Syntax {
+        var node = Syntax(self)
+        while true {
+            if let tryExpr = node.as(TryExprSyntax.self) {
+                node = Syntax(tryExpr.expression)
+            } else if let awaitExpr = node.as(AwaitExprSyntax.self) {
+                node = Syntax(awaitExpr.expression)
+            } else {
+                return node
+            }
+        }
+    }
+}
+
+private extension ClosureExprSyntax {
+    /// What the closure is passed to, as a trailing closure or an argument.
+    var callee: ExprSyntax? {
+        var node = parent
+        while let current = node {
+            if let call = current.as(FunctionCallExprSyntax.self) {
+                // A closure called where it's written isn't passed to anything.
+                return call.calledExpression.id == id ? nil : call.calledExpression
+            }
+            guard current.is(LabeledExprSyntax.self) || current.is(LabeledExprListSyntax.self)
+                || current.is(MultipleTrailingClosureElementSyntax.self)
+                || current.is(MultipleTrailingClosureElementListSyntax.self)
+            else {
+                return nil
+            }
+            node = current.parent
+        }
+        return nil
+    }
+
+    /// Whether the closure is a variable's value, of a function type written to return one, as in
+    /// `let make: () -> Int = { … }`.
+    var isGivenAValueReturningType: Bool {
+        guard var type = parent?.as(InitializerClauseSyntax.self)?.parent?.as(PatternBindingSyntax.self)?
+            .typeAnnotation?.type
+        else {
+            return false
+        }
+        while true {
+            if let attributed = type.as(AttributedTypeSyntax.self) {
+                type = attributed.baseType
+            } else if let optional = type.as(OptionalTypeSyntax.self) {
+                type = optional.wrappedType
+            } else if let unwrapped = type.as(ImplicitlyUnwrappedOptionalTypeSyntax.self) {
+                type = unwrapped.wrappedType
+            } else if let tuple = type.as(TupleTypeSyntax.self), tuple.elements.count == 1,
+                      let only = tuple.elements.first {
+                type = only.type
+            } else {
+                break
+            }
+        }
+        return type.as(FunctionTypeSyntax.self).map { !$0.returnClause.isReturningVoid } ?? false
+    }
+
+    /// Whether the closure is called where it's written, for a value something uses, as in `let value = { … }()`, but
+    /// not `try { … }()` or `_ = { … }()` as a statement.
+    var isCalledForItsValue: Bool {
+        guard let call = parent?.as(FunctionCallExprSyntax.self), call.calledExpression.id == id else {
+            return false
+        }
+        var node = Syntax(call)
+        while let parent = node.parent, parent.is(TryExprSyntax.self) || parent.is(AwaitExprSyntax.self) {
+            node = parent
+        }
+        if let sequence = node.parent?.parent?.as(SequenceExprSyntax.self),
+           sequence.elements.first?.is(DiscardAssignmentExprSyntax.self) == true {
+            node = Syntax(sequence)
+        }
+        return node.parent?.is(CodeBlockItemSyntax.self) != true
+    }
+
+    /// Whether a `return` of the closure's own gives a value, not one in a closure, function or type inside it.
+    var returnsAValue: Bool {
+        let finder = ValueReturnFinder(viewMode: .sourceAccurate)
+        finder.walk(statements)
+        return finder.found
+    }
+}
+
+private final class ValueReturnFinder: SyntaxAnyVisitor {
+    private(set) var found = false
+    /// Whether a `return` of nothing counts too.
+    private var findsAnyReturn = false
+
+    /// Whether the code holds a `return` of a value of its own.
+    static func findsAValueReturn(in node: Syntax) -> Bool {
+        let finder = ValueReturnFinder(viewMode: .sourceAccurate)
+        finder.walk(node)
+        return finder.found
+    }
+
+    /// Whether the code holds a `return` of its own, of a value or not.
+    static func findsAnyReturn(in node: Syntax) -> Bool {
+        let finder = ValueReturnFinder(viewMode: .sourceAccurate)
+        finder.findsAnyReturn = true
+        finder.walk(node)
+        return finder.found
+    }
+
+    override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
+        if let returnStmt = node.as(ReturnStmtSyntax.self) {
+            found = found || findsAnyReturn || returnStmt.expression != nil
+            return .skipChildren
+        }
+        let isOtherCode = node.is(ClosureExprSyntax.self) || node.is(AccessorBlockSyntax.self)
+            || node.is(DeclSyntax.self) && !node.is(VariableDeclSyntax.self) && !node.is(IfConfigDeclSyntax.self)
+        return found || isOtherCode ? .skipChildren : .visitChildren
+    }
+}
+
+private extension AttributeListSyntax {
+    /// Whether one of the attributes is a builder known to take no `if`.
+    var namesAnIflessBuilder: Bool {
+        contains { element in
+            let name = element.as(AttributeSyntax.self)?.attributeName.trimmedDescription.split(separator: ".").last
+            return ["SceneBuilder", "WidgetBundleBuilder", "AppShortcutsBuilder", "RegexComponentBuilder"]
+                .contains(name.map(String.init))
+        }
     }
 }

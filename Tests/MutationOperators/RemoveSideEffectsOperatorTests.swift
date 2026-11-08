@@ -395,6 +395,7 @@ final class RemoveSideEffectsOperatorTests: MuterTestCase {
             "record(arguments)",
             "record(arguments)",
             "record(message)",
+            "try validate(arguments)",
             "record(arguments)",
             "usage()",
             "record(arguments)",
@@ -403,7 +404,9 @@ final class RemoveSideEffectsOperatorTests: MuterTestCase {
     }
 
     // Each statement of a result builder's body is a part of its value, not a call that never returns. A protocol can
-    // make a function or a getter of a `some` type one without a mark, as `ViewModifier` does `body(content:)`.
+    // make a function or a getter of a `some` type one without a mark, as `ViewModifier` does `body(content:)`. A part
+    // that is a value of a type, as `Divider()`, `Text("a")` and `Label.styled("a")` are, isn't a side effect, and is
+    // never removed there.
     func test_removesTheLastStatementOfAResultBuilder() throws {
         let removed = try removedStatements(
             in: """
@@ -417,6 +420,7 @@ final class RemoveSideEffectsOperatorTests: MuterTestCase {
                 func body(content: Content) -> some View {
                     content.padding()
                     Divider()
+                    separator(content)
                 }
             }
 
@@ -424,7 +428,11 @@ final class RemoveSideEffectsOperatorTests: MuterTestCase {
                 var body: some View {
                     do {
                         Text("a")
-                        Text("b")
+                        Label.styled("a")
+                        Text(title.uppercased()).bold()
+                        Image("x").resizable().frame(width: 1)
+                        label("a")
+                        label("b")
                     }
                 }
             }
@@ -432,7 +440,8 @@ final class RemoveSideEffectsOperatorTests: MuterTestCase {
         )
 
         XCTAssertEqual(removed, [
-            "sink.note(\"one\")", "sink.note(\"two\")", "content.padding()", "Divider()", "Text(\"a\")", "Text(\"b\")",
+            "sink.note(\"one\")", "sink.note(\"two\")", "content.padding()", "separator(content)", "label(\"a\")",
+            "label(\"b\")",
         ])
     }
 
@@ -561,6 +570,373 @@ final class RemoveSideEffectsOperatorTests: MuterTestCase {
         XCTAssertEqual(removed, [
             "queue.async(execute: refresh)", "register(group.debugDescription)", "print2(\"\\(self.group.hash)\")",
         ])
+    }
+
+    func test_removesACallUnderTryOrAwait() throws {
+        let removed = try removedStatements(
+            in: """
+            func load() async throws {
+                try validate()
+                await refresh()
+                try await save()
+                try? cleanUp()
+                _ = try compute()
+            }
+            """
+        )
+
+        XCTAssertEqual(
+            removed, ["try validate()", "await refresh()", "try await save()", "try? cleanUp()", "_ = try compute()"]
+        )
+    }
+
+    // A function that holds a loop, a `guard` or a `do` loses its own calls too, as each body is a place of its own.
+    func test_removesACallFromEveryBody() throws {
+        let removed = try removedStatements(
+            in: """
+            final class Store {
+                var count = 0 {
+                    didSet { notify(count) }
+                }
+
+                init() {
+                    load()
+                    count = 1
+                }
+
+                deinit {
+                    unload()
+                }
+
+                func run(_ items: [Int]) {
+                    guard !items.isEmpty else {
+                        return
+                    }
+                    prepare()
+                    for item in items {
+                        handle(item)
+                    }
+                    items.forEach { item in
+                        log(item)
+                        handle(item)
+                    }
+                    if items.isEmpty {
+                        warn()
+                    } else {
+                        proceed()
+                    }
+                    switch items.count {
+                    case 0:
+                        reset()
+                    default:
+                        break
+                    }
+                    defer {
+                        finish()
+                    }
+                    do {
+                        try commit()
+                    } catch {
+                        report(error)
+                    }
+                }
+            }
+            """
+        )
+
+        XCTAssertEqual(removed, [
+            "notify(count)", "load()", "unload()", "prepare()", "handle(item)", "log(item)", "handle(item)",
+            "items.forEach { item in log(item) handle(item) }", "warn()", "proceed()", "reset()", "finish()",
+            "try commit()", "report(error)",
+        ])
+    }
+
+    // A case can't be empty, so the one statement of one gives way to `do {}`, which a result builder takes, as it
+    // doesn't take `break`.
+    func test_leavesADoNothing_inACaseItEmpties() throws {
+        let source = try sourceCode("""
+        func handle(_ number: Int) {
+            switch number {
+            case 0: reset()
+            default:
+                // the rest
+                log(number)
+            }
+        }
+        """)
+        let visitor = RemoveSideEffectsOperator.Visitor(sourceCodeInfo: .init(path: "/path/to/file", code: source))
+
+        visitor.walk(source)
+
+        XCTAssertEqual(visitor.schemataMappings.mutationSchemata.map(\.syntaxMutation.description), [
+            "do {}",
+            "\n        // the rest\n        do {}",
+        ])
+    }
+
+    // An initializer that delegates must call the one it delegates to.
+    func test_neverRemovesTheInitializerAnInitializerDelegatesTo() throws {
+        let removed = try removedStatements(
+            in: """
+            final class Child: Parent {
+                init() {
+                    setUp()
+                    super.init()
+                    ready = true
+                }
+
+                convenience init(name: String) {
+                    self.init()
+                    configure(name)
+                    self.name = name
+                }
+
+                required init(from decoder: Decoder) throws {
+                    try super.init(from: decoder)
+                }
+            }
+            """
+        )
+
+        XCTAssertEqual(removed, ["setUp()", "configure(name)"])
+    }
+
+    // The one statement of a closure whose type isn't written, of a getter, or of a branch of an `if` or `switch`
+    // that is a value, can be that value: removing it leaves none.
+    func test_keepsTheOneStatementThatIsAValue() throws {
+        let removed = try removedStatements(
+            in: """
+            func values(_ items: [Int]) -> [Int] {
+                let mapped = items.map { transform($0) }
+                let logged = items.map { (item: Int) -> Void in log(item) }
+                let label = if items.isEmpty { describe(0) } else { describe(1) }
+                let name = switch items.count { case 0: describe(0) default: describe(1) }
+                let chosen = items.map { item in if item > 0 { describe(item) } else { describe(0) } }
+                return mapped
+            }
+
+            var total: Int { compute() }
+
+            @ListBuilder var parts: [String] { part() }
+            """
+        )
+
+        XCTAssertEqual(removed, ["log(item)"])
+    }
+
+    // A closure that returns a value can end only in a call that never returns, as a function can. One that returns
+    // nothing, whose type isn't written, can end in any call.
+    func test_keepsTheLastCallOfAClosureThatReturnsAValue() throws {
+        let removed = try removedStatements(
+            in: """
+            func make() {
+                let pick = { (value: Int) in
+                    if value > 0 {
+                        return value
+                    }
+                    record(value)
+                    usage()
+                }
+                let run = {
+                    record(1)
+                    usage()
+                }
+                use(pick, run)
+            }
+            """
+        )
+
+        XCTAssertEqual(removed, ["record(value)", "record(1)", "usage()", "use(pick, run)"])
+    }
+
+    // An `if` or `switch` with a branch of several statements that doesn't end in `throw` is a statement, so its
+    // branches lose their calls, though it's the one statement of a closure whose type isn't written.
+    func test_removesFromTheBranchesOfAClosuresOneIf_thatIsAStatement() throws {
+        let removed = try removedStatements(
+            in: """
+            func run(_ items: [Int]) {
+                items.forEach { item in
+                    if item > 0 {
+                        log(item)
+                        save(item)
+                    } else {
+                        discard(item)
+                    }
+                }
+            }
+            """
+        )
+
+        XCTAssertEqual(removed, [
+            "log(item)", "save(item)", "discard(item)",
+            "items.forEach { item in if item > 0 { log(item) save(item) } else { discard(item) } }",
+        ])
+    }
+
+    // Outside a result builder, a capitalised name says nothing: a C function is called for its effect.
+    func test_removesACallToACapitalisedFunction_outsideABuilder() throws {
+        let removed = try removedStatements(
+            in: """
+            func reset(_ query: CFDictionary) {
+                SecItemDelete(query)
+                DispatchQueue(label: "q").async { work() }
+                Task { await refresh() }
+            }
+            """
+        )
+
+        XCTAssertEqual(removed, [
+            "SecItemDelete(query)", "DispatchQueue(label: \"q\").async { work() }", "Task { await refresh() }",
+        ])
+    }
+
+    // A builder that takes no `if` gets no mutant, its lowercase parts included, as no mutant's switch builds there.
+    func test_neverRemovesFromABuilderThatTakesNoIf() throws {
+        let removed = try removedStatements(
+            in: """
+            struct Demo: App {
+                var body: some Scene {
+                    mainWindow()
+                    Group {
+                        settings()
+                        extras()
+                    }
+                }
+            }
+
+            struct Bundle: WidgetBundle {
+                var body: some Widget {
+                    clock()
+                    weather()
+                }
+            }
+
+            struct Shortcuts: AppShortcutsProvider {
+                static var appShortcuts: [AppShortcut] {
+                    open()
+                    search()
+                }
+            }
+
+            struct Parser {
+                @RegexComponentBuilder
+                var number: some RegexComponent {
+                    sign()
+                    digits()
+                }
+
+                @RegexComponentBuilder
+                var pattern: Regex<Substring> {
+                    sign()
+                    digits()
+                }
+
+                @SceneBuilder
+                subscript(index: Int) -> some Scene {
+                    window(index)
+                    settings()
+                }
+
+                func find(_ line: String) {
+                    _ = line.firstMatch {
+                        digits()
+                        sign()
+                    }
+                    _ = line.replacing {
+                        sign()
+                        digits()
+                    } with: { _ in "" }
+                }
+
+                func parse(_ line: String) -> Bool {
+                    let separator = Regex {
+                        spaces()
+                        ","
+                        spaces()
+                    }
+                    return line.wholeMatch {
+                        number()
+                        separator
+                        number()
+                    } != nil
+                }
+            }
+            """
+        )
+
+        // Only `find`'s own statements, which are a plain function's.
+        XCTAssertEqual(removed, [
+            "_ = line.firstMatch { digits() sign() }", "_ = line.replacing { sign() digits() } with: { _ in \"\" }",
+        ])
+    }
+
+    // These only look like a builder's parts: a method of a value a type holds, a `Task`, the calls of a `some` body
+    // that returns a value, a closure called as a statement, and one whose code merely names a regex type.
+    func test_removesCallsThatOnlyLookLikeABuildersParts() throws {
+        let removed = try removedStatements(
+            in: """
+            func save(_ items: [Int]) async throws {
+                items.forEach { item in
+                    persist(item)
+                    NotificationCenter.default.post(name: .saved, object: nil)
+                }
+                items.forEach { item in
+                    Task { await sync(item) }
+                    log(item)
+                }
+                try {
+                    try load()
+                    refresh()
+                }()
+                await {
+                    await sync(1)
+                    finish()
+                }()
+                _ = {
+                    prepare()
+                    flush()
+                }()
+                let limit: Int = {
+                    configure()
+                    reload()
+                    return Mode.One.rawValue
+                }()
+                use(limit)
+            }
+
+            func makeIterator() -> some IteratorProtocol<Int> {
+                Metrics.record("iterate")
+                return storage.makeIterator()
+            }
+            """
+        )
+
+        XCTAssertEqual(removed, [
+            "persist(item)", "NotificationCenter.default.post(name: .saved, object: nil)",
+            "items.forEach { item in persist(item) NotificationCenter.default.post(name: .saved, object: nil) }",
+            "Task { await sync(item) }", "log(item)", "items.forEach { item in Task { await sync(item) } log(item) }",
+            "try load()", "refresh()", "try { try load() refresh() }()", "await sync(1)", "finish()",
+            "await { await sync(1) finish() }()", "prepare()", "flush()", "_ = { prepare() flush() }()", "configure()",
+            "reload()", "use(limit)",
+            "Metrics.record(\"iterate\")",
+        ])
+    }
+
+    func test_neverRemovesFromAFilesTopLevel_orAnIfConfigClause() throws {
+        let removed = try removedStatements(
+            in: """
+            setUp()
+
+            func run() {
+                #if DEBUG
+                trace()
+                #endif
+                work()
+            }
+            """
+        )
+
+        XCTAssertEqual(removed, ["work()"])
     }
 
     /// What each mutant removes, in the source's order.
