@@ -22,6 +22,23 @@ struct ReportArguments: ParsableArguments {
     var reportURL: URL?
 
     @Option(
+        name: .customLong("report"),
+        help: ArgumentHelp(
+            "Also save a report in another format, as format:path, such as \(ReportRequest.example). Repeatable. "
+                + "For a run, in place of reports.",
+            valueName: "format:path"
+        ),
+        transform: { text in
+            switch ReportRequest.parse(text) {
+            // Resolved now, as -o's path is.
+            case let .success(request): return request.resolved
+            case let .failure(problem): throw ValidationError("\(problem).")
+            }
+        }
+    )
+    var reports: [ReportRequest] = []
+
+    @Option(
         name: .customLong("fail-under"),
         help: ArgumentHelp(
             "Exit with status 2 when the headline mutation score, counting any mutant taken out of the build with "
@@ -57,9 +74,34 @@ struct ReportArguments: ParsableArguments {
         propertyTests.isEmpty ? nil : propertyTests
     }
 
+    /// `--report`'s requests, or nil when none was given, which leaves the configuration's `reports`.
+    var reportRequests: [ReportRequest]? {
+        reports.isEmpty ? nil : reports
+    }
+
+    /// `-o`'s report and `--report`'s, by how a refusal names each, for `ReportRequest.clash(among:ofARun:)`.
+    var outputs: [ReportRequest.Output] {
+        (reportURL.map { [("-o \($0.path)", $0.path)] } ?? []) + reports.map { ("--report \($0)", $0.path) }
+    }
+
+    /// Refuses two reports at one path, for every command: a run's at another's partial report too is refused by
+    /// `validateForARun()`, as `report` writes none.
     func validate() throws {
         if let problem = PropertyTestPattern.problem(with: propertyTests) {
             throw ValidationError("--property-tests: \(problem).")
+        }
+        try refuseAClash(ofARun: false)
+    }
+
+    /// Refuses a report at the path another's partial report takes when a run stops, for `run` and
+    /// `run-without-mutating`, which `validate()` leaves to them.
+    func validateForARun() throws {
+        try refuseAClash(ofARun: true)
+    }
+
+    private func refuseAClash(ofARun isARun: Bool) throws {
+        if let clash = ReportRequest.clash(among: outputs, ofARun: isARun) {
+            throw ValidationError("\(clash): give each report a path of its own.")
         }
     }
 }

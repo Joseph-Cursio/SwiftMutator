@@ -193,7 +193,7 @@ final class LoggerTests: MuterTestCase {
     // the command that runs its tests there with it on, by its file for `swift test`. Every path is quoted for a
     // shell.
     func test_oneMutantTested_printsTheChange_theLog_theVerdict_andHowToSwitchItOn_forSwiftTest() {
-        sut.oneMutantTested(.make(), reportPath: nil)
+        sut.oneMutantTested(.make(), reports: [])
 
         XCTAssertEqual(printer.linesPassed, [
             "🏁 SwiftMutator finished running!",
@@ -221,11 +221,11 @@ final class LoggerTests: MuterTestCase {
     func test_oneMutantTested_switchesItOnByItsVariable_forOtherTestCommands() {
         sut.oneMutantTested(
             .make(buildSystem: .unknown, testCommand: ["/bin/sh", "-c", "make test"]),
-            reportPath: nil
+            reports: []
         )
         sut.oneMutantTested(
             .make(buildSystem: .xcodebuild, testCommand: ["/usr/bin/xcodebuild", "test"]),
-            reportPath: nil
+            reports: []
         )
 
         XCTAssertEqual(printer.linesPassed.filter { $0.hasPrefix("To run") || $0.hasPrefix("  cd ") }, [
@@ -241,9 +241,9 @@ final class LoggerTests: MuterTestCase {
     func test_oneMutantTested_printsTheLastLinesOfALongLog() {
         let log = (1 ... 401).map { "line \($0)" }.joined(separator: "\n") + "\n"
 
-        sut.oneMutantTested(.make(testLog: log), reportPath: nil)
-        sut.oneMutantTested(.make(testLog: log, logPath: nil), reportPath: nil)
-        sut.oneMutantTested(.make(testLog: ""), reportPath: nil)
+        sut.oneMutantTested(.make(testLog: log), reports: [])
+        sut.oneMutantTested(.make(testLog: log, logPath: nil), reports: [])
+        sut.oneMutantTested(.make(testLog: ""), reports: [])
 
         let lines = printer.linesPassed
         let first = lines.firstIndex(of: "  … 201 earlier lines are in the log")
@@ -284,8 +284,8 @@ final class LoggerTests: MuterTestCase {
 
     // A report asked for with -o is still written, and said, after the block.
     func test_oneMutantTested_saysWhereARequestedReportWent() {
-        sut.oneMutantTested(.make(), reportPath: ("/out/report.txt", true))
-        sut.oneMutantTested(.make(), reportPath: ("/out/report.txt", false))
+        sut.oneMutantTested(.make(), reports: [("/out/report.txt", true)])
+        sut.oneMutantTested(.make(), reports: [("/out/report.txt", false)])
 
         XCTAssertEqual(printer.linesPassed.filter { $0.hasPrefix("📝") || $0.hasPrefix("⚠️") }, [
             "📝 Report generated: \("/out/report.txt".bold)",
@@ -1116,13 +1116,13 @@ final class LoggerTests: MuterTestCase {
     func test_mutationTestingEndedEarly_saysWhatStoppedIt_andTheScoreSoFar() {
         sut.mutationTestingEndedEarly(
             .make(reason: .interrupted, detail: "SIGTERM", tested: [.failed, .passed, .buildError], discovered: 9),
-            partialReport: (path: "/out/report.partial.txt", saved: true),
+            partialReports: [(path: "/out/report.partial.txt", saved: true)],
             resultsFile: "/logs/results.jsonl",
             continueCommand: nil
         )
         sut.mutationTestingEndedEarly(
             .make(reason: .aborted, detail: "tooManyBuildErrors", tested: [.failed, .buildError], discovered: 9),
-            partialReport: nil,
+            partialReports: [],
             resultsFile: nil,
             continueCommand: nil
         )
@@ -1146,7 +1146,7 @@ final class LoggerTests: MuterTestCase {
 
         sut.mutationTestingEndedEarly(
             .make(tested: [.failed]),
-            partialReport: nil,
+            partialReports: [],
             resultsFile: resultsFile,
             continueCommand: nil
         )
@@ -1162,7 +1162,7 @@ final class LoggerTests: MuterTestCase {
 
         sut.mutationTestingEndedEarly(
             .make(reason: .interrupted, detail: "SIGINT", tested: [.failed, .passed], discovered: 4),
-            partialReport: (path: "/out/report.partial.txt", saved: true),
+            partialReports: [(path: "/out/report.partial.txt", saved: true)],
             resultsFile: "/logs/results.jsonl",
             continueCommand: continueCommand
         )
@@ -1185,13 +1185,13 @@ final class LoggerTests: MuterTestCase {
 
         sut.mutationTestingEndedEarly(
             .make(detail: "SIGINT", tested: [.failed, .failed, .passed, .failed, .passed], discovered: 9, reused: 3),
-            partialReport: nil,
+            partialReports: [],
             resultsFile: "/logs/results.jsonl",
             continueCommand: continueCommand
         )
         sut.mutationTestingEndedEarly(
             .make(detail: "SIGTERM", tested: [.failed, .passed, .passed], discovered: 9, reused: 3),
-            partialReport: nil,
+            partialReports: [],
             resultsFile: "/logs/results.jsonl",
             continueCommand: continueCommand
         )
@@ -1217,13 +1217,13 @@ final class LoggerTests: MuterTestCase {
 
         sut.mutationTestingEndedEarly(
             .make(detail: "SIGINT", tested: [.failed], discovered: 4),
-            partialReport: nil,
+            partialReports: [],
             resultsFile: nil,
             continueCommand: continueCommand
         )
         sut.mutationTestingEndedEarly(
             .make(detail: "SIGINT", tested: [], discovered: 4),
-            partialReport: nil,
+            partialReports: [],
             resultsFile: "/logs/results.jsonl",
             continueCommand: continueCommand
         )
@@ -1239,7 +1239,7 @@ final class LoggerTests: MuterTestCase {
     func test_mutationTestingEndedEarly_withNothingTested_leavesTheScoreOut() {
         sut.mutationTestingEndedEarly(
             .make(reason: .interrupted, detail: "SIGINT", tested: [], discovered: 9),
-            partialReport: nil,
+            partialReports: [],
             resultsFile: "/logs/results.jsonl",
             continueCommand: nil
         )
@@ -1263,7 +1263,7 @@ final class LoggerTests: MuterTestCase {
 
         sut.mutationTestingEndedEarly(
             earlyEnd,
-            partialReport: (path: "/out/report.partial.txt", saved: true),
+            partialReports: [(path: "/out/report.partial.txt", saved: true)],
             resultsFile: "/logs/results.jsonl",
             continueCommand: "swift-mutator run --resume '/logs/results.jsonl'"
         )
@@ -1284,7 +1284,7 @@ final class LoggerTests: MuterTestCase {
     func test_mutationTestingEndedEarly_whenThePartialReportCouldNotBeSaved_saysWhere() {
         sut.mutationTestingEndedEarly(
             .make(tested: [.failed]),
-            partialReport: (path: "/out/report.partial.txt", saved: false),
+            partialReports: [(path: "/out/report.partial.txt", saved: false)],
             resultsFile: nil,
             continueCommand: nil
         )

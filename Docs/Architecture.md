@@ -195,10 +195,13 @@ beside it ([`TestReporting/RunSummary.swift`](../Sources/muterCore/TestReporting
 
 [`TestReporting`](../Sources/muterCore/TestReporting) turns the outcomes into a report:
 `mutationScoring.swift` scores them, `ReportFormat.swift` picks the format, and
-`PlainText/`, `Json/`, `HTML/` and `Xcode/` hold one reporter each.
+`PlainText/`, `Json/`, `HTML/`, `Xcode/` and `Markdown/` hold one reporter each.
+`ReportRequest.swift` reads the `format:path` of each other report that `--report` or `reports:`
+asks for.
 [`TestReporting/ReportWriter.swift`](../Sources/muterCore/TestReporting/ReportWriter.swift) saves
-every report. In a run, `MutationTestObserver` saves the report at the end, or a partial one when
-the run stops early, and writes `summary.json`. `swift-mutator report`
+every report. In a run, `MutationTestObserver` saves the report at the end, and each other report
+in its own format, or a partial one beside each when the run stops early, and writes
+`summary.json`. `swift-mutator report`
 ([`CLICommands/Report.swift`](../Sources/muterCore/CLICommands/Report.swift)) makes a report from a
 results file, with
 [`Results/ResultsReport.swift`](../Sources/muterCore/Results/ResultsReport.swift). While a run goes, steps send [`RunEvents`](../Sources/muterCore/MutationTesting/RunEvents.swift),

@@ -6,6 +6,9 @@ extension Run {
     /// Sendable: the command makes them, and the run's work reads them in a task of its own (`Interruptions.run`).
     struct Options: Sendable {
         let reportOptions: ReportOptions
+        /// `--report`: the reports saved besides `-f`'s, each in its own format, with their paths resolved, in place
+        /// of `reports`; nil when none was given.
+        let reports: [ReportRequest]?
         let filesToMutate: [String]
         /// `--exclude`: entries added to the configuration's `exclude` for this run.
         let exclude: [String]
@@ -81,6 +84,7 @@ extension Run {
             sample: Sample? = nil,
             reportFormat: ReportFormat = .plain,
             reportURL: URL? = nil,
+            reports: [ReportRequest]? = nil,
             mutationOperatorsList: MutationOperatorList = .allOperators,
             operatorsAreNamed: Bool = false,
             skipOperators: [MutationOperator.Id]? = nil,
@@ -127,6 +131,7 @@ extension Run {
             self.forceResume = forceResume
             self.planIgnoring = planIgnoring
             self.mutant = mutant
+            self.reports = reports
 
             self.filesToMutate = filesToMutate.reduce(into: []) { accum, next in
                 accum.append(
@@ -170,6 +175,7 @@ extension Run.Options: Equatable {
             lhs.forceResume == rhs.forceResume &&
             lhs.planIgnoring == rhs.planIgnoring &&
             lhs.mutant == rhs.mutant &&
+            lhs.reports == rhs.reports &&
             lhs.reportOptions.path == rhs.reportOptions.path &&
             "\(lhs.reportOptions.reporter)" == "\(rhs.reportOptions.reporter)"
     }

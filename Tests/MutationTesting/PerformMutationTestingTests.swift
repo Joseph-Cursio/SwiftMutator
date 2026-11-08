@@ -386,6 +386,33 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(ended().compactMap { ($0.object as? EarlyEnd)?.outcome.failUnder }, [72.5])
     }
 
+    // The observer saves them, at the end or beside each as partial ones, so their paths are resolved against the
+    // project's folder: the run's own is then the mutated copy.
+    func test_theOutcome_carriesTheConfigurationsReports_resolved() async throws {
+        state.muterConfiguration = MuterConfiguration(reports: [
+            ReportRequest(format: .markdown, path: "summary.md"),
+            ReportRequest(format: .html, path: "/out/report.html"),
+        ])
+        let expected = [
+            ReportRequest(format: .markdown, path: "/project/summary.md"),
+            ReportRequest(format: .html, path: "/out/report.html"),
+        ]
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        let finished = recordEvents(named: [.mutationTestingFinished])
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(finished().compactMap { ($0.object as? MutationTestOutcome)?.reports }, [expected])
+
+        state.mutationMapping = try Array(repeating: makeSchemataMapping(), count: 6)
+        ioDelegate.testSuiteOutcomes = [.passed, .failed] + Array(repeating: .buildError, count: 5)
+        let ended = recordEvents(named: [.mutationTestingEndedEarly])
+
+        await assertThrowsMuterError(try await sut.run(with: state)) { _ in }
+
+        XCTAssertEqual(ended().compactMap { ($0.object as? EarlyEnd)?.outcome.reports }, [expected])
+    }
+
     // The jobs and their keys are there before the baseline runs, so only its passing tells a stop that has something
     // to report from one that hasn't. A stop during the baseline sends no early end; one just after it passed sends
     // one, with nothing tested yet and every mutant discovered.

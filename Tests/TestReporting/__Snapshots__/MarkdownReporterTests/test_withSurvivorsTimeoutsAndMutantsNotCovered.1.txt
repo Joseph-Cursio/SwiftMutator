@@ -1,0 +1,36 @@
+## Mutation testing
+
+**Mutation score: 20% (1 killed, 2 survived, 1 timed out, 1 build error, 1 not covered)**
+
+Code Coverage of your project: 64%
+
+> ⚠️ 1 mutant was a build error, so it wasn't tested, and the score leaves it out.
+
+| Killed | Survived | Timed out | Build errors | Not covered | Total |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 2 | 1 | 1 | 1 | 6 |
+
+### Scores by file
+
+| File | Mutants | Score |
+| :--- | ---: | ---: |
+| `Sources/Alpha.swift` | 3 | 0% |
+| `Sources/Rules.swift` | 3 | 33% |
+| `Sources/Unused.swift` | 0 | skipped (no coverage) |
+
+### Surviving mutants (3)
+
+- `Sources/Alpha.swift`
+  - `5:9` RelationalOperatorReplacement: changed == to !=
+- `Sources/Rules.swift`
+  - `3:14` RelationalOperatorReplacement: changed \< to \> (timed out)
+  - `12:9` RelationalOperatorReplacement: changed == to != — Triaged: equivalent: count can't exceed limit here
+
+### Mutants not covered (1)
+
+No test reached this mutant: your tests passed without running its blocks, and the score counts it as not killed. By path, line and column:
+
+- `Sources/Alpha.swift`
+  - `9:9` RelationalOperatorReplacement: changed == to !=
+
+With coverage on, no mutant is made in code the coverage run says no test ran, so no count here has one: a file left out for its coverage (`coverageThreshold`) is one row, and a file the coverage data doesn't name has none. "Not covered" counts only mutants that were made and tested, whose blocks their tests didn't run. `--skip-coverage` makes them all.

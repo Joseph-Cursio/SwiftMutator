@@ -273,5 +273,16 @@ final class ResumeRefusedTests: XCTestCase {
             "-o '/logs/results.jsonl' is the results file itself, which the report would replace. "
                 + "Write the report to another file."
         )
+        let request = ReportRequest(format: .markdown, path: "/logs/results.jsonl")
+        XCTAssertEqual(
+            "\(ResumeRefusal.otherReportWouldReplaceTheResultsFile(request, isTheFlags: true))",
+            "--report 'markdown:/logs/results.jsonl' is the results file itself, which the report would replace. "
+                + "Save that report to another file."
+        )
+        XCTAssertEqual(
+            "\(ResumeRefusal.otherReportWouldReplaceTheResultsFile(request, isTheFlags: false))",
+            "reports: names 'markdown:/logs/results.jsonl', the results file itself, which the report would replace. "
+                + "Save that report to another file."
+        )
     }
 }

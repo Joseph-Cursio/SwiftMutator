@@ -148,6 +148,25 @@ final class ProjectTreeTests: XCTestCase {
         XCTAssertEqual(ProjectTree.reportPaths(.make(), under: projectURL), [], "no report")
     }
 
+    // The other reports the run saves, and the partial report beside each, as for -o's.
+    func test_reportPaths_addTheOtherReports_andTheirPartialSiblings() {
+        let reports = [
+            ReportRequest(format: .markdown, path: "\(project)/summary.md"),
+            ReportRequest(format: .json, path: "\(project)_report.json"),
+        ]
+
+        XCTAssertEqual(
+            ProjectTree.reportPaths(
+                .make(reportURL: URL(fileURLWithPath: "\(project)/report.txt")), reports: reports, under: projectURL
+            ),
+            ["report.txt", "report.partial.txt", "summary.md", "summary.partial.md"]
+        )
+        XCTAssertEqual(
+            ProjectTree.excludedPaths(.make(), reports: reports, under: projectURL),
+            ["summary.md", "summary.partial.md", "muter.conf.yml"]
+        )
+    }
+
     // A run leaves its configuration file out too: its settings are in the header, which a resume compares key by key.
     func test_excludedPaths_addTheConfigurationFileTheRunLoads() throws {
         let report = URL(fileURLWithPath: "\(project)/report.txt")

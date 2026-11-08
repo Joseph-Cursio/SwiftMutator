@@ -17,6 +17,9 @@ struct ResultsReport {
     let format: ReportFormat
     /// Where to save the report; nil prints it on standard output.
     let outputPath: String?
+    /// `--report`: the other reports to save, each in its own format, with their paths resolved; never on standard
+    /// output. Never the run's `reports:`, which the header records: saving them would replace the run's own files.
+    let reports: [ReportRequest]
     /// Where to save the run's `summary.json` (`RunSummary`); nil saves none.
     let summaryPath: String?
     /// `--fail-under`: the percent below which the report's score fails it (`ScoreGate`); nil checks none. Never the
@@ -32,6 +35,7 @@ struct ResultsReport {
     init(
         format: ReportFormat,
         outputPath: String?,
+        reports: [ReportRequest] = [],
         summaryPath: String? = nil,
         failUnder: Double? = nil,
         propertyTests: [String]? = nil,
@@ -39,6 +43,7 @@ struct ResultsReport {
     ) {
         self.format = format
         self.outputPath = outputPath
+        self.reports = reports
         self.summaryPath = summaryPath
         self.failUnder = failUnder
         self.propertyTests = propertyTests
@@ -51,8 +56,8 @@ struct ResultsReport {
     /// one alone too, `forcing` build and toolchain differences through, and the project files `ignoring`'s globs
     /// match. Standard output holds the report alone
     /// (and, in the Xcode format, its warnings), so `-f json > report.json` is valid JSON; what the files hold, the
-    /// report's warning of suspect tests, where the report went, and last the verdict on its score against
-    /// `failUnder`, are said on standard error.
+    /// report's warning of suspect tests, where the report and each of `reports` went, and last the verdict on its
+    /// score against `failUnder`, are said on standard error.
     ///
     /// Gives the status `report` exits with, nil for 0: for a run that stopped on an error, the one the run itself
     /// exited with (`ExitCode.exitStatus(afterRunFailedWith:)`), so a script that checks the report fails as one that
@@ -65,10 +70,13 @@ struct ResultsReport {
         if let outputPath {
             try checkSaving(.report, to: outputPath, from: files)
         }
+        for request in reports {
+            try checkSaving(.other, to: request.path, from: files)
+        }
         if let summaryPath {
             try checkSaving(.summary, to: summaryPath, from: files)
         }
-        try checkTheReportAndSummaryDiffer()
+        try checkTheSavedFilesDiffer()
         // A file whose run stopped before its first mutant has no result: it is said, and left out, and with no other
         // file, `report` exits as that run did.
         var stopped: [ResultsStopped] = []
@@ -154,8 +162,10 @@ struct ResultsReport {
         }
     }
 
-    /// Prints or saves the report of `outcome`, then says `status` and the rest on standard error, and saves its
-    /// summary, of a run that `ended` so, if asked to; then says the verdict of `gate`, last, as a run does.
+    /// Prints or saves the report of `outcome`, and saves each of `reports`, then says `status` and the rest on
+    /// standard error, and saves its summary, of a run that `ended` so, if asked to; then says the verdict of `gate`,
+    /// last, as a run does. A report that can't be saved stops it before the rest is said: the results file still
+    /// holds it all.
     private func report(
         _ outcome: MutationTestOutcome,
         saying status: [String],
@@ -169,10 +179,13 @@ struct ResultsReport {
         }
         let report = reporter.report(from: outcome)
         if let outputPath {
-            guard ReportWriter.save(report, to: outputPath, using: fileManager) else {
-                throw MuterError.literal(reason: "SwiftMutator could not save the report to \(outputPath)")
-            }
-        } else {
+            try save(report, to: outputPath)
+        }
+        // Only `-f`'s reporter is told of each mutant: the others' would print their warnings too.
+        for request in reports {
+            try save(request.format.reporter.report(from: outcome), to: request.path)
+        }
+        if outputPath == nil {
             printer(report)
         }
         // The report comes before what's said about it, should both go to one place.
@@ -187,15 +200,14 @@ struct ResultsReport {
             errorPrinter(MuterTestReport.scoreLine(of: outcome))
             errorPrinter("Report saved to \(outputPath)")
         }
+        reports.forEach { errorPrinter("Report saved to \($0.path)") }
         if let summaryPath {
-            // Checked again now that the report exists: two spellings of one new file, which differ only in case on a
-            // volume that ignores it, are known to be one only once it's there.
-            try checkTheReportAndSummaryDiffer()
             let summary = RunSummary(
                 of: outcome,
                 ended: ended?.reason,
                 endDetail: ended?.detail,
                 report: outputPath,
+                reports: reports.map(\.path),
                 gate: gate
             )
             guard ReportWriter.save(String(decoding: summary.json, as: UTF8.self), to: summaryPath, using: fileManager)
@@ -207,15 +219,31 @@ struct ResultsReport {
         gate?.line.map(errorPrinter)
     }
 
-    /// What `report` saves: the report itself, at `-o`, or the summary, at `--summary`.
-    private enum Saved: String {
+    /// Saves `report` at `path`, then checks the files saved still differ: two spellings of one new file, which differ
+    /// only in case on a volume that ignores it, are known to be one only once it's there.
+    private func save(_ report: String, to path: String) throws {
+        guard ReportWriter.save(report, to: path, using: fileManager) else {
+            throw MuterError.literal(reason: "SwiftMutator could not save the report to \(path)")
+        }
+        try checkTheSavedFilesDiffer()
+    }
+
+    /// What `report` saves: the report itself, at `-o`, another report, at `--report`, or the summary, at `--summary`.
+    private enum Saved {
         case report
+        case other
         case summary
+
+        /// What it is called in a refusal.
+        var noun: String {
+            self == .summary ? "summary" : "report"
+        }
 
         /// What the option that gives its path is called in a refusal.
         var pathName: String {
             switch self {
             case .report: "output path"
+            case .other: "--report path"
             case .summary: "summary path"
             }
         }
@@ -231,14 +259,24 @@ struct ResultsReport {
             )
         }
         if (try? fileManager.contentsOfDirectory(atPath: path)) != nil {
-            throw MuterError.literal(reason: "\(path) is a folder: name the file to save the \(saved.rawValue) to")
+            throw MuterError.literal(reason: "\(path) is a folder: name the file to save the \(saved.noun) to")
         }
     }
 
-    /// Refuses to save the summary over the report.
-    private func checkTheReportAndSummaryDiffer() throws {
-        if let outputPath, let summaryPath, ResultsFile.isSameFile(outputPath, summaryPath) {
-            throw MuterError.literal(reason: "The report and the summary can't both be saved to \(outputPath)")
+    /// Refuses to save one of the report, the other reports and the summary over another.
+    private func checkTheSavedFilesDiffer() throws {
+        let saved = (outputPath.map { [(name: "the report", path: $0)] } ?? [])
+            + reports.map { (name: "--report \($0)", path: $0.path) }
+            + (summaryPath.map { [(name: "the summary", path: $0)] } ?? [])
+        for later in saved.indices {
+            for earlier in saved.indices
+                where earlier < later && ResultsFile.isSameFile(saved[earlier].path, saved[later].path) {
+                let first = saved[earlier].name
+                throw MuterError.literal(
+                    reason: first.prefix(1).uppercased() + first.dropFirst()
+                        + " and \(saved[later].name) can't both be saved to \(saved[earlier].path)"
+                )
+            }
         }
     }
 }

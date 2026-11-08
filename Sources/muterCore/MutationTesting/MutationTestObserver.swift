@@ -263,20 +263,27 @@ extension MutationTestObserver {
     }
 
     /// Says the run finished, then prints its report, or where it went, or for a run of one mutant (`--mutant`) what
-    /// it changes, its tests' log and its verdict, and where a requested report went; then where each result is; and
-    /// last, with a `failUnder`, the verdict on the score (`ScoreGate`), which the run then exits with. The summary
-    /// records that verdict too.
+    /// it changes, its tests' log and its verdict, and where a requested report went; then where each other report
+    /// went (`MutationTestOutcome.reports`); then where each result is; and last, with a `failUnder`, the verdict on
+    /// the score (`ScoreGate`), which the run then exits with. The summary records that verdict too.
     private func mutationTestingFinished(_ outcome: MutationTestOutcome) {
         let reporter = runOptions.reportOptions.reporter
         let reportPath = runOptions.reportOptions.path ?? ""
         let report = reporter.report(from: outcome)
         let didSave = ReportWriter.save(report, to: reportPath, using: fileManager)
+        let others = saveOtherReports(of: outcome, besides: { $0 }, after: didSave ? [reportPath] : [])
         let gate = outcome.failUnder.map { ScoreGate(failUnder: $0, judging: outcome) }
         scoreGate = gate
-        writeSummary(RunSummary(of: outcome, ended: .finished, report: didSave ? reportPath : nil, gate: gate))
+        writeSummary(RunSummary(
+            of: outcome,
+            ended: .finished,
+            report: didSave ? reportPath : nil,
+            reports: others.filter(\.saved).map(\.path),
+            gate: gate
+        ))
 
         if let oneMutantRun {
-            logger.oneMutantTested(oneMutantRun, reportPath: reportPath.isEmpty ? nil : (reportPath, didSave))
+            logger.oneMutantTested(oneMutantRun, reports: (reportPath.isEmpty ? [] : [(reportPath, didSave)]) + others)
             resultsFilePath.map(logger.resultsFileKept(atPath:))
             gate.map(logger.scoreGateChecked)
             return
@@ -289,30 +296,63 @@ extension MutationTestObserver {
             scoreLine: MuterTestReport.scoreLine(of: outcome),
             suspectWarning: KillingTestSummary.warning(for: outcome),
             buildErrorWarning: outcome.buildErrorWarning,
-            unprovenKillWarning: outcome.unprovenKillWarning
+            unprovenKillWarning: outcome.unprovenKillWarning,
+            otherReports: others
         )
         resultsFilePath.map(logger.resultsFileKept(atPath:))
         gate.map(logger.scoreGateChecked)
     }
 
-    /// Writes what was tested to a partial report beside the requested one, never replacing it, and says what was
-    /// tested, and the command that continues the run: SwiftMutator's own arguments, resuming from the results file.
-    /// Without a requested report there is no partial one: the summary and the results file say what was tested, and a
-    /// report printed to the terminal would run to thousands of lines. A run of one mutant (`--mutant`) can't be
-    /// resumed, and gets no such command: the same command tests it again. With a `failUnder`, the summary records that
-    /// it wasn't checked, and nothing is said of it: the run's end says why it stopped, and it exits for that.
+    /// Saves each of `outcome`'s other reports (`MutationTestOutcome.reports`), in its own format, at the path `path`
+    /// gives for its own, and gives where each went and whether it was saved; none is told of each mutant as it
+    /// finishes, as only `-f`'s reporter prints while the run goes. A report `path` gives no path for is skipped.
+    ///
+    /// One that is the same file as one saved before it, `saved`'s or another of these, isn't saved, and is said as
+    /// one that couldn't be: the checks before the run compare paths, and two that differ only in case are one file on
+    /// a volume that ignores it, which is known only once the first is there.
+    private func saveOtherReports(
+        of outcome: MutationTestOutcome,
+        besides path: (String) -> String?,
+        after saved: [String]
+    ) -> [(path: String, saved: Bool)] {
+        var saved = saved
+        return outcome.reports.compactMap { request in
+            guard let path = path(request.path) else { return nil }
+            guard !saved.contains(where: { ResultsFile.isSameFile(path, $0) }) else { return (path, false) }
+            let report = request.format.reporter.report(from: outcome)
+            let didSave = ReportWriter.save(report, to: path, using: fileManager)
+            if didSave { saved.append(path) }
+            return (path, didSave)
+        }
+    }
+
+    /// Writes what was tested to a partial report beside each requested one, `-o`'s and each other's, never replacing
+    /// it, and says what was tested, and the command that continues the run: SwiftMutator's own arguments, resuming
+    /// from the results file. Without a requested report there is no partial one: the summary and the results file say
+    /// what was tested, and a report printed to the terminal would run to thousands of lines. A run of one mutant
+    /// (`--mutant`) can't be resumed, and gets no such command: the same command tests it again. With a `failUnder`,
+    /// the summary records that it wasn't checked, and nothing is said of it: the run's end says why it stopped, and it
+    /// exits for that.
     private func mutationTestingEndedEarly(_ earlyEnd: EarlyEnd) {
         var partialReport: (path: String, saved: Bool)?
-        if !earlyEnd.outcome.mutations.isEmpty,
-           let path = PartialReport.path(besides: runOptions.reportOptions.path) {
-            let report = runOptions.reportOptions.reporter.report(from: earlyEnd.outcome)
-            partialReport = (path, ReportWriter.save(report, to: path, using: fileManager))
+        var otherPartialReports: [(path: String, saved: Bool)] = []
+        if !earlyEnd.outcome.mutations.isEmpty {
+            if let path = PartialReport.path(besides: runOptions.reportOptions.path) {
+                let report = runOptions.reportOptions.reporter.report(from: earlyEnd.outcome)
+                partialReport = (path, ReportWriter.save(report, to: path, using: fileManager))
+            }
+            otherPartialReports = saveOtherReports(
+                of: earlyEnd.outcome,
+                besides: PartialReport.path(besides:),
+                after: partialReport.flatMap { $0.saved ? [$0.path] : nil } ?? []
+            )
         }
         writeSummary(RunSummary(
             of: earlyEnd.outcome,
             ended: earlyEnd.reason,
             endDetail: earlyEnd.detail,
             report: partialReport.flatMap { $0.saved ? $0.path : nil },
+            reports: otherPartialReports.filter(\.saved).map(\.path),
             gate: earlyEnd.outcome.failUnder.map {
                 ScoreGate(failUnder: $0, judging: earlyEnd.outcome, unless: .endedEarly)
             }
@@ -327,7 +367,7 @@ extension MutationTestObserver {
         }
         logger.mutationTestingEndedEarly(
             earlyEnd,
-            partialReport: partialReport,
+            partialReports: (partialReport.map { [$0] } ?? []) + otherPartialReports,
             resultsFile: resultsFilePath,
             continueCommand: continueCommand
         )

@@ -132,6 +132,7 @@ struct Run: RunCommand {
             sample: sample.map { Sample(size: $0, seed: seed ?? Sample.chooseSeed(), seedIsChosen: seed == nil) },
             reportFormat: reportOptions.reportFormat,
             reportURL: reportOptions.reportURL,
+            reports: reportOptions.reportRequests,
             mutationOperatorsList: selection.mutationOperatorsList,
             operatorsAreNamed: selection.operatorsAreNamed,
             skipOperators: selection.skippedOperators,
@@ -163,8 +164,9 @@ struct Run: RunCommand {
     /// `--changed-lines` narrows its choice. `--seed` only says which sample `--sample` takes, and the shards of a
     /// sampled split, and a resume of a sample, need it to take the same one: a seed SwiftMutator chose would differ.
     /// `--mutant` names its mutant alone, so no other option that chooses mutants, nor one that continues a run, can
-    /// be given with it.
+    /// be given with it. A stopped run writes each report's partial report beside it, which no other report may take.
     func validate() throws {
+        try reportOptions.validateForARun()
         if since != nil, !selection.filesToMutate.isEmpty {
             throw ValidationError("--since and --files-to-mutate can't be given together.")
         }

@@ -8,7 +8,7 @@ enum ResumeCheck {
     /// session tests again alone (`keysThatChooseKillsToTestAgain`). Where one worker tests, on the destination or
     /// on a simulator of its own (`oneWorkerSimulator`), can change a kill's kind, but not whether it is killed.
     /// `failUnder` judges the score once the run finishes, never a result, and `propertyTests` only splits the kills
-    /// the reports count, which `propertyTestFilter`'s runs only settle.
+    /// the reports count, which `propertyTestFilter`'s runs only settle. `reports` only says which reports are saved.
     /// The keys that choose the operators, which `selectionDifferences` compares, however they were chosen. So a change
     /// of these keys that chooses the same operators is no difference, and one that doesn't is said once.
     static let keysComparedByTheirSelection: Set = [
@@ -40,6 +40,7 @@ enum ResumeCheck {
         MuterConfiguration.CodingKeys.failUnder.stringValue,
         MuterConfiguration.CodingKeys.propertyTests.stringValue,
         MuterConfiguration.CodingKeys.propertyTestFilter.stringValue,
+        MuterConfiguration.CodingKeys.reports.stringValue,
     ]
 
     /// The key of a mutant's time limit, `mutationTestTimeout`, which a resume or a reuse lets lengthen

@@ -60,8 +60,11 @@ OPTIONS:
                           simulator, which gets one simulator per worker).
   --timeout <seconds>     Seconds before a mutant's test run is stopped, in
                           place of mutationTestTimeout. At most a day, 86400.
-  -f, --format <format>   The report format: plain, json, html, xcode
+  -f, --format <format>   The report format: plain, json, html, xcode, markdown
   -o, --output <output>   Output file for the report to be saved.
+  --report <format:path>  Also save a report in another format, as format:path,
+                          such as markdown:summary.md. Repeatable. For a run,
+                          in place of reports.
   --fail-under <percent>  Exit with status 2 when the headline mutation score,
                           counting any mutant taken out of the build with
                           others as not killed, is below this percent, from 0

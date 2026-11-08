@@ -38,6 +38,7 @@ struct RunWithoutMutating: RunCommand {
         Run.Options(
             reportFormat: reportOptions.reportFormat,
             reportURL: reportOptions.reportURL,
+            reports: reportOptions.reportRequests,
             skipCoverage: options.skipCoverage,
             skipUpdateCheck: options.skipUpdateCheck,
             verbose: options.verbose,
@@ -60,11 +61,13 @@ struct RunWithoutMutating: RunCommand {
         try await run(with: runOptions)
     }
 
-    /// `--mutant` tests one of the plan's mutants on its own, which no stopped run of the plan can continue.
+    /// `--mutant` tests one of the plan's mutants on its own, which no stopped run of the plan can continue. A stopped
+    /// run writes each report's partial report beside it, which no other report may take.
     func validate() throws {
         if testPlanURL == nil {
             throw MuterError.literal(reason: "Please provide the path to the test plan json.")
         }
+        try reportOptions.validateForARun()
         if lone.mutant != nil, resuming.resume != nil {
             throw ValidationError("--mutant can't be given with --resume.")
         }

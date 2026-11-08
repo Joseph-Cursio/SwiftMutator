@@ -307,6 +307,43 @@ final class ConfigurationParsingTests: MuterTestCase {
         XCTAssertEqual(set.overriding(workers: nil, timeout: nil).propertyTests, set.propertyTests)
     }
 
+    func test_parseReports() throws {
+        let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
+        let reports = { (line: String) in try MuterConfiguration(from: Data("\(swiftTest)\n\(line)".utf8)) }
+
+        // Split at the first colon only, as a path may hold one, and kept as written: a run resolves it when it saves.
+        let set = try reports("reports: [markdown:summary.md, 'html:out/a:b.html', json:/tmp/report.json]")
+        XCTAssertEqual(set.reports, [
+            ReportRequest(format: .markdown, path: "summary.md"),
+            ReportRequest(format: .html, path: "out/a:b.html"),
+            ReportRequest(format: .json, path: "/tmp/report.json"),
+        ])
+        XCTAssertNil(try MuterConfiguration(from: Data(swiftTest.utf8)).reports)
+        XCTAssertEqual(
+            set.reportRequests(in: URL(fileURLWithPath: "/project")).map(\.path),
+            ["/project/summary.md", "/project/out/a:b.html", "/tmp/report.json"]
+        )
+        let wrong = [
+            ("reports: [summary.md]", "reports: name the format and then the path"),
+            ("reports: [pdf:summary.pdf]", "start with one of the formats plain, json, html, markdown,"),
+            ("reports: ['markdown:']", "reports: give a path after the format"),
+            ("reports: [xcode:report.txt]", "reports: save the Xcode format with -f xcode"),
+            ("reports: markdown:summary.md", ""),
+            ("reports: 3", ""),
+        ]
+        for (line, reason) in wrong {
+            XCTAssertThrowsError(try reports(line), line) { error in
+                XCTAssertTrue(reason.isEmpty || "\(error)".contains(reason), "\(error)")
+            }
+        }
+        // Written back as they were, in YAML and in JSON, so a header records them, and `--report` replaces them.
+        XCTAssertEqual(try MuterConfiguration(from: set.asData), set)
+        XCTAssertEqual(try JSONDecoder().decode(MuterConfiguration.self, from: JSONEncoder().encode(set)), set)
+        let flag = [ReportRequest(format: .plain, path: "/out/report.txt")]
+        XCTAssertEqual(set.overriding(workers: nil, timeout: nil, reports: flag).reports, flag)
+        XCTAssertEqual(set.overriding(workers: nil, timeout: nil).reports, set.reports)
+    }
+
     // After the file's, so a header records both, and a resume compares them as it does the key.
     func test_excludeFromTheCommandLine_isAddedToTheFiles() throws {
         let configuration = MuterConfiguration(

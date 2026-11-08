@@ -55,6 +55,7 @@ struct LoadConfiguration: MutationStep {
                     buildTimeout: state.runOptions.buildTimeout,
                     failUnder: state.runOptions.failUnder,
                     propertyTests: state.runOptions.propertyTests,
+                    reports: state.runOptions.reports,
                     exclude: state.runOptions.exclude
                 )
             // As `--build-timeout` is, which takes its place: 0 would stop every build at once, and a limit past a day
@@ -64,6 +65,18 @@ struct LoadConfiguration: MutationStep {
                 throw MuterError.configurationParsingError(
                     reason: "buildTimeout must be a number of seconds above 0, and at most a day (86400), "
                         + "not \(String(format: "%g", buildTimeout))."
+                )
+            }
+            // As `--report`'s are, which take their place: each saved report needs a file of its own.
+            let outputs = Self.outputs(of: state.runOptions, resolved, in: fileManager)
+            if let clash = ReportRequest.clash(among: outputs, ofARun: true) {
+                throw MuterError.configurationParsingError(reason: "\(clash): give each report a path of its own.")
+            }
+            // Saving replaces whatever is at the path, a folder and everything in it too, as `report` refuses: now,
+            // not when the run ends.
+            if let folder = outputs.first(where: { fileManager.isDirectory(atPath: $0.path) }) {
+                throw MuterError.configurationParsingError(
+                    reason: "\(folder.path) is a folder: name the file to save the report to, in \(folder.option)."
                 )
             }
             if let reason = resolved.propertyRerunsUnsupportedReason {
@@ -84,6 +97,19 @@ struct LoadConfiguration: MutationStep {
         } catch {
             throw MuterError.configurationParsingError(reason: "\(error)")
         }
+    }
+
+    /// The reports a run with `options` and `configuration` saves, by how a refusal names each: `-o`'s, then those of
+    /// `--report`, or else of `reports:`, resolved against the project's folder, the current one.
+    private static func outputs(
+        of options: Run.Options,
+        _ configuration: MuterConfiguration,
+        in fileManager: FileSystemManager
+    ) -> [ReportRequest.Output] {
+        let option = options.reports == nil ? "reports:" : "--report"
+        let folder = URL(fileURLWithPath: fileManager.currentDirectoryPath)
+        return (options.reportOptions.path.map { [("-o \($0)", $0)] } ?? [])
+            + configuration.reportRequests(in: folder).map { ("\(option) \($0)", $0.path) }
     }
 
     /// Turns a bare command name in `executable` into the absolute path it resolves to on `PATH`.

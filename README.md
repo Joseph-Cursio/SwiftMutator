@@ -221,6 +221,10 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   with 3. So does an xcodebuild project that doesn't build for testing, which exited with 255. A
   failed baseline's message lists its failed tests, up to 20, before its log. See
   [Time limits before the first mutant](#time-limits-before-the-first-mutant).
+- **Several reports from one run, and a Markdown report** ([#119](https://github.com/Joseph-Cursio/SwiftMutator/issues/119)):
+  `--report format:path`, repeatable, or the `reports:` key, saves more reports beside `-f`'s, each in
+  its own format, from one run or one `swift-mutator report`. `-f markdown` makes a short report for a
+  GitHub job summary. See [Reports](#reports).
 - **Disable tags act once, by where they are:** the nodes that share a `// muter:disable` or
   `// muter:enable` used to take turns acting on it, so a tag beside code could silently fail,
   depending on how many nodes shared it. Now a tag beside code leaves that code off: a `disable`
@@ -711,6 +715,9 @@ coverage leaves out with `--skip-coverage`. The other 7 are in blocks the tests 
 
 `run --mutant` reports what its one run shows and tests nothing again.
 
+"Not covered" counts only mutants that were made and tested. With coverage on, a mutant in code no
+test ran is never made, so no report or count has it: see [Reports](#reports).
+
 ## Reports
 
 The plain and HTML reports start with the mutants to act on: those that survived, and those that
@@ -748,6 +755,10 @@ Sources/Lint/Rules.swift:42:17 survived: RelationalOperatorReplacement (changed 
   a crash counted as a kill: `By outcome: 98 killed, 15 survived, 4 timed out, 3 build errors, 2 not covered` in
   the plain and HTML reports, `Mutants by outcome:` in the Xcode format, and `mutantsByOutcome` in
   the JSON report, with every count, zeros included.
+- **What coverage leaves out.** With coverage on, a mutant in code that coverage says no test ran is
+  never made, so no report, count, `--verbose` list or results file has it, and the score leaves it
+  out. A file no test ran shows as one `skipped (no coverage)` row. "Not covered" counts only the
+  mutants that were made and tested, but whose block didn't run. `--skip-coverage` makes them all.
 - **The score when a run ends.** A run that saves its report with `-o` doesn't print it, so it
   prints the score and the counts before saying where the report went:
 
@@ -774,6 +785,44 @@ Sources/Lint/Rules.swift:42:17 survived: RelationalOperatorReplacement (changed 
   Toolchain: Apple Swift version 6.2 (swiftlang-6.2.0.19.9 clang-1700.3.19.1)
   Workers: 4; time limit per mutant: 24 s, the default
   ```
+
+### Several reports, and the Markdown report
+
+`-f` picks the format of the report a run prints, or saves with `-o`. `--report format:path` also
+saves a report in another format, as `markdown:summary.md`, `html:report.html` or `json:report.json`;
+give it once for each. A run without `--report` saves those the `reports:` key lists, such as
+`reports: [markdown:summary.md, html:report.html]`; `--report` takes their place. Either way `-f`'s
+report is still the one printed when there is no `-o`, and the others are only saved, each said with
+its own `📝 Report generated:` line, or a warning when it couldn't be saved, which changes no exit
+status. A relative path is resolved against the current folder, the project's for a run, and a
+leading `~` is your home folder, which a shell doesn't expand after `markdown:`. Two reports can't
+share a file, nor can a run's take the path of another's partial report, and a path that is a folder
+is refused before the run starts: saving would replace it. Two spellings of one file, such as
+`Report.md` and `report.md` on a volume that ignores case, are found only once the first is saved,
+so the second isn't saved, and is said as not saved. `xcode` isn't taken: its warnings are printed
+as each mutant finishes, which only `-f xcode` does.
+
+`swift-mutator report` takes `--report` too, never the `reports:` its results file's header records,
+which would replace the run's own files. Each report is checked as `-o`'s is, and said with its own
+`Report saved to` on standard error; none goes to standard output.
+
+`-f markdown` is short enough for a GitHub job summary: the score, the score without suspect tests,
+the coverage and what part of the project was tested, the warnings the run ends with, a table of the
+counts by outcome, the scores by file, and the surviving mutants and those not covered, by file, up
+to 100 of each, as the JSON report lists them all. With coverage gathered it ends with a line on what
+coverage leaves out. In GitHub Actions:
+
+```yaml
+- run: swift-mutator --report markdown:"$GITHUB_STEP_SUMMARY" -o report.html -f html
+```
+
+Each step has a summary file of its own, so earlier steps' summaries are kept, but saving replaces
+the step's file, and so whatever the same step wrote there before. To add to that, make the report of
+the run's results file instead:
+
+```yaml
+- run: swift-mutator report -f markdown "path/to/results.jsonl" >> "$GITHUB_STEP_SUMMARY"
+```
 
 ### Triaging survivors
 
@@ -880,6 +929,7 @@ status and its log say why it stopped.
   "mutantsByOutcome" : { "buildErrors" : 0, "killed" : 1024, "notCovered" : 0, "survived" : 75, "timedOut" : 4 },
   "mutationScore" : 92,
   "report" : "report.html",
+  "reports" : [ "summary.md" ],
   "run" : { "resultsFiles" : [ "…/results.jsonl" ], "sessions" : 1, "workers" : 4, … }
 }
 ```
@@ -896,13 +946,14 @@ status and its log say why it stopped.
 | `codeCoverage` | The project's coverage, percent. Left out when it wasn't gathered. |
 | `mutant` | For a run of one mutant (`--mutant`), its key. |
 | `shards` | When it covers only some shards of a `--shard` split, so its score isn't the whole run's: `indices`, `count` and `mutantsInAllShards`, as the JSON report's. |
-| `report` | The report `-o` saved, or a stopped run's partial report. Left out when none was saved. |
+| `report` | The report `-o` saved, or a stopped run's partial report beside it. Left out when none was saved. |
+| `reports` | The other reports saved, in order: those `--report` or `reports:` asked for, or a stopped run's partial reports beside them. Left out when none was saved. |
 | `run` | As the JSON report's. Left out when the results file couldn't be made, or written in full. |
 | `gate` | With a `--fail-under` or `failUnder`, the verdict on the score: `failUnder`, the threshold checked; `score`, the exact score compared, which is `mutationScore`'s but with any mutant taken out of the build with others counted as not killed; `passed`; or, when it wasn't checked, `notChecked`, one of `oneMutant`, `shard`, `endedEarly`, `stoppedOnAnError` and `lacksResults`, without `score` and `passed`. A run whose every mutant was a build error has `passed` false and no `score`. Left out without a threshold. See [Failing on a low score](#failing-on-a-low-score). |
 | `formatVersion` | 2, since `mutantsByOutcome.survived` no longer holds [mutants no test reached](#whether-a-mutants-code-ran), which are in `notCovered`. It goes up only when a key is taken out or changes its meaning. |
 
 `swift-mutator report --summary <path>` writes one from a results file, or from shards' files
-merged. It never replaces the results file or the report.
+merged. It never replaces the results file or a report.
 
 ## Leaving code out
 
@@ -975,17 +1026,19 @@ the JSON file alone. The options are documented in
 | `propertyTestFilter` | A list of test filters that select the property tests alone, as `swift test --filter` or xcodebuild's `-only-testing:` takes them: once every mutant is tested, each kill whose recorded tests include no property test is tested again with only those tests (default: unset, which tests none again; needs `propertyTests`) |
 | `operators` | A list of the operators to use, at least one (default: all of them). See [Choosing the operators](#choosing-the-operators) |
 | `skipOperators` | A list of the operators to leave out (default: none). See [Choosing the operators](#choosing-the-operators) |
+| `reports` | A list of more reports a run saves beside `-f`'s, each `format:path`, as `markdown:summary.md`; a relative path is the project's (default: unset, which saves none; never `xcode`; see [Several reports, and the Markdown report](#several-reports-and-the-markdown-report)) |
 | `buildTimeout` | Seconds, above 0 and at most a day, before each step ahead of the first mutant that builds your project and runs its tests is stopped: the coverage run, each xcodebuild build for testing, each baseline run, and a worker clone's. The direct and timed test runs, which follow the baseline and don't build, get a shorter limit (default: no limit; see [Time limits before the first mutant](#time-limits-before-the-first-mutant)) |
 
 `--workers N` and `--timeout S`, on `run` and `run-without-mutating`, set `mutationTestWorkers`
 and `mutationTestTimeout` for one run, in place of the file's
 ([#73](https://github.com/Joseph-Cursio/SwiftMutator/issues/73)), as `--fail-under P` sets
-`failUnder`, and `--build-timeout S`, on those and `mutate-without-running`, sets `buildTimeout`.
+`failUnder`, `--report format:path` sets `reports`, and `--build-timeout S`, on those and
+`mutate-without-running`, sets `buildTimeout`.
 `--workers` must be at least 1, and `--timeout` and `--build-timeout` above 0 and at most a day,
 86,400 seconds. The run records and compares them as it does the keys: a resume with a `--timeout` at
 least as long as every session's limit tests only the timeouts again (see
 [Timeouts are run again](#timeouts-are-run-again)), one that is shorter is refused, and another
-`--workers` or `--fail-under` is only said. A run that tests several mutants at
+`--workers`, `--fail-under` or `--report` is only said. A run that tests several mutants at
 once says so, and one that uses fewer workers than asked says why:
 
 ```
@@ -1645,10 +1698,11 @@ is beside the project, not in it, so from the project's folder, where `run` is r
 swift-mutator report "../SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM" -f html -o report.html
 ```
 
-- **What it takes.** The results file, or a log folder of any of the run's sessions. `-f` and `-o`
-  work as in `run`. Without `-o` the report goes to standard output alone, so
-  `-f json > report.json` gives valid JSON. `--summary <path>` also saves the run's
-  [summary.json](#summaryjson) there.
+- **What it takes.** The results file, or a log folder of any of the run's sessions. `-f`, `-o` and
+  `--report` work as in `run`, but the `reports:` the run's header records are never saved again:
+  that would replace the run's own files. Without `-o` the report goes to standard output alone, so
+  `-f json > report.json` gives valid JSON; a `--report` never writes there. `--summary <path>` also
+  saves the run's [summary.json](#summaryjson) there.
 - **A finished run** gets its own report back, in any format. Only what depends on when and where a
   report is made can differ, such as the time in the HTML report's footer. A run by an older
   SwiftMutator, which tested a file's mutants by operator and put line 10 before line 9, gets them
@@ -1972,10 +2026,11 @@ after it, has nothing to keep: the results file starts only after them all.
 - **The partial report.** With `-o report.txt`, the mutants tested so far are reported in
   `report.partial.txt` beside it, in the format `-f` chose, and `-o report` gives `report.partial`.
   The stop never writes or removes `report.txt`, so a complete report from an earlier run is kept.
-  A later run that finishes leaves an old partial report alone. Without `-o` there is no partial
-  report: the summary and `results.jsonl` say what was tested, and `swift-mutator report` makes a
-  report from `results.jsonl` in any format. If no mutant had finished, there is no partial report
-  either.
+  A later run that finishes leaves an old partial report alone. Each report `--report` or
+  `reports:` asks for gets its own beside it, in its own format, with `-o` or without:
+  `markdown:summary.md` gives `summary.partial.md`. Without any of them there is no partial report:
+  the summary and `results.jsonl` say what was tested, and `swift-mutator report` makes a report
+  from `results.jsonl` in any format. If no mutant had finished, there is no partial report either.
 - **Stopping at once.** Press Ctrl-C again, or send any second SIGINT, SIGTERM or SIGHUP, to stop at
   once. Ctrl-\\ (SIGQUIT) stops at once even as the first signal. SwiftMutator does the same by
   itself if stopping takes more than 30 seconds. It still kills every process it started, ends
@@ -2110,12 +2165,12 @@ SwiftMutator copies the project is refused after the copy, so that message doesn
 
 | Since the last session | Resuming |
 |---|---|
-| A configuration key changed (`exclude` by `--exclude` too, compared as a set), other than `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests` and `propertyTestFilter`; `operators` and `skipOperators` are compared by the operators they choose, in the next rows | Refused: start a new run |
+| A configuration key changed (`exclude` by `--exclude` too, compared as a set), other than `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests`, `propertyTestFilter` and `reports`; `operators` and `skipOperators` are compared by the operators they choose, in the next rows | Refused: start a new run |
 | `mutationTestTimeout` (or `--timeout`) is at least as long as every session's `timeoutSeconds` | Goes ahead, says so, and tests the timeouts under a shorter limit again |
 | The operators chosen, by `--operators`, `--skip-operators`, `operators` or `skipOperators`, `--files-to-mutate` or `--skip-coverage` changed | Refused: start a new run |
 | `--since`'s merge base or `--changed-lines` changed, or `--since` given in one session only | Refused: start a new run. `--reuse` doesn't compare them |
 | `--shard` changed, or given in one session only | Refused: start a new run. `--reuse` doesn't compare it |
-| `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests` or `propertyTestFilter` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
+| `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests`, `propertyTestFilter` or `reports` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
 | SwiftMutator, the toolchain or the SDK changed | Refused, unless `--force-resume` is given |
 | Project files changed, were added or were removed | Refused, unless a `--resume-ignoring` glob matches each one |
 | Another SwiftMutator holds the file, because its run is still going | Refused with status 6, naming the process that holds it, and its host: wait for that run to end. If an older SwiftMutator holds it, which doesn't say, it names the process and host that wrote the file's last session, which may not be the one |

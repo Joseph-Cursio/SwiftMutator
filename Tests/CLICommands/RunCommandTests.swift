@@ -59,6 +59,8 @@ final class RunCommandTests: XCTestCase {
         XCTAssertNotEqual(Run.Options.make(planIgnoring: ["Sources/*"]), .make())
         XCTAssertNotEqual(Run.Options.make(mutant: MutantReference(path: "Bar.swift", line: 12)), .make())
         XCTAssertNotEqual(Run.Options.make(failUnder: 80), .make())
+        XCTAssertNotEqual(Run.Options.make(reports: [ReportRequest(format: .markdown, path: "/out/r.md")]), .make())
+        XCTAssertNotEqual(Run.Options.make(reports: []), .make())
     }
 
     // Both commands that test mutants take it, and `run` skips coverage for it, which only leaves files and code out of

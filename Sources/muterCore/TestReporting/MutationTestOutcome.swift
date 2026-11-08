@@ -29,6 +29,10 @@ struct MutationTestOutcome {
     /// (`PropertyKillSummary`): the run's configuration's, or its last session's as its header records it, unless
     /// `report --property-tests` gives others. Empty splits none.
     var propertyTests: [String]
+    /// The reports a run saves besides `-f`'s: its configuration's `reports`, or `--report`'s, with their paths
+    /// resolved. Empty for an outcome read from a results file, as `report` saves only those its own `--report` asks
+    /// for.
+    let reports: [ReportRequest]
     /// The labels people gave surviving mutants (`TriageFile`), which the reports show; nil without a file.
     var triage: TriageFile?
     /// The control runs, with no mutant on, of every session the outcome covers, in the order they're recorded.
@@ -58,6 +62,7 @@ struct MutationTestOutcome {
         suspectTestThresholds: SuspectTestThresholds = .standard,
         failUnder: Double? = nil,
         propertyTests: [String] = [],
+        reports: [ReportRequest] = [],
         triage: TriageFile? = nil,
         controlRuns: [ControlRun] = [],
         projectPath: String = "",
@@ -78,6 +83,7 @@ struct MutationTestOutcome {
         self.suspectTestThresholds = suspectTestThresholds
         self.failUnder = failUnder
         self.propertyTests = propertyTests
+        self.reports = reports
         self.triage = triage
         self.controlRuns = controlRuns
         self.projectPath = projectPath

@@ -139,6 +139,89 @@ final class LoadConfigurationTests: MuterTestCase {
         XCTAssertEqual(configuration.buildTimeout, 600)
     }
 
+    // In its place, as --property-tests is: the run saves only the reports the command line asks for. The key's paths
+    // stay as written, which the header records.
+    func test_reportFlag_replacesItsKey() async throws {
+        let key = "executable: /usr/bin/swift\narguments: [test]\nreports: [markdown:summary.md]\n"
+        let flag = [ReportRequest(format: .html, path: "/out/report.html")]
+        for (options, expected) in [
+            (Run.Options.make(reports: flag), flag),
+            (.make(), [ReportRequest(format: .markdown, path: "summary.md")]),
+        ] {
+            fileManager.fileExistsToReturn = [false, true]
+            fileManager.fileContentsToReturn = Data(key.utf8)
+            state.runOptions = options
+
+            let result = try await sut.run(with: state)
+
+            guard case let .configurationParsed(configuration)? = result.last else { return XCTFail("\(result)") }
+            XCTAssertEqual(configuration.reports, expected)
+        }
+    }
+
+    // As --report's are: each needs a file of its own, resolved against the project's folder, which -o's is beside.
+    func test_reportsThatClash_withOutputOrEachOther_areRefused() async throws {
+        let clashes = [
+            (
+                Run.Options.make(reportURL: URL(fileURLWithPath: "\(fixturesDirectory)/summary.md")),
+                "-o \(fixturesDirectory)/summary.md and reports: markdown:\(fixturesDirectory)/summary.md would save "
+                    + "to the same file"
+            ),
+            (
+                .make(reportURL: URL(fileURLWithPath: "\(fixturesDirectory)/summary.partial.md")),
+                "-o \(fixturesDirectory)/summary.partial.md would save where reports: "
+                    + "markdown:\(fixturesDirectory)/summary.md's partial report goes when a run stops"
+            ),
+        ]
+        for (options, clash) in clashes {
+            fileManager.fileExistsToReturn = [false, true]
+            fileManager.fileContentsToReturn = Data(
+                "executable: /usr/bin/swift\narguments: [test]\nreports: [markdown:summary.md]\n".utf8
+            )
+            state.runOptions = options
+
+            await assertThrowsMuterError(try await sut.run(with: state)) { error in
+                XCTAssertEqual(
+                    error,
+                    .configurationParsingError(reason: "\(clash): give each report a path of its own.")
+                )
+            }
+        }
+    }
+
+    // Saving would replace it and everything in it, so a run refuses it before it starts, as `report` does.
+    func test_aReportPathThatIsAFolder_isRefused() async throws {
+        let refusals = [
+            (
+                Run.Options.make(),
+                "\(fixturesDirectory)/Docs is a folder: name the file to save the report to, in reports: "
+                    + "markdown:\(fixturesDirectory)/Docs."
+            ),
+            (
+                .make(reports: [ReportRequest(format: .html, path: "\(fixturesDirectory)/Docs")]),
+                "\(fixturesDirectory)/Docs is a folder: name the file to save the report to, in --report "
+                    + "html:\(fixturesDirectory)/Docs."
+            ),
+            (
+                .make(reportURL: URL(fileURLWithPath: "\(fixturesDirectory)/Docs"), reports: []),
+                "\(fixturesDirectory)/Docs is a folder: name the file to save the report to, in -o "
+                    + "\(fixturesDirectory)/Docs."
+            ),
+        ]
+        fileManager.directoriesToReturn = ["\(fixturesDirectory)/Docs"]
+        for (options, reason) in refusals {
+            fileManager.fileExistsToReturn = [false, true]
+            fileManager.fileContentsToReturn = Data(
+                "executable: /usr/bin/swift\narguments: [test]\nreports: [markdown:Docs]\n".utf8
+            )
+            state.runOptions = options
+
+            await assertThrowsMuterError(try await sut.run(with: state)) { error in
+                XCTAssertEqual(error, .configurationParsingError(reason: reason))
+            }
+        }
+    }
+
     // After the file's entries, so the header records both.
     func test_excludeFlag_addsToTheKey() async throws {
         fileManager.fileExistsToReturn = [false, true]

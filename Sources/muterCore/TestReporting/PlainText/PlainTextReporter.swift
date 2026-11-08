@@ -32,7 +32,7 @@ struct PlainTextReporter: Reporter {
             for: report.globalMutationScore,
             appliedTo: "\(report.globalMutationScore)%"
         )
-        let projectCoverageMessage = coverageMessage(from: report, skipped: outcome.coverageSkipped)
+        let projectCoverageMessage = Self.coverageMessage(from: report, skipped: outcome.coverageSkipped)
         let mutationScoreMessage = "Mutation Score of Test Suite: ".bold + "\(coloredGlobalScore)"
         let mutationScoresMessage = """
         --------------------
@@ -198,7 +198,8 @@ struct PlainTextReporter: Reporter {
     }
 
     /// The project's coverage; without it, whether `--skip-coverage` skipped it or SwiftMutator failed to gather it.
-    private func coverageMessage(from report: MuterTestReport, skipped: Bool) -> String {
+    /// The Markdown report words it so too.
+    static func coverageMessage(from report: MuterTestReport, skipped: Bool) -> String {
         if let coverage = report.projectCodeCoverage {
             return "Code Coverage of your project: \(coverage)%"
         }

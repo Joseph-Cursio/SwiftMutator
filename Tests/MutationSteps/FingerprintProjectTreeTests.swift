@@ -58,6 +58,29 @@ final class FingerprintProjectTreeTests: MuterTestCase {
         XCTAssertEqual(state.projectTree, tree)
     }
 
+    // As -o's is, each report the configuration's reports: asks for, and its partial sibling, is left out: a resume
+    // after a stop that wrote one would otherwise find the project changed. One outside the project isn't named.
+    func test_theConfigurationsReports_andTheirPartialSiblings_areLeftOut() async throws {
+        state.muterConfiguration = MuterConfiguration(reports: [
+            ReportRequest(format: .markdown, path: "summary.md"),
+            ReportRequest(format: .html, path: "/elsewhere/report.html"),
+        ])
+        let copied = ["README.md": "readme", "summary.md": "an earlier report", "summary.partial.md": "a stop's"]
+        try write(copied, in: copy)
+        current.listProjectFiles = { _ in Array(copied.keys) }
+
+        let changes = try await sut.run(with: state)
+
+        let files = ["README.md": FileDigest.sha256(of: Data("readme".utf8))]
+        let tree = ProjectTree(
+            listedBy: .git,
+            files: files,
+            excluded: ["muter.conf.yml", "summary.md", "summary.partial.md"],
+            treeSHA256: ProjectTree.treeHash(of: files)
+        )
+        XCTAssertEqual(changes, [.projectTreeFingerprinted(tree)])
+    }
+
     // A git that stopping the run killed reads as no repository, so the step stops rather than hand on a walk's tree.
     func test_aListingTheStopKilled_throwsCancellation() async throws {
         try write(["Sources/Sum.swift": "sum"], in: copy)
