@@ -212,6 +212,14 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   counts for `RemoveSideEffects` on the statements after it. So a file with such tags can find
   different mutants. See
   [Disable muter in code](Docs/Muter-README.md#disable-muter-in-code).
+- **Directives match the word, and cover a line or a declaration:** a `muter:` directive counts only
+  as the first word of a comment, of any kind: `//`, `///`, `/* */` and `/** */`. A comment that only
+  mentions one, as `// TODO: muter:disable`, used to turn off the rest of the file, and one in `///`
+  or `/* */` did nothing. A `disable` beside the last element of a list, or its last argument or
+  case, no longer reaches the earlier ones. `// muter:disable-next-line` and
+  `// muter:disable-declaration` leave out one line or one declaration, with no `muter:enable` to forget
+  ([#115](https://github.com/Joseph-Cursio/SwiftMutator/issues/115)). See
+  [Leaving code out](#leaving-code-out).
 - **Logging through the injected printer**, so log output can be captured and tested.
 
 Fixes that apply to Muter are offered upstream too.
@@ -448,8 +456,8 @@ crash, or test timeout`. A log can't show that it was: on a Mac, the crash repor
 the top of the crashed thread. Swift Testing's tests under xcodebuild leave no such line, only the test's
 name under `Failing tests:`.
 
-To go on, leave that function out: its file with `exclude`, or the function alone with `// muter:disable`
-before it and `// muter:enable` after it.
+To go on, leave that function out: its file with `exclude`, or the function alone with
+`// muter:disable-declaration` above it (see [Leaving code out](#leaving-code-out)).
 
 ## Mutants that don't compile
 
@@ -841,6 +849,44 @@ status and its log say why it stopped.
 
 `swift-mutator report --summary <path>` writes one from a results file, or from shards' files
 merged. It never replaces the results file or the report.
+
+## Leaving code out
+
+A comment that starts with a `muter:` directive leaves code out of a run:
+
+```swift
+// muter:disable-declaration
+func render() {          // render and all it holds are left out
+    draw()
+}
+
+func update() {
+    // muter:disable-next-line
+    cache.removeAll()    // this line is left out
+    recompute()          // this one is mutated
+}
+
+// muter:disable
+func a() { … }           // left out, as is everything up to the muter:enable
+// muter:enable
+```
+
+- `muter:disable-declaration` leaves out the declaration it is above, past any doc comment, attribute
+  (a `#if` of attributes too) or modifier between them: a function, initializer, type, extension,
+  property, subscript, accessor, enum case or `#if`. Above anything else, it leaves out the statement,
+  `switch` case, element or argument that starts there. Beside code, it leaves out the declaration
+  that starts the line, a multi-line string's first line included.
+- `muter:disable-next-line` leaves out the mutants on the line after the comment's own, beside code
+  or not: those whose code starts there, and those reported there, as a ternary's swap is at its end.
+  A blank line after it leaves out nothing.
+- `muter:disable` leaves out what follows, until a `muter:enable` or the end of the file. Beside code,
+  a `disable` also covers the statement, case, element or argument it ends, and an `enable` starts
+  after the code it's beside. Of several together, the last one decides.
+
+A directive is the comment's first word, so `// muter:disable because it's generated` counts, and
+`// see muter:disable` or `// muter:disabled` doesn't. Any kind of comment works: `//`, `///`,
+`/* */` and `/** */`. Code a directive leaves out has no mutants, and isn't counted among those
+dropped. A file is left out by [`exclude`](Docs/Muter-README.md#configuration-options).
 
 ## Configuration
 

@@ -143,8 +143,8 @@ private extension MutationTestingAbortReason {
 
             On a Mac, the crash report in ~/Library/Logs/DiagnosticReports says "Thread stack size exceeded" if that's \
             what happened, and the function that repeats at the top of its crashed thread is the one. Leave that \
-            function's file out with the "exclude" option in your \(MuterConfiguration.fileNameWithExtension), or put \
-            // muter:disable before the function and // muter:enable after it. A test plan needs making again after that.
+            function's file out with the "exclude" option in your \(MuterConfiguration.fileNameWithExtension), or \
+            put // muter:disable-declaration above the function. A test plan needs making again after that.
             """
         }
 

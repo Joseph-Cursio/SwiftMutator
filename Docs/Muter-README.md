@@ -295,7 +295,7 @@ functionA() // muter:enable
 functionB() // functionB is mutated, functionA isn't
 ```
 
-Only `//` comments count. Of several tags together, the last one decides.
+A tag counts only as the first word of a comment, of any kind, so `// see muter:disable` does nothing. Of several tags together, the last one decides. SwiftMutator also has `muter:disable-next-line` and `muter:disable-declaration`: see [Leaving code out](../README.md#leaving-code-out).
 
 ## Mutant Schemata
 
