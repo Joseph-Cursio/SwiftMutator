@@ -192,6 +192,7 @@ extension MergedShards {
             }
         )
         outcome.run = RunDetails(of: parts.map { ($0.path, $0.recorded.headers) })
+        outcome.uncoveredMutants = uncoveredMutants
         guard !waived.isEmpty else { return outcome }
         var digests = outcome.sourceDigests ?? [:]
         for path in waived {
@@ -199,6 +200,20 @@ extension MergedShards {
         }
         outcome.sourceDigests = digests
         return outcome
+    }
+
+    /// The mutants of code no test ran of every shard given, as their last sessions' headers record them: their union,
+    /// each once by its key, sorted by it. A shard records those it holds (`Shard.holds`), so each is in one shard's.
+    /// nil when a shard's header doesn't record them, which isn't to say it has none
+    /// (`ResultsHeader.mutantsNotCovered`).
+    var uncoveredMutants: [UncoveredMutant]? {
+        var seen: Set<MutantKey> = []
+        var all: [UncoveredMutant] = []
+        for part in parts {
+            guard let recorded = part.header.knownMutantsNotCovered else { return nil }
+            all += recorded.filter { seen.insert($0.key).inserted }
+        }
+        return all.sorted { $0.key.comesBefore($1.key) }
     }
 
     /// What stands for the hash of a file that differs between the shards: no file has it.

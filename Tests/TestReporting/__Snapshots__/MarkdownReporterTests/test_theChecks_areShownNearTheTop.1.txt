@@ -1,0 +1,34 @@
+## Mutation testing
+
+**Mutation score: 33% (1 killed, 2 survived)**
+
+SwiftMutator could not gather coverage data from your project
+
+### Checks
+
+❌ Mutation score 33.3% is below the required 50%.
+
+⚠️ The baseline file muter.baseline.yml was written by SwiftMutator 0.0.9, and these survivors by 0.1.0: a new or changed operator's mutants may show as new survivors.
+
+❌ 2 new survivors against the baseline file muter.baseline.yml, more than the 0 allowed: 41 still survive, 3 fixed.
+
+| New survivor | Change |
+| :--- | :--- |
+| `Sources/Rules.swift:4:9 RelationalOperatorReplacement` | `==` → `!=` |
+| `Sources/Rules.swift:8:9 RelationalOperatorReplacement` | `a \|\| b` → `a` |
+
+| Killed | Survived | Total |
+| ---: | ---: | ---: |
+| 1 | 2 | 3 |
+
+### Scores by file
+
+| File | Mutants | Score |
+| :--- | ---: | ---: |
+| `Sources/Rules.swift` | 3 | 33% |
+
+### Surviving mutants (2)
+
+- `Sources/Rules.swift`
+  - `4:9` RelationalOperatorReplacement: changed == to !=
+  - `8:9` RelationalOperatorReplacement: changed == to !=

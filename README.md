@@ -278,11 +278,15 @@ mutant on its own (see [Testing one mutant](#testing-one-mutant)).
 `run`, `mutate-without-running` and `run-without-mutating` exit with:
 
 - **0** when the run finished, and met `--fail-under` or `failUnder` (see
-  [Failing on a low score](#failing-on-a-low-score)), and when there is nothing to mutate, as for a
-  `--since` change with no Swift file, or a `--shard` that holds no mutant.
+  [Failing on a low score](#failing-on-a-low-score)) and `--baseline`'s limit on new survivors (see
+  [Failing on new survivors](#failing-on-new-survivors)), and when there is nothing to mutate, as for
+  a `--since` change with no Swift file, or a `--shard` that holds no mutant.
 - **2** when the run finished with its headline score below `--fail-under` or `failUnder`, or with
-  every mutant a build error, whatever the threshold. Every report, the results file and
-  `summary.json` were written first.
+  every mutant a build error, whatever the threshold, or with more new survivors against
+  `--baseline`'s file than `--max-new-survivors` allows. Every failed check exits with 2. Every
+  report, the results file and `summary.json` were written first, but for a `--baseline` run whose
+  chosen code holds only mutants of code no test ran, which compares them as discovery ends and
+  writes none (see [Failing on new survivors](#failing-on-new-survivors)).
 - **3** when the baseline run, with no mutant on, failed in the project's copy, or in a parallel
   worker's clone of it when `mutationTestWorkers` or `--workers` asked for those workers, for any
   reason but [mutants that don't compile](#mutants-that-dont-compile) outside a test plan, or an
@@ -305,6 +309,11 @@ mutant on its own (see [Testing one mutant](#testing-one-mutant)).
   copy of the project isn't there (see [The test plan](Docs/test-plan.md#when-a-plan-is-refused)).
   Nothing was tested. The message says what would let it through, such as `--plan-ignoring`. A
   folder without `muter.conf.yml`, and no `--configuration`, stops on that first, with 255.
+- **8** when `--baseline`'s file is refused: there is none at the path, it can't be read, it holds a
+  key SwiftMutator doesn't know or is of a newer format, or it records a run of another scope, such
+  as other operators or another configuration (see
+  [Failing on new survivors](#failing-on-new-survivors)). Nothing was tested. The message lists
+  every reason.
 - **64** for a usage error, such as `--workers 0`. `run-without-mutating` without a test plan's
   path exits with 1.
 - **255** for any other error, such as a missing configuration or one that doesn't parse, a
@@ -367,6 +376,152 @@ for the key a configuration error, 255.
 - **summary.json** records the verdict in `gate` (see [summary.json](#summaryjson)).
 
 A resume lets the threshold change, as no result depends on it: the change is only said.
+
+### Failing on new survivors
+
+A project with survivors it hasn't killed yet can't fail a pull request on any survivor at all, and
+`--fail-under` lets a change add survivors as long as the score stays above the threshold.
+`--baseline <file>` fails a run that adds survivors instead
+([#120](https://github.com/Joseph-Cursio/SwiftMutator/issues/120)): it compares the run's survivors
+with those of a *baseline file*, which `--write-baseline <file>` saves from a whole run, and the
+run fails when more of them are new than `--max-new-survivors` allows, 0 unless it says otherwise.
+The three flags are on `run`, `run-without-mutating` and `report`; there is no key for them in
+`muter.conf.yml`. A baseline file isn't the baseline run, the run with no mutant on that exits with 3
+when it fails.
+
+The workflow: a job on the main branch runs with `--write-baseline muter.baseline.yml` and commits
+the file, and each pull request's job runs with `--baseline muter.baseline.yml`. The same path can
+be given to both flags, as a main-branch job that checks itself and updates the file does: the file
+is read as the run starts, and replaced at the end.
+
+```yaml
+# On a pull request.
+- run: swift-mutator --baseline muter.baseline.yml --report markdown:"$GITHUB_STEP_SUMMARY"
+
+# On the main branch, then commit muter.baseline.yml.
+- run: swift-mutator --write-baseline muter.baseline.yml
+```
+
+- **What a survivor is.** A mutant the tests didn't kill: one that survived, timed out, or whose
+  code no test ran. A timeout and a survivor flip between runs (see
+  [Timeouts are run again](#timeouts-are-run-again)), and both count against the score, so the file
+  counts them as one: a survivor that times out now is still the same survivor. The file records
+  how each survived, for reading only.
+- **Code no test ran counts.** With coverage on, as by default, a run makes no mutant in code no test
+  ran, so a pull request that adds a function no test calls, or a file no test reaches, would add no
+  survivor. Here such mutants count as survivors not covered, though no score counts them: those of
+  a region no test ran, and those of a file the coverage data names at or below
+  `coverageThreshold`, a file of a target the tests build that no test reaches included. Discovery
+  keys them as a run with `--skip-coverage` would, so the file records them (`outcome: notCovered`),
+  a new one fails the check, and one a test comes to run is fixed if the test kills it, and still
+  survives if not. A file of a target no test builds, as an example app's or an unused target's, is
+  in no coverage data, so it is left out, as it is from every run with coverage: a pull request that
+  adds such a target adds no survivor. The verdict marks them `(coverage left it out)`: with a
+  `coverageThreshold` above 0, a file below it is left out whole, lines a test ran included. With
+  `--skip-coverage` they are made and tested instead; the file records which (`scope.skipCoverage`),
+  and refuses a run that differs.
+- **When only such code changed.** A `--since` run whose chosen code holds no mutant to test, but
+  mutants of code no test ran, as for a change that adds only a function no test calls, or only a
+  file no test reaches, would have nothing to mutate, and pass. With `--baseline` it compares those
+  mutants as discovery ends instead, says so, and exits with the check's status, 2 when too many are
+  new; so does a whole run, or one of `--files-to-mutate`, with no file to mutate but such files.
+  Nothing is tested, so no report, results file or `summary.json` is written. Of a split, the first
+  shard compares them.
+- **Test plans.** `mutate-without-running` records the mutants of code no test ran in the plan, and
+  `run-without-mutating` compares them, and records them, as a run does. A plan an older
+  SwiftMutator made doesn't record them: its run writes no baseline file, and says so, and its
+  verdict says new code no test ran isn't seen.
+- **How a survivor is matched.** A mutant's key holds its line and column, which any edit above it
+  changes, so a survivor is matched by what it changes, as a triage label is (see
+  [Triaging survivors](#triaging-survivors)): its file, operator, the code it replaces and with what,
+  and the line it's on, without its indent. One recorded at its own key matches there; otherwise it
+  follows its code to a survivor anywhere in its file that changes the same thing on the same line.
+  Survivors are counted, not named, so two identical survivors on two identical lines match two
+  entries, and a third is new. The file's entries are matched with the run's survivors first, then
+  with its kills, which are *fixed*; an entry that matches neither is *not tested*.
+- **Its limits.** An edit to a mutant's own line, such as a renamed variable or a reformat, makes it
+  a new survivor, and its entry not tested. So does a file that was renamed or moved: nothing maps
+  its old path to its new one. When a file changed since the run tested it, or can't be read, as for
+  `report` on another machine than the run's, its line isn't known, and a survivor is matched by its
+  change alone; the verdict says how many were. A change that spans lines, or that its line holds more
+  than once, has no line either, in any run, so it is always matched by its change alone, and isn't
+  counted.
+- **When it is checked.** Once the run finishes, after every report and the baseline file
+  `--write-baseline` asks for are saved, and `summary.json` is written. Its verdict is the run's last
+  line, after the score's, then each new survivor, up to 20:
+
+  ```
+  ✅ No new survivors against the baseline file muter.baseline.yml: 41 still survive, 3 fixed.
+  ❌ 2 new survivors against the baseline file muter.baseline.yml, more than the 0 allowed: 41 still survive, 3 fixed.
+    Sources/Lint/Rules.swift:42:17 RelationalBoundary: < → <=
+    Sources/Lint/Report.swift:88:9 RemoveSideEffects: print(line) → removed line (coverage left it out)
+  ```
+
+  A file written by another SwiftMutator version is noted in a line before it: a new or changed
+  operator's mutants may show as new survivors.
+- **Runs that test only some mutants** are compared on the mutants they tested: a shard, `--since`,
+  `--sample` and `--files-to-mutate`. An entry for code the run didn't test is not tested, never
+  fixed, and never matches an identical survivor the run did test, which would hide it: the run
+  knows the mutants it left out, and matches their entries with them. `report` of a sample's, a
+  `--changed-lines` run's or an unfinished run's results doesn't know them, so it matches an entry
+  only at its own key, and a survivor that moved is new there. A run of one mutant (`--mutant`) says the survivors aren't compared, and a run that a
+  signal or an error stopped exits for that, and says nothing of them.
+- **The scope must be the same.** A run of other operators, or with or without `--skip-coverage`
+  where the file's run differed (its `scope.skipCoverage`), or with another `arguments`, `buildSystem`,
+  `coverageThreshold`, `exclude`, `excludeCalls` or `mutationTestTimeout`, after the flags that
+  override them, discovers or judges other mutants, so the file is refused as the run starts, with
+  status 8, and every difference listed. An `--exclude` adds to `exclude`, so a run with one needs a
+  baseline file written with it. `executable` isn't compared: it is an absolute path, which differs
+  between machines. A missing file, one that can't be read, an unknown key and a newer format are
+  refused the same way.
+- **Which results write one.** Only a whole run's: `--write-baseline` with `--mutant`, `--shard`,
+  `--sample`, `--since` or `--files-to-mutate` is a usage error, 64, and so is `--max-new-survivors`
+  without `--baseline`. A run that stops writes none, and says so in a warning, as for a report that
+  couldn't be saved; that changes no exit status. So does a run whose every mutant was a build error,
+  which tested none. `report --write-baseline` writes one from a results file of a run that
+  finished, or from every shard of a split, merged, when the shards discovered the same mutants;
+  not from results that don't record the mutants of code no test ran, as an older SwiftMutator's,
+  with coverage on, don't, and `report --baseline` of those says new code no test ran isn't seen.
+  `--write-baseline`'s path is made absolute against the folder the command was given in, as `-o`'s is.
+- **`report --baseline`** compares a results file's survivors, or the merged shards', and says its
+  verdict last, on standard error. The scope is the results header's. A run that stopped on an
+  error exits as it did, and shards whose merged report lacks results exit with 4, without
+  comparing, and without checking the scope; a run of one mutant (`--mutant`) is said not to be
+  compared, as a run says it. A run that didn't finish is compared on the results it has, and the
+  verdict says how many those are.
+- **The file.** YAML, sorted by path, line, column and operator, so its diff in a pull request
+  shows only the survivors that came and went. It records the score's counts too, for a later check
+  on the score. Name it `muter.baseline.yml` at the project's root: the project's files leave it out,
+  as they do `muter.triage.yml`, so committing a new one refuses no `--resume` and tests nothing
+  again in a `--reuse`. A baseline file elsewhere in the project is a project file.
+
+  ```yaml
+  # Written by swift-mutator --write-baseline. Commit it, and compare runs with it with --baseline.
+  formatVersion: 1
+  swiftMutator: 0.1.0
+  score:
+    killed: 812
+    scored: 1003
+  scope:
+    operators:
+    - RelationalBoundary
+    - …
+    skipCoverage: false
+    configuration:
+      arguments:
+      - test
+      coverageThreshold: 0
+      exclude: []
+      excludeCalls: []
+  survivors:
+  - mutant: Sources/Lint/Rules.swift:42:17 RelationalBoundary
+    outcome: survived
+    before: <
+    after: <=
+    line: if count < limit {
+  ```
+- **summary.json** records the verdict in `newSurvivors`, and the Markdown report shows it, with the
+  score's, in a Checks section near its top, with a table of the new survivors.
 
 ## Mutants outside function bodies
 
@@ -812,7 +967,8 @@ which would replace the run's own files. Each report is checked as `-o`'s is, an
 `Report saved to` on standard error; none goes to standard output.
 
 `-f markdown` is short enough for a GitHub job summary: the score, the score without suspect tests,
-the coverage and what part of the project was tested, the warnings the run ends with, a table of the
+the coverage and what part of the project was tested, the warnings the run ends with, the verdicts of
+`--fail-under` and `--baseline`, when either was given, a table of the
 counts by outcome, the scores by file, and the surviving mutants and those not covered, by file, up
 to 100 of each, as the JSON report lists them all. With coverage gathered it ends with a line on what
 coverage leaves out. In GitHub Actions:
@@ -915,7 +1071,7 @@ steps:
       category: mutation-testing
 ```
 
-`if: always()` uploads the alerts when `--fail-under` fails the step too, and `hashFiles` skips the
+`if: always()` uploads the alerts when `--fail-under` or `--baseline` fails the step too, and `hashFiles` skips the
 upload when the run wrote no report: one whose build or baseline failed writes none, and one stopped
 partway writes only `mutants.partial.sarif`, which would close the alerts of the mutants it didn't
 test.
@@ -1045,6 +1201,7 @@ status and its log say why it stopped.
 | `report` | The report `-o` saved, or a stopped run's partial report beside it. Left out when none was saved. |
 | `reports` | The other reports saved, in order: those `--report` or `reports:` asked for, or a stopped run's partial reports beside them. Left out when none was saved. |
 | `run` | As the JSON report's. Left out when the results file couldn't be made, or written in full. |
+| `newSurvivors` | With `--baseline`, the verdict on the survivors against its file: `baseline`, the file as given; `maxNewSurvivors`; `passed`; `new`, how many are new, and `newMutants`, each by its key; `newNotCovered`, how many of them no test ran the code of; `stillSurvive`, `fixed` and `notTested`, of the file's entries; and `matchedWithoutLine`. When they weren't compared, `notChecked`, one of `oneMutant`, `endedEarly`, `stoppedOnAnError` and `lacksResults`, without `passed`. Left out without `--baseline`. See [Failing on new survivors](#failing-on-new-survivors). |
 | `gate` | With a `--fail-under` or `failUnder`, the verdict on the score: `failUnder`, the threshold checked; `score`, the exact score compared, which is `mutationScore`'s but with any mutant taken out of the build with others counted as not killed; `passed`; or, when it wasn't checked, `notChecked`, one of `oneMutant`, `shard`, `endedEarly`, `stoppedOnAnError` and `lacksResults`, without `score` and `passed`. A run whose every mutant was a build error has `passed` false and no `score`. Left out without a threshold. See [Failing on a low score](#failing-on-a-low-score). |
 | `formatVersion` | 2, since `mutantsByOutcome.survived` no longer holds [mutants no test reached](#whether-a-mutants-code-ran), which are in `notCovered`. It goes up only when a key is taken out or changes its meaning. |
 
@@ -1571,6 +1728,11 @@ swift-mutator run --since origin/main --changed-lines -o report.txt
   its own in the project, such as a local package with its own `.git`, aren't seen, and
   SwiftMutator names those folders. A symbolic link to a Swift file is never chosen. A file renamed
   only in case, without `git mv`, is followed by its name on disk.
+- **New survivors.** `--baseline muter.baseline.yml` fails a pull request's run on the survivors
+  its change adds, against a baseline file a whole run on the main branch wrote (see
+  [Failing on new survivors](#failing-on-new-survivors)). A `--since` run compares only the mutants
+  it tested: a survivor in a file it didn't choose is not tested, never fixed. `--write-baseline`
+  can't be given with `--since`, as a baseline file holds a whole run's survivors.
 - **Measured** on SwiftProjectLint, with 4 workers
   ([Docs/since-2026-11.md](Docs/since-2026-11.md)): a four-file pull request took 2.7 min by
   whole files and 50 s by changed lines, against 27.3 min for the whole project, with every verdict
@@ -1642,6 +1804,10 @@ swift-mutator run --shard 1/2
     with 255 here.
   - **`--fail-under`** checks the merged score, the whole run's (see
     [Failing on a low score](#failing-on-a-low-score)). A shard's own run doesn't check it.
+  - **`--baseline` and `--write-baseline`** compare the merged survivors with a baseline file's, and
+    save them as one (see [Failing on new survivors](#failing-on-new-survivors)). A shard's own run
+    compares only its own mutants, and can't write one. A merge that lacks results compares nothing,
+    and one of only some shards writes none.
   - **One shard's file alone** is a merge of one, so a CI glob that finds one file is judged as one
     that finds two: its report says it covers that shard, and `report` fails if the others hold
     mutants. If they hold none, as in a small `--since` change, it is the whole run's report. The
@@ -1660,7 +1826,8 @@ swift-mutator run --shard 1/2
     checkout, and the run prints its path. Upload it, allowing for none, as an empty shard writes
     none.
   - The merging job downloads them, outside any checkout a later run uses, and gives them all to
-    `report`, with `--fail-under 80` to fail on a low score: the shard jobs don't check it. If none
+    `report`, with `--fail-under 80` to fail on a low score, or `--baseline muter.baseline.yml` to
+    fail on new survivors: the shard jobs don't check them. If none
     was written, as when every shard was empty, skip it: `report` given no file is a usage error,
     with status 64.
   - A worked GitHub Actions recipe is [#124](https://github.com/Joseph-Cursio/SwiftMutator/issues/124).
@@ -1819,8 +1986,10 @@ swift-mutator report "../SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM" -f 
   [Docs/results-file.md](Docs/results-file.md#stopped)).
 - **It exits with status 2** when `--fail-under` is given and the score is below it, every mutant
   was a build error, or a run that didn't finish has no results, once the report
-  is made (see [Failing on a low score](#failing-on-a-low-score)). A run's error status wins, and
-  then the score isn't checked.
+  is made (see [Failing on a low score](#failing-on-a-low-score)), or when `--baseline` is given and
+  more survivors are new than `--max-new-survivors` allows (see
+  [Failing on new survivors](#failing-on-new-survivors)). A run's error status wins, and then
+  nothing is checked. It exits with 8 when it refuses `--baseline`'s file, before any report.
 
 [Reports from the file](Docs/results-file.md#reports-from-the-file) has the details.
 
@@ -2274,8 +2443,8 @@ SwiftMutator copies the project is refused after the copy, so that message doesn
 
 A results file written before `--resume` existed can't be resumed, as it records no project files.
 Nor can a run of a test plan by `run`, or a run without one by `run-without-mutating` (see
-[Resuming a run of a test plan](Docs/test-plan.md#resuming-a-run-of-the-plan)). `-o` can't name the
-results file itself. `--force-resume` and `--resume-ignoring` work only with `--resume`; without it
+[Resuming a run of a test plan](Docs/test-plan.md#resuming-a-run-of-the-plan)). `-o`, `--report`
+and `--write-baseline` can't name the results file itself. `--force-resume` and `--resume-ignoring` work only with `--resume`; without it
 they are a usage error, with status 64.
 
 - **`--force-resume`** reuses the results although the SwiftMutator build (its executable's

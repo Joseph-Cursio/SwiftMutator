@@ -48,6 +48,9 @@ struct RunWithoutMutating: RunCommand {
             timeout: testing.timeout,
             buildTimeout: options.buildTimeout,
             failUnder: reportOptions.failUnder,
+            baseline: reportOptions.baseline,
+            maxNewSurvivors: reportOptions.allowedNewSurvivors,
+            writeBaseline: reportOptions.writeBaseline,
             propertyTests: reportOptions.propertyTestGlobs,
             resumeURL: resuming.resume,
             resumeIgnoring: resuming.resumeIgnoring,
@@ -61,8 +64,9 @@ struct RunWithoutMutating: RunCommand {
         try await run(with: runOptions)
     }
 
-    /// `--mutant` tests one of the plan's mutants on its own, which no stopped run of the plan can continue. A stopped
-    /// run writes each report's partial report beside it, which no other report may take.
+    /// `--mutant` tests one of the plan's mutants on its own, which no stopped run of the plan can continue, and whose
+    /// survivors make no baseline file. A stopped run writes each report's partial report beside it, which no other
+    /// report may take.
     func validate() throws {
         if testPlanURL == nil {
             throw MuterError.literal(reason: "Please provide the path to the test plan json.")
@@ -70,6 +74,11 @@ struct RunWithoutMutating: RunCommand {
         try reportOptions.validateForARun()
         if lone.mutant != nil, resuming.resume != nil {
             throw ValidationError("--mutant can't be given with --resume.")
+        }
+        if lone.mutant != nil, reportOptions.writeBaseline != nil {
+            throw ValidationError(
+                "--write-baseline can't be given with --mutant: a baseline file holds a whole run's survivors."
+            )
         }
     }
 }

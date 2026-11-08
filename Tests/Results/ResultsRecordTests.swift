@@ -44,6 +44,47 @@ final class ResultsRecordTests: XCTestCase {
         )
     }
 
+    // Absent when the session doesn't know them, and with `--skip-coverage`, which has none; empty when it looked and
+    // found none, so that results without them make no baseline file; otherwise each with its key and snapshot, read
+    // back as written.
+    func test_aHeaderRecordsTheMutantsOfCodeNoTestRan_andReadsThemBack() throws {
+        let state = MutationTestState()
+        let header = {
+            ResultsHeader(
+                session: 1,
+                startedAt: self.startedAt,
+                state: state,
+                logDirectory: "/logs",
+                configuration: .init(executable: "swift", arguments: []),
+                baselineSeconds: 1,
+                workers: 1,
+                mutantsDiscovered: 1,
+                mutantsToTest: 1,
+                provenance: .fixture
+            )
+        }
+        XCTAssertNil(header().mutantsNotCovered)
+        XCTAssertFalse(try line(header()).contains("mutantsNotCovered"))
+
+        let uncovered = UncoveredMutant(
+            key: MutantKey(path: "Sources/New.swift", mutationOperatorId: .ror, line: 4, column: 9, occurrence: 1),
+            snapshot: .make(before: "<", after: ">", description: "changed < to >")
+        )
+        state.apply([.mutantsNotCovered([uncovered])])
+
+        XCTAssertEqual(header().mutantsNotCovered, [uncovered])
+        let written = try line(header())
+        XCTAssertTrue(written.contains(#""mutantsNotCovered":[{"column":9,"line":4,"#), written)
+        XCTAssertEqual(try decode(ResultsHeader.self, from: written), header())
+        XCTAssertEqual(uncovered.key.description, "Sources/New.swift:4:9 RelationalOperatorReplacement (#2)")
+
+        state.apply([.mutantsNotCovered([])])
+        XCTAssertTrue(try line(header()).contains(#""mutantsNotCovered":[]"#))
+        state.runOptions = .make(skipCoverage: true)
+        XCTAssertNil(header().mutantsNotCovered)
+        XCTAssertEqual(header().knownMutantsNotCovered, [])
+    }
+
     func test_aMutantRecordRoundTrips() throws {
         let record = makeMutantRecord(fileSHA256: "404db321")
 

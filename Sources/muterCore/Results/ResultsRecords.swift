@@ -190,6 +190,21 @@ struct ResultsHeader: Codable, Equatable {
     /// Only in a session run with `--mutant`: the key of the one mutant it tested, as `MutantKey.description` gives it.
     /// No other run resumes or reuses its results, and its score isn't the project's.
     var mutant: String?
+    /// The mutants of code no test ran, which the session made none of, of the code it chose (`UncoveredMutant`),
+    /// sorted by key, which a baseline file records as survivors not covered, and `--baseline` compares; empty when
+    /// there are none. Absent with `skipCoverage`, which has none, and when the session doesn't know them: in a session
+    /// of one mutant, in one of a test plan that doesn't record them, and in any an older SwiftMutator wrote. Without
+    /// `skipCoverage`, absent isn't none: `report` then writes no baseline file, and says so. A resumed session
+    /// discovers them again.
+    var mutantsNotCovered: [UncoveredMutant]?
+}
+
+extension ResultsHeader {
+    /// The session's mutants of code no test ran, as `mutantsNotCovered` records them: none with `skipCoverage`, and
+    /// nil when the session doesn't record them, which isn't to say it has none.
+    var knownMutantsNotCovered: [UncoveredMutant]? {
+        mutantsNotCovered ?? (skipCoverage ? [] : nil)
+    }
 }
 
 /// The test plan a session tested: the path it was read from, absolute, the SHA-256 of its bytes, and which format and
@@ -292,7 +307,8 @@ extension ResultsHeader {
             shard: state.shardSelection,
             sample: state.sampleSelection,
             testPlan: state.testPlan.map(TestPlanRecord.init),
-            mutant: state.selectedMutant?.description
+            mutant: state.selectedMutant?.description,
+            mutantsNotCovered: state.runOptions.skipCoverage ? nil : state.uncoveredMutants
         )
     }
 }

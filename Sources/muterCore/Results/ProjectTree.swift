@@ -42,9 +42,11 @@ extension ProjectTree {
     /// active-mutant file there too, as `.swiftmutator-active-mutant`; it is still left out, so a fingerprint doesn't
     /// change.
     /// `muter.triage.yml` isn't written by a run, but no result reads it: labelling a mutant must refuse no `--resume`,
-    /// and test nothing again in a `--reuse`.
+    /// and test nothing again in a `--reuse`. Nor does any result read `muter.baseline.yml`, which `--write-baseline`
+    /// writes: committing a new one must refuse neither either. A baseline file elsewhere is a project file.
     static let prunedAtRoot: Set = [
         "muter-mappings.json", ".swiftmutator-active-mutant", "muter.xctestrun", TriageFile.fileName,
+        BaselineFile.fileName,
     ]
 
     /// Lists the project at `listingRoot` (git; without it, a walk of `hashingRoot`), adds every Swift and package

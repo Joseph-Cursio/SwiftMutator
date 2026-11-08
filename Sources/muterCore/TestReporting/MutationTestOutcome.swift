@@ -47,6 +47,28 @@ struct MutationTestOutcome {
     /// Where the results came from, as the results file's headers record them (`RunDetails`); nil when there's no
     /// header, as for a run whose results file couldn't be made, or once a write to the file failed.
     var run: RunDetails?
+    /// `--baseline`'s file, which `NewSurvivorsCheck` compares the run's survivors with, allowing `maxNewSurvivors` new
+    /// ones; nil without it, and for an outcome read from a results file, as `report` checks only its own flags.
+    var baseline: BaselineFile?
+    var maxNewSurvivors = 0
+    /// What a baseline file of these results records of their scope (`BaselineScope`): the run's, or as the results
+    /// header records it; nil when not known.
+    var baselineScope: BaselineScope?
+    /// The files `--files-to-mutate` limited the run to, of which no baseline file is written; empty without it.
+    var filesToMutate: [String] = []
+    /// With `--baseline`, the mutants the run discovered and left out, as `--shard`, `--sample` or `--changed-lines`
+    /// chose others, which a baseline file's entries for them are paired with (`BaselineMatches`); empty when it left
+    /// none out. nil when they aren't known, as for an outcome read from a results file, which doesn't record them.
+    var unselectedMutants: [UnselectedMutant]?
+    /// The mutants of code no test ran, which the run made none of, of the code it chose (`UncoveredMutant`): a
+    /// baseline file records them as survivors not covered, and `NewSurvivorsCheck` compares them, but no score counts
+    /// them, nor any count a report shows. The run's, or as the results header records them; empty when there are none,
+    /// as with `--skip-coverage`. nil when they aren't known: results an older SwiftMutator wrote, or the run of a test
+    /// plan one made, don't record them, and a run of one mutant doesn't look for them.
+    var uncoveredMutants: [UncoveredMutant]? = []
+    /// The verdicts of the checks the run, or `report`, was asked for (`RunChecks`), made before any report is, so
+    /// the Markdown report can show them; nil until then, and when none was asked for, so a report is as it was.
+    var checks: RunChecks?
 
     init(
         mutations: [Mutation] = [],
@@ -101,6 +123,34 @@ extension MutationTestOutcome {
     /// some. A plain `--since` tests whole files. `sampleIsCutShort` is set for any run that stopped, sampled or not.
     var leavesOutSomeMutants: Bool {
         mutant != nil || shards != nil || sample != nil || since?.changedLines == true || sampleIsCutShort
+    }
+
+    /// Why results whose `uncoveredMutants` aren't known make no baseline file, in a clause.
+    static let uncoveredMutantsUnknown = "the results, of an older SwiftMutator or of a test plan it made, don't "
+        + "record the mutants of code no test ran"
+
+    /// Whether these results leave out mutants of a file they tested others of, and don't know which: those a shard,
+    /// a sample or `--changed-lines` left out, when they aren't known (`unselectedMutants`). An entry of a baseline
+    /// file is then compared only at its own key (`BaselineMatches`), as one for a mutant left out could take an
+    /// identical one tested.
+    var leavesOutUnknownMutants: Bool {
+        unselectedMutants == nil && (shards != nil || sample != nil || since?.changedLines == true || sampleIsCutShort)
+    }
+
+    /// Why these results make no baseline file, which holds a whole run's survivors, in a clause: "the run tested
+    /// only the files --since chose". nil for a whole run's. A plain `--since` and `--files-to-mutate` test whole
+    /// files, but not every file, so an entry for a file they left out would be lost. Results that don't record the
+    /// mutants of code no test ran (`uncoveredMutants`) would make a file without them, against which every one would
+    /// be new.
+    var whyNoBaselineFile: String? {
+        if mutant != nil { return "the run tested one mutant (--mutant)" }
+        if let shards { return "the results are only \(shards.named)'s" }
+        if sample != nil { return "the run tested a sample (--sample)" }
+        if since != nil { return "the run tested only the code --since chose" }
+        if !filesToMutate.isEmpty { return "the run tested only the files --files-to-mutate chose" }
+        if sampleIsCutShort { return "the run didn't test every mutant it discovered" }
+        if uncoveredMutants == nil { return Self.uncoveredMutantsUnknown }
+        return nil
     }
 }
 

@@ -411,27 +411,52 @@ struct ReportSources {
     /// The line `mutation` changes, before and after; nil when its file can't be read, has changed since it was
     /// tested, or doesn't hold the change on one line.
     mutating func change(of mutation: MutationTestOutcome.Mutation) -> SourceChange? {
-        guard let source = text(of: mutation) else { return nil }
-        return MutantDiff.change(
-            original: source.text,
+        change(
+            in: mutation.originalProjectPath,
+            relativePath: mutation.relativePath,
             snapshot: mutation.snapshot,
             mutationOperatorId: mutation.point.mutationOperatorId,
             line: mutation.point.position.line,
-            column: mutation.point.position.column,
+            column: mutation.point.position.column
+        )
+    }
+
+    /// The line a mutant changes, before and after, that replaces `snapshot` at `line` and `column` of the original
+    /// file at `path`, `relativePath` in the project; nil as for `change(of:)`.
+    mutating func change(
+        in path: String,
+        relativePath: String,
+        snapshot: MutationOperator.Snapshot,
+        mutationOperatorId: MutationOperator.Id,
+        line: Int,
+        column: Int
+    ) -> SourceChange? {
+        guard let source = text(at: path, relativePath: relativePath) else { return nil }
+        return MutantDiff.change(
+            original: source.text,
+            snapshot: snapshot,
+            mutationOperatorId: mutationOperatorId,
+            line: line,
+            column: column,
             atItsPlaceOnly: !source.verified
         )
     }
 
-    /// `mutation`'s original file's text, and whether its hash is the one recorded; nil when it can't be read, isn't
-    /// UTF-8, or has another hash than the one recorded.
-    private mutating func text(of mutation: MutationTestOutcome.Mutation) -> (text: String, verified: Bool)? {
-        let path = mutation.originalProjectPath
+    /// Whether the original file at `path`, `relativePath` in the project, can be read, as it was tested: a change
+    /// it doesn't find there isn't on one line.
+    mutating func reads(_ path: String, relativePath: String) -> Bool {
+        text(at: path, relativePath: relativePath) != nil
+    }
+
+    /// The text of the original file at `path`, `relativePath` in the project, and whether its hash is the one
+    /// recorded; nil when it can't be read, isn't UTF-8, or has another hash than the one recorded.
+    private mutating func text(at path: String, relativePath: String) -> (text: String, verified: Bool)? {
         if let source = texts[path] {
             return source
         }
         let source = read(path).flatMap { data -> (text: String, verified: Bool)? in
-            let recorded = (digests?[mutation.relativePath]
-                ?? digests?[mutation.relativePath.precomposedStringWithCanonicalMapping])
+            let recorded = (digests?[relativePath]
+                ?? digests?[relativePath.precomposedStringWithCanonicalMapping])
                 .flatMap { $0.hasPrefix(ProjectTree.linkPrefix) ? nil : $0 }
             if let recorded, recorded != FileDigest.sha256(of: data) {
                 return nil

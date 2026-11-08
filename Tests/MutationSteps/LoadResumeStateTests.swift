@@ -392,6 +392,25 @@ final class LoadResumeStateTests: MuterTestCase {
         )
     }
 
+    // Saving the baseline file at the end would replace it too.
+    func test_aBaselineFilePathThatIsTheResultsFile_isRefused() async throws {
+        try await writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
+        state.runOptions = .make(
+            mutationOperatorsList: [.ror],
+            skipCoverage: true,
+            writeBaseline: resultsPath,
+            resumeURL: URL(fileURLWithPath: resultsPath)
+        )
+
+        await assertRefused(
+            ResumeRefused(
+                path: resultsPath,
+                reasons: [.baselineFileWouldReplaceTheResultsFile(resultsPath)],
+                beforeTheCopy: true
+            )
+        )
+    }
+
     // As for -o, naming the flag or the key that asked for it. The key's path is the project's, resolved.
     func test_anOtherReportPathThatIsTheResultsFile_isRefused() async throws {
         try await writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())

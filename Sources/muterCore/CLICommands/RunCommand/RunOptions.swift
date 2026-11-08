@@ -41,6 +41,15 @@ extension Run {
         let buildTimeout: Double?
         /// `--fail-under`: the percent below which a finished run's score fails it, in place of `failUnder`.
         let failUnder: Double?
+        /// `--baseline`: the baseline file, as given, whose survivors a finished run's are compared with
+        /// (`NewSurvivorsCheck`); nil without it.
+        let baseline: String?
+        /// `--max-new-survivors`: how many new survivors the comparison with `baseline` lets pass, 0 unless given; nil
+        /// without `baseline`.
+        let maxNewSurvivors: Int?
+        /// `--write-baseline`: where a finished whole run saves its survivors as a baseline file (`BaselineFile`),
+        /// made absolute as the flags are read, as the run saves it from the project's copy; nil without it.
+        let writeBaseline: String?
         /// `--property-tests`: the globs that pick out property tests, in place of `propertyTests`; nil when none was
         /// given.
         let propertyTests: [String]?
@@ -97,6 +106,9 @@ extension Run {
             timeout: Double? = nil,
             buildTimeout: Double? = nil,
             failUnder: Double? = nil,
+            baseline: String? = nil,
+            maxNewSurvivors: Int? = nil,
+            writeBaseline: String? = nil,
             propertyTests: [String]? = nil,
             createTestPlan: Bool = false,
             resumeURL: URL? = nil,
@@ -124,6 +136,9 @@ extension Run {
             self.timeout = timeout
             self.buildTimeout = buildTimeout
             self.failUnder = failUnder
+            self.baseline = baseline
+            self.maxNewSurvivors = baseline == nil ? nil : maxNewSurvivors ?? 0
+            self.writeBaseline = writeBaseline
             self.propertyTests = propertyTests
             self.resumeURL = resumeURL
             self.reuseURL = reuseURL
@@ -167,6 +182,9 @@ extension Run.Options: Equatable {
             lhs.timeout == rhs.timeout &&
             lhs.buildTimeout == rhs.buildTimeout &&
             lhs.failUnder == rhs.failUnder &&
+            lhs.baseline == rhs.baseline &&
+            lhs.maxNewSurvivors == rhs.maxNewSurvivors &&
+            lhs.writeBaseline == rhs.writeBaseline &&
             lhs.propertyTests == rhs.propertyTests &&
             lhs.createTestPlan == rhs.createTestPlan &&
             lhs.resumeURL == rhs.resumeURL &&

@@ -611,7 +611,10 @@ final class RunCommandTests: XCTestCase {
         XCTAssertEqual(ExitCode.resumeRefused.rawValue, 5)
         XCTAssertEqual(ExitCode.anotherRunHoldsTheLock.rawValue, 6)
         XCTAssertEqual(ExitCode.testPlanRefused.rawValue, 7)
+        XCTAssertEqual(ExitCode.baselineRefused.rawValue, 8)
         XCTAssertEqual(ExitCode.stoppedOnAnError.rawValue, -1)
+        let baseline = BaselineRefused(path: "muter.baseline.yml", reasons: ["It isn't UTF-8."])
+        XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: baseline), .baselineRefused)
         let difference = ResumeCheck.Difference(name: "mutationTestTimeout", was: "120", isNow: "60")
         let changes = [ProjectTree.FileChange(path: "notes.txt", kind: .added)]
         let refusals = [
@@ -723,18 +726,20 @@ final class RunCommandTests: XCTestCase {
         let below = ScoreGate(failUnder: 80, judging: .make([.failed, .passed]))
         let meets = ScoreGate(failUnder: 50, judging: .make([.failed, .passed]))
         let oneMutant = ScoreGate(failUnder: 80, judging: .make([.passed], mutant: "Foo.swift:3:9"))
-        let ended = { (gate: ScoreGate?) in Interruptions.Ended<ScoreGate?>(result: .success(gate), signal: nil) }
+        let ended = { (gate: ScoreGate?) in
+            Interruptions.Ended<RunChecks>(result: .success(RunChecks(scoreGate: gate)), signal: nil)
+        }
 
         XCTAssertEqual(ended(below).exitStatus, .scoreBelowThreshold)
         XCTAssertNil(ended(meets).exitStatus)
         XCTAssertNil(ended(oneMutant).exitStatus)
         XCTAssertNil(ended(nil).exitStatus)
-        let aborted = Interruptions.Ended<ScoreGate?>(
+        let aborted = Interruptions.Ended<RunChecks>(
             result: .failure(MuterError.mutationTestingAborted(reason: .tooManyBuildErrors)),
             signal: nil
         )
         XCTAssertEqual(aborted.exitStatus, .abortedMidRun)
-        let nothing = Interruptions.Ended<ScoreGate?>(
+        let nothing = Interruptions.Ended<RunChecks>(
             result: .failure(NothingToMutate(reason: .noSwiftFileChanged, selection: .make())),
             signal: nil
         )

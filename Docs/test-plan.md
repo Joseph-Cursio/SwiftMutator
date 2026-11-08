@@ -102,6 +102,7 @@ The plan is one JSON object, pretty-printed with two spaces, its keys sorted, it
 | `mutatedFiles` | Object | The SHA-256 of each file with mutants as the plan left it in the copy, by its path relative to the copy. A run of the plan names the files that differ, as after a fix by hand, and tests them as they are; it never refuses them. |
 | `linkedFiles` | Object | The SHA-256 of what each file with mutants that is a symbolic link in the project held when the plan was made, by its path relative to the project: `sources` records only where such a link points. Left out when no file with mutants is a link. |
 | `mappings` | [Object] | Each file with mutants, sorted by path: its `filePath`, relative to the copy, and its mutants, in the order they are tested. |
+| `mutantsNotCovered` | [Object] | The mutants of code no test ran, which the plan makes none of, as the results file's header records them (see [The results file](results-file.md)): each with its path relative to the copy, `line`, `column`, `occurrence`, `mutationOperatorId` and `snapshot`, sorted. A run of the plan compares them with `--baseline`'s file, and records them in its results file. Empty when there are none; left out by a plan from before this key, whose run writes no baseline file. A new key, so the format is still 2. |
 
 Each mutant has:
 

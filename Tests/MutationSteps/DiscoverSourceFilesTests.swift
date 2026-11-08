@@ -218,11 +218,16 @@ final class DiscoverSourceFilesTests: MuterTestCase {
 
         let result = try await sut.run(with: state)
 
+        // Their mutants are counted as not covered.
         XCTAssertEqual(result, [
             .sourceFileCandidatesDiscovered([
                 "\(filsToDiscoverPath)/Directory1/file3.swift",
                 "\(filsToDiscoverPath)/file1.swift",
                 "\(filsToDiscoverPath)/file2.swift",
+            ]),
+            .uncoveredSourceFilesDiscovered([
+                "\(filsToDiscoverPath)/Directory2/Directory3/file6.swift",
+                "\(filsToDiscoverPath)/ExampleApp/ExampleAppCode.swift",
             ]),
         ])
     }
@@ -240,11 +245,16 @@ final class DiscoverSourceFilesTests: MuterTestCase {
 
         let result = try await sut.run(with: state)
 
+        // Their mutants are counted as not covered.
         XCTAssertEqual(result, [
             .sourceFileCandidatesDiscovered([
                 "\(filsToDiscoverPath)/Directory1/file3.swift",
                 "\(filsToDiscoverPath)/file1.swift",
                 "\(filsToDiscoverPath)/file2.swift",
+            ]),
+            .uncoveredSourceFilesDiscovered([
+                "\(filsToDiscoverPath)/Directory2/Directory3/file6.swift",
+                "\(filsToDiscoverPath)/ExampleApp/ExampleAppCode.swift",
             ]),
         ])
     }
@@ -265,6 +275,7 @@ final class DiscoverSourceFilesTests: MuterTestCase {
 
         XCTAssertEqual(result, [
             .sourceFileCandidatesDiscovered(["\(directory)/Project/Covered.swift"]),
+            .uncoveredSourceFilesDiscovered(["\(directory)/Project/Uncovered.swift"]),
         ])
     }
 
@@ -283,6 +294,7 @@ final class DiscoverSourceFilesTests: MuterTestCase {
 
         XCTAssertEqual(result, [
             .sourceFileCandidatesDiscovered(["\(link)/Project/Covered.swift"]),
+            .uncoveredSourceFilesDiscovered(["\(link)/Project/Uncovered.swift"]),
         ])
     }
 
@@ -554,7 +566,10 @@ final class DiscoverSourceFilesTests: MuterTestCase {
 
         let result = try await sut.run(with: state)
 
-        XCTAssertEqual(result, [.sourceFileCandidatesDiscovered(["\(project)/Sources/Lib/Lib.swift"])])
+        XCTAssertEqual(result, [
+            .sourceFileCandidatesDiscovered(["\(project)/Sources/Lib/Lib.swift"]),
+            .uncoveredSourceFilesDiscovered(["\(project)/Sources/Lib/Uncovered.swift"]),
+        ])
     }
 
     // An xcodebuild project's example app is in no target the tests build, and a local package its app links is in
@@ -581,6 +596,7 @@ final class DiscoverSourceFilesTests: MuterTestCase {
                 "\(project)/App/Model.swift",
                 "\(project)/Packages/Core/Parser.swift",
             ]),
+            .uncoveredSourceFilesDiscovered(["\(project)/App/Untested.swift"]),
         ])
     }
 
@@ -653,7 +669,10 @@ final class DiscoverSourceFilesTests: MuterTestCase {
 
         let result = try await sut.run(with: state)
 
-        XCTAssertEqual(result, [.sourceFileCandidatesDiscovered(["\(project)/App/Model.swift"])])
+        XCTAssertEqual(result, [
+            .sourceFileCandidatesDiscovered(["\(project)/App/Model.swift"]),
+            .uncoveredSourceFilesDiscovered(["\(project)/Lib/Lib.swift"]),
+        ])
         XCTAssertEqual(warnings.entries, [.init(entry: "Lib", reason: .withoutCoverage)])
 
         state.filesToMutate = ["App/Mocks", "App/Example.swift"]

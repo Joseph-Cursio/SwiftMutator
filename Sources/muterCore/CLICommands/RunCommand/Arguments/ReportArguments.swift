@@ -59,6 +59,46 @@ struct ReportArguments: ParsableArguments {
     var failUnder: Double?
 
     @Option(
+        name: .customLong("baseline"),
+        help: ArgumentHelp(
+            "Compare the survivors with those of this baseline file, which --write-baseline saved, and exit with "
+                + "status 2 when more are new than --max-new-survivors allows, once the report is written. Only the "
+                + "mutants tested are compared. Exit with status 8 if the file can't be read, or records another "
+                + "scope: other operators, or another configuration.",
+            valueName: "path"
+        )
+    )
+    var baseline: String?
+
+    @Option(
+        name: .customLong("max-new-survivors"),
+        help: ArgumentHelp(
+            "With --baseline, how many new survivors pass: a whole number, 0 or more. 0 when not given.",
+            valueName: "count"
+        ),
+        transform: { text in
+            guard let count = NewSurvivorsCheck.allowed(text) else {
+                throw ValidationError("give a whole number of survivors, 0 or more, such as 3.")
+            }
+            return count
+        }
+    )
+    var maxNewSurvivors: Int?
+
+    @Option(
+        name: .customLong("write-baseline"),
+        help: ArgumentHelp(
+            "Save the survivors to a baseline file at this path, such as muter.baseline.yml, for --baseline to "
+                + "compare later runs with. Only a whole run's results make one. It may be --baseline's own file, "
+                + "which is read first.",
+            valueName: "path"
+        ),
+        // Made absolute now, as `-o`'s path is: a run saves it once it has moved into the project's copy.
+        transform: { URL(argument: $0)?.path ?? $0 }
+    )
+    var writeBaseline: String?
+
+    @Option(
         name: .customLong("property-tests"),
         help: ArgumentHelp(
             "Split the report's kills between example tests and the property tests this glob matches by name or by "
@@ -79,16 +119,26 @@ struct ReportArguments: ParsableArguments {
         reports.isEmpty ? nil : reports
     }
 
-    /// `-o`'s report and `--report`'s, by how a refusal names each, for `ReportRequest.clash(among:ofARun:)`.
+    /// `-o`'s report, `--report`'s and `--write-baseline`'s file, by how a refusal names each, for
+    /// `ReportRequest.clash(among:ofARun:)`.
     var outputs: [ReportRequest.Output] {
         (reportURL.map { [("-o \($0.path)", $0.path)] } ?? []) + reports.map { ("--report \($0)", $0.path) }
+            + (writeBaseline.map { [("--write-baseline \($0)", URL.expandingTilde($0))] } ?? [])
+    }
+
+    /// `--max-new-survivors`' count, 0 when `--baseline` is given without it; nil without `--baseline`.
+    var allowedNewSurvivors: Int? {
+        baseline == nil ? nil : maxNewSurvivors ?? 0
     }
 
     /// Refuses two reports at one path, for every command: a run's at another's partial report too is refused by
-    /// `validateForARun()`, as `report` writes none.
+    /// `validateForARun()`, as `report` writes none. `--max-new-survivors` says only what `--baseline` allows.
     func validate() throws {
         if let problem = PropertyTestPattern.problem(with: propertyTests) {
             throw ValidationError("--property-tests: \(problem).")
+        }
+        if maxNewSurvivors != nil, baseline == nil {
+            throw ValidationError("--max-new-survivors only applies with --baseline.")
         }
         try refuseAClash(ofARun: false)
     }

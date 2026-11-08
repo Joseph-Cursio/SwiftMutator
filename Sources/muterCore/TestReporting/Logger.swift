@@ -624,6 +624,19 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         print("\(emoji) \(line)")
     }
 
+    /// The verdict on the survivors against `--baseline`'s file, after the score's, on standard output with the rest:
+    /// ✅ when it passes, ❌ when too many survivors are new, ⚠️ when they aren't compared, then each new survivor, up
+    /// to `NewSurvivorsCheck.shownNewSurvivors`. A line before it notes a baseline file another SwiftMutator version
+    /// wrote. Nothing for a run that ended early.
+    func newSurvivorsChecked(_ check: NewSurvivorsCheck) {
+        check.consoleLines.forEach { print($0) }
+    }
+
+    /// Where a finished run saved its survivors as `--write-baseline` asked, or why it saved none.
+    func baselineFileSaved(_ saving: BaselineFileSaving) {
+        print(saving.line)
+    }
+
     func newMutationTestLogAvailable(mutationTestLog: MutationTestLog) {
         if mutationTestLog.mutationPoint == nil {
             print(
@@ -1069,13 +1082,15 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
     }
 
     /// What mutation testing tested before it stopped early, and the warning of suspect tests its report gives, if it
-    /// gives one, then where its partial reports are, if it has any, where each result is, the command that makes a
+    /// gives one, then where its partial reports are, if it has any, why it saved no baseline file, if one was asked
+    /// for, where each result is, the command that makes a
     /// report of them all, and the command that continues the run. A resumed session counts the mutants it tested apart
     /// from the results it kept. On standard error: it reaches the terminal even when a `| tee` that the same Ctrl-C
     /// ended has closed standard output. An abort's error follows on standard output.
     func mutationTestingEndedEarly(
         _ earlyEnd: EarlyEnd,
         partialReports: [(path: String, saved: Bool)],
+        baselineFile: BaselineFileSaving? = nil,
         resultsFile: String?,
         continueCommand: String?
     ) {
@@ -1088,6 +1103,9 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
             partialReport.saved
                 ? "📝 Partial report: \(partialReport.path.bold)"
                 : "⚠️ Could not save the partial report to \(partialReport.path)"
+        }
+        if let baselineFile {
+            lines.append(baselineFile.line)
         }
         if let resultsFile {
             lines.append("💾 Each tested mutant's result is in \(resultsFile.bold)")

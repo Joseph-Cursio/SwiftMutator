@@ -23,7 +23,9 @@ struct LoadMuterTestPlan: MutationStep {
 
         events.send(.muterMutationTestPlanLoaded)
 
-        return [
+        // A run of one mutant compares no survivors, as when it discovers its own.
+        let uncovered = state.runOptions.mutant == nil ? testPlan.mutantsNotCovered : nil
+        return (uncovered.map { [.mutantsNotCovered($0)] } ?? []) + [
             .tempDirectoryUrlCreated(testPlan.mutatedProjectURL),
             .projectCoverage(testPlan.projectCoverage),
             .mutationMappingsDiscovered(testPlan.mappings),

@@ -43,6 +43,13 @@ struct MutantKey: Hashable, Codable, CustomStringConvertible {
 }
 
 extension MutantKey {
+    /// Whether this key comes before `other` by path, line, column, operator and repeat, as a baseline file sorts its
+    /// survivors.
+    func comesBefore(_ other: MutantKey) -> Bool {
+        (path, line, column, mutationOperatorId.rawValue, occurrence)
+            < (other.path, other.line, other.column, other.mutationOperatorId.rawValue, other.occurrence)
+    }
+
     /// The key `text` spells whole, as `description` prints one; nil for anything that leaves out its column or
     /// operator, as a `MutantReference` may.
     init?(wholeDescription text: String) {

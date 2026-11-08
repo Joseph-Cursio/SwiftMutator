@@ -43,6 +43,8 @@ struct RunSummary: Codable, Equatable {
     /// The verdict on the score against the threshold `--fail-under` or `failUnder` set (`ScoreGate`); nil without
     /// one.
     let gate: Gate?
+    /// The verdict on the survivors against `--baseline`'s file (`NewSurvivorsCheck`); nil, and left out, without it.
+    let newSurvivors: NewSurvivors?
 
     /// `{"failUnder": 80, "passed": false, "score": 71.42857142857143}`.
     struct Gate: Codable, Equatable {
@@ -69,13 +71,63 @@ struct RunSummary: Codable, Equatable {
         }
     }
 
+    /// `{"baseline": "muter.baseline.yml", "maxNewSurvivors": 0, "passed": false, "new": 2, "newMutants": [...],
+    /// "newNotCovered": 1, "stillSurvive": 41, "fixed": 3, "notTested": 0, "matchedWithoutLine": 0}`.
+    struct NewSurvivors: Codable, Equatable {
+        /// The baseline file, as given.
+        let baseline: String
+        let maxNewSurvivors: Int
+        /// Whether no more survivors are new than `maxNewSurvivors`; nil when they weren't compared.
+        let passed: Bool?
+        /// Why they weren't compared; nil when they were.
+        let notChecked: NewSurvivorsCheck.NotChecked?
+        /// How many survivors are new, and each by its key's description; 0 and empty when they weren't compared.
+        let new: Int
+        let newMutants: [String]
+        /// How many of the new survivors no test ran the code of; 0 when they weren't compared.
+        let newNotCovered: Int
+        /// How many of the baseline file's survivors survive still, were killed, and matched nothing tested.
+        let stillSurvive: Int
+        let fixed: Int
+        let notTested: Int
+        /// How many were matched without their line, as their file had changed or couldn't be read.
+        let matchedWithoutLine: Int
+
+        init(_ check: NewSurvivorsCheck) {
+            baseline = check.baseline
+            maxNewSurvivors = check.maxNewSurvivors
+            passed = check.passed
+            switch check.verdict {
+            case let .checked(comparison):
+                notChecked = nil
+                new = comparison.newSurvivors.count
+                newMutants = comparison.newSurvivors.map(\.mutant)
+                newNotCovered = comparison.newSurvivors.count(where: \.notCovered)
+                stillSurvive = comparison.stillSurvive
+                fixed = comparison.fixed
+                notTested = comparison.notTested
+                matchedWithoutLine = comparison.matchedWithoutLine
+            case let .notChecked(reason):
+                notChecked = reason
+                new = 0
+                newMutants = []
+                newNotCovered = 0
+                stillSurvive = 0
+                fixed = 0
+                notTested = 0
+                matchedWithoutLine = 0
+            }
+        }
+    }
+
     init(
         of outcome: MutationTestOutcome,
         ended: ResultsEnd.Reason?,
         endDetail: String? = nil,
         report: String?,
         reports: [String] = [],
-        gate: ScoreGate? = nil
+        gate: ScoreGate? = nil,
+        newSurvivors: NewSurvivorsCheck? = nil
     ) {
         let outcomes = outcome.mutations.map(\.testSuiteOutcome)
         let score = exactMutationScore(from: outcomes).map { Int($0) }
@@ -101,6 +153,7 @@ struct RunSummary: Codable, Equatable {
         self.reports = reports.isEmpty ? nil : reports
         run = outcome.run
         self.gate = gate.map(Gate.init)
+        self.newSurvivors = newSurvivors.map(NewSurvivors.init)
     }
 
     /// Its JSON, pretty-printed with sorted keys, so two summaries diff cleanly.

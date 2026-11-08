@@ -48,6 +48,14 @@ class MuterVisitor: SyntaxAnyVisitor {
     private(set) var schemataMappings: SchemataMutationMapping
     /// The mutants of this code with nowhere to put a switch, which aren't in `schemataMappings`.
     private(set) var droppedMutants: [DroppedMutant] = []
+    /// The mutants of code no test ran, which coverage leaves out of `schemataMappings`, as no test could kill them,
+    /// of those with a place for a switch: one with none is dropped with coverage off too. `--baseline` counts them as
+    /// survivors (`UncoveredMutant`). No run switches one on, so its schema changes nothing: making a mutant's code
+    /// takes a parse of its block.
+    private(set) var uncoveredMappings: SchemataMutationMapping
+    /// Whether coverage leaves out the whole file, as one at or below `coverageThreshold`: every mutant goes in
+    /// `uncoveredMappings` then, as if no test had run any of it.
+    var isUncovered = false
 
     /// One for the whole file: making one takes a pass over the whole file, and every node's coverage check asks for
     /// a location, so making them each time took minutes on a long file in a debug build.
@@ -80,6 +88,7 @@ class MuterVisitor: SyntaxAnyVisitor {
         schemataMappings = SchemataMutationMapping(
             filePath: sourceCodeInfo.path
         )
+        uncoveredMappings = SchemataMutationMapping(filePath: sourceCodeInfo.path)
 
         super.init(viewMode: .sourceAccurate)
     }
@@ -275,7 +284,19 @@ class MuterVisitor: SyntaxAnyVisitor {
         // Checked by the node it changes, not by the nodes around it. A region the tests never ran can start inside
         // all of them, as the right-hand side of `a && b > c`, which is a closure of its own, does: such a mutant could
         // only survive. And a local function's or type's code can run though the code that declares it never did.
-        guard hasTestCoverage(changed ?? syntax) else {
+        guard !isUncovered, hasTestCoverage(changed ?? syntax) else {
+            if let place = syntax.mutationSwitchPlace {
+                var schemata = MutationSchema(
+                    filePath: sourceCodeInfo.path,
+                    mutationOperatorId: mutationOperatorId,
+                    syntaxMutation: CodeBlockItemListSyntax([]),
+                    position: position,
+                    snapshot: snapshot,
+                    under: projectRoot
+                )
+                schemata.lines = lines(of: span ?? changed ?? syntax)
+                uncoveredMappings.add(at: place, schemata)
+            }
             return
         }
 

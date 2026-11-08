@@ -38,10 +38,11 @@ final class MutationTestHandler {
         )
     }
 
-    /// Runs the steps, and gives the finished run's verdict on its score against its `failUnder` (`ScoreGate`): nil
-    /// without one. A run that doesn't finish throws, or, stopped by a signal, ends with no verdict.
+    /// Runs the steps, and gives the finished run's verdicts (`RunChecks`): on its score against its `failUnder`
+    /// (`ScoreGate`), and on its survivors against `--baseline`'s file (`NewSurvivorsCheck`), each nil without its
+    /// flag. A run that doesn't finish throws, or, stopped by a signal, ends with none.
     @discardableResult
-    func run() async throws -> ScoreGate? {
+    func run() async throws -> RunChecks {
         try startObserver()
         // However the run ends, whether refused, failed, stopped or finished, it removes a log folder it kept nothing
         // in. Every step has returned by then, and events are handled as they are sent, so nothing is still writing
@@ -49,7 +50,7 @@ final class MutationTestHandler {
         defer { observer.removeLoggingDirectoryIfEmpty() }
         notifyMuterLaunched()
         try await runMutationsSteps()
-        return observer.scoreGate
+        return observer.checks
     }
 
     /// Starts the observer, which creates the run's log folder, and hands that folder to the steps. `run()` removes
@@ -126,6 +127,8 @@ private extension [MutationStep] {
         [
             UpdateCheck(),
             LoadConfiguration(),
+            // Once the operators are chosen, and before anything is copied, so a refused file costs nothing.
+            LoadBaselineFile(),
             // Before a resume is checked, which compares what it chose, and before anything is copied.
             SelectChangedCode(),
             // Before the last run's copy is removed, which a run still writing the results file is testing in.
@@ -164,6 +167,8 @@ private extension [MutationStep] {
             // error, so `CheckTestPlanSources` refuses another folder only when it has one.
             LoadConfiguration(),
             LoadMuterTestPlan(),
+            // Once the plan has given the operators, which its file must share.
+            LoadBaselineFile(),
             // It reads only the plan. Before the checks, so they look only at that mutant's file.
             SelectMutant(),
             // Before the copy is locked: it reads only the project, and a refusal leaves another run's copy alone.
@@ -232,6 +237,10 @@ private extension [MutationStep] {
 
         if options.continuedFrom == nil {
             copy.removeAll { $0 is LoadResumeState }
+        }
+
+        if options.baseline == nil {
+            copy.removeAll { $0 is LoadBaselineFile }
         }
 
         if options.since == nil {

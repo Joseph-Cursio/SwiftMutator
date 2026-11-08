@@ -131,6 +131,9 @@ struct LoadResumeState: MutationStep {
             where ResultsFile.isSameFile(request.path, path) {
             reasons.append(.otherReportWouldReplaceTheResultsFile(request, isTheFlags: options.reports != nil))
         }
+        if let baselinePath = options.writeBaseline, ResultsFile.isSameFile(URL.expandingTilde(baselinePath), path) {
+            reasons.append(.baselineFileWouldReplaceTheResultsFile(baselinePath))
+        }
         if let recordedTree = lastHeader.project, let tree {
             let unwaived = tree.changes(since: recordedTree).partition(by: options.resumeIgnoring).unwaived
             if !unwaived.isEmpty {

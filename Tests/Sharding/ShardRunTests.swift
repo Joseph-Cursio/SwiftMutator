@@ -70,6 +70,31 @@ final class ShardRunTests: MuterTestCase {
         XCTAssertEqual(state.shardSelection, selection)
     }
 
+    // With `--baseline`, a shard keeps the other shards' mutants, by their keys in the whole run, so an entry for one
+    // isn't matched with an identical mutant this shard tests.
+    func test_withABaselineFile_aShardKeepsTheMutantsItLeftOut() async throws {
+        try prepare()
+        let wholeRun = try await keys(discovering: nil)
+        let found = try await nonEmptyShard(of: 2)
+        let shard = try XCTUnwrap(found)
+        state.projectDirectoryURL = URL(fileURLWithPath: "/project")
+
+        state.runOptions = .make(shard: shard, baseline: "muter.baseline.yml")
+        let changes = try await DiscoverMutationPoints().run(with: state)
+
+        let unselected = changes.compactMap { change -> [UnselectedMutant]? in
+            guard case let .mutantsNotSelected(mutants) = change else { return nil }
+            return mutants
+        }.first ?? []
+        XCTAssertEqual(unselected.map(\.key), wholeRun.filter { !shard.holds($0) })
+        XCTAssertEqual(Set(unselected.map(\.originalProjectPath)), ["/project/Check.swift"])
+        XCTAssertFalse(unselected.isEmpty)
+
+        state.runOptions = .make(shard: shard)
+        let without = try await DiscoverMutationPoints().run(with: state)
+        XCTAssertFalse(without.contains { if case .mutantsNotSelected = $0 { true } else { false } })
+    }
+
     func test_aShardWithNoMutant_stillSaysWhatWasDropped() async throws {
         try prepare(source: """
         import Foundation

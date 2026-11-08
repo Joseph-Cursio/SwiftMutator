@@ -168,6 +168,32 @@ final class CreateMuterTestPlanTests: MuterTestCase {
         XCTAssertNil(file.projectCoverage)
     }
 
+    // A run of the plan compares them with `--baseline`'s file, and records them, as a run that discovers its own
+    // mutants does; none is recorded as none. A plan made without them leaves the key out.
+    func test_recordsTheMutantsOfCodeNoTestRan() async throws {
+        let state = makeState()
+        let uncovered = UncoveredMutant(
+            key: MutantKey(path: "Sources/New.swift", mutationOperatorId: .ror, line: 4, column: 9, occurrence: 0),
+            snapshot: .make(before: "<", after: ">", description: "changed < to >")
+        )
+        state.apply([.mutantsNotCovered([uncovered])])
+
+        _ = try await sut.run(with: state)
+
+        let written = try XCTUnwrap(writeFile.contentPassed)
+        XCTAssertTrue(written.contains(#""path" : "Sources/New.swift""#), written)
+        let plan = try TestPlanCoding.read(Data(written.utf8), path: "/plan.json", under: state.projectDirectoryURL)
+        XCTAssertEqual(plan.mutantsNotCovered, [uncovered])
+
+        state.apply([.mutantsNotCovered([])])
+        _ = try await sut.run(with: state)
+        let none = try JSONDecoder().decode(TestPlanFile.self, from: Data(try XCTUnwrap(writeFile.contentPassed).utf8))
+        XCTAssertEqual(none.mutantsNotCovered, [])
+
+        _ = try await sut.run(with: makeState())
+        XCTAssertFalse(try XCTUnwrap(writeFile.contentPassed).contains("mutantsNotCovered"))
+    }
+
     private func makeState() -> MutationTestState {
         let state = MutationTestState()
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/project_mutated")

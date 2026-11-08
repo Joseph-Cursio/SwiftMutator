@@ -75,17 +75,16 @@ final class PerformMutationTestingTests: MuterTestCase {
             ),
         ]
 
-        XCTAssertEqual(
-            result, [
-                .mutationTestOutcomeGenerated(
-                    MutationTestOutcome(
-                        mutations: expectedTestOutcomes,
-                        projectPath: "/project",
-                        mutatedProjectPath: "/project_mutated"
-                    )
-                ),
-            ]
+        var expected = MutationTestOutcome(
+            mutations: expectedTestOutcomes,
+            projectPath: "/project",
+            mutatedProjectPath: "/project_mutated"
         )
+        // What a baseline file of the run records, as `report` of its results has it from their header.
+        expected.baselineScope = LoadBaselineFile.scope(of: state)
+        // Discovery didn't look for the mutants of code no test ran, with coverage on, so they aren't known.
+        expected.uncoveredMutants = nil
+        XCTAssertEqual(result, [.mutationTestOutcomeGenerated(expected)])
     }
 
     // Both mutants are in same-named files at the same place, so only the job's number tells their files apart. Two
@@ -386,6 +385,68 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertEqual(ended().compactMap { ($0.object as? EarlyEnd)?.outcome.failUnder }, [72.5])
     }
 
+    // The observer compares the survivors only when the outcome carries `--baseline`'s file, and saves a baseline file
+    // only with the scope it records: without them, the check is skipped and the run exits 0.
+    func test_theOutcome_carriesTheBaselineFile_itsLimit_theScope_andTheFilesToMutate() async throws {
+        let file = BaselineFile(
+            path: "muter.baseline.yml",
+            swiftMutator: "0.1.0",
+            score: .init(killed: 1, scored: 2),
+            scope: BaselineScope(operators: ["RelationalBoundary"], skipCoverage: false, configuration: .init()),
+            survivors: []
+        )
+        let unselected = UnselectedMutant(
+            key: MutantKey(path: "Sources/Other.swift", mutationOperatorId: .ror, line: 4, column: 9, occurrence: 0),
+            snapshot: .make(before: "<", after: ">"),
+            originalProjectPath: "/project/Sources/Other.swift"
+        )
+        let uncovered = UncoveredMutant(
+            key: MutantKey(path: "Sources/New.swift", mutationOperatorId: .ror, line: 2, column: 5, occurrence: 0),
+            snapshot: .make(before: "<", after: ">")
+        )
+        state.runOptions = .make(baseline: "muter.baseline.yml", maxNewSurvivors: 2, writeBaseline: "/out/b.yml")
+        state.apply([.baselineFileLoaded(file), .mutantsNotSelected([unselected]), .mutantsNotCovered([uncovered])])
+        state.filesToMutate = ["Sources/Sum.swift"]
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        let finished = recordEvents(named: [.mutationTestingFinished])
+
+        _ = try await sut.run(with: state)
+
+        let outcome = try XCTUnwrap(finished().compactMap { $0.object as? MutationTestOutcome }.first)
+        XCTAssertEqual(outcome.baseline, file)
+        XCTAssertEqual(outcome.maxNewSurvivors, 2)
+        XCTAssertEqual(outcome.baselineScope, LoadBaselineFile.scope(of: state))
+        XCTAssertEqual(outcome.filesToMutate, ["Sources/Sum.swift"])
+        XCTAssertEqual(outcome.unselectedMutants, [unselected])
+        XCTAssertEqual(outcome.uncoveredMutants, [uncovered])
+        XCTAssertFalse(outcome.mutations.contains { $0.key == uncovered.key }, "never a mutation, which a score counts")
+
+        state.mutationMapping = try Array(repeating: makeSchemataMapping(), count: 6)
+        ioDelegate.testSuiteOutcomes = [.passed, .failed] + Array(repeating: .buildError, count: 5)
+        let ended = recordEvents(named: [.mutationTestingEndedEarly])
+
+        await assertThrowsMuterError(try await sut.run(with: state)) { _ in }
+
+        let early = try XCTUnwrap(ended().compactMap { ($0.object as? EarlyEnd)?.outcome }.first)
+        XCTAssertEqual(early.baseline, file)
+        XCTAssertEqual(early.maxNewSurvivors, 2)
+        XCTAssertEqual(early.baselineScope, LoadBaselineFile.scope(of: state))
+        XCTAssertEqual(early.unselectedMutants, [unselected])
+        XCTAssertEqual(early.uncoveredMutants, [uncovered])
+    }
+
+    // Without `--baseline`, nothing is compared, and the mutants left out aren't carried.
+    func test_withoutABaselineFile_theOutcomeCarriesNone() async throws {
+        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
+        let finished = recordEvents(named: [.mutationTestingFinished])
+
+        _ = try await sut.run(with: state)
+
+        let outcome = try XCTUnwrap(finished().compactMap { $0.object as? MutationTestOutcome }.first)
+        XCTAssertNil(outcome.baseline)
+        XCTAssertNil(outcome.unselectedMutants)
+    }
+
     // The observer saves them, at the end or beside each as partial ones, so their paths are resolved against the
     // project's folder: the run's own is then the mutated copy.
     func test_theOutcome_carriesTheConfigurationsReports_resolved() async throws {
@@ -509,15 +570,14 @@ final class PerformMutationTestingTests: MuterTestCase {
 
         let expectedTestOutcomes = (0 ..< 4).map(expectedBuildErrorOutcome) + [expectedFailingOutcome]
 
-        XCTAssertEqual(result, [
-            .mutationTestOutcomeGenerated(
-                MutationTestOutcome(
-                    mutations: expectedTestOutcomes,
-                    projectPath: "/project",
-                    mutatedProjectPath: "/project_mutated"
-                )
-            ),
-        ])
+        var expected = MutationTestOutcome(
+            mutations: expectedTestOutcomes,
+            projectPath: "/project",
+            mutatedProjectPath: "/project_mutated"
+        )
+        expected.baselineScope = LoadBaselineFile.scope(of: state)
+        expected.uncoveredMutants = nil
+        XCTAssertEqual(result, [.mutationTestOutcomeGenerated(expected)])
     }
 
     // A cancelled run's process was killed, so its outcome, a build error, says nothing about its mutant. Recorded,

@@ -100,7 +100,8 @@ struct LoadConfiguration: MutationStep {
     }
 
     /// The reports a run with `options` and `configuration` saves, by how a refusal names each: `-o`'s, then those of
-    /// `--report`, or else of `reports:`, resolved against the project's folder, the current one.
+    /// `--report`, or else of `reports:`, resolved against the project's folder, the current one, then
+    /// `--write-baseline`'s file.
     private static func outputs(
         of options: Run.Options,
         _ configuration: MuterConfiguration,
@@ -110,6 +111,7 @@ struct LoadConfiguration: MutationStep {
         let folder = URL(fileURLWithPath: fileManager.currentDirectoryPath)
         return (options.reportOptions.path.map { [("-o \($0)", $0)] } ?? [])
             + configuration.reportRequests(in: folder).map { ("\(option) \($0)", $0.path) }
+            + (options.writeBaseline.map { [("--write-baseline \($0)", URL.expandingTilde($0))] } ?? [])
     }
 
     /// Turns a bare command name in `executable` into the absolute path it resolves to on `PATH`.

@@ -57,6 +57,7 @@ class MuterTestCase: XCTestCase {
             ioDelegate: ioDelegate,
             process: { [process] in process },
             prepareCode: { [prepareCode] in prepareCode.prepare($0) },
+            readPreparedCode: { [prepareCode] in prepareCode.prepare($0) },
             writeFile: { [writeFile] in try writeFile.writeFile($0, $1) },
             // Never in the real temporary directory, which would keep a folder for each test's folder.
             makeFolder: { _ in },
