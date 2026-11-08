@@ -234,6 +234,15 @@ final class ReadableReportTests: MuterTestCase {
 
         """), plainText)
 
+        // The Markdown report, kept short, names each by its place in its file, and leaves the line to the others.
+        let markdown = MarkdownReporter().report(from: outcome)
+        XCTAssertTrue(markdown.contains("""
+        - `Sources/Rules.swift`
+          - `2:10` RelationalOperatorReplacement: changed == to !=
+          - `3:14` RelationalOperatorReplacement
+
+        """), markdown)
+
         let html = HTMLReporter().report(from: outcome)
         XCTAssertTrue(html.contains(#"<div class="source-line snapshot-before">-3:     return a &lt; b</div>"#), html)
         XCTAssertTrue(html.contains(#"<div class="source-line snapshot-after">+3:     return a &gt; b</div>"#), html)
@@ -270,6 +279,7 @@ final class ReadableReportTests: MuterTestCase {
 
         XCTAssertTrue(PlainTextReporter().report(from: outcome).contains("\nNo mutant survived or timed out.\n"))
         XCTAssertTrue(HTMLReporter().report(from: outcome).contains("<p>No mutant survived or timed out.</p>"))
+        XCTAssertTrue(MarkdownReporter().report(from: outcome).contains("\n\nNo mutant survived or timed out.\n"))
     }
 
     // As the progress lines count them: a crash is a kill, and only the verdicts some mutant came to are named.
@@ -290,6 +300,13 @@ final class ReadableReportTests: MuterTestCase {
         XCTAssertTrue(PlainTextReporter().report(from: outcome).contains("\nBy outcome: \(tally)\n"))
         XCTAssertTrue(HTMLReporter().report(from: outcome).contains("📊 By outcome: \(tally)."))
         XCTAssertTrue(XcodeReporter().report(from: outcome).contains("\nMutants by outcome: \(tally)"))
+        let markdown = MarkdownReporter().report(from: outcome)
+        XCTAssertTrue(markdown.contains("\n**Mutation score: 50% (\(tally))**\n"), markdown)
+        XCTAssertTrue(markdown.contains("""
+        | Killed | Survived | Timed out | Build errors | Total |
+        | ---: | ---: | ---: | ---: | ---: |
+        | 2 | 1 | 1 | 2 | 6 |
+        """), markdown)
         let json = try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
         )

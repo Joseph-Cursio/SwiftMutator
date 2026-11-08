@@ -53,7 +53,7 @@ struct CheckTestPlanSources: MutationStep {
             listingIn: project,
             hashingIn: project,
             // The plan itself, wherever in the project it is, as well as what the run and the plan's own run left out.
-            excluding: ProjectTree.excludedPaths(state.runOptions, under: project)
+            excluding: ProjectTree.excludedPaths(of: state, under: project)
                 + sources.excluded
                 + ProjectTree.relativePaths([plan.path], under: project),
             list: listProjectFiles

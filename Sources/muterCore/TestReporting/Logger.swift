@@ -924,8 +924,9 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         return largestShare * cycle
     }
 
-    /// Where the report went, with the score (`MuterTestReport.scoreLine(of:)`), or the report itself, then the
-    /// report's `suspectWarning` (`KillingTestSummary.warning(for:)`), if it has one: the run's last word on its score.
+    /// Where the report went, with the score (`MuterTestReport.scoreLine(of:)`), or the report itself, then where each
+    /// of the `otherReports` went, then the report's `suspectWarning` (`KillingTestSummary.warning(for:)`), if it has
+    /// one: the run's last word on its score.
     func mutationTestingFinished(
         report: String,
         reportPath: String,
@@ -934,7 +935,8 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         scoreLine: String,
         suspectWarning: String?,
         buildErrorWarning: String? = nil,
-        unprovenKillWarning: String? = nil
+        unprovenKillWarning: String? = nil,
+        otherReports: [(path: String, saved: Bool)] = []
     ) {
         print("🏁 SwiftMutator finished running!")
 
@@ -954,6 +956,7 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
             print("\n")
             print("Could not save report!")
         }
+        otherReports.map(Self.whereItWent).forEach { print($0) }
 
         if let suspectWarning {
             print("⚠️ \(suspectWarning)")
@@ -973,8 +976,8 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
 
     /// What the one mutant `--mutant` tested found, in place of the report: the mutant and its switch ID, what it
     /// changes, its tests' log, its verdict, the mutated project the run leaves, and the command that runs its tests
-    /// there with it on; then where a requested report went.
-    func oneMutantTested(_ run: OneMutantRun, reportPath: (path: String, saved: Bool)?) {
+    /// there with it on; then where each requested report went.
+    func oneMutantTested(_ run: OneMutantRun, reports: [(path: String, saved: Bool)]) {
         print("🏁 SwiftMutator finished running!")
         let change = run.snapshot.description.isEmpty ? "" : " (\(run.snapshot.description))"
         var lines = ["🔬 \(run.key)\(change)", "Switch: \(run.switchID)", "Change:"]
@@ -989,13 +992,12 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
             lines += Self.switchingOn(run)
         }
         lines.forEach { print($0) }
-        if let reportPath {
-            print(
-                reportPath.saved
-                    ? "📝 Report generated: \(reportPath.path.bold)"
-                    : "⚠️ Could not save the report to \(reportPath.path)"
-            )
-        }
+        reports.map(Self.whereItWent).forEach { print($0) }
+    }
+
+    /// "📝 Report generated: <path>", or that it couldn't be saved there.
+    private static func whereItWent(_ report: (path: String, saved: Bool)) -> String {
+        report.saved ? "📝 Report generated: \(report.path.bold)" : "⚠️ Could not save the report to \(report.path)"
     }
 
     /// `log`'s lines, or its last `logLinesShownOfALongLog` after a line saying how many come before them, when it has
@@ -1067,13 +1069,13 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
     }
 
     /// What mutation testing tested before it stopped early, and the warning of suspect tests its report gives, if it
-    /// gives one, then where its partial report is, if it has one, where each result is, the command that makes a
+    /// gives one, then where its partial reports are, if it has any, where each result is, the command that makes a
     /// report of them all, and the command that continues the run. A resumed session counts the mutants it tested apart
     /// from the results it kept. On standard error: it reaches the terminal even when a `| tee` that the same Ctrl-C
     /// ended has closed standard output. An abort's error follows on standard output.
     func mutationTestingEndedEarly(
         _ earlyEnd: EarlyEnd,
-        partialReport: (path: String, saved: Bool)?,
+        partialReports: [(path: String, saved: Bool)],
         resultsFile: String?,
         continueCommand: String?
     ) {
@@ -1082,12 +1084,10 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         if let suspectWarning = KillingTestSummary.warning(for: earlyEnd.outcome) {
             lines.append("⚠️ \(suspectWarning)")
         }
-        if let partialReport {
-            lines.append(
-                partialReport.saved
-                    ? "📝 Partial report: \(partialReport.path.bold)"
-                    : "⚠️ Could not save the partial report to \(partialReport.path)"
-            )
+        lines += partialReports.map { partialReport in
+            partialReport.saved
+                ? "📝 Partial report: \(partialReport.path.bold)"
+                : "⚠️ Could not save the partial report to \(partialReport.path)"
         }
         if let resultsFile {
             lines.append("💾 Each tested mutant's result is in \(resultsFile.bold)")

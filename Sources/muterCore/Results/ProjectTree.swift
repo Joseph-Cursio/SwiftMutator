@@ -23,8 +23,9 @@ struct ProjectTree: Codable, Equatable {
     /// A symbolic link's entry is `linkPrefix` + the SHA-256 of the path it points to; it is never followed. The files
     /// of a local package outside the project are under its path from the project, which starts with `../`.
     let files: [String: String]
-    /// Paths inside the project that are left out: the `-o` report and its `.partial` sibling, which the run itself
-    /// writes, and the configuration file, whose settings the header records (`excludedPaths`).
+    /// Paths inside the project that are left out: the `-o` report, each other report the run saves, and their
+    /// `.partial` siblings, which the run itself writes, and the configuration file, whose settings the header records
+    /// (`excludedPaths`).
     let excluded: [String]
     /// SHA-256 over every "path\0hash\n", sorted by path.
     let treeSHA256: String
@@ -173,18 +174,38 @@ extension ProjectTree {
     }
 
     /// What a run with `options` leaves out of its project's tree, relative to `projectRoot`, if it lies inside it: the
-    /// `-o` report and its partial sibling, which the run itself writes, and the configuration file it loads, whose
-    /// settings the header records. A resume compares those key by key, so a change that no result depends on, such
-    /// as `mutationTestWorkers`, is only said.
-    static func excludedPaths(_ options: Run.Options, under projectRoot: URL) -> [String] {
-        reportPaths(options, under: projectRoot)
+    /// `-o` report, the other `reports` it saves (`MuterConfiguration.reportRequests(in:)`), and their partial
+    /// siblings, which the run itself writes, and the configuration file it loads, whose settings the header records. A
+    /// resume compares those key by key, so a change that no result depends on, such as `mutationTestWorkers`, is
+    /// only said.
+    static func excludedPaths(
+        _ options: Run.Options,
+        reports: [ReportRequest] = [],
+        under projectRoot: URL
+    ) -> [String] {
+        reportPaths(options, reports: reports, under: projectRoot)
             + relativePaths([LoadConfiguration.configurationPath(options, in: projectRoot.path)], under: projectRoot)
     }
 
-    /// The `-o` report and its partial sibling, relative to `projectRoot`, if they lie inside it.
-    static func reportPaths(_ options: Run.Options, under projectRoot: URL) -> [String] {
-        let requested = options.reportOptions.path
-        return relativePaths([requested, PartialReport.path(besides: requested)], under: projectRoot)
+    /// What the run of `state` leaves out of its project's tree, as `excludedPaths(_:reports:under:)` gives it, with
+    /// the reports its configuration saves.
+    static func excludedPaths(of state: AnyMutationTestState, under projectRoot: URL) -> [String] {
+        excludedPaths(
+            state.runOptions,
+            reports: state.muterConfiguration.reportRequests(in: state.projectDirectoryURL),
+            under: projectRoot
+        )
+    }
+
+    /// The `-o` report, the other `reports`, and the partial sibling of each, relative to `projectRoot`, if they lie
+    /// inside it.
+    static func reportPaths(
+        _ options: Run.Options,
+        reports: [ReportRequest] = [],
+        under projectRoot: URL
+    ) -> [String] {
+        let requested = [options.reportOptions.path] + reports.map(\.path)
+        return relativePaths(requested.flatMap { [$0, PartialReport.path(besides: $0)] }, under: projectRoot)
     }
 
     /// Each of `paths` relative to `projectRoot`, if it lies inside it.

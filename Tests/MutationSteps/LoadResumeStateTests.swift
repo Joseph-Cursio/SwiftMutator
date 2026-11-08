@@ -392,6 +392,40 @@ final class LoadResumeStateTests: MuterTestCase {
         )
     }
 
+    // As for -o, naming the flag or the key that asked for it. The key's path is the project's, resolved.
+    func test_anOtherReportPathThatIsTheResultsFile_isRefused() async throws {
+        try await writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())
+        let request = ReportRequest(format: .markdown, path: resultsPath)
+        let relative = ReportRequest(format: .json, path: "../project_muter_logs/Oct 6, 2026 at 9:12 AM/results.jsonl")
+        state.muterConfiguration = configuration.overriding(workers: nil, timeout: nil, reports: [relative, request])
+
+        await assertRefused(
+            ResumeRefused(
+                path: resultsPath,
+                reasons: [
+                    .otherReportWouldReplaceTheResultsFile(relative.resolved(in: project), isTheFlags: false),
+                    .otherReportWouldReplaceTheResultsFile(request, isTheFlags: false),
+                ],
+                beforeTheCopy: true
+            )
+        )
+
+        state.runOptions = .make(
+            reports: [request],
+            mutationOperatorsList: [.ror],
+            skipCoverage: true,
+            resumeURL: URL(fileURLWithPath: resultsPath)
+        )
+        state.muterConfiguration = configuration.overriding(workers: nil, timeout: nil, reports: [request])
+        await assertRefused(
+            ResumeRefused(
+                path: resultsPath,
+                reasons: [.otherReportWouldReplaceTheResultsFile(request, isTheFlags: true)],
+                beforeTheCopy: true
+            )
+        )
+    }
+
     // A `swift --version` that stopping the run killed says nothing, which would read as a toolchain change.
     func test_aKilledProbe_throwsCancellation_notARefusal() async throws {
         try await writeResults(ResultsHeader.make(project: projectTree()), ResultsEnd.make())

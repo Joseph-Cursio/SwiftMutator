@@ -73,6 +73,8 @@ struct Report: AsyncParsableCommand {
         let report = ResultsReport(
             format: reportOptions.reportFormat,
             outputPath: reportOptions.reportURL?.path,
+            // Only `--report`'s: the header's `reports:` would replace the run's own files.
+            reports: reportOptions.reports,
             summaryPath: summary?.path,
             failUnder: reportOptions.failUnder,
             propertyTests: reportOptions.propertyTestGlobs,

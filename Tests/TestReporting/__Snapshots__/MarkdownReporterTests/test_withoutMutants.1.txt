@@ -1,0 +1,9 @@
+## Mutation testing
+
+**Mutation score: none, as no mutant was tested**
+
+SwiftMutator could not gather coverage data from your project
+
+### Surviving mutants (0)
+
+No mutant survived or timed out.

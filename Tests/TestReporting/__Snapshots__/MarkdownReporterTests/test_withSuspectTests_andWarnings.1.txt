@@ -1,0 +1,41 @@
+## Mutation testing
+
+**Mutation score: 93% (14 killed, 1 survived, 1 build error)**
+
+Mutation score without suspect tests: at least 53%
+
+Coverage skipped (--skip-coverage)
+
+> ⚠️ 2 tests may fail whatever the mutant: they failed for mutants in at least 15% of the 12 files with a killed mutant (timing() in 12, order() in 10). Without their failures, the mutation score would be at least 53%, not 93%.
+
+> ⚠️ 1 mutant was a build error, so it wasn't tested, and the score leaves it out.
+
+> ⚠️ 1 kill's code never ran, though its tests failed: a flaky test or a crash at launch may be to blame, and the score counts it as killed. Its log is kept.
+
+| Killed | Survived | Build errors | Total |
+| ---: | ---: | ---: | ---: |
+| 14 | 1 | 1 | 16 |
+
+### Scores by file
+
+| File | Mutants | Score |
+| :--- | ---: | ---: |
+| `Sources/File01.swift` | 1 | 100% |
+| `Sources/File02.swift` | 1 | 100% |
+| `Sources/File03.swift` | 1 | 100% |
+| `Sources/File04.swift` | 1 | 100% |
+| `Sources/File05.swift` | 1 | 100% |
+| `Sources/File06.swift` | 1 | 100% |
+| `Sources/File07.swift` | 2 | 100% |
+| `Sources/File08.swift` | 2 | 50% |
+| `Sources/File09.swift` | 1 | 100% |
+| `Sources/File10.swift` | 1 | 100% |
+| `Sources/File11.swift` | 1 | 100% |
+| `Sources/File12.swift` | 1 | 100% |
+| `Sources/Broken.swift` | 1 | 0% |
+| `Sources/Unproven.swift` | 1 | 100% |
+
+### Surviving mutants (1)
+
+- `Sources/File08.swift`
+  - `12:12` ChangeLogicalConnector

@@ -1,0 +1,22 @@
+## Mutation testing
+
+**Mutation score: 0% (1 survived)**
+
+Code Coverage of your project: 50%
+
+| Survived | Total |
+| ---: | ---: |
+| 1 | 1 |
+
+### Scores by file
+
+| File | Mutants | Score |
+| :--- | ---: | ---: |
+| ``Sources/a\|b `c`.swift`` | 1 | 0% |
+
+### Surviving mutants (1)
+
+- ``Sources/a|b `c`.swift``
+  - `4:9` RelationalOperatorReplacement: changed \*a\* to \_b\_ \| \<c\> \& \$d
+
+With coverage on, no mutant is made in code the coverage run says no test ran, so no count here has one: a file left out for its coverage (`coverageThreshold`) is one row, and a file the coverage data doesn't name has none. "Not covered" counts only mutants that were made and tested, whose blocks their tests didn't run. `--skip-coverage` makes them all.

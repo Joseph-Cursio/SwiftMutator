@@ -11,7 +11,7 @@ final class LoggerCompileRecoveryTests: MuterTestCase {
         var run = OneMutantRun.make(outcome: .buildError)
         run.leftOutOfTheBuild = true
 
-        sut.oneMutantTested(run, reportPath: nil)
+        sut.oneMutantTested(run, reports: [])
 
         let lines = printer.linesPassed
         XCTAssertTrue(lines.contains("Verdict: didn't compile, so its tests didn't run"), "\(lines)")
@@ -69,7 +69,7 @@ final class LoggerCompileRecoveryTests: MuterTestCase {
         var end = EarlyEnd.make(tested: [.failed, .buildError, .buildError], discovered: 9)
         end.leftOut = 2
 
-        sut.mutationTestingEndedEarly(end, partialReport: nil, resultsFile: nil, continueCommand: nil)
+        sut.mutationTestingEndedEarly(end, partialReports: [], resultsFile: nil, continueCommand: nil)
 
         XCTAssertEqual(standardError.linesPassed, [
             "⏹ Stopped by a signal after testing 1 of 9 mutants. 2 more were taken out of the build. "

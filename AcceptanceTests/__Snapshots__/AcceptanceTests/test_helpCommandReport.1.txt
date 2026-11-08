@@ -1,7 +1,7 @@
 OVERVIEW: Builds a report from a run's results file, or from its shards'
 results files merged.
 
-USAGE: swift-mutator report <results> ... [--format <format>] [--output <output>] [--fail-under <percent>] [--property-tests <glob> ...] [--force-merge] [--merge-ignoring <glob> ...] [--summary <path>] [--triage <path>]
+USAGE: swift-mutator report <results> ... [--format <format>] [--output <output>] [--report <format:path> ...] [--fail-under <percent>] [--property-tests <glob> ...] [--force-merge] [--merge-ignoring <glob> ...] [--summary <path>] [--triage <path>]
 
 ARGUMENTS:
   <results>               A run's results file, or the log folder in
@@ -10,8 +10,11 @@ ARGUMENTS:
                           are merged into one report.
 
 OPTIONS:
-  -f, --format <format>   The report format: plain, json, html, xcode
+  -f, --format <format>   The report format: plain, json, html, xcode, markdown
   -o, --output <output>   Output file for the report to be saved.
+  --report <format:path>  Also save a report in another format, as format:path,
+                          such as markdown:summary.md. Repeatable. For a run,
+                          in place of reports.
   --fail-under <percent>  Exit with status 2 when the headline mutation score,
                           counting any mutant taken out of the build with
                           others as not killed, is below this percent, from 0

@@ -442,6 +442,7 @@ extension Run.Options {
         sample: Sample? = nil,
         reportFormat: ReportFormat = .plain,
         reportURL: URL? = nil,
+        reports: [ReportRequest]? = nil,
         mutationOperatorsList: MutationOperatorList = [],
         skipCoverage: Bool = false,
         skipUpdateCheck: Bool = false,
@@ -469,6 +470,7 @@ extension Run.Options {
             sample: sample,
             reportFormat: reportFormat,
             reportURL: reportURL,
+            reports: reports,
             mutationOperatorsList: mutationOperatorsList,
             skipCoverage: skipCoverage,
             skipUpdateCheck: skipUpdateCheck,
@@ -587,7 +589,8 @@ func configurationWithEveryFieldSet(
         propertyTests: ["*Properties*"],
         propertyTestFilter: ["Properties"],
         operators: [.ror, .swapTernary],
-        skipOperators: [.swapTernary]
+        skipOperators: [.swapTernary],
+        reports: [ReportRequest(format: .markdown, path: "summary.md")]
     )
     .withDirectTestRun(DirectTestRun(
         helper: "/toolchain/usr/libexec/swift/pm/swiftpm-testing-helper",

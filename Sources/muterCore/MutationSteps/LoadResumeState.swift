@@ -3,9 +3,10 @@ import Foundation
 /// Opens and locks the results file of the stopped run that `--resume` continues, and checks that this run would
 /// reproduce its results. It runs before the last run's copy is removed and the project copied, so every refusal comes
 /// first, in one message: a run still writing the file, a changed configuration or selection of mutants, a changed
-/// SwiftMutator build or toolchain that `--force-resume` didn't let through, an `-o` that would replace the file, and
-/// changed project files that no `--resume-ignoring` glob matches. The project's files are fingerprinted in the
-/// project itself, as there is no copy yet; `FingerprintProjectTree` checks the copy again.
+/// SwiftMutator build or toolchain that `--force-resume` didn't let through, an `-o`, a `--report` or a `reports:`
+/// entry that would replace the file, and changed project files that no `--resume-ignoring` glob matches. The
+/// project's files are fingerprinted in the project itself, as there is no copy yet; `FingerprintProjectTree` checks
+/// the copy again.
 ///
 /// For `--reuse` it reads the earlier run's results file once, without a lock on it: the new run writes a file of its
 /// own, and a run of the same project still writing it holds the project's copy, which `LockMutatedProject` refuses.
@@ -107,7 +108,7 @@ struct LoadResumeState: MutationStep {
             tree = await ProjectTree.fingerprint(
                 listingIn: state.projectDirectoryURL,
                 hashingIn: state.projectDirectoryURL,
-                excluding: ProjectTree.excludedPaths(options, under: state.projectDirectoryURL)
+                excluding: ProjectTree.excludedPaths(of: state, under: state.projectDirectoryURL)
                     + (lastHeader.project?.excluded ?? []),
                 list: listProjectFiles
             )
@@ -125,6 +126,10 @@ struct LoadResumeState: MutationStep {
         var reasons = verdict.refusals
         if let reportPath = options.reportOptions.path, ResultsFile.isSameFile(reportPath, path) {
             reasons.append(.reportWouldReplaceTheResultsFile(reportPath))
+        }
+        for request in state.muterConfiguration.reportRequests(in: state.projectDirectoryURL)
+            where ResultsFile.isSameFile(request.path, path) {
+            reasons.append(.otherReportWouldReplaceTheResultsFile(request, isTheFlags: options.reports != nil))
         }
         if let recordedTree = lastHeader.project, let tree {
             let unwaived = tree.changes(since: recordedTree).partition(by: options.resumeIgnoring).unwaived

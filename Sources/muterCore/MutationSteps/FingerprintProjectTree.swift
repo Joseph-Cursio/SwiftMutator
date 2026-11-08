@@ -33,7 +33,7 @@ struct FingerprintProjectTree: MutationStep {
             listingIn: state.projectDirectoryURL,
             hashingIn: state.mutatedProjectDirectoryURL,
             // The last session's too: its report may still be in the project, under another name.
-            excluding: ProjectTree.excludedPaths(state.runOptions, under: state.projectDirectoryURL)
+            excluding: ProjectTree.excludedPaths(of: state, under: state.projectDirectoryURL)
                 + (lastSession?.excluded ?? [])
                 + ProjectTree.relativePaths([state.testPlan?.path], under: state.projectDirectoryURL),
             pruning: state.testPlan == nil

@@ -198,6 +198,7 @@ final class ResumeCheckTests: XCTestCase {
                 "oneWorkerSimulator was not set and is true now, which no result depends on.",
                 #"propertyTestFilter was not set and is ["Properties"] now, which no result depends on."#,
                 #"propertyTests was not set and is ["*Properties*"] now, which no result depends on."#,
+                #"reports was not set and is ["markdown:summary.md"] now, which no result depends on."#,
                 "stopAtFirstFailure was not set and is false now, which no result depends on.",
                 "suspectKillReruns was not set and is 25 now, which no recorded result depends on, though it chooses "
                     + "which kills are tested again alone.",
@@ -284,6 +285,7 @@ final class ResumeCheckTests: XCTestCase {
                 .init(name: "operators", was: nil, isNow: #"["RelationalOperatorReplacement","SwapTernary"]"#),
                 .init(name: "propertyTestFilter", was: nil, isNow: #"["Properties"]"#),
                 .init(name: "propertyTests", was: nil, isNow: #"["*Properties*"]"#),
+                .init(name: "reports", was: nil, isNow: #"["markdown:summary.md"]"#),
                 .init(name: "skipOperators", was: nil, isNow: #"["SwapTernary"]"#),
                 .init(name: "stopAtFirstFailure", was: nil, isNow: "false"),
                 .init(name: "suspectKillReruns", was: nil, isNow: "25"),

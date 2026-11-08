@@ -90,6 +90,12 @@ struct MuterConfiguration: Equatable, Codable {
     /// The operators a run leaves out (`skipOperators:`), of `operators` or of all of them; `--skip-operators` is taken
     /// in its place. nil and an empty list leave none out.
     let skipOperators: [MutationOperator.Id]?
+    /// The reports a run saves besides `-f`'s, each in its own format (`reports:`, as `format:path`), with each path as
+    /// written: a relative one is resolved against the project's folder, where the run starts, when it is used
+    /// (`reportRequests(in:)`). nil, the default, saves none. `--report` is taken in its place. Never `report`'s: it
+    /// would replace the run's own files. They change no result, so a resume lets them change. A `var` only so
+    /// `overriding` can copy `self` and change just this field.
+    private(set) var reports: [ReportRequest]?
     /// What selects the property tests alone, for the runs that test a killed mutant again with only them
     /// (`propertyTestFilter:`, `PropertyReruns`): each entry is given to `swift test` as `--filter <entry>`, and to
     /// xcodebuild as `-only-testing:<entry>`. nil, the default, runs none. A kill whose recorded tests include no
@@ -159,6 +165,7 @@ struct MuterConfiguration: Equatable, Codable {
         case propertyTestFilter
         case operators
         case skipOperators
+        case reports
     }
 
     init(
@@ -184,7 +191,8 @@ struct MuterConfiguration: Equatable, Codable {
         propertyTests: [String]? = nil,
         propertyTestFilter: [String]? = nil,
         operators: [MutationOperator.Id]? = nil,
-        skipOperators: [MutationOperator.Id]? = nil
+        skipOperators: [MutationOperator.Id]? = nil,
+        reports: [ReportRequest]? = nil
     ) {
         testCommandExecutable = executable
         testCommandArguments = arguments
@@ -209,6 +217,7 @@ struct MuterConfiguration: Equatable, Codable {
         self.propertyTestFilter = propertyTestFilter
         self.operators = operators
         self.skipOperators = skipOperators
+        self.reports = reports
     }
 
     init(from decoder: Decoder) throws {
@@ -249,6 +258,34 @@ struct MuterConfiguration: Equatable, Codable {
             )
         }
         skipOperators = try Self.operators(forKey: .skipOperators, in: container)
+        reports = try Self.reports(forKey: .reports, in: container)
+    }
+
+    /// The reports `key` asks for, each `format:path` (`ReportRequest.parse`), or nil if it isn't set. Throws on an
+    /// entry that isn't one, as `--report` refuses it, and on a value that isn't a list of strings, so a typo is a
+    /// configuration error rather than a report not saved.
+    private static func reports(
+        forKey key: CodingKeys,
+        in container: KeyedDecodingContainer<CodingKeys>
+    ) throws -> [ReportRequest]? {
+        try container.decodeIfPresent([String].self, forKey: key)?.map { entry in
+            switch ReportRequest.parse(entry) {
+            case let .success(request):
+                return request
+            case let .failure(problem):
+                throw DecodingError.dataCorruptedError(
+                    forKey: key,
+                    in: container,
+                    debugDescription: "\(key.stringValue): \(problem), not \(entry)"
+                )
+            }
+        }
+    }
+
+    /// `reports`, with each relative path resolved against `folder`, the project's: what a run saves; none without the
+    /// key.
+    func reportRequests(in folder: URL) -> [ReportRequest] {
+        (reports ?? []).map { $0.resolved(in: folder.path) }
     }
 
     /// The operators `key` names, or nil if it isn't set. Throws on a name that isn't an operator, and on a value that
@@ -347,6 +384,7 @@ struct MuterConfiguration: Equatable, Codable {
         try container.encodeIfPresent(propertyTestFilter, forKey: .propertyTestFilter)
         try container.encodeIfPresent(operators, forKey: .operators)
         try container.encodeIfPresent(skipOperators, forKey: .skipOperators)
+        try container.encodeIfPresent(reports, forKey: .reports)
     }
 
     /// A percent, written in JSON as a number and in YAML as a plain scalar, both in decimal digits
@@ -632,9 +670,9 @@ struct MuterConfiguration: Equatable, Codable {
         return copy
     }
 
-    /// This configuration with `--workers`', `--timeout`'s, `--build-timeout`'s, `--fail-under`'s and
-    /// `--property-tests`' values, when given, in place of `mutationTestWorkers`, `mutationTestTimeout`,
-    /// `buildTimeout`, `failUnder` and `propertyTests`, and `--exclude`'s entries after `exclude`'s: a run records and
+    /// This configuration with `--workers`', `--timeout`'s, `--build-timeout`'s, `--fail-under`'s, `--property-tests`'
+    /// and `--report`'s values, when given, in place of `mutationTestWorkers`, `mutationTestTimeout`, `buildTimeout`,
+    /// `failUnder`, `propertyTests` and `reports`, and `--exclude`'s entries after `exclude`'s: a run records and
     /// compares them as it does the keys.
     func overriding(
         workers: Int?,
@@ -642,6 +680,7 @@ struct MuterConfiguration: Equatable, Codable {
         buildTimeout: Double? = nil,
         failUnder: Double? = nil,
         propertyTests: [String]? = nil,
+        reports: [ReportRequest]? = nil,
         exclude: [String] = []
     ) -> MuterConfiguration {
         var copy = self
@@ -651,6 +690,7 @@ struct MuterConfiguration: Equatable, Codable {
         if let buildTimeout { copy.buildTimeout = buildTimeout }
         if let failUnder { copy.failUnder = failUnder }
         if let propertyTests { copy.propertyTests = propertyTests }
+        if let reports { copy.reports = reports }
         return copy
     }
 

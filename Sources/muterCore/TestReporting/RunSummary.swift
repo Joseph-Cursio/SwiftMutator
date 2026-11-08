@@ -34,8 +34,11 @@ struct RunSummary: Codable, Equatable {
     /// The shards of a `--shard` split the summary covers, when it covers only some, so its score isn't the whole
     /// run's: the one a run tested, or those `report` merged; nil otherwise.
     let shards: ShardScope?
-    /// The report `-o` saved, or `report -o` did; nil when none was saved.
+    /// The report `-o` saved, or `report -o` did, or a stopped run's partial report beside it; nil when none was saved.
     let report: String?
+    /// The other reports saved, in order: those `--report` or `reports:` asked for, or a stopped run's partial reports
+    /// beside them, or those `report --report` saved; nil, and left out, when none was.
+    let reports: [String]?
     let run: RunDetails?
     /// The verdict on the score against the threshold `--fail-under` or `failUnder` set (`ScoreGate`); nil without
     /// one.
@@ -71,6 +74,7 @@ struct RunSummary: Codable, Equatable {
         ended: ResultsEnd.Reason?,
         endDetail: String? = nil,
         report: String?,
+        reports: [String] = [],
         gate: ScoreGate? = nil
     ) {
         let outcomes = outcome.mutations.map(\.testSuiteOutcome)
@@ -94,6 +98,7 @@ struct RunSummary: Codable, Equatable {
         mutant = outcome.mutant
         shards = outcome.shards
         self.report = report
+        self.reports = reports.isEmpty ? nil : reports
         run = outcome.run
         self.gate = gate.map(Gate.init)
     }
