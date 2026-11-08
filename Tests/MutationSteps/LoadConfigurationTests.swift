@@ -96,6 +96,42 @@ final class LoadConfigurationTests: MuterTestCase {
         XCTAssertNotEqual(fromFile, configuration)
     }
 
+    // After the file's entries, so the header records both.
+    func test_excludeFlag_addsToTheKey() async throws {
+        fileManager.fileExistsToReturn = [false, true]
+        fileManager.fileContentsToReturn = Data(
+            "executable: /usr/bin/swift\narguments: [test]\nexclude: [/Gen/]\n".utf8
+        )
+        state.runOptions = .make(exclude: ["!/Stubs/"])
+
+        let result = try await sut.run(with: state)
+
+        guard case let .configurationParsed(configuration)? = result.last else { return XCTFail("\(result)") }
+        XCTAssertEqual(configuration.excludeFileList, ["/Gen/", "!/Stubs/"])
+    }
+
+    // YAML reads an unquoted `!` entry as a tag on an empty value, which would keep nothing.
+    func test_anEmptyExcludeEntry_refusesTheRun_asAnUnquotedBangGivesOne() async throws {
+        for yaml in ["exclude:\n  - !/Stubs/\n", "exclude: ['']\n"] {
+            fileManager.fileExistsToReturn = [false, true]
+            fileManager.fileContentsToReturn = Data("executable: /usr/bin/swift\narguments: [test]\n\(yaml)".utf8)
+
+            try await assertThrowsMuterError(
+                await sut.run(with: state),
+                .configurationParsingError(
+                    reason: "An `exclude` entry is empty. One that starts with ! must be quoted, as - \"!/Stubs/\"."
+                )
+            )
+        }
+        fileManager.fileExistsToReturn = [false, true]
+        fileManager.fileContentsToReturn = Data(
+            "executable: /usr/bin/swift\narguments: [test]\nexclude:\n  - \"!/Stubs/\"\n".utf8
+        )
+        let result = try await sut.run(with: state)
+        guard case let .configurationParsed(quoted)? = result.last else { return XCTFail("\(result)") }
+        XCTAssertEqual(quoted.excludeFileList, ["!/Stubs/"])
+    }
+
     // As --workers and --timeout do: the header records it, and a resume only says it changed.
     func test_failUnderFlag_replacesItsKey() async throws {
         fileManager.fileExistsToReturn = [false, true]

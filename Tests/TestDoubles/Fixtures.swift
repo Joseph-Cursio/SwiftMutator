@@ -435,6 +435,7 @@ extension FileCoverage {
 extension Run.Options {
     static func make(
         filesToMutate: [String] = [],
+        exclude: [String] = [],
         since: String? = nil,
         changedLinesOnly: Bool = false,
         shard: Shard? = nil,
@@ -460,6 +461,7 @@ extension Run.Options {
     ) -> Self {
         .init(
             filesToMutate: filesToMutate,
+            exclude: exclude,
             since: since,
             changedLinesOnly: changedLinesOnly,
             shard: shard,

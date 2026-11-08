@@ -6,8 +6,9 @@ struct MuterConfiguration: Equatable, Codable {
     // A `var` only so `withExecutable` can copy `self` and change just this field. Rebuilding with
     // `init` instead silently resets any field the call leaves out, as every parameter has a default.
     private(set) var testCommandExecutable: String
-    /// File exclusion list.
-    let excludeFileList: [String]
+    /// File exclusion list (`exclude:`), with `--exclude`'s entries after the file's. An entry that starts with `!`
+    /// keeps what it matches (`SourceFileExcludes`). A `var` only so `overriding` can copy `self` and add to it.
+    private(set) var excludeFileList: [String]
     /// Exclusion list of functions for Remove Side Effects.
     let excludeCallList: [String]
     /// A percentage from 0 to 100 (`coverageThreshold:`), the same for every build system: a file whose share of lines
@@ -635,13 +636,22 @@ struct MuterConfiguration: Equatable, Codable {
         workers: Int?,
         timeout: Double?,
         failUnder: Double? = nil,
-        propertyTests: [String]? = nil
+        propertyTests: [String]? = nil,
+        exclude: [String] = []
     ) -> MuterConfiguration {
         var copy = self
+        copy.excludeFileList += exclude
         if let workers { copy.mutationTestWorkers = workers }
         if let timeout { copy.testSuiteTimeout = timeout }
         if let failUnder { copy.failUnder = failUnder }
         if let propertyTests { copy.propertyTests = propertyTests }
+        return copy
+    }
+
+    /// This configuration with `exclude`'s entries sorted, once each, which choose the same files in any order.
+    var withExcludesInOrder: MuterConfiguration {
+        var copy = self
+        copy.excludeFileList = Set(excludeFileList).sorted()
         return copy
     }
 

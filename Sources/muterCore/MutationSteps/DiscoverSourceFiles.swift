@@ -1,6 +1,25 @@
 import Foundation
 import Pathos
 
+/// A `--files-to-mutate` entry that leaves no file to mutate, and why.
+struct UnmatchedFilesToMutate: Equatable, Sendable {
+    enum Reason: Equatable, Sendable {
+        /// No Swift file is there.
+        case noSwiftFile
+        /// Each Swift file it names is outside the project.
+        case outsideTheProject
+        /// The excludes leave out each Swift file it names, and an entry that starts with `!` could keep one.
+        case excluded
+        /// Each Swift file it names is a manifest, or in a build folder, which no entry can keep.
+        case neverMutated
+        /// The coverage filter leaves out each one the excludes leave in.
+        case withoutCoverage
+    }
+
+    let entry: String
+    let reason: Reason
+}
+
 struct DiscoverSourceFiles: MutationStep {
     @Dependency(\.events)
     private var events: RunEvents
@@ -20,18 +39,19 @@ struct DiscoverSourceFiles: MutationStep {
         if listed == nil, state.filesToMutate.isEmpty {
             listed = try await candidatePaths(in: state)
         }
-        let sourceFileCandidates = state.filesToMutate.isEmpty
-            ? discoverSourceFiles(
+        let sourceFileCandidates: [FilePath]
+        if state.filesToMutate.isEmpty {
+            sourceFileCandidates = discoverSourceFiles(
                 among: (listed ?? []).filter(isChosen(by: state)),
-                inDirectoryAt: state.mutatedProjectDirectoryURL.path,
-                excludingPathsIn: state.muterConfiguration.excludeFileList,
-                ignoringFilesWithoutCoverage: state.projectCoverage.filesWithoutCoverage,
-                keepingOnly: state.projectCoverage.filesInCoverage
+                in: state
             )
-            : findFilesToMutate(
-                files: state.filesToMutate,
-                inDirectoryAt: state.mutatedProjectDirectoryURL.path
-            )
+        } else {
+            let (files, unmatched) = filesToMutate(in: state)
+            if !unmatched.isEmpty {
+                events.send(.filesToMutateUnmatched(unmatched))
+            }
+            sourceFileCandidates = files
+        }
 
         let failure: MuterError = state.filesToMutate.isEmpty
             ? .noSourceFilesDiscovered
@@ -75,9 +95,6 @@ private extension DiscoverSourceFiles {
             }
         }
     }
-}
-
-private extension DiscoverSourceFiles {
 }
 
 extension DiscoverSourceFiles {
@@ -138,6 +155,16 @@ private extension DiscoverSourceFiles {
         return paths.filter { notIgnored.contains($0) || renamedInCase.contains($0.lowercased()) }
     }
 
+    private func discoverSourceFiles(among candidatePaths: [FilePath], in state: AnyMutationTestState) -> [FilePath] {
+        discoverSourceFiles(
+            among: candidatePaths,
+            inDirectoryAt: state.mutatedProjectDirectoryURL.path,
+            excludingPathsIn: state.muterConfiguration.excludeFileList,
+            ignoringFilesWithoutCoverage: state.projectCoverage.filesWithoutCoverage,
+            keepingOnly: state.projectCoverage.filesInCoverage
+        )
+    }
+
     private func discoverSourceFiles(
         among candidatePaths: [FilePath],
         inDirectoryAt rootPath: FilePath,
@@ -193,30 +220,79 @@ private extension DiscoverSourceFiles {
         return { path in canonicalPaths.contains(path.canonicalPath) }
     }
 
-    private func findFilesToMutate(
-        files: [FilePath],
-        inDirectoryAt path: FilePath
-    ) -> [FilePath] {
-        let glob = files
-            .map { expandGlobExpressions(root: path, pattern: $0) }
-            .flatMap { $0 }
-        let list = files.map { append(root: path, to: $0) }
-        let result = (glob + list).map(standardizing(path:))
-        return includeSwiftFiles(from: result)
+    /// The Swift files `--files-to-mutate` names, past the excludes and the coverage filter, as discovery leaves out
+    /// any other file, and its entries that leave none. An entry is a file, a folder, which names every Swift file in
+    /// it that isn't hidden or in a hidden folder, or a glob, as `exclude` takes one, whose matches are each a file
+    /// or a folder. It is relative to the project, unless it is an absolute path in it. A file named twice, in
+    /// letters of another case too, is mutated once.
+    private func filesToMutate(in state: AnyMutationTestState) -> ([FilePath], [UnmatchedFilesToMutate]) {
+        let root = state.mutatedProjectDirectoryURL.path
+        let named = state.filesToMutate.map { entry in
+            (entry, swiftFiles(namedBy: entry, in: state.projectDirectoryURL, copiedTo: root))
+        }
+        let inTheProject: (FilePath) -> FilePath? = { path in
+            let relative = RepoRelativePath.of(path, under: state.mutatedProjectDirectoryURL)
+            return relative.hasPrefix("/") ? nil : relative
+        }
+        var seen: Set<FilePath> = []
+        let unique = named.flatMap(\.1).filter { seen.insert($0.canonicalPath).inserted }
+        let files = discoverSourceFiles(among: unique.compactMap(inTheProject).sorted(), in: state)
+
+        let kept = Set(files.map(\.canonicalPath))
+        let isExcluded = SourceFileExcludes.matcher(state.muterConfiguration.excludeFileList)
+        let unmatched = named.filter { !$0.1.contains { kept.contains($0.canonicalPath) } }.map { entry, paths in
+            let existing = paths.filter(fileManager.fileExists)
+            let inProject = existing.compactMap(inTheProject)
+            let reason: UnmatchedFilesToMutate.Reason = if existing.isEmpty {
+                .noSwiftFile
+            } else if inProject.isEmpty {
+                .outsideTheProject
+            } else if inProject.allSatisfy(SourceFileExcludes.isAlwaysExcluded) {
+                .neverMutated
+            } else if inProject.allSatisfy(isExcluded) {
+                .excluded
+            } else {
+                .withoutCoverage
+            }
+            return UnmatchedFilesToMutate(entry: entry, reason: reason)
+        }
+        return (files, unmatched)
     }
 
-    private func expandGlobExpressions(
-        root: FilePath,
-        pattern: FilePath
-    ) -> [FilePath] {
-        let path = Path(append(root: root, to: pattern))
-        guard pattern.contains("*"), let paths = try? path.glob(),
-              !paths.isEmpty
-        else {
-            return []
+    /// The paths in the copy at `root` of the Swift files `entry` names, whether or not they exist. An absolute path
+    /// in the project at `project` names its copy; any other path is relative to the project, `/` or not.
+    private func swiftFiles(namedBy entry: String, in project: URL, copiedTo root: FilePath) -> [FilePath] {
+        var entry = entry
+        if entry.hasPrefix("/"), let relative = [project.path, project.path.canonicalPath].lazy
+            .map({ RepoRelativePath.of(entry, under: URL(fileURLWithPath: $0)) })
+            .first(where: { !$0.hasPrefix("/") }) {
+            entry = relative
         }
+        let paths = entry.contains("*")
+            ? matches(ofGlob: entry, inDirectoryAt: root)
+            : [append(root: root, to: entry)]
+        return paths.map(standardizing(path:)).flatMap { path in
+            fileManager.isDirectory(atPath: path) ? swiftFiles(inFolderAt: path) : [path]
+        }
+        .filter(swiftFiles(path:))
+    }
 
-        return paths.map(\.description)
+    /// The files and folders in the project at `root` that `glob` matches, as an `exclude` glob would, but those that
+    /// are hidden or in a hidden folder.
+    private func matches(ofGlob glob: String, inDirectoryAt root: FilePath) -> [FilePath] {
+        let pattern = ExcludeGlob(glob)
+        return (fileManager.subpaths(atPath: root) ?? [])
+            .filter { !$0.split(separator: "/").contains { $0.hasPrefix(".") } }
+            .filter(pattern.matches)
+            .sorted()
+            .map { append(root: root, to: $0) }
+    }
+
+    private func swiftFiles(inFolderAt folder: FilePath) -> [FilePath] {
+        (fileManager.subpaths(atPath: folder) ?? [])
+            .filter { !$0.split(separator: "/").contains { $0.hasPrefix(".") } }
+            .filter(swiftFiles(path:))
+            .map { append(root: folder, to: $0) }
     }
 
     private func append(

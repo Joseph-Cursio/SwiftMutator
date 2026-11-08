@@ -99,9 +99,9 @@ extension MutationTestObserver {
         case let .projectCoverageTestsFailed(failed):
             logger.projectCoverageTestsFailed(failed)
 
-        case .sourceFileDiscoveryStarted:
-            logger.sourceFileDiscoveryStarted()
+        case .sourceFileDiscoveryStarted: logger.sourceFileDiscoveryStarted()
         case let .packageSourceFilesUnavailable(reason): logger.packageSourceFilesUnavailable(reason: reason)
+        case let .filesToMutateUnmatched(entries): logger.filesToMutateUnmatched(entries)
         case let .buildConditionsUnavailable(reason): logger.buildConditionsUnavailable(reason: reason)
         case let .sourceFileDiscoveryFinished(sourceFileCandidates):
             logger.sourceFileDiscoveryFinished(sourceFileCandidates: sourceFileCandidates, verbose: runOptions.verbose)

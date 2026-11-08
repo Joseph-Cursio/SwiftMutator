@@ -161,6 +161,22 @@ final class RunCommandTests: XCTestCase {
         XCTAssertTrue(help.contains("\n  --plan-ignoring <glob>"), help)
     }
 
+    // Added to the configuration's `exclude`, on each command that discovers mutants.
+    func test_exclude_reachesTheRunOptions_ofEachCommandThatDiscovers() throws {
+        let run = try XCTUnwrap(
+            MuterCommand.parseAsRoot(["run", "--exclude", "/Generated/", "--exclude", "!/Stubs/"]) as? Run
+        )
+        XCTAssertEqual(run.runOptions.exclude, ["/Generated/", "!/Stubs/"])
+        let plan = try MuterCommand.parseAsRoot(["mutate-without-running", "--exclude", "Sources/**/Gen*.swift"])
+        XCTAssertEqual(try XCTUnwrap(plan as? MutateWithoutRunning).runOptions.exclude, ["Sources/**/Gen*.swift"])
+        XCTAssertEqual(try XCTUnwrap(MuterCommand.parseAsRoot(["run"]) as? Run).runOptions.exclude, [])
+        XCTAssertTrue(Run.helpMessage(columns: 200).contains("\n  --exclude <pattern>"))
+        assertUsageError(
+            ["run", "--mutant", "Bar.swift:12:9", "--exclude", "/Generated/"],
+            "--mutant can't be given with --exclude."
+        )
+    }
+
     // For one run, in place of the configuration's keys, on each command that tests mutants.
     func test_workersAndTimeout_reachTheRunOptions_ofEachCommandThatTests() throws {
         let run = try XCTUnwrap(MuterCommand.parseAsRoot(["run", "--workers", "4", "--timeout", "90"]) as? Run)
@@ -511,7 +527,7 @@ final class RunCommandTests: XCTestCase {
     func test_operatorsAndFilesToMutate_comeFirstInTheHelp_ofRunAndMutateWithoutRunning() {
         for help in [Run.helpMessage(columns: 400), MutateWithoutRunning.helpMessage(columns: 400)] {
             let options = help.components(separatedBy: "OPTIONS:\n").last ?? ""
-            XCTAssertTrue(options.hasPrefix("  --files-to-mutate <files-to-mutate>"), help)
+            XCTAssertTrue(options.hasPrefix("  --files-to-mutate <path>"), help)
             XCTAssertTrue(options.contains("\n  --operators <operators> "), help)
             XCTAssertTrue(help.contains(MutationOperator.Id.description), help)
         }

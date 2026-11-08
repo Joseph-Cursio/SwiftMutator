@@ -124,6 +124,7 @@ struct Run: RunCommand {
     var runOptions: Run.Options {
         Run.Options(
             filesToMutate: selection.filesToMutate,
+            exclude: selection.exclude,
             since: since,
             changedLinesOnly: changedLines,
             // 1/1 is the whole run.
@@ -196,6 +197,7 @@ private extension Run {
             ("--operators", !selection.operators.isEmpty),
             ("--skip-operators", !selection.skipOperators.isEmpty),
             ("--files-to-mutate", !selection.filesToMutate.isEmpty),
+            ("--exclude", !selection.exclude.isEmpty),
             ("--since", since != nil),
             // 1/1 is the whole run.
             ("--shard", (shard?.count ?? 1) > 1),

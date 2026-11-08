@@ -32,6 +32,8 @@ enum RunEvent {
     case packageSourceFilesUnavailable(reason: String)
     /// Why SwiftMutator can't tell which `#if` branches the build compiles.
     case buildConditionsUnavailable(reason: String)
+    /// The `--files-to-mutate` entries that leave no file to mutate.
+    case filesToMutateUnmatched([UnmatchedFilesToMutate])
     case sourceFileDiscoveryFinished([FilePath])
 
     case mutationsDiscoveryStarted

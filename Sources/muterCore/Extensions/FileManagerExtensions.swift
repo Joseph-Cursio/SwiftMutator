@@ -32,6 +32,9 @@ public protocol FileSystemManager: Sendable {
 
     func fileExists(atPath path: String) -> Bool
 
+    /// Whether there is a folder at `path`, or a link to one.
+    func isDirectory(atPath path: String) -> Bool
+
     func removeItem(atPath path: String) throws
 
     func contents(atPath path: String, sortedByDate order: ComparisonResult) throws -> [String]
@@ -44,6 +47,11 @@ extension FileManager: @retroactive @unchecked Sendable {}
 #endif
 
 extension FileManager: FileSystemManager {
+    public func isDirectory(atPath path: String) -> Bool {
+        var isDirectory: ObjCBool = false
+        return fileExists(atPath: path, isDirectory: &isDirectory) && isDirectory.boolValue
+    }
+
     public func contents(
         atPath path: String,
         sortedByDate order: ComparisonResult

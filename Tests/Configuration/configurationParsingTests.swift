@@ -307,6 +307,17 @@ final class ConfigurationParsingTests: MuterTestCase {
         XCTAssertEqual(set.overriding(workers: nil, timeout: nil).propertyTests, set.propertyTests)
     }
 
+    // After the file's, so a header records both, and a resume compares them as it does the key.
+    func test_excludeFromTheCommandLine_isAddedToTheFiles() throws {
+        let configuration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], excludeList: ["/Gen/"]
+        )
+        let overridden = configuration.overriding(workers: nil, timeout: nil, exclude: ["!/Stubs/"])
+        XCTAssertEqual(overridden.excludeFileList, ["/Gen/", "!/Stubs/"])
+        XCTAssertEqual(try MuterConfiguration(from: overridden.asData).excludeFileList, ["/Gen/", "!/Stubs/"])
+        XCTAssertEqual(configuration.overriding(workers: nil, timeout: nil), configuration)
+    }
+
     func test_parsePropertyTestFilter_andWhenItCanBeUsed() throws {
         let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
         let parsed = { (lines: String) in try MuterConfiguration(from: Data("\(swiftTest)\n\(lines)".utf8)) }

@@ -204,6 +204,16 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   are no tiers of operators, as the numbers per operator don't call for them. A run recorded before
   these operators is continued as above, by naming that run's operators with `--operators`. See
   [mutation_operators.md](Docs/mutation_operators.md#what-each-operator-catches-and-costs).
+- **Choosing the files** ([#115](https://github.com/Joseph-Cursio/SwiftMutator/issues/115)): the
+  default excludes also leave out test doubles and helpers, `/Mocks/`, `/Stubs/`, `/Fakes/`,
+  `/TestHelpers/`, `/TestSupport/`, `Mock.swift` and `Spec.swift`, and `/Snippets/` and
+  `/DerivedData/`, so a project whose own code lives in such a folder finds fewer mutants. An
+  `exclude` entry that starts with `!` keeps what it matches. `--exclude` adds entries for one run.
+  `--files-to-mutate` takes folders, absolute paths in the project and globs as `exclude` reads them,
+  keeps the excludes and the coverage filter, which it used to skip, and says which of its entries
+  leave no file, which it used to drop without a word; a file named twice is mutated once. An empty
+  `exclude` entry, which used to leave out every file, is refused. See
+  [Choosing the files](#choosing-the-files).
 - **Disable tags act once, by where they are:** the nodes that share a `// muter:disable` or
   `// muter:enable` used to take turns acting on it, so a tag beside code could silently fail,
   depending on how many nodes shared it. Now a tag beside code leaves that code off: a `disable`
@@ -368,7 +378,7 @@ is there for callers your tests aren't. Two more things follow:
   shares its folder, or a folder inside or around it, as that looks like a target the tests ran. Other such files are
   left out with the rest of what the tests don't reach, as a file at 0% is, however many values it has.
 - A SwiftPM test doesn't run an executable's `main.swift`, so with coverage that file reads 0% and is left out. Its
-  statements are mutated with `--skip-coverage` or `--files-to-mutate`, or when tests do run it.
+  statements are mutated with `--skip-coverage`, or when tests do run it.
 
 Some code still has nowhere to put a switch, and its mutants are dropped:
 
@@ -516,9 +526,10 @@ first, such as code the rewriting left unable to compile. `swift-mutator run-wit
 muter-mappings.json` then tests it. See [The test plan](Docs/test-plan.md).
 
 - **Choosing the mutants.** Like `run`, `mutate-without-running` takes `--files-to-mutate`,
-  `--operators` and `--skip-operators`, and follows the `operators` and `skipOperators` keys. The
-  plan records the result, and so does the results file of a run that tests it, which then looks at
-  neither key.
+  `--exclude`, `--operators` and `--skip-operators`, and follows the `operators` and `skipOperators`
+  keys. The plan records the result, and so does the results file of a run that tests it, which then
+  looks at neither key. `--exclude` is the exception: the plan's mutants leave its files out, but
+  neither the plan nor the run that tests it records its entries.
 - **Fixing the copy by hand.** The run tests the copy as it is, and says which files with mutants
   differ from what `mutate-without-running` wrote. Its results file records each file's SHA-256 as
   tested.
@@ -591,7 +602,7 @@ To run its tests with it on:
   project is checked against the plan as for a whole run, but only a change to that mutant's file
   refuses it: one to a file with the plan's other mutants is only said.
 - For an xcodebuild project, only the switch's environment variable is named, not a command.
-- `--mutant` can't be given with `--operators`, `--skip-operators`, `--files-to-mutate`, `--since`, `--shard`,
+- `--mutant` can't be given with `--operators`, `--skip-operators`, `--files-to-mutate`, `--exclude`, `--since`, `--shard`,
   `--sample`, `--resume` or `--reuse`. A run of one mutant prints no Continue line: the same command
   tests it again. Its reports, the one `-o` saves and those `report` makes of its results file,
   say its score isn't the project's, and the JSON report gives the mutant as `mutant`.
@@ -938,6 +949,45 @@ once says so, and one that uses fewer workers than asked says why:
 👷 Testing 4 mutants at a time, from one build, as your tests wrote nothing in the project.
 👷 Testing 3 mutants at a time, though 4 workers were asked for: only 3 are left to test.
 👷 Testing one mutant at a time, though 4 workers were asked for: a Mac app's test runs share its UserDefaults, saved state and container, so workers would see each other's.
+```
+
+### Choosing the files
+
+Discovery mutates the Swift files the project builds, less those the excludes leave out, and, with
+coverage, those the tests never ran. The default excludes leave out build folders, dependencies,
+package manifests, tests, test doubles and helpers (`/Mocks/`, `/Stubs/`, `/Fakes/`,
+`/TestHelpers/`, `/TestSupport/`, `Mock.swift`, `Spec.swift`) and SwiftPM's `/Snippets/`; the
+[full list](Docs/Muter-README.md#configuration-options) is in Muter's README. An `exclude` entry
+that starts with `!` keeps what the rest of it matches, a default's files included, but not the
+project's own `Package.swift` or a file in `.build`, `.swiftpm` or `muter_tmp`. In YAML such an
+entry must be quoted, as an unquoted `!` starts a tag, and SwiftMutator refuses the empty entry
+that would leave:
+
+```yaml
+exclude:
+  - /Generated/          # leave out generated code
+  - "!/Stubs/"           # but mutate the Stubs module, which the defaults leave out
+```
+
+With coverage, a file in a `Tests` folder or whose name ends in `Tests.swift` is taken for a test
+file, whose code the coverage doesn't count, so only `--skip-coverage` mutates it, `!` or not.
+
+For one run:
+
+- `--exclude <pattern>`, repeatable, adds an entry to `exclude`, as `--exclude /Generated/` or
+  `--exclude '!/Stubs/'` (quoted, as a shell may read `!`). A resume compares the entries, as it does
+  the key's.
+- `--files-to-mutate <path>` mutates only the files it names, by their path in the project, or an
+  absolute one in it: a file, a folder, which names every Swift file in it but hidden ones, or a
+  glob, as `exclude` takes one, such as `Sources/**/*.swift`, whose matches may be folders too.
+  Entries are comma-separated or given again, and a file named twice is mutated once. The excludes
+  and the coverage filter still apply, so a file at or below `coverageThreshold`, which by default
+  is one whose code no test ran, isn't mutated: `--skip-coverage` turns that off. Each entry that
+  leaves no file says why:
+
+```text
+⚠️ --files-to-mutate Sources/Missing.swift names no Swift file.
+⚠️ --files-to-mutate Tests names only files the excludes leave out; an exclude entry that starts with ! keeps them.
 ```
 
 ### Choosing the operators
@@ -2013,7 +2063,7 @@ SwiftMutator copies the project is refused after the copy, so that message doesn
 
 | Since the last session | Resuming |
 |---|---|
-| A configuration key changed, other than `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests` and `propertyTestFilter`; `operators` and `skipOperators` are compared by the operators they choose, in the next rows | Refused: start a new run |
+| A configuration key changed (`exclude` by `--exclude` too, compared as a set), other than `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests` and `propertyTestFilter`; `operators` and `skipOperators` are compared by the operators they choose, in the next rows | Refused: start a new run |
 | `mutationTestTimeout` (or `--timeout`) is at least as long as every session's `timeoutSeconds` | Goes ahead, says so, and tests the timeouts under a shorter limit again |
 | The operators chosen, by `--operators`, `--skip-operators`, `operators` or `skipOperators`, `--files-to-mutate` or `--skip-coverage` changed | Refused: start a new run |
 | `--since`'s merge base or `--changed-lines` changed, or `--since` given in one session only | Refused: start a new run. `--reuse` doesn't compare them |

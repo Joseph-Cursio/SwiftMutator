@@ -37,7 +37,7 @@ Use this mode to get detailed information about the health and quality of your e
 Use this script to easily mutation test your projects incrementally, enabling you to have per-commit updates on how code changes impact the quality of your test suite. Seamlessly connect the output of this CI step into your dashboard or communication channel of choice, or use it as a starting point for thinking about how you want to incrementally test your code.
 
 ```sh
-muter --files-to-mutate $(echo \"$(git diff --name-only HEAD HEAD~1 | tr '\n' ',')\")
+swift-mutator --files-to-mutate "$(git diff --name-only HEAD~1 HEAD -- '*.swift' | paste -sd, -)"
 ```
 
 ## Table of Contents
@@ -153,22 +153,16 @@ Should you need to modify any of the options, you can use the list below to unde
 - `executable` - the absolute path to the program which can run your test suite (like `xcodebuild`, `swift`, `fastlane`, `make`, etc.)
 - `arguments` - any command line arguments the executable needs to run your test suite
 - `exclude` - a list of paths, file extensions, or names you want Muter to ignore. By default, Muter ignores all non-Swift files, and any paths containing the following phrases:
-  - `/.swiftpm/`
-  - `/.build/`
-  - `/Build/`
-  - `/Carthage/`
-  - `/muter_tmp/`
-  - `/Pods/`
-  - `/Spec/`
-  - `/Tests/`
-  - `Tests.swift`
-  - `/fastlane/`
-  - `/Package.swift`
-  - `/Package@swift-`
+  - `/.swiftpm/`, `/.build/` and `/muter_tmp/`, which no entry can bring back, nor the project's own `Package.swift` or `Package@swift-*.swift`
+  - `/Package.swift` and `/Package@swift-`, as a local package's manifest
+  - `/Build/`, `/DerivedData/`, `/Carthage/`, `/Pods/` and `/fastlane/`
+  - `/Tests/`, `Tests.swift`, `/Spec/` and `Spec.swift`
+  - `/Mocks/`, `/Stubs/`, `/Fakes/`, `/TestHelpers/`, `/TestSupport/` and `Mock.swift`
+  - `/Snippets/`
 
-    The `exclude` option is optional.
+    The `exclude` option is optional. An entry that starts with `!` keeps the files the rest of it matches, whatever else leaves them out, a default included: `"!/Stubs/"` mutates a real `Stubs` module, and `"!Sources/App/Mocks/**"` one folder of mocks. Quote such an entry, as YAML reads an unquoted `!` as a tag; an empty entry, which that leaves, is refused. With coverage, a file the coverage takes for a test file, in a `Tests` folder or named `…Tests.swift`, is still left out. `--exclude` adds entries for one run.
 
-    **NOTE**: The list applies to the files discovery picks from. When `executable` is `swift`, those are the Swift files that the tested package compiles, as `swift package describe` lists them. The tested package is the one that `--package-path` in `arguments` names, or else the one in the project's folder. Those of the local packages in the project that it depends on are included, those of its test, plugin and snippet targets aren't, and nor are those that a link to a folder leads outside the project to. Otherwise, as for xcodebuild, a wrapper script or a package tested through xcodebuild, or if describe can't list the package's files, as when `--package-path` names a package outside the project, they are the project's Swift files, but those in hidden folders or hidden themselves, and, in a git repository, those git ignores. That leaves out a source that a build step generates and git ignores, even if an Xcode target compiles it; `--files-to-mutate` can still name it. Of these, when coverage is gathered, only the files that its data names are kept: those with code in a binary that the coverage run built and llvm-cov read, whether the tests ran that code or not. For `swift`, those are the test bundles. For xcodebuild, they are every product the run built, so an app that UI tests launch counts, and so do the files xccov's report names. That leaves out an example app in no target the tests build, an executable target that no test links, and the targets of a local package that nothing the tests link uses. So an example app needs an entry only when coverage is skipped or can't be gathered. Code that runs only in a process the tests start, such as a package's own executable run with `Process`, isn't in that data, so its files aren't mutated; `--files-to-mutate` can still name them.
+    **NOTE**: The list applies to the files discovery picks from. When `executable` is `swift`, those are the Swift files that the tested package compiles, as `swift package describe` lists them. The tested package is the one that `--package-path` in `arguments` names, or else the one in the project's folder. Those of the local packages in the project that it depends on are included, those of its test, plugin and snippet targets aren't, and nor are those that a link to a folder leads outside the project to. Otherwise, as for xcodebuild, a wrapper script or a package tested through xcodebuild, or if describe can't list the package's files, as when `--package-path` names a package outside the project, they are the project's Swift files, but those in hidden folders or hidden themselves, and, in a git repository, those git ignores. That leaves out a source that a build step generates and git ignores, even if an Xcode target compiles it; `--files-to-mutate` can still name it, as the excludes and the coverage filter are all it applies. Of these, when coverage is gathered, only the files that its data names are kept: those with code in a binary that the coverage run built and llvm-cov read, whether the tests ran that code or not. For `swift`, those are the test bundles. For xcodebuild, they are every product the run built, so an app that UI tests launch counts, and so do the files xccov's report names. That leaves out an example app in no target the tests build, an executable target that no test links, and the targets of a local package that nothing the tests link uses. So an example app needs an entry only when coverage is skipped or can't be gathered. Code that runs only in a process the tests start, such as a package's own executable run with `Process`, isn't in that data, so its files aren't mutated; `--files-to-mutate` with `--skip-coverage` can still name them.
 
     **NOTE**: An entry without `*` is a substring match against each file's path in the project, such as `./Sources/App/Model.swift`. An entry with `*` is a glob over that path, starting at the project's folder; a leading `/` or `./` makes no difference. `*` and `?` stay within one folder, `**/` stands for any number of folders, none included, and `[…]` or `[!…]` matches one of a set of characters. So `Sources/Generated/*.swift` leaves out that folder's files but not those of its subfolders, `Sources/**/*Model.swift` leaves out every `…Model.swift` in `Sources` and below, and `**/Mocks/*.swift` leaves out the files of every `Mocks` folder. Braces (`{a,b}`) and regular expressions aren't supported.
 
@@ -234,7 +228,8 @@ Muter defaults to `run` when you don't specify any subcommands
 **Available Flags**
 
 ```shell
---files-to-mutate       Only mutate a given list of source code files (Supports glob expressions like Sources/**/*.swift)
+--files-to-mutate       Only mutate these Swift files, folders or globs, like Sources/**/*.swift; the excludes and the coverage filter still apply
+--exclude               Leave out what this path fragment or glob matches, as an `exclude` entry does, for this run; repeatable
 --skip-coverage         Skips the step in which Muter runs your project to filter out files without coverage.
 -o, --output <output>   Output file for the report to be saved.
 --operators <operators> The list of mutant operators to be used: RelationalOperatorReplacement, RemoveSideEffects, ChangeLogicalConnector, SwapTernary
