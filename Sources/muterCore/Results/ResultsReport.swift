@@ -414,10 +414,18 @@ struct ResultsReport {
 
     /// Refuses to save one of the report, the other reports, the summary and the baseline file over another.
     private func checkTheSavedFilesDiffer() throws {
-        let saved = (outputPath.map { [(name: "the report", path: $0)] } ?? [])
-            + reports.map { (name: "--report \($0)", path: $0.path) }
-            + (summaryPath.map { [(name: "the summary", path: $0)] } ?? [])
-            + (writeBaselinePath.map { [(name: "the baseline file", path: URL.expandingTilde($0))] } ?? [])
+        // Appended one at a time: as one sum of optional arrays of tuples, Xcode 26's compiler gives up type-checking it.
+        var saved: [(name: String, path: String)] = []
+        if let outputPath {
+            saved.append((name: "the report", path: outputPath))
+        }
+        saved += reports.map { (name: "--report \($0)", path: $0.path) }
+        if let summaryPath {
+            saved.append((name: "the summary", path: summaryPath))
+        }
+        if let writeBaselinePath {
+            saved.append((name: "the baseline file", path: URL.expandingTilde(writeBaselinePath)))
+        }
         for later in saved.indices {
             for earlier in saved.indices
                 where earlier < later && ResultsFile.isSameFile(saved[earlier].path, saved[later].path) {

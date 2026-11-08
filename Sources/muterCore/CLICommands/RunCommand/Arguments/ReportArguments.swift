@@ -122,8 +122,16 @@ struct ReportArguments: ParsableArguments {
     /// `-o`'s report, `--report`'s and `--write-baseline`'s file, by how a refusal names each, for
     /// `ReportRequest.clash(among:ofARun:)`.
     var outputs: [ReportRequest.Output] {
-        (reportURL.map { [("-o \($0.path)", $0.path)] } ?? []) + reports.map { ("--report \($0)", $0.path) }
-            + (writeBaseline.map { [("--write-baseline \($0)", URL.expandingTilde($0))] } ?? [])
+        // Appended one at a time: as one sum of optional arrays of tuples, Xcode 26's compiler can give up on it.
+        var outputs: [ReportRequest.Output] = []
+        if let reportURL {
+            outputs.append(("-o \(reportURL.path)", reportURL.path))
+        }
+        outputs += reports.map { ("--report \($0)", $0.path) }
+        if let writeBaseline {
+            outputs.append(("--write-baseline \(writeBaseline)", URL.expandingTilde(writeBaseline)))
+        }
+        return outputs
     }
 
     /// `--max-new-survivors`' count, 0 when `--baseline` is given without it; nil without `--baseline`.
