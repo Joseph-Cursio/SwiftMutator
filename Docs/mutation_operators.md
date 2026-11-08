@@ -27,6 +27,8 @@ Mutant of `a < b` | Operator | Differs when
 
 `NegateConditional` changes only the whole condition of an `if`, `guard` or `while`, so a comparison elsewhere, as in `return a < b` or `let ok = a >= b`, gets no negated mutant.
 
+No operator adds one there, as it would tell nothing the boundary mutant doesn't. At `a == b` the negated and the boundary mutant give the same result, `a >= b` and `a <= b` both true where `a < b` is false, and the boundary mutant differs from the original nowhere else. So a test that kills the boundary mutant kills the negated one too, and the negated one survives only where the boundary mutant survives as well. The same holds for `<=`, `>` and `>=`. The one exception is a floating-point NaN: with one, `a < b` and `a <= b` are both false while `a >= b` is true, so only the negated mutant would ask for a test with a NaN. With `RelationalBoundary` left out, by `operators` or `skipOperators`, a comparison outside a condition gets neither mutant.
+
 ### Mutating an equality check
 ```swift
 if myValue == 50 {
