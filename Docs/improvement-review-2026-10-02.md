@@ -278,7 +278,7 @@ Added on 21 October, from a comparison with swift-mutation-testing v1.6.3 (`937f
   - Time limits for the build, coverage and baseline, and the baseline's failing tests named ([#117]). Done: the limits, `--build-timeout` and the failed tests (PR #242), and a `stopped` results file for a run that stops before its first mutant, which `report` and `--resume` refuse (PR #243).
   - Keeping the Mac awake during a run (done, [#118], PR #228). On macOS a run holds `.idleSystemSleepDisabled` until it ends, however it ends, which also holds on battery, unlike swift-mutation-testing's assertion. It lets go while Ctrl-Z has the run suspended. Closing the lid still sleeps the Mac.
 - **Reports, CI and distribution.**
-  - Stryker JSON, SARIF and a Markdown summary, several from one run ([#119]). Part 1 done: `--report` and `reports:` for several reports from one run, and `-f markdown` (PR #244); Stryker JSON and SARIF remain.
+  - Stryker JSON, SARIF and a Markdown summary, several from one run ([#119]). Part 1 done: `--report` and `reports:` for several reports from one run, and `-f markdown` (PR #244); `-f stryker` and `-f sarif` (PR #245).
   - CI gates against a committed baseline: new survivors and score drops ([#120]).
   - Releases with binaries, Homebrew, a real version and an update check that works ([#121]).
   - Warnings for unknown configuration keys, value checks, runs without a configuration file, and a smarter `init` ([#122]).

@@ -22,7 +22,10 @@ final class ReportRequestTests: MuterTestCase {
         let refused = [
             ("summary.md", "name the format and then the path"),
             (":summary.md", "name the format and then the path"),
-            ("pdf:summary.pdf", "start with one of the formats plain, json, html, markdown, as format:path"),
+            (
+                "pdf:summary.pdf",
+                "start with one of the formats plain, json, html, markdown, stryker, sarif, as format:path"
+            ),
             ("Markdown:summary.md", "start with one of the formats"),
             ("markdown:", "give a path after the format"),
             ("xcode:report.txt", "save the Xcode format with -f xcode"),

@@ -195,7 +195,10 @@ beside it ([`TestReporting/RunSummary.swift`](../Sources/muterCore/TestReporting
 
 [`TestReporting`](../Sources/muterCore/TestReporting) turns the outcomes into a report:
 `mutationScoring.swift` scores them, `ReportFormat.swift` picks the format, and
-`PlainText/`, `Json/`, `HTML/`, `Xcode/` and `Markdown/` hold one reporter each.
+`PlainText/`, `Json/`, `HTML/`, `Xcode/`, `Markdown/`, `Stryker/` and `SARIF/` hold one reporter each.
+`SourceSpan.swift` gives the Stryker and SARIF reports each mutant's place in UTF-16 columns, as
+those tools count them, from the original file's text: the code it changes, found from where its
+operator put it, which for some operators is where that code ends.
 `ReportRequest.swift` reads the `format:path` of each other report that `--report` or `reports:`
 asks for.
 [`TestReporting/ReportWriter.swift`](../Sources/muterCore/TestReporting/ReportWriter.swift) saves

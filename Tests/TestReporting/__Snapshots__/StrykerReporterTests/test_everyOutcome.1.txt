@@ -1,0 +1,200 @@
+{
+  "files" : {
+    "/elsewhere/Shared.swift" : {
+      "language" : "swift",
+      "mutants" : [
+        {
+          "description" : "changed == to !=",
+          "id" : "mutant 8",
+          "location" : {
+            "end" : {
+              "column" : 16,
+              "line" : 1
+            },
+            "start" : {
+              "column" : 14,
+              "line" : 1
+            }
+          },
+          "mutatorName" : "RelationalOperatorReplacement",
+          "replacement" : "!=",
+          "status" : "Survived"
+        }
+      ],
+      "source" : "let same = a == b\n"
+    },
+    "Sources/Other.swift" : {
+      "language" : "swift",
+      "mutants" : [
+        {
+          "description" : "changed && to ||",
+          "id" : "Sources/Other.swift:4:9 ChangeLogicalConnector",
+          "location" : {
+            "end" : {
+              "column" : 11,
+              "line" : 4
+            },
+            "start" : {
+              "column" : 9,
+              "line" : 4
+            }
+          },
+          "mutatorName" : "ChangeLogicalConnector",
+          "replacement" : "||",
+          "status" : "CompileError"
+        }
+      ],
+      "source" : ""
+    },
+    "Sources/Rules.swift" : {
+      "language" : "swift",
+      "mutants" : [
+        {
+          "description" : "changed == to !=",
+          "duration" : 1250,
+          "id" : "Sources/Rules.swift:2:25 RelationalOperatorReplacement",
+          "killedBy" : [
+            "RulesTests.test_allows()",
+            "RulesTests.test_equal()"
+          ],
+          "location" : {
+            "end" : {
+              "column" : 26,
+              "line" : 2
+            },
+            "start" : {
+              "column" : 24,
+              "line" : 2
+            }
+          },
+          "mutatorName" : "RelationalOperatorReplacement",
+          "replacement" : "!=",
+          "status" : "Killed"
+        },
+        {
+          "description" : "changed true to false",
+          "duration" : 750,
+          "id" : "Sources/Rules.swift:2:39 FlipBooleanLiteral",
+          "killedBy" : [
+            "RulesTests.test_allows()"
+          ],
+          "location" : {
+            "end" : {
+              "column" : 42,
+              "line" : 2
+            },
+            "start" : {
+              "column" : 38,
+              "line" : 2
+            }
+          },
+          "mutatorName" : "FlipBooleanLiteral",
+          "replacement" : "false",
+          "status" : "Killed",
+          "statusReason" : "The tests crashed with this mutant on, which counts as a kill."
+        },
+        {
+          "description" : "changed < to <=",
+          "id" : "Sources/Rules.swift:3:14 RelationalBoundary",
+          "location" : {
+            "end" : {
+              "column" : 15,
+              "line" : 3
+            },
+            "start" : {
+              "column" : 14,
+              "line" : 3
+            }
+          },
+          "mutatorName" : "RelationalBoundary",
+          "replacement" : "<=",
+          "status" : "CompileError",
+          "statusReason" : "Left out of the build with other mutants, as the compiler's error could be any of theirs, so it may compile."
+        },
+        {
+          "description" : "changed < to >",
+          "id" : "Sources/Rules.swift:3:14 RelationalOperatorReplacement",
+          "location" : {
+            "end" : {
+              "column" : 15,
+              "line" : 3
+            },
+            "start" : {
+              "column" : 14,
+              "line" : 3
+            }
+          },
+          "mutatorName" : "RelationalOperatorReplacement",
+          "replacement" : ">",
+          "status" : "Survived"
+        },
+        {
+          "description" : "swapped ternary",
+          "id" : "Sources/Rules.swift:8:12 SwapTernary",
+          "location" : {
+            "end" : {
+              "column" : 12,
+              "line" : 8
+            },
+            "start" : {
+              "column" : 5,
+              "line" : 6
+            }
+          },
+          "mutatorName" : "SwapTernary",
+          "replacement" : "flag ? 2 : 1",
+          "status" : "Timeout"
+        },
+        {
+          "description" : "removed line",
+          "id" : "Sources/Rules.swift:15:20 RemoveSideEffects",
+          "location" : {
+            "end" : {
+              "column" : 20,
+              "line" : 15
+            },
+            "start" : {
+              "column" : 5,
+              "line" : 15
+            }
+          },
+          "mutatorName" : "RemoveSideEffects",
+          "replacement" : "",
+          "status" : "NoCoverage"
+        }
+      ],
+      "source" : "func allows(_ a: Int, _ b: Int) -> Bool {\n    let café = 1; if a == b { return true }\n    return a < b\n}\nfunc pick(_ flag: Bool) -> Int {\n    flag\n        ? 1\n        : 2\n}\nfunc both(_ a: Bool, _ b: Bool) -> Bool {\n    a\n        && b\n}\nfunc store(_ items: inout [Int]) {\n    items.append(1)\n}\n"
+    },
+    "Sources/Unrun.swift" : {
+      "language" : "swift",
+      "mutants" : [
+
+      ],
+      "source" : "func unrun() {}\n"
+    }
+  },
+  "framework" : {
+    "name" : "SwiftMutator",
+    "version" : "1.2.3"
+  },
+  "projectRoot" : "/work/My Foo",
+  "schemaVersion" : "2",
+  "testFiles" : {
+    "" : {
+      "tests" : [
+        {
+          "id" : "RulesTests.test_allows()",
+          "name" : "RulesTests.test_allows()"
+        },
+        {
+          "id" : "RulesTests.test_equal()",
+          "name" : "RulesTests.test_equal()"
+        }
+      ]
+    }
+  },
+  "thresholds" : {
+    "high" : 80,
+    "low" : 60
+  }
+}

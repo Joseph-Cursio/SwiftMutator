@@ -41,8 +41,11 @@ final class ReportFlagTests: XCTestCase {
         let refused = [
             ("summary.md", "name the format and then the path, as format:path, such as markdown:summary.md."),
             (":summary.md", "name the format and then the path, as format:path, such as markdown:summary.md."),
-            ("pdf:summary.pdf", "start with one of the formats plain, json, html, markdown, as format:path, such as "
-                + "markdown:summary.md."),
+            (
+                "pdf:summary.pdf",
+                "start with one of the formats plain, json, html, markdown, stryker, sarif, as format:path, such as "
+                    + "markdown:summary.md."
+            ),
             ("markdown:", "give a path after the format, as format:path, such as markdown:summary.md."),
             ("xcode:report.txt", "save the Xcode format with -f xcode, as its warnings are printed while the run "
                 + "goes, which only -f's report is; here give another format, such as markdown:summary.md."),

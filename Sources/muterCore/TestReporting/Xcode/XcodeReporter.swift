@@ -40,14 +40,16 @@ struct XcodeReporter: Reporter {
         """ + buildErrors
     }
 
+    /// What a warning says of a mutant the tests didn't kill, which SARIF's results say too.
+    static func verdict(of outcome: TestSuiteOutcome) -> String {
+        outcome == .noCoverage ? "No test reached this mutant" : "Your test suite did not kill this mutant"
+    }
+
     private func outcomeIntoXcodeString(outcome: MutationTestOutcome.Mutation) -> String {
         // {full_path_to_file}{:line}{:character}: {error,warning}: {content}
 
-        let verdict = outcome.testSuiteOutcome == .noCoverage
-            ? "No test reached this mutant"
-            : "Your test suite did not kill this mutant"
-        return "\(outcome.originalProjectPath):" +
+        "\(outcome.originalProjectPath):" +
             "\(outcome.point.position.line):\(outcome.point.position.column): " +
-            "warning: \(verdict): \(outcome.snapshot.description)"
+            "warning: \(Self.verdict(of: outcome.testSuiteOutcome)): \(outcome.snapshot.description)"
     }
 }

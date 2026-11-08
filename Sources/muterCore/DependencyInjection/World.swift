@@ -53,6 +53,9 @@ typealias MakeFolder = @Sendable (String) throws -> Void
 typealias LoadSourceCode = @Sendable (String) -> SourceCodeInfo?
 /// A file's bytes, by its absolute path, or nil if it can't be read.
 typealias ReadFile = @Sendable (String) -> Data?
+/// Where a project is in the git work tree it's in, by the project's recorded absolute path (`WorkTree.place(of:)`),
+/// or nil if it isn't in one.
+typealias ProjectInWorkTree = @Sendable (String) -> WorkTree.Place?
 typealias ProjectCoverage = @Sendable (BuildSystem) -> BuildSystemCoverage?
 typealias Now = @Sendable () -> Date
 typealias Instant = @Sendable () -> DispatchTime
@@ -103,6 +106,8 @@ struct World: Sendable {
     var loadSourceCode: LoadSourceCode = { sourceCode(fromFileAt: $0) }
     /// The original files the reports show each mutant's line from.
     var readSourceFile: ReadFile = { FileManager.default.contents(atPath: $0) }
+    /// The work tree the SARIF report's paths are from.
+    var projectInWorkTree: ProjectInWorkTree = { WorkTree.place(of: $0) }
     var projectCoverage: ProjectCoverage = { BuildSystem.coverage(for: $0) }
     var server: Server = URLSession.shared
     var now: Now = { Date() }
