@@ -414,7 +414,7 @@ struct ResultsReport {
 
     /// Refuses to save one of the report, the other reports, the summary and the baseline file over another.
     private func checkTheSavedFilesDiffer() throws {
-        // Appended one at a time: as one sum of optional arrays of tuples, Xcode 26's compiler gives up type-checking it.
+        // Appended one at a time: as one sum of optional arrays of tuples, Xcode 26's compiler gives up on it.
         var saved: [(name: String, path: String)] = []
         if let outputPath {
             saved.append((name: "the report", path: outputPath))
