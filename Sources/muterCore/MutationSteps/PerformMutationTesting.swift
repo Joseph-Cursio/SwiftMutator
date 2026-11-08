@@ -653,7 +653,8 @@ private extension PerformMutationTesting {
     }
 
     /// Gives `outcome` what the end of the run compares its survivors with, and saves them by: `--baseline`'s file, as
-    /// loaded when the run started (`LoadBaselineFile`), and `--max-new-survivors`; the run's scope, which a baseline
+    /// loaded when the run started (`LoadBaselineFile`), `--max-new-survivors` and `--max-score-drop`, and
+    /// `--max-doubtful-kills`, which needs no file; the run's scope, which a baseline
     /// file records, as `report` of the results file has it from their header; and its `--files-to-mutate`, of which
     /// no file is written; and the mutants of code no test ran, which a baseline file records as survivors. With
     /// `--baseline`'s file, the mutants the run left out, which its entries for them are paired with.
@@ -665,6 +666,8 @@ private extension PerformMutationTesting {
         // With `--skip-coverage` every mutant is made, so none is left for not being covered.
         outcome.uncoveredMutants = state.uncoveredMutants ?? (state.runOptions.skipCoverage ? [] : nil)
         outcome.maxNewSurvivors = state.runOptions.maxNewSurvivors ?? 0
+        outcome.maxScoreDrop = state.runOptions.maxScoreDrop
+        outcome.maxDoubtfulKills = state.runOptions.maxDoubtfulKills
         outcome.baselineScope = LoadBaselineFile.scope(of: state)
         outcome.filesToMutate = state.filesToMutate
     }

@@ -88,6 +88,89 @@ final class MutationTestObserverNewSurvivorsTests: MuterTestCase {
         XCTAssertEqual(summary?.gate?.passed, false)
     }
 
+    // In the order fail-under, new survivors, score drop, doubtful kills, last; the reports show them all.
+    func test_theScoreDrop_andTheDoubtfulKills_areCheckedToo_andSaidLast() throws {
+        try sut.start()
+        var finished = outcome()
+        finished.maxScoreDrop = 2
+        finished.maxDoubtfulKills = 0
+
+        runEvents.send(.mutationTestingFinished(finished))
+
+        let scoreDrop = "Mutation score 33.3% is 16.7 points below the baseline file muter.baseline.yml's 50.0%, more "
+            + "than the 2 allowed."
+        XCTAssertEqual(printer.linesPassed.suffix(4), [
+            "❌ 1 new survivor against the baseline file muter.baseline.yml, more than the 0 allowed: 1 still survive, "
+                + "0 fixed. 1 was matched without its line, as its file changed since it was tested, or can't be read.",
+            "  Sources/X.swift:5:17 RelationalBoundary: < → <=",
+            "❌ " + scoreDrop,
+            "✅ No doubtful kills.",
+        ])
+        let report = String(decoding: try XCTUnwrap(fileManager.createdFiles["/out/report.md"]), as: UTF8.self)
+        XCTAssertTrue(report.contains("❌ " + MarkdownText.plain(scoreDrop)), report)
+        XCTAssertTrue(report.contains("✅ No doubtful kills."), report)
+        XCTAssertEqual(sut.checks.scoreDrop?.passed, false)
+        XCTAssertEqual(sut.checks.doubtfulKills?.passed, true)
+        XCTAssertEqual(sut.checks.exitStatus, .scoreBelowThreshold)
+        XCTAssertEqual(summary?.scoreDrop?.passed, false)
+        XCTAssertEqual(summary?.scoreDrop?.baselineScore, 50)
+        XCTAssertEqual(summary?.doubtfulKills?.count, 0)
+        XCTAssertEqual(summary?.doubtfulKills?.passed, true)
+    }
+
+    // Doubtful kills need no baseline file; a failed check exits 2 on its own.
+    func test_doubtfulKills_withoutABaselineFile_failTheRun() throws {
+        options = .make(maxDoubtfulKills: 0)
+        try sut.start()
+        var doubtful = MutationTestOutcome.Mutation.make(
+            testSuiteOutcome: .failed,
+            snapshot: .make(before: "<", after: "<="),
+            key: key(3)
+        )
+        doubtful.activated = false
+        var finished = MutationTestOutcome(mutations: [doubtful])
+        finished.maxDoubtfulKills = 0
+
+        runEvents.send(.mutationTestingFinished(finished))
+
+        XCTAssertEqual(printer.linesPassed.suffix(2), [
+            "❌ 1 doubtful kill, more than the 0 allowed: 1 kill whose code never ran.",
+            "  Sources/X.swift:3:17 RelationalBoundary: < → <= (its code never ran)",
+        ])
+        XCTAssertNil(sut.checks.scoreGate)
+        XCTAssertNil(sut.checks.newSurvivors)
+        XCTAssertNil(sut.checks.scoreDrop)
+        XCTAssertEqual(sut.checks.exitStatus, .scoreBelowThreshold)
+        XCTAssertEqual(summary?.doubtfulKills?.mutants, ["Sources/X.swift:3:17 RelationalBoundary"])
+        XCTAssertNil(summary?.scoreDrop)
+    }
+
+    // A run that stopped says why itself: the summary records the checks weren't made, and nothing is said of them.
+    func test_anEarlyEnd_checksNeitherTheScoreDrop_norTheDoubtfulKills() throws {
+        try sut.start()
+        var stopped = outcome()
+        stopped.maxScoreDrop = 2
+        stopped.maxDoubtfulKills = 0
+
+        runEvents.send(.mutationTestingEndedEarly(EarlyEnd(
+            reason: .interrupted,
+            detail: "SIGINT",
+            outcome: stopped,
+            discovered: 4,
+            reused: 0
+        )))
+
+        XCTAssertFalse(
+            (printer.linesPassed + standardError.linesPassed).contains {
+                $0.contains("doubtful") || $0.contains("points below")
+            },
+            "\(printer.linesPassed + standardError.linesPassed)"
+        )
+        XCTAssertEqual(summary?.scoreDrop?.notChecked, .endedEarly)
+        XCTAssertEqual(summary?.doubtfulKills?.notChecked, .endedEarly)
+        XCTAssertEqual(sut.checks, RunChecks())
+    }
+
     // The reports first, then the baseline file, then the summary.
     func test_theBaselineFile_isSavedAfterTheReports_withTheRunsSurvivors() throws {
         try sut.start()

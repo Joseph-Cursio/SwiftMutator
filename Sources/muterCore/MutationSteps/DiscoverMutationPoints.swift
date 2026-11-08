@@ -166,7 +166,8 @@ private extension DiscoverMutationPoints {
     }
 
     /// With `--baseline`, when the code the run chose holds no mutant to test, but mutants of code no test ran, those
-    /// compared with the baseline file, as the run would compare them at its end, for the run to end with
+    /// compared with the baseline file, as the run would compare them at its end, with the verdicts on the score and
+    /// the kills that `--max-score-drop` and `--max-doubtful-kills` ask for, for the run to end with
     /// (`OnlyUncoveredMutants`); nil otherwise. As no shard holds a mutant to test, the first alone compares them, so
     /// that each is compared once.
     static func onlyUncoveredMutants(
@@ -189,6 +190,8 @@ private extension DiscoverMutationPoints {
         outcome.uncoveredMutants = uncovered.kept
         // Those off the changed lines, whose entries are then not tested, never new or fixed.
         outcome.unselectedMutants = unselectedMutants(of: all, keeping: [], state: state) + uncovered.leftOut
+        // So the score's verdict says why it isn't compared, as a run's would.
+        outcome.filesToMutate = state.filesToMutate
         return OnlyUncoveredMutants(
             selection: state.changeSelection,
             uncovered: uncovered.kept.count,
@@ -197,7 +200,14 @@ private extension DiscoverMutationPoints {
                 maxNewSurvivors: state.runOptions.maxNewSurvivors ?? 0,
                 judging: outcome,
                 version: version
-            )
+            ),
+            // Nothing was tested, so neither can fail: the score isn't compared, and no kill is doubtful.
+            scoreDrop: state.runOptions.maxScoreDrop.map {
+                ScoreDropCheck(baseline: baseline, maxScoreDrop: $0, judging: outcome)
+            },
+            doubtfulKills: state.runOptions.maxDoubtfulKills.map {
+                DoubtfulKillsCheck(maxDoubtfulKills: $0, judging: outcome)
+            }
         )
     }
 

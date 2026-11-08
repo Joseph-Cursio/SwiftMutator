@@ -182,6 +182,70 @@ final class MarkdownReporterTests: MuterTestCase {
         )
     }
 
+    // The score's against the baseline file's, then the doubtful kills', with a table of them, after the survivors'.
+    func test_theScoreDrop_andTheDoubtfulKills_followTheSurvivors() {
+        var outcome = MutationTestOutcome(
+            mutations: [mutant(.failed, line: 2), mutant(.passed, line: 4), mutant(.passed, line: 8)],
+            projectPath: project.path,
+            mutatedProjectPath: copy.path
+        )
+        outcome.checks = RunChecks(
+            newSurvivors: NewSurvivorsCheck(
+                baseline: "muter.baseline.yml",
+                maxNewSurvivors: 0,
+                verdict: .checked(.init(
+                    newSurvivors: [],
+                    stillSurvive: 2,
+                    fixed: 0,
+                    notTested: 0,
+                    matchedWithoutLine: 0
+                ))
+            ),
+            scoreDrop: ScoreDropCheck(
+                baseline: "muter.baseline.yml",
+                maxScoreDrop: 2,
+                baselineScore: .init(killed: 2, scored: 3),
+                killed: 1,
+                scored: 3,
+                verdict: .failed
+            ),
+            doubtfulKills: DoubtfulKillsCheck(maxDoubtfulKills: 0, verdict: .checked([
+                .init(
+                    mutant: "Sources/Rules.swift:2:9 RelationalOperatorReplacement",
+                    before: "a | b",
+                    after: "a",
+                    suspectOnly: true,
+                    codeNeverRan: false
+                ),
+            ]))
+        )
+
+        AssertSnapshot(report(outcome))
+    }
+
+    // Past `mostListed`, the doubtful kills' table says how many more there are.
+    func test_theDoubtfulKillsTable_isCapped() {
+        var outcome = MutationTestOutcome(mutations: [mutant(.failed, line: 2)])
+        let kills = (1 ... MarkdownReporter.mostListed + 3).map { line in
+            DoubtfulKillsCheck.DoubtfulKill(
+                mutant: "Sources/Rules.swift:\(line):9 RelationalOperatorReplacement",
+                before: "<",
+                after: ">",
+                suspectOnly: false,
+                codeNeverRan: true
+            )
+        }
+        outcome.checks = RunChecks(doubtfulKills: DoubtfulKillsCheck(maxDoubtfulKills: 0, verdict: .checked(kills)))
+
+        let markdown = report(outcome)
+
+        XCTAssertEqual(
+            markdown.split(separator: "\n").count { $0.hasSuffix("| its code never ran |") },
+            MarkdownReporter.mostListed
+        )
+        XCTAssertTrue(markdown.contains("…and 3 more, which a run's summary.json lists"), markdown)
+    }
+
     // A new survivor of code no test ran says so in its row, as the run's line does.
     func test_aNewSurvivorNoTestRan_isMarkedInTheChecksTable() {
         var outcome = MutationTestOutcome(mutations: [mutant(.passed, line: 4)])

@@ -31,6 +31,18 @@ OPTIONS:
   --max-new-survivors <count>
                           With --baseline, how many new survivors pass: a whole
                           number, 0 or more. 0 when not given.
+  --max-score-drop <points>
+                          With --baseline, exit with status 2 when the score,
+                          counted as --fail-under counts it, is more than this
+                          many points below the baseline file's, from 0 to 100,
+                          once the report is written. Flaky tests alone move
+                          the score a point or two between runs, so 0 fails at
+                          random. Only a whole run's score is compared.
+  --max-doubtful-kills <count>
+                          Exit with status 2 when more kills than this whole
+                          number are doubtful, once the report is written:
+                          those only suspect tests made that no rerun alone
+                          settled, and those whose code never ran.
   --write-baseline <path> Save the survivors to a baseline file at this path,
                           such as muter.baseline.yml, for --baseline to compare
                           later runs with. Only a whole run's results make one.

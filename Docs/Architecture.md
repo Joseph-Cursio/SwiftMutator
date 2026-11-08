@@ -211,12 +211,16 @@ results file, with
 which [`MutationTestObserver`](../Sources/muterCore/MutationTesting/MutationTestObserver.swift)
 prints through `Logger.swift`.
 A finished run's checks, made before its reports so the Markdown report can show them, are
-`RunChecks`: `ScoreGate.swift`, for `--fail-under`, and
+`RunChecks`: `ScoreGate.swift`, for `--fail-under`;
 [`TestReporting/NewSurvivorsCheck.swift`](../Sources/muterCore/TestReporting/NewSurvivorsCheck.swift),
 for `--baseline`, which compares the survivors with a baseline file's through
-[`TestReporting/BaselineMatches.swift`](../Sources/muterCore/TestReporting/BaselineMatches.swift).
-Those include the mutants of code no test ran (`UncoveredMutant`), which discovery finds but makes
-none of: `MuterVisitor` records them, and walks the files coverage leaves out as a whole for them,
+[`TestReporting/BaselineMatches.swift`](../Sources/muterCore/TestReporting/BaselineMatches.swift);
+[`TestReporting/ScoreDropCheck.swift`](../Sources/muterCore/TestReporting/ScoreDropCheck.swift), for
+`--max-score-drop`, which compares the score with the baseline file's; and
+[`TestReporting/DoubtfulKillsCheck.swift`](../Sources/muterCore/TestReporting/DoubtfulKillsCheck.swift),
+for `--max-doubtful-kills`, which counts the kills only suspect tests made and those whose code
+never ran. The survivors' check includes the mutants of code no test ran (`UncoveredMutant`), which
+discovery finds but makes none of: `MuterVisitor` records them, and walks the files coverage leaves out as a whole for them,
 and the results header and a test plan record them. A `--baseline` run whose chosen code holds only
 those ends in discovery, comparing them at once:
 [`TestReporting/OnlyUncoveredMutants.swift`](../Sources/muterCore/TestReporting/OnlyUncoveredMutants.swift).

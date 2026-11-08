@@ -245,6 +245,25 @@ final class BaselineFileTests: MuterTestCase {
         )
     }
 
+    // A hand edit can leave counts no run gives, whose score `--max-score-drop` would compare as if a run gave it.
+    func test_aScoreNoRunGives_isRefused() {
+        let counted = { (killed: Int, scored: Int) in
+            self.minimal.replacingOccurrences(
+                of: "  killed: 1\n  scored: 2",
+                with: "  killed: \(killed)\n  scored: \(scored)"
+            )
+        }
+        for (killed, scored) in [(900, 800), (-1, 2), (1, -5), (-3, -5)] {
+            assertRefused(
+                counted(killed, scored),
+                saying: "Its score counts killed \(killed) of \(scored) scored: give scored from 0 up, and killed "
+                    + "from 0 to scored."
+            )
+        }
+        XCTAssertNoThrow(try load(counted(0, 0)))
+        XCTAssertNoThrow(try load(counted(2, 2)))
+    }
+
     // `ProjectTree` leaves it out at the root, as it does the triage file, so committing a new one refuses no resume.
     func test_theProjectTree_leavesOutTheBaselineFileAtTheRoot() {
         XCTAssertTrue(ProjectTree.prunedAtRoot.contains("muter.baseline.yml"))

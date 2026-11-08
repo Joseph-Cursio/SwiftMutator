@@ -1,0 +1,33 @@
+## Mutation testing
+
+**Mutation score: 33% (1 killed, 2 survived)**
+
+SwiftMutator could not gather coverage data from your project
+
+### Checks
+
+✅ No new survivors against the baseline file muter.baseline.yml: 2 still survive, 0 fixed.
+
+❌ Mutation score 33.3% is 33.3 points below the baseline file muter.baseline.yml's 66.6%, more than the 2 allowed.
+
+❌ 1 doubtful kill, more than the 0 allowed: 1 kill only suspect tests made, which no rerun alone settled.
+
+| Doubtful kill | Change | Why |
+| :--- | :--- | :--- |
+| `Sources/Rules.swift:2:9 RelationalOperatorReplacement` | `a \| b` → `a` | only suspect tests killed it |
+
+| Killed | Survived | Total |
+| ---: | ---: | ---: |
+| 1 | 2 | 3 |
+
+### Scores by file
+
+| File | Mutants | Score |
+| :--- | ---: | ---: |
+| `Sources/Rules.swift` | 3 | 33% |
+
+### Surviving mutants (2)
+
+- `Sources/Rules.swift`
+  - `4:9` RelationalOperatorReplacement: changed == to !=
+  - `8:9` RelationalOperatorReplacement: changed == to !=

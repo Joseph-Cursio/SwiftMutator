@@ -51,6 +51,12 @@ struct MutationTestOutcome {
     /// ones; nil without it, and for an outcome read from a results file, as `report` checks only its own flags.
     var baseline: BaselineFile?
     var maxNewSurvivors = 0
+    /// `--max-score-drop`: how many points the score may fall below `baseline`'s, which `ScoreDropCheck` compares;
+    /// nil without it, and for an outcome read from a results file.
+    var maxScoreDrop: Double?
+    /// `--max-doubtful-kills`: how many kills the run's evidence may leave in doubt (`DoubtfulKillsCheck`); nil
+    /// without it, and for an outcome read from a results file.
+    var maxDoubtfulKills: Int?
     /// What a baseline file of these results records of their scope (`BaselineScope`): the run's, or as the results
     /// header records it; nil when not known.
     var baselineScope: BaselineScope?

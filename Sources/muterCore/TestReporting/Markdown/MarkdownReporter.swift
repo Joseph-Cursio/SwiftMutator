@@ -57,36 +57,64 @@ struct MarkdownReporter: Reporter {
     /// The verdict of each check the run, or `report`, was asked for (`MutationTestOutcome.checks`), as the run's last
     /// lines say them, each a paragraph with ✅ when it passed, ❌ when it failed and ⚠️ when it wasn't checked: the
     /// score's against `--fail-under`, then the survivors' against `--baseline`'s file, with a table of the new
-    /// survivors, the first `mostListed`. None when no check was asked for, so such a report is as it was.
+    /// survivors, the first `mostListed`, then the score's against the file's, then the doubtful kills', with a table
+    /// of them, as many. None when no check was asked for, so such a report is as it was.
     private func checks(of outcome: MutationTestOutcome) -> [String] {
         guard let checks = outcome.checks else { return [] }
-        var paragraphs: [String] = []
+        var blocks: [String] = []
         if let gate = checks.scoreGate, let line = gate.line {
-            paragraphs.append(Self.mark(gate.passed) + " " + MarkdownText.plain(line))
+            blocks.append(Self.mark(gate.passed) + " " + MarkdownText.plain(line))
         }
-        var table: [String] = []
         if let check = checks.newSurvivors, let line = check.line {
             if let notice = check.versionNotice {
-                paragraphs.append("⚠️ " + MarkdownText.plain(notice))
+                blocks.append("⚠️ " + MarkdownText.plain(notice))
             }
-            paragraphs.append(Self.mark(check.passed) + " " + MarkdownText.plain(line))
-            if case let .checked(comparison) = check.verdict, !comparison.newSurvivors.isEmpty {
-                let rows = comparison.newSurvivors.prefix(Self.mostListed).map { survivor in
-                    [
-                        MarkdownText.codeInCell(survivor.mutant),
-                        MarkdownText.codeInCell(survivor.before) + " → " + MarkdownText.codeInCell(survivor.after)
-                            + (survivor.notCovered ? NewSurvivorsCheck.NewSurvivor.notCoveredNote : ""),
-                    ]
-                }
-                let more = comparison.newSurvivors.count - Self.mostListed
-                // The JSON report doesn't list them, and `report` saves a summary only with --summary.
-                let rest = "…and \(more) more, which a run's summary.json lists, as `report`'s does with --summary."
-                table = [MarkdownText.table(header: ["New survivor", "Change"], alignments: [false, false], rows: rows)]
-                    + (more > 0 ? [rest] : [])
+            blocks.append(Self.mark(check.passed) + " " + MarkdownText.plain(line))
+            if case let .checked(comparison) = check.verdict {
+                blocks += Self.table(
+                    of: comparison.newSurvivors,
+                    header: ["New survivor", "Change"],
+                    row: { survivor in
+                        [
+                            MarkdownText.codeInCell(survivor.mutant),
+                            MarkdownText.codeInCell(survivor.before) + " → " + MarkdownText.codeInCell(survivor.after)
+                                + (survivor.notCovered ? NewSurvivorsCheck.NewSurvivor.notCoveredNote : ""),
+                        ]
+                    }
+                )
             }
         }
-        guard !paragraphs.isEmpty else { return [] }
-        return ["### Checks"] + paragraphs + table
+        if let check = checks.scoreDrop, let line = check.line {
+            blocks.append(Self.mark(check.passed) + " " + MarkdownText.plain(line))
+        }
+        if let check = checks.doubtfulKills, let line = check.line {
+            blocks.append(Self.mark(check.passed) + " " + MarkdownText.plain(line))
+            blocks += Self.table(
+                of: check.doubtfulKills,
+                header: ["Doubtful kill", "Change", "Why"],
+                row: { kill in
+                    [
+                        MarkdownText.codeInCell(kill.mutant),
+                        MarkdownText.codeInCell(kill.before) + " → " + MarkdownText.codeInCell(kill.after),
+                        MarkdownText.plain(kill.why),
+                    ]
+                }
+            )
+        }
+        guard !blocks.isEmpty else { return [] }
+        return ["### Checks"] + blocks
+    }
+
+    /// A table of the first `mostListed` of `items`, a `row` each under `header`, then how many more; none without
+    /// any.
+    private static func table<Item>(of items: [Item], header: [String], row: (Item) -> [String]) -> [String] {
+        guard !items.isEmpty else { return [] }
+        let more = items.count - mostListed
+        // The JSON report doesn't list them, and `report` saves a summary only with --summary.
+        let rest = "…and \(more) more, which a run's summary.json lists, as `report`'s does with --summary."
+        let alignments = Array(repeating: false, count: header.count)
+        return [MarkdownText.table(header: header, alignments: alignments, rows: items.prefix(mostListed).map(row))]
+            + (more > 0 ? [rest] : [])
     }
 
     /// ✅ for a check that passed, ❌ for one that failed, ⚠️ for one that wasn't checked.

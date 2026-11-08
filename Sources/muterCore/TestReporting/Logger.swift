@@ -632,6 +632,20 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         check.consoleLines.forEach { print($0) }
     }
 
+    /// The verdict on the score against `--baseline`'s file's, after the survivors', on standard output with the rest:
+    /// ✅ when it passes, ❌ when the score fell too far, ⚠️ when the scores aren't compared. Nothing for a run that
+    /// ended early.
+    func scoreDropChecked(_ check: ScoreDropCheck) {
+        check.consoleLines.forEach { print($0) }
+    }
+
+    /// The verdict on the kills the run's evidence doesn't back, last, on standard output with the rest: ✅ when it
+    /// passes, ❌ when too many are doubtful, then each, up to `DoubtfulKillsCheck.shownDoubtfulKills`. Nothing for a
+    /// run that ended early.
+    func doubtfulKillsChecked(_ check: DoubtfulKillsCheck) {
+        check.consoleLines.forEach { print($0) }
+    }
+
     /// Where a finished run saved its survivors as `--write-baseline` asked, or why it saved none.
     func baselineFileSaved(_ saving: BaselineFileSaving) {
         print(saving.line)

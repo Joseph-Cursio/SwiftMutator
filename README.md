@@ -278,12 +278,16 @@ mutant on its own (see [Testing one mutant](#testing-one-mutant)).
 `run`, `mutate-without-running` and `run-without-mutating` exit with:
 
 - **0** when the run finished, and met `--fail-under` or `failUnder` (see
-  [Failing on a low score](#failing-on-a-low-score)) and `--baseline`'s limit on new survivors (see
-  [Failing on new survivors](#failing-on-new-survivors)), and when there is nothing to mutate, as for
+  [Failing on a low score](#failing-on-a-low-score)), `--baseline`'s limit on new survivors (see
+  [Failing on new survivors](#failing-on-new-survivors)), `--max-score-drop` (see
+  [Failing on a score drop](#failing-on-a-score-drop)) and `--max-doubtful-kills` (see
+  [Failing on doubtful kills](#failing-on-doubtful-kills)), and when there is nothing to mutate, as for
   a `--since` change with no Swift file, or a `--shard` that holds no mutant.
 - **2** when the run finished with its headline score below `--fail-under` or `failUnder`, or with
   every mutant a build error, whatever the threshold, or with more new survivors against
-  `--baseline`'s file than `--max-new-survivors` allows. Every failed check exits with 2. Every
+  `--baseline`'s file than `--max-new-survivors` allows, or with its score more than
+  `--max-score-drop` points below that file's, or with more doubtful kills than
+  `--max-doubtful-kills` allows. Every failed check exits with 2. Every
   report, the results file and `summary.json` were written first, but for a `--baseline` run whose
   chosen code holds only mutants of code no test ran, which compares them as discovery ends and
   writes none (see [Failing on new survivors](#failing-on-new-survivors)).
@@ -425,8 +429,9 @@ is read as the run starts, and replaced at the end.
   file no test reaches, would have nothing to mutate, and pass. With `--baseline` it compares those
   mutants as discovery ends instead, says so, and exits with the check's status, 2 when too many are
   new; so does a whole run, or one of `--files-to-mutate`, with no file to mutate but such files.
-  Nothing is tested, so no report, results file or `summary.json` is written. Of a split, the first
-  shard compares them.
+  Nothing is tested, so no report, results file or `summary.json` is written, and no other check
+  can fail: `--max-score-drop` says the score isn't compared, and `--max-doubtful-kills` finds none,
+  each in its line after the survivors'. Of a split, the first shard compares them.
 - **Test plans.** `mutate-without-running` records the mutants of code no test ran in the plan, and
   `run-without-mutating` compares them, and records them, as a run does. A plan an older
   SwiftMutator made doesn't record them: its run writes no baseline file, and says so, and its
@@ -472,11 +477,11 @@ is read as the run starts, and replaced at the end.
   override them, discovers or judges other mutants, so the file is refused as the run starts, with
   status 8, and every difference listed. An `--exclude` adds to `exclude`, so a run with one needs a
   baseline file written with it. `executable` isn't compared: it is an absolute path, which differs
-  between machines. A missing file, one that can't be read, an unknown key and a newer format are
-  refused the same way.
+  between machines. A missing file, one that can't be read, an unknown key, a newer format and a
+  `score` no run gives, as more killed than scored, are refused the same way.
 - **Which results write one.** Only a whole run's: `--write-baseline` with `--mutant`, `--shard`,
-  `--sample`, `--since` or `--files-to-mutate` is a usage error, 64, and so is `--max-new-survivors`
-  without `--baseline`. A run that stops writes none, and says so in a warning, as for a report that
+  `--sample`, `--since` or `--files-to-mutate` is a usage error, 64, and so are `--max-new-survivors`
+  and `--max-score-drop` without `--baseline`. A run that stops writes none, and says so in a warning, as for a report that
   couldn't be saved; that changes no exit status. So does a run whose every mutant was a build error,
   which tested none. `report --write-baseline` writes one from a results file of a run that
   finished, or from every shard of a split, merged, when the shards discovered the same mutants;
@@ -490,8 +495,8 @@ is read as the run starts, and replaced at the end.
   compared, as a run says it. A run that didn't finish is compared on the results it has, and the
   verdict says how many those are.
 - **The file.** YAML, sorted by path, line, column and operator, so its diff in a pull request
-  shows only the survivors that came and went. It records the score's counts too, for a later check
-  on the score. Name it `muter.baseline.yml` at the project's root: the project's files leave it out,
+  shows only the survivors that came and went. It records the score's counts too, which
+  `--max-score-drop` compares (see [Failing on a score drop](#failing-on-a-score-drop)). Name it `muter.baseline.yml` at the project's root: the project's files leave it out,
   as they do `muter.triage.yml`, so committing a new one refuses no `--resume` and tests nothing
   again in a `--reuse`. A baseline file elsewhere in the project is a project file.
 
@@ -522,6 +527,99 @@ is read as the run starts, and replaced at the end.
   ```
 - **summary.json** records the verdict in `newSurvivors`, and the Markdown report shows it, with the
   score's, in a Checks section near its top, with a table of the new survivors.
+
+### Failing on a score drop
+
+`--max-score-drop <points>`, with `--baseline`, fails a run whose score fell more than that many
+points below the score the baseline file records, so a pull request can't lower it by killing
+fewer of its own mutants while it adds no survivor
+([#120](https://github.com/Joseph-Cursio/SwiftMutator/issues/120)). It is a number of points from 0
+to 100, written as `--fail-under`'s percent is, with up to 6 decimals; anything else, and the flag
+without `--baseline`, is a usage error, 64. There is no key for it in `muter.conf.yml`.
+
+```yaml
+# On a pull request.
+- run: swift-mutator --baseline muter.baseline.yml --max-score-drop 2 --max-doubtful-kills 0 --report markdown:"$GITHUB_STEP_SUMMARY"
+```
+
+- **How much to allow.** Flaky tests alone move a project's score a point or two between runs
+  ([#82](https://github.com/Joseph-Cursio/SwiftMutator/issues/82)), so `--max-score-drop 0` fails at
+  random. Allow what your project's runs move by.
+- **Which scores.** The run's is the one `--fail-under` checks: killed of scored, with any mutant
+  taken out of the build with others counted as not killed. The file's is its `score`, the same
+  counts of the run that wrote it. Both are compared exactly, from the counts, never as the reports
+  show them, so a drop equal to the limit passes, and a rise always passes.
+- **When it is checked.** Once the run finishes, with the other checks. Its verdict comes after the
+  survivors':
+
+  ```
+  ✅ Mutation score 81.2% is 1.4 points below the baseline file muter.baseline.yml's 82.6%, within the 2 allowed.
+  ❌ Mutation score 79.9% is 2.8 points below the baseline file muter.baseline.yml's 82.6%, more than the 2 allowed.
+  ✅ Mutation score 84.0% is 1.4 points above the baseline file muter.baseline.yml's 82.6%.
+  ```
+
+  Both scores show as many decimals as the limit has, at least one, truncated as `--fail-under`'s
+  are, and the drop, or the rise, as the difference of the two shown, so the line adds up; a drop
+  within the limit never shows past it. A drop past it that would show within it shows with more
+  decimals, until it shows past it: a file at 82.09% and a run at 80% with 2 allowed show
+  `80.00% is 2.09 points below … 82.09%`. `summary.json`'s `drop` is exact, so it is above
+  `maxScoreDrop` just when the check failed.
+- **What isn't checked.** The file holds a whole run's score, so only a whole run's compares with it:
+  a run of one mutant (`--mutant`), a shard, a `--sample`, a `--since` run, with or without
+  `--changed-lines`, and a `--files-to-mutate` run say in their line that the score isn't compared,
+  and pass; so does a run, or a file, that scored no mutant, and a run that ends in discovery with
+  only mutants of code no test ran (see
+  [When only such code changed](#failing-on-new-survivors)), which tested none. Check a split's
+  merged report with `report --baseline … --max-score-drop` instead. A run that a signal or an error
+  stopped exits for that, and says nothing of it.
+- **`report --max-score-drop`** compares a results file's score, or every shard's merged, and says its
+  verdict on standard error. It doesn't compare a run that didn't finish, one that stopped on an
+  error, merged shards that lack results or miss a shard, nor shards whose runs didn't discover the
+  same mutants, as some may then have no result, and says why; `--write-baseline` writes none of
+  those either.
+- **summary.json** records the verdict in `scoreDrop` (see [summary.json](#summaryjson)), and the
+  Markdown report's Checks section shows it.
+
+### Failing on doubtful kills
+
+`--max-doubtful-kills <count>` fails a run whose score counts more kills than that whole number that
+the run's own evidence doesn't back
+([#120](https://github.com/Joseph-Cursio/SwiftMutator/issues/120)). It needs no baseline file, and is
+on `run`, `run-without-mutating` and `report`; there is no key for it in `muter.conf.yml`. A kill is
+doubtful when:
+
+- **only suspect tests made it**, and no rerun alone settled it: a kill past `suspectKillReruns`, a
+  reused one, or one whose rerun timed out or failed to build (see
+  [Kills tested again alone](#kills-tested-again-alone)); or
+- **its code never ran**, though its tests failed or it crashed: a flaky test or a crash at launch
+  may be to blame (see [Whether a mutant's code ran](#whether-a-mutants-code-ran)).
+
+A kill that is both counts once. The verdict comes last, with each doubtful kill, up to 20:
+
+```
+❌ 3 doubtful kills, more than the 0 allowed: 2 kills only suspect tests made, which no rerun alone settled, and 1 kill whose code never ran.
+  Sources/Lint/Rules.swift:42:17 RelationalBoundary: < → <= (only suspect tests killed it)
+```
+
+- **Small runs rarely find one.** A test is suspect by its reach only once there are at least 10
+  files with a kill (`suspectTestMinimumFiles`), and a control run comes every 100 mutants
+  (`controlRunEvery`), so a `--since` run, a small project or a sample seldom has a suspect-only
+  kill; a kill whose code never ran is found in any run.
+- **Which runs are checked.** Every run that tested mutants, those that tested only some included,
+  as it counts what was tested: a shard, `--since`, `--sample`, `--files-to-mutate` and `--mutant`. A
+  run that a signal or an error stopped exits for that, and says nothing of it. `report` of a run
+  that stopped on an error, or of merged shards that lack results, says they aren't counted; so does
+  `report` of a run that didn't finish with mutants left to test, as a resume tests those, then the
+  suspect kills again alone. A run stopped during those reruns, with no mutant left, is counted as it
+  stands: a resume with nothing to test reruns nothing (see
+  [Kills tested again alone](#kills-tested-again-alone)).
+- **Merged shards.** Each shard judges its own suspect tests, by the files with kills it reached, and
+  tests their kills again alone. `report` of every shard, merged, judges each kill by its own
+  shard's suspects, not by the merge's: a test that reaches enough files only across the shards is
+  suspect in none, so no shard, and no resume of one, could have tested its kills again alone, and
+  they aren't counted. The merged report's Killing Tests section still judges the merge's.
+- **summary.json** records the verdict in `doubtfulKills`, and the Markdown report's Checks section
+  shows it, with a table of them.
 
 ## Mutants outside function bodies
 
@@ -1202,6 +1300,8 @@ status and its log say why it stopped.
 | `reports` | The other reports saved, in order: those `--report` or `reports:` asked for, or a stopped run's partial reports beside them. Left out when none was saved. |
 | `run` | As the JSON report's. Left out when the results file couldn't be made, or written in full. |
 | `newSurvivors` | With `--baseline`, the verdict on the survivors against its file: `baseline`, the file as given; `maxNewSurvivors`; `passed`; `new`, how many are new, and `newMutants`, each by its key; `newNotCovered`, how many of them no test ran the code of; `stillSurvive`, `fixed` and `notTested`, of the file's entries; and `matchedWithoutLine`. When they weren't compared, `notChecked`, one of `oneMutant`, `endedEarly`, `stoppedOnAnError` and `lacksResults`, without `passed`. Left out without `--baseline`. See [Failing on new survivors](#failing-on-new-survivors). |
+| `scoreDrop` | With `--max-score-drop`, the verdict on the score against `--baseline`'s file's: `baseline`, the file as given; `maxScoreDrop`; `baselineScore`, the file's exact score, and `score`, the run's, as `gate`'s; `drop`, how many points the run's fell below the file's, negative for a rise, worked out exactly from the counts, so it is above `maxScoreDrop` just when the check failed; and `passed`. When they weren't compared, `notChecked`, one of `oneMutant`, `shard`, `sample`, `since`, `filesToMutate`, `unfinished`, `nothingScored`, `endedEarly`, `stoppedOnAnError`, `lacksResults` and `discoveriesDiffer`, without the scores and `passed`. Left out without `--max-score-drop`. See [Failing on a score drop](#failing-on-a-score-drop). |
+| `doubtfulKills` | With `--max-doubtful-kills`, the verdict on the kills the run's evidence doesn't back: `maxDoubtfulKills`; `passed`; `count`, how many kills are doubtful, each once, of which `suspectOnly` only suspect tests made and `codeNeverRan` never ran their code, which may be the same ones; and `mutants`, each by its key. When they weren't counted, `notChecked`, one of `endedEarly`, `stoppedOnAnError`, `lacksResults` and `unfinished`, without `passed`. Left out without `--max-doubtful-kills`. See [Failing on doubtful kills](#failing-on-doubtful-kills). |
 | `gate` | With a `--fail-under` or `failUnder`, the verdict on the score: `failUnder`, the threshold checked; `score`, the exact score compared, which is `mutationScore`'s but with any mutant taken out of the build with others counted as not killed; `passed`; or, when it wasn't checked, `notChecked`, one of `oneMutant`, `shard`, `endedEarly`, `stoppedOnAnError` and `lacksResults`, without `score` and `passed`. A run whose every mutant was a build error has `passed` false and no `score`. Left out without a threshold. See [Failing on a low score](#failing-on-a-low-score). |
 | `formatVersion` | 2, since `mutantsByOutcome.survived` no longer holds [mutants no test reached](#whether-a-mutants-code-ran), which are in `notCovered`. It goes up only when a key is taken out or changes its meaning. |
 
@@ -1808,6 +1908,14 @@ swift-mutator run --shard 1/2
     save them as one (see [Failing on new survivors](#failing-on-new-survivors)). A shard's own run
     compares only its own mutants, and can't write one. A merge that lacks results compares nothing,
     and one of only some shards writes none.
+  - **`--max-score-drop`** compares the merged score with the baseline file's, as only every shard,
+    merged, has the whole run's (see [Failing on a score drop](#failing-on-a-score-drop)). A shard's
+    own run doesn't compare it, nor does a merge whose shards' runs didn't discover the same
+    mutants.
+  - **`--max-doubtful-kills`** counts the merged kills, each judged by its own shard's suspect tests,
+    as that shard's run judged them when it chose which kills to test again alone (see
+    [Failing on doubtful kills](#failing-on-doubtful-kills)). So the merge counts no kill a shard
+    couldn't have settled, and a shard's own run checks the same kills.
   - **One shard's file alone** is a merge of one, so a CI glob that finds one file is judged as one
     that finds two: its report says it covers that shard, and `report` fails if the others hold
     mutants. If they hold none, as in a small `--since` change, it is the whole run's report. The
@@ -2136,7 +2244,8 @@ the time, 7 of its 11 kills survived, and the test failed again in only 1.
   the kills it hasn't tested.
 - **Reuse and shards.** `--reuse` tests no reused kill again, and doesn't count what a test did alone
   on code that may have changed, as it doesn't count a reused run's control runs. A flip stays. Each
-  shard chooses by what it alone reaches, so a merged report's flips can differ from a whole run's.
+  shard chooses by what it alone reaches, so a merged report's flips can differ from a whole run's;
+  `--max-doubtful-kills` judges each merged kill by its own shard's suspect tests.
 - **Limits.**
   - A rerun alone can't tell a mutant that makes a test fail only under load from a flaky test: both
     pass alone, so such a kill becomes a survivor.

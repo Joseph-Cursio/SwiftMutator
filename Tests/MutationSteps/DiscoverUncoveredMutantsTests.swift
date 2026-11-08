@@ -257,6 +257,29 @@ final class DiscoverUncoveredMutantsTests: MuterTestCase {
         let allowed = try await onlyUncoveredMutants(of: state)
         XCTAssertEqual(allowed.check.passed, true)
         XCTAssertNil(ExitCode.exitStatus(afterRunFailedWith: allowed))
+        XCTAssertNil(allowed.scoreDrop)
+        XCTAssertNil(allowed.doubtfulKills)
+
+        // With the score and the kills checked too, it says their verdicts after the survivors', as a run does: the
+        // score of the code --since chose isn't compared, and no kill is doubtful, as none was tested.
+        state.runOptions = .make(
+            baseline: "muter.baseline.yml",
+            maxNewSurvivors: 2,
+            maxScoreDrop: 2,
+            maxDoubtfulKills: 0
+        )
+        let checked = try await onlyUncoveredMutants(of: state)
+        XCTAssertEqual(checked.scoreDrop?.verdict, .notChecked(.since))
+        XCTAssertEqual(checked.doubtfulKills?.verdict, .checked([]))
+        XCTAssertNil(ExitCode.exitStatus(afterRunFailedWith: checked))
+        XCTAssertTrue(Run.message(showing: checked).hasSuffix(
+            "\n⚠️ The score isn't compared with the baseline file muter.baseline.yml's: the score of the code --since "
+                + "chose isn't the whole project's.\n✅ No doubtful kills."
+        ), Run.message(showing: checked))
+        // Too many new survivors still fail it.
+        state.runOptions = .make(baseline: "muter.baseline.yml", maxScoreDrop: 2, maxDoubtfulKills: 0)
+        let failed = try await onlyUncoveredMutants(of: state)
+        XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: failed), .scoreBelowThreshold)
     }
 
     // A change that adds only a file no test reaches leaves no file to mutate, but the file coverage leaves out: with
@@ -297,12 +320,20 @@ final class DiscoverUncoveredMutantsTests: MuterTestCase {
         whole.projectCoverage = state.projectCoverage
         let noFile = await error { try await DiscoverSourceFiles().run(with: whole) }
         XCTAssertEqual(noFile as? MuterError, .noSourceFilesDiscovered)
-        whole.runOptions = .make(baseline: "muter.baseline.yml")
+        whole.runOptions = .make(baseline: "muter.baseline.yml", maxScoreDrop: 2)
         whole.apply([.baselineFileLoaded(baselineFile(recording: []))])
         whole.apply(try await DiscoverSourceFiles().run(with: whole))
         let wholeOnly = try await onlyUncoveredMutants(of: whole)
         XCTAssertNil(wholeOnly.selection)
         XCTAssertEqual(wholeOnly.uncovered, only.uncovered)
+        // A whole run that tested nothing scored nothing, so its score isn't compared either, and it says so.
+        XCTAssertEqual(wholeOnly.scoreDrop?.verdict, .notChecked(.nothingScored))
+        XCTAssertTrue(
+            Run.message(showing: wholeOnly).hasSuffix(
+                "\n⚠️ The score isn't compared with the baseline file muter.baseline.yml's: no mutant was scored."
+            ),
+            Run.message(showing: wholeOnly)
+        )
     }
 
     // A file coverage leaves out whose changed code holds no mutant leaves nothing to mutate, said as discovery would
@@ -379,7 +410,7 @@ private extension DiscoverUncoveredMutantsTests {
         BaselineFile(
             path: "muter.baseline.yml",
             swiftMutator: muterCore.version,
-            score: .init(killed: 0, scored: 0),
+            score: .init(killed: 1, scored: 2),
             scope: BaselineScope(operators: [], skipCoverage: false, configuration: .init()),
             survivors: survivors.map { BaselineSurvivor(mutant: $0, outcome: .survived, before: ">", after: ">=") }
         )
