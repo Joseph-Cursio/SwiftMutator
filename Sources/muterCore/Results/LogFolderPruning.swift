@@ -7,9 +7,9 @@ import Foundation
 /// - **A run** is the folders of each of its sessions: a resumed session's folder joins the folder of the results file
 ///   its note names (`ResultsFile.noteFileName`). Each `--shard` is a run of its own.
 /// - **Only runs count.** A group of folders counts only when it holds a results file whose first header isn't a
-///   `--mutant` run's. Groups that don't, such as a run whose baseline failed, a `mutate-without-running` run and a
-///   `--mutant` run, are kept while they are newer than the oldest earlier run kept, and removed once older. With no
-///   earlier run, none of them is removed.
+///   `--mutant` run's. Groups that don't, such as a run that stopped before its first mutant, whose results file has
+///   only a `stopped` line, a `mutate-without-running` run and a `--mutant` run, are kept while they are newer than
+///   the oldest earlier run kept, and removed once older. With no earlier run, none of them is removed.
 /// - **The newest by date**, never by name: the newest of each folder's creation date, its marker's modification date,
 ///   and its results files', note's and `summary.json`'s modification dates. Never a folder's own modification date,
 ///   which moves whenever anything in it is made or removed, as when Finder writes `.DS_Store` there.
@@ -210,7 +210,8 @@ extension LogFolderPruning {
         }
     }
 
-    /// What the pruner reads of a results file's first header.
+    /// What the pruner reads of a results file's first header, or of the `stopped` line that is the only line of a run
+    /// that stopped before its first mutant (`ResultsStopped`), which names its folder as a header does.
     private struct HeaderInfo: Decodable {
         struct ShardInfo: Decodable {
             let index: Int
@@ -242,7 +243,9 @@ extension LogFolderPruning {
                 }
                 line.append(contentsOf: buffer[..<count])
             }
-            guard let header = try? JSONDecoder().decode(Self.self, from: line), header.kind == "header" else {
+            guard let header = try? JSONDecoder().decode(Self.self, from: line),
+                  header.kind == "header" || header.kind == "stopped"
+            else {
                 return nil
             }
             self = header
@@ -430,10 +433,12 @@ extension LogFolderPruning {
         }
 
         /// Whether it is a run that counts toward the newest kept: it holds a results file whose first header isn't a
-        /// `--mutant` run's. A file whose header can't be read counts as one, so it is never removed sooner.
+        /// `--mutant` run's. A file whose header can't be read counts as one, so it is never removed sooner. A file
+        /// that says only why its run stopped before its first mutant doesn't: it holds no result, as a run whose
+        /// baseline failed held no file before such files.
         var isRun: Bool {
             guard members.contains(where: { !$0.resultsFiles.isEmpty }) else { return false }
-            return firstHeader?.mutant == nil
+            return firstHeader?.kind != "stopped" && firstHeader?.mutant == nil
         }
 
         /// The shard its first session tested, if it tested one.

@@ -16,12 +16,13 @@ SwiftMutator saves each mutant's result as soon as its test run finishes, as one
 
 The file is [JSON Lines](https://jsonlines.org): UTF-8, one JSON object per line, each line ending in a line break. Every object has a `kind`:
 
-1. **`header`**, once per session. A run's first session writes it when the baseline test run has passed, before the first mutant is tested, so a run whose baseline fails writes no file. A run that `--resume` continues adds a session to the same file, which starts with a header of its own on the same condition, so one whose baseline fails adds nothing. One with nothing left to test runs no baseline, and writes its header at once, as does a run that `--reuse` starts with nothing left to test and nothing changed since the earlier run.
+1. **`header`**, once per session. A run's first session writes it when the baseline test run has passed, before the first mutant is tested. A run that `--resume` continues adds a session to the same file, which starts with a header of its own on the same condition, so one whose baseline fails adds nothing to it. A run that stops before then writes a file of its own with a `stopped` line instead (below). One with nothing left to test runs no baseline, and writes its header at once, as does a run that `--reuse` starts with nothing left to test and nothing changed since the earlier run.
 2. **`retired`**, only in a resumed session, right after its header: the earlier results it no longer stands by. See [below](#retired).
 3. **`mutant`**, one for each tested mutant, written as its test run finishes. With several workers, mutants finish in a different order from the one they started in. A session that tests on several workers then runs its timeouts again at lower load, and writes a second line for each, with `rerun`, which replaces the first. A run that `--reuse` starts first writes one for each result it keeps from the earlier run, right after its header, each with `reusedFrom`, and with `rerun` too for a result that a rerun gave.
 4. **`control`**, one for each control run: the test command with no mutant on, run among the session's mutants, about one for each 100 (`controlRunEvery`). See [below](#control).
 5. **`propertyRerun`**, with `propertyTestFilter`: one for each kill whose recorded tests include no property test, which the session tested again with only the property tests, once every mutant was tested. See [below](#propertyrerun).
-6. **`end`**, last in each session. It is written when mutation testing stops: when it finishes, when an error stops it, and when Ctrl-C (SIGINT), SIGTERM or SIGHUP stops it (see [Stopping a run](../README.md#stopping-a-run)). A run that is killed with SIGKILL or crashes has no end line. Nor does one stopped at once, by a second signal or after 30 seconds of stopping, unless it had already written the end line.
+6. **`stopped`**, alone in its file, with no header: the run stopped before its first mutant, as its baseline or a build failed or ran past `buildTimeout`, or a signal stopped it. See [below](#stopped).
+7. **`end`**, last in each session. It is written when mutation testing stops: when it finishes, when an error stops it, and when Ctrl-C (SIGINT), SIGTERM or SIGHUP stops it (see [Stopping a run](../README.md#stopping-a-run)). A run that is killed with SIGKILL or crashes has no end line. Nor does one stopped at once, by a second signal or after 30 seconds of stopping, unless it had already written the end line.
 
 Here is a header, three of a run's mutant lines, and the end line of a run that stopped after 1,103 mutants. The first mutant was killed by tests its line names, so it kept no log, and its line has no `log`:
 
@@ -279,6 +280,26 @@ First the filtered tests run once with no mutant on, and their log is kept as `p
 | `testDurationSeconds` | Double | How long the session's mutation testing took. For a run's first session, the duration the report shows, before rounding. A resumed run's report shows every session's added up. |
 | `recorded` | Int | How many `mutant` lines the session wrote, those with `reusedFrom` or `rerun` included. So it can be more than the mutants the session tested: count the lines with neither for those, but for those that didn't compile, which are among them with `endedBy` `couldNotRun` and no run behind them. |
 
+### `stopped`
+
+The only line of the results file of a run that stopped before its first mutant ([#117](https://github.com/Joseph-Cursio/SwiftMutator/issues/117)), in its log folder. A resumed run that stops so writes it in its own log folder, and leaves the file it was resuming as it was, so that run can still be resumed. `report` says why the run stopped and exits as it did, and `--resume` and `--reuse` refuse the file ([Exit status](#exit-status)). Nothing is written for a run stopped by any other error, such as a configuration that doesn't parse, for `mutate-without-running`, or for a run with no log folder. A run killed with SIGKILL writes none either.
+
+```
+{"detail":"buildTimeoutReached","failedTestCount":1,"failedTests":[{"location":"CLITests.swift:31:9","name":"runsTheCLI()"}],"kind":"stopped","limitSeconds":600,"log":"baseline run.log","logDirectory":"/Users/me/code/SwiftProjectLint_muter_logs/Nov 8, 2026 at 9:00 AM","projectPath":"/Users/me/code/SwiftProjectLint","reason":"timedOut","startedAt":"2026-11-08T09:00:02.104Z","step":"baseline","stoppedAt":"2026-11-08T09:11:40.551Z"}
+```
+
+| Key | Type | Meaning |
+|---|---|---|
+| `startedAt`, `stoppedAt` | Date | When the run started, and when it stopped. |
+| `step` | String | Where it was: `preparing` (any other step, such as copying the project, finding its files and mutants, or making the xcodebuild workers' simulators), `coverageRun`, `buildForTesting` (one of xcodebuild's builds), `baseline` (one of the baseline's runs), `directTestRun`, `workerBaselines` (the worker clones' baselines), `workerCheckRuns` (the xcodebuild workers' runs with no mutant on) or `timedTestRun`. |
+| `reason` | String | `failed`: a baseline didn't pass, or a build for testing didn't build. `timedOut`: the step ran past `buildTimeout`. `interrupted`: a signal stopped the run. |
+| `detail` | String | For `failed` and `timedOut`, the abort's code, as an end line's `detail` gives it: `baselineTestFailed`, `workerBaselineTestFailed(worker: n)`, `buildForTestingFailed` or `buildTimeoutReached`, with `(worker: n)` for a clone's. For `interrupted`, the signal: `SIGINT`, `SIGTERM` or `SIGHUP`. |
+| `limitSeconds` | Double | For `timedOut`, the limit. |
+| `log` | String | The step's log, by its name in `logDirectory`: a failed or stopped step's kept log, or, for a signal, the coverage run's log, or the output a baseline, direct or timed run was writing, under `running/`. Left out when there is none. |
+| `failedTests`, `failedTestCount` | [Object], Int | The tests the step's log shows failing, at most 20, each as [`killedBy`](#killedby) gives one, and how many. Left out for a signal. |
+| `projectPath`, `logDirectory` | String | As in the [header](#header). |
+| `resuming` | String | For a `--resume`, the results file it was resuming, which it left as it was. |
+
 ## How it is written
 
 - **Durable at once.** Each line is written whole and then flushed to disk with `fsync`. That happens before SwiftMutator shows the mutant's progress or keeps its log, and before its worker starts the next mutant. A line on disk survives SwiftMutator being killed, even with SIGKILL, and an operating-system crash.
@@ -300,6 +321,7 @@ First the filtered tests run once with no mutant on, and their log is kept as `p
 
 New keys and new kinds of line are added without changing `formatVersion`, so a reader that skips what it doesn't know keeps working. `formatVersion` changes only for a change that an older reader would misread. A reader should refuse a file whose header has a `formatVersion` it doesn't know.
 
+- **A run stopped before its first mutant** writes a file with only a `stopped` line, which a SwiftMutator from before it refuses as a file with no header line, rather than report a run with no result.
 - **Format 1** is a run's first session, also one that `--reuse` starts. A SwiftMutator from before `--reuse` reads the results such a session kept as tested in it.
 - **A control run** is a `control` line, a kind a SwiftMutator from before control runs skips. Its reports then name no flaky test.
 - **A timeout run again** has a second `mutant` line for its key, so a SwiftMutator from before `rerun` takes that line for the mutant's result, by the last-line rule, and ignores `rerun`.
@@ -404,7 +426,8 @@ The report doesn't say whether the run finished. The status on standard error do
 
 - **0** when the report was made, an empty one included, unless the run stopped on an error or `--fail-under` isn't met.
 - **2** when the score is below `--fail-under`, every mutant with a result was a build error, or a run that didn't finish has no results. The report, the status and the summary come first.
-- **4** or **255** when the report was made of a run that stopped on an error, its last session's end line `aborted`: the status the run itself exited with, so a script that checks the report fails as one that checked the run would. 4 is for an abort, whose `detail` names its reason, such as `tooManyBuildErrors`; 255 for any other error. A run whose baseline failed, which exits with 3, never gets here: a first session's results file is made only once its baseline has passed, and a resumed session whose baseline fails writes nothing to the file. The report and the status come first, as for any other run. Shards' files exit with 4, or a stopped shard's status, whenever the report is known to lack results ([Shards](#shards)). An error's status wins over `--fail-under`, which then isn't checked. Earlier SwiftMutators exited with 255 for both.
+- **4** or **255** when the report was made of a run that stopped on an error, its last session's end line `aborted`: the status the run itself exited with, so a script that checks the report fails as one that checked the run would. 4 is for an abort, whose `detail` names its reason, such as `tooManyBuildErrors`; 255 for any other error. The report and the status come first, as for any other run. Shards' files exit with 4, or a stopped shard's status, whenever the report is known to lack results ([Shards](#shards)). An error's status wins over `--fail-under`, which then isn't checked. Earlier SwiftMutators exited with 255 for both.
+- **3** or **4** for a run that stopped before its first mutant, whose file holds only a [`stopped`](#stopped) line: `report` says why on standard error, makes no report, and exits as the run did, 3 for a failed or timed-out build or baseline, and 4 for a signal, of which the run itself died. Given with other files, it is said and left out, and the others are reported, exiting with their status, or else its.
 - **1** with `Error: …` on standard error, when:
   - the path is missing or can't be read;
   - the file isn't a results file, because it has no header line;
@@ -456,7 +479,7 @@ Shard 2 of 2, 1232 of its 1235 mutants, from …/results.jsonl: the run was inte
 ```
 
 - The first line's total is `mutantsInAllShards`. If the shards' `allKeysSHA256` differ, their discoveries did, as when coverage differed between the machines: the line gives no total, and another says how many mutants in all each shard's run discovered.
-- A shard whose file isn't given is named with the mutants `mutantsPerShard` gives it: `No results file was given for shard 2 of 3, which holds 812 mutants.` A shard that holds none wrote no file, and is said to: `Shard 3 of 3 holds no mutant, so it has no results file.`
+- A shard whose file isn't given, or whose file says only why its run stopped before its first mutant, is named with the mutants `mutantsPerShard` gives it: `No results were given for shard 2 of 3, which holds 812 mutants.` A shard that holds none wrote no file, and is said to: `Shard 3 of 3 holds no mutant, so it has no results file.`
 - Which sessions tested a file's results, and lines skipped in it, are said for its shard, after its own line: `In shard 2 of 2's file: of these, 300 were tested in the last session, session 2, and 932 in session 1.` The first line gives no such count, as the shards' sessions differ.
 - What `--force-merge` and `--merge-ignoring` let through is said, as is a shard whose own sessions let changes through when it was resumed or reused, by their headers' `forced` or `waived`.
 

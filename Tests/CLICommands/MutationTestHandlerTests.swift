@@ -101,6 +101,96 @@ final class MutationTestHandlerTests: MuterTestCase {
         XCTAssertTrue(stepSpy3.methodCalls.isEmpty)
     }
 
+    // A failed baseline's kind of abort leaves a results file of its own in the run's log folder, which says why, and
+    // the run says where; any other error leaves none.
+    func test_aRunThatStopsOnAFailedBaseline_recordsWhy_inItsLogFolder() async throws {
+        fileManager.currentDirectoryPathToReturn = "/project"
+        stepSpy1.resultToReturn = .success([.projectDirectoryUrlDiscovered(URL(fileURLWithPath: "/project"))])
+        stepSpy2.resultToReturn = .failure(.mutationTestingAborted(
+            reason: .baselineTestFailed(log: "error: no such module", mutatedFilePaths: [])
+        ))
+        var said: [String] = []
+        let observer = runEvents.observe(.stoppedRunRecorded) { event in
+            if case let .stoppedRunRecorded(path) = event { said.append(path) }
+        }
+        defer { observer.cancel() }
+
+        await assertThrowsMuterError(try await sut.run()) { _ in }
+
+        let record = try XCTUnwrap(resultsFiles.records(ResultsStopped.self).first)
+        // From the abort, whatever step threw it.
+        XCTAssertEqual(record.step, .baseline)
+        XCTAssertEqual(record.reason, .failed)
+        XCTAssertEqual(record.projectPath, "/project")
+        XCTAssertEqual(record.logDirectory, state.loggingDirectory)
+        XCTAssertEqual(resultsFiles.directories, [state.loggingDirectory])
+        XCTAssertEqual(said, ["\(state.loggingDirectory)/results.jsonl"])
+    }
+
+    func test_aRunThatStopsOnAnyOtherError_recordsNothing() async throws {
+        givenThereIsAFailureInOneOfItsSteps()
+
+        await assertThrowsMuterError(try await sut.run()) { _ in }
+
+        XCTAssertEqual(resultsFiles.directories, [])
+    }
+
+    // A signal wins over the error the stopped step threw, as it does the exit status: a baseline it killed fails.
+    func test_aRunASignalStops_recordsTheSignal() async throws {
+        givenThereAreNoFailuresInAnyOfItSteps()
+        let interruption = current.interruption
+        stepSpy2.whileRunning = {
+            _ = interruption.record(SIGTERM)
+            withUnsafeCurrentTask { $0?.cancel() }
+        }
+        stepSpy2.resultToReturn = .failure(.mutationTestingAborted(
+            reason: .baselineTestFailed(log: "killed", mutatedFilePaths: [])
+        ))
+
+        nonisolated(unsafe) let handler = sut
+        _ = await Task { try await handler.run() }.result
+
+        let record = try XCTUnwrap(resultsFiles.records(ResultsStopped.self).first)
+        XCTAssertEqual(record.reason, .interrupted)
+        XCTAssertEqual(record.detail, "SIGTERM")
+    }
+
+    // A stop at once, from the signal's thread, during a step before mutation testing, as a second Ctrl-C during a
+    // long build, records the run too, with the step it was in.
+    func test_aStopAtOnceDuringAStep_isRecorded() async throws {
+        givenThereAreNoFailuresInAnyOfItSteps()
+        let interruption = current.interruption
+        let sut = MutationTestHandler(
+            steps: [stepSpy1, BuildForTestingStandIn(interruption: interruption)], state: state
+        )
+
+        _ = try? await sut.run()
+
+        let record = try XCTUnwrap(resultsFiles.records(ResultsStopped.self).first)
+        XCTAssertEqual(record.step, .preparing)
+        XCTAssertEqual(record.detail, "SIGINT")
+    }
+
+    // A run that makes a test plan tests no mutant, so it records nothing, however it stops.
+    func test_aRunThatMakesATestPlan_recordsNothing() async throws {
+        stepSpy1.resultToReturn = .failure(.mutationTestingAborted(
+            reason: .baselineTestFailed(log: "", mutatedFilePaths: [])
+        ))
+        let sut = MutationTestHandler(options: .make(createTestPlan: true), steps: [stepSpy1], state: state)
+
+        _ = try? await sut.run()
+
+        XCTAssertEqual(resultsFiles.directories, [])
+    }
+
+    func test_theStepsAStoppedRunNames() {
+        XCTAssertEqual(MutationTestHandler.stoppedRunStep(of: DiscoverProjectCoverage()), .coverageRun)
+        XCTAssertEqual(MutationTestHandler.stoppedRunStep(of: BuildForTesting()), .buildForTesting)
+        // From its baseline on, mutation testing names its own steps.
+        XCTAssertEqual(MutationTestHandler.stoppedRunStep(of: PerformMutationTesting()), .preparing)
+        XCTAssertEqual(MutationTestHandler.stoppedRunStep(of: DiscoverSourceFiles()), .preparing)
+    }
+
     // Every step, the first included, finds the folder the observer keeps the run's test logs in, so a step can
     // keep other files of the run beside them.
     func test_theRunsLogFolderReachesTheStateBeforeTheFirstStep() async throws {
@@ -678,5 +768,16 @@ private final class LoggingDirectoryProbe: MutationStep {
     func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
         loggingDirectories.append(state.loggingDirectory)
         return []
+    }
+}
+
+/// A step that, as it runs, is stopped at once by a SIGINT, as a second Ctrl-C does.
+private struct BuildForTestingStandIn: MutationStep {
+    let interruption: InterruptionRecord
+
+    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+        _ = interruption.record(SIGINT)
+        interruption.stoppingAtOnce()
+        throw CancellationError()
     }
 }

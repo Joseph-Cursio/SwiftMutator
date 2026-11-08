@@ -140,8 +140,9 @@ extension MergedShards {
 
     /// Whether the report is known to lack results, so `report` exits with `exitStatus` and doesn't check its score: a
     /// shard stopped on an error; or has fewer results than mutants, as one that was interrupted or killed, or is still
-    /// running; or the file of a shard that holds mutants wasn't given, as for a shard whose baseline failed, which
-    /// writes no file. So a CI job that checks the report fails as one that checked every shard's run would.
+    /// running; or the file of a shard that holds mutants wasn't given, or holds only why its run stopped before its
+    /// first mutant, as a shard's whose baseline failed does, which `ResultsReport` leaves out. So a CI job that checks
+    /// the report fails as one that checked every shard's run would.
     /// Discoveries that differ only warn: each shard has its own mutants' results.
     var lacksResults: Bool {
         parts.contains { $0.recorded.stoppedOnAnError || $0.recorded.latest.count < $0.header.mutantsDiscovered }
@@ -253,7 +254,7 @@ extension MergedShards {
             lines.append(
                 absent.mutants == 0
                     ? "Shard \(absent.index) of \(count) holds no mutant, so it has no results file."
-                    : "No results file was given for shard \(absent.index) of \(count), which holds "
+                    : "No results were given for shard \(absent.index) of \(count), which holds "
                     + "\(Self.mutants(absent.mutants))."
             )
         }

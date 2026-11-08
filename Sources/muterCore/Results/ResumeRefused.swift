@@ -59,6 +59,8 @@ enum ResumeRefusal: Equatable, CustomStringConvertible {
     /// A new time limit, where the file doesn't record the limit each of its results was tested under, so none is
     /// known to be long enough: one that `--reuse` kept was tested under the earlier run's.
     case timeLimitUnknown(ResumeCheck.Difference)
+    /// The run stopped before its first mutant, as the file's record says, so it has no result to resume or reuse.
+    case stoppedBeforeFirstMutant(ResultsStopped)
     /// `operators`, `filesToMutate`, `skipCoverage` or what `--since` chose: which mutants are tested.
     case selectionChanged(ResumeCheck.Difference)
     /// What identifies the SwiftMutator build, the toolchain or the SDK, which `--force-resume` lets through.
@@ -89,6 +91,11 @@ enum ResumeRefusal: Equatable, CustomStringConvertible {
     /// The reason, naming `--reuse`'s flags if `reusing`, and `--resume`'s otherwise.
     func describe(reusing: Bool) -> String {
         switch self {
+        case let .stoppedBeforeFirstMutant(stopped):
+            let next = stopped.resuming.map { "--resume \(Logger.shellQuoted($0)), the run it was resuming" }
+                ?? (reusing ? "start a run without --reuse" : "start a new run, without --resume")
+            return (["its run \(stopped.stoppedClause)."] + stopped.detailLines + ["Fix that, then \(next)."])
+                .joined(separator: "\n")
         case let .inUse(.running(holder), _, _):
             return "another SwiftMutator run, \(holder), holds its lock. Wait for that run to end, or stop it, then "
                 + "resume again."

@@ -60,6 +60,8 @@ enum RunEvent {
     /// The timed test run, with no mutant on, ran for its limit, `seconds`, and was stopped, so the mutants' time limit
     /// comes from the baseline (`followingRunLimit`). `log` is where its log is kept, if it is.
     case timedTestRunStopped(seconds: TimeInterval, log: String?)
+    /// The run stopped before its first mutant, and recorded why in the results file at `path` (`ResultsStopped`).
+    case stoppedRunRecorded(path: String)
     /// More than one worker tests mutants through `swift test`, so their tests share `UserDefaults.standard` (#92).
     case workersShareUserDefaults
     /// A direct run of the tests, with no mutant on, changed `path` in the project, so workers keep a clone each.

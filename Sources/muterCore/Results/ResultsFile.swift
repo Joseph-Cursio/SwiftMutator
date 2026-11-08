@@ -45,6 +45,8 @@ enum ResultsFileError: Error, Equatable, CustomStringConvertible {
     /// Nothing SwiftMutator can read is at `path`, as when it's missing.
     case unreadable(path: String)
     case notAResultsFile(path: String)
+    /// The file records a run that stopped before its first mutant (`ResultsStopped`), so it has no result.
+    case stoppedBeforeFirstMutant(path: String, ResultsStopped)
     case newerFormat(path: String, version: Int)
     /// A log folder holds no results file to make a report from.
     case noResultsFile(folder: String)
@@ -72,6 +74,8 @@ enum ResultsFileError: Error, Equatable, CustomStringConvertible {
             return "can't read \(path)"
         case let .notAResultsFile(path):
             return "\(path) isn't a SwiftMutator results file: it has no header line"
+        case let .stoppedBeforeFirstMutant(path, stopped):
+            return stopped.lines(path: path).joined(separator: "\n")
         case let .newerFormat(path, version):
             return "\(path) is in results format \(version), which only a newer SwiftMutator can read"
         case let .noResultsFile(folder):

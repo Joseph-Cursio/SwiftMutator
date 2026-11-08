@@ -615,7 +615,7 @@ final class ReportCommandTests: MuterTestCase {
         )
         XCTAssertEqual(standardError.linesPassed, [
             "Report of 2 of 2 mutants in shard 1 of 2, from \(resultsPath): the run finished.",
-            "No results file was given for shard 2 of 2, which holds 1 mutant.",
+            "No results were given for shard 2 of 2, which holds 1 mutant.",
         ])
     }
 
@@ -659,7 +659,7 @@ final class ReportCommandTests: MuterTestCase {
         XCTAssertEqual(printer.linesPassed.count, 1)
         XCTAssertEqual(
             standardError.linesPassed.last,
-            "No results file was given for shard 2 of 3, which holds 1 mutant."
+            "No results were given for shard 2 of 3, which holds 1 mutant."
         )
     }
 

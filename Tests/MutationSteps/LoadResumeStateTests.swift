@@ -44,6 +44,19 @@ final class LoadResumeStateTests: MuterTestCase {
         }
     }
 
+    // A run that stopped before its first mutant has nothing to resume: refused, saying why, before anything is copied,
+    // and its lock let go.
+    func test_aRunThatStoppedBeforeItsFirstMutant_isRefused() async throws {
+        let stopped = ResultsStopped.make(step: .baseline, reason: .failed, detail: "baselineTestFailed")
+        try writeResults(stopped)
+
+        await assertRefused(
+            ResumeRefused(path: resultsPath, reasons: [.stoppedBeforeFirstMutant(stopped)], beforeTheCopy: true)
+        )
+        let reopened = try ResultsFile.Opener().openForResume(at: resultsPath)
+        reopened.close()
+    }
+
     // A run still writing the file holds its lock, and records itself beside it. The refusal comes before anything is
     // removed or copied, and names the holder, not the process that wrote the file's last session: a resume holds the
     // lock long before it writes its session.

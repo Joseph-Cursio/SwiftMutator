@@ -479,7 +479,10 @@ project, runs its tests, or both, and may take `buildTimeout` seconds:
   limit.
 
 A build or a baseline stopped there stops the run with exit status 3, as a failed one does, and
-nothing is tested. Its message names the step, the limit and its log, then the tests that failed so
+nothing is tested. Either way, the run's log folder keeps a results file that says why, the step,
+the limit and the failed tests, so a CI job can read it, as it can of a run a signal stops before its
+first mutant (see [`stopped`](Docs/results-file.md#stopped)); `report` says it, and exits as the run
+did. Its message names the step, the limit and its log, then the tests that failed so
 far and the last lines it printed, which show where it hung. A clone or a worker's simulator stopped
 there makes the run test one mutant at a time instead, as one that fails does: a clone only with
 the default count of workers, and a worker's simulator with any count.
@@ -1483,7 +1486,7 @@ swift-mutator run --shard 1/2
     has no file, and is only said.
   - **When it fails.** Whenever the report is known to lack results: a shard stopped on an error,
     has fewer results than mutants, as when its job was cancelled or killed, or holds mutants but
-    its file isn't given, as for a shard whose baseline failed, which writes no file. It then exits
+    its file isn't given, as for a shard whose baseline failed, whose file holds only why. It then exits
     with the status of the first shard, by its index, that stopped on an error, as that shard's run
     did, 4 or 255, and otherwise with 4, and doesn't check `--fail-under`. So a CI job that checks
     the merged report fails as one that checked every shard would. Earlier SwiftMutators exited
@@ -1606,8 +1609,9 @@ When it removes none but leaves some, a first line says where they are instead:
 
 - **What counts as a run.** A run's folders are those of each of its sessions: a resumed session's
   folder goes with the first session's, whose results file its note names. Only a run with a
-  results file counts toward the 5. Folders without one, such as a run whose baseline failed or a
-  `mutate-without-running` run, and `--mutant` runs, are kept while they are newer than the oldest
+  results file that holds results counts toward the 5. Folders without one, such as a run that
+  stopped before its first mutant, whose file says only why, or a `mutate-without-running` run, and
+  `--mutant` runs, are kept while they are newer than the oldest
   earlier run kept, and removed once older, however few runs there are; with no earlier run, none
   is removed. Runs are dated by when their folders were made and their results files last written,
   never by their names, so opening an old run's folder in Finder, or deleting a log from it, doesn't
@@ -1659,8 +1663,10 @@ swift-mutator report "../SwiftProjectLint_muter_logs/Oct 4, 2026 at 1:16 PM" -f 
 - **It exits with status 1** when the file can't be read or isn't a results file.
 - **It exits as the run did** once the report is made of a run that stopped on an error: with 4 for
   an abort, such as 5 build errors in a row, and 255 for any other error, so a script that checks
-  the report fails as one that checked the run would. A run whose baseline failed has no results
-  file to report, or, resumed, keeps the earlier session's end, so `report` never exits with 3.
+  the report fails as one that checked the run would. A run that stopped before its first mutant
+  has a results file that says only why: `report` says it, and exits with 3 for a failed or timed-out
+  build or baseline, or 4 for a signal, and `--resume` and `--reuse` refuse it (see
+  [Docs/results-file.md](Docs/results-file.md#stopped)).
 - **It exits with status 2** when `--fail-under` is given and the score is below it, every mutant
   was a build error, or a run that didn't finish has no results, once the report
   is made (see [Failing on a low score](#failing-on-a-low-score)). A run's error status wins, and

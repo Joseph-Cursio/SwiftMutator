@@ -36,6 +36,8 @@ struct RecordedResults {
     /// Whether the file ends in a line without its line break that doesn't read, which is then the last of
     /// `unreadableLines`: SwiftMutator was stopped while writing it.
     private(set) var endsWithCutOffLine = false
+    /// The record of a run that stopped before its first mutant, which a file holds with no header.
+    private var stopped: ResultsStopped?
 
     var headers: [ResultsHeader] {
         sessions.map(\.header)
@@ -58,7 +60,12 @@ struct RecordedResults {
         }
         // The last line is empty when the file ends in a line break, and an empty line is never unreadable.
         results.endsWithCutOffLine = results.unreadableLines.last == lines.count
-        guard !results.sessions.isEmpty else { throw ResultsFileError.notAResultsFile(path: path) }
+        guard !results.sessions.isEmpty else {
+            if let stopped = results.stopped {
+                throw ResultsFileError.stoppedBeforeFirstMutant(path: path, stopped)
+            }
+            throw ResultsFileError.notAResultsFile(path: path)
+        }
         return results
     }
 
@@ -68,21 +75,7 @@ struct RecordedResults {
         guard let kind = try? decoder.decode(ResultsCoding.Kind.self, from: line).kind else { return false }
         switch kind {
         case "header":
-            if let version = try? decoder.decode(FormatVersion.self, from: line).formatVersion,
-               version > ResultsCoding.newestFormatVersion {
-                throw ResultsFileError.newerFormat(path: path, version: version)
-            }
-            guard var header = try? decoder.decode(ResultsHeader.self, from: line) else { return false }
-            // A tree recorded as what changed since an earlier session's is made again from that one. A header whose
-            // tree can't be doesn't read, and nor do its session's lines, whose results are then tested again.
-            if let delta = header.projectDelta {
-                let base = sessions.lazy.reversed().compactMap(\.header.project).first {
-                    $0.treeSHA256 == delta.baseTreeSHA256
-                }
-                guard let tree = base?.applying(delta) else { return false }
-                header.project = tree
-            }
-            sessions.append(Session(header: header))
+            return try addHeader(line, path: path, using: decoder)
         case "mutant":
             guard let record = try? decoder.decode(MutantResult.self, from: line),
                   let session = sessionIndex(record.session)
@@ -115,6 +108,9 @@ struct RecordedResults {
                 propertyReruns[record.key] = record
             }
             sessions[session].lastFinishedAt = max(sessions[session].lastFinishedAt ?? .distantPast, record.finishedAt)
+        case "stopped":
+            guard let record = try? decoder.decode(ResultsStopped.self, from: line) else { return false }
+            stopped = record
         case "end":
             guard let end = try? decoder.decode(ResultsEnd.self, from: line),
                   let session = sessionIndex(end.session)
@@ -124,6 +120,27 @@ struct RecordedResults {
             // A kind of record a later SwiftMutator writes.
             break
         }
+        return true
+    }
+
+    /// Adds the header `line`, starting a session, or returns false if it doesn't read. One a newer SwiftMutator wrote
+    /// refuses the file.
+    private mutating func addHeader(_ line: Data, path: String, using decoder: JSONDecoder) throws -> Bool {
+        if let version = try? decoder.decode(FormatVersion.self, from: line).formatVersion,
+           version > ResultsCoding.newestFormatVersion {
+            throw ResultsFileError.newerFormat(path: path, version: version)
+        }
+        guard var header = try? decoder.decode(ResultsHeader.self, from: line) else { return false }
+        // A tree recorded as what changed since an earlier session's is made again from that one. A header whose tree
+        // can't be doesn't read, and nor do its session's lines, whose results are then tested again.
+        if let delta = header.projectDelta {
+            let base = sessions.lazy.reversed().compactMap(\.header.project).first {
+                $0.treeSHA256 == delta.baseTreeSHA256
+            }
+            guard let tree = base?.applying(delta) else { return false }
+            header.project = tree
+        }
+        sessions.append(Session(header: header))
         return true
     }
 

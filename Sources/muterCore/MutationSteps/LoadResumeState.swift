@@ -84,8 +84,16 @@ struct LoadResumeState: MutationStep {
         guard let data = fileManager.contents(atPath: path) else {
             throw ResultsFileError.unreadable(path: path)
         }
-        // Refuses a file a newer SwiftMutator wrote, and one without a header.
-        let recorded = try RecordedResults.read(data, path: path)
+        // Refuses a file a newer SwiftMutator wrote, and one without a header. One whose run stopped before its first
+        // mutant has nothing to resume or reuse, which a refusal says, as it does any other reason.
+        let recorded: RecordedResults
+        do {
+            recorded = try RecordedResults.read(data, path: path)
+        } catch let ResultsFileError.stoppedBeforeFirstMutant(_, stopped) {
+            throw ResumeRefused(
+                path: path, reasons: [.stoppedBeforeFirstMutant(stopped)], beforeTheCopy: true, isReuse: file == nil
+            )
+        }
         guard let lastHeader = recorded.headers.last else {
             throw ResultsFileError.notAResultsFile(path: path)
         }

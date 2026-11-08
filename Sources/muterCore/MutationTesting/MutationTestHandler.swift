@@ -3,6 +3,12 @@ import Foundation
 final class MutationTestHandler {
     @Dependency(\.events)
     private var events: RunEvents
+    @Dependency(\.stoppedRun)
+    private var stoppedRun: StoppedRunRecorder
+    @Dependency(\.interruption)
+    private var interruption: InterruptionRecord
+    @Dependency(\.now)
+    private var now: Now
 
     private lazy var observer: MutationTestObserver = .init(runOptions: options)
 
@@ -52,19 +58,64 @@ final class MutationTestHandler {
     private func startObserver() throws {
         try observer.start()
         state.apply([.loggingDirectoryCreated(observer.loggingDirectory)])
+        stoppedRun.start(at: now(), logDirectory: observer.loggingDirectory, testsMutants: !options.createTestPlan)
     }
 
     private func notifyMuterLaunched() {
         events.send(.muterLaunched)
     }
 
+    /// Runs each step in turn. A run that stops before its first mutant, on a failed or timed-out build or baseline,
+    /// or by a signal, records why in a results file of its own (`StoppedRunRecorder`); stopped at once, from the
+    /// signal's thread, until `PerformMutationTesting` takes that over.
     private func runMutationsSteps() async throws {
-        for step in steps {
-            // A stopped run starts no further step. A step under way stops at its own checks, or when its processes
-            // are killed.
-            try Task.checkCancellation()
-            let changes = try await step.run(with: state)
-            state.apply(changes)
+        interruption.beforeStoppingAtOnce { [stoppedRun, interruption, now] in
+            if let signal = interruption.signal {
+                stoppedRun.record(.interrupted(signal: signal), at: now())
+            }
+        }
+        defer { interruption.beforeStoppingAtOnce(nil) }
+        do {
+            for step in steps {
+                // A stopped run starts no further step. A step under way stops at its own checks, or when its processes
+                // are killed.
+                try Task.checkCancellation()
+                stoppedRun.enter(Self.stoppedRunStep(of: step))
+                let changes = try await step.run(with: state)
+                state.apply(changes)
+                // A reuse leaves the earlier run's file alone, as it always does: only a resume continues it.
+                let resuming = state.runOptions.isReuse ? nil : state.resumeState?.path
+                stoppedRun.update(projectPath: state.projectDirectoryURL.path, resuming: resuming)
+            }
+        } catch {
+            recordStop(after: error)
+            throw error
+        }
+    }
+
+    /// Records the run that `error` stopped, if it stopped before its first mutant on a failed baseline's kind of
+    /// abort, or by a signal, which wins, as it does the exit status, and says where.
+    private func recordStop(after error: Error) {
+        let stop: StoppedRunRecorder.Stop
+        if let signal = interruption.signal {
+            stop = .interrupted(signal: signal)
+        } else if case let MuterError.mutationTestingAborted(reason) = error {
+            stop = .aborted(reason)
+        } else {
+            return
+        }
+        if let path = stoppedRun.record(stop, at: now()) {
+            events.send(.stoppedRunRecorded(path: path))
+        }
+    }
+
+    /// The step a stopped run says it was in while `step` runs, which `PerformMutationTesting` makes more precise from
+    /// its baseline on.
+    static func stoppedRunStep(of step: MutationStep) -> ResultsStopped.Step {
+        switch step {
+        case is DiscoverProjectCoverage: .coverageRun
+        case is BuildForTesting: .buildForTesting
+        default: .preparing
         }
     }
 }

@@ -532,6 +532,10 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         print("ℹ️ Each mutant's tests run through `swift test`, which takes about a second longer per mutant: \(reason)")
     }
 
+    func stoppedRunRecorded(path: String) {
+        print("📝 Why the run stopped before its first mutant is in \(path), which `report` reads.")
+    }
+
     func timedTestRunStopped(seconds: TimeInterval, log: String?) {
         let kept = log.map { " Its log is in \($0)." } ?? ""
         print(
