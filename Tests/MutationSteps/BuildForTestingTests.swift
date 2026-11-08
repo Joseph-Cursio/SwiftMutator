@@ -66,7 +66,7 @@ final class BuildForTestingTests: MuterTestCase {
         )
 
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/temp")
-        process.stdoutToBeReturned = xcodebuildBuildForTestingOutput()
+        scriptBuilds([built()])
         fileManager.errorToThrow = TestingError.stub
 
         try await assertThrowsMuterError(
@@ -82,7 +82,7 @@ final class BuildForTestingTests: MuterTestCase {
         )
 
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/temp")
-        process.stdoutToBeReturned = xcodebuildBuildForTestingOutput()
+        scriptBuilds([built()])
         fileManager.contentsAtPathSortedToReturn = [""]
 
         try await assertThrowsMuterError(
@@ -98,7 +98,7 @@ final class BuildForTestingTests: MuterTestCase {
         )
 
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/temp")
-        process.stdoutToBeReturned = xcodebuildBuildForTestingOutput()
+        scriptBuilds([built()])
         fileManager.contentsAtPathSortedToReturn = ["some/project.xctestrun"]
 
         try await assertThrowsMuterError(
@@ -114,17 +114,21 @@ final class BuildForTestingTests: MuterTestCase {
         )
 
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/temp")
-        process.stdoutToBeReturned = xcodebuildBuildForTestingFailedOutput()
-        process.terminationStatus = 65
+        scriptBuilds([built(xcodebuildBuildForTestingFailedOutput(), status: 65)])
 
+        // A project that doesn't build for testing is a failed baseline, as a SwiftPM one is, whose baseline builds.
         try await assertThrowsMuterError(
             await sut.run(with: state),
-            .literal(
-                reason: """
+            .mutationTestingAborted(reason: .buildForTestingFailed(
+                description: """
                 xcodebuild build-for-testing failed with exit code 65:
                 /path/to/temp/iOSProject.xcodeproj: error: The iOS Simulator deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 12.0, but the range of supported deployment target versions is 15.0 to 27.0.x. (in target 'iOSProjectTests' from project 'iOSProject')
-                """
-            )
+                """,
+                log: nil
+            ))
+        )
+        XCTAssertEqual(
+            MutationTestingAbortReason.buildForTestingFailed(description: "", log: nil).exitStatus, .baselineFailed
         )
         XCTAssertFalse(fileManager.methodCalls.contains("copyItem(atPath:toPath:)"))
     }
@@ -149,18 +153,17 @@ final class BuildForTestingTests: MuterTestCase {
         state.preparedSources = [path: prepared]
         state.loggingDirectory = "/logs"
         let failed = "\(path):\(lineWithIt + 2):9: error: no such operator\n"
-        process.stdoutToBeReturned = failed
-        process.stdoutToBeReturned = xcodebuildBuildForTestingOutput()
-        process.statusesToReturn = [65, 0]
+        scriptBuilds([built(failed, status: 65), built()])
         fileManager.contentsAtPathSortedToReturn = ["some/project.xctestrun"]
         fileManager.fileContentsToReturn = loadXCTestRun()
 
         let result = try await sut.run(with: state)
 
-        XCTAssertEqual(process.processesRun.count, 2, "\(process.processesRun)")
-        XCTAssertTrue(process.processesRun[0].contains("clean"))
-        XCTAssertFalse(process.processesRun[1].contains("clean"))
-        XCTAssertTrue(process.processesRun[1].contains("build-for-testing"))
+        let builds = buildsRun
+        XCTAssertEqual(builds.count, 2, "\(builds)")
+        XCTAssertTrue(builds[0].contains("clean"))
+        XCTAssertFalse(builds[1].contains("clean"))
+        XCTAssertTrue(builds[1].contains("build-for-testing"))
         XCTAssertFalse(writeFile.contentPassed?.contains("\"\(bad)\"") ?? true)
         XCTAssertEqual(fileManager.createdFiles["/logs/failed build 1.log"], Data(failed.utf8))
         XCTAssertTrue(
@@ -193,12 +196,28 @@ final class BuildForTestingTests: MuterTestCase {
         )
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/temp")
         state.loggingDirectory = "/logs"
-        process.stdoutToBeReturned = "ld: symbol(s) not found\n"
-        process.terminationStatus = 65
+        scriptBuilds([
+            CommandResult(
+                status: 65,
+                endedBySignal: false,
+                output: "ld: symbol(s) not found\n",
+                errors: "note: from standard error\n"
+            ),
+        ])
 
-        await assertThrowsMuterError(try await sut.run(with: state)) { _ in }
+        await assertThrowsMuterError(try await sut.run(with: state)) { error in
+            guard case let .mutationTestingAborted(.buildForTestingFailed(_, log)) = error else {
+                return XCTFail("\(error)")
+            }
+            XCTAssertEqual(log, "/logs/failed build 1.log")
+            XCTAssertTrue(error.description.contains("The build's log is in /logs/failed build 1.log"), "\(error)")
+        }
 
-        XCTAssertEqual(fileManager.createdFiles["/logs/failed build 1.log"], Data("ld: symbol(s) not found\n".utf8))
+        // What the build wrote to standard error too, which only the kept log has.
+        XCTAssertEqual(
+            fileManager.createdFiles["/logs/failed build 1.log"],
+            Data("ld: symbol(s) not found\nnote: from standard error\n".utf8)
+        )
     }
 
     func test_buildForTestingFailsWithoutErrorLines_thenReportTailOfOutput() async throws {
@@ -208,18 +227,18 @@ final class BuildForTestingTests: MuterTestCase {
         )
 
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/temp")
-        process.stdoutToBeReturned = "Prepare packages\n\n** TEST BUILD FAILED **\n"
-        process.terminationStatus = 1
+        scriptBuilds([built("Prepare packages\n\n** TEST BUILD FAILED **\n", status: 1)])
 
         try await assertThrowsMuterError(
             await sut.run(with: state),
-            .literal(
-                reason: """
+            .mutationTestingAborted(reason: .buildForTestingFailed(
+                description: """
                 xcodebuild build-for-testing failed with exit code 1:
                 Prepare packages
                 ** TEST BUILD FAILED **
-                """
-            )
+                """,
+                log: nil
+            ))
         )
     }
 
@@ -230,18 +249,17 @@ final class BuildForTestingTests: MuterTestCase {
             arguments: ["some", "commands", "test"]
         )
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/temp")
-        process.stdoutToBeReturned = xcodebuildBuildForTestingOutput()
+        scriptBuilds([built()], help: CommandResult(status: 0, endedBySignal: false, output: "", errors: helpOutput))
         fileManager.contentsAtPathSortedToReturn = ["some/project.xctestrun"]
         fileManager.fileContentsToReturn = loadXCTestRun()
-        process.commandResult = { [helpOutput = xcodebuildHelpOutput] _ in
-            CommandResult(status: 0, endedBySignal: false, output: "", errors: helpOutput)
-        }
 
         let result = try await sut.run(with: state)
 
         XCTAssertEqual(result.last, .testDiagnosticsOptionChecked(canBeTurnedOff: true))
-        XCTAssertEqual(process.commandsRun, [["/path/to/xcodebuild", "-help"]])
-        XCTAssertEqual(process.timeLimits, [BuildForTesting.helpTimeLimit])
+        XCTAssertEqual(process.commandsRun.last, ["/path/to/xcodebuild", "-help"])
+        XCTAssertEqual(process.commandsRun.count, 2, "\(process.commandsRun)")
+        // The build has no limit without a buildTimeout.
+        XCTAssertEqual(process.timeLimits, [nil, BuildForTesting.helpTimeLimit])
     }
 
     // Without an answer, the option is left out: one the test command didn't know would fail every mutant's run.
@@ -251,16 +269,16 @@ final class BuildForTestingTests: MuterTestCase {
             arguments: ["some", "commands", "test"]
         )
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/temp")
-        process.stdoutToBeReturned = xcodebuildBuildForTestingOutput()
+        scriptBuilds([built()])
         fileManager.contentsAtPathSortedToReturn = ["some/project.xctestrun"]
         fileManager.fileContentsToReturn = loadXCTestRun()
 
         let couldNotStart = try await sut.run(with: state)
-        process.stdoutToBeReturned = xcodebuildBuildForTestingOutput()
         fileManager.fileContentsToReturn = loadXCTestRun()
-        process.commandResult = { [helpOutput = xcodebuildHelpOutput] _ in
-            CommandResult(status: 0, endedBySignal: false, output: "", errors: helpOutput, timedOut: true)
-        }
+        scriptBuilds(
+            [built()],
+            help: CommandResult(status: 0, endedBySignal: false, output: "", errors: helpOutput, timedOut: true)
+        )
         let timedOut = try await sut.run(with: state)
 
         XCTAssertEqual(couldNotStart.last, .testDiagnosticsOptionChecked(canBeTurnedOff: false))
@@ -273,12 +291,92 @@ final class BuildForTestingTests: MuterTestCase {
             arguments: ["some", "commands", "test"]
         )
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/temp")
-        process.stdoutToBeReturned = xcodebuildBuildForTestingFailedOutput()
-        process.terminationStatus = 65
+        scriptBuilds([built(xcodebuildBuildForTestingFailedOutput(), status: 65)])
 
         _ = try? await sut.run(with: state)
 
-        XCTAssertEqual(process.commandsRun, [])
+        XCTAssertEqual(process.commandsRun.count, 1, "\(process.commandsRun)")
+        XCTAssertFalse(process.commandsRun.contains(["/path/to/xcodebuild", "-help"]))
+    }
+
+    // Each build runs under buildTimeout. One stopped there stops the run, as a failed baseline does, naming the
+    // step, the limit and the log, and its compile errors, cut short, take no mutant out to build again.
+    func test_aBuildPastTheBuildTimeout_stopsTheRun_withoutBuildingAgain() async throws {
+        let path = "/path/to/temp/Sources/Check.swift"
+        let prepared = "func check(_ value: Int) -> Bool {\n    return value > 1\n}\n"
+        let source = SourceCodeInfo(path: path, code: Parser.parse(source: prepared))
+        let mapping = try XCTUnwrap(generateSchemataMappings(for: source).first)
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/path/to/xcodebuild", arguments: ["-scheme", "S", "test"], buildTimeout: 900
+        )
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/temp")
+        state.mutationMapping = [mapping]
+        state.preparedSources = [path: prepared]
+        state.loggingDirectory = "/logs"
+        let cutShort = "Compiling Check.swift\n\(path):3:9: error: no such operator\n"
+        scriptBuilds([
+            CommandResult(status: 9, endedBySignal: true, output: cutShort, errors: "", timedOut: true),
+            built(),
+        ])
+
+        try await assertThrowsMuterError(
+            await sut.run(with: state),
+            .mutationTestingAborted(reason: .buildTimeoutReached(
+                step: .buildForTesting, seconds: 900, output: cutShort, log: "/logs/failed build 1.log"
+            ))
+        )
+        XCTAssertEqual(buildsRun.count, 1)
+        XCTAssertEqual(process.timeLimits, [900])
+        XCTAssertEqual(fileManager.createdFiles["/logs/failed build 1.log"], Data(cutShort.utf8))
+        XCTAssertNil(writeFile.contentPassed)
+    }
+
+    // Each build has the whole limit: the one after taking out a mutant that doesn't compile too.
+    func test_aBuildAgainPastTheBuildTimeout_stopsTheRun_withItsOwnLog() async throws {
+        let path = "/path/to/temp/Sources/Check.swift"
+        let prepared = "func check(_ value: Int) -> Bool {\n    return value > 1\n}\n"
+        let source = SourceCodeInfo(path: path, code: Parser.parse(source: prepared))
+        let mapping = try XCTUnwrap(generateSchemataMappings(for: source).first)
+        let bad = try XCTUnwrap(mapping.mutationSchemata.first?.id)
+        let rewritten = MuterRewriter(mapping).visit(source.code).description
+        let lineWithIt = try XCTUnwrap(
+            rewritten.components(separatedBy: "\n").firstIndex { $0.contains("\"\(bad)\"") }
+        )
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/path/to/xcodebuild", arguments: ["-scheme", "S", "test"], buildTimeout: 900
+        )
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/temp")
+        state.mutationMapping = [mapping]
+        state.preparedSources = [path: prepared]
+        state.loggingDirectory = "/logs"
+        scriptBuilds([
+            built("\(path):\(lineWithIt + 2):9: error: no such operator\n", status: 65),
+            CommandResult(status: 9, endedBySignal: true, output: "Compiling\n", errors: "", timedOut: true),
+        ])
+
+        try await assertThrowsMuterError(
+            await sut.run(with: state),
+            .mutationTestingAborted(reason: .buildTimeoutReached(
+                step: .buildForTesting, seconds: 900, output: "Compiling\n", log: "/logs/failed build 2.log"
+            ))
+        )
+        XCTAssertEqual(process.timeLimits, [900, 900])
+    }
+
+    // A build stopped before it printed anything is stopped at its limit, not a command that couldn't run.
+    func test_aBuildPastTheBuildTimeout_thatPrintedNothing_isStillReportedAsStopped() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/path/to/xcodebuild", arguments: ["test"], buildTimeout: 30
+        )
+        state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/path/to/temp")
+        scriptBuilds([CommandResult(status: 9, endedBySignal: true, output: "", errors: "", timedOut: true)])
+
+        try await assertThrowsMuterError(
+            await sut.run(with: state),
+            .mutationTestingAborted(reason: .buildTimeoutReached(
+                step: .buildForTesting, seconds: 30, output: "", log: nil
+            ))
+        )
     }
 
     func test_listsNoTestDiagnostics_onlyForXcodebuildsLineWithNever() {
@@ -296,6 +394,32 @@ final class BuildForTestingTests: MuterTestCase {
         XCTAssertFalse(BuildForTesting.listsNoTestDiagnostics("-collect-test-diagnostics on-failure"))
         XCTAssertFalse(BuildForTesting.listsNoTestDiagnostics("-collect-test-diagnostics"))
         XCTAssertFalse(BuildForTesting.listsNoTestDiagnostics("unknown option -collect-test-diagnostics never"))
+    }
+
+    /// Makes `builds`, in order, what each build for testing ends as, and `help` what the test command's `-help` gives,
+    /// nil as for one that can't be started.
+    private func scriptBuilds(_ builds: [CommandResult], help: CommandResult? = nil) {
+        let queue = Queue<CommandResult>()
+        builds.forEach(queue.enqueue)
+        process.commandResult = { command in
+            command.contains("-help") ? help : queue.dequeue()
+        }
+    }
+
+    /// A build that printed `output` and exited with `status`.
+    private func built(_ output: String? = nil, status: Int32 = 0) -> CommandResult {
+        CommandResult(
+            status: status, endedBySignal: false, output: output ?? xcodebuildBuildForTestingOutput(), errors: ""
+        )
+    }
+
+    /// Each build for testing run, its executable first, in order.
+    private var buildsRun: [[String]] {
+        process.commandsRun.filter { !$0.contains("-help") }
+    }
+
+    private var helpOutput: String {
+        xcodebuildHelpOutput
     }
 
     /// Lines of Xcode 27.2's `xcodebuild -help`, which it writes to standard error.

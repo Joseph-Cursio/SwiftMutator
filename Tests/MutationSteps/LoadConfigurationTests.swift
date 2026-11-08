@@ -96,6 +96,49 @@ final class LoadConfigurationTests: MuterTestCase {
         XCTAssertNotEqual(fromFile, configuration)
     }
 
+    func test_buildTimeoutFlag_replacesItsKey() async throws {
+        fileManager.fileExistsToReturn = [false, true]
+        fileManager.fileContentsToReturn = Data(
+            "executable: /usr/bin/swift\narguments: [test]\nbuildTimeout: 600\n".utf8
+        )
+        state.runOptions = .make(buildTimeout: 1_200)
+
+        let result = try await sut.run(with: state)
+
+        guard case let .configurationParsed(configuration)? = result.last else { return XCTFail("\(result)") }
+        XCTAssertEqual(configuration.buildTimeout, 1_200)
+    }
+
+    // As the flag is refused: 0 would stop every build at once.
+    func test_aBuildTimeoutNotAboveZero_orPastADay_isRefused() async throws {
+        for value in ["0", "-5", "86401", ".inf", ".nan"] {
+            fileManager.fileExistsToReturn = [false, true]
+            fileManager.fileContentsToReturn = Data(
+                "executable: /usr/bin/swift\narguments: [test]\nbuildTimeout: \(value)\n".utf8
+            )
+
+            await assertThrowsMuterError(try await sut.run(with: state)) { error in
+                guard case let .configurationParsingError(reason) = error else { return XCTFail("\(error)") }
+                XCTAssertTrue(
+                    reason.hasPrefix("buildTimeout must be a number of seconds above 0, and at most a day (86400)"),
+                    "\(value): \(reason)"
+                )
+            }
+        }
+    }
+
+    // The flag takes its place, so the run never uses it.
+    func test_aBuildTimeoutOutOfRange_isLetThrough_whenTheFlagReplacesIt() async throws {
+        fileManager.fileExistsToReturn = [false, true]
+        fileManager.fileContentsToReturn = Data("executable: /usr/bin/swift\narguments: [test]\nbuildTimeout: 0\n".utf8)
+        state.runOptions = .make(buildTimeout: 600)
+
+        let result = try await sut.run(with: state)
+
+        guard case let .configurationParsed(configuration)? = result.last else { return XCTFail("\(result)") }
+        XCTAssertEqual(configuration.buildTimeout, 600)
+    }
+
     // After the file's entries, so the header records both.
     func test_excludeFlag_addsToTheKey() async throws {
         fileManager.fileExistsToReturn = [false, true]

@@ -8,6 +8,12 @@ public enum MutationTestingAbortReason: Equatable, Sendable {
     /// The mutated project's baseline passed, but a parallel worker's clone of it, at `directory`,
     /// failed the same build-and-test run.
     case workerBaselineTestFailed(worker: Int, directory: String, log: String)
+    /// xcodebuild's build for testing failed, as `description` says, and no mutant that fails it was left to take out
+    /// (`CompileRecovery`). `log` is where its log is kept, if it is.
+    case buildForTestingFailed(description: String, log: String?)
+    /// `step`, ahead of the first mutant, ran for `buildTimeout`'s `seconds` and was stopped. `output` is what it
+    /// printed, and `log` where that is kept, if it is.
+    case buildTimeoutReached(step: BuildStep, seconds: Double, output: String, log: String?)
     case tooManyBuildErrors
     /// The mutant `id`'s run couldn't be told to switch it on: under xcodebuild, its `muter.xctestrun` couldn't be
     /// written, as `description` says. The file left by the run before would have switched that run's mutant on.
@@ -23,6 +29,17 @@ public enum MutationTestingAbortReason: Equatable, Sendable {
     /// nothing.
     case noMutantCodeShownRunning(runs: Int)
     case unknownError(description: String)
+
+    /// A step ahead of the first mutant that builds the project, which `buildTimeout` limits and a failure of stops the
+    /// run.
+    public enum BuildStep: Equatable, Sendable {
+        /// One of xcodebuild's builds for testing (`BuildForTesting`).
+        case buildForTesting
+        /// One of the baseline's runs in the mutated project, which builds it and runs its tests with no mutant on.
+        case baseline
+        /// The baseline in parallel worker `worker`'s clone of the mutated project, at `directory`.
+        case workerBaseline(worker: Int, directory: String)
+    }
 }
 
 extension MutationTestingAbortReason: CustomStringConvertible {
@@ -44,8 +61,24 @@ extension MutationTestingAbortReason: CustomStringConvertible {
             of disk space or memory. Run with --workers 1, or set mutationTestWorkers to 1 in your \
             \(MuterConfiguration.fileNameWithExtension), to test one mutant at a time.
 
-            \(Self.baselineTestFailedEvidence(log: log))
+            \(Self.failedTestsAndEvidence(log: log))
             """
+
+        case let .buildForTestingFailed(description, log):
+            let kept = log.map { "\n\nThe build's log is in \($0)." } ?? ""
+            return """
+            \(description)\(kept)
+
+            SwiftMutator tested no mutant. First check that your unmutated project builds for testing with the \
+            "executable" and "arguments" in your \(MuterConfiguration.fileNameWithExtension). If it does, the errors \
+            are in code SwiftMutator rewrote: in a test plan's copy, fix the mutant there, or make the plan again \
+            without its operator. Any other run takes mutants that don't compile out of the build, so an error in the \
+            code SwiftMutator adds around them is a bug in SwiftMutator: please report it at \
+            https://github.com/Joseph-Cursio/SwiftMutator/issues.
+            """
+
+        case let .buildTimeoutReached(step, seconds, output, log):
+            return Self.buildTimeoutReachedDescription(step: step, seconds: seconds, output: output, log: log)
 
         case .tooManyBuildErrors:
             return """
@@ -100,6 +133,19 @@ extension MutationTestingAbortReason: CustomStringConvertible {
     }
 }
 
+extension MutationTestingAbortReason {
+    /// The tests `log` shows failing, up to `FailedTestLine.killedByLimit`, a line each, and how many more failed, or
+    /// nil if it shows none: what the whole log, which follows, can bury.
+    static func failedTestsList(in log: String) -> String? {
+        let failed = FailedTestLine.failedTests(inLog: log)
+        guard failed.count > 0 else { return nil }
+        let (names, more) = failed.named(upTo: FailedTestLine.killedByLimit)
+        let heading = failed.count == 1 ? "This test failed:" : "These \(failed.count) tests failed:"
+        let lines = names.map { "  \($0)" } + (more > 0 ? ["  and \(more) more"] : [])
+        return ([heading] + lines).joined(separator: "\n")
+    }
+}
+
 private extension MutationTestingAbortReason {
     static func baselineTestFailedDescription(
         log: String,
@@ -108,8 +154,46 @@ private extension MutationTestingAbortReason {
         """
         \(baselineTestFailedCause(log: log, mutatedFilePaths: mutatedFilePaths))
 
-        \(baselineTestFailedEvidence(log: log))
+        \(failedTestsAndEvidence(log: log))
         """
+    }
+
+    /// The tests a failed baseline's `log` shows failing, if any, then the log.
+    static func failedTestsAndEvidence(log: String) -> String {
+        [failedTestsList(in: log), baselineTestFailedEvidence(log: log)].compactMap(\.self).joined(separator: "\n\n")
+    }
+
+    /// How many of the last lines of a stopped step's output its abort message shows: where it hung.
+    static let lastLinesShown = 20
+
+    static func buildTimeoutReachedDescription(
+        step: BuildStep,
+        seconds: Double,
+        output: String,
+        log: String?
+    ) -> String {
+        let what = switch step {
+        case .buildForTesting:
+            "xcodebuild's build for testing"
+        case .baseline:
+            "the baseline run, which builds your project and runs its tests with no mutant switched on,"
+        case let .workerBaseline(worker, directory):
+            "the baseline run in the copy it made for parallel worker \(worker), at \(directory),"
+        }
+        let limit = String(format: "%g", seconds)
+        let kept = log.map { "Its log is in \($0)." } ?? "It kept no log."
+        let lines = output.split(whereSeparator: \.isNewline).suffix(lastLinesShown)
+        let printed = lines.isEmpty
+            ? "\(kept) It printed nothing."
+            : "\(kept) The last lines it printed:\n\n" + lines.joined(separator: "\n")
+        return [
+            "SwiftMutator stopped \(what) after \(limit) s, the limit buildTimeout or --build-timeout sets, and "
+                + "tested no mutant.",
+            failedTestsList(in: output),
+            printed,
+            "If the build and its tests need longer, raise buildTimeout, or --build-timeout, which takes its place. If "
+                + "they hang, the last lines show where.",
+        ].compactMap(\.self).joined(separator: "\n\n")
     }
 
     static func baselineTestFailedCause(

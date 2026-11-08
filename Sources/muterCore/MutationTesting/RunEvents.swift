@@ -57,6 +57,9 @@ enum RunEvent {
     case stopAtFirstFailureTurnedOff(reason: String)
     /// Each mutant's tests run through `swift test`, as the bundles can't be run directly (see `DirectTestRun`).
     case testBundlesNotRunDirectly(reason: String)
+    /// The timed test run, with no mutant on, ran for its limit, `seconds`, and was stopped, so the mutants' time limit
+    /// comes from the baseline (`followingRunLimit`). `log` is where its log is kept, if it is.
+    case timedTestRunStopped(seconds: TimeInterval, log: String?)
     /// More than one worker tests mutants through `swift test`, so their tests share `UserDefaults.standard` (#92).
     case workersShareUserDefaults
     /// A direct run of the tests, with no mutant on, changed `path` in the project, so workers keep a clone each.

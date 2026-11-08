@@ -15,6 +15,14 @@ struct CommandResult: Equatable {
 
     /// Not when it timed out, even if it exited as it was killed.
     var succeeded: Bool { !timedOut && !endedBySignal && status == 0 }
+
+    /// What the command printed: its standard output, then its standard error from a new line.
+    var printed: String {
+        guard !output.isEmpty, !output.hasSuffix("\n"), !errors.isEmpty else {
+            return output + errors
+        }
+        return output + "\n" + errors
+    }
 }
 
 /// How a process ended: its exit code, or the signal that killed it, as `terminationStatus` and `terminationReason`

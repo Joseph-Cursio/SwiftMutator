@@ -638,11 +638,13 @@ struct ResultsEnd: Codable, Equatable {
         }
         let code = reason.kind.rawValue
         switch reason {
-        case let .workerBaselineTestFailed(worker, _, _), let .simulatorUnavailable(worker, _, _):
+        case let .workerBaselineTestFailed(worker, _, _), let .simulatorUnavailable(worker, _, _),
+             let .buildTimeoutReached(.workerBaseline(worker, _), _, _, _):
             return "\(code)(worker: \(worker))"
         case let .controlRunNotSwitchedOff(number, _):
             return "\(code)(number: \(number))"
-        case .baselineTestFailed, .tooManyBuildErrors, .mutantNotSwitchedOn, .noMutantCodeShownRunning, .unknownError:
+        case .baselineTestFailed, .buildForTestingFailed, .buildTimeoutReached, .tooManyBuildErrors,
+             .mutantNotSwitchedOn, .noMutantCodeShownRunning, .unknownError:
             return code
         }
     }

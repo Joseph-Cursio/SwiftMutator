@@ -40,6 +40,9 @@ struct BuildForTesting: MutationStep {
                 .projectXCTestRun(xcTestRun),
                 .testDiagnosticsOptionChecked(canBeTurnedOff: canTurnOffTestDiagnostics),
             ] + (leftOut.isEmpty ? [] : [.mutantsLeftOutOfTheBuild(leftOut)])
+        } catch let error as MuterError {
+            // A failed or stopped build's abort, which exits as a failed baseline does.
+            throw error
         } catch {
             throw MuterError.literal(reason: "\(error)")
         }
@@ -51,8 +54,9 @@ struct BuildForTesting: MutationStep {
 
     /// Builds for testing, with any mutant that fails the build taken out of the code, until it no longer fails on
     /// one (`CompileRecovery`), and gives those mutants. Each failed build's log is kept, the one that stops the run
-    /// too, as only standard output has it. Later builds aren't clean ones: only what changed needs building again. A
-    /// build a stop killed is never read.
+    /// too, as only the build's output has it. Later builds aren't clean ones: only what changed needs building again.
+    /// A build a stop killed is never read. Each build may run for `buildTimeout`: one stopped there stops the run,
+    /// as a failed build with no mutant to blame does, and its compile errors, cut short, blame none.
     private func buildLeavingOutMutants(state: AnyMutationTestState) async throws -> [String: LeftOutMutant] {
         var recovery = CompileRecovery(of: state)
         var arguments = state.muterConfiguration.buildForTestingArguments
@@ -62,14 +66,21 @@ struct BuildForTesting: MutationStep {
             }
             let buildLog = MutationTestLog.failedBuildFileName((recovery?.failedBuilds ?? 0) + 1)
             guard !Task.isCancelled else { throw failure }
-            fileManager.keepLog(failure.output, named: buildLog, state: state)
+            let logPath = fileManager.keepLog(failure.output, named: buildLog, state: state)
+            if let seconds = failure.timedOutAfter {
+                throw MuterError.mutationTestingAborted(reason: .buildTimeoutReached(
+                    step: .buildForTesting, seconds: seconds, output: failure.output, log: logPath
+                ))
+            }
             guard var trying = recovery,
                   let count = try await trying.takeOutMutants(failing: failure.output, keptAs: buildLog)
             else {
                 if recovery?.stopsAtTheMostBuilds == true {
                     events.send(.stoppedTakingOutMutants(afterBuilds: CompileRecovery.maximumBuilds))
                 }
-                throw failure
+                throw MuterError.mutationTestingAborted(
+                    reason: .buildForTestingFailed(description: failure.description, log: logPath)
+                )
             }
             recovery = trying
             events.send(.buildingAgainWithoutMutants(count: count))
@@ -77,31 +88,42 @@ struct BuildForTesting: MutationStep {
         }
     }
 
-    /// A build that failed: what it wrote to standard output, and why it stops the run.
+    /// A build that failed: what it wrote, standard output then standard error, why it stops the run, and the
+    /// seconds it ran for if `buildTimeout` stopped it.
     private struct FailedBuild: Error, CustomStringConvertible {
         let output: String
         let description: String
+        var timedOutAfter: TimeInterval?
     }
 
-    /// Runs the build, and says how it failed, if it did.
+    /// Runs the build, for at most `buildTimeout` seconds, and says how it failed, if it did.
     private func runBuildForTestingCommand(
         _ configuration: MuterConfiguration,
         _ arguments: [String]
     ) async throws -> FailedBuild? {
-        let buildProcess = process()
-        guard let output: String = await buildProcess.runProcess(
+        let build = await process().runCommand(
             url: configuration.testCommandExecutable,
-            arguments: arguments
-        ).flatMap(\.nilIfEmpty)
-        else {
+            arguments: arguments,
+            timeLimit: configuration.buildTimeout
+        )
+        guard let build else {
             throw MuterError.literal(reason: "Could not run test with -build-for-testing argument")
         }
-
-        // Checked only after the output guard: a process that never launched has no exit status, and
-        // reading it raises. Without this check a failed build surfaced later as a missing xctestrun.
-        guard buildProcess.terminationStatus == 0 else {
-            let reason = buildFailureReason(output, status: buildProcess.terminationStatus)
-            return FailedBuild(output: output, description: reason)
+        let output = build.printed
+        // Before anything else: killed at its limit, it would read as ended by a signal, and may have printed nothing.
+        if build.timedOut, let seconds = configuration.buildTimeout {
+            let limit = String(format: "%g", seconds)
+            return FailedBuild(
+                output: output,
+                description: "xcodebuild build-for-testing didn't end within \(limit) s (buildTimeout)",
+                timedOutAfter: seconds
+            )
+        }
+        guard !output.isEmpty else {
+            throw MuterError.literal(reason: "Could not run test with -build-for-testing argument")
+        }
+        guard build.succeeded else {
+            return FailedBuild(output: output, description: buildFailureReason(output, status: build.status))
         }
         return nil
     }

@@ -20,13 +20,13 @@ struct PerformMutationTesting: MutationStep {
     @Dependency(\.interruption)
     private var interruption: InterruptionRecord
     @Dependency(\.directTestRun)
-    private var directTestRun: DirectTestRunProbe
+    var directTestRun: DirectTestRunProbe
     @Dependency(\.workerSimulators)
     private var workerSimulators: WorkerSimulating
     @Dependency(\.sleep)
     private var sleep: Sleep
     @Dependency(\.projectFiles)
-    private var projectFiles: @Sendable (URL) -> ProjectFiles?
+    var projectFiles: @Sendable (URL) -> ProjectFiles?
 
     private let simulatorWorkerSetup = SimulatorWorkerSetup()
     private let timedTestRun = TimedTestRun()
@@ -284,7 +284,7 @@ private extension PerformMutationTesting {
         // don't count for this run, nor do the tests they show failing count among a mutant's failed tests. Checked
         // whether or not runs stop at their first failed test, but worth a notice only if they do, sent before the
         // baseline's log, which starts the progress bar or lines. Worker clones' baselines keep the configuration as
-        // it was: a baseline is never stopped, and has no time limit.
+        // it was: a baseline is never stopped at a failed test, and has no mutant's time limit, only `buildTimeout`'s.
         if let lookalike = FailedTestLine.first(inLog: testLog) ?? CrashLine.first(inLog: testLog) {
             if muterConfiguration.stopsAtFirstFailure {
                 let reason = "the baseline run passed but printed a line that looks like a failed test or a crash:\n  "
@@ -299,7 +299,9 @@ private extension PerformMutationTesting {
             try await booted, log: testLog, destination: state.muterConfiguration.firstDestination
         )
         // Before the workers: a direct run that wrote nothing in the project lets them share one build.
-        let direct = try await directRuns(of: testing, muterConfiguration, baselineLog: testLog, state: state)
+        let direct = try await directRuns(
+            of: testing, muterConfiguration, baselineLog: testLog, baselineSeconds: timePerBuildTestCycle, state: state
+        )
         let pool = try await workers(
             testing: testing,
             on: checked,
@@ -367,28 +369,6 @@ private extension PerformMutationTesting {
         }
     }
 
-    /// `configuration` with a SwiftPM run's mutants running their test bundles directly when a run that checks it,
-    /// which times it too, passes (`runningTestBundlesDirectly`), and whether that run wrote nothing in the project.
-    /// A reuse with nothing left to test ran the baseline only to see that the changed tests pass. One mutant's run
-    /// saves no more than either costs. The project's files are read only for a run that could share a build.
-    func directRuns(
-        of plan: ResumePlan,
-        _ configuration: MuterConfiguration,
-        baselineLog: String,
-        state: AnyMutationTestState
-    ) async throws -> DirectRuns {
-        guard configuration.buildSystem == .swift, !plan.toRun.isEmpty, state.selectedMutant == nil else {
-            return DirectRuns(configuration: configuration, seconds: nil, wroteNothing: false)
-        }
-        return try await runningTestBundlesDirectly(
-            configuration,
-            baselineLog: baselineLog,
-            watchingFiles: configuration.workersShareBuild != false
-                && configuration.workerCount(testing: plan.toRun.count, sharingBuild: true) > 1,
-            state: state
-        )
-    }
-
     /// The configuration `pool` tests `plan`'s mutants with, from `configuration`, the effective one: on the first
     /// xcodebuild worker, and with the default time limit unless one is configured, from the baseline's
     /// `baselineSeconds`, `directRunSeconds` or a timed test run. Also the timed test run's seconds, if one passed.
@@ -421,8 +401,16 @@ private extension PerformMutationTesting {
         // simulator's first install and launch.
         if testRunSeconds == nil, timesATestRun, configuration.testSuiteTimeout == nil,
            configuration.buildSystem != .unknown {
+            let timeLimit = Self.followingRunLimit(
+                buildTimeout: configuration.buildTimeout,
+                baselineSeconds: baselineSeconds,
+                checkRunSeconds: pool.checkRunSeconds
+            )
             testRunSeconds = try await timedTestRun.seconds(
-                using: configuration, state: state, testOutput: testOutput(named: "timed test run", state: state)
+                using: configuration,
+                timeLimit: timeLimit,
+                state: state,
+                testOutput: testOutput(named: "timed test run", state: state)
             )
         }
         let limit = Self.defaultTimeout(testRunSeconds: testRunSeconds, baselineSeconds: baselineSeconds, on: pool)
@@ -937,74 +925,6 @@ private extension PerformMutationTesting {
             }
         )
         events.send(.timeoutRerunsFinished(tally))
-    }
-
-    /// `configuration` with mutants' tests run without `swift test`, if a run of them with no mutant on, once the
-    /// baseline has built the project, passes and runs the tests the baseline's log shows, with how long it took. Else
-    /// `configuration` as it is, and why, unless it isn't worth saying. A run that fails the check keeps its log. With
-    /// `watchingFiles`, the project's files are read before and after that run, each path's size and time, `.build`
-    /// included: anything it wrote there, even if it removed it again, means workers can't share a build.
-    func runningTestBundlesDirectly(
-        _ configuration: MuterConfiguration,
-        baselineLog: String,
-        watchingFiles: Bool,
-        state: AnyMutationTestState
-    ) async throws -> DirectRuns {
-        let notRunDirectly = DirectRuns(configuration: configuration, seconds: nil, wroteNothing: false)
-        let notDirect = { (reason: String) in
-            events.send(.testBundlesNotRunDirectly(reason: reason))
-            return notRunDirectly
-        }
-        let direct: DirectTestRun
-        switch await directTestRun(configuration, state.mutatedProjectDirectoryURL) {
-        case let .success(probed):
-            direct = probed
-        case let .failure(unavailable):
-            try Task.checkCancellation()
-            return unavailable.reason.map(notDirect) ?? notRunDirectly
-        }
-        try Task.checkCancellation()
-        if DirectTestRun.ranXCTestTests(in: baselineLog) {
-            return notDirect("the baseline ran XCTest tests, which only `swift test` runs")
-        }
-
-        let directConfiguration = configuration.withDirectTestRun(direct)
-        let filesBefore = watchingFiles ? projectFiles(state.mutatedProjectDirectoryURL) : nil
-        let start = instant()
-        let output = testOutput(named: "direct test run", state: state)
-        let (outcome, testLog) = await ioDelegate.runTestsWithoutBuilding(
-            using: directConfiguration,
-            savingResultsIntoFileNamed: output
-        )
-        // Stopping the run kills this run too, which then fails, but that says nothing about the project's tests.
-        try Task.checkCancellation()
-        let seconds = seconds(since: start)
-        let filesAfter = watchingFiles ? projectFiles(state.mutatedProjectDirectoryURL) : nil
-        let whyNot = DirectTestRun.whyNot(baselineLog: baselineLog, outcome: outcome, log: testLog)
-        fileManager.keepLog(
-            testLog,
-            writtenTo: output,
-            by: ioDelegate,
-            named: whyNot == nil ? TimedTestRun.logName : "direct test run.log",
-            state: state
-        )
-        if let whyNot {
-            return notDirect(whyNot + " (its log is direct test run.log)")
-        }
-        let firstChange = filesAfter.flatMap { filesBefore?.firstChange(in: $0) }
-        if let firstChange {
-            events.send(.testBundlesWroteInTheProject(path: firstChange))
-        }
-        return DirectRuns(
-            configuration: directConfiguration,
-            seconds: seconds,
-            wroteNothing: filesBefore != nil && filesAfter != nil && firstChange == nil
-        )
-    }
-
-    /// The seconds from `start` to now, on the monotonic clock.
-    func seconds(since start: DispatchTime) -> TimeInterval {
-        Self.seconds(from: start, to: instant())
     }
 
     /// Records `finished`, the run of `job`'s mutant (`keep`), sends its events, and aborts after

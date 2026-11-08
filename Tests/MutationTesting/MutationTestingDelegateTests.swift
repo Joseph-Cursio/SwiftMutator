@@ -667,7 +667,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
     }
 
     // A parallel worker's clone is built by this run, so it must not skip the build, must run in the
-    // clone, and has no time limit, like the baseline.
+    // clone, and has no mutant's time limit, like the baseline: without a buildTimeout, none.
     func test_benchmarkingInAWorkingDirectory_runsTheWholeTestCommandThereWithoutATimeLimit() async throws {
         let configuration = MuterConfiguration(
             executable: "/tmp/swift",
@@ -688,7 +688,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
     }
 
     // The run that times what a mutant's run costs: a mutant's own command, which skips the build the baseline
-    // did, with no mutant switched on and, like the baseline, no time limit.
+    // did, with no mutant switched on and not the mutants' time limit: only the one it is given.
     func test_runningTestsWithoutBuilding_runsAMutantsCommandWithNoMutantOnAndNoTimeLimit() async throws {
         let configuration = MuterConfiguration(
             executable: "/tmp/swift",
@@ -696,7 +696,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
             testSuiteTimeOut: 5
         )
 
-        _ = await sut.runTestsWithoutBuilding(using: configuration, savingResultsIntoFileNamed: "logFileName")
+        _ = await sut.runTestsWithoutBuilding(using: configuration, timeLimit: nil, savingResultsIntoFileNamed: "log")
 
         XCTAssertEqual(process.arguments, ["test", "--skip-build", "--quiet"])
         XCTAssertEqual(writeFile.contentPassed, "")
@@ -1014,7 +1014,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
             ])
             current.process = { testProcess }
 
-            let result: (outcome: TestSuiteOutcome, testLog: String)
+            let result: TestRun
             if let workingDirectory {
                 result = await sut.benchmarkTests(
                     using: stoppingConfiguration,

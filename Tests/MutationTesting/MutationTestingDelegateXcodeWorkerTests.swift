@@ -80,7 +80,9 @@ final class MutationTestingDelegateXcodeWorkerTests: MuterTestCase {
             testDiagnosticsOff: true
         ))
 
-        _ = await sut.runTestsWithoutBuilding(using: configuration, savingResultsIntoFileNamed: "logFileName")
+        _ = await sut.runTestsWithoutBuilding(
+            using: configuration, timeLimit: nil, savingResultsIntoFileNamed: "logFileName"
+        )
 
         XCTAssertEqual(process.arguments, [
             "test-without-building",

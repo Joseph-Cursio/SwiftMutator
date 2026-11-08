@@ -318,6 +318,14 @@ final class ConfigurationParsingTests: MuterTestCase {
         XCTAssertEqual(configuration.overriding(workers: nil, timeout: nil), configuration)
     }
 
+    func test_buildTimeoutFromTheCommandLine_replacesTheKey() throws {
+        let configuration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"], buildTimeout: 600)
+        let overridden = configuration.overriding(workers: nil, timeout: nil, buildTimeout: 1_200)
+        XCTAssertEqual(overridden.buildTimeout, 1_200)
+        XCTAssertEqual(try MuterConfiguration(from: overridden.asData).buildTimeout, 1_200)
+        XCTAssertEqual(configuration.overriding(workers: nil, timeout: nil).buildTimeout, 600)
+    }
+
     func test_parsePropertyTestFilter_andWhenItCanBeUsed() throws {
         let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
         let parsed = { (lines: String) in try MuterConfiguration(from: Data("\(swiftTest)\n\(lines)".utf8)) }

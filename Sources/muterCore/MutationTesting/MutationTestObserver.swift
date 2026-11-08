@@ -134,6 +134,8 @@ extension MutationTestObserver {
             logger.stopAtFirstFailureTurnedOff(reason: reason)
         case let .testBundlesNotRunDirectly(reason):
             logger.testBundlesNotRunDirectly(reason: reason)
+        case let .timedTestRunStopped(seconds, log):
+            logger.timedTestRunStopped(seconds: seconds, log: log)
         case .workersShareUserDefaults:
             logger.workersShareUserDefaults()
         case let .testBundlesWroteInTheProject(path):
@@ -218,9 +220,17 @@ extension MutationTestObserver {
             resultsFilePath = nil
             logger.resultsFileUnavailable(reason: reason)
 
+        case .testPlanFileCreated, .muterMutationTestPlanLoaded, .testPlanSourcesUnchecked, .testPlanSourcesDiffer,
+             .testPlanUntestedFilesChanged, .testPlanChangesWaived, .testPlanCopyEdited, .testPlanCopyResolutionChanged:
+            handleTestPlanEvent(event)
+        }
+    }
+
+    /// What a test plan's events say, as they're made or checked.
+    private func handleTestPlanEvent(_ event: RunEvent) {
+        switch event {
         case let .testPlanFileCreated(created):
             logger.testPlanFileCreated(created)
-
         case .muterMutationTestPlanLoaded:
             logger.muterMutationTestPlanLoaded()
         case .testPlanSourcesUnchecked:
@@ -235,6 +245,8 @@ extension MutationTestObserver {
             logger.testPlanCopyEdited(paths)
         case let .testPlanCopyResolutionChanged(changes):
             logger.testPlanCopyResolutionChanged(changes)
+        default:
+            break
         }
     }
 

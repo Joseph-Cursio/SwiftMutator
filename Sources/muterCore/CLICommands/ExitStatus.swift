@@ -6,8 +6,8 @@ import ArgumentParser
 /// partway, 5, 6 and 7 for a refused resume, lock or test plan, and 255 for any other error.
 extension ExitCode {
     /// A command stopped on any other error, such as a missing configuration, a configuration that doesn't parse, a
-    /// `--mutant` that names no mutant, a `--since` that git can't answer, or a project that doesn't build for testing.
-    /// It exits 255, through -1, as SwiftMutator always has.
+    /// `--mutant` that names no mutant, or a `--since` that git can't answer. It exits 255, through -1, as SwiftMutator
+    /// always has.
     static let stoppedOnAnError = ExitCode(-1)
 
     /// The headline score is below the threshold `--fail-under` or `failUnder` sets, or every mutant was a build error
@@ -16,8 +16,9 @@ extension ExitCode {
     static let scoreBelowThreshold = ExitCode(2)
 
     /// The baseline run, with no mutant on, failed in the project's copy or in a parallel worker's clone of it
-    /// (`MutationTestingAbortReason.baselineTestFailed` and `.workerBaselineTestFailed`), so no mutant was tested. A
-    /// failure no mutant that doesn't compile explains (`CompileRecovery`).
+    /// (`MutationTestingAbortReason.baselineTestFailed` and `.workerBaselineTestFailed`), or xcodebuild's build for
+    /// testing did (`.buildForTestingFailed`), or one of them ran past `buildTimeout` (`.buildTimeoutReached`), so no
+    /// mutant was tested. A failure no mutant that doesn't compile explains (`CompileRecovery`).
     /// `report` never exits with it: a run whose baseline failed has no results file, or a resumed one's keeps the
     /// earlier session's end, so a shard whose baseline failed is a shard missing from the merge, which exits 4.
     static let baselineFailed = ExitCode(3)
@@ -73,6 +74,8 @@ extension MutationTestingAbortReason {
     enum Kind: String, CaseIterable, Sendable {
         case baselineTestFailed
         case workerBaselineTestFailed
+        case buildForTestingFailed
+        case buildTimeoutReached
         case tooManyBuildErrors
         case mutantNotSwitchedOn
         case controlRunNotSwitchedOff
@@ -81,11 +84,11 @@ extension MutationTestingAbortReason {
         case unknownError
 
         /// The status a run that stopped for a reason of this kind exits with: `baselineFailed` when no mutant was
-        /// tested because a baseline failed, and `abortedMidRun` for the rest. No `default`, so a new kind needs a
-        /// status chosen.
+        /// tested because a baseline or a build failed, or ran past its limit, and `abortedMidRun` for the rest. No
+        /// `default`, so a new kind needs a status chosen.
         var exitStatus: ExitCode {
             switch self {
-            case .baselineTestFailed, .workerBaselineTestFailed:
+            case .baselineTestFailed, .workerBaselineTestFailed, .buildForTestingFailed, .buildTimeoutReached:
                 return .baselineFailed
             case .tooManyBuildErrors, .mutantNotSwitchedOn, .controlRunNotSwitchedOff, .simulatorUnavailable,
                  .noMutantCodeShownRunning, .unknownError:
@@ -99,6 +102,8 @@ extension MutationTestingAbortReason {
         switch self {
         case .baselineTestFailed: .baselineTestFailed
         case .workerBaselineTestFailed: .workerBaselineTestFailed
+        case .buildForTestingFailed: .buildForTestingFailed
+        case .buildTimeoutReached: .buildTimeoutReached
         case .tooManyBuildErrors: .tooManyBuildErrors
         case .mutantNotSwitchedOn: .mutantNotSwitchedOn
         case .controlRunNotSwitchedOff: .controlRunNotSwitchedOff

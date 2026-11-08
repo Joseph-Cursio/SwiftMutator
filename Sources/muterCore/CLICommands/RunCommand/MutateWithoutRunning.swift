@@ -25,6 +25,7 @@ struct MutateWithoutRunning: RunCommand {
             skipUpdateCheck: options.skipUpdateCheck,
             verbose: options.verbose,
             configurationURL: options.configurationURL,
+            buildTimeout: options.buildTimeout,
             createTestPlan: true
         )
     }

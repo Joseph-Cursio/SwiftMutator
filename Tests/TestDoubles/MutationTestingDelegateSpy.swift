@@ -38,6 +38,12 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     var baselineTestLog = "testLog"
     /// The logs of the baselines to come, in order, before `baselineTestLog`, which the rest print.
     var baselineTestLogs: [String] = []
+    /// How each baseline in the mutated project ends, in order; `.exited` once empty.
+    var baselineEndings: [TestRun.Ending] = []
+    /// How each worker clone's baseline ends, in the order they're run; `.exited` once empty.
+    var workerBaselineEndings: [TestRun.Ending] = []
+    /// The log each worker clone's baseline prints, in the order they're run; "testLog" once empty.
+    var workerBaselineTestLogs: [String] = []
     /// Each mutant run's log, in the order they're run; "testLog" once empty.
     var mutantTestLogs: [String] = []
     /// How each mutant's run ends, in the order they're run; `.exited` once empty.
@@ -66,6 +72,11 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     var firstTestRunsWithoutBuildingWritingTo: [String: (outcome: TestSuiteOutcome, log: String)] = [:]
     /// The configuration each run of the test command without its build was given.
     private(set) var configurationsWithoutBuilding: [MuterConfiguration] = []
+    /// The time limit each run of the test command without its build was given, nil for none.
+    private(set) var timeLimitsWithoutBuilding: [TimeInterval?] = []
+    /// How the runs of the test command without its build that write to the file of this name end; `.exited` unless
+    /// set.
+    var endingsWithoutBuildingWritingTo: [String: TestRun.Ending] = [:]
     /// Called just before the timed run of the test command without its build returns, so a test can move its clock.
     var whileRunningTestsWithoutBuilding: (() -> Void)?
     /// How each control run ends, and what it prints, in the order they're run; once empty, passed with
@@ -164,15 +175,13 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     func benchmarkTests(
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String
-    ) -> (
-        outcome: TestSuiteOutcome,
-        testLog: String
-    ) {
+    ) -> TestRun {
         methodCalls.append(#function)
         testLogs.append(fileName)
         whileRunningBaseline?(0)
         let testLog = baselineTestLogs.isEmpty ? baselineTestLog : baselineTestLogs.removeFirst()
-        return (testSuiteOutcomes.remove(at: 0), testLog)
+        let ending = baselineEndings.isEmpty ? .exited : baselineEndings.removeFirst()
+        return TestRun(outcome: testSuiteOutcomes.remove(at: 0), testLog: testLog, ending: ending)
     }
 
     /// Called concurrently for each worker clone, so it takes the lock.
@@ -180,19 +189,21 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String,
         workingDirectory: URL
-    ) async -> (
-        outcome: TestSuiteOutcome,
-        testLog: String
-    ) {
+    ) async -> TestRun {
         await Task.yield()
-        let (outcome, worker) = lock.withLock {
+        let (run, worker) = lock.withLock {
             methodCalls.append(#function)
             testLogs.append(fileName)
             builtWorkerDirectories.append(workingDirectory)
-            return (testSuiteOutcomes.remove(at: 0), builtWorkerDirectories.count)
+            let run = TestRun(
+                outcome: testSuiteOutcomes.remove(at: 0),
+                testLog: workerBaselineTestLogs.isEmpty ? "testLog" : workerBaselineTestLogs.removeFirst(),
+                ending: workerBaselineEndings.isEmpty ? .exited : workerBaselineEndings.removeFirst()
+            )
+            return (run, builtWorkerDirectories.count)
         }
         whileRunningBaseline?(worker)
-        return (outcome, "testLog")
+        return run
     }
 
     /// Called concurrently by xcodebuild workers' runs with no mutant on, so it takes the lock.
@@ -225,26 +236,26 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
 
     func runTestsWithoutBuilding(
         using configuration: MuterConfiguration,
+        timeLimit: TimeInterval?,
         savingResultsIntoFileNamed fileName: String
-    ) -> (
-        outcome: TestSuiteOutcome,
-        testLog: String
-    ) {
+    ) -> TestRun {
         lock.withLock {
             methodCalls.append(#function)
             testLogs.append(fileName)
             configurationsWithoutBuilding.append(configuration)
+            timeLimitsWithoutBuilding.append(timeLimit)
         }
         whileRunningTestsWithoutBuilding?()
-        let run = lock.withLock {
+        let (run, ending) = lock.withLock {
             let name = (fileName as NSString).lastPathComponent
-            return firstTestRunsWithoutBuildingWritingTo.removeValue(forKey: name)
+            let run = firstTestRunsWithoutBuildingWritingTo.removeValue(forKey: name)
                 ?? testRunsWithoutBuildingWritingTo[name]
                 ?? (testRunsWithoutBuilding.isEmpty
                     ? (timedTestRunOutcome, "timed test run log")
                     : testRunsWithoutBuilding.removeFirst())
+            return (run, endingsWithoutBuildingWritingTo[name] ?? .exited)
         }
-        return (run.outcome, run.log)
+        return TestRun(outcome: run.outcome, testLog: run.log, ending: ending)
     }
 
     /// Called concurrently by parallel xcodebuild workers, so it takes the lock.

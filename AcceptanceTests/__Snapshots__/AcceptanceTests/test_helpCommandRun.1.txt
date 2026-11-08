@@ -4,8 +4,13 @@ current directory.
 USAGE: swift-mutator run <options>
 
 OPTIONS:
-  --files-to-mutate <files-to-mutate>
-                          Only mutate a given list of source code files.
+  --files-to-mutate <path>
+                          Only mutate these Swift files, folders or globs, in
+                          the project; comma-separated or repeated. The
+                          excludes and the coverage filter still apply.
+  --exclude <pattern>     Leave out the files this path fragment or glob
+                          matches, as an `exclude` entry does, for this run;
+                          `!` in front keeps what it matches. Repeatable.
   --operators <operators> The list of mutant operators to be used:
                           RelationalOperatorReplacement, RelationalBoundary,
                           RemoveSideEffects, ChangeLogicalConnector,
@@ -45,6 +50,11 @@ OPTIONS:
   --verbose               Lists how many mutants are in each file that has any,
                           and the Swift files found, if the command looks for
                           them.
+  --build-timeout <seconds>
+                          Seconds before each step that builds and tests ahead
+                          of the first mutant is stopped (the coverage run, a
+                          build, a baseline), in place of buildTimeout. At most
+                          a day, 86400.
   --workers <count>       How many mutants to test at once, in place of
                           mutationTestWorkers (SwiftPM, or xcodebuild on a
                           simulator, which gets one simulator per worker).
