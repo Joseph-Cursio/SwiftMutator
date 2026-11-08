@@ -2924,7 +2924,7 @@ defaults:
 
 env:
   # A commit of SwiftMutator's main branch. Change it to upgrade.
-  SWIFTMUTATOR_REF: 95ca80be31060f3d6e77a68fd7b910e7d4a0187c
+  SWIFTMUTATOR_REF: ce724fe448987f076918fa1ba70182b22c61a99d
 
 jobs:
   mutation-testing:
