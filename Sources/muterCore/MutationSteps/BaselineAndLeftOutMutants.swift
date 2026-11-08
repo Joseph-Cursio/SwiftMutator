@@ -29,7 +29,10 @@ extension PerformMutationTesting {
             ) else { break }
             recovery = trying
             fileManager.keepLog(testLog, named: buildLog, state: state)
-            events.send(.buildingAgainWithoutMutants(count: count))
+            if count > 0 { events.send(.buildingAgainWithoutMutants(count: count)) }
+            if trying.switchedInAClosure > 0 {
+                events.send(.buildingAgainWithSwitchesInAClosure(count: trying.switchedInAClosure))
+            }
             started = now()
             (outcome, testLog) = try await baseline(state: state)
         }

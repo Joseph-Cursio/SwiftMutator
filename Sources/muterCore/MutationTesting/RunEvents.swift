@@ -69,6 +69,9 @@ enum RunEvent {
     /// The build failed on `count` mutants' code, which `CompileRecovery` took out, before it builds again. Only a
     /// build that passes shows they were at fault: the project itself may not compile.
     case buildingAgainWithoutMutants(count: Int)
+    /// The build failed where a result builder can't take the `if` of `count` mutants' switches, which
+    /// `CompileRecovery` put in a closure called on the spot, before it builds again.
+    case buildingAgainWithSwitchesInAClosure(count: Int)
     /// `CompileRecovery` has taken out mutants after `afterBuilds` failed builds, its most, and the next failed too, so
     /// its errors may still be mutants'. The failure then stops the run.
     case stoppedTakingOutMutants(afterBuilds: Int)

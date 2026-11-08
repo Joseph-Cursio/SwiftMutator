@@ -30,6 +30,18 @@ final class LoggerCompileRecoveryTests: MuterTestCase {
         ])
     }
 
+    func test_buildingAgainWithSwitchesInAClosure_saysHowManyMutantsStay() {
+        sut.buildingAgainWithSwitchesInAClosure(count: 1)
+        sut.buildingAgainWithSwitchesInAClosure(count: 3)
+
+        XCTAssertEqual(printer.linesPassed, [
+            "🔁 The build failed where a result builder can't take an `if`, so SwiftMutator is building again with the "
+                + "switch of 1 mutant in a closure called on the spot.",
+            "🔁 The build failed where a result builder can't take an `if`, so SwiftMutator is building again with the "
+                + "switch of 3 mutants in a closure called on the spot.",
+        ])
+    }
+
     func test_mutantsLeftOutOfTheBuild_namesThem_upToItsLimit_andSaysWhenNoneIsLeft() throws {
         func mutants(_ count: Int) -> [MutantsLeftOut.Mutant] {
             (1 ... count).map { line in

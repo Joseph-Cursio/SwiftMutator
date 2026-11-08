@@ -550,6 +550,14 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         print("🔁 The build failed where \(mutants).")
     }
 
+    func buildingAgainWithSwitchesInAClosure(count: Int) {
+        let mutants = count == 1 ? "1 mutant" : "\(count) mutants"
+        print(
+            "🔁 The build failed where a result builder can't take an `if`, so SwiftMutator is building again with "
+                + "the switch of \(mutants) in a closure called on the spot."
+        )
+    }
+
     func stoppedTakingOutMutants(afterBuilds builds: Int) {
         print(
             "⚠️ SwiftMutator takes mutants out after at most \(builds) failed builds, so the errors below may still be "

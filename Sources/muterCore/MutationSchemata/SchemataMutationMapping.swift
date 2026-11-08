@@ -58,6 +58,9 @@ struct SchemataMutationMapping: Sendable {
     fileprivate var mappings: [CodeBlockKey: MutationSchemata]
     // Preserves the code-block text for each key so `codeBlocks` / `description` keep reporting source.
     fileprivate var codeBlockText: [CodeBlockKey: String]
+    /// The statement lists whose switch goes in a closure called on the spot, as `CompileRecovery` found a result
+    /// builder that can't take an `if` (`switchInAClosureCalledOnTheSpot(theListOf:)`).
+    fileprivate var calledOnTheSpot: Set<CodeBlockKey> = []
 
     var count: Int {
         mappings.count
@@ -100,11 +103,13 @@ struct SchemataMutationMapping: Sendable {
     fileprivate init(
         filePath: String = "",
         mappings: [CodeBlockKey: MutationSchemata],
-        codeBlockText: [CodeBlockKey: String] = [:]
+        codeBlockText: [CodeBlockKey: String] = [:],
+        calledOnTheSpot: Set<CodeBlockKey> = []
     ) {
         self.filePath = filePath
         self.mappings = mappings
         self.codeBlockText = codeBlockText
+        self.calledOnTheSpot = calledOnTheSpot
     }
 
     mutating func add(
@@ -142,6 +147,27 @@ struct SchemataMutationMapping: Sendable {
 
     func schemata(at place: MutationSwitchPlace) -> MutationSchemata? {
         mappings[CodeBlockKey(place)]
+    }
+
+    /// Whether the switch of `list`'s mutants goes in a closure called on the spot.
+    func switchesInAClosureCalledOnTheSpot(_ list: CodeBlockItemListSyntax) -> Bool {
+        calledOnTheSpot.contains(CodeBlockKey(list))
+    }
+
+    /// Has the switch of the statement list that holds the mutant `id` go in a closure called on the spot, and says how
+    /// many mutants the list holds; nil, changing nothing, when no list holds it, or its switch goes there already.
+    ///
+    /// A result builder makes `buildEither` calls of an `if` with an `else`, so one that has no `buildEither` can't
+    /// take a switch in its closure (#206). Which builder a closure gets can't be told from the syntax, so the
+    /// compiler's error says which. In a closure called on the spot the switch is no part of the builder's closure,
+    /// which takes the call as one expression. `MuterRewriter` does it only where
+    /// `CodeBlockItemListSyntax.canBeSwitchedInAClosure`.
+    mutating func switchInAClosureCalledOnTheSpot(theListOf id: String) -> Int? {
+        guard let (key, schemata) = mappings.first(where: { key, schemata in
+            key.kind == .statements && schemata.contains { $0.id == id }
+        }), calledOnTheSpot.insert(key).inserted
+        else { return nil }
+        return schemata.count
     }
 
     /// Drops the mutants of every block nested inside a mutated opaque-typed, non-builder body.
@@ -187,7 +213,10 @@ struct SchemataMutationMapping: Sendable {
         for (key, schemata) in mappings {
             let kept = schemata.filter(isKept)
             mappings[key] = kept.isEmpty ? nil : kept
-            if kept.isEmpty { codeBlockText[key] = nil }
+            if kept.isEmpty {
+                codeBlockText[key] = nil
+                calledOnTheSpot.remove(key)
+            }
         }
     }
 
@@ -207,7 +236,8 @@ struct SchemataMutationMapping: Sendable {
         SchemataMutationMapping(
             filePath: path(filePath),
             mappings: mappings.mapValues { schemata in schemata.map { $0.with(filePath: path($0.filePath)) } },
-            codeBlockText: codeBlockText
+            codeBlockText: codeBlockText,
+            calledOnTheSpot: calledOnTheSpot
         )
     }
 
@@ -280,6 +310,7 @@ func + (
     for (key, schemata) in mergedMappings {
         result.add(key, text: mergedText[key] ?? key.text, schemata)
     }
+    result.calledOnTheSpot = lhs.calledOnTheSpot.union(rhs.calledOnTheSpot)
 
     return result
 }

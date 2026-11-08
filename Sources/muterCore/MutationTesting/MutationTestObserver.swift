@@ -150,6 +150,8 @@ extension MutationTestObserver {
             logger.testBundlesWroteInTheProject(path: path)
         case let .buildingAgainWithoutMutants(count):
             logger.buildingAgainWithoutMutants(count: count)
+        case let .buildingAgainWithSwitchesInAClosure(count):
+            logger.buildingAgainWithSwitchesInAClosure(count: count)
         case let .stoppedTakingOutMutants(builds):
             logger.stoppedTakingOutMutants(afterBuilds: builds)
         case let .mutantsLeftOutOfTheBuild(leftOut):
