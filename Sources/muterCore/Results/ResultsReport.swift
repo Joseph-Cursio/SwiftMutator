@@ -69,12 +69,23 @@ struct ResultsReport {
             try checkSaving(.summary, to: summaryPath, from: files)
         }
         try checkTheReportAndSummaryDiffer()
-        let read = try files.map { file in
+        // A file whose run stopped before its first mutant has no result: it is said, and left out, and with no other
+        // file, `report` exits as that run did.
+        var stopped: [ResultsStopped] = []
+        let read = try files.compactMap { file -> (path: String, recorded: RecordedResults)? in
             guard let data = fileManager.contents(atPath: file) else {
                 throw ResultsFileError.unreadable(path: file)
             }
-            return (path: file, recorded: try RecordedResults.read(data, path: file))
+            do {
+                return (path: file, recorded: try RecordedResults.read(data, path: file))
+            } catch let ResultsFileError.stoppedBeforeFirstMutant(_, record) {
+                stopped.append(record)
+                record.lines(path: file).forEach(errorPrinter)
+                return nil
+            }
         }
+        guard !read.isEmpty else { return stopped.first?.exitStatus }
+        let stoppedStatus = stopped.first?.exitStatus
         if read.count == 1, let only = read.first, only.recorded.headers.last?.shard == nil {
             var outcome = only.recorded.mutationTestOutcome(resultsFile: only.path)
             if let propertyTests { outcome.propertyTests = propertyTests }
@@ -84,7 +95,7 @@ struct ResultsReport {
                 ScoreGate(
                     failUnder: $0,
                     judging: outcome,
-                    unless: status == nil ? nil : .stoppedOnAnError,
+                    unless: status == nil && stoppedStatus == nil ? nil : .stoppedOnAnError,
                     progress: only.recorded.unfinishedProgress
                 )
             }
@@ -94,7 +105,7 @@ struct ResultsReport {
                 ended: only.recorded.sessions.last?.end,
                 gate: gate
             )
-            return status ?? gate?.exitStatus
+            return status ?? stoppedStatus ?? gate?.exitStatus
         }
         let merged = try MergedShards.merge(read, forcing: forcing, ignoring: ignoring)
         var outcome = merged.mutationTestOutcome()
@@ -102,10 +113,12 @@ struct ResultsReport {
         outcome.triage = try triageFile(of: outcome)
         let status = merged.exitStatus
         let gate = failUnder.map {
-            ScoreGate(failUnder: $0, judging: outcome, unless: status == nil ? nil : .lacksResults)
+            ScoreGate(
+                failUnder: $0, judging: outcome, unless: status == nil && stoppedStatus == nil ? nil : .lacksResults
+            )
         }
         try report(outcome, saying: merged.statusLines(), ended: merged.ending, gate: gate)
-        return status ?? gate?.exitStatus
+        return status ?? stoppedStatus ?? gate?.exitStatus
     }
 
     /// The triage file the report of `outcome` shows, which a broken one refuses: nothing is lost by fixing it and

@@ -122,6 +122,8 @@ struct World: Sendable {
     var commandLineArguments: [String] = Array(CommandLine.arguments.dropFirst())
     /// The signal that stopped this run, if one did.
     var interruption = InterruptionRecord()
+    /// Records a run that stops before its first mutant, following its steps until its results start.
+    var stoppedRun = StoppedRunRecorder()
     /// The time SwiftMutator spent suspended by Ctrl-Z, which no time limit counts.
     var suspensions = Suspensions()
     /// A wait on the system's uptime clock, which counts the time suspended, unlike `suspensions.sleep(for:)`.

@@ -19,6 +19,8 @@ struct PerformMutationTesting: MutationStep {
     private var provenance: ProvenanceProbe
     @Dependency(\.interruption)
     private var interruption: InterruptionRecord
+    @Dependency(\.stoppedRun)
+    var stoppedRun: StoppedRunRecorder
     @Dependency(\.directTestRun)
     var directTestRun: DirectTestRunProbe
     @Dependency(\.workerSimulators)
@@ -121,10 +123,23 @@ struct PerformMutationTesting: MutationStep {
         defer { resume?.file?.close() }
         // Stopping at once ends SwiftMutator wherever mutation testing is, so the end line is written then: `report`
         // would otherwise take the run for one that is still running, or was killed.
-        interruption.beforeStoppingAtOnce { [interruption, now] in
+        // Before its results start, a stop at once records it as stopped before its first mutant, which a stop after
+        // doesn't.
+        interruption.beforeStoppingAtOnce { [interruption, now, stoppedRun] in
             Self.endResultsAtOnce(of: session, stoppedBy: interruption, now: now)
+            if let signal = interruption.signal {
+                stoppedRun.record(.interrupted(signal: signal), at: now())
+            }
         }
-        defer { interruption.beforeStoppingAtOnce(nil) }
+        // As the handler's, which this replaced, and first of the defers, before the clean-up above, which can take
+        // seconds: a stop at once during it still records a run stopped before its first mutant.
+        defer {
+            interruption.beforeStoppingAtOnce { [interruption, now, stoppedRun] in
+                if let signal = interruption.signal {
+                    stoppedRun.record(.interrupted(signal: signal), at: now())
+                }
+            }
+        }
 
         do {
             try await performMutationTesting(using: state, session: session)
@@ -257,6 +272,7 @@ private extension PerformMutationTesting {
         let booting = workerSimulators
         async let booted = SimulatorWorkerSetup.boot(simulators, on: booting)
 
+        stoppedRun.enter(.baseline)
         let (testSuiteOutcome, testLog, timePerBuildTestCycle, leftOut) = try await baselineLeavingOutMutants(
             state: state
         )
@@ -299,9 +315,11 @@ private extension PerformMutationTesting {
             try await booted, log: testLog, destination: state.muterConfiguration.firstDestination
         )
         // Before the workers: a direct run that wrote nothing in the project lets them share one build.
+        stoppedRun.enter(.directTestRun)
         let direct = try await directRuns(
             of: testing, muterConfiguration, baselineLog: testLog, baselineSeconds: timePerBuildTestCycle, state: state
         )
+        stoppedRun.enter(muterConfiguration.buildSystem == .xcodebuild ? .workerCheckRuns : .workerBaselines)
         let pool = try await workers(
             testing: testing,
             on: checked,
@@ -312,6 +330,7 @@ private extension PerformMutationTesting {
         )
         muterConfiguration = pool.configuration
         let workers = pool.count
+        stoppedRun.enter(.timedTestRun)
         let (configuration, testRunSeconds) = try await mutantRuns(
             muterConfiguration,
             on: pool,
@@ -1102,6 +1121,9 @@ private extension PerformMutationTesting {
         in session: TestingSession,
         state: AnyMutationTestState
     ) async {
+        // A stop from now on is the results file's, which says it in its end line. One already recorded as a stop
+        // before the first mutant, at once from the signal's thread, has its file: the run is about to exit.
+        guard stoppedRun.resultsStart() else { return }
         if let resume = state.resumeState, let file = resume.file {
             var firstLines: [any Encodable] = [await header()]
             // Without it, the file would still stand by the earlier results this session doesn't keep.

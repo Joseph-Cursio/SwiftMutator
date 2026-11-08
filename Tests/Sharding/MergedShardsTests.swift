@@ -340,7 +340,7 @@ final class MergedShardsTests: XCTestCase {
                 + "the run has no end line, so it is still running, or it was killed or crashed.",
             "Shard 3 of 3, 0 of its 1 mutant, from /c/results.jsonl: "
                 + "the run has no end line, so it is still running, or it was killed or crashed.",
-            "No results file was given for shard 2 of 3, which holds 1 mutant.",
+            "No results were given for shard 2 of 3, which holds 1 mutant.",
         ])
     }
 
@@ -355,7 +355,7 @@ final class MergedShardsTests: XCTestCase {
         )
         XCTAssertEqual(alone.statusLines(), [
             "Report of 2 of 2 mutants in shard 1 of 2, from /a/results.jsonl: the run finished.",
-            "No results file was given for shard 2 of 2, which holds 1 mutant.",
+            "No results were given for shard 2 of 2, which holds 1 mutant.",
         ])
 
         let others = try merge(file("/a/results.jsonl", header(1, mutantsPerShard: [3, 0]), sum3, sum9, alpha5, end()))

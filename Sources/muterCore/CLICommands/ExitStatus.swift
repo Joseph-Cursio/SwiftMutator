@@ -19,14 +19,15 @@ extension ExitCode {
     /// (`MutationTestingAbortReason.baselineTestFailed` and `.workerBaselineTestFailed`), or xcodebuild's build for
     /// testing did (`.buildForTestingFailed`), or one of them ran past `buildTimeout` (`.buildTimeoutReached`), so no
     /// mutant was tested. A failure no mutant that doesn't compile explains (`CompileRecovery`).
-    /// `report` never exits with it: a run whose baseline failed has no results file, or a resumed one's keeps the
-    /// earlier session's end, so a shard whose baseline failed is a shard missing from the merge, which exits 4.
+    /// `report` exits with it too, for the results file such a run leaves, which says only why (`ResultsStopped`); in a
+    /// merge, that shard is left out, as one whose file isn't given, which exits 4.
     static let baselineFailed = ExitCode(3)
 
     /// An error stopped mutation testing partway, such as five build errors in a row (every other
     /// `MutationTestingAbortReason`); the results so far are kept. `report` exits with it for a results file whose run
-    /// stopped so, and for shards whose merged report lacks results (`MergedShards.lacksResults`): one stopped so, was
-    /// interrupted, or isn't given.
+    /// stopped so, for shards whose merged report lacks results (`MergedShards.lacksResults`): one stopped so, was
+    /// interrupted, or isn't given; and for the file of a run a signal stopped before its first mutant
+    /// (`ResultsStopped`), as `report` can't die of the signal.
     static let abortedMidRun = ExitCode(4)
 
     /// SwiftMutator refused to resume the run in a results file, or to reuse its results, because this run might not

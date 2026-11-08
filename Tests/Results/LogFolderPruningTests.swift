@@ -168,6 +168,17 @@ final class LogFolderPruningTests: MuterTestCase {
         XCTAssertEqual(remaining(), ["Nov 3, 2026 at 9:00 AM", "newer mutant", "next"])
     }
 
+    // A run that stopped before its first mutant leaves a file that says only why, which holds no result: it counts
+    // no more than a run whose baseline failed did when that left no file, so stopped attempts never push out a run.
+    func test_runsThatStoppedBeforeTheirFirstMutant_dontCount() throws {
+        try folder("good", at: 0)
+        try folder("stopped 1", at: 10, results: false, stopped: true)
+        try folder("stopped 2", at: 20, results: false, stopped: true)
+
+        XCTAssertTrue(prune(keeping: 2).isEmpty)
+        XCTAssertEqual(remaining(), ["Nov 3, 2026 at 9:00 AM", "good", "stopped 1", "stopped 2"])
+    }
+
     // A resume's earlier sessions are this run, and a reuse's are read much later: both are kept, the reuse's besides
     // the runs kept, by file identity however the path is spelled.
     func test_thisRunsAndTheReusedRunsFolders_areKept_however_theirPathsAreSpelled() throws {
@@ -389,7 +400,8 @@ final class LogFolderPruningTests: MuterTestCase {
         header named: String? = nil,
         mutant: String? = nil,
         shard: Int? = nil,
-        note: String? = nil
+        note: String? = nil,
+        stopped: Bool = false
     ) throws -> String {
         let path = root + "/" + name
         try write("a log", to: path + "/baseline run.log")
@@ -398,6 +410,9 @@ final class LogFolderPruningTests: MuterTestCase {
         }
         if results {
             try write(header(naming: named ?? path, mutant: mutant, shard: shard), to: path + "/results.jsonl")
+        } else if stopped {
+            let line = ResultsStopped.make(step: .baseline, reason: .failed, detail: "baselineTestFailed")
+            try write(String(decoding: try resultsFileData([line]), as: UTF8.self), to: path + "/results.jsonl")
         }
         if let note {
             try write(ResultsFile.note(pointingTo: note, session: 2), to: path + "/" + ResultsFile.noteFileName)

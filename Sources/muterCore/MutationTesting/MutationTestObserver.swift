@@ -136,6 +136,8 @@ extension MutationTestObserver {
             logger.testBundlesNotRunDirectly(reason: reason)
         case let .timedTestRunStopped(seconds, log):
             logger.timedTestRunStopped(seconds: seconds, log: log)
+        case let .stoppedRunRecorded(path):
+            logger.stoppedRunRecorded(path: path)
         case .workersShareUserDefaults:
             logger.workersShareUserDefaults()
         case let .testBundlesWroteInTheProject(path):

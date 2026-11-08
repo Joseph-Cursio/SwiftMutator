@@ -22,6 +22,10 @@ extension ResultsEnd: ResultsRecord {
     static let recordKind = "end"
 }
 
+extension ResultsStopped: ResultsRecord {
+    static let recordKind = "stopped"
+}
+
 extension ControlRunResult: ResultsRecord {
     static let recordKind = "control"
 }

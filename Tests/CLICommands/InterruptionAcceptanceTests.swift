@@ -175,7 +175,12 @@ final class InterruptionAcceptanceTests: XCTestCase {
         assertNoTestProcessIsLeft()
         let output = contents(of: standardOutput)
         XCTAssertFalse(output.contains("initially failed"), output)
-        XCTAssertEqual(resultsFiles(), [], "the results file starts once the baseline has passed")
+        // The results start once the baseline has passed: before, the file says only why the run stopped.
+        let stopped = try stoppedRecords()
+        XCTAssertEqual(stopped.map { $0["kind"] as? String }, ["stopped"])
+        XCTAssertEqual(stopped.map { $0["step"] as? String }, ["baseline"])
+        XCTAssertEqual(stopped.map { $0["detail"] as? String }, ["SIGINT"])
+        XCTAssertEqual(stopped.map { $0["log"] as? String }, ["running/baseline run"])
     }
 
     // Stopping the run doesn't stop the coverage run, which no cancellation reaches: killing it does.
@@ -189,6 +194,7 @@ final class InterruptionAcceptanceTests: XCTestCase {
         assertNoTestProcessIsLeft()
         let output = contents(of: standardOutput)
         XCTAssertFalse(output.contains("Gathering coverage failed"), output)
+        XCTAssertEqual(try stoppedRecords().map { $0["step"] as? String }, ["coverageRun"])
     }
 
     // The second signal comes once SwiftMutator has said it is stopping, so that the signals' order is certain, while
@@ -578,6 +584,16 @@ final class InterruptionAcceptanceTests: XCTestCase {
         return runs.flatMap { run in
             ((try? FileManager.default.contentsOfDirectory(at: run, includingPropertiesForKeys: nil)) ?? [])
                 .filter { $0.lastPathComponent.hasPrefix("results") && $0.pathExtension == "jsonl" }
+        }
+    }
+
+    /// The records of the runs that stopped before their first mutant, each the only line of its results file.
+    private func stoppedRecords() throws -> [[String: Any]] {
+        try resultsFiles().map { file in
+            let lines = try String(contentsOf: file, encoding: .utf8).split(separator: "\n")
+            XCTAssertEqual(lines.count, 1, "\(file.path): \(lines)")
+            let record = try JSONSerialization.jsonObject(with: Data((lines.first ?? "").utf8))
+            return record as? [String: Any] ?? [:]
         }
     }
 

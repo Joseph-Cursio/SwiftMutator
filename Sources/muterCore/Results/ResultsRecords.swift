@@ -101,8 +101,9 @@ extension CoverageSummary {
 }
 
 /// A session's first line: where its results came from, and what they were tested with. Written once the baseline
-/// passes, so a run whose baseline fails leaves no results file, and a resumed one adds no session to its file. A
-/// resumed session with nothing left to test runs no baseline, and writes it at once.
+/// passes, so a run whose baseline fails writes a file of its own that says only why (`ResultsStopped`), and a resumed
+/// one adds no session to its file. A resumed session with nothing left to test runs no baseline, and writes it at
+/// once.
 struct ResultsHeader: Codable, Equatable {
     var kind = "header"
     /// `ResultsCoding.formatVersion` for a first session, `resumedFormatVersion` for a resumed one, or
