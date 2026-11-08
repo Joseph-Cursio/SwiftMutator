@@ -36,7 +36,15 @@ final class OperatorChoiceTests: XCTestCase {
 
         XCTAssertEqual(
             try options().chosenOperators(given: configuration),
-            [.ror, .relationalBoundary, .logicalOperator, .negateConditional, .arithmeticOperator, .flipBooleanLiteral]
+            [
+                .ror,
+                .relationalBoundary,
+                .logicalOperator,
+                .negateConditional,
+                .arithmeticOperator,
+                .flipBooleanLiteral,
+                .replaceBooleanValue,
+            ]
         )
     }
 

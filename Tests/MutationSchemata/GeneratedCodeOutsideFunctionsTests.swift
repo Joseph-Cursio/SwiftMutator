@@ -360,7 +360,8 @@ final class GeneratedCodeUnderAttributesTests: GeneratedCodeTestCase {
         )
 
         XCTAssertEqual(try run(compiled.program).output, "false false\n")
-        XCTAssertEqual(compiled.mutants(in: "Values.swift").count, 4)
+        // Two of each default, and ReplaceBooleanValue's two of each body's `flag`.
+        XCTAssertEqual(compiled.mutants(in: "Values.swift").count, 8)
     }
 
     func test_valuesThatCantHoldASwitch_areDropped() throws {

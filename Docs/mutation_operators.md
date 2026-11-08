@@ -306,14 +306,71 @@ becomes
 return false
 ```
 
+## Replace Boolean Value
+
+The replace boolean value operator, `ReplaceBooleanValue`, will replace a Bool value with `true`, and in a second mutant with `false`, as PIT's `TRUE_RETURNS` and `FALSE_RETURNS` do.
+
+The purpose of this operator is to highlight whether your tests see a value both true and false. A value such as `return items.isEmpty`, `var isReady: Bool { flag }` or `let hidden = !visible` holds no comparison, `&&` or literal, so no other operator mutates it. A test that sees the value only when it is true kills the `false` mutant and lets the `true` one survive. The pair also stands for the value's negation: a test that tells `true` from `false` tells the value from its opposite.
+
+A value is:
+
+* **What a body returns:** the value of a `return`, or the one expression of a body that returns it, in a function, a getter of a computed property, a `get` accessor, a subscript, or a closure whose signature writes its return type, as in `{ (item) -> Bool in item.isReady }`.
+* **The initial value of a `let` or `var` of one name,** in a function, or as a stored property, a `static` or a global. A stored property's, a `static`'s and a global's value are switched in the value itself, as other operators' mutants there are (see [Mutants outside function bodies](../README.md#mutants-outside-function-bodies)).
+
+A syntax tree has no types, so a value counts when the code shows it is a Bool:
+
+* **Its type is written as `Bool`,** or `Swift.Bool`: the return type of what returns it, or the binding's annotation, as in `let ok: Bool = check()`. `Bool?`, `some`, a typealias and a generic parameter are other types to the tree, so `func f() -> Bool? { flag }` gets no mutant, and nor does `let empty = items.isEmpty`.
+* **The last thing it works out is a comparison** (`==`, `!=`, `<`, `<=`, `>`, `>=`, `===` or `!==`), **`&&`, `||` or a prefix `!`,** inside any parentheses, `try`, `try!` and `await`, when no type is written, or the type written is `Bool` or an optional `Bool` (`Bool?`, `Bool!`, `Optional<Bool>`). A value under any other written type, as in `func f() -> SQLExpression { a == b }`, `-> Int` or `var x: Binding<Bool> { !$y }`, gets no mutant, as its operator is an overload that gives that type. The tree isn't folded, so that takes the operators' precedence: `a + 1 < b` counts, and `a < b ? c : d` and `flag ?? (a < b)` don't. An operator the standard library doesn't declare, whose precedence isn't known, doesn't count, though a type written as `Bool` still does.
+
+Some values are left alone:
+
+* **A literal,** as in `return true`, which `FlipBooleanLiteral` flips.
+* **An `if` or `switch` expression, and its branches:** neither the whole expression nor a branch's value is replaced, though a `return` inside an `if` or `switch` statement still is.
+* **What a closure that doesn't write its return type returns,** as in `items.filter { $0.isReady }`. Such closures are mostly predicates passed to `filter`, `sorted` or `contains`, and each would add a pair. A `return` in one is the closure's, even inside a function that returns `Bool`.
+* **`if let`, `guard let` and `case let`, a tuple's names, `_`, an assignment** such as `isReady = a < b`, and a default argument.
+* **A value under `try?`,** which makes an optional: `true` in its place would no longer be one.
+* **What returns nothing:** an initializer's `return nil`, a setter and an observer such as `didSet`.
+
+The `true` mutant is placed where the value starts, and the `false` one where it ends, so each has a place, and a switch, of its own, and `--mutant` can name either.
+
+A few of these mutants don't compile, and are [left out as build errors](../README.md#mutants-that-dont-compile), at the cost of a rebuild: a comparison with no type written that a module declares to give something other than a Bool, as a query builder's `==` that gives a filter does in `static let isAdult = Column("age") >= 18`. Neither `true` nor `false` is such a value. A stored property's, a `static`'s or a global's value is switched as an `if` expression, so the build error is blamed on its whole switch, which also leaves out the other operators' mutants of that value.
+
+Some make the compiler warn, which is a build error only [with warnings as errors](../README.md#before-a-long-run): a local whose only reader was the replaced value, as `count` in `let count = items.count; return count > 0`, which is now never used, as Swift warns of a `let` or `var` that is initialized and never read; and a local `let` that is now `true` or `false`, read later by an `if`, `guard`, `while` or `?:`, whose other branch the compiler says will never be executed.
+
+A mutant that compiles can loop forever, as a `false` that a loop waits on to be `true` does, and is then stopped at its time limit and ends as a timeout. One that sends recursion down the branch that doesn't stop crashes, which counts as killing it.
+
+### Mutating a value
+```swift
+var isIdle: Bool {
+    queue.isEmpty
+}
+```
+
+becomes
+
+```swift
+var isIdle: Bool {
+    true
+}
+```
+
+and
+
+```swift
+var isIdle: Bool {
+    false
+}
+```
+
 ## What each operator catches and costs
 
-SwiftMutator has no tiers of operators: all eight run by default, and `--operators`, `--skip-operators` and the `operators` and `skipOperators` keys narrow a run. These numbers, from each run's `results.jsonl`, are why. Killed and survived are shares of the mutants tested, so they leave out build errors.
+SwiftMutator has no tiers of operators: all nine run by default, and `--operators`, `--skip-operators` and the `operators` and `skipOperators` keys narrow a run. These numbers, from each run's `results.jsonl`, are why. Killed and survived are shares of the mutants tested, so they leave out build errors.
 
 Operator | SwiftProjectLint: mutants | Killed | Survived | Timed out | Build errors | SwiftCloneDetector: mutants | Killed | Survived | Timed out | Build errors
 ---------|-----|-----|-----|---|---|-----|-----|-----|---|---
 `NegateConditional` | 122 | 89% | 9% | 2 | 0 | 90 | 92% | 8% | 0 | 0
 `RelationalOperatorReplacement` | 185 | 86% | 13% | 1 | 0 | 115 | 77% | 22% | 1 | 0
+`ReplaceBooleanValue` | 1180 | 80% | 19% | 4 | 0 | 54 | 74% | 26% | 0 | 0
 `RemoveSideEffects` | 94 | 81% | 18% | 1 | 0 | 45 | 89% | 11% | 0 | 0
 `FlipBooleanLiteral` | 1335 | 79% | 20% | 6 | 0 | 25 | 72% | 28% | 0 | 0
 `SwapTernary` | 19 | 79% | 21% | 0 | 0 | 23 | 52% | 48% | 0 | 0
@@ -321,12 +378,12 @@ Operator | SwiftProjectLint: mutants | Killed | Survived | Timed out | Build err
 `ChangeLogicalConnector` | 51 | 61% | 39% | 0 | 0 | 27 | 63% | 37% | 0 | 0
 `RelationalBoundary` | 29 | 48% | 52% | 0 | 0 | 88 | 35% | 65% | 0 | 0
 
-Measured on 5 November 2026, on SwiftProjectLint `76fcfca9` at 4 workers and SwiftCloneDetector `e03e865` with all eight. On SwiftProjectLint, the two new operators ran in full, and the six older ones as a random sample of 500 of their 5,534 mutants, so their counts there are small. `FlipBooleanLiteral`'s run there came before the last changes to `ChangeArithmeticOperator`, which don't touch its mutants: four plans since find the same ones, but for up to 2 fewer or 1 more as coverage runs reach a little more or less of the project.
+Measured on 5 November 2026, on SwiftProjectLint `76fcfca9` at 4 workers and SwiftCloneDetector `e03e865` with all eight. On SwiftProjectLint, the two new operators ran in full, and the six older ones as a random sample of 500 of their 5,534 mutants, so their counts there are small. `FlipBooleanLiteral`'s run there came before the last changes to `ChangeArithmeticOperator`, which don't touch its mutants: four plans since find the same ones, but for up to 2 fewer or 1 more as coverage runs reach a little more or less of the project. `ReplaceBooleanValue` ran alone, in full, on 8 November, on the same commits of both projects.
 
-* **Nearly every mutant builds.** 1 of these 2,518 mutants was a build error. On its own five projects, swift-mutation-testing counts 12.1% of its arithmetic mutants and 11.5% of its boolean-literal ones as unviable, and it keeps both out of its default tier. Its rules and its projects differ, so the figures aren't like for like.
+* **Nearly every mutant builds.** 1 of these 3,752 mutants was a build error. On its own five projects, swift-mutation-testing counts 12.1% of its arithmetic mutants and 11.5% of its boolean-literal ones as unviable, and it keeps both out of its default tier. Its rules and its projects differ, so the figures aren't like for like.
 * **Kill rates don't sort the operators into tiers.** `SwapTernary` is 79% on one project and 52% on the other, a wider gap than between most operators. `ChangeLogicalConnector` and `SwapTernary` are in swift-mutation-testing's default tier, yet here they score below `RelationalOperatorReplacement` and `RemoveSideEffects`, which aren't. A low rate can also be an operator doing its job: a `RelationalBoundary` mutant survives unless a test checks the edge value.
 * **Survivors can cluster.** 55 of `ChangeArithmeticOperator`'s 76 survivors on SwiftProjectLint track a depth: a recursive call's `depth + 1`, or a counter such as `typeNestingDepth -= 1`.
-* **The cost differs more than the catch.** `FlipBooleanLiteral` gave 1,335 mutants on one project and 25 on the other. The two new operators together add 28% to SwiftProjectLint's mutants and 20% to SwiftCloneDetector's. On SwiftProjectLint a mutant took 8.6 s on average under the six older operators, 9.4 s under `FlipBooleanLiteral` and 14.1 s under `ChangeArithmeticOperator`.
+* **The cost differs more than the catch.** `FlipBooleanLiteral` gave 1,335 mutants on one project and 25 on the other. The two new operators together add 28% to SwiftProjectLint's mutants and 20% to SwiftCloneDetector's. On SwiftProjectLint a mutant took 8.6 s on average under the six older operators, 9.4 s under `FlipBooleanLiteral` and 14.1 s under `ChangeArithmeticOperator`. `ReplaceBooleanValue` gave 1,180 mutants, two for each of 590 values, on SwiftProjectLint, at 7.0 s each, so 46 minutes at 4 workers, and 54 on SwiftCloneDetector.
 * **Arithmetic times out most.** On SwiftProjectLint 3.7% of its mutants timed out, against 0.8% for the six older operators and 0.4% for `FlipBooleanLiteral`. All 8 were `+=` or `-=`, as in `index += 1`, and running them again took 14 of that 32-minute run's minutes.
 
 A project that finds an operator too costly can turn it off, as with `skipOperators: [FlipBooleanLiteral]`. Two projects are few, and numbers from more could change this.

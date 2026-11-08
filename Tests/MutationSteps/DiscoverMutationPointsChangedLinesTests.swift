@@ -7,7 +7,8 @@ final class DiscoverMutationPointsChangedLinesTests: MuterTestCase {
     private let state = MutationTestState()
 
     // Line 2 holds `<`, which RelationalOperatorReplacement and RelationalBoundary each mutate, and whose right-hand
-    // operand is on line 3; lines 8 and 9 statements RemoveSideEffects removes; line 13 `==`.
+    // operand is on line 3; lines 8 and 9 statements RemoveSideEffects removes; line 13 `==`, whose value
+    // ReplaceBooleanValue replaces too.
     private let source = """
     func check(index: Int, items: [Int]) -> Bool {
         guard index <
@@ -74,7 +75,7 @@ final class DiscoverMutationPointsChangedLinesTests: MuterTestCase {
     func test_withoutChangedLines_everyMutantOfAChangedFileIsKept() async throws {
         let kept = try await mutants(changing: [LineRange(first: 8, last: 8)], changedLines: false)
 
-        XCTAssertEqual(kept.count, 10)
+        XCTAssertEqual(kept.count, 12)
     }
 
     func test_noMutantOnAChangedLine_leavesNothingToMutate() async throws {

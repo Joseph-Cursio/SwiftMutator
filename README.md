@@ -65,7 +65,7 @@ day, three of them with a fix. It has things SwiftMutator doesn't, among them:
 Its default run uses three of its seven operators: logical operators, negated conditions and
 swapped ternaries. So by default it doesn't replace relational operators, as in `==` becoming `!=`,
 or remove calls, arithmetic or boolean literals. `--operator-tier experimental` runs all seven.
-SwiftMutator runs its eight by default.
+SwiftMutator runs its nine by default.
 
 SwiftMutator differs in how it keeps tests apart. Each of its workers tests in its own full
 copy of the project, `.git` included, unless a run of the tests with no mutant on writes nothing
@@ -237,6 +237,16 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   are no tiers of operators, as the numbers per operator don't call for them. A run recorded before
   these operators is continued as above, by naming that run's operators with `--operators`. See
   [mutation_operators.md](Docs/mutation_operators.md#what-each-operator-catches-and-costs).
+- **Bool values:** `ReplaceBooleanValue` replaces a Bool value with `true`, and in a second mutant
+  with `false`, as PIT's `TRUE_RETURNS` and `FALSE_RETURNS` do: what a function, a getter or a
+  closure that writes its return type returns, and a `let` or `var`'s initial value. The tree has
+  no types, so a value counts when its type is written as `Bool`, or when it is a comparison,
+  `&&`, `||` or `!`. So `return items.isEmpty` in a function that returns `Bool`, or
+  `let hidden = !visible`, gets mutants that no other operator gives. It runs by default. A run
+  recorded before it is continued as above, by naming that run's operators with `--operators`,
+  and a baseline file written before it is refused, as it records the run's operators (see
+  [Failing on new survivors](#failing-on-new-survivors)). See
+  [mutation_operators.md](Docs/mutation_operators.md#replace-boolean-value).
 - **Choosing the files** ([#115](https://github.com/Joseph-Cursio/SwiftMutator/issues/115)): the
   default excludes also leave out test doubles and helpers, `/Mocks/`, `/Stubs/`, `/Fakes/`,
   `/TestHelpers/`, `/TestSupport/`, `Mock.swift` and `Spec.swift`, and `/Snippets/` and
@@ -613,9 +623,13 @@ is read as the run starts, and replaced at the end.
   `coverageThreshold`, `exclude`, `excludeCalls` or `mutationTestTimeout`, after the flags that
   override them, discovers or judges other mutants, so the file is refused as the run starts, with
   status 8, and every difference listed. An `--exclude` adds to `exclude`, so a run with one needs a
-  baseline file written with it. `executable` isn't compared: it is an absolute path, which differs
-  between machines. A missing file, one that can't be read, an unknown key, a newer format and a
-  `score` no run gives, as more killed than scored, are refused the same way.
+  baseline file written with it. An upgrade that adds an operator that runs by default, as
+  `ReplaceBooleanValue` did, changes the operators of a run that names none, so a file written
+  before it is refused until a whole run writes a new one; to keep the old file meanwhile, leave the
+  new operator out, as with `skipOperators: [ReplaceBooleanValue]` in `muter.conf.yml`.
+  `executable` isn't compared: it is an absolute path, which differs between machines. A missing
+  file, one that can't be read, an unknown key, a newer format and a `score` no run gives, as more
+  killed than scored, are refused the same way.
 - **Which results write one.** Only a whole run's: `--write-baseline` with `--mutant`, `--shard`,
   `--sample`, `--since` or `--files-to-mutate` is a usage error, 64, and so are `--max-new-survivors`
   and `--max-score-drop` without `--baseline`. A run that stops writes none, and says so in a warning, as for a report that
@@ -1238,10 +1252,10 @@ same each time. Both give each mutant's place with columns in UTF-16 code units,
 them, where SwiftMutator's other reports count bytes, as SwiftSyntax does: an `é` before a mutant is
 one column here and two there. A mutant's place covers the code it changes, from its first character
 to just past its last, over several lines where the code spans them. It is found in the file from
-where the operator puts the mutant, which isn't always where the code starts: a removed statement
-or a swapped ternary is put where it ends, and an `&&` or `==` that starts a line at the end of the
-line above. Where the file no longer holds that code, as one changed since the run may not, the
-place is the mutant's whole line.
+where the operator puts the mutant, which isn't always where the code starts: a removed statement,
+a swapped ternary or a Bool replaced with `false` is put where it ends, and an `&&` or `==` that
+starts a line at the end of the line above. Where the file no longer holds that code, as one
+changed since the run may not, the place is the mutant's whole line.
 
 `-f stryker` writes [mutation-testing-elements](https://github.com/stryker-mutator/mutation-testing-elements)
 JSON, schema version 2, which Stryker's dashboard and report viewer read. Each file is listed by its
@@ -1670,8 +1684,9 @@ For one run:
 
 Every operator runs by default: `RelationalOperatorReplacement`, `RelationalBoundary`,
 `RemoveSideEffects`, `ChangeLogicalConnector`, `SwapTernary`, `NegateConditional`,
-`ChangeArithmeticOperator` and `FlipBooleanLiteral`. `swift-mutator operator all` explains them, as
-does [Docs/mutation_operators.md](Docs/mutation_operators.md). To use fewer, name them in
+`ChangeArithmeticOperator`, `FlipBooleanLiteral` and `ReplaceBooleanValue`.
+`swift-mutator operator all` explains them, as does
+[Docs/mutation_operators.md](Docs/mutation_operators.md). To use fewer, name them in
 `muter.conf.yml`, or on the command line for one run, where `--operators` and `--skip-operators`
 take several names separated by spaces:
 
@@ -3153,9 +3168,9 @@ jobs:
   new file: run the workflow on its branch by hand (`workflow_dispatch`), and commit the file from
   its artifact. A run started by hand compares with no baseline file and only writes a new one, so
   the old file doesn't refuse it; the same run on `main` replaces the file after an upgrade of
-  `SWIFTMUTATOR_REF` that changes what the scope records. A push that changes only the baseline
-  file doesn't start a run. Give pull requests and `main` the same flags that change the scope,
-  such as `--skip-coverage`, `--operators` and `--exclude` (see
+  `SWIFTMUTATOR_REF` that changes what the scope records, as one that adds an operator does. A
+  push that changes only the baseline file doesn't start a run. Give pull requests and `main` the
+  same flags that change the scope, such as `--skip-coverage`, `--operators` and `--exclude` (see
   [Failing on new survivors](#failing-on-new-survivors)).
 - **The configuration** is the committed `muter.conf.yml`. `init` writes the test command's full
   path in `executable`, such as `/usr/bin/swift`, which has to exist on the runner too; the

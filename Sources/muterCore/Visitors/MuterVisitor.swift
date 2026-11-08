@@ -122,6 +122,11 @@ class MuterVisitor: SyntaxAnyVisitor {
         isDisabled = directives(in: node.root).isSwitchedOff(at: node.positionAfterSkippingLeadingTrivia)
     }
 
+    /// Whether a `disable-next-line` or `disable-declaration` leaves out `position`, as `add` checks for each mutant.
+    func isLeftOutByADirective(_ position: MutationPosition, in root: Syntax) -> Bool {
+        directives(in: root).isLeftOut(AbsolutePosition(utf8Offset: position.utf8Offset))
+    }
+
     private func directives(in root: Syntax) -> MuterDirectives {
         if let directives {
             return directives
@@ -154,12 +159,14 @@ class MuterVisitor: SyntaxAnyVisitor {
         )
     }
 
+    /// Where `node` ends. After its trailing trivia, unless asked otherwise.
     func endLocation(
-        for node: SyntaxProtocol
+        for node: SyntaxProtocol,
+        afterTrailingTrivia: Bool = true
     ) -> MutationPosition {
         let sourceLocation = node.endLocation(
             converter: locationConverter,
-            afterTrailingTrivia: true
+            afterTrailingTrivia: afterTrailingTrivia
         )
 
         return mutationPosition(

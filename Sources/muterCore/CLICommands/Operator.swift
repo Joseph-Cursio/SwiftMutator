@@ -380,6 +380,45 @@ extension MutationOperator.Id {
                 """.onCodeBlock
             )
             """
+        case .replaceBooleanValue:
+            return """
+
+            \("Replace Boolean Value".bold)
+
+            The \("replace boolean value".italic) operator will replace a Bool value with \(
+                "true".onCodeEscape), and in a second mutant with \("false".onCodeEscape).
+            A value is what a \("return".onCodeEscape) gives, the one expression of a body that returns it, or the initial value of a \(
+                "let".onCodeEscape) or \("var".onCodeEscape).
+            It counts when its type is written as \("Bool".onCodeEscape), or when it is a comparison, \(
+                "&&".onCodeEscape), \("||".onCodeEscape) or \("!".onCodeEscape).
+            A literal, an \("if".onCodeEscape) or \("switch".onCodeEscape) expression, and a closure that doesn't write its return type are left alone.
+
+            The purpose of this operator is to highlight whether your tests see a value both true and false.
+
+            \("Mutating a value".bold)
+
+            \(
+                """
+                \("return".asKeyword) items.isEmpty
+                """.onCodeBlock
+            )
+
+            becomes
+
+            \(
+                """
+                \("return".asKeyword) \("true".asKeyword)
+                """.onCodeBlock
+            )
+
+            and
+
+            \(
+                """
+                \("return".asKeyword) \("false".asKeyword)
+                """.onCodeBlock
+            )
+            """
         case .swapTernary:
             return """
 

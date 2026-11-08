@@ -25,6 +25,7 @@ enum MutationOperator {
         case negateConditional = "NegateConditional"
         case arithmeticOperator = "ChangeArithmeticOperator"
         case flipBooleanLiteral = "FlipBooleanLiteral"
+        case replaceBooleanValue = "ReplaceBooleanValue"
 
         var visitor: VisitorInitializer {
             switch self {
@@ -44,6 +45,8 @@ enum MutationOperator {
                 return ChangeArithmeticOperator.Visitor.init
             case .flipBooleanLiteral:
                 return FlipBooleanLiteralOperator.Visitor.init
+            case .replaceBooleanValue:
+                return ReplaceBooleanValueOperator.Visitor.init
             }
         }
 
@@ -62,6 +65,7 @@ enum MutationOperator {
             case .negateConditional: "Negate Conditional"
             case .arithmeticOperator: "Change Arithmetic Operator"
             case .flipBooleanLiteral: "Flip Boolean Literal"
+            case .replaceBooleanValue: "Replace Boolean Value"
             }
         }
 
@@ -84,6 +88,8 @@ enum MutationOperator {
                 return "Swaps arithmetic: plus and minus swap, as do times and divide, and remainder becomes times."
             case .flipBooleanLiteral:
                 return "Turns the literal true into false, and false into true."
+            case .replaceBooleanValue:
+                return "Replaces a Bool that is returned or stored with true, and in a second mutant with false."
             }
         }
     }

@@ -34,15 +34,27 @@ struct SourceSpan: Equatable {
         if let line = lines?.span(ofLine: position.line) {
             return (line, false)
         }
-        return (Self(placedAt: position.line, utf8Column: position.column, before: before, by: operatorId), false)
+        let after = mutation.snapshot.after
+        return (
+            Self(placedAt: position.line, utf8Column: position.column, before: before, by: operatorId, after: after),
+            false
+        )
     }
 
-    /// `before` from the UTF-8 `column` of `line`, in bytes, or up to it for an operator that places a mutant where
-    /// its code ends; `before` may span lines.
-    init(placedAt line: Int, utf8Column column: Int, before: String, by operatorId: MutationOperator.Id) {
+    /// `before` from the UTF-8 `column` of `line`, in bytes, or up to it for a mutant placed where its code ends, as
+    /// `after` tells for a replaced Bool's; `before` may span lines.
+    init(
+        placedAt line: Int,
+        utf8Column column: Int,
+        before: String,
+        by operatorId: MutationOperator.Id,
+        after: String = ""
+    ) {
         let parts = SourceLines.split(SourceLines.code(of: before, by: operatorId))
         let last = parts.last ?? ""
-        if SourceLines.isPlacedWhereItsCodeEnds(operatorId), parts.count == 1 {
+        let endsThere = SourceLines.isPlacedWhereItsCodeEnds(operatorId)
+            || operatorId == .replaceBooleanValue && after == "false"
+        if endsThere, parts.count == 1 {
             let start = Position(line: line, column: max(1, column - last.utf8.count))
             self.init(start: start, end: Position(line: line, column: column))
             return
@@ -142,8 +154,11 @@ struct SourceLines {
     /// recorded, the UTF-8 `column` of `line`; nil when it isn't there. An operator's place isn't always where its code
     /// starts. Most place a mutant at its start, but before a line break that starts its line, as `&&` that starts one
     /// is placed at the end of the line above. Removing a statement and swapping a ternary place it where the code
-    /// ends, but for a later link of a ternary chain, which is placed at its `?`. And `before` gives code over several
-    /// lines on one, its line breaks and indents as one space each, so any spaces in it match any in the file. The
+    /// ends, but for a later link of a ternary chain, which is placed at its `?`. A replaced Bool's `true` is placed
+    /// where its value starts and its `false` where it ends, so its value is looked for before the place, then after
+    /// it: what comes just before a value, a keyword, a `=` or a brace, can't end as the value does. And `before`
+    /// gives code over several lines on one, its line breaks and indents as one space each, so any spaces in it match
+    /// any in the file. The
     /// comparison and logical operators place a mutant before any comment beside their token, and their `before` holds
     /// it, but the mutant changes the token alone, so that is the code found (`code(of:by:)`).
     func span(
@@ -164,6 +179,11 @@ struct SourceLines {
         } else if Self.isPlacedWhereItsCodeEnds(operatorId) {
             let end = skipping(from: place, forward: false)
             found = match(code, from: end, forward: false).map { $0..<end }
+        } else if operatorId == .replaceBooleanValue {
+            let end = skipping(from: place, forward: false)
+            let start = skipping(from: place, forward: true)
+            found = match(code, from: end, forward: false).map { $0..<end }
+                ?? match(code, from: start, forward: true).map { start..<$0 }
         } else {
             let start = skipping(from: place, forward: true, comments: Self.keepsCommentsBeside(operatorId))
             found = match(code, from: start, forward: true).map { start..<$0 }

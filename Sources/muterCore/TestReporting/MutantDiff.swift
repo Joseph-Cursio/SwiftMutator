@@ -49,11 +49,9 @@ enum MutantDiff {
         if occurrences(of: needle, in: fileLines[line - 1]).contains(column - 1) {
             found = (line, column - 1)
         } else if !atItsPlaceOnly, !isPlacedWhereItsChangeStarts(mutationOperatorId) {
-            let isOnItsOwnLine = isALaterLinkOfATernaryChain(
-                mutationOperatorId,
-                at: column - 1,
-                in: fileLines[line - 1]
-            )
+            // A replaced Bool's `false` is placed where the value ends, on the line that holds it if it's on one.
+            let isOnItsOwnLine = mutationOperatorId == .replaceBooleanValue
+                || isALaterLinkOfATernaryChain(mutationOperatorId, at: column - 1, in: fileLines[line - 1])
             for number in stride(from: line, through: isOnItsOwnLine ? line : max(line - linesAbove, 1), by: -1) {
                 let offsets = occurrences(of: needle, in: fileLines[number - 1])
                 guard !offsets.isEmpty else { continue }
@@ -65,12 +63,18 @@ enum MutantDiff {
         guard let found else { return nil }
 
         let text = fileLines[found.line - 1]
-        // `if(a)` becomes `if !((a))`, with a space the operator adds, as `if!(` doesn't parse.
-        let isTouching = mutationOperatorId == .negateConditional
-            && text[..<found.offset].last.map { !Character(UnicodeScalar($0)).isWhitespace } == true
+        let rest = text[(found.offset + needle.count)...]
+        // `if(a)` becomes `if !((a))`, with a space the operator adds, as `if!(` doesn't parse; and `return(a < b)`
+        // becomes `return true`, as a replaced Bool is kept apart from a name or keyword it would touch.
+        let isTouching = switch mutationOperatorId {
+        case .negateConditional: text[..<found.offset].last.map { !Character(UnicodeScalar($0)).isWhitespace } == true
+        case .replaceBooleanValue: text[..<found.offset].last.map(isPartOfAName) == true
+        default: false
+        }
+        let isTouchingAfter = mutationOperatorId == .replaceBooleanValue && rest.first.map(isPartOfAName) == true
         let changed = Array(text[..<found.offset]) + (isTouching ? [UInt8(ascii: " ")] : [])
             + Array(replacement(snapshot, mutationOperatorId).utf8)
-            + Array(text[(found.offset + needle.count)...])
+            + (isTouchingAfter ? [UInt8(ascii: " ")] : []) + Array(rest)
         let after = String(decoding: changed, as: UTF8.self)
         return SourceChange(
             line: found.line,
@@ -85,6 +89,12 @@ enum MutantDiff {
         let before = "- " + snapshot.before
         let after = replacement(snapshot, mutationOperatorId)
         return after.isEmpty ? [before] : [before, "+ " + after]
+    }
+
+    /// Whether `byte` can be part of a name or a keyword, which a replaced Bool next to it would join.
+    private static func isPartOfAName(_ byte: UInt8) -> Bool {
+        let character = Character(UnicodeScalar(byte))
+        return character.isLetter || character.isNumber || character == "_" || character == "$"
     }
 
     /// Whether an operator's mutants are placed at the start of what they change, so a copy on a line above is never

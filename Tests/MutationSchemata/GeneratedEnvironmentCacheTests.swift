@@ -5,6 +5,13 @@ import XCTest
 /// on. A `swift test` run names its mutant in a file; any other test command names it in a variable of the mutant's
 /// own, and the generated code must switch it on either way.
 final class GeneratedEnvironmentCacheTests: GeneratedCodeTestCase {
+    /// Without ReplaceBooleanValue: its `let big = true` makes the compiler warn that a branch of the `?:` that reads
+    /// `big` will never be executed, and these files compile with warnings as errors. Its own shapes compile in
+    /// GeneratedCodeShapesTests.
+    override var operatorsToDiscoverWith: MutationOperatorList {
+        super.operatorsToDiscoverWith.filter { $0 != .replaceBooleanValue }
+    }
+
     func test_theGeneratedCodeSwitchesOnTheMutantItIsTold() throws {
         let (program, identifier) = try compileMutatedCheck()
         let activeMutantFile = directory.appendingPathComponent("active-mutant")

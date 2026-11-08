@@ -30,7 +30,9 @@ final class ShardRunTests: MuterTestCase {
 
     override func setUp() {
         super.setUp()
-        state.mutationOperatorList = .allOperators
+        // But ReplaceBooleanValue, so that `return a == 3` is the only mutant of its function, as these tests need: how
+        // a shard takes its mutants doesn't depend on which operator made them.
+        state.mutationOperatorList = MutationOperatorList.allOperators.filter { $0 != .replaceBooleanValue }
         prepareCode.sourceCodeToReturn = {
             muterCore.sourceCode(fromFileAt: $0).map { (source: $0, changes: .null) }
         }
