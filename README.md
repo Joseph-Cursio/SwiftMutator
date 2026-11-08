@@ -5,12 +5,45 @@
 Automated [mutation testing](https://en.wikipedia.org/wiki/Mutation_testing) for Swift.
 
 SwiftMutator is based on [Muter](https://github.com/muter-mutation-testing/muter) by the Muter
-contributors, and keeps its history. Muter introduces small changes (*mutants*) into your
+contributors, and keeps its history; Muter's README there describes Muter as it was, and this one
+describes SwiftMutator. Muter introduces small changes (*mutants*) into your
 code, such as `==` becoming `!=` or a call being removed, and runs your tests against each one.
 A mutant your tests don't catch shows a behavior your tests don't check. The mutation score is
 the share of mutants caught: those a failed test or a crash killed, as a percent of every mutant
 that built, truncated to a whole percent, so 50 of 75 is 66%. A mutant that times out with no
 failure or crash in its log isn't caught, as [timeouts](#timeouts-are-run-again) explains.
+
+[Docs/mutation_operators.md](Docs/mutation_operators.md) describes each operator, and
+[Docs/mutation_score_vs_test_code_coverage.md](Docs/mutation_score_vs_test_code_coverage.md) how
+the score differs from code coverage.
+
+## Contents
+
+- Getting started: [Install](#install), [Build and run](#build-and-run),
+  [Setting up](#setting-up), [Before a long run](#before-a-long-run),
+  [Exit status](#exit-status)
+- Checks for CI: [Failing on a low score](#failing-on-a-low-score),
+  [Failing on new survivors](#failing-on-new-survivors),
+  [Failing on a score drop](#failing-on-a-score-drop),
+  [Failing on doubtful kills](#failing-on-doubtful-kills)
+- What gets mutated: [Mutants outside function bodies](#mutants-outside-function-bodies),
+  [Code an `#if` leaves out](#code-an-if-leaves-out),
+  [Mutants that don't compile](#mutants-that-dont-compile),
+  [Leaving code out](#leaving-code-out), [Choosing the files](#choosing-the-files),
+  [Choosing the operators](#choosing-the-operators)
+- Running: [Time limits before the first mutant](#time-limits-before-the-first-mutant),
+  [When the baseline crashes](#when-the-baseline-crashes), [Test plans](#test-plans),
+  [Testing one mutant](#testing-one-mutant), [Progress](#progress),
+  [Workers and release mode](#workers-and-release-mode),
+  [Keeping the Mac awake](#keeping-the-mac-awake), [Stopping a run](#stopping-a-run)
+- Results: [Reports](#reports), [Triaging survivors](#triaging-survivors),
+  [summary.json](#summaryjson), [Results file](#results-file)
+- Less than a whole run: [Mutating only what a branch changed](#mutating-only-what-a-branch-changed),
+  [Splitting a run across machines](#splitting-a-run-across-machines),
+  [Testing a sample of the mutants](#testing-a-sample-of-the-mutants),
+  [Resuming a run](#resuming-a-run), [Reusing an earlier run](#reusing-an-earlier-run)
+- Reference: [Configuration](#configuration), [Running in CI](#running-in-ci),
+  [Commands and flags](#commands-and-flags), [Development](#development)
 
 ## Also look at swift-mutation-testing
 
@@ -233,8 +266,7 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   covers what it ends and what follows, and an `enable` starts after it. A `disable` or `enable` on a
   block's last statement no longer reaches its earlier statements, and a tag inside a statement now
   counts for `RemoveSideEffects` on the statements after it. So a file with such tags can find
-  different mutants. See
-  [Disable muter in code](Docs/Muter-README.md#disable-muter-in-code).
+  different mutants. See [Leaving code out](#leaving-code-out).
 - **Directives match the word, and cover a line or a declaration:** a `muter:` directive counts only
   as the first word of a comment, of any kind: `//`, `///`, `/* */` and `/** */`. A comment that only
   mentions one, as `// TODO: muter:disable`, used to turn off the rest of the file, and one in `///`
@@ -247,15 +279,48 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
 
 Fixes that apply to Muter are offered upstream too.
 
-## Build and run
+## Install
+
+SwiftMutator has no release or Homebrew formula yet
+([#121](https://github.com/Joseph-Cursio/SwiftMutator/issues/121)), so build it from source. That
+needs Xcode 26.6 or later, the oldest CI tests, which runs on macOS 15.6 or later (see
+[CONTRIBUTING.md](CONTRIBUTING.md#toolchain)); the binary it builds runs on macOS 13 or later:
+
+```bash
+git clone https://github.com/Joseph-Cursio/SwiftMutator.git
+cd SwiftMutator
+make install                          # builds in release and installs /usr/local/bin/swift-mutator
+make install prefix=$(brew --prefix)  # or into Homebrew's bin
+```
+
+`make install` doesn't use `sudo`, so give a `prefix` you can write to if `/usr/local` isn't one.
+`make uninstall`, with the same `prefix`, removes it. To run it without installing it:
 
 ```bash
 swift build -c release --product swift-mutator
-.build/release/swift-mutator init      # writes muter.conf.yml in the current project
-.build/release/swift-mutator run       # runs mutation testing
+.build/release/swift-mutator --version
 ```
 
-`make install` installs `swift-mutator` into `/usr/local/bin`.
+It tests SwiftPM packages and xcodebuild projects, for any platform xcodebuild tests on. Another
+test command, such as `make` or `fastlane`, runs as it is, without coverage, workers or
+`stopAtFirstFailure`. Only Swift files are mutated: Objective-C code is tested, never mutated.
+
+`run`, `run-without-mutating` and `mutate-without-running` ask GitHub's API for SwiftMutator's
+latest release as they start, and say whether there is a newer one. That is the only request
+SwiftMutator makes itself, and it sends nothing about your code; your test command, such as
+`swift test` resolving packages, may make its own. `--skip-update-check` skips it, as a CI job
+should. SwiftMutator collects no analytics.
+
+## Build and run
+
+```bash
+cd MyProject
+swift-mutator init      # writes muter.conf.yml in the current project
+swift-mutator run       # runs mutation testing
+```
+
+`swift-mutator` with no command is `swift-mutator run`. [Commands and flags](#commands-and-flags)
+lists every command and flag, and `swift-mutator help <command>` prints a command's.
 
 A run tests in a copy of the project beside it, `<project>_mutated.noindex`, so a project has one
 run at a time. `run`, `mutate-without-running` and `run-without-mutating` lock
@@ -272,6 +337,78 @@ can lock it.
 `swift-mutator mutate-without-running` writes a test plan without testing anything, and
 `swift-mutator run-without-mutating` tests it (see [Test plans](#test-plans)). `--mutant` tests one
 mutant on its own (see [Testing one mutant](#testing-one-mutant)).
+
+### Setting up
+
+`swift-mutator init`, in the project's folder, writes `muter.conf.yml` there with the test command
+it guesses, replacing any file of that name. It looks through the folder and every folder in it,
+and takes the first of:
+
+- an Xcode project: `xcodebuild` with `-project`, or `-workspace` when there is a workspace of your
+  own, each named after the `.xcodeproj`, then `-scheme` with the same name, and `-destination`: an
+  iPhone simulator of the newest iOS runtime it finds for an iOS project, or else the first
+  destination `xcodebuild -showdestinations` lists;
+- a `Package.swift`: `swift test`;
+- otherwise, an empty `executable` and `arguments` to fill in.
+
+So a package with an Xcode project anywhere in it, such as an example app's, gets an `xcodebuild`
+configuration: change it to `swift`, as below. It looks in hidden folders too, so in a package you
+have built, a dependency's Xcode project or workspace in `.build/checkouts` wins: run `init` in a
+fresh clone, or remove `.build` first. A project it finds in a folder below the project's is named
+without that folder, so add the folder to the `-project` or `-workspace` value. The scheme is a
+guess too ([#122](https://github.com/Joseph-Cursio/SwiftMutator/issues/122)). Run the command it
+wrote yourself, from the project's folder, and check that it runs your tests and they pass. For a
+package it writes (an `exclude` with `Package.swift` once for each manifest it finds, one in a
+fresh clone):
+
+```yaml
+arguments:
+- test
+executable: /usr/bin/swift
+exclude:
+- Package.swift
+excludeCalls: []
+coverageThreshold: 0e+0
+```
+
+`0e+0` is 0. The `exclude` entry also leaves out any file whose path ends in `Package.swift`, such
+as `Sources/Shop/CartPackage.swift`; the defaults already leave out the manifests, so it can go.
+For an iOS app:
+
+```yaml
+arguments:
+- -project
+- MyApp.xcodeproj
+- -scheme
+- MyApp
+- -destination
+- platform=iOS Simulator,name=iPhone 17 Pro
+- test
+executable: /usr/bin/xcodebuild
+exclude: []
+excludeCalls: []
+coverageThreshold: 0e+0
+```
+
+`init` writes only these keys; [Configuration](#configuration) lists the others. `executable` is the
+full path on the Mac that ran `init`. Commit the file rather than running `init` on each machine.
+
+### Before a long run
+
+- **Warnings as errors.** A mutant can make code the compiler warns about, and with warnings as
+  errors that is a build error: the mutants it is blamed on are taken out of the build, each such
+  error costs a build, and one no mutant can be blamed for stops the run (see
+  [Mutants that don't compile](#mutants-that-dont-compile)). For xcodebuild, add
+  `SWIFT_TREAT_WARNINGS_AS_ERRORS=NO` to `arguments`; for `swift test`, leave `-warnings-as-errors`
+  out of them.
+- **Linters in the build.** A linter that runs as a build phase or plugin, and fails the build on
+  style, can fail it on a mutant's code. Turn it off for the test command, such as with a scheme of
+  its own.
+- **UI tests.** Every mutant runs the whole test command, so slow tests make a slow run. Start with
+  the unit tests: a scheme or test plan without UI tests, `-skip-testing:` in xcodebuild's
+  `arguments`, or `--skip` in `swift test`'s.
+- **The score.** 100% is rarely reachable: some survivors no test can kill. Label them rather than
+  chase them (see [Triaging survivors](#triaging-survivors)).
 
 ### Exit status
 
@@ -975,6 +1112,17 @@ test ran is never made, so no report or count has it: see [Reports](#reports).
 
 ## Reports
 
+`-f` chooses the format of the report a run prints, or saves with `-o`, and `--report format:path`
+saves more (see [Several reports, and the Markdown report](#several-reports-and-the-markdown-report)):
+
+- `plain`, the default, for reading in a terminal or a log;
+- `html`, the same as a page, with each mutant's change;
+- `json`, every mutant and count, for scripts;
+- `markdown`, a short report for a GitHub job summary;
+- `stryker`, for Stryker's report viewer and dashboard, and `sarif`, for GitHub code scanning (see
+  [The Stryker and SARIF reports](#the-stryker-and-sarif-reports));
+- `xcode`, warnings Xcode lists in its Issue Navigator (see [The Xcode format](#the-xcode-format)).
+
 The plain and HTML reports start with the mutants to act on: those that survived, and those that
 timed out, which the score counts as survivors too, then any [no test reached](#whether-a-mutants-code-ran),
 in a section of their own. They are listed by path, line and column, each with the line it changes,
@@ -1174,6 +1322,36 @@ upload when the run wrote no report: one whose build or baseline failed writes n
 partway writes only `mutants.partial.sarif`, which would close the alerts of the mutants it didn't
 test.
 
+### The Xcode format
+
+`-f xcode` prints a warning for each mutant that survived or that no test reached as soon as it is
+tested, in the form Xcode reads from a build step's output, with the file's absolute path:
+
+```
+/Users/me/MyApp/Sources/Core.swift:10:22: warning: Your test suite did not kill this mutant: changed >= to <=
+```
+
+A timeout and a build error get no warning of their own. At the end it prints the score and the
+counts by outcome, and a warning without a place when mutants didn't compile, when kills' code
+never ran, or when suspect tests made kills. It can't be saved with `--report`.
+
+Muter ran it from a Run Script build phase of an aggregate target, so that building the target
+tested the project and listed the survivors in the Issue Navigator and beside their code:
+
+```sh
+swift-mutator --format xcode --skip-update-check
+```
+
+That setup hasn't been tested with SwiftMutator: Xcode's build settings reach the test command
+through the script's environment, and its `PATH` may not hold the folder `swift-mutator` is in, so
+give its full path. The build log isn't a terminal, so progress comes as lines (see
+[Progress](#progress)).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="Docs/Images/muter-in-xcode-dark.png">
+  <img alt="Survivors shown as warnings beside their code in Xcode" src="Docs/Images/muter-in-xcode-light.png">
+</picture>
+
 ### Triaging survivors
 
 A survivor is a missing test, or a mutant no test could kill, or code you don't mean to test, and
@@ -1344,9 +1522,17 @@ func a() { … }           // left out, as is everything up to the muter:enable
 A directive is the comment's first word, so `// muter:disable because it's generated` counts, and
 `// see muter:disable` or `// muter:disabled` doesn't. Any kind of comment works: `//`, `///`,
 `/* */` and `/** */`. Code a directive leaves out has no mutants, and isn't counted among those
-dropped. A file is left out by [`exclude`](Docs/Muter-README.md#configuration-options).
+dropped. A file is left out by [`exclude`](#choosing-the-files).
 
 ## Configuration
+
+`swift-mutator init` writes `muter.conf.yml` (see [Setting up](#setting-up)), and `run`,
+`mutate-without-running` and `run-without-mutating` read it from the folder they run in, or from
+the file `-c` names, if its name ends in `.yml`, or else `muter.conf.yml` in the folder it names;
+the project is still the folder they run in.
+Keep it at the project's root, and commit it. A key SwiftMutator doesn't know is ignored without a
+word, so check the spelling of any you add
+([#122](https://github.com/Joseph-Cursio/SwiftMutator/issues/122)).
 
 SwiftMutator reads Muter's `muter.conf.yml`, so existing Muter configurations work unchanged,
 except an xcodebuild project's `coverageThreshold`. Muter read that one as a fraction from 0 to 1,
@@ -1356,40 +1542,54 @@ looked for each name anywhere in a statement's text, comments included, so `log`
 `catalog.update()`. A name now matches the name a call is called by: `log` matches `log(…)`,
 `self.log(…)`, `super.log(…)` and `Logger.log(…)`, but not `logger.log(…)`, which takes
 `logger.log`. A statement is kept if any call in it matches, one in a closure it passes too, or if
-it passes a function that matches, as `events.forEach(log)` does. An older `muter.conf.json` beside it is
-converted to `muter.conf.yml` and removed, unless a `muter.conf.yml` is there, which wins and leaves
-the JSON file alone. The options are documented in
-[Muter's README](Docs/Muter-README.md#configuration-options); SwiftMutator adds:
+it passes a function that matches, as `events.forEach(log)` does. An older `muter.conf.json` beside
+it is converted to `muter.conf.yml` and removed, unless a `muter.conf.yml` is there, which wins and
+leaves the JSON file alone.
 
-| Key | Meaning |
-|---|---|
-| `mutationTestWorkers` | How many mutants to test at once (SwiftPM projects, and xcodebuild projects that test on a simulator, which get one simulator per worker; default for SwiftPM: half the processors, at most 4, and, when each needs a clone, fewer for fewer than 150 mutants, see [Workers and release mode](#workers-and-release-mode); for others: 1) |
-| `workersShareBuild` | Whether a SwiftPM run's workers may test from one build when a direct run of the tests, with no mutant on, wrote nothing in the copy (default: `true`; `false` gives each worker a clone, see [Workers and release mode](#workers-and-release-mode)) |
-| `mutationTestTimeout` | Seconds before a mutant's test run is stopped (default: based on a timed test run; see above) |
-| `oneWorkerSimulator` | Whether one xcodebuild worker tests on a simulator SwiftMutator makes (absent: when the project and its baseline show it is faster; true: whenever the destination is a simulator; false: never; see [One worker on a simulator of its own](#one-worker-on-a-simulator-of-its-own)) |
-| `stopAtFirstFailure` | Stop a mutant's test run at its first failed test, or at a test process's crash, either of which already decides that it is killed (SwiftPM projects only; never the baseline; default true) |
-| `suspectTestFilePercent` | The share of the files with a killed mutant naming a test, from 1 to 100, that a test must have failed for mutants in to be suspect (default 15; see [Killing tests and suspect tests](#killing-tests-and-suspect-tests)) |
-| `suspectTestMinimumFiles` | How many files with such a kill there must be, at least 1, before a test can be suspect, and how many of them it must have failed for mutants in (default 10) |
-| `controlRunEvery` | How many mutants to test for each control run, a run with no mutant on among theirs, whose failed tests are flaky (a whole number; 0 for none; default 100; see [Control runs](#control-runs)) |
-| `suspectKillReruns` | How many kills a run tests again alone because only suspect tests failed for them (a whole number; 0 for none; default 100; see [Kills tested again alone](#kills-tested-again-alone)) |
-| `keepAllLogs` | Keep the log of every mutant's test run, a kill's too (default false: a mutant killed by a failed test its results line names keeps none; see [Results file](#results-file)) |
-| `keepLogFolders` | How many runs' log folders to keep in `<project>_muter_logs`, this run's included: a whole number, at least 2, so the run before this one is always kept. Earlier runs' folders beyond it are removed once nothing can refuse the run, before its build (default: unset, which removes none; see [Results file](#results-file)) |
-| `failUnder` | A percent from 0 to 100, up to 6 decimals: a finished run whose headline score is below it exits with 2, once its reports are written (default: unset, which checks none; see [Failing on a low score](#failing-on-a-low-score)) |
-| `propertyTests` | A list of globs that pick out property tests, by name or by the file their issue was recorded in, so the reports split the kills between example tests and property tests (default: unset, which splits none; see [Example tests and property tests](#example-tests-and-property-tests)) |
-| `propertyTestFilter` | A list of test filters that select the property tests alone, as `swift test --filter` or xcodebuild's `-only-testing:` takes them: once every mutant is tested, each kill whose recorded tests include no property test is tested again with only those tests (default: unset, which tests none again; needs `propertyTests`) |
-| `operators` | A list of the operators to use, at least one (default: all of them). See [Choosing the operators](#choosing-the-operators) |
-| `skipOperators` | A list of the operators to leave out (default: none). See [Choosing the operators](#choosing-the-operators) |
-| `reports` | A list of more reports a run saves beside `-f`'s, each `format:path`, as `markdown:summary.md`; a relative path is the project's (default: unset, which saves none; never `xcode`; see [Several reports, and the Markdown report](#several-reports-and-the-markdown-report)) |
-| `buildTimeout` | Seconds, above 0 and at most a day, before each step ahead of the first mutant that builds your project and runs its tests is stopped: the coverage run, each xcodebuild build for testing, each baseline run, and a worker clone's. The direct and timed test runs, which follow the baseline and don't build, get a shorter limit (default: no limit; see [Time limits before the first mutant](#time-limits-before-the-first-mutant)) |
+Every key but `executable` and `arguments` can be left out. *Build systems* says which test
+commands a key does anything for: SwiftPM is `swift test`, or a wrapper with `buildSystem: swift`;
+xcodebuild is `xcodebuild`, or a wrapper with `buildSystem: xcodebuild`; any other command is run
+as it is.
 
-`--workers N` and `--timeout S`, on `run` and `run-without-mutating`, set `mutationTestWorkers`
-and `mutationTestTimeout` for one run, in place of the file's
+| Key | Meaning | Default | Build systems |
+|---|---|---|---|
+| `executable` | The program that runs your tests, such as `/usr/bin/swift` or `/usr/bin/xcodebuild`, or a script that runs them. A name without a `/`, such as `swift`, is looked up on `PATH` when the run starts | None: it must be set | All |
+| `arguments` | What `executable` is given to run the tests, such as `[test]` for `swift`. With xcodebuild they must include `-destination`, and the first `-destination` is the one mutants are tested on | None: it must be set | All |
+| `buildSystem` | `swift` or `xcodebuild`, for an `executable` whose file name isn't, such as a wrapper script; any other value is ignored | From `executable`'s file name: `swift`, `xcodebuild`, or another command | All |
+| `exclude` | Paths, path fragments and globs to leave out of the files mutated, besides the defaults; an entry that starts with `!` keeps what it matches. See [Choosing the files](#choosing-the-files) | None besides the defaults | All |
+| `excludeCalls` | Names of functions whose calls `RemoveSideEffects` never removes, such as a logging function. Code inside those functions is still mutated, and every overload of a name is matched | None | All |
+| `coverageThreshold` | A percentage from 0 to 100: a file whose share of lines the tests ran is at or below it is left out. A file with no lines to run is never left out. `--skip-coverage` turns coverage off | `0`: only the files no test runs are left out | SwiftPM and xcodebuild; other commands gather no coverage |
+| `operators` | A list of the operators to use, at least one. See [Choosing the operators](#choosing-the-operators) | All of them | All |
+| `skipOperators` | A list of the operators to leave out. See [Choosing the operators](#choosing-the-operators) | None | All |
+| `mutationTestTimeout` | Seconds before a mutant's test run is stopped. See [Timeouts are run again](#timeouts-are-run-again) | 5× a timed run of the tests with no mutant on, once more for each worker beyond the first, and at least 20 s; for another build system, or when that run fails, 3× the baseline, build included, and at least 10 s (see [Why a fork of Muter](#why-a-fork-of-muter)) | All |
+| `buildTimeout` | Seconds, above 0 and at most a day, before each step ahead of the first mutant that builds your project and runs its tests is stopped: the coverage run, each xcodebuild build for testing, each baseline run, and a worker clone's. The direct and timed test runs, which follow the baseline and don't build, get a shorter limit. See [Time limits before the first mutant](#time-limits-before-the-first-mutant) | No limit | All |
+| `stopAtFirstFailure` | Stop a mutant's test run at its first failed test, or at a test process's crash, either of which already decides that it is killed. Never the baseline | `true` | SwiftPM |
+| `mutationTestWorkers` | How many mutants to test at once. See [Workers and release mode](#workers-and-release-mode) and [xcodebuild workers](#xcodebuild-workers) | SwiftPM: half the processors, at most 4, and, when each needs a clone, fewer for fewer than 150 mutants. Others: 1 | SwiftPM, and xcodebuild projects that test on a simulator, which get one simulator per worker; others test one at a time |
+| `workersShareBuild` | Whether workers may test from one build when a direct run of the tests, with no mutant on, wrote nothing in the copy; `false` gives each worker a clone. See [Workers and release mode](#workers-and-release-mode) | `true` | SwiftPM on macOS, when mutants' test bundles run directly |
+| `oneWorkerSimulator` | Whether one worker tests on a simulator SwiftMutator makes: `true` whenever the destination is a simulator, `false` never. See [One worker on a simulator of its own](#one-worker-on-a-simulator-of-its-own) | Unset: when the project and its baseline show it is faster | xcodebuild, with a simulator as the first `-destination` |
+| `keepAllLogs` | Keep the log of every mutant's test run, a kill's too. See [Results file](#results-file) | `false`: a mutant killed by a failed test its results line names keeps none | All |
+| `keepLogFolders` | How many runs' log folders to keep in `<project>_muter_logs`, this run's included: a whole number, at least 2, so the run before this one is always kept. Earlier runs' folders beyond it are removed once nothing can refuse the run, before its build. See [Results file](#results-file) | Unset: none is removed | All |
+| `failUnder` | A percent from 0 to 100, up to 6 decimals: a finished run whose headline score is below it exits with 2, once its reports are written. See [Failing on a low score](#failing-on-a-low-score) | Unset: none is checked | All |
+| `suspectTestFilePercent` | The share of the files with a killed mutant naming a test, from 1 to 100, that a test must have failed for mutants in to be suspect. See [Killing tests and suspect tests](#killing-tests-and-suspect-tests) | `15` | All |
+| `suspectTestMinimumFiles` | How many files with such a kill there must be, at least 1, before a test can be suspect, and how many of them it must have failed for mutants in | `10` | All |
+| `controlRunEvery` | How many mutants to test for each control run, a run with no mutant on among theirs, whose failed tests are flaky: a whole number, 0 for none. See [Control runs](#control-runs) | `100` | All |
+| `suspectKillReruns` | How many kills a run tests again alone because only suspect tests failed for them: a whole number, 0 for none. See [Kills tested again alone](#kills-tested-again-alone) | `100` | All |
+| `propertyTests` | A list of globs that pick out property tests, by name or by the file their issue was recorded in, so the reports split the kills between example tests and property tests. See [Example tests and property tests](#example-tests-and-property-tests) | Unset: none are split | All |
+| `propertyTestFilter` | A list of test filters that select the property tests alone, as `swift test --filter` or xcodebuild's `-only-testing:` takes them: once every mutant is tested, each kill whose recorded tests include no property test is tested again with only those tests. Needs `propertyTests` | Unset: none is tested again | SwiftPM and xcodebuild |
+| `reports` | A list of more reports a run saves beside `-f`'s, each `format:path`, as `markdown:summary.md`; a relative path is the project's; never `xcode`. See [Several reports, and the Markdown report](#several-reports-and-the-markdown-report) | Unset: none | All |
+
+Some keys have a flag that takes their place for one run: `--workers N` and `--timeout S`, on `run`
+and `run-without-mutating`, set `mutationTestWorkers` and `mutationTestTimeout`
 ([#73](https://github.com/Joseph-Cursio/SwiftMutator/issues/73)), as `--fail-under P` sets
-`failUnder`, `--report format:path` sets `reports`, and `--build-timeout S`, on those and
-`mutate-without-running`, sets `buildTimeout`.
-`--workers` must be at least 1, and `--timeout` and `--build-timeout` above 0 and at most a day,
-86,400 seconds. The run records and compares them as it does the keys: a resume with a `--timeout` at
-least as long as every session's limit tests only the timeouts again (see
+`failUnder`, `--property-tests G` sets `propertyTests`, `--report format:path` sets `reports`, and
+`--operators` and `--skip-operators` choose the operators (see
+[Choosing the operators](#choosing-the-operators)). `--build-timeout S`, on those and
+`mutate-without-running`, sets `buildTimeout`, and `--exclude`, on `run` and
+`mutate-without-running`, adds an entry to `exclude`. The other keys have no flag (see
+[Commands and flags](#commands-and-flags)). `--workers` must be at least 1, and `--timeout` and
+`--build-timeout` above 0 and at most a day, 86,400 seconds. The run records and compares them as
+it does the keys: a resume with a `--timeout` at least as long as every session's limit tests only
+the timeouts again (see
 [Timeouts are run again](#timeouts-are-run-again)), one that is shorter is refused, and another
 `--workers`, `--fail-under` or `--report` is only said. A run that tests several mutants at
 once says so, and one that uses fewer workers than asked says why:
@@ -1404,14 +1604,40 @@ once says so, and one that uses fewer workers than asked says why:
 ### Choosing the files
 
 Discovery mutates the Swift files the project builds, less those the excludes leave out, and, with
-coverage, those the tests never ran. The default excludes leave out build folders, dependencies,
-package manifests, tests, test doubles and helpers (`/Mocks/`, `/Stubs/`, `/Fakes/`,
-`/TestHelpers/`, `/TestSupport/`, `Mock.swift`, `Spec.swift`) and SwiftPM's `/Snippets/`; the
-[full list](Docs/Muter-README.md#configuration-options) is in Muter's README. An `exclude` entry
-that starts with `!` keeps what the rest of it matches, a default's files included, but not the
-project's own `Package.swift` or a file in `.build`, `.swiftpm` or `muter_tmp`. In YAML such an
-entry must be quoted, as an unquoted `!` starts a tag, and SwiftMutator refuses the empty entry
-that would leave:
+coverage, those the tests never ran.
+
+- **Which files it starts from.** When `executable` is `swift`, the Swift files the tested package
+  compiles, as `swift package describe` lists them: the package `--package-path` in `arguments`
+  names, or else the one in the project's folder, with those of the local packages in the project
+  it depends on. Its test, plugin and snippet targets' files aren't included, nor files that a
+  link to a folder leads outside the project to. For xcodebuild, a wrapper script, or when describe
+  can't list the files, as when `--package-path` names a package outside the project, they are the
+  project's Swift files, less those in hidden folders or hidden themselves and, in a git
+  repository, those git ignores. That leaves out a source a build step generates and git ignores,
+  even if a target compiles it; `--files-to-mutate` can still name it.
+- **What coverage keeps.** With coverage, only the files its data names are kept: those with code in
+  a binary the coverage run built, whether the tests ran that code or not. For `swift test` those
+  are the test bundles; for xcodebuild, every product the run built, so an app that UI tests launch
+  counts. That leaves out an example app in no target the tests build, an executable target no test
+  links, and code that runs only in a process the tests start, such as a package's own executable
+  run with `Process`: `--files-to-mutate` with `--skip-coverage` can still name those.
+- **The default excludes.** A path that contains any of these is left out: `/Package.swift`,
+  `/Package@swift-`, `/Build/`, `/DerivedData/`, `/Carthage/`, `/Pods/`, `/fastlane/`, `/Spec/`,
+  `/Tests/`, `Tests.swift`, `Spec.swift`, `/Mocks/`, `/Stubs/`, `/Fakes/`, `/TestHelpers/`,
+  `/TestSupport/`, `Mock.swift` and `/Snippets/`. Nothing can bring back a file in `/.build/`,
+  `/.swiftpm/` or `/muter_tmp/`, or the project's own `Package.swift` and `Package@swift-*.swift`.
+- **How an entry matches.** Each path is matched as it is in the project, such as
+  `./Sources/App/Model.swift`. An entry without `*` matches a path that contains it. An entry with
+  `*` is a glob over the path from the project's folder, where a leading `/` or `./` makes no
+  difference: `*` and `?` stay within one folder, `**/` stands for any number of folders, none
+  included, and `[…]` or `[!…]` matches one of a set of characters. So `Sources/Generated/*.swift`
+  leaves out that folder's files but not its subfolders', `Sources/**/*Model.swift` every
+  `…Model.swift` in `Sources` and below, and `**/Mocks/*.swift` the files of every `Mocks` folder.
+  Braces (`{a,b}`) and regular expressions aren't supported.
+
+An `exclude` entry that starts with `!` keeps what the rest of it matches, a default's files
+included, but not the files nothing can bring back. In YAML such an entry must be quoted, as an
+unquoted `!` starts a tag, and SwiftMutator refuses the empty entry that would leave:
 
 ```yaml
 exclude:
@@ -1442,8 +1668,12 @@ For one run:
 
 ### Choosing the operators
 
-Every operator runs by default. `swift-mutator operator all` explains them. To use fewer, name them
-in `muter.conf.yml`, or on the command line for one run:
+Every operator runs by default: `RelationalOperatorReplacement`, `RelationalBoundary`,
+`RemoveSideEffects`, `ChangeLogicalConnector`, `SwapTernary`, `NegateConditional`,
+`ChangeArithmeticOperator` and `FlipBooleanLiteral`. `swift-mutator operator all` explains them, as
+does [Docs/mutation_operators.md](Docs/mutation_operators.md). To use fewer, name them in
+`muter.conf.yml`, or on the command line for one run, where `--operators` and `--skip-operators`
+take several names separated by spaces:
 
 ```yaml
 # Only these operators.
@@ -1938,7 +2168,8 @@ swift-mutator run --shard 1/2
     fail on new survivors: the shard jobs don't check them. If none
     was written, as when every shard was empty, skip it: `report` given no file is a usage error,
     with status 64.
-  - A worked GitHub Actions recipe is [#124](https://github.com/Joseph-Cursio/SwiftMutator/issues/124).
+  - [Running in CI](#running-in-ci) has a GitHub Actions workflow, and says how to split it into
+    shards.
 
 ## Testing a sample of the mutants
 
@@ -2654,6 +2885,479 @@ each result by what changed since the session that tested it:
 - **Same machine.** The configuration's `executable` and `arguments` are compared exactly, as for a
   resume, so a results file from another Mac, with other paths, is refused.
 
+## Running in CI
+
+SwiftMutator has no release yet ([#121](https://github.com/Joseph-Cursio/SwiftMutator/issues/121)),
+so a CI job builds it from source, at a commit it pins. The workflow below does that once and keeps
+the binary in the cache. On a pull request it mutates only the Swift files the pull request
+changed, and fails on survivors it adds. On the main branch it mutates the whole project, checks
+the score, and writes a new baseline file for pull requests to compare with. Either way it saves
+its reports and results before it fails the job.
+
+### The workflow
+
+Save it as `.github/workflows/mutation-testing.yml`, with your project's `muter.conf.yml`
+committed. It assumes the package is at the repository's root.
+
+```yaml
+name: Mutation testing
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    paths-ignore: [muter.baseline.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A newer push to a pull request cancels its older run. Runs on main each get a group of their own.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash # bash --noprofile --norc -eo pipefail
+
+env:
+  # A commit of SwiftMutator's main branch. Change it to upgrade.
+  SWIFTMUTATOR_REF: 95ca80be31060f3d6e77a68fd7b910e7d4a0187c
+
+jobs:
+  mutation-testing:
+    runs-on: macos-26
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      security-events: write # for upload-sarif
+      actions: read # for upload-sarif, in a private repository with Code Security
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # --since needs the base branch's history
+
+      - name: Set up
+        run: |
+          echo "$RUNNER_TEMP/swiftmutator-bin" >> "$GITHUB_PATH"
+          # SwiftMutator keeps its logs beside the project: here, beside the checkout.
+          echo "MUTER_LOGS=$(dirname "$PWD")/$(basename "$PWD")_muter_logs" >> "$GITHUB_ENV"
+          echo "OUT=$RUNNER_TEMP/mutation" >> "$GITHUB_ENV"
+
+      - name: Restore SwiftMutator
+        id: swiftmutator
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ runner.temp }}/swiftmutator-bin
+          key: swiftmutator-${{ runner.os }}-${{ runner.arch }}-${{ env.SWIFTMUTATOR_REF }}
+
+      - name: Build SwiftMutator
+        if: steps.swiftmutator.outputs.cache-hit != 'true'
+        timeout-minutes: 20
+        run: |
+          src="$RUNNER_TEMP/swiftmutator-src"
+          git init -q "$src"
+          git -C "$src" fetch -q --depth 1 https://github.com/Joseph-Cursio/SwiftMutator.git "$SWIFTMUTATOR_REF"
+          git -C "$src" checkout -q FETCH_HEAD
+          swift build --package-path "$src" -c release --product swift-mutator
+          mkdir -p "$RUNNER_TEMP/swiftmutator-bin"
+          cp "$src/.build/release/swift-mutator" "$RUNNER_TEMP/swiftmutator-bin/"
+
+      - name: Save SwiftMutator
+        if: github.event_name != 'pull_request' && steps.swiftmutator.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ runner.temp }}/swiftmutator-bin
+          key: ${{ steps.swiftmutator.outputs.cache-primary-key }}
+
+      - name: Run mutation testing
+        id: mutate
+        timeout-minutes: 90
+        run: |
+          args=(--skip-update-check
+            -f html -o "$OUT/report.html"
+            --report "markdown:$OUT/summary.md"
+            --report "sarif:$OUT/mutants.sarif"
+            --max-doubtful-kills 0)
+          # A missing baseline file is refused, so the first runs go without one,
+          # and a run started by hand only writes a new one.
+          compare=false
+          if [ -f muter.baseline.yml ] && [ "$GITHUB_EVENT_NAME" != workflow_dispatch ]; then
+            compare=true
+          fi
+          if $compare; then
+            args+=(--baseline muter.baseline.yml)
+          fi
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            args+=(--since "origin/$GITHUB_BASE_REF")
+          else
+            args+=(--fail-under 80 --write-baseline muter.baseline.yml)
+            if $compare; then
+              args+=(--max-score-drop 2)
+            fi
+          fi
+          swift-mutator run "${args[@]}" && status=0 || status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Collect results
+        id: collect
+        if: always()
+        run: |
+          mkdir -p "$OUT/logs"
+          # A log folder is named for when its run started, as "Nov 8, 2026 at 1:43 PM", and
+          # upload-artifact refuses a path with a colon, so each is copied under a name without one.
+          shopt -s nullglob
+          for dir in "$MUTER_LOGS"/*/; do
+            name=$(basename "$dir")
+            cp -R "$dir" "$OUT/logs/${name//[^A-Za-z0-9._-]/_}"
+          done
+          if [ -f "$OUT/mutants.sarif" ]; then
+            echo "sarif=true" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -f "$OUT/summary.md" ]; then
+            cat "$OUT/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          elif [ -f "$OUT/summary.partial.md" ]; then
+            echo "The run stopped before it finished. What it tested:" >> "$GITHUB_STEP_SUMMARY"
+            cat "$OUT/summary.partial.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "SwiftMutator wrote no report. Its step's log says why." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -n "$(git status --porcelain -- muter.baseline.yml)" ]; then
+            cp muter.baseline.yml "$OUT/"
+            echo "muter.baseline.yml changed. The artifact holds the new one, to commit." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload alerts to code scanning
+        if: always() && steps.collect.outputs.sarif == 'true' && github.ref == 'refs/heads/main'
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ${{ runner.temp }}/mutation/mutants.sarif
+          category: mutation-testing
+
+      - name: Upload reports and results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutation-testing-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/mutation/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Fail on SwiftMutator's exit status
+        if: always()
+        env:
+          STATUS: ${{ steps.mutate.outputs.status }}
+        run: |
+          case "$STATUS" in
+            0) exit 0 ;;
+            "") echo "::error::SwiftMutator didn't run to the end: an earlier step failed, or its step timed out or was cancelled."
+                exit 1 ;;
+            2) echo "::error::A check failed: the score, new survivors, the score drop or doubtful kills. The job summary says which." ;;
+            3) echo "::error::The tests failed with no mutant on, or ran past buildTimeout. Nothing was tested." ;;
+            4) echo "::error::An error stopped mutation testing partway. The results so far are in the artifact." ;;
+            8) echo "::error::SwiftMutator refused muter.baseline.yml. Its step's log lists why." ;;
+            *) echo "::error::SwiftMutator exited with $STATUS. See Exit status in its README." ;;
+          esac
+          exit "$STATUS"
+```
+
+### What the workflow does
+
+- **Building SwiftMutator.** It fetches the one commit `SWIFTMUTATOR_REF` names and builds the
+  release product, as [Install](#install) does. On `main` and on a run started by hand it saves the
+  binary in the cache right after the build, under a key holding that commit, whatever the run's
+  result, so that pull requests and later runs restore it and skip the build. A pull request doesn't
+  save it, as its cache would be visible to that pull request alone. The source and the binary are
+  in the runner's temporary folder, never in the checkout: a whole run copies the project, and
+  `--since` counts new files git doesn't ignore as changed. Pin a full commit SHA; this repository
+  has no tags of its own yet.
+- **`--skip-update-check`.** Each run's first step asks GitHub's API for SwiftMutator's latest
+  release, and says whether there is a newer one. A CI job has nothing to do with the answer, so the
+  flag skips the request. When the request fails, the run goes on anyway.
+- **Where SwiftMutator writes.** The copy it tests in, `<project>_mutated.noindex`, and its log
+  folder, `<project>_muter_logs`, are beside the folder the command runs in, so on GitHub's runners
+  they are beside the checkout, in the folder above `$GITHUB_WORKSPACE`, and nothing is written in
+  the checkout but what you ask for, such as the baseline file. The run's results file and
+  `summary.json` are in a folder of the log folder named for when the run started, such as
+  `Nov 8, 2026 at 1:43 PM/results.jsonl`, and the run prints the path. No flag names that folder,
+  but a GitHub-hosted job starts on a fresh machine, so the log folder holds only this run's.
+  upload-artifact refuses a path with a colon, so the workflow copies each folder under a name
+  without one, such as `Nov_8__2026_at_1_43_PM`. On a self-hosted runner the folders pile up across
+  jobs: set `keepLogFolders` (see [Results file](#results-file)). A run in the runner's checkout
+  started by other means, such as by hand on its machine, while a job is testing exits with 6.
+- **The reports** go to `$RUNNER_TEMP/mutation`, out of the project: the HTML report with `-o`, and
+  the Markdown and SARIF reports with `--report`. A folder on a report's path is made, and a
+  relative path would be the project's (see
+  [Several reports, and the Markdown report](#several-reports-and-the-markdown-report)). A run
+  stopped partway writes `report.partial.html`, `summary.partial.md` and `mutants.partial.sarif`
+  instead (see [Stopping a run](#stopping-a-run)). A pull request that changed no Swift file to
+  mutate writes no report or results file, and passes.
+- **The job summary** gets the Markdown report, or the partial one with a line that says so. Its
+  Checks section gives the verdicts of `--fail-under`, `--baseline`, `--max-score-drop` and
+  `--max-doubtful-kills`.
+- **Code scanning** gets the SARIF report of the whole run on `main` alone. GitHub closes, as
+  fixed, each alert that the latest upload to a branch leaves out, so a pull request's report, of
+  only the files it changed, would close every other survivor's alert (see
+  [The Stryker and SARIF reports](#the-stryker-and-sarif-reports)). Its paths are relative to the
+  root of the git work tree, as code scanning reads them, so a package in a folder of its
+  repository has that folder in its paths. A pull request from a fork has no
+  `security-events: write`, which is one more reason to upload on `main` only. In a private
+  repository code scanning needs GitHub Code Security; without it upload-sarif fails the job, so
+  remove the step and the two permissions it needs (`security-events: write`, `actions: read`).
+- **The artifact** holds the reports, the copied log folders with `results.jsonl`, `summary.json`
+  and the logs the run kept, and the new baseline file when it changed. `swift-mutator report`
+  makes any report from that `results.jsonl` (see [Results file](#results-file)).
+- **The exit status.** The run's step records SwiftMutator's status and passes, so that every
+  step after it runs with the run's results, and the last step fails the job with that status
+  (see [Exit status](#exit-status)):
+
+  | Status | The job | What to do |
+  |---|---|---|
+  | 0 | passes | Nothing: the checks passed, or there was nothing to mutate |
+  | 2 | fails | A check failed: the summary's Checks section says which |
+  | 3 | fails | The tests failed with no mutant on, or ran past `buildTimeout`: nothing was tested |
+  | 4 | fails | An error stopped the run partway, such as 5 build errors in a row: see its log |
+  | 8 | fails | `muter.baseline.yml` was refused: its log lists why |
+  | 130, 143 | fails | The run was stopped, as by a cancelled job |
+  | 64, 255 | fails | A usage error, or another error, such as a configuration that doesn't parse |
+
+  The workflow doesn't use `--resume`, `--reuse` or a test plan, so it never sees 5 or 7, and a
+  fresh runner has no other run to hold the lock, which gives 6.
+- **The checks on a pull request.** `--since origin/<base>` mutates the Swift files that changed
+  since the merge base, after the excludes and the coverage filter (see
+  [Mutating only what a branch changed](#mutating-only-what-a-branch-changed)). `--baseline` fails
+  it on a survivor it adds, and `--max-doubtful-kills 0` on a kill that only a suspect test made or
+  whose code never ran, which points to a flaky test (see
+  [Failing on doubtful kills](#failing-on-doubtful-kills)). It leaves out `--max-score-drop`, which
+  a `--since` run doesn't compare, and `--fail-under`, which would check the score of the changed
+  files alone: a pull request that touches one file with weak tests would fail. A `failUnder` in
+  `muter.conf.yml` still applies there.
+- **The checks on `main`.** The whole run checks `--fail-under 80`, and, once there is a baseline
+  file, the same `--baseline` and `--max-doubtful-kills 0` a pull request does over the whole
+  project, and `--max-score-drop 2`, as a pull request can lower the score without adding a
+  survivor (see [Failing on a score drop](#failing-on-a-score-drop)). A pull request that changes
+  only tests mutates nothing and passes, so a survivor its change makes shows up here. Choose the
+  numbers for your project: flaky tests move a score a point or two between runs and turn a kill
+  into a survivor now and then; add `--max-new-survivors <n>` here to allow for that. These fail
+  after the merge, so they say when to look, not what to block.
+- **The baseline file.** `--write-baseline muter.baseline.yml` replaces the file at the end of each
+  whole run, checks or no checks, and the job summary says when it changed. The job doesn't push:
+  commit the artifact's file, by hand or with a step of your own. Until the first one is committed,
+  pull requests run without `--baseline`, as a missing file would be refused with 8. A pull request
+  that changes what the file's scope records, such as `exclude`, `operators` or `arguments` in
+  `muter.conf.yml`, is refused with 8 too, until a whole run with the new configuration writes a
+  new file: run the workflow on its branch by hand (`workflow_dispatch`), and commit the file from
+  its artifact. A run started by hand compares with no baseline file and only writes a new one, so
+  the old file doesn't refuse it; the same run on `main` replaces the file after an upgrade of
+  `SWIFTMUTATOR_REF` that changes what the scope records. A push that changes only the baseline
+  file doesn't start a run. Give pull requests and `main` the same flags that change the scope,
+  such as `--skip-coverage`, `--operators` and `--exclude` (see
+  [Failing on new survivors](#failing-on-new-survivors)).
+- **The configuration** is the committed `muter.conf.yml`. `init` writes the test command's full
+  path in `executable`, such as `/usr/bin/swift`, which has to exist on the runner too; the
+  baseline file doesn't compare it. To test with another Xcode than the runner's default, set
+  `DEVELOPER_DIR`, as this repository's [ci.yml](.github/workflows/ci.yml) does.
+- **The log.** Standard output isn't a terminal, so the run prints a line as each mutant finishes,
+  with the counts so far and the time left, in place of the progress bar (see
+  [Progress](#progress)). By default a SwiftPM project tests as many mutants at once as half the
+  runner's processors, at most 4, and a run that tests several at once says how many.
+  `--workers` sets another count (see [Workers and release mode](#workers-and-release-mode)).
+- **Sleep.** The run keeps a Mac from sleeping by itself (see
+  [Keeping the Mac awake](#keeping-the-mac-awake)), which a self-hosted Mac may need.
+
+### Long runs in CI
+
+The job allows 120 minutes and the run's step 90 of them, so the steps after it have time to
+save what it tested. A GitHub-hosted job can run for at most 6 hours. A whole run takes as long as
+its mutants do: measure it once with `workflow_dispatch` on `main`, and set the limits from that.
+A pull request's `--since` run is much shorter; `--changed-lines` shortens it again (see
+[Mutating only what a branch changed](#mutating-only-what-a-branch-changed)). Every result is in
+`results.jsonl` as soon as its mutant is tested, so a run stopped by the step's limit keeps what it
+tested, and the artifact has it.
+
+When a whole run is too long for one job:
+
+- **Run it less often**, on a `schedule` instead of on every push to `main`. The baseline file is
+  then as old as the last scheduled run.
+- **Split it** with `--shard k/n`, one job per shard in a matrix, and merge the shards in a job
+  after them (see [Splitting a run across machines](#splitting-a-run-across-machines)). Each
+  shard job runs `swift-mutator run --skip-update-check --shard ${{ matrix.shard }}/4` and uploads
+  its `results.jsonl`, allowing for none, as a shard with no mutant writes none. The merging job
+  checks out the project, downloads them all, and gives them to `swift-mutator report`, with the
+  checks and reports the whole run had: `--fail-under`, `--baseline`, `--max-score-drop`,
+  `--max-doubtful-kills`, `--write-baseline` and `--report`. The shard jobs check none of them.
+  Every shard needs the same SwiftMutator build, which the cache gives them; build it in a job of
+  its own before the matrix, so the shards don't each build it on a cache miss.
+
+### Muter's CI one-liner
+
+Muter's README suggested passing the files the last commit changed to `--files-to-mutate`:
+
+```sh
+swift-mutator --files-to-mutate "$(git diff --name-only HEAD~1 HEAD -- '*.swift' | paste -sd, -)"
+```
+
+Use `--since origin/<base>` instead. The one-liner has these problems in CI:
+
+- **It can mutate the whole project.** `actions/checkout` fetches one commit by default, so
+  `HEAD~1` doesn't exist: git fails, the list is empty, and an empty `--files-to-mutate` is no
+  list, so the run mutates every file. So does a commit that changed no Swift file. `--since`
+  needs `fetch-depth: 0`, fails with 255 on a ref git doesn't know or a history with no merge
+  base, and exits with 0 at once when no Swift file changed.
+- **It sees only the last commit.** On a push of several commits it misses all but the last. A
+  pull request's checkout is a merge commit whose parent is the base branch, so there it sees
+  the whole change, but only with a deeper fetch. `--since` compares the working tree with the
+  merge base, so every commit on the branch counts, and so do uncommitted and new files.
+- **A change to tests alone fails.** When every file in the list is a test file, a manifest or
+  excluded, `--files-to-mutate` stops with an error, 255, as it found no file to mutate. Its
+  removed files are said to name no Swift file. `--since` leaves out removed files, says that the
+  excludes left nothing, and exits with 0.
+- **`--since` does more.** `--changed-lines` narrows it to the changed lines, its results file
+  records the merge base, so a resume checks it, and the reports say which ref the code changed
+  since.
+
+## Commands and flags
+
+`swift-mutator <command> [flags]`. `run` is the default, so `swift-mutator --workers 4` is
+`swift-mutator run --workers 4`. `swift-mutator help <command>`, or `-h` or `--help` after it,
+lists a command's flags, and `--version` prints SwiftMutator's version. A flag the command doesn't
+take, a value it can't read, or two flags that can't go together is a usage error, which exits with
+64 before anything runs; the message names the flag. The rows below say what each flag does in one
+line, and link to the section that explains it.
+
+A flag that names a configuration key, such as `--workers` for `mutationTestWorkers`, takes its
+place for one run, except `--exclude`, which adds to `exclude`, and a resume compares it as it does
+the key (see [Configuration](#configuration)). A relative path is the current folder's. In the
+paths of reports and baseline files, a leading `~` is your home folder even after `=` or in quotes,
+where a shell doesn't expand it.
+
+### run
+
+Mutates the Swift project in the current folder and tests each mutant: in a copy beside it,
+`<project>_mutated.noindex`, with the configuration in `muter.conf.yml`, which `init` writes. It
+prints a report, or saves it with `-o`, and saves every result in a results file as it goes (see
+[Results file](#results-file)). Its exit status says how it ended (see [Exit status](#exit-status)).
+
+| Flag | Meaning | Default |
+|---|---|---|
+| `--files-to-mutate <path>` | Only mutate these files, folders or globs; comma-separated or repeated ([Choosing the files](#choosing-the-files)) | Every file discovery finds |
+| `--exclude <pattern>` | Add an `exclude` entry for this run; `!` in front keeps what it matches. Repeatable ([Choosing the files](#choosing-the-files)) | `exclude` alone |
+| `--operators <name>…` | Only use these operators, space-separated, over both keys ([Choosing the operators](#choosing-the-operators)) | `operators`, else all |
+| `--skip-operators <name>…` | Leave these operators out, in place of `skipOperators` ([Choosing the operators](#choosing-the-operators)) | `skipOperators` |
+| `--since <ref>` | Only mutate the Swift files changed since the merge base of the ref and HEAD ([Mutating only what a branch changed](#mutating-only-what-a-branch-changed)) | Every file |
+| `--changed-lines` | With `--since`, only the lines the change added or changed ([Mutating only what a branch changed](#mutating-only-what-a-branch-changed)) | Off |
+| `--shard <k/n>` | Only test shard k of n, n at most 1000 ([Splitting a run across machines](#splitting-a-run-across-machines)) | `1/1`, the whole run |
+| `--sample <N>` | Only test a sample of about N mutants, 1 or more ([Testing a sample of the mutants](#testing-a-sample-of-the-mutants)) | Every mutant |
+| `--seed <S>` | With `--sample`, the seed that chooses the sample; needed with `--shard` or `--resume` ([Testing a sample of the mutants](#testing-a-sample-of-the-mutants)) | Chosen and printed |
+| `--mutant <mutant>` | Test only this mutant, `path:line[:column] [Operator]`, and print its log and verdict ([Testing one mutant](#testing-one-mutant)) | None |
+| `-c`, `--configuration <path>` | A configuration file whose name ends in `.yml`, or a folder that holds `muter.conf.yml`; any other path is read as a folder; the project is still the current folder ([Configuration](#configuration)) | `muter.conf.yml` in the current folder |
+| `--skip-coverage` | Don't gather coverage, so code no test runs is mutated too ([Choosing the files](#choosing-the-files)) | Coverage on |
+| `--skip-update-check` | Don't ask GitHub for a newer SwiftMutator release before the run ([Install](#install)) | Check on |
+| `--verbose` | List the Swift files found, and how many mutants each file has ([Progress](#progress)) | Off |
+| `--build-timeout <seconds>` | Limit each build and baseline before the first mutant, above 0 and at most 86400 ([Time limits before the first mutant](#time-limits-before-the-first-mutant)) | `buildTimeout`, else none |
+| `--workers <count>` | Test this many mutants at once, at least 1 ([Workers and release mode](#workers-and-release-mode)) | `mutationTestWorkers`, else up to 4 for SwiftPM, 1 for others |
+| `--timeout <seconds>` | Stop a mutant's test run after this long, above 0 and at most 86400 ([Configuration](#configuration)) | `mutationTestTimeout`, else timed from your tests |
+| `-f`, `--format <format>` | The report's format: `plain`, `json`, `html`, `xcode`, `markdown`, `stryker` or `sarif` ([Reports](#reports)) | `plain` |
+| `-o`, `--output <path>` | Save the report to this file instead of printing it ([Reports](#reports)) | Printed |
+| `--report <format:path>` | Also save a report in another format, not `xcode`. Repeatable ([Several reports, and the Markdown report](#several-reports-and-the-markdown-report)) | `reports` |
+| `--fail-under <percent>` | Exit with 2 when the score is below this, from 0 to 100 ([Failing on a low score](#failing-on-a-low-score)) | `failUnder`, else none |
+| `--baseline <path>` | Exit with 2 when more survivors are new against this baseline file than allowed ([Failing on new survivors](#failing-on-new-survivors)) | None |
+| `--max-new-survivors <count>` | With `--baseline`, how many new survivors pass ([Failing on new survivors](#failing-on-new-survivors)) | 0 |
+| `--max-score-drop <points>` | With `--baseline`, exit with 2 when the score falls more than this below the file's ([Failing on a score drop](#failing-on-a-score-drop)) | Not checked |
+| `--max-doubtful-kills <count>` | Exit with 2 when more kills than this are doubtful ([Failing on doubtful kills](#failing-on-doubtful-kills)) | Not checked |
+| `--write-baseline <path>` | Save the survivors of a whole run as a baseline file ([Failing on new survivors](#failing-on-new-survivors)) | None |
+| `--property-tests <glob>` | Split the kills between example tests and the property tests this matches. Repeatable ([Example tests and property tests](#example-tests-and-property-tests)) | `propertyTests` |
+| `--resume <results>` | Continue a stopped run from its results file or log folder ([Resuming a run](#resuming-a-run)) | None |
+| `--resume-ignoring <glob>` | With `--resume`, let changes to the files this matches through. Repeatable ([When a resume is refused](#when-a-resume-is-refused)) | None |
+| `--force-resume` | With `--resume`, let a changed SwiftMutator, toolchain or SDK through ([When a resume is refused](#when-a-resume-is-refused)) | Off |
+| `--reuse <results>` | Start a new run from an earlier run's results, testing only what may have changed ([Reusing an earlier run](#reusing-an-earlier-run)) | None |
+| `--reuse-ignoring <glob>` | With `--reuse`, let changes to the files this matches through, never test files. Repeatable ([Reusing an earlier run](#reusing-an-earlier-run)) | None |
+| `--force-reuse` | With `--reuse`, let a changed SwiftMutator, toolchain or SDK through ([Reusing an earlier run](#reusing-an-earlier-run)) | Off |
+
+Some flags can't go together, and each refusal is a usage error:
+
+- `--since` with `--files-to-mutate`, `--resume` with `--reuse`.
+- `--mutant` with any other flag that chooses mutants or continues a run: `--operators`,
+  `--skip-operators`, `--files-to-mutate`, `--exclude`, `--since`, `--shard`, `--sample`, `--resume`
+  or `--reuse`.
+- `--write-baseline` with a flag that tests only part of the project: `--mutant`, `--shard`,
+  `--sample`, `--since` or `--files-to-mutate`.
+- `--changed-lines` without `--since`, `--seed` without `--sample`, `--max-new-survivors` and
+  `--max-score-drop` without `--baseline`, and `--resume-ignoring`, `--force-resume`,
+  `--reuse-ignoring` and `--force-reuse` without their `--resume` or `--reuse`.
+- Two reports at one path, among `-o`, `--report` and `--write-baseline`, or a report where
+  another's partial report goes when a run stops.
+
+### mutate-without-running
+
+Makes the copy and writes a test plan, `muter-mappings.json`, without testing anything (see
+[Test plans](#test-plans)). It takes `run`'s `--files-to-mutate`, `--exclude`, `--operators`,
+`--skip-operators`, `-c`, `--skip-coverage`, `--skip-update-check`, `--verbose` and
+`--build-timeout`, and no other flag.
+
+### run-without-mutating
+
+Tests the test plan that `mutate-without-running` wrote, in the copy as it is now (see
+[Test plans](#test-plans)). Run it from the project's folder. It takes `run`'s `--mutant`, `-c`,
+`--skip-coverage`, `--skip-update-check`, `--verbose`, `--build-timeout`, `--workers`, `--timeout`,
+every report and check flag from `-f` to `--property-tests`, and `--resume`, `--resume-ignoring`
+and `--force-resume`, with the same limits. `--mutant` can't be given with `--resume` or
+`--write-baseline`.
+
+| Flag | Meaning | Default |
+|---|---|---|
+| `<plan>` | The test plan, such as `muter-mappings.json`. Without it, the command exits with 1 | Required |
+| `--plan-ignoring <glob>` | Test the plan although files it mutates that match this changed since it was made. Repeatable ([Test plans](#test-plans)) | None |
+
+### report
+
+Makes a report of a run from its results file, in any format, without running anything, and
+merges the results files of a run's shards into one report (see [Results file](#results-file)). It
+takes `run`'s report and check flags, from `-f` to `--property-tests`, which mean the same, but
+never reads the configuration's `reports` or `failUnder` the run recorded. It exits with 2 when a
+check fails, as a run does, and with the status of a run that stopped on an error.
+
+| Flag | Meaning | Default |
+|---|---|---|
+| `<results>…` | A results file, or a log folder of the run; one for each shard to merge them ([Results file](#results-file)) | Required |
+| `--force-merge` | Merge shards although their SwiftMutator build, toolchain or SDK differ ([Splitting a run across machines](#splitting-a-run-across-machines)) | Off |
+| `--merge-ignoring <glob>` | Merge shards although project files this matches differ between them. Repeatable ([Splitting a run across machines](#splitting-a-run-across-machines)) | None |
+| `--summary <path>` | Also save the run's `summary.json` at this path ([summary.json](#summaryjson)) | None |
+| `--triage <path>` | Show the labels in this triage file ([Triaging survivors](#triaging-survivors)) | `muter.triage.yml` in the run's project, else the current folder |
+
+### triage
+
+Labels a mutant that survived, timed out or no test reached, in `muter.triage.yml`, which the
+reports show; it changes no score (see [Triaging survivors](#triaging-survivors)). Labelling needs
+`--label` and `--results`; `--remove` takes only `--results` and `--file`.
+
+| Flag | Meaning | Default |
+|---|---|---|
+| `<mutant>` | The mutant, `path:line[:column] [Operator]`, as the reports name it ([Triaging survivors](#triaging-survivors)) | Required |
+| `--results <results>` | The results file, or a log folder, of the run the mutant survived in ([Triaging survivors](#triaging-survivors)) | None |
+| `--label <label>` | `missing-test`, `equivalent`, `out-of-scope` or `tool-limitation` ([Triaging survivors](#triaging-survivors)) | None |
+| `--note <text>` | Why, kept with the label ([Triaging survivors](#triaging-survivors)) | None |
+| `--remove` | Remove the mutant's label instead ([Triaging survivors](#triaging-survivors)) | Off |
+| `--file <path>` | The triage file to write ([Triaging survivors](#triaging-survivors)) | `muter.triage.yml` in the run's project, else the current folder |
+
+### operator
+
+`swift-mutator operator <name>` explains one operator with an example, and
+`swift-mutator operator all` every one (see [Choosing the operators](#choosing-the-operators) and
+[mutation_operators.md](Docs/mutation_operators.md)). A name that isn't an operator exits with 1
+and lists them.
+
+### init
+
+`swift-mutator init` writes `muter.conf.yml` in the current folder, with the executable and
+arguments for the Xcode workspace or project, or the Swift package, it finds there. It replaces a
+`muter.conf.yml` that is already there (see [Setting up](#setting-up) and
+[Configuration](#configuration)). It takes no flags.
+
 ## Development
 
 `make test` runs the unit tests (the `muterTests` target). CI runs them on every pull request
@@ -2661,6 +3365,12 @@ and every push to `main`, on two Xcode versions (see [ci.yml](.github/workflows/
 [CONTRIBUTING.md](CONTRIBUTING.md) covers the toolchain you need, the acceptance and regression
 tests, which CI doesn't run, and pull requests. [Docs/Architecture.md](Docs/Architecture.md) says
 how the code is laid out: the steps of a run, how a mutant is switched on, and the results file.
+
+To run SwiftMutator from Xcode, open `Package.swift` (`make project`), edit the `swift-mutator`
+scheme, and under Run set a custom working directory, the project to test, in Options, and the
+command and its flags in Arguments Passed on Launch. SwiftMutator tests itself: `make
+mutation-test` runs the installed `swift-mutator` on this repository, with the `muter.conf.yml` at
+its root.
 
 ## License
 
