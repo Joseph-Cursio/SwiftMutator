@@ -350,13 +350,26 @@ final class ReportCommandTests: MuterTestCase {
 
     func test_whenTheReportCannotBeSaved_itFails() async throws {
         try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
-        let output = "\(directory)/missing/report.txt"
+        // A file where its folder would be, which no folder can be made in place of.
+        XCTAssertTrue(FileManager.default.createFile(atPath: "\(directory)/notAFolder", contents: nil))
+        let output = "\(directory)/notAFolder/report.txt"
 
         await assertRefused(
             try await report(resultsPath, "-o", output),
             MuterError.literal(reason: "SwiftMutator could not save the report to \(output)"),
             saying: "Error: SwiftMutator could not save the report to \(output)"
         )
+    }
+
+    // CI jobs name a report in a folder they haven't made, such as out/report.txt.
+    func test_aReportsMissingFolders_areMade() async throws {
+        try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
+        let output = "\(directory)/out/reports/report.txt"
+
+        try await report(resultsPath, "-o", output, "--summary", "\(directory)/out/summaries/summary.json")
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: output))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: "\(directory)/out/summaries/summary.json"))
     }
 
     // Saving a report replaces whatever is at its path, so a report saved over its own results file would destroy it.

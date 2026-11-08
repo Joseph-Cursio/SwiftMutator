@@ -41,8 +41,19 @@ final class ReportWriterTests: XCTestCase {
         )
     }
 
+    // A CI job names out/report.sarif without making out: without the folder, a run would pass with no report.
+    func test_makesTheFoldersOnTheWayToTheReport() throws {
+        let path = "\(directory)/out/reports/report.txt"
+
+        XCTAssertTrue(ReportWriter.save("the report", to: path, using: FileManager.default))
+
+        XCTAssertEqual(try String(contentsOfFile: path, encoding: .utf8), "the report")
+    }
+
+    // No folder can be made where a file is.
     func test_saysWhenItCannotSave() {
-        let path = "\(directory)/missing/report.txt"
+        XCTAssertTrue(FileManager.default.createFile(atPath: "\(directory)/notAFolder", contents: nil))
+        let path = "\(directory)/notAFolder/report.txt"
 
         XCTAssertFalse(ReportWriter.save("the report", to: path, using: FileManager.default))
 

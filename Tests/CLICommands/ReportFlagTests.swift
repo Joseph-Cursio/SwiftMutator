@@ -37,6 +37,21 @@ final class ReportFlagTests: XCTestCase {
         )
     }
 
+    // A shell leaves `~` alone after `--output=` and in quotes; a report's missing folders are made, so a literal `~`
+    // would become a folder of that name in the project.
+    func test_aLeadingTilde_inOutputAndSummary_isTheHomeFolder() throws {
+        let home = NSHomeDirectory()
+        let run = try XCTUnwrap(MuterCommand.parseAsRoot(["run", "--output=~/out/report.txt"]) as? Run)
+        XCTAssertEqual(run.runOptions.reportOptions.path, home + "/out/report.txt")
+        let report = try XCTUnwrap(
+            MuterCommand.parseAsRoot(["report", "r.jsonl", "-o", "~/r.txt", "--summary", "~/s.json"]) as? Report
+        )
+        XCTAssertEqual(report.reportOptions.reportURL?.path, home + "/r.txt")
+        XCTAssertEqual(report.summary?.path, home + "/s.json")
+        let inAFolder = try XCTUnwrap(MuterCommand.parseAsRoot(["run", "-o", "out/~/report.txt"]) as? Run)
+        XCTAssertTrue(try XCTUnwrap(inAFolder.runOptions.reportOptions.path).hasSuffix("out/~/report.txt"))
+    }
+
     func test_aValueThatIsntARequest_isAUsageError() {
         let refused = [
             ("summary.md", "name the format and then the path, as format:path, such as markdown:summary.md."),
