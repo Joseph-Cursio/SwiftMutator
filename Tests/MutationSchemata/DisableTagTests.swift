@@ -180,7 +180,7 @@ final class DisableTagTests: MuterTestCase {
     }
 
     func test_aMentionOfATagInABlockComment_doesNothing() throws {
-        let code = "func f() {\n    /* muter:disable */\n    g(true)\n}"
+        let code = "func f() {\n    /* uses muter:disable */\n    g(true)\n}"
         XCTAssertEqual(try changes(in: code, by: .flipBooleanLiteral), ["3 changed true to false"])
     }
 }

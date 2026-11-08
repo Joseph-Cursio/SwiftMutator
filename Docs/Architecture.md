@@ -80,7 +80,8 @@ are in `MutationTestHandler.swift`.
 `ChangeLogicalConnector`, `SwapTernary`, `NegateConditional`, `ChangeArithmeticOperator` and
 `FlipBooleanLiteral`. Each is a SwiftSyntax visitor, built on
 [`Visitors/MuterVisitor.swift`](../Sources/muterCore/Visitors/MuterVisitor.swift), which also
-skips code between `// muter:disable` and `// muter:enable`. Each mutant becomes a
+skips the code the `muter:` directives leave out
+([`Visitors/MuterDirectives.swift`](../Sources/muterCore/Visitors/MuterDirectives.swift)). Each mutant becomes a
 `MutationSchema`: its operator, its position, its ID and the code it puts in place, grouped by file
 and code block in a `SchemataMutationMapping`
 ([`MutationSchemata`](../Sources/muterCore/MutationSchemata)). [mutation_operators.md](mutation_operators.md)

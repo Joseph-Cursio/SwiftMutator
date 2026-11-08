@@ -27,17 +27,10 @@ extension MutationSourceCodePreparationChange: Nullable {
     }
 }
 
-private struct TagEffect {
-    let position: AbsolutePosition
-    let disables: Bool
-}
-
 class MuterVisitor: SyntaxAnyVisitor {
-    private let muterDisableTag = "muter:disable"
-    private let muterEnabledTag = "muter:enable"
     private(set) var isDisabled = false
-    /// Each tag comment's effect, by where it starts. Worked out once, from the whole file.
-    private var tagEffects: [TagEffect]?
+    /// What the file's `muter:` comments leave out. Worked out once, from the whole file.
+    private var directives: MuterDirectives?
 
     let configuration: MuterConfiguration?
     let sourceCodeInfo: SourceCodeInfo
@@ -117,49 +110,16 @@ class MuterVisitor: SyntaxAnyVisitor {
 
     /// Asks where `node` is, not which nodes came before it, as nodes that share a comment would each act on it.
     func checkNodeForDisableTag(_ node: SyntaxProtocol) {
-        let effects = tagEffects ?? makeTagEffects(in: node.root)
-        tagEffects = effects
-        let position = node.positionAfterSkippingLeadingTrivia
-        isDisabled = effects.last { $0.position <= position }?.disables ?? false
+        isDisabled = directives(in: node.root).isSwitchedOff(at: node.positionAfterSkippingLeadingTrivia)
     }
 
-    /// A comment on a line of its own takes effect from there. One beside code leaves that code off: a `disable` covers
-    /// the statement or element it ends, and an `enable` starts after it.
-    private func makeTagEffects(in root: Syntax) -> [TagEffect] {
-        var effects: [TagEffect] = []
-        for token in root.tokens(viewMode: .sourceAccurate) {
-            if let disables = lastTag(in: token.leadingTrivia) {
-                effects.append(TagEffect(position: token.position, disables: disables))
-            }
-            if let disables = lastTag(in: token.trailingTrivia) {
-                let position = disables
-                    ? outermostNode(endingWith: token).positionAfterSkippingLeadingTrivia
-                    : token.endPositionBeforeTrailingTrivia
-                effects.append(TagEffect(position: position, disables: disables))
-            }
+    private func directives(in root: Syntax) -> MuterDirectives {
+        if let directives {
+            return directives
         }
-        return effects.sorted { $0.position < $1.position }
-    }
-
-    /// Whether the last tag in `trivia` is a `disable`; nil if it holds none.
-    private func lastTag(in trivia: Trivia) -> Bool? {
-        for case let .lineComment(comment) in trivia.reversed() {
-            if comment.contains(muterDisableTag) { return true }
-            if comment.contains(muterEnabledTag) { return false }
-        }
-        return nil
-    }
-
-    /// Stops short of a list of statements or members, whose last one `token` may end, but which holds others too.
-    private func outermostNode(endingWith token: TokenSyntax) -> Syntax {
-        var node = Syntax(token)
-        while let parent = node.parent,
-              !parent.is(CodeBlockItemListSyntax.self),
-              !parent.is(MemberBlockItemListSyntax.self),
-              parent.lastToken(viewMode: .sourceAccurate)?.id == token.id {
-            node = parent
-        }
-        return node
+        let made = MuterDirectives(in: root, converter: locationConverter)
+        directives = made
+        return made
     }
 
     /// Whether the tests ran `node`, by the innermost region that holds all of it.
@@ -295,7 +255,13 @@ class MuterVisitor: SyntaxAnyVisitor {
         changing changed: SyntaxProtocol? = nil,
         spanning span: SyntaxProtocol? = nil
     ) {
-        guard !isDisabled else {
+        // By where the code it changes starts, as the inactive region and coverage checks below are, and by where the
+        // mutant is reported, which for a ternary's first link is where its list ends.
+        let directives = directives(in: syntax.root)
+        guard !isDisabled,
+              !directives.isLeftOut((changed ?? syntax).positionAfterSkippingLeadingTrivia),
+              !directives.isLeftOut(AbsolutePosition(utf8Offset: position.utf8Offset))
+        else {
             return
         }
 
