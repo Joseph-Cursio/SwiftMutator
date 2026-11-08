@@ -32,7 +32,8 @@ struct OnlyUncoveredMutants: Error, Equatable, CustomStringConvertible {
         let mutants = uncovered == 1 ? "1 mutant" : "\(uncovered) mutants"
         let opening = "ℹ️ No mutant is left to test in \(code) but it holds \(mutants) of code no test ran, compared "
             + "with the baseline file \(check.baseline)."
-        let lines = check.consoleLines + (scoreDrop?.consoleLines ?? []) + (doubtfulKills?.consoleLines ?? [])
+        let others: [[String]?] = [scoreDrop?.consoleLines, doubtfulKills?.consoleLines]
+        let lines: [String] = check.consoleLines + others.compactMap { $0 }.flatMap { $0 }
         return ([opening] + lines).joined(separator: "\n")
     }
 }
