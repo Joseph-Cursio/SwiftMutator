@@ -26,4 +26,16 @@ final class LoggerFilesToMutateTests: MuterTestCase {
                 + "below \("coverageThreshold".bold), which by default are those whose code no test ran.",
         ])
     }
+
+    func test_timedTestRunStopped_saysTheLimit_andWhereItsLogIs() {
+        sut.timedTestRunStopped(seconds: 60, log: "/logs/timed test run.log")
+        sut.timedTestRunStopped(seconds: 90.5, log: nil)
+
+        XCTAssertEqual(printer.linesPassed, [
+            "⚠️ The timed test run, with no mutant on, didn't end within 60 s, so SwiftMutator stopped it, and takes "
+                + "each mutant's time limit from the baseline instead. Its log is in /logs/timed test run.log.",
+            "⚠️ The timed test run, with no mutant on, didn't end within 90.5 s, so SwiftMutator stopped it, and takes "
+                + "each mutant's time limit from the baseline instead.",
+        ])
+    }
 }

@@ -7,6 +7,8 @@ extension PerformMutationTesting {
     /// (`CompileRecovery`): its outcome and log, the seconds it took, and those mutants, with any `BuildForTesting`
     /// took out. Only the last run is timed: it is what a mutant's run costs, with failed builds' costs behind it.
     /// xcodebuild's build came first, in `BuildForTesting`: a rewrite here would leave the tests it copied out of date.
+    /// A run stopped at `buildTimeout` stops mutation testing: its log, cut short, says nothing about which mutants
+    /// don't compile.
     func baselineLeavingOutMutants(
         state: AnyMutationTestState
     ) async throws -> (
@@ -16,7 +18,7 @@ extension PerformMutationTesting {
         leftOut: [String: LeftOutMutant]
     ) {
         var recovery = state.muterConfiguration.buildSystem == .xcodebuild ? nil : CompileRecovery(of: state)
-        var started = Date()
+        var started = now()
         var (outcome, testLog) = try await baseline(state: state)
         while outcome != .passed, var trying = recovery {
             let buildLog = MutationTestLog.failedBuildFileName(trying.failedBuilds + 1)
@@ -28,33 +30,30 @@ extension PerformMutationTesting {
             recovery = trying
             fileManager.keepLog(testLog, named: buildLog, state: state)
             events.send(.buildingAgainWithoutMutants(count: count))
-            started = Date()
+            started = now()
             (outcome, testLog) = try await baseline(state: state)
         }
         if outcome != .passed, recovery?.stopsAtTheMostBuilds == true {
             events.send(.stoppedTakingOutMutants(afterBuilds: CompileRecovery.maximumBuilds))
         }
-        let seconds = DateInterval(start: started, end: Date()).duration
+        let seconds = max(now().timeIntervalSince(started), 0)
         return (outcome, testLog, seconds, state.mutantsLeftOut.merging(recovery?.leftOut ?? [:]) { first, _ in first })
     }
 
     /// The baseline run's outcome and log, which is kept, whatever it comes to. A baseline the simulator failed to
     /// launch says nothing about the tests either, so it runs once more, as a mutant's run does
     /// (`SimulatorTrouble.launch`), and the first run's log is kept and sent, whatever the second comes to. The caller
-    /// times both runs: the first paid for the build. A stop throws, and leaves the output where it ran.
+    /// times both runs: the first paid for the build. A stop throws, and leaves the output where it ran. So does a run
+    /// stopped at `buildTimeout`, once its log is kept: it stops mutation testing.
     private func baseline(state: AnyMutationTestState) async throws -> (outcome: TestSuiteOutcome, testLog: String) {
         let output = testOutput(named: "baseline run", state: state)
         let (baseline, launchFailure) = await TestRun.launchedOnceMore(ifNeededWith: state.muterConfiguration) {
-            let (outcome, testLog) = await ioDelegate.benchmarkTests(
-                using: state.muterConfiguration,
-                savingResultsIntoFileNamed: output
-            )
-            return TestRun(outcome: outcome, testLog: testLog)
+            await ioDelegate.benchmarkTests(using: state.muterConfiguration, savingResultsIntoFileNamed: output)
         }
         // Stopping the run kills the baseline run, which then fails, but that says nothing about the project's tests.
         try Task.checkCancellation()
         // Now, so that a stop before the mutants' runs, or a failed baseline's abort, still has it.
-        fileManager.keepLog(
+        let logPath = fileManager.keepLog(
             baseline.testLog, writtenTo: output, by: ioDelegate, named: MutationTestLog.baselineFileName, state: state
         )
         if let launchFailure {
@@ -68,6 +67,11 @@ extension PerformMutationTesting {
                 keptFileName: keptFileName
             )
             events.send(.baselineRepeatedAfterLaunchFailure(line: launchFailure.line, log: log))
+        }
+        if baseline.ending == .timedOut, let seconds = state.muterConfiguration.buildTimeout {
+            throw MuterError.mutationTestingAborted(reason: .buildTimeoutReached(
+                step: .baseline, seconds: seconds, output: baseline.testLog, log: logPath
+            ))
         }
         return (baseline.outcome, baseline.testLog)
     }

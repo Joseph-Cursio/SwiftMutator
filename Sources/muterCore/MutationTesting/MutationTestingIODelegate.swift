@@ -29,15 +29,13 @@ protocol MutationTestingIODelegate: Sendable {
         workingDirectory: URL
     ) async -> TestRun
 
-    /// A baseline: the whole test command, build included, with no mutant switched on and no time limit. `fileName` is
-    /// as in `runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)`.
+    /// A baseline: the whole test command, build included, with no mutant switched on, stopped once it has run for
+    /// `buildTimeout` seconds, if that is set, which its ending then says. `fileName` is as in
+    /// `runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)`.
     func benchmarkTests(
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String
-    ) async -> (
-        outcome: TestSuiteOutcome,
-        testLog: String
-    )
+    ) async -> TestRun
 
     /// `benchmarkTests(using:savingResultsIntoFileNamed:)` with the test command, build included, run
     /// in `workingDirectory`, a parallel worker's clone of the mutated project. A relative `fileName` is still taken
@@ -46,22 +44,18 @@ protocol MutationTestingIODelegate: Sendable {
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String,
         workingDirectory: URL
-    ) async -> (
-        outcome: TestSuiteOutcome,
-        testLog: String
-    )
+    ) async -> TestRun
 
     /// A mutant's test command, which skips the build, with no mutant switched on, once the baseline has built the
-    /// project: what a mutant's run costs. Like the baseline, it has no time limit and runs to its end. An xcodebuild
-    /// worker's configuration runs it on that worker, from its `.xctestrun`, so it also checks the worker. `fileName`
-    /// is as in `runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)`.
+    /// project: what a mutant's run costs. Never stopped at its first failed test, and stopped only once it has run for
+    /// `timeLimit` seconds, if that isn't nil, which its ending then says. An xcodebuild worker's configuration runs it
+    /// on that worker, from its `.xctestrun`, so it also checks the worker. `fileName` is as in
+    /// `runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)`.
     func runTestsWithoutBuilding(
         using configuration: MuterConfiguration,
+        timeLimit: TimeInterval?,
         savingResultsIntoFileNamed fileName: String
-    ) async -> (
-        outcome: TestSuiteOutcome,
-        testLog: String
-    )
+    ) async -> TestRun
 
     /// A control run: a mutant's test command, which skips the build, with no mutant switched on, under the mutants'
     /// time limit and never stopped at its first failed test, so its log shows every test that failed. Run among the
@@ -160,52 +154,44 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
     func benchmarkTests(
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String
-    ) async -> (
-        outcome: TestSuiteOutcome,
-        testLog: String
-    ) {
-        let run = await runTestSuite(
+    ) async -> TestRun {
+        await runTestSuite(
             withSchemata: .null,
             using: configuration,
             savingResultsIntoFileNamed: fileName,
-            isBenchmark: true
+            isBenchmark: true,
+            timeLimit: configuration.buildTimeout
         )
-        return (run.outcome, run.testLog)
     }
 
     func benchmarkTests(
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String,
         workingDirectory: URL
-    ) async -> (
-        outcome: TestSuiteOutcome,
-        testLog: String
-    ) {
-        let run = await runTestSuite(
+    ) async -> TestRun {
+        await runTestSuite(
             withSchemata: .null,
             using: configuration,
             savingResultsIntoFileNamed: fileName,
             isBenchmark: true,
+            timeLimit: configuration.buildTimeout,
             workingDirectory: workingDirectory
         )
-        return (run.outcome, run.testLog)
     }
 
     func runTestsWithoutBuilding(
         using configuration: MuterConfiguration,
+        timeLimit: TimeInterval?,
         savingResultsIntoFileNamed fileName: String
-    ) async -> (
-        outcome: TestSuiteOutcome,
-        testLog: String
-    ) {
-        let run = await runTestSuite(
+    ) async -> TestRun {
+        await runTestSuite(
             withSchemata: .null,
             using: configuration,
             savingResultsIntoFileNamed: fileName,
             isBenchmark: true,
+            timeLimit: timeLimit,
             skippingBuild: true
         )
-        return (run.outcome, run.testLog)
     }
 
     func runControlTests(
@@ -218,6 +204,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             using: configuration,
             savingResultsIntoFileNamed: fileName,
             isBenchmark: false,
+            timeLimit: configuration.testSuiteTimeout,
             skippingBuild: true,
             workingDirectory: workingDirectory
         )
@@ -232,7 +219,8 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             withSchemata: schemata,
             using: configuration,
             savingResultsIntoFileNamed: fileName,
-            isBenchmark: false
+            isBenchmark: false,
+            timeLimit: configuration.testSuiteTimeout
         )
     }
 
@@ -247,6 +235,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             using: configuration,
             savingResultsIntoFileNamed: fileName,
             isBenchmark: false,
+            timeLimit: configuration.testSuiteTimeout,
             workingDirectory: workingDirectory
         )
     }
@@ -256,6 +245,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         using configuration: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String,
         isBenchmark: Bool,
+        timeLimit: TimeInterval?,
         skippingBuild: Bool? = nil,
         workingDirectory: URL? = nil
     ) async -> TestRun {
@@ -271,15 +261,14 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
                 skippingBuild: skippingBuild
             )
 
-            let timeout = isBenchmark ? nil : configuration.testSuiteTimeout
             // Never a baseline, the mutated project's or a worker's: whether it passes decides whether mutation
-            // testing can start, so it always runs to its end. A run with no mutant switched on is one too.
+            // testing can start, so it runs to its end, or its time limit. A run with no mutant switched on is one too.
             let stopsAtFirstFailure = !isBenchmark && schemata != .null && configuration.stopsAtFirstFailure
                 && !configuration.runsGoToTheirEnd
             var run = try await runTestProcess(
                 process,
                 logFileUrl: testLogUrl,
-                withTimeout: timeout,
+                withTimeout: timeLimit,
                 stoppingAtFirstFailure: stopsAtFirstFailure,
                 failedTestLinesAreReliable: configuration.failedTestLinesAreReliable
             )

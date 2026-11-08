@@ -197,6 +197,29 @@ final class RunCommandTests: XCTestCase {
         XCTAssertTrue(help.contains("\n  --timeout <seconds>"), help)
     }
 
+    // On each command that builds: `mutate-without-running`'s coverage run builds too.
+    func test_buildTimeout_reachesTheRunOptions_ofEachCommandThatBuilds() throws {
+        let run = try XCTUnwrap(MuterCommand.parseAsRoot(["run", "--build-timeout", "1800"]) as? Run)
+        XCTAssertEqual(run.runOptions.buildTimeout, 1_800)
+        let plan = try MuterCommand.parseAsRoot(["run-without-mutating", "--build-timeout", "900", "plan.json"])
+        XCTAssertEqual(try XCTUnwrap(plan as? RunWithoutMutating).runOptions.buildTimeout, 900)
+        let making = try MuterCommand.parseAsRoot(["mutate-without-running", "--build-timeout", "60.5"])
+        XCTAssertEqual(try XCTUnwrap(making as? MutateWithoutRunning).runOptions.buildTimeout, 60.5)
+        XCTAssertNil(try XCTUnwrap(MuterCommand.parseAsRoot(["run"]) as? Run).runOptions.buildTimeout)
+        XCTAssertNotEqual(Run.Options.make(buildTimeout: 30), .make())
+        let help = Run.helpMessage(columns: 200)
+        XCTAssertTrue(help.contains("\n  --build-timeout <seconds>"), help)
+    }
+
+    func test_aBuildTimeoutNotAboveZero_orPastADay_isAUsageError() {
+        let message = "--build-timeout must be a number of seconds above 0, and at most a day (86400)."
+        for value in ["0", "-5", "inf", "nan", "86401"] {
+            assertUsageError(["run", "--build-timeout=\(value)"], message)
+        }
+        assertUsageError(["mutate-without-running", "--build-timeout", "0"], message)
+        XCTAssertNoThrow(try MuterCommand.parseAsRoot(["run", "--build-timeout", "86400"]))
+    }
+
     func test_workersBelowOne_andATimeoutNotAboveZero_areUsageErrors() {
         assertUsageError(["run", "--workers", "0"], "--workers must be at least 1.")
         assertUsageError(["run", "--workers=-2"], "--workers must be at least 1.")
@@ -662,7 +685,8 @@ final class RunCommandTests: XCTestCase {
         MutationTestingAbortReason.Kind.allCases.map { kind in
             let reason = sampleAbortReason(of: kind)
             let status: ExitCode = switch kind {
-            case .baselineTestFailed, .workerBaselineTestFailed: .baselineFailed
+            case .baselineTestFailed, .workerBaselineTestFailed, .buildForTestingFailed, .buildTimeoutReached:
+                .baselineFailed
             case .tooManyBuildErrors, .mutantNotSwitchedOn, .controlRunNotSwitchedOff, .simulatorUnavailable,
                  .noMutantCodeShownRunning, .unknownError: .abortedMidRun
             }
@@ -675,6 +699,8 @@ final class RunCommandTests: XCTestCase {
         switch kind {
         case .baselineTestFailed: .baselineTestFailed(log: "", mutatedFilePaths: [])
         case .workerBaselineTestFailed: .workerBaselineTestFailed(worker: 2, directory: "/x_worker2", log: "")
+        case .buildForTestingFailed: .buildForTestingFailed(description: "xcodebuild failed", log: nil)
+        case .buildTimeoutReached: .buildTimeoutReached(step: .baseline, seconds: 600, output: "", log: nil)
         case .tooManyBuildErrors: .tooManyBuildErrors
         case .noMutantCodeShownRunning: .noMutantCodeShownRunning(runs: 5)
         case .mutantNotSwitchedOn: .mutantNotSwitchedOn(id: "Foo_1", description: "no space left")

@@ -32,6 +32,7 @@ extension RunEvent {
         case workersChosen
         case stopAtFirstFailureTurnedOff
         case testBundlesNotRunDirectly
+        case timedTestRunStopped
         case workersShareUserDefaults
         case testBundlesWroteInTheProject
         case buildingAgainWithoutMutants
@@ -100,6 +101,7 @@ extension RunEvent {
         case .workersChosen: .workersChosen
         case .stopAtFirstFailureTurnedOff: .stopAtFirstFailureTurnedOff
         case .testBundlesNotRunDirectly: .testBundlesNotRunDirectly
+        case .timedTestRunStopped: .timedTestRunStopped
         case .workersShareUserDefaults: .workersShareUserDefaults
         case .testBundlesWroteInTheProject: .testBundlesWroteInTheProject
         case .buildingAgainWithoutMutants: .buildingAgainWithoutMutants
@@ -170,6 +172,7 @@ extension RunEvent {
         case let .stillTesting(still): still
         case let .stopAtFirstFailureTurnedOff(reason): reason
         case let .testBundlesNotRunDirectly(reason): reason
+        case let .timedTestRunStopped(seconds, log): (seconds, log)
         case let .controlRunFinished(control): control
         case let .activationNotShown(runs): runs
         case let .unprovenRunsRerunStarted(count): count

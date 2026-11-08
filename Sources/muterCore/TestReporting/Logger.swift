@@ -532,6 +532,14 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         print("ℹ️ Each mutant's tests run through `swift test`, which takes about a second longer per mutant: \(reason)")
     }
 
+    func timedTestRunStopped(seconds: TimeInterval, log: String?) {
+        let kept = log.map { " Its log is in \($0)." } ?? ""
+        print(
+            "⚠️ The timed test run, with no mutant on, didn't end within \(String(format: "%g", seconds)) s, so "
+                + "SwiftMutator stopped it, and takes each mutant's time limit from the baseline instead.\(kept)"
+        )
+    }
+
     func buildingAgainWithoutMutants(count: Int) {
         let mutants = count == 1 ? "1 mutant is, so SwiftMutator is building again without it"
             : "\(count) mutants are, so SwiftMutator is building again without them"

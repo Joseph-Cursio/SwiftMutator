@@ -4,10 +4,7 @@ import Foundation
 extension BuildSystemCoverage {
     /// What a command printed: its standard output, then its standard error from a new line.
     static func log(of result: CommandResult) -> String {
-        guard !result.output.isEmpty, !result.output.hasSuffix("\n"), !result.errors.isEmpty else {
-            return result.output + result.errors
-        }
-        return result.output + "\n" + result.errors
+        result.printed
     }
 
     static func firstLine(of text: String) -> String {

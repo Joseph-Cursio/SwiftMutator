@@ -13,6 +13,25 @@ extension PerformMutationTesting {
     /// (`defaultTimeout(testRunSeconds:baselineSeconds:on:)`).
     static let defaultTimeoutMultiplier: TimeInterval = 3
     static let minimumDefaultTimeout: TimeInterval = 10
+    /// With `buildTimeout` set, a run of the test command with no mutant on that follows the baseline and skips the
+    /// build, the direct or the timed test run, may take this many times the baseline run, build included, or the
+    /// slowest xcodebuild worker's run with no mutant on if that took longer, as the timed run, on the first worker,
+    /// runs its tests one at a time as they did, but never less than `minimumFollowingRunLimit`
+    /// seconds, nor more than `buildTimeout` (`followingRunLimit`). It should take less than the baseline.
+    static let followingRunMultiplier: TimeInterval = 5
+    static let minimumFollowingRunLimit: TimeInterval = 60
+
+    /// The time limit of a run with no mutant on that follows the baseline and skips the build, or nil without a
+    /// `buildTimeout`: such a run is limited only in a run that limits its builds.
+    static func followingRunLimit(
+        buildTimeout: TimeInterval?,
+        baselineSeconds: TimeInterval,
+        checkRunSeconds: TimeInterval? = nil
+    ) -> TimeInterval? {
+        guard let buildTimeout else { return nil }
+        let longest = max(baselineSeconds, checkRunSeconds ?? 0)
+        return min(buildTimeout, max(longest * followingRunMultiplier, minimumFollowingRunLimit))
+    }
 
     /// The default time limit for a mutant's test run on `workers` workers, from one timed run of its test command.
     static func defaultTimeout(testRunSeconds: TimeInterval, workers: Int) -> TimeInterval {

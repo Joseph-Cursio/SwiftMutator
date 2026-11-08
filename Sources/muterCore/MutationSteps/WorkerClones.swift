@@ -53,13 +53,23 @@ extension PerformMutationTesting {
     /// Why a run with the default count of workers tests on one, after `error` made it give up its clones. Completes
     /// the sentence "Testing one mutant at a time instead: …".
     static func whyOneWorker(afterClonesFailedWith error: Error) -> String {
-        guard case let .mutationTestingAborted(reason: .workerBaselineTestFailed(worker, _, _))? = error as? MuterError
-        else {
+        guard case let .mutationTestingAborted(reason)? = error as? MuterError else {
             return "\(error) `mutationTestWorkers: 1` skips trying"
         }
-        return "worker \(worker)'s copy of the project didn't pass the baseline the first one passed (its log is "
-            + "baseline run worker \(worker).log), so your tests may not run beside a copy of themselves, or the "
-            + "builds ran out of disk space or memory. `mutationTestWorkers: 1` skips trying"
+        let limit = { (seconds: Double) in String(format: "%g", seconds) }
+        switch reason {
+        case let .workerBaselineTestFailed(worker, _, _):
+            return "worker \(worker)'s copy of the project didn't pass the baseline the first one passed (its log is "
+                + "baseline run worker \(worker).log), so your tests may not run beside a copy of themselves, or the "
+                + "builds ran out of disk space or memory. `mutationTestWorkers: 1` skips trying"
+        case let .buildTimeoutReached(.workerBaseline(worker, _), seconds, _, _):
+            return "worker \(worker)'s copy of the project didn't build and pass the baseline within "
+                + "\(limit(seconds)) s (buildTimeout), though the first one did (its log is baseline run "
+                + "worker \(worker).log), so the builds may compete for too few cores, or your tests may hang beside a "
+                + "copy of themselves. `mutationTestWorkers: 1` skips trying"
+        default:
+            return "\(error) `mutationTestWorkers: 1` skips trying"
+        }
     }
 
     /// A clone of the mutated project for each of `count` SwiftPM workers but the first, which tests in the project
@@ -87,11 +97,11 @@ extension PerformMutationTesting {
     /// the mutated project, so tests that write files next to their sources would share those files
     /// across workers, fail each other, and kill mutants they never tested. A clone whose baseline
     /// doesn't pass throws, naming the worker: the same command just passed in the mutated
-    /// project, so the configuration isn't what's wrong. A run stopped meanwhile blames no clone:
-    /// stopping kills the builds under way, which then fail.
+    /// project, so the configuration isn't what's wrong. Each may run for `buildTimeout`, and one stopped there throws
+    /// too. A run stopped meanwhile blames no clone: stopping kills the builds under way, which then fail.
     func buildWorkerDirectories(_ clones: [URL], using state: AnyMutationTestState) async throws {
         let configuration = state.muterConfiguration
-        let runs = await withTaskGroup(of: (worker: Int, outcome: TestSuiteOutcome, testLog: String).self) { group in
+        let runs = await withTaskGroup(of: (worker: Int, run: TestRun).self) { group in
             for (index, clone) in clones.enumerated() {
                 let fileName = testOutput(named: "baseline run worker \(index + 1)", state: state)
                 // A clone's build is given the values and the dependency it uses, not the step or the state.
@@ -101,16 +111,17 @@ extension PerformMutationTesting {
                         savingResultsIntoFileNamed: fileName,
                         workingDirectory: clone
                     )
-                    return (index + 1, run.outcome, run.testLog)
+                    return (index + 1, run)
                 }
             }
             return await group.reduce(into: []) { $0.append($1) }
         }
         try Task.checkCancellation()
         // A failed one's log is what says why the run stopped, and the abort message is all that shows it otherwise.
-        for run in runs.sorted(by: { $0.worker < $1.worker }) {
-            let name = "baseline run worker \(run.worker)"
-            fileManager.keepLog(
+        var logs: [Int: String] = [:]
+        for (worker, run) in runs.sorted(by: { $0.worker < $1.worker }) {
+            let name = "baseline run worker \(worker)"
+            logs[worker] = fileManager.keepLog(
                 run.testLog,
                 writtenTo: testOutput(named: name, state: state),
                 by: ioDelegate,
@@ -120,15 +131,21 @@ extension PerformMutationTesting {
         }
 
         // The lowest-numbered failure, so the same worker is named whichever build finished first.
-        if let failed = runs.filter({ $0.outcome != .passed }).min(by: { $0.worker < $1.worker }) {
-            throw MuterError.mutationTestingAborted(
-                reason: .workerBaselineTestFailed(
-                    worker: failed.worker,
-                    directory: clones[failed.worker - 1].path,
-                    log: failed.testLog
-                )
-            )
+        guard let (worker, failed) = runs.filter({ $0.run.outcome != .passed || $0.run.ending == .timedOut })
+            .min(by: { $0.worker < $1.worker })
+        else { return }
+        let directory = clones[worker - 1].path
+        if failed.ending == .timedOut, let seconds = configuration.buildTimeout {
+            throw MuterError.mutationTestingAborted(reason: .buildTimeoutReached(
+                step: .workerBaseline(worker: worker, directory: directory),
+                seconds: seconds,
+                output: failed.testLog,
+                log: logs[worker]
+            ))
         }
+        throw MuterError.mutationTestingAborted(
+            reason: .workerBaselineTestFailed(worker: worker, directory: directory, log: failed.testLog)
+        )
     }
 
     /// One clone of `project` per extra worker, next to it as `<stem>_worker<n>.noindex`

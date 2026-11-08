@@ -28,4 +28,20 @@ struct RunArguments: ParsableArguments {
         )
     )
     var verbose: Bool = false
+
+    @Option(
+        name: .customLong("build-timeout"),
+        help: ArgumentHelp(
+            "Seconds before each step that builds and tests ahead of the first mutant is stopped (the coverage run, "
+                + "a build, a baseline), in place of buildTimeout. At most a day, 86400.",
+            valueName: "seconds"
+        )
+    )
+    var buildTimeout: Double?
+
+    func validate() throws {
+        if let buildTimeout, !(buildTimeout > 0 && buildTimeout <= TestingArguments.longestTimeout) {
+            throw ValidationError("--build-timeout must be a number of seconds above 0, and at most a day (86400).")
+        }
+    }
 }

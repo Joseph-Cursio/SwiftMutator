@@ -33,6 +33,9 @@ extension Run {
         let workers: Int?
         /// `--timeout`: seconds before a mutant's test run is stopped, in place of `mutationTestTimeout`.
         let timeout: Double?
+        /// `--build-timeout`: seconds before each step that builds and tests ahead of the first mutant is stopped, in
+        /// place of `buildTimeout`.
+        let buildTimeout: Double?
         /// `--fail-under`: the percent below which a finished run's score fails it, in place of `failUnder`.
         let failUnder: Double?
         /// `--property-tests`: the globs that pick out property tests, in place of `propertyTests`; nil when none was
@@ -88,6 +91,7 @@ extension Run {
             testPlanURL: URL? = nil,
             workers: Int? = nil,
             timeout: Double? = nil,
+            buildTimeout: Double? = nil,
             failUnder: Double? = nil,
             propertyTests: [String]? = nil,
             createTestPlan: Bool = false,
@@ -114,6 +118,7 @@ extension Run {
             self.testPlanURL = testPlanURL
             self.workers = workers
             self.timeout = timeout
+            self.buildTimeout = buildTimeout
             self.failUnder = failUnder
             self.propertyTests = propertyTests
             self.resumeURL = resumeURL
@@ -155,6 +160,7 @@ extension Run.Options: Equatable {
             lhs.testPlanURL == rhs.testPlanURL &&
             lhs.workers == rhs.workers &&
             lhs.timeout == rhs.timeout &&
+            lhs.buildTimeout == rhs.buildTimeout &&
             lhs.failUnder == rhs.failUnder &&
             lhs.propertyTests == rhs.propertyTests &&
             lhs.createTestPlan == rhs.createTestPlan &&

@@ -412,7 +412,7 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
 
         XCTAssertEqual(ioDelegate.methodCalls.prefix(2), [
             "benchmarkTests(using:savingResultsIntoFileNamed:)",
-            "runTestsWithoutBuilding(using:savingResultsIntoFileNamed:)",
+            "runTestsWithoutBuilding(using:timeLimit:savingResultsIntoFileNamed:)",
         ])
         // The spy's timed test run returns at once, so the minimum applies.
         XCTAssertEqual(

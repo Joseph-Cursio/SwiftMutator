@@ -17,7 +17,7 @@ The plan records them, and a run of the plan records them in its results file, a
 ⚠️ A later `swift-mutator run` or `mutate-without-running` of this project removes that copy, and any fix in it.
 ```
 
-A plan's run tests its copy as it is, so it doesn't take [mutants that don't compile](../README.md#mutants-that-dont-compile) out of the build, as a run that finds its own mutants does: one stops the run at its build, at the baseline with exit status 3, or for xcodebuild in its build for testing with 255. Fix it in the copy, or make the plan again without its operator.
+A plan's run tests its copy as it is, so it doesn't take [mutants that don't compile](../README.md#mutants-that-dont-compile) out of the build, as a run that finds its own mutants does: one stops the run at its build, at the baseline, or for xcodebuild in its build for testing, with exit status 3 (earlier SwiftMutators exited with 255 for xcodebuild's). Fix it in the copy, or make the plan again without its operator.
 
 ## Where it is, and where to run it
 

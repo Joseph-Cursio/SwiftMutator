@@ -52,10 +52,20 @@ struct LoadConfiguration: MutationStep {
                 .overriding(
                     workers: state.runOptions.workers,
                     timeout: state.runOptions.timeout,
+                    buildTimeout: state.runOptions.buildTimeout,
                     failUnder: state.runOptions.failUnder,
                     propertyTests: state.runOptions.propertyTests,
                     exclude: state.runOptions.exclude
                 )
+            // As `--build-timeout` is, which takes its place: 0 would stop every build at once, and a limit past a day
+            // is a mistake.
+            if let buildTimeout = resolved.buildTimeout,
+               !(buildTimeout > 0 && buildTimeout <= TestingArguments.longestTimeout) {
+                throw MuterError.configurationParsingError(
+                    reason: "buildTimeout must be a number of seconds above 0, and at most a day (86400), "
+                        + "not \(String(format: "%g", buildTimeout))."
+                )
+            }
             if let reason = resolved.propertyRerunsUnsupportedReason {
                 throw MuterError.configurationParsingError(reason: reason)
             }

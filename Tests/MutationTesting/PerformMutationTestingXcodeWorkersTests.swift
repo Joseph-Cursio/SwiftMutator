@@ -17,7 +17,7 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
     )
 
     private let destination = "platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5"
-    private let checkRun = "runTestsWithoutBuilding(using:savingResultsIntoFileNamed:)"
+    private let checkRun = "runTestsWithoutBuilding(using:timeLimit:savingResultsIntoFileNamed:)"
     /// The output files of the runs with no mutant on that check the workers' simulators, not the timed test run's.
     private var checkRuns: [String] {
         ioDelegate.testLogs.filter { $0.contains("no-mutant run worker") }
@@ -124,6 +124,29 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
         XCTAssertEqual(header.timeoutSeconds, 60)
     }
 
+    // With a buildTimeout, the timed test run, on the first worker's simulator, may take 5 times the slowest check run,
+    // which ran its tests one at a time as it will, when that took longer than the baseline.
+    func test_theTimedTestRunsLimit_comesFromTheSlowestCheckRun() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/xcodebuild",
+            arguments: ["-scheme", "App", "-destination", destination, "test"],
+            mutationTestWorkers: 2,
+            buildTimeout: 3_600
+        )
+        ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 4)
+        let nanoseconds = Locked<UInt64>(1)
+        current.instant = { DispatchTime(uptimeNanoseconds: nanoseconds.value) }
+        let runs = Locked(0)
+        ioDelegate.whileRunningTestsWithoutBuilding = {
+            let seconds: UInt64 = runs.change { $0 += 1; return $0 } <= 2 ? 90 : 10
+            nanoseconds.change { $0 += seconds * 1_000_000_000 }
+        }
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.timeLimitsWithoutBuilding, [3_600, 3_600, 450])
+    }
+
     // Nothing is copied or built again: every worker tests in the mutated project, from the baseline's build, on its
     // own simulator, from its own `.xctestrun`, with its own derived data, one test at a time.
     func test_eachWorkerTestsInTheMutatedProject_onItsOwnSimulator() async throws {
@@ -199,6 +222,29 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
         assertTestedOnOneWorker()
         // The session still names the deleted simulators' workers, for their files, but no mutant runs on one.
         XCTAssertEqual(runs(on: "SIM-0").count, 0)
+    }
+
+    // A check run doesn't build, but runs the tests one at a time, so it has buildTimeout's limit. One stopped there
+    // falls back to one worker, as one that failed does, and says why.
+    func test_aCheckRunPastTheBuildTimeout_fallsBackToOneWorker() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/xcodebuild",
+            arguments: ["-scheme", "App", "-destination", destination, "test"],
+            mutationTestWorkers: 2,
+            buildTimeout: 900
+        )
+        ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 4)
+        ioDelegate.endingsWithoutBuildingWritingTo["no-mutant run worker 1"] = .timedOut
+        let choices = sentChoices()
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.timeLimitsWithoutBuilding.prefix(2), [900, 900])
+        XCTAssertEqual(choices().map(\.unsupportedReason), [
+            "worker 1's run with no mutant on, on its simulator, didn't end within 900 s (buildTimeout) (its log is "
+                + "no-mutant run worker 1.log)",
+        ])
+        XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.workers), [1])
     }
 
     // As a mutant's run does: the simulator's first install and launch, all at once on new simulators, is where it is

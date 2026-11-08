@@ -19,10 +19,13 @@ struct MuterConfiguration: Equatable, Codable {
     // Rebuilding with `init` instead silently resets any field the call leaves out, as every parameter
     // has a default.
     private(set) var testSuiteTimeout: Double?
-    /// Seconds before the coverage run, whose `swift test` or `xcodebuild` also builds the project, is stopped
-    /// (`buildTimeout:`); nil, the default, sets no limit. For now it limits only the coverage run, but it is meant
-    /// for every step that builds, such as the baseline.
-    let buildTimeout: Double?
+    /// Seconds before each step ahead of the first mutant that builds the project or runs its tests is stopped
+    /// (`buildTimeout:`): the coverage run, each xcodebuild build for testing, each baseline run, a worker clone's
+    /// baseline and an xcodebuild worker's run with no mutant on. The direct and timed test runs, which follow the
+    /// baseline and don't build, get a shorter limit, from the baseline's time, never above this
+    /// (`followingRunLimit`). nil, the default, sets no limit. A `var` only so `overriding` can copy `self` and change
+    /// just this field.
+    private(set) var buildTimeout: Double?
     /// How many mutants to test at once (`mutationTestWorkers:`). A SwiftPM worker runs the test command in its own
     /// clone of the mutated project, because `swift test` locks the package's build directory. Each clone is built
     /// once before testing, so the paths compiled into its tests point into it. An xcodebuild worker tests on a
@@ -629,12 +632,14 @@ struct MuterConfiguration: Equatable, Codable {
         return copy
     }
 
-    /// This configuration with `--workers`', `--timeout`'s, `--fail-under`'s and `--property-tests`' values, when
-    /// given, in place of `mutationTestWorkers`, `mutationTestTimeout`, `failUnder` and `propertyTests`: a run records
-    /// and compares them as it does the keys.
+    /// This configuration with `--workers`', `--timeout`'s, `--build-timeout`'s, `--fail-under`'s and
+    /// `--property-tests`' values, when given, in place of `mutationTestWorkers`, `mutationTestTimeout`,
+    /// `buildTimeout`, `failUnder` and `propertyTests`, and `--exclude`'s entries after `exclude`'s: a run records and
+    /// compares them as it does the keys.
     func overriding(
         workers: Int?,
         timeout: Double?,
+        buildTimeout: Double? = nil,
         failUnder: Double? = nil,
         propertyTests: [String]? = nil,
         exclude: [String] = []
@@ -643,6 +648,7 @@ struct MuterConfiguration: Equatable, Codable {
         copy.excludeFileList += exclude
         if let workers { copy.mutationTestWorkers = workers }
         if let timeout { copy.testSuiteTimeout = timeout }
+        if let buildTimeout { copy.buildTimeout = buildTimeout }
         if let failUnder { copy.failUnder = failUnder }
         if let propertyTests { copy.propertyTests = propertyTests }
         return copy

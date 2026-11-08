@@ -214,6 +214,13 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   leave no file, which it used to drop without a word; a file named twice is mutated once. An empty
   `exclude` entry, which used to leave out every file, is refused. See
   [Choosing the files](#choosing-the-files).
+- **Time limits before the first mutant** ([#117](https://github.com/Joseph-Cursio/SwiftMutator/issues/117)):
+  `buildTimeout`, which limited only the coverage run, now also limits each xcodebuild build for
+  testing, each baseline run and each worker clone's, and gives the timed test run a limit from the
+  baseline's time; `--build-timeout` sets it for one run. A build or baseline stopped there exits
+  with 3. So does an xcodebuild project that doesn't build for testing, which exited with 255. A
+  failed baseline's message lists its failed tests, up to 20, before its log. See
+  [Time limits before the first mutant](#time-limits-before-the-first-mutant).
 - **Disable tags act once, by where they are:** the nodes that share a `// muter:disable` or
   `// muter:enable` used to take turns acting on it, so a tag beside code could silently fail,
   depending on how many nodes shared it. Now a tag beside code leaves that code off: a `disable`
@@ -272,9 +279,12 @@ mutant on its own (see [Testing one mutant](#testing-one-mutant)).
   `summary.json` were written first.
 - **3** when the baseline run, with no mutant on, failed in the project's copy, or in a parallel
   worker's clone of it when `mutationTestWorkers` or `--workers` asked for those workers, for any
-  reason but [mutants that don't compile](#mutants-that-dont-compile) outside a test plan. Nothing
-  was tested. A clone that fails with the default count of workers makes the run test one mutant at a
-  time instead.
+  reason but [mutants that don't compile](#mutants-that-dont-compile) outside a test plan, or an
+  xcodebuild project didn't build for testing, or one of these ran past `buildTimeout` (see
+  [Time limits before the first mutant](#time-limits-before-the-first-mutant)). Nothing was
+  tested. The message lists the tests the baseline failed, up to 20, before its log. A clone that
+  fails, or runs past its limit, with the default count of workers makes the run test one mutant at
+  a time instead.
 - **4** when an error stopped mutation testing partway, such as 5 build errors in a row, or a
   simulator that went away. The results so far are kept, and the run can be resumed.
 - **5** when a `--resume` or `--reuse` is refused, as the results might not hold for this run
@@ -292,8 +302,8 @@ mutant on its own (see [Testing one mutant](#testing-one-mutant)).
 - **64** for a usage error, such as `--workers 0`. `run-without-mutating` without a test plan's
   path exits with 1.
 - **255** for any other error, such as a missing configuration or one that doesn't parse, a
-  `--mutant` that names no mutant, a `--since` that git can't answer, or a project that doesn't
-  build for testing, even without its mutants that don't compile.
+  `--mutant` that names no mutant, or a `--since` that git can't answer. Earlier SwiftMutators
+  exited with 255, not 3, for an xcodebuild project that didn't build for testing.
 - **128 plus the signal** when a signal stopped the run: 130 for SIGINT, 143 for SIGTERM and 129 for
   SIGHUP (see [Stopping a run](#stopping-a-run)).
 
@@ -451,6 +461,36 @@ do. Code under `// muter:disable` isn't counted. A mutant in such a branch no lo
 ℹ️ SwiftMutator left out 15 mutants in `#if` branches this build doesn't compile, so no report covers them. --verbose lists them.
 ```
 
+## Time limits before the first mutant
+
+Every mutant's run has a time limit, and with `buildTimeout` or `--build-timeout` set, so does each
+step before the first mutant, so that a hung build or test in an unattended CI job ends the run
+rather than holding the job until the CI system's own limit
+([#117](https://github.com/Joseph-Cursio/SwiftMutator/issues/117)). Each of these steps builds the
+project, runs its tests, or both, and may take `buildTimeout` seconds:
+
+- the coverage run. Stopped there, mutation testing goes on without coverage, as after any coverage
+  failure.
+- each xcodebuild build for testing, the first and any build again without
+  [mutants that don't compile](#mutants-that-dont-compile).
+- each baseline run, the first and any run again without mutants that don't compile.
+- a worker clone's baseline, and an xcodebuild worker's run with no mutant on, on its simulator,
+  which doesn't build but runs the tests one at a time. They run at once, so each may take the whole
+  limit.
+
+A build or a baseline stopped there stops the run with exit status 3, as a failed one does, and
+nothing is tested. Its message names the step, the limit and its log, then the tests that failed so
+far and the last lines it printed, which show where it hung. A clone or a worker's simulator stopped
+there makes the run test one mutant at a time instead, as one that fails does: a clone only with
+the default count of workers, and a worker's simulator with any count.
+
+The runs after the baseline that skip the build, the direct and the timed test run, should take less
+than the baseline, so each may take 5 times as long as the baseline did, or as the slowest xcodebuild
+worker's run with no mutant on did if that took longer, but at least a minute, and never more than
+`buildTimeout`. A timed run
+stopped there times nothing: each mutant's limit comes from the baseline instead, and the run goes on
+and says so. Without `buildTimeout`, none of these steps has a limit, as before.
+
 ## When the baseline crashes
 
 Every mutant is compiled into one build, so a function's code is there once for each mutant in it. A
@@ -498,7 +538,7 @@ mutant can be blamed, or 20 builds have failed:
   on their files.
 - **What still stops a run.** An error in a file with no mutants left, in a file SwiftMutator didn't
   rewrite, or in an `import`, is your project's own: the run stops as it would have, exiting with 3,
-  or with 255 for xcodebuild, with the log of the last build. An error in the code SwiftMutator adds
+  with the log of the last build. Earlier SwiftMutators exited with 255 for xcodebuild. An error in the code SwiftMutator adds
   to a file, a switch's condition or the environment it reads, stops the run too. No mutant is to
   blame for it, and it is a bug in SwiftMutator: please report it. So does a 21st failed build, which
   can take a project with mutants that don't compile in very many files: leave those files out with
@@ -932,13 +972,14 @@ the JSON file alone. The options are documented in
 | `propertyTestFilter` | A list of test filters that select the property tests alone, as `swift test --filter` or xcodebuild's `-only-testing:` takes them: once every mutant is tested, each kill whose recorded tests include no property test is tested again with only those tests (default: unset, which tests none again; needs `propertyTests`) |
 | `operators` | A list of the operators to use, at least one (default: all of them). See [Choosing the operators](#choosing-the-operators) |
 | `skipOperators` | A list of the operators to leave out (default: none). See [Choosing the operators](#choosing-the-operators) |
-| `buildTimeout` | Seconds before the coverage run, which builds your project and runs its tests with coverage on, is stopped. Mutation testing then goes on without coverage, as after any coverage failure. For now it limits only the coverage run, not the baseline or other builds (default: no limit) |
+| `buildTimeout` | Seconds, above 0 and at most a day, before each step ahead of the first mutant that builds your project and runs its tests is stopped: the coverage run, each xcodebuild build for testing, each baseline run, and a worker clone's. The direct and timed test runs, which follow the baseline and don't build, get a shorter limit (default: no limit; see [Time limits before the first mutant](#time-limits-before-the-first-mutant)) |
 
 `--workers N` and `--timeout S`, on `run` and `run-without-mutating`, set `mutationTestWorkers`
 and `mutationTestTimeout` for one run, in place of the file's
 ([#73](https://github.com/Joseph-Cursio/SwiftMutator/issues/73)), as `--fail-under P` sets
-`failUnder`. `--workers` must be at least 1, and `--timeout` above 0 and at most a day, 86,400
-seconds. The run records and compares them as it does the keys: a resume with a `--timeout` at
+`failUnder`, and `--build-timeout S`, on those and `mutate-without-running`, sets `buildTimeout`.
+`--workers` must be at least 1, and `--timeout` and `--build-timeout` above 0 and at most a day,
+86,400 seconds. The run records and compares them as it does the keys: a resume with a `--timeout` at
 least as long as every session's limit tests only the timeouts again (see
 [Timeouts are run again](#timeouts-are-run-again)), one that is shorter is refused, and another
 `--workers` or `--fail-under` is only said. A run that tests several mutants at
@@ -1252,8 +1293,8 @@ worker on a simulator of its own](#one-worker-on-a-simulator-of-its-own), below)
   large suite slower per run, and tests that depend on their order can give other verdicts than
   on one worker.
 - **A run with no mutant on, on each simulator,** follows the baseline, all at once and with no
-  time limit, so no mutant's limit pays for a simulator's first install and launch, which took 30
-  to 93 s. Its log is kept as `no-mutant run worker <n>.log`. It shows that the tests pass one at a
+  mutant's time limit, only `buildTimeout`'s if it is set, so no mutant's limit pays for a
+  simulator's first install and launch, which took 30 to 93 s. Its log is kept as `no-mutant run worker <n>.log`. It shows that the tests pass one at a
   time on a simulator SwiftMutator made. A run of these that the simulator failed to launch runs
   again, once, as a mutant's does (below), and its log is kept with ` (launch failed)` before
   `.log`.

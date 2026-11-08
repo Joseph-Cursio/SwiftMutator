@@ -9,6 +9,8 @@ struct TimedTestRun {
     private var fileManager: FileSystemManager
     @Dependency(\.instant)
     private var instant: Instant
+    @Dependency(\.events)
+    private var events: RunEvents
 
     static let logName = "timed test run.log"
 
@@ -17,9 +19,11 @@ struct TimedTestRun {
     /// which is moved to the name its log is kept under. An xcodebuild worker's run tests from its `.xctestrun`,
     /// written first with no mutant switched on, or is nil if that can't be written; the first mutant's switch then
     /// says why. A run the simulator failed to launch runs once more, as a mutant's does, and only the second is timed;
-    /// the first's log is kept beside it. A stop throws, and leaves the output where it ran.
+    /// the first's log is kept beside it. A stop throws, and leaves the output where it ran. A run stopped at
+    /// `timeLimit` is nil too, and says so.
     func seconds(
         using configuration: MuterConfiguration,
+        timeLimit: TimeInterval?,
         state: AnyMutationTestState,
         testOutput: String
     ) async throws -> TimeInterval? {
@@ -40,22 +44,28 @@ struct TimedTestRun {
             ifNeededWith: configuration,
             relaunching: { start = instant() },
             running: {
-                let (outcome, testLog) = await ioDelegate.runTestsWithoutBuilding(
+                await ioDelegate.runTestsWithoutBuilding(
                     using: configuration,
+                    timeLimit: timeLimit,
                     savingResultsIntoFileNamed: testOutput
                 )
-                return TestRun(outcome: outcome, testLog: testLog)
             }
         )
         // Stopping the run kills this run too, which then fails, but that says nothing about the project's tests.
         try Task.checkCancellation()
-        let seconds = run.outcome == .passed ? PerformMutationTesting.seconds(from: start, to: instant()) : nil
+        let passed = run.outcome == .passed && run.ending == .exited
+        let seconds = passed ? PerformMutationTesting.seconds(from: start, to: instant()) : nil
         if let launchFailure {
             fileManager.keepLog(
                 launchFailure.testLog, named: MutationTestLog.launchFailedFileName(for: Self.logName), state: state
             )
         }
-        fileManager.keepLog(run.testLog, writtenTo: testOutput, by: ioDelegate, named: Self.logName, state: state)
+        let log = fileManager.keepLog(
+            run.testLog, writtenTo: testOutput, by: ioDelegate, named: Self.logName, state: state
+        )
+        if run.ending == .timedOut, let timeLimit {
+            events.send(.timedTestRunStopped(seconds: timeLimit, log: log))
+        }
         return seconds
     }
 }

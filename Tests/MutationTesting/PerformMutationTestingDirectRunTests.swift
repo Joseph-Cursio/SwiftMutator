@@ -254,6 +254,44 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
         return { count.value }
     }
 
+    // With a buildTimeout, the direct run follows the baseline as the timed test run does, and has its limit. Stopped
+    // there, it fails the check, so mutants run through `swift test`, and the timed test run, with the same limit,
+    // times that.
+    func test_aDirectRunPastItsLimit_leavesSwiftTest_andTheTimedRunHasTheSameLimit() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], buildTimeout: 600
+        )
+        ioDelegate.testRunsWithoutBuildingWritingTo["direct test run"] = (.failed, "Test Suite 'All tests' started")
+        ioDelegate.endingsWithoutBuildingWritingTo["direct test run"] = .timedOut
+        let sent = recordNotices()
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.timeLimitsWithoutBuilding, [60, 60])
+        XCTAssertEqual(sent(), [
+            "the run of the test bundles with no mutant on didn't end within 60 s, so SwiftMutator stopped it "
+                + "(its log is direct test run.log)",
+        ])
+        XCTAssertEqual(ioDelegate.configurations.map(\.directTestRun), [nil])
+    }
+
+    // Its limit comes from the baseline's own time, as the timed test run's does.
+    func test_aDirectRunsLimit_isFiveTimesTheBaselinesTime() async throws {
+        state.muterConfiguration = MuterConfiguration(
+            executable: "/usr/bin/swift", arguments: ["test"], buildTimeout: 3_600
+        )
+        ioDelegate.testRunsWithoutBuilding = [
+            (.passed, "✔ Test run with 12 tests in 3 suites passed after 0.4 seconds."),
+        ]
+        let clock = Locked(Date(timeIntervalSince1970: 1_000_000))
+        current.now = { clock.value }
+        ioDelegate.whileRunningBaseline = { _ in clock.change { $0 += 200 } }
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(ioDelegate.timeLimitsWithoutBuilding, [1_000])
+    }
+
     /// The reason of each `testBundlesNotRunDirectly` sent from now on.
     private func recordNotices() -> () -> [String] {
         let reasons = Locked<[String]>([])

@@ -950,7 +950,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         return { lines }
     }
 
-    private let timedRun = "runTestsWithoutBuilding(using:savingResultsIntoFileNamed:)"
+    private let timedRun = "runTestsWithoutBuilding(using:timeLimit:savingResultsIntoFileNamed:)"
 
     /// Makes the timed test run take `seconds` by the injected clock. Every baseline and mutant run takes time too, so
     /// a limit taken from anything but the timed run alone comes out wrong.

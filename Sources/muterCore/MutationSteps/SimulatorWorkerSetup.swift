@@ -212,7 +212,8 @@ struct SimulatorWorkerSetup {
     /// The workers that test the `planned` mutants at once, once the baseline has passed, with `configuration`, the
     /// effective one: one each on `simulators`, if there are any, else the `planned` as before. Each simulator first
     /// runs the tests with no mutant on, all at once, from its worker's `.xctestrun`, with its worker's arguments and
-    /// no time limit, which keeps its first install and launch out of any mutant's time limit, and shows that the
+    /// no mutant's time limit, only `buildTimeout`'s, which keeps its first install and launch out of any mutant's
+    /// time limit, and shows that the
     /// tests pass on it one at a time. A run the simulator failed to launch runs once more in its place, as a mutant's
     /// does, and its log is kept beside the second's. A failed run keeps its log, and the run then tests one mutant at
     /// a time; every run's log is kept, and any that prints a line that looks like a failed test or a crash makes such
@@ -266,13 +267,16 @@ struct SimulatorWorkerSetup {
         }
 
         // The lowest-numbered failure, so the same worker is named whichever run finished first.
-        if let failed = runs.first(where: { $0.outcome != .passed }) {
+        if let failed = runs.first(where: { $0.outcome != .passed || $0.timedOut }) {
             await workerSimulators.removeAll()
             // A stop while they were deleted.
             try Task.checkCancellation()
             let why = SimulatorTrouble.first(inLog: failed.testLog).map { ": \($0.line)" } ?? ""
             let log = logs[failed.worker] == nil ? "" : " (its log is \(Self.checkRunLogName(ofWorker: failed.worker)))"
-            let reason = "worker \(failed.worker)'s run with no mutant on, on its simulator, didn't pass\(why)\(log)"
+            let ended = failed.timedOut
+                ? "didn't end within \(String(format: "%g", configuration.buildTimeout ?? 0)) s (buildTimeout)"
+                : "didn't pass\(why)"
+            let reason = "worker \(failed.worker)'s run with no mutant on, on its simulator, \(ended)\(log)"
             return Workers(count: 1, unavailable: reason, configuration: configuration, xcodeWorkers: [])
         }
         // The logs of the runs that printed a line shaped like a failed test or a crash.
@@ -300,6 +304,8 @@ struct SimulatorWorkerSetup {
         let worker: Int
         let outcome: TestSuiteOutcome
         let testLog: String
+        /// Whether it was stopped at `buildTimeout`.
+        let timedOut: Bool
         let launchFailure: LaunchFailure?
         let seconds: TimeInterval
         let output: String?
@@ -308,6 +314,7 @@ struct SimulatorWorkerSetup {
             self.worker = worker
             outcome = run.outcome
             testLog = run.testLog
+            timedOut = run.ending == .timedOut
             self.launchFailure = launchFailure
             self.seconds = seconds
             self.output = output
@@ -342,11 +349,11 @@ struct SimulatorWorkerSetup {
                     }
                     let start = instant()
                     let (run, launchFailure) = await TestRun.launchedOnceMore(ifNeededWith: configuration) {
-                        let run = await ioDelegate.runTestsWithoutBuilding(
+                        await ioDelegate.runTestsWithoutBuilding(
                             using: configuration,
+                            timeLimit: configuration.buildTimeout,
                             savingResultsIntoFileNamed: fileName
                         )
-                        return TestRun(outcome: run.outcome, testLog: run.testLog)
                     }
                     let seconds = PerformMutationTesting.seconds(from: start, to: instant())
                     return CheckRun(worker, run, launchFailure: launchFailure, seconds: seconds, output: fileName)
