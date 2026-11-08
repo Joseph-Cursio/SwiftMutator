@@ -949,6 +949,19 @@ mutant can be blamed, or 20 builds have failed:
   went with others, and may compile, and `--fail-under` counts those as not killed. The compiler can report one error of many per build, and each
   build takes time, so after 5 failed builds errors are blamed on the code around them, and after 10
   on their files.
+- **Result builders without `buildEither`.** A switch is an `if` with an `else`, which a result
+  builder takes only if it has `buildEither`. SwiftUI's builders do, but a project's own may not:
+  "closure containing control flow statement cannot be used with result builder". Which builder a
+  closure gets can't be told from its code, so the build finds out. When the closure holds one
+  expression, SwiftMutator then switches it in a closure called on the spot, which the builder takes
+  as one expression, and builds again with its mutants still in:
+
+  ```
+  🔁 The build failed where a result builder can't take an `if`, so SwiftMutator is building again with the switch of 3 mutants in a closure called on the spot.
+  ```
+
+  A closure of more than one expression, or one that reads `$0`, can't be switched that way, so its
+  mutants are taken out.
 - **What still stops a run.** An error in a file with no mutants left, in a file SwiftMutator didn't
   rewrite, or in an `import`, is your project's own: the run stops as it would have, exiting with 3,
   with the log of the last build. Earlier SwiftMutators exited with 255 for xcodebuild. An error in the code SwiftMutator adds

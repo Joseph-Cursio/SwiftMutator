@@ -103,12 +103,24 @@ final class MuterRewriter: SyntaxRewriter {
         // default branch.
         let childrenRewritten = super.visit(node)
 
+        if schemataMappings.switchesInAClosureCalledOnTheSpot(node),
+           let closure = node.parent?.as(ClosureExprSyntax.self),
+           node.canBeSwitchedInAClosure(of: closure) {
+            return MutationSwitch.inAClosureCalledOnTheSpot(
+                mutationSchemata: mutationSchemata,
+                with: childrenRewritten,
+                onALineStartingWith: MutationSwitch.startOfTheFirstLine(of: node),
+                readingEnvironmentFrom: environmentCacheName,
+                throwing: node.throwsInItsClosure,
+                awaiting: node.awaitsInItsClosure
+            )
+        }
         return MutationSwitch.apply(
             mutationSchemata: mutationSchemata,
             with: childrenRewritten,
             onALineStartingWith: MutationSwitch.startOfTheFirstLine(of: node),
             readingEnvironmentFrom: environmentCacheName,
-            returningItsMacro: node.isAMacroItsBodyReturns
+            returningItsExpression: node.isAMacroItsBodyReturns
         )
     }
 
@@ -151,7 +163,7 @@ final class MuterRewriter: SyntaxRewriter {
             with: CodeBlockItemListSyntax([CodeBlockItemSyntax(item: .expr(value))]),
             onALineStartingWith: MutationSwitch.startOfTheFirstLine(of: node.value),
             readingEnvironmentFrom: environmentCacheName,
-            returningItsMacro: isAMacro
+            returningItsExpression: isAMacro
         )
         guard inAClosure else {
             guard case let .expr(switchedValue)? = switched.first?.item else { return childrenRewritten }

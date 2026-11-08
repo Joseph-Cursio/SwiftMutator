@@ -83,7 +83,10 @@ struct BuildForTesting: MutationStep {
                 )
             }
             recovery = trying
-            events.send(.buildingAgainWithoutMutants(count: count))
+            if count > 0 { events.send(.buildingAgainWithoutMutants(count: count)) }
+            if trying.switchedInAClosure > 0 {
+                events.send(.buildingAgainWithSwitchesInAClosure(count: trying.switchedInAClosure))
+            }
             arguments = state.muterConfiguration.rebuildForTestingArguments
         }
     }

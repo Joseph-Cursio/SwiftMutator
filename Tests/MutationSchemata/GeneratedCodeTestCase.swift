@@ -95,14 +95,18 @@ class GeneratedCodeTestCase: MuterTestCase {
     /// The program is compiled in the strictest mode the generated code must pass: Swift 6, with only `ProcessInfo`
     /// imported from Foundation and members of other imports hidden, and every warning an error. It's a full build,
     /// not a type check, which misses errors found later, such as a `guard` body that falls through. `arguments` go to
-    /// the compiler as well. It throws if the program doesn't compile.
+    /// the compiler as well. It throws if the program doesn't compile. With `recovering`, a failed build is tried once
+    /// more, as `CompileRecovery` does, with each switch the compiler says a result builder can't take in a closure
+    /// called on the spot.
     func compileMutated(
         _ mutated: [String: String],
         plain: [String: String] = [:],
-        arguments: [String] = []
+        arguments: [String] = [],
+        recovering: Bool = false
     ) throws -> Compiled {
         var mappings: [String: SchemataMutationMapping] = [:]
         var rewritten: [String: String] = [:]
+        var trees: [String: SourceFileSyntax] = [:]
         for (name, code) in mutated {
             let path = "/path/to/\(name)"
             let addImport = AddImportRewriter()
@@ -119,9 +123,37 @@ class GeneratedCodeTestCase: MuterTestCase {
             mapping.dropNestedSchemataInOpaqueBodies(of: source.code)
             XCTAssertFalse(mapping.mutationSchemata.isEmpty, "\(name) holds no mutant")
             mappings[name] = mapping
+            trees[name] = source.code
             rewritten[name] = MuterRewriter(mapping).visit(source.code).description
         }
 
+        var compiled = try compile(rewritten, plain: plain, arguments: arguments)
+        if compiled.run.status != 0, recovering {
+            for (name, code) in rewritten {
+                let locator = MutantLocator(rewritten: code, filePath: "/path/to/\(name)")
+                let errors = CompilerError.all(in: compiled.run.errors)
+                    .filter { URL(fileURLWithPath: $0.filePath).lastPathComponent == name }
+                for id in Set(errors.compactMap(locator.switchABuilderCantTake)) {
+                    _ = mappings[name]?.switchInAClosureCalledOnTheSpot(theListOf: id)
+                }
+                if let mapping = mappings[name], let tree = trees[name] {
+                    rewritten[name] = MuterRewriter(mapping).visit(tree).description
+                }
+            }
+            compiled = try compile(rewritten, plain: plain, arguments: arguments)
+        }
+        guard compiled.run.status == 0 else {
+            throw Failure(description: "the generated code didn't compile:\n\(compiled.run.errors)")
+        }
+        return Compiled(program: compiled.program, mappings: mappings, sources: mutated, rewritten: rewritten)
+    }
+
+    /// Compiles `rewritten` and `plain`, by file name, as `compileMutated` describes.
+    private func compile(
+        _ rewritten: [String: String],
+        plain: [String: String],
+        arguments: [String]
+    ) throws -> (program: URL, run: Run) {
         var files = rewritten.merging(plain) { _, _ in
             XCTFail("a file is both mutated and plain")
             return ""
@@ -148,10 +180,7 @@ class GeneratedCodeTestCase: MuterTestCase {
             environment: compilerEnvironment,
             timeLimit: 300
         )
-        guard compiled.status == 0 else {
-            throw Failure(description: "the generated code didn't compile:\n\(compiled.errors)")
-        }
-        return Compiled(program: program, mappings: mappings, sources: mutated, rewritten: rewritten)
+        return (program, compiled)
     }
 
     /// A `main.swift` that runs `statements` after setting up its trap handlers. A fatal error traps (SIGTRAP on

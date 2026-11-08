@@ -88,6 +88,10 @@ struct CompileRecovery {
     /// By switch ID, which mutants repeating a place and operator share.
     private(set) var leftOut: [String: LeftOutMutant] = [:]
     private(set) var failedBuilds = 0
+    /// How many mutants the last failed build has switched in a closure called on the spot, as a result builder there
+    /// can't take an `if` (`SchemataMutationMapping.switchInAClosureCalledOnTheSpot(theListOf:)`). They stay in the
+    /// build.
+    private(set) var switchedInAClosure = 0
     /// Each file's mutants still in the build. A file left without any stays, so its code is written back without
     /// switches.
     private var mappings: [SchemataMutationMapping]
@@ -112,7 +116,8 @@ struct CompileRecovery {
 
     /// Takes out of the code the mutants that the build whose output is `log`, kept as `buildLog`, was failed by, and
     /// says how many; nil, changing nothing, when no mutant can be blamed and the failure has to stand.
-    /// `testsMayHaveRun` when the command goes on to test what it builds, as a baseline does.
+    /// `testsMayHaveRun` when the command goes on to test what it builds, as a baseline does. A switch that a result
+    /// builder can't take goes in a closure called on the spot instead, and its mutants stay (`switchedInAClosure`).
     mutating func takeOutMutants(
         failing log: String,
         keptAs buildLog: String,
@@ -129,27 +134,36 @@ struct CompileRecovery {
             return path.canonicalPath
         }
         var blamed: [String: LeftOutMutant] = [:]
-        var files: [Int] = []
+        var files: [Int: SchemataMutationMapping] = [:]
+        var switched = 0
         for (index, mapping) in mappings.enumerated() where !mapping.isEmpty {
             guard let errors = errorsByFile[mapping.filePath.canonicalPath],
                   let prepared = preparedSources[mapping.filePath]
             else { continue }
-            guard let inFile = await Self.mutantsToBlame(
-                for: errors, inCodeOf: mapping, prepared: prepared, afterFailedBuilds: failedBuilds, buildLog: buildLog
+            let switches = await Self.switchesABuilderCantTake(errors, inCodeOf: mapping, prepared: prepared)
+            var next = mapping
+            for id in Set(switches.values) {
+                switched += next.switchInAClosureCalledOnTheSpot(theListOf: id) ?? 0
+            }
+            let others = errors.filter { switches[$0] == nil }
+            guard let inFile = others.isEmpty ? [:] : await Self.mutantsToBlame(
+                for: others, inCodeOf: mapping, prepared: prepared, afterFailedBuilds: failedBuilds, buildLog: buildLog
             ) else { return nil }
             blamed.merge(inFile) { first, _ in first }
-            if !inFile.isEmpty { files.append(index) }
+            if !inFile.isEmpty || !switches.isEmpty { files[index] = next }
         }
-        guard !blamed.isEmpty else { return nil }
+        guard !blamed.isEmpty || switched > 0 else { return nil }
 
         var count = 0
-        for index in files {
-            let before = mappings[index].mutationSchemata.count
-            mappings[index].keepOnly { blamed[$0.id] == nil }
-            count += before - mappings[index].mutationSchemata.count
-            try await writeAgain(mappings[index])
+        for (index, var mapping) in files.sorted(by: { $0.key < $1.key }) {
+            let before = mapping.mutationSchemata.count
+            mapping.keepOnly { blamed[$0.id] == nil }
+            count += before - mapping.mutationSchemata.count
+            mappings[index] = mapping
+            try await writeAgain(mapping)
         }
         leftOut.merge(blamed) { first, _ in first }
+        switchedInAClosure = switched
         return count
     }
 
@@ -185,6 +199,26 @@ struct CompileRecovery {
             try writeFile(code, mapping.filePath)
         } catch {
             throw MuterError.literal(reason: error.localizedDescription)
+        }
+    }
+
+    /// Of `errors`, in `mapping`'s file as rewritten from `prepared`, those that say a result builder can't take a
+    /// switch that can go in a closure called on the spot instead, each with the ID of a mutant of that switch.
+    static func switchesABuilderCantTake(
+        _ errors: [CompilerError],
+        inCodeOf mapping: SchemataMutationMapping,
+        prepared: String
+    ) async -> [CompilerError: String] {
+        guard errors.contains(where: MutantLocator.saysABuilderCantTakeASwitch) else { return [:] }
+        let code = await ApplySchemata.rewritten(prepared, with: mapping)
+        let filePath = mapping.filePath
+        return await ApplySchemata.onAStackOfItsOwn {
+            let locator = MutantLocator(rewritten: code, filePath: filePath)
+            var switches: [CompilerError: String] = [:]
+            for error in errors {
+                switches[error] = locator.switchABuilderCantTake(error)
+            }
+            return switches
         }
     }
 
@@ -293,6 +327,42 @@ struct MutantLocator {
     private func around(_ error: CompilerError, everyMutant: [String]) -> (LeftOutMutant.Blame, [String]) {
         let around = mutantsInEnclosingBody(line: error.line, column: error.column)
         return around.isEmpty ? (.itsFile, everyMutant) : (.itsEnclosingCode, around)
+    }
+
+    /// Whether `error` says that a result builder can't take an `if`, as one without `buildEither` can't take one with
+    /// an `else`, which every switch has (#206).
+    static func saysABuilderCantTakeASwitch(_ error: CompilerError) -> Bool {
+        error.message.contains("control flow statement cannot be used with result builder")
+    }
+
+    /// A mutant of the switch on whose `if` `error` says a result builder can't take it, when the switch is all of a
+    /// closure's statements, and they can go in a closure called on the spot instead
+    /// (`CodeBlockItemListSyntax.canBeSwitchedInAClosure`); nil otherwise. A switch in such a closure already holds
+    /// `return`s, so it is never one.
+    func switchABuilderCantTake(_ error: CompilerError) -> String? {
+        guard Self.saysABuilderCantTakeASwitch(error),
+              let token = token(line: error.line, column: error.column), token.tokenKind == .keyword(.if),
+              var head = token.parent?.as(IfExprSyntax.self), let id = mutantID(of: head)
+        else { return nil }
+        while let previous = head.parent?.as(IfExprSyntax.self), previous.elseBody?.id == head.id {
+            head = previous
+        }
+        var statement = Syntax(head)
+        if let expressionStatement = statement.parent?.as(ExpressionStmtSyntax.self) {
+            statement = Syntax(expressionStatement)
+        }
+        guard let list = statement.parent?.as(CodeBlockItemSyntax.self)?.parent?.as(CodeBlockItemListSyntax.self),
+              list.count == 1, let closure = list.parent?.as(ClosureExprSyntax.self)
+        else { return nil }
+        // The final `else` holds the closure's statements as they were.
+        var last = head
+        while case let .ifExpr(next)? = last.elseBody {
+            last = next
+        }
+        guard case let .codeBlock(original)? = last.elseBody,
+              original.statements.canBeSwitchedInAClosure(of: closure)
+        else { return nil }
+        return id
     }
 
     func place(line: Int, column: Int) -> Place {
