@@ -103,7 +103,10 @@ extension MutationOperator.Id {
             The \("remove side effects".italic) operator will remove code it determines is causing a side effect.
             It will determine your code is causing a side effect based on a few rules:
                 • A line contains a function call which is explicitly discarding a return result.
-                • A line contains a function call and doesn't save the result of the function call into a named variable or constant (i.e. a line implicitly discards a return result or doesn't produce one).
+                • A line contains a function call and doesn't save the result of the function call into a named variable or constant (i.e. a line implicitly discards a return result or doesn't produce one), under \("try".onCodeEscape) or \("await".onCodeEscape) or not.
+                • A line is in any body: a function's, an initializer's, an accessor's, a closure's, a loop's, an \(
+                    "if".onCodeEscape) or \("else".onCodeEscape) branch, a \("switch".onCodeEscape) case, a \(
+                    "defer".onCodeEscape) and so on, but not a file's top level or a \("#if".onCodeEscape) clause.
                 • A line does not contain a call to \(
                     RemoveSideEffectsOperator.Visitor.alwaysExcludedCalls.map(\.onCodeEscape).joined(separator: ", ")
                 ), a call that takes or releases a lock, or a call to any function listed in \(
@@ -116,6 +119,10 @@ extension MutationOperator.Id {
                     "guard".onCodeEscape) body, a function or getter that returns a value but for a result builder, or a \(
                     "do".onCodeEscape), \("catch".onCodeEscape), \("if".onCodeEscape), \("case".onCodeEscape) or \(
                     "#if".onCodeEscape) that ends one of those.
+                • A line is not one whose removal would leave code that doesn't build: the one line of a closure, getter or function that may be its value, a branch of an \(
+                    "if".onCodeEscape) or \("switch".onCodeEscape) that is a value, the last line definite initialization may rely on, or in a result builder a part that makes a value of a type, as \(
+                    "Text(\"a\")".onCodeEscape) does. Nothing is removed from a builder that takes no \(
+                    "if".onCodeEscape), as \("SceneBuilder".onCodeEscape) and \("RegexComponentBuilder".onCodeEscape) don't.
             The purpose of this operator is to highlight how your tests respond to the absence of expected side effects.
 
             \("Mutating an explicitly discarded return result".bold)
