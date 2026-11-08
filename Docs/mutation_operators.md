@@ -4,9 +4,9 @@ SwiftMutator uses **mutation operators** to generate mutants in your source code
 No operator mutates the condition of a `#if` or `#elseif`. Such a mutant would change which branch compiles, and a branch written for another platform may not build, which would fail the build every mutant shares. This doesn't change what happens to the code inside the clauses.
 
 ## Relational Operator Replacement
-The relational operator replacement operator, `RelationalOperatorReplacement`, will invert relational operators in your code based on this table:
+The relational operator replacement operator, `RelationalOperatorReplacement`, will change relational operators in your code based on this table:
 
-Original Operator | Negated Operator
+Original Operator | Changed Operator
 ------------------|-----------------
 `==`|`!=`
 `!=`|`==`
@@ -16,6 +16,16 @@ Original Operator | Negated Operator
 `<`|`>`
 
 The purpose of this operator is to highlight how your tests respond to changes in branching logic. A well-engineered test suite will be able to fail clearly in response to code taking a different branch than it expected.
+
+`==` and `!=` are negated, but an ordering comparison is reversed, not negated: `a < b` becomes `a > b`, which is `b < a`. Its negation, `a >= b`, gives the wrong result for every input, and the reversed one for every input but `a == b`, so a test that checks the result kills either. Three operators share an ordering comparison:
+
+Mutant of `a < b` | Operator | Differs when
+------------------|----------|-------------
+`a > b` | `RelationalOperatorReplacement` | `a != b`
+`a <= b` | [`RelationalBoundary`](#relational-boundary) | `a == b`
+`!(a < b)`, that is `a >= b` | [`NegateConditional`](#negate-conditional) | always
+
+`NegateConditional` changes only the whole condition of an `if`, `guard` or `while`, so a comparison elsewhere, as in `return a < b` or `let ok = a >= b`, gets no negated mutant.
 
 ### Mutating an equality check
 ```swift
