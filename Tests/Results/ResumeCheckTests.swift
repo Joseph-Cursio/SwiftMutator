@@ -294,6 +294,16 @@ final class ResumeCheckTests: XCTestCase {
         )
     }
 
+    // `--exclude`'s entries come after the file's, and choose the same files in any order.
+    func test_excludeEntriesInAnotherOrder_areEqual() {
+        let recorded = MuterConfiguration(executable: "/swift", arguments: [], excludeList: ["/Gen/", "!/Stubs/"])
+        let current = MuterConfiguration(executable: "/swift", arguments: [], excludeList: ["!/Stubs/", "/Gen/"])
+        XCTAssertEqual(ResumeCheck.configurationDifferences(recorded, current), [])
+
+        let other = MuterConfiguration(executable: "/swift", arguments: [], excludeList: ["/Gen/"])
+        XCTAssertEqual(ResumeCheck.configurationDifferences(recorded, other).map(\.name), ["exclude"])
+    }
+
     func test_anIntTimeoutAndTheSameDouble_areEqual() throws {
         let written = Data(#"{"executable":"/usr/bin/swift","arguments":["test"],"mutationTestTimeout":60}"#.utf8)
         let recorded = try ResultsCoding.decoder.decode(MuterConfiguration.self, from: written)

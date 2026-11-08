@@ -2,13 +2,13 @@
 
 `swift-mutator mutate-without-running` copies the project to `<project>_mutated.noindex` beside it, as `run` does, puts every mutant's switch into the copy, and writes the test plan, `muter-mappings.json`, in the project folder. It tests nothing. `swift-mutator run-without-mutating muter-mappings.json` then tests the copy's mutants. In between you can fix the copy by hand, for example code that the rewriting left unable to compile.
 
-`mutate-without-running` takes `--files-to-mutate`, `--operators` and `--skip-operators`, and follows the `operators` and `skipOperators` keys, as `run` does, to choose which mutants the plan holds:
+`mutate-without-running` takes `--files-to-mutate`, `--exclude`, `--operators` and `--skip-operators`, and follows the `operators` and `skipOperators` keys, as `run` does, to choose which mutants the plan holds:
 
 ```
 swift-mutator mutate-without-running --files-to-mutate Sources/Foo/Bar.swift --operators SwapTernary
 ```
 
-The plan records them, and a run of the plan records them in its results file, as a run that finds its own mutants records the options it was given. When the plan is made, SwiftMutator says what it holds and what to run next:
+The plan records them, and a run of the plan records them in its results file, as a run that finds its own mutants records the options it was given, but for `--exclude`, whose files the plan's mutants leave out, but which neither records. When the plan is made, SwiftMutator says what it holds and what to run next:
 
 ```
 💾 Mutation test plan created: /Users/me/Foo/muter-mappings.json (3 mutants in 1 file, operator SwapTernary)

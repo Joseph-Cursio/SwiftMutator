@@ -7,6 +7,8 @@ extension Run {
     struct Options: Sendable {
         let reportOptions: ReportOptions
         let filesToMutate: [String]
+        /// `--exclude`: entries added to the configuration's `exclude` for this run.
+        let exclude: [String]
         /// `--since`'s git ref: only the Swift files changed since its merge base with HEAD are mutated.
         let since: String?
         /// `--changed-lines`: of those, only the code on the lines the change added or changed.
@@ -69,6 +71,7 @@ extension Run {
 
         init(
             filesToMutate: [String] = [],
+            exclude: [String] = [],
             since: String? = nil,
             changedLinesOnly: Bool = false,
             shard: Shard? = nil,
@@ -95,6 +98,7 @@ extension Run {
             planIgnoring: [String] = [],
             mutant: MutantReference? = nil
         ) {
+            self.exclude = exclude
             self.since = since
             self.changedLinesOnly = changedLinesOnly
             self.shard = shard
@@ -136,6 +140,7 @@ extension Run {
 extension Run.Options: Equatable {
     static func == (lhs: Run.Options, rhs: Run.Options) -> Bool {
         lhs.filesToMutate == rhs.filesToMutate &&
+            lhs.exclude == rhs.exclude &&
             lhs.since == rhs.since &&
             lhs.changedLinesOnly == rhs.changedLinesOnly &&
             lhs.shard == rhs.shard &&

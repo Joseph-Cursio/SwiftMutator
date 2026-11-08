@@ -35,6 +35,13 @@ struct LoadConfiguration: MutationStep {
                 try migrateToYAMLAtPath(configurationPath, configuration)
             }
 
+            // YAML reads an unquoted `- !/Stubs/` as a tag on an empty value.
+            if configuration.excludeFileList.contains(where: \.isEmpty) {
+                throw MuterError.configurationParsingError(
+                    reason: "An `exclude` entry is empty. One that starts with ! must be quoted, as - \"!/Stubs/\"."
+                )
+            }
+
             guard isConfigurationValid(configuration) else {
                 throw MuterError.configurationParsingError(
                     reason: "Please provide a valid `-destination` argument for your project"
@@ -46,7 +53,8 @@ struct LoadConfiguration: MutationStep {
                     workers: state.runOptions.workers,
                     timeout: state.runOptions.timeout,
                     failUnder: state.runOptions.failUnder,
-                    propertyTests: state.runOptions.propertyTests
+                    propertyTests: state.runOptions.propertyTests,
+                    exclude: state.runOptions.exclude
                 )
             if let reason = resolved.propertyRerunsUnsupportedReason {
                 throw MuterError.configurationParsingError(reason: reason)

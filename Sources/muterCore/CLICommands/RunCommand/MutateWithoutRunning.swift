@@ -17,6 +17,7 @@ struct MutateWithoutRunning: RunCommand {
     var runOptions: Run.Options {
         Run.Options(
             filesToMutate: selection.filesToMutate,
+            exclude: selection.exclude,
             mutationOperatorsList: selection.mutationOperatorsList,
             operatorsAreNamed: selection.operatorsAreNamed,
             skipOperators: selection.skippedOperators,

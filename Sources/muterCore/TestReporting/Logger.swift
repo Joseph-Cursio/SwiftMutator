@@ -204,6 +204,26 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         )
     }
 
+    /// The `--files-to-mutate` entries that leave no file to mutate, and why, one line each.
+    func filesToMutateUnmatched(_ entries: [UnmatchedFilesToMutate]) {
+        for unmatched in entries {
+            let why = switch unmatched.reason {
+            case .noSwiftFile:
+                "names no Swift file"
+            case .outsideTheProject:
+                "names only Swift files outside the project"
+            case .excluded:
+                "names only files the excludes leave out; an \("exclude".bold) entry that starts with ! keeps them"
+            case .neverMutated:
+                "names only package manifests or files in build folders, which are never mutated"
+            case .withoutCoverage:
+                "names only files the excludes or the coverage filter leave out: those at or below "
+                    + "\("coverageThreshold".bold), which by default are those whose code no test ran"
+            }
+            print("⚠️ --files-to-mutate \(unmatched.entry) \(why).")
+        }
+    }
+
     /// Why the Swift files a SwiftPM package's targets compile couldn't be listed, and what discovery does instead.
     func packageSourceFilesUnavailable(reason: String) {
         // SwiftPM's errors often end in one.

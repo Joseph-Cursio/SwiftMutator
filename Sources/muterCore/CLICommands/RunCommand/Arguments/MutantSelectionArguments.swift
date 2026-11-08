@@ -3,8 +3,23 @@ import Foundation
 
 /// The mutants a run, or a test plan, holds: by file and by operator.
 struct MutantSelectionArguments: ParsableArguments {
-    @Option(help: "Only mutate a given list of source code files.")
+    @Option(
+        help: ArgumentHelp(
+            "Only mutate these Swift files, folders or globs, in the project; comma-separated or repeated. The "
+                + "excludes and the coverage filter still apply.",
+            valueName: "path"
+        )
+    )
     var filesToMutate: [String] = []
+
+    @Option(
+        help: ArgumentHelp(
+            "Leave out the files this path fragment or glob matches, as an `exclude` entry does, for this run; "
+                + "`!` in front keeps what it matches. Repeatable.",
+            valueName: "pattern"
+        )
+    )
+    var exclude: [String] = []
 
     @Option(
         parsing: .upToNextOption,

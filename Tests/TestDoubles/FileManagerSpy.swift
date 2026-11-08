@@ -43,6 +43,8 @@ final class FileManagerSpy: Spy, FileSystemManager, @unchecked Sendable {
     var createDirectoryErrorsToThrow: [Error?] = []
     var subpathsToReturn: [String]?
     var fileExistsToReturn: [Bool] = []
+    /// The paths `isDirectory(atPath:)` says are folders.
+    var directoriesToReturn: Set<String> = []
     /// Whether `createFile` succeeds, as it returns; what it wrote is recorded either way.
     var createFileToReturn = true
     var contentsAtPathSortedToReturn: [String] = []
@@ -139,6 +141,11 @@ final class FileManagerSpy: Spy, FileSystemManager, @unchecked Sendable {
         methodCalls.append(#function)
         fileExistsAtPath.append(path)
         return fileExistsToReturn.isEmpty ? false : fileExistsToReturn.removeFirst()
+    }
+
+    func isDirectory(atPath path: String) -> Bool {
+        methodCalls.append(#function)
+        return directoriesToReturn.contains(path)
     }
 
     func removeItem(

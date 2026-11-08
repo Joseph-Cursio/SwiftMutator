@@ -199,9 +199,10 @@ enum ResumeCheck {
         _ recorded: MuterConfiguration,
         _ current: MuterConfiguration
     ) -> [Difference] {
-        // A side that can't be encoded has no keys, so every key the other has differs.
-        let was = values(of: recorded)
-        let isNow = values(of: current)
+        // A side that can't be encoded has no keys, so every key the other has differs. `exclude`'s entries choose the
+        // same files in any order, as `--exclude`'s come after the file's.
+        let was = values(of: recorded.withExcludesInOrder)
+        let isNow = values(of: current.withExcludesInOrder)
         return Set(was.keys).union(isNow.keys).sorted().compactMap { name in
             was[name] == isNow[name] ? nil : Difference(name: name, was: was[name], isNow: isNow[name])
         }
