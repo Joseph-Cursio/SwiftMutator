@@ -1219,6 +1219,22 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         }
     }
 
+    /// Says which of Xcode's trust checks the configuration `init` wrote skips, as each lets a plugin or macro run that
+    /// no one approved, so that someone who doesn't trust that code takes the argument out.
+    func trustChecksSkipped(_ checks: [XcodebuildTrustCheck]) {
+        guard !checks.isEmpty else {
+            return
+        }
+
+        let subjects = checks.map(\.subject).joined(separator: " and ")
+        let arguments = checks.map { "`\($0.skippingArgument)`" }.joined(separator: " and ")
+        print(
+            "⚠️ The project seems to use \(subjects), so the arguments include \(arguments): xcodebuild then runs "
+                + "them without asking anyone to trust them first, which a run with no one at the Mac, as on CI, "
+                + "needs. Take \(checks.count == 1 ? "it" : "them") out if you don't trust that code."
+        )
+    }
+
     func muterMutationTestPlanLoaded() {
         print("⬆️ SwiftMutator mutation test plan loaded")
     }
