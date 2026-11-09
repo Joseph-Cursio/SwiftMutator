@@ -2,10 +2,10 @@
 
 This review started on 2 October 2026, at commit `4ba72fc`, as a ranked list of ways to improve SwiftMutator. On 21 October it gained the gaps found by comparing SwiftMutator with swift-mutation-testing. It now covers only what isn't done.
 
-- **Last updated on 9 November 2026,** at `586728b2`. Each item was checked against its issue and the code, and its line references brought up to date.
+- **Last updated on 9 November 2026,** at `19a0aa24`. Each item was checked against its issue and the code, and its line references brought up to date.
 - **Done items were removed.** Git history keeps them: [this file at `5755b647`](https://github.com/Joseph-Cursio/SwiftMutator/blob/5755b647/Docs/improvement-review-2026-10-02.md) lists every finished item with its PR, and [at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md) has the early write-ups.
 - **Section numbers are the original ones,** so references in PRs and notes still work. A missing number is a finished section.
-- **Open issues:** [#121], [#130], [#181], [#230], [#261], [#262] and [#263]. An item marked "no issue yet" is a known gap that no issue tracks.
+- **Open issues:** [#121], [#130], [#230], [#261], [#262] and [#263]. An item marked "no issue yet" is a known gap that no issue tracks.
 
 ---
 
@@ -68,8 +68,7 @@ Added on 21 October, from a comparison with swift-mutation-testing v1.6.3 (`937f
 
 These came after the review and have no section of their own.
 
-- **The baseline's time counts time asleep or suspended** ([#181]). Every mutant's run is timed on the monotonic clock, less Ctrl-Z suspensions, but the baseline with `Date()`, and its time sets the default limit where there's no timed test run.
-- **More `#if`s to decide** ([#230]): xcodebuild's per-file targets, a Swift package's scheme under xcodebuild, and `swift(…)` conditions. An `#if` that discovery can't decide keeps its mutants, which coverage can still leave out.
+- **An `.xcconfig` outside the project can set a condition for a target xcodebuild doesn't report** ([#230]). Discovery reads only the build files in the project for the names it leaves undecided, so such a condition, set for a framework the app only depends on, reads as unset in a file that framework compiles, and its branch loses its mutants. #230's three gaps are done: `swift(…)`, `compiler(…)` and the architecture's conditions (#272, #273), a Swift package's scheme under xcodebuild (#274), and xcodebuild's per-file targets after the coverage run (#275).
 
 ---
 
@@ -98,7 +97,6 @@ These came after the review and have no section of their own.
 [#121]: https://github.com/Joseph-Cursio/SwiftMutator/issues/121
 [#122]: https://github.com/Joseph-Cursio/SwiftMutator/issues/122
 [#130]: https://github.com/Joseph-Cursio/SwiftMutator/issues/130
-[#181]: https://github.com/Joseph-Cursio/SwiftMutator/issues/181
 [#230]: https://github.com/Joseph-Cursio/SwiftMutator/issues/230
 [#260]: https://github.com/Joseph-Cursio/SwiftMutator/pull/260
 [#261]: https://github.com/Joseph-Cursio/SwiftMutator/issues/261
