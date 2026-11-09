@@ -8,8 +8,9 @@ import Foundation
 /// `mint run realm/SwiftLint`, `swift run swiftlint`, `mise exec -- swiftlint`, `env`, `exec`, `command`, `nice`,
 /// `nohup` and `arch`. Nothing else is: not `which swiftlint`, `command -v swiftlint`, an `echo` that names it, a path
 /// to it given as an argument, a variable such as `$SWIFTLINT`, or a script that runs it, as `scripts/swiftlint.sh`.
-/// Heredocs and `case` patterns aren't understood, but a misreading can only make a command named `swiftlint` be
-/// taken for one, or missed.
+/// Nor is a word that only looks like a command: a function's name, as in `swiftlint() { … }`, or a `case` pattern,
+/// as in `swiftlint) …`, where a `: ` before it would be a syntax error that fails every build. Heredocs aren't
+/// understood, so a line of one that starts with `swiftlint` is taken for a command, and gets `: ` in its text.
 enum SwiftLintCommands {
     struct Found: Equatable {
         /// Where each command that runs SwiftLint starts, in the script's bytes: after any `then` or `!` before it,
@@ -148,6 +149,10 @@ extension SwiftLintCommands {
     struct Scanner {
         let script: [UInt8]
         private var index = 0
+        /// How many `case` statements are open where the scanner is.
+        private var openCases = 0
+        /// Whether what comes next is a `case` item's patterns, as after `in` or `;;`, rather than commands.
+        private var expectingPatterns = false
 
         init(script: [UInt8]) {
             self.script = script
@@ -162,6 +167,9 @@ extension SwiftLintCommands {
             while index < script.count {
                 skipBlanks()
                 guard index < script.count else { return nil }
+                if skipCaseItemEnd() {
+                    continue
+                }
                 if isSeparator(script[index]) {
                     index += 1
                     continue
@@ -170,27 +178,102 @@ extension SwiftLintCommands {
                     skipComment()
                     continue
                 }
-                var start = index
-                var words: [String] = []
-                while index < script.count, !isSeparator(script[index]) {
-                    if script[index] == UInt8(ascii: "#") {
-                        skipComment()
-                        break
-                    }
-                    let word = readWord()
-                    if words.isEmpty, Self.leadingReservedWords.contains(word) {
-                        skipBlanks()
-                        start = index
-                    } else {
-                        words.append(word)
-                    }
-                    skipBlanks()
+                if expectingPatterns {
+                    skipPatterns()
+                    continue
                 }
-                if !words.isEmpty {
-                    return Command(start: start, words: words)
+                if let command = readCommand() {
+                    return command
                 }
             }
             return nil
+        }
+
+        /// The simple command at `index`, if it is one: nil for only reserved words, a `case` statement's start, or
+        /// a function's name.
+        private mutating func readCommand() -> Command? {
+            var start = index
+            var words: [String] = []
+            while index < script.count, !isSeparator(script[index]) {
+                if script[index] == UInt8(ascii: "#") {
+                    skipComment()
+                    break
+                }
+                let word = readWord()
+                if words.isEmpty, word == "case" {
+                    skipCaseSubject()
+                    return nil
+                }
+                if words.isEmpty, word == "esac", openCases > 0 {
+                    openCases -= 1
+                    skipBlanks()
+                    start = index
+                } else if words.isEmpty, Self.leadingReservedWords.contains(word) {
+                    skipBlanks()
+                    start = index
+                } else {
+                    words.append(word)
+                }
+                skipBlanks()
+            }
+            // `name()`: only a function's definition has words just before a `(`, and they don't run.
+            if index < script.count, script[index] == UInt8(ascii: "(") {
+                return nil
+            }
+            return words.isEmpty ? nil : Command(start: start, words: words)
+        }
+
+        /// The word and `in` after `case`, after which its first item's patterns come.
+        private mutating func skipCaseSubject() {
+            skipBlanks()
+            _ = readWord()
+            while index < script.count, isBlank(script[index]) || script[index] == 0x0A {
+                index += 1
+            }
+            if readWord() == "in" {
+                openCases += 1
+                expectingPatterns = true
+            }
+        }
+
+        /// A `case` item's patterns, as `swiftlint | lint)`, to the `)` after them; or the `esac` that ends the
+        /// statement. A `(` before them is a separator, so already passed.
+        private mutating func skipPatterns() {
+            expectingPatterns = false
+            if readWord() == "esac" {
+                openCases -= 1
+                return
+            }
+            while index < script.count {
+                skipBlanks()
+                guard index < script.count else { return }
+                switch script[index] {
+                case UInt8(ascii: ")"):
+                    index += 1
+                    return
+                case UInt8(ascii: "|"):
+                    index += 1
+                default:
+                    let before = index
+                    _ = readWord()
+                    // A byte no word takes, as a newline where a `)` belongs: the script isn't one the shell reads.
+                    if index == before {
+                        return
+                    }
+                }
+            }
+        }
+
+        /// `;;`, `;&` or `;;&` inside a `case` statement, which ends an item: its next item's patterns come after.
+        private mutating func skipCaseItemEnd() -> Bool {
+            guard openCases > 0, index + 1 < script.count, script[index] == UInt8(ascii: ";"),
+                  script[index + 1] == UInt8(ascii: ";") || script[index + 1] == UInt8(ascii: "&") else { return false }
+            index += 2
+            if index < script.count, script[index - 1] == UInt8(ascii: ";"), script[index] == UInt8(ascii: "&") {
+                index += 1
+            }
+            expectingPatterns = true
+            return true
         }
 
         /// A newline, `;`, `&`, `|`, `(` or `)`: what ends a command, or a list of them.

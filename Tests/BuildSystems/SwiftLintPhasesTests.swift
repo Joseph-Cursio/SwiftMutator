@@ -37,6 +37,25 @@ final class SwiftLintCommandsTests: XCTestCase {
             ("/usr/bin/env -u CI swiftlint", ": /usr/bin/env -u CI swiftlint"),
             ("exec swiftlint", ": exec swiftlint"),
             ("time swiftlint", "time : swiftlint"),
+            ("xcrun swiftlint", ": xcrun swiftlint"),
+            ("env swiftlint", ": env swiftlint"),
+            ("command swiftlint", ": command swiftlint"),
+            ("nice -n 10 swiftlint", ": nice -n 10 swiftlint"),
+            ("nohup swiftlint", ": nohup swiftlint"),
+            ("arch -arm64 swiftlint", ": arch -arm64 swiftlint"),
+            ("mise x -- swiftlint", ": mise x -- swiftlint"),
+            // Inside a function, which the script then calls by its name.
+            (
+                "swiftlint() { \"$PODS_ROOT/SwiftLint/swiftlint\" \"$@\"; }\nswiftlint lint",
+                "swiftlint() { : \"$PODS_ROOT/SwiftLint/swiftlint\" \"$@\"; }\n: swiftlint lint"
+            ),
+            // In a `case` item, after its patterns, which may name SwiftLint too.
+            (
+                "case \"$1\" in\n  swiftlint|lint) swiftlint lint;;\n  (*) exit 1 ;;\nesac\nswiftlint",
+                "case \"$1\" in\n  swiftlint|lint) : swiftlint lint;;\n  (*) exit 1 ;;\nesac\n: swiftlint"
+            ),
+            ("case $x in a) swiftlint ;& b) swiftlint ;; esac", "case $x in a) : swiftlint ;& b) : swiftlint ;; esac"),
+            ("diff <(swiftlint) expected.txt", "diff <(: swiftlint) expected.txt"),
         ]
 
         for (script, turnedOff) in cases {
@@ -51,6 +70,7 @@ final class SwiftLintCommandsTests: XCTestCase {
             "echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"",
             "which swiftlint",
             "command -v swiftlint",
+            "command -V swiftlint",
             "xcrun -f swiftlint",
             "swiftformat --lint .",
             "# swiftlint\n",
@@ -62,6 +82,24 @@ final class SwiftLintCommandsTests: XCTestCase {
             "swiftlint.yml",
             "mint bootstrap swiftlint",
             "swift build --product swiftlint",
+        ]
+
+        for script in scripts {
+            XCTAssertEqual(SwiftLintCommands.find(in: Array(script.utf8)), SwiftLintCommands.Found(), script)
+        }
+    }
+
+    // A function's name, and a `case` pattern, look like a command but run nothing, and a `: ` before either is a
+    // syntax error, which would fail every build of the copy.
+    func test_aFunctionsNameOrACasePattern_isLeftAsItIs() {
+        let scripts = [
+            "swiftlint() { echo; }",
+            "swiftlint () {\n  echo\n}",
+            "function swiftlint() { echo; }",
+            "case \"$1\" in\n  swiftlint) echo a ;;\nesac",
+            "case \"$1\" in\n  (swiftlint) echo a ;;\n  lint | swiftlint) echo b ;;\nesac",
+            "case $x\nin swiftlint) echo ;; esac",
+            "case $x in a) case $y in swiftlint) echo ;; esac ;; swiftlint) echo ;; esac",
         ]
 
         for script in scripts {
@@ -128,8 +166,36 @@ final class SwiftLintPhasesTests: XCTestCase {
         let twice = SwiftLintPhases.turningOff(in: once.bytes, project: "App.xcodeproj")
 
         XCTAssertNotEqual(once.bytes, file)
+        XCTAssertEqual(once.phases.turnedOff.count, 1)
         XCTAssertEqual(twice.bytes, once.bytes)
-        XCTAssertEqual(twice.phases, once.phases)
+        XCTAssertEqual(twice.phases, SwiftLintPhases())
+    }
+
+    // A phase the project itself wrote with SwiftLint off is said neither to be turned off here, where
+    // `keepSwiftLintPhases` would keep it running, nor to be one SwiftLint may still run in.
+    func test_aPhaseWhoseCommandsAreAllOffAlready_isntSaid() {
+        let file = Array(project(phases: [("AAA1", "", "/bin/sh", #""which swiftlint && : swiftlint\n""#)]).utf8)
+
+        let (bytes, phases) = SwiftLintPhases.turningOff(in: file, project: "App.xcodeproj")
+
+        XCTAssertEqual(bytes, file)
+        XCTAssertEqual(phases, SwiftLintPhases())
+    }
+
+    // Another command that runs SwiftLint some other way, as through a variable, can't be told from one that only
+    // names it: the phase is said to be turned off, as one of its commands is.
+    func test_aPhaseWithACommandTurnedOff_andOneThatRunsSwiftLintThroughAVariable_isSaidToBeTurnedOff() {
+        let file = project(phases: [("AAA1", "", "/bin/sh", #""swiftlint autocorrect\n\"$SWIFTLINT\" lint\n""#)])
+
+        let (bytes, phases) = SwiftLintPhases.turningOff(in: Array(file.utf8), project: "App.xcodeproj")
+
+        XCTAssertEqual(
+            String(decoding: bytes, as: UTF8.self),
+            project(phases: [("AAA1", "", "/bin/sh", #"": swiftlint autocorrect\n\"$SWIFTLINT\" lint\n""#)])
+        )
+        XCTAssertEqual(phases, SwiftLintPhases(turnedOff: [
+            .init(project: "App.xcodeproj", name: "Run Script", targets: ["App", "AppTests"]),
+        ]))
     }
 
     // Xcode writes a script without quotes when it needs none. Changed, it needs them.
@@ -318,6 +384,32 @@ final class TurnOffSwiftLintPhasesTests: MuterTestCase {
         XCTAssertEqual(try read("Linked.xcodeproj/project.pbxproj"), script.replacingOccurrences(
             of: #""swiftlint\n""#, with: #"": swiftlint\n""#
         ))
+    }
+
+    // An atomic write puts a new file in the old one's place, which needs only the folder to be writable.
+    func test_aReadOnlyProjectFile_isTurnedOffAllTheSame() async throws {
+        let path = copy + "/App/App.xcodeproj/project.pbxproj"
+        try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: path)
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(try read("App/App.xcodeproj/project.pbxproj"), script.replacingOccurrences(
+            of: #""swiftlint\n""#, with: #"": swiftlint\n""#
+        ))
+    }
+
+    func test_aProjectFileThatCantBeWritten_isSaid_andNotSaidToBeTurnedOff() async throws {
+        let folder = copy + "/App/App.xcodeproj"
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder) }
+        var sent: SwiftLintPhases?
+        let token = runEvents.observe(.swiftLintPhasesTurnedOff) { sent = $0.object as? SwiftLintPhases }
+        defer { token.cancel() }
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(try read("App/App.xcodeproj/project.pbxproj"), script)
+        XCTAssertEqual(sent, SwiftLintPhases(unreadProjects: ["App/App.xcodeproj"]))
     }
 
     func test_keepSwiftLintPhases_keepsThem() async throws {

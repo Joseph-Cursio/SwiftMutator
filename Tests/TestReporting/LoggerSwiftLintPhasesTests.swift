@@ -21,7 +21,8 @@ final class LoggerSwiftLintPhasesTests: MuterTestCase {
         XCTAssertEqual(printer.linesPassed, [
             """
             🔇 Turned SwiftLint off in 2 build phases of the copy, as each mutated file turns its rules off anyway. \
-            Only the command that runs it is skipped, so the rest of the script still runs:
+            Only the command that runs it is skipped, so the rest of the script still runs, and a report it writes is \
+            left empty:
               App.xcodeproj: Run SwiftLint, in targets App, AppTests
               Tools/Tools.xcodeproj: Run Script, in target Tool
             \("keepSwiftLintPhases: true".bold) keeps it running there.

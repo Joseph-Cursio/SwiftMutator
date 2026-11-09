@@ -23,10 +23,12 @@ struct SwiftLintPhases: Equatable {
         }
     }
 
-    /// The phases that run SwiftLint no more.
+    /// The phases with a command that ran SwiftLint and runs it no more. Another command of the phase may still run
+    /// it some other way, as through a variable, which a name in an `echo` or a `which` can't be told from.
     var turnedOff: [Phase] = []
-    /// The phases whose script names SwiftLint, but in no command found to run it, as one that runs a script of its
-    /// own, or with a shell other than `sh`, `bash`, `zsh`, `ksh` or `dash`: it may still run there.
+    /// The phases whose script names SwiftLint, but in no command found to run it, or to have it off already, as one
+    /// that runs a script of its own, or with a shell other than `sh`, `bash`, `zsh`, `ksh` or `dash`: it may still
+    /// run there.
     var leftRunning: [Phase] = []
     /// The project files, as `App/App.xcodeproj`, that name SwiftLint but can't be read, or written.
     var unreadProjects: [String] = []
@@ -93,12 +95,15 @@ struct SwiftLintPhases: Equatable {
                 name: object["name"]?.string ?? "Run Script",
                 targets: targets[identifier] ?? []
             )
-            if !found.running.isEmpty || found.turnedOff > 0 {
-                phases.turnedOff.append(phase)
-            } else if script.value.lowercased().contains("swiftlint") {
-                phases.leftRunning.append(phase)
+            // A phase whose commands were all off already, as the project itself wrote them, was turned off by no one
+            // here, and runs SwiftLint no more.
+            guard !found.running.isEmpty else {
+                if found.turnedOff == 0, script.value.lowercased().contains("swiftlint") {
+                    phases.leftRunning.append(phase)
+                }
+                continue
             }
-            guard !found.running.isEmpty else { continue }
+            phases.turnedOff.append(phase)
             if !script.isQuoted {
                 insertions.append((script.range.lowerBound, "\""))
             }

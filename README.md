@@ -455,8 +455,11 @@ full path on the Mac that ran `init`. Commit the file rather than running `init`
   off in the copy's build phases, never in your project, and says which: only the command that runs
   it, `swiftlint` by name or path, or through `xcrun`, `mint run`, `swift run`, `mise exec`, `env` and
   the like, gets `: ` before it, the shell's command that does nothing and succeeds, so the rest of
-  the script, such as an `if which swiftlint` guard, still runs. A phase that runs SwiftLint some
-  other way, as from a script of its own or a variable, is named as one it may still run in.
+  the script, such as an `if which swiftlint` guard, still runs. `:` still opens the command's
+  redirections, and a `tee` after it still runs, so a report SwiftLint wrote, as with `> lint.json`,
+  is left empty: a later command that reads it can fail. A phase that names SwiftLint in no command
+  SwiftMutator could turn off, as one that runs it from a script of its own or a variable, is named
+  as one it may still run in.
   `keepSwiftLintPhases: true` keeps them all; `run-without-mutating` tests a plan's copy as
   `mutate-without-running` left it. SwiftLint's build tool plugins aren't turned off, nor
   is any other linter: one that fails the build on style can fail it on a mutant's code. Turn it off
