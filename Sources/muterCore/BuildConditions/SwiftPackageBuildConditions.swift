@@ -28,9 +28,21 @@ enum SwiftPackageBuildConditions {
         case let .failure(failure): return .failure(BuildConditionsUnavailable(reason: failure.reason))
         }
 
+        var manifests: [Manifest] = []
+        for package in packages {
+            guard let manifest = await manifest(of: package, testedBy: configuration, process: process) else {
+                return .failure(BuildConditionsUnavailable(
+                    reason: "`swift package dump-package` gave nothing it could read for \(package.path)"
+                ))
+            }
+            manifests.append(manifest)
+        }
+
         let arguments = configuration.testCommandArguments
         let platform = if let xcodeScheme {
-            xcodeScheme.platform
+            // Xcode builds a macro, a plugin's tools and what they depend on for the Mac it runs on, whatever the
+            // destination. SwiftMutator doesn't tell which files those are.
+            builtForTheMac(manifests) && !(xcodeScheme.platform?.isTheMacItself ?? true) ? nil : xcodeScheme.platform
         } else {
             await platform(testedWith: arguments, process: process, fileManager: fileManager)
         }
@@ -47,13 +59,10 @@ enum SwiftPackageBuildConditions {
         let buildsToolsWithFlags = arguments.contains {
             $0 == "-Xbuild-tools-swiftc" || $0.hasPrefix("-Xbuild-tools-swiftc=")
         }
-        for package in packages {
+        for (package, manifest) in zip(packages, manifests) {
             let unreadable = BuildConditionsUnavailable(
                 reason: "`swift package dump-package` gave nothing it could read for \(package.path)"
             )
-            guard let manifest = await manifest(of: package, testedBy: configuration, process: process) else {
-                return .failure(unreadable)
-            }
             undecided.formUnion((manifest.traits ?? []).map(\.name))
             // SwiftPM builds a plugin in its tools version's mode, with `-Xbuild-tools-swiftc`'s flags.
             func languageMode(of target: Manifest.Target) -> LanguageMode? {
@@ -98,6 +107,12 @@ enum SwiftPackageBuildConditions {
             ),
             customConditionsOfFile: ofFile
         ))
+    }
+
+    /// Whether a package has a macro or a plugin, whose tools are built, with what they depend on, for the Mac that
+    /// builds.
+    private static func builtForTheMac(_ manifests: [Manifest]) -> Bool {
+        manifests.contains { $0.targets.contains { $0.type == "macro" || $0.type == "plugin" } }
     }
 
     /// The options that build with a compiler other than the one `swift --version` names: another toolchain, a
@@ -376,5 +391,12 @@ private struct ManifestKey: CodingKey {
 
     init?(intValue _: Int) {
         nil
+    }
+}
+
+private extension BuildConditions.Platform {
+    /// Whether this is the Mac that builds, as a macOS destination with no architecture names it.
+    var isTheMacItself: Bool {
+        system == "macOS" && environment == nil && architectures == nil
     }
 }

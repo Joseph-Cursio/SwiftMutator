@@ -4,7 +4,6 @@ import XCTest
 
 /// A Swift package's scheme under xcodebuild, whose settings `-showBuildSettings` doesn't report.
 final class PackageSchemeBuildConditionsTests: MuterTestCase {
-    private let xcodebuild = "/usr/bin/xcodebuild"
     private let swift = "/Xcode/Toolchain/usr/bin/swift"
     private var project = ""
 
@@ -22,7 +21,8 @@ final class PackageSchemeBuildConditionsTests: MuterTestCase {
         stubPackage()
 
         let conditions = try await conditions(arguments: [
-            "-scheme", "P-Package", "-destination", "platform=iOS Simulator,name=iPhone 17", "test",
+            "-scheme", "P-Package", "-configuration", "Debug", "-destination", "platform=iOS Simulator,name=iPhone 17",
+            "test",
         ])
 
         XCTAssertEqual(
@@ -60,20 +60,100 @@ final class PackageSchemeBuildConditionsTests: MuterTestCase {
         stubPackage()
 
         let conditions = try await conditions(arguments: [
-            "-scheme", "P-Package", "-destination", "id=00008110-001A2B3C4D5E", "test",
+            "-scheme", "P-Package", "-configuration", "Debug", "-destination", "id=00008110-001A2B3C4D5E", "test",
         ])
 
         XCTAssertNil(conditions.everyTarget.platform)
         XCTAssertTrue(conditions.everyTarget.undecidedConditions.isSuperset(of: ["ONLY_IOS", "ONLY_MAC"]))
     }
 
-    func test_aToolchainTheCommandPicks_leavesTheCompilerUnknown() async throws {
+    func test_aToolchainTheCommandOrTheEnvironmentPicks_leavesTheCompilerUnknown() async throws {
+        let cases: [(arguments: [String], environment: [String: String])] = [
+            (["-toolchain", "swift"], [:]),
+            ([], ["TOOLCHAINS": "org.swift.64202510201a"]),
+            ([], ["SWIFT_EXEC": "/opt/swift/bin/swiftc"]),
+        ]
+        for (arguments, environment) in cases {
+            stubPackage()
+
+            let conditions = try await result(
+                arguments: ["-scheme", "P-Package", "-configuration", "Debug"] + arguments + ["test"],
+                environment: environment
+            ).get()
+
+            XCTAssertNil(conditions.everyTarget.compiler, "\(arguments) \(environment)")
+            XCTAssertNil(conditions.everyTarget.language, "\(arguments) \(environment)")
+        }
         stubPackage()
+        let xcodesOwn = try await result(
+            arguments: ["-scheme", "P-Package", "-configuration", "Debug", "test"],
+            environment: ["TOOLCHAINS": "com.apple.dt.toolchain.XcodeDefault"]
+        ).get()
+        XCTAssertEqual(xcodesOwn.everyTarget.compiler, VersionTuple(6, 4, 2))
+    }
 
-        let conditions = try await conditions(arguments: ["-scheme", "P-Package", "-toolchain", "swift", "test"])
+    // An xcodebuild in an Xcode's Developer folder runs that Xcode, whatever `DEVELOPER_DIR` or `xcode-select` says,
+    // so its `swift` and SDKs are that Xcode's.
+    func test_anXcodesOwnXcodebuild_readsTheManifestWithThatXcodesSwift() async throws {
+        stubPackage()
+        let developer = "/Applications/Xcode-beta.app/Contents/Developer"
 
-        XCTAssertNil(conditions.everyTarget.compiler)
-        XCTAssertNil(conditions.everyTarget.language)
+        let conditions = try await result(
+            arguments: ["-scheme", "P-Package", "-configuration", "Debug", "-destination", "platform=macOS", "test"],
+            executable: developer + "/usr/bin/xcodebuild"
+        ).get()
+
+        XCTAssertEqual(conditions.everyTarget.compiler, VersionTuple(6, 4, 2))
+        let env = ["/usr/bin/env", "DEVELOPER_DIR=" + developer, "/usr/bin/xcrun"]
+        XCTAssertTrue(process.commandsRun.contains(env + ["--find", "swift"]))
+        XCTAssertTrue(process.commandsRun.contains(env + ["--sdk", "macosx", "--show-sdk-path"]))
+        XCTAssertFalse(process.commandsRun.contains { $0.first == "/usr/bin/xcrun" })
+    }
+
+    // A script that runs xcodebuild may give it a configuration, build settings or a destination of its own; another
+    // xcodebuild may run any Xcode.
+    func test_anExecutableThatIsntAnXcodesXcodebuild_isAFailure() async throws {
+        for (executable, reason) in [
+            ("/repo/scripts/test.sh", "xcodebuild reported no build settings"),
+            ("/opt/tools/bin/xcodebuild", "can't tell which Xcode"),
+        ] {
+            stubPackage()
+
+            let result = await result(
+                arguments: ["-scheme", "P-Package", "-configuration", "Debug", "test"],
+                executable: executable
+            )
+
+            guard case let .failure(failure) = result else {
+                XCTFail("\(executable): \(result)")
+                continue
+            }
+            XCTAssertTrue(failure.reason.contains(reason), failure.reason)
+        }
+    }
+
+    // Xcode builds a macro and a plugin's tools for the Mac, whatever the destination, and SwiftMutator doesn't tell
+    // which files they and what they depend on are.
+    func test_withAMacroOrAPlugin_onlyTheMacsOwnPlatformIsDecided() async throws {
+        for type in ["macro", "plugin"] {
+            stubPackage(alsoDeclaring: type)
+            let forIOS = try await conditions(arguments: [
+                "-scheme", "P-Package", "-configuration", "Debug", "-destination", "platform=iOS Simulator,name=A",
+                "test",
+            ])
+            let forAnotherArchitecture = try await conditions(arguments: [
+                "-scheme", "P-Package", "-configuration", "Debug", "-destination", "platform=macOS,arch=x86_64",
+                "test",
+            ])
+            let forTheMac = try await conditions(arguments: [
+                "-scheme", "P-Package", "-configuration", "Debug", "-destination", "platform=macOS", "test",
+            ])
+
+            XCTAssertNil(forIOS.everyTarget.platform, type)
+            XCTAssertTrue(forIOS.everyTarget.undecidedConditions.isSuperset(of: ["ONLY_IOS", "ONLY_MAC"]), type)
+            XCTAssertNil(forAnotherArchitecture.everyTarget.platform, type)
+            XCTAssertEqual(forTheMac.everyTarget.platform?.system, "macOS", type)
+        }
     }
 
     // xcodebuild opens a project or workspace beside the manifest before the package, and `-project`'s or
@@ -101,7 +181,13 @@ final class PackageSchemeBuildConditionsTests: MuterTestCase {
             (["-scheme", "P-Package", "-xcconfig", "/ci/Overrides.xcconfig", "test"], [:], "an `.xcconfig`"),
             (["-scheme", "P-Package", "test"], ["XCODE_XCCONFIG_FILE": "/ci/Overrides.xcconfig"], "an `.xcconfig`"),
             (["-scheme", "P-Package", "-configuration", "Beta", "test"], [:], "another configuration"),
-        ]
+            (["-scheme", "P-Package", "test"], [:], "give it with `-configuration`"),
+        ] + [
+            "OTHER_SWIFT_FLAGS", "OTHER_SWIFT_FLAGS_Debug", "SWIFT_ACTIVE_COMPILATION_CONDITIONS", "SWIFT_VERSION",
+            "ARCHS", "SDKROOT",
+        ].map { name in
+            (["-scheme", "P-Package", "-configuration", "Debug", "test"], [name: "-DFOO"], "environment sets \(name)")
+        }
         for (arguments, environment, reason) in cases {
             stubPackage()
 
@@ -113,19 +199,6 @@ final class PackageSchemeBuildConditionsTests: MuterTestCase {
             }
             XCTAssertTrue(failure.reason.contains(reason), failure.reason)
         }
-    }
-
-    // Its test action may build another configuration than Debug.
-    func test_aSchemeOfThePackagesOwn_needsTheConfigurationGiven() async throws {
-        stubPackage()
-        try write("<Scheme/>", to: ".swiftpm/xcode/xcshareddata/xcschemes/P-Package.xcscheme")
-
-        let withoutIt = await result(arguments: ["-scheme", "P-Package", "test"])
-        let withIt = await result(arguments: ["-scheme", "P-Package", "-configuration", "Debug", "test"])
-
-        guard case let .failure(failure) = withoutIt else { return XCTFail("\(withoutIt)") }
-        XCTAssertTrue(failure.reason.contains("give it with `-configuration`"), failure.reason)
-        XCTAssertNotNil(try? withIt.get())
     }
 
     func test_theDestinationsPlatform() {
@@ -152,8 +225,16 @@ final class PackageSchemeBuildConditionsTests: MuterTestCase {
 
     /// A package with a library, whose manifest defines `FROM_MANIFEST`, and `ONLY_IOS` and `ONLY_MAC` for those
     /// platforms, and its tests; xcodebuild with no settings for its scheme, and a toolchain of Swift 6.4.2.
-    private func stubPackage() {
+    private func stubPackage(alsoDeclaring otherType: String? = nil) {
+        let manifest = otherType.map {
+            manifest.replacingOccurrences(
+                of: #"{"name": "LibTests""#,
+                with: #"{"name": "Other", "type": "\#($0)", "settings": []}, {"name": "LibTests""#
+            )
+        } ?? manifest
         process.commandResult = { [self] command in
+            // As `xcrun` finds the tools of an Xcode `DEVELOPER_DIR` names.
+            let command = command.first == "/usr/bin/env" ? Array(command.dropFirst(2)) : command
             switch command {
             case _ where command.last == "-json" && command.contains("-showBuildSettings"):
                 return success("[\n\n]\n")
@@ -197,11 +278,12 @@ final class PackageSchemeBuildConditionsTests: MuterTestCase {
 
     private func result(
         arguments: [String],
-        environment: [String: String] = [:]
+        environment: [String: String] = [:],
+        executable: String = "/usr/bin/xcodebuild"
     ) async -> Result<ProjectBuildConditions, BuildConditionsUnavailable> {
         await XcodeBuildConditions.conditions(
             inProjectAt: project,
-            testedBy: MuterConfiguration(executable: xcodebuild, arguments: arguments),
+            testedBy: MuterConfiguration(executable: executable, arguments: arguments),
             process: current.process,
             fileManager: FileManager.default,
             environment: environment

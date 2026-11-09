@@ -949,11 +949,13 @@ and drops `#if os(macOS)`:
 | `_pointerBitWidth(…)`, `_endian(…)` | The architecture | The architectures |
 
 A Swift package's scheme under xcodebuild has no build settings to report, so its conditions come from its manifest, as
-for `swift test`, with `Xcode` set besides, the platform and SDK of `-destination`, and the configuration of
-`-configuration`, or Debug. That holds only where nothing else can set what the build compiles with: no project or
-workspace beside the manifest, no build setting or `-xcconfig` in `arguments`, no `XCODE_XCCONFIG_FILE`, and, without
-`-configuration`, no scheme of the package's own in `.swiftpm/xcode`. Otherwise its `#if`s are left to coverage, as
-they were before.
+for `swift test`, with `Xcode` set besides, the platform and SDK of `-destination`, the configuration of
+`-configuration`, which `arguments` must give, and the `swift` of the same Xcode. That holds only where nothing else can
+set what the build compiles with: `executable` is `/usr/bin/xcodebuild` or an Xcode's own, not a script that runs it,
+there's no project or workspace beside the manifest, no build setting or `-xcconfig` in `arguments`, and no
+`XCODE_XCCONFIG_FILE`, `OTHER_SWIFT_FLAGS`, `SWIFT_ACTIVE_COMPILATION_CONDITIONS`, `SWIFT_VERSION`, `ARCHS` or `SDKROOT`
+in the environment. Otherwise its `#if`s are left to coverage, as they were before. A package with a macro or a plugin
+gets the destination's platform only for the Mac itself, as Xcode builds those for the Mac whatever the destination.
 
 Whatever it can't tell, it leaves alone: the branch keeps its mutants, and coverage can still filter them out as before.
 So what it can't work out doesn't cost you code your build compiles. These stay undecided:
