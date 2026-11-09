@@ -10,7 +10,7 @@ enum XcodeBuildConditions {
     ///
     /// It reports no target that a scheme's targets only depend on, and no local package's, so a condition no reported
     /// target sets is left undecided if a build file in the project names it. A Swift package's scheme has no settings
-    /// at all, which is a failure here: its `#if`s are left to coverage.
+    /// at all, so its conditions come from its manifest (`PackageSchemeBuildConditions`).
     static func conditions(
         inProjectAt root: FilePath,
         testedBy configuration: MuterConfiguration,
@@ -19,9 +19,17 @@ enum XcodeBuildConditions {
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) async -> Result<ProjectBuildConditions, BuildConditionsUnavailable> {
         let arguments = configuration.testCommandArguments
-        var targets = await settings(for: arguments, configuration, process: process)
-        guard let first = targets.first else {
+        guard var targets = await settings(for: arguments, configuration, process: process) else {
             return .failure(BuildConditionsUnavailable(reason: "xcodebuild reported no build settings"))
+        }
+        guard let first = targets.first else {
+            return await PackageSchemeBuildConditions.conditions(
+                inProjectAt: root,
+                testedBy: configuration,
+                process: process,
+                fileManager: fileManager,
+                environment: environment
+            )
         }
         let withoutActions = argumentsWithoutActions(arguments)
         if withoutActions != arguments {
@@ -31,7 +39,7 @@ enum XcodeBuildConditions {
                 for: withoutActions + (testConfiguration.map { ["-configuration", $0] } ?? []),
                 configuration,
                 process: process
-            )
+            ) ?? []
         }
 
         let buildFiles = buildFiles(inProjectAt: root, fileManager: fileManager)
@@ -91,18 +99,19 @@ enum XcodeBuildConditions {
         let buildSettings: Settings
     }
 
+    /// The settings of each target `-showBuildSettings` reports, none for a package's scheme; nil if it failed.
     private static func settings(
         for arguments: [String],
         _ configuration: MuterConfiguration,
         process: ProcessFactory
-    ) async -> [Settings] {
+    ) async -> [Settings]? {
         guard let result = await process().runCommand(
             url: configuration.testCommandExecutable,
             arguments: arguments + ["-showBuildSettings", "-json"]
         ), result.succeeded,
             let targets = try? JSONDecoder().decode([Target].self, from: Data(result.output.utf8))
         else {
-            return []
+            return nil
         }
         return targets.map(\.buildSettings)
     }

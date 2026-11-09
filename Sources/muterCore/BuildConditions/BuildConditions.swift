@@ -28,8 +28,9 @@ struct BuildConditions: Equatable, Sendable {
         let system: String
         /// As `targetEnvironment(…)` spells it: `simulator` or `macCatalyst`.
         var environment: String?
-        /// As `arch(…)` spells them. A build for several compiles a branch for any of them.
-        let architectures: Set<String>
+        /// As `arch(…)` spells them. A build for several compiles a branch for any of them. Nil if SwiftMutator can't
+        /// tell, as for a package's scheme, whose settings xcodebuild doesn't report.
+        let architectures: Set<String>?
         /// nil if SwiftMutator couldn't list the SDK's.
         var modules: SDKModules?
     }
@@ -143,7 +144,9 @@ extension BuildConditions: BuildConfiguration {
     }
 
     func isActiveTargetArchitecture(name: String) throws -> Bool {
-        let architectures = try knownPlatform().architectures
+        guard let architectures = try knownPlatform().architectures else {
+            throw Undecided(description: "whether the architecture is \(name)")
+        }
         guard architectures.contains(name) else {
             // `arch(arm64)` holds in an arm64e build too.
             guard !architectures.contains("arm64e") else {
@@ -197,13 +200,15 @@ extension BuildConditions.Platform {
     /// The pointer width `_pointerBitWidth(…)` asks for: 64 if every architecture is 64-bit; nil otherwise. A 32-bit
     /// build is left undecided, as its macros and plugins are built for the host, which is 64-bit, in the same build.
     var pointerBitWidth: Int? {
-        !architectures.isEmpty && architectures.isSubset(of: Self.sixtyFourBit) ? 64 : nil
+        guard let architectures, !architectures.isEmpty else { return nil }
+        return architectures.isSubset(of: Self.sixtyFourBit) ? 64 : nil
     }
 
     /// The byte order `_endian(…)` asks for: little if every architecture is one SwiftMutator knows, as all of those
     /// are; nil otherwise.
     var endianness: Endianness? {
-        !architectures.isEmpty && architectures.isSubset(of: Self.sixtyFourBit.union(Self.thirtyTwoBit)) ? .little : nil
+        guard let architectures, !architectures.isEmpty else { return nil }
+        return architectures.isSubset(of: Self.sixtyFourBit.union(Self.thirtyTwoBit)) ? .little : nil
     }
 
     /// As `arch(…)`, Xcode's `ARCHS` and SwiftPM's host spell them. All are little-endian.

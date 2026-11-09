@@ -948,6 +948,15 @@ and drops `#if os(macOS)`:
 | `swift(…)` | The language mode every target builds in: its `swiftLanguageMode`, else the latest of the package's `swiftLanguageModes`, else its tools version's, which a plugin always builds in | The `SWIFT_VERSION` every reported target and every build file in the project sets |
 | `_pointerBitWidth(…)`, `_endian(…)` | The architecture | The architectures |
 
+A Swift package's scheme under xcodebuild has no build settings to report, so its conditions come from its manifest, as
+for `swift test`, with `Xcode` set besides, the platform and SDK of `-destination`, the configuration of
+`-configuration`, which `arguments` must give, and the `swift` of the same Xcode. That holds only where nothing else can
+set what the build compiles with: `executable` is `/usr/bin/xcodebuild` or an Xcode's own, not a script that runs it,
+there's no project or workspace beside the manifest, no build setting or `-xcconfig` in `arguments`, and no
+`XCODE_XCCONFIG_FILE`, `OTHER_SWIFT_FLAGS`, `SWIFT_ACTIVE_COMPILATION_CONDITIONS`, `SWIFT_VERSION`, `ARCHS` or `SDKROOT`
+in the environment. Otherwise its `#if`s are left to coverage, as they were before. A package with a macro or a plugin
+gets the destination's platform only for the Mac itself, as Xcode builds those for the Mac whatever the destination.
+
 Whatever it can't tell, it leaves alone: the branch keeps its mutants, and coverage can still filter them out as before.
 So what it can't work out doesn't cost you code your build compiles. These stay undecided:
 
@@ -960,7 +969,8 @@ So what it can't work out doesn't cost you code your build compiles. These stay 
   project that holds a package, whose targets' modes its manifest sets, or names an `.xcconfig` outside it, or with
   `-xcconfig` or `XCODE_XCCONFIG_FILE`;
 - `canImport` of a module in no SDK, which may be a package's, and any `canImport` in a Mac Catalyst build;
-- `arch(…)` in a build for several architectures, as a generic destination is, unless it is none of them;
+- `arch(…)` in a build for several architectures, as a generic destination is, unless it is none of them, and in a
+  package's scheme under xcodebuild, unless `-destination` names one with `arch=`;
 - a condition only some targets set. SwiftPM says which targets compile each file, so there it's only those targets'.
   xcodebuild doesn't, so there it's all the targets it reports, for the test bundles and for the scheme;
 - with xcodebuild, a condition no reported target sets but that a `project.pbxproj`, `.xcconfig` or package manifest in
