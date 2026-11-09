@@ -6,6 +6,8 @@ extension PerformMutationTesting {
     /// The baseline, with any mutant that fails its build taken out of the code, until it no longer fails on one
     /// (`CompileRecovery`): its outcome and log, the seconds it took, and those mutants, with any `BuildForTesting`
     /// took out. Only the last run is timed: it is what a mutant's run costs, with failed builds' costs behind it.
+    /// It is timed on the monotonic clock, less any suspension, as a mutant's run is, so a Mac that sleeps through it
+    /// doesn't lengthen the default time limit it sets for build systems other than SwiftPM (#181).
     /// xcodebuild's build came first, in `BuildForTesting`: a rewrite here would leave the tests it copied out of date.
     /// A run stopped at `buildTimeout` stops mutation testing: its log, cut short, says nothing about which mutants
     /// don't compile.
@@ -18,7 +20,7 @@ extension PerformMutationTesting {
         leftOut: [String: LeftOutMutant]
     ) {
         var recovery = state.muterConfiguration.buildSystem == .xcodebuild ? nil : CompileRecovery(of: state)
-        var started = now()
+        var started = instant()
         var (outcome, testLog) = try await baseline(state: state)
         while outcome != .passed, var trying = recovery {
             let buildLog = MutationTestLog.failedBuildFileName(trying.failedBuilds + 1)
@@ -33,13 +35,13 @@ extension PerformMutationTesting {
             if trying.switchedInAClosure > 0 {
                 events.send(.buildingAgainWithSwitchesInAClosure(count: trying.switchedInAClosure))
             }
-            started = now()
+            started = instant()
             (outcome, testLog) = try await baseline(state: state)
         }
         if outcome != .passed, recovery?.stopsAtTheMostBuilds == true {
             events.send(.stoppedTakingOutMutants(afterBuilds: CompileRecovery.maximumBuilds))
         }
-        let seconds = max(now().timeIntervalSince(started), 0)
+        let seconds = seconds(since: started)
         return (outcome, testLog, seconds, state.mutantsLeftOut.merging(recovery?.leftOut ?? [:]) { first, _ in first })
     }
 

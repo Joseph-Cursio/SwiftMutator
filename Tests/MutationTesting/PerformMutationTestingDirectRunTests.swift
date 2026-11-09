@@ -283,9 +283,9 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
         ioDelegate.testRunsWithoutBuilding = [
             (.passed, "✔ Test run with 12 tests in 3 suites passed after 0.4 seconds."),
         ]
-        let clock = Locked(Date(timeIntervalSince1970: 1_000_000))
-        current.now = { clock.value }
-        ioDelegate.whileRunningBaseline = { _ in clock.change { $0 += 200 } }
+        let nanoseconds = Locked<UInt64>(1_000_000_000)
+        current.instant = { DispatchTime(uptimeNanoseconds: nanoseconds.value) }
+        ioDelegate.whileRunningBaseline = { _ in nanoseconds.change { $0 += 200_000_000_000 } }
 
         _ = try await sut.run(with: state)
 

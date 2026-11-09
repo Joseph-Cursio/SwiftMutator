@@ -136,11 +136,8 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
 
         _ = try await sut.run(with: state)
 
-        // The spy's baseline returns at once, so the minimum applies.
-        XCTAssertEqual(
-            ioDelegate.configurations.map(\.testSuiteTimeout),
-            [PerformMutationTesting.minimumDefaultTimeout, PerformMutationTesting.minimumDefaultTimeout]
-        )
+        // 3 times the baseline's 100 s, on the monotonic clock, as `timeTheTestRun` has it.
+        XCTAssertEqual(ioDelegate.configurations.map(\.testSuiteTimeout), [300, 300])
         XCTAssertNil(try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first).testRunSeconds)
     }
 
