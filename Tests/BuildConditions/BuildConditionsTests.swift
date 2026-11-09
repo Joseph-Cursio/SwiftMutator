@@ -489,6 +489,25 @@ final class BuildConditionsTests: XCTestCase {
         )
     }
 
+    // A flag passed on to clang, LLVM or the linker defines nothing for an `#if`: taken for a condition, it would
+    // decide `#if FOO` true and drop the real mutants of its `#else`. The frontend's `-D` is the driver's.
+    func test_customConditionsInSwiftFlags_leaveOutFlagsForOtherTools() {
+        XCTAssertEqual(
+            customConditions(inSwiftFlags: [
+                "-Xcc", "-DCLANG", "-Xllvm", "-DLLVM", "-Xlinker", "-DLINKER", "-Xclang-linker", "-DCLANG_LINKER",
+                "-Xcc", "-D", "-Xcc", "MACRO", "-Xfrontend", "-DFRONTEND", "-DSWIFT",
+            ]),
+            ["FRONTEND", "SWIFT"]
+        )
+    }
+
+    func test_aConditionOnlyClangGets_staysUnset_soItsElseKeepsItsMutants() {
+        let set = customConditions(inSwiftFlags: ["-Xcc", "-DFOO"])
+        let conditions = BuildConditions(platform: macOS, customConditions: [set], undecidedConditions: ["FOO"])
+
+        XCTAssertNil(holds("FOO", in: conditions))
+    }
+
     // MARK: Helpers
 
     private func conditions(custom: [Set<String>]) -> BuildConditions {
