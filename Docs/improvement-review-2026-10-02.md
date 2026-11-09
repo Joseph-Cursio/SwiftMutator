@@ -58,7 +58,7 @@ Discovery takes a SwiftPM package's files from its targets, keeps only the files
 
 Added on 21 October, from a comparison with swift-mutation-testing v1.6.3 (`937f128`), checked against SwiftMutator `af38f174`. Left:
 
-- **xcodebuild arguments in mutant runs** ([#123]). The user's `arguments` reach the build, the coverage run and the baseline, but a mutant's run gets only `test-without-building`, the first `-destination`, `-xctestrun` and a worker's own arguments (`MuterConfiguration.swift:877-890`). So an argument that changes what a test run does, such as `-only-testing`, holds for the baseline and maybe not for the mutants. The issue also proposes the flags a headless run needs.
+- **xcodebuild arguments in mutant runs** ([#123]). The proposal's first three items are done: a mutant's run now keeps the user's `arguments` but those it can't take or SwiftMutator sets itself, so `-only-testing` and `-skip-testing` hold for the mutants as for the baseline, and arguments that would break SwiftMutator's own xcodebuild calls are a configuration error (README, "xcodebuild's arguments"). The flags a headless run needs, which the issue also proposes, are still open.
 - **Configuration checks and a smarter `init`** ([#122]). Report settings are done (`reports:`, [#119]), and so are the checks: an unknown key is warned of, with the key it is closest to, and a value of the wrong type or out of range refuses the run. Left:
   - A run with no configuration file stops (`LoadConfiguration.swift:30`), rather than running with what `init` would write.
   - `init` replaces an existing file (`Init.swift:42-47`), writes a bare YAML dump, and guesses the scheme and destination.

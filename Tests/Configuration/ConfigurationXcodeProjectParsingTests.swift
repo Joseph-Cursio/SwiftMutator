@@ -30,13 +30,30 @@ final class ConfigurationXcodeProjectParsingTests: MuterTestCase {
                 "platform=iOS Simulator,name=iPhone SE (3rd generation)",
                 "-derivedDataPath",
                 "foo/bar",
-                "test",
                 "clean",
                 "build-for-testing",
             ]
         )
 
         XCTAssertEqual(sut.derivedDataPath, "foo/bar")
+    }
+
+    // `test` would build and run every test before the build for testing, whatever else the arguments give. A value
+    // that reads like an action is a value.
+    func test_buildForTesting_neverRunsTheTests() {
+        let cases: [(arguments: [String], expected: [String])] = [
+            (["-scheme", "App", "-derivedDataPath", "DD", "test"], ["-scheme", "App", "-derivedDataPath", "DD"]),
+            (["test", "-scheme", "App", "test"], ["-scheme", "App", "-derivedDataPath", "DerivedData"]),
+            (["-scheme", "test", "clean", "test"], ["-scheme", "test", "clean", "-derivedDataPath", "DerivedData"]),
+            (["-scheme", "App"], ["-scheme", "App", "-derivedDataPath", "DerivedData"]),
+            // `build` would only build the project a second time.
+            (["-scheme", "App", "build", "test"], ["-scheme", "App", "-derivedDataPath", "DerivedData"]),
+        ]
+        for (arguments, expected) in cases {
+            let sut = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: arguments)
+
+            XCTAssertEqual(sut.buildForTestingArguments, expected + ["clean", "build-for-testing"], "\(arguments)")
+        }
     }
 
     func test_withoutDerivedDataPath() {
@@ -92,6 +109,24 @@ final class ConfigurationXcodeProjectParsingTests: MuterTestCase {
         XCTAssertEqual(sut.enableCoverageArguments, [
             "-scheme", "App", "OTHER_SWIFT_FLAGS=-DMOCKS -Xllvm -instrprof-atomic-counter-update-all", "test",
             "-enableCodeCoverage", "YES",
+        ])
+    }
+
+    // xcodebuild takes `-enableCodeCoverage` only once, so the coverage run's replaces the test command's, while the
+    // build for testing keeps it: `NO` builds the `.xctestrun` every mutant runs from without coverage.
+    func test_coverageRun_replacesTheTestCommandsOwnEnableCodeCoverage() {
+        let sut = MuterConfiguration(
+            executable: "/path/to/xcodebuild",
+            arguments: ["-scheme", "App", "-enableCodeCoverage", "NO", "test"]
+        )
+
+        XCTAssertEqual(sut.enableCoverageArguments, [
+            "-scheme", "App", "test",
+            "OTHER_SWIFT_FLAGS=$(inherited) -Xllvm -instrprof-atomic-counter-update-all", "-enableCodeCoverage", "YES",
+        ])
+        XCTAssertEqual(sut.buildForTestingArguments, [
+            "-scheme", "App", "-enableCodeCoverage", "NO", "-derivedDataPath", "DerivedData", "clean",
+            "build-for-testing",
         ])
     }
 }

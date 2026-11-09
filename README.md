@@ -1640,7 +1640,7 @@ as it is.
 | Key | Meaning | Default | Build systems |
 |---|---|---|---|
 | `executable` | The program that runs your tests, such as `/usr/bin/swift` or `/usr/bin/xcodebuild`, or a script that runs them. A name without a `/`, such as `swift`, is looked up on `PATH` when the run starts | None: it must be set | All |
-| `arguments` | What `executable` is given to run the tests, such as `[test]` for `swift`. With xcodebuild they must include `-destination`, and the first `-destination` is the one mutants are tested on | None: it must be set | All |
+| `arguments` | What `executable` is given to run the tests, such as `[test]` for `swift`. With xcodebuild they must include `-destination`, the first `-destination` is the one mutants are tested on, and a mutant's run keeps most of the others: see [xcodebuild's arguments](#xcodebuilds-arguments) | None: it must be set | All |
 | `buildSystem` | `swift` or `xcodebuild`, for an `executable` whose file name isn't, such as a wrapper script; any other value refuses the run | From `executable`'s file name: `swift`, `xcodebuild`, or another command | All |
 | `exclude` | Paths, path fragments and globs to leave out of the files mutated, besides the defaults; an entry that starts with `!` keeps what it matches. See [Choosing the files](#choosing-the-files) | None besides the defaults | All |
 | `excludeCalls` | Names of functions whose calls `RemoveSideEffects` never removes, such as a logging function. Code inside those functions is still mutated, and every overload of a name is matched | None | All |
@@ -1687,6 +1687,46 @@ once says so, and one that uses fewer workers than asked says why:
 👷 Testing 3 mutants at a time, though 4 workers were asked for: only 3 are left to test.
 👷 Testing one mutant at a time, though 4 workers were asked for: a Mac app's test runs share its UserDefaults, saved state and container, so workers would see each other's.
 ```
+
+### xcodebuild's arguments
+
+For an xcodebuild project, SwiftMutator runs `arguments` as they are for the baseline, adds
+`-enableCodeCoverage YES` to them for the coverage run, in place of their own `-enableCodeCoverage`,
+and builds once with all of them but the `test` and `build` actions, plus
+`-derivedDataPath DerivedData` unless they give one, and `clean build-for-testing`. Each
+mutant's run is `test-without-building -destination <first destination> -xctestrun
+muter.xctestrun`, or its worker's simulator and `.xctestrun`, with your other arguments after it
+([#123](https://github.com/Joseph-Cursio/SwiftMutator/issues/123)). So what says which tests run
+and how, such as `-only-testing`, `-skip-testing`, `-only-test-configuration`, `-test-iterations`,
+`-retry-tests-on-failure` and `-test-timeouts-enabled`, holds for every mutant as it does for the
+baseline. A wrapper script with `buildSystem: xcodebuild` gets them the same way, its own flags
+among them. A mutant's run leaves out, each with its value:
+
+- **What `-xctestrun` replaces:** `-project`, `-workspace` and `-scheme`, which xcodebuild refuses
+  with it, and `-testPlan`, as the `.xctestrun` holds the plan the build was given.
+- **What SwiftMutator sets:** every action, such as `test` or `clean`, and every `-destination`. With
+  a worker, as every mutant's run has, also `-derivedDataPath`, as each worker keeps its own, and
+  `-collect-test-diagnostics` when it passes `never`. On a simulator of its own, also the parallel
+  testing options: xcodebuild takes `-parallel-testing-enabled` only once, and the worker tests one
+  test at a time.
+- **What would slow or break each run:** `-quiet`, which hides the lines that tell a failed test from
+  a crash, so a kill would count as a runtime error, `-resultStreamPath`, and `-enableCodeCoverage`,
+  which the build already had: `-enableCodeCoverage NO` still builds the tests without coverage.
+- **`-only-testing`, when `propertyTestFilter` chooses the tests:** xcodebuild runs every test any
+  `-only-testing` names, so yours would undo the filter. `-skip-testing` still holds.
+
+Build settings, such as `SWIFT_TREAT_WARNINGS_AS_ERRORS=NO`, and options only a build reads, such
+as `-configuration`, are kept: xcodebuild takes them on a run from an `.xctestrun`, and a wrapper
+script may read them. Arguments that would break SwiftMutator's own calls are a configuration
+error, 255, whose reason names the argument and says what to do instead:
+
+- an action but `test`, `clean` and `build`, such as `archive`, or `build-for-testing` and
+  `test-without-building`, which SwiftMutator runs itself;
+- `-xctestrun` and `-testProductsPath`, as each mutant's run tests from the `.xctestrun` the build
+  writes;
+- `-resultBundlePath`, as the coverage run, the build and the baseline would write one bundle, and
+  xcodebuild fails a run whose bundle is already there;
+- `-enumerate-tests`, which runs no test, so every mutant would survive.
 
 ### Choosing the files
 
@@ -2059,7 +2099,8 @@ xcodebuild shuts your simulator down, clones it and boots the clone for every mu
 15 s each time. One worker skips that on a simulator SwiftMutator makes, as a worker's, which tests
 one test at a time and stays booted. It does when the first `-destination` is a simulator, 6 or
 more mutants are to test, and the scheme or test plan has parallel testing on for a test target, as
-the `.xctestrun` the baseline builds shows, and says so:
+the `.xctestrun` the baseline builds shows, or `-parallel-testing-enabled YES` in `arguments` turns
+it on, and says so:
 
 ```
 👷 Testing one mutant at a time, on a simulator of its own.
@@ -2075,12 +2116,13 @@ the `.xctestrun` the baseline builds shows, and says so:
   ```
   👷 Testing one mutant at a time on the test command's destination: the baseline's parallel testing spread 42.5 s of tests over 4 clones, which one at a time on one simulator could make slower; `oneWorkerSimulator: true` tests on one anyway.
   ```
-- **Arguments that tune parallel testing keep your destination.** `-parallel-testing-enabled YES`,
-  `-parallel-testing-worker-count`, `-maximum-parallel-testing-workers` or
-  `-parallelize-tests-among-destinations` in `arguments` reach only the baseline, never a mutant's
-  run, so the baseline doesn't show how a mutant's run would test, and the run says so.
-  `-parallel-testing-enabled NO` doesn't keep it: the baseline then runs one test at a time, and
-  isn't checked.
+- **Arguments that set parallel testing reach a mutant's run too.** `-parallel-testing-enabled`,
+  `-parallel-testing-worker-count`, `-maximum-parallel-testing-workers` and
+  `-parallelize-tests-among-destinations` in `arguments` reach a mutant's run on your destination as
+  they reach the baseline (see [xcodebuild's arguments](#xcodebuilds-arguments)), so the baseline is
+  checked whatever they tune. `-parallel-testing-enabled NO` keeps your destination, without a word:
+  a mutant's run there then clones nothing. A simulator of its own tests one test at a time, so its
+  runs leave them out.
 - **The key.** `oneWorkerSimulator: true` uses a simulator whenever the destination is one and there
   are 2 or more mutants to test, without these checks; `false` never uses one. More than one worker
   uses simulators whatever it says.

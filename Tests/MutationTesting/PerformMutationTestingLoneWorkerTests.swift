@@ -270,39 +270,53 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
         assertTestedOnTheDestination()
     }
 
-    // They reach the baseline, which then tests unlike a mutant's run, which doesn't have them.
-    func test_oneWorker_argumentsThatTuneParallelTesting_keepTheDestination_andSayWhy() async throws {
+    // They reach a mutant's run on the destination as they reach the baseline, which then shows how such a run tests:
+    // here spread over clones, so the simulator is deleted before its check run. On the destination, a mutant's run
+    // tests with them (#123).
+    func test_oneWorker_argumentsThatTuneParallelTesting_areCheckedAgainstTheBaseline() async throws {
         let tunings = [
-            (["-parallel-testing-enabled", "YES"], "-parallel-testing-enabled YES"),
-            (["-parallel-testing-worker-count", "3"], "-parallel-testing-worker-count"),
-            (["-maximum-parallel-testing-workers", "2"], "-maximum-parallel-testing-workers"),
-            (["-parallelize-tests-among-destinations"], "-parallelize-tests-among-destinations"),
+            ["-parallel-testing-enabled", "YES"],
+            ["-parallel-testing-worker-count", "3"],
+            ["-maximum-parallel-testing-workers", "2"],
+            ["-parallelize-tests-among-destinations"],
         ]
         let choices = sentChoices()
-        for (arguments, _) in tunings {
+        for arguments in tunings {
             configure(arguments: arguments)
+            ioDelegate.baselineTestLog = spreadBaseline
             ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 6)
 
             _ = try await sut.run(with: state)
+
+            XCTAssertEqual(workerSimulators.calls.last, "removeAll", "\(arguments)")
+            let mutantRuns = ioDelegate.configurations.suffix(6).map { configuration in
+                configuration.testWithoutBuildArguments(with: "muter.xctestrun").dropFirst(5).first
+            }
+            XCTAssertEqual(Set(mutantRuns), [arguments.first], "\(arguments)")
         }
 
-        XCTAssertEqual(workerSimulators.calls, Array(repeating: "sweep /project_mutated", count: 4))
-        XCTAssertEqual(choices().map(\.sentence), tunings.map { _, option in
-            "👷 Testing one mutant at a time on the test command's destination: the test command's arguments set "
-                + "`\(option)`, so its baseline doesn't show how a mutant's run would test; `oneWorkerSimulator: true` "
-                + "tests on a simulator of its own anyway."
-        })
+        XCTAssertEqual(choices().map(\.sentence), Array(repeating: """
+        👷 Testing one mutant at a time on the test command's destination: the baseline's parallel testing spread \
+        12.0 s of tests over 2 clones, which one at a time on one simulator could make slower; \
+        `oneWorkerSimulator: true` tests on one anyway.
+        """, count: tunings.count))
     }
 
-    // A baseline that tests one test at a time prints no line for a test on a clone, which says nothing against it.
-    func test_oneWorker_parallelTestingOffInTheArguments_stillGetsASimulator_withoutTheBaselineGuard() async throws {
+    // A mutant's run on the destination tests one test at a time too, as the baseline does, so it clones nothing.
+    func test_oneWorker_parallelTestingOffInTheArguments_keepsTheDestination() async throws {
         configure(arguments: ["-parallel-testing-enabled", "NO"])
         ioDelegate.baselineTestLog = "Test Case 'SumTests.sum()' passed (0.01 seconds).\n** TEST SUCCEEDED **"
+        let choices = sentChoices()
 
         _ = try await sut.run(with: state)
 
-        XCTAssertFalse(workerSimulators.calls.contains("removeAll"))
-        XCTAssertEqual(ioDelegate.configurations.map(\.xcodeWorker), Array(repeating: worker0, count: 6))
+        XCTAssertEqual(workerSimulators.calls, ["sweep /project_mutated"])
+        XCTAssertEqual(choices().compactMap(\.sentence), [])
+        assertTestedOnTheDestination()
+        XCTAssertTrue(ioDelegate.configurations.allSatisfy { configuration in
+            configuration.testWithoutBuildArguments(with: "muter.xctestrun").joined(separator: " ")
+                .contains("-parallel-testing-enabled NO")
+        })
     }
 
     func test_oneWorker_aBaselineSpreadOverClones_deletesTheSimulatorBeforeItsCheckRun() async throws {

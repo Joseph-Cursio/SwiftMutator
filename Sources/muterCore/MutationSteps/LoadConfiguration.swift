@@ -59,6 +59,9 @@ struct LoadConfiguration: MutationStep {
                     reason: "Please provide a valid `-destination` argument for your project"
                 )
             }
+            if let reason = Self.argumentRefused(in: configuration) {
+                throw MuterError.configurationParsingError(reason: reason)
+            }
 
             let resolved = try await withResolvedExecutable(configuration)
                 .overriding(
@@ -127,6 +130,14 @@ struct LoadConfiguration: MutationStep {
                 + "not \(Self.shown(configuration.coverageThreshold))."
         }
         return nil
+    }
+
+    /// Why an xcodebuild test command's `arguments` would break SwiftMutator's own calls of it, or nil
+    /// (`XcodebuildArguments.refusal`): an `executable` that is a wrapper script with `buildSystem: xcodebuild` is
+    /// given the same arguments, so it is checked too. Another build system's arguments aren't xcodebuild's.
+    static func argumentRefused(in configuration: MuterConfiguration) -> String? {
+        guard configuration.buildSystem == .xcodebuild else { return nil }
+        return XcodebuildArguments(configuration.testCommandArguments).refusal
     }
 
     /// `value` in plain decimal digits, as written, so a refusal never names a rounded value that is in range, as
