@@ -85,6 +85,28 @@
             "line" : 29
           },
           "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "ProjectWithConcurrency\/main.swift:38:12 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 12,
+              "line" : 38
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "0",
+            "before" : "value",
+            "description" : "replaced the return value with 0"
+          },
+          "path" : "ProjectWithConcurrency\/main.swift",
+          "sourceChange" : {
+            "after" : "    return 0",
+            "before" : "    return value",
+            "line" : 38
+          },
+          "testSuiteOutcome" : "passed"
         }
       ],
       "fileName" : "main.swift",
@@ -97,12 +119,13 @@
     "buildErrors" : 0,
     "killed" : 0,
     "notCovered" : 0,
-    "survived" : 4,
+    "survived" : 5,
     "timedOut" : 0
   },
   "numberOfKilledMutants" : 0,
   "operatorExplanations" : {
-    "RemoveSideEffects" : "Removes a call whose result isn't used, to check that a test notices its side effect is gone."
+    "RemoveSideEffects" : "Removes a call whose result isn't used, to check that a test notices its side effect is gone.",
+    "ReplaceReturnValue" : "Replaces a returned value with an empty one of its type: nil, an empty array, dictionary or string, or zero."
   },
-  "totalAppliedMutationOperators" : 4
+  "totalAppliedMutationOperators" : 5
 }

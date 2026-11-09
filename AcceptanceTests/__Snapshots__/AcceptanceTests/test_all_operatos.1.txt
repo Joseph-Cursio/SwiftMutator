@@ -87,8 +87,12 @@ Remove Side Effects
 The remove side effects operator will remove code it determines is causing a side effect.
 It will determine your code is causing a side effect based on a few rules:
     • A line contains a function call which is explicitly discarding a return result.
-    • A line contains a function call and doesn't save the result of the function call into a named variable or constant (i.e. a line implicitly discards a return result or doesn't produce one).
-    • A line does not contain a call to print, exit, fatalError, preconditionFailure, abort, or any function listed in muter.conf.yml under the excludeCalls key.
+    • A line contains a function call and doesn't save the result of the function call into a named variable or constant (i.e. a line implicitly discards a return result or doesn't produce one), under try or await or not.
+    • A line is in any body: a function's, an initializer's, an accessor's, a closure's, a loop's, an if or else branch, a switch case, a defer and so on, but not a file's top level or a #if clause.
+    • A line does not contain a call to print, debugPrint, fatalError, preconditionFailure, precondition, assert, assertionFailure, exit, abort, super.init, self.init, a call that takes or releases a lock, or a call to any function listed in muter.conf.yml under the excludeCalls key.
+      A call is matched by the name it is called by: print matches print(…) and Swift.print(…), but not printer.flush(), and a function passed by name counts, as log does in events.forEach(log).
+    • A line is not the last of code whose end control must never reach, where only a call that never returns can be: a guard body, a function or getter that returns a value but for a result builder, or a do, catch, if, case or #if that ends one of those.
+    • A line is not one whose removal would leave code that doesn't build: the one line of a closure, getter or function that may be its value, a branch of an if or switch that is a value, the last line definite initialization may rely on, or in a result builder a part that makes a value of a type, as Text("a") does. Nothing is removed from a builder that takes no if, as SceneBuilder and RegexComponentBuilder don't.
 The purpose of this operator is to highlight how your tests respond to the absence of expected side effects.
 
 Mutating an explicitly discarded return result
