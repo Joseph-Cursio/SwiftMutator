@@ -45,16 +45,17 @@ enum XcodeBuildConditions {
         }
 
         let buildFiles = buildFiles(inProjectAt: root, fileManager: fileManager)
-        let namesInBuildFiles = names(in: buildFiles)
+        let namesInBuildFiles = names(in: buildFiles, arguments: arguments, environment: environment)
+        // A build file the scan didn't read may set conditions, for a target xcodebuild didn't report, that no file
+        // it read names.
+        let aBuildFileItDidntReadMaySetSome = mayHaveUnreadBuildFiles(buildFiles, arguments, environment)
         // A target xcodebuild didn't report, such as the framework the tests test, may build with its own compiler.
-        let aTargetMayPickItsCompiler = !namesInBuildFiles.isDisjoint(with: ["TOOLCHAINS", "SWIFT_EXEC"])
+        let aTargetMayPickItsCompiler = aBuildFileItDidntReadMaySetSome
+            || !namesInBuildFiles.isDisjoint(with: ["TOOLCHAINS", "SWIFT_EXEC"])
         let compiler = aTargetMayPickItsCompiler
             ? nil
             : await compilerVersion(of: targets, in: arguments, process: process)
-        let anotherConfigurationFileMaySetSome = arguments.contains("-xcconfig")
-            || environment["XCODE_XCCONFIG_FILE"] != nil
-            || namesAnUnreadConfigurationFile(buildFiles)
-        let ofFile = afterABuild && !anotherConfigurationFileMaySetSome
+        let ofFile = afterABuild && !aBuildFileItDidntReadMaySetSome
             ? filesOfEachTarget(of: targets, buildFiles: buildFiles, root: root, fileManager: fileManager)
             : [:]
         return .success(ProjectBuildConditions(
@@ -69,7 +70,9 @@ enum XcodeBuildConditions {
                     buildFiles: buildFiles,
                     compiler: compiler,
                     environment: environment
-                )
+                ),
+                anyConditionMayBeSetElsewhere: aBuildFileItDidntReadMaySetSome
+                    || mayComposeConditions(buildFiles, arguments, environment)
             ),
             customConditionsOfFile: ofFile,
             filesWithAllTheirConditions: Set(ofFile.keys)
@@ -172,7 +175,7 @@ enum XcodeBuildConditions {
     /// another build, or a setting that moves intermediate files.
     private static func mayCompileOutOfSight(_ file: BuildFile) -> Bool {
         if file.name == "contents.xcworkspacedata" {
-            return file.text.contains("absolute:") || file.text.contains("../")
+            return mayLeaveTheFolder(workspace: file.text)
         }
         if file.name.hasSuffix(".xcsettings") {
             return file.text.contains("BuildLocation")
@@ -284,8 +287,8 @@ enum XcodeBuildConditions {
 
     /// The version of the compiler all of `targets` build with: what their `TOOLCHAIN_DIR`'s `swiftc` says it is. Nil
     /// if they don't agree, or one sets `SWIFT_EXEC` or a toolchain other than Xcode's own, or the command picks one
-    /// with `-toolchain`, which `TOOLCHAIN_DIR` may not follow. The caller doesn't ask when a build file names either
-    /// setting, as it may be an unreported target's.
+    /// with `-toolchain`, which `TOOLCHAIN_DIR` may not follow. The caller doesn't ask when a build file or the command
+    /// names either setting, as it may be an unreported target's, or when a build file it didn't read may set one.
     private static func compilerVersion(
         of targets: [Settings],
         in arguments: [String],
@@ -405,10 +408,7 @@ enum XcodeBuildConditions {
         compiler: VersionTuple?,
         environment: [String: String]
     ) -> VersionTuple? {
-        let anotherConfigurationFileMaySetIt = arguments.contains("-xcconfig")
-            || environment["XCODE_XCCONFIG_FILE"] != nil
-            || namesAnUnreadConfigurationFile(buildFiles)
-        guard !anotherConfigurationFileMaySetIt else { return nil }
+        guard !mayHaveUnreadBuildFiles(buildFiles, arguments, environment) else { return nil }
         let flags = targets.flatMap {
             ($0["OTHER_SWIFT_FLAGS"] ?? "").split(whereSeparator: \.isWhitespace).map(String.init)
         }
@@ -456,17 +456,40 @@ enum XcodeBuildConditions {
         return modes
     }
 
-    /// Whether a build file names a build configuration file the scan didn't read, which may set a target's mode: one
-    /// outside the project, by a path that leaves it or starts from a variable, or by a name no file read has.
-    static func namesAnUnreadConfigurationFile(_ buildFiles: [BuildFile]) -> Bool {
-        let read = Set(buildFiles.map(\.name).filter { $0.hasSuffix(".xcconfig") })
-        return buildFiles.contains { file in
-            file.text.split { $0.isWhitespace || "\"';<>=,()".contains($0) }.contains { word in
-                guard word.hasSuffix(".xcconfig") else { return false }
-                let leavesTheProject = word.hasPrefix("/") || word.hasPrefix("$") || word.contains("../")
-                return leavesTheProject || !read.contains((String(word) as NSString).lastPathComponent)
+    /// Whether a build file SwiftMutator didn't read may set what a target builds with: a build configuration file
+    /// that `-xcconfig` or `XCODE_XCCONFIG_FILE` names, or a project file or build configuration file bases settings
+    /// on (`namesAnUnreadConfigurationFile`), or the project file of a project a workspace or another project
+    /// references outside the project, or where SwiftMutator can't tell, with build configuration files of its own.
+    static func mayHaveUnreadBuildFiles(
+        _ buildFiles: [BuildFile],
+        _ arguments: [String],
+        _ environment: [String: String]
+    ) -> Bool {
+        let readProjects = Set(buildFiles.filter { $0.name == "project.pbxproj" }.map(\.path.canonicalPath))
+        let referencesAnotherProject = buildFiles.contains { file in
+            if file.name == "contents.xcworkspacedata" {
+                return mayLeaveTheFolder(workspace: file.text)
             }
+            guard file.name == "project.pbxproj" else { return false }
+            return referencedProjects(ofProject: file).map { projects in
+                !projects.allSatisfy { readProjects.contains(($0 + "/project.pbxproj").canonicalPath) }
+            } ?? true
         }
+        // A `PROJECT_DIR=…` argument moves the folder a project file's paths are resolved from.
+        let movesTheProjectFolder = arguments.contains { argument in
+            argument.firstIndex(of: "=").map { projectFolderSettings.contains(String(argument[..<$0])) } ?? false
+        }
+        return arguments.contains("-xcconfig")
+            || movesTheProjectFolder
+            || environment["XCODE_XCCONFIG_FILE"] != nil
+            || namesAnUnreadConfigurationFile(buildFiles)
+            || referencesAnotherProject
+    }
+
+    /// Whether a workspace may reference a project outside the project's folder: by an absolute path, or one that goes
+    /// up a folder, as `group:../Core` or `group:..` does.
+    private static func mayLeaveTheFolder(workspace text: String) -> Bool {
+        text.contains("absolute:") || text.contains("..")
     }
 
     /// A project file, build configuration file or package manifest in the project, as `buildFiles` reads it.
@@ -498,9 +521,35 @@ enum XcodeBuildConditions {
     /// is glued to its `D`. A word that isn't a condition costs nothing, as only a name an `#if` asks about is looked
     /// up.
     private static func names(in buildFiles: [BuildFile]) -> Set<String> {
+        names(inText: buildFiles.map(\.text))
+    }
+
+    /// The names in the build files, and in the build settings the test command sets: its `NAME=value` arguments, and
+    /// the environment variables xcodebuild may read as settings, those a build file or another such value names and
+    /// those that set conditions. A target xcodebuild didn't report may use one that no reported target does, as
+    /// `$(CORE_FLAGS)` for `CORE_FLAGS=-DCORE_ONLY`.
+    private static func names(
+        in buildFiles: [BuildFile],
+        arguments: [String],
+        environment: [String: String]
+    ) -> Set<String> {
+        var names = names(in: buildFiles)
+            .union(names(inText: arguments.filter { $0.contains("=") }))
+            .union(["OTHER_SWIFT_FLAGS", "SWIFT_ACTIVE_COMPILATION_CONDITIONS"])
+        var read: Set<String> = []
+        var unread = environment.filter { names.contains($0.key) }
+        while !unread.isEmpty {
+            read.formUnion(unread.keys)
+            names.formUnion(self.names(inText: Array(unread.values)))
+            unread = environment.filter { names.contains($0.key) && !read.contains($0.key) }
+        }
+        return names
+    }
+
+    private static func names(inText texts: [String]) -> Set<String> {
         var names: Set<String> = []
-        for file in buildFiles {
-            let words = file.text.split { !$0.isLetter && !$0.isNumber && $0 != "_" }
+        for text in texts {
+            let words = text.split { !$0.isLetter && !$0.isNumber && $0 != "_" }
             names.formUnion(words.map(String.init))
             names.formUnion(words.filter { $0.hasPrefix("D") }.map { String($0.dropFirst()) })
         }

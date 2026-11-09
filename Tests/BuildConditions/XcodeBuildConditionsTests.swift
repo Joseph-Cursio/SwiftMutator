@@ -241,6 +241,177 @@ final class XcodeBuildConditionsTests: MuterTestCase {
         XCTAssertTrue(conditions.undecidedConditions.contains("SPACED"))
     }
 
+    // A build file SwiftMutator didn't read may set a condition for a target xcodebuild didn't report, as a framework
+    // the app only depends on, that no build file it read names.
+    // It goes by where a file is, not by its name, which an in-project file of the same name may have.
+    func test_withABuildFileItDidntRead_aConditionNoTargetSetsIsUndecided() async throws {
+        let pbxproj = "App.xcodeproj/project.pbxproj"
+        let workspace = "W.xcworkspace/contents.xcworkspacedata"
+        let synchronized = projectFile(mainGroup: "S", """
+        S = {isa = PBXFileSystemSynchronizedRootGroup; path = ../Shared; sourceTree = "<group>"; };
+        C = {isa = XCBuildConfiguration; baseConfigurationReferenceAnchor = S;
+            baseConfigurationReferenceRelativePath = Base.xcconfig; buildSettings = {}; name = Debug; };
+        """)
+        // In two groups, as a merge can leave it, so which file Xcode takes can't be told.
+        let sharedTwice = projectFile(mainGroup: "G, H", """
+        G = {isa = PBXGroup; children = (F); path = Configs; sourceTree = "<group>"; };
+        H = {isa = PBXGroup; children = (F); path = ../Shared; sourceTree = "<group>"; };
+        F = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
+        C = {isa = XCBuildConfiguration; baseConfigurationReference = F; buildSettings = {}; name = Debug; };
+        """)
+        let cases: [(path: String, text: String, arguments: [String], environment: [String: String])] = [
+            (pbxproj, projectFile(basedOn: "Base.xcconfig", inGroupAt: "../Shared"), [], [:]),
+            (pbxproj, projectFile(basedOn: "Configs/Base.xcconfig", inGroupAt: ".."), [], [:]),
+            (pbxproj, projectFile(basedOn: "Base.xcconfig", sourceTree: "SHARED_CONFIGS"), [], [:]),
+            (pbxproj, projectFile(basedOn: "$(SRCROOT)/Base.xcconfig"), [], [:]),
+            (pbxproj, projectFile(basedOn: "Missing.xcconfig"), [], [:]),
+            (pbxproj, synchronized, [], [:]),
+            (pbxproj, "baseConfigurationReference = F; path = Base.xcconfig;", [], [:]),
+            ("Configs/App.xcconfig", #"#include "../../My Configs/Base.xcconfig""#, [], [:]),
+            ("Configs/App.xcconfig", #"#include? "<DEVELOPER_DIR>/Base.xcconfig""#, [], [:]),
+            ("Configs/App.xcconfig", #"# include "../../Shared/Base.xcconfig""#, [], [:]),
+            ("Configs/App.xcconfig", "#\tinclude? \"../../Shared/Base.xcconfig\"", [], [:]),
+            ("Configs/App.xcconfig", #"#import "Base.xcconfig""#, [], [:]),
+            ("Configs/App.xcconfig", "PROJECT_DIR = $(SRCROOT)/../Shared", [], [:]),
+            (pbxproj, "", ["SRCROOT=/elsewhere"], [:]),
+            (pbxproj, sharedTwice, [], [:]),
+            (pbxproj, projectFile(referencingProject: "../Core/Core.xcodeproj"), [], [:]),
+            (pbxproj, #"lastKnownFileType = "wrapper.pb-project"; path = C.xcodeproj;"#, [], [:]),
+            (workspace, #"<FileRef location = "group:../Core/Core.xcodeproj">"#, [], [:]),
+            (workspace, #"<Group location = "group:.."><FileRef location = "group:Core/C.xcodeproj">"#, [], [:]),
+            (workspace, #"<FileRef location = "absolute:/src/Core.xcodeproj">"#, [], [:]),
+            (pbxproj, "", ["-xcconfig", "/ci/Extra.xcconfig"], [:]),
+            (pbxproj, "", [], ["XCODE_XCCONFIG_FILE": "/ci/Extra.xcconfig"]),
+        ]
+        let app = macOSTarget.merging(["SWIFT_ACTIVE_COMPILATION_CONDITIONS": "APP"]) { _, new in new }
+        for (path, text, arguments, environment) in cases {
+            project = try makeTemporaryDirectory()
+            try write("", to: "Base.xcconfig")
+            try write("", to: "Configs/Base.xcconfig")
+            try write(text, to: path)
+            settings(test: [app], build: [])
+
+            let conditions = try await conditions(arguments: arguments + ["test"], environment: environment)
+
+            XCTAssertThrowsError(
+                try conditions.isCustomConditionSet(name: "CORE_ONLY"),
+                "\(path) \(text) \(arguments)"
+            )
+            XCTAssertEqual(try conditions.isCustomConditionSet(name: "APP"), true)
+        }
+    }
+
+    func test_withEveryBuildFileRead_aConditionNoTargetSetsIsUnset() async throws {
+        let synchronized = projectFile(mainGroup: "S", """
+        S = {isa = PBXFileSystemSynchronizedRootGroup; path = Configs; sourceTree = "<group>"; };
+        C = {isa = XCBuildConfiguration; baseConfigurationReferenceAnchor = S;
+            baseConfigurationReferenceRelativePath = Base.xcconfig; buildSettings = {}; name = Debug; };
+        """)
+        let projectFiles = [
+            projectFile(basedOn: "Base.xcconfig", inGroupAt: "Configs"),
+            projectFile(basedOn: "Configs/Base.xcconfig", sourceTree: "SOURCE_ROOT"),
+            synchronized,
+        ]
+        for text in projectFiles + [nil, projectFile(referencingProject: "Sub/Sub.xcodeproj")] {
+            project = try makeTemporaryDirectory()
+            // An absolute path is taken as it is.
+            try write(
+                text ?? projectFile(basedOn: project.canonicalPath + "/Configs/Base.xcconfig"),
+                to: "App.xcodeproj/project.pbxproj"
+            )
+            try write("", to: "Sub/Sub.xcodeproj/project.pbxproj")
+            try write(
+                "#include \"Shared.xcconfig\"\n#include? \"../Configs/Shared.xcconfig\"",
+                to: "Configs/Base.xcconfig"
+            )
+            try write("", to: "Configs/Shared.xcconfig")
+            settings(test: [macOSTarget], build: [])
+
+            let conditions = try await conditions(arguments: ["test"])
+
+            XCTAssertEqual(try conditions.isCustomConditionSet(name: "CORE_ONLY"), false, text ?? "absolute")
+        }
+    }
+
+    // Xcode takes `..` off the folder before it, whatever links there are, so `Link/../../X.xcconfig` is outside the
+    // project even where `Link` leads two folders down in it.
+    func test_aProjectFilesPathsAreResolvedAsXcodeDoes_notThroughLinks() async throws {
+        try write("", to: "X.xcconfig")
+        try FileManager.default.createDirectory(atPath: project + "/a/b", withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: project + "/Link", withDestinationPath: "a/b")
+        try write(
+            projectFile(basedOn: "../../X.xcconfig", inGroupAt: "Link"),
+            to: "App.xcodeproj/project.pbxproj"
+        )
+        settings(test: [macOSTarget], build: [])
+
+        let conditions = try await conditions(arguments: ["test"])
+
+        XCTAssertThrowsError(try conditions.isCustomConditionSet(name: "CORE_ONLY"))
+    }
+
+    // A condition put together from a setting, or from one Xcode sets itself for each target, is a word in no build
+    // file, so it may be set for a target xcodebuild didn't report.
+    func test_aConditionASettingMayPutTogether_isUndecided() async throws {
+        let composing = [
+            "SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) EDITION_$(EDITION)\nEDITION = LITE",
+            "SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(EDITION)_BUILD\nEDITION = LITE",
+            "SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(EDITION:upper)\nEDITION = lite",
+            "OTHER_SWIFT_FLAGS = $(FLAGS_$(CONFIGURATION))",
+            "OTHER_SWIFT_FLAGS = -D$(TARGET_NAME)",
+            "OTHER_SWIFT_FLAGS = $(MORE_FLAGS)\nMORE_FLAGS = -DEDITION_${CURRENT_ARCH}",
+        ]
+        for text in composing {
+            project = try makeTemporaryDirectory()
+            try write(text, to: "Configs/Shared.xcconfig")
+            settings(test: [macOSTarget], build: [])
+
+            let conditions = try await conditions(arguments: ["test"])
+
+            XCTAssertThrowsError(try conditions.isCustomConditionSet(name: "EDITION_PRO"), text)
+        }
+
+        project = try makeTemporaryDirectory()
+        try write("""
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) $(EXTRA)
+        EXTRA = FROM_EXTRA
+        OTHER_SWIFT_FLAGS = -D$(MORE) -D ${OTHER}
+        MORE = FROM_MORE
+        """, to: "Configs/Shared.xcconfig")
+        settings(test: [macOSTarget], build: [])
+        let plain = try await conditions(arguments: ["test"], environment: ["OTHER": "FROM_ENVIRONMENT"])
+        XCTAssertEqual(try plain.isCustomConditionSet(name: "EDITION_PRO"), false)
+        for name in ["FROM_EXTRA", "FROM_MORE", "FROM_ENVIRONMENT"] {
+            XCTAssertThrowsError(try plain.isCustomConditionSet(name: name), name)
+        }
+    }
+
+    // A target xcodebuild didn't report may use a setting no reported target does, as `$(CORE_FLAGS)`, that the
+    // command, or the environment xcodebuild reads settings from, sets.
+    func test_aConditionTheCommandsSettingsName_isUndecided() async throws {
+        try write("OTHER_SWIFT_FLAGS = \"$(inherited) $(CORE_FLAGS)\";", to: "App.xcodeproj/project.pbxproj")
+        let cases: [(arguments: [String], environment: [String: String])] = [
+            (["CORE_FLAGS=-DCORE_ONLY"], [:]),
+            ([], ["CORE_FLAGS": "-DCORE_ONLY"]),
+            ([], ["CORE_FLAGS": "$(MORE_FLAGS)", "MORE_FLAGS": "-DCORE_ONLY"]),
+            ([], ["OTHER_SWIFT_FLAGS": "-DCORE_ONLY"]),
+        ]
+        for (arguments, environment) in cases {
+            settings(test: [macOSTarget], build: [])
+
+            let conditions = try await conditions(arguments: arguments + ["test"], environment: environment)
+
+            XCTAssertThrowsError(try conditions.isCustomConditionSet(name: "CORE_ONLY"), "\(arguments) \(environment)")
+        }
+
+        try write(
+            "OTHER_SWIFT_FLAGS = \"$(inherited) $(CORE_FLAGS)\";\nCORE_FLAGS = -DLITE;",
+            to: "App.xcodeproj/project.pbxproj"
+        )
+        let unnamed = try await conditions(arguments: ["test"], environment: ["ELSEWHERE": "-DCORE_ONLY"])
+        XCTAssertEqual(try unnamed.isCustomConditionSet(name: "CORE_ONLY"), false)
+    }
+
     // A Swift package's scheme has none.
     func test_noBuildSettings_isAFailure() async throws {
         process.commandResult = { [self] _ in result(of: []) }
@@ -322,6 +493,17 @@ final class XcodeBuildConditionsTests: MuterTestCase {
         }
     }
 
+    // Or set it in a build file SwiftMutator didn't read.
+    func test_theCompilersVersion_isUnknown_whenABuildFileItDidntReadMaySetIt() async throws {
+        try write(projectFile(basedOn: "Base.xcconfig", inGroupAt: "../Shared"), to: "App.xcodeproj/project.pbxproj")
+        settingsAndVersion(test: [withXcodesToolchain([:])])
+
+        let conditions = try await conditions(arguments: ["test"])
+
+        XCTAssertNil(conditions.compiler)
+        XCTAssertFalse(process.commandsRun.contains { $0.last == "--version" })
+    }
+
     func test_theCompilersVersion_isUnknown_whenTheTargetsToolchainsDiffer() async throws {
         let shared = macOSTarget.merging(["TOOLCHAINS": "com.apple.dt.toolchain.XcodeDefault"]) { first, _ in first }
         settingsAndVersion(test: [
@@ -401,10 +583,7 @@ final class XcodeBuildConditionsTests: MuterTestCase {
     }
 
     func test_theLanguageVersion_followsABuildConfigurationFileTheProjectNames() async throws {
-        try write(
-            "baseConfigurationReference = 1A /* Base.xcconfig */; path = Config/Base.xcconfig;",
-            to: "App.xcodeproj/project.pbxproj"
-        )
+        try write(projectFile(basedOn: "Base.xcconfig", inGroupAt: "Config"), to: "App.xcodeproj/project.pbxproj")
         try write("SWIFT_VERSION = 5.0", to: "Config/Base.xcconfig")
         settingsAndVersion(test: [withXcodesToolchain(["SWIFT_VERSION": "5.0"])])
 
@@ -416,9 +595,9 @@ final class XcodeBuildConditionsTests: MuterTestCase {
     // One outside the project, or `-xcconfig`'s or `XCODE_XCCONFIG_FILE`'s, may set an unreported target's mode.
     func test_theLanguageVersion_isUnknown_whenAConfigurationFileItDidntReadMaySetIt() async throws {
         let cases: [(pbxproj: String, arguments: [String], environment: [String: String])] = [
-            ("path = ../Shared/Base.xcconfig;", ["test"], [:]),
-            ("path = \"$(SRCROOT)/Base.xcconfig\";", ["test"], [:]),
-            ("path = Missing.xcconfig;", ["test"], [:]),
+            (projectFile(basedOn: "Base.xcconfig", inGroupAt: "../Shared"), ["test"], [:]),
+            (projectFile(basedOn: "$(SRCROOT)/Base.xcconfig"), ["test"], [:]),
+            (projectFile(basedOn: "Missing.xcconfig"), ["test"], [:]),
             ("", ["-xcconfig", "/ci/Overrides.xcconfig", "test"], [:]),
             ("", ["test"], ["XCODE_XCCONFIG_FILE": "/ci/Overrides.xcconfig"]),
         ]
@@ -434,6 +613,48 @@ final class XcodeBuildConditionsTests: MuterTestCase {
     }
 
     // MARK: Helpers
+
+    /// A project file, as Xcode writes one, whose main group holds `children`, with `objects`.
+    private func projectFile(mainGroup children: String, _ objects: String) -> String {
+        """
+        // !$*UTF8*$!
+        {
+            archiveVersion = 1;
+            objects = {
+                P = {isa = PBXProject; mainGroup = M; projectDirPath = ""; };
+                M = {isa = PBXGroup; children = (\(children)); sourceTree = "<group>"; };
+                \(objects)
+            };
+            rootObject = P;
+        }
+        """
+    }
+
+    /// One whose build configuration is based on the build configuration file at `path`, by `sourceTree`, in the
+    /// main group or a group in it at `group`.
+    private func projectFile(
+        basedOn path: String,
+        sourceTree: String = #""<group>""#,
+        inGroupAt group: String? = nil
+    ) -> String {
+        let file = """
+        F = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "\(path)"; sourceTree = \(sourceTree); };
+        C = {isa = XCBuildConfiguration; baseConfigurationReference = F; buildSettings = {}; name = Debug; };
+        """
+        guard let group else { return projectFile(mainGroup: "F", file) }
+        return projectFile(
+            mainGroup: "G",
+            #"G = {isa = PBXGroup; children = (F); path = "\#(group)"; sourceTree = "<group>"; };"# + "\n" + file
+        )
+    }
+
+    /// One that references the project at `path`, as a project it builds a target of.
+    private func projectFile(referencingProject path: String) -> String {
+        projectFile(mainGroup: "R", """
+        R = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project";
+            path = "\(path)"; sourceTree = "<group>"; };
+        """)
+    }
 
     /// `settings` on a macOS target that builds with Xcode's own toolchain.
     private func withXcodesToolchain(_ settings: [String: String]) -> [String: String] {

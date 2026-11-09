@@ -19,6 +19,7 @@ struct ProjectBuildConditions: Equatable, Sendable {
             conditions.customConditions = targets
             if filesWithAllTheirConditions.contains(path) {
                 conditions.undecidedConditions = []
+                conditions.anyConditionMayBeSetElsewhere = false
             }
         }
         return conditions
