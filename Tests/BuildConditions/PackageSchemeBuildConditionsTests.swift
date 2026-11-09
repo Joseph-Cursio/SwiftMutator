@@ -226,12 +226,12 @@ final class PackageSchemeBuildConditionsTests: MuterTestCase {
     /// A package with a library, whose manifest defines `FROM_MANIFEST`, and `ONLY_IOS` and `ONLY_MAC` for those
     /// platforms, and its tests; xcodebuild with no settings for its scheme, and a toolchain of Swift 6.4.2.
     private func stubPackage(alsoDeclaring otherType: String? = nil) {
-        let manifest = otherType.map {
-            manifest.replacingOccurrences(
+        let dumped = otherType.map {
+            self.manifest.replacingOccurrences(
                 of: #"{"name": "LibTests""#,
                 with: #"{"name": "Other", "type": "\#($0)", "settings": []}, {"name": "LibTests""#
             )
-        } ?? manifest
+        } ?? self.manifest
         process.commandResult = { [self] command in
             // As `xcrun` finds the tools of an Xcode `DEVELOPER_DIR` names.
             let command = command.first == "/usr/bin/env" ? Array(command.dropFirst(2)) : command
@@ -245,7 +245,7 @@ final class PackageSchemeBuildConditionsTests: MuterTestCase {
             case _ where command.first == swift && command.contains("describe"):
                 return success(packageDescription)
             case _ where command.first == swift && command.last == "dump-package":
-                return success(manifest)
+                return success(dumped)
             default:
                 return nil
             }
