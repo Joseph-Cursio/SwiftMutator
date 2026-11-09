@@ -44,28 +44,31 @@ applies the changes the step returns. The steps are in
 8. `CopyProjectToTempDirectory`: copies the project.
 9. `FingerprintProjectTree`: records the SHA-256 of each of the project's files, so a later
    resume or reuse can tell what changed.
-10. `ListChangedSources`: with `--since`, lists the changed files before the coverage run.
-11. `DiscoverProjectCoverage`: runs the tests once with coverage, to find code no test reaches
+10. `TurnOffSwiftLintPhases`: xcodebuild only. Turns off the commands that run SwiftLint in the
+    build phases of the copy's Xcode projects, unless `keepSwiftLintPhases` is set
+    ([`BuildSystems/Xcode/SwiftLintPhases.swift`](../Sources/muterCore/BuildSystems/Xcode/SwiftLintPhases.swift)).
+11. `ListChangedSources`: with `--since`, lists the changed files before the coverage run.
+12. `DiscoverProjectCoverage`: runs the tests once with coverage, to find code no test reaches
     ([`DiscoverProjectCoverage/`](../Sources/muterCore/MutationSteps/DiscoverProjectCoverage),
     [`BuildSystems`](../Sources/muterCore/BuildSystems)). `--skip-coverage` drops it.
-12. `DiscoverSourceFiles`: picks the Swift files to mutate, minus `exclude`
+13. `DiscoverSourceFiles`: picks the Swift files to mutate, minus `exclude`
     (`SourceFileExcludes.swift`, `ExcludeGlob.swift`).
-13. `DiscoverBuildConditions`, then `DiscoverMutationPoints`: the first works out what the build compiles with
+14. `DiscoverBuildConditions`, then `DiscoverMutationPoints`: the first works out what the build compiles with
     ([`BuildConditions`](../Sources/muterCore/BuildConditions)). The second parses each file and runs every operator's
     visitor over it. Each mutant goes in a `MutationSwitchPlace`, usually its statement list. A file's top level can't
     hold a switch when it has a declaration, so there the place is the initial value or the statement, and a mutant with
     neither is a `DroppedMutant`, which the run counts and `--verbose` lists. So is a mutant in an `#if` branch the build
     leaves out; a branch it can't decide keeps its mutants.
-14. `SelectMutant`: with `--mutant`, keeps only that mutant.
-15. `PruneLogFolders`: removes old runs' log folders beyond `keepLogFolders`.
-16. `ApplySchemata`: rewrites each file with mutants in the copy (see below).
-17. `CheckMutantSwitches`: reads the files back, and stops the run if a mutant's switch is missing.
-18. `BuildForTesting`: xcodebuild only. Runs `build-for-testing`, without any mutant that doesn't
+15. `SelectMutant`: with `--mutant`, keeps only that mutant.
+16. `PruneLogFolders`: removes old runs' log folders beyond `keepLogFolders`.
+17. `ApplySchemata`: rewrites each file with mutants in the copy (see below).
+18. `CheckMutantSwitches`: reads the files back, and stops the run if a mutant's switch is missing.
+19. `BuildForTesting`: xcodebuild only. Runs `build-for-testing`, without any mutant that doesn't
     compile (`CompileRecovery`, see below), copies the products to `TestContents` in the copy, and
     reads the `.xctestrun` file.
-19. `PerformMutationTesting`: tests the mutants (see below).
+20. `PerformMutationTesting`: tests the mutants (see below).
 
-`mutate-without-running` runs steps 1, 2, 5 to 9 and 11 to 13, then `PruneLogFolders`, `ApplySchemata`,
+`mutate-without-running` runs steps 1, 2, 5 to 10 and 12 to 14, then `PruneLogFolders`, `ApplySchemata`,
 `CheckMutantSwitches` and `CreateMuterTestPlan`, which writes the test plan,
 `muter-mappings.json`. `run-without-mutating` reads that plan (`LoadMuterTestPlan`), checks the
 project and the copy against it (`CheckTestPlanSources`, `CheckTestPlanCode`), then runs

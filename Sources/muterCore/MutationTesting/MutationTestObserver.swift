@@ -100,6 +100,8 @@ extension MutationTestObserver {
             logger.projectCopySkippedVanishedFiles(paths)
         case let .projectCopyFinished(destinationPath):
             logger.projectCopyFinished(destinationPath: destinationPath)
+        case let .swiftLintPhasesTurnedOff(phases):
+            logger.swiftLintPhasesTurnedOff(phases)
 
         case .projectCoverageDiscoveryStarted:
             logger.projectCoverageDiscoveryStarted()

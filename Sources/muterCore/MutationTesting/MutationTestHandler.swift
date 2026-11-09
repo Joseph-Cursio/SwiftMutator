@@ -140,6 +140,8 @@ private extension [MutationStep] {
             PreviousRunCleanUp(),
             CopyProjectToTempDirectory(),
             FingerprintProjectTree(),
+            // Once the project's files are fingerprinted as they are, and before the coverage run, its first build.
+            TurnOffSwiftLintPhases(),
             // Before the coverage run, which runs the whole test suite.
             ListChangedSources(),
             DiscoverProjectCoverage(),
@@ -200,6 +202,7 @@ private extension [MutationStep] {
             CopyProjectToTempDirectory(),
             // Before anything is rewritten: the plan records the project's files as they are, for its runs to check.
             FingerprintProjectTree(),
+            TurnOffSwiftLintPhases(),
             DiscoverProjectCoverage(),
             DiscoverSourceFiles(),
             DiscoverBuildConditions(),
