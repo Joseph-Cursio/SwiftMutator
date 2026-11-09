@@ -16,6 +16,9 @@ struct BuildConditions: Equatable, Sendable {
     /// The custom conditions no target here sets, but that something else might: a package's traits, or a name a build
     /// file mentions, which may be a setting of a target xcodebuild didn't report.
     var undecidedConditions: Set<String> = []
+    /// The compiler's version, as `compiler(…)` compares it: the one `swift --version` prints. Nil if SwiftMutator
+    /// can't tell, as when the command picks a toolchain of its own.
+    var compiler: VersionTuple?
 
     struct Platform: Equatable, Sendable {
         /// As `os(…)` spells it.
@@ -40,12 +43,23 @@ struct BuildConditions: Equatable, Sendable {
         let description: String
     }
 
-    /// The functions in a condition that the `BuildConfiguration` protocol asks for without letting it decline: the
-    /// compiler's version and the language mode, which SwiftMutator doesn't look up, and those a build for several
-    /// architectures can't answer as one. A condition that calls one is undecided.
-    private static let unanswerable: Set = [
-        "swift", "compiler", "_compiler_version", "_pointerBitWidth", "_endian", "_hasAtomicBitWidth",
-    ]
+    /// The functions in a condition that the `BuildConfiguration` protocol asks for without letting it decline, and
+    /// that this build can't answer: the language mode, which SwiftMutator doesn't look up, `_compiler_version`, whose
+    /// old build numbers it doesn't either, the atomic widths, and the compiler's version, pointer width and byte order
+    /// where it couldn't tell them. A condition that calls one is undecided.
+    private var unanswerable: Set<String> {
+        var names: Set = ["swift", "_compiler_version", "_hasAtomicBitWidth"]
+        if compiler == nil {
+            names.insert("compiler")
+        }
+        if platform?.pointerBitWidth == nil {
+            names.insert("_pointerBitWidth")
+        }
+        if platform?.endianness == nil {
+            names.insert("_endian")
+        }
+        return names
+    }
 
     /// The ranges of the code in `tree` that an `#if` leaves out of this build. Sorted, and none holds another.
     func inactiveRegions(in tree: some SyntaxProtocol) -> [Range<AbsolutePosition>] {
@@ -56,8 +70,9 @@ struct BuildConditions: Equatable, Sendable {
 
     /// Whether `condition` holds in this build; nil if it can't be told.
     fileprivate func holds(_ condition: ExprSyntax) -> Bool? {
+        let unanswerable = unanswerable
         let isUnanswerable = condition.tokens(viewMode: .sourceAccurate).contains {
-            Self.unanswerable.contains($0.text)
+            unanswerable.contains($0.text)
         }
         guard !isUnanswerable else { return nil }
 
@@ -148,12 +163,13 @@ extension BuildConditions: BuildConfiguration {
         return name == (Self.applePlatforms.contains(platform.system) ? "MachO" : "ELF")
     }
 
-    // The `unanswerable` functions ask these, and conditions that call them are never evaluated.
-    var targetPointerBitWidth: Int { 64 }
+    // The `unanswerable` functions ask these, and a condition that calls one this build can't answer is never
+    // evaluated, so the placeholders are never read.
+    var targetPointerBitWidth: Int { platform?.pointerBitWidth ?? 64 }
     var targetAtomicBitWidths: [Int] { [] }
-    var endianness: Endianness { .little }
+    var endianness: Endianness { platform?.endianness ?? .little }
     var languageVersion: VersionTuple { VersionTuple(0) }
-    var compilerVersion: VersionTuple { VersionTuple(0) }
+    var compilerVersion: VersionTuple { compiler ?? VersionTuple(0) }
 
     private static let applePlatforms: Set = ["macOS", "iOS", "tvOS", "watchOS", "visionOS", "DriverKit"]
 
@@ -163,6 +179,24 @@ extension BuildConditions: BuildConfiguration {
         }
         return platform
     }
+}
+
+extension BuildConditions.Platform {
+    /// The pointer width `_pointerBitWidth(…)` asks for: 64 if every architecture is 64-bit; nil otherwise. A 32-bit
+    /// build is left undecided, as its macros and plugins are built for the host, which is 64-bit, in the same build.
+    var pointerBitWidth: Int? {
+        !architectures.isEmpty && architectures.isSubset(of: Self.sixtyFourBit) ? 64 : nil
+    }
+
+    /// The byte order `_endian(…)` asks for: little if every architecture is one SwiftMutator knows, as all of those
+    /// are; nil otherwise.
+    var endianness: Endianness? {
+        !architectures.isEmpty && architectures.isSubset(of: Self.sixtyFourBit.union(Self.thirtyTwoBit)) ? .little : nil
+    }
+
+    /// As `arch(…)`, Xcode's `ARCHS` and SwiftPM's host spell them. All are little-endian.
+    private static let sixtyFourBit: Set = ["arm64", "arm64e", "x86_64", "aarch64"]
+    private static let thirtyTwoBit: Set = ["arm64_32", "armv7k", "armv7", "armv7s", "i386"]
 }
 
 /// Finds the `#if` clauses the build leaves out. `SwiftIfConfig`'s own `configuredRegions` has no "don't know": after a

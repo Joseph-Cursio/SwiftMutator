@@ -1,4 +1,5 @@
 @testable import muterCore
+import SwiftIfConfig
 import SwiftParser
 import SwiftSyntax
 import XCTest
@@ -310,8 +311,9 @@ final class BuildConditionsTests: XCTestCase {
 
     // MARK: What isn't asked
 
-    func test_whatDependsOnTheCompiler_isUndecided() {
-        let conditions = conditions(custom: [[]])
+    func test_whatDependsOnTheCompiler_isUndecided_withoutItsVersionOrThePlatform() {
+        var conditions = conditions(custom: [[]])
+        conditions.platform = nil
 
         for condition in [
             "swift(>=5.0)", "swift(<1.0)", "compiler(>=5.0)", "_compiler_version(\"5.0\")", "hasFeature(Foo)",
@@ -320,6 +322,68 @@ final class BuildConditionsTests: XCTestCase {
         ] {
             XCTAssertNil(holds(condition, in: conditions), condition)
         }
+    }
+
+    // `compiler(…)` compares with the version `swift --version` prints, to its patch: 6.4.2 is not 6.4.2.1.
+    func test_theCompilersVersion_whenKnown() {
+        var conditions = conditions(custom: [["DEBUG"]])
+        conditions.compiler = VersionTuple(6, 4, 2)
+
+        XCTAssertEqual(holds("compiler(>=6.0)", in: conditions), true)
+        XCTAssertEqual(holds("compiler(>=6.4.2)", in: conditions), true)
+        XCTAssertEqual(holds("compiler(>=6.4.3)", in: conditions), false)
+        XCTAssertEqual(holds("compiler(>=6.4.2.1)", in: conditions), false)
+        XCTAssertEqual(holds("compiler(<6)", in: conditions), false)
+        XCTAssertEqual(holds("!compiler(>=7)", in: conditions), true)
+        XCTAssertEqual(holds("DEBUG && compiler(>=6.0)", in: conditions), true)
+        // The language mode, and the old build numbers, are still not looked up.
+        XCTAssertNil(holds("swift(>=5.0)", in: conditions))
+        XCTAssertNil(holds("compiler(>=6.0) && swift(>=6.0)", in: conditions))
+        XCTAssertNil(holds("_compiler_version(\"5.0\")", in: conditions))
+    }
+
+    func test_thePointerWidthAndByteOrder_ofA64BitBuild() {
+        var conditions = conditions(custom: [[]])
+
+        for architectures: Set in [["arm64"], ["arm64", "x86_64"], ["arm64e"], ["aarch64"]] {
+            conditions.platform = .init(system: "macOS", architectures: architectures)
+            XCTAssertEqual(holds("_pointerBitWidth(_64)", in: conditions), true, "\(architectures)")
+            XCTAssertEqual(holds("_pointerBitWidth(_32)", in: conditions), false, "\(architectures)")
+            XCTAssertEqual(holds("_endian(little)", in: conditions), true, "\(architectures)")
+            XCTAssertEqual(holds("_endian(big)", in: conditions), false, "\(architectures)")
+        }
+        XCTAssertNil(holds("_hasAtomicBitWidth(_64)", in: conditions))
+    }
+
+    // A 32-bit build's macros are built for the 64-bit host in the same build, so its pointer width is left alone.
+    func test_thePointerWidth_ofA32BitBuild_isUndecided_andAnUnknownArchitecturesByteOrder() {
+        var conditions = conditions(custom: [[]])
+
+        conditions.platform = .init(system: "watchOS", architectures: ["arm64_32", "arm64"])
+        XCTAssertNil(holds("_pointerBitWidth(_64)", in: conditions))
+        XCTAssertNil(holds("_pointerBitWidth(_32)", in: conditions))
+        XCTAssertEqual(holds("_endian(little)", in: conditions), true)
+
+        conditions.platform = .init(system: "Linux", architectures: ["s390x"])
+        XCTAssertNil(holds("_pointerBitWidth(_64)", in: conditions))
+        XCTAssertNil(holds("_endian(big)", in: conditions))
+    }
+
+    func test_theCompilersVersion_inWhatItPrints() {
+        XCTAssertEqual(
+            compilerVersion(inVersionOutput: """
+            swift-driver version: 1.168.6 Apple Swift version 6.4.2 (swiftlang-6.4.2.1.9 clang-2100.4.1.1)
+            Target: arm64-apple-macosx27.3.0
+            """),
+            VersionTuple(6, 4, 2)
+        )
+        XCTAssertEqual(
+            compilerVersion(inVersionOutput: "Swift version 6.2 (swift-6.2-RELEASE)\nTarget: aarch64-unknown-linux"),
+            VersionTuple(6, 2)
+        )
+        XCTAssertNil(compilerVersion(inVersionOutput: "Swift version 6.3-dev (LLVM abc, Swift def)"))
+        XCTAssertNil(compilerVersion(inVersionOutput: "Swift version  (unknown)"))
+        XCTAssertNil(compilerVersion(inVersionOutput: "error: unknown option --version"))
     }
 
     func test_conditionsCombine() {

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftIfConfig
 
 /// What a project's build compiles with, for each file where the build system says which targets hold it.
 struct ProjectBuildConditions: Equatable, Sendable {
@@ -80,6 +81,16 @@ extension BuildConditions.SDKModules {
                 .filter { $0 != sdk }
         }
     }
+}
+
+/// The compiler's version in what `swift --version` or `swiftc --version` prints, as `compiler(…)` compares it: the
+/// `6.2.1` of `Swift version 6.2.1 (swift-6.2.1-RELEASE)` or `Apple Swift version 6.2.1 (swiftlang-…)`. Nil for any
+/// other, as a development snapshot's `6.3-dev`, which may not compare as what it says.
+func compilerVersion(inVersionOutput output: String) -> VersionTuple? {
+    guard let start = output.range(of: "Swift version ")?.upperBound else { return nil }
+    let version = output[start...].prefix { !$0.isWhitespace }
+    guard version.allSatisfy({ $0.isASCII && ($0.isNumber || $0 == ".") }) else { return nil }
+    return VersionTuple(parsing: String(version))
 }
 
 /// The conditions among compiler flags: `-DNAME`, and `-D NAME` as two flags.

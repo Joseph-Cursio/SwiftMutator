@@ -944,11 +944,16 @@ and drops `#if os(macOS)`:
 | `os`, `arch`, `targetEnvironment` | This machine, unless `--triple`, `--arch`, `--swift-sdk`, `--destination` or `--sdk` builds for another | `-showBuildSettings`, which follows `-destination` |
 | Custom conditions, such as `DEBUG` | `DEBUG` in a debug build, `SWIFT_PACKAGE`, each target's `.define`s and `-D` flags in `unsafeFlags`, and `-Xswiftc -D` in `arguments` | `SWIFT_ACTIVE_COMPILATION_CONDITIONS` and the `-D` flags in `OTHER_SWIFT_FLAGS` |
 | `canImport` | The SDK's modules | The SDK's modules |
+| `compiler(…)` | What the same `swift --version` says, unless `--toolchain`, `--toolset`, a Swift SDK or `SWIFT_EXEC` picks another compiler | What `swiftc --version` in the targets' `TOOLCHAIN_DIR` says, with Xcode's own toolchain and no `SWIFT_EXEC` or `-toolchain` |
+| `_pointerBitWidth(…)`, `_endian(…)` | The architecture | The architectures |
 
 Whatever it can't tell, it leaves alone: the branch keeps its mutants, and coverage can still filter them out as before.
 So what it can't work out doesn't cost you code your build compiles. These stay undecided:
 
-- `swift(…)`, `compiler(…)`, `hasFeature(…)` and `hasAttribute(…)`, and `canImport` of a submodule or with a version;
+- `swift(…)`, `_compiler_version(…)`, `_hasAtomicBitWidth(…)`, `hasFeature(…)` and `hasAttribute(…)`, and `canImport`
+  of a submodule or with a version;
+- `compiler(…)` where the compiler can't be told, as above, and `_pointerBitWidth(…)` in a build for a 32-bit
+  architecture, whose macros are built for the 64-bit machine that builds;
 - `canImport` of a module in no SDK, which may be a package's, and any `canImport` in a Mac Catalyst build;
 - `arch(…)` in a build for several architectures, as a generic destination is, unless it is none of them;
 - a condition only some targets set. SwiftPM says which targets compile each file, so there it's only those targets'.
