@@ -83,6 +83,19 @@ final class ReplaceReturnValueOperatorTests: MuterTestCase {
         XCTAssertEqual(try values(in: "func f<T>() -> T { load() }"), [])
     }
 
+    // Swift infers an opaque type from each value returned, and can't from an empty one, so a type with a `some`
+    // anywhere in it gets no mutant, though `[T]`, `[K: V]` and `T?` do.
+    func test_aTypeWithASomeInIt_getsNoMutant() throws {
+        for type in [
+            "[some Shape]", "[String: some Shape]", "(some Shape)?", "Optional<some Shape>", "Set<some Hashable>",
+            "[[some Shape]]", "Swift.Array<some Shape>",
+        ] {
+            XCTAssertEqual(try values(in: "func f() -> \(type) { return load() }"), [], type)
+        }
+        XCTAssertEqual(try values(in: "func f() -> [any Shape] { return load() }"), ["load()"])
+        XCTAssertEqual(try values(in: "func f() -> (any Shape)? { return load() }"), ["load()"])
+    }
+
     // A type the file declares under a standard library name is that type, which may not take the empty value. The
     // module's name, or the sugar of `[T]` and `T?`, still names the standard library's.
     func test_aNameTheFileDeclaresItself_getsNoMutant() throws {
@@ -274,6 +287,8 @@ final class ReplaceReturnValueOperatorTests: MuterTestCase {
             "struct S { @Lines subscript(i: Int) -> [String] { load() } }",
             "@Lines @inlinable func f() -> String { load() }",
             "#if DEBUG\n@inlinable\n#endif\nfunc f() -> String { load() }",
+            // A dynamic replacement takes the builder of what it replaces.
+            "extension S { @_dynamicReplacement(for: header) var newHeader: [String] { load() } }",
         ] {
             XCTAssertEqual(try values(in: code), [], code)
         }
@@ -328,6 +343,29 @@ final class ReplaceReturnValueOperatorTests: MuterTestCase {
             }
             """),
             ["name", "rows"]
+        )
+    }
+
+    // A requirement in a `#if` clause, at any depth, gives its builder all the same.
+    func test_aMemberNamedAsARequirementWithABuilderInACompilerDirective_isLeftAlone() throws {
+        XCTAssertEqual(
+            try values(in: """
+            protocol Report {
+            #if !os(Linux)
+                @Lines var lines: [String] { get }
+            #elseif DEBUG
+                #if canImport(UIKit)
+                @Lines func footer() -> [String]
+                #endif
+            #endif
+            }
+            struct Daily: Report {
+                var lines: [String] { load() }
+                func footer() -> [String] { load() }
+                var other: [String] { rows }
+            }
+            """),
+            ["rows"]
         )
     }
 

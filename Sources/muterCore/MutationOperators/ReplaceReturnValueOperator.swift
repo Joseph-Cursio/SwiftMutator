@@ -117,8 +117,13 @@ enum EmptyValue: Equatable {
     /// written in one of these forms: `T?`, `T!` or `Optional<T>`; `[T]`, `Array<T>` or `Set<T>`; `[K: V]` or
     /// `Dictionary<K, V>`; `String` or `Substring`; or a number. `Swift.` may name the module. A name the file
     /// declares as a type of its own, a typealias or a generic parameter, in `declaredNames`, is that type, unless the
-    /// module is named: an `Int` the file declares may not take `0`. One declared in another file isn't seen.
+    /// module is named: an `Int` the file declares may not take `0`. One declared in another file isn't seen. A type
+    /// with a `some` anywhere in it, as `[some Shape]` or `(some Shape)?`, has none: Swift infers the opaque type from
+    /// each value returned, and can't from an empty one.
     init?(writtenAs type: TypeSyntax, unless declaredNames: Set<String>) {
+        guard !type.tokens(viewMode: .sourceAccurate).contains(where: { $0.tokenKind == .keyword(.some) }) else {
+            return nil
+        }
         var type = type
         while let tuple = type.as(TupleTypeSyntax.self), tuple.elements.count == 1, let only = tuple.elements.first,
               only.firstName == nil, only.inoutKeyword == nil, only.ellipsis == nil {
@@ -226,13 +231,32 @@ private struct FileDeclarations {
                 typeNames.insert(name)
             }
             guard let protocolDecl = node.as(ProtocolDeclSyntax.self) else { continue }
-            for member in protocolDecl.memberBlock.members {
-                guard let requirement = Syntax(member.decl).declarationWithAttributes,
-                      requirement.attributes.mayHoldAResultBuilder
-                else { continue }
+            for requirement in protocolDecl.requirements where requirement.attributes.mayHoldAResultBuilder {
                 requirementsWithAttributes.insert(requirement.name)
             }
         }
+    }
+}
+
+private extension ProtocolDeclSyntax {
+    /// The functions, properties and subscripts this protocol requires, in any `#if` clause, at any depth, as well as
+    /// outside one.
+    var requirements: [NamedDeclaration] {
+        var lists = [memberBlock.members]
+        var found: [NamedDeclaration] = []
+        while let members = lists.popLast() {
+            for member in members {
+                if let requirement = Syntax(member.decl).declarationWithAttributes {
+                    found.append(requirement)
+                }
+                for clause in member.decl.as(IfConfigDeclSyntax.self)?.clauses ?? [] {
+                    if case .decls(let decls) = clause.elements {
+                        lists.append(decls)
+                    }
+                }
+            }
+        }
+        return found
     }
 }
 
@@ -307,13 +331,16 @@ private extension Syntax {
 private extension AttributeListSyntax {
     /// The attributes known not to be result builders. Any other may be one: a builder is declared as a type, and
     /// its name says nothing. A global actor other than `MainActor` is one too, but it can't be told from a builder.
+    /// `_dynamicReplacement` isn't here, as Swift gives a replacement the builder of what it replaces, which may be
+    /// declared anywhere. `_implements` is: a witness of that name is matched by its own name, which no builder is
+    /// given for.
     static let notResultBuilders: Set<String> = [
         "inlinable", "inline", "discardableResult", "available", "objc", "nonobjc", "usableFromInline", "MainActor",
         "Sendable", "preconcurrency", "IBAction", "IBInspectable", "IBSegueAction", "_spi", "backDeployed",
         "warn_unqualified_access", "_disfavoredOverload", "_transparent", "_alwaysEmitIntoClient", "_effects",
-        "_optimize", "_semantics", "_specialize", "_silgen_name", "_cdecl", "_dynamicReplacement",
-        "dynamicReplacement", "_implements", "_unavailableFromAsync", "derivative", "differentiable", "NSManaged",
-        "GKInspectable", "concurrent", "_noAllocation", "_noLocks", "_implicitSelfCapture", "export",
+        "_optimize", "_semantics", "_specialize", "_silgen_name", "_cdecl", "_implements", "_unavailableFromAsync",
+        "derivative", "differentiable", "NSManaged", "GKInspectable", "concurrent", "_noAllocation", "_noLocks",
+        "_implicitSelfCapture", "export",
     ]
 
     /// Whether any of these may be a result builder: an attribute not known not to be one, or one under a `#if`.

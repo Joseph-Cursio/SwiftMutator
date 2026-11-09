@@ -122,9 +122,17 @@ extension GeneratedCodeShapesTests {
             @Lines var body: [String] { get }
         }
 
-        struct Daily: Report {
+        protocol Summary {
+        #if !os(Linux)
+            @Lines var summary: [String] { get }
+        #endif
+        }
+
+        struct Daily: Report, Summary {
             var count: Int
             var body: [String] { String(count) }
+            var summary: [String] { String(count) }
+            @Lines dynamic var title: [String] { "title" }
             @Lines var header: [String] { "header" }
             @Lines subscript(index: Int) -> [String] { String(index) }
             @Lines func footer() -> [String] { "footer" }
@@ -132,10 +140,25 @@ extension GeneratedCodeShapesTests {
             func passed() -> [String] { lines { () -> [String] in "passed" } }
             func returned() -> [String] { lines { () -> [String] in return ["returned"] } }
         }
+
+        extension Daily {
+            @_dynamicReplacement(for: title) var newTitle: [String] { "new" }
+        }
+
+        protocol Shape {}
+
+        struct Circle: Shape {}
+
+        func shapes(_ count: Int) -> [some Shape] { Array(repeating: Circle(), count: count) }
+
+        func named(_ name: String) -> [String: some Shape] { [name: Circle()] }
+
+        func shape(_ count: Int) -> (some Shape)? { count > 0 ? Circle() : nil }
         """
         let main = driver("""
         let daily = Daily(count: 1)
         print(daily.body, daily.header, daily[2], daily.footer(), daily.plain(), daily.passed(), daily.returned())
+        print(daily.summary, daily.newTitle, shapes(2).count, named("a").count, shape(1) != nil)
         """)
         let compiled = try compileMutated(["Builders.swift": code], plain: ["main.swift": main])
 
@@ -144,6 +167,11 @@ extension GeneratedCodeShapesTests {
                 .filter { $0.mutationOperatorId == .replaceReturnValue }.map(\.snapshot.before)
         }
         XCTAssertEqual(replaced("var body: [String] { String"), [], "a member a requirement gives its builder")
+        XCTAssertEqual(replaced("var summary: [String] { String"), [], "and one a requirement in a #if gives it")
+        XCTAssertEqual(replaced("var newTitle"), [], "a dynamic replacement, which takes its replaced's builder")
+        XCTAssertEqual(replaced("func shapes"), [], "an array of a some type")
+        XCTAssertEqual(replaced("func named"), [], "a dictionary of a some type")
+        XCTAssertEqual(replaced("func shape("), [], "an optional some type")
         XCTAssertEqual(replaced("var header"), [], "a property with a builder")
         XCTAssertEqual(replaced("subscript"), [], "a subscript with a builder")
         XCTAssertEqual(replaced("func footer"), [], "a function with a builder")
@@ -162,6 +190,7 @@ extension GeneratedCodeShapesTests {
         XCTAssertEqual(replaced("func lines"), ["make()"], "a function a builder's closure is passed to")
 
         let output = "[\"1\"] [\"header\"] [\"2\"] [\"footer\"] [\"1\"] [\"passed\"] [\"returned\"]\n"
+            + "[\"1\"] [\"new\"] 2 1 true\n"
         XCTAssertEqual(try run(compiled.program).output, output, "no mutant named")
         let id = try compiled.identifier(in: "Builders.swift") {
             $0.mutationOperatorId == .replaceReturnValue && $0.snapshot.before == "[\"returned\"]"
