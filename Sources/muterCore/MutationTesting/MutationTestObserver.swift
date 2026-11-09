@@ -84,6 +84,9 @@ extension MutationTestObserver {
         case let .updateCheckFinished(newVersion):
             logger.updateCheckFinished(newVersion: newVersion)
 
+        case let .configurationKeysUnknown(keys, file):
+            logger.configurationKeysUnknown(keys, file: file)
+
         case let .changesSelected(selection):
             sinceMergeBase = selection.mergeBase
             logger.changesSelected(selection, verbose: runOptions.verbose)

@@ -5,6 +5,8 @@ struct LoadConfiguration: MutationStep {
     private var fileManager: FileSystemManager
     @Dependency(\.process)
     private var process: ProcessFactory
+    @Dependency(\.events)
+    private var events: RunEvents
 
     func run(
         with state: AnyMutationTestState
@@ -29,9 +31,19 @@ struct LoadConfiguration: MutationStep {
                 )
             }
 
+            // Before decoding, so a misspelled `executable` or `arguments` that it then misses gets its key named too.
+            let unknownKeys = UnknownConfigurationKey.found(in: configurationData)
+            if !unknownKeys.isEmpty {
+                let file = isLegacy
+                    ? "\(configurationPath.pathWithoutFileName)/\(MuterConfiguration.legacyFileNameWithExtension)"
+                    : configurationPath
+                events.send(.configurationKeysUnknown(unknownKeys, file: shown(file)))
+            }
             let configuration = try MuterConfiguration(from: configurationData)
 
-            if isLegacy {
+            // Not while it has a key SwiftMutator doesn't know: the YAML file holds only those it does, so the key the
+            // warning names would be gone, and the next run would say nothing of it.
+            if isLegacy, unknownKeys.isEmpty {
                 try migrateToYAMLAtPath(configurationPath, configuration)
             }
 
@@ -58,14 +70,8 @@ struct LoadConfiguration: MutationStep {
                     reports: state.runOptions.reports,
                     exclude: state.runOptions.exclude
                 )
-            // As `--build-timeout` is, which takes its place: 0 would stop every build at once, and a limit past a day
-            // is a mistake.
-            if let buildTimeout = resolved.buildTimeout,
-               !(buildTimeout > 0 && buildTimeout <= TestingArguments.longestTimeout) {
-                throw MuterError.configurationParsingError(
-                    reason: "buildTimeout must be a number of seconds above 0, and at most a day (86400), "
-                        + "not \(String(format: "%g", buildTimeout))."
-                )
+            if let reason = Self.valueOutOfRange(in: resolved) {
+                throw MuterError.configurationParsingError(reason: reason)
             }
             // As `--report`'s are, which take their place: each saved report needs a file of its own.
             let outputs = Self.outputs(of: state.runOptions, resolved, in: fileManager)
@@ -97,6 +103,36 @@ struct LoadConfiguration: MutationStep {
         } catch {
             throw MuterError.configurationParsingError(reason: "\(error)")
         }
+    }
+
+    /// Why one of `configuration`'s values can't be used, the run's flags already in, or nil. Checked here rather than
+    /// in decoding, as a results file's header holds what an earlier version took, which a resume must still read.
+    static func valueOutOfRange(in configuration: MuterConfiguration) -> String? {
+        // As `--timeout` and `--build-timeout` are, which take their place: 0 would stop every run at once, below 0
+        // traps, and a limit past a day is a mistake.
+        let timeouts = [
+            ("mutationTestTimeout", configuration.testSuiteTimeout),
+            ("buildTimeout", configuration.buildTimeout),
+        ]
+        let longest = TestingArguments.longestTimeout
+        for case let (key, seconds?) in timeouts where !(seconds > 0 && seconds <= longest) {
+            return "\(key) must be a number of seconds above 0, and at most a day (86400), not \(Self.shown(seconds))."
+        }
+        // As `--workers` is: an earlier version took 0 or less as 1.
+        if let workers = configuration.mutationTestWorkers, workers < 1 {
+            return "mutationTestWorkers must be a whole number, at least 1, not \(workers)."
+        }
+        if !(0 ... 100).contains(configuration.coverageThreshold) {
+            return "coverageThreshold must be a percentage from 0 to 100, "
+                + "not \(Self.shown(configuration.coverageThreshold))."
+        }
+        return nil
+    }
+
+    /// `value` in plain decimal digits, as written, so a refusal never names a rounded value that is in range, as
+    /// `%g` shows 86400.01 as 86400.
+    private static func shown(_ value: Double) -> String {
+        ScoreGate.shown(value)
     }
 
     /// The reports a run with `options` and `configuration` saves, by how a refusal names each: `-o`'s, then those of
@@ -151,6 +187,14 @@ struct LoadConfiguration: MutationStep {
         }
 
         return configuration.withExecutable(resolved)
+    }
+
+    /// `path` as a warning names it: relative to the current folder when it is in it, as `muter.conf.yml` or
+    /// `ci/muter.conf.yml`, and else in full, so a file `--configuration` chose isn't taken for the project's own.
+    private func shown(_ path: String) -> String {
+        let folder = NSString(string: fileManager.currentDirectoryPath).standardizingPath + "/"
+        let standardized = NSString(string: path).standardizingPath
+        return standardized.hasPrefix(folder) ? String(standardized.dropFirst(folder.count)) : standardized
     }
 
     private func configurationPath(_ options: Run.Options) -> String {

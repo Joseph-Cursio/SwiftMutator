@@ -154,7 +154,8 @@ struct BaselineScope: Equatable {
                 excludeCallList: excludeCalls,
                 coverageThreshold: coverageThreshold,
                 testSuiteTimeOut: mutationTestTimeout,
-                buildSystem: buildSystem.map(BuildSystem.init(rawValue:))
+                // Never `unknown`, which an earlier version wrote for any value but these, and then ignored.
+                buildSystem: buildSystem.flatMap(BuildSystem.init(written:))
             )
         }
     }

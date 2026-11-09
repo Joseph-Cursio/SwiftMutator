@@ -55,6 +55,15 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         }
     }
 
+    /// Each key of the configuration file, `file`, that SwiftMutator doesn't know, one line each, with the known key it
+    /// is closest to, if any.
+    func configurationKeysUnknown(_ keys: [UnknownConfigurationKey], file: String) {
+        for unknown in keys {
+            let meant = unknown.closest.map { " Did you mean \($0.bold)?" } ?? ""
+            print("⚠️ \(file): \(unknown.key.bold) isn't a configuration key, so it is ignored.\(meant)")
+        }
+    }
+
     /// How many Swift files changed since `--since`'s merge base, and with `verbose`, their paths.
     func changesSelected(_ selection: ChangeSelection, verbose: Bool = false) {
         let count = selection.files.count == 1 ? "1 Swift file" : "\(selection.files.count) Swift files"

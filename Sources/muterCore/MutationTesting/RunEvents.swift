@@ -8,6 +8,9 @@ enum RunEvent {
     /// The newer version available, or nil if there is none or the check failed.
     case updateCheckFinished(newVersion: String?)
 
+    /// The keys of the configuration file, by its name, that SwiftMutator doesn't know and so ignores.
+    case configurationKeysUnknown([UnknownConfigurationKey], file: String)
+
     /// What `--since` chose, before anything is copied.
     case changesSelected(ChangeSelection)
 

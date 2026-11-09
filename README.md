@@ -1612,9 +1612,12 @@ dropped. A file is left out by [`exclude`](#choosing-the-files).
 `mutate-without-running` and `run-without-mutating` read it from the folder they run in, or from
 the file `-c` names, if its name ends in `.yml`, or else `muter.conf.yml` in the folder it names;
 the project is still the folder they run in.
-Keep it at the project's root, and commit it. A key SwiftMutator doesn't know is ignored without a
-word, so check the spelling of any you add
-([#122](https://github.com/Joseph-Cursio/SwiftMutator/issues/122)).
+Keep it at the project's root, and commit it. A key SwiftMutator doesn't know is ignored, with a
+warning that names it and the key it is closest to, if any, so a misspelled
+`mutationTestTimeOut` says `Did you mean mutationTestTimeout?`
+([#122](https://github.com/Joseph-Cursio/SwiftMutator/issues/122)). A value of the wrong type
+refuses the run, as `exclude: Sources/Generated` does, one path rather than a list, and so does a
+value out of the range the table gives.
 
 SwiftMutator reads Muter's `muter.conf.yml`, so existing Muter configurations work unchanged,
 except an xcodebuild project's `coverageThreshold`. Muter read that one as a fraction from 0 to 1,
@@ -1626,7 +1629,8 @@ looked for each name anywhere in a statement's text, comments included, so `log`
 `logger.log`. A statement is kept if any call in it matches, one in a closure it passes too, or if
 it passes a function that matches, as `events.forEach(log)` does. An older `muter.conf.json` beside
 it is converted to `muter.conf.yml` and removed, unless a `muter.conf.yml` is there, which wins and
-leaves the JSON file alone.
+leaves the JSON file alone, or it has a key SwiftMutator doesn't know, which the conversion would
+drop: it is kept, and warned of, until that key is fixed.
 
 Every key but `executable` and `arguments` can be left out. *Build systems* says which test
 commands a key does anything for: SwiftPM is `swift test`, or a wrapper with `buildSystem: swift`;
@@ -1637,16 +1641,16 @@ as it is.
 |---|---|---|---|
 | `executable` | The program that runs your tests, such as `/usr/bin/swift` or `/usr/bin/xcodebuild`, or a script that runs them. A name without a `/`, such as `swift`, is looked up on `PATH` when the run starts | None: it must be set | All |
 | `arguments` | What `executable` is given to run the tests, such as `[test]` for `swift`. With xcodebuild they must include `-destination`, and the first `-destination` is the one mutants are tested on | None: it must be set | All |
-| `buildSystem` | `swift` or `xcodebuild`, for an `executable` whose file name isn't, such as a wrapper script; any other value is ignored | From `executable`'s file name: `swift`, `xcodebuild`, or another command | All |
+| `buildSystem` | `swift` or `xcodebuild`, for an `executable` whose file name isn't, such as a wrapper script; any other value refuses the run | From `executable`'s file name: `swift`, `xcodebuild`, or another command | All |
 | `exclude` | Paths, path fragments and globs to leave out of the files mutated, besides the defaults; an entry that starts with `!` keeps what it matches. See [Choosing the files](#choosing-the-files) | None besides the defaults | All |
 | `excludeCalls` | Names of functions whose calls `RemoveSideEffects` never removes, such as a logging function. Code inside those functions is still mutated, and every overload of a name is matched | None | All |
-| `coverageThreshold` | A percentage from 0 to 100: a file whose share of lines the tests ran is at or below it is left out. A file with no lines to run is never left out. `--skip-coverage` turns coverage off | `0`: only the files no test runs are left out | SwiftPM and xcodebuild; other commands gather no coverage |
+| `coverageThreshold` | A percentage from 0 to 100, which a value outside refuses: a file whose share of lines the tests ran is at or below it is left out. A file with no lines to run is never left out. `--skip-coverage` turns coverage off | `0`: only the files no test runs are left out | SwiftPM and xcodebuild; other commands gather no coverage |
 | `operators` | A list of the operators to use, at least one. See [Choosing the operators](#choosing-the-operators) | All of them | All |
 | `skipOperators` | A list of the operators to leave out. See [Choosing the operators](#choosing-the-operators) | None | All |
-| `mutationTestTimeout` | Seconds before a mutant's test run is stopped. See [Timeouts are run again](#timeouts-are-run-again) | 5× a timed run of the tests with no mutant on, once more for each worker beyond the first, and at least 20 s; for another build system, or when that run fails, 3× the baseline, build included, and at least 10 s (see [Why a fork of Muter](#why-a-fork-of-muter)) | All |
+| `mutationTestTimeout` | Seconds, above 0 and at most a day, before a mutant's test run is stopped. See [Timeouts are run again](#timeouts-are-run-again) | 5× a timed run of the tests with no mutant on, once more for each worker beyond the first, and at least 20 s; for another build system, or when that run fails, 3× the baseline, build included, and at least 10 s (see [Why a fork of Muter](#why-a-fork-of-muter)) | All |
 | `buildTimeout` | Seconds, above 0 and at most a day, before each step ahead of the first mutant that builds your project and runs its tests is stopped: the coverage run, each xcodebuild build for testing, each baseline run, and a worker clone's. The direct and timed test runs, which follow the baseline and don't build, get a shorter limit. See [Time limits before the first mutant](#time-limits-before-the-first-mutant) | No limit | All |
 | `stopAtFirstFailure` | Stop a mutant's test run at its first failed test, or at a test process's crash, either of which already decides that it is killed. Never the baseline | `true` | SwiftPM |
-| `mutationTestWorkers` | How many mutants to test at once. See [Workers and release mode](#workers-and-release-mode) and [xcodebuild workers](#xcodebuild-workers) | SwiftPM: half the processors, at most 4, and, when each needs a clone, fewer for fewer than 150 mutants. Others: 1 | SwiftPM, and xcodebuild projects that test on a simulator, which get one simulator per worker; others test one at a time |
+| `mutationTestWorkers` | How many mutants to test at once, at least 1. See [Workers and release mode](#workers-and-release-mode) and [xcodebuild workers](#xcodebuild-workers) | SwiftPM: half the processors, at most 4, and, when each needs a clone, fewer for fewer than 150 mutants. Others: 1 | SwiftPM, and xcodebuild projects that test on a simulator, which get one simulator per worker; others test one at a time |
 | `workersShareBuild` | Whether workers may test from one build when a direct run of the tests, with no mutant on, wrote nothing in the copy; `false` gives each worker a clone. See [Workers and release mode](#workers-and-release-mode) | `true` | SwiftPM on macOS, when mutants' test bundles run directly |
 | `oneWorkerSimulator` | Whether one worker tests on a simulator SwiftMutator makes: `true` whenever the destination is a simulator, `false` never. See [One worker on a simulator of its own](#one-worker-on-a-simulator-of-its-own) | Unset: when the project and its baseline show it is faster | xcodebuild, with a simulator as the first `-destination` |
 | `keepAllLogs` | Keep the log of every mutant's test run, a kill's too. See [Results file](#results-file) | `false`: a mutant killed by a failed test its results line names keeps none | All |
@@ -1669,7 +1673,8 @@ and `run-without-mutating`, set `mutationTestWorkers` and `mutationTestTimeout`
 `mutate-without-running`, sets `buildTimeout`, and `--exclude`, on `run` and
 `mutate-without-running`, adds an entry to `exclude`. The other keys have no flag (see
 [Commands and flags](#commands-and-flags)). `--workers` must be at least 1, and `--timeout` and
-`--build-timeout` above 0 and at most a day, 86,400 seconds. The run records and compares them as
+`--build-timeout` above 0 and at most a day, 86,400 seconds, as their keys must be; a flag's value
+is used in place of its key's, which is then not checked. The run records and compares them as
 it does the keys: a resume with a `--timeout` at least as long as every session's limit tests only
 the timeouts again (see
 [Timeouts are run again](#timeouts-are-run-again)), one that is shorter is refused, and another

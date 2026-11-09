@@ -292,6 +292,23 @@ final class MutationTestObserverTests: MuterTestCase {
         XCTAssertTrue(flushStandardOut.flushHandlerWasCalled)
     }
 
+    func test_configurationKeysUnknown_isPrinted() throws {
+        try sut.start()
+
+        runEvents.send(
+            .configurationKeysUnknown(
+                [.init(key: "mutationTestTimeOut", closest: "mutationTestTimeout")],
+                file: "ci.yml"
+            )
+        )
+
+        XCTAssertEqual(
+            printer.linesPassed.last,
+            "⚠️ ci.yml: \("mutationTestTimeOut".bold) isn't a configuration key, so it is ignored. "
+                + "Did you mean \("mutationTestTimeout".bold)?"
+        )
+    }
+
     func test_stopAtFirstFailureTurnedOff_isPrinted() throws {
         try sut.start()
 

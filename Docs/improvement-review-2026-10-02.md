@@ -48,8 +48,8 @@ Discovery takes a SwiftPM package's files from its targets, keeps only the files
 - **Linux** ([#130]). CI's Linux job builds SwiftMutator and runs the unit suite, but the suite fails there, so the job doesn't block: it runs with `continue-on-error`, on pushes to main and by hand, not on pull requests (`.github/workflows/ci.yml:161-170`). Its run on 8 November built and then failed its tests. Mutants there also run through `swift test` (§1.1).
 - **xcodebuild workers: what's left** (no issue yet; [#103] is closed). Several workers test on simulator destinations only.
   - A failed check run on a simulator made with `simctl create`, because the destination's simulator was booted, doesn't say that shutting it down would let the next run clone it, with its settings and data.
-  - macOS and Mac Catalyst destinations stay on 1 worker: their tests would share the Mac's `UserDefaults`, saved state and container (`MuterConfiguration.swift:515-535`).
-  - The default worker count for xcodebuild is still 1, as each simulator takes about 3 GB at its peak (`MuterConfiguration.swift:496-502`). [#116] changed only SwiftPM's.
+  - macOS and Mac Catalyst destinations stay on 1 worker: their tests would share the Mac's `UserDefaults`, saved state and container (`MuterConfiguration.swift:575-595`).
+  - The default worker count for xcodebuild is still 1, as each simulator takes about 3 GB at its peak (`MuterConfiguration.swift:556-562`). [#116] changed only SwiftPM's.
   - xcodebuild runs have no fail-fast: `stopAtFirstFailure` applies to SwiftPM only.
 
 ---
@@ -58,11 +58,9 @@ Discovery takes a SwiftPM package's files from its targets, keeps only the files
 
 Added on 21 October, from a comparison with swift-mutation-testing v1.6.3 (`937f128`), checked against SwiftMutator `af38f174`. Left:
 
-- **xcodebuild arguments in mutant runs** ([#123]). The user's `arguments` reach the build, the coverage run and the baseline, but a mutant's run gets only `test-without-building`, the first `-destination`, `-xctestrun` and a worker's own arguments (`MuterConfiguration.swift:817-830`). So an argument that changes what a test run does, such as `-only-testing`, holds for the baseline and maybe not for the mutants. The issue also proposes the flags a headless run needs.
-- **Configuration checks and a smarter `init`** ([#122]). Report settings are done (`reports:`, [#119]). Left:
-  - An unknown key in `muter.conf.yml` is dropped without a word, so a misspelled `mutationTestTimeout` leaves the default time limit.
-  - Values aren't checked: the issue lists those that fall back to a default on a wrong type, or are taken out of range.
-  - A run with no configuration file stops (`LoadConfiguration.swift:28`), rather than running with what `init` would write.
+- **xcodebuild arguments in mutant runs** ([#123]). The user's `arguments` reach the build, the coverage run and the baseline, but a mutant's run gets only `test-without-building`, the first `-destination`, `-xctestrun` and a worker's own arguments (`MuterConfiguration.swift:877-890`). So an argument that changes what a test run does, such as `-only-testing`, holds for the baseline and maybe not for the mutants. The issue also proposes the flags a headless run needs.
+- **Configuration checks and a smarter `init`** ([#122]). Report settings are done (`reports:`, [#119]), and so are the checks: an unknown key is warned of, with the key it is closest to, and a value of the wrong type or out of range refuses the run. Left:
+  - A run with no configuration file stops (`LoadConfiguration.swift:30`), rather than running with what `init` would write.
   - `init` replaces an existing file (`Init.swift:42-47`), writes a bare YAML dump, and guesses the scheme and destination.
 - **Releases, a real version and an update check that works** ([#121]): see §4.
 
