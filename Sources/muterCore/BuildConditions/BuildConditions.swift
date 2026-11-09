@@ -19,6 +19,9 @@ struct BuildConditions: Equatable, Sendable {
     /// The compiler's version, as `compiler(…)` compares it: the one `swift --version` prints. Nil if SwiftMutator
     /// can't tell, as when the command picks a toolchain of its own.
     var compiler: VersionTuple?
+    /// The language version `swift(…)` compares with, which the language mode sets: 5.10 in Swift 5 mode, and in Swift
+    /// 6 mode the compiler's own version. Nil if SwiftMutator can't tell, as when the targets' modes differ.
+    var language: VersionTuple?
 
     struct Platform: Equatable, Sendable {
         /// As `os(…)` spells it.
@@ -44,11 +47,14 @@ struct BuildConditions: Equatable, Sendable {
     }
 
     /// The functions in a condition that the `BuildConfiguration` protocol asks for without letting it decline, and
-    /// that this build can't answer: the language mode, which SwiftMutator doesn't look up, `_compiler_version`, whose
-    /// old build numbers it doesn't either, the atomic widths, and the compiler's version, pointer width and byte order
-    /// where it couldn't tell them. A condition that calls one is undecided.
+    /// that this build can't answer: `_compiler_version`, whose old build numbers SwiftMutator doesn't look up, the
+    /// atomic widths, and the language and compiler versions, pointer width and byte order where it couldn't tell them.
+    /// A condition that calls one is undecided.
     private var unanswerable: Set<String> {
-        var names: Set = ["swift", "_compiler_version", "_hasAtomicBitWidth"]
+        var names: Set = ["_compiler_version", "_hasAtomicBitWidth"]
+        if language == nil {
+            names.insert("swift")
+        }
         if compiler == nil {
             names.insert("compiler")
         }
@@ -174,7 +180,7 @@ extension BuildConditions: BuildConfiguration {
     var targetPointerBitWidth: Int { platform?.pointerBitWidth ?? 64 }
     var targetAtomicBitWidths: [Int] { [] }
     var endianness: Endianness { platform?.endianness ?? .little }
-    var languageVersion: VersionTuple { VersionTuple(0) }
+    var languageVersion: VersionTuple { language ?? VersionTuple(0) }
     var compilerVersion: VersionTuple { compiler ?? VersionTuple(0) }
 
     private static let applePlatforms: Set = ["macOS", "iOS", "tvOS", "watchOS", "visionOS", "DriverKit"]

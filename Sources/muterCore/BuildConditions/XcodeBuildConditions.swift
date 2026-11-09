@@ -33,7 +33,8 @@ enum XcodeBuildConditions {
             )
         }
 
-        let namesInBuildFiles = namesInBuildFiles(inProjectAt: root, fileManager: fileManager)
+        let buildFiles = buildFiles(inProjectAt: root, fileManager: fileManager)
+        let namesInBuildFiles = names(in: buildFiles)
         // A target xcodebuild didn't report, such as the framework the tests test, may build with its own compiler.
         let aTargetMayPickItsCompiler = !namesInBuildFiles.isDisjoint(with: ["TOOLCHAINS", "SWIFT_EXEC"])
         let compiler = aTargetMayPickItsCompiler
@@ -43,7 +44,8 @@ enum XcodeBuildConditions {
             platform: platform(of: targets, in: arguments, fileManager: fileManager),
             customConditions: targets.map(customConditions(of:)),
             undecidedConditions: namesInBuildFiles,
-            compiler: compiler
+            compiler: compiler,
+            language: languageVersion(of: targets, buildFiles: buildFiles, compiler: compiler)
         )))
     }
 
@@ -162,19 +164,79 @@ enum XcodeBuildConditions {
         return Set(active.map(String.init)).union(muterCore.customConditions(inSwiftFlags: flags))
     }
 
-    /// Every word in the project's project files, build configuration files and package manifests, and for each that
-    /// starts with `D`, the rest of it: in `-DNAME`, the flag's name is glued to its `D`. A word that isn't a condition
-    /// costs nothing, as only a name an `#if` asks about is looked up.
-    private static func namesInBuildFiles(inProjectAt root: FilePath, fileManager: FileSystemManager) -> Set<String> {
-        let buildFiles = (fileManager.subpaths(atPath: root) ?? []).filter { path in
-            let name = (path as NSString).lastPathComponent
-            return name == "project.pbxproj" || name.hasSuffix(".xcconfig")
-                || (name.hasPrefix("Package") && name.hasSuffix(".swift"))
+    /// The language version of every target the build may compile: that of the one mode the reported targets'
+    /// `SWIFT_VERSION` and every `SWIFT_VERSION` a build file sets all give, as a target xcodebuild didn't report may
+    /// have its own. Nil if they don't all give one, and the same; if a flag sets the mode, which SwiftMutator doesn't
+    /// follow; or if the project has a package, whose targets' modes the manifest sets.
+    private static func languageVersion(
+        of targets: [Settings],
+        buildFiles: [BuildFile],
+        compiler: VersionTuple?
+    ) -> VersionTuple? {
+        let flags = targets.flatMap {
+            ($0["OTHER_SWIFT_FLAGS"] ?? "").split(whereSeparator: \.isWhitespace).map(String.init)
         }
+        let aFlagSetsTheMode = LanguageMode.isSet(inFlags: flags) || buildFiles.contains {
+            $0.text.contains("-swift-version") || $0.text.contains("-language-mode")
+        }
+        guard !aFlagSetsTheMode, !buildFiles.contains(where: \.isPackageManifest) else { return nil }
+        let modes = targets.map { $0["SWIFT_VERSION"].flatMap(LanguageMode.init) }
+            + buildFiles.flatMap { swiftVersions(in: $0.text) }
+        return LanguageMode.languageVersion(of: modes, compiler: compiler)
+    }
+
+    /// The mode of each `SWIFT_VERSION = …` in a project file or build configuration file, nil for a value that isn't
+    /// one, such as `$(inherited)`. `SWIFT_VERSION[sdk=iphoneos*] = 5` counts too.
+    static func swiftVersions(in text: String) -> [LanguageMode?] {
+        var modes: [LanguageMode?] = []
+        for line in text.split(whereSeparator: \.isNewline) {
+            var rest = Substring(line)
+            while let found = rest.range(of: "SWIFT_VERSION") {
+                let before = rest[..<found.lowerBound].last
+                var after = rest[found.upperBound...]
+                rest = after
+                // Not the end of another name, as EFFECTIVE_SWIFT_VERSION.
+                guard before.map({ !($0.isLetter || $0.isNumber || $0 == "_") }) ?? true else { continue }
+                if after.first == "[", let close = after.firstIndex(of: "]") {
+                    after = after[after.index(after: close)...]
+                }
+                after = after.drop { $0 == " " || $0 == "\t" }
+                guard after.first == "=" else { continue }
+                let written = after.dropFirst().prefix { $0 != ";" }.components(separatedBy: "//")[0]
+                modes.append(LanguageMode(written.trimmingCharacters(in: .whitespaces)))
+            }
+        }
+        return modes
+    }
+
+    /// A project file, build configuration file or package manifest in the project, as `buildFiles` reads it.
+    private struct BuildFile {
+        let name: String
+        let text: String
+
+        var isPackageManifest: Bool {
+            name.hasPrefix("Package") && name.hasSuffix(".swift")
+        }
+    }
+
+    /// The project's project files, build configuration files and package manifests.
+    private static func buildFiles(inProjectAt root: FilePath, fileManager: FileSystemManager) -> [BuildFile] {
+        (fileManager.subpaths(atPath: root) ?? []).compactMap { path in
+            let name = (path as NSString).lastPathComponent
+            let isABuildFile = name == "project.pbxproj" || name.hasSuffix(".xcconfig")
+                || (name.hasPrefix("Package") && name.hasSuffix(".swift"))
+            guard isABuildFile, let contents = fileManager.contents(atPath: root + "/" + path) else { return nil }
+            return BuildFile(name: name, text: String(decoding: contents, as: UTF8.self))
+        }
+    }
+
+    /// Every word in the build files, and for each that starts with `D`, the rest of it: in `-DNAME`, the flag's name
+    /// is glued to its `D`. A word that isn't a condition costs nothing, as only a name an `#if` asks about is looked
+    /// up.
+    private static func names(in buildFiles: [BuildFile]) -> Set<String> {
         var names: Set<String> = []
-        for path in buildFiles {
-            guard let contents = fileManager.contents(atPath: root + "/" + path) else { continue }
-            let words = String(decoding: contents, as: UTF8.self).split { !$0.isLetter && !$0.isNumber && $0 != "_" }
+        for file in buildFiles {
+            let words = file.text.split { !$0.isLetter && !$0.isNumber && $0 != "_" }
             names.formUnion(words.map(String.init))
             names.formUnion(words.filter { $0.hasPrefix("D") }.map { String($0.dropFirst()) })
         }

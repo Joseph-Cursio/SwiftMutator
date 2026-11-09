@@ -334,7 +334,77 @@ final class XcodeBuildConditionsTests: MuterTestCase {
         XCTAssertNil(conditions.compiler)
     }
 
+    // MARK: The language mode
+
+    func test_theLanguageVersion_isTheTargetsAndBuildFilesSharedModes() async throws {
+        try write("SWIFT_VERSION = 5.0;\nEFFECTIVE_SWIFT_VERSION = 6;", to: "App.xcodeproj/project.pbxproj")
+        settingsAndVersion(test: [withXcodesToolchain(["SWIFT_VERSION": "5.0"])])
+
+        let conditions = try await conditions(arguments: ["test"])
+
+        XCTAssertEqual(conditions.language, VersionTuple(5, 10))
+    }
+
+    func test_inSwift6Mode_theLanguageVersionIsTheCompilers() async throws {
+        settingsAndVersion(test: [withXcodesToolchain(["SWIFT_VERSION": "6.0"])])
+
+        let conditions = try await conditions(arguments: ["test"])
+
+        XCTAssertEqual(conditions.language, VersionTuple(6, 4, 2))
+    }
+
+    // A target xcodebuild doesn't report may be the one a build file sets apart, and a package's targets have modes of
+    // their own.
+    func test_theLanguageVersion_isUnknown_whenAnyTargetMayHaveAnotherMode() async throws {
+        let cases: [(file: String, contents: String, settings: [String: String])] = [
+            ("App.xcodeproj/project.pbxproj", "SWIFT_VERSION = 5.0;", ["SWIFT_VERSION": "6.0"]),
+            ("Shared.xcconfig", "SWIFT_VERSION = $(MY_MODE)", ["SWIFT_VERSION": "6.0"]),
+            ("Packages/Lib/Package.swift", "// swift-tools-version:6.0", ["SWIFT_VERSION": "6.0"]),
+            ("App.xcodeproj/project.pbxproj", "OTHER_SWIFT_FLAGS = -swift-version 5;", ["SWIFT_VERSION": "6.0"]),
+            ("Notes.txt", "", ["SWIFT_VERSION": "6.0", "OTHER_SWIFT_FLAGS": "-language-mode 5"]),
+            ("Notes.txt", "", ["SWIFT_VERSION": "6.2"]),
+            ("Notes.txt", "", [:]),
+        ]
+        for (file, contents, settings) in cases {
+            project = try makeTemporaryDirectory()
+            try write(contents, to: file)
+            settingsAndVersion(test: [withXcodesToolchain(settings)])
+
+            let conditions = try await conditions(arguments: ["test"])
+
+            XCTAssertNil(conditions.language, "\(file): \(contents) \(settings)")
+        }
+    }
+
+    func test_theLanguageVersion_isUnknown_withoutTheCompilersVersion() async throws {
+        settingsAndVersion(test: [macOSTarget.merging(["SWIFT_VERSION": "5.0"]) { first, _ in first }])
+
+        let conditions = try await conditions(arguments: ["test"])
+
+        XCTAssertNil(conditions.language)
+    }
+
+    func test_theSwiftVersionsABuildFileSets() {
+        XCTAssertEqual(
+            XcodeBuildConditions.swiftVersions(in: """
+            \t\t\t\tSWIFT_VERSION = 5.0;
+            \t\t\t\tEFFECTIVE_SWIFT_VERSION = 6; MY_SWIFT_VERSION = 4; SWIFT_VERSION_X = 4;
+            SWIFT_VERSION[sdk=iphoneos*] = 4.2 // for the device
+            SWIFT_VERSION = $(inherited)
+            // SWIFT_VERSION is set above
+            """),
+            [.swift5, .swift4dot2, nil]
+        )
+    }
+
     // MARK: Helpers
+
+    /// `settings` on a macOS target that builds with Xcode's own toolchain.
+    private func withXcodesToolchain(_ settings: [String: String]) -> [String: String] {
+        macOSTarget.merging([
+            "TOOLCHAIN_DIR": "/Xcode/Default.xctoolchain", "TOOLCHAINS": "com.apple.dt.toolchain.XcodeDefault",
+        ]) { first, _ in first }.merging(settings) { _, new in new }
+    }
 
     private let macOSTarget = ["PLATFORM_NAME": "macosx", "ARCHS": "arm64"]
 
