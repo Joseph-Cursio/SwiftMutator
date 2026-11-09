@@ -334,7 +334,113 @@ final class XcodeBuildConditionsTests: MuterTestCase {
         XCTAssertNil(conditions.compiler)
     }
 
+    // MARK: The language mode
+
+    func test_theLanguageVersion_isTheTargetsAndBuildFilesSharedModes() async throws {
+        try write("SWIFT_VERSION = 5.0;\nEFFECTIVE_SWIFT_VERSION = 6;", to: "App.xcodeproj/project.pbxproj")
+        settingsAndVersion(test: [withXcodesToolchain(["SWIFT_VERSION": "5.0"])])
+
+        let conditions = try await conditions(arguments: ["test"])
+
+        XCTAssertEqual(conditions.language, VersionTuple(5, 10))
+    }
+
+    func test_inSwift6Mode_theLanguageVersionIsTheCompilers() async throws {
+        settingsAndVersion(test: [withXcodesToolchain(["SWIFT_VERSION": "6.0"])])
+
+        let conditions = try await conditions(arguments: ["test"])
+
+        XCTAssertEqual(conditions.language, VersionTuple(6, 4, 2))
+    }
+
+    // A target xcodebuild doesn't report may be the one a build file sets apart, and a package's targets have modes of
+    // their own.
+    func test_theLanguageVersion_isUnknown_whenAnyTargetMayHaveAnotherMode() async throws {
+        let cases: [(file: String, contents: String, settings: [String: String])] = [
+            ("App.xcodeproj/project.pbxproj", "SWIFT_VERSION = 5.0;", ["SWIFT_VERSION": "6.0"]),
+            ("Shared.xcconfig", "SWIFT_VERSION = $(MY_MODE)", ["SWIFT_VERSION": "6.0"]),
+            ("Packages/Lib/Package.swift", "// swift-tools-version:6.0", ["SWIFT_VERSION": "6.0"]),
+            ("App.xcodeproj/project.pbxproj", "OTHER_SWIFT_FLAGS = -swift-version 5;", ["SWIFT_VERSION": "6.0"]),
+            ("Notes.txt", "", ["SWIFT_VERSION": "6.0", "OTHER_SWIFT_FLAGS": "-language-mode 5"]),
+            ("Notes.txt", "", ["SWIFT_VERSION": "6.2"]),
+            ("Notes.txt", "", [:]),
+        ]
+        for (file, contents, settings) in cases {
+            project = try makeTemporaryDirectory()
+            try write(contents, to: file)
+            settingsAndVersion(test: [withXcodesToolchain(settings)])
+
+            let conditions = try await conditions(arguments: ["test"])
+
+            XCTAssertNil(conditions.language, "\(file): \(contents) \(settings)")
+        }
+    }
+
+    func test_theLanguageVersion_isUnknown_withoutTheCompilersVersion() async throws {
+        settingsAndVersion(test: [macOSTarget.merging(["SWIFT_VERSION": "5.0"]) { first, _ in first }])
+
+        let conditions = try await conditions(arguments: ["test"])
+
+        XCTAssertNil(conditions.language)
+    }
+
+    // A mention it can't read as a setting may still be one, so it reads as a mode SwiftMutator doesn't know.
+    func test_theSwiftVersionsABuildFileSets() {
+        XCTAssertEqual(
+            XcodeBuildConditions.swiftVersions(in: """
+            \t\t\t\tSWIFT_VERSION = 5.0;
+            \t\t\t\tEFFECTIVE_SWIFT_VERSION = 6; MY_SWIFT_VERSION = 4; SWIFT_VERSION_X = 4;
+            SWIFT_VERSION[sdk=iphoneos*] = 4.2 // for the device
+            \t\t\t\t"SWIFT_VERSION[sdk=iphonesimulator*]" = "6.0";
+            SWIFT_VERSION[config=Debug][sdk=*] = 4
+            SWIFT_VERSION = $(inherited)
+            // SWIFT_VERSION is set above
+            """),
+            [.swift5, .swift4dot2, .swift6, .swift4, nil, nil]
+        )
+    }
+
+    func test_theLanguageVersion_followsABuildConfigurationFileTheProjectNames() async throws {
+        try write(
+            "baseConfigurationReference = 1A /* Base.xcconfig */; path = Config/Base.xcconfig;",
+            to: "App.xcodeproj/project.pbxproj"
+        )
+        try write("SWIFT_VERSION = 5.0", to: "Config/Base.xcconfig")
+        settingsAndVersion(test: [withXcodesToolchain(["SWIFT_VERSION": "5.0"])])
+
+        let conditions = try await conditions(arguments: ["test"])
+
+        XCTAssertEqual(conditions.language, VersionTuple(5, 10))
+    }
+
+    // One outside the project, or `-xcconfig`'s or `XCODE_XCCONFIG_FILE`'s, may set an unreported target's mode.
+    func test_theLanguageVersion_isUnknown_whenAConfigurationFileItDidntReadMaySetIt() async throws {
+        let cases: [(pbxproj: String, arguments: [String], environment: [String: String])] = [
+            ("path = ../Shared/Base.xcconfig;", ["test"], [:]),
+            ("path = \"$(SRCROOT)/Base.xcconfig\";", ["test"], [:]),
+            ("path = Missing.xcconfig;", ["test"], [:]),
+            ("", ["-xcconfig", "/ci/Overrides.xcconfig", "test"], [:]),
+            ("", ["test"], ["XCODE_XCCONFIG_FILE": "/ci/Overrides.xcconfig"]),
+        ]
+        for (pbxproj, arguments, environment) in cases {
+            project = try makeTemporaryDirectory()
+            try write(pbxproj, to: "App.xcodeproj/project.pbxproj")
+            settingsAndVersion(test: [withXcodesToolchain(["SWIFT_VERSION": "5.0"])])
+
+            let conditions = try await conditions(arguments: arguments, environment: environment)
+
+            XCTAssertNil(conditions.language, "\(pbxproj) \(arguments) \(environment)")
+        }
+    }
+
     // MARK: Helpers
+
+    /// `settings` on a macOS target that builds with Xcode's own toolchain.
+    private func withXcodesToolchain(_ settings: [String: String]) -> [String: String] {
+        macOSTarget.merging([
+            "TOOLCHAIN_DIR": "/Xcode/Default.xctoolchain", "TOOLCHAINS": "com.apple.dt.toolchain.XcodeDefault",
+        ]) { first, _ in first }.merging(settings) { _, new in new }
+    }
 
     private let macOSTarget = ["PLATFORM_NAME": "macosx", "ARCHS": "arm64"]
 
@@ -370,12 +476,16 @@ final class XcodeBuildConditionsTests: MuterTestCase {
         )
     }
 
-    private func conditions(arguments: [String]) async throws -> BuildConditions {
+    private func conditions(
+        arguments: [String],
+        environment: [String: String] = [:]
+    ) async throws -> BuildConditions {
         let result = await XcodeBuildConditions.conditions(
             inProjectAt: project,
             testedBy: MuterConfiguration(executable: xcodebuild, arguments: arguments),
             process: current.process,
-            fileManager: FileManager.default
+            fileManager: FileManager.default,
+            environment: environment
         )
         return try result.get().everyTarget
     }

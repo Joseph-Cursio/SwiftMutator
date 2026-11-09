@@ -226,7 +226,131 @@ final class SwiftPackageBuildConditionsTests: MuterTestCase {
         XCTAssertNil(conditions.everyTarget.compiler)
     }
 
+    // MARK: The language mode
+
+    func test_theLanguageVersion_followsTheToolsVersion_orTheLatestLanguageMode() async throws {
+        let cases: [(toolsVersion: String, modes: String, expected: VersionTuple)] = [
+            ("6.0.0", "null", VersionTuple(6, 2, 1)),
+            ("5.9.0", "null", VersionTuple(5, 10)),
+            ("6.0.0", #"["5", "6", "4.2"]"#, VersionTuple(6, 2, 1)),
+            ("6.0.0", #"["4.2", "5"]"#, VersionTuple(5, 10)),
+        ]
+        for (toolsVersion, modes, expected) in cases {
+            describingModes(toolsVersion: toolsVersion, modes: modes)
+
+            let conditions = try await conditions()
+
+            XCTAssertEqual(conditions.everyTarget.language, expected, "\(toolsVersion) \(modes)")
+        }
+    }
+
+    func test_aTargetsOwnMode_counts_andTargetsInDifferentModes_leaveItUnknown() async throws {
+        let five = #"[{"tool": "swift", "kind": {"swiftLanguageMode": {"_0": "5"}}}]"#
+        describingModes(toolsVersion: "6.0.0", lib: five, tests: five)
+        let bothInFive = try await conditions()
+        describingModes(toolsVersion: "6.0.0", lib: five)
+        let oneInFive = try await conditions()
+
+        XCTAssertEqual(bothInFive.everyTarget.language, VersionTuple(5, 10))
+        XCTAssertNil(oneInFive.everyTarget.language)
+    }
+
+    func test_aModeSettingForAnotherConfiguration_isLeftOut() async throws {
+        describingModes(
+            toolsVersion: "6.0.0",
+            lib: #"[{"tool": "swift", "kind": {"swiftLanguageMode": {"_0": "5"}}, "condition": {"config": "release"}}]"#
+        )
+
+        let conditions = try await conditions()
+
+        XCTAssertEqual(conditions.everyTarget.language, VersionTuple(6, 2, 1))
+    }
+
+    func test_theLanguageVersion_isUnknown_whenAModeCantBeTold() async throws {
+        let cases: [(modes: String, lib: String, arguments: [String])] = [
+            // One a trait sets, one that is flags, and one SwiftMutator can't read.
+            (
+                "null",
+                #"[{"tool": "swift", "kind": {"swiftLanguageMode": {"_0": "5"}}, "condition": {"traits": ["T"]}}]"#,
+                ["test"]
+            ),
+            ("null", #"[{"tool": "swift", "kind": {"unsafeFlags": {"_0": ["-swift-version", "5"]}}}]"#, ["test"]),
+            ("null", #"[{"tool": "swift", "kind": {"swiftLanguageMode": {"_0": {"v": 5}}}}]"#, ["test"]),
+            ("null", #"[{"tool": "swift", "kind": {"futureLanguageModeSetting": {"_0": "5"}}}]"#, ["test"]),
+            ("null", "[]", ["test", "-Xswiftc", "-swift-version", "-Xswiftc", "5"]),
+            (#"["5", "7"]"#, "[]", ["test"]),
+        ]
+        for (modes, lib, arguments) in cases {
+            describingModes(toolsVersion: "6.0.0", modes: modes, lib: lib)
+
+            let conditions = try await conditions(arguments: arguments)
+
+            XCTAssertNil(conditions.everyTarget.language, "\(modes) \(lib) \(arguments)")
+        }
+    }
+
+    // SwiftPM builds a plugin in its tools version's mode, whatever `swiftLanguageModes` says.
+    func test_aPlugin_buildsInItsToolsVersionsMode() async throws {
+        describingModes(toolsVersion: "5.10.0", modes: #"["5"]"#, plugin: true)
+        let allInFive = try await conditions()
+        describingModes(toolsVersion: "6.0.0", modes: #"["5"]"#, plugin: true)
+        let pluginInSix = try await conditions()
+        describingModes(toolsVersion: "5.10.0", modes: #"["5"]"#, plugin: true)
+        let withToolFlags = try await conditions(arguments: ["test", "-Xbuild-tools-swiftc", "-DTOOL"])
+
+        XCTAssertEqual(allInFive.everyTarget.language, VersionTuple(5, 10))
+        XCTAssertNil(pluginInSix.everyTarget.language)
+        XCTAssertNil(withToolFlags.everyTarget.language)
+    }
+
+    // SwiftPM takes `-Xswiftc=FLAG` as `-Xswiftc FLAG`.
+    func test_joinedXswiftcFlags_count() async throws {
+        describingModes(toolsVersion: "6.0.0")
+
+        let conditions = try await conditions(arguments: [
+            "test", "-Xswiftc=-DJOINED", "-Xswiftc=-swift-version", "-Xswiftc=5",
+        ])
+
+        XCTAssertTrue(conditions.everyTarget.customConditions.allSatisfy { $0.contains("JOINED") })
+        XCTAssertNil(conditions.everyTarget.language)
+    }
+
+    func test_theLanguageVersion_isUnknown_withoutTheCompilersVersion() async throws {
+        describingModes(toolsVersion: "6.0.0", printsAVersion: false)
+
+        let conditions = try await conditions()
+
+        XCTAssertNil(conditions.everyTarget.language)
+    }
+
     // MARK: Helpers
+
+    /// A package of tools version `toolsVersion` with `swiftLanguageModes` `modes`, its targets' settings `lib` and
+    /// `tests`, and `swift --version` printing 6.2.1, if `printsAVersion`.
+    private func describingModes(
+        toolsVersion: String,
+        modes: String = "null",
+        lib: String = "[]",
+        tests: String = "[]",
+        plugin: Bool = false,
+        printsAVersion: Bool = true
+    ) {
+        let pluginTarget = plugin ? #", {"name": "Plug", "type": "plugin", "settings": []}"# : ""
+        process.commandResult = { [self] command in
+            if command == [swift, "--version"] {
+                return printsAVersion ? success("Swift version 6.2.1 (swift-6.2.1-RELEASE)\n") : nil
+            }
+            if command.contains("describe") {
+                return success(description())
+            }
+            return success("""
+            {"toolsVersion": {"_version": "\(toolsVersion)"}, "swiftLanguageVersions": \(modes), "targets": [
+                {"name": "Lib", "settings": \(lib)},
+                {"name": "LibTests", "settings": \(tests)}\(pluginTarget)
+            ]}
+            """)
+        }
+    }
 
     /// A package with one target, and `swift --version` printing 6.2.1.
     private func describingWithVersion() {

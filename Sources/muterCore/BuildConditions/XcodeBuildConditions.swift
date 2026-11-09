@@ -15,7 +15,8 @@ enum XcodeBuildConditions {
         inProjectAt root: FilePath,
         testedBy configuration: MuterConfiguration,
         process: ProcessFactory,
-        fileManager: FileSystemManager
+        fileManager: FileSystemManager,
+        environment: [String: String] = ProcessInfo.processInfo.environment
     ) async -> Result<ProjectBuildConditions, BuildConditionsUnavailable> {
         let arguments = configuration.testCommandArguments
         var targets = await settings(for: arguments, configuration, process: process)
@@ -33,7 +34,8 @@ enum XcodeBuildConditions {
             )
         }
 
-        let namesInBuildFiles = namesInBuildFiles(inProjectAt: root, fileManager: fileManager)
+        let buildFiles = buildFiles(inProjectAt: root, fileManager: fileManager)
+        let namesInBuildFiles = names(in: buildFiles)
         // A target xcodebuild didn't report, such as the framework the tests test, may build with its own compiler.
         let aTargetMayPickItsCompiler = !namesInBuildFiles.isDisjoint(with: ["TOOLCHAINS", "SWIFT_EXEC"])
         let compiler = aTargetMayPickItsCompiler
@@ -43,7 +45,14 @@ enum XcodeBuildConditions {
             platform: platform(of: targets, in: arguments, fileManager: fileManager),
             customConditions: targets.map(customConditions(of:)),
             undecidedConditions: namesInBuildFiles,
-            compiler: compiler
+            compiler: compiler,
+            language: languageVersion(
+                of: targets,
+                in: arguments,
+                buildFiles: buildFiles,
+                compiler: compiler,
+                environment: environment
+            )
         )))
     }
 
@@ -162,19 +171,110 @@ enum XcodeBuildConditions {
         return Set(active.map(String.init)).union(muterCore.customConditions(inSwiftFlags: flags))
     }
 
-    /// Every word in the project's project files, build configuration files and package manifests, and for each that
-    /// starts with `D`, the rest of it: in `-DNAME`, the flag's name is glued to its `D`. A word that isn't a condition
-    /// costs nothing, as only a name an `#if` asks about is looked up.
-    private static func namesInBuildFiles(inProjectAt root: FilePath, fileManager: FileSystemManager) -> Set<String> {
-        let buildFiles = (fileManager.subpaths(atPath: root) ?? []).filter { path in
-            let name = (path as NSString).lastPathComponent
-            return name == "project.pbxproj" || name.hasSuffix(".xcconfig")
-                || (name.hasPrefix("Package") && name.hasSuffix(".swift"))
+    /// The language version of every target the build may compile: that of the one mode the reported targets'
+    /// `SWIFT_VERSION` and every `SWIFT_VERSION` a build file sets all give, as a target xcodebuild didn't report may
+    /// have its own. Nil if they don't all give one, and the same; if a flag sets the mode, which SwiftMutator doesn't
+    /// follow; if a build configuration file it didn't read may set one, as `-xcconfig`'s or `XCODE_XCCONFIG_FILE`'s;
+    /// or if the project has a package, whose targets' modes the manifest sets.
+    private static func languageVersion(
+        of targets: [Settings],
+        in arguments: [String],
+        buildFiles: [BuildFile],
+        compiler: VersionTuple?,
+        environment: [String: String]
+    ) -> VersionTuple? {
+        let anotherConfigurationFileMaySetIt = arguments.contains("-xcconfig")
+            || environment["XCODE_XCCONFIG_FILE"] != nil
+            || namesAnUnreadConfigurationFile(buildFiles)
+        guard !anotherConfigurationFileMaySetIt else { return nil }
+        let flags = targets.flatMap {
+            ($0["OTHER_SWIFT_FLAGS"] ?? "").split(whereSeparator: \.isWhitespace).map(String.init)
         }
+        let aFlagSetsTheMode = LanguageMode.isSet(inFlags: flags) || buildFiles.contains {
+            $0.text.contains("-swift-version") || $0.text.contains("-language-mode")
+        }
+        guard !aFlagSetsTheMode, !buildFiles.contains(where: \.isPackageManifest) else { return nil }
+        let modes = targets.map { $0["SWIFT_VERSION"].flatMap(LanguageMode.init) }
+            + buildFiles.flatMap { swiftVersions(in: $0.text) }
+        return LanguageMode.languageVersion(of: modes, compiler: compiler)
+    }
+
+    /// The mode of each `SWIFT_VERSION = …` in a project file or build configuration file: nil for a value that isn't
+    /// one, such as `$(inherited)`, and for a mention it can't read as a setting, which may still be one. A setting
+    /// for some configurations or SDKs counts too, as `SWIFT_VERSION[config=Debug][sdk=*] = 5`, and as a project file
+    /// writes it, `"SWIFT_VERSION[sdk=iphoneos*]" = 5.0;`.
+    static func swiftVersions(in text: String) -> [LanguageMode?] {
+        let isPartOfAName: (Character) -> Bool = { $0.isLetter || $0.isNumber || $0 == "_" }
+        var modes: [LanguageMode?] = []
+        for line in text.split(whereSeparator: \.isNewline) {
+            var rest = Substring(line)
+            while let found = rest.range(of: "SWIFT_VERSION") {
+                let before = rest[..<found.lowerBound].last
+                var after = rest[found.upperBound...]
+                rest = after
+                // Not part of another name, as EFFECTIVE_SWIFT_VERSION or SWIFT_VERSION_X.
+                guard !(before.map(isPartOfAName) ?? false), !(after.first.map(isPartOfAName) ?? false) else {
+                    continue
+                }
+                while after.first == "[", let close = after.firstIndex(of: "]") {
+                    after = after[after.index(after: close)...]
+                }
+                if after.first == "\"" {
+                    after = after.dropFirst()
+                }
+                after = after.drop { $0 == " " || $0 == "\t" }
+                guard after.first == "=" else {
+                    modes.append(nil)
+                    continue
+                }
+                let written = after.dropFirst().prefix { $0 != ";" }.components(separatedBy: "//")[0]
+                modes.append(LanguageMode(written.trimmingCharacters(in: .whitespaces)))
+            }
+        }
+        return modes
+    }
+
+    /// Whether a build file names a build configuration file the scan didn't read, which may set a target's mode: one
+    /// outside the project, by a path that leaves it or starts from a variable, or by a name no file read has.
+    static func namesAnUnreadConfigurationFile(_ buildFiles: [BuildFile]) -> Bool {
+        let read = Set(buildFiles.map(\.name).filter { $0.hasSuffix(".xcconfig") })
+        return buildFiles.contains { file in
+            file.text.split { $0.isWhitespace || "\"';<>=,()".contains($0) }.contains { word in
+                guard word.hasSuffix(".xcconfig") else { return false }
+                let leavesTheProject = word.hasPrefix("/") || word.hasPrefix("$") || word.contains("../")
+                return leavesTheProject || !read.contains((String(word) as NSString).lastPathComponent)
+            }
+        }
+    }
+
+    /// A project file, build configuration file or package manifest in the project, as `buildFiles` reads it.
+    struct BuildFile {
+        let name: String
+        let text: String
+
+        var isPackageManifest: Bool {
+            name.hasPrefix("Package") && name.hasSuffix(".swift")
+        }
+    }
+
+    /// The project's project files, build configuration files and package manifests.
+    private static func buildFiles(inProjectAt root: FilePath, fileManager: FileSystemManager) -> [BuildFile] {
+        (fileManager.subpaths(atPath: root) ?? []).compactMap { path in
+            let name = (path as NSString).lastPathComponent
+            let isABuildFile = name == "project.pbxproj" || name.hasSuffix(".xcconfig")
+                || (name.hasPrefix("Package") && name.hasSuffix(".swift"))
+            guard isABuildFile, let contents = fileManager.contents(atPath: root + "/" + path) else { return nil }
+            return BuildFile(name: name, text: String(decoding: contents, as: UTF8.self))
+        }
+    }
+
+    /// Every word in the build files, and for each that starts with `D`, the rest of it: in `-DNAME`, the flag's name
+    /// is glued to its `D`. A word that isn't a condition costs nothing, as only a name an `#if` asks about is looked
+    /// up.
+    private static func names(in buildFiles: [BuildFile]) -> Set<String> {
         var names: Set<String> = []
-        for path in buildFiles {
-            guard let contents = fileManager.contents(atPath: root + "/" + path) else { continue }
-            let words = String(decoding: contents, as: UTF8.self).split { !$0.isLetter && !$0.isNumber && $0 != "_" }
+        for file in buildFiles {
+            let words = file.text.split { !$0.isLetter && !$0.isNumber && $0 != "_" }
             names.formUnion(words.map(String.init))
             names.formUnion(words.filter { $0.hasPrefix("D") }.map { String($0.dropFirst()) })
         }

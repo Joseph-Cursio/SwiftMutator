@@ -345,6 +345,53 @@ final class BuildConditionsTests: XCTestCase {
 
     // `$AsyncAwait` asks for a compiler feature, as `hasFeature(AsyncAwait)` does; taken for a condition no target
     // sets, it would drop the mutants of a branch the compiler builds.
+    func test_theLanguageVersion_whenKnown() {
+        var conditions = conditions(custom: [[]])
+        conditions.compiler = VersionTuple(6, 4, 2)
+        conditions.language = VersionTuple(5, 10)
+
+        XCTAssertEqual(holds("swift(>=5.9)", in: conditions), true)
+        XCTAssertEqual(holds("swift(>=5.10)", in: conditions), true)
+        XCTAssertEqual(holds("swift(>=5.10.1)", in: conditions), false)
+        XCTAssertEqual(holds("swift(>=6.0)", in: conditions), false)
+        XCTAssertEqual(holds("swift(<6) && compiler(>=6)", in: conditions), true)
+        XCTAssertEqual(holds("`swift`(>=6.0)", in: conditions), false)
+    }
+
+    // As probed with Swift 6.4.2: `-swift-version 4` compares as 4.1.50, and 6 as the compiler's own version.
+    func test_eachLanguageModesVersion_withASwift6Compiler() {
+        let compiler = VersionTuple(6, 4, 2)
+
+        XCTAssertEqual(LanguageMode.swift4.languageVersion(compiler: compiler), VersionTuple(4, 1, 50))
+        XCTAssertEqual(LanguageMode.swift4dot2.languageVersion(compiler: compiler), VersionTuple(4, 2))
+        XCTAssertEqual(LanguageMode.swift5.languageVersion(compiler: compiler), VersionTuple(5, 10))
+        XCTAssertEqual(LanguageMode.swift6.languageVersion(compiler: compiler), compiler)
+        // Another compiler may set others.
+        XCTAssertNil(LanguageMode.swift5.languageVersion(compiler: VersionTuple(5, 10)))
+        XCTAssertNil(LanguageMode.swift5.languageVersion(compiler: VersionTuple(7, 0)))
+        XCTAssertNil(LanguageMode.swift5.languageVersion(compiler: nil))
+    }
+
+    func test_theLanguageVersion_ofSeveralTargets_onlyIfTheyAllShareAMode() {
+        let compiler = VersionTuple(6, 4, 2)
+
+        XCTAssertEqual(LanguageMode.languageVersion(of: [.swift5, .swift5], compiler: compiler), VersionTuple(5, 10))
+        XCTAssertNil(LanguageMode.languageVersion(of: [.swift5, .swift6], compiler: compiler))
+        XCTAssertNil(LanguageMode.languageVersion(of: [.swift5, nil], compiler: compiler))
+        XCTAssertNil(LanguageMode.languageVersion(of: [], compiler: compiler))
+    }
+
+    func test_aLanguageMode_asWritten() {
+        XCTAssertEqual(LanguageMode("4"), .swift4)
+        XCTAssertEqual(LanguageMode("4.0"), .swift4)
+        XCTAssertEqual(LanguageMode("4.2"), .swift4dot2)
+        XCTAssertEqual(LanguageMode("5.0"), .swift5)
+        XCTAssertEqual(LanguageMode("\"6\""), .swift6)
+        XCTAssertNil(LanguageMode("6.2"))
+        XCTAssertNil(LanguageMode("$(inherited)"))
+        XCTAssertNil(LanguageMode("7"))
+    }
+
     func test_aDollarFeatureCheck_isUndecided() {
         var conditions = conditions(custom: [["SWIFT_PACKAGE"]])
         conditions.compiler = VersionTuple(6, 4, 2)
