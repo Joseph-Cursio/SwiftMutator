@@ -8,8 +8,9 @@ import XCTest
 final class SampleRunTests: MuterTestCase {
     private let state = MutationTestState()
 
-    // Line 2 `<`, with two mutants, and its condition, negated, lines 8 and 9 statements RemoveSideEffects removes,
-    // line 13 `==`: six mutants.
+    // Line 2 `<`, with three mutants, RelationalOperatorReplacement's two and RelationalBoundary's, line 3's `-` and
+    // `false`, line 4's `true`, lines 8 and 9 statements RemoveSideEffects removes and line 9's `+`, and line 13
+    // `==`, with two: eleven mutants.
     private let source = """
     func check(index: Int, items: [Int]) -> Bool {
         guard index <
@@ -59,7 +60,7 @@ final class SampleRunTests: MuterTestCase {
         guard case let .sampleSelected(selection)? = changes.first else {
             return XCTFail("Expected the sample first, got \(changes)")
         }
-        XCTAssertEqual(selection, SampleSelection(size: 3, seed: 7, mutantsSampledFrom: 10, mutantsSampled: 3))
+        XCTAssertEqual(selection, SampleSelection(size: 3, seed: 7, mutantsSampledFrom: 11, mutantsSampled: 3))
         state.apply(changes)
         XCTAssertEqual(state.sampleSelection, selection)
     }
@@ -125,7 +126,7 @@ final class SampleRunTests: MuterTestCase {
         await AssertThrowsError(try await DiscoverMutationPoints().run(with: state)) { error in
             XCTAssertEqual(
                 "\(error)",
-                "ℹ️ Shard \(empty.index) of 2 doesn't hold the only mutant in the sample, of the 10 discovered, so "
+                "ℹ️ Shard \(empty.index) of 2 doesn't hold the only mutant in the sample, of the 11 discovered, so "
                     + "there is nothing to mutate."
             )
         }

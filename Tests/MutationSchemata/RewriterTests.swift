@@ -180,8 +180,9 @@ final class RewriterTests: MuterTestCase {
         """))
         let mapping = try XCTUnwrap(generateSchemataMappings(for: source).first)
 
-        // `==` and `&&` get one mutant each, and `>` two, RelationalOperatorReplacement's and RelationalBoundary's.
-        XCTAssertEqual(mapping.mutationSchemata.count, 4)
+        // `&&` gets one mutant, `==` two, RelationalOperatorReplacement's constants, and `>` three, that operator's
+        // swap and constant and RelationalBoundary's.
+        XCTAssertEqual(mapping.mutationSchemata.count, 6)
         XCTAssertEqual(mapping.codeBlocks.count, 1)
         let block = try XCTUnwrap(mapping.codeBlocks.first)
         XCTAssertTrue(block.contains("let predicate") && block.contains("return try"), block)

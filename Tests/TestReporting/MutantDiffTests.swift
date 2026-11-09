@@ -10,7 +10,7 @@ final class MutantDiffTests: XCTestCase {
 
         XCTAssertEqual(diff(of: schema, in: source), [
             "-1: func isPositive(_ value: Int) -> Bool { value > 0 }",
-            "+1: func isPositive(_ value: Int) -> Bool { value < 0 }",
+            "+1: func isPositive(_ value: Int) -> Bool { value != 0 }",
         ])
     }
 
@@ -43,6 +43,27 @@ final class MutantDiffTests: XCTestCase {
         XCTAssertEqual(schemata.map { diff(of: $0, in: source) }, [
             ["-2:     return(a < b)", "+2:     return true"],
             ["-2:     return(a < b)", "+2:     return false"],
+        ])
+    }
+
+    // A comparison's `true` is placed where it starts, its `false` where it ends, and its swap at its operator.
+    func test_eachMutantOfAComparison_givesItsLine() throws {
+        let source = """
+        func f(_ a: Int, _ b: Int) -> Bool {
+            if a == b { return a.count <= b }
+            return(a < b)
+        }
+
+        """
+        let schemata = schemata(ROROperator.Visitor.init, in: source)
+
+        XCTAssertEqual(schemata.map { diff(of: $0, in: source) }, [
+            ["-2:     if a == b { return a.count <= b }", "+2:     if true { return a.count <= b }"],
+            ["-2:     if a == b { return a.count <= b }", "+2:     if false { return a.count <= b }"],
+            ["-2:     if a == b { return a.count <= b }", "+2:     if a == b { return true }"],
+            ["-2:     if a == b { return a.count <= b }", "+2:     if a == b { return a.count == b }"],
+            ["-3:     return(a < b)", "+3:     return(a != b)"],
+            ["-3:     return(a < b)", "+3:     return(false)"],
         ])
     }
 

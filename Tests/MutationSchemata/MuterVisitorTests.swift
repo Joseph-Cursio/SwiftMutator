@@ -57,7 +57,7 @@ final class MuterVisitorTests: MuterTestCase {
         let ids = mappings.first?.mutationSchemata.map(\.mutationOperatorId)
         XCTAssertEqual(
             ids,
-            [.removeSideEffects, .ror, .swapTernary]
+            [.removeSideEffects, .ror, .ror, .swapTernary]
         )
     }
 
@@ -127,9 +127,10 @@ final class MuterVisitorTests: MuterTestCase {
 
         let seconds = Date().timeIntervalSince(started)
         XCTAssertTrue(seconds < 5, "\(seconds) s")
-        // The region is the first function's body, so its four mutants go, and every other function keeps its four:
-        // `==` and `&&` get one each, and `>` gets RelationalOperatorReplacement's and RelationalBoundary's.
-        XCTAssertEqual(mappings.flatMap(\.mutationSchemata).count, 299 * 4)
+        // The region is the first function's body, so its six mutants go, and every other function keeps its six:
+        // `&&` gets one, `==` RelationalOperatorReplacement's two constants, and `>` that operator's swap and constant
+        // and RelationalBoundary's.
+        XCTAssertEqual(mappings.flatMap(\.mutationSchemata).count, 299 * 6)
     }
 
     func test_keepCoveredCodeAfterARegionWithoutCoverage() throws {
@@ -393,7 +394,9 @@ final class MuterVisitorTests: MuterTestCase {
             ])
         )
 
-        XCTAssertEqual(mutants(in: mappings), ["RelationalOperatorReplacement@11", "RemoveSideEffects@14"])
+        XCTAssertEqual(mutants(in: mappings), [
+            "RelationalOperatorReplacement@11", "RelationalOperatorReplacement@11", "RemoveSideEffects@14",
+        ])
     }
 
     // A closure literal shares its region with the initializer that makes it, which ran each time the property was
@@ -508,7 +511,7 @@ final class MuterVisitorTests: MuterTestCase {
             ])
         )
 
-        XCTAssertEqual(mutants(in: mappings), ["RelationalOperatorReplacement@4"])
+        XCTAssertEqual(mutants(in: mappings), ["RelationalOperatorReplacement@4", "RelationalOperatorReplacement@4"])
     }
 
     // Swift counts the code after a throwing call in a `case`'s `where` as the case's count less the throws, though a
@@ -708,7 +711,7 @@ final class MuterVisitorTests: MuterTestCase {
             ])
         )
 
-        XCTAssertEqual(mutants(in: mappings), ["RelationalOperatorReplacement@4"])
+        XCTAssertEqual(mutants(in: mappings), ["RelationalOperatorReplacement@4", "RelationalOperatorReplacement@4"])
     }
 
     // The count before a ternary in an `if`'s second condition is unknown, so the count after a branch that may throw,
@@ -806,8 +809,8 @@ final class MuterVisitorTests: MuterTestCase {
         )
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
-            "ChangeLogicalConnector@14", "RelationalOperatorReplacement@18", "SwapTernary@10", "SwapTernary@14",
-            "SwapTernary@18", "SwapTernary@18",
+            "ChangeLogicalConnector@14", "RelationalOperatorReplacement@18", "RelationalOperatorReplacement@18",
+            "SwapTernary@10", "SwapTernary@14", "SwapTernary@18", "SwapTernary@18",
         ])
     }
 
@@ -870,7 +873,8 @@ final class MuterVisitorTests: MuterTestCase {
         )
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
-            "RelationalOperatorReplacement@20", "RelationalOperatorReplacement@20", "RelationalOperatorReplacement@24",
+            "RelationalOperatorReplacement@20", "RelationalOperatorReplacement@20", "RelationalOperatorReplacement@20",
+            "RelationalOperatorReplacement@20", "RelationalOperatorReplacement@24", "RelationalOperatorReplacement@24",
             "SwapTernary@20", "SwapTernary@20", "SwapTernary@20", "SwapTernary@24", "SwapTernary@24", "SwapTernary@28",
         ])
     }
@@ -906,7 +910,10 @@ final class MuterVisitorTests: MuterTestCase {
         )
 
         XCTAssertEqual(
-            mutants(in: mappings), ["RelationalOperatorReplacement@4", "RemoveSideEffects@10", "RemoveSideEffects@12"]
+            mutants(in: mappings), [
+                "RelationalOperatorReplacement@4", "RelationalOperatorReplacement@4", "RemoveSideEffects@10",
+                "RemoveSideEffects@12",
+            ]
         )
     }
 
@@ -1039,7 +1046,8 @@ final class MuterVisitorTests: MuterTestCase {
         )
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
-            "RelationalOperatorReplacement@16", "RelationalOperatorReplacement@30", "RelationalOperatorReplacement@30",
+            "RelationalOperatorReplacement@16", "RelationalOperatorReplacement@16", "RelationalOperatorReplacement@30",
+            "RelationalOperatorReplacement@30", "RelationalOperatorReplacement@30", "RelationalOperatorReplacement@30",
             "RemoveSideEffects@22", "RemoveSideEffects@30", "RemoveSideEffects@8", "RemoveSideEffects@9",
             "SwapTernary@30", "SwapTernary@30",
         ])
@@ -1196,7 +1204,8 @@ final class MuterVisitorTests: MuterTestCase {
         )
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
-            "RelationalOperatorReplacement@8", "RelationalOperatorReplacement@8", "RelationalOperatorReplacement@9",
+            "RelationalOperatorReplacement@8", "RelationalOperatorReplacement@8", "RelationalOperatorReplacement@8",
+            "RelationalOperatorReplacement@8", "RelationalOperatorReplacement@9", "RelationalOperatorReplacement@9",
             "RemoveSideEffects@8", "RemoveSideEffects@9", "SwapTernary@8", "SwapTernary@9",
         ])
     }
@@ -1256,8 +1265,10 @@ final class MuterVisitorTests: MuterTestCase {
         )
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
-            "RelationalOperatorReplacement@10", "RelationalOperatorReplacement@12", "RelationalOperatorReplacement@25",
-            "RelationalOperatorReplacement@26", "RelationalOperatorReplacement@29", "RelationalOperatorReplacement@4",
+            "RelationalOperatorReplacement@10", "RelationalOperatorReplacement@10", "RelationalOperatorReplacement@12",
+            "RelationalOperatorReplacement@12", "RelationalOperatorReplacement@25", "RelationalOperatorReplacement@25",
+            "RelationalOperatorReplacement@26", "RelationalOperatorReplacement@26", "RelationalOperatorReplacement@29",
+            "RelationalOperatorReplacement@29", "RelationalOperatorReplacement@4", "RelationalOperatorReplacement@4",
             "RemoveSideEffects@28", "SwapTernary@12",
         ])
     }
@@ -1383,9 +1394,12 @@ final class MuterVisitorTests: MuterTestCase {
         )
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
-            "RelationalOperatorReplacement@18", "RelationalOperatorReplacement@26", "RelationalOperatorReplacement@27",
-            "RelationalOperatorReplacement@28", "RelationalOperatorReplacement@28", "RelationalOperatorReplacement@8",
-            "RelationalOperatorReplacement@9", "RemoveSideEffects@10", "RemoveSideEffects@29",
+            "RelationalOperatorReplacement@18", "RelationalOperatorReplacement@18", "RelationalOperatorReplacement@26",
+            "RelationalOperatorReplacement@26", "RelationalOperatorReplacement@27", "RelationalOperatorReplacement@27",
+            "RelationalOperatorReplacement@28", "RelationalOperatorReplacement@28", "RelationalOperatorReplacement@28",
+            "RelationalOperatorReplacement@28", "RelationalOperatorReplacement@8", "RelationalOperatorReplacement@8",
+            "RelationalOperatorReplacement@9", "RelationalOperatorReplacement@9", "RemoveSideEffects@10",
+            "RemoveSideEffects@29",
         ])
     }
 
@@ -1457,8 +1471,10 @@ final class MuterVisitorTests: MuterTestCase {
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
             "ChangeLogicalConnector@13", "ChangeLogicalConnector@13", "RelationalOperatorReplacement@13",
+            "RelationalOperatorReplacement@13", "RelationalOperatorReplacement@13", "RelationalOperatorReplacement@13",
             "RelationalOperatorReplacement@13", "RelationalOperatorReplacement@13", "RelationalOperatorReplacement@29",
-            "RelationalOperatorReplacement@41", "RemoveSideEffects@28", "SwapTernary@29",
+            "RelationalOperatorReplacement@29", "RelationalOperatorReplacement@41", "RelationalOperatorReplacement@41",
+            "RemoveSideEffects@28", "SwapTernary@29",
         ])
     }
 
@@ -1580,7 +1596,8 @@ final class MuterVisitorTests: MuterTestCase {
         )
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
-            "RelationalOperatorReplacement@18", "RelationalOperatorReplacement@9", "SwapTernary@18", "SwapTernary@9",
+            "RelationalOperatorReplacement@18", "RelationalOperatorReplacement@18", "RelationalOperatorReplacement@9",
+            "RelationalOperatorReplacement@9", "SwapTernary@18", "SwapTernary@9",
         ])
     }
 
@@ -1637,7 +1654,8 @@ final class MuterVisitorTests: MuterTestCase {
         )
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
-            "RelationalOperatorReplacement@13", "RelationalOperatorReplacement@24", "RelationalOperatorReplacement@8",
+            "RelationalOperatorReplacement@13", "RelationalOperatorReplacement@13", "RelationalOperatorReplacement@24",
+            "RelationalOperatorReplacement@24", "RelationalOperatorReplacement@8", "RelationalOperatorReplacement@8",
             "RemoveSideEffects@11", "RemoveSideEffects@13", "RemoveSideEffects@22", "RemoveSideEffects@27",
             "RemoveSideEffects@29", "SwapTernary@13", "SwapTernary@26",
         ])
@@ -1677,7 +1695,8 @@ final class MuterVisitorTests: MuterTestCase {
         )
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
-            "RelationalOperatorReplacement@11", "RemoveSideEffects@13", "RemoveSideEffects@9", "SwapTernary@13",
+            "RelationalOperatorReplacement@11", "RelationalOperatorReplacement@11", "RemoveSideEffects@13",
+            "RemoveSideEffects@9", "SwapTernary@13",
         ])
     }
 
@@ -1776,13 +1795,16 @@ final class MuterVisitorTests: MuterTestCase {
         )
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
-            "RelationalOperatorReplacement@14", "RelationalOperatorReplacement@22", "RelationalOperatorReplacement@25",
-            "RelationalOperatorReplacement@33", "RelationalOperatorReplacement@33", "RelationalOperatorReplacement@41",
-            "RelationalOperatorReplacement@54", "RelationalOperatorReplacement@54", "RemoveSideEffects@10",
-            "RemoveSideEffects@12", "RemoveSideEffects@14", "RemoveSideEffects@20", "RemoveSideEffects@23",
-            "RemoveSideEffects@25", "RemoveSideEffects@31", "RemoveSideEffects@33", "RemoveSideEffects@39",
-            "RemoveSideEffects@44", "RemoveSideEffects@51", "RemoveSideEffects@54", "RemoveSideEffects@6",
-            "SwapTernary@33", "SwapTernary@33", "SwapTernary@54", "SwapTernary@54",
+            "RelationalOperatorReplacement@14", "RelationalOperatorReplacement@14", "RelationalOperatorReplacement@22",
+            "RelationalOperatorReplacement@22", "RelationalOperatorReplacement@25", "RelationalOperatorReplacement@25",
+            "RelationalOperatorReplacement@33", "RelationalOperatorReplacement@33", "RelationalOperatorReplacement@33",
+            "RelationalOperatorReplacement@33", "RelationalOperatorReplacement@41", "RelationalOperatorReplacement@41",
+            "RelationalOperatorReplacement@54", "RelationalOperatorReplacement@54", "RelationalOperatorReplacement@54",
+            "RelationalOperatorReplacement@54", "RemoveSideEffects@10", "RemoveSideEffects@12", "RemoveSideEffects@14",
+            "RemoveSideEffects@20", "RemoveSideEffects@23", "RemoveSideEffects@25", "RemoveSideEffects@31",
+            "RemoveSideEffects@33", "RemoveSideEffects@39", "RemoveSideEffects@44", "RemoveSideEffects@51",
+            "RemoveSideEffects@54", "RemoveSideEffects@6", "SwapTernary@33", "SwapTernary@33", "SwapTernary@54",
+            "SwapTernary@54",
         ])
     }
 
@@ -1890,8 +1912,10 @@ final class MuterVisitorTests: MuterTestCase {
         )
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
-            "RelationalOperatorReplacement@11", "RelationalOperatorReplacement@14", "RelationalOperatorReplacement@22",
-            "RelationalOperatorReplacement@28", "RelationalOperatorReplacement@44", "RelationalOperatorReplacement@8",
+            "RelationalOperatorReplacement@11", "RelationalOperatorReplacement@11", "RelationalOperatorReplacement@14",
+            "RelationalOperatorReplacement@14", "RelationalOperatorReplacement@22", "RelationalOperatorReplacement@22",
+            "RelationalOperatorReplacement@28", "RelationalOperatorReplacement@28", "RelationalOperatorReplacement@44",
+            "RelationalOperatorReplacement@44", "RelationalOperatorReplacement@8", "RelationalOperatorReplacement@8",
             "RemoveSideEffects@12", "RemoveSideEffects@14", "RemoveSideEffects@23", "RemoveSideEffects@26",
             "RemoveSideEffects@28", "RemoveSideEffects@38", "RemoveSideEffects@41", "RemoveSideEffects@44",
             "RemoveSideEffects@6", "RemoveSideEffects@9", "SwapTernary@28", "SwapTernary@44",
@@ -1969,7 +1993,10 @@ final class MuterVisitorTests: MuterTestCase {
 
         XCTAssertEqual(
             mutants(in: mappings).sorted(),
-            ["RelationalOperatorReplacement@27", "RelationalOperatorReplacement@4"]
+            [
+                "RelationalOperatorReplacement@27", "RelationalOperatorReplacement@27",
+                "RelationalOperatorReplacement@4", "RelationalOperatorReplacement@4",
+            ]
         )
     }
 
@@ -2043,7 +2070,8 @@ final class MuterVisitorTests: MuterTestCase {
         )
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
-            "RelationalOperatorReplacement@13", "RelationalOperatorReplacement@31", "RelationalOperatorReplacement@4",
+            "RelationalOperatorReplacement@13", "RelationalOperatorReplacement@13", "RelationalOperatorReplacement@31",
+            "RelationalOperatorReplacement@31", "RelationalOperatorReplacement@4", "RelationalOperatorReplacement@4",
             "RemoveSideEffects@11", "RemoveSideEffects@14", "RemoveSideEffects@26", "SwapTernary@31",
         ])
     }
@@ -2139,10 +2167,12 @@ final class MuterVisitorTests: MuterTestCase {
         )
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
-            "RelationalOperatorReplacement@20", "RelationalOperatorReplacement@25", "RelationalOperatorReplacement@25",
-            "RelationalOperatorReplacement@25", "RelationalOperatorReplacement@25", "RelationalOperatorReplacement@45",
-            "RelationalOperatorReplacement@45", "RemoveSideEffects@8", "SwapTernary@20", "SwapTernary@21",
-            "SwapTernary@25", "SwapTernary@25", "SwapTernary@45",
+            "RelationalOperatorReplacement@20", "RelationalOperatorReplacement@20", "RelationalOperatorReplacement@25",
+            "RelationalOperatorReplacement@25", "RelationalOperatorReplacement@25", "RelationalOperatorReplacement@25",
+            "RelationalOperatorReplacement@25", "RelationalOperatorReplacement@25", "RelationalOperatorReplacement@25",
+            "RelationalOperatorReplacement@25", "RelationalOperatorReplacement@45", "RelationalOperatorReplacement@45",
+            "RelationalOperatorReplacement@45", "RelationalOperatorReplacement@45", "RemoveSideEffects@8",
+            "SwapTernary@20", "SwapTernary@21", "SwapTernary@25", "SwapTernary@25", "SwapTernary@45",
         ])
     }
 
@@ -2193,8 +2223,10 @@ final class MuterVisitorTests: MuterTestCase {
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
             "ChangeLogicalConnector@16", "RelationalOperatorReplacement@10", "RelationalOperatorReplacement@10",
-            "RelationalOperatorReplacement@16", "RelationalOperatorReplacement@3", "RelationalOperatorReplacement@9",
-            "RemoveSideEffects@9", "SwapTernary@10", "SwapTernary@9",
+            "RelationalOperatorReplacement@10", "RelationalOperatorReplacement@10", "RelationalOperatorReplacement@16",
+            "RelationalOperatorReplacement@16", "RelationalOperatorReplacement@3", "RelationalOperatorReplacement@3",
+            "RelationalOperatorReplacement@9", "RelationalOperatorReplacement@9", "RemoveSideEffects@9",
+            "SwapTernary@10", "SwapTernary@9",
         ])
     }
 
@@ -2342,12 +2374,14 @@ final class MuterVisitorTests: MuterTestCase {
         )
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
-            "RelationalOperatorReplacement@4", "RelationalOperatorReplacement@40", "RelationalOperatorReplacement@46",
-            "RelationalOperatorReplacement@76", "RelationalOperatorReplacement@87", "RemoveSideEffects@13",
-            "RemoveSideEffects@15", "RemoveSideEffects@28", "RemoveSideEffects@30", "RemoveSideEffects@31",
-            "RemoveSideEffects@41", "RemoveSideEffects@44", "RemoveSideEffects@47", "RemoveSideEffects@61",
-            "RemoveSideEffects@63", "RemoveSideEffects@74", "RemoveSideEffects@76", "RemoveSideEffects@87",
-            "SwapTernary@15", "SwapTernary@30", "SwapTernary@63", "SwapTernary@76",
+            "RelationalOperatorReplacement@4", "RelationalOperatorReplacement@4", "RelationalOperatorReplacement@40",
+            "RelationalOperatorReplacement@40", "RelationalOperatorReplacement@46", "RelationalOperatorReplacement@46",
+            "RelationalOperatorReplacement@76", "RelationalOperatorReplacement@76", "RelationalOperatorReplacement@87",
+            "RelationalOperatorReplacement@87", "RemoveSideEffects@13", "RemoveSideEffects@15", "RemoveSideEffects@28",
+            "RemoveSideEffects@30", "RemoveSideEffects@31", "RemoveSideEffects@41", "RemoveSideEffects@44",
+            "RemoveSideEffects@47", "RemoveSideEffects@61", "RemoveSideEffects@63", "RemoveSideEffects@74",
+            "RemoveSideEffects@76", "RemoveSideEffects@87", "SwapTernary@15", "SwapTernary@30", "SwapTernary@63",
+            "SwapTernary@76",
         ])
     }
 
@@ -2355,6 +2389,7 @@ final class MuterVisitorTests: MuterTestCase {
     // times the body threw from its count: `k < (n > 5 ? 3 : 4)` never ran, `k < n + 10` ran 3 times, `k < n` twice,
     // and, where the walk can't work it out, `k < n` in `caseThrew` never ran. The code after a call in the condition
     // that may throw is also the code after the loop, which runs only when the condition fails: `k > n` never ran.
+    // The condition `>= 0` gets its swap alone, as `true` would keep the loop going.
     func test_aRepeatLoopsCondition_runsWhenItsBodyReachesItsEndOrAContinue() throws {
         let negative = 9_223_372_036_854_775_807
         let source = try sourceCode("""
@@ -2436,7 +2471,8 @@ final class MuterVisitorTests: MuterTestCase {
         )
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
-            "RelationalOperatorReplacement@17", "RelationalOperatorReplacement@25", "RelationalOperatorReplacement@29",
+            "RelationalOperatorReplacement@17", "RelationalOperatorReplacement@17", "RelationalOperatorReplacement@25",
+            "RelationalOperatorReplacement@25", "RelationalOperatorReplacement@29", "RelationalOperatorReplacement@29",
             "RelationalOperatorReplacement@49", "RemoveSideEffects@16", "RemoveSideEffects@28", "RemoveSideEffects@39",
             "RemoveSideEffects@7",
         ])
@@ -2485,7 +2521,8 @@ final class MuterVisitorTests: MuterTestCase {
         )
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
-            "RelationalOperatorReplacement@21", "RelationalOperatorReplacement@4", "RelationalOperatorReplacement@9",
+            "RelationalOperatorReplacement@21", "RelationalOperatorReplacement@21", "RelationalOperatorReplacement@4",
+            "RelationalOperatorReplacement@4", "RelationalOperatorReplacement@9", "RelationalOperatorReplacement@9",
             "RemoveSideEffects@21", "SwapTernary@9",
         ])
     }
@@ -2530,7 +2567,8 @@ final class MuterVisitorTests: MuterTestCase {
         )
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
-            "RelationalOperatorReplacement@15", "RelationalOperatorReplacement@17", "RelationalOperatorReplacement@4",
+            "RelationalOperatorReplacement@15", "RelationalOperatorReplacement@15", "RelationalOperatorReplacement@17",
+            "RelationalOperatorReplacement@17", "RelationalOperatorReplacement@4", "RelationalOperatorReplacement@4",
             "RemoveSideEffects@17", "SwapTernary@15", "SwapTernary@17",
         ])
     }
@@ -2603,8 +2641,8 @@ final class MuterVisitorTests: MuterTestCase {
         )
 
         XCTAssertEqual(mutants(in: mappings).sorted(), [
-            "RelationalOperatorReplacement@28", "RelationalOperatorReplacement@33", "SwapTernary@11", "SwapTernary@16",
-            "SwapTernary@28", "SwapTernary@33",
+            "RelationalOperatorReplacement@28", "RelationalOperatorReplacement@28", "RelationalOperatorReplacement@33",
+            "RelationalOperatorReplacement@33", "SwapTernary@11", "SwapTernary@16", "SwapTernary@28", "SwapTernary@33",
         ])
     }
 

@@ -71,7 +71,6 @@ final class OperatorTests: MuterTestCase {
     func test_theTables_listEachSwapTheOperatorsMake() throws {
         let source = SourceCodeInfo(path: "", code: Parser.parse(source: ""))
         let swaps: [(MutationOperator.Id, [String: String])] = [
-            (.ror, ROROperator.Visitor(sourceCodeInfo: source).oppositeOperatorMapping),
             (.logicalOperator, ChangeLogicalConnectorOperator.Visitor(sourceCodeInfo: source).oppositeOperatorMapping),
             (.arithmeticOperator, ChangeArithmeticOperator.Visitor(sourceCodeInfo: source).oppositeOperatorMapping),
         ]
@@ -90,6 +89,27 @@ final class OperatorTests: MuterTestCase {
                 id.rawValue
             )
         }
+        // RelationalOperatorReplacement's rows give a swap, if any, and the constants: `==` and `!=` are swapped only
+        // where a comparison gets no constant, which the text below the table says.
+        let rorRow = try NSRegularExpression(pattern: #"^\|\s+(\S+)\s+\|\s*(\S*)\s*\|\s+(.+?)\s+\|$"#)
+        let lines = MutationOperator.Id.ror.documentation.raw.split(separator: "\n").map(String.init)
+        let rorRows = lines.compactMap { line in
+            rorRow.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)).map { match in
+                (1...3).compactMap { Range(match.range(at: $0), in: line).map { String(line[$0]) } }
+            }
+        }.filter { ROROperator.comparisons.contains($0[0]) }
+        let mapping = ROROperator.Visitor(sourceCodeInfo: source).oppositeOperatorMapping
+        XCTAssertEqual(
+            Set(rorRows.filter { !$0[1].isEmpty }.map { "\($0[0]) → \($0[1])" }),
+            Set(mapping.filter { !["==", "!="].contains($0.key) }.map { "\($0.key) → \($0.value)" })
+        )
+        XCTAssertEqual(
+            Dictionary(uniqueKeysWithValues: rorRows.map { ($0[0], $0[2]) }),
+            Dictionary(uniqueKeysWithValues: ROROperator.comparisons.map { comparison in
+                (comparison, ROROperator.constants(for: comparison).map { $0 == .true ? "true" : "false" }
+                    .joined(separator: ", "))
+            })
+        )
         XCTAssertTrue(
             MutationOperator.Id.swapTernary.documentation.raw
                 .contains("<condition> ? <expression1> : <expression2> | <condition> ? <expression2> : <expression1>"),
@@ -116,7 +136,8 @@ final class OperatorTests: MuterTestCase {
                 "return meetsMinimumLength && passwordsMatch",
                 "return meetsMinimumLength || passwordsMatch"
             ),
-            (.ror, "if myValue == 50 {", "if myValue != 50 {"),
+            (.ror, "if myValue == 50 {", "if true {"),
+            (.ror, "return count < limit", "return count != limit"),
             (.swapTernary, #"return a ? "true" : "false""#, #"return a ? "false" : "true""#),
         ]
         for (id, before, after) in swaps {

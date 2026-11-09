@@ -1,27 +1,26 @@
 
 Relational Operator Replacement
 
-The relational operator replacement operator will invert conditional operators in your code based on this table:
+The relational operator replacement operator gives each comparison the mutants of Kaminski, Ammann and Offutt's sufficient set, based on this table:
 
-+-------------------+------------------+
-| Original Operator | Changed Operator |
-+-------------------+------------------+
-|        ==         |        !=       |
-+-------------------+-----------------+
-|        !=         |        ==       |
-+-------------------+-----------------+
-|        >=         |        <=       |
-+-------------------+-----------------+
-|        <=         |        >=       |
-+-------------------+-----------------+
-|        >          |        <        |
-+-------------------+-----------------+
-|        <          |        >        |
-+-------------------+-----------------+
++-------------------+------------+----------------+
+| Original Operator | Swapped to |    Constant    |
++-------------------+------------+----------------+
+|         <         |     !=     |     false      |
+|        <=         |     ==     |      true      |
+|         >         |     !=     |     false      |
+|        >=         |     ==     |      true      |
+|        ==         |            |  true, false   |
+|        !=         |            |  false, true   |
++-------------------+------------+----------------+
 
+A constant replaces the whole comparison, so a + 1 < b becomes false.
+For an ordering comparison, with the relational boundary operator's < to <=, tests that kill these mutants kill every other mutant of the comparison's operator.
+An equality check gets both constants in place of the paper's <= and >=, which need Comparable.
+A comparison that is a statement of its own, holds an operator of the project's own precedence, or holds a closure's only $0, gets no constant, and its operator is swapped, == to != too.
+A comparison that decides a while or repeat-while condition gets no constant that would keep the loop going until the time limit, which counts as a survivor.
 
-The purpose of this operator is to highlight how your tests respond to changes in branching logic.
-A well-engineered test suite will be able to fail clearly in response to code taking a different branch than it expected.
+The purpose of this operator is to highlight whether your tests see each comparison both true and false, and check the values on either side of it.
 
 Mutating an equality check
 
@@ -31,9 +30,27 @@ if myValue == 50 {
 
 becomes
 
-if myValue != 50 {
+if true {
     // something happens here
 }
+
+and
+
+if false {
+    // something happens here
+}
+
+Mutating an ordering comparison
+
+return count < limit
+
+becomes
+
+return count != limit
+
+and
+
+return false
 
 
 Relational Boundary
@@ -167,7 +184,7 @@ Negate Conditional
 
 The negate conditional operator will wrap each expression condition of an if, guard or while in !( ).
 Conditions that aren't expressions, such as if let, case and #available, are left alone, and so are the literals true and false.
-While the relational operator replacement operator is on, so is a condition that is one == or != comparison, which that operator already negates.
+While the relational operator replacement operator is on, so is a condition that is one comparison, as a < b, whose constant that operator gives.
 
 The purpose of this operator is to highlight whether your tests tell the two branches apart.
 A negated while condition can loop until the mutant's time limit, which counts as a survivor.
@@ -239,6 +256,7 @@ Replace Boolean Value
 The replace boolean value operator will replace a Bool value with true, and in a second mutant with false.
 A value is what a return gives, the one expression of a body that returns it, or the initial value of a let or var.
 It counts when its type is written as Bool, or when it is a comparison, &&, || or !.
+While the relational operator replacement operator is on, a comparison, as return a < b, is left to that operator's constants.
 A literal, an if or switch expression, and a closure that doesn't write its return type are left alone.
 
 The purpose of this operator is to highlight whether your tests see a value both true and false.

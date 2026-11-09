@@ -88,16 +88,17 @@ final class ResumeAcceptanceTests: XCTestCase {
         let sources = project.appendingPathComponent("Sources/Lib", isDirectory: true)
         try FileManager.default.createDirectory(at: sources, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: markers, withIntermediateDirectories: true)
-        // The comparisons are `!=`, which only RelationalOperatorReplacement mutates: four mutants in all. `<` or `>`
-        // would get a RelationalBoundary mutant too. The configuration leaves out ReplaceBooleanValue, which would add
-        // two for each function.
+        // The comparisons are `!=`, which only RelationalOperatorReplacement mutates, in closures that use `$0` nowhere
+        // else, where it gives only its swap: four mutants in all. Elsewhere it would replace each with two constants,
+        // and `<` or `>` would get a RelationalBoundary mutant too. The configuration leaves out ReplaceBooleanValue,
+        // which would add two for each function.
         try """
-        func isSmall(_ value: Int) -> Bool { value != 10 }
-        func isHuge(_ value: Int) -> Bool { value != 100 }
+        func isSmall(_ values: [Int]) -> Bool { values.contains { $0 != 10 } }
+        func isHuge(_ values: [Int]) -> Bool { values.contains { $0 != 100 } }
 
         """.write(to: sources.appendingPathComponent("Bounds.swift"), atomically: true, encoding: .utf8)
         try """
-        func isPositive(_ value: Int) -> Bool { value != 0 }
+        func isPositive(_ values: [Int]) -> Bool { values.contains { $0 != 0 } }
         func both(_ first: Bool, _ second: Bool) -> Bool { first && second }
 
         """.write(to: sources.appendingPathComponent("Checks.swift"), atomically: true, encoding: .utf8)

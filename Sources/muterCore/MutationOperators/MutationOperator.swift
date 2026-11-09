@@ -73,7 +73,8 @@ enum MutationOperator {
         var explanation: String {
             switch self {
             case .ror:
-                return "Reverses a comparison: equal becomes not equal, and less than becomes greater than."
+                return "Replaces a comparison with true or false, and turns less than and greater than into not equal, "
+                    + "and at most and at least into equal."
             case .relationalBoundary:
                 return "Moves a comparison's boundary: less than and at most swap, as do greater than and at least."
             case .removeSideEffects:

@@ -159,7 +159,7 @@ final class CheckMutantSwitchesTests: MuterTestCase {
             code: Parser.parse(source: """
             func check(_ value: Int, _ flag: Bool) -> Bool {
                 if value > 1 && flag {
-                    return value == 2
+                    return flag
                 }
                 return flag ? value < 0 : false
             }

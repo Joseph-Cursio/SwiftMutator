@@ -44,12 +44,12 @@ final class AcceptanceTests: XCTestCase {
 
         XCTAssertTrue(output.contains("_mutated"))
 
-        XCTAssertTrue(output.contains("In total, SwiftMutator introduced 10 mutants in 4 files."))
+        XCTAssertTrue(output.contains("In total, SwiftMutator introduced 9 mutants in 4 files."))
 
         // Standard output is a file, so a line in place of the bar: once when the baseline passes, with no mutant
-        // tested, and once as each of the 10 mutants finishes. Nothing moves the cursor, and nothing is coloured.
-        XCTAssertEqual(try numberOfProgressUpdates(in: output), 11)
-        XCTAssertEqual(try numberOfDurationEstimates(in: output), 11)
+        // tested, and once as each of the 9 mutants finishes. Nothing moves the cursor, and nothing is coloured.
+        XCTAssertEqual(try numberOfProgressUpdates(in: output), 10)
+        XCTAssertEqual(try numberOfDurationEstimates(in: output), 10)
         XCTAssertFalse(output.contains("\u{1B}"))
 
         XCTAssertTrue(output.contains(messages.mutationScoresHeader))
@@ -110,7 +110,8 @@ final class AcceptanceTests: XCTestCase {
     func test_filesToMutate() throws {
         let output = try muterFilesToMutateOutput
 
-        XCTAssertTrue(output.contains("In total, SwiftMutator discovered 3 mutants in 1 files"))
+        // `a == b`'s two constants, which ReplaceBooleanValue leaves the value to.
+        XCTAssertTrue(output.contains("In total, SwiftMutator discovered 2 mutants in 1 files"))
     }
 
     func test_muterDoesntDiscoverAnyMutationOperators() throws {
@@ -175,7 +176,9 @@ final class AcceptanceTests: XCTestCase {
 
         // Each mutant's row names it by its path in the project, its line and its column. How long it ran depends on
         // the machine, so each row is checked up to its result. The `if value >= 0` gets three mutants, which all time
-        // out, as the test sleeps for longer than the limit whatever `foo` does.
+        // out, as the test sleeps for longer than the limit whatever `foo` does: RelationalOperatorReplacement's
+        // `true`, where the condition starts, which NegateConditional leaves the condition to, and its swap to `==`
+        // and RelationalBoundary's `>`, at the operator.
         let header = try XCTUnwrap(lines.firstIndex { $0.hasPrefix("File ") && $0.contains("Mutation Test Result") })
         XCTAssertEqual(
             columns(lines[header]),
@@ -183,7 +186,9 @@ final class AcceptanceTests: XCTestCase {
         )
         let rows = lines.dropFirst(header + 2).prefix { !$0.isEmpty }
         XCTAssertEqual(rows.count, 3, output)
-        let mutants = ["2:8 NegateConditional", "2:14 RelationalBoundary", "2:14 RelationalOperatorReplacement"]
+        let mutants = [
+            "2:8 RelationalOperatorReplacement", "2:14 RelationalBoundary", "2:14 RelationalOperatorReplacement",
+        ]
         for (row, mutant) in zip(rows, mutants) {
             XCTAssertTrue(
                 columns(row).hasPrefix("Sources/ProjectWithTimeout/ProjectWithTimeout.swift:\(mutant) time out "),

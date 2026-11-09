@@ -4,30 +4,58 @@ SwiftMutator uses **mutation operators** to generate mutants in your source code
 No operator mutates the condition of a `#if` or `#elseif`. Such a mutant would change which branch compiles, and a branch written for another platform may not build, which would fail the build every mutant shares. This doesn't change what happens to the code inside the clauses.
 
 ## Relational Operator Replacement
-The relational operator replacement operator, `RelationalOperatorReplacement`, will change relational operators in your code based on this table:
+The relational operator replacement operator, `RelationalOperatorReplacement`, gives each comparison the mutants of Kaminski, Ammann and Offutt's sufficient set ("Better Predicate Testing", 2011), based on this table:
 
-Original Operator | Changed Operator
-------------------|-----------------
-`==`|`!=`
-`!=`|`==`
-`>=`|`<=`
-`<=`|`>=`
-`>`|`<`
-`<`|`>`
+Original | Swapped to | Constant
+---------|------------|---------
+`<` | `!=` | `false`
+`<=` | `==` | `true`
+`>` | `!=` | `false`
+`>=` | `==` | `true`
+`==` | | `true`, and `false`
+`!=` | | `false`, and `true`
 
-The purpose of this operator is to highlight how your tests respond to changes in branching logic. A well-engineered test suite will be able to fail clearly in response to code taking a different branch than it expected.
+So an ordering comparison gets two mutants, its operator swapped and the comparison replaced with a constant, and an equality check gets two, the comparison replaced with each constant, except that a loop's condition gets no constant that would keep the loop going (see below). `===` and `!==` are left alone.
 
-`==` and `!=` are negated, but an ordering comparison is reversed, not negated: `a < b` becomes `a > b`, which is `b < a`. Its negation, `a >= b`, gives the wrong result for every input, and the reversed one for every input but `a == b`, so a test that checks the result kills either. Three operators share an ordering comparison:
+The purpose of this operator is to highlight whether your tests see each comparison both true and false, and check the values on either side of it.
 
-Mutant of `a < b` | Operator | Differs when
-------------------|----------|-------------
-`a > b` | `RelationalOperatorReplacement` | `a != b`
+A comparison operator can be replaced with any of the others, or the comparison with `true` or `false`, which makes seven mutants of each. Kaminski, Ammann and Offutt showed that three of them are enough: tests that kill those three kill the other four. Each of the four gives the same result as one of the three wherever that one is wrong, so a test that kills that one kills it too. For `a < b`, the three are `a <= b`, which is wrong only where `a == b`; `a != b`, wrong only where `a > b`; and `false`, wrong only where `a < b`. Between them they ask for a test of each of the three ways `a` and `b` can stand. [`RelationalBoundary`](#relational-boundary) gives the first, and this operator the other two. The reversal this operator gave before, `a > b`, is wrong where `a != b` is and where `false` is, giving the same results, and nowhere else, so it tells nothing they don't, and almost any test kills it.
+
+For `a == b`, the paper's three are `a <= b`, `a >= b` and `false`. `<=` and `>=` don't compile where the type is only `Equatable`, and a syntax tree has no types, so an equality check gets both constants instead: `false` is wrong only where `a == b`, and `true` only where `a != b`, so together they ask for a test where the two are equal and one where they differ. The swap this operator gave before, `a != b`, is wrong everywhere, and gives the same result as either constant wherever that one is wrong, so a test that kills either kills it. The pair doesn't cover the paper's `a <= b` and `a >= b`, which also ask which side of `b` an `a` that differs is on.
+
+These are every mutant of `a < b` and `a == b`:
+
+Mutant of `a < b` | Operator | Differs from it when
+------------------|----------|---------------------
 `a <= b` | [`RelationalBoundary`](#relational-boundary) | `a == b`
-`!(a < b)`, that is `a >= b` | [`NegateConditional`](#negate-conditional) | always
+`a != b` | `RelationalOperatorReplacement` | `a > b`
+`false` | `RelationalOperatorReplacement` | `a < b`
 
-`NegateConditional` changes only the whole condition of an `if`, `guard` or `while`, so a comparison elsewhere, as in `return a < b` or `let ok = a >= b`, gets no negated mutant.
+Mutant of `a == b` | Operator | Differs from it when
+-------------------|----------|---------------------
+`false` | `RelationalOperatorReplacement` | `a == b`
+`true` | `RelationalOperatorReplacement` | `a != b`
 
-No operator adds one there, as it would tell nothing the boundary mutant doesn't. At `a == b` the negated and the boundary mutant give the same result, `a >= b` and `a <= b` both true where `a < b` is false, and the boundary mutant differs from the original nowhere else. So a test that kills the boundary mutant kills the negated one too, and the negated one survives only where the boundary mutant survives as well. The same holds for `<=`, `>` and `>=`. The one exception is a floating-point NaN: with one, `a < b` and `a <= b` are both false while `a >= b` is true, so only the negated mutant would ask for a test with a NaN. With `RelationalBoundary` left out, by `operators` or `skipOperators`, a comparison outside a condition gets neither mutant.
+The constants stand for the comparison's negation too, which is why [`NegateConditional`](#negate-conditional) leaves a condition that is one comparison to this operator, and [`ReplaceBooleanValue`](#replace-boolean-value) a value that is one. `!(a < b)` gives the same result as `false` wherever `false` is wrong: both are false where `a < b` is true. So a test that kills `false` kills the negation, which is otherwise wrong where `a >= b` too, and almost any test kills it. And `true`, which `ReplaceBooleanValue` would put in place of `a < b`, gives the same result as `a <= b` where that one is wrong, at `a == b`, and as `a != b` where that one is wrong, so a test that kills either kills it. A floating-point NaN, which the boundary mutant used to leave to the negation, changes none of this: where `a < b` is true, neither is a NaN, and with one, `a != b` gives `true`, as the `true` constant does.
+
+A constant replaces the whole comparison, as the standard library's operators bind: `a + 1 < b` becomes `false`, and `x < y && z` becomes `false && z`. A `try` or `await` in front goes with it when it covers the comparison alone, as in `try load() < 1`. When it covers more, as in `try load() < 1 && check()` or `try load() > 1 ? a : b`, the comparison gets no constant: the `try` would be left over what may not throw, which warns. Nor does one under `try?`, which can neither go, as what it gives is an optional, nor stay over a literal. A comment beside the comparison stays where it was. The `true` mutant is placed where the comparison starts, the `false` one where it ends, and the swap at the operator, so each has a place, and a switch, of its own, and `--mutant` can name any of them with the operator: `--mutant` also finds `NegateConditional`'s and `ReplaceBooleanValue`'s mutants of the comparison, which start or end where a constant does, so a place alone may name two and be refused with both listed.
+
+Some comparisons get no constant, and their operator is swapped instead, `==` to `!=` and `!=` to `==` too:
+
+* **A comparison that is a statement of its own,** as Nimble's `expect(x) == 1` is. Its value is thrown away, so its operator is an overload with side effects, and a literal in its place would be an unused value that tests nothing. The one statement of a closure, a getter, a function that writes its return type, or a branch of an `if` or `switch` that is a value is that code's value, and gets its constants.
+* **A comparison in a sequence the standard library's operators can't fold,** as one with an operator of the project's own precedence, `a <~> b == c`, is. Which part of the sequence is the comparison isn't known.
+* **A comparison that holds a closure's only use of its highest `$` argument,** as in `items.filter { $0 > 1 }`. A closure that names no parameters takes as many as the highest `$` argument it uses says, so `items.filter { false }` takes none, which doesn't compile. `items.filter { item in item > 1 }` gets its constant.
+
+A comparison that decides the condition of a `while` or `repeat`-`while`, alone or through `||`, `!` and parentheses, gets no constant that makes that condition always true: `while a <= b` keeps only its swap, `while a != b` and `repeat { ... } while a == b` only `false`, and `while !(a < b)` only its swap. `while true` would run until the time limit and end as a timeout, which the score counts as a survivor, and with several workers is [run again](../README.md#timeouts-are-run-again). What is left is wrong only where the negation is too, so `NegateConditional` still leaves such a condition to this operator. Through `&&`, or beside another condition after a comma, the rest of the condition can still end the loop, and both constants are kept, as they are in an `if` or `guard`.
+
+Only an operator in an expression is mutated: an operator's declaration, such as `static func < (lhs: Self, rhs: Self) -> Bool`, and a generic constraint, such as `where T == Int`, are not. A `muter:disable` comment that leaves out any of a comparison's mutants leaves out all of them, as it does both of [`ReplaceBooleanValue`](#replace-boolean-value)'s.
+
+A few of these mutants don't compile, and are [left out as build errors](../README.md#mutants-that-dont-compile), at the cost of a rebuild:
+
+* A comparison that a module declares to give something other than a Bool, as a query builder's `Column("age") >= 18` or a predicate DSL's does. Neither `true` nor `false` is such a value. A statement of its own, as an assertion library's, is left to the swap, as above.
+* A swap to `!=` or `==` of a type that declares `<` but isn't `Equatable`.
+
+Some make the compiler warn, which is a build error only [with warnings as errors](../README.md#before-a-long-run), as [`ReplaceBooleanValue`](#replace-boolean-value)'s do: a local whose only reader was the comparison, which is now never used; a closure whose only use of a captured name, as `self` in `[weak self]`, was the comparison; and a local `let` that is now `true` or `false`, or a ternary of literals on one, read later by an `if`, `guard`, `while`, `switch` or `?:`, whose other branch the compiler says will never be executed. A literal written as a condition, as `if false`, makes it say nothing.
 
 ### Mutating an equality check
 ```swift
@@ -39,9 +67,34 @@ if myValue == 50 {
 becomes
 
 ```swift
-if myValue != 50 {
+if true {
     // something happens here
 }
+```
+
+and
+
+```swift
+if false {
+    // something happens here
+}
+```
+
+### Mutating an ordering comparison
+```swift
+return count < limit
+```
+
+becomes
+
+```swift
+return count != limit
+```
+
+and
+
+```swift
+return false
 ```
 
 ## Relational Boundary
@@ -54,7 +107,7 @@ Original Operator | Changed Operator
 `>`|`>=`
 `>=`|`>`
 
-The purpose of this operator is to highlight whether your tests check the edge of each comparison. The relational operator replacement operator above turns `<` into `>`, which almost any test kills. Turning `<` into `<=` changes the result only at the boundary value, so the mutant survives unless some test uses that value. Equality operators have no boundary, so `==` and `!=` are left to the relational operator replacement operator. Each ordering operator gets a mutant from both operators, so a run has one more mutant for each `<`, `<=`, `>` and `>=` it mutates.
+The purpose of this operator is to highlight whether your tests check the edge of each comparison. Turning `<` into `<=` changes the result only at the boundary value, so the mutant survives unless some test uses that value. It is the third of Kaminski, Ammann and Offutt's sufficient set for an ordering comparison, beside the relational operator replacement operator's two (see [above](#relational-operator-replacement)). Equality operators have no boundary, so `==` and `!=` are left to the relational operator replacement operator. Each ordering operator gets a mutant from this operator and two from that one, so a run has three for each `<`, `<=`, `>` and `>=` it mutates.
 
 As with the relational operator replacement operator, only an operator in an expression is mutated: an operator's declaration, such as `static func < (lhs: Self, rhs: Self) -> Bool`, is not.
 
@@ -199,7 +252,7 @@ Some conditions are left alone:
 
 * **Conditions that aren't expressions:** `if let`, `case` and `#available`. An expression beside one in the list still gets its mutant, so `if let value, value.isReady` becomes `if let value, !(value.isReady)`.
 * **The literals `true` and `false`.** To the compiler `while true` never ends, so a function can end without a `return` after it. Negated, the loop can end, and the function no longer compiles.
-* **A condition that is one `==` or `!=` comparison, while `RelationalOperatorReplacement` is on.** `!(a % 2 == 0)` is the same mutant as that operator's `a % 2 != 0`, so it isn't tested twice. `a == b && c` isn't one. `!(a < b)` is `a >= b`, where that operator gives `a > b`, so ordering comparisons get both. `===` and `!==` are negated, as no other operator changes them.
+* **A condition that is one comparison, `==`, `!=`, `<`, `<=`, `>` or `>=`, while `RelationalOperatorReplacement` is on and gives it a constant.** `!(a % 2 == 0)` gives the same wrong result as that operator's `true` or `false` wherever the constant is wrong, and almost any test kills it elsewhere, so a test that kills the constant kills it too (see [Relational Operator Replacement](#relational-operator-replacement)). In a `while` condition, where that operator leaves out the constant that would keep the loop going, what it keeps is wrong only where the negation is too. `a == b && c` isn't one, and nor is a comparison that operator gives no constant, as `$0 > 1` in a closure that uses `$0` nowhere else, or one whose mutants a `muter:disable` comment leaves out while it doesn't reach where the condition starts, as then nothing stands for the negation. `===` and `!==` are negated, as no other operator changes them. `--mutant` still finds such a mutant that a run without that operator reported.
 * **`#_hasSymbol`,** which can only be a condition itself, and a condition that ends in `#endif`, which nothing can follow on its line.
 
 The condition of `repeat`-`while`, a ternary and a `case`'s `where` aren't mutated.
@@ -293,7 +346,7 @@ Some literals are left alone:
 
 A few flipped literals don't compile, and are [left out as build errors](../README.md#mutants-that-dont-compile), at the cost of a rebuild and sometimes of the function's other mutants: one the compiler sees through to treat a loop as endless or a branch as always taken, as in `while !false`, `if !false` or `let running = true; while running {}`.
 
-`x == true` gets a mutant here and another from `RelationalOperatorReplacement`, as `x == false` and `x != true` differ when `x` is an optional.
+`x == true` gets a mutant here, `x == false`, and two from `RelationalOperatorReplacement`, `true` and `false`; no two of them give the same results.
 
 ### Mutating a literal
 ```swift
@@ -324,6 +377,7 @@ A syntax tree has no types, so a value counts when the code shows it is a Bool:
 
 Some values are left alone:
 
+* **A comparison, while `RelationalOperatorReplacement` is on and gives it a constant,** as in `return a < b` or `let same = a == b`. That operator replaces the comparison with `true` and `false` when it is `==` or `!=`, and with one of them when it orders, beside a swap and [`RelationalBoundary`](#relational-boundary)'s mutant that are wrong wherever the other constant would be (see [Relational Operator Replacement](#relational-operator-replacement)). `&&`, `||`, `!`, `===` and `!==` stay this operator's, and so does a comparison under any of them, as in `!(a < b)`, and one whose mutants a `muter:disable` comment leaves out while it doesn't reach where the value starts or ends. `--mutant` still finds such a mutant that a run without that operator reported.
 * **A literal,** as in `return true`, which `FlipBooleanLiteral` flips.
 * **An `if` or `switch` expression, and its branches:** neither the whole expression nor a branch's value is replaced, though a `return` inside an `if` or `switch` statement still is.
 * **What a closure that doesn't write its return type returns,** as in `items.filter { $0.isReady }`. Such closures are mostly predicates passed to `filter`, `sorted` or `contains`, and each would add a pair. A `return` in one is the closure's, even inside a function that returns `Bool`.
@@ -331,7 +385,7 @@ Some values are left alone:
 * **A value under `try?`,** which makes an optional: `true` in its place would no longer be one.
 * **What returns nothing:** an initializer's `return nil`, a setter and an observer such as `didSet`.
 
-The `true` mutant is placed where the value starts, and the `false` one where it ends, so each has a place, and a switch, of its own, and `--mutant` can name either.
+The `true` mutant is placed where the value starts, and the `false` one where it ends, so each has a place, and a switch, of its own, and `--mutant` can name either with the operator: under `--mutant`, `RelationalOperatorReplacement`'s constants of a comparison value start and end at the same places, so a place alone may name two and be refused with both listed.
 
 A few of these mutants don't compile, and are [left out as build errors](../README.md#mutants-that-dont-compile), at the cost of a rebuild: a comparison with no type written that a module declares to give something other than a Bool, as a query builder's `==` that gives a filter does in `static let isAdult = Column("age") >= 18`. Neither `true` nor `false` is such a value. A stored property's, a `static`'s or a global's value is switched as an `if` expression, so the build error is blamed on its whole switch, which also leaves out the other operators' mutants of that value.
 
@@ -369,7 +423,8 @@ SwiftMutator has no tiers of operators: all nine run by default, and `--operator
 Operator | SwiftProjectLint: mutants | Killed | Survived | Timed out | Build errors | SwiftCloneDetector: mutants | Killed | Survived | Timed out | Build errors
 ---------|-----|-----|-----|---|---|-----|-----|-----|---|---
 `NegateConditional` | 122 | 89% | 9% | 2 | 0 | 90 | 92% | 8% | 0 | 0
-`RelationalOperatorReplacement` | 185 | 86% | 13% | 1 | 0 | 115 | 77% | 22% | 1 | 0
+`RelationalOperatorReplacement` | 500 | 58% | 42% | 1 | 0 | 213 | 55% | 45% | 0 | 0
+`RelationalOperatorReplacement`, before its sufficient set | 185 | 86% | 13% | 1 | 0 | 115 | 77% | 22% | 1 | 0
 `ReplaceBooleanValue` | 1180 | 80% | 19% | 4 | 0 | 54 | 74% | 26% | 0 | 0
 `RemoveSideEffects` | 94 | 81% | 18% | 1 | 0 | 45 | 89% | 11% | 0 | 0
 `FlipBooleanLiteral` | 1335 | 79% | 20% | 6 | 0 | 25 | 72% | 28% | 0 | 0
@@ -380,8 +435,11 @@ Operator | SwiftProjectLint: mutants | Killed | Survived | Timed out | Build err
 
 Measured on 5 November 2026, on SwiftProjectLint `76fcfca9` at 4 workers and SwiftCloneDetector `e03e865` with all eight. On SwiftProjectLint, the two new operators ran in full, and the six older ones as a random sample of 500 of their 5,534 mutants, so their counts there are small. `FlipBooleanLiteral`'s run there came before the last changes to `ChangeArithmeticOperator`, which don't touch its mutants: four plans since find the same ones, but for up to 2 fewer or 1 more as coverage runs reach a little more or less of the project. `ReplaceBooleanValue` ran alone, in full, on 8 November, on the same commits of both projects.
 
-* **Nearly every mutant builds.** 1 of these 3,752 mutants was a build error. On its own five projects, swift-mutation-testing counts 12.1% of its arithmetic mutants and 11.5% of its boolean-literal ones as unviable, and it keeps both out of its default tier. Its rules and its projects differ, so the figures aren't like for like.
-* **Kill rates don't sort the operators into tiers.** `SwapTernary` is 79% on one project and 52% on the other, a wider gap than between most operators. `ChangeLogicalConnector` and `SwapTernary` are in swift-mutation-testing's default tier, yet here they score below `RelationalOperatorReplacement` and `RemoveSideEffects`, which aren't. A low rate can also be an operator doing its job: a `RelationalBoundary` mutant survives unless a test checks the edge value.
+`RelationalOperatorReplacement`'s first row is its sufficient set, which gives each comparison two mutants, a swap and a constant or two constants. It ran alone on 8 November, on the same commits: on SwiftProjectLint a random sample of 500 of its 3,694 mutants (seed 124), on SwiftCloneDetector all of them. Its second row was measured on 5 November, when it gave each comparison one mutant, `==` swapped for `!=` and `<` reversed to `>`. `NegateConditional`'s row is from then too, and its counts no longer hold, as it now leaves every comparison to `RelationalOperatorReplacement`, not only `==` and `!=`. `ReplaceBooleanValue`'s row, from a run of it alone, holds the comparisons it now leaves to `RelationalOperatorReplacement` in a run of both.
+
+* **Nearly every mutant builds.** 1 of these 4,465 mutants was a build error. On its own five projects, swift-mutation-testing counts 12.1% of its arithmetic mutants and 11.5% of its boolean-literal ones as unviable, and it keeps both out of its default tier. Its rules and its projects differ, so the figures aren't like for like.
+* **Kill rates don't sort the operators into tiers.** `SwapTernary` is 79% on one project and 52% on the other, a wider gap than between most operators. `ChangeLogicalConnector` and `SwapTernary` are in swift-mutation-testing's default tier, yet here they score below `RemoveSideEffects`, which isn't. A low rate can also be an operator doing its job: a `RelationalBoundary` mutant survives unless a test checks the edge value.
+* **The sufficient set asks more of the tests.** It gave about 1.8 times as many mutants as the reversal and the swap did, 3,694 on SwiftProjectLint against an estimated 2,050, and 213 on SwiftCloneDetector against 115, and the tests killed far fewer: 58% against 86%, and 55% against 77%. Each of its mutants is wrong on only part of the inputs, as `a != b` for `a < b` is only where `a > b`, so it survives unless a test checks that part, where a reversal was wrong almost everywhere. None failed to build.
 * **Survivors can cluster.** 55 of `ChangeArithmeticOperator`'s 76 survivors on SwiftProjectLint track a depth: a recursive call's `depth + 1`, or a counter such as `typeNestingDepth -= 1`.
 * **The cost differs more than the catch.** `FlipBooleanLiteral` gave 1,335 mutants on one project and 25 on the other. The two new operators together add 28% to SwiftProjectLint's mutants and 20% to SwiftCloneDetector's. On SwiftProjectLint a mutant took 8.6 s on average under the six older operators, 9.4 s under `FlipBooleanLiteral` and 14.1 s under `ChangeArithmeticOperator`. `ReplaceBooleanValue` gave 1,180 mutants, two for each of 590 values, on SwiftProjectLint, at 7.0 s each, so 46 minutes at 4 workers, and 54 on SwiftCloneDetector.
 * **Arithmetic times out most.** On SwiftProjectLint 3.7% of its mutants timed out, against 0.8% for the six older operators and 0.4% for `FlipBooleanLiteral`. All 8 were `+=` or `-=`, as in `index += 1`, and running them again took 14 of that 32-minute run's minutes.

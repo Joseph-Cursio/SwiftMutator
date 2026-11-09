@@ -176,10 +176,10 @@
                 "level" : "warning"
               },
               "fullDescription" : {
-                "text" : "Reverses a comparison: equal becomes not equal, and less than becomes greater than."
+                "text" : "Replaces a comparison with true or false, and turns less than and greater than into not equal, and at most and at least into equal."
               },
               "help" : {
-                "text" : "Reverses a comparison: equal becomes not equal, and less than becomes greater than."
+                "text" : "Replaces a comparison with true or false, and turns less than and greater than into not equal, and at most and at least into equal."
               },
               "id" : "RelationalOperatorReplacement",
               "name" : "RelationalOperatorReplacement",

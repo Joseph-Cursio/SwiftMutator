@@ -7,8 +7,9 @@ final class DiscoverMutationPointsChangedLinesTests: MuterTestCase {
     private let state = MutationTestState()
 
     // Line 2 holds `<`, which RelationalOperatorReplacement and RelationalBoundary each mutate, and whose right-hand
-    // operand is on line 3; lines 8 and 9 statements RemoveSideEffects removes; line 13 `==`, whose value
-    // ReplaceBooleanValue replaces too.
+    // operand is on line 3, where the first's constant is placed, as the comparison ends there; lines 8 and 9
+    // statements RemoveSideEffects removes; line 13 `==`, which RelationalOperatorReplacement replaces with each
+    // constant, and ReplaceBooleanValue leaves to it, as NegateConditional does the condition on line 2.
     private let source = """
     func check(index: Int, items: [Int]) -> Bool {
         guard index <
@@ -42,10 +43,10 @@ final class DiscoverMutationPointsChangedLinesTests: MuterTestCase {
         XCTAssertEqual(
             kept.map(\.operatorAndLine),
             [
-                "NegateConditional:2",
                 "RelationalBoundary:2",
                 "RelationalOperatorReplacement:2",
                 "ChangeArithmeticOperator:3",
+                "RelationalOperatorReplacement:3",
                 "FlipBooleanLiteral:3",
             ]
         )
@@ -64,10 +65,10 @@ final class DiscoverMutationPointsChangedLinesTests: MuterTestCase {
         XCTAssertEqual(
             kept.map(\.operatorAndLine),
             [
-                "NegateConditional:2",
                 "RelationalBoundary:2",
                 "RelationalOperatorReplacement:2",
                 "ChangeArithmeticOperator:3",
+                "RelationalOperatorReplacement:3",
             ]
         )
     }
@@ -75,7 +76,7 @@ final class DiscoverMutationPointsChangedLinesTests: MuterTestCase {
     func test_withoutChangedLines_everyMutantOfAChangedFileIsKept() async throws {
         let kept = try await mutants(changing: [LineRange(first: 8, last: 8)], changedLines: false)
 
-        XCTAssertEqual(kept.count, 12)
+        XCTAssertEqual(kept.count, 11)
     }
 
     func test_noMutantOnAChangedLine_leavesNothingToMutate() async throws {

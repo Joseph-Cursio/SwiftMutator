@@ -344,8 +344,10 @@ private extension DiscoverMutationPoints {
                 visitor.projectRoot = projectRoot
                 visitor.inactiveRegions = inactiveRegions
                 visitor.isUncovered = isUncovered
-                (visitor as? NegateConditionalOperator.Visitor)?.leavesEqualityChecksAlone =
-                    operators.contains(.ror) && namedMutant == nil
+                // RelationalOperatorReplacement's constants stand for these operators' mutants of a comparison.
+                let leavesComparisonsAlone = operators.contains(.ror) && namedMutant == nil
+                (visitor as? NegateConditionalOperator.Visitor)?.leavesComparisonsAlone = leavesComparisonsAlone
+                (visitor as? ReplaceBooleanValueOperator.Visitor)?.leavesComparisonsAlone = leavesComparisonsAlone
 
                 visitor.walk(source)
                 droppedByVisitors += visitor.droppedMutants

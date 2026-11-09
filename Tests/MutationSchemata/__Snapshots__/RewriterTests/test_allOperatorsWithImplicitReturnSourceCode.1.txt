@@ -10,10 +10,10 @@ import class Foundation.ProcessInfo
 struct ConditionalOperators {
   func something(_ a: Int) -> String {
     if __SwiftMutator_c132952c484be782.environment[
-      "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_7_19_242"] != nil,
+      "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_7_17_240"] != nil,
       __SwiftMutator_c132952c484be782.ran
     {
-      let b = a != 5
+      let b = true
       let e = a != 1
       let c = a >= 4
       let d = a <= 10
@@ -314,7 +314,7 @@ struct ConditionalOperators {
 
       return a == 9 ? "goodbye" : "what"
     } else if __SwiftMutator_c132952c484be782.environment[
-      "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_18_18_438"] != nil,
+      "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_18_22_442"] != nil,
       __SwiftMutator_c132952c484be782.ran
     {
       let b = a == 5
@@ -328,9 +328,9 @@ struct ConditionalOperators {
         return "hello"
       }
 
-      return a != 9 ? "goodbye" : "what"
+      return false ? "goodbye" : "what"
     } else if __SwiftMutator_c132952c484be782.environment[
-      "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_14_14_375"] != nil,
+      "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_18_16_436"] != nil,
       __SwiftMutator_c132952c484be782.ran
     {
       let b = a == 5
@@ -340,7 +340,39 @@ struct ConditionalOperators {
       let f = a < 5
       let g = a > 5
 
-      if a != 10 {
+      if a == 10 {
+        return "hello"
+      }
+
+      return true ? "goodbye" : "what"
+    } else if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_14_19_380"] != nil,
+      __SwiftMutator_c132952c484be782.ran
+    {
+      let b = a == 5
+      let e = a != 1
+      let c = a >= 4
+      let d = a <= 10
+      let f = a < 5
+      let g = a > 5
+
+      if false {
+        return "hello"
+      }
+
+      return a == 9 ? "goodbye" : "what"
+    } else if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_14_12_373"] != nil,
+      __SwiftMutator_c132952c484be782.ran
+    {
+      let b = a == 5
+      let e = a != 1
+      let c = a >= 4
+      let d = a <= 10
+      let f = a < 5
+      let g = a > 5
+
+      if true {
         return "hello"
       }
 
@@ -354,7 +386,23 @@ struct ConditionalOperators {
       let c = a >= 4
       let d = a <= 10
       let f = a < 5
-      let g = a < 5
+      let g = a != 5
+
+      if a == 10 {
+        return "hello"
+      }
+
+      return a == 9 ? "goodbye" : "what"
+    } else if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_12_22_360"] != nil,
+      __SwiftMutator_c132952c484be782.ran
+    {
+      let b = a == 5
+      let e = a != 1
+      let c = a >= 4
+      let d = a <= 10
+      let f = a < 5
+      let g = false
 
       if a == 10 {
         return "hello"
@@ -369,7 +417,23 @@ struct ConditionalOperators {
       let e = a != 1
       let c = a >= 4
       let d = a <= 10
-      let f = a > 5
+      let f = a != 5
+      let g = a > 5
+
+      if a == 10 {
+        return "hello"
+      }
+
+      return a == 9 ? "goodbye" : "what"
+    } else if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_11_22_338"] != nil,
+      __SwiftMutator_c132952c484be782.ran
+    {
+      let b = a == 5
+      let e = a != 1
+      let c = a >= 4
+      let d = a <= 10
+      let f = false
       let g = a > 5
 
       if a == 10 {
@@ -384,7 +448,23 @@ struct ConditionalOperators {
       let b = a == 5
       let e = a != 1
       let c = a >= 4
-      let d = a >= 10
+      let d = a == 10
+      let f = a < 5
+      let g = a > 5
+
+      if a == 10 {
+        return "hello"
+      }
+
+      return a == 9 ? "goodbye" : "what"
+    } else if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_10_17_309"] != nil,
+      __SwiftMutator_c132952c484be782.ran
+    {
+      let b = a == 5
+      let e = a != 1
+      let c = a >= 4
+      let d = true
       let f = a < 5
       let g = a > 5
 
@@ -399,7 +479,7 @@ struct ConditionalOperators {
     {
       let b = a == 5
       let e = a != 1
-      let c = a <= 4
+      let c = a == 4
       let d = a <= 10
       let f = a < 5
       let g = a > 5
@@ -410,11 +490,59 @@ struct ConditionalOperators {
 
       return a == 9 ? "goodbye" : "what"
     } else if __SwiftMutator_c132952c484be782.environment[
-      "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_8_19_265"] != nil,
+      "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_9_17_286"] != nil,
       __SwiftMutator_c132952c484be782.ran
     {
       let b = a == 5
-      let e = a == 1
+      let e = a != 1
+      let c = true
+      let d = a <= 10
+      let f = a < 5
+      let g = a > 5
+
+      if a == 10 {
+        return "hello"
+      }
+
+      return a == 9 ? "goodbye" : "what"
+    } else if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_8_23_269"] != nil,
+      __SwiftMutator_c132952c484be782.ran
+    {
+      let b = a == 5
+      let e = false
+      let c = a >= 4
+      let d = a <= 10
+      let f = a < 5
+      let g = a > 5
+
+      if a == 10 {
+        return "hello"
+      }
+
+      return a == 9 ? "goodbye" : "what"
+    } else if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_8_17_263"] != nil,
+      __SwiftMutator_c132952c484be782.ran
+    {
+      let b = a == 5
+      let e = true
+      let c = a >= 4
+      let d = a <= 10
+      let f = a < 5
+      let g = a > 5
+
+      if a == 10 {
+        return "hello"
+      }
+
+      return a == 9 ? "goodbye" : "what"
+    } else if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_7_23_246"] != nil,
+      __SwiftMutator_c132952c484be782.ran
+    {
+      let b = false
+      let e = a != 1
       let c = a >= 4
       let d = a <= 10
       let f = a < 5
@@ -767,10 +895,10 @@ public enum Enum {
       return value
     case .b(let value):
       if __SwiftMutator_c132952c484be782.environment[
-        "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_146_26_3366"] != nil,
+        "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_146_16_3356"] != nil,
         __SwiftMutator_c132952c484be782.ran
       {
-        if something != nil {
+        if true {
           return 0
         }
         return 10
@@ -779,6 +907,14 @@ public enum Enum {
         __SwiftMutator_c132952c484be782.ran
       {
         if !(something == nil) {
+          return 0
+        }
+        return 10
+      } else if __SwiftMutator_c132952c484be782.environment[
+        "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_146_32_3372"] != nil,
+        __SwiftMutator_c132952c484be782.ran
+      {
+        if false {
           return 0
         }
         return 10

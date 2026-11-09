@@ -7,7 +7,8 @@ import XCTest
 final class GeneratedEnvironmentCacheTests: GeneratedCodeTestCase {
     /// Without ReplaceBooleanValue: its `let big = true` makes the compiler warn that a branch of the `?:` that reads
     /// `big` will never be executed, and these files compile with warnings as errors. Its own shapes compile in
-    /// GeneratedCodeShapesTests.
+    /// GeneratedCodeShapesTests. RelationalOperatorReplacement's constants would make the compiler warn so of a `let`
+    /// that is only a comparison, or a ternary of literals on one, so the files' are more than that.
     override var operatorsToDiscoverWith: MutationOperatorList {
         super.operatorsToDiscoverWith.filter { $0 != .replaceBooleanValue }
     }
@@ -177,7 +178,7 @@ final class GeneratedEnvironmentCacheTests: GeneratedCodeTestCase {
                         }.count)
                         \""" // its closing delimiter
                 }.joined())
-                Debug: \\(items.map { item in let big = item > 1
+                Debug: \\(items.map { item in let big = item > 1 || item < -1
                     #if DEBUG
                     return big ? "big" : "small"
                     #else
@@ -202,18 +203,18 @@ final class GeneratedEnvironmentCacheTests: GeneratedCodeTestCase {
             "Located.swift": """
             #sourceLocation(file: "Located.swift.gyb", line: 1)
             func closed(_ items: [Int]) -> Int {
-                let count = items.count > 1 ? 1 : 2
+                let count = items.count > 1 ? 1 : items.count
             #sourceLocation()
                 return count
             }
             #sourceLocation(file: "Located.swift.gyb", line: 10)
             func closedAfterAStatement(_ items: [Int]) -> Int {
-                let count = items.count > 1 ? 1 : 2; #sourceLocation()
+                let count = items.count > 1 ? 1 : items.count; #sourceLocation()
                 return count
             }
             #sourceLocation(file: "Located.swift.gyb", line: 20)
             func closedInAClosure(_ items: [Int]) -> Int {
-                let count = items.count > 1 ? 1 : 2
+                let count = items.count > 1 ? 1 : items.count
                 let run = { () -> Int in
             #sourceLocation()
                     return count
@@ -222,7 +223,7 @@ final class GeneratedEnvironmentCacheTests: GeneratedCodeTestCase {
             }
             #sourceLocation(file: "Located.swift.gyb", line: 30)
             func closedInACase(_ items: [Int]) -> Int {
-                let count = items.count > 1 ? 1 : 2
+                let count = items.count > 1 ? 1 : items.count
                 switch count {
                 case 1:
             #sourceLocation()
@@ -233,7 +234,7 @@ final class GeneratedEnvironmentCacheTests: GeneratedCodeTestCase {
             }
             #sourceLocation(file: "Located.swift.gyb", line: 40)
             func closedInAType(_ items: [Int]) -> Int {
-                let count = items.count > 1 ? 1 : 2
+                let count = items.count > 1 ? 1 : items.count
                 struct Box {
                     let value = 1
             #sourceLocation()
@@ -242,7 +243,7 @@ final class GeneratedEnvironmentCacheTests: GeneratedCodeTestCase {
             }
             #sourceLocation(file: "Located.swift.gyb", line: 50)
             func closedInASwitchOfItsOwn(_ items: [Int]) -> Int {
-                let count = items.count > 1 ? 1 : 2
+                let count = items.count > 1 ? 1 : items.count
                 if count > 0 {
                     let other = count < 5 ? 3 : 4
             #sourceLocation()
@@ -253,7 +254,7 @@ final class GeneratedEnvironmentCacheTests: GeneratedCodeTestCase {
             #sourceLocation(file: "Located.swift.gyb", line: 60)
             func closedInAMultiLineString(_ items: [Int]) -> String {
                 \"""
-                \\({ () -> Int in let count = items.count > 1 ? 1 : 2; return count
+                \\({ () -> Int in let count = items.count > 1 ? 1 : items.count; return count
                 #sourceLocation()
                 }())
                 \"""
@@ -269,7 +270,7 @@ final class GeneratedEnvironmentCacheTests: GeneratedCodeTestCase {
             }
             #sourceLocation(file: "Located.swift.gyb", line: 80)
             func closedAfterACaseLabelsComment(_ items: [Int]) -> Int {
-                let count = items.count > 1 ? 1 : 2
+                let count = items.count > 1 ? 1 : items.count
                 switch count {
                 case 1: // nothing to do
             #sourceLocation()
@@ -286,7 +287,7 @@ final class GeneratedEnvironmentCacheTests: GeneratedCodeTestCase {
             func joined(@Joined _ make: () -> String) -> String { make() }
             #sourceLocation(file: "Located.swift.gyb", line: 90)
             func closedInABuilder(_ items: [Int]) -> String {
-                let count = items.count > 1 ? 1 : 2
+                let count = items.count > 1 ? 1 : items.count
                 return joined {
                     switch count {
                     case 1:
@@ -298,13 +299,13 @@ final class GeneratedEnvironmentCacheTests: GeneratedCodeTestCase {
             }
             #sourceLocation(file: "Located.swift.gyb", line: 100)
             func closedBeforeABlockComment(_ items: [Int]) -> Int {
-                let count = items.count > 1 ? 1 : 2
+                let count = items.count > 1 ? 1 : items.count
             #sourceLocation() /* a note that runs
             onto the next line */ let other = count < 3
                 return other ? count : 0
             }
             func pairedInATypesIf(_ items: [Int]) -> Int {
-                let count = items.count > 1 ? 1 : 2
+                let count = items.count > 1 ? 1 : items.count
             #sourceLocation(file: "Located.swift.gyb", line: 110)
                 struct Box {
                     #if true
@@ -341,9 +342,11 @@ final class GeneratedEnvironmentCacheTests: GeneratedCodeTestCase {
             plain: ["main.swift": driver(#"print(check(5) ? "original" : "mutant")"#)],
             arguments: arguments
         )
-        // Its RelationalOperatorReplacement mutant, as `value >= 1` gives what `value > 1` does for 5: `identifier`
-        // fails unless exactly one is picked.
-        return try (compiled.program, compiled.identifier(in: "Check.swift") { $0.mutationOperatorId == .ror })
+        // Its RelationalOperatorReplacement mutant `false`, as `value >= 1` and `value != 1` give what `value > 1`
+        // does for 5: `identifier` fails unless exactly one is picked.
+        return try (compiled.program, compiled.identifier(in: "Check.swift") {
+            $0.mutationOperatorId == .ror && $0.snapshot.after == "false"
+        })
     }
 
     /// Skips a test that compiles with `-default-isolation`, which compilers before Swift 6.2 don't take. Any

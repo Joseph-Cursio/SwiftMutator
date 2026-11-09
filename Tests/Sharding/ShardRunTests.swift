@@ -8,8 +8,9 @@ import XCTest
 final class ShardRunTests: MuterTestCase {
     private let state = MutationTestState()
 
-    // Line 2 `<`, with two mutants, and its condition, negated, lines 8 and 9 statements RemoveSideEffects removes,
-    // line 13 `==`: six mutants.
+    // Line 2 `<`, with three mutants, RelationalOperatorReplacement's two and RelationalBoundary's, line 3's `-` and
+    // `false`, line 4's `true`, lines 8 and 9 statements RemoveSideEffects removes and line 9's `+`, and line 13
+    // `==`, with two: eleven mutants.
     private let source = """
     func check(index: Int, items: [Int]) -> Bool {
         guard index <
@@ -30,8 +31,8 @@ final class ShardRunTests: MuterTestCase {
 
     override func setUp() {
         super.setUp()
-        // But ReplaceBooleanValue, so that `return a == 3` is the only mutant of its function, as these tests need: how
-        // a shard takes its mutants doesn't depend on which operator made them.
+        // But ReplaceBooleanValue, so that the counts these tests give stay the other operators': how a shard takes its
+        // mutants doesn't depend on which operator made them.
         state.mutationOperatorList = MutationOperatorList.allOperators.filter { $0 != .replaceBooleanValue }
         prepareCode.sourceCodeToReturn = {
             muterCore.sourceCode(fromFileAt: $0).map { (source: $0, changes: .null) }
@@ -67,7 +68,7 @@ final class ShardRunTests: MuterTestCase {
             return XCTFail("Expected the shard first, got \(changes)")
         }
         XCTAssertEqual(selection.shard, shard)
-        XCTAssertEqual(selection.mutantsInAllShards, 10)
+        XCTAssertEqual(selection.mutantsInAllShards, 11)
         state.apply(changes)
         XCTAssertEqual(state.shardSelection, selection)
     }
@@ -100,8 +101,8 @@ final class ShardRunTests: MuterTestCase {
     func test_aShardWithNoMutant_stillSaysWhatWasDropped() async throws {
         try prepare(source: """
         import Foundation
-        func other(a: Int) -> Bool {
-            return a == 3
+        func other(a: Bool) -> Int {
+            return a ? 1 : 2
         }
         guard let name = Int.max > 1 ? "name" : nil else { exit(1) }
         """)
@@ -120,11 +121,11 @@ final class ShardRunTests: MuterTestCase {
             XCTAssertTrue(error is EmptyShard, "\(error)")
         }
 
-        XCTAssertEqual(dropped.map(\.position.line), [5, 5, 5])
+        XCTAssertEqual(dropped.map(\.position.line), [5, 5, 5, 5])
     }
 
     func test_aShardWithNoMutant_leavesNothingToMutate() async throws {
-        try prepare(source: "func other(a: Int) -> Bool {\n    return a == 3\n}\n")
+        try prepare(source: "func other(a: Bool) -> Int {\n    return a ? 1 : 2\n}\n")
         let discovered = try await keys(discovering: nil)
         let only = try XCTUnwrap(discovered.first)
         let empty = Shard(index: Shard.index(ofPlace: only, among: 2) == 1 ? 2 : 1, count: 2)

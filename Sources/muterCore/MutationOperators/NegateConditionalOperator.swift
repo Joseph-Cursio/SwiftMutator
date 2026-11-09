@@ -1,4 +1,3 @@
-import SwiftOperators
 import SwiftSyntax
 
 /// Wraps each expression condition of `if`, `guard` and `while` in `!( )`, which sends the code down the other branch,
@@ -6,11 +5,12 @@ import SwiftSyntax
 /// aren't expressions, and are left alone.
 enum NegateConditionalOperator {
     final class Visitor: MuterVisitor {
-        /// Whether to leave a condition that is one `==` or `!=` comparison alone, as RelationalOperatorReplacement's
-        /// swap of it is the same mutant: `!(a == b)` is `a != b`. Set when that operator is on, but not for
-        /// `--mutant`, which discovers every operator and must still find the mutant a run with this operator alone
-        /// reported.
-        var leavesEqualityChecksAlone = false
+        /// Whether to leave a condition that is one comparison, `==`, `!=`, `<`, `<=`, `>` or `>=`, alone, as
+        /// RelationalOperatorReplacement replaces it with a constant that gives the same wrong result wherever this
+        /// mutant does: where `a < b` is true, `false` and `!(a < b)` both are false, and only the negation is also
+        /// wrong where it is false, which almost any test sees. Set when that operator is on, but not for `--mutant`,
+        /// which discovers every operator and must still find the mutant a run with this operator alone reported.
+        var leavesComparisonsAlone = false
 
         convenience init(
             configuration: MuterConfiguration? = nil,
@@ -56,7 +56,12 @@ enum NegateConditionalOperator {
             guard !core.is(BooleanLiteralExprSyntax.self) else { return false }
             // `#_hasSymbol` can only be a condition itself, though it parses as an expression.
             guard core.as(MacroExpansionExprSyntax.self)?.macroName.text != "_hasSymbol" else { return false }
-            guard !leavesEqualityChecksAlone || !core.isEqualityCheck else { return false }
+            // RelationalOperatorReplacement leaves out all of a comparison's mutants when a directive leaves out one,
+            // and then nothing stands for the negation.
+            if leavesComparisonsAlone, let comparison = ROROperator.comparisonGivenAConstant(in: core) {
+                let places = placesOfTheMutants(ofTheComparisonWith: comparison)
+                guard places.contains(where: { isLeftOutByADirective($0, in: core.root) }) else { return false }
+            }
             // The `)` would follow `#endif` on its line, and nothing can.
             return condition.lastToken(viewMode: .sourceAccurate)?.tokenKind != .poundEndif
         }
@@ -102,18 +107,5 @@ private extension ExprSyntax {
                 return expression
             }
         }
-    }
-
-    /// Whether the last thing this works out is one `==` or `!=`, as in `a % 2 == 0`, whose negation is the swap of it.
-    /// `a == b && c` isn't, as `&&` is, and nor are `===` and `!==`, as no operator swaps them. The tree isn't folded,
-    /// so that takes the operators' precedence. An operator the standard table doesn't hold can't be told apart, and
-    /// the condition is negated: at worst a mutant is tested twice.
-    var isEqualityCheck: Bool {
-        guard let sequence = self.as(SequenceExprSyntax.self),
-              let folded = try? OperatorTable.standardOperators.foldSingle(sequence),
-              let comparison = folded.withoutWrapping.as(InfixOperatorExprSyntax.self),
-              let name = comparison.operator.as(BinaryOperatorExprSyntax.self)?.operator.text
-        else { return false }
-        return ["==", "!="].contains(name)
     }
 }

@@ -28,13 +28,19 @@ struct SourceSpan: Equatable {
         let position = mutation.point.position
         let operatorId = mutation.point.mutationOperatorId
         let before = mutation.snapshot.before
-        if let found = lines?.span(of: before, placedAt: position.line, utf8Column: position.column, by: operatorId) {
+        let after = mutation.snapshot.after
+        if let found = lines?.span(
+            of: before,
+            placedAt: position.line,
+            utf8Column: position.column,
+            by: operatorId,
+            after: after
+        ) {
             return (found, true)
         }
         if let line = lines?.span(ofLine: position.line) {
             return (line, false)
         }
-        let after = mutation.snapshot.after
         return (
             Self(placedAt: position.line, utf8Column: position.column, before: before, by: operatorId, after: after),
             false
@@ -42,7 +48,7 @@ struct SourceSpan: Equatable {
     }
 
     /// `before` from the UTF-8 `column` of `line`, in bytes, or up to it for a mutant placed where its code ends, as
-    /// `after` tells for a replaced Bool's; `before` may span lines.
+    /// `after` tells for a replaced Bool's and a comparison's constant; `before` may span lines.
     init(
         placedAt line: Int,
         utf8Column column: Int,
@@ -50,10 +56,10 @@ struct SourceSpan: Equatable {
         by operatorId: MutationOperator.Id,
         after: String = ""
     ) {
-        let parts = SourceLines.split(SourceLines.code(of: before, by: operatorId))
+        let isAConstant = MutantDiff.isAConstant(after: after, by: operatorId)
+        let parts = SourceLines.split(isAConstant ? before : SourceLines.code(of: before, by: operatorId))
         let last = parts.last ?? ""
-        let endsThere = SourceLines.isPlacedWhereItsCodeEnds(operatorId)
-            || operatorId == .replaceBooleanValue && after == "false"
+        let endsThere = SourceLines.isPlacedWhereItsCodeEnds(operatorId) || isAConstant && after == "false"
         if endsThere, parts.count == 1 {
             let start = Position(line: line, column: max(1, column - last.utf8.count))
             self.init(start: start, end: Position(line: line, column: column))
@@ -155,19 +161,21 @@ struct SourceLines {
     /// starts. Most place a mutant at its start, but before a line break that starts its line, as `&&` that starts one
     /// is placed at the end of the line above. Removing a statement and swapping a ternary place it where the code
     /// ends, but for a later link of a ternary chain, which is placed at its `?`. A replaced Bool's `true` is placed
-    /// where its value starts and its `false` where it ends, so its value is looked for before the place, then after
-    /// it: what comes just before a value, a keyword, a `=` or a brace, can't end as the value does. And `before`
-    /// gives code over several lines on one, its line breaks and indents as one space each, so any spaces in it match
-    /// any in the file. The
-    /// comparison and logical operators place a mutant before any comment beside their token, and their `before` holds
-    /// it, but the mutant changes the token alone, so that is the code found (`code(of:by:)`).
+    /// where its value starts and its `false` where it ends, and so is a comparison's constant, as `after` tells, so
+    /// its code is looked for before the place, then after it: what comes just before a value, a keyword, a `=` or a
+    /// brace, can't end as the value does. And `before` gives code over several lines on one, its line breaks and
+    /// indents as one space each, so any spaces in it match any in the file. The comparison and logical operators'
+    /// swaps are placed before any comment beside their token, and their `before` holds it, but the mutant changes
+    /// the token alone, so that is the code found (`code(of:by:)`).
     func span(
         of before: String,
         placedAt line: Int,
         utf8Column column: Int,
-        by operatorId: MutationOperator.Id
+        by operatorId: MutationOperator.Id,
+        after: String = ""
     ) -> SourceSpan? {
-        let code = Array(Self.code(of: before, by: operatorId).utf8)
+        let isAConstant = MutantDiff.isAConstant(after: after, by: operatorId)
+        let code = Array((isAConstant ? before : Self.code(of: before, by: operatorId)).utf8)
         guard !code.isEmpty, lines.indices.contains(line - 1), column >= 1 else { return nil }
         let place = lineStarts[line - 1] + min(column - 1, lines[line - 1].utf8.count)
         let found: Range<Int>?
@@ -179,7 +187,7 @@ struct SourceLines {
         } else if Self.isPlacedWhereItsCodeEnds(operatorId) {
             let end = skipping(from: place, forward: false)
             found = match(code, from: end, forward: false).map { $0..<end }
-        } else if operatorId == .replaceBooleanValue {
+        } else if isAConstant {
             let end = skipping(from: place, forward: false)
             let start = skipping(from: place, forward: true)
             found = match(code, from: end, forward: false).map { $0..<end }

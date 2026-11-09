@@ -47,10 +47,14 @@ final class DisableTagTests: MuterTestCase {
     }
 
     func test_anEnableBesideCode_leavesItOff_forEachKindOfOperator() throws {
-        let cases: [(MutationOperator.Id, String, String)] = [
-            (.ror, "return a == b // muter:enable", "6 changed == to !="),
-            (.logicalOperator, "return a && b // muter:enable", "6 changed && to ||"),
-            (.arithmeticOperator, "return a - b // muter:enable", "6 changed - to +"),
+        let cases: [(MutationOperator.Id, String, [String])] = [
+            (
+                .ror,
+                "return a == b // muter:enable",
+                ["6 replaced the comparison with false", "6 replaced the comparison with true"]
+            ),
+            (.logicalOperator, "return a && b // muter:enable", ["6 changed && to ||"]),
+            (.arithmeticOperator, "return a - b // muter:enable", ["6 changed - to +"]),
         ]
         for (id, line, expected) in cases {
             let symbol = line.split(separator: " ")[2]
@@ -63,7 +67,7 @@ final class DisableTagTests: MuterTestCase {
                 return a \(symbol) b
             }
             """
-            XCTAssertEqual(try changes(in: code, by: id), [expected], line)
+            XCTAssertEqual(try changes(in: code, by: id), expected, line)
         }
     }
 
