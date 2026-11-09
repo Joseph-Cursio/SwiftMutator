@@ -90,6 +90,7 @@ final class SwiftPackageBuildConditionsTests: MuterTestCase {
 
         let conditions = try await conditions(arguments: [
             "test", "-Xswiftc", "-DGLUED", "-Xswiftc", "-D", "-Xswiftc", "SPLIT", "-Xcc", "-DFOR_C",
+            "-Xswiftc", "-Xcc", "-Xswiftc", "-DPASSED_TO_C",
         ])
 
         XCTAssertEqual(conditions.everyTarget.customConditions, [["DEBUG", "SWIFT_PACKAGE", "GLUED", "SPLIT"]])
