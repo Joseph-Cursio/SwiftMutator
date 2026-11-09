@@ -43,7 +43,9 @@ applies the changes the step returns. The steps are in
 7. `PreviousRunCleanUp`: removes the last run's copy, clones and leftovers.
 8. `CopyProjectToTempDirectory`: copies the project.
 9. `FingerprintProjectTree`: records the SHA-256 of each of the project's files, so a later
-   resume or reuse can tell what changed.
+   resume or reuse can tell what changed, and says what the build uses from outside the project,
+   which gets no mutants, and what in it an absolute path makes the copy build unmutated
+   (`OutsideProjectCode`).
 10. `ListChangedSources`: with `--since`, lists the changed files before the coverage run.
 11. `DiscoverProjectCoverage`: runs the tests once with coverage, to find code no test reaches
     ([`DiscoverProjectCoverage/`](../Sources/muterCore/MutationSteps/DiscoverProjectCoverage),

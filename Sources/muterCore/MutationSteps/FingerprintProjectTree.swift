@@ -24,7 +24,8 @@ import Foundation
 /// It also says what the build uses from outside the project, which gets no mutants (`OutsideProjectCode`). Every run
 /// fingerprints once, so the notice comes once, from the listing the fingerprint made. The local packages among it are
 /// fingerprinted, but the projects a workspace references outside the project aren't: adding their files would make
-/// every earlier results file of such a project read as changed, and refuse its `--resume`.
+/// every earlier results file of such a project read as changed, and refuse its `--resume`. It warns, also once, of
+/// code inside the project that a workspace or manifest names by an absolute path, which the copy builds unmutated.
 struct FingerprintProjectTree: MutationStep {
     @Dependency(\.events)
     private var events: RunEvents
@@ -59,6 +60,13 @@ struct FingerprintProjectTree: MutationStep {
         )
         if !outside.isEmpty {
             events.send(.codeOutsideTheProjectBuilt(outside))
+        }
+        let namedByAbsolutePath = OutsideProjectCode.namedByAbsolutePath(
+            in: state.projectDirectoryURL,
+            listed: fingerprinting.paths
+        )
+        if !namedByAbsolutePath.isEmpty {
+            events.send(.projectCodeNamedByAbsolutePath(namedByAbsolutePath))
         }
         let tree = copyListing.map { listing in
             ProjectTree(

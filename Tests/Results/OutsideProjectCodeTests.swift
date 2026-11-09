@@ -150,6 +150,51 @@ final class OutsideProjectCodeTests: XCTestCase {
         XCTAssertEqual(paths, ["../Core", "../Other/Other.xcodeproj", "../Shared"])
     }
 
+    // An absolute path names the same folder from the copy, so code in the project that a workspace or a manifest
+    // names by one is built from the project. A relative path into the project, a `group:` location in a group whose
+    // own is relative, the project's folder itself, a folder that holds it and code outside it don't count, and nor
+    // does a workspace reference that isn't built. Each is listed once, by its path from the project.
+    func test_namedByAbsolutePath_listsCodeInTheProjectThatAnAbsolutePathNames() throws {
+        try write([
+            "App.xcworkspace/contents.xcworkspacedata": """
+            <Workspace version = "1.0">
+               <FileRef location = "absolute:\(project)/App.xcodeproj"></FileRef>
+               <FileRef location = "group:Relative/Relative.xcodeproj"></FileRef>
+               <FileRef location = "absolute:\(project)/Notes.md"></FileRef>
+               <FileRef location = "absolute:\(project)"></FileRef>
+               <FileRef location = "absolute:\(root)/Other/Other.xcodeproj"></FileRef>
+               <Group location = "absolute:\(project)/Packages" name = "Packages">
+                  <FileRef location = "group:Core"></FileRef>
+               </Group>
+               <Group location = "group:Packages" name = "Relative packages">
+                  <FileRef location = "group:Kit"></FileRef>
+               </Group>
+            </Workspace>
+            """,
+            "Package.swift": """
+            let package = Package(dependencies: [
+                .package(path: "\(project)/Packages/Core"),
+                .package(path: "\(project)/Packages/Util"),
+                .package(path: "Packages/Kit"),
+                .package(path: "\(root)"),
+            ])
+            """,
+            "App.xcodeproj/project.pbxproj": "",
+            "Relative/Relative.xcodeproj/project.pbxproj": "",
+            "Notes.md": "",
+            "Packages/Core/Package.swift": "",
+            "Packages/Kit/Package.swift": "",
+        ], in: project)
+        try write(["Other/Other.xcodeproj/project.pbxproj": ""], in: root)
+
+        let paths = OutsideProjectCode.namedByAbsolutePath(
+            in: URL(fileURLWithPath: project),
+            listed: ["App.xcworkspace/contents.xcworkspacedata", "Package.swift", "App.xcodeproj/project.pbxproj"]
+        )
+
+        XCTAssertEqual(paths, ["App.xcodeproj", "Packages/Core", "Packages/Util"])
+    }
+
     func test_isWorkspace() {
         XCTAssertTrue(OutsideProjectCode.isWorkspace("App.xcworkspace/contents.xcworkspacedata"))
         XCTAssertTrue(OutsideProjectCode.isWorkspace("Example/Example.xcworkspace/contents.xcworkspacedata"))

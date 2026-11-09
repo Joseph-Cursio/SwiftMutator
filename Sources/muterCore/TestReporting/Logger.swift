@@ -176,9 +176,25 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         ]
             + shown + more
             + [
-                "Mutants are made only in the folder SwiftMutator runs in. To mutate that code too, run it from a "
-                    + "folder that holds both, such as your repository's root, with \("arguments".bold) naming the "
-                    + "project there, or move the code into the project.",
+                "Mutants are made only in the folder SwiftMutator runs in. To mutate that code too, run SwiftMutator "
+                    + "from a folder that holds both, such as your repository's root, with \("arguments".bold) naming "
+                    + "the project there, or move the code into the project.",
+            ]
+        print(lines.joined(separator: "\n"))
+    }
+
+    /// "⚠️ Your project names code in its own folder by an absolute path…", then up to 5 of `paths`, then how to make
+    /// the copy build its own. A warning: the run goes ahead, but every mutant in that code survives.
+    func projectCodeNamedByAbsolutePath(_ paths: [String]) {
+        let shown = paths.prefix(5).map { "  \($0)" }
+        let more = paths.count > shown.count ? ["  … and \(paths.count - shown.count) more"] : []
+        let lines = [
+            "⚠️ Your project names code in its own folder by an absolute path, which SwiftMutator's copy names too, so "
+                + "the copy builds that code from your project, unmutated, and every mutant in it survives:",
+        ]
+            + shown + more
+            + [
+                "Name it by a relative path in your workspace or manifest instead, so that the copy builds its own.",
             ]
         print(lines.joined(separator: "\n"))
     }

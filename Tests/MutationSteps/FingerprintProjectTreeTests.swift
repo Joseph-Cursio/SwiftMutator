@@ -109,16 +109,14 @@ final class FingerprintProjectTreeTests: MuterTestCase {
         let root = (self.project as NSString).deletingLastPathComponent
         try write(["Core/Package.swift": "core", "Other/Other.xcodeproj/project.pbxproj": "other"], in: root)
         let listed = recordListings(Array(project.keys))
-        let said = Locked<[[String]]>([])
-        let subscription = runEvents.observe(.codeOutsideTheProjectBuilt) { event in
-            said.change { $0.append(event.object as? [String] ?? []) }
-        }
-        addTeardownBlock { subscription.cancel() }
+        let said = recordPaths(of: .codeOutsideTheProjectBuilt)
+        let warned = recordPaths(of: .projectCodeNamedByAbsolutePath)
 
         let changes = try await sut.run(with: state)
         state.apply(changes)
 
         XCTAssertEqual(said.value, [["../Core", "../Other/Other.xcodeproj"]])
+        XCTAssertEqual(warned.value, [])
         XCTAssertEqual(listed.value.map(\.lastPathComponent), ["project", "Core"], "the project is listed once")
         XCTAssertEqual(
             state.projectTree?.files.keys.sorted(),
@@ -126,16 +124,72 @@ final class FingerprintProjectTreeTests: MuterTestCase {
         )
     }
 
-    // A project that builds nothing from outside its folder says nothing about it.
-    func test_noCodeOutsideTheProject_saysNothing() async throws {
-        try write(["Package.swift": "let package = Package()"], in: copy)
-        _ = recordListings(["Package.swift"])
-        let said = expectation(forEvent: .codeOutsideTheProjectBuilt)
-        said.isInverted = true
+    // A run of a test plan lists its copy by the files the plan recorded, so the workspaces and manifests among them
+    // are what the step reads, in the project.
+    func test_inATestPlansRun_codeOutsideTheProject_isFoundFromThePlansFiles() async throws {
+        let files = [
+            "Package.swift": #"let package = Package(dependencies: [.package(path: "../Core")])"#,
+            "App.xcworkspace/contents.xcworkspacedata":
+                #"<Workspace version = "1.0"><FileRef location = "group:../Other/Other.xcodeproj"/></Workspace>"#,
+        ]
+        try write(files, in: project)
+        try write(files, in: copy)
+        let root = (project as NSString).deletingLastPathComponent
+        try write(["Core/Package.swift": "core", "Other/Other.xcodeproj/project.pbxproj": "other"], in: root)
+        let listed = recordListings([])
+        try testPlan(at: "\(project)/muter-mappings.json", mutatedFiles: nil, sources: projectTree(of: files))
+        let said = recordPaths(of: .codeOutsideTheProjectBuilt)
 
         _ = try await sut.run(with: state)
 
-        await fulfillment(of: [said], timeout: 0)
+        XCTAssertEqual(said.value, [["../Core", "../Other/Other.xcodeproj"]])
+        XCTAssertEqual(listed.value.map(\.lastPathComponent), ["Core"], "the project was listed")
+    }
+
+    // A workspace that names the project's own Xcode project by an absolute path makes the copy build the project's,
+    // unmutated, so the step warns of it once. It isn't outside the project, so the notice says nothing.
+    func test_codeInTheProjectNamedByAnAbsolutePath_isWarnedOfOnce() async throws {
+        let files = [
+            "App.xcworkspace/contents.xcworkspacedata":
+                #"<Workspace version = "1.0"><FileRef location = "absolute:\#(project)/App.xcodeproj"/></Workspace>"#,
+            "App.xcodeproj/project.pbxproj": "app",
+        ]
+        try write(files, in: project)
+        try write(files, in: copy)
+        _ = recordListings(Array(files.keys))
+        let said = recordPaths(of: .codeOutsideTheProjectBuilt)
+        let warned = recordPaths(of: .projectCodeNamedByAbsolutePath)
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(warned.value, [["App.xcodeproj"]])
+        XCTAssertEqual(said.value, [])
+    }
+
+    // A project whose workspaces and manifests name only code in it, by relative paths, says nothing about either.
+    func test_noCodeOutsideTheProject_saysNothing() async throws {
+        let files = [
+            "Package.swift": #"let package = Package(dependencies: [.package(path: "Packages/Core")])"#,
+            "App.xcworkspace/contents.xcworkspacedata": """
+            <Workspace version = "1.0">
+               <FileRef location = "self:"/>
+               <FileRef location = "group:App.xcodeproj"/>
+               <FileRef location = "container:Packages/Core"/>
+            </Workspace>
+            """,
+            "App.xcodeproj/project.pbxproj": "app",
+            "Packages/Core/Package.swift": "core",
+        ]
+        try write(files, in: project)
+        try write(files, in: copy)
+        _ = recordListings(Array(files.keys))
+        let said = recordPaths(of: .codeOutsideTheProjectBuilt)
+        let warned = recordPaths(of: .projectCodeNamedByAbsolutePath)
+
+        _ = try await sut.run(with: state)
+
+        XCTAssertEqual(said.value, [])
+        XCTAssertEqual(warned.value, [])
     }
 
     // LoadResumeState found the project as the last session left it, and the copy holds the same files.
@@ -537,6 +591,16 @@ private extension FingerprintProjectTreeTests {
             linkedFiles: nil,
             mutatedPaths: []
         )
+    }
+
+    /// The paths of each event named `name` sent from now on, until the test ends.
+    func recordPaths(of name: RunEvent.Name) -> Locked<[[String]]> {
+        let said = Locked<[[String]]>([])
+        let subscription = runEvents.observe(name) { event in
+            said.change { $0.append(event.object as? [String] ?? []) }
+        }
+        addTeardownBlock { subscription.cancel() }
+        return said
     }
 
     /// The paths of each `testPlanCopyEdited` sent from now on, until the test ends.

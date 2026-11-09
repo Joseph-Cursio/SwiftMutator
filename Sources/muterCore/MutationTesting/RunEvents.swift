@@ -26,6 +26,10 @@ enum RunEvent {
     /// unmutated, by their paths relative to the project, which start with `../` (`OutsideProjectCode`). Sent once,
     /// when the project's files are fingerprinted.
     case codeOutsideTheProjectBuilt([String])
+    /// The Xcode projects and packages inside the project that a workspace or manifest of it names by an absolute path,
+    /// which the copy names too, so it builds them from the project, unmutated, by their paths relative to the project
+    /// (`OutsideProjectCode.namedByAbsolutePath`). Sent once, when the project's files are fingerprinted.
+    case projectCodeNamedByAbsolutePath([String])
 
     case projectCoverageDiscoveryStarted
     /// Why coverage couldn't be gathered, or nil when it was.

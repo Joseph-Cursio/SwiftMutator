@@ -453,17 +453,17 @@ full path on the Mac that ran `init`. Commit the file rather than running `init`
   style, can fail it on a mutant's code. Turn it off for the test command, such as with a scheme of
   its own.
 - **Code outside the project.** SwiftMutator copies only the project's folder and makes mutants
-  only there. A local package that a `Package.swift` names with `.package(path: "../Shared")`, or an
-  Xcode project with a local package reference, and an Xcode project or package that a workspace of
-  yours references outside the folder, such as `../Other/Other.xcodeproj`, are built from where they
-  are, unmutated. `run`, `mutate-without-running` and `run-without-mutating` each say so once,
-  before anything is built:
+  only there. A local package that a `Package.swift` names with `.package(path: "../Shared")` or
+  that an Xcode project references as a local package, and an Xcode project or package that a
+  workspace of yours references outside the folder, such as `../Other/Other.xcodeproj`, are built
+  from where they are, unmutated. `run`, `mutate-without-running` and `run-without-mutating` each
+  say so once, before anything is built:
 
   ```text
   ℹ️ Your project's build uses code outside its folder, which SwiftMutator doesn't copy, so it is built from where it is and gets no mutants:
     ../Other/Other.xcodeproj
     ../Shared
-  Mutants are made only in the folder SwiftMutator runs in. To mutate that code too, run it from a folder that holds both, such as your repository's root, with arguments naming the project there, or move the code into the project.
+  Mutants are made only in the folder SwiftMutator runs in. To mutate that code too, run SwiftMutator from a folder that holds both, such as your repository's root, with arguments naming the project there, or move the code into the project.
   ```
 
   To mutate that code too, run SwiftMutator from a folder that holds both, with `muter.conf.yml`
@@ -471,6 +471,12 @@ full path on the Mac that ran `init`. Commit the file rather than running `init`
   `-workspace App/App.xcworkspace` for xcodebuild. The copy is then of that whole folder. Only
   literal paths are followed, a workspace git ignores isn't read, and the projects a workspace
   references aren't read in turn.
+
+  An absolute path names the same folder from the copy, so code in the project that a workspace or
+  manifest names by one, such as a workspace reference to your own `.xcodeproj` with the location
+  "Absolute Path", is built from your project too, and every mutant in it survives. The run warns of
+  it once, with `⚠️ Your project names code in its own folder by an absolute path`. Name it by a
+  relative path instead.
 - **UI tests.** Every mutant runs the whole test command, so slow tests make a slow run. Start with
   the unit tests: a scheme or test plan without UI tests, `-skip-testing:` in xcodebuild's
   `arguments`, or `--skip` in `swift test`'s.

@@ -102,6 +102,8 @@ extension MutationTestObserver {
             logger.projectCopyFinished(destinationPath: destinationPath)
         case let .codeOutsideTheProjectBuilt(paths):
             logger.codeOutsideTheProjectBuilt(paths)
+        case let .projectCodeNamedByAbsolutePath(paths):
+            logger.projectCodeNamedByAbsolutePath(paths)
 
         case .projectCoverageDiscoveryStarted:
             logger.projectCoverageDiscoveryStarted()
