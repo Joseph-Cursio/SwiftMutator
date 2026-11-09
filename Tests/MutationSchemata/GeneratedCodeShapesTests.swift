@@ -578,8 +578,8 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         XCTAssertEqual(changes("let isLoaded"), ["< → !=", "try load(items.count) < 3 → false"], "a try alone")
         XCTAssertEqual(
             changes("let both"),
-            ["> → !=", "load(items.count) > 0 → false", "load(1) <= 1 → true", "<= → =="],
-            "a try over more than the comparison"
+            ["> → !=", "load(1) <= 1 → true", "<= → =="],
+            "a try over more than the comparison: no constant for the comparison it's written in front of"
         )
         XCTAssertEqual(changes("let isFetched").count, 2, "an await")
         XCTAssertEqual(changes("let paired"), ["== → !="], "a sequence the standard table can't fold")

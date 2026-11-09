@@ -208,12 +208,14 @@ private struct Comparison {
         else { return nil }
         var replaced = ExprSyntax(comparison)
         // A `try` before the sequence is hoisted over what follows it: over `a < b` alone, it goes with it, as `try
-        // false` warns that nothing throws; over `a < b && c`, it stays, as `c` may throw. A `try?` stays, as what it
-        // gives is an optional.
+        // false` warns that nothing throws. A `try?` stays, as what it gives is an optional.
         while let parent = replaced.parent?.as(ExprSyntax.self), parent.isAnEffectMarker,
               parent.as(TryExprSyntax.self)?.questionOrExclamationMark?.text != "?" {
             replaced = parent
         }
+        // Hoisted over more, as in `try load() < 1 && check()` or `try load() > 1 ? a : b`, it would be left over what
+        // may not throw, which warns, and fails a build with warnings as errors: so the comparison gets no constant.
+        guard !Self.isWrittenAfterAHoistedMarker(replaced, in: folded) else { return nil }
         guard let firstToken = replaced.firstToken(viewMode: .sourceAccurate),
               let lastToken = replaced.lastToken(viewMode: .sourceAccurate),
               let first = Self.token(at: firstToken.positionAfterSkippingLeadingTrivia, from: folded, in: sequence),
@@ -235,6 +237,21 @@ private struct Comparison {
         in other: some SyntaxProtocol
     ) -> TokenSyntax? {
         other.token(at: other.position.advanced(by: tree.position.distance(to: position)))
+    }
+
+    /// Whether a `try`, `await` or `unsafe` written right in front of `replaced` covers more than it once `folded`: one
+    /// whose expression starts where `replaced` does. A `try?` counts too, as its optional stays.
+    private static func isWrittenAfterAHoistedMarker(_ replaced: ExprSyntax, in folded: ExprSyntax) -> Bool {
+        let start = replaced.positionAfterSkippingLeadingTrivia
+        var node = Syntax(replaced)
+        while node.id != folded.id, let parent = node.parent {
+            if let marked = parent.as(ExprSyntax.self)?.markedExpression,
+               marked.positionAfterSkippingLeadingTrivia == start {
+                return true
+            }
+            node = parent
+        }
+        return false
     }
 
     /// What it replaces, on one line.
@@ -354,6 +371,12 @@ private extension ExprSyntax {
     /// Whether this is a `try`, `await` or `unsafe`, which folding hoists over the operators after it.
     var isAnEffectMarker: Bool {
         `is`(TryExprSyntax.self) || `is`(AwaitExprSyntax.self) || `is`(UnsafeExprSyntax.self)
+    }
+
+    /// The expression this `try`, `await` or `unsafe` covers, or nil when it is none of them.
+    var markedExpression: ExprSyntax? {
+        `as`(TryExprSyntax.self)?.expression ?? `as`(AwaitExprSyntax.self)?.expression
+            ?? `as`(UnsafeExprSyntax.self)?.expression
     }
 }
 

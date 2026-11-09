@@ -241,8 +241,8 @@ final class ROROperatorTests: MuterTestCase {
         )
     }
 
-    // A `try` or `await` over the comparison alone goes with it, as `try false` warns that nothing throws. Over more,
-    // it stays, as what follows may throw.
+    // A `try` or `await` over the comparison alone goes with it, as `try false` warns that nothing throws. Hoisted over
+    // more, it would be left over what may not throw either, so the comparison gets no constant.
     func test_aTryOrAwait_goesWithTheComparison_onlyWhenItCoversItAlone() throws {
         XCTAssertEqual(try mutants(of: "func f() throws { let v = try load() < b }"), [
             "let v = try load() != b", "let v = false",
@@ -251,7 +251,17 @@ final class ROROperatorTests: MuterTestCase {
             "let v = true", "let v = false",
         ])
         XCTAssertEqual(try mutants(of: "func f() throws { let v = try load() < b && check() }"), [
-            "let v = try load() != b && check()", "let v = try false && check()",
+            "let v = try load() != b && check()",
+        ])
+        XCTAssertEqual(try mutants(of: "func f() throws -> Int { try load() > 1 ? 10 : 20 }"), [
+            "try load() != 1 ? 10 : 20",
+        ])
+        XCTAssertEqual(try mutants(of: "func f() async -> Int { await load() == 1 ? 10 : 20 }"), [
+            "await load() != 1 ? 10 : 20",
+        ])
+        // Written after the first operand, it covers that operand alone.
+        XCTAssertEqual(try mutants(of: "func f() throws { let v = a < b && (try check()) }"), [
+            "let v = a != b && (try check())", "let v = false && (try check())",
         ])
         XCTAssertEqual(try changes(in: "func f() throws { let v = try load() < b }"), [
             "< → !=", "try load() < b → false",
@@ -263,12 +273,12 @@ final class ROROperatorTests: MuterTestCase {
         XCTAssertEqual(try mutants(of: "func f() throws { let v = (try load()) == b }"), [
             "let v = true", "let v = false",
         ])
-        // A `try?` stays, as what it gives is an optional.
+        // A `try?` can't go, as what it gives is an optional, and can't stay over a constant, which doesn't throw.
         XCTAssertEqual(try mutants(of: "func f() { let v = try? load() < b }"), [
-            "let v = try? load() != b", "let v = try? false",
+            "let v = try? load() != b",
         ])
         XCTAssertEqual(try mutants(of: "func f() { if let v = try? load() == b { use(v) } }"), [
-            "if let v = try? true { use(v) }", "if let v = try? false { use(v) }",
+            "if let v = try? load() != b { use(v) }",
         ])
     }
 
