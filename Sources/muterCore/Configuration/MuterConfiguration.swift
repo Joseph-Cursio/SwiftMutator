@@ -226,13 +226,14 @@ struct MuterConfiguration: Equatable, Codable {
         testCommandExecutable = try container.decode(String.self, forKey: .testCommandExecutable)
         testCommandArguments = try container.decode([String].self, forKey: .testCommandArguments)
 
-        excludeFileList = container.decode([String].self, default: [], forKey: .excludeFileList)
-        excludeCallList = container.decode([String].self, default: [], forKey: .excludeCallList)
-        coverageThreshold = container.decode(Double.self, default: 0, forKey: .coverageThreshold)
-        testSuiteTimeout = try Self.seconds(forKey: .testSuiteTimeout, in: container)
-        buildTimeout = try Self.seconds(forKey: .buildTimeout, in: container)
-        explicitBuildSystem = (try container.decodeIfPresent(String.self, forKey: .explicitBuildSystem))
-            .map(BuildSystem.init(rawValue:))
+        // Each throws on a value of another type, so `exclude: Sources/Generated`, one string, is a configuration error
+        // rather than nothing excluded. A blank key is an empty list, or 0.
+        excludeFileList = try Self.list(forKey: .excludeFileList, of: "paths or globs", in: container)
+        excludeCallList = try Self.list(forKey: .excludeCallList, of: "function names", in: container)
+        coverageThreshold = try Self.number(forKey: .coverageThreshold, in: container) ?? 0
+        testSuiteTimeout = try Self.number(forKey: .testSuiteTimeout, in: container)
+        buildTimeout = try Self.number(forKey: .buildTimeout, in: container)
+        explicitBuildSystem = try Self.buildSystem(forKey: .explicitBuildSystem, in: container)
         mutationTestWorkers = try container.decodeIfPresent(Int.self, forKey: .mutationTestWorkers)
         workersShareBuild = try container.decodeIfPresent(Bool.self, forKey: .workersShareBuild)
         // Throws on a value that isn't a Boolean, so a typo is a configuration error rather than "unset".
@@ -338,7 +339,7 @@ struct MuterConfiguration: Equatable, Codable {
         let number: Double?
         if let written = try? container.decodeIfPresent(String.self, forKey: key) {
             (text, number) = (written, nil)
-        } else if let value = try seconds(forKey: key, in: container) {
+        } else if let value = try Self.number(forKey: key, in: container) {
             (text, number) = (ScoreGate.shown(value), value)
         } else {
             return nil
@@ -462,13 +463,73 @@ struct MuterConfiguration: Equatable, Codable {
         )
     }
 
-    /// A number of seconds, written as an Int or a Double, or nil if `key` isn't set.
-    private static func seconds(
+    /// A number, written as an Int or a Double, or nil if `key` isn't set. Throws on a value that isn't one, so a typo
+    /// is a configuration error rather than "unset". Its range is checked once the run's flags are in
+    /// (`LoadConfiguration`), not here: a results file's header holds the configuration it loaded, which a resume must
+    /// still read.
+    private static func number(
         forKey key: CodingKeys,
         in container: KeyedDecodingContainer<CodingKeys>
     ) throws -> Double? {
-        try container.decodeIfPresent(Double.self, forKey: key)
-            ?? (try container.decodeIfPresent(Int.self, forKey: key)).flatMap(Double.init)
+        do {
+            return try container.decodeIfPresent(Double.self, forKey: key)
+                ?? (try container.decodeIfPresent(Int.self, forKey: key)).flatMap(Double.init)
+        } catch DecodingError.typeMismatch {
+            throw DecodingError.dataCorruptedError(
+                forKey: key,
+                in: container,
+                debugDescription: "\(key.stringValue) must be a number\(Self.writtenValue(forKey: key, in: container))"
+            )
+        }
+    }
+
+    /// The list of strings `key` holds, empty if it isn't set or is blank. Throws on a value that isn't a list, such as
+    /// one string, naming `entries`, what the list holds.
+    private static func list(
+        forKey key: CodingKeys,
+        of entries: String,
+        in container: KeyedDecodingContainer<CodingKeys>
+    ) throws -> [String] {
+        do {
+            return try container.decodeIfPresent([String].self, forKey: key) ?? []
+        } catch DecodingError.typeMismatch {
+            throw DecodingError.dataCorruptedError(
+                forKey: key,
+                in: container,
+                debugDescription: "\(key.stringValue) must be a list of \(entries), one to a line after `- `, "
+                    + "or in brackets, as [a, b]\(Self.writtenValue(forKey: key, in: container))"
+            )
+        }
+    }
+
+    /// `buildSystem:`'s, or nil if it isn't set, or is `unknown` (`BuildSystem.recordedUnknown`). Throws on any value
+    /// but `swift` and `xcodebuild`, which an earlier version took as `unknown`, then ignored.
+    private static func buildSystem(
+        forKey key: CodingKeys,
+        in container: KeyedDecodingContainer<CodingKeys>
+    ) throws -> BuildSystem? {
+        guard container.contains(key), try !container.decodeNil(forKey: key) else { return nil }
+        let written = try? container.decode(String.self, forKey: key)
+        if written == BuildSystem.recordedUnknown {
+            return nil
+        }
+        guard let written, let buildSystem = BuildSystem(written: written) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: key,
+                in: container,
+                debugDescription: "\(key.stringValue) must be swift or xcodebuild"
+                    + Self.writtenValue(forKey: key, in: container)
+            )
+        }
+        return buildSystem
+    }
+
+    /// ", not <value>", the scalar `key` holds as written, or "" when it holds a list or a mapping.
+    private static func writtenValue(
+        forKey key: CodingKeys,
+        in container: KeyedDecodingContainer<CodingKeys>
+    ) -> String {
+        (try? container.decode(String.self, forKey: key)).map { ", not \($0)" } ?? ""
     }
 
     /// The most workers a SwiftPM run uses when `mutationTestWorkers` doesn't say. On SwiftProjectLint on an 18-core
