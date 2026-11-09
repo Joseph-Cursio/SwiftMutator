@@ -16,6 +16,7 @@ extension RunEvent {
         case projectCopyFinished
         case codeOutsideTheProjectBuilt
         case projectCodeNamedByAbsolutePath
+        case swiftLintPhasesTurnedOff
         case projectCoverageDiscoveryStarted
         case projectCoverageDiscoveryFinished
         case projectCoverageTestsFailed
@@ -90,6 +91,7 @@ extension RunEvent {
         case .projectCopyFinished: .projectCopyFinished
         case .codeOutsideTheProjectBuilt: .codeOutsideTheProjectBuilt
         case .projectCodeNamedByAbsolutePath: .projectCodeNamedByAbsolutePath
+        case .swiftLintPhasesTurnedOff: .swiftLintPhasesTurnedOff
         case .projectCoverageDiscoveryStarted: .projectCoverageDiscoveryStarted
         case .projectCoverageDiscoveryFinished: .projectCoverageDiscoveryFinished
         case .projectCoverageTestsFailed: .projectCoverageTestsFailed
@@ -172,6 +174,7 @@ extension RunEvent {
         case let .projectCopyFinished(destinationPath): destinationPath
         case let .codeOutsideTheProjectBuilt(paths): paths
         case let .projectCodeNamedByAbsolutePath(paths): paths
+        case let .swiftLintPhasesTurnedOff(phases): phases
         case let .projectCoverageDiscoveryFinished(failure): failure
         case let .projectCoverageTestsFailed(failed): failed
         case let .packageSourceFilesUnavailable(reason): reason

@@ -441,6 +441,27 @@ coverageThreshold: 0e+0
 `init` writes only these keys; [Configuration](#configuration) lists the others. `executable` is the
 full path on the Mac that ran `init`. Commit the file rather than running `init` on each machine.
 
+#### Plugins and macros
+
+Xcode asks you to trust each package plugin and macro before a build runs it, and until someone
+has, xcodebuild fails the build. A run with no one at the Mac, as on CI, has no one to trust them.
+`-skipPackagePluginValidation` skips that check for plugins, and `-skipMacroValidation` for macros:
+the build then runs the plugins or macros without asking, so add these arguments only for packages
+you trust. For an Xcode project, `init` adds each, after the scheme, when the project seems to use
+what it is for, and says so:
+
+- the plugin argument when a `project.pbxproj` names a plugin a target uses (a package product
+  `plugin:<name>`), or a manifest has `.plugin(`;
+- the macro argument when a `Package.resolved` names swift-syntax, which macro packages depend on,
+  or a manifest has `.macro(`.
+
+A manifest is a `Package.swift` or a version's own, such as `Package@swift-6.0.swift`. Files in
+`.build` and `SourcePackages` are left out, as they are the dependencies' own. The guess can be
+wrong either way: an argument for a check the build doesn't make changes nothing, and a
+`Package.resolved` exists only once the packages have been resolved. For a project it missed, or a
+`muter.conf.yml` written before `init` added them, add the arguments to `arguments` by hand.
+`swift test` makes neither check, so a package's configuration doesn't get them.
+
 ### Before a long run
 
 - **Warnings as errors.** A mutant can make code the compiler warns about, and with warnings as
@@ -449,9 +470,21 @@ full path on the Mac that ran `init`. Commit the file rather than running `init`
   [Mutants that don't compile](#mutants-that-dont-compile)). For xcodebuild, add
   `SWIFT_TREAT_WARNINGS_AS_ERRORS=NO` to `arguments`; for `swift test`, leave `-warnings-as-errors`
   out of them.
-- **Linters in the build.** A linter that runs as a build phase or plugin, and fails the build on
-  style, can fail it on a mutant's code. Turn it off for the test command, such as with a scheme of
-  its own.
+- **Linters in the build.** Each mutated file starts with `// swiftlint:disable all`, yet a SwiftLint
+  build phase still runs on every build of the copy, which costs time and can fail the build, as
+  `--strict` does with a rule against blanket disables. So for xcodebuild SwiftMutator turns SwiftLint
+  off in the copy's build phases, never in your project, and says which: only the command that runs
+  it, `swiftlint` by name or path, or through `xcrun`, `mint run`, `swift run`, `mise exec`, `env` and
+  the like, gets `: ` before it, the shell's command that does nothing and succeeds, so the rest of
+  the script, such as an `if which swiftlint` guard, still runs. `:` still opens the command's
+  redirections, and a `tee` after it still runs, so a report SwiftLint wrote, as with `> lint.json`,
+  is left empty: a later command that reads it can fail. A phase that names SwiftLint in no command
+  SwiftMutator could turn off, as one that runs it from a script of its own or a variable, is named
+  as one it may still run in.
+  `keepSwiftLintPhases: true` keeps them all; `run-without-mutating` tests a plan's copy as
+  `mutate-without-running` left it. SwiftLint's build tool plugins aren't turned off, nor
+  is any other linter: one that fails the build on style can fail it on a mutant's code. Turn it off
+  for the test command, such as with a scheme of its own.
 - **Code outside the project.** SwiftMutator copies only the project's folder and makes mutants
   only there. A local package that a `Package.swift` names with `.package(path: "../Shared")` or
   that an Xcode project references as a local package, and an Xcode project or package that a
@@ -1680,6 +1713,7 @@ as it is.
 | `oneWorkerSimulator` | Whether one worker tests on a simulator SwiftMutator makes: `true` whenever the destination is a simulator, `false` never. See [One worker on a simulator of its own](#one-worker-on-a-simulator-of-its-own) | Unset: when the project and its baseline show it is faster | xcodebuild, with a simulator as the first `-destination` |
 | `keepAllLogs` | Keep the log of every mutant's test run, a kill's too. See [Results file](#results-file) | `false`: a mutant killed by a failed test its results line names keeps none | All |
 | `keepLogFolders` | How many runs' log folders to keep in `<project>_muter_logs`, this run's included: a whole number, at least 2, so the run before this one is always kept. Earlier runs' folders beyond it are removed once nothing can refuse the run, before its build. See [Results file](#results-file) | Unset: none is removed | All |
+| `keepSwiftLintPhases` | Keep SwiftLint running in the build phases of the copy's Xcode projects. SwiftMutator otherwise turns off each command in them that runs it, never in your project, as each mutated file turns every rule off anyway. See [Before a long run](#before-a-long-run) | `false`: turned off in the copy | xcodebuild |
 | `failUnder` | A percent from 0 to 100, up to 6 decimals: a finished run whose headline score is below it exits with 2, once its reports are written. See [Failing on a low score](#failing-on-a-low-score) | Unset: none is checked | All |
 | `suspectTestFilePercent` | The share of the files with a killed mutant naming a test, from 1 to 100, that a test must have failed for mutants in to be suspect. See [Killing tests and suspect tests](#killing-tests-and-suspect-tests) | `15` | All |
 | `suspectTestMinimumFiles` | How many files with such a kill there must be, at least 1, before a test can be suspect, and how many of them it must have failed for mutants in | `10` | All |
@@ -2925,12 +2959,12 @@ SwiftMutator copies the project is refused after the copy, so that message doesn
 
 | Since the last session | Resuming |
 |---|---|
-| A configuration key changed (`exclude` by `--exclude` too, compared as a set), other than `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests`, `propertyTestFilter` and `reports`; `operators` and `skipOperators` are compared by the operators they choose, in the next rows | Refused: start a new run |
+| A configuration key changed (`exclude` by `--exclude` too, compared as a set), other than `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `keepSwiftLintPhases`, `failUnder`, `propertyTests`, `propertyTestFilter` and `reports`; `operators` and `skipOperators` are compared by the operators they choose, in the next rows | Refused: start a new run |
 | `mutationTestTimeout` (or `--timeout`) is at least as long as every session's `timeoutSeconds` | Goes ahead, says so, and tests the timeouts under a shorter limit again |
 | The operators chosen, by `--operators`, `--skip-operators`, `operators` or `skipOperators`, `--files-to-mutate` or `--skip-coverage` changed | Refused: start a new run |
 | `--since`'s merge base or `--changed-lines` changed, or `--since` given in one session only | Refused: start a new run. `--reuse` doesn't compare them |
 | `--shard` changed, or given in one session only | Refused: start a new run. `--reuse` doesn't compare it |
-| `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests`, `propertyTestFilter` or `reports` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
+| `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `keepSwiftLintPhases`, `failUnder`, `propertyTests`, `propertyTestFilter` or `reports` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
 | SwiftMutator, the toolchain or the SDK changed | Refused, unless `--force-resume` is given |
 | Project files changed, were added or were removed | Refused, unless a `--resume-ignoring` glob matches each one |
 | Another SwiftMutator holds the file, because its run is still going | Refused with status 6, naming the process that holds it, and its host: wait for that run to end. If an older SwiftMutator holds it, which doesn't say, it names the process and host that wrote the file's last session, which may not be the one |
@@ -3316,7 +3350,10 @@ jobs:
 - **The configuration** is the committed `muter.conf.yml`. `init` writes the test command's full
   path in `executable`, such as `/usr/bin/swift`, which has to exist on the runner too; the
   baseline file doesn't compare it. To test with another Xcode than the runner's default, set
-  `DEVELOPER_DIR`, as this repository's [ci.yml](.github/workflows/ci.yml) does.
+  `DEVELOPER_DIR`, as this repository's [ci.yml](.github/workflows/ci.yml) does. An Xcode project
+  that uses package plugins or macros needs `-skipPackagePluginValidation`, `-skipMacroValidation`
+  or both in `arguments`, as no one on the runner can trust them (see
+  [Plugins and macros](#plugins-and-macros)).
 - **The log.** Standard output isn't a terminal, so the run prints a line as each mutant finishes,
   with the counts so far and the time left, in place of the progress bar (see
   [Progress](#progress)). By default a SwiftPM project tests as many mutants at once as half the
@@ -3512,7 +3549,9 @@ and lists them.
 `swift-mutator init` writes `muter.conf.yml` in the current folder, with the executable and
 arguments for the Xcode workspace or project, or the Swift package, it finds there. It replaces a
 `muter.conf.yml` that is already there (see [Setting up](#setting-up) and
-[Configuration](#configuration)). It takes no flags.
+[Configuration](#configuration)). For an Xcode project that seems to use package plugins or macros,
+the arguments skip Xcode's check that you trust them (see [Plugins and macros](#plugins-and-macros)).
+It takes no flags.
 
 ## Development
 

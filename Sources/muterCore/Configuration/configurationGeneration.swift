@@ -9,9 +9,12 @@ extension MuterConfiguration {
         generateEmptyConfiguration,
     ]
 
-    /// The configuration the first generator that knows the project in `directoryContents` makes.
-    init(from directoryContents: [FilePath]) async {
-        let directoryContents = directoryContents.map(URL.init(fileURLWithPath:))
+    /// The configuration the first generator that knows the project in `directoryContents` makes. A relative path is
+    /// read from `directory`, or from the current folder when there is none, and keeps its relative form, so that
+    /// what `XcodebuildTrustCheck` looks for in it is looked for only below the project's folder.
+    init(from directoryContents: [FilePath], in directory: FilePath? = nil) async {
+        let base = directory.map { URL(fileURLWithPath: $0, isDirectory: true) }
+        let directoryContents = directoryContents.map { URL(fileURLWithPath: $0, relativeTo: base) }
         for generate in MuterConfiguration.generators {
             if let generatedConfiguration = await generate(directoryContents) {
                 self = generatedConfiguration
@@ -26,7 +29,11 @@ private extension MuterConfiguration {
     static func generateXcodeProjectConfiguration(from directoryContents: [URL]) async -> MuterConfiguration? {
         guard !directoryContainsXcodeWorkspace(directoryContents),
               let index = directoryContents.firstIndex(where: { $0.lastPathComponent.contains(".xcodeproj") }),
-              let arguments = await arguments(forProjectFileAt: directoryContents[index], isWorkSpace: false)
+              let arguments = await arguments(
+                  forProjectFileAt: directoryContents[index],
+                  isWorkSpace: false,
+                  in: directoryContents
+              )
         else {
             return nil
         }
@@ -40,7 +47,11 @@ private extension MuterConfiguration {
     static func generateXcodeWorkspaceConfiguration(from directoryContents: [URL]) async -> MuterConfiguration? {
         guard directoryContainsXcodeWorkspace(directoryContents),
               let index = directoryContents.firstIndex(where: { $0.lastPathComponent.contains(".xcodeproj") }),
-              let arguments = await arguments(forProjectFileAt: directoryContents[index], isWorkSpace: true)
+              let arguments = await arguments(
+                  forProjectFileAt: directoryContents[index],
+                  isWorkSpace: true,
+                  in: directoryContents
+              )
         else {
             return nil
         }
@@ -59,9 +70,12 @@ private extension MuterConfiguration {
         return indexOfUserGeneratedWorkSpace != nil
     }
 
+    /// The arguments that test the project at `url`. They skip the trust checks the project in `directoryContents`
+    /// needs, so that a run with no one at the Mac to trust its plugins and macros, as on CI, still builds.
     static func arguments(
         forProjectFileAt url: URL,
-        isWorkSpace: Bool
+        isWorkSpace: Bool,
+        in directoryContents: [URL]
     ) async -> [String]? {
         guard let projectFile = try? String(
             contentsOf: url.appendingPathComponent("project.pbxproj"),
@@ -83,7 +97,9 @@ private extension MuterConfiguration {
             ["-destination", "platform=iOS Simulator,name=\(await iosDestination())"] :
             ["-destination", await macOSDestionation(defaultArguments)]
 
-        return defaultArguments + destination + ["test"]
+        let skippedTrustChecks = XcodebuildTrustCheck.needed(by: directoryContents).map(\.skippingArgument)
+
+        return defaultArguments + skippedTrustChecks + destination + ["test"]
     }
 
     private static func executablePath(_ exec: String) async -> String {

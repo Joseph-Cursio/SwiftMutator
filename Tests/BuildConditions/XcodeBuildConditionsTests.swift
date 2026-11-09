@@ -58,6 +58,17 @@ final class XcodeBuildConditionsTests: MuterTestCase {
         XCTAssertEqual(process.commandsRun.last, [xcodebuild, "-scheme", "test", "-showBuildSettings", "-json"])
     }
 
+    // An option that takes no value, as the trust check ones init writes, leaves the action after it an action.
+    func test_anActionAfterAnOptionWithNoValue_isTakenOut() async throws {
+        settings(test: [["PLATFORM_NAME": "macosx", "ARCHS": "arm64"]], build: [])
+
+        _ = try await conditions(arguments: ["-scheme", "App", "-quiet", "-skipMacroValidation", "test"])
+
+        XCTAssertEqual(process.commandsRun.last, [
+            xcodebuild, "-scheme", "App", "-quiet", "-skipMacroValidation", "-showBuildSettings", "-json",
+        ])
+    }
+
     func test_withNoActionToTakeOut_itIsAskedOnce() async throws {
         settings(test: [], build: [["PLATFORM_NAME": "macosx", "ARCHS": "arm64"]])
 

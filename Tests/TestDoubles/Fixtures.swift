@@ -595,6 +595,7 @@ func configurationWithEveryFieldSet(
         suspectKillReruns: 25,
         keepAllLogs: true,
         keepLogFolders: 3,
+        keepSwiftLintPhases: true,
         failUnder: 80,
         propertyTests: ["*Properties*"],
         propertyTestFilter: ["Properties"],

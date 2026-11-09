@@ -199,6 +199,35 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         print(lines.joined(separator: "\n"))
     }
 
+    /// The build phases of the copy whose SwiftLint was turned off, each by its project, name and targets, and the key
+    /// that keeps it on; then those that name SwiftLint in a way that wasn't turned off, and the project files that
+    /// couldn't be read. `:` still opens a turned-off command's redirections, and a `tee` after it still runs, so a
+    /// report SwiftLint wrote, which a later command may read, is an empty file.
+    func swiftLintPhasesTurnedOff(_ phases: SwiftLintPhases) {
+        var lines: [String] = []
+        if !phases.turnedOff.isEmpty {
+            let count = phases.turnedOff.count == 1 ? "1 build phase" : "\(phases.turnedOff.count) build phases"
+            lines.append(
+                "🔇 Turned SwiftLint off in \(count) of the copy, as each mutated file turns its rules off anyway. "
+                    + "Only the command that runs it is skipped, so the rest of the script still runs, and a report it "
+                    + "writes is left empty:"
+            )
+            lines += phases.turnedOff.map { "  \($0.shown)" }
+            lines.append("\("keepSwiftLintPhases: true".bold) keeps it running there.")
+        }
+        if !phases.leftRunning.isEmpty {
+            let count = phases.leftRunning.count == 1
+                ? "1 build phase of the copy names" : "\(phases.leftRunning.count) build phases of the copy name"
+            lines.append("⚠️ \(count) SwiftLint in no command SwiftMutator could turn off, so it may still run there:")
+            lines += phases.leftRunning.map { "  \($0.shown)" }
+        }
+        lines += phases.unreadProjects.map { project in
+            "⚠️ Couldn't read or write \(project) in the copy, which names SwiftLint, so its build phases may still "
+                + "run it."
+        }
+        print(lines.joined(separator: "\n"))
+    }
+
     func projectCoverageDiscoveryStarted() {
         print("⚙️ Running tests with coverage enabled to determine which files to mutate")
     }
@@ -1251,6 +1280,24 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         if let path {
             print("💾 Configuration file created at: \(path)")
         }
+    }
+
+    /// Says which of Xcode's trust checks the configuration `init` wrote skips, as each lets a plugin or macro run that
+    /// no one approved, so that someone who doesn't trust that code takes the argument out.
+    func trustChecksSkipped(_ checks: [XcodebuildTrustCheck]) {
+        guard !checks.isEmpty else {
+            return
+        }
+
+        let subjects = checks.map(\.subject).joined(separator: " and ")
+        let arguments = checks.map { "`\($0.skippingArgument)`" }.joined(separator: " and ")
+        let argumentsNamed = checks.count == 1 ? "the argument" : "the arguments"
+        print(
+            "⚠️ The project seems to use \(subjects), so the arguments include \(arguments): xcodebuild then runs "
+                + "them without asking anyone to trust them first, which a run with no one at the Mac, as on CI, "
+                + "needs. Take \(argumentsNamed) out of \(MuterConfiguration.fileNameWithExtension) if you don't "
+                + "trust that code."
+        )
     }
 
     func muterMutationTestPlanLoaded() {

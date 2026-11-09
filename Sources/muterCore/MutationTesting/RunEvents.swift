@@ -30,6 +30,8 @@ enum RunEvent {
     /// which the copy names too, so it builds them from the project, unmutated, by their paths relative to the project
     /// (`OutsideProjectCode.namedByAbsolutePath`). Sent once, when the project's files are fingerprinted.
     case projectCodeNamedByAbsolutePath([String])
+    /// The build phases of the copy's Xcode projects whose SwiftLint was turned off, and those it may still run in.
+    case swiftLintPhasesTurnedOff(SwiftLintPhases)
 
     case projectCoverageDiscoveryStarted
     /// Why coverage couldn't be gathered, or nil when it was.

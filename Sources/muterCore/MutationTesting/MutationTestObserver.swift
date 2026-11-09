@@ -104,6 +104,8 @@ extension MutationTestObserver {
             logger.codeOutsideTheProjectBuilt(paths)
         case let .projectCodeNamedByAbsolutePath(paths):
             logger.projectCodeNamedByAbsolutePath(paths)
+        case let .swiftLintPhasesTurnedOff(phases):
+            logger.swiftLintPhasesTurnedOff(phases)
 
         case .projectCoverageDiscoveryStarted:
             logger.projectCoverageDiscoveryStarted()
