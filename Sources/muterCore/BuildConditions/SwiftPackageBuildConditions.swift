@@ -6,12 +6,21 @@ import SwiftIfConfig
 /// `-Xswiftc -D` in the command's arguments, and the language mode of all of them, if they share one. The manifest
 /// comes from `swift package dump-package`, and which files each target compiles from `swift package describe`.
 enum SwiftPackageBuildConditions {
+    /// How xcodebuild builds a package's scheme, where `configuration`'s `swift test` stands for its configuration: for
+    /// the destination's platform, with Xcode's own `Xcode` condition besides SwiftPM's, and with the compiler of the
+    /// `swift` given, unless the xcodebuild command picks another.
+    struct XcodeScheme {
+        let platform: BuildConditions.Platform?
+        let picksAnotherCompiler: Bool
+    }
+
     static func conditions(
         inProjectAt root: FilePath,
         testedBy configuration: MuterConfiguration,
         process: ProcessFactory,
         fileManager: FileSystemManager,
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        xcodeScheme: XcodeScheme? = nil
     ) async -> Result<ProjectBuildConditions, BuildConditionsUnavailable> {
         let packages: [SwiftPackageSources.Package]
         switch await SwiftPackageSources.packages(inProjectAt: root, testedBy: configuration, process: process) {
@@ -20,11 +29,15 @@ enum SwiftPackageBuildConditions {
         }
 
         let arguments = configuration.testCommandArguments
-        let platform = await platform(testedWith: arguments, process: process, fileManager: fileManager)
+        let platform = if let xcodeScheme {
+            xcodeScheme.platform
+        } else {
+            await platform(testedWith: arguments, process: process, fileManager: fileManager)
+        }
         let build = Build(
             configuration: buildConfiguration(in: arguments),
             platform: platform?.system.lowercased(),
-            flags: customConditions(inSwiftFlags: swiftcFlags(in: arguments))
+            flags: customConditions(inSwiftFlags: swiftcFlags(in: arguments)).union(xcodeScheme == nil ? [] : ["Xcode"])
         )
 
         var targets: [Set<String>] = []
@@ -71,7 +84,9 @@ enum SwiftPackageBuildConditions {
             }
         }
 
-        let compiler = await compilerVersion(testedBy: configuration, process: process, environment: environment)
+        let compiler = xcodeScheme?.picksAnotherCompiler == true
+            ? nil
+            : await compilerVersion(testedBy: configuration, process: process, environment: environment)
         let commandSetsTheMode = LanguageMode.isSet(inFlags: swiftcFlags(in: arguments))
         return .success(ProjectBuildConditions(
             everyTarget: BuildConditions(

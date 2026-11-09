@@ -262,6 +262,19 @@ final class BuildConditionsTests: XCTestCase {
         XCTAssertEqual(holds("arch(arm)", in: conditions), false)
     }
 
+    // As for a package's scheme, whose settings xcodebuild doesn't report: the platform is known, but not its
+    // architectures.
+    func test_unknownArchitectures_leaveArchPointerWidthAndByteOrderUndecided() {
+        var conditions = conditions(custom: [[]])
+        conditions.platform = .init(system: "iOS", environment: "simulator", architectures: nil)
+
+        XCTAssertEqual(holds("os(iOS) && targetEnvironment(simulator)", in: conditions), true)
+        XCTAssertNil(holds("arch(arm64)", in: conditions))
+        XCTAssertNil(holds("arch(arm)", in: conditions))
+        XCTAssertNil(holds("_pointerBitWidth(_64)", in: conditions))
+        XCTAssertNil(holds("_endian(little)", in: conditions))
+    }
+
     func test_theArchitecture_arm64eAlsoAnswersToArm64() {
         var conditions = conditions(custom: [[]])
         conditions.platform = .init(system: "iOS", architectures: ["arm64e"])
