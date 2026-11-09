@@ -288,6 +288,32 @@ final class SwiftPackageBuildConditionsTests: MuterTestCase {
         }
     }
 
+    // SwiftPM builds a plugin in its tools version's mode, whatever `swiftLanguageModes` says.
+    func test_aPlugin_buildsInItsToolsVersionsMode() async throws {
+        describingModes(toolsVersion: "5.10.0", modes: #"["5"]"#, plugin: true)
+        let allInFive = try await conditions()
+        describingModes(toolsVersion: "6.0.0", modes: #"["5"]"#, plugin: true)
+        let pluginInSix = try await conditions()
+        describingModes(toolsVersion: "5.10.0", modes: #"["5"]"#, plugin: true)
+        let withToolFlags = try await conditions(arguments: ["test", "-Xbuild-tools-swiftc", "-DTOOL"])
+
+        XCTAssertEqual(allInFive.everyTarget.language, VersionTuple(5, 10))
+        XCTAssertNil(pluginInSix.everyTarget.language)
+        XCTAssertNil(withToolFlags.everyTarget.language)
+    }
+
+    // SwiftPM takes `-Xswiftc=FLAG` as `-Xswiftc FLAG`.
+    func test_joinedXswiftcFlags_count() async throws {
+        describingModes(toolsVersion: "6.0.0")
+
+        let conditions = try await conditions(arguments: [
+            "test", "-Xswiftc=-DJOINED", "-Xswiftc=-swift-version", "-Xswiftc=5",
+        ])
+
+        XCTAssertTrue(conditions.everyTarget.customConditions.allSatisfy { $0.contains("JOINED") })
+        XCTAssertNil(conditions.everyTarget.language)
+    }
+
     func test_theLanguageVersion_isUnknown_withoutTheCompilersVersion() async throws {
         describingModes(toolsVersion: "6.0.0", printsAVersion: false)
 
@@ -305,8 +331,10 @@ final class SwiftPackageBuildConditionsTests: MuterTestCase {
         modes: String = "null",
         lib: String = "[]",
         tests: String = "[]",
+        plugin: Bool = false,
         printsAVersion: Bool = true
     ) {
+        let pluginTarget = plugin ? #", {"name": "Plug", "type": "plugin", "settings": []}"# : ""
         process.commandResult = { [self] command in
             if command == [swift, "--version"] {
                 return printsAVersion ? success("Swift version 6.2.1 (swift-6.2.1-RELEASE)\n") : nil
@@ -317,7 +345,7 @@ final class SwiftPackageBuildConditionsTests: MuterTestCase {
             return success("""
             {"toolsVersion": {"_version": "\(toolsVersion)"}, "swiftLanguageVersions": \(modes), "targets": [
                 {"name": "Lib", "settings": \(lib)},
-                {"name": "LibTests", "settings": \(tests)}
+                {"name": "LibTests", "settings": \(tests)}\(pluginTarget)
             ]}
             """)
         }

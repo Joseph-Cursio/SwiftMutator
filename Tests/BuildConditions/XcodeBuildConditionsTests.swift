@@ -384,17 +384,53 @@ final class XcodeBuildConditionsTests: MuterTestCase {
         XCTAssertNil(conditions.language)
     }
 
+    // A mention it can't read as a setting may still be one, so it reads as a mode SwiftMutator doesn't know.
     func test_theSwiftVersionsABuildFileSets() {
         XCTAssertEqual(
             XcodeBuildConditions.swiftVersions(in: """
             \t\t\t\tSWIFT_VERSION = 5.0;
             \t\t\t\tEFFECTIVE_SWIFT_VERSION = 6; MY_SWIFT_VERSION = 4; SWIFT_VERSION_X = 4;
             SWIFT_VERSION[sdk=iphoneos*] = 4.2 // for the device
+            \t\t\t\t"SWIFT_VERSION[sdk=iphonesimulator*]" = "6.0";
+            SWIFT_VERSION[config=Debug][sdk=*] = 4
             SWIFT_VERSION = $(inherited)
             // SWIFT_VERSION is set above
             """),
-            [.swift5, .swift4dot2, nil]
+            [.swift5, .swift4dot2, .swift6, .swift4, nil, nil]
         )
+    }
+
+    func test_theLanguageVersion_followsABuildConfigurationFileTheProjectNames() async throws {
+        try write(
+            "baseConfigurationReference = 1A /* Base.xcconfig */; path = Config/Base.xcconfig;",
+            to: "App.xcodeproj/project.pbxproj"
+        )
+        try write("SWIFT_VERSION = 5.0", to: "Config/Base.xcconfig")
+        settingsAndVersion(test: [withXcodesToolchain(["SWIFT_VERSION": "5.0"])])
+
+        let conditions = try await conditions(arguments: ["test"])
+
+        XCTAssertEqual(conditions.language, VersionTuple(5, 10))
+    }
+
+    // One outside the project, or `-xcconfig`'s or `XCODE_XCCONFIG_FILE`'s, may set an unreported target's mode.
+    func test_theLanguageVersion_isUnknown_whenAConfigurationFileItDidntReadMaySetIt() async throws {
+        let cases: [(pbxproj: String, arguments: [String], environment: [String: String])] = [
+            ("path = ../Shared/Base.xcconfig;", ["test"], [:]),
+            ("path = \"$(SRCROOT)/Base.xcconfig\";", ["test"], [:]),
+            ("path = Missing.xcconfig;", ["test"], [:]),
+            ("", ["-xcconfig", "/ci/Overrides.xcconfig", "test"], [:]),
+            ("", ["test"], ["XCODE_XCCONFIG_FILE": "/ci/Overrides.xcconfig"]),
+        ]
+        for (pbxproj, arguments, environment) in cases {
+            project = try makeTemporaryDirectory()
+            try write(pbxproj, to: "App.xcodeproj/project.pbxproj")
+            settingsAndVersion(test: [withXcodesToolchain(["SWIFT_VERSION": "5.0"])])
+
+            let conditions = try await conditions(arguments: arguments, environment: environment)
+
+            XCTAssertNil(conditions.language, "\(pbxproj) \(arguments) \(environment)")
+        }
     }
 
     // MARK: Helpers
@@ -440,12 +476,16 @@ final class XcodeBuildConditionsTests: MuterTestCase {
         )
     }
 
-    private func conditions(arguments: [String]) async throws -> BuildConditions {
+    private func conditions(
+        arguments: [String],
+        environment: [String: String] = [:]
+    ) async throws -> BuildConditions {
         let result = await XcodeBuildConditions.conditions(
             inProjectAt: project,
             testedBy: MuterConfiguration(executable: xcodebuild, arguments: arguments),
             process: current.process,
-            fileManager: FileManager.default
+            fileManager: FileManager.default,
+            environment: environment
         )
         return try result.get().everyTarget
     }

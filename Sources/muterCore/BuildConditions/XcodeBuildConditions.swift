@@ -15,7 +15,8 @@ enum XcodeBuildConditions {
         inProjectAt root: FilePath,
         testedBy configuration: MuterConfiguration,
         process: ProcessFactory,
-        fileManager: FileSystemManager
+        fileManager: FileSystemManager,
+        environment: [String: String] = ProcessInfo.processInfo.environment
     ) async -> Result<ProjectBuildConditions, BuildConditionsUnavailable> {
         let arguments = configuration.testCommandArguments
         var targets = await settings(for: arguments, configuration, process: process)
@@ -45,7 +46,13 @@ enum XcodeBuildConditions {
             customConditions: targets.map(customConditions(of:)),
             undecidedConditions: namesInBuildFiles,
             compiler: compiler,
-            language: languageVersion(of: targets, buildFiles: buildFiles, compiler: compiler)
+            language: languageVersion(
+                of: targets,
+                in: arguments,
+                buildFiles: buildFiles,
+                compiler: compiler,
+                environment: environment
+            )
         )))
     }
 
@@ -167,12 +174,19 @@ enum XcodeBuildConditions {
     /// The language version of every target the build may compile: that of the one mode the reported targets'
     /// `SWIFT_VERSION` and every `SWIFT_VERSION` a build file sets all give, as a target xcodebuild didn't report may
     /// have its own. Nil if they don't all give one, and the same; if a flag sets the mode, which SwiftMutator doesn't
-    /// follow; or if the project has a package, whose targets' modes the manifest sets.
+    /// follow; if a build configuration file it didn't read may set one, as `-xcconfig`'s or `XCODE_XCCONFIG_FILE`'s;
+    /// or if the project has a package, whose targets' modes the manifest sets.
     private static func languageVersion(
         of targets: [Settings],
+        in arguments: [String],
         buildFiles: [BuildFile],
-        compiler: VersionTuple?
+        compiler: VersionTuple?,
+        environment: [String: String]
     ) -> VersionTuple? {
+        let anotherConfigurationFileMaySetIt = arguments.contains("-xcconfig")
+            || environment["XCODE_XCCONFIG_FILE"] != nil
+            || namesAnUnreadConfigurationFile(buildFiles)
+        guard !anotherConfigurationFileMaySetIt else { return nil }
         let flags = targets.flatMap {
             ($0["OTHER_SWIFT_FLAGS"] ?? "").split(whereSeparator: \.isWhitespace).map(String.init)
         }
@@ -185,9 +199,12 @@ enum XcodeBuildConditions {
         return LanguageMode.languageVersion(of: modes, compiler: compiler)
     }
 
-    /// The mode of each `SWIFT_VERSION = …` in a project file or build configuration file, nil for a value that isn't
-    /// one, such as `$(inherited)`. `SWIFT_VERSION[sdk=iphoneos*] = 5` counts too.
+    /// The mode of each `SWIFT_VERSION = …` in a project file or build configuration file: nil for a value that isn't
+    /// one, such as `$(inherited)`, and for a mention it can't read as a setting, which may still be one. A setting
+    /// for some configurations or SDKs counts too, as `SWIFT_VERSION[config=Debug][sdk=*] = 5`, and as a project file
+    /// writes it, `"SWIFT_VERSION[sdk=iphoneos*]" = 5.0;`.
     static func swiftVersions(in text: String) -> [LanguageMode?] {
+        let isPartOfAName: (Character) -> Bool = { $0.isLetter || $0.isNumber || $0 == "_" }
         var modes: [LanguageMode?] = []
         for line in text.split(whereSeparator: \.isNewline) {
             var rest = Substring(line)
@@ -195,13 +212,21 @@ enum XcodeBuildConditions {
                 let before = rest[..<found.lowerBound].last
                 var after = rest[found.upperBound...]
                 rest = after
-                // Not the end of another name, as EFFECTIVE_SWIFT_VERSION.
-                guard before.map({ !($0.isLetter || $0.isNumber || $0 == "_") }) ?? true else { continue }
-                if after.first == "[", let close = after.firstIndex(of: "]") {
+                // Not part of another name, as EFFECTIVE_SWIFT_VERSION or SWIFT_VERSION_X.
+                guard !(before.map(isPartOfAName) ?? false), !(after.first.map(isPartOfAName) ?? false) else {
+                    continue
+                }
+                while after.first == "[", let close = after.firstIndex(of: "]") {
                     after = after[after.index(after: close)...]
                 }
+                if after.first == "\"" {
+                    after = after.dropFirst()
+                }
                 after = after.drop { $0 == " " || $0 == "\t" }
-                guard after.first == "=" else { continue }
+                guard after.first == "=" else {
+                    modes.append(nil)
+                    continue
+                }
                 let written = after.dropFirst().prefix { $0 != ";" }.components(separatedBy: "//")[0]
                 modes.append(LanguageMode(written.trimmingCharacters(in: .whitespaces)))
             }
@@ -209,8 +234,21 @@ enum XcodeBuildConditions {
         return modes
     }
 
+    /// Whether a build file names a build configuration file the scan didn't read, which may set a target's mode: one
+    /// outside the project, by a path that leaves it or starts from a variable, or by a name no file read has.
+    static func namesAnUnreadConfigurationFile(_ buildFiles: [BuildFile]) -> Bool {
+        let read = Set(buildFiles.map(\.name).filter { $0.hasSuffix(".xcconfig") })
+        return buildFiles.contains { file in
+            file.text.split { $0.isWhitespace || "\"';<>=,()".contains($0) }.contains { word in
+                guard word.hasSuffix(".xcconfig") else { return false }
+                let leavesTheProject = word.hasPrefix("/") || word.hasPrefix("$") || word.contains("../")
+                return leavesTheProject || !read.contains((String(word) as NSString).lastPathComponent)
+            }
+        }
+    }
+
     /// A project file, build configuration file or package manifest in the project, as `buildFiles` reads it.
-    private struct BuildFile {
+    struct BuildFile {
         let name: String
         let text: String
 

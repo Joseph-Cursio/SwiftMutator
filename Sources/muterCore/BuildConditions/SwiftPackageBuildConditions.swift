@@ -31,6 +31,9 @@ enum SwiftPackageBuildConditions {
         var ofFile: [FilePath: [Set<String>]] = [:]
         var undecided: Set<String> = []
         var modes: [LanguageMode?] = []
+        let buildsToolsWithFlags = arguments.contains {
+            $0 == "-Xbuild-tools-swiftc" || $0.hasPrefix("-Xbuild-tools-swiftc=")
+        }
         for package in packages {
             let unreadable = BuildConditionsUnavailable(
                 reason: "`swift package dump-package` gave nothing it could read for \(package.path)"
@@ -39,13 +42,19 @@ enum SwiftPackageBuildConditions {
                 return .failure(unreadable)
             }
             undecided.formUnion((manifest.traits ?? []).map(\.name))
-            let packageMode = manifest.defaultLanguageMode
+            // SwiftPM builds a plugin in its tools version's mode, with `-Xbuild-tools-swiftc`'s flags.
+            func languageMode(of target: Manifest.Target) -> LanguageMode? {
+                guard target.type == "plugin" else {
+                    return build.languageMode(of: target.settings ?? [], default: manifest.defaultLanguageMode)
+                }
+                return buildsToolsWithFlags ? nil : manifest.toolsVersionsLanguageMode
+            }
             // A test target's or a plugin's are no target's here, but `--files-to-mutate` can name their files.
             for other in manifest.targets where !package.targets.contains(where: { $0.name == other.name }) {
                 let conditions = build.conditions(of: other.settings ?? [])
                 undecided.formUnion(conditions.set.subtracting(build.conditions(of: []).set))
                 undecided.formUnion(conditions.undecided)
-                modes.append(build.languageMode(of: other.settings ?? [], default: packageMode))
+                modes.append(languageMode(of: other))
             }
             for target in package.targets {
                 // Taking a target with no settings to read for one with none would decide its conditions wrongly.
@@ -55,7 +64,7 @@ enum SwiftPackageBuildConditions {
                 let conditions = build.conditions(of: declared.settings ?? [])
                 targets.append(conditions.set)
                 undecided.formUnion(conditions.undecided)
-                modes.append(build.languageMode(of: declared.settings ?? [], default: packageMode))
+                modes.append(languageMode(of: declared))
                 for file in target.files {
                     ofFile[file, default: []].append(conditions.set)
                 }
@@ -186,6 +195,11 @@ enum SwiftPackageBuildConditions {
                 let modes = written.compactMap(LanguageMode.init)
                 return modes.count == written.count ? modes.max() : nil
             }
+            return toolsVersionsLanguageMode
+        }
+
+        /// The language mode the tools version sets, which a plugin is built in whatever `swiftLanguageModes` says.
+        var toolsVersionsLanguageMode: LanguageMode? {
             switch toolsVersion?._version.split(separator: ".").first {
             case "5": return .swift5
             case "6": return .swift6
@@ -199,6 +213,7 @@ enum SwiftPackageBuildConditions {
 
         struct Target: Decodable {
             let name: String
+            let type: String?
             let settings: [Setting]?
         }
 
@@ -272,9 +287,21 @@ enum SwiftPackageBuildConditions {
         return configuration
     }
 
-    /// The flags `-Xswiftc` passes to the compiler, in their order.
+    /// The flags `-Xswiftc` passes to the compiler, in their order, as `-Xswiftc -DNAME` or `-Xswiftc=-DNAME`.
     private static func swiftcFlags(in arguments: [String]) -> [String] {
-        arguments.indices.dropLast().filter { arguments[$0] == "-Xswiftc" }.map { arguments[$0 + 1] }
+        var flags: [String] = []
+        var index = 0
+        while index < arguments.count {
+            let argument = arguments[index]
+            if argument == "-Xswiftc", index + 1 < arguments.count {
+                flags.append(arguments[index + 1])
+                index += 1
+            } else if argument.hasPrefix("-Xswiftc=") {
+                flags.append(String(argument.dropFirst("-Xswiftc=".count)))
+            }
+            index += 1
+        }
+        return flags
     }
 
     /// The options that build for another platform than the host.
