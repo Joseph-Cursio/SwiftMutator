@@ -75,6 +75,11 @@ struct MuterConfiguration: Equatable, Codable {
     /// those of each of its sessions, and only a run with a results file counts. See `LogFolderPruning`. Which folders
     /// are kept changes no result, so a resume lets it change.
     let keepLogFolders: Int?
+    /// Whether the build phases of the copy's Xcode projects keep running SwiftLint (`keepSwiftLintPhases:`): nil and
+    /// false turn it off in the copy, never in the project, true keeps it (`TurnOffSwiftLintPhases`). Each mutated
+    /// file turns every rule off, so a phase only costs time on each build of the copy. It changes no result, so a
+    /// resume lets it change.
+    let keepSwiftLintPhases: Bool?
     /// The percent, from 0 to 100, up to 6 decimals, below which a finished run's headline score fails it with status 2
     /// (`failUnder:`, `ScoreGate`); nil, the default, checks none. It changes no result, so a resume lets it change.
     /// A `var` only so `overriding` can copy `self` and change just this field.
@@ -160,6 +165,7 @@ struct MuterConfiguration: Equatable, Codable {
         case suspectKillReruns
         case keepAllLogs
         case keepLogFolders
+        case keepSwiftLintPhases
         case failUnder
         case propertyTests
         case propertyTestFilter
@@ -187,6 +193,7 @@ struct MuterConfiguration: Equatable, Codable {
         suspectKillReruns: Int? = nil,
         keepAllLogs: Bool? = nil,
         keepLogFolders: Int? = nil,
+        keepSwiftLintPhases: Bool? = nil,
         failUnder: Double? = nil,
         propertyTests: [String]? = nil,
         propertyTestFilter: [String]? = nil,
@@ -212,6 +219,7 @@ struct MuterConfiguration: Equatable, Codable {
         self.suspectKillReruns = suspectKillReruns
         self.keepAllLogs = keepAllLogs
         self.keepLogFolders = keepLogFolders
+        self.keepSwiftLintPhases = keepSwiftLintPhases
         self.failUnder = failUnder
         self.propertyTests = propertyTests
         self.propertyTestFilter = propertyTestFilter
@@ -245,6 +253,7 @@ struct MuterConfiguration: Equatable, Codable {
         suspectKillReruns = try Self.whole(forKey: .suspectKillReruns, in: 0 ... Int.max, in: container)
         keepAllLogs = try container.decodeIfPresent(Bool.self, forKey: .keepAllLogs)
         keepLogFolders = try Self.whole(forKey: .keepLogFolders, in: 2 ... Int.max, in: container)
+        keepSwiftLintPhases = try container.decodeIfPresent(Bool.self, forKey: .keepSwiftLintPhases)
         failUnder = try Self.percent(forKey: .failUnder, in: container)
         propertyTests = try Self.globs(forKey: .propertyTests, in: container)
         propertyTestFilter = try Self.globs(forKey: .propertyTestFilter, in: container)
@@ -380,6 +389,7 @@ struct MuterConfiguration: Equatable, Codable {
         try container.encodeIfPresent(suspectKillReruns, forKey: .suspectKillReruns)
         try container.encodeIfPresent(keepAllLogs, forKey: .keepAllLogs)
         try container.encodeIfPresent(keepLogFolders, forKey: .keepLogFolders)
+        try container.encodeIfPresent(keepSwiftLintPhases, forKey: .keepSwiftLintPhases)
         try container.encodeIfPresent(failUnder.map(WrittenPercent.init), forKey: .failUnder)
         try container.encodeIfPresent(propertyTests, forKey: .propertyTests)
         try container.encodeIfPresent(propertyTestFilter, forKey: .propertyTestFilter)
@@ -453,6 +463,11 @@ struct MuterConfiguration: Equatable, Codable {
     /// Whether every mutant's test run keeps its log: only when `keepAllLogs` is true.
     var keepsAllLogs: Bool {
         keepAllLogs == true
+    }
+
+    /// Whether the copy's build phases keep running SwiftLint: only when `keepSwiftLintPhases` is true.
+    var keepsSwiftLintPhases: Bool {
+        keepSwiftLintPhases == true
     }
 
     /// When a test is suspect, from `suspectTestFilePercent` and `suspectTestMinimumFiles`.

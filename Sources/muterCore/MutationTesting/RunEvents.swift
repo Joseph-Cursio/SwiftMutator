@@ -22,6 +22,8 @@ enum RunEvent {
     /// The paths that vanished while the project was being copied, as a build tool's temporary files do.
     case projectCopySkippedVanishedFiles([String])
     case projectCopyFinished(destinationPath: String)
+    /// The build phases of the copy's Xcode projects whose SwiftLint was turned off, and those it may still run in.
+    case swiftLintPhasesTurnedOff(SwiftLintPhases)
 
     case projectCoverageDiscoveryStarted
     /// Why coverage couldn't be gathered, or nil when it was.

@@ -449,9 +449,18 @@ full path on the Mac that ran `init`. Commit the file rather than running `init`
   [Mutants that don't compile](#mutants-that-dont-compile)). For xcodebuild, add
   `SWIFT_TREAT_WARNINGS_AS_ERRORS=NO` to `arguments`; for `swift test`, leave `-warnings-as-errors`
   out of them.
-- **Linters in the build.** A linter that runs as a build phase or plugin, and fails the build on
-  style, can fail it on a mutant's code. Turn it off for the test command, such as with a scheme of
-  its own.
+- **Linters in the build.** Each mutated file starts with `// swiftlint:disable all`, yet a SwiftLint
+  build phase still runs on every build of the copy, which costs time and can fail the build, as
+  `--strict` does with a rule against blanket disables. So for xcodebuild SwiftMutator turns SwiftLint
+  off in the copy's build phases, never in your project, and says which: only the command that runs
+  it, `swiftlint` by name or path, or through `xcrun`, `mint run`, `swift run`, `mise exec`, `env` and
+  the like, gets `: ` before it, the shell's command that does nothing and succeeds, so the rest of
+  the script, such as an `if which swiftlint` guard, still runs. A phase that runs SwiftLint some
+  other way, as from a script of its own or a variable, is named as one it may still run in.
+  `keepSwiftLintPhases: true` keeps them all; `run-without-mutating` tests a plan's copy as
+  `mutate-without-running` left it. SwiftLint's build tool plugins aren't turned off, nor
+  is any other linter: one that fails the build on style can fail it on a mutant's code. Turn it off
+  for the test command, such as with a scheme of its own.
 - **UI tests.** Every mutant runs the whole test command, so slow tests make a slow run. Start with
   the unit tests: a scheme or test plan without UI tests, `-skip-testing:` in xcodebuild's
   `arguments`, or `--skip` in `swift test`'s.
@@ -1655,6 +1664,7 @@ as it is.
 | `oneWorkerSimulator` | Whether one worker tests on a simulator SwiftMutator makes: `true` whenever the destination is a simulator, `false` never. See [One worker on a simulator of its own](#one-worker-on-a-simulator-of-its-own) | Unset: when the project and its baseline show it is faster | xcodebuild, with a simulator as the first `-destination` |
 | `keepAllLogs` | Keep the log of every mutant's test run, a kill's too. See [Results file](#results-file) | `false`: a mutant killed by a failed test its results line names keeps none | All |
 | `keepLogFolders` | How many runs' log folders to keep in `<project>_muter_logs`, this run's included: a whole number, at least 2, so the run before this one is always kept. Earlier runs' folders beyond it are removed once nothing can refuse the run, before its build. See [Results file](#results-file) | Unset: none is removed | All |
+| `keepSwiftLintPhases` | Keep SwiftLint running in the build phases of the copy's Xcode projects. SwiftMutator otherwise turns off each command in them that runs it, never in your project, as each mutated file turns every rule off anyway. See [Before a long run](#before-a-long-run) | `false`: turned off in the copy | xcodebuild |
 | `failUnder` | A percent from 0 to 100, up to 6 decimals: a finished run whose headline score is below it exits with 2, once its reports are written. See [Failing on a low score](#failing-on-a-low-score) | Unset: none is checked | All |
 | `suspectTestFilePercent` | The share of the files with a killed mutant naming a test, from 1 to 100, that a test must have failed for mutants in to be suspect. See [Killing tests and suspect tests](#killing-tests-and-suspect-tests) | `15` | All |
 | `suspectTestMinimumFiles` | How many files with such a kill there must be, at least 1, before a test can be suspect, and how many of them it must have failed for mutants in | `10` | All |
@@ -2900,12 +2910,12 @@ SwiftMutator copies the project is refused after the copy, so that message doesn
 
 | Since the last session | Resuming |
 |---|---|
-| A configuration key changed (`exclude` by `--exclude` too, compared as a set), other than `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests`, `propertyTestFilter` and `reports`; `operators` and `skipOperators` are compared by the operators they choose, in the next rows | Refused: start a new run |
+| A configuration key changed (`exclude` by `--exclude` too, compared as a set), other than `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `keepSwiftLintPhases`, `failUnder`, `propertyTests`, `propertyTestFilter` and `reports`; `operators` and `skipOperators` are compared by the operators they choose, in the next rows | Refused: start a new run |
 | `mutationTestTimeout` (or `--timeout`) is at least as long as every session's `timeoutSeconds` | Goes ahead, says so, and tests the timeouts under a shorter limit again |
 | The operators chosen, by `--operators`, `--skip-operators`, `operators` or `skipOperators`, `--files-to-mutate` or `--skip-coverage` changed | Refused: start a new run |
 | `--since`'s merge base or `--changed-lines` changed, or `--since` given in one session only | Refused: start a new run. `--reuse` doesn't compare them |
 | `--shard` changed, or given in one session only | Refused: start a new run. `--reuse` doesn't compare it |
-| `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `failUnder`, `propertyTests`, `propertyTestFilter` or `reports` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
+| `mutationTestWorkers`, `workersShareBuild`, `stopAtFirstFailure`, `buildTimeout`, `oneWorkerSimulator`, `suspectTestFilePercent`, `suspectTestMinimumFiles`, `controlRunEvery`, `suspectKillReruns`, `keepAllLogs`, `keepLogFolders`, `keepSwiftLintPhases`, `failUnder`, `propertyTests`, `propertyTestFilter` or `reports` changed | Goes ahead, and says so: `ℹ️ mutationTestWorkers was 4 and is 2 now, which no result depends on.` |
 | SwiftMutator, the toolchain or the SDK changed | Refused, unless `--force-resume` is given |
 | Project files changed, were added or were removed | Refused, unless a `--resume-ignoring` glob matches each one |
 | Another SwiftMutator holds the file, because its run is still going | Refused with status 6, naming the process that holds it, and its host: wait for that run to end. If an older SwiftMutator holds it, which doesn't say, it names the process and host that wrote the file's last session, which may not be the one |

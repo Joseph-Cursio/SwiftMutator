@@ -451,6 +451,23 @@ final class ConfigurationParsingTests: MuterTestCase {
         XCTAssertEqual(try MuterConfiguration(from: kept.asData), kept)
     }
 
+    func test_parseKeepSwiftLintPhases() throws {
+        let xcodebuild = "executable: /usr/bin/xcodebuild\narguments: [-destination, platform=macOS, test]"
+        let keeping = { (line: String) in try MuterConfiguration(from: Data("\(xcodebuild)\n\(line)".utf8)) }
+
+        XCTAssertEqual(try keeping("keepSwiftLintPhases: true").keepSwiftLintPhases, true)
+        XCTAssertTrue(try keeping("keepSwiftLintPhases: true").keepsSwiftLintPhases)
+        XCTAssertFalse(try keeping("keepSwiftLintPhases: false").keepsSwiftLintPhases)
+        let unset = try MuterConfiguration(from: Data(xcodebuild.utf8))
+        XCTAssertNil(unset.keepSwiftLintPhases)
+        XCTAssertFalse(unset.keepsSwiftLintPhases)
+        // A typo is a configuration error rather than "unset".
+        XCTAssertThrowsError(try keeping("keepSwiftLintPhases: sometimes"))
+        // Written back as it was, so a header records it.
+        let kept = try keeping("keepSwiftLintPhases: true")
+        XCTAssertEqual(try MuterConfiguration(from: kept.asData), kept)
+    }
+
     func test_parseKeepLogFolders() throws {
         let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
         let keeping = { (line: String) in try MuterConfiguration(from: Data("\(swiftTest)\n\(line)".utf8)) }
