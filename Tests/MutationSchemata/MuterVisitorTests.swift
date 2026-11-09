@@ -7,11 +7,11 @@ import XCTest
 // swiftlint:disable:next type_body_length
 final class MuterVisitorTests: MuterTestCase {
     /// These tests judge coverage and `muter:disable` tags, and list the mutants they expect. Their code is full of
-    /// `+`s, literals and returned Bools, whose mutants would say nothing more: those operators' own tests show they're
-    /// judged in the same way.
+    /// `+`s, literals and returned values, whose mutants would say nothing more: those operators' own tests show
+    /// they're judged in the same way.
     override var operatorsToDiscoverWith: MutationOperatorList {
         super.operatorsToDiscoverWith.filter {
-            ![.arithmeticOperator, .flipBooleanLiteral, .replaceBooleanValue].contains($0)
+            ![.arithmeticOperator, .flipBooleanLiteral, .replaceBooleanValue, .replaceReturnValue].contains($0)
         }
     }
 

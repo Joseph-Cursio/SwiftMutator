@@ -162,9 +162,12 @@ final class RewriterTests: MuterTestCase {
         let block = try XCTUnwrap(mapping.codeBlocks.first)
         XCTAssertTrue(block.contains("#endif") && block.contains("return value"), block)
 
+        // Each branch holds the whole `#if`, and the `return` after it: `return value`, or ReplaceReturnValue's
+        // `return ""` in its own branch.
         let rewritten = MuterRewriter(mapping).rewrite(source.code).description
         let branches = mapping.mutationSchemata.count + 1
-        XCTAssertEqual(rewritten.components(separatedBy: "return value").count - 1, branches, rewritten)
+        XCTAssertEqual(rewritten.components(separatedBy: "#endif").count - 1, branches, rewritten)
+        XCTAssertEqual(rewritten.components(separatedBy: "return value").count - 1, branches - 1, rewritten)
     }
 
     // A macro expands its arguments from their syntax. Switched in its closure, `#Predicate { $0.id == id }` turned the
@@ -181,8 +184,8 @@ final class RewriterTests: MuterTestCase {
         let mapping = try XCTUnwrap(generateSchemataMappings(for: source).first)
 
         // `&&` gets one mutant, `==` two, RelationalOperatorReplacement's constants, and `>` three, that operator's
-        // swap and constant and RelationalBoundary's.
-        XCTAssertEqual(mapping.mutationSchemata.count, 6)
+        // swap and constant and RelationalBoundary's; and the returned array ReplaceReturnValue's `[]`.
+        XCTAssertEqual(mapping.mutationSchemata.count, 7)
         XCTAssertEqual(mapping.codeBlocks.count, 1)
         let block = try XCTUnwrap(mapping.codeBlocks.first)
         XCTAssertTrue(block.contains("let predicate") && block.contains("return try"), block)

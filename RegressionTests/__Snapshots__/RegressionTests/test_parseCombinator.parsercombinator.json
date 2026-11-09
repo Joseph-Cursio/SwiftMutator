@@ -251,6 +251,50 @@
     {
       "appliedOperators" : [
         {
+          "key" : "Sources\/FFCParserCombinator\/StringParsing.swift:22:16 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 16,
+              "line" : 22
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "nil",
+            "before" : "parse(x[x.fullRange])",
+            "description" : "replaced the return value with nil"
+          },
+          "path" : "Sources\/FFCParserCombinator\/StringParsing.swift",
+          "sourceChange" : {
+            "after" : "        return nil",
+            "before" : "        return parse(x[x.fullRange])",
+            "line" : 22
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/FFCParserCombinator\/StringParsing.swift:30:16 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 16,
+              "line" : 30
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "nil",
+            "before" : "parse(x)",
+            "description" : "replaced the return value with nil"
+          },
+          "path" : "Sources\/FFCParserCombinator\/StringParsing.swift",
+          "sourceChange" : {
+            "after" : "        return nil",
+            "before" : "        return parse(x)",
+            "line" : 30
+          },
+          "testSuiteOutcome" : "noCoverage"
+        },
+        {
           "key" : "Sources\/FFCParserCombinator\/StringParsing.swift:42:51 NegateConditional",
           "mutationPoint" : {
             "mutationOperatorId" : "NegateConditional",
@@ -560,19 +604,19 @@
         }
       ],
       "fileName" : "StringParsing.swift",
-      "mutationScore" : 78,
+      "mutationScore" : 75,
       "path" : "Sources\/FFCParserCombinator\/StringParsing.swift"
     }
   ],
-  "globalMutationScore" : 84,
+  "globalMutationScore" : 81,
   "mutantsByOutcome" : {
     "buildErrors" : 0,
-    "killed" : 21,
-    "notCovered" : 0,
+    "killed" : 22,
+    "notCovered" : 1,
     "survived" : 4,
     "timedOut" : 0
   },
-  "numberOfKilledMutants" : 21,
+  "numberOfKilledMutants" : 22,
   "operatorExplanations" : {
     "ChangeArithmeticOperator" : "Swaps arithmetic: plus and minus swap, as do times and divide, and remainder becomes times.",
     "ChangeLogicalConnector" : "Swaps a logical AND for OR, and OR for AND.",
@@ -580,7 +624,8 @@
     "RelationalBoundary" : "Moves a comparison's boundary: less than and at most swap, as do greater than and at least.",
     "RelationalOperatorReplacement" : "Replaces a comparison with true or false, and turns less than and greater than into not equal, and at most and at least into equal.",
     "RemoveSideEffects" : "Removes a call whose result isn't used, to check that a test notices its side effect is gone.",
+    "ReplaceReturnValue" : "Replaces a returned value with an empty one of its type: nil, an empty array, dictionary or string, or zero.",
     "SwapTernary" : "Swaps the two branches of a ternary expression."
   },
-  "totalAppliedMutationOperators" : 25
+  "totalAppliedMutationOperators" : 27
 }

@@ -46,6 +46,46 @@ final class MutantDiffTests: XCTestCase {
         ])
     }
 
+    // `return(x)` becomes `return 0` and `return []`, as the mutant keeps the empty value apart from the keyword.
+    func test_aReplacedReturnValueTouchingItsKeyword_isShownWithTheSpaceItGets() throws {
+        let source = """
+        func count() -> Int {
+            return(x)
+        }
+        func all() -> [Int] {
+            return(x)
+        }
+
+        """
+        let schemata = schemata(ReplaceReturnValueOperator.Visitor.init, in: source)
+
+        XCTAssertEqual(schemata.map { diff(of: $0, in: source) }, [
+            ["-2:     return(x)", "+2:     return 0"],
+            ["-5:     return(x)", "+5:     return []"],
+        ])
+    }
+
+    // A return value over several lines isn't found at its place, as the snapshot gives it on one line, and its mutant
+    // is placed where it starts, so the same code on a line above is another's.
+    func test_aReturnValueOverSeveralLines_isntTakenForACopyAbove() throws {
+        let source = """
+        func f(_ a: [Int], _ b: [Int]) -> [Int] {
+            print(a + b)
+            return a +
+                b
+        }
+
+        """
+        let schema = try XCTUnwrap(schemata(ReplaceReturnValueOperator.Visitor.init, in: source).first)
+
+        XCTAssertEqual(schema.snapshot.before, "a + b")
+        XCTAssertNil(diff(of: schema, in: source))
+        XCTAssertEqual(
+            MutantDiff.fallback(snapshot: schema.snapshot, mutationOperatorId: .replaceReturnValue),
+            ["- a + b", "+ []"]
+        )
+    }
+
     // A comparison's `true` is placed where it starts, its `false` where it ends, and its swap at its operator.
     func test_eachMutantOfAComparison_givesItsLine() throws {
         let source = """

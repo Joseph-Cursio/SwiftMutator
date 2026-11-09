@@ -66,14 +66,15 @@ enum MutantDiff {
         let text = fileLines[found.line - 1]
         let rest = text[(found.offset + needle.count)...]
         // `if(a)` becomes `if !((a))`, with a space the operator adds, as `if!(` doesn't parse; and `return(a < b)`
-        // becomes `return true`, as a replaced Bool or comparison is kept apart from a name or keyword it would touch.
-        let isAConstant = isAConstant(snapshot, by: mutationOperatorId)
+        // becomes `return true`, as a replaced Bool, comparison or return value is kept apart from a name or keyword
+        // it would touch.
+        let isKeptApart = isAConstant(snapshot, by: mutationOperatorId) || mutationOperatorId == .replaceReturnValue
         let isTouching = if mutationOperatorId == .negateConditional {
             text[..<found.offset].last.map { !Character(UnicodeScalar($0)).isWhitespace } == true
         } else {
-            isAConstant && text[..<found.offset].last.map(isPartOfAName) == true
+            isKeptApart && text[..<found.offset].last.map(isPartOfAName) == true
         }
-        let isTouchingAfter = isAConstant && rest.first.map(isPartOfAName) == true
+        let isTouchingAfter = isKeptApart && rest.first.map(isPartOfAName) == true
         let changed = Array(text[..<found.offset]) + (isTouching ? [UInt8(ascii: " ")] : [])
             + Array(replacement(snapshot, mutationOperatorId).utf8)
             + (isTouchingAfter ? [UInt8(ascii: " ")] : []) + Array(rest)
@@ -106,16 +107,18 @@ enum MutantDiff {
         mutationOperatorId == .replaceBooleanValue || mutationOperatorId == .ror && ["true", "false"].contains(after)
     }
 
-    /// Whether `byte` can be part of a name or a keyword, which a replaced Bool next to it would join.
+    /// Whether `byte` can be part of a name or a keyword, which a replaced value next to it would join.
     private static func isPartOfAName(_ byte: UInt8) -> Bool {
         let character = Character(UnicodeScalar(byte))
         return character.isLetter || character.isNumber || character == "_" || character == "$"
     }
 
     /// Whether an operator's mutants are placed at the start of what they change, so a copy on a line above is never
-    /// their own: a condition over several lines isn't found at its place, as `before` gives it on one line.
+    /// their own: a condition or a return value over several lines isn't found at its place, as `before` gives it on
+    /// one line.
     private static func isPlacedWhereItsChangeStarts(_ mutationOperatorId: MutationOperator.Id) -> Bool {
-        [.negateConditional, .flipBooleanLiteral, .arithmeticOperator].contains(mutationOperatorId)
+        [.negateConditional, .flipBooleanLiteral, .arithmeticOperator, .replaceReturnValue]
+            .contains(mutationOperatorId)
     }
 
     /// Whether a swapped ternary is placed at a `?`, as only a later link of a chain is. A first link is placed where

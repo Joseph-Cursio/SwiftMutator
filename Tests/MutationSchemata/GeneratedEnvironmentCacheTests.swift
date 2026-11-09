@@ -6,11 +6,12 @@ import XCTest
 /// own, and the generated code must switch it on either way.
 final class GeneratedEnvironmentCacheTests: GeneratedCodeTestCase {
     /// Without ReplaceBooleanValue: its `let big = true` makes the compiler warn that a branch of the `?:` that reads
-    /// `big` will never be executed, and these files compile with warnings as errors. Its own shapes compile in
-    /// GeneratedCodeShapesTests. RelationalOperatorReplacement's constants would make the compiler warn so of a `let`
-    /// that is only a comparison, or a ternary of literals on one, so the files' are more than that.
+    /// `big` will never be executed, and these files compile with warnings as errors. Nor ReplaceReturnValue: its
+    /// `return 0` in place of `return count` leaves the local `count` never used, which warns too. Their own shapes
+    /// compile in GeneratedCodeShapesTests. RelationalOperatorReplacement's constants would make the compiler warn so
+    /// of a `let` that is only a comparison, or a ternary of literals on one, so the files' are more than that.
     override var operatorsToDiscoverWith: MutationOperatorList {
-        super.operatorsToDiscoverWith.filter { $0 != .replaceBooleanValue }
+        super.operatorsToDiscoverWith.filter { ![.replaceBooleanValue, .replaceReturnValue].contains($0) }
     }
 
     func test_theGeneratedCodeSwitchesOnTheMutantItIsTold() throws {

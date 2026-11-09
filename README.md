@@ -65,7 +65,7 @@ day, three of them with a fix. It has things SwiftMutator doesn't, among them:
 Its default run uses three of its seven operators: logical operators, negated conditions and
 swapped ternaries. So by default it doesn't replace relational operators, as in `==` becoming `!=`,
 or remove calls, arithmetic or boolean literals. `--operator-tier experimental` runs all seven.
-SwiftMutator runs its nine by default.
+SwiftMutator runs its ten by default.
 
 SwiftMutator differs in how it keeps tests apart. Each of its workers tests in its own full
 copy of the project, `.git` included, unless a run of the tests with no mutant on writes nothing
@@ -251,6 +251,17 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   operators with `--operators`, and a baseline file written before it is refused, as it records the
   run's operators (see [Failing on new survivors](#failing-on-new-survivors)). See
   [mutation_operators.md](Docs/mutation_operators.md#replace-boolean-value).
+- **Return values** ([#256](https://github.com/Joseph-Cursio/SwiftMutator/issues/256)):
+  `ReplaceReturnValue` replaces what a function, a getter or a closure that writes its return type
+  returns with an empty value of its written return type, as PIT's `EMPTY_RETURNS`,
+  `NULL_RETURNS` and `PRIMITIVE_RETURNS` do: `nil` for an optional, `[]` for an array or a set,
+  `[:]` for a dictionary, `""` for a string and `0` for a number. A test that calls a function but
+  never checks what comes back lets the mutant survive. The tree has no types, so a type written in
+  any other way, as `some`, a typealias or a generic parameter, gets no mutant, and a Bool is
+  `ReplaceBooleanValue`'s. It runs by default. A run recorded before it is continued as above, by
+  naming that run's operators with `--operators`, and a baseline file written before it is refused,
+  as it records the run's operators (see [Failing on new survivors](#failing-on-new-survivors)). See
+  [mutation_operators.md](Docs/mutation_operators.md#replace-return-value).
 - **Comparisons:** `RelationalOperatorReplacement` gives an ordering comparison the mutants of
   Kaminski, Ammann and Offutt's sufficient set, whose tests, with `RelationalBoundary`'s, kill every
   other mutant of its operator, and an equality check both constants in place of the set's `<=` and
@@ -651,9 +662,10 @@ is read as the run starts, and replaced at the end.
   override them, discovers or judges other mutants, so the file is refused as the run starts, with
   status 8, and every difference listed. An `--exclude` adds to `exclude`, so a run with one needs a
   baseline file written with it. An upgrade that adds an operator that runs by default, as
-  `ReplaceBooleanValue` did, changes the operators of a run that names none, so a file written
-  before it is refused until a whole run writes a new one; to keep the old file meanwhile, leave the
-  new operator out, as with `skipOperators: [ReplaceBooleanValue]` in `muter.conf.yml`. An upgrade
+  `ReplaceBooleanValue` and `ReplaceReturnValue` did, changes the operators of a run that names
+  none, so a file written before it is refused until a whole run writes a new one; to keep the old
+  file meanwhile, leave the new operator out, as with `skipOperators: [ReplaceReturnValue]` in
+  `muter.conf.yml`. An upgrade
   that changes what an operator's mutants are, as `RelationalOperatorReplacement`'s Kaminski set
   did, isn't refused, as the operators are the same: the file's survivors of the old mutants are
   not tested, and the new mutants' survivors are new, so the check fails. Its mutants are harder
@@ -1740,7 +1752,7 @@ For one run:
 
 Every operator runs by default: `RelationalOperatorReplacement`, `RelationalBoundary`,
 `RemoveSideEffects`, `ChangeLogicalConnector`, `SwapTernary`, `NegateConditional`,
-`ChangeArithmeticOperator`, `FlipBooleanLiteral` and `ReplaceBooleanValue`.
+`ChangeArithmeticOperator`, `FlipBooleanLiteral`, `ReplaceBooleanValue` and `ReplaceReturnValue`.
 `swift-mutator operator all` explains them, as does
 [Docs/mutation_operators.md](Docs/mutation_operators.md). To use fewer, name them in
 `muter.conf.yml`, or on the command line for one run, where `--operators` and `--skip-operators`

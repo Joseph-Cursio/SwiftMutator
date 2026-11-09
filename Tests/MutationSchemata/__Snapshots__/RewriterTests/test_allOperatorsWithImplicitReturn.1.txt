@@ -216,7 +216,21 @@
         column: 19
     )
 ), OperatorIdAndPositionAssert(
+    id: .replaceReturnValue,
+    position: MutationPosition(
+        utf8Offset: 402,
+        line: 15,
+        column: 20
+    )
+), OperatorIdAndPositionAssert(
     id: .ror,
+    position: MutationPosition(
+        utf8Offset: 436,
+        line: 18,
+        column: 16
+    )
+), OperatorIdAndPositionAssert(
+    id: .replaceReturnValue,
     position: MutationPosition(
         utf8Offset: 436,
         line: 18,
@@ -335,6 +349,13 @@
         column: 31
     )
 ), OperatorIdAndPositionAssert(
+    id: .replaceReturnValue,
+    position: MutationPosition(
+        utf8Offset: 878,
+        line: 43,
+        column: 16
+    )
+), OperatorIdAndPositionAssert(
     id: .removeSideEffects,
     position: MutationPosition(
         utf8Offset: 1256,
@@ -377,6 +398,13 @@
         column: 16
     )
 ), OperatorIdAndPositionAssert(
+    id: .replaceReturnValue,
+    position: MutationPosition(
+        utf8Offset: 2805,
+        line: 119,
+        column: 16
+    )
+), OperatorIdAndPositionAssert(
     id: .replaceBooleanValue,
     position: MutationPosition(
         utf8Offset: 2899,
@@ -410,6 +438,13 @@
         utf8Offset: 2915,
         line: 125,
         column: 32
+    )
+), OperatorIdAndPositionAssert(
+    id: .replaceReturnValue,
+    position: MutationPosition(
+        utf8Offset: 2986,
+        line: 129,
+        column: 16
     )
 ), OperatorIdAndPositionAssert(
     id: .swapTernary,
@@ -468,6 +503,13 @@
         column: 44
     )
 ), OperatorIdAndPositionAssert(
+    id: .replaceReturnValue,
+    position: MutationPosition(
+        utf8Offset: 3307,
+        line: 144,
+        column: 20
+    )
+), OperatorIdAndPositionAssert(
     id: .negateConditional,
     position: MutationPosition(
         utf8Offset: 3356,
@@ -487,6 +529,13 @@
         utf8Offset: 3372,
         line: 146,
         column: 32
+    )
+), OperatorIdAndPositionAssert(
+    id: .replaceReturnValue,
+    position: MutationPosition(
+        utf8Offset: 3433,
+        line: 149,
+        column: 20
     )
 ), OperatorIdAndPositionAssert(
     id: .ror,

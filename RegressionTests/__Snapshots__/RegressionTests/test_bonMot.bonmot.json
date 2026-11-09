@@ -87,10 +87,32 @@
             "line" : 81
           },
           "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/ContextualAlternates.swift:84:20 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 20,
+              "line" : 84
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "[]",
+            "before" : "selectors.map { (type: kContextualAlternatesType, selector: $0) }",
+            "description" : "replaced the return value with []"
+          },
+          "path" : "Sources\/ContextualAlternates.swift",
+          "sourceChange" : {
+            "after" : "            return []",
+            "before" : "            return selectors.map { (type: kContextualAlternatesType, selector: $0) }",
+            "line" : 84
+          },
+          "testSuiteOutcome" : "failed"
         }
       ],
       "fileName" : "ContextualAlternates.swift",
-      "mutationScore" : 50,
+      "mutationScore" : 60,
       "path" : "Sources\/ContextualAlternates.swift"
     },
     {
@@ -472,10 +494,220 @@
             "line" : 47
           },
           "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/FontFeatures.swift:77:24 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 24,
+              "line" : 77
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "[]",
+            "before" : "[(type: kNumberCaseType, selector: kUpperCaseNumbersSelector)]",
+            "description" : "replaced the return value with []"
+          },
+          "path" : "Sources\/FontFeatures.swift",
+          "sourceChange" : {
+            "after" : "                return []",
+            "before" : "                return [(type: kNumberCaseType, selector: kUpperCaseNumbersSelector)]",
+            "line" : 77
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/FontFeatures.swift:79:24 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 24,
+              "line" : 79
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "[]",
+            "before" : "[(type: kNumberCaseType, selector: kLowerCaseNumbersSelector)]",
+            "description" : "replaced the return value with []"
+          },
+          "path" : "Sources\/FontFeatures.swift",
+          "sourceChange" : {
+            "after" : "                return []",
+            "before" : "                return [(type: kNumberCaseType, selector: kLowerCaseNumbersSelector)]",
+            "line" : 79
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/FontFeatures.swift:102:24 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 24,
+              "line" : 102
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "[]",
+            "before" : "[(type: kNumberSpacingType, selector: kMonospacedNumbersSelector)]",
+            "description" : "replaced the return value with []"
+          },
+          "path" : "Sources\/FontFeatures.swift",
+          "sourceChange" : {
+            "after" : "                return []",
+            "before" : "                return [(type: kNumberSpacingType, selector: kMonospacedNumbersSelector)]",
+            "line" : 102
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/FontFeatures.swift:104:24 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 24,
+              "line" : 104
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "[]",
+            "before" : "[(type: kNumberSpacingType, selector: kProportionalNumbersSelector)]",
+            "description" : "replaced the return value with []"
+          },
+          "path" : "Sources\/FontFeatures.swift",
+          "sourceChange" : {
+            "after" : "                return []",
+            "before" : "                return [(type: kNumberSpacingType, selector: kProportionalNumbersSelector)]",
+            "line" : 104
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/FontFeatures.swift:131:24 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 24,
+              "line" : 131
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "[]",
+            "before" : "[(type: kFractionsType, selector: kDiagonalFractionsSelector)]",
+            "description" : "replaced the return value with []"
+          },
+          "path" : "Sources\/FontFeatures.swift",
+          "sourceChange" : {
+            "after" : "                return []",
+            "before" : "                return [(type: kFractionsType, selector: kDiagonalFractionsSelector)]",
+            "line" : 131
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/FontFeatures.swift:167:20 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 20,
+              "line" : 167
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "[]",
+            "before" : "[(type: kVerticalPositionType, selector: selector)]",
+            "description" : "replaced the return value with []"
+          },
+          "path" : "Sources\/FontFeatures.swift",
+          "sourceChange" : {
+            "after" : "            return []",
+            "before" : "            return [(type: kVerticalPositionType, selector: selector)]",
+            "line" : 167
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/FontFeatures.swift:191:24 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 24,
+              "line" : 191
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "[]",
+            "before" : "[ (type: kLowerCaseType, selector: kDefaultLowerCaseSelector), (type: kUpperCaseType, selector: kDefaultUpperCaseSelector), ]",
+            "description" : "replaced the return value with []"
+          },
+          "path" : "Sources\/FontFeatures.swift",
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/FontFeatures.swift:196:24 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 24,
+              "line" : 196
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "[]",
+            "before" : "[(type: kUpperCaseType, selector: kUpperCaseSmallCapsSelector)]",
+            "description" : "replaced the return value with []"
+          },
+          "path" : "Sources\/FontFeatures.swift",
+          "sourceChange" : {
+            "after" : "                return []",
+            "before" : "                return [(type: kUpperCaseType, selector: kUpperCaseSmallCapsSelector)]",
+            "line" : 196
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/FontFeatures.swift:198:24 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 24,
+              "line" : 198
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "[]",
+            "before" : "[(type: kLowerCaseType, selector: kLowerCaseSmallCapsSelector)]",
+            "description" : "replaced the return value with []"
+          },
+          "path" : "Sources\/FontFeatures.swift",
+          "sourceChange" : {
+            "after" : "                return []",
+            "before" : "                return [(type: kLowerCaseType, selector: kLowerCaseSmallCapsSelector)]",
+            "line" : 198
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/FontFeatures.swift:210:20 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 20,
+              "line" : 210
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "[]",
+            "before" : "featureSettings.map { [ BONFontFeatureTypeIdentifierKey: $0.type, BONFontFeatureSelectorIdentifierKey: $0.selector, ] }",
+            "description" : "replaced the return value with []"
+          },
+          "path" : "Sources\/FontFeatures.swift",
+          "testSuiteOutcome" : "failed"
         }
       ],
       "fileName" : "FontFeatures.swift",
-      "mutationScore" : 42,
+      "mutationScore" : 70,
       "path" : "Sources\/FontFeatures.swift"
     },
     {
@@ -567,10 +799,54 @@
             "line" : 42
           },
           "testSuiteOutcome" : "noCoverage"
+        },
+        {
+          "key" : "Sources\/FontInspector.swift:99:20 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 20,
+              "line" : 99
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "[]",
+            "before" : "typedFeatures",
+            "description" : "replaced the return value with []"
+          },
+          "path" : "Sources\/FontInspector.swift",
+          "sourceChange" : {
+            "after" : "            return []",
+            "before" : "            return typedFeatures",
+            "line" : 99
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/FontInspector.swift:156:20 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 20,
+              "line" : 156
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "[]",
+            "before" : "[FeatureTypeIdentifier.numberCase.rawValue]",
+            "description" : "replaced the return value with []"
+          },
+          "path" : "Sources\/FontInspector.swift",
+          "sourceChange" : {
+            "after" : "            return []",
+            "before" : "            return [FeatureTypeIdentifier.numberCase.rawValue]",
+            "line" : 156
+          },
+          "testSuiteOutcome" : "failed"
         }
       ],
       "fileName" : "FontInspector.swift",
-      "mutationScore" : 25,
+      "mutationScore" : 50,
       "path" : "Sources\/FontInspector.swift"
     },
     {
@@ -703,10 +979,32 @@
             "line" : 83
           },
           "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/NSAttributedString+BonMot.swift:90:16 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 16,
+              "line" : 90
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "bonMotDebugAttributedString.string",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/NSAttributedString+BonMot.swift",
+          "sourceChange" : {
+            "after" : "        return \"\"",
+            "before" : "        return bonMotDebugAttributedString.string",
+            "line" : 90
+          },
+          "testSuiteOutcome" : "failed"
         }
       ],
       "fileName" : "NSAttributedString+BonMot.swift",
-      "mutationScore" : 83,
+      "mutationScore" : 85,
       "path" : "Sources\/NSAttributedString+BonMot.swift"
     },
     {
@@ -731,11 +1029,634 @@
             "line" : 72
           },
           "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/NamedStyles.swift:75:16 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 16,
+              "line" : 75
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "nil",
+            "before" : "style",
+            "description" : "replaced the return value with nil"
+          },
+          "path" : "Sources\/NamedStyles.swift",
+          "sourceChange" : {
+            "after" : "        return nil",
+            "before" : "        return style",
+            "line" : 75
+          },
+          "testSuiteOutcome" : "runtimeError"
         }
       ],
       "fileName" : "NamedStyles.swift",
-      "mutationScore" : 0,
+      "mutationScore" : 50,
       "path" : "Sources\/NamedStyles.swift"
+    },
+    {
+      "appliedOperators" : [
+        {
+          "key" : "Sources\/Special.swift:49:16 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 16,
+              "line" : 49
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "String(rawValue)",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        return \"\"",
+            "before" : "        return String(rawValue)",
+            "line" : 49
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/Special.swift:59:27 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 27,
+              "line" : 59
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"tab\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .tab: return \"\"",
+            "before" : "        case .tab: return \"tab\"",
+            "line" : 59
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/Special.swift:60:32 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 32,
+              "line" : 60
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"lineFeed\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .lineFeed: return \"\"",
+            "before" : "        case .lineFeed: return \"lineFeed\"",
+            "line" : 60
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/Special.swift:61:35 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 35,
+              "line" : 61
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"verticalTab\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .verticalTab: return \"\"",
+            "before" : "        case .verticalTab: return \"verticalTab\"",
+            "line" : 61
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Special.swift:62:32 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 32,
+              "line" : 62
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"formFeed\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .formFeed: return \"\"",
+            "before" : "        case .formFeed: return \"formFeed\"",
+            "line" : 62
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Special.swift:63:38 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 38,
+              "line" : 63
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"carriageReturn\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .carriageReturn: return \"\"",
+            "before" : "        case .carriageReturn: return \"carriageReturn\"",
+            "line" : 63
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Special.swift:64:29 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 29,
+              "line" : 64
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"space\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .space: return \"\"",
+            "before" : "        case .space: return \"space\"",
+            "line" : 64
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Special.swift:65:32 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 32,
+              "line" : 65
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"nextLine\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .nextLine: return \"\"",
+            "before" : "        case .nextLine: return \"nextLine\"",
+            "line" : 65
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Special.swift:66:36 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 36,
+              "line" : 66
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"noBreakSpace\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .noBreakSpace: return \"\"",
+            "before" : "        case .noBreakSpace: return \"noBreakSpace\"",
+            "line" : 66
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/Special.swift:67:31 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 31,
+              "line" : 67
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"enSpace\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .enSpace: return \"\"",
+            "before" : "        case .enSpace: return \"enSpace\"",
+            "line" : 67
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Special.swift:68:31 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 31,
+              "line" : 68
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"emSpace\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .emSpace: return \"\"",
+            "before" : "        case .emSpace: return \"emSpace\"",
+            "line" : 68
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Special.swift:69:35 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 35,
+              "line" : 69
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"figureSpace\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .figureSpace: return \"\"",
+            "before" : "        case .figureSpace: return \"figureSpace\"",
+            "line" : 69
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Special.swift:70:33 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 33,
+              "line" : 70
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"thinSpace\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .thinSpace: return \"\"",
+            "before" : "        case .thinSpace: return \"thinSpace\"",
+            "line" : 70
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Special.swift:71:33 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 33,
+              "line" : 71
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"hairSpace\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .hairSpace: return \"\"",
+            "before" : "        case .hairSpace: return \"hairSpace\"",
+            "line" : 71
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Special.swift:72:38 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 38,
+              "line" : 72
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"zeroWidthSpace\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .zeroWidthSpace: return \"\"",
+            "before" : "        case .zeroWidthSpace: return \"zeroWidthSpace\"",
+            "line" : 72
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Special.swift:73:41 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 41,
+              "line" : 73
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"nonBreakingHyphen\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .nonBreakingHyphen: return \"\"",
+            "before" : "        case .nonBreakingHyphen: return \"nonBreakingHyphen\"",
+            "line" : 73
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Special.swift:74:34 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 34,
+              "line" : 74
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"figureDash\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .figureDash: return \"\"",
+            "before" : "        case .figureDash: return \"figureDash\"",
+            "line" : 74
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Special.swift:75:30 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 30,
+              "line" : 75
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"enDash\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .enDash: return \"\"",
+            "before" : "        case .enDash: return \"enDash\"",
+            "line" : 75
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/Special.swift:76:30 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 30,
+              "line" : 76
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"emDash\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .emDash: return \"\"",
+            "before" : "        case .emDash: return \"emDash\"",
+            "line" : 76
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/Special.swift:77:42 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 42,
+              "line" : 77
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"horizontalEllipsis\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .horizontalEllipsis: return \"\"",
+            "before" : "        case .horizontalEllipsis: return \"horizontalEllipsis\"",
+            "line" : 77
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Special.swift:78:37 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 37,
+              "line" : 78
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"lineSeparator\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .lineSeparator: return \"\"",
+            "before" : "        case .lineSeparator: return \"lineSeparator\"",
+            "line" : 78
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Special.swift:79:42 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 42,
+              "line" : 79
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"paragraphSeparator\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .paragraphSeparator: return \"\"",
+            "before" : "        case .paragraphSeparator: return \"paragraphSeparator\"",
+            "line" : 79
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Special.swift:80:43 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 43,
+              "line" : 80
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"leftToRightOverride\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .leftToRightOverride: return \"\"",
+            "before" : "        case .leftToRightOverride: return \"leftToRightOverride\"",
+            "line" : 80
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Special.swift:81:42 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 42,
+              "line" : 81
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"narrowNoBreakSpace\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .narrowNoBreakSpace: return \"\"",
+            "before" : "        case .narrowNoBreakSpace: return \"narrowNoBreakSpace\"",
+            "line" : 81
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Special.swift:82:34 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 34,
+              "line" : 82
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"wordJoiner\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .wordJoiner: return \"\"",
+            "before" : "        case .wordJoiner: return \"wordJoiner\"",
+            "line" : 82
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Special.swift:83:33 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 33,
+              "line" : 83
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"minusSign\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .minusSign: return \"\"",
+            "before" : "        case .minusSign: return \"minusSign\"",
+            "line" : 83
+          },
+          "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Special.swift:84:50 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 50,
+              "line" : 84
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "\"\"",
+            "before" : "\"objectReplacementCharacter\"",
+            "description" : "replaced the return value with \"\""
+          },
+          "path" : "Sources\/Special.swift",
+          "sourceChange" : {
+            "after" : "        case .objectReplacementCharacter: return \"\"",
+            "before" : "        case .objectReplacementCharacter: return \"objectReplacementCharacter\"",
+            "line" : 84
+          },
+          "testSuiteOutcome" : "passed"
+        }
+      ],
+      "fileName" : "Special.swift",
+      "mutationScore" : 22,
+      "path" : "Sources\/Special.swift"
     },
     {
       "appliedOperators" : [
@@ -1106,14 +2027,58 @@
             "line" : 232
           },
           "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/StylisticAlternates.swift:277:20 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 20,
+              "line" : 277
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "[]",
+            "before" : "selectors.map { (type: kStylisticAlternativesType, selector: $0) }",
+            "description" : "replaced the return value with []"
+          },
+          "path" : "Sources\/StylisticAlternates.swift",
+          "sourceChange" : {
+            "after" : "            return []",
+            "before" : "            return selectors.map { (type: kStylisticAlternativesType, selector: $0) }",
+            "line" : 277
+          },
+          "testSuiteOutcome" : "failed"
         }
       ],
       "fileName" : "StylisticAlternates.swift",
-      "mutationScore" : 75,
+      "mutationScore" : 77,
       "path" : "Sources\/StylisticAlternates.swift"
     },
     {
       "appliedOperators" : [
+        {
+          "key" : "Sources\/Tracking.swift:20:20 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 20,
+              "line" : 20
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "0",
+            "before" : "kernValue",
+            "description" : "replaced the return value with 0"
+          },
+          "path" : "Sources\/Tracking.swift",
+          "sourceChange" : {
+            "after" : "            return 0",
+            "before" : "            return kernValue",
+            "line" : 20
+          },
+          "testSuiteOutcome" : "failed"
+        },
         {
           "key" : "Sources\/Tracking.swift:23:16 RelationalOperatorReplacement",
           "mutationPoint" : {
@@ -1157,6 +2122,28 @@
             "line" : 23
           },
           "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/Tracking.swift:27:20 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 20,
+              "line" : 27
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "0",
+            "before" : "pointSize * (adobeTracking \/ AdobeTrackingDivisor)",
+            "description" : "replaced the return value with 0"
+          },
+          "path" : "Sources\/Tracking.swift",
+          "sourceChange" : {
+            "after" : "            return 0",
+            "before" : "            return pointSize * (adobeTracking \/ AdobeTrackingDivisor)",
+            "line" : 27
+          },
+          "testSuiteOutcome" : "failed"
         },
         {
           "key" : "Sources\/Tracking.swift:27:30 ChangeArithmeticOperator",
@@ -1204,7 +2191,7 @@
         }
       ],
       "fileName" : "Tracking.swift",
-      "mutationScore" : 50,
+      "mutationScore" : 66,
       "path" : "Sources\/Tracking.swift"
     },
     {
@@ -1315,6 +2302,23 @@
           "testSuiteOutcome" : "passed"
         },
         {
+          "key" : "Sources\/UIKit\/TextAlignmentConstraint.swift:167:16 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 16,
+              "line" : 167
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "[]",
+            "before" : "[ \"\\(firstItemSelector).\\(TextAlignmentConstraint.fontSelector)\", \"\\(firstItemSelector).\\(TextAlignmentConstraint.attributedTextSelector)\", \"\\(secondItemSelector).\\(TextAlignmentConstraint.fontSelector)\", \"\\(secondItemSelector).\\(TextAlignmentConstraint.attributedTextSelector)\", ]",
+            "description" : "replaced the return value with []"
+          },
+          "path" : "Sources\/UIKit\/TextAlignmentConstraint.swift",
+          "testSuiteOutcome" : "passed"
+        },
+        {
           "key" : "Sources\/UIKit\/TextAlignmentConstraint.swift:194:43 ChangeArithmeticOperator",
           "mutationPoint" : {
             "mutationOperatorId" : "ChangeArithmeticOperator",
@@ -1381,6 +2385,28 @@
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/UIKit\/TextAlignmentConstraint.swift:219:16 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 16,
+              "line" : 219
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "0",
+            "before" : "distanceFromTop",
+            "description" : "replaced the return value with 0"
+          },
+          "path" : "Sources\/UIKit\/TextAlignmentConstraint.swift",
+          "sourceChange" : {
+            "after" : "        return 0",
+            "before" : "        return distanceFromTop",
+            "line" : 219
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
           "key" : "Sources\/UIKit\/TextAlignmentConstraint.swift:225:12 NegateConditional",
           "mutationPoint" : {
             "mutationOperatorId" : "NegateConditional",
@@ -1401,10 +2427,32 @@
             "line" : 225
           },
           "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/UIKit\/TextAlignmentConstraint.swift:229:16 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 16,
+              "line" : 229
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "nil",
+            "before" : "font",
+            "description" : "replaced the return value with nil"
+          },
+          "path" : "Sources\/UIKit\/TextAlignmentConstraint.swift",
+          "sourceChange" : {
+            "after" : "        return nil",
+            "before" : "        return font",
+            "line" : 229
+          },
+          "testSuiteOutcome" : "failed"
         }
       ],
       "fileName" : "TextAlignmentConstraint.swift",
-      "mutationScore" : 77,
+      "mutationScore" : 75,
       "path" : "Sources\/UIKit\/TextAlignmentConstraint.swift"
     },
     {
@@ -1429,6 +2477,28 @@
             "line" : 89
           },
           "testSuiteOutcome" : "passed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:104:16 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 16,
+              "line" : 104
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "[]",
+            "before" : "rulePairs.flatMap { $0 }",
+            "description" : "replaced the return value with []"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "        return []",
+            "before" : "        return rulePairs.flatMap { $0 }",
+            "line" : 104
+          },
+          "testSuiteOutcome" : "failed"
         },
         {
           "key" : "Sources\/XMLBuilder.swift:143:54 RelationalOperatorReplacement",
@@ -1471,6 +2541,28 @@
             "after" : "                case let .style(string, style) where false:",
             "before" : "                case let .style(string, style) where string == name:",
             "line" : 143
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:144:28 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 28,
+              "line" : 144
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "nil",
+            "before" : "style",
+            "description" : "replaced the return value with nil"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "                    return nil",
+            "before" : "                    return style",
+            "line" : 144
           },
           "testSuiteOutcome" : "failed"
         },
@@ -1519,6 +2611,50 @@
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/XMLBuilder.swift:146:28 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 28,
+              "line" : 146
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "nil",
+            "before" : "block(attributes)",
+            "description" : "replaced the return value with nil"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "                    return nil",
+            "before" : "                    return block(attributes)",
+            "line" : 146
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:153:28 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 28,
+              "line" : 153
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "nil",
+            "before" : "namedStyles.style(forName: name)",
+            "description" : "replaced the return value with nil"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "                    return nil",
+            "before" : "                    return namedStyles.style(forName: name)",
+            "line" : 153
+          },
+          "testSuiteOutcome" : "runtimeError"
+        },
+        {
           "key" : "Sources\/XMLBuilder.swift:162:59 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
@@ -1559,6 +2695,28 @@
             "after" : "                case let .enter(string, composable) where false:",
             "before" : "                case let .enter(string, composable) where string == name:",
             "line" : 162
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:163:28 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 28,
+              "line" : 163
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "nil",
+            "before" : "composable",
+            "description" : "replaced the return value with nil"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "                    return nil",
+            "before" : "                    return composable",
+            "line" : 163
           },
           "testSuiteOutcome" : "failed"
         },
@@ -1607,6 +2765,28 @@
           "testSuiteOutcome" : "failed"
         },
         {
+          "key" : "Sources\/XMLBuilder.swift:165:28 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 28,
+              "line" : 165
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "nil",
+            "before" : "block(attributes)",
+            "description" : "replaced the return value with nil"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "                    return nil",
+            "before" : "                    return block(attributes)",
+            "line" : 165
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
           "key" : "Sources\/XMLBuilder.swift:177:58 RelationalOperatorReplacement",
           "mutationPoint" : {
             "mutationOperatorId" : "RelationalOperatorReplacement",
@@ -1647,6 +2827,28 @@
             "after" : "                case let .exitBlock(string, block) where false:",
             "before" : "                case let .exitBlock(string, block) where string == name:",
             "line" : 177
+          },
+          "testSuiteOutcome" : "failed"
+        },
+        {
+          "key" : "Sources\/XMLBuilder.swift:178:28 ReplaceReturnValue",
+          "mutationPoint" : {
+            "mutationOperatorId" : "ReplaceReturnValue",
+            "position" : {
+              "column" : 28,
+              "line" : 178
+            }
+          },
+          "mutationSnapshot" : {
+            "after" : "nil",
+            "before" : "block()",
+            "description" : "replaced the return value with nil"
+          },
+          "path" : "Sources\/XMLBuilder.swift",
+          "sourceChange" : {
+            "after" : "                    return nil",
+            "before" : "                    return block()",
+            "line" : 178
           },
           "testSuiteOutcome" : "failed"
         },
@@ -2314,7 +3516,7 @@
         }
       ],
       "fileName" : "XMLBuilder.swift",
-      "mutationScore" : 83,
+      "mutationScore" : 85,
       "path" : "Sources\/XMLBuilder.swift"
     },
     {
@@ -2340,15 +3542,15 @@
       "path" : "Sources\/Platform.swift"
     }
   ],
-  "globalMutationScore" : 72,
+  "globalMutationScore" : 67,
   "mutantsByOutcome" : {
     "buildErrors" : 0,
-    "killed" : 75,
+    "killed" : 107,
     "notCovered" : 1,
-    "survived" : 28,
+    "survived" : 51,
     "timedOut" : 0
   },
-  "numberOfKilledMutants" : 75,
+  "numberOfKilledMutants" : 107,
   "operatorExplanations" : {
     "ChangeArithmeticOperator" : "Swaps arithmetic: plus and minus swap, as do times and divide, and remainder becomes times.",
     "ChangeLogicalConnector" : "Swaps a logical AND for OR, and OR for AND.",
@@ -2358,8 +3560,9 @@
     "RelationalOperatorReplacement" : "Replaces a comparison with true or false, and turns less than and greater than into not equal, and at most and at least into equal.",
     "RemoveSideEffects" : "Removes a call whose result isn't used, to check that a test notices its side effect is gone.",
     "ReplaceBooleanValue" : "Replaces a Bool that is returned or stored with true, and in a second mutant with false.",
+    "ReplaceReturnValue" : "Replaces a returned value with an empty one of its type: nil, an empty array, dictionary or string, or zero.",
     "SwapTernary" : "Swaps the two branches of a ternary expression."
   },
   "projectCodeCoverage" : 78,
-  "totalAppliedMutationOperators" : 104
+  "totalAppliedMutationOperators" : 159
 }

@@ -4,6 +4,12 @@ import XCTest
 
 /// Pinning a failed build's compile errors on the mutants at fault, and writing their files again without them.
 final class CompileRecoveryTests: MuterTestCase {
+    /// Without ReplaceReturnValue, whose mutant of a function's whole value, as `other`'s `3` or `total`'s call of a
+    /// builder, would change which switches these files have: its own shapes compile in GeneratedCodeShapesTests.
+    override var operatorsToDiscoverWith: MutationOperatorList {
+        super.operatorsToDiscoverWith.filter { $0 != .replaceReturnValue }
+    }
+
     private let path = "/project_mutated/Sources/Check.swift"
     private let state = MutationTestState()
     private let oneChain = """
