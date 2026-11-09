@@ -489,6 +489,7 @@ final class BuildConditionsTests: XCTestCase {
     func test_aFileWithAllItsConditions_hasNoOthersUndecided() {
         var everyTarget = conditions(custom: [["DEBUG", "APP"]])
         everyTarget.undecidedConditions = ["RELEASE_ONLY"]
+        everyTarget.anyConditionMayBeSetElsewhere = true
         let project = ProjectBuildConditions(
             everyTarget: everyTarget,
             customConditionsOfFile: ["App.swift": [["DEBUG", "APP"]], "Lib.swift": [["DEBUG"]]],
@@ -496,7 +497,9 @@ final class BuildConditionsTests: XCTestCase {
         )
 
         XCTAssertEqual(holds("RELEASE_ONLY", in: project.conditions(ofFile: "App.swift")), false)
+        XCTAssertEqual(holds("ANY_OTHER", in: project.conditions(ofFile: "App.swift")), false)
         XCTAssertNil(holds("RELEASE_ONLY", in: project.conditions(ofFile: "Lib.swift")))
+        XCTAssertNil(holds("ANY_OTHER", in: project.conditions(ofFile: "Lib.swift")))
         // Without targets of its own, a file has every target's conditions, and their undecided names.
         XCTAssertNil(holds("RELEASE_ONLY", in: project.conditions(ofFile: "Other.swift")))
     }

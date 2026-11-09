@@ -72,6 +72,7 @@ enum XcodeBuildConditions {
                     environment: environment
                 ),
                 anyConditionMayBeSetElsewhere: aBuildFileItDidntReadMaySetSome
+                    || mayComposeConditions(buildFiles, arguments, environment)
             ),
             customConditionsOfFile: ofFile,
             filesWithAllTheirConditions: Set(ofFile.keys)
@@ -458,18 +459,28 @@ enum XcodeBuildConditions {
     /// Whether a build file SwiftMutator didn't read may set what a target builds with: a build configuration file
     /// that `-xcconfig` or `XCODE_XCCONFIG_FILE` names, or a project file or build configuration file bases settings
     /// on (`namesAnUnreadConfigurationFile`), or the project file of a project a workspace or another project
-    /// references, which may be outside the project, with build configuration files of its own.
+    /// references outside the project, or where SwiftMutator can't tell, with build configuration files of its own.
     static func mayHaveUnreadBuildFiles(
         _ buildFiles: [BuildFile],
         _ arguments: [String],
         _ environment: [String: String]
     ) -> Bool {
+        let readProjects = Set(buildFiles.filter { $0.name == "project.pbxproj" }.map(\.path.canonicalPath))
         let referencesAnotherProject = buildFiles.contains { file in
-            file.name == "contents.xcworkspacedata"
-                ? mayLeaveTheFolder(workspace: file.text)
-                : file.name == "project.pbxproj" && file.text.contains("wrapper.pb-project")
+            if file.name == "contents.xcworkspacedata" {
+                return mayLeaveTheFolder(workspace: file.text)
+            }
+            guard file.name == "project.pbxproj" else { return false }
+            return referencedProjects(ofProject: file).map { projects in
+                !projects.allSatisfy { readProjects.contains(($0 + "/project.pbxproj").canonicalPath) }
+            } ?? true
+        }
+        // A `PROJECT_DIR=…` argument moves the folder a project file's paths are resolved from.
+        let movesTheProjectFolder = arguments.contains { argument in
+            argument.firstIndex(of: "=").map { projectFolderSettings.contains(String(argument[..<$0])) } ?? false
         }
         return arguments.contains("-xcconfig")
+            || movesTheProjectFolder
             || environment["XCODE_XCCONFIG_FILE"] != nil
             || namesAnUnreadConfigurationFile(buildFiles)
             || referencesAnotherProject

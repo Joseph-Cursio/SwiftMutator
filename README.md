@@ -987,8 +987,10 @@ So what it can't work out doesn't cost you code your build compiles. These stay 
   as it may be set for a target that wasn't reported, except in a file only reported targets compiled; any condition
   no reported target sets where a build file SwiftMutator didn't read may set one for such a target: an `.xcconfig`
   outside the project, or one whose path it can't follow, `-xcconfig`'s or `XCODE_XCCONFIG_FILE`'s, or another
-  project that a workspace or project references; and any other `SWIFT_` condition, as Xcode sets `SWIFT_PACKAGE` for
-  a local package's code;
+  project outside it that a workspace or project references; any condition no reported target sets where a setting
+  the conditions come from may put one together, as `EDITION_$(EDITION)` or `$(NAME:upper)` does, or refers to one
+  Xcode sets for each target, as `-D$(TARGET_NAME)` does; and any other `SWIFT_` condition, as Xcode sets
+  `SWIFT_PACKAGE` for a local package's code;
 - with SwiftPM, a package's traits, and a `.define` that a trait enables.
 
 A later clause can still be decided after an undecided one: after `#if canImport(SomePackage)`, an `#elseif os(iOS)` is

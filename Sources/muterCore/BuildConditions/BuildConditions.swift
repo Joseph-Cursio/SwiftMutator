@@ -24,8 +24,9 @@ struct BuildConditions: Equatable, Sendable {
     /// 6 mode the compiler's own version. Nil if SwiftMutator can't tell, as when the targets' modes differ.
     var language: VersionTuple?
     /// Whether a target the code may be in can have a condition set that nothing SwiftMutator read names, as one a
-    /// build configuration file it didn't read sets for a target xcodebuild didn't report. Then a condition no target
-    /// here sets is undecided rather than unset, as if `undecidedConditions` held every name.
+    /// build configuration file it didn't read sets for a target xcodebuild didn't report, or one a setting puts
+    /// together, as `EDITION_$(EDITION)` does. Then a condition no target here sets is undecided rather than unset, as
+    /// if `undecidedConditions` held every name. False for a file whose targets' are all it has.
     var anyConditionMayBeSetElsewhere = false
 
     struct Platform: Equatable, Sendable {
