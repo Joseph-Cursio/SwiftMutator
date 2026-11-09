@@ -9,14 +9,16 @@ enum XcodeBuildConditions {
     /// which a scheme's test action can set apart from the project's default.
     ///
     /// It reports no target that a scheme's targets only depend on, and no local package's, so a condition no reported
-    /// target sets is left undecided if a build file in the project names it. A Swift package's scheme has no settings
-    /// at all, so its conditions come from its manifest (`PackageSchemeBuildConditions`).
+    /// target sets is left undecided if a build file in the project names it. After a build, `afterABuild`, which
+    /// target compiled each file is in the lists of files the build left (`filesOfEachTarget`). A Swift package's
+    /// scheme has no settings at all, so its conditions come from its manifest (`PackageSchemeBuildConditions`).
     static func conditions(
         inProjectAt root: FilePath,
         testedBy configuration: MuterConfiguration,
         process: ProcessFactory,
         fileManager: FileSystemManager,
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        afterABuild: Bool = false
     ) async -> Result<ProjectBuildConditions, BuildConditionsUnavailable> {
         let arguments = configuration.testCommandArguments
         guard var targets = await settings(for: arguments, configuration, process: process) else {
@@ -49,19 +51,230 @@ enum XcodeBuildConditions {
         let compiler = aTargetMayPickItsCompiler
             ? nil
             : await compilerVersion(of: targets, in: arguments, process: process)
-        return .success(ProjectBuildConditions(everyTarget: BuildConditions(
-            platform: platform(of: targets, in: arguments, fileManager: fileManager),
-            customConditions: targets.map(customConditions(of:)),
-            undecidedConditions: namesInBuildFiles,
-            compiler: compiler,
-            language: languageVersion(
-                of: targets,
-                in: arguments,
-                buildFiles: buildFiles,
+        let anotherConfigurationFileMaySetSome = arguments.contains("-xcconfig")
+            || environment["XCODE_XCCONFIG_FILE"] != nil
+            || namesAnUnreadConfigurationFile(buildFiles)
+        let ofFile = afterABuild && !anotherConfigurationFileMaySetSome
+            ? filesOfEachTarget(of: targets, buildFiles: buildFiles, root: root, fileManager: fileManager)
+            : [:]
+        return .success(ProjectBuildConditions(
+            everyTarget: BuildConditions(
+                platform: platform(of: targets, in: arguments, fileManager: fileManager),
+                customConditions: targets.map(customConditions(of:)),
+                undecidedConditions: namesInBuildFiles,
                 compiler: compiler,
-                environment: environment
-            )
-        )))
+                language: languageVersion(
+                    of: targets,
+                    in: arguments,
+                    buildFiles: buildFiles,
+                    compiler: compiler,
+                    environment: environment
+                )
+            ),
+            customConditionsOfFile: ofFile,
+            filesWithAllTheirConditions: Set(ofFile.keys)
+        ))
+    }
+
+    /// The custom conditions of every target that compiled each file in the build just run, by the file's path in the
+    /// project, for each file that only reported targets compiled. Empty if SwiftMutator can't tell.
+    ///
+    /// Every target that compiles Swift leaves a list of the files it compiled, at `SWIFT_RESPONSE_FILE_PATH_…` in
+    /// its settings, under `OBJROOT` in derived data: those of the targets `-showBuildSettings` doesn't report too, as
+    /// a framework the app only depends on and a local package's. A file in any list but a reported target's may build
+    /// with conditions SwiftMutator can't see, and is left to `everyTarget`. A list from an earlier build, of a target
+    /// since removed or of another configuration, holds what it held: it can only leave more files to `everyTarget`.
+    /// A reported target's own, if this build didn't compile it, only adds a target to its files, which decides less.
+    ///
+    /// It goes by the lists only where they are all that can compile a file: all reported targets share an `OBJROOT`
+    /// in derived data, no build file moves a target's intermediate files elsewhere, references another project,
+    /// which may be outside the project, has a target an external tool builds, runs the compiler itself, or a script
+    /// SwiftMutator can't read, or sets anything for an architecture or build variant, which `-showBuildSettings`
+    /// doesn't resolve as the build does, and the caller has found no build configuration file it didn't read, which
+    /// may do any of that.
+    private static func filesOfEachTarget(
+        of targets: [Settings],
+        buildFiles: [BuildFile],
+        root: FilePath,
+        fileManager: FileSystemManager
+    ) -> [FilePath: [Set<String>]] {
+        let objectRoots = Set(targets.map { $0["OBJROOT"] ?? "" })
+        guard objectRoots.count == 1,
+              let objectRoot = objectRoots.first,
+              objectRoot.hasSuffix("/Build/Intermediates.noindex"),
+              !buildFiles.contains(where: { mayCompileOutOfSight($0) }),
+              !buildFiles.contains(where: { runsAScriptThatMayCompile($0, fileManager: fileManager) })
+        else {
+            return [:]
+        }
+
+        // The conditions of a reported target, by each of its lists, unless its flags may hide some.
+        var targetsOfList: [FilePath: [Set<String>]] = [:]
+        for target in targets where readableConditions(of: target) {
+            for (setting, list) in target where setting.hasPrefix("SWIFT_RESPONSE_FILE_PATH_") {
+                targetsOfList[list.canonicalPath, default: []].append(customConditions(of: target))
+            }
+        }
+
+        var unreported: Set<FilePath> = []
+        var reported: [FilePath: (spellings: Set<FilePath>, targets: [Set<String>])] = [:]
+        var aReportedListIsAllThere = false
+        for list in fileLists(under: objectRoot, fileManager: fileManager) {
+            guard let contents = fileManager.contents(atPath: list),
+                  let files = filePaths(inFileList: String(decoding: contents, as: UTF8.self))
+            else {
+                return [:]
+            }
+            guard let targets = targetsOfList[list.canonicalPath] else {
+                unreported.formUnion(files.map(\.canonicalPath))
+                continue
+            }
+            aReportedListIsAllThere = aReportedListIsAllThere || files.allSatisfy(fileManager.fileExists)
+            for file in files {
+                reported[file.canonicalPath, default: ([], [])].spellings.insert(file)
+                reported[file.canonicalPath, default: ([], [])].targets += targets
+            }
+        }
+        // Lists that each name a file that's there, as a check that they read as Xcode writes them.
+        guard aReportedListIsAllThere else { return [:] }
+
+        let roots = Set([root, root.canonicalPath]).map { $0.hasSuffix("/") ? $0 : $0 + "/" }
+        var ofFile: [FilePath: [Set<String>]] = [:]
+        for (file, found) in reported where !unreported.contains(file) {
+            for spelling in found.spellings.union([file]) {
+                if let root = roots.first(where: spelling.hasPrefix) {
+                    ofFile[String(spelling.dropFirst(root.count))] = found.targets
+                }
+            }
+        }
+        return ofFile
+    }
+
+    /// Whether a target's conditions are all in its `SWIFT_ACTIVE_COMPILATION_CONDITIONS` and `OTHER_SWIFT_FLAGS` as
+    /// `customConditions(of:)` reads them: neither quotes, escapes nor refers to anything, and no flag is a response
+    /// file, which can hold more.
+    private static func readableConditions(of target: Settings) -> Bool {
+        let written = (target["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ?? "") + " " + (target["OTHER_SWIFT_FLAGS"] ?? "")
+        return !written.contains { "\"'\\$@`".contains($0) }
+    }
+
+    /// The settings that put a target's intermediate files, its file list among them, somewhere.
+    private static let buildFolderSettings: Set = [
+        "OBJROOT", "SYMROOT", "BUILD_DIR", "BUILD_ROOT", "PROJECT_TEMP_DIR", "PROJECT_TEMP_ROOT",
+        "CONFIGURATION_TEMP_DIR", "TARGET_TEMP_DIR", "TEMP_DIR", "TEMP_ROOT", "TEMP_FILES_DIR", "OBJECT_FILE_DIR",
+        "SWIFT_RESPONSE_FILE_PATH", "SHARED_PRECOMPS_DIR", "DERIVED_DATA_DIR",
+    ]
+
+    /// What in a build file may compile a file SwiftMutator doesn't find in a list in `OBJROOT`, or with conditions
+    /// `-showBuildSettings` doesn't report: in a workspace, a project outside the project's folder; in workspace
+    /// settings, a build location of their own; and in a project file or build configuration file, a setting for an
+    /// architecture or variant, another project, a target an external tool builds, a script that runs the compiler or
+    /// another build, or a setting that moves intermediate files.
+    private static func mayCompileOutOfSight(_ file: BuildFile) -> Bool {
+        if file.name == "contents.xcworkspacedata" {
+            return file.text.contains("absolute:") || file.text.contains("../")
+        }
+        if file.name.hasSuffix(".xcsettings") {
+            return file.text.contains("BuildLocation")
+        }
+        return tellTales.contains { file.text.contains($0) } || names(in: [file]).contains { name in
+            buildFolderSettings.contains { name == $0 || name.hasPrefix($0 + "_") }
+                || perCompileSettings.contains(name)
+        }
+    }
+
+    /// Text in a build file or script that may compile Swift out of the lists' sight, or set something for one
+    /// architecture or variant: by a condition on a setting, or by a reference to one, as `$(FLAGS_$(arch))`, which
+    /// `-showBuildSettings` resolves with none.
+    private static let tellTales = [
+        "[arch=", "[variant=", "(arch)", "{arch}", "(variant)", "{variant}", "PBXLegacyTarget", "wrapper.pb-project",
+        "swiftc", "swift-frontend", "swift build", "xcodebuild",
+    ]
+
+    /// The settings the build sets for each compile, for an architecture or variant, that `-showBuildSettings` reports
+    /// with none.
+    private static let perCompileSettings: Set = ["CURRENT_ARCH", "CURRENT_VARIANT", "NATIVE_ARCH", "ACTION"]
+
+    /// How a Run Script phase names the folder of its project.
+    private static let projectFolderReferences = [
+        "${SRCROOT}", "$SRCROOT", "$(SRCROOT)", "${PROJECT_DIR}", "$PROJECT_DIR", "$(PROJECT_DIR)",
+    ]
+
+    /// The kinds of file a Run Script phase may run.
+    private static let scriptExtensions = [".sh", ".bash", ".zsh", ".py", ".rb", ".pl", ".command", ".swift"]
+
+    /// Whether a project file has a Run Script phase that runs a script SwiftMutator can't read, or that holds a tell
+    /// tale: one outside the project, by a path that leaves it, starts from a variable it doesn't follow, or names no
+    /// file. A script runs in the folder of the project, which `SRCROOT` and `PROJECT_DIR` name.
+    private static func runsAScriptThatMayCompile(_ file: BuildFile, fileManager: FileSystemManager) -> Bool {
+        guard file.name == "project.pbxproj" else { return false }
+        let projectFolder = ((file.path as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent
+        let scripts = file.text.split(whereSeparator: \.isNewline).filter { $0.contains("shellScript = ") }
+        for script in scripts {
+            if script.contains("../") || script.contains("~/") || script.contains("$HOME") {
+                return true
+            }
+            let words = script.replacingOccurrences(of: "\\n", with: " ")
+                .split { $0.isWhitespace || "\"';|&<>`".contains($0) || $0 == "\\" }
+            for word in words where scriptExtensions.contains(where: word.hasSuffix) {
+                var path = String(word)
+                for folder in projectFolderReferences {
+                    path = path.replacingOccurrences(of: folder, with: projectFolder)
+                }
+                if !path.hasPrefix("/") {
+                    path = projectFolder + "/" + path
+                }
+                guard !path.contains("$"), path.hasPrefix(projectFolder + "/"),
+                      let contents = fileManager.contents(atPath: path)
+                else {
+                    return true
+                }
+                let text = String(decoding: contents, as: UTF8.self)
+                if tellTales.contains(where: text.contains) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    /// The paths of the file lists under `objectRoot`, at `<project or package>.build/<configuration>/<target>.build/
+    /// Objects-<variant>/<architecture>/<product>.SwiftFileList`.
+    private static func fileLists(under objectRoot: FilePath, fileManager: FileSystemManager) -> [FilePath] {
+        func entries(of folder: FilePath, endingIn suffix: String = "") -> [FilePath] {
+            ((try? fileManager.contentsOfDirectory(atPath: folder)) ?? [])
+                .filter { $0.hasSuffix(suffix) }
+                .map { folder + "/" + $0 }
+        }
+        return entries(of: objectRoot, endingIn: ".build")
+            .flatMap { entries(of: $0) }
+            .flatMap { entries(of: $0, endingIn: ".build") }
+            .flatMap { target in
+                entries(of: target).filter { ($0 as NSString).lastPathComponent.hasPrefix("Objects-") }
+            }
+            .flatMap { entries(of: $0) }
+            .flatMap { entries(of: $0, endingIn: ".SwiftFileList") }
+    }
+
+    /// The paths in a file list: one a line, with a backslash before a space, a quote or a backslash in one. Nil if a
+    /// line isn't an absolute path.
+    static func filePaths(inFileList text: String) -> [FilePath]? {
+        var paths: [FilePath] = []
+        for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
+            var path = ""
+            var escaped = false
+            for character in line {
+                if escaped || character != "\\" {
+                    path.append(character)
+                    escaped = false
+                } else {
+                    escaped = true
+                }
+            }
+            guard path.hasPrefix("/"), !escaped else { return nil }
+            paths.append(path)
+        }
+        return paths
     }
 
     private typealias Settings = [String: String]
@@ -260,20 +473,24 @@ enum XcodeBuildConditions {
     struct BuildFile {
         let name: String
         let text: String
+        /// Where it is; empty if that doesn't matter.
+        var path: FilePath = ""
 
         var isPackageManifest: Bool {
             name.hasPrefix("Package") && name.hasSuffix(".swift")
         }
     }
 
-    /// The project's project files, build configuration files and package manifests.
+    /// The project's project files, build configuration files, package manifests, and workspaces' contents and
+    /// settings.
     private static func buildFiles(inProjectAt root: FilePath, fileManager: FileSystemManager) -> [BuildFile] {
         (fileManager.subpaths(atPath: root) ?? []).compactMap { path in
             let name = (path as NSString).lastPathComponent
             let isABuildFile = name == "project.pbxproj" || name.hasSuffix(".xcconfig")
                 || (name.hasPrefix("Package") && name.hasSuffix(".swift"))
+                || name == "contents.xcworkspacedata" || name.hasSuffix(".xcsettings")
             guard isABuildFile, let contents = fileManager.contents(atPath: root + "/" + path) else { return nil }
-            return BuildFile(name: name, text: String(decoding: contents, as: UTF8.self))
+            return BuildFile(name: name, text: String(decoding: contents, as: UTF8.self), path: root + "/" + path)
         }
     }
 

@@ -6,15 +6,20 @@ struct ProjectBuildConditions: Equatable, Sendable {
     /// For any file, by every target's conditions: an `#if` is decided only where they all agree.
     let everyTarget: BuildConditions
     /// The custom conditions of the targets that hold a file, by its path relative to the project, for a build system
-    /// that says. xcodebuild doesn't: which of its targets compile a file is in the project file, or in the folders
-    /// Xcode syncs, and SwiftMutator reads neither.
+    /// that says. xcodebuild says only after a build, in the lists of the files each target compiled.
     var customConditionsOfFile: [FilePath: [Set<String>]] = [:]
+    /// The files among `customConditionsOfFile`'s whose targets' conditions are all there is to them, with nothing
+    /// else that may set one: a name none of the targets sets is unset, though `everyTarget` leaves it undecided.
+    var filesWithAllTheirConditions: Set<FilePath> = []
 
     /// What the build compiles the file at `path`, relative to the project, with.
     func conditions(ofFile path: FilePath) -> BuildConditions {
         var conditions = everyTarget
         if let targets = customConditionsOfFile[path], !targets.isEmpty {
             conditions.customConditions = targets
+            if filesWithAllTheirConditions.contains(path) {
+                conditions.undecidedConditions = []
+            }
         }
         return conditions
     }
@@ -136,12 +141,22 @@ func compilerVersion(inVersionOutput output: String) -> VersionTuple? {
 
 /// The conditions among compiler flags: `-DNAME`, and `-D NAME` as two flags. A flag that `-Xcc`, `-Xllvm`, `-Xlinker`
 /// or `-Xclang-linker` passes on is another tool's, so `-Xcc -DNAME` defines a C macro, not a condition. The frontend
-/// takes `-D` as the driver does, so `-Xfrontend -DNAME` is one.
+/// takes `-D` as the driver does, and each flag `-Xfrontend` passes it is read in turn, as the frontend reads them:
+/// so `-Xfrontend -DNAME` and `-Xfrontend -D -Xfrontend NAME` are conditions, and `-Xfrontend -Xcc -Xfrontend -DNAME`
+/// isn't.
 func customConditions(inSwiftFlags flags: [String]) -> Set<String> {
     var conditions: Set<String> = []
+    var frontendFlags: [String] = []
     var index = 0
     while index < flags.count {
         let flag = flags[index]
+        if flag == "-Xfrontend" {
+            if index + 1 < flags.count {
+                frontendFlags.append(flags[index + 1])
+            }
+            index += 2
+            continue
+        }
         if passedToAnotherTool.contains(flag) {
             index += 2
             continue
@@ -158,7 +173,8 @@ func customConditions(inSwiftFlags flags: [String]) -> Set<String> {
         }
         index += 1
     }
-    return conditions
+    // The frontend takes no `-Xfrontend` of its own, so these hold none.
+    return frontendFlags.isEmpty ? conditions : conditions.union(customConditions(inSwiftFlags: frontendFlags))
 }
 
 /// The options that pass the flag after them to a tool other than the Swift compiler.

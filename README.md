@@ -972,10 +972,18 @@ So what it can't work out doesn't cost you code your build compiles. These stay 
 - `arch(…)` in a build for several architectures, as a generic destination is, unless it is none of them, and in a
   package's scheme under xcodebuild, unless `-destination` names one with `arch=`;
 - a condition only some targets set. SwiftPM says which targets compile each file, so there it's only those targets'.
-  xcodebuild doesn't, so there it's all the targets it reports, for the test bundles and for the scheme;
+  After the coverage run, xcodebuild says too, in the list of files each target compiled that the build leaves in
+  derived data, so a file only reported targets compiled has only theirs. A file another target compiled too, as a
+  framework the app embeds or a local package, has all the targets xcodebuild reports, for the test bundles and for
+  the scheme, as does every file with `--skip-coverage`, or where something can compile files out of the lists' sight:
+  intermediate files outside derived data, a setting for an architecture or build variant, another project, a target
+  an external tool builds, a script that runs the compiler or another build, or one SwiftMutator can't read, or a
+  build configuration file outside the project, from `-xcconfig` or `XCODE_XCCONFIG_FILE`. A list an earlier run left
+  in the mutated copy's derived data, of another configuration or a target since renamed, counts as another target's
+  until that folder is deleted;
 - with xcodebuild, a condition no reported target sets but that a `project.pbxproj`, `.xcconfig` or package manifest in
-  the project names, as it may be set for a target that wasn't reported; and any other `SWIFT_` condition, as Xcode sets
-  `SWIFT_PACKAGE` for a local package's code;
+  the project names, as it may be set for a target that wasn't reported, except in a file only reported targets
+  compiled; and any other `SWIFT_` condition, as Xcode sets `SWIFT_PACKAGE` for a local package's code;
 - with SwiftPM, a package's traits, and a `.define` that a trait enables.
 
 A later clause can still be decided after an undecided one: after `#if canImport(SomePackage)`, an `#elseif os(iOS)` is
@@ -985,7 +993,8 @@ left out of a macOS build, and an `#elseif os(macOS)` rules out the `#else` afte
 `CarPlay` on macOS, would have its `canImport` branch read as left out.
 
 If the conditions can't be read at all, as for a test command that isn't `swift`, a Swift package's scheme under
-xcodebuild, which has no build settings, or `-xctestrun`, SwiftMutator says so and every branch keeps its mutants:
+xcodebuild whose manifest can't say what it builds with, or `-xctestrun`, SwiftMutator says so and every branch keeps
+its mutants:
 
 ```text
 ℹ️ SwiftMutator couldn't tell which `#if` branches the build compiles: xcodebuild reported no build settings.

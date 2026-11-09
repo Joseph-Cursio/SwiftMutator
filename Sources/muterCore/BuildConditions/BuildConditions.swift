@@ -14,7 +14,8 @@ struct BuildConditions: Equatable, Sendable {
     /// which target's build a branch belongs to decides, so it is undecided.
     var customConditions: [Set<String>]
     /// The custom conditions no target here sets, but that something else might: a package's traits, or a name a build
-    /// file mentions, which may be a setting of a target xcodebuild didn't report.
+    /// file mentions, which may be a setting of a target xcodebuild didn't report. Empty for a file whose targets' are
+    /// all it has (`ProjectBuildConditions.filesWithAllTheirConditions`).
     var undecidedConditions: Set<String> = []
     /// The compiler's version, as `compiler(…)` compares it: the one `swift --version` prints. Nil if SwiftMutator
     /// can't tell, as when the command picks a toolchain of its own.
