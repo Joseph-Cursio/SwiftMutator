@@ -14,6 +14,7 @@ extension RunEvent {
         case projectCopyStarted
         case projectCopySkippedVanishedFiles
         case projectCopyFinished
+        case codeOutsideTheProjectBuilt
         case projectCoverageDiscoveryStarted
         case projectCoverageDiscoveryFinished
         case projectCoverageTestsFailed
@@ -86,6 +87,7 @@ extension RunEvent {
         case .projectCopyStarted: .projectCopyStarted
         case .projectCopySkippedVanishedFiles: .projectCopySkippedVanishedFiles
         case .projectCopyFinished: .projectCopyFinished
+        case .codeOutsideTheProjectBuilt: .codeOutsideTheProjectBuilt
         case .projectCoverageDiscoveryStarted: .projectCoverageDiscoveryStarted
         case .projectCoverageDiscoveryFinished: .projectCoverageDiscoveryFinished
         case .projectCoverageTestsFailed: .projectCoverageTestsFailed
@@ -166,6 +168,7 @@ extension RunEvent {
         case let .logFoldersPruned(pruning): pruning
         case let .projectCopySkippedVanishedFiles(paths): paths
         case let .projectCopyFinished(destinationPath): destinationPath
+        case let .codeOutsideTheProjectBuilt(paths): paths
         case let .projectCoverageDiscoveryFinished(failure): failure
         case let .projectCoverageTestsFailed(failed): failed
         case let .packageSourceFilesUnavailable(reason): reason

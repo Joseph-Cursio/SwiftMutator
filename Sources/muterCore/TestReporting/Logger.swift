@@ -165,6 +165,24 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         )
     }
 
+    /// "ℹ️ Your project's build uses code outside its folder…", then up to 5 of `paths`, then how to mutate that code
+    /// too. A notice, not a warning: the project builds and tests as it would anyway.
+    func codeOutsideTheProjectBuilt(_ paths: [String]) {
+        let shown = paths.prefix(5).map { "  \($0)" }
+        let more = paths.count > shown.count ? ["  … and \(paths.count - shown.count) more"] : []
+        let lines = [
+            "ℹ️ Your project's build uses code outside its folder, which SwiftMutator doesn't copy, so it is built "
+                + "from where it is and gets no mutants:",
+        ]
+            + shown + more
+            + [
+                "Mutants are made only in the folder SwiftMutator runs in. To mutate that code too, run it from a "
+                    + "folder that holds both, such as your repository's root, with \("arguments".bold) naming the "
+                    + "project there, or move the code into the project.",
+            ]
+        print(lines.joined(separator: "\n"))
+    }
+
     func projectCoverageDiscoveryStarted() {
         print("⚙️ Running tests with coverage enabled to determine which files to mutate")
     }

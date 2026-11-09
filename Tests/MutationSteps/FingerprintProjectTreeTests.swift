@@ -95,6 +95,49 @@ final class FingerprintProjectTreeTests: MuterTestCase {
         XCTAssertNil(state.projectTree)
     }
 
+    // The copy builds a local package and a workspace's project outside the project from where they are, unmutated,
+    // so the step says so once, from the fingerprint's own listing. The package's files are fingerprinted, and the
+    // workspace's project's aren't, so earlier results files still resume.
+    func test_codeOutsideTheProject_isSaidOnce_andOnlyLocalPackagesAreFingerprinted() async throws {
+        let project = [
+            "Package.swift": #"let package = Package(dependencies: [.package(path: "../Core")])"#,
+            "App.xcworkspace/contents.xcworkspacedata":
+                #"<Workspace version = "1.0"><FileRef location = "group:../Other/Other.xcodeproj"/></Workspace>"#,
+        ]
+        try write(project, in: self.project)
+        try write(project, in: copy)
+        let root = (self.project as NSString).deletingLastPathComponent
+        try write(["Core/Package.swift": "core", "Other/Other.xcodeproj/project.pbxproj": "other"], in: root)
+        let listed = recordListings(Array(project.keys))
+        let said = Locked<[[String]]>([])
+        let subscription = runEvents.observe(.codeOutsideTheProjectBuilt) { event in
+            said.change { $0.append(event.object as? [String] ?? []) }
+        }
+        addTeardownBlock { subscription.cancel() }
+
+        let changes = try await sut.run(with: state)
+        state.apply(changes)
+
+        XCTAssertEqual(said.value, [["../Core", "../Other/Other.xcodeproj"]])
+        XCTAssertEqual(listed.value.map(\.lastPathComponent), ["project", "Core"], "the project is listed once")
+        XCTAssertEqual(
+            state.projectTree?.files.keys.sorted(),
+            ["../Core/Package.swift", "App.xcworkspace/contents.xcworkspacedata", "Package.swift"]
+        )
+    }
+
+    // A project that builds nothing from outside its folder says nothing about it.
+    func test_noCodeOutsideTheProject_saysNothing() async throws {
+        try write(["Package.swift": "let package = Package()"], in: copy)
+        _ = recordListings(["Package.swift"])
+        let said = expectation(forEvent: .codeOutsideTheProjectBuilt)
+        said.isInverted = true
+
+        _ = try await sut.run(with: state)
+
+        await fulfillment(of: [said], timeout: 0)
+    }
+
     // LoadResumeState found the project as the last session left it, and the copy holds the same files.
     func test_onResume_anUnchangedCopy_passes() async throws {
         let files = ["README.md": "readme", "Sources/Sum.swift": "sum"]

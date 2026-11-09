@@ -67,23 +67,52 @@ extension ProjectTree {
         pruning prunedFolders: Set<String> = [],
         list: ProjectFileListing
     ) async -> ProjectTree {
+        await fingerprinting(
+            listingIn: listingRoot,
+            hashingIn: hashingRoot,
+            excluding: excluded,
+            pruning: prunedFolders,
+            list: list
+        ).tree
+    }
+
+    /// What `fingerprint` found on its way to the tree, so that a run can tell what it builds from outside the project
+    /// (`OutsideProjectCode`) without listing the project again.
+    struct Fingerprinting {
+        let tree: ProjectTree
+        /// The paths it listed in the project, relative to it, less those left out.
+        let paths: Set<String>
+        /// The local packages outside the project whose files the tree holds.
+        let localPackages: [LocalPackageDependencies.Dependency]
+    }
+
+    /// `fingerprint`, with the paths it listed and the local packages it found.
+    static func fingerprinting(
+        listingIn listingRoot: URL,
+        hashingIn hashingRoot: URL,
+        excluding excluded: [String],
+        pruning prunedFolders: Set<String> = [],
+        list: ProjectFileListing
+    ) async -> Fingerprinting {
         let listed = await list(listingRoot)
         let paths = self.paths(listed: listed, under: hashingRoot, pruning: prunedFolders).subtracting(excluded)
         var files: [String: String] = [:]
         for path in paths {
             files[path] = digest(of: hashingRoot.appendingPathComponent(path))
         }
-        for dependency in LocalPackageDependencies.outside(listingRoot, manifests: paths) {
+        let localPackages = LocalPackageDependencies.outside(listingRoot, manifests: paths)
+        for dependency in localPackages {
             for path in self.paths(listed: await list(dependency.url), under: dependency.url) {
                 files[dependency.relativePath + "/" + path] = digest(of: dependency.url.appendingPathComponent(path))
             }
         }
-        return ProjectTree(
+        let tree = ProjectTree(
             listedBy: listed == nil ? .walk : .git,
             files: files,
             excluded: Set(excluded).sorted(),
             treeSHA256: treeHash(of: files)
         )
+        return Fingerprinting(tree: tree, paths: paths, localPackages: localPackages)
     }
 
     /// The files under `root` that `listed` names, unless pruned, and every Swift and package file under it; without a

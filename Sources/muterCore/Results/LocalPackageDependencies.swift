@@ -44,6 +44,13 @@ enum LocalPackageDependencies {
         }
         return name == "Package.swift" || name.hasPrefix("Package@swift-") && name.hasSuffix(".swift")
     }
+
+    /// `components`' path from `root`'s, as `../` steps up and then down.
+    static func relativePath(of components: [String], from root: [String]) -> String {
+        let shared = zip(root, components).prefix { $0 == $1 }.count
+        return (Array(repeating: "..", count: root.count - shared) + components.dropFirst(shared))
+            .joined(separator: "/")
+    }
 }
 
 private extension LocalPackageDependencies {
@@ -101,12 +108,5 @@ private extension LocalPackageDependencies {
     static func replacing(_ pattern: String, in text: String) -> String {
         NSRegularExpression.regexWithPattern(pattern)
             .stringByReplacingMatches(in: text, range: NSRange(text.startIndex..., in: text), withTemplate: "")
-    }
-
-    /// `components`' path from `root`'s, as `../` steps up and then down.
-    static func relativePath(of components: [String], from root: [String]) -> String {
-        let shared = zip(root, components).prefix { $0 == $1 }.count
-        return (Array(repeating: "..", count: root.count - shared) + components.dropFirst(shared))
-            .joined(separator: "/")
     }
 }

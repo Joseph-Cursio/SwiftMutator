@@ -22,6 +22,10 @@ enum RunEvent {
     /// The paths that vanished while the project was being copied, as a build tool's temporary files do.
     case projectCopySkippedVanishedFiles([String])
     case projectCopyFinished(destinationPath: String)
+    /// The local packages, Xcode projects and packages outside the project that its build uses from where they are,
+    /// unmutated, by their paths relative to the project, which start with `../` (`OutsideProjectCode`). Sent once,
+    /// when the project's files are fingerprinted.
+    case codeOutsideTheProjectBuilt([String])
 
     case projectCoverageDiscoveryStarted
     /// Why coverage couldn't be gathered, or nil when it was.

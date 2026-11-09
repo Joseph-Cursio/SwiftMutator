@@ -452,6 +452,25 @@ full path on the Mac that ran `init`. Commit the file rather than running `init`
 - **Linters in the build.** A linter that runs as a build phase or plugin, and fails the build on
   style, can fail it on a mutant's code. Turn it off for the test command, such as with a scheme of
   its own.
+- **Code outside the project.** SwiftMutator copies only the project's folder and makes mutants
+  only there. A local package that a `Package.swift` names with `.package(path: "../Shared")`, or an
+  Xcode project with a local package reference, and an Xcode project or package that a workspace of
+  yours references outside the folder, such as `../Other/Other.xcodeproj`, are built from where they
+  are, unmutated. `run`, `mutate-without-running` and `run-without-mutating` each say so once,
+  before anything is built:
+
+  ```text
+  ℹ️ Your project's build uses code outside its folder, which SwiftMutator doesn't copy, so it is built from where it is and gets no mutants:
+    ../Other/Other.xcodeproj
+    ../Shared
+  Mutants are made only in the folder SwiftMutator runs in. To mutate that code too, run it from a folder that holds both, such as your repository's root, with arguments naming the project there, or move the code into the project.
+  ```
+
+  To mutate that code too, run SwiftMutator from a folder that holds both, with `muter.conf.yml`
+  there and `arguments` naming the project in it, such as `--package-path App` for `swift test` or
+  `-workspace App/App.xcworkspace` for xcodebuild. The copy is then of that whole folder. Only
+  literal paths are followed, a workspace git ignores isn't read, and the projects a workspace
+  references aren't read in turn.
 - **UI tests.** Every mutant runs the whole test command, so slow tests make a slow run. Start with
   the unit tests: a scheme or test plan without UI tests, `-skip-testing:` in xcodebuild's
   `arguments`, or `--skip` in `swift test`'s.
@@ -2940,8 +2959,9 @@ they are a usage error, with status 64.
   package that a `Package.swift` names with `.package(path: "../Core")`, or an Xcode project with a
   local package reference, is built from where it is, as it is then. Its files count under their
   path from the project, such as `../Core/Sources/Core/Core.swift`. Only literal paths are followed.
-  Nothing else outside the project counts, such as sources an Xcode project references there: after
-  changing a file like that, which a test can read, start a new run rather than resume.
+  Nothing else outside the project counts, such as sources an Xcode project references there, or a
+  project a workspace references there: after changing a file like that, which a test can read,
+  start a new run rather than resume.
 - **A waiver is your call.** Mutants in a changed Swift file are always tested again, but a change
   can also change the results of mutants elsewhere: a test file, a fixture a test reads, or a source
   file the mutated code calls. Waive only files that no test's result depends on.
