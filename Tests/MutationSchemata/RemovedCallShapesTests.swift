@@ -5,6 +5,13 @@ import XCTest
 /// doesn't build: a call that never returns, a value, a result builder's part (#112). Each test checks which lines
 /// have the operator's mutants, so a fixture can't pass by holding none.
 final class RemovedCallShapesTests: GeneratedCodeTestCase {
+    /// Without ReplaceReturnValue: its empty value in place of `return doubled + ...` leaves the local `doubled`
+    /// never used, which warns, and these files compile with warnings as errors. Its own shapes compile in
+    /// GeneratedCodeShapesTests.
+    override var operatorsToDiscoverWith: MutationOperatorList {
+        super.operatorsToDiscoverWith.filter { $0 != .replaceReturnValue }
+    }
+
     /// Code whose last statements are calls that never return, in each place a removal visits, and calls that can be
     /// removed before them, each on a line whose comment names the place.
     private static let usage = """

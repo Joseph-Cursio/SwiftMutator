@@ -5,6 +5,16 @@ import XCTest
 /// runs it where that's cheap. Each test is named for its shape, so a failure names the shape that broke, and each
 /// checks that the rewrite found mutants of that shape, so a fixture can't pass by holding none.
 final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
+    /// The operators a test leaves out of its files. ReplaceReturnValue's empty value in place of a value that alone
+    /// reads a local, as `return label` after `let label = ...`, leaves that local never used, which warns, and these
+    /// files compile with warnings as errors; a test of other operators' shapes that has such a value leaves it out.
+    /// Its own shapes compile in `test_theGeneratedCodeBuildsForReplacedReturnValues` and the tests beside it.
+    private var leftOutOperators: MutationOperatorList = []
+
+    override var operatorsToDiscoverWith: MutationOperatorList {
+        super.operatorsToDiscoverWith.filter { !leftOutOperators.contains($0) }
+    }
+
     /// A result builder takes a switch as an `if` with an `else`, so it needs `buildEither`. A mutant in a builder
     /// closure's statement or `if` condition is switched in the closure's statements, and one in an `if` or `for`
     /// body in that body's, each of which is a component the builder combines. A builder property's or function's
@@ -284,16 +294,20 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         )
 
         let mutants = { compiled.operators(in: "Modes.swift", onTheLineHolding: $0) }
-        XCTAssertEqual(mutants("inactive big"), [.ror, .relationalBoundary, .swapTernary], "the inactive #if clause")
+        XCTAssertEqual(
+            mutants("inactive big"),
+            [.ror, .relationalBoundary, .swapTernary, .replaceReturnValue],
+            "the inactive #if clause"
+        )
         XCTAssertEqual(
             mutants("? \"big\""),
-            [.ror, .relationalBoundary, .logicalOperator, .swapTernary],
+            [.ror, .relationalBoundary, .logicalOperator, .swapTernary, .replaceReturnValue],
             "the active #elseif clause"
         )
-        XCTAssertEqual(mutants("other big"), [.ror, .swapTernary], "the inactive #else clause")
+        XCTAssertEqual(mutants("other big"), [.ror, .swapTernary, .replaceReturnValue], "the inactive #else clause")
         XCTAssertEqual(
             mutants("var level"),
-            [.ror, .relationalBoundary, .swapTernary],
+            [.ror, .relationalBoundary, .swapTernary, .replaceReturnValue],
             "a getter in a #if clause of a type's members"
         )
         XCTAssertEqual(mutants("#elseif"), [], "a #if condition, in the file's statements")
@@ -301,7 +315,7 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         XCTAssertEqual(mutants("#if os(Windows)"), [], "a #if condition in a function's statements")
         XCTAssertEqual(
             mutants("return value > 1"),
-            [.ror, .relationalBoundary, .swapTernary],
+            [.ror, .relationalBoundary, .swapTernary, .replaceReturnValue],
             "a #if clause of a function's statements"
         )
         XCTAssertEqual(
@@ -399,14 +413,14 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         XCTAssertEqual(mutants("let isGlobal"), [.flipBooleanLiteral], "a global")
         XCTAssertEqual(mutants("var counter ="), [.arithmeticOperator], "a global's calculation")
         XCTAssertEqual(mutants("total += 1"), [.arithmeticOperator], "an assignment form")
-        XCTAssertEqual(mutants("return total +"), [.arithmeticOperator], "a count")
+        XCTAssertEqual(mutants("return total +"), [.arithmeticOperator, .replaceReturnValue], "a count")
         XCTAssertEqual(
             mutants("case true:"),
             [.ror, .flipBooleanLiteral],
             "what a case runs, but not its pattern"
         )
         XCTAssertEqual(mutants("while true"), [], "a whole condition")
-        XCTAssertEqual(mutants("if true { return 1 }"), [], "a whole condition")
+        XCTAssertEqual(mutants("if true { return 1 }"), [.replaceReturnValue], "a whole condition, but not its value")
         XCTAssertEqual(mutants("#if true"), [], "a directive's condition")
         XCTAssertEqual(mutants("var result"), [], "a + of strings")
         XCTAssertEqual(mutants("result += name"), [], "a += of strings")
@@ -494,6 +508,7 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
     /// All of them must compile together, each in a branch of its own, and the swap and each constant are switched on
     /// by themselves.
     func test_theGeneratedCodeBuildsForComparisonsSwapsAndConstants() throws {
+        leftOutOperators = [.replaceReturnValue]
         let code = """
         struct Expectation {
             let value: Int
@@ -647,7 +662,7 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         let mutants = { compiled.operators(in: "main.swift", onTheLineHolding: $0) }
         XCTAssertEqual(
             mutants("func doubled"),
-            [.ror, .relationalBoundary, .swapTernary, .arithmeticOperator],
+            [.ror, .relationalBoundary, .swapTernary, .arithmeticOperator, .replaceReturnValue],
             "a function"
         )
         XCTAssertEqual(mutants("let values"), [.ror, .relationalBoundary, .swapTernary], "a global's value")
@@ -735,6 +750,7 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
     /// needs, so the rewritten text is checked for it. A body opened on its brace's line that ends in a comment
     /// keeps the brace that closes its switch off the comment's line.
     func test_theGeneratedCodeBuildsInTernariesThatHoldLongerExpressions() throws {
+        leftOutOperators = [.replaceReturnValue]
         let ternaries = """
         struct Item {
             var name: String?
@@ -898,6 +914,7 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
     /// unwrapped to a value of type 'String'". Whatever the operator. So the switch goes around the statement, or the
     /// value at a file's or a type's top level, and the closure stays as it was. Seen on SwiftProjectLint.
     func test_theGeneratedCodeBuildsInAClosureOnTheLeftOfACoalescing() throws {
+        leftOutOperators = [.replaceReturnValue]
         let paths = """
         func look(_ key: Int) -> String? { key == 2 ? "found" : nil }
         func look(if isFound: Bool) -> String? { isFound ? "found" : nil }

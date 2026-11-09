@@ -44,6 +44,7 @@ final class OperatorChoiceTests: XCTestCase {
                 .arithmeticOperator,
                 .flipBooleanLiteral,
                 .replaceBooleanValue,
+                .replaceReturnValue,
             ]
         )
     }

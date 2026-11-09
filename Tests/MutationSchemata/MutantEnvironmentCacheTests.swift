@@ -40,7 +40,8 @@ final class MutantEnvironmentCacheTests: MuterTestCase {
     }
 
     func test_aFileWithoutMutantsIsLeftUnchanged() throws {
-        let text = "func constant() -> Int { 4 }\n"
+        // A Character has no empty value, so ReplaceReturnValue leaves it alone too.
+        let text = "func constant() -> Character { \"a\" }\n"
         XCTAssertEqual(try rewrite(text), text)
     }
 

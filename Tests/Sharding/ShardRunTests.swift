@@ -31,9 +31,11 @@ final class ShardRunTests: MuterTestCase {
 
     override func setUp() {
         super.setUp()
-        // But ReplaceBooleanValue, so that the counts these tests give stay the other operators': how a shard takes its
-        // mutants doesn't depend on which operator made them.
-        state.mutationOperatorList = MutationOperatorList.allOperators.filter { $0 != .replaceBooleanValue }
+        // But ReplaceBooleanValue and ReplaceReturnValue, so that the counts these tests give stay the other
+        // operators': how a shard takes its mutants doesn't depend on which operator made them.
+        state.mutationOperatorList = MutationOperatorList.allOperators.filter {
+            ![.replaceBooleanValue, .replaceReturnValue].contains($0)
+        }
         prepareCode.sourceCodeToReturn = {
             muterCore.sourceCode(fromFileAt: $0).map { (source: $0, changes: .null) }
         }

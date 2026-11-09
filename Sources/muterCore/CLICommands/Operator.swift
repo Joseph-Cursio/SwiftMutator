@@ -443,6 +443,37 @@ extension MutationOperator.Id {
                 """.onCodeBlock
             )
             """
+        case .replaceReturnValue:
+            return """
+
+            \("Replace Return Value".bold)
+
+            The \("replace return value".italic) operator will replace what a body returns with an empty value of its written return type: \(
+                "nil".onCodeEscape) for an optional, \("[]".onCodeEscape) for an array or a set, \(
+                "[:]".onCodeEscape) for a dictionary, \("\"\"".onCodeEscape) for a string and \("0".onCodeEscape) for a number.
+            A value is what a \("return".onCodeEscape) gives, or the one expression of a body that returns it.
+            A type written in any other way, as a \("some".onCodeEscape) type, a typealias or a generic parameter, gets no mutant, nor does \(
+                "Bool".onCodeEscape), which the replace boolean value operator replaces.
+            A value that already is the empty one, an \("if".onCodeEscape) or \("switch".onCodeEscape) expression, and a closure that doesn't write its return type are left alone.
+
+            The purpose of this operator is to highlight whether your tests check what your code returns.
+
+            \("Mutating a return value".bold)
+
+            \(
+                """
+                \("return".asKeyword) items.filter { $0.isReady }
+                """.onCodeBlock
+            )
+
+            becomes
+
+            \(
+                """
+                \("return".asKeyword) []
+                """.onCodeBlock
+            )
+            """
         case .swapTernary:
             return """
 

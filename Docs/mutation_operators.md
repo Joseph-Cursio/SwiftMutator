@@ -416,9 +416,63 @@ var isIdle: Bool {
 }
 ```
 
+## Replace Return Value
+
+The replace return value operator, `ReplaceReturnValue`, will replace what a body returns with an empty value of its written return type, as PIT's `EMPTY_RETURNS`, `NULL_RETURNS` and `PRIMITIVE_RETURNS` do.
+
+The purpose of this operator is to highlight whether your tests check what your code returns. A test that calls a function but never looks at what comes back, or only looks at whether it is empty, lets the mutant survive. Each value gets one mutant.
+
+A value is what a body returns, the same as [`ReplaceBooleanValue`](#replace-boolean-value)'s returns: the value of a `return`, or the one expression of a body that returns it, in a function, a getter of a computed property, a `get` accessor, a subscript, or a closure whose signature writes its return type, as in `{ (item) -> [Int] in item.children }`. A `let` or `var`'s initial value is not one.
+
+A syntax tree has no types, so the empty value comes from the return type as it's written, in parentheses or not, and `Swift.` may name the module:
+
+Written return type | Replaced with
+--------------------|--------------
+`T?`, `T!`, `Optional<T>` | `nil`
+`[T]`, `Array<T>`, `Set<T>` | `[]`
+`[K: V]`, `Dictionary<K, V>` | `[:]`
+`String`, `Substring` | `""`
+`Int`, `Int8`, `Int16`, `Int32`, `Int64`, `UInt`, `UInt8`, `UInt16`, `UInt32`, `UInt64`, `Double`, `Float`, `CGFloat` | `0`
+
+An optional gets `nil` alone, whatever it wraps, so `-> [Int]?` and `-> Int?` get `nil`, not `[]` or `0`. `[[String: Int]]` is an array and `[String: [Int]]` a dictionary. Any other type gets no mutant: `Bool`, which is `ReplaceBooleanValue`'s; a `some` or `any` type; a typealias, as `-> Count` for `typealias Count = Int`; a generic parameter; a tuple, a function type, and any other name.
+
+Some values are left alone:
+
+* **A value that already is the empty one,** whose mutant would change nothing: `nil` for an optional, `[]`, `[:]`, an empty string literal of any kind, and a number literal whose value is zero, as `0`, `0.0` or `0x0`, inside any parentheses.
+* **An `if` or `switch` expression, and its branches:** neither the whole expression nor a branch's value is replaced, though a `return` inside an `if` or `switch` statement still is.
+* **What a closure that doesn't write its return type returns,** as in `items.map { $0.name }`. A `return` in one is the closure's, even inside a function whose return type has an empty value.
+* **A value under `try?`.**
+* **What returns nothing:** an initializer's `return nil`, a setter and an observer such as `didSet`.
+* **A name the file declares,** as a type, a protocol, a typealias, an associated type or a generic parameter, as `struct Int` or `func pick<String>(_ value: String) -> String`. That name means the file's own type there, which may not take the empty value. `Swift.Int`, `[T]` and `T?` still name the standard library's. A type of that name declared in another file of the module isn't seen, and its mutants don't compile.
+* **The one expression of a body a result builder may build.** A builder would take the empty value as a component, as `buildExpression` takes each of its body's expressions, and it may not build one. The tree can't tell which attribute is a builder, so a function, property, subscript or accessor with any attribute but those known not to be one, such as `@inlinable`, `@discardableResult`, `@available`, `@objc` or `@MainActor`, is left alone; and so is a closure passed to a call, whose parameter may be declared with a builder in another file, and a member named as one of the file's protocols' requirements with such an attribute, as Swift gives the member that meets a requirement its builder. A `return` turns a builder off, so a value it gives is replaced. A protocol with such a requirement declared in another file isn't seen, and the mutants of its members don't compile.
+* **A closure's value with a `try` or `await` in it,** outside any closure nested in it. Without it, the closure may no longer throw or wait, and a call it is passed to that rethrows, as `map` does, leaves its own `try` over nothing that throws, which the compiler warns of: a stored property's, a `static`'s or a global's value is switched whole, so its copy with the mutant holds that call. A function's own `try` is fine, as a function written to throw that doesn't gets no warning.
+
+The mutant is placed where the value starts. A comment beside the value stays where it was, and `return(items)` becomes `return []`, with a space.
+
+A few of these mutants don't compile, and are [left out as build errors](../README.md#mutants-that-dont-compile), at the cost of a rebuild: a return type named after a type the module declares in another file, and a member that a protocol in another file gives a result builder, both above.
+
+Some make the compiler warn, which is a build error only [with warnings as errors](../README.md#before-a-long-run), as [`ReplaceBooleanValue`](#replace-boolean-value)'s do: a local whose only reader was the replaced value, as `result` in `let result = items.sorted(); return result`, which is now never used, as Swift warns of a `let` or `var` that is initialized and never read; and a closure whose only use of a captured name, as `self` in `[weak self]`, was the value.
+
+A mutant that compiles can loop forever, as an empty array that a loop calls the function again for does, and is then stopped at its time limit and ends as a timeout.
+
+### Mutating a return value
+```swift
+func readyItems() -> [Item] {
+    return items.filter { $0.isReady }
+}
+```
+
+becomes
+
+```swift
+func readyItems() -> [Item] {
+    return []
+}
+```
+
 ## What each operator catches and costs
 
-SwiftMutator has no tiers of operators: all nine run by default, and `--operators`, `--skip-operators` and the `operators` and `skipOperators` keys narrow a run. These numbers, from each run's `results.jsonl`, are why. Killed and survived are shares of the mutants tested, so they leave out build errors.
+SwiftMutator has no tiers of operators: all ten run by default, and `--operators`, `--skip-operators` and the `operators` and `skipOperators` keys narrow a run. These numbers, from each run's `results.jsonl`, are why. Killed and survived are shares of the mutants tested, so they leave out build errors.
 
 Operator | SwiftProjectLint: mutants | Killed | Survived | Timed out | Build errors | SwiftCloneDetector: mutants | Killed | Survived | Timed out | Build errors
 ---------|-----|-----|-----|---|---|-----|-----|-----|---|---

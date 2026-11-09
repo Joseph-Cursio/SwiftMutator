@@ -417,10 +417,3 @@ private extension Syntax {
         return statement.parent?.as(CodeBlockItemSyntax.self)?.givesItsValue == true
     }
 }
-
-private extension Character {
-    /// Whether this can be part of a name or a keyword, which a literal next to it would join.
-    var isPartOfAName: Bool {
-        isLetter || isNumber || self == "_" || self == "$"
-    }
-}

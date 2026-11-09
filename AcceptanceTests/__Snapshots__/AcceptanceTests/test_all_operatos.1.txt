@@ -272,3 +272,21 @@ return true
 and
 
 return false
+
+
+Replace Return Value
+
+The replace return value operator will replace what a body returns with an empty value of its written return type: nil for an optional, [] for an array or a set, [:] for a dictionary, "" for a string and 0 for a number.
+A value is what a return gives, or the one expression of a body that returns it.
+A type written in any other way, as a some type, a typealias or a generic parameter, gets no mutant, nor does Bool, which the replace boolean value operator replaces.
+A value that already is the empty one, an if or switch expression, and a closure that doesn't write its return type are left alone.
+
+The purpose of this operator is to highlight whether your tests check what your code returns.
+
+Mutating a return value
+
+return items.filter { $0.isReady }
+
+becomes
+
+return []

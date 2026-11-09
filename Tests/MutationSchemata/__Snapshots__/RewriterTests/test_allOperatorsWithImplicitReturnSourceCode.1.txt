@@ -26,6 +26,22 @@ struct ConditionalOperators {
 
       return a == 9 ? "goodbye" : "what"
     } else if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_c132952c484be782_ReplaceReturnValue_18_16_436"] != nil,
+      __SwiftMutator_c132952c484be782.ran
+    {
+      let b = a == 5
+      let e = a != 1
+      let c = a >= 4
+      let d = a <= 10
+      let f = a < 5
+      let g = a > 5
+
+      if a == 10 {
+        return "hello"
+      }
+
+      return ""
+    } else if __SwiftMutator_c132952c484be782.environment[
       "sampleWithAllOperators_c132952c484be782_ReplaceBooleanValue_12_22_360"] != nil,
       __SwiftMutator_c132952c484be782.ran
     {
@@ -562,7 +578,14 @@ struct ConditionalOperators {
       let g = a > 5
 
       if a == 10 {
-        return "hello"
+        if __SwiftMutator_c132952c484be782.environment[
+          "sampleWithAllOperators_c132952c484be782_ReplaceReturnValue_15_20_402"] != nil,
+          __SwiftMutator_c132952c484be782.ran
+        {
+          return ""
+        } else {
+          return "hello"
+        }
       }
 
       return a == 9 ? "goodbye" : "what"
@@ -671,6 +694,12 @@ struct SideEffects {
       __SwiftMutator_c132952c484be782.ran
     {
       return 1
+    } else if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_c132952c484be782_ReplaceReturnValue_43_16_878"] != nil,
+      __SwiftMutator_c132952c484be782.ran
+    {
+      _ = causesSideEffect()
+      return 0
     } else {
       _ = causesSideEffect()
       return 1
@@ -791,12 +820,24 @@ struct Concurrency {
   }
 
   private func sync(block: () -> Int) -> Int {
-    let semaphore = DispatchSemaphore(value: 2)
-    semaphore.wait()
-    let value = block()
-    semaphore.signal()
+    if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_c132952c484be782_ReplaceReturnValue_119_16_2805"] != nil,
+      __SwiftMutator_c132952c484be782.ran
+    {
+      let semaphore = DispatchSemaphore(value: 2)
+      semaphore.wait()
+      let value = block()
+      semaphore.signal()
 
-    return value
+      return 0
+    } else {
+      let semaphore = DispatchSemaphore(value: 2)
+      semaphore.wait()
+      let value = block()
+      semaphore.signal()
+
+      return value
+    }
   }
 }
 
@@ -838,6 +879,11 @@ struct TernayOperators {
       __SwiftMutator_c132952c484be782.ran
     {
       return a ? "false" : "true"
+    } else if __SwiftMutator_c132952c484be782.environment[
+      "sampleWithAllOperators_c132952c484be782_ReplaceReturnValue_129_16_2986"] != nil,
+      __SwiftMutator_c132952c484be782.ran
+    {
+      return ""
     } else {
       return a ? "true" : "false"
     }
@@ -892,7 +938,14 @@ public enum Enum {
   public func kerning(for something: String?) -> CGFloat {
     switch self {
     case .a(let value):
-      return value
+      if __SwiftMutator_c132952c484be782.environment[
+        "sampleWithAllOperators_c132952c484be782_ReplaceReturnValue_144_20_3307"] != nil,
+        __SwiftMutator_c132952c484be782.ran
+      {
+        return 0
+      } else {
+        return value
+      }
     case .b(let value):
       if __SwiftMutator_c132952c484be782.environment[
         "sampleWithAllOperators_c132952c484be782_RelationalOperatorReplacement_146_16_3356"] != nil,
@@ -902,6 +955,14 @@ public enum Enum {
           return 0
         }
         return 10
+      } else if __SwiftMutator_c132952c484be782.environment[
+        "sampleWithAllOperators_c132952c484be782_ReplaceReturnValue_149_20_3433"] != nil,
+        __SwiftMutator_c132952c484be782.ran
+      {
+        if something == nil {
+          return 0
+        }
+        return 0
       } else if __SwiftMutator_c132952c484be782.environment[
         "sampleWithAllOperators_c132952c484be782_NegateConditional_146_16_3356"] != nil,
         __SwiftMutator_c132952c484be782.ran
