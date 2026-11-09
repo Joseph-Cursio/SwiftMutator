@@ -1,4 +1,5 @@
 @testable import muterCore
+import SwiftIfConfig
 import XCTest
 
 final class SwiftPackageBuildConditionsTests: MuterTestCase {
@@ -188,7 +189,54 @@ final class SwiftPackageBuildConditionsTests: MuterTestCase {
         XCTAssertEqual(result, .failure(BuildConditionsUnavailable(reason: "\(swift) couldn't be started")))
     }
 
+    // MARK: The compiler's version
+
+    func test_theCompilersVersion_isWhatTheSameSwiftSays() async throws {
+        describingWithVersion()
+
+        let conditions = try await conditions()
+
+        XCTAssertEqual(conditions.everyTarget.compiler, VersionTuple(6, 2, 1))
+        XCTAssertEqual(process.commandsRun.last, [swift, "--version"])
+    }
+
+    // A toolchain, a toolset or a Swift SDK the command picks, or `SWIFT_EXEC`, may build with another compiler.
+    func test_theCompilersVersion_isUnknown_whenAnotherCompilerMayBuild() async throws {
+        let cases: [(arguments: [String], environment: [String: String])] = [
+            (["test", "--toolchain", "/other.xctoolchain"], [:]),
+            (["test", "--toolset=toolset.json"], [:]),
+            (["test", "--swift-sdk", "wasm32-unknown-wasi"], [:]),
+            (["test"], ["SWIFT_EXEC": "/my/swiftc"]),
+        ]
+        for (arguments, environment) in cases {
+            describingWithVersion()
+
+            let conditions = try await conditions(arguments: arguments, environment: environment)
+
+            XCTAssertNil(conditions.everyTarget.compiler, "\(arguments) \(environment)")
+            XCTAssertFalse(process.commandsRun.contains([swift, "--version"]), "\(arguments) \(environment)")
+        }
+    }
+
+    func test_theCompilersVersion_isUnknown_whenItCantBeRead() async throws {
+        describing(settings: "[]")
+
+        let conditions = try await conditions()
+
+        XCTAssertNil(conditions.everyTarget.compiler)
+    }
+
     // MARK: Helpers
+
+    /// A package with one target, and `swift --version` printing 6.2.1.
+    private func describingWithVersion() {
+        describing(settings: "[]")
+        let described = process.commandResult
+        process.commandResult = { [self] command in
+            guard command == [swift, "--version"] else { return described(command) }
+            return success("Swift version 6.2.1 (swift-6.2.1-RELEASE)\n")
+        }
+    }
 
     private var hostPlatform: String {
         #if os(macOS)
@@ -245,17 +293,22 @@ final class SwiftPackageBuildConditionsTests: MuterTestCase {
     }
 
     private func conditionsResult(
-        arguments: [String] = ["test"]
+        arguments: [String] = ["test"],
+        environment: [String: String] = [:]
     ) async -> Result<ProjectBuildConditions, BuildConditionsUnavailable> {
         await SwiftPackageBuildConditions.conditions(
             inProjectAt: project,
             testedBy: MuterConfiguration(executable: swift, arguments: arguments),
             process: current.process,
-            fileManager: FileManager.default
+            fileManager: FileManager.default,
+            environment: environment
         )
     }
 
-    private func conditions(arguments: [String] = ["test"]) async throws -> ProjectBuildConditions {
-        try await conditionsResult(arguments: arguments).get()
+    private func conditions(
+        arguments: [String] = ["test"],
+        environment: [String: String] = [:]
+    ) async throws -> ProjectBuildConditions {
+        try await conditionsResult(arguments: arguments, environment: environment).get()
     }
 }

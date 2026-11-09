@@ -1,4 +1,5 @@
 import Foundation
+import SwiftIfConfig
 
 /// What an xcodebuild test command compiles with, from `xcodebuild -showBuildSettings`, which follows its
 /// `-destination`.
@@ -32,14 +33,50 @@ enum XcodeBuildConditions {
             )
         }
 
+        let namesInBuildFiles = namesInBuildFiles(inProjectAt: root, fileManager: fileManager)
+        // A target xcodebuild didn't report, such as the framework the tests test, may build with its own compiler.
+        let aTargetMayPickItsCompiler = !namesInBuildFiles.isDisjoint(with: ["TOOLCHAINS", "SWIFT_EXEC"])
+        let compiler = aTargetMayPickItsCompiler
+            ? nil
+            : await compilerVersion(of: targets, in: arguments, process: process)
         return .success(ProjectBuildConditions(everyTarget: BuildConditions(
             platform: platform(of: targets, in: arguments, fileManager: fileManager),
             customConditions: targets.map(customConditions(of:)),
-            undecidedConditions: namesInBuildFiles(inProjectAt: root, fileManager: fileManager)
+            undecidedConditions: namesInBuildFiles,
+            compiler: compiler
         )))
     }
 
     private typealias Settings = [String: String]
+
+    /// The toolchain Xcode builds with unless a project, the command or `TOOLCHAINS` picks another.
+    private static let defaultToolchain = "com.apple.dt.toolchain.XcodeDefault"
+
+    /// The version of the compiler all of `targets` build with: what their `TOOLCHAIN_DIR`'s `swiftc` says it is. Nil
+    /// if they don't agree, or one sets `SWIFT_EXEC` or a toolchain other than Xcode's own, or the command picks one
+    /// with `-toolchain`, which `TOOLCHAIN_DIR` may not follow. The caller doesn't ask when a build file names either
+    /// setting, as it may be an unreported target's.
+    private static func compilerVersion(
+        of targets: [Settings],
+        in arguments: [String],
+        process: ProcessFactory
+    ) async -> VersionTuple? {
+        let toolchains = Set(targets.map { $0["TOOLCHAIN_DIR"] ?? "" })
+        let buildWithXcodesCompiler = targets.allSatisfy {
+            ($0["SWIFT_EXEC"] ?? "").isEmpty && $0["TOOLCHAINS"] == defaultToolchain
+        }
+        guard toolchains.count == 1,
+              let toolchain = toolchains.first,
+              !toolchain.isEmpty,
+              buildWithXcodesCompiler,
+              !arguments.contains("-toolchain"),
+              let version = await process().runCommand(url: toolchain + "/usr/bin/swiftc", arguments: ["--version"]),
+              version.succeeded
+        else {
+            return nil
+        }
+        return muterCore.compilerVersion(inVersionOutput: version.output)
+    }
 
     private struct Target: Decodable {
         let buildSettings: Settings

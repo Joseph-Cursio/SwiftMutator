@@ -1,4 +1,5 @@
 import Foundation
+import SwiftIfConfig
 
 /// What a `swift test` command compiles with: the host's platform, unless it cross-compiles, and for each target,
 /// `DEBUG` in a debug build, `SWIFT_PACKAGE`, the `.define`s and `-D` flags in its package's manifest, and any
@@ -9,7 +10,8 @@ enum SwiftPackageBuildConditions {
         inProjectAt root: FilePath,
         testedBy configuration: MuterConfiguration,
         process: ProcessFactory,
-        fileManager: FileSystemManager
+        fileManager: FileSystemManager,
+        environment: [String: String] = ProcessInfo.processInfo.environment
     ) async -> Result<ProjectBuildConditions, BuildConditionsUnavailable> {
         let packages: [SwiftPackageSources.Package]
         switch await SwiftPackageSources.packages(inProjectAt: root, testedBy: configuration, process: process) {
@@ -56,10 +58,42 @@ enum SwiftPackageBuildConditions {
             }
         }
 
+        let compiler = await compilerVersion(testedBy: configuration, process: process, environment: environment)
         return .success(ProjectBuildConditions(
-            everyTarget: BuildConditions(platform: platform, customConditions: targets, undecidedConditions: undecided),
+            everyTarget: BuildConditions(
+                platform: platform,
+                customConditions: targets,
+                undecidedConditions: undecided,
+                compiler: compiler
+            ),
             customConditionsOfFile: ofFile
         ))
+    }
+
+    /// The options that build with a compiler other than the one `swift --version` names: another toolchain, a
+    /// toolset's compiler, or a Swift SDK's.
+    private static let compilerPickingOptions = crossCompilingOptions + ["--toolchain", "--toolset"]
+
+    /// The version of the compiler `swift test` builds with: what the same `swift` says it is, run where the tests are,
+    /// so that a toolchain picked by a `.swift-version` file there is the one asked. Nil if the command, or
+    /// `SWIFT_EXEC`, picks another compiler.
+    private static func compilerVersion(
+        testedBy configuration: MuterConfiguration,
+        process: ProcessFactory,
+        environment: [String: String]
+    ) async -> VersionTuple? {
+        let picksAnotherCompiler = environment["SWIFT_EXEC"] != nil
+            || configuration.testCommandArguments.contains { argument in
+                compilerPickingOptions.contains { argument == $0 || argument.hasPrefix($0 + "=") }
+            }
+        let swift = configuration.testCommandExecutable
+        guard !picksAnotherCompiler,
+              let version = await process().runCommand(url: swift, arguments: ["--version"]),
+              version.succeeded
+        else {
+            return nil
+        }
+        return muterCore.compilerVersion(inVersionOutput: version.output)
     }
 
     /// What decides a package's conditions in this build. `platform` is as a manifest's conditions name it; nil if
