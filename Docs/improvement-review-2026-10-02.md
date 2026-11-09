@@ -2,10 +2,10 @@
 
 This review started on 2 October 2026, at commit `4ba72fc`, as a ranked list of ways to improve SwiftMutator. On 21 October it gained the gaps found by comparing SwiftMutator with swift-mutation-testing. It now covers only what isn't done.
 
-- **Last updated on 8 November 2026,** at `5755b647`. Each item was checked against its issue and the code, and its line references brought up to date.
+- **Last updated on 9 November 2026,** at `586728b2`. Each item was checked against its issue and the code, and its line references brought up to date.
 - **Done items were removed.** Git history keeps them: [this file at `5755b647`](https://github.com/Joseph-Cursio/SwiftMutator/blob/5755b647/Docs/improvement-review-2026-10-02.md) lists every finished item with its PR, and [at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md) has the early write-ups.
 - **Section numbers are the original ones,** so references in PRs and notes still work. A missing number is a finished section.
-- **Open issues:** [#121], [#123], [#130], [#181], [#230], [#261], [#262] and [#263]. An item marked "no issue yet" is a known gap that no issue tracks.
+- **Open issues:** [#121], [#130], [#181], [#230], [#261], [#262] and [#263]. An item marked "no issue yet" is a known gap that no issue tracks.
 
 ---
 
@@ -48,8 +48,8 @@ Discovery takes a SwiftPM package's files from its targets, keeps only the files
 - **Linux** ([#130]). CI's Linux job builds SwiftMutator and runs the unit suite, but the suite fails there, so the job doesn't block: it runs with `continue-on-error`, on pushes to main and by hand, not on pull requests (`.github/workflows/ci.yml:161-170`). Its run on 8 November built and then failed its tests. Mutants there also run through `swift test` (§1.1).
 - **xcodebuild workers: what's left** (no issue yet; [#103] is closed). Several workers test on simulator destinations only.
   - A failed check run on a simulator made with `simctl create`, because the destination's simulator was booted, doesn't say that shutting it down would let the next run clone it, with its settings and data.
-  - macOS and Mac Catalyst destinations stay on 1 worker: their tests would share the Mac's `UserDefaults`, saved state and container (`MuterConfiguration.swift:575-595`).
-  - The default worker count for xcodebuild is still 1, as each simulator takes about 3 GB at its peak (`MuterConfiguration.swift:556-562`). [#116] changed only SwiftPM's.
+  - macOS and Mac Catalyst destinations stay on 1 worker: their tests would share the Mac's `UserDefaults`, saved state and container (`MuterConfiguration.swift:588-612`).
+  - The default worker count for xcodebuild is still 1, as each simulator takes about 3 GB at its peak (`MuterConfiguration.swift:572-578`). [#116] changed only SwiftPM's.
   - xcodebuild runs have no fail-fast: `stopAtFirstFailure` applies to SwiftPM only.
 
 ---
@@ -58,9 +58,8 @@ Discovery takes a SwiftPM package's files from its targets, keeps only the files
 
 Added on 21 October, from a comparison with swift-mutation-testing v1.6.3 (`937f128`), checked against SwiftMutator `af38f174`. Left:
 
-- **xcodebuild arguments in mutant runs** ([#123]). The proposal's first three items are done: a mutant's run now keeps the user's `arguments` but those it can't take or SwiftMutator sets itself, so `-only-testing` and `-skip-testing` hold for the mutants as for the baseline, and arguments that would break SwiftMutator's own xcodebuild calls are a configuration error (README, "xcodebuild's arguments"). The flags a headless run needs, which the issue also proposes, are still open.
 - **Configuration.** [#122] is done in part, and closed: report settings (`reports:`, [#119]), and the checks ([#260]), which warn of an unknown key, with the key it is closest to, and refuse a value of the wrong type or out of range. The rest is split three ways:
-  - **A smarter `init`** ([#261]). It replaces an existing file (`Init.swift:42-47`), writes a bare YAML dump, takes the first `.xcodeproj` anywhere below the project, and guesses the scheme and destination.
+  - **A smarter `init`** ([#261]). It replaces an existing file (`Init.swift:45-50`), writes a bare YAML dump, takes the first `.xcodeproj` anywhere below the project, and guesses the scheme and destination.
   - **Flags and keys** ([#262]). xcodebuild's scheme, destination and container can be changed only by editing `arguments`, 13 keys have no flag, the project is always the current folder, and there's no `--quiet`.
   - **Running without a configuration file** ([#263]). A run with none stops (`LoadConfiguration.swift:30`), rather than running with what `init` would write.
 - **Releases, a real version and an update check that works** ([#121]): see §4.
@@ -98,7 +97,6 @@ These came after the review and have no section of their own.
 [#119]: https://github.com/Joseph-Cursio/SwiftMutator/issues/119
 [#121]: https://github.com/Joseph-Cursio/SwiftMutator/issues/121
 [#122]: https://github.com/Joseph-Cursio/SwiftMutator/issues/122
-[#123]: https://github.com/Joseph-Cursio/SwiftMutator/issues/123
 [#130]: https://github.com/Joseph-Cursio/SwiftMutator/issues/130
 [#181]: https://github.com/Joseph-Cursio/SwiftMutator/issues/181
 [#230]: https://github.com/Joseph-Cursio/SwiftMutator/issues/230
