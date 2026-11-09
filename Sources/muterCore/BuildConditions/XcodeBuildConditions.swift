@@ -33,11 +33,16 @@ enum XcodeBuildConditions {
             )
         }
 
-        let compiler = await compilerVersion(of: targets, in: arguments, process: process)
+        let namesInBuildFiles = namesInBuildFiles(inProjectAt: root, fileManager: fileManager)
+        // A target xcodebuild didn't report, such as the framework the tests test, may build with its own compiler.
+        let aTargetMayPickItsCompiler = !namesInBuildFiles.isDisjoint(with: ["TOOLCHAINS", "SWIFT_EXEC"])
+        let compiler = aTargetMayPickItsCompiler
+            ? nil
+            : await compilerVersion(of: targets, in: arguments, process: process)
         return .success(ProjectBuildConditions(everyTarget: BuildConditions(
             platform: platform(of: targets, in: arguments, fileManager: fileManager),
             customConditions: targets.map(customConditions(of:)),
-            undecidedConditions: namesInBuildFiles(inProjectAt: root, fileManager: fileManager),
+            undecidedConditions: namesInBuildFiles,
             compiler: compiler
         )))
     }
@@ -49,7 +54,8 @@ enum XcodeBuildConditions {
 
     /// The version of the compiler all of `targets` build with: what their `TOOLCHAIN_DIR`'s `swiftc` says it is. Nil
     /// if they don't agree, or one sets `SWIFT_EXEC` or a toolchain other than Xcode's own, or the command picks one
-    /// with `-toolchain`, which `TOOLCHAIN_DIR` may not follow.
+    /// with `-toolchain`, which `TOOLCHAIN_DIR` may not follow. The caller doesn't ask when a build file names either
+    /// setting, as it may be an unreported target's.
     private static func compilerVersion(
         of targets: [Settings],
         in arguments: [String],

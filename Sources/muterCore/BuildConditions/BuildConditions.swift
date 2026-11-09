@@ -71,8 +71,9 @@ struct BuildConditions: Equatable, Sendable {
     /// Whether `condition` holds in this build; nil if it can't be told.
     fileprivate func holds(_ condition: ExprSyntax) -> Bool? {
         let unanswerable = unanswerable
+        // By the identifier's name, so that `` `swift`(>=5) `` is found too.
         let isUnanswerable = condition.tokens(viewMode: .sourceAccurate).contains {
-            unanswerable.contains($0.text)
+            unanswerable.contains($0.identifier?.name ?? $0.text)
         }
         guard !isUnanswerable else { return nil }
 
@@ -85,6 +86,11 @@ struct BuildConditions: Equatable, Sendable {
 
 extension BuildConditions: BuildConfiguration {
     func isCustomConditionSet(name: String) throws -> Bool {
+        // `$AsyncAwait` asks whether the compiler has a feature, as `hasFeature(…)` does: it is no condition a build
+        // sets, and it holds wherever the feature is on.
+        guard !name.hasPrefix("$") else {
+            throw Undecided(description: "whether the compiler has \(name.dropFirst())")
+        }
         if !customConditions.isEmpty, customConditions.allSatisfy({ $0.contains(name) }) {
             return true
         }

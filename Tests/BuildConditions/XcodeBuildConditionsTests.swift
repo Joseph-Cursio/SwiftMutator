@@ -307,6 +307,21 @@ final class XcodeBuildConditionsTests: MuterTestCase {
         }
     }
 
+    // A target xcodebuild doesn't report, such as the framework the tests test, may set its own.
+    func test_theCompilersVersion_isUnknown_whenABuildFileNamesToolchainsOrSwiftExec() async throws {
+        let target = macOSTarget.merging([
+            "TOOLCHAIN_DIR": "/Xcode/Default.xctoolchain", "TOOLCHAINS": "com.apple.dt.toolchain.XcodeDefault",
+        ]) { first, _ in first }
+        for setting in ["TOOLCHAINS = org.swift.633202606251a;", "SWIFT_EXEC = /my/swiftc;"] {
+            try write(setting, to: "Framework.xcconfig")
+            settingsAndVersion(test: [target])
+
+            let conditions = try await conditions(arguments: ["test"])
+
+            XCTAssertNil(conditions.compiler, setting)
+        }
+    }
+
     func test_theCompilersVersion_isUnknown_whenTheTargetsToolchainsDiffer() async throws {
         let shared = macOSTarget.merging(["TOOLCHAINS": "com.apple.dt.toolchain.XcodeDefault"]) { first, _ in first }
         settingsAndVersion(test: [

@@ -950,8 +950,8 @@ and drops `#if os(macOS)`:
 Whatever it can't tell, it leaves alone: the branch keeps its mutants, and coverage can still filter them out as before.
 So what it can't work out doesn't cost you code your build compiles. These stay undecided:
 
-- `swift(…)`, `_compiler_version(…)`, `_hasAtomicBitWidth(…)`, `hasFeature(…)` and `hasAttribute(…)`, and `canImport`
-  of a submodule or with a version;
+- `swift(…)`, `_compiler_version(…)`, `_hasAtomicBitWidth(…)`, `hasFeature(…)`, a feature check such as
+  `$AsyncAwait`, and `hasAttribute(…)`, and `canImport` of a submodule or with a version;
 - `compiler(…)` where the compiler can't be told, as above, and `_pointerBitWidth(…)` in a build for a 32-bit
   architecture, whose macros are built for the 64-bit machine that builds;
 - `canImport` of a module in no SDK, which may be a package's, and any `canImport` in a Mac Catalyst build;

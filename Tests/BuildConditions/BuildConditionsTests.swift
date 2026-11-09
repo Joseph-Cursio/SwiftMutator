@@ -340,6 +340,18 @@ final class BuildConditionsTests: XCTestCase {
         XCTAssertNil(holds("swift(>=5.0)", in: conditions))
         XCTAssertNil(holds("compiler(>=6.0) && swift(>=6.0)", in: conditions))
         XCTAssertNil(holds("_compiler_version(\"5.0\")", in: conditions))
+        XCTAssertNil(holds("`swift`(>=5.0)", in: conditions))
+    }
+
+    // `$AsyncAwait` asks for a compiler feature, as `hasFeature(AsyncAwait)` does; taken for a condition no target
+    // sets, it would drop the mutants of a branch the compiler builds.
+    func test_aDollarFeatureCheck_isUndecided() {
+        var conditions = conditions(custom: [["SWIFT_PACKAGE"]])
+        conditions.compiler = VersionTuple(6, 4, 2)
+
+        XCTAssertNil(holds("$AsyncAwait", in: conditions))
+        XCTAssertNil(holds("compiler(>=5.5) && $AsyncAwait", in: conditions))
+        XCTAssertNil(holds("_endian(little) && $Lifetimes", in: conditions))
     }
 
     func test_thePointerWidthAndByteOrder_ofA64BitBuild() {
