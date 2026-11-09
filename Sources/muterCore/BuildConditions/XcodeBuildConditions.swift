@@ -484,7 +484,9 @@ enum XcodeBuildConditions {
             argument.firstIndex(of: "=").map { projectFolderSettings.contains(String(argument[..<$0])) } ?? false
         }
         let commandsFilesAreRead = configurationFiles(ofCommand: arguments, environment, root: root).map { files in
-            files.allSatisfy { readConfigurationFiles.contains($0.canonicalPath) }
+            files.allSatisfy { file in
+                [file, lexicallyNormalized(file)].allSatisfy { readConfigurationFiles.contains($0.canonicalPath) }
+            }
         } ?? false
         return !commandsFilesAreRead
             || movesTheProjectFolder

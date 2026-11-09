@@ -326,8 +326,9 @@ extension XcodeBuildConditions {
 
 extension XcodeBuildConditions {
     /// The build configuration files the command has every target build with: each that `-xcconfig` names, and
-    /// `XCODE_XCCONFIG_FILE`'s, by where they are from `root`, which the command runs in. Nil if a `-xcconfig` names
-    /// none, or one is from a variable.
+    /// `XCODE_XCCONFIG_FILE`'s, by where they are from `root`, which the command runs in, as written. xcodebuild takes
+    /// each `..` off the folder before it, whatever links there are, so the caller needs both forms read. Nil if a
+    /// `-xcconfig` names none, or one is from a variable.
     static func configurationFiles(
         ofCommand arguments: [String],
         _ environment: [String: String],
@@ -342,7 +343,6 @@ extension XcodeBuildConditions {
             named.append(file)
         }
         guard !named.contains(where: { $0.isEmpty || $0.contains("$") || $0.hasPrefix("~") }) else { return nil }
-        // xcodebuild opens the file as the system does, through links.
         return named.map { $0.hasPrefix("/") ? $0 : root + "/" + $0 }
     }
 

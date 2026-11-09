@@ -408,6 +408,24 @@ final class XcodeBuildConditionsTests: MuterTestCase {
         XCTAssertThrowsError(try conditions.isCustomConditionSet(name: "CORE_ONLY"))
     }
 
+    // xcodebuild takes `..` off the folder before it in the files `-xcconfig` and `XCODE_XCCONFIG_FILE` name too.
+    func test_theCommandsConfigurationFiles_areResolvedAsXcodebuildDoes_notThroughLinks() async throws {
+        try write("", to: "X.xcconfig")
+        try FileManager.default.createDirectory(atPath: project + "/a/b", withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: project + "/Link", withDestinationPath: "a/b")
+        let commands: [(arguments: [String], environment: [String: String])] = [
+            (["-xcconfig", "Link/../../X.xcconfig"], [:]),
+            ([], ["XCODE_XCCONFIG_FILE": "Link/../../X.xcconfig"]),
+        ]
+        for (arguments, environment) in commands {
+            settings(test: [macOSTarget], build: [])
+
+            let conditions = try await conditions(arguments: arguments + ["test"], environment: environment)
+
+            XCTAssertThrowsError(try conditions.isCustomConditionSet(name: "CORE_ONLY"), "\(arguments) \(environment)")
+        }
+    }
+
     // A condition put together from a setting, or from one Xcode sets itself for each target, is a word in no build
     // file, so it may be set for a target xcodebuild didn't report.
     func test_aConditionASettingMayPutTogether_isUndecided() async throws {
