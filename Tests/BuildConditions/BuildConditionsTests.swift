@@ -485,6 +485,22 @@ final class BuildConditionsTests: XCTestCase {
         XCTAssertNil(holds("APP", in: project.conditions(ofFile: "Other.swift")))
     }
 
+    // A name a build file has is undecided for any file, but not for one whose targets' conditions are all it has.
+    func test_aFileWithAllItsConditions_hasNoOthersUndecided() {
+        var everyTarget = conditions(custom: [["DEBUG", "APP"]])
+        everyTarget.undecidedConditions = ["RELEASE_ONLY"]
+        let project = ProjectBuildConditions(
+            everyTarget: everyTarget,
+            customConditionsOfFile: ["App.swift": [["DEBUG", "APP"]], "Lib.swift": [["DEBUG"]]],
+            filesWithAllTheirConditions: ["App.swift", "Other.swift"]
+        )
+
+        XCTAssertEqual(holds("RELEASE_ONLY", in: project.conditions(ofFile: "App.swift")), false)
+        XCTAssertNil(holds("RELEASE_ONLY", in: project.conditions(ofFile: "Lib.swift")))
+        // Without targets of its own, a file has every target's conditions, and their undecided names.
+        XCTAssertNil(holds("RELEASE_ONLY", in: project.conditions(ofFile: "Other.swift")))
+    }
+
     func test_aFileInTwoTargets_isDecidedOnlyWhereTheyAgree() {
         let project = ProjectBuildConditions(
             everyTarget: conditions(custom: [["A"], ["A", "B"]]),

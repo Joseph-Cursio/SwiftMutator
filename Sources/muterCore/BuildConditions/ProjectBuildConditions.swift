@@ -6,15 +6,20 @@ struct ProjectBuildConditions: Equatable, Sendable {
     /// For any file, by every target's conditions: an `#if` is decided only where they all agree.
     let everyTarget: BuildConditions
     /// The custom conditions of the targets that hold a file, by its path relative to the project, for a build system
-    /// that says. xcodebuild doesn't: which of its targets compile a file is in the project file, or in the folders
-    /// Xcode syncs, and SwiftMutator reads neither.
+    /// that says. xcodebuild says only after a build, in the lists of the files each target compiled.
     var customConditionsOfFile: [FilePath: [Set<String>]] = [:]
+    /// The files among `customConditionsOfFile`'s whose targets' conditions are all there is to them, with nothing
+    /// else that may set one: a name none of the targets sets is unset, though `everyTarget` leaves it undecided.
+    var filesWithAllTheirConditions: Set<FilePath> = []
 
     /// What the build compiles the file at `path`, relative to the project, with.
     func conditions(ofFile path: FilePath) -> BuildConditions {
         var conditions = everyTarget
         if let targets = customConditionsOfFile[path], !targets.isEmpty {
             conditions.customConditions = targets
+            if filesWithAllTheirConditions.contains(path) {
+                conditions.undecidedConditions = []
+            }
         }
         return conditions
     }

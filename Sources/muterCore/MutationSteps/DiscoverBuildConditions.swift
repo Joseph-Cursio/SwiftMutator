@@ -37,7 +37,8 @@ struct DiscoverBuildConditions: MutationStep {
                 inProjectAt: rootPath,
                 testedBy: configuration,
                 process: process,
-                fileManager: fileManager
+                fileManager: fileManager,
+                afterABuild: state.projectCoverage != .null
             )
 
         switch conditions {
