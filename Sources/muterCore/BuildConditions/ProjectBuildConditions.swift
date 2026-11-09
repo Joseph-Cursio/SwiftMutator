@@ -93,15 +93,32 @@ func compilerVersion(inVersionOutput output: String) -> VersionTuple? {
     return VersionTuple(parsing: String(version))
 }
 
-/// The conditions among compiler flags: `-DNAME`, and `-D NAME` as two flags.
+/// The conditions among compiler flags: `-DNAME`, and `-D NAME` as two flags. A flag that `-Xcc`, `-Xllvm`, `-Xlinker`
+/// or `-Xclang-linker` passes on is another tool's, so `-Xcc -DNAME` defines a C macro, not a condition. The frontend
+/// takes `-D` as the driver does, so `-Xfrontend -DNAME` is one.
 func customConditions(inSwiftFlags flags: [String]) -> Set<String> {
     var conditions: Set<String> = []
-    for (index, flag) in flags.enumerated() where flag.hasPrefix("-D") {
-        if flag != "-D" {
-            conditions.insert(String(flag.dropFirst(2)))
-        } else if index + 1 < flags.count {
-            conditions.insert(flags[index + 1])
+    var index = 0
+    while index < flags.count {
+        let flag = flags[index]
+        if passedToAnotherTool.contains(flag) {
+            index += 2
+            continue
         }
+        if flag == "-D" {
+            if index + 1 < flags.count {
+                conditions.insert(flags[index + 1])
+            }
+            index += 2
+            continue
+        }
+        if flag.hasPrefix("-D") {
+            conditions.insert(String(flag.dropFirst(2)))
+        }
+        index += 1
     }
     return conditions
 }
+
+/// The options that pass the flag after them to a tool other than the Swift compiler.
+private let passedToAnotherTool: Set = ["-Xcc", "-Xllvm", "-Xlinker", "-Xclang-linker"]
