@@ -530,6 +530,14 @@ final class BuildConditionsTests: XCTestCase {
         )
     }
 
+    // The frontend reads the flags `-Xfrontend` passes it in turn, as the driver reads its own.
+    func test_customConditionsInSwiftFlags_readFrontendFlagsInTurn() {
+        XCTAssertEqual(customConditions(inSwiftFlags: ["-Xfrontend", "-D", "-Xfrontend", "SPLIT"]), ["SPLIT"])
+        XCTAssertEqual(customConditions(inSwiftFlags: ["-Xfrontend", "-Xcc", "-Xfrontend", "-DCLANG"]), [])
+        XCTAssertEqual(customConditions(inSwiftFlags: ["-Xcc", "-Xfrontend", "-DSWIFT"]), ["SWIFT"])
+        XCTAssertEqual(customConditions(inSwiftFlags: ["-D", "A", "-Xfrontend"]), ["A"])
+    }
+
     func test_aConditionOnlyClangGets_staysUnset_soItsElseKeepsItsMutants() {
         let set = customConditions(inSwiftFlags: ["-Xcc", "-DFOO"])
         let conditions = BuildConditions(platform: macOS, customConditions: [set], undecidedConditions: ["FOO"])

@@ -89,6 +89,15 @@ final class XcodeFileListsTests: MuterTestCase {
             ("Configs/Base.xcconfig", "OBJECT_FILE_DIR_normal = /elsewhere"),
             ("W.xcworkspace/contents.xcworkspacedata", #"<FileRef location = "group:../Other/Other.xcodeproj">"#),
             ("W.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings", "<key>BuildLocationStyle</key>"),
+            // Set for each architecture by a reference -showBuildSettings resolves with none.
+            ("Configs/Base.xcconfig", "OTHER_SWIFT_FLAGS = $(inherited) $(NEON_FLAGS_$(CURRENT_ARCH))"),
+            ("Configs/Base.xcconfig", "SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) $(FLAGS_$(arch))"),
+            // A Run Script phase that runs a script that compiles, outside the project, or that isn't there.
+            ("P.xcodeproj/project.pbxproj", #"shellScript = "\"${SRCROOT}/Scripts/compile.sh\"\n";"#),
+            ("P.xcodeproj/project.pbxproj", #"shellScript = "\"${SRCROOT}/../Tools/gen.sh\"\n";"#),
+            ("P.xcodeproj/project.pbxproj", #"shellScript = "Scripts/missing.py\n";"#),
+            // A build configuration file outside the project, which may do any of that.
+            ("P.xcodeproj/project.pbxproj", "baseConfigurationReference = 1; path = ../Shared/Base.xcconfig;"),
         ]
         for (path, text) in buildFiles {
             project = try makeTemporaryDirectory()
@@ -97,12 +106,42 @@ final class XcodeFileListsTests: MuterTestCase {
             try write("let x = 1", to: project + "/App/My View.swift")
             try write("let x = 1", to: project + "/Shared/Shared.swift")
             try write(text, to: project + "/" + path)
+            try write("xcrun swiftc -o gen Gen.swift", to: project + "/Scripts/compile.sh")
             try writeTheBuildsLists()
 
             let conditions = try await conditions(afterABuild: true)
 
             XCTAssertTrue(conditions.customConditionsOfFile.isEmpty, "\(path): \(text)")
         }
+    }
+
+    // A script the project runs that doesn't compile leaves the lists all that compiles a file.
+    func test_aScriptThatDoesntCompile_leavesTheListsToTell() async throws {
+        try write(
+            "SWIFT_ACTIVE_COMPILATION_CONDITIONS = CORE_FLAG;\n"
+                + #"shellScript = "\"${SRCROOT}/Scripts/lint.sh\"\n";"#,
+            to: project + "/P.xcodeproj/project.pbxproj"
+        )
+        try write("swiftlint lint --strict", to: project + "/Scripts/lint.sh")
+        try writeTheBuildsLists()
+
+        let conditions = try await conditions(afterABuild: true)
+
+        XCTAssertEqual(holds("CORE_FLAG", in: conditions.conditions(ofFile: "App/App.swift")), false)
+    }
+
+    // `-xcconfig` and `XCODE_XCCONFIG_FILE` name a build configuration file outside the project's build files.
+    func test_aBuildConfigurationFileTheCommandNames_leavesEveryFileAlone() async throws {
+        try writeTheBuildsLists()
+
+        let named = try await conditions(afterABuild: true, extraArguments: ["-xcconfig", "/ci/Extra.xcconfig"])
+        let inTheEnvironment = try await conditions(
+            afterABuild: true,
+            environment: ["XCODE_XCCONFIG_FILE": "/ci/Extra.xcconfig"]
+        )
+
+        XCTAssertTrue(named.customConditionsOfFile.isEmpty)
+        XCTAssertTrue(inTheEnvironment.customConditionsOfFile.isEmpty)
     }
 
     func test_intermediateFilesOutsideDerivedData_leaveEveryFileAlone() async throws {
@@ -200,13 +239,20 @@ final class XcodeFileListsTests: MuterTestCase {
         )
     }
 
-    private func conditions(afterABuild: Bool) async throws -> ProjectBuildConditions {
+    private func conditions(
+        afterABuild: Bool,
+        extraArguments: [String] = [],
+        environment: [String: String] = [:]
+    ) async throws -> ProjectBuildConditions {
         try await XcodeBuildConditions.conditions(
             inProjectAt: project,
-            testedBy: MuterConfiguration(executable: xcodebuild, arguments: ["-scheme", "App", "test"]),
+            testedBy: MuterConfiguration(
+                executable: xcodebuild,
+                arguments: ["-scheme", "App"] + extraArguments + ["test"]
+            ),
             process: current.process,
             fileManager: FileManager.default,
-            environment: [:],
+            environment: environment,
             afterABuild: afterABuild
         ).get()
     }

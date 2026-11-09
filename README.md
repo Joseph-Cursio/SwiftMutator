@@ -977,7 +977,10 @@ So what it can't work out doesn't cost you code your build compiles. These stay 
   framework the app embeds or a local package, has all the targets xcodebuild reports, for the test bundles and for
   the scheme, as does every file with `--skip-coverage`, or where something can compile files out of the lists' sight:
   intermediate files outside derived data, a setting for an architecture or build variant, another project, a target
-  an external tool builds, or a script that runs the compiler or another build;
+  an external tool builds, a script that runs the compiler or another build, or one SwiftMutator can't read, or a
+  build configuration file outside the project, from `-xcconfig` or `XCODE_XCCONFIG_FILE`. A list an earlier run left
+  in the mutated copy's derived data, of another configuration or a target since renamed, counts as another target's
+  until that folder is deleted;
 - with xcodebuild, a condition no reported target sets but that a `project.pbxproj`, `.xcconfig` or package manifest in
   the project names, as it may be set for a target that wasn't reported, except in a file only reported targets
   compiled; and any other `SWIFT_` condition, as Xcode sets `SWIFT_PACKAGE` for a local package's code;
