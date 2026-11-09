@@ -155,8 +155,8 @@ enum XcodeBuildConditions {
     /// The settings that put a target's intermediate files, its file list among them, somewhere.
     private static let buildFolderSettings: Set = [
         "OBJROOT", "SYMROOT", "BUILD_DIR", "BUILD_ROOT", "PROJECT_TEMP_DIR", "PROJECT_TEMP_ROOT",
-        "CONFIGURATION_TEMP_DIR", "TARGET_TEMP_DIR", "TEMP_DIR", "TEMP_ROOT", "TEMP_FILES_DIR", "OBJECT_FILE_DIR", "SWIFT_RESPONSE_FILE_PATH",
-        "SHARED_PRECOMPS_DIR", "DERIVED_DATA_DIR",
+        "CONFIGURATION_TEMP_DIR", "TARGET_TEMP_DIR", "TEMP_DIR", "TEMP_ROOT", "TEMP_FILES_DIR", "OBJECT_FILE_DIR",
+        "SWIFT_RESPONSE_FILE_PATH", "SHARED_PRECOMPS_DIR", "DERIVED_DATA_DIR",
     ]
 
     /// What in a build file may compile a file SwiftMutator doesn't find in a list in `OBJROOT`, or with conditions

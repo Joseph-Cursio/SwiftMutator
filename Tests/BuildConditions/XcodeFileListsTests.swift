@@ -16,7 +16,10 @@ final class XcodeFileListsTests: MuterTestCase {
             try write("let x = 1", to: project + "/" + file)
         }
         // A Release-only flag, and the flags of the framework the app embeds, which xcodebuild doesn't report.
-        try write("SWIFT_ACTIVE_COMPILATION_CONDITIONS = RELEASE_ONLY CORE_FLAG", to: project + "/P.xcodeproj/project.pbxproj")
+        try write(
+            "SWIFT_ACTIVE_COMPILATION_CONDITIONS = RELEASE_ONLY CORE_FLAG",
+            to: project + "/P.xcodeproj/project.pbxproj"
+        )
     }
 
     // The app's own files are compiled by the app alone; a file the embedded framework compiles too may be built with
@@ -111,7 +114,8 @@ final class XcodeFileListsTests: MuterTestCase {
         XCTAssertTrue(conditions.customConditionsOfFile.isEmpty)
     }
 
-    // `customConditions(of:)` doesn't read quotes, escapes, variables or a response file of flags as the compiler would.
+    // `customConditions(of:)` doesn't read quotes, escapes, variables or a response file of flags as the compiler
+    // would.
     func test_aTargetWhoseFlagsMayHideConditions_isNoReportedTarget() async throws {
         for flags in [#"-D"QUOTED""#, "@/tmp/flags.resp", "-D$(NAME)"] {
             try writeTheBuildsLists(appFlags: flags)
@@ -124,7 +128,10 @@ final class XcodeFileListsTests: MuterTestCase {
 
     func test_listsThatDontReadAsXcodeWritesThem_leaveEveryFileAlone() async throws {
         try writeTheBuildsLists()
-        try write("App/App.swift\n", to: objectRoot + "/P.build/Debug/Core.build/Objects-normal/arm64/Core.SwiftFileList")
+        try write(
+            "App/App.swift\n",
+            to: objectRoot + "/P.build/Debug/Core.build/Objects-normal/arm64/Core.SwiftFileList"
+        )
         let relative = try await conditions(afterABuild: true)
 
         try writeTheBuildsLists()
@@ -139,7 +146,9 @@ final class XcodeFileListsTests: MuterTestCase {
 
     func test_aFileListsPaths() {
         XCTAssertEqual(
-            XcodeBuildConditions.filePaths(inFileList: "/p/My\\ View.swift\n/p/a\\'b\\ \\\"c\\\"\\\\.swift\n\n/p/x.swift\n"),
+            XcodeBuildConditions.filePaths(
+                inFileList: "/p/My\\ View.swift\n/p/a\\'b\\ \\\"c\\\"\\\\.swift\n\n/p/x.swift\n"
+            ),
             ["/p/My View.swift", "/p/a'b \"c\"\\.swift", "/p/x.swift"]
         )
         XCTAssertNil(XcodeBuildConditions.filePaths(inFileList: "p/x.swift\n"))
