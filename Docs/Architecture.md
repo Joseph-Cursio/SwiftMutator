@@ -43,7 +43,9 @@ applies the changes the step returns. The steps are in
 7. `PreviousRunCleanUp`: removes the last run's copy, clones and leftovers.
 8. `CopyProjectToTempDirectory`: copies the project.
 9. `FingerprintProjectTree`: records the SHA-256 of each of the project's files, so a later
-   resume or reuse can tell what changed.
+   resume or reuse can tell what changed, and says what the build uses from outside the project,
+   which gets no mutants, and what in it an absolute path makes the copy build unmutated
+   (`OutsideProjectCode`).
 10. `TurnOffSwiftLintPhases`: xcodebuild only. Turns off the commands that run SwiftLint in the
     build phases of the copy's Xcode projects, unless `keepSwiftLintPhases` is set
     ([`BuildSystems/Xcode/SwiftLintPhases.swift`](../Sources/muterCore/BuildSystems/Xcode/SwiftLintPhases.swift)).

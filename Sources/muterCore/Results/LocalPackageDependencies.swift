@@ -21,7 +21,7 @@ enum LocalPackageDependencies {
         var manifests = paths.filter(isManifest).map { projectRoot.appendingPathComponent($0) }
         var found: [String: URL] = [:]
         while let manifest = manifests.popLast() {
-            for folder in packageFolders(namedIn: manifest) {
+            for (folder, _) in packageFolders(namedIn: manifest) {
                 let components = folder.pathComponents
                 guard !components.starts(with: root), !root.starts(with: components), found[folder.path] == nil else {
                     continue
@@ -35,6 +35,23 @@ enum LocalPackageDependencies {
             .map { Dependency(url: $0, relativePath: relativePath(of: $0.pathComponents, from: root)) }
     }
 
+    /// The folders inside `projectRoot` that the manifests among `paths`, relative to it, name by an absolute path,
+    /// sorted by path. The copy's manifests name the same folders, in the project, so the copy builds them from there,
+    /// unmutated, and its mutants in them are never built. Only the project's own manifests are read.
+    static func namedByAbsolutePath(inside projectRoot: URL, manifests paths: some Sequence<String>) -> [URL] {
+        let root = projectRoot.standardizedFileURL.pathComponents
+        var found: [String: URL] = [:]
+        for manifest in paths.filter(isManifest).map({ projectRoot.appendingPathComponent($0) }) {
+            for (folder, isAbsolute) in packageFolders(namedIn: manifest) where isAbsolute {
+                let components = folder.pathComponents
+                if components.count > root.count, components.starts(with: root) {
+                    found[folder.path] = folder
+                }
+            }
+        }
+        return found.values.sorted { $0.path < $1.path }
+    }
+
     /// `Package.swift`, `Package@swift-*.swift`, or an Xcode project's `project.pbxproj`.
     static func isManifest(_ path: String) -> Bool {
         let components = path.split(separator: "/")
@@ -43,6 +60,13 @@ enum LocalPackageDependencies {
             return components.count >= 2 && components[components.count - 2].hasSuffix(".xcodeproj")
         }
         return name == "Package.swift" || name.hasPrefix("Package@swift-") && name.hasSuffix(".swift")
+    }
+
+    /// `components`' path from `root`'s, as `../` steps up and then down.
+    static func relativePath(of components: [String], from root: [String]) -> String {
+        let shared = zip(root, components).prefix { $0 == $1 }.count
+        return (Array(repeating: "..", count: root.count - shared) + components.dropFirst(shared))
+            .joined(separator: "/")
     }
 }
 
@@ -55,9 +79,9 @@ private extension LocalPackageDependencies {
     /// A block comment, or a line that is only a comment: a dependency commented out is no dependency.
     static let comment = #"(?m)/\*[\s\S]*?\*/|^[ \t]*//.*$"#
 
-    /// The folders the manifest at `manifest` names, standardized: a package manifest's paths are relative to its
-    /// folder, and an Xcode project's to the folder that holds the project.
-    static func packageFolders(namedIn manifest: URL) -> [URL] {
+    /// The folders the manifest at `manifest` names, standardized, and whether it names each by an absolute path: a
+    /// package manifest's other paths are relative to its folder, and an Xcode project's to the folder that holds it.
+    static func packageFolders(namedIn manifest: URL) -> [(url: URL, isAbsolute: Bool)] {
         guard let text = try? String(contentsOf: manifest, encoding: .utf8) else { return [] }
         let isXcodeProject = manifest.lastPathComponent == "project.pbxproj"
         let base = isXcodeProject
@@ -68,10 +92,9 @@ private extension LocalPackageDependencies {
             : captures(of: packagePath, in: replacing(comment, in: text))
         return paths.map { path in
             let expanded = (path as NSString).expandingTildeInPath
-            let folder = expanded.hasPrefix("/")
-                ? URL(fileURLWithPath: expanded)
-                : base.appendingPathComponent(expanded)
-            return folder.standardizedFileURL
+            let isAbsolute = expanded.hasPrefix("/")
+            let folder = isAbsolute ? URL(fileURLWithPath: expanded) : base.appendingPathComponent(expanded)
+            return (folder.standardizedFileURL, isAbsolute)
         }
     }
 
@@ -101,12 +124,5 @@ private extension LocalPackageDependencies {
     static func replacing(_ pattern: String, in text: String) -> String {
         NSRegularExpression.regexWithPattern(pattern)
             .stringByReplacingMatches(in: text, range: NSRange(text.startIndex..., in: text), withTemplate: "")
-    }
-
-    /// `components`' path from `root`'s, as `../` steps up and then down.
-    static func relativePath(of components: [String], from root: [String]) -> String {
-        let shared = zip(root, components).prefix { $0 == $1 }.count
-        return (Array(repeating: "..", count: root.count - shared) + components.dropFirst(shared))
-            .joined(separator: "/")
     }
 }

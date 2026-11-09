@@ -100,8 +100,8 @@ extension MutationTestObserver {
             logger.projectCopySkippedVanishedFiles(paths)
         case let .projectCopyFinished(destinationPath):
             logger.projectCopyFinished(destinationPath: destinationPath)
-        case let .swiftLintPhasesTurnedOff(phases):
-            logger.swiftLintPhasesTurnedOff(phases)
+        case .codeOutsideTheProjectBuilt, .projectCodeNamedByAbsolutePath, .swiftLintPhasesTurnedOff:
+            handleProjectCopyEvent(event)
 
         case .projectCoverageDiscoveryStarted:
             logger.projectCoverageDiscoveryStarted()
@@ -238,6 +238,20 @@ extension MutationTestObserver {
         case .testPlanFileCreated, .muterMutationTestPlanLoaded, .testPlanSourcesUnchecked, .testPlanSourcesDiffer,
              .testPlanUntestedFilesChanged, .testPlanChangesWaived, .testPlanCopyEdited, .testPlanCopyResolutionChanged:
             handleTestPlanEvent(event)
+        }
+    }
+
+    /// What the events about the project's copy say, once it is made (`LoggerProjectCopyNotices.swift`).
+    private func handleProjectCopyEvent(_ event: RunEvent) {
+        switch event {
+        case let .codeOutsideTheProjectBuilt(paths):
+            logger.codeOutsideTheProjectBuilt(paths)
+        case let .projectCodeNamedByAbsolutePath(paths):
+            logger.projectCodeNamedByAbsolutePath(paths)
+        case let .swiftLintPhasesTurnedOff(phases):
+            logger.swiftLintPhasesTurnedOff(phases)
+        default:
+            break
         }
     }
 

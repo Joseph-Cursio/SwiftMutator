@@ -20,6 +20,12 @@ import Foundation
 /// A run that reuses an earlier run's results instead hands on every change since each of that run's sessions, split by
 /// what it can make wrong (`ReuseChanges`), which decides which of the session's results it keeps: a session that
 /// resumed the run may have let changes through that its earlier results weren't tested with.
+///
+/// It also says what the build uses from outside the project, which gets no mutants (`OutsideProjectCode`). Every run
+/// fingerprints once, so the notice comes once, from the listing the fingerprint made. The local packages among it are
+/// fingerprinted, but the projects a workspace references outside the project aren't: adding their files would make
+/// every earlier results file of such a project read as changed, and refuse its `--resume`. It warns, also once, of
+/// code inside the project that a workspace or manifest names by an absolute path, which the copy builds unmutated.
 struct FingerprintProjectTree: MutationStep {
     @Dependency(\.events)
     private var events: RunEvents
@@ -29,7 +35,7 @@ struct FingerprintProjectTree: MutationStep {
     func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
         let lastSession = state.resumeState?.lastHeader.project
         let copyListing = state.testPlan.flatMap { Self.copyListing(of: $0, lastSession: lastSession) }
-        let fingerprinted = await ProjectTree.fingerprint(
+        let fingerprinting = await ProjectTree.fingerprinting(
             listingIn: state.projectDirectoryURL,
             hashingIn: state.mutatedProjectDirectoryURL,
             // The last session's too: its report may still be in the project, under another name.
@@ -46,6 +52,22 @@ struct FingerprintProjectTree: MutationStep {
         )
         // A git that stopping the run killed reads as no repository, and the walk in its place lists what git ignores.
         try Task.checkCancellation()
+        let fingerprinted = fingerprinting.tree
+        let outside = OutsideProjectCode.paths(
+            in: state.projectDirectoryURL,
+            listed: fingerprinting.paths,
+            localPackages: fingerprinting.localPackages
+        )
+        if !outside.isEmpty {
+            events.send(.codeOutsideTheProjectBuilt(outside))
+        }
+        let namedByAbsolutePath = OutsideProjectCode.namedByAbsolutePath(
+            in: state.projectDirectoryURL,
+            listed: fingerprinting.paths
+        )
+        if !namedByAbsolutePath.isEmpty {
+            events.send(.projectCodeNamedByAbsolutePath(namedByAbsolutePath))
+        }
         let tree = copyListing.map { listing in
             ProjectTree(
                 listedBy: listing.listedBy,

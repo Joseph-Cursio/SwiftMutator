@@ -14,6 +14,8 @@ extension RunEvent {
         case projectCopyStarted
         case projectCopySkippedVanishedFiles
         case projectCopyFinished
+        case codeOutsideTheProjectBuilt
+        case projectCodeNamedByAbsolutePath
         case swiftLintPhasesTurnedOff
         case projectCoverageDiscoveryStarted
         case projectCoverageDiscoveryFinished
@@ -87,6 +89,8 @@ extension RunEvent {
         case .projectCopyStarted: .projectCopyStarted
         case .projectCopySkippedVanishedFiles: .projectCopySkippedVanishedFiles
         case .projectCopyFinished: .projectCopyFinished
+        case .codeOutsideTheProjectBuilt: .codeOutsideTheProjectBuilt
+        case .projectCodeNamedByAbsolutePath: .projectCodeNamedByAbsolutePath
         case .swiftLintPhasesTurnedOff: .swiftLintPhasesTurnedOff
         case .projectCoverageDiscoveryStarted: .projectCoverageDiscoveryStarted
         case .projectCoverageDiscoveryFinished: .projectCoverageDiscoveryFinished
@@ -168,6 +172,8 @@ extension RunEvent {
         case let .logFoldersPruned(pruning): pruning
         case let .projectCopySkippedVanishedFiles(paths): paths
         case let .projectCopyFinished(destinationPath): destinationPath
+        case let .codeOutsideTheProjectBuilt(paths): paths
+        case let .projectCodeNamedByAbsolutePath(paths): paths
         case let .swiftLintPhasesTurnedOff(phases): phases
         case let .projectCoverageDiscoveryFinished(failure): failure
         case let .projectCoverageTestsFailed(failed): failed
