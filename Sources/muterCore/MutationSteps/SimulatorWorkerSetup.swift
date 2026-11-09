@@ -115,10 +115,10 @@ struct SimulatorWorkerSetup {
     /// run with 2 mutants or more that wasn't asked for more workers, with `oneWorkerSimulator` not false, and neither
     /// `--mutant` nor a first `-destination` that isn't a simulator. With `oneWorkerSimulator` true, that is all; a
     /// destination that isn't a simulator is then said. Otherwise only when it should be faster: with 6 mutants or
-    /// more, and parallel testing on in the `.xctestrun`, which makes every mutant's run on the destination clone and
-    /// boot its simulator (`XCTestRun.parallelizes`). Arguments that tune parallel testing make the baseline's unlike a
-    /// mutant's run, which doesn't have them, so they decline it, saying so; with none at all, the baseline then
-    /// decides whether to keep it (`reasonToDropTheOneWorkerSimulator(_:)`).
+    /// more, and parallel testing on for a mutant's run on the destination, which then clones and boots its simulator:
+    /// on in the `.xctestrun` (`XCTestRun.parallelizes`), unless the test command's arguments turn it off, or on in
+    /// them. They reach such a run as they reach the baseline, so the baseline then decides whether to keep it
+    /// (`reasonToDropTheOneWorkerSimulator(_:)`), whatever else they tune.
     static func oneWorkerPlan(for mutantsToTest: Int, state: AnyMutationTestState) -> OneWorkerPlan {
         let configuration = state.muterConfiguration
         let wanted = configuration.oneWorkerSimulator
@@ -138,17 +138,15 @@ struct SimulatorWorkerSetup {
         if wanted == true {
             return .simulator(checkedAgainstBaseline: false)
         }
-        guard mutantsToTest >= minimumMutantsForOneWorkerSimulator, state.projectXCTestRun.parallelizes else {
+        let parallelizes = switch configuration.parallelTestingArguments {
+        case .unset: state.projectXCTestRun.parallelizes
+        case .enabled: true
+        case .disabled: false
+        }
+        guard mutantsToTest >= minimumMutantsForOneWorkerSimulator, parallelizes else {
             return .noSimulator
         }
-        let arguments = configuration.parallelTestingArguments
-        if case let .tuned(option) = arguments {
-            return .declined(
-                "the test command's arguments set `\(option)`, so its baseline doesn't show how a mutant's run "
-                    + "would test; `oneWorkerSimulator: true` tests on a simulator of its own anyway"
-            )
-        }
-        return .simulator(checkedAgainstBaseline: arguments == .unset)
+        return .simulator(checkedAgainstBaseline: true)
     }
 
     /// Makes a simulator like the one the run's first `-destination` names for each worker that is to test the

@@ -65,7 +65,8 @@ final class MutationTestingDelegateXcodeWorkerTests: MuterTestCase {
     }
 
     // On an xcodebuild worker, it is the run that checks the worker: from the worker's own test run, on its own
-    // destination, with its own derived data, emptied first, as a mutant's run on it would be.
+    // destination, with its own derived data, emptied first, as a mutant's run on it would be. The test command's
+    // `-only-testing` holds for it too.
     func test_runningTestsWithoutBuilding_onAnXcodebuildWorker_usesTheWorkersArgumentsAndNoTimeLimit() async throws {
         let configuration = MuterConfiguration(
             executable: "/tmp/xcodebuild",
@@ -90,6 +91,8 @@ final class MutationTestingDelegateXcodeWorkerTests: MuterTestCase {
             "platform=iOS Simulator,id=SIM-1",
             "-xctestrun",
             "muter-worker1.xctestrun",
+            "-only-testing",
+            "Tests",
             "-derivedDataPath",
             "/path/App_mutated_worker1.DerivedData",
             "-collect-test-diagnostics",

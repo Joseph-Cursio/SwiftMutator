@@ -605,44 +605,33 @@ struct MuterConfiguration: Equatable, Codable {
         }
     }
 
-    /// How the test command's own arguments set xcodebuild's parallel testing. They reach only the baseline and the
-    /// coverage run, never a mutant's, which tests from the `.xctestrun` with arguments of its own
-    /// (`testWithoutBuildArguments`), so they say only how far the baseline's testing is like a mutant's.
+    /// Whether the test command's own arguments turn xcodebuild's parallel testing on or off. They reach the baseline,
+    /// and a mutant's run on the test command's destination too (`testWithoutBuildArguments`), so its testing is the
+    /// baseline's; a worker on a simulator of its own leaves them out, and tests one test at a time.
     enum ParallelTestingArguments: Equatable {
-        /// They don't set it: the scheme or the test plan does, for the baseline and the mutants' runs alike.
+        /// They don't: the scheme or the test plan does, as the `.xctestrun` shows (`XCTestRun.parallelizes`). Options
+        /// that only tune it, such as `-parallel-testing-worker-count`, leave it so.
         case unset
-        /// `-parallel-testing-enabled NO`: the baseline tests one test at a time.
-        case off
-        /// They set it with `option`, such as `-parallel-testing-worker-count`, which a mutant's run doesn't have.
-        case tuned(String)
+        /// `-parallel-testing-enabled NO`: the baseline, and a mutant's run on the destination, test one at a time.
+        case disabled
+        /// `-parallel-testing-enabled YES`, whatever the scheme or the test plan says.
+        case enabled
     }
 
-    /// How the test command's arguments set parallel testing: `.off` for a `-parallel-testing-enabled NO`, in any
-    /// case, wherever it is; else `.tuned` with the first that tunes it, `-parallel-testing-enabled YES`,
-    /// `-parallel-testing-worker-count`, `-maximum-parallel-testing-workers` or
-    /// `-parallelize-tests-among-destinations`; else `.unset`, as for a `-parallel-testing-enabled` with no value.
+    /// How the test command's arguments set parallel testing: by their `-parallel-testing-enabled`, YES or NO in any
+    /// case, which xcodebuild takes only once; else `.unset`, as for one with no value.
     var parallelTestingArguments: ParallelTestingArguments {
-        let arguments = testCommandArguments
-        var tuned: String?
-        for (index, argument) in arguments.enumerated() {
-            let value = index + 1 < arguments.count ? arguments[index + 1] : nil
-            switch argument {
-            case "-parallel-testing-enabled":
-                if let value, value.lowercased() == "no" {
-                    return .off
-                }
-                if let value, value.lowercased() == "yes" {
-                    tuned = tuned ?? "\(argument) \(value)"
-                }
-            case "-parallel-testing-worker-count",
-                 "-maximum-parallel-testing-workers",
-                 "-parallelize-tests-among-destinations":
-                tuned = tuned ?? argument
-            default:
-                break
-            }
+        let enabled = XcodebuildArguments(testCommandArguments).arguments.first {
+            $0.kind == .option && $0.name == "-parallel-testing-enabled"
         }
-        return tuned.map(ParallelTestingArguments.tuned) ?? .unset
+        switch enabled?.written.dropFirst().first?.lowercased() {
+        case "yes":
+            return .enabled
+        case "no":
+            return .disabled
+        default:
+            return .unset
+        }
     }
 
     /// Why a mutant's test run can't be stopped at its first failed test with this test command, or nil.
@@ -822,6 +811,7 @@ extension MuterConfiguration {
 
         switch buildSystem {
         case .xcodebuild:
+            arguments = XcodebuildArguments(arguments).forTheCoverageRun
             // A setting given twice takes the second, so a project's own `OTHER_SWIFT_FLAGS=…` gets the flags added.
             let flags = Self.atomicCoverageCountersFlags.joined(separator: " ")
             if let index = arguments.firstIndex(where: { $0.hasPrefix("OTHER_SWIFT_FLAGS=") }) {
@@ -844,7 +834,7 @@ extension MuterConfiguration {
 
         switch buildSystem {
         case .xcodebuild:
-            return testArgumentsWithtDerivedData() + ["clean", "build-for-testing"]
+            return testArgumentsWithDerivedData() + ["clean", "build-for-testing"]
         case .swift,
              .unknown:
             return arguments
@@ -874,7 +864,8 @@ extension MuterConfiguration {
     /// more than 10,000 of a surviving mutant's 12,500 lines. It still prints every line SwiftMutator reads: each
     /// recorded issue, the run's summary, the tests' own output, and SwiftPM's lines for a crash. XCTest's output
     /// doesn't change. For xcodebuild they test from `testRunFile` on the first `-destination`, unless `xcodeWorker`
-    /// names another file or destination, and add the worker's own arguments.
+    /// names another file or destination, with the test command's own arguments that such a run keeps
+    /// (`XcodebuildArguments.forARunFromTheTestRunFile(worker:filtered:)`), then the worker's own.
     func testWithoutBuildArguments(with testRunFile: String) -> [String] {
         let arguments = testCommandArguments
         switch buildSystem {
@@ -882,13 +873,17 @@ extension MuterConfiguration {
             guard let destination = xcodeWorker?.destination ?? firstDestination else {
                 return arguments
             }
+            let kept = XcodebuildArguments(arguments).forARunFromTheTestRunFile(
+                worker: xcodeWorker,
+                filtered: !testFilterArguments.isEmpty
+            )
             return [
                 "test-without-building",
                 "-destination",
                 destination,
                 "-xctestrun",
                 xcodeWorker?.testRunFile ?? testRunFile,
-            ] + (xcodeWorker?.arguments ?? []) + testFilterArguments
+            ] + kept + (xcodeWorker?.arguments ?? []) + testFilterArguments
         case .swift:
             let setsVerbosity = arguments.contains { Self.verbosityOptions.contains($0) }
             return arguments + ["--skip-build"] + (setsVerbosity ? [] : ["--quiet"]) + testFilterArguments
@@ -915,21 +910,15 @@ extension MuterConfiguration {
         indexOfArgument("-derivedDataPath")
     }
 
-    private func testArgumentsWithtDerivedData() -> [String] {
+    /// The test command's arguments for the build for testing, before its actions: all but `test`, whether or not
+    /// they give a `-derivedDataPath`, as `test` would build and run every test in the build's place, and with
+    /// `-derivedDataPath DerivedData` when they give none, which `derivedDataPath` then names.
+    private func testArgumentsWithDerivedData() -> [String] {
+        let arguments = XcodebuildArguments(testCommandArguments).forTheBuild
         guard derivedDataArgumentIndex() == nil else {
-            return testCommandArguments
+            return arguments
         }
-
-        guard let testArgsIndex = indexOfArgument("test") else {
-            return testCommandArguments
-        }
-
-        var args = testCommandArguments
-        args.remove(at: testArgsIndex)
-        args.append("-derivedDataPath")
-        args.append(defaultDerivedData)
-
-        return args
+        return arguments + ["-derivedDataPath", defaultDerivedData]
     }
 }
 

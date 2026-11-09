@@ -11,8 +11,8 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
 
     /// Whether xcodebuild's parallel testing is on for any of its test targets (`ParallelizationEnabled`), as the
     /// scheme or the test plan sets it. A run from it, as a mutant's is, then clones the destination's simulator, and
-    /// boots the clone, for its tests: about 15 s a run, which a simulator of its own doesn't cost
-    /// (`SimulatorWorkerSetup.oneWorkerPlan(for:state:)`).
+    /// boots the clone, for its tests, unless the test command's `-parallel-testing-enabled` says otherwise: about
+    /// 15 s a run, which a simulator of its own doesn't cost (`SimulatorWorkerSetup.oneWorkerPlan(for:state:)`).
     var parallelizes: Bool {
         testTargets.contains { $0["ParallelizationEnabled"] as? Bool == true }
     }

@@ -4,8 +4,6 @@ import XCTest
 /// Whether one xcodebuild worker gets a simulator of its own, before the baseline and after it.
 final class SimulatorWorkerSetupTests: XCTestCase {
     func test_oneWorkerPlan_onAuto_isASimulatorOnlyWhenItShouldBeFaster() {
-        let tuned = "the test command's arguments set `-parallel-testing-worker-count`, so its baseline doesn't show "
-            + "how a mutant's run would test; `oneWorkerSimulator: true` tests on a simulator of its own anyway"
         let cases: [PlanCase] = [
             PlanCase(expected: .simulator(checkedAgainstBaseline: true)),
             PlanCase(expected: .simulator(checkedAgainstBaseline: true), workers: 1),
@@ -21,11 +19,19 @@ final class SimulatorWorkerSetupTests: XCTestCase {
             PlanCase(expected: .noSimulator, mutants: 2),
             PlanCase(expected: .noSimulator, mutants: 5),
             PlanCase(expected: .noSimulator, parallelizes: false),
+            // The test command's parallel testing arguments reach a mutant's run on the destination as they reach the
+            // baseline: off, it clones nothing; on, it clones whatever the scheme says; tuned, the baseline shows how.
+            PlanCase(expected: .noSimulator, arguments: ["-parallel-testing-enabled", "NO"]),
             PlanCase(
-                expected: .simulator(checkedAgainstBaseline: false),
-                arguments: ["-parallel-testing-enabled", "NO"]
+                expected: .simulator(checkedAgainstBaseline: true),
+                arguments: ["-parallel-testing-enabled", "YES"],
+                parallelizes: false
             ),
-            PlanCase(expected: .declined(tuned), arguments: ["-parallel-testing-worker-count", "3"]),
+            PlanCase(
+                expected: .simulator(checkedAgainstBaseline: true),
+                arguments: ["-parallel-testing-worker-count", "3"]
+            ),
+            PlanCase(expected: .noSimulator, arguments: ["-parallel-testing-worker-count", "3"], parallelizes: false),
             PlanCase(expected: .noSimulator, arguments: ["-parallel-testing-worker-count", "3"], mutants: 5),
         ]
 
@@ -42,6 +48,11 @@ final class SimulatorWorkerSetupTests: XCTestCase {
                 expected: .simulator(checkedAgainstBaseline: false),
                 key: true,
                 arguments: ["-parallel-testing-enabled", "YES"]
+            ),
+            PlanCase(
+                expected: .simulator(checkedAgainstBaseline: false),
+                key: true,
+                arguments: ["-parallel-testing-enabled", "NO"]
             ),
             PlanCase(expected: .declined(needsASimulator), key: true, destination: "platform=macOS"),
             PlanCase(expected: .declined(needsASimulator), key: true, destination: "generic/platform=iOS Simulator"),
