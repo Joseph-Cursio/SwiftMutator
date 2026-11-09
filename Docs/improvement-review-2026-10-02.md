@@ -68,7 +68,7 @@ Added on 21 October, from a comparison with swift-mutation-testing v1.6.3 (`937f
 
 These came after the review and have no section of their own.
 
-- **An `.xcconfig` outside the project can set a condition for a target xcodebuild doesn't report** ([#230]). Discovery reads only the build files in the project for the names it leaves undecided, so such a condition, set for a framework the app only depends on, reads as unset in a file that framework compiles, and its branch loses its mutants. #230's three gaps are done: `swift(…)`, `compiler(…)` and the architecture's conditions (#272, #273), a Swift package's scheme under xcodebuild (#274), and xcodebuild's per-file targets after the coverage run (#275).
+- **More `#if`s to decide** ([#230]): done in #271–#276, open only until the last of them merges.
 
 ---
 

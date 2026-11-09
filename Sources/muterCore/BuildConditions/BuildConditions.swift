@@ -23,6 +23,10 @@ struct BuildConditions: Equatable, Sendable {
     /// The language version `swift(…)` compares with, which the language mode sets: 5.10 in Swift 5 mode, and in Swift
     /// 6 mode the compiler's own version. Nil if SwiftMutator can't tell, as when the targets' modes differ.
     var language: VersionTuple?
+    /// Whether a target the code may be in can have a condition set that nothing SwiftMutator read names, as one a
+    /// build configuration file it didn't read sets for a target xcodebuild didn't report. Then a condition no target
+    /// here sets is undecided rather than unset, as if `undecidedConditions` held every name.
+    var anyConditionMayBeSetElsewhere = false
 
     struct Platform: Equatable, Sendable {
         /// As `os(…)` spells it.
@@ -107,7 +111,8 @@ extension BuildConditions: BuildConfiguration {
         guard !isTheBuildSystems,
               !customConditions.isEmpty,
               !customConditions.contains(where: { $0.contains(name) }),
-              !undecidedConditions.contains(name)
+              !undecidedConditions.contains(name),
+              !anyConditionMayBeSetElsewhere
         else {
             throw Undecided(description: "whether \(name) is set")
         }
