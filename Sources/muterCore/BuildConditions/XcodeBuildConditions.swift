@@ -10,8 +10,8 @@ enum XcodeBuildConditions {
     ///
     /// It reports no target that a scheme's targets only depend on, and no local package's, so a condition no reported
     /// target sets is left undecided if a build file in the project names it. After a build, `afterABuild`, which
-    /// target compiled each file is in the lists of files the build left (`filesOfEachTarget`). A Swift package's scheme
-    /// has no settings at all, so its conditions come from its manifest (`PackageSchemeBuildConditions`).
+    /// target compiled each file is in the lists of files the build left (`filesOfEachTarget`). A Swift package's
+    /// scheme has no settings at all, so its conditions come from its manifest (`PackageSchemeBuildConditions`).
     static func conditions(
         inProjectAt root: FilePath,
         testedBy configuration: MuterConfiguration,
@@ -136,8 +136,8 @@ enum XcodeBuildConditions {
         var ofFile: [FilePath: [Set<String>]] = [:]
         for (file, found) in reported where !unreported.contains(file) {
             for spelling in found.spellings.union([file]) {
-                if let inProject = roots.first(where: spelling.hasPrefix).map({ String(spelling.dropFirst($0.count)) }) {
-                    ofFile[inProject] = found.targets
+                if let root = roots.first(where: spelling.hasPrefix) {
+                    ofFile[String(spelling.dropFirst(root.count))] = found.targets
                 }
             }
         }
@@ -154,8 +154,8 @@ enum XcodeBuildConditions {
 
     /// The settings that put a target's intermediate files, its file list among them, somewhere.
     private static let buildFolderSettings: Set = [
-        "OBJROOT", "SYMROOT", "BUILD_DIR", "BUILD_ROOT", "PROJECT_TEMP_DIR", "PROJECT_TEMP_ROOT", "CONFIGURATION_TEMP_DIR",
-        "TARGET_TEMP_DIR", "TEMP_DIR", "TEMP_ROOT", "TEMP_FILES_DIR", "OBJECT_FILE_DIR", "SWIFT_RESPONSE_FILE_PATH",
+        "OBJROOT", "SYMROOT", "BUILD_DIR", "BUILD_ROOT", "PROJECT_TEMP_DIR", "PROJECT_TEMP_ROOT",
+        "CONFIGURATION_TEMP_DIR", "TARGET_TEMP_DIR", "TEMP_DIR", "TEMP_ROOT", "TEMP_FILES_DIR", "OBJECT_FILE_DIR", "SWIFT_RESPONSE_FILE_PATH",
         "SHARED_PRECOMPS_DIR", "DERIVED_DATA_DIR",
     ]
 
@@ -191,7 +191,9 @@ enum XcodeBuildConditions {
         return entries(of: objectRoot, endingIn: ".build")
             .flatMap { entries(of: $0) }
             .flatMap { entries(of: $0, endingIn: ".build") }
-            .flatMap { target in entries(of: target).filter { ($0 as NSString).lastPathComponent.hasPrefix("Objects-") } }
+            .flatMap { target in
+                entries(of: target).filter { ($0 as NSString).lastPathComponent.hasPrefix("Objects-") }
+            }
             .flatMap { entries(of: $0) }
             .flatMap { entries(of: $0, endingIn: ".SwiftFileList") }
     }

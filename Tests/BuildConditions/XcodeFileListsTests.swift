@@ -149,7 +149,8 @@ final class XcodeFileListsTests: MuterTestCase {
     // MARK: Helpers
 
     /// The lists an Xcode 27.2 build of the app and its tests leaves: the app's, the tests' and those of the framework
-    /// the app embeds, which compiles a file of the app's too; and `-showBuildSettings` reporting the app and its tests.
+    /// the app embeds, which compiles a file of the app's too; and `-showBuildSettings` reporting the app and its
+    /// tests.
     private func writeTheBuildsLists(appFlags: String = "") throws {
         let app = "P.build/Debug/App.build/Objects-normal/arm64/App.SwiftFileList"
         let tests = "P.build/Debug/AppTests.build/Objects-normal/arm64/AppTests.SwiftFileList"
