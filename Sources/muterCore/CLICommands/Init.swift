@@ -36,14 +36,14 @@ public struct Init: AsyncParsableCommand {
     /// Writes a configuration file for the project in `directory`, and says so, and which of Xcode's trust checks it
     /// skips: no run observes it, so it tells the Logger itself.
     ///
-    /// The generators read the project's files, so each path they get starts with `directory`: one relative to it
+    /// The generators read the project's files, so they're told the paths are relative to `directory`: otherwise they
     /// would be read from the current folder, which is `directory` only when `init` runs from the command line.
     public mutating func run() async throws {
         @Dependency(\.logger) var logger: Logger
         logger.launched()
 
-        let directoryContents = (fileManager.subpaths(atPath: directory) ?? []).map { "\(directory)/\($0)" }
-        let configuration = await MuterConfiguration(from: directoryContents)
+        let directoryContents = fileManager.subpaths(atPath: directory) ?? []
+        let configuration = await MuterConfiguration(from: directoryContents, in: directory)
         let path = "\(directory)/\(MuterConfiguration.fileNameWithExtension)"
         guard fileManager.createFile(atPath: path, contents: try configuration.asData, attributes: nil) else {
             throw MuterError.literal(reason: "SwiftMutator could not write \(path).")

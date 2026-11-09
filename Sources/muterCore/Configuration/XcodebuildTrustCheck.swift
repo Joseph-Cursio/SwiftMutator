@@ -40,7 +40,8 @@ enum XcodebuildTrustCheck: CaseIterable, Equatable {
     ///
     /// Files in `.build` or `SourcePackages` are left out: they are the dependencies' own checkouts, whose manifests
     /// and resolved files describe the dependencies' builds, not this project's. A dependency's macro still shows, in
-    /// the project's own `Package.resolved`, once its packages are resolved.
+    /// the project's own `Package.resolved`, once its packages are resolved. Only a URL's relative path is looked at,
+    /// so a project that is itself in such a folder, as a CI runner's may be, still has its own files read.
     static func needed(by directoryContents: [URL]) -> [XcodebuildTrustCheck] {
         let projectFiles = directoryContents.exclude(isInADependencyCheckout)
         let projects = contents(of: projectFiles) { $0 == "project.pbxproj" }
@@ -60,7 +61,7 @@ enum XcodebuildTrustCheck: CaseIterable, Equatable {
     }
 
     private static func isInADependencyCheckout(_ url: URL) -> Bool {
-        url.pathComponents.contains { $0 == ".build" || $0 == "SourcePackages" }
+        url.relativePath.split(separator: "/").contains { $0 == ".build" || $0 == "SourcePackages" }
     }
 
     /// The text of each file in `urls` whose name `isWanted` takes, leaving out those that can't be read.

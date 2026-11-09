@@ -81,6 +81,17 @@ final class XcodebuildTrustCheckTests: MuterTestCase {
         XCTAssertEqual(XcodebuildTrustCheck.needed(by: checkouts), [])
     }
 
+    // Only the path below the project's folder says it is a checkout: a project that is itself in one, as a CI
+    // runner's may be, still has its own files read.
+    func test_aProjectInAFolderNamedLikeACheckout_stillHasItsFilesRead() throws {
+        let directory = "SourcePackages/App"
+        _ = try write(Self.projectUsingSwiftLintPlugin, to: "\(directory)/App.xcodeproj/project.pbxproj")
+        let base = URL(fileURLWithPath: "\(root)/\(directory)", isDirectory: true)
+        let project = URL(fileURLWithPath: "App.xcodeproj/project.pbxproj", relativeTo: base)
+
+        XCTAssertEqual(XcodebuildTrustCheck.needed(by: [project]), [.packagePlugins])
+    }
+
     // A file that can't be read is passed over.
     func test_aFileThatCantBeRead_isPassedOver() {
         let missing = URL(fileURLWithPath: "\(root)/App.xcodeproj/project.pbxproj")

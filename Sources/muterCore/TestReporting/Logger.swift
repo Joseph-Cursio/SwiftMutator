@@ -1228,10 +1228,12 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
 
         let subjects = checks.map(\.subject).joined(separator: " and ")
         let arguments = checks.map { "`\($0.skippingArgument)`" }.joined(separator: " and ")
+        let argumentsNamed = checks.count == 1 ? "the argument" : "the arguments"
         print(
             "⚠️ The project seems to use \(subjects), so the arguments include \(arguments): xcodebuild then runs "
                 + "them without asking anyone to trust them first, which a run with no one at the Mac, as on CI, "
-                + "needs. Take \(checks.count == 1 ? "it" : "them") out if you don't trust that code."
+                + "needs. Take \(argumentsNamed) out of \(MuterConfiguration.fileNameWithExtension) if you don't "
+                + "trust that code."
         )
     }
 

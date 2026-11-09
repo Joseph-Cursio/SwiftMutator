@@ -446,19 +446,21 @@ full path on the Mac that ran `init`. Commit the file rather than running `init`
 Xcode asks you to trust each package plugin and macro before a build runs it, and until someone
 has, xcodebuild fails the build. A run with no one at the Mac, as on CI, has no one to trust them.
 `-skipPackagePluginValidation` skips that check for plugins, and `-skipMacroValidation` for macros:
-the build then runs them without asking, so use them only for packages you trust. For an Xcode
-project, `init` adds each, before `test`, when the project seems to use what it is for, and says so:
+the build then runs the plugins or macros without asking, so add these arguments only for packages
+you trust. For an Xcode project, `init` adds each, after the scheme, when the project seems to use
+what it is for, and says so:
 
 - the plugin argument when a `project.pbxproj` names a plugin a target uses (a package product
-  `plugin:<name>`), or a `Package.swift` has `.plugin(`;
+  `plugin:<name>`), or a manifest has `.plugin(`;
 - the macro argument when a `Package.resolved` names swift-syntax, which macro packages depend on,
-  or a `Package.swift` has `.macro(`.
+  or a manifest has `.macro(`.
 
-Files in `.build` and `SourcePackages` are left out, as they are the dependencies' own. The guess
-can be wrong either way: an argument for a check the build doesn't make changes nothing, and a
+A manifest is a `Package.swift` or a version's own, such as `Package@swift-6.0.swift`. Files in
+`.build` and `SourcePackages` are left out, as they are the dependencies' own. The guess can be
+wrong either way: an argument for a check the build doesn't make changes nothing, and a
 `Package.resolved` exists only once the packages have been resolved. For a project it missed, or a
-`muter.conf.yml` written before `init` added them, add them to `arguments` by hand. `swift test`
-makes neither check, so a package's configuration doesn't get them.
+`muter.conf.yml` written before `init` added them, add the arguments to `arguments` by hand.
+`swift test` makes neither check, so a package's configuration doesn't get them.
 
 ### Before a long run
 

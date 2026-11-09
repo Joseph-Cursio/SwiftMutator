@@ -31,8 +31,10 @@ final class InitTests: MuterTestCase {
 
     #if !os(Linux)
     // A project whose target uses a package plugin: the file it writes skips that trust check, and it says so after
-    // where it wrote the file. The project is found in `directory`, not in the current folder.
+    // where it wrote the file. The project is found in `directory`, not in the current folder, and though `directory`
+    // is in a folder named like a dependency's checkout, its own files are read.
     func test_aProjectUsingAPlugin_getsItsTrustCheckSkipped_andSaysSo() async throws {
+        directory += "/SourcePackages/App"
         let project = "\(directory)/App.xcodeproj"
         try FileManager.default.createDirectory(atPath: project, withIntermediateDirectories: true)
         let iOSProject = try String(
@@ -47,12 +49,13 @@ final class InitTests: MuterTestCase {
         let contents = try XCTUnwrap(FileManager.default.contents(atPath: "\(directory)/muter.conf.yml"))
         let configuration = try MuterConfiguration(from: contents)
         XCTAssertEqual(configuration.testCommandArguments.prefix(2), ["-project", "App.xcodeproj"])
-        XCTAssertEqual(configuration.testCommandArguments.suffix(2), ["-skipPackagePluginValidation", "test"])
+        XCTAssertEqual(configuration.testCommandArguments[4], "-skipPackagePluginValidation")
+        XCTAssertEqual(configuration.testCommandArguments.last, "test")
         XCTAssertEqual(printer.linesPassed.suffix(2), [
             "💾 Configuration file created at: \(directory)/muter.conf.yml",
             "⚠️ The project seems to use package plugins, so the arguments include `-skipPackagePluginValidation`: "
                 + "xcodebuild then runs them without asking anyone to trust them first, which a run with no one at "
-                + "the Mac, as on CI, needs. Take it out if you don't trust that code.",
+                + "the Mac, as on CI, needs. Take the argument out of muter.conf.yml if you don't trust that code.",
         ])
     }
     #endif
@@ -68,8 +71,8 @@ final class InitTests: MuterTestCase {
         XCTAssertEqual(printer.linesPassed, [
             "⚠️ The project seems to use package plugins and macros, so the arguments include "
                 + "`-skipPackagePluginValidation` and `-skipMacroValidation`: xcodebuild then runs them without asking "
-                + "anyone to trust them first, which a run with no one at the Mac, as on CI, needs. Take them out if "
-                + "you don't trust that code.",
+                + "anyone to trust them first, which a run with no one at the Mac, as on CI, needs. Take the arguments "
+                + "out of muter.conf.yml if you don't trust that code.",
         ])
     }
 

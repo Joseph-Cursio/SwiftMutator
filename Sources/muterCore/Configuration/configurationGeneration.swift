@@ -9,9 +9,12 @@ extension MuterConfiguration {
         generateEmptyConfiguration,
     ]
 
-    /// The configuration the first generator that knows the project in `directoryContents` makes.
-    init(from directoryContents: [FilePath]) async {
-        let directoryContents = directoryContents.map(URL.init(fileURLWithPath:))
+    /// The configuration the first generator that knows the project in `directoryContents` makes. A relative path is
+    /// read from `directory`, or from the current folder when there is none, and keeps its relative form, so that
+    /// what `XcodebuildTrustCheck` looks for in it is looked for only below the project's folder.
+    init(from directoryContents: [FilePath], in directory: FilePath? = nil) async {
+        let base = directory.map { URL(fileURLWithPath: $0, isDirectory: true) }
+        let directoryContents = directoryContents.map { URL(fileURLWithPath: $0, relativeTo: base) }
         for generate in MuterConfiguration.generators {
             if let generatedConfiguration = await generate(directoryContents) {
                 self = generatedConfiguration
@@ -96,7 +99,7 @@ private extension MuterConfiguration {
 
         let skippedTrustChecks = XcodebuildTrustCheck.needed(by: directoryContents).map(\.skippingArgument)
 
-        return defaultArguments + destination + skippedTrustChecks + ["test"]
+        return defaultArguments + skippedTrustChecks + destination + ["test"]
     }
 
     private static func executablePath(_ exec: String) async -> String {

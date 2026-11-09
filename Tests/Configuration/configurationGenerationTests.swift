@@ -229,8 +229,9 @@ final class ConfigurationGenerationTests: MuterTestCase {
         )
     }
 
-    // A project that uses a package plugin and a macro: the arguments skip both of Xcode's trust checks, before the
-    // action, so that a run on CI, with no one to trust them, builds.
+    // A project that uses a package plugin and a macro: the arguments skip both of Xcode's trust checks, so that a
+    // run on CI, with no one to trust them, builds. They come before the destination, so that `test` still follows a
+    // value: XcodeBuildConditions once read a `test` after an option as its value.
     func test_xcodeProjectUsingAPluginAndAMacro_skipsBothTrustChecks() async throws {
         let projectDirectoryContents = try projectUsingAPluginAndAMacro()
 
@@ -239,12 +240,9 @@ final class ConfigurationGenerationTests: MuterTestCase {
 
         let generatedConfiguration = await MuterConfiguration(from: projectDirectoryContents)
 
-        XCTAssertEqual(
-            Array(generatedConfiguration.testCommandArguments.suffix(3)),
-            ["-skipPackagePluginValidation", "-skipMacroValidation", "test"]
-        )
-        XCTAssertEqual(Array(generatedConfiguration.testCommandArguments.prefix(4)), [
+        XCTAssertEqual(generatedConfiguration.testCommandArguments.filter { !$0.contains("platform") }, [
             "-project", "App.xcodeproj", "-scheme", "App",
+            "-skipPackagePluginValidation", "-skipMacroValidation", "-destination", "test",
         ])
     }
 
@@ -259,9 +257,10 @@ final class ConfigurationGenerationTests: MuterTestCase {
 
         XCTAssertEqual(generatedConfiguration.testCommandArguments.first, "-workspace")
         XCTAssertEqual(
-            Array(generatedConfiguration.testCommandArguments.suffix(3)),
-            ["-skipPackagePluginValidation", "-skipMacroValidation", "test"]
+            Array(generatedConfiguration.testCommandArguments[4...6]),
+            ["-skipPackagePluginValidation", "-skipMacroValidation", "-destination"]
         )
+        XCTAssertEqual(generatedConfiguration.testCommandArguments.last, "test")
     }
 
     /// An iOS app's project, whose target uses a package plugin, and whose resolved packages include swift-syntax.
