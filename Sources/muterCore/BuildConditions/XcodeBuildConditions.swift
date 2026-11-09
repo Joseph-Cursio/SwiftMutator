@@ -61,16 +61,11 @@ enum XcodeBuildConditions {
         return targets.map(\.buildSettings)
     }
 
-    private static let actions: Set = [
-        "test", "test-without-building", "build", "build-for-testing", "clean", "analyze", "archive",
-    ]
-
-    /// `arguments` without xcodebuild's actions, but not a value that reads like one, as in `-scheme test`.
+    /// `arguments` without xcodebuild's actions, but not a value that reads like one, as in `-scheme test`. Only an
+    /// option that takes a value has one, so the `test` after an option that stands alone, as `-quiet` or
+    /// `-skipMacroValidation`, is still an action.
     private static func argumentsWithoutActions(_ arguments: [String]) -> [String] {
-        arguments.enumerated().filter { index, argument in
-            let isAValue = index > 0 && arguments[index - 1].hasPrefix("-")
-            return isAValue || !actions.contains(argument)
-        }.map(\.element)
+        XcodebuildArguments(arguments).leavingOut { $0.kind == .action }
     }
 
     /// `PLATFORM_NAME`s, and how `os(…)` and `targetEnvironment(…)` read them.

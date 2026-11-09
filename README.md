@@ -441,6 +441,27 @@ coverageThreshold: 0e+0
 `init` writes only these keys; [Configuration](#configuration) lists the others. `executable` is the
 full path on the Mac that ran `init`. Commit the file rather than running `init` on each machine.
 
+#### Plugins and macros
+
+Xcode asks you to trust each package plugin and macro before a build runs it, and until someone
+has, xcodebuild fails the build. A run with no one at the Mac, as on CI, has no one to trust them.
+`-skipPackagePluginValidation` skips that check for plugins, and `-skipMacroValidation` for macros:
+the build then runs the plugins or macros without asking, so add these arguments only for packages
+you trust. For an Xcode project, `init` adds each, after the scheme, when the project seems to use
+what it is for, and says so:
+
+- the plugin argument when a `project.pbxproj` names a plugin a target uses (a package product
+  `plugin:<name>`), or a manifest has `.plugin(`;
+- the macro argument when a `Package.resolved` names swift-syntax, which macro packages depend on,
+  or a manifest has `.macro(`.
+
+A manifest is a `Package.swift` or a version's own, such as `Package@swift-6.0.swift`. Files in
+`.build` and `SourcePackages` are left out, as they are the dependencies' own. The guess can be
+wrong either way: an argument for a check the build doesn't make changes nothing, and a
+`Package.resolved` exists only once the packages have been resolved. For a project it missed, or a
+`muter.conf.yml` written before `init` added them, add the arguments to `arguments` by hand.
+`swift test` makes neither check, so a package's configuration doesn't get them.
+
 ### Before a long run
 
 - **Warnings as errors.** A mutant can make code the compiler warns about, and with warnings as
@@ -3290,7 +3311,10 @@ jobs:
 - **The configuration** is the committed `muter.conf.yml`. `init` writes the test command's full
   path in `executable`, such as `/usr/bin/swift`, which has to exist on the runner too; the
   baseline file doesn't compare it. To test with another Xcode than the runner's default, set
-  `DEVELOPER_DIR`, as this repository's [ci.yml](.github/workflows/ci.yml) does.
+  `DEVELOPER_DIR`, as this repository's [ci.yml](.github/workflows/ci.yml) does. An Xcode project
+  that uses package plugins or macros needs `-skipPackagePluginValidation`, `-skipMacroValidation`
+  or both in `arguments`, as no one on the runner can trust them (see
+  [Plugins and macros](#plugins-and-macros)).
 - **The log.** Standard output isn't a terminal, so the run prints a line as each mutant finishes,
   with the counts so far and the time left, in place of the progress bar (see
   [Progress](#progress)). By default a SwiftPM project tests as many mutants at once as half the
@@ -3486,7 +3510,9 @@ and lists them.
 `swift-mutator init` writes `muter.conf.yml` in the current folder, with the executable and
 arguments for the Xcode workspace or project, or the Swift package, it finds there. It replaces a
 `muter.conf.yml` that is already there (see [Setting up](#setting-up) and
-[Configuration](#configuration)). It takes no flags.
+[Configuration](#configuration)). For an Xcode project that seems to use package plugins or macros,
+the arguments skip Xcode's check that you trust them (see [Plugins and macros](#plugins-and-macros)).
+It takes no flags.
 
 ## Development
 
