@@ -5,7 +5,7 @@ This review started on 2 October 2026, at commit `4ba72fc`, as a ranked list of 
 - **Last updated on 8 November 2026,** at `5755b647`. Each item was checked against its issue and the code, and its line references brought up to date.
 - **Done items were removed.** Git history keeps them: [this file at `5755b647`](https://github.com/Joseph-Cursio/SwiftMutator/blob/5755b647/Docs/improvement-review-2026-10-02.md) lists every finished item with its PR, and [at `44c1b41`](https://github.com/Joseph-Cursio/SwiftMutator/blob/44c1b41/Docs/improvement-review-2026-10-02.md) has the early write-ups.
 - **Section numbers are the original ones,** so references in PRs and notes still work. A missing number is a finished section.
-- **Open issues:** [#121], [#122], [#123], [#130], [#181] and [#230]. An item marked "no issue yet" is a known gap that no issue tracks.
+- **Open issues:** [#121], [#123], [#130], [#181], [#230], [#261], [#262] and [#263]. An item marked "no issue yet" is a known gap that no issue tracks.
 
 ---
 
@@ -59,9 +59,10 @@ Discovery takes a SwiftPM package's files from its targets, keeps only the files
 Added on 21 October, from a comparison with swift-mutation-testing v1.6.3 (`937f128`), checked against SwiftMutator `af38f174`. Left:
 
 - **xcodebuild arguments in mutant runs** ([#123]). The user's `arguments` reach the build, the coverage run and the baseline, but a mutant's run gets only `test-without-building`, the first `-destination`, `-xctestrun` and a worker's own arguments (`MuterConfiguration.swift:877-890`). So an argument that changes what a test run does, such as `-only-testing`, holds for the baseline and maybe not for the mutants. The issue also proposes the flags a headless run needs.
-- **Configuration checks and a smarter `init`** ([#122]). Report settings are done (`reports:`, [#119]), and so are the checks: an unknown key is warned of, with the key it is closest to, and a value of the wrong type or out of range refuses the run. Left:
-  - A run with no configuration file stops (`LoadConfiguration.swift:30`), rather than running with what `init` would write.
-  - `init` replaces an existing file (`Init.swift:42-47`), writes a bare YAML dump, and guesses the scheme and destination.
+- **Configuration.** [#122] is done in part, and closed: report settings (`reports:`, [#119]), and the checks ([#260]), which warn of an unknown key, with the key it is closest to, and refuse a value of the wrong type or out of range. The rest is split three ways:
+  - **A smarter `init`** ([#261]). It replaces an existing file (`Init.swift:42-47`), writes a bare YAML dump, takes the first `.xcodeproj` anywhere below the project, and guesses the scheme and destination.
+  - **Flags and keys** ([#262]). xcodebuild's scheme, destination and container can be changed only by editing `arguments`, 13 keys have no flag, the project is always the current folder, and there's no `--quiet`.
+  - **Running without a configuration file** ([#263]). A run with none stops (`LoadConfiguration.swift:30`), rather than running with what `init` would write.
 - **Releases, a real version and an update check that works** ([#121]): see §4.
 
 ## Other open issues
@@ -101,3 +102,7 @@ These came after the review and have no section of their own.
 [#130]: https://github.com/Joseph-Cursio/SwiftMutator/issues/130
 [#181]: https://github.com/Joseph-Cursio/SwiftMutator/issues/181
 [#230]: https://github.com/Joseph-Cursio/SwiftMutator/issues/230
+[#260]: https://github.com/Joseph-Cursio/SwiftMutator/pull/260
+[#261]: https://github.com/Joseph-Cursio/SwiftMutator/issues/261
+[#262]: https://github.com/Joseph-Cursio/SwiftMutator/issues/262
+[#263]: https://github.com/Joseph-Cursio/SwiftMutator/issues/263
