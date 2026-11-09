@@ -121,15 +121,21 @@ final class BuildTimeoutRunTests: MuterTestCase {
         XCTAssertEqual(ioDelegate.timeLimitsWithoutBuilding, [60, 30, nil])
     }
 
-    // The limit comes from the baseline's own time: 5 times a 100 s baseline.
-    func test_theTimedTestRunsLimit_isFiveTimesTheBaselinesTime() async throws {
+    // The limit comes from the baseline's own time: 5 times a 100 s baseline. The baseline is timed on the monotonic
+    // clock, so an hour the Mac slept through on the wall clock counts for nothing (#181).
+    func test_theTimedTestRunsLimit_isFiveTimesTheBaselinesTime_onTheMonotonicClock() async throws {
         state.muterConfiguration = MuterConfiguration(
             executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 1, buildTimeout: 3_600
         )
         ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 4)
-        let clock = Locked(Date(timeIntervalSince1970: 1_000_000))
-        current.now = { clock.value }
-        ioDelegate.whileRunningBaseline = { _ in clock.change { $0 += 100 } }
+        let wallClock = Locked(Date(timeIntervalSince1970: 1_000_000))
+        let nanoseconds = Locked<UInt64>(1_000_000_000)
+        current.now = { wallClock.value }
+        current.instant = { DispatchTime(uptimeNanoseconds: nanoseconds.value) }
+        ioDelegate.whileRunningBaseline = { _ in
+            wallClock.change { $0 += 3_700 }
+            nanoseconds.change { $0 += 100_000_000_000 }
+        }
 
         _ = try await sut.run(with: state)
 
