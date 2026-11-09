@@ -289,6 +289,58 @@ final class CompileRecoveryTests: MuterTestCase {
         XCTAssertEqual(recovery.leftOut[file.ids[0]]?.blame, .itsSwitch)
     }
 
+    // A result builder without `buildEither` can't take the switch's `if` (#206). The closure's one expression is
+    // switched in a closure called on the spot instead, and no mutant is taken out.
+    func test_aSwitchABuilderCantTake_goesInAClosureCalledOnTheSpot_andItsMutantsStay() async throws {
+        let file = try file("func total(_ value: Int) -> Int { sum { value > 1 ? 10 : 20 } }\n")
+        var recovery = try recovery(of: file)
+        let keyword = place(of: try XCTUnwrap(file.rewritten.range(of: "if __SwiftMutator")), in: file.rewritten)
+
+        let count = try await recovery.takeOutMutants(
+            failing: "\(path):\(keyword.line):\(keyword.column): error: \(builderError)",
+            keptAs: "log"
+        )
+
+        XCTAssertEqual(count, 0)
+        XCTAssertEqual(recovery.switchedInAClosure, file.ids.count)
+        XCTAssertTrue(recovery.leftOut.isEmpty)
+        let code = try XCTUnwrap(writes.last?.code)
+        XCTAssertTrue(code.contains("sum { { if __SwiftMutator"), code)
+        XCTAssertTrue(code.contains("} else {return value > 1 ? 10 : 20} }() }"), code)
+        XCTAssertTrue(CheckMutantSwitches.mutantsWithoutASwitch(in: code, of: file.mapping).isEmpty)
+
+        // Its switch now holds `return`s, so a builder error on it again takes its mutants out, as any other error.
+        let again = place(of: try XCTUnwrap(code.range(of: "if __SwiftMutator")), in: code)
+        let next = try await recovery.takeOutMutants(
+            failing: "\(path):\(again.line):\(again.column): error: \(builderError)",
+            keptAs: "log"
+        )
+        XCTAssertEqual(next, file.ids.count)
+        XCTAssertEqual(recovery.switchedInAClosure, 0)
+    }
+
+    // In a closure of its own, `$0` would be that closure's, and a closure of more than one expression would give the
+    // builder one part, not several. Their mutants are taken out, as before.
+    func test_aSwitchABuilderCantTake_inAClosureThatCantHoldIt_takesOutItsChain() async throws {
+        for code in [
+            "func total(_ values: [Int]) -> Int { sum(values) { $0 > 1 ? 10 : 20 } }\n",
+            "func total(_ value: Int) -> Int { sum { 1; value > 1 ? 10 : 20 } }\n",
+        ] {
+            let file = try file(code)
+            var recovery = try recovery(of: file)
+            let keyword = place(of: try XCTUnwrap(file.rewritten.range(of: "if __SwiftMutator")), in: file.rewritten)
+
+            let count = try await recovery.takeOutMutants(
+                failing: "\(path):\(keyword.line):\(keyword.column): error: \(builderError)",
+                keptAs: "log"
+            )
+
+            XCTAssertEqual(count, file.ids.count, code)
+            XCTAssertEqual(recovery.switchedInAClosure, 0, code)
+            XCTAssertEqual(recovery.leftOut[file.ids[0]]?.blame, .itsSwitch, code)
+        }
+    }
+
     // The compiler reports this on the first branch of a differing type, whichever mutants are at fault.
     func test_mismatchingBranchTypes_takeOutTheChain() async throws {
         let file = try file(oneChain)
@@ -572,6 +624,8 @@ final class CompileRecoveryTests: MuterTestCase {
 }
 
 private extension CompileRecoveryTests {
+    var builderError: String { "closure containing control flow statement cannot be used with result builder 'Sum'" }
+
     struct File {
         let mapping: SchemataMutationMapping
         let prepared: String

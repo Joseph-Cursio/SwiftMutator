@@ -37,6 +37,7 @@ extension RunEvent {
         case workersShareUserDefaults
         case testBundlesWroteInTheProject
         case buildingAgainWithoutMutants
+        case buildingAgainWithSwitchesInAClosure
         case stoppedTakingOutMutants
         case mutantsLeftOutOfTheBuild
         case controlRunFinished
@@ -107,6 +108,7 @@ extension RunEvent {
         case .workersShareUserDefaults: .workersShareUserDefaults
         case .testBundlesWroteInTheProject: .testBundlesWroteInTheProject
         case .buildingAgainWithoutMutants: .buildingAgainWithoutMutants
+        case .buildingAgainWithSwitchesInAClosure: .buildingAgainWithSwitchesInAClosure
         case .stoppedTakingOutMutants: .stoppedTakingOutMutants
         case .mutantsLeftOutOfTheBuild: .mutantsLeftOutOfTheBuild
         case .controlRunFinished: .controlRunFinished
@@ -154,6 +156,7 @@ extension RunEvent {
         case let .testBundlesWroteInTheProject(path): path
         case let .updateCheckFinished(newVersion): newVersion
         case let .buildingAgainWithoutMutants(count): count
+        case let .buildingAgainWithSwitchesInAClosure(count): count
         case let .stoppedTakingOutMutants(builds): builds
         case let .mutantsLeftOutOfTheBuild(leftOut): leftOut
         case let .changesSelected(selection): selection

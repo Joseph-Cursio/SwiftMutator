@@ -841,25 +841,56 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         )
     }
 
-    // MARK: - Known bugs
-
-    // Each of these is a shape whose generated code doesn't compile, so the shared build of every mutant fails. Each is
-    // skipped until the rewriter, or the operator that makes the mutant, is fixed; take its skip out then.
-
     /// A result builder with no `buildEither` can't take an `if` with an `else`, so a switch in its closure doesn't
-    /// compile: "closure containing control flow statement cannot be used with result builder 'Sum'" (#206).
+    /// compile: "closure containing control flow statement cannot be used with result builder 'Sum'" (#206). Which
+    /// builder a closure gets can't be told from its syntax, so after that build the closure's one expression is
+    /// switched in a closure called on the spot, as one expression, with a `try` or an `await` where it needs one.
     func test_theGeneratedCodeBuildsInAResultBuilderWithoutBuildEither() throws {
-        try XCTSkipIf(true, "a switch in a builder without buildEither doesn't compile; see #206")
         let sum = """
         @resultBuilder enum Sum {
             static func buildBlock(_ parts: Int...) -> Int { parts.reduce(0, +) }
         }
 
         func sum(@Sum _ make: () -> Int) -> Int { make() }
+        func sum(of value: Int, @Sum _ make: (Int) -> Int) -> Int { make(value) }
+        func trying(@Sum _ make: () throws -> Int) rethrows -> Int { try make() }
+        func later(@Sum _ make: () async -> Int) async -> Int { await make() }
+        func checked(_ value: Int) throws -> Int { value }
+        func awaited(_ value: Int) async -> Int { value }
 
         func total(_ value: Int) -> Int { sum { value > 1 ? 10 : 20 } }
+        func named(_ value: Int) -> Int {
+            sum(of: value) { given in
+                given > 1 ? 10 : 20
+            }
+        }
+        func thrown(_ value: Int) throws -> Int { try trying { try checked(value) > 1 ? 10 : 20 } }
+        func eventually(_ value: Int) async -> Int { await later { await awaited(value) > 1 ? 10 : 20 } }
         """
-        _ = try compileMutated(["Sum.swift": sum])
+        let compiled = try compileMutated(
+            ["Sum.swift": sum],
+            plain: ["main.swift": driver(#"print(total(2), named(2), try thrown(2), await eventually(2))"#)],
+            recovering: true
+        )
+
+        let code = try XCTUnwrap(compiled.rewritten["Sum.swift"])
+        XCTAssertTrue(code.contains("sum { { if "), code)
+        XCTAssertTrue(code.contains("try trying { try { if "), code)
+        XCTAssertTrue(code.contains("await later { await { if "), code)
+        XCTAssertEqual(try run(compiled.program).output, "10 10 10 10\n", "no mutant named")
+        for function in ["func total", "given > 1", "func thrown", "func eventually"] {
+            let swapped = try compiled.identifier(in: "Sum.swift") {
+                $0.mutationOperatorId == .swapTernary && $0.position.line == Self.line(of: function, in: sum)
+            }
+            let output = try run(compiled.program, switchingOn: swapped).output
+            let swappedValues = output.split(separator: " ").filter { $0.hasPrefix("20") }
+            XCTAssertEqual(swappedValues.count, 1, "\(function): \(output)")
+        }
+    }
+
+    /// The line of `code` that holds `text`, counting from 1.
+    private static func line(of text: String, in code: String) -> Int {
+        (code.components(separatedBy: "\n").firstIndex { $0.contains(text) } ?? -1) + 1
     }
 
     /// An `if` in a closure on the left of a `??` settles the `??` before the closure is read, so a closure that gives

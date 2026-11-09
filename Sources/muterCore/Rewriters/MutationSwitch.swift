@@ -4,24 +4,24 @@ import SwiftSyntax
 enum MutationSwitch {
     /// Switches each mutant of `mutationSchemata` on in place of `originalSyntax`. `firstLineStart` is the line
     /// break and the indentation that start the line of the list's first token in its file, as
-    /// `startOfTheFirstLine(of:)` gives them. It's worked out only for a brace that needs it. `returningItsMacro` says
-    /// the list is a body whose value is its one macro (`CodeBlockItemListSyntax.isAMacroItsBodyReturns`): each
-    /// branch then returns it, so the switch is an `if` statement. As the body's value, an `if` expression whose
-    /// branches are `#Predicate { … }` doesn't compile ("value pack expansion can only appear inside a function
-    /// argument list").
+    /// `startOfTheFirstLine(of:)` gives them. It's worked out only for a brace that needs it. `returningItsExpression`
+    /// says each branch returns the list's one expression, so the switch is an `if` statement: for a body whose value
+    /// is its one macro (`CodeBlockItemListSyntax.isAMacroItsBodyReturns`), as the body's value, an `if` expression
+    /// whose branches are `#Predicate { … }` doesn't compile ("value pack expansion can only appear inside a function
+    /// argument list"), and in a closure called on the spot (`inAClosureCalledOnTheSpot`).
     static func apply(
         mutationSchemata: MutationSchemata,
         with originalSyntax: CodeBlockItemListSyntax,
         onALineStartingWith firstLineStart: @autoclosure () -> Trivia,
         readingEnvironmentFrom environmentCacheName: String,
-        returningItsMacro: Bool = false
+        returningItsExpression: Bool = false
     ) -> CodeBlockItemListSyntax {
         guard !mutationSchemata.isEmpty else {
             return originalSyntax
         }
-        let originalSyntax = returningItsMacro ? returning(originalSyntax) : originalSyntax
+        let originalSyntax = returningItsExpression ? returning(originalSyntax) : originalSyntax
         var branches = branches(switchingOn: mutationSchemata, of: originalSyntax)
-        if returningItsMacro {
+        if returningItsExpression {
             branches = branches.map(returning)
         }
 
@@ -92,6 +92,48 @@ enum MutationSwitch {
         return CodeBlockItemListSyntax([
             CodeBlockItemSyntax(item: .init(outterIfStatement))
         ])
+    }
+
+    /// `apply`'s switch of `list`, a closure's one expression, in a closure called on the spot, which a result builder
+    /// takes as one expression (`SchemataMutationMapping.switchInAClosureCalledOnTheSpot(theListOf:)`):
+    /// `{ if … { return mutant } else { return original } }()`. The call is a `try` or an `await` where the expression
+    /// is. The list's leading trivia goes before the closure's brace, and its trailing trivia after the call.
+    static func inAClosureCalledOnTheSpot(
+        mutationSchemata: MutationSchemata,
+        with list: CodeBlockItemListSyntax,
+        onALineStartingWith firstLineStart: @autoclosure () -> Trivia,
+        readingEnvironmentFrom environmentCacheName: String,
+        throwing: Bool,
+        awaiting: Bool
+    ) -> CodeBlockItemListSyntax {
+        guard !mutationSchemata.isEmpty, let item = list.first else {
+            return list
+        }
+        let switched = apply(
+            mutationSchemata: mutationSchemata,
+            with: list.with(\.leadingTrivia, []).with(\.trailingTrivia, []),
+            onALineStartingWith: firstLineStart(),
+            readingEnvironmentFrom: environmentCacheName,
+            returningItsExpression: true
+        )
+        var call = ExprSyntax(FunctionCallExprSyntax(
+            calledExpression: ClosureExprSyntax(
+                leftBrace: .leftBraceToken(trailingTrivia: .space),
+                statements: switched,
+                rightBrace: .rightBraceToken(leadingTrivia: .space)
+            ),
+            leftParen: .leftParenToken(),
+            arguments: [],
+            rightParen: .rightParenToken()
+        ))
+        if awaiting {
+            call = ExprSyntax(AwaitExprSyntax(awaitKeyword: .keyword(.await, trailingTrivia: .space), expression: call))
+        }
+        if throwing {
+            call = ExprSyntax(TryExprSyntax(tryKeyword: .keyword(.try, trailingTrivia: .space), expression: call))
+        }
+        call = call.with(\.leadingTrivia, list.leadingTrivia).with(\.trailingTrivia, list.trailingTrivia)
+        return [item.with(\.item, .expr(call))]
     }
 
     /// `list`, whose one item is an expression, as a `return` of it, with its trivia.
