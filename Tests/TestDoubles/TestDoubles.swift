@@ -6,7 +6,7 @@ final class TestDoubles {
     let runEvents = RunEvents()
     let fileManager = FileManagerSpy()
     let ioDelegateSpy = MutationTestingDelegateSpy()
-    let prepareCode = SourceCodePreparationSub()
+    let prepareCode = SourceCodePreparationStub()
     let process = ProcessSpy()
     let flushStandardOut = FlushHandlerSpy()
     let server = ServerSpy()

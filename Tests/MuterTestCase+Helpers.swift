@@ -10,15 +10,15 @@ extension MuterTestCase {
     ) -> [SchemataMutationMapping] {
         generateSchemataMappings(
             for: source,
-            changes: changes,
-            coverage: .make(regionsWithoutCoverage: regionsWithoutCoverage)
+            coverage: .make(regionsWithoutCoverage: regionsWithoutCoverage),
+            changes: changes
         )
     }
 
     func generateSchemataMappings(
         for source: SourceCodeInfo,
-        changes: MutationSourceCodePreparationChange = .null,
-        coverage: FileCoverage
+        coverage: FileCoverage,
+        changes: MutationSourceCodePreparationChange = .null
     ) -> [SchemataMutationMapping] {
         operatorsToDiscoverWith
             .accumulate(into: []) { newSchemataMappings, mutationOperatorId in
@@ -38,7 +38,8 @@ extension MuterTestCase {
                     return newSchemataMappings + [schemataMapping]
                 }
                 return newSchemataMappings
-            }.mergeByFilePath()
+            }
+            .mergeByFilePath()
     }
 
     func assertThrowsMuterError(

@@ -30,7 +30,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     private var directoriesInUse: Set<URL> = []
     private let lock = NSLock()
 
-    var testSuiteOutcomes: [TestSuiteOutcome]!
+    var testSuiteOutcomes: [TestSuiteOutcome] = []
     /// How the run of the mutant with this id ends, before `testSuiteOutcomes`: for a verdict that mustn't depend on
     /// which worker tests the mutant, or when.
     var outcomesByMutant: [String: TestSuiteOutcome] = [:]

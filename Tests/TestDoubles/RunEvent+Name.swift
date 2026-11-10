@@ -1,5 +1,4 @@
 @testable import muterCore
-import XCTest
 
 /// Each event's name and payload, for tests that pick sent events out by name. Both switches are exhaustive, so a new
 /// event needs a name here.
@@ -224,28 +223,5 @@ extension RunEvent {
         case let .testPlanChangesWaived(paths): paths
         case let .testPlanCopyEdited(paths): paths
         }
-    }
-}
-
-extension RunEvents {
-    /// Calls `handler` with each event named `name` sent from now on, until the returned subscription goes.
-    func observe(_ name: RunEvent.Name, _ handler: @escaping (RunEvent) -> Void) -> Subscription {
-        observe { event in
-            if event.name == name { handler(event) }
-        }
-    }
-}
-
-extension MuterTestCase {
-    /// An expectation fulfilled by the first event named `name` sent from now on that `handler`, if given, accepts.
-    /// Events are handled as they are sent, so a test can wait for it with any timeout once the event's sender returns.
-    func expectation(forEvent name: RunEvent.Name, handler: ((RunEvent) -> Bool)? = nil) -> XCTestExpectation {
-        let expectation = expectation(description: "\(name) sent")
-        expectation.assertForOverFulfill = false
-        let subscription = runEvents.observe(name) { event in
-            if handler?(event) ?? true { expectation.fulfill() }
-        }
-        addTeardownBlock { subscription.cancel() }
-        return expectation
     }
 }

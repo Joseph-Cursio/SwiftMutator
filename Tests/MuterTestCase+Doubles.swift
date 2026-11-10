@@ -5,7 +5,7 @@ extension MuterTestCase {
     var runEvents: RunEvents { doubles.runEvents }
     var fileManager: FileManagerSpy { doubles.fileManager }
     var ioDelegate: MutationTestingDelegateSpy { doubles.ioDelegateSpy }
-    var prepareCode: SourceCodePreparationSub { doubles.prepareCode }
+    var prepareCode: SourceCodePreparationStub { doubles.prepareCode }
     var process: ProcessSpy { doubles.process }
     var flushStandardOut: FlushHandlerSpy { doubles.flushStandardOut }
     var server: ServerSpy { doubles.server }

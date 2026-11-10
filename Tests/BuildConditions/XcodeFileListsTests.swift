@@ -3,6 +3,13 @@ import XCTest
 
 /// Which targets compiled each file in an xcodebuild build, from the lists of files the build leaves in derived data.
 final class XcodeFileListsTests: MuterTestCase {
+    /// Whether a condition is set where it is read.
+    private enum Verdict {
+        case holds
+        case doesntHold
+        case undecided
+    }
+
     private let xcodebuild = "/usr/bin/xcodebuild"
     private var project = ""
     private var objectRoot = ""
@@ -30,16 +37,16 @@ final class XcodeFileListsTests: MuterTestCase {
         let conditions = try await conditions(afterABuild: true)
 
         let app = conditions.conditions(ofFile: "App/App.swift")
-        XCTAssertTrue(try XCTUnwrap(holds("APP_FLAG", in: app)))
-        XCTAssertFalse(try XCTUnwrap(holds("RELEASE_ONLY", in: app)))
-        XCTAssertFalse(try XCTUnwrap(holds("CORE_FLAG", in: app)))
-        XCTAssertFalse(try XCTUnwrap(holds("TEST_FLAG", in: app)))
-        XCTAssertFalse(try XCTUnwrap(holds("RELEASE_ONLY", in: conditions.conditions(ofFile: "App/My View.swift"))))
-        XCTAssertNil(holds("CORE_FLAG", in: conditions.conditions(ofFile: "Shared/Shared.swift")))
-        XCTAssertNil(holds("RELEASE_ONLY", in: conditions.conditions(ofFile: "Shared/Shared.swift")))
+        XCTAssertEqual(holds("APP_FLAG", in: app), .holds)
+        XCTAssertEqual(holds("RELEASE_ONLY", in: app), .doesntHold)
+        XCTAssertEqual(holds("CORE_FLAG", in: app), .doesntHold)
+        XCTAssertEqual(holds("TEST_FLAG", in: app), .doesntHold)
+        XCTAssertEqual(holds("RELEASE_ONLY", in: conditions.conditions(ofFile: "App/My View.swift")), .doesntHold)
+        XCTAssertEqual(holds("CORE_FLAG", in: conditions.conditions(ofFile: "Shared/Shared.swift")), .undecided)
+        XCTAssertEqual(holds("RELEASE_ONLY", in: conditions.conditions(ofFile: "Shared/Shared.swift")), .undecided)
         XCTAssertNil(conditions.customConditionsOfFile["Core/Core.swift"])
         // A name starting with SWIFT_ may be one Xcode sets itself.
-        XCTAssertNil(holds("SWIFT_PACKAGE", in: app))
+        XCTAssertEqual(holds("SWIFT_PACKAGE", in: app), .undecided)
     }
 
     // Without a build, a list may be an earlier build's.
@@ -49,7 +56,7 @@ final class XcodeFileListsTests: MuterTestCase {
         let conditions = try await conditions(afterABuild: false)
 
         XCTAssertTrue(conditions.customConditionsOfFile.isEmpty)
-        XCTAssertNil(holds("RELEASE_ONLY", in: conditions.conditions(ofFile: "App/App.swift")))
+        XCTAssertEqual(holds("RELEASE_ONLY", in: conditions.conditions(ofFile: "App/App.swift")), .undecided)
     }
 
     // A list from an earlier build of another configuration is no reported target's, and its files are left alone.
@@ -59,8 +66,8 @@ final class XcodeFileListsTests: MuterTestCase {
 
         let conditions = try await conditions(afterABuild: true)
 
-        XCTAssertNil(holds("RELEASE_ONLY", in: conditions.conditions(ofFile: "App/App.swift")))
-        XCTAssertFalse(try XCTUnwrap(holds("RELEASE_ONLY", in: conditions.conditions(ofFile: "App/My View.swift"))))
+        XCTAssertEqual(holds("RELEASE_ONLY", in: conditions.conditions(ofFile: "App/App.swift")), .undecided)
+        XCTAssertEqual(holds("RELEASE_ONLY", in: conditions.conditions(ofFile: "App/My View.swift")), .doesntHold)
     }
 
     // xcodebuild spells a project in /private/var as /var, and a package's lists keep /private.
@@ -76,7 +83,7 @@ final class XcodeFileListsTests: MuterTestCase {
 
         let conditions = try await conditions(afterABuild: true)
 
-        XCTAssertNil(holds("RELEASE_ONLY", in: conditions.conditions(ofFile: "App/App.swift")))
+        XCTAssertEqual(holds("RELEASE_ONLY", in: conditions.conditions(ofFile: "App/App.swift")), .undecided)
     }
 
     func test_whatMayCompileOutOfSight_leavesEveryFileAlone() async throws {
@@ -127,7 +134,7 @@ final class XcodeFileListsTests: MuterTestCase {
 
         let conditions = try await conditions(afterABuild: true)
 
-        XCTAssertFalse(try XCTUnwrap(holds("CORE_FLAG", in: conditions.conditions(ofFile: "App/App.swift"))))
+        XCTAssertEqual(holds("CORE_FLAG", in: conditions.conditions(ofFile: "App/App.swift")), .doesntHold)
     }
 
     // `-xcconfig` and `XCODE_XCCONFIG_FILE` name a build configuration file outside the project's build files.
@@ -254,12 +261,17 @@ final class XcodeFileListsTests: MuterTestCase {
             fileManager: FileManager.default,
             environment: environment,
             afterABuild: afterABuild
-        ).get()
+        )
+        .get()
     }
 
-    /// Whether `name` is set, or nil if it's undecided.
-    private func holds(_ name: String, in conditions: BuildConditions) -> Bool? {
-        try? conditions.isCustomConditionSet(name: name)
+    /// Whether `name` is set.
+    private func holds(_ name: String, in conditions: BuildConditions) -> Verdict {
+        switch try? conditions.isCustomConditionSet(name: name) {
+        case true?: .holds
+        case false?: .doesntHold
+        case nil: .undecided
+        }
     }
 
     private func write(_ contents: String, to path: String) throws {

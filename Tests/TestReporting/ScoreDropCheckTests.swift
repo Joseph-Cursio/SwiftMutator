@@ -5,34 +5,6 @@ import XCTest
 /// The verdict on a run's score against a baseline file's: the drop compared exactly, what it says, which results it
 /// doesn't compare, and the status it exits with.
 final class ScoreDropCheckTests: XCTestCase {
-    private func baseline(killed: Int, of scored: Int) -> BaselineFile {
-        BaselineFile(
-            path: "muter.baseline.yml",
-            swiftMutator: "0.1.0",
-            score: .init(killed: killed, scored: scored),
-            scope: BaselineScope(operators: [], skipCoverage: false, configuration: .init()),
-            survivors: []
-        )
-    }
-
-    private func check(
-        _ killed: Int,
-        of scored: Int,
-        against recorded: (killed: Int, scored: Int),
-        allowing limit: Double = 2
-    ) -> ScoreDropCheck {
-        ScoreDropCheck(
-            baseline: baseline(killed: recorded.killed, of: recorded.scored),
-            maxScoreDrop: limit,
-            killed: killed,
-            scored: scored
-        )
-    }
-
-    /// An outcome that killed `killed` of `scored` mutants, each in a file of its own.
-    private func outcome(killed: Int, of scored: Int) -> MutationTestOutcome {
-        .make(Array(repeating: .failed, count: killed) + Array(repeating: .passed, count: scored - killed))
-    }
 
     func test_aDropEqualToTheLimit_passes() {
         let verdict = check(78, of: 100, against: (80, 100))
@@ -175,77 +147,19 @@ final class ScoreDropCheckTests: XCTestCase {
     // Only a whole project's score compares with the file's.
     func test_resultsThatArentTheWholeProjects_areNotChecked_andSayWhy() {
         let tested = outcome(killed: 1, of: 2)
-        var filesToMutate = tested
-        filesToMutate.filesToMutate = ["Sources/X.swift"]
-        let cases: [(MutationTestOutcome, ScoreGate.Progress?, ScoreDropCheck.NotChecked, String)] = [
-            (
-                .make([.failed], mutant: "Sources/X.swift:1:1 RelationalBoundary"),
-                nil,
-                .oneMutant,
-                "one mutant's score (--mutant) isn't the project's."
-            ),
-            (
-                .make([.failed], shards: ShardScope(.make(index: 1, count: 2, mutantsInAllShards: 2))),
-                nil,
-                .shard,
-                "a shard's score isn't the whole run's. Compare the merged report instead: swift-mutator report "
-                    + "--baseline muter.baseline.yml --max-score-drop 2 <each shard's results file>"
-            ),
-            (
-                MutationTestOutcome(
-                    mutations: tested.mutations,
-                    sample: SampleSelection(size: 2, seed: 9, mutantsSampledFrom: 40, mutantsSampled: 2)
-                ),
-                nil,
-                .sample,
-                "a sample's score (--sample) isn't the whole project's."
-            ),
-            (
-                MutationTestOutcome(mutations: tested.mutations, since: .make(changedLines: true)),
-                nil,
-                .since,
-                "the score of the code --since chose isn't the whole project's."
-            ),
-            (
-                MutationTestOutcome(mutations: tested.mutations, since: .make()),
-                nil,
-                .since,
-                "the score of the code --since chose isn't the whole project's."
-            ),
-            (
-                filesToMutate,
-                nil,
-                .filesToMutate,
-                "the score of the files --files-to-mutate chose isn't the whole project's."
-            ),
-            (
-                tested,
-                ScoreGate.Progress(results: 2, discovered: 10),
-                .unfinished,
-                "only 2 of 10 mutants have results, as the run didn't finish."
-            ),
-            (
-                MutationTestOutcome(mutations: tested.mutations, sampleIsCutShort: true),
-                nil,
-                .unfinished,
-                "the run didn't test every mutant it discovered."
-            ),
-            (.make([.buildError]), nil, .nothingScored, "no mutant was scored."),
-            (.make([]), nil, .nothingScored, "no mutant was scored."),
-        ]
-        for (judged, progress, reason, why) in cases {
+        for results in uncheckedResults(tested) {
             let verdict = ScoreDropCheck(
                 baseline: baseline(killed: 1, of: 2),
                 maxScoreDrop: 2,
-                judging: judged,
-                progress: progress
+                judging: results.judged,
+                progress: results.progress
             )
-            XCTAssertEqual(verdict.verdict, .notChecked(reason))
+            XCTAssertEqual(verdict.verdict, .notChecked(results.reason))
             XCTAssertNil(verdict.passed)
             XCTAssertNil(verdict.exitStatus)
             XCTAssertNil(verdict.score)
             XCTAssertNil(verdict.drop)
-            let line = "The score isn't compared with the baseline file muter.baseline.yml's: \(why)"
+            let line = "The score isn't compared with the baseline file muter.baseline.yml's: \(results.why)"
             XCTAssertEqual(verdict.line, line)
             XCTAssertEqual(verdict.consoleLines, ["⚠️ " + line])
         }

@@ -13,7 +13,7 @@ final class SimulatorDestinationTests: XCTestCase {
     private let visionPro = "39440E5C-D840-4955-83D4-FA319A1F1CC9"
     private let unavailable = "5A1F3C0E-2B7D-4E8A-9C61-0D4B8E2F7A93"
 
-    private lazy var list: SimctlDeviceList! = FileManager.default
+    private lazy var list: SimctlDeviceList? = FileManager.default
         .contents(atPath: "\(fixturesDirectory)/Simctl/devices.json")
         .flatMap(SimctlDeviceList.init(json:))
 
@@ -188,7 +188,11 @@ final class SimulatorDestinationTests: XCTestCase {
     }
 
     private func resolve(_ value: String) -> String? {
-        SimulatorDestination(destination: value)?.resolve(in: list)?.udid
+        guard let list else {
+            XCTFail("Unable to read the simctl fixture")
+            return nil
+        }
+        return SimulatorDestination(destination: value)?.resolve(in: list)?.udid
     }
 
     /// The destination's platform, id, name and OS, or nothing when there is no destination.

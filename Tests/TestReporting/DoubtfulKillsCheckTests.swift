@@ -15,14 +15,19 @@ final class DoubtfulKillsCheckTests: XCTestCase {
         )
     }
 
-    /// A mutant at `line` of Sources/X.swift that came out `outcome`, its code shown running or not as `activated`
-    /// says.
-    private func mutant(_ line: Int, _ outcome: TestSuiteOutcome, activated: Bool?) -> MutationTestOutcome.Mutation {
-        var mutation = MutationTestOutcome.Mutation.make(
+    /// A mutant at `line` of Sources/X.swift that came out `outcome`, with nothing shown of whether its code ran.
+    private func mutant(_ line: Int, _ outcome: TestSuiteOutcome) -> MutationTestOutcome.Mutation {
+        MutationTestOutcome.Mutation.make(
             testSuiteOutcome: outcome,
             snapshot: .make(before: "<", after: "<="),
             key: key(line)
         )
+    }
+
+    /// A mutant at `line` of Sources/X.swift that came out `outcome`, its code shown running or not as `activated`
+    /// says.
+    private func mutant(_ line: Int, _ outcome: TestSuiteOutcome, activated: Bool) -> MutationTestOutcome.Mutation {
+        var mutation = mutant(line, outcome)
         mutation.activated = activated
         return mutation
     }
@@ -89,7 +94,7 @@ final class DoubtfulKillsCheckTests: XCTestCase {
         let outcome = MutationTestOutcome.make(mutations: [
             mutant(1, .failed, activated: false),
             mutant(2, .runtimeError, activated: false),
-            mutant(3, .failed, activated: nil),
+            mutant(3, .failed),
             mutant(4, .failed, activated: true),
             mutant(5, .passed, activated: false),
             mutant(6, .timeout, activated: false),
@@ -138,7 +143,7 @@ final class DoubtfulKillsCheckTests: XCTestCase {
     func test_noDoubtfulKill_passes() {
         let verdict = DoubtfulKillsCheck(
             maxDoubtfulKills: 0,
-            judging: .make(mutations: [mutant(1, .failed, activated: true), mutant(2, .passed, activated: nil)])
+            judging: .make(mutations: [mutant(1, .failed, activated: true), mutant(2, .passed)])
         )
 
         XCTAssertTrue(try XCTUnwrap(verdict.passed))

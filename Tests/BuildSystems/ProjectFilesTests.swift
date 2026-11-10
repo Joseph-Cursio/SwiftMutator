@@ -3,14 +3,14 @@ import Foundation
 import XCTest
 
 final class ProjectFilesTests: MuterTestCase {
-    private var project: URL!
-    private var fixture: URL!
+    private let project = URL(fileURLWithPath: XCTestCase.unusedTemporaryPath())
+    private var fixture: URL { project.appendingPathComponent("Tests/fixture.txt") }
 
     override func setUpWithError() throws {
         try super.setUpWithError()
 
-        project = try URL(fileURLWithPath: makeTemporaryDirectory())
-        fixture = project.appendingPathComponent("Tests/fixture.txt")
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        addTeardownBlock { [project] in try? FileManager.default.removeItem(at: project) }
         try FileManager.default.createDirectory(
             at: fixture.deletingLastPathComponent(), withIntermediateDirectories: true
         )
