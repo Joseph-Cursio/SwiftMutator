@@ -105,19 +105,19 @@ struct ScoreGate: Equatable, Sendable {
     /// Whether the score is checked and the threshold is met, which a run with nothing to mutate does. One that hasn't
     /// a result yet for any mutant it discovered doesn't, nor does one whose every mutant was a build error. nil when
     /// it isn't checked.
-    var passed: Bool? {
+    var result: CheckResult {
         switch verdict {
-        case .passed: true
-        case .nothingScored(tested: 0): progress == nil
-        case .failed, .nothingScored: false
-        case .notChecked: nil
+        case .passed: .passed
+        case .nothingScored(tested: 0): progress == nil ? .passed : .failed
+        case .failed, .nothingScored: .failed
+        case .notChecked: .notChecked
         }
     }
 
     /// The status a command exits with for this verdict: `scoreBelowThreshold` when the threshold isn't met, and nil,
     /// so 0, otherwise.
     var exitStatus: ExitCode? {
-        passed == false ? .scoreBelowThreshold : nil
+        result == .failed ? .scoreBelowThreshold : nil
     }
 
     /// What the run, or `report`, says of the verdict, last: "Mutation score 71.4% is below the required 80%." No

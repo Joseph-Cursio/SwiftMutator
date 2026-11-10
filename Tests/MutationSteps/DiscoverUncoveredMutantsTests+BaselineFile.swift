@@ -33,7 +33,7 @@ extension DiscoverUncoveredMutantsTests {
 
         XCTAssertEqual(only.selection, selection)
         XCTAssertEqual(only.uncovered, 3)
-        XCTAssertFalse(only.check.passed)
+        XCTAssertEqual(only.check.result, .failed)
         guard case let .checked(comparison) = only.check.verdict else {
             XCTFail("\(only.check)")
             return
@@ -55,7 +55,7 @@ extension DiscoverUncoveredMutantsTests {
         // Allowed, they pass, and the run exits 0.
         state.runOptions = .make(baseline: "muter.baseline.yml", maxNewSurvivors: 3)
         let allowed = try await onlyUncoveredMutants(of: state)
-        XCTAssertTrue(allowed.check.passed)
+        XCTAssertEqual(allowed.check.result, .passed)
         XCTAssertNil(ExitCode.exitStatus(afterRunFailedWith: allowed))
         XCTAssertNil(allowed.scoreDrop)
         XCTAssertNil(allowed.doubtfulKills)
@@ -115,7 +115,7 @@ extension DiscoverUncoveredMutantsTests {
         let only = try await onlyUncoveredMutants(of: state)
         XCTAssertEqual(only.selection, selection)
         XCTAssertGreaterThan(only.uncovered, 3)
-        XCTAssertFalse(only.check.passed)
+        XCTAssertEqual(only.check.result, .failed)
 
         let whole = MutationTestState()
         whole.mutationOperatorList = state.mutationOperatorList

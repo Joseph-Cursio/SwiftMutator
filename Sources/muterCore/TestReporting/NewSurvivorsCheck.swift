@@ -177,16 +177,16 @@ struct NewSurvivorsCheck: Equatable, Sendable {
         self.uncoveredMutantsUnknown = uncoveredMutantsUnknown
     }
 
-    /// Whether the run has no more new survivors than allowed; nil when they aren't compared.
-    var passed: Bool? {
-        guard case let .checked(comparison) = verdict else { return nil }
-        return comparison.newSurvivors.count <= maxNewSurvivors
+    /// Whether the run has no more new survivors than allowed; not checked when they aren't compared.
+    var result: CheckResult {
+        guard case let .checked(comparison) = verdict else { return .notChecked }
+        return comparison.newSurvivors.count <= maxNewSurvivors ? .passed : .failed
     }
 
     /// The status a command exits with for this verdict: `scoreBelowThreshold` for too many new survivors, and nil, so
     /// 0, otherwise.
     var exitStatus: ExitCode? {
-        passed == false ? .scoreBelowThreshold : nil
+        result == .failed ? .scoreBelowThreshold : nil
     }
 
     /// What the run, or `report`, says of the verdict, after the score's: "2 new survivors against the baseline file
@@ -249,12 +249,7 @@ struct NewSurvivorsCheck: Equatable, Sendable {
     var consoleLines: [String] {
         let verdictLines = lines
         guard let firstLine = verdictLines.first else { return [] }
-        let emoji = switch passed {
-        case .some(true): "✅"
-        case .some(false): "❌"
-        case .none: "⚠️"
-        }
-        return (versionNotice.map { ["⚠️ \($0)"] } ?? []) + ["\(emoji) \(firstLine)"] + verdictLines.dropFirst()
+        return (versionNotice.map { ["⚠️ \($0)"] } ?? []) + ["\(result.mark) \(firstLine)"] + verdictLines.dropFirst()
     }
 
     /// Why the survivors aren't compared; nil for a run that ended early.

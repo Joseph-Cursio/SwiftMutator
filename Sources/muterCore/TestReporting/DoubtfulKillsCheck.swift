@@ -143,16 +143,16 @@ struct DoubtfulKillsCheck: Equatable, Sendable {
         return kills
     }
 
-    /// Whether there are no more doubtful kills than allowed; nil when they aren't counted.
-    var passed: Bool? {
-        guard case let .checked(kills) = verdict else { return nil }
-        return kills.count <= maxDoubtfulKills
+    /// Whether there are no more doubtful kills than allowed; not checked when they aren't counted.
+    var result: CheckResult {
+        guard case let .checked(kills) = verdict else { return .notChecked }
+        return kills.count <= maxDoubtfulKills ? .passed : .failed
     }
 
     /// The status a command exits with for this verdict: `scoreBelowThreshold` for too many doubtful kills, and nil,
     /// so 0, otherwise.
     var exitStatus: ExitCode? {
-        passed == false ? .scoreBelowThreshold : nil
+        result == .failed ? .scoreBelowThreshold : nil
     }
 
     /// What the run, or `report`, says of the verdict, after the score's and the survivors': "3 doubtful kills, more
@@ -198,12 +198,7 @@ struct DoubtfulKillsCheck: Equatable, Sendable {
     var consoleLines: [String] {
         let verdictLines = lines
         guard let firstLine = verdictLines.first else { return [] }
-        let emoji = switch passed {
-        case .some(true): "✅"
-        case .some(false): "❌"
-        case .none: "⚠️"
-        }
-        return ["\(emoji) \(firstLine)"] + verdictLines.dropFirst()
+        return ["\(result.mark) \(firstLine)"] + verdictLines.dropFirst()
     }
 
     /// Why the kills aren't counted; nil for a run that ended early.

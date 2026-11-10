@@ -114,12 +114,7 @@ extension Logger {
     /// ✅ when it passes, ❌ when it is below, ⚠️ when it isn't checked. Nothing for a run that ended early.
     func scoreGateChecked(_ gate: ScoreGate) {
         guard let line = gate.line else { return }
-        let emoji = switch gate.passed {
-        case .some(true): "✅"
-        case .some(false): "❌"
-        case .none: "⚠️"
-        }
-        print("\(emoji) \(line)")
+        print("\(gate.result.mark) \(line)")
     }
 
     /// The verdict on the survivors against `--baseline`'s file, after the score's, on standard output with the rest:

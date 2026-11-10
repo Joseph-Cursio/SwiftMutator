@@ -63,13 +63,13 @@ struct MarkdownReporter: Reporter {
         guard let checks = outcome.checks else { return [] }
         var blocks: [String] = []
         if let gate = checks.scoreGate, let line = gate.line {
-            blocks.append(Self.mark(gate.passed) + " " + MarkdownText.plain(line))
+            blocks.append(gate.result.mark + " " + MarkdownText.plain(line))
         }
         if let check = checks.newSurvivors, let line = check.line {
             if let notice = check.versionNotice {
                 blocks.append("⚠️ " + MarkdownText.plain(notice))
             }
-            blocks.append(Self.mark(check.passed) + " " + MarkdownText.plain(line))
+            blocks.append(check.result.mark + " " + MarkdownText.plain(line))
             if case let .checked(comparison) = check.verdict {
                 blocks += Self.table(
                     of: comparison.newSurvivors,
@@ -84,10 +84,10 @@ struct MarkdownReporter: Reporter {
             }
         }
         if let check = checks.scoreDrop, let line = check.line {
-            blocks.append(Self.mark(check.passed) + " " + MarkdownText.plain(line))
+            blocks.append(check.result.mark + " " + MarkdownText.plain(line))
         }
         if let check = checks.doubtfulKills, let line = check.line {
-            blocks.append(Self.mark(check.passed) + " " + MarkdownText.plain(line))
+            blocks.append(check.result.mark + " " + MarkdownText.plain(line))
             blocks += Self.table(
                 of: check.doubtfulKills,
                 header: ["Doubtful kill", "Change", "Why"]
@@ -115,14 +115,6 @@ struct MarkdownReporter: Reporter {
             + (more > 0 ? [rest] : [])
     }
 
-    /// ✅ for a check that passed, ❌ for one that failed, ⚠️ for one that wasn't checked.
-    private static func mark(_ passed: Bool?) -> String {
-        switch passed {
-        case .some(true): "✅"
-        case .some(false): "❌"
-        case .none: "⚠️"
-        }
-    }
 
     /// One row of how many mutants came to each verdict some came to, and their total; none without mutants.
     private func counts(of report: MuterTestReport) -> String? {

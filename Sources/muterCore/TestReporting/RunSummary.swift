@@ -20,8 +20,8 @@ struct RunSummary: Codable, Equatable {
     let mutationScore: Int?
     /// The score without suspect tests (`KillingTestSummary`), when there are any; nil otherwise.
     let mutationScoreWithoutSuspectTests: Int?
-    /// Whether `mutationScoreWithoutSuspectTests` is a lower bound; nil without it.
-    let scoreWithoutSuspectsIsALowerBound: Bool?
+    /// Whether `mutationScoreWithoutSuspectTests` is a lower bound; left out without it.
+    let scoreWithoutSuspectsIsALowerBound: ScoreBound
     /// How many mutants have a result, which the score is of.
     let mutants: Int
     let mutantsByOutcome: OutcomeCounts
@@ -52,6 +52,19 @@ struct RunSummary: Codable, Equatable {
     /// `--max-doubtful-kills`.
     let doubtfulKills: DoubtfulKills?
 
+    /// Whether the score without suspect tests is a lower bound, which the JSON holds as `true` or `false`, and leaves
+    /// out when there is no such score.
+    enum ScoreBound: AbsentOrBool {
+        /// It may be higher than it says.
+        case lowerBound
+        case exact
+        case noScore
+
+        static var whenTrue: Self { .lowerBound }
+        static var whenFalse: Self { .exact }
+        static var whenAbsent: Self { .noScore }
+    }
+
     /// `{"failUnder": 80, "passed": false, "score": 71.42857142857143}`.
     struct Gate: Codable, Equatable {
         /// The threshold checked, a percent.
@@ -61,14 +74,14 @@ struct RunSummary: Codable, Equatable {
         let score: Double?
         /// Whether it was met: the score is at or above it, or there was nothing to score; false when every mutant was
         /// a build error, or a run that didn't finish has no result yet; nil when it wasn't checked.
-        let passed: Bool?
+        let passed: CheckResult
         /// Why it wasn't checked; nil when it was.
         let notChecked: ScoreGate.NotChecked?
 
         init(_ gate: ScoreGate) {
             failUnder = gate.failUnder
-            passed = gate.passed
-            score = passed == nil ? nil : gate.score
+            passed = gate.result
+            score = passed == .notChecked ? nil : gate.score
             if case let .notChecked(reason) = gate.verdict {
                 notChecked = reason
             } else {
@@ -84,7 +97,7 @@ struct RunSummary: Codable, Equatable {
         let baseline: String
         let maxNewSurvivors: Int
         /// Whether no more survivors are new than `maxNewSurvivors`; nil when they weren't compared.
-        let passed: Bool?
+        let passed: CheckResult
         /// Why they weren't compared; nil when they were.
         let notChecked: NewSurvivorsCheck.NotChecked?
         /// How many survivors are new, and each by its key's description; 0 and empty when they weren't compared.
@@ -102,7 +115,7 @@ struct RunSummary: Codable, Equatable {
         init(_ check: NewSurvivorsCheck) {
             baseline = check.baseline
             maxNewSurvivors = check.maxNewSurvivors
-            passed = check.passed
+            passed = check.result
             switch check.verdict {
             case let .checked(comparison):
                 notChecked = nil
@@ -139,7 +152,7 @@ struct RunSummary: Codable, Equatable {
         let score: Double?
         let drop: Double?
         /// Whether the score fell no more than `maxScoreDrop`; nil when they weren't compared.
-        let passed: Bool?
+        let passed: CheckResult
         /// Why they weren't compared; nil when they were.
         let notChecked: ScoreDropCheck.NotChecked?
 
@@ -149,7 +162,7 @@ struct RunSummary: Codable, Equatable {
             baselineScore = check.baselineScorePercent
             score = check.score
             drop = check.drop
-            passed = check.passed
+            passed = check.result
             if case let .notChecked(reason) = check.verdict {
                 notChecked = reason
             } else {
@@ -162,7 +175,7 @@ struct RunSummary: Codable, Equatable {
     struct DoubtfulKills: Codable, Equatable {
         let maxDoubtfulKills: Int
         /// Whether there are no more doubtful kills than `maxDoubtfulKills`; nil when they weren't counted.
-        let passed: Bool?
+        let passed: CheckResult
         /// Why they weren't counted; nil when they were.
         let notChecked: DoubtfulKillsCheck.NotChecked?
         /// How many kills are doubtful, each once; of them, how many only suspect tests made, which no rerun alone
@@ -175,7 +188,7 @@ struct RunSummary: Codable, Equatable {
 
         init(_ check: DoubtfulKillsCheck) {
             maxDoubtfulKills = check.maxDoubtfulKills
-            passed = check.passed
+            passed = check.result
             if case let .notChecked(reason) = check.verdict {
                 notChecked = reason
             } else {
@@ -235,7 +248,11 @@ struct RunSummary: Codable, Equatable {
         mutationScoreWithoutSuspectTests = score.flatMap { score in
             suspects.map { $0.scoreWithoutSuspects(mutationScore: score) }
         }
-        scoreWithoutSuspectsIsALowerBound = score == nil ? nil : suspects?.scoreWithoutSuspectsIsALowerBound
+        scoreWithoutSuspectsIsALowerBound = if score != nil, let suspects {
+            suspects.scoreWithoutSuspectsIsALowerBound ? .lowerBound : .exact
+        } else {
+            .noScore
+        }
         mutants = outcomes.count
         mutantsByOutcome = OutcomeCounts(outcomes)
         durationSeconds = (outcome.testDuration * 1_000).rounded() / 1_000

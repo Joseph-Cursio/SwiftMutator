@@ -54,7 +54,7 @@ final class DoubtfulKillsCheckTests: XCTestCase {
         XCTAssertEqual(verdict.doubtfulKills.count, summary.suspectOnlyKillsNotTestedAlone)
         XCTAssertEqual(verdict.doubtfulKills.count, 6)
         XCTAssertTrue(verdict.doubtfulKills.allSatisfy { $0.suspectOnly && !$0.codeNeverRan })
-        XCTAssertFalse(try XCTUnwrap(verdict.passed))
+        XCTAssertEqual(verdict.result, .failed)
         XCTAssertEqual(verdict.exitStatus, .scoreBelowThreshold)
         XCTAssertEqual(
             verdict.line,
@@ -102,14 +102,14 @@ final class DoubtfulKillsCheckTests: XCTestCase {
 
         let verdict = DoubtfulKillsCheck(maxDoubtfulKills: 1, judging: outcome)
 
-        XCTAssertFalse(try XCTUnwrap(verdict.passed))
+        XCTAssertEqual(verdict.result, .failed)
         XCTAssertEqual(verdict.lines, [
             "2 doubtful kills, more than the 1 allowed: 2 kills whose code never ran.",
             "  Sources/X.swift:1:17 RelationalBoundary: < → <= (its code never ran)",
             "  Sources/X.swift:2:17 RelationalBoundary: < → <= (its code never ran)",
         ])
         XCTAssertEqual(outcome.unprovenKillWarning?.hasPrefix("2 kills' code never ran"), true)
-        XCTAssertTrue(try XCTUnwrap(DoubtfulKillsCheck(maxDoubtfulKills: 2, judging: outcome).passed))
+        XCTAssertEqual(DoubtfulKillsCheck(maxDoubtfulKills: 2, judging: outcome).result, .passed)
         XCTAssertEqual(
             DoubtfulKillsCheck(maxDoubtfulKills: 2, judging: outcome).line,
             "2 doubtful kills, within the 2 allowed: 2 kills whose code never ran."
@@ -146,7 +146,7 @@ final class DoubtfulKillsCheckTests: XCTestCase {
             judging: .make(mutations: [mutant(1, .failed, activated: true), mutant(2, .passed)])
         )
 
-        XCTAssertTrue(try XCTUnwrap(verdict.passed))
+        XCTAssertEqual(verdict.result, .passed)
         XCTAssertNil(verdict.exitStatus)
         XCTAssertEqual(verdict.lines, ["No doubtful kills."])
         XCTAssertEqual(verdict.consoleLines, ["✅ No doubtful kills."])
@@ -168,7 +168,7 @@ final class DoubtfulKillsCheckTests: XCTestCase {
             MutationTestOutcome(mutations: mutations, since: .make(changedLines: true)),
         ]
         for outcome in limited {
-            XCTAssertFalse(try XCTUnwrap(DoubtfulKillsCheck(maxDoubtfulKills: 0, judging: outcome).passed))
+            XCTAssertEqual(DoubtfulKillsCheck(maxDoubtfulKills: 0, judging: outcome).result, .failed)
         }
     }
 
@@ -176,7 +176,7 @@ final class DoubtfulKillsCheckTests: XCTestCase {
         let outcome = MutationTestOutcome.make(mutations: [mutant(1, .failed, activated: false)])
 
         let ended = DoubtfulKillsCheck(maxDoubtfulKills: 0, judging: outcome, unless: .endedEarly)
-        XCTAssertNil(ended.passed)
+        XCTAssertEqual(ended.result, .notChecked)
         XCTAssertNil(ended.exitStatus)
         XCTAssertNil(ended.line)
         XCTAssertEqual(ended.consoleLines, [])
@@ -232,7 +232,7 @@ final class DoubtfulKillsCheckTests: XCTestCase {
             DoubtfulKillsCheck(maxDoubtfulKills: 0, judging: outcome, unless: .endedEarly)
         )
         XCTAssertEqual(unchecked.notChecked, .endedEarly)
-        XCTAssertNil(unchecked.passed)
+        XCTAssertEqual(unchecked.passed, .notChecked)
         XCTAssertEqual(unchecked.count, 0)
     }
 

@@ -146,29 +146,29 @@ struct ScoreDropCheck: Equatable, Sendable {
         return nil
     }
 
-    /// Whether the score fell no more than the limit; nil when the two aren't compared.
-    var passed: Bool? {
+    /// Whether the score fell no more than the limit; not checked when the two aren't compared.
+    var result: CheckResult {
         switch verdict {
-        case .passed: true
-        case .failed: false
-        case .notChecked: nil
+        case .passed: .passed
+        case .failed: .failed
+        case .notChecked: .notChecked
         }
     }
 
     /// The status a command exits with for this verdict: `scoreBelowThreshold` for a drop past the limit, and nil, so
     /// 0, otherwise.
     var exitStatus: ExitCode? {
-        passed == false ? .scoreBelowThreshold : nil
+        result == .failed ? .scoreBelowThreshold : nil
     }
 
     /// The run's exact score, as compared; nil when the scores aren't compared.
     var score: Double? {
-        passed == nil ? nil : exactMutationScore(killed: killed, of: scored)
+        result == .notChecked ? nil : exactMutationScore(killed: killed, of: scored)
     }
 
     /// The baseline file's exact score, as compared; nil when the scores aren't compared.
     var baselineScorePercent: Double? {
-        passed == nil ? nil : exactMutationScore(killed: baselineScore.killed, of: baselineScore.scored)
+        result == .notChecked ? nil : exactMutationScore(killed: baselineScore.killed, of: baselineScore.scored)
     }
 
     /// How many points the score fell below the file's, negative for a rise; nil when they aren't compared. Worked out
@@ -176,7 +176,7 @@ struct ScoreDropCheck: Equatable, Sendable {
     /// off: so a drop equal to the limit is the very number `--max-score-drop` was given, and `drop <= maxScoreDrop`
     /// holds exactly when the check passed.
     var drop: Double? {
-        guard passed != nil else { return nil }
+        guard result != .notChecked else { return nil }
         let scoreDrop = Self.drop(from: baselineScore, to: (killed, scored))
         // Through the decimal text, which `Double` reads with correct rounding, as it read the limit.
         return Double((scoreDrop.points / scoreDrop.over).description)
@@ -202,12 +202,7 @@ struct ScoreDropCheck: Equatable, Sendable {
     /// the scores aren't compared. Empty when there's no line.
     var consoleLines: [String] {
         guard let line else { return [] }
-        let emoji = switch passed {
-        case .some(true): "✅"
-        case .some(false): "❌"
-        case .none: "⚠️"
-        }
-        return ["\(emoji) \(line)"]
+        return ["\(result.mark) \(line)"]
     }
 
     /// The two scores compared, and how far the run's is below or above `file`'s, or that they are the same.
@@ -215,7 +210,7 @@ struct ScoreDropCheck: Equatable, Sendable {
         let limit = Self.decimal(maxScoreDrop)
         var decimals = max(1, Self.decimals(of: maxScoreDrop))
         var shown = shownScores(decimals: decimals)
-        while passed == false, shown.recorded - shown.run <= limit, decimals < Self.mostDecimalsShown {
+        while result == .failed, shown.recorded - shown.run <= limit, decimals < Self.mostDecimalsShown {
             decimals += 1
             shown = shownScores(decimals: decimals)
         }
@@ -230,7 +225,7 @@ struct ScoreDropCheck: Equatable, Sendable {
             : "\(Self.written(gap < 0 ? -gap : gap, decimals: decimals)) points"
         guard scoreDrop.points > 0 else { return "\(opening) is \(points) above \(recorded)." }
         let allowed = "the \(ScoreGate.shown(maxScoreDrop)) allowed"
-        return "\(opening) is \(points) below \(recorded), \(passed == true ? "within" : "more than") \(allowed)."
+        return "\(opening) is \(points) below \(recorded), \(result == .passed ? "within" : "more than") \(allowed)."
     }
 
     /// The run's score and the file's, each truncated to `decimals` decimals.

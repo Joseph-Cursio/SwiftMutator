@@ -36,7 +36,7 @@ final class MutationTestObserverScoreGateTests: MuterTestCase {
         XCTAssertEqual(summary?.gate, RunSummary.Gate(try XCTUnwrap(sut.scoreGate)))
         XCTAssertEqual(summary?.gate?.failUnder, 80)
         XCTAssertEqual(summary?.gate?.score, 50)
-        XCTAssertEqual(summary?.gate?.passed, false)
+        XCTAssertEqual(summary?.gate?.passed, .failed)
         XCTAssertNil(summary?.gate?.notChecked)
     }
 
@@ -49,7 +49,7 @@ final class MutationTestObserverScoreGateTests: MuterTestCase {
         XCTAssertEqual(printer.linesPassed.last, "✅ Mutation score 100.0% meets the required 80%.")
         XCTAssertEqual(sut.scoreGate?.verdict, .passed)
         XCTAssertNil(sut.scoreGate?.exitStatus)
-        XCTAssertEqual(summary?.gate?.passed, true)
+        XCTAssertEqual(summary?.gate?.passed, .passed)
     }
 
     func test_withoutAThreshold_nothingIsSaid_orRecorded() throws {
@@ -79,7 +79,7 @@ final class MutationTestObserverScoreGateTests: MuterTestCase {
         ])
         XCTAssertNil(sut.scoreGate?.exitStatus)
         XCTAssertEqual(summary?.gate?.notChecked, .oneMutant)
-        XCTAssertNil(summary?.gate?.passed)
+        XCTAssertEqual(summary?.gate?.passed, .notChecked)
         XCTAssertNil(summary?.gate?.score)
     }
 
@@ -126,6 +126,6 @@ final class MutationTestObserverScoreGateTests: MuterTestCase {
         XCTAssertEqual(summary?.gate?.notChecked, .endedEarly)
         XCTAssertEqual(summary?.gate?.failUnder, 80)
         XCTAssertNil(summary?.gate?.score)
-        XCTAssertNil(summary?.gate?.passed)
+        XCTAssertEqual(summary?.gate?.passed, .notChecked)
     }
 }

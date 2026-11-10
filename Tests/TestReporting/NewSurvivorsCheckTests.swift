@@ -10,7 +10,7 @@ final class NewSurvivorsCheckTests: XCTestCase {
             (key(1), .passed), (key(2), .failed),
         ])
 
-        XCTAssertTrue(try XCTUnwrap(verdict.passed))
+        XCTAssertEqual(verdict.result, .passed)
         XCTAssertNil(verdict.exitStatus)
         XCTAssertEqual(
             verdict.lines,
@@ -25,7 +25,7 @@ final class NewSurvivorsCheckTests: XCTestCase {
     func test_newSurvivors_beyondTheLimit_fail_andAreListed() {
         let verdict = check([key(1)], against: [(key(1), .passed), (key(5), .timeout), (key(9), .noCoverage)])
 
-        XCTAssertFalse(try XCTUnwrap(verdict.passed))
+        XCTAssertEqual(verdict.result, .failed)
         XCTAssertEqual(verdict.exitStatus, .scoreBelowThreshold)
         XCTAssertEqual(verdict.exitStatus?.rawValue, 2)
         XCTAssertEqual(verdict.lines, [
@@ -60,7 +60,7 @@ final class NewSurvivorsCheckTests: XCTestCase {
             version: "0.1.0"
         ) { _ in nil }
 
-        XCTAssertFalse(try XCTUnwrap(verdict.passed))
+        XCTAssertEqual(verdict.result, .failed)
         XCTAssertEqual(verdict.lines, [
             "1 new survivor against the baseline file muter.baseline.yml, more than the 0 allowed: 2 still survive, "
                 + "1 fixed. 3 were matched without their line, as their files changed since they were tested, or "
@@ -77,7 +77,7 @@ final class NewSurvivorsCheckTests: XCTestCase {
     func test_anIdenticalSurvivor_pairsBeforeAKillAtTheEntrysKey() {
         let verdict = check([key(1)], against: [(key(1), .failed), (key(5), .passed)])
 
-        XCTAssertTrue(try XCTUnwrap(verdict.passed))
+        XCTAssertEqual(verdict.result, .passed)
         guard case let .checked(comparison) = verdict.verdict else {
             XCTFail("\(verdict)")
             return
@@ -90,7 +90,7 @@ final class NewSurvivorsCheckTests: XCTestCase {
     func test_newSurvivors_withinTheLimit_pass_andAreListed() {
         let verdict = check([], against: [(key(5), .passed)], allowing: 1)
 
-        XCTAssertTrue(try XCTUnwrap(verdict.passed))
+        XCTAssertEqual(verdict.result, .passed)
         XCTAssertEqual(verdict.lines, [
             "1 new survivor against the baseline file muter.baseline.yml, within the 1 allowed: 0 still survive, 0 "
                 + "fixed.",
@@ -108,7 +108,7 @@ final class NewSurvivorsCheckTests: XCTestCase {
     func test_aOneMutantRun_isntChecked() {
         let verdict = check([], against: [(key(5), .passed)], mutant: "Sources/X.swift:5:17 RelationalBoundary")
 
-        XCTAssertNil(verdict.passed)
+        XCTAssertEqual(verdict.result, .notChecked)
         XCTAssertNil(verdict.exitStatus)
         XCTAssertEqual(
             verdict.line,
@@ -143,7 +143,7 @@ final class NewSurvivorsCheckTests: XCTestCase {
             judging: sampled,
             version: "0.1.0"
         ) { _ in nil }
-        XCTAssertFalse(try XCTUnwrap(fromAFile.passed))
+        XCTAssertEqual(fromAFile.result, .failed)
 
         sampled.unselectedMutants = []
         XCTAssertFalse(sampled.leavesOutUnknownMutants)
@@ -153,7 +153,7 @@ final class NewSurvivorsCheckTests: XCTestCase {
             judging: sampled,
             version: "0.1.0"
         ) { _ in nil }
-        XCTAssertTrue(try XCTUnwrap(fromTheRun.passed))
+        XCTAssertEqual(fromTheRun.result, .passed)
     }
 
     // As `--fail-under` says it, of `report` of a run that didn't finish.
