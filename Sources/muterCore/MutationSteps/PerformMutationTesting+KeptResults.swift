@@ -1,5 +1,4 @@
 import Foundation
-import SwiftSyntax
 
 /// What a session keeps of a resumed or reused run's results, and the header that says so.
 extension PerformMutationTesting {

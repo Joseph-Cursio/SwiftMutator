@@ -1,5 +1,4 @@
 import Foundation
-import SwiftSyntax
 
 /// The outcome a session reports, at its end or once it stops early.
 extension PerformMutationTesting {

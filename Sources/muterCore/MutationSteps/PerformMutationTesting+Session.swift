@@ -1,5 +1,4 @@
 import Foundation
-import SwiftSyntax
 
 /// A session's steps before its mutants' runs: the baseline, the direct runs, the workers and the timed test run.
 extension PerformMutationTesting {

@@ -1,5 +1,4 @@
 import Foundation
-import SwiftSyntax
 
 /// The run's results file: a header once the baseline passes, or at once for a resumed run with nothing left to test,
 /// a line for each tested mutant as it finishes, and an end line however mutation testing ends.

@@ -1,5 +1,4 @@
 import Foundation
-import SwiftSyntax
 
 /// The mutants' runs, one at a time or on several workers at once, and the files their output is written to.
 extension PerformMutationTesting {

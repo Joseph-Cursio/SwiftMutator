@@ -1,5 +1,4 @@
 import Foundation
-import SwiftSyntax
 
 /// How a mutant's run is recorded: its result line, its outcome in the session, its log and its events.
 extension PerformMutationTesting {
