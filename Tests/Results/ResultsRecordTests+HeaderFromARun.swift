@@ -20,11 +20,11 @@ extension ResultsRecordTests {
             logDirectory: "/project_muter_logs/run",
             configuration: effective,
             baselineSeconds: 32.125,
-            testRunSeconds: 10.75,
             workers: 4,
             mutantsDiscovered: 7,
             mutantsToTest: 7,
-            provenance: .fixture
+            provenance: .fixture,
+            testRunSeconds: 10.75
         )
 
         XCTAssertEqual(header, headerOfARun(thatLoaded: loaded, fingerprinting: project))

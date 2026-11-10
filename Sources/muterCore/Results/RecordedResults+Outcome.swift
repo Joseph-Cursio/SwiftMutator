@@ -104,7 +104,7 @@ extension MutationTestOutcome {
                     durationSeconds: record.durationSeconds
                 )
                 mutation.propertyRerun = propertyReruns[record.key]?.rerun
-                mutation.leftOutWithOthers = record.leftOutWithOthers == true
+                mutation.leftOutWithOthers = record.leftOutWithOthers
                 mutation.activated = record.activated
                 mutation.rerun = record.rerun
                 return mutation

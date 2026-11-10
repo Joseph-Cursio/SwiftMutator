@@ -79,8 +79,8 @@ struct PerformMutationTesting: MutationStep {
         let resume = state.resumeState
         let resumed = resume.flatMap { $0.isReuse ? nil : $0 }
         let session = TestingSession(
-            number: (resumed?.lastSession ?? 0) + 1,
             startedAt: now(),
+            number: (resumed?.lastSession ?? 0) + 1,
             earlierTestDuration: resumed?.recorded.testDuration ?? 0
         )
         // After the end line and anything sent about an early end: removing large clones can take seconds, and a
@@ -223,7 +223,11 @@ private extension PerformMutationTesting {
                     coverage: state.projectCoverage,
                     in: state.mutatedProjectDirectoryURL,
                     reusing: resume.isReuse ? state.reuseChanges : nil,
-                    selecting: (state.changeSelection, state.runOptions.shard, state.runOptions.sample),
+                    selecting: .init(
+                        since: state.changeSelection,
+                        shard: state.runOptions.shard,
+                        sample: state.runOptions.sample
+                    ),
                     sampleIsPartial: state.sampleSelection?.isPartial == true
                 ))
             )
@@ -517,11 +521,11 @@ private extension PerformMutationTesting {
             logDirectory: state.loggingDirectory,
             configuration: configuration,
             baselineSeconds: baselineSeconds,
-            testRunSeconds: testRunSeconds,
             workers: workers,
             mutantsDiscovered: session.keys.count,
             mutantsToTest: plan.toRun.count,
             provenance: sessionProvenance,
+            testRunSeconds: testRunSeconds,
             mutantsReused: resume == nil ? nil : plan.reused.count,
             waived: resume == nil ? nil : state.resumeWaived,
             forced: resume?.forced,
@@ -560,8 +564,7 @@ private extension PerformMutationTesting {
                 from: resume.path,
                 headers: resume.recorded.headers,
                 in: 1,
-                utf8Offset: schema.position.utf8Offset,
-                switchID: schema.id,
+                at: MutantResult.JobPlacement(utf8Offset: schema.position.utf8Offset, switchID: schema.id),
                 // What this run let through since the session that tested it, not since another session.
                 despiteChanges: state.reuseChanges?[entry.value.session]?.waived.isEmpty == false
                     || !resume.forced.isEmpty,

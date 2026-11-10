@@ -101,7 +101,7 @@ extension PerformMutationTestingReuseTests {
 
         let kept = try resultsFiles.records(MutantResult.self).filter { $0.reusedFrom != nil }
         XCTAssertEqual(kept.map(\.path), ["Sources/Product.swift", "Sources/Sum.swift"])
-        XCTAssertEqual(kept.map(\.reusedFrom?.despiteChanges), [true, nil])
+        XCTAssertEqual(kept.map(\.reusedFrom?.despiteChanges), [true, false])
         XCTAssertEqual(
             fileManager.copyPaths.map(\.source).filter { $0.hasPrefix("/project_muter_logs/later") },
             ["/project_muter_logs/later/RelationalOperatorReplacement @ Sum.swift-3-5.log"],

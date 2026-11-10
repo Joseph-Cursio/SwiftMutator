@@ -72,7 +72,7 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
         let alone = MutantResult.Rerun(
             because: MutantResult.Rerun.onlySuspectTestsFailed,
             workers: 1,
-            alone: [.init(name: "sum()", file: "SumTests.swift", result: MutantResult.Rerun.TestAlone.failedAgain)]
+            alone: [.init(name: "sum()", file: "SumTests.swift", result: MutantResult.TestAlone.failedAgain)]
         )
         state.muterConfiguration = MuterConfiguration(
             executable: "/usr/bin/swift", arguments: ["test"], suspectTestFilePercent: 1, suspectTestMinimumFiles: 1

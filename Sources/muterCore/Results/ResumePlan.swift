@@ -59,13 +59,11 @@ struct ResumePlan: Equatable {
     /// How many of `retired` are of mutants this run's discovery finds, but its sample leaves out, as when new mutants
     /// rank before them after a change: their results are dropped, and no job tests them.
     var outsideTheSample = 0
-}
 
-extension ResumePlan {
     /// This plan, without the jobs to test that `isLeftOut`, by index, as they aren't in the build. Only for what is to
     /// be tested: its results file records them, so the header and a resume's summary go by the whole plan.
-    func leavingOut(_ isLeftOut: (Int) -> Bool) -> ResumePlan {
-        ResumePlan(
+    func leavingOut(_ isLeftOut: (Int) -> Bool) -> Self {
+        Self(
             reused: reused,
             toRun: toRun.filter { !isLeftOut($0) },
             retestedBecause: retestedBecause,
@@ -94,11 +92,11 @@ extension ResumePlan {
         reusing changes: [Int: ReuseChanges]? = nil,
         leftOut: Set<MutantKey> = [],
         sessionsShowingNoCode: Set<Int> = []
-    ) -> ResumePlan {
+    ) -> Self {
         let places = Dictionary(keys.map { (Place($0), 1) }, uniquingKeysWith: +)
         let sessionsShowingActivation = Set(recorded.values.filter { $0.activated != nil }.map(\.session))
-        var reused: [Int: MutantResult] = [:]
-        var toRun: [Int] = []
+        var keptResults: [Int: MutantResult] = [:]
+        var indicesToRun: [Int] = []
         var reasons: [Reason: Int] = [:]
         for (index, key) in keys.enumerated() {
             let reason: Reason?
@@ -121,21 +119,21 @@ extension ResumePlan {
                             now: limit
                         ))
                 if reason == nil {
-                    reused[index] = record
+                    keptResults[index] = record
                 }
             } else {
                 reason = .notRecorded
             }
             if let reason {
-                toRun.append(index)
+                indicesToRun.append(index)
                 reasons[reason, default: 0] += 1
             }
         }
-        let kept = Set(reused.keys.map { keys[$0] })
+        let kept = Set(keptResults.keys.map { keys[$0] })
         let discovered = Set(keys)
-        return ResumePlan(
-            reused: reused,
-            toRun: toRun,
+        return Self(
+            reused: keptResults,
+            toRun: indicesToRun,
             retestedBecause: reasons,
             retired: recorded.keys.filter { !kept.contains($0) }.sorted { $0.description < $1.description },
             noLongerDiscovered: recorded.keys.count { !discovered.contains($0) && !leftOut.contains($0) },
@@ -144,8 +142,8 @@ extension ResumePlan {
     }
 
     /// Every job, as a run that isn't resumed tests them: nothing is reused, tested again or retired.
-    static func everything(_ count: Int) -> ResumePlan {
-        ResumePlan(reused: [:], toRun: Array(0..<count), retestedBecause: [:], retired: [], noLongerDiscovered: 0)
+    static func everything(_ count: Int) -> Self {
+        Self(reused: [:], toRun: Array(0..<count), retestedBecause: [:], retired: [], noLongerDiscovered: 0)
     }
 
     /// Why `record`, recorded for a job whose key appears once, doesn't hold for it, given its file's hash and its

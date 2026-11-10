@@ -16,14 +16,14 @@ extension PerformMutationTesting {
 
     /// Whether `written`, what `TestingSession.append` returned, says the line was written. A failure is said once.
     @discardableResult
-    func sayingAFailure(_ written: Bool?, in session: TestingSession) -> Bool {
-        guard let written else { return false }
-        if !written, !session.saidResultsUnwritable, let results = session.results {
+    func sayingAFailure(_ write: ResultsWrite, in session: TestingSession) -> Bool {
+        guard write != .skipped else { return false }
+        if write == .failed, !session.saidResultsUnwritable, let results = session.results {
             session.saidResultsUnwritable = true
             let reason = results.writeError.map { "\($0)" } ?? "a write to \(results.path) failed"
             events.send(.resultsFileUnavailable(reason: reason))
         }
-        return written
+        return write == .written
     }
 
     /// Appends `line` to the session's results file, if it has one, and counts it in the session's `recorded` if it

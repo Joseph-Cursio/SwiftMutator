@@ -104,12 +104,11 @@ extension PerformMutationTesting {
             var line = MutantResult.leftOutOfTheBuild(
                 key: key,
                 schema: job.schema,
-                session: session.number,
-                finishedAt: now(),
+                recorded: MutantResult.Recording(session: session.number, finishedAt: now()),
                 log: logName,
                 fileSHA256: state.projectTree?.files[key.path]
             )
-            line.leftOutWithOthers = mutant.blame == .itself ? nil : true
+            line.leftOutWithOthers = mutant.blame != .itself
             write(line, in: session, isAMutant: true)
             var outcome = Self.outcome(
                 .buildError, of: job, state: state, killingTests: nil, key: key, durationSeconds: 0

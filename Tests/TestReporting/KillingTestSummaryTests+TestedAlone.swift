@@ -5,9 +5,9 @@ extension KillingTestSummaryTests {
     /// Thresholds that make a test suspect once it fails for mutants in half of at least two files.
     private var lowThresholds: SuspectTestThresholds { SuspectTestThresholds(filePercent: 50, minimumFiles: 2) }
     /// A test that failed again when run alone.
-    private var again: String { MutantResult.Rerun.TestAlone.failedAgain }
+    private var again: String { MutantResult.TestAlone.failedAgain }
     /// A test that passed when run alone.
-    private var passedAlone: String { MutantResult.Rerun.TestAlone.passed }
+    private var passedAlone: String { MutantResult.TestAlone.passed }
 
     /// A mutant in `file` that `tests` failed for first, tested again alone, each test doing as `results` says, and
     /// that came to `outcome` with `then` failing.

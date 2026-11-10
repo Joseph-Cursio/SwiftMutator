@@ -105,7 +105,7 @@ extension PerformMutationTesting {
         in run: TestRun,
         ignoring lookalikes: Set<FailedTestLine.TestIdentity> = [],
         sessionShowsActivation: Bool = false
-    ) -> [MutantResult.Rerun.TestAlone] {
+    ) -> [MutantResult.TestAlone] {
         let failed = FailedTestLine.failedTestIdentities(inLog: run.testLog).subtracting(lookalikes)
         let crash = CrashLine.first(inLog: run.testLog)
         let reachedItsEnd = run.ending == .exited && crash == nil
@@ -116,12 +116,12 @@ extension PerformMutationTesting {
             let identity = FailedTestLine.TestIdentity(test)
             let result: String? = if failed.contains(identity) {
                 codeDidntRun
-                    ? MutantResult.Rerun.TestAlone.failedWithItsCodeNotRunning
-                    : MutantResult.Rerun.TestAlone.failedAgain
+                    ? MutantResult.TestAlone.failedWithItsCodeNotRunning
+                    : MutantResult.TestAlone.failedAgain
             } else if failed.contains(where: { $0.name == identity.name }) {
                 nil
             } else {
-                ranEveryTest ? MutantResult.Rerun.TestAlone.passed : nil
+                ranEveryTest ? MutantResult.TestAlone.passed : nil
             }
             return .init(name: identity.name, file: identity.file, result: result)
         }

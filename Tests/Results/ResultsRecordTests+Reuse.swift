@@ -94,8 +94,7 @@ extension ResultsRecordTests {
             from: "/logs/a/results.jsonl",
             headers: [.make(session: 1)],
             in: 1,
-            utf8Offset: 4_000,
-            switchID: "Sum_new",
+            at: .init(utf8Offset: 4_000, switchID: "Sum_new"),
             despiteChanges: false
         )
 
@@ -115,8 +114,7 @@ extension ResultsRecordTests {
             from: resultsFile,
             headers: headers,
             in: 1,
-            utf8Offset: utf8Offset,
-            switchID: switchID,
+            at: .init(utf8Offset: utf8Offset, switchID: switchID),
             despiteChanges: false
         )
     }

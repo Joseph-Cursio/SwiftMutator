@@ -20,7 +20,7 @@ struct KillingTestSummary: Codable, Equatable {
         /// Whether it may fail whatever the mutant (`isSuspect(reachesEnoughFiles:…)`).
         let suspect: Bool
         /// When a mutant it failed for was tested again alone: how many times it failed again, and how many it didn't,
-        /// or failed with the mutant's code not running (`MutantResult.Rerun.TestAlone`).
+        /// or failed with the mutant's code not running (`MutantResult.TestAlone`).
         var failedAgainAlone = 0
         var notReproducedAlone = 0
         /// Whether those runs took it off the suspect tests, though it failed for mutants in enough files.
@@ -200,10 +200,10 @@ extension KillingTestSummary {
         var evidence: [FailedTestLine.TestIdentity: Evidence] = [:]
         for test in mutations.flatMap({ $0.rerun?.alone ?? [] }) {
             switch test.result {
-            case MutantResult.Rerun.TestAlone.failedAgain:
+            case MutantResult.TestAlone.failedAgain:
                 evidence[test.identity, default: Evidence()].failedAgain += 1
 
-            case MutantResult.Rerun.TestAlone.passed, MutantResult.Rerun.TestAlone.failedWithItsCodeNotRunning:
+            case MutantResult.TestAlone.passed, MutantResult.TestAlone.failedWithItsCodeNotRunning:
                 evidence[test.identity, default: Evidence()].notReproduced += 1
 
             default:

@@ -25,9 +25,7 @@ struct ReuseChanges: Equatable {
     var isEmpty: Bool {
         otherFiles.isEmpty && waived.isEmpty && testFiles.isEmpty
     }
-}
 
-extension ReuseChanges {
     /// The changes from the session's tree `recorded` to this run's, `current`, split, with `globs` matched against the
     /// files other than test files only. `readSource` gives a file's text by its path relative to the project, as the
     /// copy holds it, or nil if it can't be read. Changes to a local package's own tests, outside the project, are left
@@ -42,7 +40,7 @@ extension ReuseChanges {
             .filter { !($0.path.hasPrefix("../") && Self.isInTestFolder($0.path)) }
         let testPaths = Set(changes.filter { $0.kind != .removed && Self.isTestFile($0.path, readSource: readSource) }
             .map(\.path))
-        let testFiles = changes.filter { testPaths.contains($0.path) }
+        let changedTests = changes.filter { testPaths.contains($0.path) }
         // A removed file's text is gone, so nothing shows whether it was a test or a fixture. One that may have been
         // either counts as another file, which no glob lets through.
         let others = changes.filter { !testPaths.contains($0.path) }
@@ -52,7 +50,7 @@ extension ReuseChanges {
         }
         let split = others.filter { !mayHaveBeenATest($0) }.partition(by: globs)
         var sources: [String: String] = [:]
-        if !testFiles.isEmpty {
+        if !changedTests.isEmpty {
             for path in current.files.keys
                 where path.hasSuffix(".swift") && Self.isTestFile(path, readSource: readSource) {
                 sources[path] = readSource(path)
@@ -60,7 +58,7 @@ extension ReuseChanges {
         }
         otherFiles = (others.filter(mayHaveBeenATest) + split.unwaived).sorted { $0.path < $1.path }
         waived = split.waived.map(\.path)
-        self.testFiles = testFiles
+        self.testFiles = changedTests
         testSources = sources
         recordedFiles = recorded.files
         currentFiles = current.files

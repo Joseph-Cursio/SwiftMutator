@@ -165,12 +165,12 @@ final class ProjectTreeTests: XCTestCase {
 
         XCTAssertEqual(
             ProjectTree.reportPaths(
-                .make(reportURL: URL(fileURLWithPath: "\(project)/report.txt")), reports: reports, under: projectURL
+                .make(reportURL: URL(fileURLWithPath: "\(project)/report.txt")), under: projectURL, reports: reports
             ),
             ["report.txt", "report.partial.txt", "summary.md", "summary.partial.md"]
         )
         XCTAssertEqual(
-            ProjectTree.excludedPaths(.make(), reports: reports, under: projectURL),
+            ProjectTree.excludedPaths(.make(), under: projectURL, reports: reports),
             ["summary.md", "summary.partial.md", "muter.conf.yml"]
         )
     }
