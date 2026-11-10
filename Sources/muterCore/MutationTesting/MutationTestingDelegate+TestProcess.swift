@@ -1,8 +1,3 @@
-#if os(Linux)
-import Glibc
-#else
-import Darwin.C
-#endif
 import Foundation
 
 extension MutationTestingDelegate {

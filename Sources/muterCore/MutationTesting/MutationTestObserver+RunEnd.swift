@@ -1,11 +1,4 @@
-#if os(Linux)
-import Glibc
-#else
-import Darwin.C
-#endif
 import Foundation
-import Rainbow
-import SwiftSyntax
 
 extension MutationTestObserver {
     /// Writes `summary` beside the results file (`RunSummary.path`), replacing an earlier session's, or in the log

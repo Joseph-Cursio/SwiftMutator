@@ -1,11 +1,4 @@
-#if os(Linux)
-import Glibc
-#else
-import Darwin.C
-#endif
 import Foundation
-import Rainbow
-import SwiftSyntax
 
 extension MutationTestObserver {
     /// Reports `event` as it happens, by the part of the run it is about.
