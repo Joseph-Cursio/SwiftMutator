@@ -78,8 +78,8 @@ struct FingerprintProjectTree: MutationStep {
             excluding: ProjectTree.excludedPaths(of: state, under: state.projectDirectoryURL)
                 + (lastSession?.excluded ?? [])
                 + ProjectTree.relativePaths([state.testPlan?.path], under: state.projectDirectoryURL),
-            list: { [listProjectFiles, project = state.projectDirectoryURL] directory in
-                guard let copyListing, directory == project else { return await listProjectFiles(directory) }
+            list: { [listFiles = listProjectFiles, project = state.projectDirectoryURL] directory in
+                guard let copyListing, directory == project else { return await listFiles(directory) }
                 return copyListing.paths
             },
             pruning: state.testPlan == nil

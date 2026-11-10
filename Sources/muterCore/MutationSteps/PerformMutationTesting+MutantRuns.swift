@@ -150,12 +150,13 @@ extension PerformMutationTesting {
     /// the clock only once a wait ends, the first a whole interval, so it never moves a test's scripted clock on.
     private func beat() -> Task<Void, Never> {
         // Given the values and the dependencies it uses, not the step. Its sleep ends once it is cancelled.
-        Task { [heartbeat, events, sleep, instant] in
+        let eventsToSend = events, sleeping = sleep, clock = instant
+        return Task { [heartbeat, eventsToSend, sleeping, clock] in
             var wait = Heartbeat.interval
-            while (try? await sleep(Suspensions.nanoseconds(wait))) != nil {
-                let time = instant()
+            while (try? await sleeping(Suspensions.nanoseconds(wait))) != nil {
+                let time = clock()
                 if let still = heartbeat.due(at: time) {
-                    events.send(.stillTesting(still))
+                    eventsToSend.send(.stillTesting(still))
                 }
                 wait = heartbeat.secondsUntilDue(at: time)
             }

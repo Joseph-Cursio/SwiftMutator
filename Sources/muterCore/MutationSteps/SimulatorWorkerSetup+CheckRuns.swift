@@ -40,14 +40,15 @@ extension SimulatorWorkerSetup {
         testOutput: (String) -> String
     ) async -> [CheckRun] {
         let (testRun, mutatedProject) = (state.projectXCTestRun, state.mutatedProjectDirectoryURL)
+        let delegate = ioDelegate, clock = instant
         let runs = await withTaskGroup(of: CheckRun.self) { group in
             for (worker, xcodeWorker) in xcodeWorkers.enumerated() {
                 let workerConfiguration = configuration.forXcodeWorker(xcodeWorker)
                 let fileName = testOutput("no-mutant run worker \(worker)")
                 // A worker's run is given the values and the dependency it uses, not the setup or the state.
-                group.addTask { [ioDelegate, instant] in
+                group.addTask { [delegate, clock] in
                     do {
-                        try await ioDelegate.switchOn(
+                        try await delegate.switchOn(
                             schemata: .null, for: testRun, at: mutatedProject, named: xcodeWorker.testRunFile
                         )
                     } catch {
@@ -56,15 +57,15 @@ extension SimulatorWorkerSetup {
                         let run = TestRun(outcome: .buildError, testLog: log)
                         return CheckRun(worker, run, launchFailure: nil, seconds: 0, output: nil)
                     }
-                    let start = instant()
+                    let start = clock()
                     let (run, launchFailure) = await TestRun.launchedOnceMore(ifNeededWith: workerConfiguration) {
-                        await ioDelegate.runTestsWithoutBuilding(
+                        await delegate.runTestsWithoutBuilding(
                             using: workerConfiguration,
                             timeLimit: workerConfiguration.buildTimeout,
                             savingResultsIntoFileNamed: fileName
                         )
                     }
-                    let seconds = PerformMutationTesting.seconds(from: start, to: instant())
+                    let seconds = PerformMutationTesting.seconds(from: start, to: clock())
                     return CheckRun(worker, run, launchFailure: launchFailure, seconds: seconds, output: fileName)
                 }
             }

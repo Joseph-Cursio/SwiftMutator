@@ -103,12 +103,13 @@ extension PerformMutationTesting {
     /// too. A run stopped meanwhile blames no clone: stopping kills the builds under way, which then fail.
     func buildWorkerDirectories(_ clones: [URL], using state: AnyMutationTestState) async throws {
         let configuration = state.muterConfiguration
+        let delegate = ioDelegate
         let runs = await withTaskGroup(of: (worker: Int, run: TestRun).self) { group in
             for (index, clone) in clones.enumerated() {
                 let fileName = testOutput(named: "baseline run worker \(index + 1)", state: state)
                 // A clone's build is given the values and the dependency it uses, not the step or the state.
-                group.addTask { [ioDelegate] in
-                    let run = await ioDelegate.benchmarkTests(
+                group.addTask { [delegate] in
+                    let run = await delegate.benchmarkTests(
                         using: configuration,
                         savingResultsIntoFileNamed: fileName,
                         workingDirectory: clone

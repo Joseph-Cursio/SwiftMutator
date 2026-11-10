@@ -178,7 +178,8 @@ struct SimulatorWorkerSetup {
         }
         // Before the first is made: `prepare` records each as simctl makes it, so a stop meanwhile leaves them to this.
         // It isn't cleared when mutation testing ends, which the work outlasts only by the report.
-        interruption.afterWorkEnds { [workerSimulators] in await workerSimulators.removeAll() }
+        let simulators = workerSimulators
+        interruption.afterWorkEnds { [simulators] in await simulators.removeAll() }
         do {
             let mutatedProject = state.mutatedProjectDirectoryURL
             return try await Simulators(

@@ -94,18 +94,20 @@ struct PerformMutationTesting: MutationStep {
         // would otherwise take the run for one that is still running, or was killed.
         // Before its results start, a stop at once records it as stopped before its first mutant, which a stop after
         // doesn't.
-        interruption.beforeStoppingAtOnce { [interruption, now, stoppedRun] in
-            Self.endResultsAtOnce(of: session, stoppedBy: interruption, now: now)
-            if let signal = interruption.signal {
-                stoppedRun.record(.interrupted(signal: signal), at: now())
+        // The values the closures use, not the dependencies' wrappers, which are `var`s.
+        let recorder = stoppedRun, signals = interruption, clock = now
+        interruption.beforeStoppingAtOnce { [recorder, signals, clock] in
+            Self.endResultsAtOnce(of: session, stoppedBy: signals, now: clock)
+            if let signal = signals.signal {
+                recorder.record(.interrupted(signal: signal), at: clock())
             }
         }
         // As the handler's, which this replaced, and first of the defers, before the clean-up above, which can take
         // seconds: a stop at once during it still records a run stopped before its first mutant.
         defer {
-            interruption.beforeStoppingAtOnce { [interruption, now, stoppedRun] in
-                if let signal = interruption.signal {
-                    stoppedRun.record(.interrupted(signal: signal), at: now())
+            interruption.beforeStoppingAtOnce { [recorder, signals, clock] in
+                if let signal = signals.signal {
+                    recorder.record(.interrupted(signal: signal), at: clock())
                 }
             }
         }
