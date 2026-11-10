@@ -5,178 +5,72 @@ import XCTest
 /// process, since each process SwiftMutator starts leads a group of its own. Every process a test starts is killed
 /// however the test ends, every wait is bounded, and every file a test writes is in a temporary folder.
 final class InterruptionAcceptanceTests: XCTestCase {
-    /// Where the test command hangs: in the coverage run, in the baseline, or in each mutant's run.
-    private enum Phase: String {
-        case coverage
-        case baseline
-        case mutants
-        /// In each mutant's run, as `mutants`, once worker 1 has filled its clone with files, so that removing the
-        /// clone keeps a stopping SwiftMutator busy for a while.
-        case mutantsWithALargeWorkerClone
-        /// Nowhere: each mutant's run shows a failed test, so SwiftMutator kills it there, having started a `sleep`
-        /// that no listing of its tree finds, as its parent has ended.
-        case mutantsWithAnUnlistedProcess
-        /// Nowhere: each mutant's run takes 3 seconds, in a `sleep` its shell waits for, and passes. Not in the
-        /// background, as `hang`'s: on Linux, the test command starts with SIGCHLD blocked, and dash's `wait` for a
-        /// background job then misses its end.
-        case slowMutants
-    }
-
-    /// Where the test command hangs, it writes down its own ID, starts a `sleep` whose odd length makes one left
-    /// behind easy to find, writes down that ID too, and waits. A hanging run is then a tree, as `swift test` is.
-    /// `$0` is the argument SwiftMutator adds, `--enable-code-coverage` in the coverage run. The test command runs in
-    /// its worker's folder.
-    private static let testCommand = """
-        hang() {
-            echo $$ > "$INTERRUPT_TEST_MARKERS/sh.$$"
-            /bin/sleep 60.7 & echo $! > "$INTERRUPT_TEST_MARKERS/sleep.$!"
-            wait
-        }
-        slow() {
-            echo $$ > "$INTERRUPT_TEST_MARKERS/sh.$$"
-            /bin/sh -c 'echo $$ > "$INTERRUPT_TEST_MARKERS/sleep.$$"; exec /bin/sleep 3'
-            exit 0
-        }
-        unlisted() {
-            echo $$ > "$INTERRUPT_TEST_MARKERS/sh.$$"
-            (/bin/sleep 60.8 & echo $! > "$INTERRUPT_TEST_MARKERS/sleep.$!")
-            echo "✘ Test sum() recorded an issue at SumTests.swift:3:5: Expectation failed: 5 == 4"
-            exec /bin/sleep 60.9
-        }
-        fill() { mkdir "$1" && cd "$1" && /usr/bin/seq -f "file%g" 10000 | /usr/bin/xargs /usr/bin/touch; }
-        worker=$(pwd -P)
-        case "$INTERRUPT_TEST_PHASE:$0" in
-            coverage:--enable-code-coverage) hang;;
-            slowMutants:*) [ -s "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE" ] && slow;;
-            mutantsWithAnUnlistedProcess:*) [ -s "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE" ] && unlisted; exit 0;;
-            baseline:*) [ -s "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE" ] || hang;;
-            mutantsWithALargeWorkerClone:*)
-                case "$worker" in *_worker1.noindex) [ -d "$worker/files" ] || (fill "$worker/files");; esac;;
-        esac
-        [ -s "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE" ] && hang
-        exit 0
-        """
-
-    private var swiftMutator: URL!
-    private var root: URL!
-    private var project: URL!
-    private var markers: URL!
-    private var standardOutput: URL { root.appendingPathComponent("stdout.txt") }
-    private var standardError: URL { root.appendingPathComponent("stderr.txt") }
-    /// The SwiftMutator a test started.
-    private var mutator: Foundation.Process?
-    /// The processes the test command wrote down, once seen. One confirmed gone is never signalled again: the
-    /// system may give its ID to another process.
-    private var shells: Set<Int32> = []
-    private var sleepers: Set<Int32> = []
-    private var confirmedGone: Set<Int32> = []
+    /// The project, and the processes a test starts on it.
+    private let harness = InterruptionHarness()
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        let products = try XCTUnwrap(BuildProducts.folder)
-        swiftMutator = products.appendingPathComponent("swift-mutator")
-        guard FileManager.default.isExecutableFile(atPath: swiftMutator.path) else {
-            throw XCTSkip("No swift-mutator next to the test bundle, which `swift test` builds")
-        }
-
-        root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("InterruptionAcceptanceTests-\(UUID().uuidString)", isDirectory: true)
-        project = root.appendingPathComponent("project", isDirectory: true)
-        markers = root.appendingPathComponent("markers", isDirectory: true)
-        let sources = project.appendingPathComponent("Sources/Lib", isDirectory: true)
-        try FileManager.default.createDirectory(at: sources, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: markers, withIntermediateDirectories: true)
-        try """
-        func isPositive(_ value: Int) -> Bool { value > 0 }
-        func isSmall(_ value: Int) -> Bool { value < 10 }
-
-        """.write(to: sources.appendingPathComponent("Lib.swift"), atomically: true, encoding: .utf8)
-        let script = Self.testCommand
-            .split(separator: "\n")
-            .map { "    " + $0 }
-            .joined(separator: "\n")
-        try """
-        executable: /bin/sh
-        arguments:
-          - "-c"
-          - |
-        \(script)
-        buildSystem: swift
-        mutationTestWorkers: 2
-        mutationTestTimeout: 600
-
-        """.write(to: project.appendingPathComponent("muter.conf.yml"), atomically: true, encoding: .utf8)
+        try harness.create()
     }
 
     override func tearDownWithError() throws {
-        if let mutator, mutator.isRunning {
-            let pid = mutator.processIdentifier
-            if pid > 1 { kill(-pid, SIGKILL) } // its own group, which holds SwiftMutator alone
-            _ = waitUntil(within: 5) { !mutator.isRunning }
-            // A test command it was starting as it was killed can write itself down a moment later.
-            Thread.sleep(forTimeInterval: 0.3)
-        }
-        recordMarkers()
-        // Each shell leads the process group SwiftMutator started it in, and its `sleep` is in that group too, even
-        // one started after the shell was last seen. A group found empty is never signalled again.
-        var groups = shells.subtracting(confirmedGone).filter { $0 > 1 } // kill(-1) signals everything
-        _ = waitUntil(within: 5) {
-            groups = groups.filter { kill(-$0, SIGKILL) == 0 || errno != ESRCH }
-            return groups.isEmpty
-        }
-        for pid in sleepers.subtracting(confirmedGone) where pid > 1 && !isGone(pid) {
-            kill(pid, SIGKILL)
-        }
-        if let root { try? FileManager.default.removeItem(at: root) }
+        harness.cleanUp()
         try super.tearDownWithError()
     }
-
-    // MARK: - Tests
 
     // Standard output is a pipe nobody reads, as when the same Ctrl-C ends the `| tee` that SwiftMutator writes to:
     // writing to it must not end SwiftMutator partway through stopping (SIGPIPE).
     func test_ctrlC_whileMutantsRun_stopsEveryTestProcess_keepsWhatItHas_andDiesBySIGINT() throws {
         let output = Pipe()
-        let running = try startSwiftMutator(hangingIn: .mutants, standardOutput: output)
+        let running = try harness.startSwiftMutator(hangingIn: .mutants, standardOutput: output)
         try output.fileHandleForReading.close()
-        guard waitUntilHanging(runs: 2, in: running) else { return }
+        guard harness.waitUntilHanging(runs: 2, in: running) else { return }
 
-        signalGroup(of: running, SIGINT)
+        harness.signalGroup(of: running, SIGINT)
 
-        assertDied(running, by: SIGINT)
-        assertNoTestProcessIsLeft()
-        let files = resultsFiles()
+        harness.assertDied(running, by: SIGINT)
+        harness.assertNoTestProcessIsLeft()
+        let files = harness.resultsFiles()
         XCTAssertEqual(files.count, 1, "\(files)")
         if let file = files.first {
-            let lines = try records(in: file)
+            let lines = try harness.records(in: file)
             XCTAssertEqual(lines.map { $0["kind"] as? String }, ["header", "end"])
             XCTAssertEqual(lines.last?["reason"] as? String, "interrupted")
             XCTAssertEqual(lines.last?["detail"] as? String, "SIGINT")
         }
-        XCTAssertFalse(exists("project_mutated_worker1.noindex"), "the worker clone is removed")
-        XCTAssertTrue(exists("project_mutated.noindex"), "the mutated project is kept, for the next run to remove")
-        XCTAssertFalse(exists("project_mutated.active-mutant"), "the mutated project's active-mutant file is removed")
-        XCTAssertFalse(exists("project_mutated_worker1.active-mutant"), "the worker's active-mutant file is removed")
+        XCTAssertFalse(harness.exists("project_mutated_worker1.noindex"), "the worker clone is removed")
+        XCTAssertTrue(
+            harness.exists("project_mutated.noindex"),
+            "the mutated project is kept, for the next run to remove"
+        )
+        XCTAssertFalse(
+            harness.exists("project_mutated.active-mutant"),
+            "the mutated project's active-mutant file is removed"
+        )
+        XCTAssertFalse(
+            harness.exists("project_mutated_worker1.active-mutant"),
+            "the worker's active-mutant file is removed"
+        )
         // What the two runs under way wrote is kept in the log folder, and none of SwiftMutator's files is in the copy.
-        XCTAssertEqual(runningFiles().count, 2, "\(runningFiles())")
-        XCTAssertEqual(visibleNamesAddedToTheCopy(), [])
-        let errors = contents(of: standardError)
+        XCTAssertEqual(harness.runningFiles().count, 2, "\(harness.runningFiles())")
+        XCTAssertEqual(harness.visibleNamesAddedToTheCopy(), [])
+        let errors = harness.contents(of: harness.standardError)
         XCTAssertTrue(errors.contains("Stopping (SIGINT)"), errors)
         XCTAssertTrue(errors.contains("Stopped by SIGINT"), errors)
     }
 
     func test_ctrlC_duringTheBaseline_stopsWithoutCallingItAFailure() throws {
-        let running = try startSwiftMutator(hangingIn: .baseline)
-        guard waitUntilHanging(runs: 1, in: running) else { return }
+        let running = try harness.startSwiftMutator(hangingIn: .baseline)
+        guard harness.waitUntilHanging(runs: 1, in: running) else { return }
 
-        signalGroup(of: running, SIGINT)
+        harness.signalGroup(of: running, SIGINT)
 
-        assertDied(running, by: SIGINT)
-        assertNoTestProcessIsLeft()
-        let output = contents(of: standardOutput)
+        harness.assertDied(running, by: SIGINT)
+        harness.assertNoTestProcessIsLeft()
+        let output = harness.contents(of: harness.standardOutput)
         XCTAssertFalse(output.contains("initially failed"), output)
         // The results start once the baseline has passed: before, the file says only why the run stopped.
-        let stopped = try stoppedRecords()
+        let stopped = try harness.stoppedRecords()
         XCTAssertEqual(stopped.map { $0["kind"] as? String }, ["stopped"])
         XCTAssertEqual(stopped.map { $0["step"] as? String }, ["baseline"])
         XCTAssertEqual(stopped.map { $0["detail"] as? String }, ["SIGINT"])
@@ -185,16 +79,16 @@ final class InterruptionAcceptanceTests: XCTestCase {
 
     // Stopping the run doesn't stop the coverage run, which no cancellation reaches: killing it does.
     func test_ctrlC_duringCoverage_killsTheCoverageRun() throws {
-        let running = try startSwiftMutator(hangingIn: .coverage)
-        guard waitUntilHanging(runs: 1, in: running) else { return }
+        let running = try harness.startSwiftMutator(hangingIn: .coverage)
+        guard harness.waitUntilHanging(runs: 1, in: running) else { return }
 
-        signalGroup(of: running, SIGINT)
+        harness.signalGroup(of: running, SIGINT)
 
-        assertDied(running, by: SIGINT, within: 10)
-        assertNoTestProcessIsLeft()
-        let output = contents(of: standardOutput)
+        harness.assertDied(running, by: SIGINT, within: 10)
+        harness.assertNoTestProcessIsLeft()
+        let output = harness.contents(of: harness.standardOutput)
         XCTAssertFalse(output.contains("Gathering coverage failed"), output)
-        XCTAssertEqual(try stoppedRecords().map { $0["step"] as? String }, ["coverageRun"])
+        XCTAssertEqual(try harness.stoppedRecords().map { $0["step"] as? String }, ["coverageRun"])
     }
 
     // The second signal comes once SwiftMutator has said it is stopping, so that the signals' order is certain, while
@@ -203,77 +97,80 @@ final class InterruptionAcceptanceTests: XCTestCase {
     // had ended, it would race SwiftMutator's own exit by SIGTERM, which says nothing, as it did on CI. Continued,
     // SwiftMutator hears the waiting signal at once, well before it can finish removing the clone.
     func test_aSecondSignal_exitsByTheFirst_leavingNoTestProcess() throws {
-        let running = try startSwiftMutator(hangingIn: .mutantsWithALargeWorkerClone)
-        guard waitUntilHanging(runs: 2, in: running) else { return }
+        let running = try harness.startSwiftMutator(hangingIn: .mutantsWithALargeWorkerClone)
+        guard harness.waitUntilHanging(runs: 2, in: running) else { return }
 
-        signalProcess(running, SIGTERM)
-        let stopping = waitUntil(within: 5) {
-            self.contents(of: self.standardError).contains("Stopping (SIGTERM)") || !running.isRunning
+        harness.signalProcess(running, SIGTERM)
+        let stopping = harness.waitUntil(within: 5) {
+            self.harness.contents(of: self.harness.standardError).contains("Stopping (SIGTERM)") || !running.isRunning
         }
         XCTAssertTrue(stopping, "SwiftMutator didn't say it was stopping")
-        if running.isRunning { signalProcess(running, SIGSTOP) }
-        let held = waitUntil(within: 5) { self.isStopped(running.processIdentifier) || !running.isRunning }
+        if running.isRunning { harness.signalProcess(running, SIGSTOP) }
+        let held = harness.waitUntil(within: 5) {
+            self.harness.isStopped(running.processIdentifier) || !running.isRunning
+        }
         XCTAssertTrue(held, "SwiftMutator wasn't held")
-        guard running.isRunning, exists("project_mutated_worker1.noindex") else {
-            if running.isRunning { signalProcess(running, SIGCONT) }
-            assertDied(running, by: SIGTERM)
-            assertNoTestProcessIsLeft()
+        guard running.isRunning, harness.exists("project_mutated_worker1.noindex") else {
+            if running.isRunning { harness.signalProcess(running, SIGCONT) }
+            harness.assertDied(running, by: SIGTERM)
+            harness.assertNoTestProcessIsLeft()
             throw XCTSkip("SwiftMutator had removed the worker clone before a second signal could reach it")
         }
-        signalProcess(running, SIGINT)
-        signalProcess(running, SIGCONT)
+        harness.signalProcess(running, SIGINT)
+        harness.signalProcess(running, SIGCONT)
 
-        assertDied(running, by: SIGTERM)
-        assertNoTestProcessIsLeft()
-        let errors = contents(of: standardError)
+        harness.assertDied(running, by: SIGTERM)
+        harness.assertNoTestProcessIsLeft()
+        let errors = harness.contents(of: harness.standardError)
         XCTAssertTrue(errors.contains("Stopping at once"), errors)
     }
 
     // The run goes to its end, with nothing to stop it: each mutant's run is what stops itself.
     func test_aRunKilledAtAFailedTest_leavesNoProcessANewListingWouldMiss() throws {
-        let running = try startSwiftMutator(hangingIn: .mutantsWithAnUnlistedProcess)
+        let running = try harness.startSwiftMutator(hangingIn: .mutantsWithAnUnlistedProcess)
 
-        guard waitUntil(within: 60, { !running.isRunning }) else {
+        guard harness.waitUntil(within: 60, { !running.isRunning }) else {
             XCTFail("SwiftMutator was still running after 60 s")
             return
         }
 
-        XCTAssertFalse(contents(of: standardError).contains("Stopping"), contents(of: standardError))
-        assertNoTestProcessIsLeft()
+        let errors = harness.contents(of: harness.standardError)
+        XCTAssertFalse(errors.contains("Stopping"), errors)
+        harness.assertNoTestProcessIsLeft()
     }
 
     // Both signals come at once, so the second most likely stops SwiftMutator before mutation testing has ended: the
     // end line is then written as it stops at once.
     func test_aSecondSignalAtOnce_stillEndsTheResults_withTheFirstSignal() throws {
-        let running = try startSwiftMutator(hangingIn: .mutants)
-        guard waitUntilHanging(runs: 2, in: running) else { return }
+        let running = try harness.startSwiftMutator(hangingIn: .mutants)
+        guard harness.waitUntilHanging(runs: 2, in: running) else { return }
 
-        signalProcess(running, SIGTERM)
-        signalProcess(running, SIGINT)
+        harness.signalProcess(running, SIGTERM)
+        harness.signalProcess(running, SIGINT)
 
-        guard waitUntil(within: 15, { !running.isRunning }) else {
+        guard harness.waitUntil(within: 15, { !running.isRunning }) else {
             XCTFail("SwiftMutator was still running after 15 s")
             return
         }
-        assertNoTestProcessIsLeft()
+        harness.assertNoTestProcessIsLeft()
         let signal = running.terminationReason == .uncaughtSignal ? running.terminationStatus : 0
-        XCTAssertTrue([SIGTERM, SIGINT].contains(signal), describe(running))
-        try assertTheResultsEnd(interruptedBy: signal == SIGTERM ? "SIGTERM" : "SIGINT")
-        let errors = contents(of: standardError)
+        XCTAssertTrue([SIGTERM, SIGINT].contains(signal), harness.describe(running))
+        try harness.assertTheResultsEnd(interruptedBy: signal == SIGTERM ? "SIGTERM" : "SIGINT")
+        let errors = harness.contents(of: harness.standardError)
         XCTAssertTrue(errors.contains("Stopping at once"), errors)
     }
 
     // Ctrl-\ sends SIGQUIT to the terminal's foreground process group, which holds SwiftMutator alone.
     func test_ctrlBackslash_stopsAtOnce_leavingNoTestProcess_andEndsTheResults() throws {
-        let running = try startSwiftMutator(hangingIn: .mutants)
-        guard waitUntilHanging(runs: 2, in: running) else { return }
+        let running = try harness.startSwiftMutator(hangingIn: .mutants)
+        guard harness.waitUntilHanging(runs: 2, in: running) else { return }
 
-        signalGroup(of: running, SIGQUIT)
+        harness.signalGroup(of: running, SIGQUIT)
 
-        assertDied(running, by: SIGQUIT)
-        assertNoTestProcessIsLeft()
-        try assertTheResultsEnd(interruptedBy: "SIGQUIT")
-        let errors = contents(of: standardError)
+        harness.assertDied(running, by: SIGQUIT)
+        harness.assertNoTestProcessIsLeft()
+        try harness.assertTheResultsEnd(interruptedBy: "SIGQUIT")
+        let errors = harness.contents(of: harness.standardError)
         XCTAssertTrue(errors.contains("Stopping at once"), errors)
         XCTAssertFalse(errors.contains("Stopping (SIGQUIT)"), errors)
     }
@@ -281,30 +178,30 @@ final class InterruptionAcceptanceTests: XCTestCase {
     // When its terminal closes, zsh sends the job SIGHUP twice, about a millisecond apart. The second comes here once
     // SwiftMutator has said it is stopping, so that it is handled on its own, while a large worker clone is removed.
     func test_aRepeatedHangup_stillStopsCleanly_andDiesBySIGHUP() throws {
-        let running = try startSwiftMutator(hangingIn: .mutantsWithALargeWorkerClone)
-        guard waitUntilHanging(runs: 2, in: running) else { return }
+        let running = try harness.startSwiftMutator(hangingIn: .mutantsWithALargeWorkerClone)
+        guard harness.waitUntilHanging(runs: 2, in: running) else { return }
 
-        signalGroup(of: running, SIGHUP)
-        let stopping = waitUntil(within: 5) {
-            self.contents(of: self.standardError).contains("Stopping (SIGHUP)") || !running.isRunning
+        harness.signalGroup(of: running, SIGHUP)
+        let stopping = harness.waitUntil(within: 5) {
+            self.harness.contents(of: self.harness.standardError).contains("Stopping (SIGHUP)") || !running.isRunning
         }
         XCTAssertTrue(stopping, "SwiftMutator didn't say it was stopping")
         let repeated = running.isRunning
-        if repeated { signalGroup(of: running, SIGHUP) }
+        if repeated { harness.signalGroup(of: running, SIGHUP) }
 
-        assertDied(running, by: SIGHUP)
-        assertNoTestProcessIsLeft()
-        let errors = contents(of: standardError)
+        harness.assertDied(running, by: SIGHUP)
+        harness.assertNoTestProcessIsLeft()
+        let errors = harness.contents(of: harness.standardError)
         XCTAssertFalse(errors.contains("Stopping at once"), errors)
-        let files = resultsFiles()
+        let files = harness.resultsFiles()
         XCTAssertEqual(files.count, 1, "\(files)")
         if let file = files.first {
-            let lines = try records(in: file)
+            let lines = try harness.records(in: file)
             XCTAssertEqual(lines.last?["kind"] as? String, "end")
             XCTAssertEqual(lines.last?["reason"] as? String, "interrupted")
             XCTAssertEqual(lines.last?["detail"] as? String, "SIGHUP")
         }
-        XCTAssertFalse(exists("project_mutated_worker1.noindex"), "the worker clone is removed")
+        XCTAssertFalse(harness.exists("project_mutated_worker1.noindex"), "the worker clone is removed")
         guard repeated else { throw XCTSkip("SwiftMutator stopped before a second SIGHUP could reach it") }
     }
 
@@ -312,35 +209,36 @@ final class InterruptionAcceptanceTests: XCTestCase {
     // it SIGCONT. Its tests are suspended with it, so they don't end meanwhile, and their time limit doesn't count the
     // time: SwiftMutator suspended alone, a test that had ended could be recorded as a timeout once it continued.
     func test_ctrlZ_suspendsTheTestsToo_andTheirTimeLimitDoesntCountTheTime() throws {
-        try setTimeLimit(5)
-        let running = try startSwiftMutator(hangingIn: .slowMutants)
-        guard waitUntilHanging(runs: 2, in: running) else { return }
+        try harness.setTimeLimit(5)
+        let running = try harness.startSwiftMutator(hangingIn: .slowMutants)
+        guard harness.waitUntilHanging(runs: 2, in: running) else { return }
 
-        signalGroup(of: running, SIGTSTP)
+        harness.signalGroup(of: running, SIGTSTP)
 
-        let suspended = waitUntil(within: 5) { self.isStopped(running.processIdentifier) }
+        let suspended = harness.waitUntil(within: 5) { self.harness.isStopped(running.processIdentifier) }
         XCTAssertTrue(suspended, "SwiftMutator wasn't suspended")
         // Each run's processes last 3 s from when they write themselves down, so those written down less than 2.9 s
         // before SwiftMutator was seen suspended were running when it stopped them. An older one may have ended just
         // before, as when the second worker's first run started 3 s after the first's, and an ended process isn't
         // stopped.
-        let testProcesses = testProcesses(writtenDownWithin: 2.9, before: Date())
+        let testProcesses = harness.testProcesses(writtenDownWithin: 2.9, before: Date())
         XCTAssertFalse(testProcesses.isEmpty, "no test was under way")
-        XCTAssertTrue(waitUntil(within: 2) { testProcesses.allSatisfy(self.isStopped) }, "its tests run on")
+        let stoppedTogether = harness.waitUntil(within: 2) { testProcesses.allSatisfy(self.harness.isStopped) }
+        XCTAssertTrue(stoppedTogether, "its tests run on")
         Thread.sleep(forTimeInterval: 6) // past the time limit, and past the end of the tests, had they run on
-        XCTAssertEqual(testProcesses.filter { !self.isStopped($0) }.sorted(), [], "its tests ran on")
+        XCTAssertEqual(testProcesses.filter { !self.harness.isStopped($0) }.sorted(), [], "its tests ran on")
 
-        signalGroup(of: running, SIGCONT)
+        harness.signalGroup(of: running, SIGCONT)
 
-        guard waitUntil(within: 30, { !running.isRunning }) else {
-            XCTFail("SwiftMutator was still running after 30 s: \(contents(of: standardError))")
+        guard harness.waitUntil(within: 30, { !running.isRunning }) else {
+            XCTFail("SwiftMutator was still running after 30 s: \(harness.contents(of: harness.standardError))")
             return
         }
-        XCTAssertEqual(running.terminationReason, .exit, describe(running))
-        assertNoTestProcessIsLeft()
-        let files = resultsFiles()
+        XCTAssertEqual(running.terminationReason, .exit, harness.describe(running))
+        harness.assertNoTestProcessIsLeft()
+        let files = harness.resultsFiles()
         XCTAssertEqual(files.count, 1, "\(files)")
-        let mutants = try files.flatMap(records(in:)).filter { $0["kind"] as? String == "mutant" }
+        let mutants = try files.flatMap(harness.records(in:)).filter { $0["kind"] as? String == "mutant" }
         XCTAssertGreaterThanOrEqual(mutants.count, 2)
         for mutant in mutants {
             XCTAssertEqual(mutant["outcome"] as? String, "passed", "\(mutant)")
@@ -351,301 +249,38 @@ final class InterruptionAcceptanceTests: XCTestCase {
 
     // `kill %1` sends a suspended job SIGTERM, then SIGCONT, without which it couldn't stop.
     func test_aSuspendedRun_stopsCleanly_onceContinued() throws {
-        let running = try startSwiftMutator(hangingIn: .mutants)
-        guard waitUntilHanging(runs: 2, in: running) else { return }
-        signalGroup(of: running, SIGTSTP)
-        let suspended = waitUntil(within: 5) { self.isStopped(running.processIdentifier) }
+        let running = try harness.startSwiftMutator(hangingIn: .mutants)
+        guard harness.waitUntilHanging(runs: 2, in: running) else { return }
+        harness.signalGroup(of: running, SIGTSTP)
+        let suspended = harness.waitUntil(within: 5) { self.harness.isStopped(running.processIdentifier) }
         XCTAssertTrue(suspended, "SwiftMutator wasn't suspended")
 
-        signalGroup(of: running, SIGTERM)
-        signalGroup(of: running, SIGCONT)
+        harness.signalGroup(of: running, SIGTERM)
+        harness.signalGroup(of: running, SIGCONT)
 
-        assertDied(running, by: SIGTERM)
-        assertNoTestProcessIsLeft()
-        let files = resultsFiles()
+        harness.assertDied(running, by: SIGTERM)
+        harness.assertNoTestProcessIsLeft()
+        let files = harness.resultsFiles()
         XCTAssertEqual(files.count, 1, "\(files)")
         if let file = files.first {
-            XCTAssertEqual(try records(in: file).last?["detail"] as? String, "SIGTERM")
+            XCTAssertEqual(try harness.records(in: file).last?["detail"] as? String, "SIGTERM")
         }
     }
 
     // `nohup` starts SwiftMutator with SIGHUP ignored, so that a run outlives the terminal it started in.
     func test_aHangupIgnoredAtStart_staysIgnored_andSIGTERMStillStops() throws {
-        let running = try startSwiftMutator(hangingIn: .mutants, underNohup: true)
-        guard waitUntilHanging(runs: 2, in: running) else { return }
+        let running = try harness.startSwiftMutator(hangingIn: .mutants, underNohup: true)
+        guard harness.waitUntilHanging(runs: 2, in: running) else { return }
 
-        signalGroup(of: running, SIGHUP)
+        harness.signalGroup(of: running, SIGHUP)
         Thread.sleep(forTimeInterval: 0.5)
 
         XCTAssertTrue(running.isRunning, "SIGHUP stopped a run started under nohup")
-        let testProcesses = shells.union(sleepers)
-        XCTAssertEqual(testProcesses.filter(isGone).sorted(), [], "test processes ended by SIGHUP")
-        signalProcess(running, SIGTERM)
+        let testProcesses = harness.shells.union(harness.sleepers)
+        XCTAssertEqual(testProcesses.filter(harness.isGone).sorted(), [], "test processes ended by SIGHUP")
+        harness.signalProcess(running, SIGTERM)
 
-        assertDied(running, by: SIGTERM)
-        assertNoTestProcessIsLeft()
-    }
-
-    // MARK: - Helpers
-
-    /// Starts SwiftMutator on the project, with the test command hanging in `phase`. Foundation.Process starts it in
-    /// a process group of its own; `nohup` execs it, so it keeps that process and group.
-    private func startSwiftMutator(
-        hangingIn phase: Phase,
-        standardOutput output: Pipe? = nil,
-        underNohup: Bool = false
-    ) throws -> Foundation.Process {
-        let process = Foundation.Process()
-        var arguments = ["run", "--skip-update-check"] + (phase == .coverage ? [] : ["--skip-coverage"])
-        if underNohup {
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/nohup")
-            arguments.insert(swiftMutator.path, at: 0)
-        } else {
-            process.executableURL = swiftMutator
-        }
-        process.arguments = arguments
-        process.currentDirectoryURL = project
-        var environment = ProcessInfo.processInfo.environment
-        environment["INTERRUPT_TEST_MARKERS"] = markers.path
-        environment["INTERRUPT_TEST_PHASE"] = phase.rawValue
-        process.environment = environment
-
-        FileManager.default.createFile(atPath: standardOutput.path, contents: nil)
-        FileManager.default.createFile(atPath: standardError.path, contents: nil)
-        let outputFile = try FileHandle(forWritingTo: standardOutput)
-        let errorFile = try FileHandle(forWritingTo: standardError)
-        defer {
-            try? outputFile.close()
-            try? errorFile.close()
-        }
-        process.standardOutput = output ?? outputFile
-        process.standardError = errorFile
-        try process.run()
-        mutator = process
-        return process
-    }
-
-    /// Waits until the test command hangs in `runs` places, each with its `sleep` started, and SwiftMutator still
-    /// runs.
-    private func waitUntilHanging(
-        runs: Int,
-        in mutator: Foundation.Process,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) -> Bool {
-        let hanging = waitUntil(within: 30) {
-            self.recordMarkers()
-            return self.sleepers.count >= runs || !mutator.isRunning
-        }
-        guard hanging, mutator.isRunning, sleepers.count >= runs else {
-            XCTFail(
-                """
-                The test command didn't hang in \(runs) runs: \(sleepers.count) hung, SwiftMutator \
-                \(mutator.isRunning ? "is still running" : "ended (\(describe(mutator)))").
-                Standard error: \(contents(of: standardError))
-                """,
-                file: file,
-                line: line
-            )
-            return false
-        }
-        return true
-    }
-
-    /// As a terminal's Ctrl-C, or a hangup a shell forwards: the group holds SwiftMutator alone, since each process
-    /// SwiftMutator starts leads a group of its own.
-    private func signalGroup(of mutator: Foundation.Process, _ signal: Int32) {
-        let pid = mutator.processIdentifier
-        guard pid > 1, mutator.isRunning else {
-            XCTFail("SwiftMutator isn't running")
-            return
-        }
-        kill(-pid, signal)
-    }
-
-    private func signalProcess(_ mutator: Foundation.Process, _ signal: Int32) {
-        let pid = mutator.processIdentifier
-        guard pid > 1, mutator.isRunning else {
-            XCTFail("SwiftMutator isn't running")
-            return
-        }
-        kill(pid, signal)
-    }
-
-    /// Sets the project's `mutationTestTimeout` to `seconds`.
-    private func setTimeLimit(_ seconds: Int) throws {
-        let configuration = project.appendingPathComponent("muter.conf.yml")
-        let text = try String(contentsOf: configuration, encoding: .utf8)
-        XCTAssertTrue(text.contains("mutationTestTimeout: 600"))
-        try text.replacingOccurrences(of: "mutationTestTimeout: 600", with: "mutationTestTimeout: \(seconds)")
-            .write(to: configuration, atomically: true, encoding: .utf8)
-    }
-
-    /// Whether the process with this ID is stopped, as by SIGSTOP or SIGTSTP. A process that is gone isn't.
-    private func isStopped(_ pid: Int32) -> Bool {
-        #if os(macOS)
-        var name: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
-        var info = kinfo_proc()
-        var size = MemoryLayout<kinfo_proc>.stride
-        guard sysctl(&name, UInt32(name.count), &info, &size, nil, 0) == 0, size > 0 else { return false }
-        return info.kp_proc.p_stat == SSTOP
-        #else
-        // proc(5): the state follows the name, which is in parentheses.
-        guard let stat = try? String(contentsOfFile: "/proc/\(pid)/stat", encoding: .utf8),
-              let end = stat.lastIndex(of: ")")
-        else { return false }
-        return stat[stat.index(after: end)...].trimmingCharacters(in: .whitespaces).hasPrefix("T")
-        #endif
-    }
-
-    /// That SwiftMutator ended within `timeout` seconds, killed by `signal`, as its default action would have, so that
-    /// a shell sees it die of the signal.
-    private func assertDied(
-        _ mutator: Foundation.Process,
-        by signal: Int32,
-        within timeout: TimeInterval = 15,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        guard waitUntil(within: timeout, { !mutator.isRunning }) else {
-            XCTFail("SwiftMutator was still running after \(timeout) s", file: file, line: line)
-            return
-        }
-        XCTAssertEqual(
-            describe(mutator),
-            "killed by signal \(signal)",
-            contents(of: standardError),
-            file: file,
-            line: line
-        )
-    }
-
-    private func describe(_ ended: Foundation.Process) -> String {
-        ended.terminationReason == .uncaughtSignal
-            ? "killed by signal \(ended.terminationStatus)"
-            : "exited with \(ended.terminationStatus)"
-    }
-
-    /// That every process the test command wrote down is gone within 2 seconds.
-    private func assertNoTestProcessIsLeft(file: StaticString = #filePath, line: UInt = #line) {
-        recordMarkers()
-        let testProcesses = shells.union(sleepers)
-        XCTAssertFalse(testProcesses.isEmpty, "no test process was written down", file: file, line: line)
-        _ = waitUntil(within: 2) { testProcesses.allSatisfy(self.isGone) }
-        XCTAssertEqual(testProcesses.filter { !isGone($0) }.sorted(), [], "still running", file: file, line: line)
-    }
-
-    /// Reads the processes the test command wrote down. Each is named in its file's name, which is there before the
-    /// file's contents are.
-    private func recordMarkers() {
-        guard let markers else { return }
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: markers.path)) ?? []
-        for name in names {
-            let parts = name.split(separator: ".")
-            guard parts.count == 2, let pid = Int32(parts[1]), pid > 1 else { continue }
-            if parts[0] == "sh" {
-                shells.insert(pid)
-            } else if parts[0] == "sleep" {
-                sleepers.insert(pid)
-            }
-        }
-    }
-
-    /// The processes the test command wrote down less than `seconds` before `moment`, by their files' times.
-    private func testProcesses(writtenDownWithin seconds: TimeInterval, before moment: Date) -> Set<Int32> {
-        recordMarkers()
-        let writtenDown = { (kind: String, pid: Int32) -> Bool in
-            let file = self.markers.appendingPathComponent("\(kind).\(pid)").path
-            guard let time = try? FileManager.default.attributesOfItem(atPath: file)[.modificationDate] as? Date
-            else { return false }
-            return moment.timeIntervalSince(time) < seconds
-        }
-        return shells.filter { writtenDown("sh", $0) }.union(sleepers.filter { writtenDown("sleep", $0) })
-    }
-
-    /// Whether no process has this ID.
-    private func isGone(_ pid: Int32) -> Bool {
-        if confirmedGone.contains(pid) { return true }
-        guard kill(pid, 0) == -1, errno == ESRCH else { return false }
-        confirmedGone.insert(pid)
-        return true
-    }
-
-    /// That the run wrote one results file, whose one end line, its last, says a signal named `signal` interrupted it.
-    private func assertTheResultsEnd(
-        interruptedBy signal: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) throws {
-        let files = resultsFiles()
-        XCTAssertEqual(files.count, 1, "\(files)", file: file, line: line)
-        guard let results = files.first else { return }
-        let lines = try records(in: results)
-        XCTAssertEqual(lines.filter { $0["kind"] as? String == "end" }.count, 1, "\(lines)", file: file, line: line)
-        XCTAssertEqual(lines.last?["kind"] as? String, "end", file: file, line: line)
-        XCTAssertEqual(lines.last?["reason"] as? String, "interrupted", file: file, line: line)
-        XCTAssertEqual(lines.last?["detail"] as? String, signal, file: file, line: line)
-    }
-
-    /// Each results file the run wrote, in `project_muter_logs/<run>/`.
-    private func resultsFiles() -> [URL] {
-        let logs = root.appendingPathComponent("project_muter_logs", isDirectory: true)
-        let runs = (try? FileManager.default.contentsOfDirectory(at: logs, includingPropertiesForKeys: nil)) ?? []
-        return runs.flatMap { run in
-            ((try? FileManager.default.contentsOfDirectory(at: run, includingPropertiesForKeys: nil)) ?? [])
-                .filter { $0.lastPathComponent.hasPrefix("results") && $0.pathExtension == "jsonl" }
-        }
-    }
-
-    /// The records of the runs that stopped before their first mutant, each the only line of its results file.
-    private func stoppedRecords() throws -> [[String: Any]] {
-        try resultsFiles().map { file in
-            let lines = try String(contentsOf: file, encoding: .utf8).split(separator: "\n")
-            XCTAssertEqual(lines.count, 1, "\(file.path): \(lines)")
-            let record = try JSONSerialization.jsonObject(with: Data((lines.first ?? "").utf8))
-            return record as? [String: Any] ?? [:]
-        }
-    }
-
-    /// The files in `project_muter_logs/<run>/running/`: the output of the test runs a stop cut short.
-    private func runningFiles() -> [String] {
-        let logs = root.appendingPathComponent("project_muter_logs", isDirectory: true)
-        let runs = (try? FileManager.default.contentsOfDirectory(at: logs, includingPropertiesForKeys: nil)) ?? []
-        return runs.flatMap { run in
-            (try? FileManager.default.contentsOfDirectory(atPath: run.appendingPathComponent("running").path)) ?? []
-        }
-    }
-
-    /// The names at the top of the mutated project that the project doesn't have, hidden ones left out.
-    private func visibleNamesAddedToTheCopy() -> [String] {
-        let names = { (folder: URL) -> Set<String> in
-            let all = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
-            return Set(all.filter { !$0.hasPrefix(".") })
-        }
-        return names(root.appendingPathComponent("project_mutated.noindex")).subtracting(names(project)).sorted()
-    }
-
-    private func records(in file: URL) throws -> [[String: Any]] {
-        try contents(of: file)
-            .split(separator: "\n")
-            .map { try XCTUnwrap(JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any]) }
-    }
-
-    private func exists(_ name: String) -> Bool {
-        FileManager.default.fileExists(atPath: root.appendingPathComponent(name).path)
-    }
-
-    private func contents(of file: URL) -> String {
-        (try? String(contentsOf: file, encoding: .utf8)) ?? ""
-    }
-
-    /// Polls `condition` until it holds or `timeout` seconds pass, and returns whether it held.
-    private func waitUntil(within timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while !condition() {
-            guard Date() < deadline else { return false }
-            Thread.sleep(forTimeInterval: 0.01)
-        }
-        return true
+        harness.assertDied(running, by: SIGTERM)
+        harness.assertNoTestProcessIsLeft()
     }
 }
