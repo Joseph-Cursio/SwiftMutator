@@ -1,4 +1,3 @@
-@testable import muterCore
 import XCTest
 
 extension XCTestCase {
