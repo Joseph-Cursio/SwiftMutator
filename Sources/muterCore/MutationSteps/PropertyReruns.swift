@@ -1,16 +1,5 @@
 import Foundation
 
-/// The kills a session tests again with only the property tests `propertyTestFilter` selects, once every mutant is
-/// tested: those whose recorded tests include no property test, which `propertyTests` picks out. A run stopped at its
-/// first failed test records that test alone, so an example that failed first hides a property that would also have
-/// failed. This run tells "only by examples" from "by both". It never changes a mutant's result.
-struct PropertyReruns: Equatable {
-    /// How many kills are tested again.
-    let count: Int
-    /// How many of them are tested at once.
-    let workers: Int
-}
-
 /// What the property reruns came to, so far.
 struct PropertyRerunTally: Equatable {
     let reruns: PropertyReruns
@@ -36,6 +25,17 @@ struct PropertyRerunTally: Equatable {
             unsettled += 1
         }
     }
+}
+
+/// The kills a session tests again with only the property tests `propertyTestFilter` selects, once every mutant is
+/// tested: those whose recorded tests include no property test, which `propertyTests` picks out. A run stopped at its
+/// first failed test records that test alone, so an example that failed first hides a property that would also have
+/// failed. This run tells "only by examples" from "by both". It never changes a mutant's result.
+struct PropertyReruns: Equatable {
+    /// How many kills are tested again.
+    let count: Int
+    /// How many of them are tested at once.
+    let workers: Int
 }
 
 extension PerformMutationTesting {

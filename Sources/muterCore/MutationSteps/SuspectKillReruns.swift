@@ -1,16 +1,5 @@
 import Foundation
 
-/// The kills a session tests again alone, once every mutant is tested: those only suspect tests failed for. A test can
-/// be suspect for failing for mutants in many files, which a broad test of the mutated code does too, so this run tells
-/// them apart: a kill a test really makes fails again, and one a flaky test made mostly doesn't. Its line replaces the
-/// first run's, unless it timed out or failed to build, which says nothing of the mutant.
-struct SuspectKillReruns: Equatable {
-    /// How many kills are tested again.
-    let count: Int
-    /// How many kills only suspect tests failed for are over `suspectKillReruns`, so aren't.
-    let leftOut: Int
-}
-
 /// What those runs came to, so far.
 struct SuspectKillRerunTally: Equatable {
     /// Failed again, or crashed.
@@ -28,6 +17,17 @@ struct SuspectKillRerunTally: Equatable {
         case .timeout, .buildError: unsettled += 1
         }
     }
+}
+
+/// The kills a session tests again alone, once every mutant is tested: those only suspect tests failed for. A test can
+/// be suspect for failing for mutants in many files, which a broad test of the mutated code does too, so this run tells
+/// them apart: a kill a test really makes fails again, and one a flaky test made mostly doesn't. Its line replaces the
+/// first run's, unless it timed out or failed to build, which says nothing of the mutant.
+struct SuspectKillReruns: Equatable {
+    /// How many kills are tested again.
+    let count: Int
+    /// How many kills only suspect tests failed for are over `suspectKillReruns`, so aren't.
+    let leftOut: Int
 }
 
 extension PerformMutationTesting {

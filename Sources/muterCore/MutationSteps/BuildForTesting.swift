@@ -1,5 +1,21 @@
 import Foundation
 
+private struct XCTestArenaInfo: Codable {
+    let buildProductsPath: String
+}
+
+private struct XCTestBuildParameters: Codable {
+    let arenaInfo: XCTestArenaInfo
+}
+
+private struct XCTestBuildRequest: Codable {
+    var buildProductsPath: String {
+        parameters.arenaInfo.buildProductsPath
+    }
+
+    private let parameters: XCTestBuildParameters
+}
+
 struct BuildForTesting: MutationStep {
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
@@ -200,11 +216,11 @@ struct BuildForTesting: MutationStep {
             throw MuterError.literal(reason: "Could not parse xctestrun at path: \(xcTestRunPath)")
         }
 
-        guard let replaced = stringContents.replacingOccurrences(
+        let rooted = stringContents.replacingOccurrences(
             of: "__TESTROOT__/",
             with: "__TESTROOT__/\(Self.testContentsFolder)/\(buildDirectory)"
-        ).data(using: .utf8)
-        else {
+        )
+        guard let replaced = rooted.data(using: .utf8) else {
             throw MuterError.literal(reason: "Error error")
         }
 
@@ -220,11 +236,11 @@ struct BuildForTesting: MutationStep {
     }
 
     private func findMostRecentXCTestRunAtURL(_ url: URL) throws -> String {
-        guard let xctestrun = try fileManager.contents(
+        let contents = try fileManager.contents(
             atPath: url.path,
             sortedByDate: .orderedDescending
-        ).first(where: { $0.hasSuffix(".xctestrun") })
-        else {
+        )
+        guard let xctestrun = contents.first(where: { $0.hasSuffix(".xctestrun") }) else {
             throw MuterError.literal(reason: "Could not find xctestrun file at path: \(url.path)")
         }
 
@@ -233,25 +249,5 @@ struct BuildForTesting: MutationStep {
 
     private func createTestContetsUrl(_ tempURL: URL) -> URL {
         tempURL.appendingPathComponent(Self.testContentsFolder)
-    }
-}
-
-private struct XCTestBuildRequest: Codable {
-    var buildProductsPath: String {
-        parameters.arenaInfo.buildProductsPath
-    }
-
-    private let parameters: Parameters
-}
-
-extension XCTestBuildRequest {
-    struct Parameters: Codable {
-        let arenaInfo: ArenaInfo
-    }
-}
-
-extension XCTestBuildRequest.Parameters {
-    struct ArenaInfo: Codable {
-        let buildProductsPath: String
     }
 }
