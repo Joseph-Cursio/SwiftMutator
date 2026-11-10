@@ -83,10 +83,8 @@ final class RegressionTests: XCTestCase {
             XCTFail(description)
         }
     }
-}
 
-private extension RegressionTests {
-    var rootTestDirectory: String {
+    private var rootTestDirectory: String {
         String(
             URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent()
