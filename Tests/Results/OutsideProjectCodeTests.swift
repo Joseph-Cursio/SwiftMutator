@@ -4,13 +4,17 @@ import XCTest
 
 /// Real folders: a project, `App`, inside a folder that holds the code its workspaces reference.
 final class OutsideProjectCodeTests: XCTestCase {
-    private var root = ""
-    private var project = ""
+    private let root = XCTestCase.unusedTemporaryPath()
+    private var project: String { "\(root)/App" }
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        root = try makeTemporaryDirectory()
-        project = "\(root)/App"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        try FileManager.default.removeItem(atPath: root)
+        try super.tearDownWithError()
     }
 
     // A workspace's references resolve as Xcode resolves them: `group:` against the groups they are in, a top-level

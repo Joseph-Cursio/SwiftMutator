@@ -4,34 +4,19 @@ import TestingExtensions
 import XCTest
 
 final class RegressionTests: XCTestCase {
-    /// Keys left out of the snapshots: where and how long a run and each mutant took, the run's details (its log
-    /// folder, build, toolchain and settings), and the killing tests, their summary and the kills only suspect tests
-    /// made, which depend on timing (runs stop at their first failed test). Each is dropped at any depth, inside arrays
-    /// too (`recursivelyFiltered`), so the snapshots, which hold none of them, need no re-recording.
-    static let keysToExclude: Set<String> = [
-        "filePath", "utf8Offset", "timeElapsed", "durationSeconds", "run",
-        "killingTests",
-        "killingTestSummary",
-        "killedOnlyBySuspectTests",
-    ]
-
-    /// How a report is compared with its snapshot: as JSON, without `keysToExclude`.
-    static var snapshotting: Snapshotting<MuterTestReport, String> {
-        .json { keysToExclude.contains($0) }
-    }
 
     /// These tests read the reports `runRegressionTests.sh` wrote into `samples/`. That script recreates the
     /// folder before it writes anything, so a missing folder means it hasn't been run, not that it failed:
     /// skip, so a plain `swift test` can pass. A run that failed partway leaves the folder, and these tests
     /// then fail.
-    override func setUpWithError() throws {
+    private func skipWithoutSamples() throws {
         try XCTSkipUnless(
             FileManager.default.fileExists(atPath: "\(rootTestDirectory)/samples"),
             "No samples: run `make regression-test` to generate them and run these tests"
         )
     }
 
-    func runRegressionTest(
+    private func runRegressionTest(
         forFixtureNamed fixtureName: String,
         withResultAt path: FilePath,
         file: StaticString = #filePath,
@@ -66,7 +51,8 @@ final class RegressionTests: XCTestCase {
         }
     }
 
-    func test_bonMot() {
+    func test_bonMot() throws {
+        try skipWithoutSamples()
         let path = "\(rootTestDirectory)/samples/bonmot_regression_test_output.json"
         if case let .failure(MuterError.literal(reason: description)) = runRegressionTest(
             forFixtureNamed: "bonmot",
@@ -76,7 +62,8 @@ final class RegressionTests: XCTestCase {
         }
     }
 
-    func test_parseCombinator() {
+    func test_parseCombinator() throws {
+        try skipWithoutSamples()
         let path = "\(rootTestDirectory)/samples/parsercombinator_regression_test_output.json"
         if case let .failure(MuterError.literal(reason: description)) = runRegressionTest(
             forFixtureNamed: "parsercombinator",
@@ -86,7 +73,8 @@ final class RegressionTests: XCTestCase {
         }
     }
 
-    func test_projectWithConcurrency() {
+    func test_projectWithConcurrency() throws {
+        try skipWithoutSamples()
         let path = "\(rootTestDirectory)/samples/projectwithconcurrency_test_output.json"
         if case let .failure(MuterError.literal(reason: description)) = runRegressionTest(
             forFixtureNamed: "projectwithconcurrency",

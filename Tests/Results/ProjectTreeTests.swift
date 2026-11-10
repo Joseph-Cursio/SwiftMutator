@@ -3,11 +3,19 @@ import XCTest
 
 /// Real folders and a real git: `git init` and `git add`, never a commit.
 final class ProjectTreeTests: XCTestCase {
-    private var project = ""
+    /// Made for each test, and removed after it.
+    private let folder = XCTestCase.unusedTemporaryPath()
+    /// The project a test walks: `folder`, unless the test points it elsewhere.
+    private lazy var project = folder
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        project = try makeTemporaryDirectory()
+        try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        try FileManager.default.removeItem(atPath: folder)
+        try super.tearDownWithError()
     }
 
     func test_listsTrackedAndUntrackedFiles_butNotIgnoredOnes() async throws {
@@ -176,9 +184,9 @@ final class ProjectTreeTests: XCTestCase {
         )
         let named = URL(fileURLWithPath: "\(project)/Config/ci.yml")
         XCTAssertEqual(ProjectTree.excludedPaths(.make(configurationURL: named), under: projectURL), ["Config/ci.yml"])
-        let folder = URL(fileURLWithPath: "\(project)/Config")
+        let configFolder = URL(fileURLWithPath: "\(project)/Config")
         XCTAssertEqual(
-            ProjectTree.excludedPaths(.make(configurationURL: folder), under: projectURL),
+            ProjectTree.excludedPaths(.make(configurationURL: configFolder), under: projectURL),
             ["Config/muter.conf.yml"]
         )
         let outside = URL(fileURLWithPath: "\(project)_configuration.yml")

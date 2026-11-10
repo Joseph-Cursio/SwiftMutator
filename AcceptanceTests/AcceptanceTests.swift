@@ -25,7 +25,7 @@ final class AcceptanceTests: XCTestCase {
     /// These tests read what `runAcceptanceTests.sh` wrote into `samples/`. That script recreates the folder
     /// before it writes anything, so a missing folder means it hasn't been run, not that it failed: skip, so
     /// a plain `swift test` can pass. A run that failed partway leaves the folder, and these tests then fail.
-    override func setUpWithError() throws {
+    private func skipWithoutSamples() throws {
         try XCTSkipUnless(
             FileManager.default.fileExists(atPath: "\(rootTestDirectory)/samples"),
             "No samples: run `make acceptance-test` to generate them and run these tests"
@@ -33,6 +33,7 @@ final class AcceptanceTests: XCTestCase {
     }
 
     func test_runCommand() throws {
+        try skipWithoutSamples()
         let output = try muterOutput
         let logFiles = try muterLogFiles
 
@@ -88,18 +89,21 @@ final class AcceptanceTests: XCTestCase {
     }
 
     func test_runWithTestPlanCommand() throws {
+        try skipWithoutSamples()
         let output = try mutersOutputWithTestPlan
 
         XCTAssertTrue(output.contains("SwiftMutator mutation test plan loaded"))
     }
 
     func test_withCoverage() throws {
+        try skipWithoutSamples()
         let output = try muterWithCoverageOutput
 
         XCTAssertTrue(output.contains("Code Coverage of your project:"))
     }
 
     func test_xcodeFormat() throws {
+        try skipWithoutSamples()
         let output = try muterXcodeOutput
 
         XCTAssertEqual(try numberOfXcodeFormattedMessages(in: output), 2)
@@ -108,6 +112,7 @@ final class AcceptanceTests: XCTestCase {
     }
 
     func test_filesToMutate() throws {
+        try skipWithoutSamples()
         let output = try muterFilesToMutateOutput
 
         // `a == b`'s two constants, which ReplaceBooleanValue leaves the value to.
@@ -115,6 +120,7 @@ final class AcceptanceTests: XCTestCase {
     }
 
     func test_muterDoesntDiscoverAnyMutationOperators() throws {
+        try skipWithoutSamples()
         let output = try muterEmptyStateOutput
 
         XCTAssertTrue(output.contains("SwiftMutator wasn't able to discover any code it could mutation test."))
@@ -127,6 +133,7 @@ final class AcceptanceTests: XCTestCase {
     // the log: a project that doesn't build stops the run too, as this one did, unnoticed, once Xcode dropped its
     // deployment target.
     func test_failingBaseline() throws {
+        try skipWithoutSamples()
         let output = try muterAbortedTestingOutput
 
         XCTAssertTrue(
@@ -141,6 +148,7 @@ final class AcceptanceTests: XCTestCase {
     }
 
     func test_initCommandOniOSProject() throws {
+        try skipWithoutSamples()
         let decodedConfiguration = try MuterConfiguration(from: createdIOSConfiguration)
         XCTAssertEqual(decodedConfiguration.testCommandExecutable, "/usr/bin/xcodebuild")
         XCTAssertTrue(decodedConfiguration.testCommandArguments.contains("-destination"))
@@ -151,6 +159,7 @@ final class AcceptanceTests: XCTestCase {
     }
 
     func test_initCommandOnMacOSProject() throws {
+        try skipWithoutSamples()
         let decodedConfiguration = try MuterConfiguration(from: createdMacOSConfiguration)
         XCTAssertEqual(decodedConfiguration.testCommandExecutable, "/usr/bin/xcodebuild")
         XCTAssertTrue(decodedConfiguration.testCommandArguments.contains("-destination"))
@@ -161,6 +170,7 @@ final class AcceptanceTests: XCTestCase {
 
     // The plan names its copy relative to the project, so the two can move together.
     func test_mutationTestPlan() throws {
+        try skipWithoutSamples()
         let decodedTestPlan = try JSONDecoder().decode(TestPlanFile.self, from: createdTestPlan)
         XCTAssertEqual(decodedTestPlan.formatVersion, TestPlanCoding.formatVersion)
         XCTAssertEqual(decodedTestPlan.mutatedProject, "../ExampleApp_mutated.noindex")
@@ -170,6 +180,7 @@ final class AcceptanceTests: XCTestCase {
     }
 
     func test_mutationTestTimeout() throws {
+        try skipWithoutSamples()
         let output = try muterWithTimeoutOutput
         let lines = output.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         let columns = { (line: String) in line.split(separator: " ").joined(separator: " ") }
@@ -198,26 +209,32 @@ final class AcceptanceTests: XCTestCase {
     }
 
     func test_all_operatos() throws {
+        try skipWithoutSamples()
         try AssertSnapshot(muterOperatorAllOutput)
     }
 
     func test_helpCommand() throws {
+        try skipWithoutSamples()
         try AssertSnapshot(muterHelpOutput)
     }
 
     func test_helpCommandInit() throws {
+        try skipWithoutSamples()
         try AssertSnapshot(muterInitHelpOutput)
     }
 
     func test_helpCommandRun() throws {
+        try skipWithoutSamples()
         try AssertSnapshot(muterRunHelpOutput)
     }
 
     func test_helpCommandOperator() throws {
+        try skipWithoutSamples()
         try AssertSnapshot(muterOperatorHelpOutput)
     }
 
     func test_helpCommandReport() throws {
+        try skipWithoutSamples()
         try AssertSnapshot(muterReportHelpOutput)
     }
 }

@@ -4,12 +4,17 @@ import XCTest
 /// Real folders and a real git. The fixtures are made without the user's or the system's git settings, under a fixed
 /// identity; the selection's own git calls see them, as a user's run would.
 final class GitChangesTests: XCTestCase {
-    private var repository = ""
+    private let repository = XCTestCase.unusedTemporaryPath()
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        repository = try makeTemporaryDirectory()
+        try FileManager.default.createDirectory(atPath: repository, withIntermediateDirectories: true)
         try git("init", "-q", "-b", "main")
+    }
+
+    override func tearDownWithError() throws {
+        try FileManager.default.removeItem(atPath: repository)
+        try super.tearDownWithError()
     }
 
     // The merge base, not main itself: a change main made after the branch left it isn't the branch's.

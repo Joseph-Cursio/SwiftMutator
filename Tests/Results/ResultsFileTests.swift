@@ -2,7 +2,7 @@
 import XCTest
 
 final class ResultsFileTests: XCTestCase {
-    private var directory = ""
+    private let directory = XCTestCase.unusedTemporaryPath()
     private let header = ResultsHeader.make()
     private let mutant = MutantResult.make()
     private let end = ResultsEnd.make()
@@ -15,7 +15,12 @@ final class ResultsFileTests: XCTestCase {
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        directory = try makeTemporaryDirectory()
+        try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        try FileManager.default.removeItem(atPath: directory)
+        try super.tearDownWithError()
     }
 
     func test_create_namesItResultsJSONL() throws {

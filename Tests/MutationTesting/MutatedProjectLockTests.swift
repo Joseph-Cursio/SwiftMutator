@@ -2,7 +2,7 @@
 import XCTest
 
 final class MutatedProjectLockTests: XCTestCase {
-    private var directory = ""
+    private let directory = XCTestCase.unusedTemporaryPath()
     /// No watcher: the executable running these tests isn't SwiftMutator.
     private let locker = MutatedProjectLock.Locker { nil }
 
@@ -13,7 +13,12 @@ final class MutatedProjectLockTests: XCTestCase {
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        directory = try makeTemporaryDirectory()
+        try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        try FileManager.default.removeItem(atPath: directory)
+        try super.tearDownWithError()
     }
 
     // Beside the copy, which a run removes and makes again while it holds the lock. Named after the copy without

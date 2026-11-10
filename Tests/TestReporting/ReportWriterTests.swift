@@ -2,12 +2,17 @@
 import XCTest
 
 final class ReportWriterTests: XCTestCase {
-    private var directory = ""
+    private let directory = XCTestCase.unusedTemporaryPath()
 
     override func setUpWithError() throws {
         try super.setUpWithError()
 
-        directory = try makeTemporaryDirectory()
+        try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        try FileManager.default.removeItem(atPath: directory)
+        try super.tearDownWithError()
     }
 
     func test_savesTheReport() throws {
