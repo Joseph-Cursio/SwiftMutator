@@ -42,8 +42,8 @@ struct ProgressBar {
     var printer: ProgressBarPrinter
 
     var value: String {
-        let configuration = configuration ?? Self.defaultConfiguration
-        let values = configuration.map { $0.value(self) }
+        let resolvedConfiguration = configuration ?? Self.defaultConfiguration
+        let values = resolvedConfiguration.map { $0.value(self) }
         return values.joined(separator: " ")
     }
 

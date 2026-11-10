@@ -24,8 +24,8 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
             return plist.values.compactMap { $0 as? [String: AnyHashable] }
         }
         return testConfigurations.flatMap { testConfiguration in
-            let testTargets = (testConfiguration as? [String: AnyHashable])?["TestTargets"] as? [AnyHashable] ?? []
-            return testTargets.compactMap { $0 as? [String: AnyHashable] }
+            let configuredTargets = (testConfiguration as? [String: AnyHashable])?["TestTargets"] as? [AnyHashable] ?? []
+            return configuredTargets.compactMap { $0 as? [String: AnyHashable] }
         }
     }
 
@@ -44,8 +44,8 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
             // TestPlan configuration
             let newTestConfigurations = testConfigurations.map { testConfiguration in
                 if var newTestConfiguration = testConfiguration as? [String: AnyHashable],
-                   let testTargets = newTestConfiguration[testTargetsKey] as? [AnyHashable] {
-                    let newTestTargets = testTargets.map { testTarget in
+                   let replacementTargets = newTestConfiguration[testTargetsKey] as? [AnyHashable] {
+                    let newTestTargets = replacementTargets.map { testTarget in
                         if let newTestTarget = testTarget as? [String: AnyHashable] {
                             return updateEnvironmentVariables(
                                 forConfiguration: newTestTarget,

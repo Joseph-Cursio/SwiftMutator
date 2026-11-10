@@ -427,9 +427,9 @@ final class WorkerSimulatorsTests: MuterTestCase {
 
     /// Simulators made by `owner`, with only `running`, and `owner`, still running.
     private func makeSimulators(running: Set<RecordedProcess> = []) -> WorkerSimulators {
-        let running = running.union([owner])
+        let stillRunning = running.union([owner])
         current.process = { [simctl] in simctl }
-        return WorkerSimulators(owner: owner, isRunning: { running.contains($0) })
+        return WorkerSimulators(owner: owner, isRunning: { stillRunning.contains($0) })
     }
 
     /// The reason `prepare` gave for not making `count` simulators like `destination`, or nil if it made them.
@@ -438,16 +438,16 @@ final class WorkerSimulatorsTests: MuterTestCase {
         like destination: String,
         with simulators: WorkerSimulators? = nil
     ) async -> String? {
-        let simulators = simulators ?? makeSimulators()
-        let mutatedProject = mutatedProject
-        return await reason(of: { try await simulators.prepare(count, like: destination, for: mutatedProject) })
+        let preparing = simulators ?? makeSimulators()
+        let project = mutatedProject
+        return await reason(of: { try await preparing.prepare(count, like: destination, for: project) })
     }
 
     /// Why `prepare` didn't make `count` simulators like `destination`, or nil if it made them.
     private func unavailable(preparing count: Int, like destination: String) async -> WorkerSimulatorsUnavailable? {
         let simulators = makeSimulators()
-        let mutatedProject = mutatedProject
-        return await failure(of: { try await simulators.prepare(count, like: destination, for: mutatedProject) })
+        let project = mutatedProject
+        return await failure(of: { try await simulators.prepare(count, like: destination, for: project) })
     }
 
     /// Why `work` didn't make or boot simulators, or nil if it did.
@@ -537,23 +537,23 @@ private final class SimctlStandIn: MuterProcess, @unchecked Sendable { // every 
         guard url == "/usr/bin/xcrun", args.first == "simctl" else {
             return nil
         }
-        let arguments = Array(args.dropFirst())
+        let simctlArguments = Array(args.dropFirst())
         let answering = lock.withLock {
-            started.append((arguments, timeLimit))
+            started.append((simctlArguments, timeLimit))
             return self.answer
         }
-        let answer = answering(arguments)
-        if arguments.first == "bootstatus", lock.withLock({ bootsHeldUntilKilled }) {
+        let reply = answering(simctlArguments)
+        if simctlArguments.first == "bootstatus", lock.withLock({ bootsHeldUntilKilled }) {
             let deadline = Date().addingTimeInterval(5)
             while lock.withLock({ killed }) == 0, Date() < deadline {
                 try? await Task.sleep(nanoseconds: 1_000_000)
             }
             return CommandResult(status: SIGKILL, endedBySignal: true, output: "", errors: "")
         }
-        if arguments.first == "bootstatus" {
+        if simctlArguments.first == "bootstatus" {
             await holdBoot()
         }
-        if arguments == ["list", "devices", "--json"], answer == nil {
+        if simctlArguments == ["list", "devices", "--json"], reply == nil {
             guard let list else {
                 return CommandResult(status: 1, endedBySignal: false, output: "", errors: "simctl failed")
             }
@@ -564,7 +564,7 @@ private final class SimctlStandIn: MuterProcess, @unchecked Sendable { // every 
                 errors: ""
             )
         }
-        let given = answer ?? Answer()
+        let given = reply ?? Answer()
         return CommandResult(
             status: given.status,
             endedBySignal: given.endedBySignal,

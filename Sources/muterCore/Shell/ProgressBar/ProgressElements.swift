@@ -66,10 +66,10 @@ struct ProgressTimeEstimates: ProgressElementType {
     }
 
     fileprivate func formatDuration(_ duration: Double) -> String {
-        let duration = Int(duration)
-        let seconds = Double(duration % 60)
-        let minutes = Double((duration / 60) % 60)
-        let hours = Double(duration / 3_600)
+        let wholeSeconds = Int(duration)
+        let seconds = Double(wholeSeconds % 60)
+        let minutes = Double((wholeSeconds / 60) % 60)
+        let hours = Double(wholeSeconds / 3_600)
         return "\(hours.format(0, minimumIntegerPartLength: 2)):"
             + "\(minutes.format(0, minimumIntegerPartLength: 2)):"
             + "\(seconds.format(0, minimumIntegerPartLength: 2))"

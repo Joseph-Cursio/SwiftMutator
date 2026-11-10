@@ -22,11 +22,11 @@ final class PruneLogFoldersTests: MuterTestCase {
     }
 
     private var sut: PruneLogFolders {
-        let calls = calls
-        let result = result
+        let callLog = calls
+        let pruned = result
         return PruneLogFolders { root, current, protected, keeping in
-            calls.change { $0.append((root, current, protected, keeping)) }
-            return result
+            callLog.change { $0.append((root, current, protected, keeping)) }
+            return pruned
         }
     }
 

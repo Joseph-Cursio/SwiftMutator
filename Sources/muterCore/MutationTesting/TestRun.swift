@@ -95,19 +95,19 @@ extension FinishedRun {
         heartbeat: (heartbeat: Heartbeat, place: String),
         running run: () async -> TestRun
     ) async -> FinishedRun {
-        let (heartbeat, place) = heartbeat
+        let (beat, place) = heartbeat
         var launched = instant()
-        heartbeat.started(place, on: worker, at: launched)
+        beat.started(place, on: worker, at: launched)
         let (testRun, launchFailure) = await TestRun.launchedOnceMore(
             ifNeededWith: configuration,
             relaunching: {
                 launched = instant()
-                heartbeat.started(place, on: worker, at: launched)
+                beat.started(place, on: worker, at: launched)
             },
             running: run
         )
         let ended = instant()
-        heartbeat.finished(on: worker, at: ended)
+        beat.finished(on: worker, at: ended)
         return FinishedRun(
             index: index,
             worker: worker,

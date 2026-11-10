@@ -682,7 +682,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         )
         ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
         var events: [String] = []
-        let sut = PerformMutationTesting(
+        let testing = PerformMutationTesting(
             makeWorkerDirectories: { [workerClone] _, count in Array(repeating: workerClone, count: count) },
             removeWorkerDirectories: { _ in events.append("clones removed") }
         )
@@ -691,7 +691,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         }
         whenSent(.newMutationTestOutcomeAvailable) { _ in withUnsafeCurrentTask { $0?.cancel() } }
 
-        let result = await sut.runInItsOwnTask(with: state)
+        let result = await testing.runInItsOwnTask(with: state)
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         XCTAssertEqual(events, ["early end sent after the end line", "clones removed"])

@@ -408,15 +408,15 @@ final class MutatedProjectLockTests: XCTestCase {
     // process, and ends as the lock is released, killing any still listed: no one would be left to kill it.
     func test_theWatcherStartsWithTheFirstTestProcess_andEndsWithTheLock() throws {
         let watchers = WatchersInThisProcess()
-        let locker = MutatedProjectLock.Locker(startWatcher: { watchers.start() })
-        let lock = try locker.lock(mutatedProject)
+        let watchedLocker = MutatedProjectLock.Locker(startWatcher: { watchers.start() })
+        let lock = try watchedLocker.lock(mutatedProject)
         XCTAssertEqual(watchers.count, 0)
         let ended = try spawnSleeper()
         let running = try spawnSleeper()
 
-        locker.testProcessStarted(ended.id)
-        locker.testProcessStarted(running.id)
-        locker.testProcessEnded(ended.id)
+        watchedLocker.testProcessStarted(ended.id)
+        watchedLocker.testProcessStarted(running.id)
+        watchedLocker.testProcessEnded(ended.id)
         XCTAssertEqual(watchers.count, 1)
         lock.release()
 
@@ -426,9 +426,9 @@ final class MutatedProjectLockTests: XCTestCase {
     }
 
     func test_aFolderThatIsMissing_saysWhy() {
-        let mutatedProject = URL(fileURLWithPath: "\(directory)/missing/x_mutated")
+        let missingProject = URL(fileURLWithPath: "\(directory)/missing/x_mutated")
 
-        XCTAssertThrowsError(try locker.lock(mutatedProject)) { error in
+        XCTAssertThrowsError(try locker.lock(missingProject)) { error in
             XCTAssertEqual(
                 error as? MutatedProjectLockError,
                 .cannotLock(path: "\(directory)/missing/x_mutated.lock", errno: ENOENT)

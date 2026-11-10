@@ -173,16 +173,16 @@ final class TestPlanCodingTests: XCTestCase {
         let temporary = try XCTUnwrap(realpath(FileManager.default.temporaryDirectory.path, nil))
         defer { free(temporary) }
         let folder = URL(fileURLWithPath: String(cString: temporary)).appendingPathComponent(UUID().uuidString)
-        let project = folder.appendingPathComponent("project")
-        let copy = folder.appendingPathComponent("project_mutated")
-        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: copy, withIntermediateDirectories: true)
+        let projectFolder = folder.appendingPathComponent("project")
+        let copyFolder = folder.appendingPathComponent("project_mutated")
+        try FileManager.default.createDirectory(at: projectFolder, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: copyFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
-        let text = try TestPlanCoding.encode(MuterTestPlan.make(mutatedProjectPath: copy.path), under: project)
+        let text = try TestPlanCoding.encode(MuterTestPlan.make(mutatedProjectPath: copyFolder.path), under: projectFolder)
 
-        let read = try TestPlanCoding.read(Data(text.utf8), path: planPath, under: project)
+        let read = try TestPlanCoding.read(Data(text.utf8), path: planPath, under: projectFolder)
 
-        XCTAssertEqual(read.mutatedProjectURL.path, copy.path)
+        XCTAssertEqual(read.mutatedProjectURL.path, copyFolder.path)
     }
 
     // Format 1 has format 2's keys, and its copy, named as SwiftMutators from before `.noindex` named it, is read as
@@ -259,25 +259,25 @@ final class TestPlanCodingTests: XCTestCase {
     }
 
     private func plan(copy: String? = nil, addingBlocksInReverse: Bool = false) throws -> MuterTestPlan {
-        let copy = copy ?? self.copy
-        var sum = SchemataMutationMapping(filePath: "\(copy)/Sources/Sum.swift")
+        let copyFolder = copy ?? self.copy
+        var sum = SchemataMutationMapping(filePath: "\(copyFolder)/Sources/Sum.swift")
         // Each block's leading spaces put its first statement at an offset of its own.
         for number in addingBlocksInReverse ? Array((1 ... 8).reversed()) : Array(1 ... 8) {
             let block = try sourceCode(String(repeating: " ", count: number) + "let block\(number) = \(number)")
-            try sum.add(block.statements, mutant(in: sum.filePath, line: number, copy: copy))
+            try sum.add(block.statements, mutant(in: sum.filePath, line: number, copy: copyFolder))
         }
         return .make(
-            mutatedProjectPath: copy,
+            mutatedProjectPath: copyFolder,
             projectCoverage: 47,
             sources: sources,
             mutatedFiles: ["Sources/Max.swift": String(repeating: "a", count: 64), "Sources/Sum.swift": "b"],
             linkedFiles: ["Sources/Max.swift": "c"],
             mappings: [
                 try .make(
-                    filePath: "\(copy)/Sources/Max.swift",
+                    filePath: "\(copyFolder)/Sources/Max.swift",
                     (
                         source: "let max = 1",
-                        schemata: [mutant(in: "\(copy)/Sources/Max.swift", line: 3, copy: copy)]
+                        schemata: [mutant(in: "\(copyFolder)/Sources/Max.swift", line: 3, copy: copyFolder)]
                     )
                 ),
                 sum,

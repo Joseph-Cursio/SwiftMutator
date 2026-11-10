@@ -115,29 +115,29 @@ enum ResultsFileError: Error, Equatable, CustomStringConvertible {
 final class ResultsFile: ResultsRecording {
     struct Opener: ResultsFileOpening {
         func create(in directory: String) throws -> ResultsRecording {
-            var path = directory
+            var filePath = directory
             for name in ResultsFile.fileNames {
-                path = (directory as NSString).appendingPathComponent(name)
+                filePath = (directory as NSString).appendingPathComponent(name)
                 // O_EXCL: a file already there is kept.
-                let descriptor = open(path, O_WRONLY | O_CREAT | O_EXCL | O_APPEND | O_CLOEXEC, 0o644)
-                guard descriptor >= 0 else {
+                let openDescriptor = open(filePath, O_WRONLY | O_CREAT | O_EXCL | O_APPEND | O_CLOEXEC, 0o644)
+                guard openDescriptor >= 0 else {
                     let code = errno
                     if code == EEXIST { continue }
-                    throw ResultsFileError.cannotOpen(path: path, errno: code)
+                    throw ResultsFileError.cannotOpen(path: filePath, errno: code)
                 }
-                return try ResultsFile(descriptor: descriptor, path: path)
+                return try ResultsFile(descriptor: openDescriptor, path: filePath)
             }
-            throw ResultsFileError.cannotOpen(path: path, errno: EEXIST)
+            throw ResultsFileError.cannotOpen(path: filePath, errno: EEXIST)
         }
 
         func openForResume(at path: String) throws -> ResultsRecording {
             // No O_CREAT: a results file that isn't there has nothing to resume.
-            let descriptor = open(path, O_RDWR | O_APPEND | O_CLOEXEC)
-            guard descriptor >= 0 else { throw ResultsFileError.cannotOpen(path: path, errno: errno) }
+            let openDescriptor = open(path, O_RDWR | O_APPEND | O_CLOEXEC)
+            guard openDescriptor >= 0 else { throw ResultsFileError.cannotOpen(path: path, errno: errno) }
             // Locked at once, so a run still writing the file is refused. Its last line is ended only before the
             // session's first line: a resume that is refused, or whose baseline fails, leaves the file as it was,
             // and so does one of a file that isn't a results file at all.
-            let file = try ResultsFile(descriptor: descriptor, path: path)
+            let file = try ResultsFile(descriptor: openDescriptor, path: path)
             file.endsLastLineFirst = true
             return file
         }
@@ -164,18 +164,18 @@ final class ResultsFile: ResultsRecording {
         writeBytes: @escaping (Int32, UnsafeRawPointer, Int) -> Int = { write($0, $1, $2) },
         synchronize: @escaping (Int32) -> Int32 = { fsync($0) }
     ) throws {
-        let holderPath = Self.holderPath(for: path)
+        let holderFile = Self.holderPath(for: path)
         guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
             let code = errno
             closeDescriptor(descriptor)
             throw code == EWOULDBLOCK
-                ? ResultsFileError.inUse(path: path, holder: Self.holder(recordedAt: holderPath))
+                ? ResultsFileError.inUse(path: path, holder: Self.holder(recordedAt: holderFile))
                 : ResultsFileError.cannotOpen(path: path, errno: code)
         }
-        Self.record(LockHolder.current(), at: holderPath)
+        Self.record(LockHolder.current(), at: holderFile)
         self.descriptor = descriptor
         self.path = path
-        self.holderPath = holderPath
+        self.holderPath = holderFile
         self.writeBytes = writeBytes
         self.synchronize = synchronize
     }

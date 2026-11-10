@@ -97,33 +97,33 @@ struct UnknownConfigurationKey: Equatable, Sendable {
     /// the start and the end they share are taken off.
     private static func differing(_ first: String, _ second: String) -> Int {
         let start = zip(first, second).prefix { $0 == $1 }.count
-        let first = first.dropFirst(start), second = second.dropFirst(start)
-        let end = zip(first.reversed(), second.reversed()).prefix { $0 == $1 }.count
-        return max(first.count, second.count) - end
+        let firstRest = first.dropFirst(start), secondRest = second.dropFirst(start)
+        let end = zip(firstRest.reversed(), secondRest.reversed()).prefix { $0 == $1 }.count
+        return max(firstRest.count, secondRest.count) - end
     }
 
     /// The fewest insertions, deletions and substitutions of a character, and swaps of two side by side, that turn
     /// `first` into `second`, each character edited once at most: `excldue` is one swap from `exclude`.
     private static func editDistance(_ first: String, _ second: String) -> Int {
-        let first = Array(first), second = Array(second)
-        guard !first.isEmpty, !second.isEmpty else { return max(first.count, second.count) }
-        var table = [[Int]](repeating: [Int](repeating: 0, count: second.count + 1), count: first.count + 1)
-        for row in 0 ... first.count { table[row][0] = row }
-        for column in 0 ... second.count { table[0][column] = column }
-        for row in 1 ... first.count {
-            for column in 1 ... second.count {
-                let cost = first[row - 1] == second[column - 1] ? 0 : 1
+        let firstCharacters = Array(first), secondCharacters = Array(second)
+        guard !firstCharacters.isEmpty, !secondCharacters.isEmpty else { return max(firstCharacters.count, secondCharacters.count) }
+        var table = [[Int]](repeating: [Int](repeating: 0, count: secondCharacters.count + 1), count: firstCharacters.count + 1)
+        for row in 0 ... firstCharacters.count { table[row][0] = row }
+        for column in 0 ... secondCharacters.count { table[0][column] = column }
+        for row in 1 ... firstCharacters.count {
+            for column in 1 ... secondCharacters.count {
+                let cost = firstCharacters[row - 1] == secondCharacters[column - 1] ? 0 : 1
                 var best = min(
                     table[row - 1][column] + 1,
                     table[row][column - 1] + 1,
                     table[row - 1][column - 1] + cost
                 )
-                if row > 1, column > 1, first[row - 1] == second[column - 2], first[row - 2] == second[column - 1] {
+                if row > 1, column > 1, firstCharacters[row - 1] == secondCharacters[column - 2], firstCharacters[row - 2] == secondCharacters[column - 1] {
                     best = min(best, table[row - 2][column - 2] + 1)
                 }
                 table[row][column] = best
             }
         }
-        return table[first.count][second.count]
+        return table[firstCharacters.count][secondCharacters.count]
     }
 }

@@ -234,9 +234,9 @@ final class PackageSchemeBuildConditionsTests: MuterTestCase {
         } ?? self.manifest
         process.commandResult = { [self] command in
             // As `xcrun` finds the tools of an Xcode `DEVELOPER_DIR` names.
-            let command = command.first == "/usr/bin/env" ? Array(command.dropFirst(2)) : command
-            switch command {
-            case _ where command.last == "-json" && command.contains("-showBuildSettings"):
+            let swiftCommand = command.first == "/usr/bin/env" ? Array(command.dropFirst(2)) : command
+            switch swiftCommand {
+            case _ where swiftCommand.last == "-json" && swiftCommand.contains("-showBuildSettings"):
                 return success("[\n\n]\n")
 
             case ["/usr/bin/xcrun", "--find", "swift"]:
@@ -245,10 +245,10 @@ final class PackageSchemeBuildConditionsTests: MuterTestCase {
             case [swift, "--version"]:
                 return success("Apple Swift version 6.4.2 (swiftlang-6.4.2.1.9 clang-2100.4.1.1)\n")
 
-            case _ where command.first == swift && command.contains("describe"):
+            case _ where swiftCommand.first == swift && swiftCommand.contains("describe"):
                 return success(packageDescription)
 
-            case _ where command.first == swift && command.last == "dump-package":
+            case _ where swiftCommand.first == swift && swiftCommand.last == "dump-package":
                 return success(dumped)
 
             default:

@@ -341,7 +341,7 @@ extension SchemataMutationMapping: CustomStringConvertible, CustomDebugStringCon
     var debugDescription: String { description }
 
     var description: String {
-        let description = mappings.sorted { $0.key < $1.key }.reduce(into: "") { accum, entry in
+        let listing = mappings.sorted { $0.key < $1.key }.reduce(into: "") { accum, entry in
             let (key, schemata) = entry
             let source = (codeBlockText[key] ?? key.text)
                 .replacingOccurrences(of: "\n", with: "\\n")
@@ -354,7 +354,7 @@ extension SchemataMutationMapping: CustomStringConvertible, CustomDebugStringCon
         }
         return """
         SchemataMutationMapping(
-            \(description)
+            \(listing)
         )
         """
     }

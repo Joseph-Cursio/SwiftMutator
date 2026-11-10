@@ -49,9 +49,9 @@ struct XcodeProjectFile {
     /// Nil when `bytes` isn't an old-style property list with a dictionary at its root.
     init?(_ bytes: [UInt8]) {
         var parser = Parser(bytes: bytes)
-        guard let root = parser.value(), case .dictionary = root else { return nil }
+        guard let rootValue = parser.value(), case .dictionary = rootValue else { return nil }
         self.bytes = bytes
-        self.root = root
+        self.root = rootValue
     }
 
     /// The project's objects, each by its identifier.

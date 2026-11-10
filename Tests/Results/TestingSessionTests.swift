@@ -5,17 +5,17 @@ import XCTest
 final class TestingSessionTests: XCTestCase {
     private let file = SlowFile()
     private lazy var session: TestingSession = {
-        let session = TestingSession(startedAt: Date(timeIntervalSince1970: 0))
-        _ = session.startResults(in: file, writing: [])
-        return session
+        let made = TestingSession(startedAt: Date(timeIntervalSince1970: 0))
+        _ = made.startResults(in: file, writing: [])
+        return made
     }()
 
     func test_theEndLineAtOnce_waitsForTheLineUnderWay_andCountsIt() throws {
-        let session = session
-        let writing = Thread.detach { _ = session.append({ "mutant" }, isAMutant: true) }
+        let sessionUnderTest = session
+        let writing = Thread.detach { _ = sessionUnderTest.append({ "mutant" }, isAMutant: true) }
         XCTAssertTrue(file.started.wait(timeout: .now() + 5) == .success)
 
-        let ending = Thread.detach { session.end(waitingAtMost: 5) { Self.endLine(recorded: $0) } }
+        let ending = Thread.detach { sessionUnderTest.end(waitingAtMost: 5) { Self.endLine(recorded: $0) } }
         Thread.sleep(forTimeInterval: 0.1)
         XCTAssertEqual(file.lines, [], "the end line came inside the line under way")
         file.finish.signal() // for the mutant's line
@@ -29,8 +29,8 @@ final class TestingSessionTests: XCTestCase {
 
     // As on a disk that has stopped answering: SwiftMutator must still stop.
     func test_theEndLineAtOnce_givesUpOnALineThatTakesTooLong() throws {
-        let session = session
-        let writing = Thread.detach { _ = session.append({ "mutant" }, isAMutant: true) }
+        let sessionUnderTest = session
+        let writing = Thread.detach { _ = sessionUnderTest.append({ "mutant" }, isAMutant: true) }
         XCTAssertTrue(file.started.wait(timeout: .now() + 5) == .success)
         defer {
             file.finish.signal()
@@ -38,7 +38,7 @@ final class TestingSessionTests: XCTestCase {
         }
 
         let start = Date()
-        session.end(waitingAtMost: 0.2) { Self.endLine(recorded: $0) }
+        sessionUnderTest.end(waitingAtMost: 0.2) { Self.endLine(recorded: $0) }
 
         XCTAssertLessThan(Date().timeIntervalSince(start), 2)
         XCTAssertEqual(file.lines, [])
@@ -60,15 +60,15 @@ final class TestingSessionTests: XCTestCase {
     // A resumed session's header and its `retired` line: an end line between them would end the session before it
     // retired the results it doesn't keep.
     func test_theEndLineAtOnce_comesAfterTheFirstLines_neverBetweenThem() throws {
-        let session = TestingSession(number: 2, startedAt: Date(timeIntervalSince1970: 0))
+        let secondSession = TestingSession(number: 2, startedAt: Date(timeIntervalSince1970: 0))
         let header = ResultsHeader.make(formatVersion: ResultsCoding.resumedFormatVersion, session: 2)
         let retired = ResultsRetired(session: 2, keys: [MutantResult.make().key])
-        let starting = Thread.detach { [file] in _ = session.startResults(in: file, writing: [header, retired]) }
+        let starting = Thread.detach { [file] in _ = secondSession.startResults(in: file, writing: [header, retired]) }
         XCTAssertTrue(file.started.wait(timeout: .now() + 5) == .success)
 
         // The end line waits for the first lines to be written, not only to start: if it reached the file while they
         // were under way, it would come among them.
-        let ending = Thread.detach { session.end(waitingAtMost: 5) { Self.endLine(recorded: $0) } }
+        let ending = Thread.detach { secondSession.end(waitingAtMost: 5) { Self.endLine(recorded: $0) } }
         XCTAssertTrue(file.started.wait(timeout: .now() + 0.2) == .timedOut, "the end line came among the first lines")
         file.finish.signal() // for the first lines
         XCTAssertTrue(file.started.wait(timeout: .now() + 5) == .success, "the end line wasn't written")
@@ -82,11 +82,11 @@ final class TestingSessionTests: XCTestCase {
 
     // Before its first lines, a session has no file, and a stop at once ends nothing: the process exits next.
     func test_theEndLineAtOnce_beforeTheFirstLines_writesNothing() throws {
-        let session = TestingSession(startedAt: Date(timeIntervalSince1970: 0))
+        let newSession = TestingSession(startedAt: Date(timeIntervalSince1970: 0))
 
-        session.end(waitingAtMost: 1) { Self.endLine(recorded: $0) }
+        newSession.end(waitingAtMost: 1) { Self.endLine(recorded: $0) }
 
-        XCTAssertNil(session.results)
+        XCTAssertNil(newSession.results)
         XCTAssertEqual(file.lines, [])
         XCTAssertFalse(file.isClosed)
     }

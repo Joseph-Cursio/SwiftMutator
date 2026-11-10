@@ -641,15 +641,15 @@ private extension CompileRecoveryTests {
     }
 
     func file(_ code: String, at filePath: String? = nil) throws -> File {
-        let filePath = filePath ?? path
-        let source = SourceCodeInfo(path: filePath, code: Parser.parse(source: code))
+        let mutatedFile = filePath ?? path
+        let source = SourceCodeInfo(path: mutatedFile, code: Parser.parse(source: code))
         let mapping = try XCTUnwrap(generateSchemataMappings(for: source).first)
         XCTAssertGreaterThan(mapping.mutationSchemata.count, 1)
         return File(
             mapping: mapping,
             prepared: code,
             rewritten: MuterRewriter(mapping).visit(source.code).description,
-            path: filePath
+            path: mutatedFile
         )
     }
 
@@ -679,8 +679,8 @@ private extension CompileRecoveryTests {
 
     /// The range of the first token of `id`'s branch.
     func branchBody(of id: String, in code: String) throws -> Range<String.Index> {
-        let id = try XCTUnwrap(code.range(of: "\"\(id)\"] != nil"), code)
-        let brace = try XCTUnwrap(code[id.upperBound...].firstIndex(of: "{"), code)
+        let idRange = try XCTUnwrap(code.range(of: "\"\(id)\"] != nil"), code)
+        let brace = try XCTUnwrap(code[idRange.upperBound...].firstIndex(of: "{"), code)
         let condition = brace ..< code.index(after: brace)
         let start = try XCTUnwrap(code[condition.upperBound...].firstIndex { !$0.isWhitespace && !$0.isNewline }, code)
         return start ..< code.index(after: start)

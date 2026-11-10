@@ -170,8 +170,8 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
     func test_oneWorker_aMacDestination_makesNoSimulator_andSaysNothing() async throws {
         let choices = sentChoices()
         let destinations = ["platform=macOS", "platform=macOS,variant=Mac Catalyst", "generic/platform=iOS Simulator"]
-        for destination in destinations {
-            configure(destination: destination)
+        for workerDestination in destinations {
+            configure(destination: workerDestination)
             ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 6)
 
             _ = try await sut.run(with: state)

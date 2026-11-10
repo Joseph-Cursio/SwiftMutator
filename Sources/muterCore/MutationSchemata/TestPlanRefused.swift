@@ -8,10 +8,10 @@ struct TestPlanRefused: Error, Equatable, CustomStringConvertible {
     let reason: TestPlanRefusal
 
     var description: String {
-        let reason = "\(reason)"
+        let reasonText = "\(reason)"
         // A reason of several lines ends in a list or a command, which this sentence doesn't belong to.
-        let separator = reason.contains("\n") ? "\n" : " "
-        return "SwiftMutator won't test the plan \(Logger.shellQuoted(path)): \(reason)\(separator)Nothing was tested."
+        let separator = reasonText.contains("\n") ? "\n" : " "
+        return "SwiftMutator won't test the plan \(Logger.shellQuoted(path)): \(reasonText)\(separator)Nothing was tested."
     }
 }
 

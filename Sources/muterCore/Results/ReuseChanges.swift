@@ -144,16 +144,16 @@ extension ReuseChanges {
         case type(String)
 
         init?(_ name: String) {
-            var name = Substring(name)
-            let isSuite = name.hasPrefix("Suite ")
+            var remaining = Substring(name)
+            let isSuite = remaining.hasPrefix("Suite ")
             if isSuite {
-                name = name.dropFirst("Suite ".count)
+                remaining = remaining.dropFirst("Suite ".count)
             }
-            if name.hasPrefix("\""), name.hasSuffix("\""), name.count > 2 {
-                self = .displayName(String(name))
+            if remaining.hasPrefix("\""), remaining.hasSuffix("\""), remaining.count > 2 {
+                self = .displayName(String(remaining))
                 return
             }
-            let identifier = String(name.prefix { $0 != "(" })
+            let identifier = String(remaining.prefix { $0 != "(" })
             guard !identifier.isEmpty, identifier.allSatisfy(Self.isIdentifierCharacter) else { return nil }
             self = isSuite ? .type(identifier) : .function(identifier)
         }

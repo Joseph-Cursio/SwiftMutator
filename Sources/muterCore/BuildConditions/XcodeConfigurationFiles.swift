@@ -44,8 +44,8 @@ extension XcodeBuildConditions {
             let anchor = object["baseConfigurationReferenceAnchor"] as? String
             let relativePath = object["baseConfigurationReferenceRelativePath"] as? String
             if let reference {
-                guard let file = project.location(of: reference) else { return nil }
-                files.append(file)
+                guard let location = project.location(of: reference) else { return nil }
+                files.append(location)
             }
             if anchor != nil || relativePath != nil {
                 guard let anchor, let relativePath, !relativePath.contains("$"),
@@ -114,8 +114,8 @@ extension XcodeBuildConditions {
             if let project = ProjectFile(file) {
                 return project.objects.values.flatMap { object in
                     (object["buildSettings"] as? [String: Any] ?? [:]).map { key, value in
-                        let value = (value as? [String])?.joined(separator: " ") ?? value as? String ?? ""
-                        return (settingName(key), value)
+                        let text = (value as? [String])?.joined(separator: " ") ?? value as? String ?? ""
+                        return (settingName(key), text)
                     }
                 }
             }
@@ -193,9 +193,9 @@ private struct ProjectFile {
         guard !file.path.isEmpty,
               let plist = try? PropertyListSerialization.propertyList(from: Data(file.text.utf8), format: nil),
               let project = plist as? [String: Any],
-              let objects = project["objects"] as? [String: [String: Any]],
-              let projectObject = (project["rootObject"] as? String).flatMap({ objects[$0] }),
-              let mainGroup = projectObject["mainGroup"] as? String
+              let projectObjects = project["objects"] as? [String: [String: Any]],
+              let projectObject = (project["rootObject"] as? String).flatMap({ projectObjects[$0] }),
+              let mainGroupID = projectObject["mainGroup"] as? String
         else {
             return nil
         }
@@ -203,18 +203,18 @@ private struct ProjectFile {
         let projectDirectory = projectObject["projectDirPath"] as? String ?? ""
         guard !projectDirectory.contains("$") else { return nil }
 
-        self.objects = objects
-        self.mainGroup = mainGroup
+        self.objects = projectObjects
+        self.mainGroup = mainGroupID
         sourceRoot = projectDirectory.hasPrefix("/")
             ? projectDirectory
             : projectDirectory.isEmpty ? projectFolder : projectFolder + "/" + projectDirectory
-        var parents: [String: Set<String>] = [:]
-        for (id, object) in objects {
+        var groupParents: [String: Set<String>] = [:]
+        for (id, object) in projectObjects {
             for child in object["children"] as? [String] ?? [] {
-                parents[child, default: []].insert(id)
+                groupParents[child, default: []].insert(id)
             }
         }
-        self.parents = parents
+        self.parents = groupParents
     }
 
     /// Where the file or group `id` is, as Xcode resolves it; nil if SwiftMutator can't tell.

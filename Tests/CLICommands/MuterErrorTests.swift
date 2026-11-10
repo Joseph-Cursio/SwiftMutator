@@ -81,14 +81,14 @@ final class MuterErrorTests: XCTestCase {
             .workerBaselineTestFailed(worker: 2, directory: "/p_mutated_worker_2", log: "error: no such module"),
             .simulatorUnavailable(worker: 1, line: "No matching device (X)", log: "/logs/x (simulator gone).log"),
         ]
-        for reason in reasons {
-            XCTAssertEqual(MuterError.mutationTestingAborted(reason: reason).description, "\(reason)")
+        for failure in reasons {
+            XCTAssertEqual(MuterError.mutationTestingAborted(reason: failure).description, "\(failure)")
         }
     }
 
     func test_aLiteral_isItsReason_asItIs() {
-        let reason = "Please provide the path to the test plan json."
-        XCTAssertEqual(MuterError.literal(reason: reason).description, reason)
+        let expectedReason = "Please provide the path to the test plan json."
+        XCTAssertEqual(MuterError.literal(reason: expectedReason).description, expectedReason)
         XCTAssertEqual(MuterError.literal(reason: "").description, "")
     }
 

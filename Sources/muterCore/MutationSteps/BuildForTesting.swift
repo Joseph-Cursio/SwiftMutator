@@ -28,10 +28,10 @@ struct BuildForTesting: MutationStep {
         fileManager.changeCurrentDirectoryPath(state.mutatedProjectDirectoryURL.path)
 
         do {
-            let buildDirectory = try buildDirectory(state.muterConfiguration)
+            let directory = try buildDirectory(state.muterConfiguration)
             let leftOut = try await buildLeavingOutMutants(state: state)
             let tempDebugURL = createTestContetsUrl(state.mutatedProjectDirectoryURL)
-            try copyBuildArtifactsAtPath(buildDirectory, to: tempDebugURL.path)
+            try copyBuildArtifactsAtPath(directory, to: tempDebugURL.path)
 
             let xcTestRun = try parseXCTestRunAt(tempDebugURL)
             let canTurnOffTestDiagnostics = await takesNoTestDiagnostics(state.muterConfiguration)

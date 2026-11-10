@@ -139,11 +139,11 @@ struct MuterConfiguration: Equatable, Codable {
             return explicitBuildSystem
         }
 
-        guard let buildSystem = testCommandExecutable.components(separatedBy: "/").last?.trimmed else {
+        guard let executableName = testCommandExecutable.components(separatedBy: "/").last?.trimmed else {
             return .unknown
         }
 
-        return BuildSystem(rawValue: buildSystem)
+        return BuildSystem(rawValue: executableName)
     }
 
     enum CodingKeys: String, CodingKey, CaseIterable {
@@ -529,7 +529,7 @@ struct MuterConfiguration: Equatable, Codable {
         if written == BuildSystem.recordedUnknown {
             return nil
         }
-        guard let written, let buildSystem = BuildSystem(written: written) else {
+        guard let written, let writtenSystem = BuildSystem(written: written) else {
             throw DecodingError.dataCorruptedError(
                 forKey: key,
                 in: container,
@@ -537,7 +537,7 @@ struct MuterConfiguration: Equatable, Codable {
                     + Self.writtenValue(forKey: key, in: container)
             )
         }
-        return buildSystem
+        return writtenSystem
     }
 
     /// ", not <value>", the scalar `key` holds as written, or "" when it holds a list or a mapping.

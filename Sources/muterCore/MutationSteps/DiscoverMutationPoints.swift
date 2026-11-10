@@ -473,8 +473,8 @@ struct NamedMutant: Sendable {
 
     /// nil unless `--mutant` is given.
     init?(_ state: AnyMutationTestState) {
-        guard let reference = state.runOptions.mutant else { return nil }
-        self.reference = reference.relative(toFirstOf: [state.projectDirectoryURL, state.mutatedProjectDirectoryURL])
+        guard let mutantReference = state.runOptions.mutant else { return nil }
+        self.reference = mutantReference.relative(toFirstOf: [state.projectDirectoryURL, state.mutatedProjectDirectoryURL])
         configuredOperators = try? state.runOptions.operatorsFromTheKeys(of: state.muterConfiguration)
     }
 

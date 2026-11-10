@@ -495,7 +495,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     // only for an architecture named, as in this real export, where it warned first. This Mac's is named then, not
     // from the start: llvm-cov would then fail for a binary built only for another, as for an Intel Mac's destination.
     func test_aUniversalBinary_isReadForThisMacsArchitecture() async throws {
-        let sut = XcodeBuildCoverage(architecture: "arm64")
+        let armCoverage = XcodeBuildCoverage(architecture: "arm64")
         let universal = result(status: 1, errors: """
         warning: App: profile data may be out of date - object is newer
         error: failed to load coverage: 'App.debug.dylib': `-arch` specifier is invalid or missing for universal binary
@@ -506,7 +506,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             command.contains("-arch") ? self.result(output: self.loadFixture("llvmCovExport.json")) : universal
         }
 
-        let coverage = try await sut.run(with: muterConfiguration).get()
+        let coverage = try await armCoverage.run(with: muterConfiguration).get()
 
         let export = [
             "/usr/bin/xcrun", "llvm-cov", "export", app, "-object", app + ".debug.dylib", "-instr-profile", profile,
@@ -847,12 +847,12 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     // With both moved, only `-showBuildSettings` can say where the build is, and for a package's scheme it says
     // nothing.
     func test_withNeitherInTheDerivedData_theProfile_isLookedForAboveBuildDir_ifThereIsOne() async throws {
-        let packageReport = packageReport(in: "/project/out/Debug")
+        let report = packageReport(in: "/project/out/Debug")
         let testsExport: (([String]) -> CommandResult?) = { _ in
             self.result(output: self.loadFixture("llvmCovExport_xcodebuildPackage.json"))
         }
         answerWithACoverageRun(
-            report: packageReport,
+            report: report,
             existing: [false, true, false],
             log: "/out/Coverage.xcresult\n",
             buildSettings: "Build settings for action test and target CalcTests:\n    BUILD_DIR = /project/out\n",
@@ -865,7 +865,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
         XCTAssertEqual(profilesLookedFor, ["/project"])
 
         answerWithACoverageRun(
-            report: packageReport,
+            report: report,
             existing: [false, true, false],
             log: "/out/Coverage.xcresult\n",
             buildSettings: "",
@@ -884,12 +884,12 @@ final class XcodeBuildCoverageTests: MuterTestCase {
     // hold the profile of a run from before the setting changed. The newest profile is the run's.
     func test_theNewestProfile_inAnyBuildFolder_isTheRuns() async {
         let fresh = "/project/Build/Intermediates.noindex/CodeCoverage/ProfileData/MAC/Coverage.profdata"
-        let app = "/project/Build/Products/Debug/App.app/Contents/MacOS/App"
+        let appBinary = "/project/Build/Products/Debug/App.app/Contents/MacOS/App"
         answerWithACoverageRun(
             report: report(
                 target(
                     "App.app",
-                    buildProductPath: app,
+                    buildProductPath: appBinary,
                     files: [file("/project/App/Model.swift", executable: 4, covered: 2)]
                 )
             ),
@@ -902,7 +902,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
 
         XCTAssertEqual(profilesLookedFor, ["/DerivedData/Build", "/project/Build"])
         XCTAssertEqual(process.arguments, ["-t", profile, fresh])
-        XCTAssertEqual(process.commandsRun.last, ["/usr/bin/xcrun", "llvm-cov", "export", app, "-instr-profile", fresh])
+        XCTAssertEqual(process.commandsRun.last, ["/usr/bin/xcrun", "llvm-cov", "export", appBinary, "-instr-profile", fresh])
     }
 
     // A package's test target can have a `path` of its own, outside a `Tests` folder, and xccov names its files. Nor do

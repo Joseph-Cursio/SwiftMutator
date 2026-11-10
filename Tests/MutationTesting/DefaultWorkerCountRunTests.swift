@@ -113,7 +113,7 @@ final class DefaultWorkerCountRunTests: MuterTestCase {
     func test_aCloneThatCanNotBeCopied_dropsTheRunToOneWorker_withANotice() async throws {
         try testing(60)
         ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .failed, count: 60)
-        let sut = PerformMutationTesting(
+        let testing = PerformMutationTesting(
             makeWorkerDirectories: { [workerClone] _, _ in
                 throw PerformMutationTesting.WorkerDirectoryError(
                     clone: workerClone, status: 1, error: "No space left on device"
@@ -122,7 +122,7 @@ final class DefaultWorkerCountRunTests: MuterTestCase {
             removeWorkerDirectories: { [unowned self] in removedClones.append($0) }
         )
 
-        _ = try await sut.run(with: state)
+        _ = try await testing.run(with: state)
 
         XCTAssertEqual(removedClones, [], "a copy that fails removes what it made")
         XCTAssertEqual(try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first).workers, 1)

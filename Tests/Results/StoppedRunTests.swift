@@ -107,9 +107,9 @@ final class StoppedRunTests: MuterTestCase {
         let once = recorder()
         once.record(.interrupted(signal: SIGINT), at: stopped)
         once.record(.interrupted(signal: SIGINT), at: stopped)
-        let started = recorder()
-        started.resultsStart()
-        started.record(.interrupted(signal: SIGINT), at: stopped)
+        let startedRecorder = recorder()
+        startedRecorder.resultsStart()
+        startedRecorder.record(.interrupted(signal: SIGINT), at: stopped)
         recorder().record(.aborted(.tooManyBuildErrors), at: stopped)
         recorder(testsMutants: false).record(.interrupted(signal: SIGINT), at: stopped)
         recorder(logDirectory: "").record(.interrupted(signal: SIGINT), at: stopped)
@@ -221,15 +221,15 @@ final class StoppedRunTests: MuterTestCase {
     }
 
     func test_aResumeOrReuseOfAStoppedRun_isRefused_sayingWhatToDo() {
-        let stopped = ResultsStopped.make(step: .baseline, reason: .failed, detail: "baselineTestFailed")
+        let stoppedRecord = ResultsStopped.make(step: .baseline, reason: .failed, detail: "baselineTestFailed")
         let resumed = ResultsStopped.make(step: .baseline, reason: .failed, detail: nil, resuming: "/a/r.jsonl")
 
         XCTAssertEqual(
-            ResumeRefusal.stoppedBeforeFirstMutant(stopped).describe(reusing: false),
+            ResumeRefusal.stoppedBeforeFirstMutant(stoppedRecord).describe(reusing: false),
             "its run stopped before its first mutant, so it has no result: the baseline run failed.\n"
                 + "Fix that, then start a new run, without --resume."
         )
-        XCTAssertTrue(ResumeRefusal.stoppedBeforeFirstMutant(stopped).describe(reusing: true)
+        XCTAssertTrue(ResumeRefusal.stoppedBeforeFirstMutant(stoppedRecord).describe(reusing: true)
             .hasSuffix("Fix that, then start a run without --reuse."))
         XCTAssertTrue(ResumeRefusal.stoppedBeforeFirstMutant(resumed).describe(reusing: false)
             .hasSuffix("Fix that, then --resume \(Logger.shellQuoted("/a/r.jsonl")), the run it was resuming."))

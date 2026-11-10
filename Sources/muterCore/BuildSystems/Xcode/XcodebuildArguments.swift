@@ -26,27 +26,27 @@ struct XcodebuildArguments: Equatable {
     let arguments: [Argument]
 
     init(_ written: [String]) {
-        var arguments: [Argument] = []
+        var parsed: [Argument] = []
         var index = 0
         while index < written.count {
             let argument = written[index]
             if Self.actions.contains(argument) {
-                arguments.append(Argument(kind: .action, name: argument, written: [argument]))
+                parsed.append(Argument(kind: .action, name: argument, written: [argument]))
             } else if argument.hasPrefix("-") {
                 let name = argument.split(separator: ":", maxSplits: 1).first.map(String.init) ?? argument
                 let takesAValue = name == argument && Self.optionsWithAValue.contains(name) && index + 1 < written.count
-                arguments.append(Argument(
+                parsed.append(Argument(
                     kind: .option,
                     name: name,
                     written: takesAValue ? [argument, written[index + 1]] : [argument]
                 ))
                 index += takesAValue ? 1 : 0
             } else {
-                arguments.append(Argument(kind: .other, name: argument, written: [argument]))
+                parsed.append(Argument(kind: .other, name: argument, written: [argument]))
             }
             index += 1
         }
-        self.arguments = arguments
+        self.arguments = parsed
     }
 
     /// The arguments as written, less those `isLeftOut` picks, each with its value.

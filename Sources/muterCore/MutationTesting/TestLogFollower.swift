@@ -18,8 +18,8 @@ struct LogLineBuffer {
     mutating func append(_ bytes: Data) -> [String] {
         var bytes = bytes
         if isDroppingLine {
-            guard let lineBreak = bytes.firstIndex(of: Self.lineBreak) else { return [] }
-            bytes = bytes[bytes.index(after: lineBreak)...]
+            guard let breakIndex = bytes.firstIndex(of: Self.lineBreak) else { return [] }
+            bytes = bytes[bytes.index(after: breakIndex)...]
             isDroppingLine = false
         }
         pending.append(bytes)

@@ -61,8 +61,8 @@ struct RecordedResults {
         // The last line is empty when the file ends in a line break, and an empty line is never unreadable.
         results.endsWithCutOffLine = results.unreadableLines.last == lines.count
         guard !results.sessions.isEmpty else {
-            if let stopped = results.stopped {
-                throw ResultsFileError.stoppedBeforeFirstMutant(path: path, stopped)
+            if let stoppedRecord = results.stopped {
+                throw ResultsFileError.stoppedBeforeFirstMutant(path: path, stoppedRecord)
             }
             throw ResultsFileError.notAResultsFile(path: path)
         }

@@ -16,13 +16,13 @@ struct ProjectSourceFiles {
     /// test targets build, as a report names them, which the rules for paths miss when a test target isn't in a
     /// `Tests` folder.
     init(root: FilePath, buildFolders: [FilePath] = [], testFiles: [FilePath] = []) {
-        let roots = Set([root, root.canonicalPath]).map { $0.hasSuffix("/") ? $0 : $0 + "/" }
-        self.roots = roots
+        let rootPrefixes = Set([root, root.canonicalPath]).map { $0.hasSuffix("/") ? $0 : $0 + "/" }
+        self.roots = rootPrefixes
         self.buildFolders = buildFolders
-            .compactMap { Self.relativePath($0, to: roots) ?? Self.relativePath($0.canonicalPath, to: roots) }
+            .compactMap { Self.relativePath($0, to: rootPrefixes) ?? Self.relativePath($0.canonicalPath, to: rootPrefixes) }
             .map { $0.hasSuffix("/") ? $0 : $0 + "/" }
         self.testFiles = Set(testFiles.compactMap {
-            Self.relativePath($0, to: roots) ?? Self.relativePath($0.canonicalPath, to: roots)
+            Self.relativePath($0, to: rootPrefixes) ?? Self.relativePath($0.canonicalPath, to: rootPrefixes)
         })
     }
 

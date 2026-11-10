@@ -27,7 +27,7 @@ struct SimulatorDestination: Equatable, Sendable {
             }
             values[String(keyAndValue[0]).trimmed.lowercased()] = String(keyAndValue[1]).trimmed
         }
-        if let platform = values["platform"], !platform.hasSuffix(" Simulator") {
+        if let platformName = values["platform"], !platformName.hasSuffix(" Simulator") {
             return nil
         }
         guard values["platform"] != nil || values["id"] != nil || values["name"] != nil else {

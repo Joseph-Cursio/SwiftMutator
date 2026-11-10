@@ -19,8 +19,8 @@ enum MutationSwitch {
         guard !mutationSchemata.isEmpty else {
             return originalSyntax
         }
-        let originalSyntax = returningItsExpression ? returning(originalSyntax) : originalSyntax
-        var branches = branches(switchingOn: mutationSchemata, of: originalSyntax)
+        let originalCode = returningItsExpression ? returning(originalSyntax) : originalSyntax
+        var branches = branches(switchingOn: mutationSchemata, of: originalCode)
         if returningItsExpression {
             branches = branches.map(returning)
         }
@@ -30,10 +30,10 @@ enum MutationSwitch {
 
         var previousElseBody = IfExprSyntax.ElseBody(
             CodeBlockSyntax(
-                statements: originalSyntax,
+                statements: originalCode,
                 rightBrace: closingBrace(
-                    of: originalSyntax,
-                    indentedLike: originalSyntax,
+                    of: originalCode,
+                    indentedLike: originalCode,
                     onALineStartingWith: firstLineStart()
                 )
             )
@@ -70,7 +70,7 @@ enum MutationSwitch {
         let outterIfStatement = IfExprSyntax(
             ifKeyword: .keyword(.if)
                 .withTrailingTrivia(.spaces(1))
-                .withLeadingTrivia(originalSyntax.leadingTrivia),
+                .withLeadingTrivia(originalCode.leadingTrivia),
             conditions: buildSchemataCondition(
                 withId: firstSchema.id,
                 readingFrom: environmentCacheName
@@ -79,7 +79,7 @@ enum MutationSwitch {
                 statements: firstStatements,
                 rightBrace: closingBrace(
                     of: firstStatements,
-                    indentedLike: originalSyntax,
+                    indentedLike: originalCode,
                     onALineStartingWith: firstLineStart()
                 )
             ),

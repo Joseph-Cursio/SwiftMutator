@@ -31,14 +31,14 @@ final class RunMarker {
     /// that isn't there. That stops nothing: a folder with no marker is pruned only once it holds a results file, which
     /// its run holds a lock on while it writes it.
     static func hold(in folder: String) -> RunMarker? {
-        let path = (folder as NSString).appendingPathComponent(fileName)
-        let descriptor = open(path, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o644)
-        guard descriptor >= 0 else { return nil }
-        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
-            _ = close(descriptor)
+        let markerPath = (folder as NSString).appendingPathComponent(fileName)
+        let openDescriptor = open(markerPath, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o644)
+        guard openDescriptor >= 0 else { return nil }
+        guard flock(openDescriptor, LOCK_EX | LOCK_NB) == 0 else {
+            _ = close(openDescriptor)
             return nil
         }
-        return RunMarker(descriptor: descriptor, path: path)
+        return RunMarker(descriptor: openDescriptor, path: markerPath)
     }
 
     /// Releases the lock. Done when the marker goes, and once the run's folder is removed.

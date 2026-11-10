@@ -128,14 +128,14 @@ enum XcodeBuildConditions {
             else {
                 return [:]
             }
-            guard let targets = targetsOfList[list.canonicalPath] else {
+            guard let listTargets = targetsOfList[list.canonicalPath] else {
                 unreported.formUnion(files.map(\.canonicalPath))
                 continue
             }
             aReportedListIsAllThere = aReportedListIsAllThere || files.allSatisfy(fileManager.fileExists)
             for file in files {
                 reported[file.canonicalPath, default: ([], [])].spellings.insert(file)
-                reported[file.canonicalPath, default: ([], [])].targets += targets
+                reported[file.canonicalPath, default: ([], [])].targets += listTargets
             }
         }
         // Lists that each name a file that's there, as a check that they read as Xcode writes them.
@@ -145,8 +145,8 @@ enum XcodeBuildConditions {
         var ofFile: [FilePath: [Set<String>]] = [:]
         for (file, found) in reported where !unreported.contains(file) {
             for spelling in found.spellings.union([file]) {
-                if let root = roots.first(where: spelling.hasPrefix) {
-                    ofFile[String(spelling.dropFirst(root.count))] = found.targets
+                if let matchedRoot = roots.first(where: spelling.hasPrefix) {
+                    ofFile[String(spelling.dropFirst(matchedRoot.count))] = found.targets
                 }
             }
         }

@@ -78,8 +78,8 @@ final class ReadmeReferenceTests: MuterTestCase {
                 XCTFail("README.md's ### \(name) has a row for \(row), which isn't a flag of \(name).")
             }
             for row in namedRunRows where !row.contains(where: flags.contains) {
-                let row = row.joined(separator: ", ")
-                XCTFail("README.md's ### \(name) names run's \(row), which \(name) doesn't take.")
+                let rowText = row.joined(separator: ", ")
+                XCTFail("README.md's ### \(name) names run's \(rowText), which \(name) doesn't take.")
             }
         }
     }

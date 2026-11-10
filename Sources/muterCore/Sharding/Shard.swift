@@ -27,13 +27,13 @@ struct Shard: Hashable, Sendable, CustomStringConvertible {
         let parts = text.split(separator: "/", omittingEmptySubsequences: false)
         guard parts.count == 2,
               parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy { ("0"..."9").contains($0) } }),
-              let index = Int(parts[0]),
-              let count = Int(parts[1]),
-              index >= 1,
-              index <= count,
-              count <= Self.largestCount
+              let parsedIndex = Int(parts[0]),
+              let parsedCount = Int(parts[1]),
+              parsedIndex >= 1,
+              parsedIndex <= parsedCount,
+              parsedCount <= Self.largestCount
         else { return nil }
-        self.init(index: index, count: count)
+        self.init(index: parsedIndex, count: parsedCount)
     }
 
     /// "1/2", as `--shard` takes it.

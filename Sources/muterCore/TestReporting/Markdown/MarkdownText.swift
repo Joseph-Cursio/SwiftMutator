@@ -20,18 +20,18 @@ enum MarkdownText {
     /// it, and padded with a space where it starts or ends with a backtick, or with a space on both sides, which the
     /// fence would otherwise take. Nothing is escaped within it, as Markdown escapes nothing in code.
     static func code(_ text: String) -> String {
-        let text = oneLine(text)
-        guard !text.isEmpty else { return "" }
+        let flattened = oneLine(text)
+        guard !flattened.isEmpty else { return "" }
         var longest = 0
         var run = 0
-        for character in text {
+        for character in flattened {
             run = character == "`" ? run + 1 : 0
             longest = max(longest, run)
         }
         let fence = String(repeating: "`", count: longest + 1)
-        let padded = text.first == "`" || text.last == "`" || (text.first == " " && text.last == " ")
+        let padded = flattened.first == "`" || flattened.last == "`" || (flattened.first == " " && flattened.last == " ")
         let pad = padded ? " " : ""
-        return fence + pad + text + pad + fence
+        return fence + pad + flattened + pad + fence
     }
 
     /// `text` as a code span in a table's cell, whose `|` would end the cell even within code: GitHub reads `\|`

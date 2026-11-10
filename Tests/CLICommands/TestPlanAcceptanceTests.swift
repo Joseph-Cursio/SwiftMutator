@@ -184,8 +184,8 @@ final class TestPlanAcceptanceTests: XCTestCase {
             tested.output
         )
         let lines = try records(in: onlyResultsFile())
-        let project = try XCTUnwrap(lines.first?["project"] as? [String: Any])
-        XCTAssertEqual((project["files"] as? [String: String])?["Sources/Lib/Bounds.swift"], fixed)
+        let projectEntry = try XCTUnwrap(lines.first?["project"] as? [String: Any])
+        XCTAssertEqual((projectEntry["files"] as? [String: String])?["Sources/Lib/Bounds.swift"], fixed)
         let boundsHashes = lines
             .filter { ($0["path"] as? String) == "Sources/Lib/Bounds.swift" }
             .compactMap { $0["fileSHA256"] as? String }
@@ -293,10 +293,10 @@ final class TestPlanAcceptanceTests: XCTestCase {
         XCTAssertFalse(stopped.output.contains("none of the 2 files it mutates"), stopped.output)
         XCTAssertEqual(ranLines(), [], "something was tested")
 
-        let configuration = project.appendingPathComponent("muter.conf.yml").path
+        let configurationPath = project.appendingPathComponent("muter.conf.yml").path
         let refused = try waitForEnd(
             of: launch(
-                ["run-without-mutating", "--skip-update-check", "--configuration", configuration, plan.path],
+                ["run-without-mutating", "--skip-update-check", "--configuration", configurationPath, plan.path],
                 in: sources
             )
         )

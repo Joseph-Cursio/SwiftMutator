@@ -14,9 +14,9 @@ extension MuterConfiguration {
     /// what `XcodebuildTrustCheck` looks for in it is looked for only below the project's folder.
     init(from directoryContents: [FilePath], in directory: FilePath? = nil) async {
         let base = directory.map { URL(fileURLWithPath: $0, isDirectory: true) }
-        let directoryContents = directoryContents.map { URL(fileURLWithPath: $0, relativeTo: base) }
+        let contentURLs = directoryContents.map { URL(fileURLWithPath: $0, relativeTo: base) }
         for generate in Self.generators {
-            if let generatedConfiguration = await generate(directoryContents) {
+            if let generatedConfiguration = await generate(contentURLs) {
                 self = generatedConfiguration
                 return
             }

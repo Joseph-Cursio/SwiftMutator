@@ -99,9 +99,9 @@ final class DirectTestRunTests: MuterTestCase {
     func test_eachRunStartsWithEmptyDefaults_thatNoOtherWorkerShares() async throws {
         let otherWorker = directory.appendingPathComponent("it's a project_worker1")
         try FileManager.default.createDirectory(at: otherWorker, withIntermediateDirectories: true)
-        let worker = try XCTUnwrap(worker)
+        let unwrappedWorker = try XCTUnwrap(worker)
         addTeardownBlock {
-            DirectTestRun.removeOwnDefaults(forWorkerIn: worker)
+            DirectTestRun.removeOwnDefaults(forWorkerIn: unwrappedWorker)
             DirectTestRun.removeOwnDefaults(forWorkerIn: otherWorker)
         }
 

@@ -92,8 +92,8 @@ struct TriageMark: Codable, Equatable {
 
     /// "equivalent: count can't exceed limit here", on one line.
     var text: String {
-        let note = note?.split(whereSeparator: \.isNewline).joined(separator: " ")
-        return label.words + (note.map { ": \($0)" } ?? "")
+        let oneLineNote = note?.split(whereSeparator: \.isNewline).joined(separator: " ")
+        return label.words + (oneLineNote.map { ": \($0)" } ?? "")
     }
 }
 

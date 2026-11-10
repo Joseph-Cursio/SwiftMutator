@@ -333,7 +333,7 @@ struct SimulatorWorkerSetup {
         let (testRun, mutatedProject) = (state.projectXCTestRun, state.mutatedProjectDirectoryURL)
         let runs = await withTaskGroup(of: CheckRun.self) { group in
             for (worker, xcodeWorker) in xcodeWorkers.enumerated() {
-                let configuration = configuration.forXcodeWorker(xcodeWorker)
+                let workerConfiguration = configuration.forXcodeWorker(xcodeWorker)
                 let fileName = testOutput("no-mutant run worker \(worker)")
                 // A worker's run is given the values and the dependency it uses, not the setup or the state.
                 group.addTask { [ioDelegate, instant] in
@@ -348,10 +348,10 @@ struct SimulatorWorkerSetup {
                         return CheckRun(worker, run, launchFailure: nil, seconds: 0, output: nil)
                     }
                     let start = instant()
-                    let (run, launchFailure) = await TestRun.launchedOnceMore(ifNeededWith: configuration) {
+                    let (run, launchFailure) = await TestRun.launchedOnceMore(ifNeededWith: workerConfiguration) {
                         await ioDelegate.runTestsWithoutBuilding(
-                            using: configuration,
-                            timeLimit: configuration.buildTimeout,
+                            using: workerConfiguration,
+                            timeLimit: workerConfiguration.buildTimeout,
                             savingResultsIntoFileNamed: fileName
                         )
                     }

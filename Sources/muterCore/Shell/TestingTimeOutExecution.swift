@@ -30,7 +30,7 @@ struct TestingTimeoutExecutor: TestingTimeoutExecution {
         _ body: @escaping @Sendable () async throws -> T,
         timeoutHandler: @escaping @Sendable () async throws -> T
     ) async throws -> T {
-        let suspensions = suspensions
+        let clock = suspensions
         return try await withThrowingTaskGroup(of: T.self) { group in
             defer {
                 group.cancelAll()
@@ -40,7 +40,7 @@ struct TestingTimeoutExecutor: TestingTimeoutExecution {
                 // If sleep() returns instead of throwing a CancellationError, that means
                 // the timeout was reached before this task could be cancelled, so call
                 // the timeout handler.
-                try await suspensions.sleep(for: timeLimit)
+                try await clock.sleep(for: timeLimit)
                 return try await timeoutHandler()
             }
 

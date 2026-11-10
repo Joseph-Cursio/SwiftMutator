@@ -160,15 +160,15 @@ struct ReportArguments: ParsableArguments {
     /// `ReportRequest.clash(among:ofARun:)`.
     var outputs: [ReportRequest.Output] {
         // Appended one at a time: as one sum of optional arrays of tuples, Xcode 26's compiler can give up on it.
-        var outputs: [ReportRequest.Output] = []
+        var requested: [ReportRequest.Output] = []
         if let reportURL {
-            outputs.append(("-o \(reportURL.path)", reportURL.path))
+            requested.append(("-o \(reportURL.path)", reportURL.path))
         }
-        outputs += reports.map { ("--report \($0)", $0.path) }
+        requested += reports.map { ("--report \($0)", $0.path) }
         if let writeBaseline {
-            outputs.append(("--write-baseline \(writeBaseline)", URL.expandingTilde(writeBaseline)))
+            requested.append(("--write-baseline \(writeBaseline)", URL.expandingTilde(writeBaseline)))
         }
-        return outputs
+        return requested
     }
 
     /// `--max-new-survivors`' count, 0 when `--baseline` is given without it; nil without `--baseline`.

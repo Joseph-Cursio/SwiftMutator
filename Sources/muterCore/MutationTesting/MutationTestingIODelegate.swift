@@ -253,7 +253,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             let (testProcessFileHandle, testLogUrl) = try fileHandle(for: fileName)
             defer { try? testProcessFileHandle.close() }
 
-            let process = try await testProcess(
+            let launchedProcess = try await testProcess(
                 with: configuration,
                 schemata: schemata,
                 and: testProcessFileHandle,
@@ -266,7 +266,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             let stopsAtFirstFailure = !isBenchmark && schemata != .null && configuration.stopsAtFirstFailure
                 && !configuration.runsGoToTheirEnd
             var run = try await runTestProcess(
-                process,
+                launchedProcess,
                 logFileUrl: testLogUrl,
                 withTimeout: timeLimit,
                 stoppingAtFirstFailure: stopsAtFirstFailure,
@@ -556,12 +556,12 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             try? fileManager.removeItem(atPath: worker.derivedData)
         }
 
-        let process = process()
+        let newProcess = process()
 
         // Set the muter marker only on the TEST process, not the shared build process (see
         // MuterProcessFactory) — it's not needed at build time and setting it there can suppress
         // xcodebuild's build-request.json.
-        process.environment?[isMuterRunningKey] = isMuterRunningValue
+        newProcess.environment?[isMuterRunningKey] = isMuterRunningValue
 
         if configuration.stopsAtFirstFailure {
             // `swift test` relays its test runners' output through its own standard output, which holds
@@ -570,7 +570,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             // too, although they are never stopped, so they run as the mutants that stop do, and the time limit
             // derived from them allows for unbuffered output. Mutants run without it once a passing baseline's
             // failure-like line has turned stopping off for them.
-            process.environment?[unbufferedOutputKey] = unbufferedOutputValue
+            newProcess.environment?[unbufferedOutputKey] = unbufferedOutputValue
         }
 
         let marker = schemata == .null
@@ -587,39 +587,39 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
             let folder = workingDirectory ?? URL(fileURLWithPath: fileManager.currentDirectoryPath)
             let activeMutantFile = Self.activeMutantFile(forWorkerIn: folder).path
             try writeFile(marker.map { schemata.id + "\n" + $0.path } ?? "", activeMutantFile)
-            process.environment?[activeMutantFileKey] = activeMutantFile
+            newProcess.environment?[activeMutantFileKey] = activeMutantFile
             // The same for each of the worker's runs too. `swift` stops at once if TMPDIR names no folder.
             let temporary = WorkerTemporaryFolder(forWorkerIn: folder, under: FileManager.default.temporaryDirectory)
             try makeFolder(temporary.path)
-            process.environment?.merge(temporary.environment) { _, own in own }
+            newProcess.environment?.merge(temporary.environment) { _, own in own }
         } else if let marker {
-            process.environment?[schemata.id] = "YES"
-            process.environment?[activationMarkerKey] = marker.path
+            newProcess.environment?[schemata.id] = "YES"
+            newProcess.environment?[activationMarkerKey] = marker.path
             // Also forward the activation var into an iOS Simulator test host. When xcodebuild spawns
             // tests in the simulator, CoreSimulator only propagates env vars prefixed `SIMCTL_CHILD_`
             // into the simulated process; a bare var set on this (parent) process never reaches the
             // test host, so the mutant wouldn't activate. Complements the xctestrun `EnvironmentVariables` path.
-            process.environment?["SIMCTL_CHILD_\(schemata.id)"] = "YES"
-            process.environment?["SIMCTL_CHILD_\(activationMarkerKey)"] = marker.path
+            newProcess.environment?["SIMCTL_CHILD_\(schemata.id)"] = "YES"
+            newProcess.environment?["SIMCTL_CHILD_\(activationMarkerKey)"] = marker.path
         }
 
         if skipsBuild, let direct = configuration.directTestRun {
             let folder = workingDirectory ?? URL(fileURLWithPath: fileManager.currentDirectoryPath)
             let mutantFile = schemata == .null ? nil : schemata.filePath
-            process.arguments = ["-c", direct.script(in: folder, forMutantIn: mutantFile)]
-            process.executableURL = URL(fileURLWithPath: "/bin/sh")
+            newProcess.arguments = ["-c", direct.script(in: folder, forMutantIn: mutantFile)]
+            newProcess.executableURL = URL(fileURLWithPath: "/bin/sh")
         } else {
-            process.arguments = testCommandArguments
-            process.executableURL = URL(fileURLWithPath: configuration.testCommandExecutable)
+            newProcess.arguments = testCommandArguments
+            newProcess.executableURL = URL(fileURLWithPath: configuration.testCommandExecutable)
         }
         // Workers that share a build have only a name each, which holds no folder to start in.
         if let folder = (skipsBuild ? configuration.directTestRun?.sharedBuild : nil) ?? workingDirectory {
-            process.currentDirectoryURL = folder
+            newProcess.currentDirectoryURL = folder
         }
-        process.standardOutput = fileHandle
-        process.standardError = fileHandle
+        newProcess.standardOutput = fileHandle
+        newProcess.standardError = fileHandle
 
-        return process
+        return newProcess
     }
 
     func keepOutput(at output: String, as path: String?) -> Bool {

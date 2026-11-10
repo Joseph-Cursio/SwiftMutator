@@ -27,13 +27,13 @@ struct CLITable: Equatable {
                 let nextLineThatsBeenRendered = alreadyRenderedCLITableSplitByLine.first ?? ""
                 alreadyRenderedCLITableSplitByLine = Array(alreadyRenderedCLITableSplitByLine.dropFirst())
 
-                let padding = paddingForColumn(
+                let columnPadding = paddingForColumn(
                     at: columnIndex,
                     previousColumnWidth: previousColumnWidth,
                     previousRowWidth: previousRowWidth
                 )
 
-                return workingValue + "\(nextLineThatsBeenRendered)" + padding + newRow + "\n"
+                return workingValue + "\(nextLineThatsBeenRendered)" + columnPadding + newRow + "\n"
             }
         }
     }

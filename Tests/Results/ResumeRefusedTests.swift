@@ -178,10 +178,10 @@ final class ResumeRefusedTests: XCTestCase {
         let paths = ["Docs/a*b.md", "Docs/aXb.md", "Tests/[x].json", "Tests/x.json", "q?.md", "qq.md", #"back\slash"#]
         let changes = paths.map { ProjectTree.FileChange(path: $0, kind: .changed) }
 
-        for path in paths {
-            let glob = ResumeRefusal.glob(matching: path)
+        for changedPath in paths {
+            let glob = ResumeRefusal.glob(matching: changedPath)
 
-            XCTAssertEqual(changes.partition(by: [glob]).waived.map(\.path), [path], glob)
+            XCTAssertEqual(changes.partition(by: [glob]).waived.map(\.path), [changedPath], glob)
         }
         XCTAssertEqual(ResumeRefusal.glob(matching: "Docs/a*b.md"), #"Docs/a\*b.md"#)
     }

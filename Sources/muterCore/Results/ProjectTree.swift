@@ -388,9 +388,9 @@ enum GitFileListing {
     /// so `-C` alone says which one; without `GIT_DIFF_OPTS`, which would add context to `--since`'s `-U0` diffs; and
     /// without optional locks, so a listing never refreshes the user's index.
     static func environment(_ environment: [String: String]) -> [String: String] {
-        var environment = environment.filter { !repositoryVariables.contains($0.key) && $0.key != "GIT_DIFF_OPTS" }
-        environment["GIT_OPTIONAL_LOCKS"] = "0"
-        return environment
+        var gitEnvironment = environment.filter { !repositoryVariables.contains($0.key) && $0.key != "GIT_DIFF_OPTS" }
+        gitEnvironment["GIT_OPTIONAL_LOCKS"] = "0"
+        return gitEnvironment
     }
 
     /// What `git rev-parse --local-env-vars` names.

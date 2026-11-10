@@ -157,8 +157,8 @@ enum SwiftPackageBuildConditions {
             var undecided: Set<String> = []
             for setting in settings where setting.tool == "swift" {
                 let names = setting.kind.define.map { [$0._0] } ?? []
-                let flags = customConditions(inSwiftFlags: setting.kind.unsafeFlags?._0 ?? [])
-                let declared = Set(names).union(flags)
+                let settingFlags = customConditions(inSwiftFlags: setting.kind.unsafeFlags?._0 ?? [])
+                let declared = Set(names).union(settingFlags)
                 switch applies(setting.condition) {
                 case true?: set.formUnion(declared)
                 case false?: break

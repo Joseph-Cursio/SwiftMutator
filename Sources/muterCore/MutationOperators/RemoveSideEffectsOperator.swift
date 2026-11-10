@@ -557,11 +557,11 @@ private extension CodeBlockItemListSyntax {
         if parent.is(AccessorBlockSyntax.self) {
             return true
         }
-        let owner = parent.as(CodeBlockSyntax.self)?.parent
-        if let function = owner?.as(FunctionDeclSyntax.self) {
+        let blockOwner = parent.as(CodeBlockSyntax.self)?.parent
+        if let function = blockOwner?.as(FunctionDeclSyntax.self) {
             return function.signature.returnClause.map { !$0.isReturningVoid } ?? false
         }
-        return owner?.as(AccessorDeclSyntax.self)?.accessorSpecifier.tokenKind == .keyword(.get) || isABranchOfAValue
+        return blockOwner?.as(AccessorDeclSyntax.self)?.accessorSpecifier.tokenKind == .keyword(.get) || isABranchOfAValue
     }
 
     /// Whether these are a branch of an `if` or `switch` that is a value: one that isn't a statement, as in
@@ -622,12 +622,12 @@ private extension CodeBlockItemListSyntax {
         guard let parent else {
             return false
         }
-        let owner = parent.as(CodeBlockSyntax.self)?.parent
-        if owner?.is(InitializerDeclSyntax.self) == true {
+        let blockOwner = parent.as(CodeBlockSyntax.self)?.parent
+        if blockOwner?.is(InitializerDeclSyntax.self) == true {
             return true
         }
-        guard parent.is(SwitchCaseSyntax.self) || owner?.is(IfExprSyntax.self) == true
-            || owner?.is(CatchClauseSyntax.self) == true || owner?.is(DoStmtSyntax.self) == true
+        guard parent.is(SwitchCaseSyntax.self) || blockOwner?.is(IfExprSyntax.self) == true
+            || blockOwner?.is(CatchClauseSyntax.self) == true || blockOwner?.is(DoStmtSyntax.self) == true
         else {
             return false
         }
@@ -704,13 +704,13 @@ private extension CodeBlockItemListSyntax {
         if parent.is(IfConfigClauseSyntax.self) {
             return parent.parent?.parent.map(Self.endsCodeThatMustNotFallThrough) ?? false
         }
-        guard let owner = parent.as(CodeBlockSyntax.self)?.parent else {
+        guard let blockOwner = parent.as(CodeBlockSyntax.self)?.parent else {
             return false
         }
-        if owner.is(GuardStmtSyntax.self) {
+        if blockOwner.is(GuardStmtSyntax.self) {
             return true
         }
-        if let function = owner.as(FunctionDeclSyntax.self) {
+        if let function = blockOwner.as(FunctionDeclSyntax.self) {
             guard let returnClause = function.signature.returnClause else {
                 return false
             }
@@ -718,15 +718,15 @@ private extension CodeBlockItemListSyntax {
             return !returnClause.isReturningVoid
                 && (!mayBeABuilder || ValueReturnFinder.findsAValueReturn(in: Syntax(self)))
         }
-        if let accessor = owner.as(AccessorDeclSyntax.self) {
+        if let accessor = blockOwner.as(AccessorDeclSyntax.self) {
             return accessor.accessorSpecifier.tokenKind == .keyword(.get)
-                && (!Self.mayBeAResultBuilder(owner) || ValueReturnFinder.findsAValueReturn(in: Syntax(self)))
+                && (!Self.mayBeAResultBuilder(blockOwner) || ValueReturnFinder.findsAValueReturn(in: Syntax(self)))
         }
-        if owner.is(DoStmtSyntax.self) || owner.is(IfExprSyntax.self) {
-            return Self.endsCodeThatMustNotFallThrough(owner)
+        if blockOwner.is(DoStmtSyntax.self) || blockOwner.is(IfExprSyntax.self) {
+            return Self.endsCodeThatMustNotFallThrough(blockOwner)
         }
-        if owner.is(CatchClauseSyntax.self) {
-            return owner.parent?.parent.map(Self.endsCodeThatMustNotFallThrough) ?? false
+        if blockOwner.is(CatchClauseSyntax.self) {
+            return blockOwner.parent?.parent.map(Self.endsCodeThatMustNotFallThrough) ?? false
         }
         return false
     }

@@ -523,12 +523,12 @@ final class ResumePlanTests: XCTestCase {
         for path in changed + added {
             current[path] = "ffff"
         }
-        let sources = sources.merging(
+        let allSources = sources.merging(
             ["Tests/SumTests/SumTests.swift": "import Testing\n@Test func adds() {}"]
         ) { first, _ in
             first
         }
-        return [1: ReuseChanges(from: tree(files), to: tree(current), waiving: globs, readSource: { sources[$0] })]
+        return [1: ReuseChanges(from: tree(files), to: tree(current), waiving: globs, readSource: { allSources[$0] })]
     }
 
     private func tree(_ files: [String: String]) -> ProjectTree {

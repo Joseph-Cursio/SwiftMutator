@@ -50,14 +50,14 @@ struct MutantsLeftOut: Equatable {
 
         /// `Sources/U/Version.swift:9:19 RelationalOperatorReplacement (< to >): binary operator '>' cannot be applied`
         var line: String {
-            let change = change.isEmpty ? "" : " (\(change))"
+            let changeNote = change.isEmpty ? "" : " (\(change))"
             let others = switch mutant.blame {
             case .itself: ""
             case .itsSwitch: " [with the others of its code]"
             case .itsEnclosingCode: " [with the others around it]"
             case .itsFile: " [with the rest of its file]"
             }
-            return "\(key)\(change): \(mutant.errors.first?.message ?? "")\(others)"
+            return "\(key)\(changeNote): \(mutant.errors.first?.message ?? "")\(others)"
         }
     }
 
@@ -175,10 +175,10 @@ struct CompileRecovery {
     static func testsStarted(in log: String) -> Bool {
         var built = false
         for line in log.split(whereSeparator: \.isNewline) where line.contains("Build") {
-            let line = FailedTestLine.withoutColours(line)
-            if line.hasPrefix("Build complete!") {
+            let plainLine = FailedTestLine.withoutColours(line)
+            if plainLine.hasPrefix("Build complete!") {
                 built = true
-            } else if line.hasPrefix("Building for") {
+            } else if plainLine.hasPrefix("Building for") {
                 built = false
             }
         }

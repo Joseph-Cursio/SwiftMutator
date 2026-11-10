@@ -277,35 +277,35 @@ extension LogFolderPruning {
 
         /// The folder `name` in `root`: nil unless it is a folder, not a link to one, and holds something.
         init?(named name: String, in root: String) {
-            let path = (root as NSString).appendingPathComponent(name)
-            guard Self.type(of: path) == S_IFDIR,
-                  let identity = FileIdentity(of: path),
-                  let listed = try? FileManager.default.contentsOfDirectory(atPath: path),
+            let entryPath = (root as NSString).appendingPathComponent(name)
+            guard Self.type(of: entryPath) == S_IFDIR,
+                  let entryIdentity = FileIdentity(of: entryPath),
+                  let listed = try? FileManager.default.contentsOfDirectory(atPath: entryPath),
                   !listed.isEmpty
             else { return nil }
-            let entries = Set(listed)
-            let resultsFiles = ResultsFile.fileNames.filter(entries.contains)
-            let inFolder = { (name: String) in (path as NSString).appendingPathComponent(name) }
-            let headers = resultsFiles.map { HeaderInfo(ofResultsFileAt: inFolder($0)) }
+            let entryNames = Set(listed)
+            let resultsFileNames = ResultsFile.fileNames.filter(entryNames.contains)
+            let inFolder = { (name: String) in (entryPath as NSString).appendingPathComponent(name) }
+            let headers = resultsFileNames.map { HeaderInfo(ofResultsFileAt: inFolder($0)) }
             let namesItself = headers.contains { header in
-                header?.logDirectory.flatMap(FileIdentity.init(of:)) == identity
+                header?.logDirectory.flatMap(FileIdentity.init(of:)) == entryIdentity
             }
             self.name = name
-            self.path = path
-            self.identity = identity
-            self.entries = entries
-            self.resultsFiles = resultsFiles
+            self.path = entryPath
+            self.identity = entryIdentity
+            self.entries = entryNames
+            self.resultsFiles = resultsFileNames
             header = headers.first.flatMap { $0 }
-            isMarkedOrNamed = entries.contains(RunMarker.fileName) || namesItself
-            let noted = entries.contains(ResultsFile.noteFileName) ? Self.notedFolder(of: path, in: root) : nil
+            isMarkedOrNamed = entryNames.contains(RunMarker.fileName) || namesItself
+            let noted = entryNames.contains(ResultsFile.noteFileName) ? Self.notedFolder(of: entryPath, in: root) : nil
             notedFolder = noted?.identity
             notesAFolderInRoot = noted.map { folder in
                 Self.parent(of: folder.path).flatMap(FileIdentity.init(of:)) == FileIdentity(of: root)
             } ?? false
             // Each written once, or only by its run: never the folder's own modification date.
-            let created = Self.dates(of: path, [.creationDateKey])
-            let written = ([RunMarker.fileName, ResultsFile.noteFileName, RunSummary.fileName] + resultsFiles)
-                .filter(entries.contains)
+            let created = Self.dates(of: entryPath, [.creationDateKey])
+            let written = ([RunMarker.fileName, ResultsFile.noteFileName, RunSummary.fileName] + resultsFileNames)
+                .filter(entryNames.contains)
                 .flatMap { Self.dates(of: inFolder($0), [.contentModificationDateKey]) }
             date = (created + written).max() ?? .distantPast
         }
@@ -324,12 +324,12 @@ extension LogFolderPruning {
         /// file's names in `root`.
         private static func notedFolder(of folder: String, in root: String) -> (path: String, identity: FileIdentity)? {
             guard let noted = ResultsFile.notedFile(in: folder, using: FileManager.default) else { return nil }
-            let notedFolder = (noted as NSString).deletingLastPathComponent
-            let moved = (root as NSString).appendingPathComponent((notedFolder as NSString).lastPathComponent)
-            for candidate in [notedFolder, moved] {
+            let folderOfNoted = (noted as NSString).deletingLastPathComponent
+            let moved = (root as NSString).appendingPathComponent((folderOfNoted as NSString).lastPathComponent)
+            for candidate in [folderOfNoted, moved] {
                 let file = (candidate as NSString).appendingPathComponent((noted as NSString).lastPathComponent)
-                if Self.type(of: file) == S_IFREG, let identity = FileIdentity(of: candidate) {
-                    return (candidate, identity)
+                if Self.type(of: file) == S_IFREG, let candidateIdentity = FileIdentity(of: candidate) {
+                    return (candidate, candidateIdentity)
                 }
             }
             return nil

@@ -26,12 +26,12 @@ final class SignalObserverFake: SignalObserving, @unchecked Sendable { // `obser
 
     @discardableResult
     func start(observing signals: [Int32], on queue: DispatchQueue, handler: @escaping (Int32) -> Void) -> [Int32] {
-        let observed = signals.filter { !ignoredAtStart.contains($0) }
+        let observedSignals = signals.filter { !ignoredAtStart.contains($0) }
         lock.withLock {
-            observing = Observing(signals: observed, queue: queue, handler: handler)
+            observing = Observing(signals: observedSignals, queue: queue, handler: handler)
             didStop = false
         }
-        return observed
+        return observedSignals
     }
 
     func stop() {

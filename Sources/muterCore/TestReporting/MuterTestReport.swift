@@ -128,8 +128,8 @@ struct ShardScope: Codable, Equatable {
 
     /// "shard 1 of 2", or "shards 1 and 3 of 4".
     var named: String {
-        let indices = Logger.listed(indices.map(String.init))
-        return (self.indices.count == 1 ? "shard " : "shards ") + "\(indices) of \(count)"
+        let listedIndices = Logger.listed(indices.map(String.init))
+        return (self.indices.count == 1 ? "shard " : "shards ") + "\(listedIndices) of \(count)"
     }
 
     /// "Only the mutants in shard 1 of 2 were tested, of 2463 discovered in every shard." Of a `sampled` split, the

@@ -76,13 +76,13 @@ struct WorkerSimulatorName: Equatable, Sendable {
               parts[3].hasPrefix("w"),
               let id = Self.number(parts[1]).flatMap(Int32.init),
               let started = Self.number(parts[2]).flatMap(UInt64.init),
-              let worker = Self.number(parts[3].dropFirst()).flatMap(Int.init)
+              let workerNumber = Self.number(parts[3].dropFirst()).flatMap(Int.init)
         else {
             return nil
         }
         projectHash = String(parts[0])
         owner = RecordedProcess(id: id, started: started)
-        self.worker = worker
+        self.worker = workerNumber
     }
 
     var text: String {

@@ -16,10 +16,10 @@ struct SwiftLintPhases: Equatable {
 
         /// `App.xcodeproj: Run SwiftLint, in target App`.
         var shown: String {
-            let targets = targets.isEmpty
+            let allTargets = targets.isEmpty
                 ? ""
                 : ", in \(targets.count == 1 ? "target" : "targets") \(targets.joined(separator: ", "))"
-            return "\(project): \(name)\(targets)"
+            return "\(project): \(name)\(allTargets)"
         }
     }
 

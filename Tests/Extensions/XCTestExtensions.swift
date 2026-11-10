@@ -10,11 +10,11 @@ public func XCTAssertEqual<T: Equatable>(
     line: UInt = #line
 ) {
     do {
-        let expected = try expected()
-        let received = try received()
+        let expectedValue = try expected()
+        let receivedValue = try received()
         XCTAssertTrue(
-            expected == received,
-            "Found difference for \n" + diff(expected, received).joined(separator: ", "),
+            expectedValue == receivedValue,
+            "Found difference for \n" + diff(expectedValue, receivedValue).joined(separator: ", "),
             file: file,
             line: line
         )

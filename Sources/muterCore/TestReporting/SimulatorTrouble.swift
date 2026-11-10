@@ -32,8 +32,8 @@ enum SimulatorTrouble: Equatable {
         let summary = lines.lastIndex { $0.hasPrefix("Testing failed:") }.map { lines[$0...] } ?? []
         for (trouble, signs) in [(Self.deviceGone, deviceGoneLines), (Self.launch, launchLines)] {
             let shows = { (line: Substring) in signs.contains { line.contains($0) } }
-            if let line = summary.first(where: shows) ?? lines.first(where: shows) {
-                let text = line.trimmingCharacters(in: .whitespaces)
+            if let troubleLine = summary.first(where: shows) ?? lines.first(where: shows) {
+                let text = troubleLine.trimmingCharacters(in: .whitespaces)
                 return trouble(String(text.prefix(FailedTestLine.lineLengthLimit)))
             }
         }

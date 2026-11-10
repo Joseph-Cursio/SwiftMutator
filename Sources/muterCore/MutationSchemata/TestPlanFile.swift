@@ -17,9 +17,9 @@ enum TestPlanCoding {
     static let newestFormatVersion = formatVersion
 
     static var encoder: JSONEncoder {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        return encoder
+        let planEncoder = JSONEncoder()
+        planEncoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        return planEncoder
     }
 
     /// The plan's text, as `CreateMuterTestPlan` writes it into `projectRoot`: in `formatVersion`, whichever format

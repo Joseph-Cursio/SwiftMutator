@@ -97,12 +97,12 @@ struct ScoreDropCheck: Equatable, Sendable {
         progress: ScoreGate.Progress? = nil
     ) {
         let reason = notChecked ?? (scored == 0 || baseline.score.scored == 0 ? .nothingScored : nil)
-        let verdict: Verdict
+        let outcome: Verdict
         if let reason {
-            verdict = .notChecked(reason)
+            outcome = .notChecked(reason)
         } else {
-            let drop = Self.drop(from: baseline.score, to: (killed, scored))
-            verdict = drop.points > Self.decimal(maxScoreDrop) * drop.over ? .failed : .passed
+            let scoreDrop = Self.drop(from: baseline.score, to: (killed, scored))
+            outcome = scoreDrop.points > Self.decimal(maxScoreDrop) * scoreDrop.over ? .failed : .passed
         }
         self.init(
             baseline: baseline.path,
@@ -110,7 +110,7 @@ struct ScoreDropCheck: Equatable, Sendable {
             baselineScore: baseline.score,
             killed: killed,
             scored: scored,
-            verdict: verdict,
+            verdict: outcome,
             progress: reason == .unfinished ? progress : nil
         )
     }
@@ -177,9 +177,9 @@ struct ScoreDropCheck: Equatable, Sendable {
     /// holds exactly when the check passed.
     var drop: Double? {
         guard passed != nil else { return nil }
-        let drop = Self.drop(from: baselineScore, to: (killed, scored))
+        let scoreDrop = Self.drop(from: baselineScore, to: (killed, scored))
         // Through the decimal text, which `Double` reads with correct rounding, as it read the limit.
-        return Double(NSDecimalNumber(decimal: drop.points / drop.over).stringValue)
+        return Double(NSDecimalNumber(decimal: scoreDrop.points / scoreDrop.over).stringValue)
     }
 
     /// What the run, or `report`, says of the verdict, after the score's: "Mutation score 81.2% is 1.4 points below
@@ -219,16 +219,16 @@ struct ScoreDropCheck: Equatable, Sendable {
             decimals += 1
             shown = shownScores(decimals: decimals)
         }
-        let drop = Self.drop(from: baselineScore, to: (killed, scored))
+        let scoreDrop = Self.drop(from: baselineScore, to: (killed, scored))
         let opening = "Mutation score \(Self.written(shown.run, decimals: decimals))%"
-        guard drop.points != 0 else { return "\(opening) is the same as \(file)'s." }
+        guard scoreDrop.points != 0 else { return "\(opening) is the same as \(file)'s." }
         let recorded = "\(file)'s \(Self.written(shown.recorded, decimals: decimals))%"
         let gap = shown.recorded - shown.run
         // Scores that show the same differ by less than a last decimal.
         let points = gap == 0
             ? "less than 0." + String(repeating: "0", count: decimals - 1) + "1 points"
             : "\(Self.written(gap < 0 ? -gap : gap, decimals: decimals)) points"
-        guard drop.points > 0 else { return "\(opening) is \(points) above \(recorded)." }
+        guard scoreDrop.points > 0 else { return "\(opening) is \(points) above \(recorded)." }
         let allowed = "the \(ScoreGate.shown(maxScoreDrop)) allowed"
         return "\(opening) is \(points) below \(recorded), \(passed == true ? "within" : "more than") \(allowed)."
     }

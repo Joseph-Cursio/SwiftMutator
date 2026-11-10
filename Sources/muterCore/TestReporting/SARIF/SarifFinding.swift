@@ -28,26 +28,26 @@ struct SarifFinding {
         })
         let repeats = lines.mapValues(\.repeatsAbove)
         return outcome.mutations.compactMap { mutation in
-            guard let level = level(of: mutation.testSuiteOutcome) else { return nil }
+            guard let findingLevel = level(of: mutation.testSuiteOutcome) else { return nil }
             let fileLines = lines[mutation.originalProjectPath]
-            let (span, isFound) = SourceSpan.of(mutation, in: fileLines)
+            let (sourceSpan, isFound) = SourceSpan.of(mutation, in: fileLines)
             let whole = SourceSpan(
-                start: .init(line: span.start.line, column: 1),
-                end: fileLines?.span(ofLine: span.end.line)?.end ?? span.end
+                start: .init(line: sourceSpan.start.line, column: 1),
+                end: fileLines?.span(ofLine: sourceSpan.end.line)?.end ?? sourceSpan.end
             )
             return Self(
                 relativePath: mutation.relativePath,
                 operatorId: mutation.point.mutationOperatorId,
-                level: level,
+                level: findingLevel,
                 message: message(of: mutation),
-                span: span,
-                snippet: fileLines?.text(of: span),
-                context: whole == span ? nil : fileLines?.text(of: whole),
+                span: sourceSpan,
+                snippet: fileLines?.text(of: sourceSpan),
+                context: whole == sourceSpan ? nil : fileLines?.text(of: whole),
                 // Code not found spans its whole line, alike for each mutant on it, so it is fingerprinted from its
                 // recorded place, as for a file that can't be read.
                 fingerprint: fingerprint(
                     of: mutation,
-                    span: span,
+                    span: sourceSpan,
                     lines: isFound ? fileLines : nil,
                     repeats: repeats[mutation.originalProjectPath]
                 )

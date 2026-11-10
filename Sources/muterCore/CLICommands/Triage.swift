@@ -31,10 +31,10 @@ struct Triage: AsyncParsableCommand {
         name: .customLong("label"),
         help: ArgumentHelp("What the survivor is: \(TriageLabel.listed).", valueName: "label"),
         transform: { text in
-            guard let label = TriageLabel(rawValue: text) else {
+            guard let parsedLabel = TriageLabel(rawValue: text) else {
                 throw ValidationError("give \(TriageLabel.listed).")
             }
-            return label
+            return parsedLabel
         }
     )
     var label: TriageLabel?

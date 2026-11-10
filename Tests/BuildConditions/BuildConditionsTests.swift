@@ -579,8 +579,8 @@ final class BuildConditionsTests: XCTestCase {
 
     private func inactiveCode(_ source: String, in conditions: BuildConditions? = nil) -> [String] {
         let tree = Parser.parse(source: source)
-        let conditions = conditions ?? BuildConditions(platform: macOS, customConditions: [["DEBUG"]])
-        return conditions.inactiveRegions(in: tree).map { region in
+        let givenConditions = conditions ?? BuildConditions(platform: macOS, customConditions: [["DEBUG"]])
+        return givenConditions.inactiveRegions(in: tree).map { region in
             let bytes = Array(source.utf8)[region.lowerBound.utf8Offset ..< region.upperBound.utf8Offset]
             return String(decoding: bytes, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
         }

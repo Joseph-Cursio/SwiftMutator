@@ -61,12 +61,12 @@ struct SourceSpan: Equatable {
         let last = parts.last ?? ""
         let endsThere = SourceLines.isPlacedWhereItsCodeEnds(operatorId) || isAConstant && after == "false"
         if endsThere, parts.count == 1 {
-            let start = Position(line: line, column: max(1, column - last.utf8.count))
-            self.init(start: start, end: Position(line: line, column: column))
+            let spanStart = Position(line: line, column: max(1, column - last.utf8.count))
+            self.init(start: spanStart, end: Position(line: line, column: column))
             return
         }
-        let start = Position(line: line, column: column)
-        self.init(start: start, end: parts.count == 1
+        let spanStart = Position(line: line, column: column)
+        self.init(start: spanStart, end: parts.count == 1
             ? Position(line: line, column: column + last.utf8.count)
             : Position(line: line + parts.count - 1, column: 1 + last.utf8.count))
     }
@@ -105,21 +105,21 @@ struct SourceLines {
     /// `text`'s lines, split by scalar, as `\r\n` is one `Character`, at each line break SwiftSyntax counts: `\n`,
     /// `\r\n` and a lone `\r`. So a `\r\r\n` is two, and a mutant's line is the one it numbers.
     static func split(_ text: String) -> [String] {
-        var lines: [String] = []
+        var fileLines: [String] = []
         var line = String.UnicodeScalarView()
         var afterReturn = false
         for scalar in text.unicodeScalars {
             defer { afterReturn = scalar == "\r" }
             guard scalar != "\n" || !afterReturn else { continue }
             if scalar == "\n" || scalar == "\r" {
-                lines.append(String(line))
+                fileLines.append(String(line))
                 line = String.UnicodeScalarView()
             } else {
                 line.append(scalar)
             }
         }
-        lines.append(String(line))
-        return lines
+        fileLines.append(String(line))
+        return fileLines
     }
 
     /// The UTF-16 column of the character at the UTF-8 `column` of line `number`; nil when there is no such line. A
@@ -127,10 +127,10 @@ struct SourceLines {
     /// the line's end counts each byte past it as one.
     func utf16Column(ofUTF8Column column: Int, onLine number: Int) -> Int? {
         guard lines.indices.contains(number - 1), column >= 1 else { return nil }
-        let bytes = Array(lines[number - 1].utf8)
+        let lineBytes = Array(lines[number - 1].utf8)
         let offset = column - 1
-        let before = String(decoding: bytes.prefix(offset), as: UTF8.self)
-        return before.utf16.count + max(0, offset - bytes.count) + 1
+        let before = String(decoding: lineBytes.prefix(offset), as: UTF8.self)
+        return before.utf16.count + max(0, offset - lineBytes.count) + 1
     }
 
     /// Line `number` whole, from its first column to just past its last; nil when there is no such line.
@@ -211,14 +211,14 @@ struct SourceLines {
     /// that without its comments. Any other's is `before` itself.
     static func code(of before: String, by operatorId: MutationOperator.Id) -> String {
         guard keepsCommentsBeside(operatorId) else { return before }
-        var bytes = Array(before.utf8)
+        var beforeBytes = Array(before.utf8)
         var index = 0
-        while index < bytes.count {
-            let width = commentWidth(bytes, at: index)
-            bytes.replaceSubrange(index..<index + width, with: width > 0 ? [UInt8(ascii: " ")] : [])
+        while index < beforeBytes.count {
+            let width = commentWidth(beforeBytes, at: index)
+            beforeBytes.replaceSubrange(index..<index + width, with: width > 0 ? [UInt8(ascii: " ")] : [])
             index += 1
         }
-        return String(decoding: bytes, as: UTF8.self).trimmed
+        return String(decoding: beforeBytes, as: UTF8.self).trimmed
     }
 
     /// Whether an operator's `before` keeps the comments beside its token, and places its mutant before them.
@@ -338,11 +338,11 @@ struct OriginalFiles {
 
     /// Reads each of `paths` with `read`, as the other reports read theirs (`readSourceFile`).
     init(_ paths: some Sequence<String>, read: ReadFile) {
-        var contents: [String: Data] = [:]
+        var fileContents: [String: Data] = [:]
         for path in Set(paths) {
-            contents[path] = read(path)
+            fileContents[path] = read(path)
         }
-        self.contents = contents
+        self.contents = fileContents
     }
 
     /// The file at `path` as text, with a byte that isn't UTF-8 as U+FFFD; nil when it couldn't be read.

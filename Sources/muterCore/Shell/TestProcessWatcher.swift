@@ -13,8 +13,8 @@ struct RecordedProcess: Hashable {
 
     /// The record of the process `id`, or nil if no such process runs.
     init?(_ id: Int32) {
-        guard let started = MutatedProjectLock.startTime(of: id) else { return nil }
-        self.init(id: id, started: started)
+        guard let startTime = MutatedProjectLock.startTime(of: id) else { return nil }
+        self.init(id: id, started: startTime)
     }
 
     /// Stops and kills the process and every process it started, as `MuterProcess.terminateTree()` does, if it still
@@ -138,8 +138,8 @@ final class TestProcessWatcher: @unchecked Sendable { // `descriptor` is behind 
                 pending.removeSubrange(...end)
             }
         }
-        for process in running.values {
-            process.terminateIfRunning()
+        for runningProcess in running.values {
+            runningProcess.terminateIfRunning()
         }
     }
 

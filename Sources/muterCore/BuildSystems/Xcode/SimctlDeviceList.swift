@@ -112,12 +112,12 @@ struct SimctlRuntime: Equatable, Sendable {
         }
         let parts = identifier.dropFirst(prefix.count).split(separator: "-", maxSplits: 1)
         guard parts.count == 2,
-              let version = Self.version(String(parts[1]), separatedBy: "-")
+              let runtimeVersion = Self.version(String(parts[1]), separatedBy: "-")
         else {
             return nil
         }
         platform = String(parts[0])
-        self.version = version
+        self.version = runtimeVersion
     }
 
     /// The platform a `-destination` names for a simulator of this runtime: `iOS Simulator`, or `visionOS Simulator`

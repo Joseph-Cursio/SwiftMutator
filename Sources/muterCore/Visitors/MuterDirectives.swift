@@ -48,8 +48,8 @@ struct MuterDirectives {
     private let ranges: [Range<AbsolutePosition>]
 
     init(in root: Syntax, converter: SourceLocationConverter) {
-        var effects: [Effect] = []
-        var ranges: [Range<AbsolutePosition>] = []
+        var foundEffects: [Effect] = []
+        var foundRanges: [Range<AbsolutePosition>] = []
         for token in root.tokens(viewMode: .sourceAccurate) {
             for (isLeading, trivia, start) in [
                 (true, token.leadingTrivia, token.position),
@@ -57,19 +57,19 @@ struct MuterDirectives {
             ] {
                 if let disables = Self.lastSwitch(in: trivia) {
                     let position = Self.switchPosition(disables, isLeading, token)
-                    effects.append(Effect(position: position, disables: disables))
+                    foundEffects.append(Effect(position: position, disables: disables))
                 }
                 var position = start
                 for piece in trivia {
                     let end = position.advanced(by: piece.sourceLength.utf8Length)
                     switch MuterDirective(piece) {
                     case .disableNextLine:
-                        ranges.append(Self.line(after: end, converter: converter))
+                        foundRanges.append(Self.line(after: end, converter: converter))
 
                     case .disableDeclaration:
                         let first = isLeading ? token : Self.firstToken(onTheLineOf: token, converter: converter)
                         let node = Self.declaration(startingWith: first)
-                        ranges.append(node.positionAfterSkippingLeadingTrivia ..< node.endPositionBeforeTrailingTrivia)
+                        foundRanges.append(node.positionAfterSkippingLeadingTrivia ..< node.endPositionBeforeTrailingTrivia)
 
                     default:
                         break
@@ -78,8 +78,8 @@ struct MuterDirectives {
                 }
             }
         }
-        self.effects = effects.sorted { $0.position < $1.position }
-        self.ranges = ranges
+        self.effects = foundEffects.sorted { $0.position < $1.position }
+        self.ranges = foundRanges
     }
 
     /// Whether what starts at `position` is left out by a `disable` that is still on there.

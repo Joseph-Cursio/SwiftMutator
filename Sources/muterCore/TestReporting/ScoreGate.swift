@@ -89,8 +89,8 @@ struct ScoreGate: Equatable, Sendable {
             verdict = .notChecked(.oneMutant)
         } else if outcome.shards != nil {
             verdict = .notChecked(.shard)
-        } else if mutants.scored > 0, let score = exactMutationScore(killed: mutants.killed, of: scored) {
-            verdict = score < failUnder ? .failed : .passed
+        } else if mutants.scored > 0, let exactScore = exactMutationScore(killed: mutants.killed, of: scored) {
+            verdict = exactScore < failUnder ? .failed : .passed
         } else {
             verdict = .nothingScored(tested: outcomes.count)
         }

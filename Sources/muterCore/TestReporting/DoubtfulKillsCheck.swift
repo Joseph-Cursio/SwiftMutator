@@ -196,14 +196,14 @@ struct DoubtfulKillsCheck: Equatable, Sendable {
     /// What a run prints of the verdict: `lines`, the first with ✅ when it passes, ❌ when there are too many
     /// doubtful kills, and ⚠️ when they aren't counted. Empty when there's no line.
     var consoleLines: [String] {
-        let lines = lines
-        guard let line = lines.first else { return [] }
+        let verdictLines = lines
+        guard let firstLine = verdictLines.first else { return [] }
         let emoji = switch passed {
         case .some(true): "✅"
         case .some(false): "❌"
         case .none: "⚠️"
         }
-        return ["\(emoji) \(line)"] + lines.dropFirst()
+        return ["\(emoji) \(firstLine)"] + verdictLines.dropFirst()
     }
 
     /// Why the kills aren't counted; nil for a run that ended early.

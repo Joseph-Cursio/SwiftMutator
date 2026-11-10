@@ -244,11 +244,11 @@ final class SwiftLintPhasesTests: XCTestCase {
     func test_aFileThatIsntAnOldStylePropertyList_isLeftAsItIs_andSaidWhenItNamesSwiftLint() {
         let xml = Array("<?xml version=\"1.0\"?><plist><string>swiftlint</string></plist>".utf8)
 
-        let named = SwiftLintPhases.turningOff(in: xml, project: "App.xcodeproj")
+        let turnedOff = SwiftLintPhases.turningOff(in: xml, project: "App.xcodeproj")
         let unnamed = SwiftLintPhases.turningOff(in: Array("<?xml version=\"1.0\"?>".utf8), project: "App.xcodeproj")
 
-        XCTAssertEqual(named.bytes, xml)
-        XCTAssertEqual(named.phases, SwiftLintPhases(unreadProjects: ["App.xcodeproj"]))
+        XCTAssertEqual(turnedOff.bytes, xml)
+        XCTAssertEqual(turnedOff.phases, SwiftLintPhases(unreadProjects: ["App.xcodeproj"]))
         XCTAssertTrue(unnamed.phases.isEmpty)
     }
 

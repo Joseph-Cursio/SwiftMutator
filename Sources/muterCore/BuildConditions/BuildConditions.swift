@@ -83,10 +83,10 @@ struct BuildConditions: Equatable, Sendable {
 
     /// Whether `condition` holds in this build; nil if it can't be told.
     fileprivate func holds(_ condition: ExprSyntax) -> Bool? {
-        let unanswerable = unanswerable
+        let unanswerableNames = unanswerable
         // By the identifier's name, so that `` `swift`(>=5) `` is found too.
         let isUnanswerable = condition.tokens(viewMode: .sourceAccurate).contains {
-            unanswerable.contains($0.identifier?.name ?? $0.text)
+            unanswerableNames.contains($0.identifier?.name ?? $0.text)
         }
         guard !isUnanswerable else { return nil }
 

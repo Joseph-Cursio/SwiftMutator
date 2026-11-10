@@ -214,14 +214,14 @@ struct NewSurvivorsCheck: Equatable, Sendable {
     /// the first with ✅ when it passes, ❌ when too many survivors are new, and ⚠️ when they aren't compared. Empty
     /// when there's no line.
     var consoleLines: [String] {
-        let lines = lines
-        guard let line = lines.first else { return [] }
+        let verdictLines = lines
+        guard let firstLine = verdictLines.first else { return [] }
         let emoji = switch passed {
         case .some(true): "✅"
         case .some(false): "❌"
         case .none: "⚠️"
         }
-        return (versionNotice.map { ["⚠️ \($0)"] } ?? []) + ["\(emoji) \(line)"] + lines.dropFirst()
+        return (versionNotice.map { ["⚠️ \($0)"] } ?? []) + ["\(emoji) \(firstLine)"] + verdictLines.dropFirst()
     }
 
     /// Why the survivors aren't compared; nil for a run that ended early.

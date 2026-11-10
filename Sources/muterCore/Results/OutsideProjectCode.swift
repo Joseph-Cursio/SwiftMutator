@@ -27,10 +27,10 @@ enum OutsideProjectCode {
     /// The Xcode projects and package folders inside `projectRoot` that the workspaces and manifests among `paths`,
     /// relative to it, name by an absolute path, by their paths relative to it, without duplicates and sorted.
     static func namedByAbsolutePath(in projectRoot: URL, listed paths: some Sequence<String>) -> [String] {
-        let paths = Array(paths)
+        let pathList = Array(paths)
         let root = projectRoot.standardizedFileURL.pathComponents
-        let packages = LocalPackageDependencies.namedByAbsolutePath(inside: projectRoot, manifests: paths)
-        let references = builtReferences(in: projectRoot, workspaces: paths).compactMap { reference in
+        let packages = LocalPackageDependencies.namedByAbsolutePath(inside: projectRoot, manifests: pathList)
+        let references = builtReferences(in: projectRoot, workspaces: pathList).compactMap { reference in
             let components = reference.url.pathComponents
             return reference.isAbsolute && components.count > root.count && components.starts(with: root)
                 ? reference.url

@@ -684,7 +684,7 @@ final class PerformMutationTestingTests: MuterTestCase {
     // One worker tests every mutant in the mutated project itself, which the next run's clean-up removes.
     func test_aSerialRun_removesNoClones() async throws {
         var removedClones: [[URL]] = []
-        let sut = PerformMutationTesting(
+        let testing = PerformMutationTesting(
             makeWorkerDirectories: { _, _ in
                 XCTFail("a serial run clones nothing")
                 return []
@@ -693,7 +693,7 @@ final class PerformMutationTestingTests: MuterTestCase {
         )
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
 
-        _ = try await sut.run(with: state)
+        _ = try await testing.run(with: state)
 
         XCTAssertEqual(removedClones, [])
     }

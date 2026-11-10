@@ -24,19 +24,19 @@ enum ResultsCoding {
     /// Sorted keys, so lines read and compare alike; slashes unescaped, so paths read as paths; never pretty-printed,
     /// so a record is one line, any line break in it escaped. Dates are ISO 8601 in UTC, to the millisecond.
     static var encoder: JSONEncoder {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        encoder.dateEncodingStrategy = .custom { date, encoder in
+        let lineEncoder = JSONEncoder()
+        lineEncoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        lineEncoder.dateEncodingStrategy = .custom { date, encoder in
             var container = encoder.singleValueContainer()
             try container.encode(text(of: date))
         }
-        return encoder
+        return lineEncoder
     }
 
     /// Reads dates as `encoder` writes them, or without fractional seconds.
     static var decoder: JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom { decoder in
+        let lineDecoder = JSONDecoder()
+        lineDecoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let text = try container.decode(String.self)
             guard let date = date(from: text) else {
@@ -44,7 +44,7 @@ enum ResultsCoding {
             }
             return date
         }
-        return decoder
+        return lineDecoder
     }
 
     /// Every line's first question: what kind of record it is.

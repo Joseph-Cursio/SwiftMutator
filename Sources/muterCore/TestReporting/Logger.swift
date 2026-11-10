@@ -243,10 +243,10 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
     /// Why the Swift files a SwiftPM package's targets compile couldn't be listed, and what discovery does instead.
     func packageSourceFilesUnavailable(reason: String) {
         // SwiftPM's errors often end in one.
-        let reason = reason.hasSuffix(".") ? String(reason.dropLast()) : reason
+        let sentence = reason.hasSuffix(".") ? String(reason.dropLast()) : reason
         print(
             """
-            ⚠️ SwiftMutator couldn't tell which files the package's targets compile: \(reason).
+            ⚠️ SwiftMutator couldn't tell which files the package's targets compile: \(sentence).
             It looks at every Swift file in the project that isn't hidden or ignored instead, so a file no target \
             builds may get mutants no test can kill. \("exclude".bold) can leave such files out.
             """
@@ -961,9 +961,9 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
     /// The seconds since the mutants started, or nil before they have.
     private func secondsSinceMutantRunsStarted() -> TimeInterval? {
         guard let start = mutantRunsStartedAt else { return nil }
-        let now = instant()
-        guard now >= start else { return 0 }
-        return Double(now.uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000_000
+        let instantNow = instant()
+        guard instantNow >= start else { return 0 }
+        return Double(instantNow.uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000_000
     }
 
     /// The time left with `tested` of `total` mutants tested on `workers` workers, `elapsed` seconds after they

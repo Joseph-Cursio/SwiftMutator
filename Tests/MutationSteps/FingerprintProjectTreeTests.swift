@@ -99,16 +99,16 @@ final class FingerprintProjectTreeTests: MuterTestCase {
     // so the step says so once, from the fingerprint's own listing. The package's files are fingerprinted, and the
     // workspace's project's aren't, so earlier results files still resume.
     func test_codeOutsideTheProject_isSaidOnce_andOnlyLocalPackagesAreFingerprinted() async throws {
-        let project = [
+        let projectFiles = [
             "Package.swift": #"let package = Package(dependencies: [.package(path: "../Core")])"#,
             "App.xcworkspace/contents.xcworkspacedata":
                 #"<Workspace version = "1.0"><FileRef location = "group:../Other/Other.xcodeproj"/></Workspace>"#,
         ]
-        try write(project, in: self.project)
-        try write(project, in: copy)
+        try write(projectFiles, in: self.project)
+        try write(projectFiles, in: copy)
         let root = (self.project as NSString).deletingLastPathComponent
         try write(["Core/Package.swift": "core", "Other/Other.xcodeproj/project.pbxproj": "other"], in: root)
-        let listed = recordListings(Array(project.keys))
+        let listed = recordListings(Array(projectFiles.keys))
         let said = recordPaths(of: .codeOutsideTheProjectBuilt)
         let warned = recordPaths(of: .projectCodeNamedByAbsolutePath)
 

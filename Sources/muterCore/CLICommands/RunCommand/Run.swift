@@ -34,12 +34,12 @@ struct Run: RunCommand {
             valueName: "k/n"
         ),
         transform: { text in
-            guard let shard = Shard(text) else {
+            guard let parsedShard = Shard(text) else {
                 throw ValidationError(
                     "give two whole numbers k/n with 1 ≤ k ≤ n ≤ \(Shard.largestCount), such as 1/2."
                 )
             }
-            return shard
+            return parsedShard
         }
     )
     var shard: Shard?
@@ -68,10 +68,10 @@ struct Run: RunCommand {
             valueName: "S"
         ),
         transform: { text in
-            guard text.allSatisfy({ ("0"..."9").contains($0) }), let seed = UInt64(text) else {
+            guard text.allSatisfy({ ("0"..."9").contains($0) }), let parsedSeed = UInt64(text) else {
                 throw ValidationError("give a whole number, 0 or more, such as 1234.")
             }
-            return seed
+            return parsedSeed
         }
     )
     var seed: UInt64?

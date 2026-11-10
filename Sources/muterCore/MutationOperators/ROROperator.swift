@@ -124,8 +124,8 @@ enum ROROperator {
         else { return nil }
         var outermost = folded
         while outermost.isAnEffectMarker, let inner = outermost.children(viewMode: .sourceAccurate).last {
-            guard let expression = inner.as(ExprSyntax.self) else { return nil }
-            outermost = expression
+            guard let innerExpression = inner.as(ExprSyntax.self) else { return nil }
+            outermost = innerExpression
         }
         guard let comparison = outermost.as(InfixOperatorExprSyntax.self)?.operator.as(BinaryOperatorExprSyntax.self),
               comparisons.contains(comparison.operator.text),
@@ -200,32 +200,32 @@ private struct Comparison {
     /// The comparison whose operator is `node`, or nil when it gets no constant: the standard table can't fold its
     /// sequence, or its value is thrown away, or it holds the only use of a closure's highest `$` argument.
     init?(withOperator node: BinaryOperatorExprSyntax) {
-        guard let sequence = node.parent?.parent?.as(SequenceExprSyntax.self),
-              let folded = try? OperatorTable.standardOperators.foldSingle(sequence),
-              !folded.is(SequenceExprSyntax.self),
-              let token = Self.token(at: node.operator.positionAfterSkippingLeadingTrivia, from: sequence, in: folded),
+        guard let parentSequence = node.parent?.parent?.as(SequenceExprSyntax.self),
+              let foldedSequence = try? OperatorTable.standardOperators.foldSingle(parentSequence),
+              !foldedSequence.is(SequenceExprSyntax.self),
+              let token = Self.token(at: node.operator.positionAfterSkippingLeadingTrivia, from: parentSequence, in: foldedSequence),
               let comparison = token.parent?.as(BinaryOperatorExprSyntax.self)?.parent?.as(InfixOperatorExprSyntax.self)
         else { return nil }
-        var replaced = ExprSyntax(comparison)
+        var replacedExpression = ExprSyntax(comparison)
         // A `try` before the sequence is hoisted over what follows it: over `a < b` alone, it goes with it, as `try
         // false` warns that nothing throws. A `try?` stays, as what it gives is an optional.
-        while let parent = replaced.parent?.as(ExprSyntax.self), parent.isAnEffectMarker,
+        while let parent = replacedExpression.parent?.as(ExprSyntax.self), parent.isAnEffectMarker,
               parent.as(TryExprSyntax.self)?.questionOrExclamationMark?.text != "?" {
-            replaced = parent
+            replacedExpression = parent
         }
         // Hoisted over more, as in `try load() < 1 && check()` or `try load() > 1 ? a : b`, it would be left over what
         // may not throw, which warns, and fails a build with warnings as errors: so the comparison gets no constant.
-        guard !Self.isWrittenAfterAHoistedMarker(replaced, in: folded) else { return nil }
-        guard let firstToken = replaced.firstToken(viewMode: .sourceAccurate),
-              let lastToken = replaced.lastToken(viewMode: .sourceAccurate),
-              let first = Self.token(at: firstToken.positionAfterSkippingLeadingTrivia, from: folded, in: sequence),
-              let last = Self.token(at: lastToken.positionAfterSkippingLeadingTrivia, from: folded, in: sequence)
+        guard !Self.isWrittenAfterAHoistedMarker(replacedExpression, in: foldedSequence) else { return nil }
+        guard let firstToken = replacedExpression.firstToken(viewMode: .sourceAccurate),
+              let lastToken = replacedExpression.lastToken(viewMode: .sourceAccurate),
+              let firstFolded = Self.token(at: firstToken.positionAfterSkippingLeadingTrivia, from: foldedSequence, in: parentSequence),
+              let lastFolded = Self.token(at: lastToken.positionAfterSkippingLeadingTrivia, from: foldedSequence, in: parentSequence)
         else { return nil }
-        self.sequence = sequence
-        self.folded = folded
-        self.replaced = replaced
-        self.first = first
-        self.last = last
+        self.sequence = parentSequence
+        self.folded = foldedSequence
+        self.replaced = replacedExpression
+        self.first = firstFolded
+        self.last = lastFolded
         guard !isThrownAway, !dropsAClosuresArgument else { return nil }
     }
 

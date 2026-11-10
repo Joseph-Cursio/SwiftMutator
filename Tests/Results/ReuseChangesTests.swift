@@ -134,7 +134,7 @@ final class ReuseChangesTests: XCTestCase {
         // A helper type, named as its file is, that the test uses, or that a `Type+Helpers.swift` file extends.
         for helper in ["SumMock.swift", "SumMock+Values.swift"] {
             let path = "Tests/SumTests/\(helper)"
-            let sources = Self.sources.merging([
+            let changedSources = Self.sources.merging([
                 "Tests/SumTests/SumTests.swift": "import Testing\n"
                     + "@Test func addsTwoNumbers() { #expect(SumMock().sum == 2) }",
                 path: "import Testing\nstruct SumMock { var sum = 2 }",
@@ -143,7 +143,7 @@ final class ReuseChangesTests: XCTestCase {
                 from: tree(Self.recorded.merging([path: "0007"]) { $1 }),
                 to: tree(Self.recorded.merging([path: "ffff"]) { $1 }),
                 waiving: [],
-                readSource: { sources[$0] }
+                readSource: { changedSources[$0] }
             )
 
             XCTAssertFalse(changes.killHolds(kill(by: ("addsTwoNumbers()", "SumTests.swift:2:33"))), helper)
@@ -184,9 +184,9 @@ final class ReuseChangesTests: XCTestCase {
             (twice, twice.merging(changedTest) { $1 }, "SumTests.swift"),
             (Self.recorded, twice.merging(changedTest) { $1 }, "SumTests.swift"),
         ]
-        for (recorded, current, file) in cases {
+        for (recordedCode, current, file) in cases {
             let changes = ReuseChanges(
-                from: tree(recorded),
+                from: tree(recordedCode),
                 to: tree(current),
                 waiving: [],
                 readSource: { Self.sources[$0] ?? "import Testing\n@Test func addsTwoNumbers() {}" }
@@ -197,7 +197,7 @@ final class ReuseChangesTests: XCTestCase {
     }
 
     func test_displayNamesAndSuites_areFoundAsTheirDeclarationsHaveThem() {
-        let sources = Self.sources.merging([
+        let changedSources = Self.sources.merging([
             "Tests/SumTests/SumTests.swift": """
             import Testing
             @Suite("Sums") struct SumTests {
@@ -210,7 +210,7 @@ final class ReuseChangesTests: XCTestCase {
             from: tree(Self.recorded),
             to: tree(Self.recorded.merging(["Tests/SumTests/ProductTests.swift": "ffff"]) { $1 }),
             waiving: [],
-            readSource: { sources[$0] }
+            readSource: { changedSources[$0] }
         )
 
         for name in ["\"Adds two numbers\"", "add(_:)", "Suite \"Sums\"", "Suite SumTests"] {

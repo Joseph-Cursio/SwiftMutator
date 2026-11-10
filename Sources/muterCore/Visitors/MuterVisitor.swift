@@ -69,8 +69,8 @@ class MuterVisitor: SyntaxAnyVisitor {
         coverage: coverage,
         source: sourceCodeInfo.code,
         location: { [unowned self] position in
-            let position = mutationPosition(for: locationConverter.location(for: position))
-            return ExecutionCounts.Point(line: position.line, column: position.column)
+            let pointPosition = mutationPosition(for: locationConverter.location(for: position))
+            return ExecutionCounts.Point(line: pointPosition.line, column: pointPosition.column)
         }
     )
 
@@ -273,10 +273,10 @@ class MuterVisitor: SyntaxAnyVisitor {
     ) {
         // By where the code it changes starts, as the inactive region and coverage checks below are, and by where the
         // mutant is reported, which for a ternary's first link is where its list ends.
-        let directives = directives(in: syntax.root)
+        let fileDirectives = directives(in: syntax.root)
         guard !isDisabled,
-              !directives.isLeftOut((changed ?? syntax).positionAfterSkippingLeadingTrivia),
-              !directives.isLeftOut(AbsolutePosition(utf8Offset: position.utf8Offset))
+              !fileDirectives.isLeftOut((changed ?? syntax).positionAfterSkippingLeadingTrivia),
+              !fileDirectives.isLeftOut(AbsolutePosition(utf8Offset: position.utf8Offset))
         else {
             return
         }

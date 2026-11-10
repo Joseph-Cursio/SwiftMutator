@@ -215,11 +215,11 @@ final class ReportCommandAcceptanceTests: XCTestCase {
         let inFile = { (name: String) in mutants.filter { ($0["path"] as? String)?.hasSuffix(name) == true } }
         XCTAssertEqual(inFile("Checks.swift").count, 2, "\(lines)")
         XCTAssertEqual(inFile("Checks.swift").compactMap { $0["log"] as? String }, [], "\(lines)")
-        let logs = inFile("Bounds.swift").compactMap { $0["log"] as? String }
-        XCTAssertEqual(logs.count, 2, "\(lines)")
-        XCTAssertEqual(Set(logs).count, logs.count, "\(logs)")
+        let boundsLogs = inFile("Bounds.swift").compactMap { $0["log"] as? String }
+        XCTAssertEqual(boundsLogs.count, 2, "\(lines)")
+        XCTAssertEqual(Set(boundsLogs).count, boundsLogs.count, "\(boundsLogs)")
         let kept = Set(try FileManager.default.contentsOfDirectory(atPath: folder.path))
-        XCTAssertTrue(Set(logs).isSubset(of: kept), "\(logs) not all in \(kept)")
+        XCTAssertTrue(Set(boundsLogs).isSubset(of: kept), "\(boundsLogs) not all in \(kept)")
         XCTAssertEqual(kept.filter { $0.contains("Checks.swift") }, [], "\(kept)")
     }
 

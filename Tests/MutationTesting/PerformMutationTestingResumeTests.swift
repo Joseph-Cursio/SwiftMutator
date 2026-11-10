@@ -609,15 +609,15 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
     func test_buildErrorsTestedAgain_dontCountTowardTheAbort() async throws {
         let lines = Array(1...10)
         state.mutationMapping = try [makeSchemataMapping(file: "Sources/Sum.swift", lines: lines)]
-        var recorded: [any Encodable] = [ResultsHeader.make(mutantsDiscovered: 10, mutantsToTest: 10, project: tree)]
+        var records: [any Encodable] = [ResultsHeader.make(mutantsDiscovered: 10, mutantsToTest: 10, project: tree)]
         for line in lines {
             let outcome: TestSuiteOutcome = line.isMultiple(of: 2) ? .failed : .buildError
-            recorded.append(record(of: "Sources/Sum.swift", line: line, outcome, fileSHA256: "5a1c"))
+            records.append(record(of: "Sources/Sum.swift", line: line, outcome, fileSHA256: "5a1c"))
         }
-        recorded.append(ResultsEnd.make(reason: .finished, recorded: 10))
+        records.append(ResultsEnd.make(reason: .finished, recorded: 10))
         state.resumeState = try ResumeState.make(
             path: resultsPath,
-            lines: recorded,
+            lines: records,
             file: XCTUnwrap(state.resumeState).file
         )
         ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .buildError, count: 5)

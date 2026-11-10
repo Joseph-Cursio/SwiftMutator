@@ -160,11 +160,11 @@ final class MutationTestHandlerTests: MuterTestCase {
     func test_aStopAtOnceDuringAStep_isRecorded() async throws {
         givenThereAreNoFailuresInAnyOfItSteps()
         let interruption = current.interruption
-        let sut = MutationTestHandler(
+        let handler = MutationTestHandler(
             steps: [stepSpy1, BuildForTestingStandIn(interruption: interruption)], state: state
         )
 
-        _ = try? await sut.run()
+        _ = try? await handler.run()
 
         let record = try XCTUnwrap(resultsFiles.records(ResultsStopped.self).first)
         XCTAssertEqual(record.step, .preparing)
@@ -176,9 +176,9 @@ final class MutationTestHandlerTests: MuterTestCase {
         stepSpy1.resultToReturn = .failure(.mutationTestingAborted(
             reason: .baselineTestFailed(log: "", mutatedFilePaths: [])
         ))
-        let sut = MutationTestHandler(options: .make(createTestPlan: true), steps: [stepSpy1], state: state)
+        let handler = MutationTestHandler(options: .make(createTestPlan: true), steps: [stepSpy1], state: state)
 
-        _ = try? await sut.run()
+        _ = try? await handler.run()
 
         XCTAssertEqual(resultsFiles.directories, [])
     }
@@ -424,19 +424,19 @@ final class MutationTestHandlerTests: MuterTestCase {
         let steps: () -> [MutationStep] = {
             [CreateMutatedProjectDirectoryURL(), LockMutatedProject(), PreviousRunCleanUp()]
         }
-        let state = { () -> MutationTestState in
-            let state = MutationTestState()
-            state.projectDirectoryURL = project
-            return state
+        let givenState = { () -> MutationTestState in
+            let made = MutationTestState()
+            made.projectDirectoryURL = project
+            return made
         }
-        let first = state()
+        let first = givenState()
         try await MutationTestHandler(steps: steps(), state: first).run()
         // As if the first run had copied the project.
         fileManager.fileExistsToReturn = [true]
         let firstRunsCalls = fileManager.methodCalls.count
         let firstRunsPaths = fileManager.paths.count
         let firstRunsListings = fileManager.contentsOfDirectoryAtPath.count
-        let second = state()
+        let second = givenState()
 
         await AssertThrowsError(try await MutationTestHandler(steps: steps(), state: second).run()) { error in
             XCTAssertEqual(
@@ -459,7 +459,7 @@ final class MutationTestHandlerTests: MuterTestCase {
         )
 
         first.mutatedProjectLock?.release()
-        try await MutationTestHandler(steps: steps(), state: state()).run()
+        try await MutationTestHandler(steps: steps(), state: givenState()).run()
         XCTAssertTrue(fileManager.paths.contains(project.path + "_mutated.noindex"), "\(fileManager.paths)")
     }
 
@@ -479,23 +479,23 @@ final class MutationTestHandlerTests: MuterTestCase {
                 },
             ]
         }
-        let state = { () -> MutationTestState in
-            let state = MutationTestState()
-            state.projectDirectoryURL = project
-            state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", keepLogFolders: 2)
-            return state
+        let givenState = { () -> MutationTestState in
+            let made = MutationTestState()
+            made.projectDirectoryURL = project
+            made.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", keepLogFolders: 2)
+            return made
         }
         // As an older SwiftMutator, whose copy has no `.noindex`, holds it: it locks the same file.
         let other = try MutatedProjectLock.Locker().lock(URL(fileURLWithPath: project.path + "_mutated"))
-        let locked = MutationTestHandler(steps: steps([]), state: state())
-        let refused = MutationTestHandler(steps: steps([RefusingStep()]), state: state())
+        let locked = MutationTestHandler(steps: steps([]), state: givenState())
+        let refused = MutationTestHandler(steps: steps([RefusingStep()]), state: givenState())
 
         await AssertThrowsError(try await locked.run()) { XCTAssertTrue($0 is MutatedProjectLockError, "\($0)") }
         await AssertThrowsError(try await refused.run()) { XCTAssertTrue($0 is ResumeRefused, "\($0)") }
         XCTAssertEqual(pruned.value, 0)
 
         other.release()
-        try await MutationTestHandler(steps: steps([]), state: state()).run()
+        try await MutationTestHandler(steps: steps([]), state: givenState()).run()
         XCTAssertEqual(pruned.value, 1)
     }
 
@@ -535,15 +535,15 @@ final class MutationTestHandlerTests: MuterTestCase {
             listed.change { $0.append(directory) }
             return ["Sources/Check.swift"]
         }
-        let state = MutationTestState()
-        state.projectDirectoryURL = project
-        state.runOptions = .make(testPlanURL: URL(fileURLWithPath: "/project/muter-mappings.json"))
-        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
+        let givenState = MutationTestState()
+        givenState.projectDirectoryURL = project
+        givenState.runOptions = .make(testPlanURL: URL(fileURLWithPath: "/project/muter-mappings.json"))
+        givenState.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
         let steps: [MutationStep] = [
             LoadMuterTestPlan(), CheckTestPlanSources(), LockMutatedProject(), CheckTestPlanCode(),
         ]
 
-        await AssertThrowsError(try await MutationTestHandler(steps: steps, state: state).run()) { error in
+        await AssertThrowsError(try await MutationTestHandler(steps: steps, state: givenState).run()) { error in
             XCTAssertEqual(
                 error as? MutatedProjectLockError,
                 .inUse(mutatedProject: mutatedProject.path, process: getpid())

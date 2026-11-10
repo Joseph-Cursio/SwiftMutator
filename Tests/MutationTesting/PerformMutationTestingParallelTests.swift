@@ -496,7 +496,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
 
     // Stopping the run kills a `cp` under way, which then fails. That says nothing about cloning the project.
     func test_aCloneThatFailsOnceCancelled_throwsCancellation() async throws {
-        let sut = PerformMutationTesting(
+        let testing = PerformMutationTesting(
             makeWorkerDirectories: { [workerClone] _, _ in
                 withUnsafeCurrentTask { $0?.cancel() }
                 throw PerformMutationTesting.WorkerDirectoryError(clone: workerClone, status: SIGKILL)
@@ -508,7 +508,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         )
         ioDelegate.testSuiteOutcomes = [.passed]
 
-        let result = await sut.runInItsOwnTask(with: state)
+        let result = await testing.runInItsOwnTask(with: state)
 
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         XCTAssertEqual(ioDelegate.builtWorkerDirectories, [])
@@ -560,14 +560,14 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
 
     func test_withThreeWorkers_everyCloneIsBuilt() async throws {
         let clones = (1...2).map { URL(fileURLWithPath: "/project_mutated_worker\($0)") }
-        let sut = PerformMutationTesting(makeWorkerDirectories: { _, _ in clones }, removeWorkerDirectories: { _ in })
+        let testing = PerformMutationTesting(makeWorkerDirectories: { _, _ in clones }, removeWorkerDirectories: { _ in })
         state.muterConfiguration = MuterConfiguration(
             executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 3
         )
         state.mutationMapping = try (1...3).map { try makeSchemataMapping(line: $0) }
         ioDelegate.testSuiteOutcomes = [.passed, .passed, .passed, .failed, .failed, .failed]
 
-        _ = try await sut.run(with: state)
+        _ = try await testing.run(with: state)
 
         XCTAssertEqual(Set(ioDelegate.builtWorkerDirectories), Set(clones))
         XCTAssertEqual(ioDelegate.builtWorkerDirectories.count, 2)
@@ -576,7 +576,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
     // Both clone builds fail, in whichever order they finish; the report names the same worker each time.
     func test_whenWorkerClonesFail_theLowestNumberedWorkerIsNamed() async throws {
         let clones = (1...2).map { URL(fileURLWithPath: "/project_mutated_worker\($0)") }
-        let sut = PerformMutationTesting(makeWorkerDirectories: { _, _ in clones }, removeWorkerDirectories: { _ in })
+        let testing = PerformMutationTesting(makeWorkerDirectories: { _, _ in clones }, removeWorkerDirectories: { _ in })
         state.muterConfiguration = MuterConfiguration(
             executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 3
         )
@@ -584,7 +584,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         ioDelegate.testSuiteOutcomes = [.passed, .buildError, .failed]
 
         await assertThrowsMuterError(
-            try await sut.run(with: state),
+            try await testing.run(with: state),
             .mutationTestingAborted(
                 reason: .workerBaselineTestFailed(worker: 1, directory: clones[0].path, log: "testLog")
             )

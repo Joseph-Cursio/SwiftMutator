@@ -83,22 +83,22 @@ struct BaselineMatches: Equatable {
         ) -> [Self] {
             var sources = ReportSources(read: readSource, digests: outcome.sourceDigests)
             let tested = outcome.mutations.compactMap { mutation -> Self? in
-                guard let key = mutation.key else { return nil }
-                let kind: Kind = if let survived = BaselineSurvivor.Outcome(mutation.testSuiteOutcome) {
+                guard let mutantKey = mutation.key else { return nil }
+                let matchKind: Kind = if let survived = BaselineSurvivor.Outcome(mutation.testSuiteOutcome) {
                     .survivor(survived)
                 } else if [.failed, .runtimeError].contains(mutation.testSuiteOutcome) {
                     .killed
                 } else {
                     .notTested
                 }
-                let line = sources.change(of: mutation)?.before
+                let sourceLine = sources.change(of: mutation)?.before
                 return Self(
-                    key: key,
-                    kind: kind,
+                    key: mutantKey,
+                    kind: matchKind,
                     before: mutation.snapshot.before,
                     after: mutation.snapshot.after,
-                    line: line,
-                    lineUnread: line == nil
+                    line: sourceLine,
+                    lineUnread: sourceLine == nil
                         && !sources.reads(mutation.originalProjectPath, relativePath: mutation.relativePath)
                 )
             }
@@ -113,7 +113,7 @@ struct BaselineMatches: Equatable {
                 )
             } + (outcome.unselectedMutants ?? []).map { ($0, Kind.notTested) }
             return tested + untested.map { mutant, kind in
-                let line = sources.change(
+                let sourceLine = sources.change(
                     in: mutant.originalProjectPath,
                     relativePath: mutant.key.path,
                     snapshot: mutant.snapshot,
@@ -126,8 +126,8 @@ struct BaselineMatches: Equatable {
                     kind: kind,
                     before: mutant.snapshot.before,
                     after: mutant.snapshot.after,
-                    line: line,
-                    lineUnread: line == nil && !sources.reads(mutant.originalProjectPath, relativePath: mutant.key.path)
+                    line: sourceLine,
+                    lineUnread: sourceLine == nil && !sources.reads(mutant.originalProjectPath, relativePath: mutant.key.path)
                 )
             }
         }

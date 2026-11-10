@@ -327,11 +327,11 @@ final class BaselineFileTests: MuterTestCase {
         let elsewhere = MuterConfiguration(executable: "/opt/bin/swift", arguments: ["test"], excludeList: ["/A/"])
             .overriding(workers: 1, timeout: 30, exclude: ["/B/"])
 
-        let scope = BaselineScope(configuration: configuration, operators: [.ror], skipCoverage: false)
+        let rorScope = BaselineScope(configuration: configuration, operators: [.ror], skipCoverage: false)
 
-        XCTAssertEqual(scope.configuration.exclude, ["/A/", "/B/"])
-        XCTAssertEqual(scope.configuration.mutationTestTimeout, 30)
-        XCTAssertEqual(scope, BaselineScope(configuration: elsewhere, operators: [.ror], skipCoverage: false))
+        XCTAssertEqual(rorScope.configuration.exclude, ["/A/", "/B/"])
+        XCTAssertEqual(rorScope.configuration.mutationTestTimeout, 30)
+        XCTAssertEqual(rorScope, BaselineScope(configuration: elsewhere, operators: [.ror], skipCoverage: false))
     }
 
     // The score's counts, as `ScoreGate` takes them, and every mutant the tests didn't kill.

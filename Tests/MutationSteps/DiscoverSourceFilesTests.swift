@@ -1015,8 +1015,8 @@ final class DiscoverSourceFilesTests: MuterTestCase {
     }
 
     private func target(_ type: String, path: String, sources: [String]) -> String {
-        let sources = sources.map { "\"\($0)\"" }.joined(separator: ", ")
-        return #"{"name": "Target", "type": "\#(type)", "path": "\#(path)", "sources": [\#(sources)]}"#
+        let sourceList = sources.map { "\"\($0)\"" }.joined(separator: ", ")
+        return #"{"name": "Target", "type": "\#(type)", "path": "\#(path)", "sources": [\#(sourceList)]}"#
     }
 
     private func makeProjectWithCoveredAndUncoveredFiles(in directory: String) throws {

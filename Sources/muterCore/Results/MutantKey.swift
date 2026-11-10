@@ -29,14 +29,14 @@ struct MutantKey: Hashable, Codable, CustomStringConvertible {
                 column: schema.position.column,
                 occurrence: 0
             )
-            let occurrence = counts[first, default: 0]
-            counts[first] = occurrence + 1
+            let seen = counts[first, default: 0]
+            counts[first] = seen + 1
             return Self(
                 path: first.path,
                 mutationOperatorId: first.mutationOperatorId,
                 line: first.line,
                 column: first.column,
-                occurrence: occurrence
+                occurrence: seen
             )
         }
     }

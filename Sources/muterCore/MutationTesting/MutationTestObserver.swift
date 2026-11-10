@@ -460,12 +460,12 @@ extension MutationTestObserver {
     ) -> [(path: String, saved: Bool)] {
         var saved = saved
         return outcome.reports.compactMap { request in
-            guard let path = path(request.path) else { return nil }
-            guard !saved.contains(where: { ResultsFile.isSameFile(path, $0) }) else { return (path, false) }
+            guard let requestedPath = path(request.path) else { return nil }
+            guard !saved.contains(where: { ResultsFile.isSameFile(requestedPath, $0) }) else { return (requestedPath, false) }
             let report = request.format.reporter.report(from: outcome)
-            let didSave = ReportWriter.save(report, to: path, using: fileManager)
-            if didSave { saved.append(path) }
-            return (path, didSave)
+            let didSave = ReportWriter.save(report, to: requestedPath, using: fileManager)
+            if didSave { saved.append(requestedPath) }
+            return (requestedPath, didSave)
         }
     }
 

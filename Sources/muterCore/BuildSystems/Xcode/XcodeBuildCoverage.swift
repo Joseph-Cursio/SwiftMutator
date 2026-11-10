@@ -266,14 +266,14 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
         projectRoot: String,
         coverageThreshold: Double
     ) -> Result<LineCoverage, CoverageError> {
-        guard let report = CoverageReport(json: report) else {
+        guard let coverageReport = CoverageReport(json: report) else {
             return .failure(.build)
         }
 
         return coverage(
-            of: report,
+            of: coverageReport,
             projectRoot: projectRoot,
-            buildFolders: report.derivedData,
+            buildFolders: coverageReport.derivedData,
             coverageThreshold: coverageThreshold
         )
     }

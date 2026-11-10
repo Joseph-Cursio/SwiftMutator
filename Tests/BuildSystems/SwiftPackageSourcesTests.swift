@@ -284,8 +284,8 @@ final class SwiftPackageSourcesTests: MuterTestCase {
     // SwiftPM's own description of a package on disk, whose local package's path it gives with links resolved, and the
     // project's through a link, as a project in `/tmp` is.
     func test_aRealPackage() async throws {
-        let swift = "/usr/bin/swift"
-        try XCTSkipUnless(FileManager.default.isExecutableFile(atPath: swift), "no \(swift)")
+        let swiftPath = "/usr/bin/swift"
+        try XCTSkipUnless(FileManager.default.isExecutableFile(atPath: swiftPath), "no \(swiftPath)")
         let (directory, link) = try makeDirectoryWithSymbolicLink()
         try makePackage(
             in: directory,
@@ -326,7 +326,7 @@ final class SwiftPackageSourcesTests: MuterTestCase {
 
         let files = await SwiftPackageSources.files(
             inProjectAt: link,
-            testedBy: MuterConfiguration(executable: swift, arguments: ["test"]),
+            testedBy: MuterConfiguration(executable: swiftPath, arguments: ["test"]),
             process: { MuterProcessFactory.makeProcess() }
         )
 
@@ -362,19 +362,19 @@ final class SwiftPackageSourcesTests: MuterTestCase {
 
     /// A description as `swift package describe --type json` gives it.
     private func description(path: String, dependencies: [String?] = [], targets: [String]) -> String {
-        let dependencies = dependencies.map { path in
+        let dependencyEntries = dependencies.map { path in
             path.map { #"{"identity": "local", "path": "\#($0)", "type": "fileSystem"}"# }
                 ?? #"{"identity": "remote", "type": "sourceControl", "url": "https://example.com/remote.git"}"#
         }
         return """
-        {"name": "Project", "path": "\(path)", "dependencies": [\(dependencies.joined(separator: ", "))],
+        {"name": "Project", "path": "\(path)", "dependencies": [\(dependencyEntries.joined(separator: ", "))],
          "targets": [\(targets.joined(separator: ", "))]}
         """
     }
 
     private func target(_ type: String, path: String, sources: [String]) -> String {
-        let sources = sources.map { "\"\($0)\"" }.joined(separator: ", ")
-        return #"{"name": "Target", "type": "\#(type)", "path": "\#(path)", "sources": [\#(sources)]}"#
+        let sourceList = sources.map { "\"\($0)\"" }.joined(separator: ", ")
+        return #"{"name": "Target", "type": "\#(type)", "path": "\#(path)", "sources": [\#(sourceList)]}"#
     }
 
     private func makePackage(in directory: String, manifest: String, files: [String]) throws {
