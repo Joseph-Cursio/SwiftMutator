@@ -48,16 +48,7 @@ struct MutantReference: Hashable, CustomStringConvertible {
     static func parse(_ text: String) throws -> Self {
         var rest = Substring(text.trimmingCharacters(in: .whitespacesAndNewlines))
 
-        var parsedOccurrence: Int?
-        if rest.hasSuffix(")"), let opening = rest.range(of: " (#", options: .backwards) {
-            let digits = rest[opening.upperBound ..< rest.index(before: rest.endIndex)]
-            guard let repeatNumber = wholeNumber(digits) else { throw usage }
-            guard repeatNumber >= 2 else {
-                throw ValidationError("give a repeat as (#2) or above; the first mutant at a place has no (#n).")
-            }
-            parsedOccurrence = repeatNumber - 1
-            rest = trimmingTrailingSpaces(rest[..<opening.lowerBound])
-        }
+        let parsedOccurrence = try takingRepeat(from: &rest)
 
         var parsedOperator: MutationOperator.Id?
         if let space = rest.lastIndex(of: " "), trimmingTrailingSpaces(rest[..<space]).last?.isASCIIDigit == true {
@@ -97,6 +88,19 @@ struct MutantReference: Hashable, CustomStringConvertible {
             mutationOperatorId: parsedOperator,
             occurrence: parsedOccurrence
         )
+    }
+
+    /// The repeat a trailing ` (#n)` of `rest` gives, as an occurrence, counting from 0, which it takes off `rest`; nil
+    /// when `rest` ends in none. n must be 2 or more.
+    private static func takingRepeat(from rest: inout Substring) throws -> Int? {
+        guard rest.hasSuffix(")"), let opening = rest.range(of: " (#", options: .backwards) else { return nil }
+        let digits = rest[opening.upperBound ..< rest.index(before: rest.endIndex)]
+        guard let repeatNumber = wholeNumber(digits) else { throw usage }
+        guard repeatNumber >= 2 else {
+            throw ValidationError("give a repeat as (#2) or above; the first mutant at a place has no (#n).")
+        }
+        rest = trimmingTrailingSpaces(rest[..<opening.lowerBound])
+        return repeatNumber - 1
     }
 
     /// Whether `key` is this mutant, or one of the mutants this reference leaves open: its path and line match, and so

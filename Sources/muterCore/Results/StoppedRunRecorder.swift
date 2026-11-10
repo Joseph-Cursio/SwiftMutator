@@ -73,9 +73,13 @@ final class StoppedRunRecorder: @unchecked Sendable {
     }
 
     /// What a stop shows: its step, why, its limit, its log's name, and the text whose failed tests the record names.
-    private typealias Found = (
-        step: ResultsStopped.Step, reason: ResultsStopped.Reason, limit: Double?, log: String?, text: String?
-    )
+    private struct Found {
+        let step: ResultsStopped.Step
+        let reason: ResultsStopped.Reason
+        let limit: Double?
+        let log: String?
+        let text: String?
+    }
 
     /// Called with the lock held.
     private func record(
@@ -88,7 +92,13 @@ final class StoppedRunRecorder: @unchecked Sendable {
         let detail: String?
         switch stop {
         case let .interrupted(signal):
-            found = (step, .interrupted, nil, Self.logWhileRunning(of: step, in: logDirectory, fileManager), nil)
+            found = Found(
+                step: step,
+                reason: .interrupted,
+                limit: nil,
+                log: Self.logWhileRunning(of: step, in: logDirectory, fileManager),
+                text: nil
+            )
             detail = InterruptionRecord.name(of: signal)
 
         case let .aborted(reason):
@@ -119,13 +129,25 @@ final class StoppedRunRecorder: @unchecked Sendable {
         let name = { (path: String?) in path.map { ($0).lastPathComponent } }
         switch reason {
         case let .baselineTestFailed(log, _):
-            return (.baseline, .failed, nil, MutationTestLog.baselineFileName, log)
+            return Found(
+                step: .baseline,
+                reason: .failed,
+                limit: nil,
+                log: MutationTestLog.baselineFileName,
+                text: log
+            )
 
         case let .workerBaselineTestFailed(worker, _, log):
-            return (.workerBaselines, .failed, nil, "baseline run worker \(worker).log", log)
+            return Found(
+                step: .workerBaselines,
+                reason: .failed,
+                limit: nil,
+                log: "baseline run worker \(worker).log",
+                text: log
+            )
 
         case let .buildForTestingFailed(_, log):
-            return (.buildForTesting, .failed, nil, name(log), nil)
+            return Found(step: .buildForTesting, reason: .failed, limit: nil, log: name(log), text: nil)
 
         case let .buildTimeoutReached(step, seconds, output, log):
             let stopped: ResultsStopped.Step = switch step {
@@ -133,7 +155,7 @@ final class StoppedRunRecorder: @unchecked Sendable {
             case .baseline: .baseline
             case .workerBaseline: .workerBaselines
             }
-            return (stopped, .timedOut, seconds, name(log), output)
+            return Found(step: stopped, reason: .timedOut, limit: seconds, log: name(log), text: output)
 
         case .tooManyBuildErrors, .mutantNotSwitchedOn, .controlRunNotSwitchedOff, .simulatorUnavailable,
              .noMutantCodeShownRunning, .unknownError:

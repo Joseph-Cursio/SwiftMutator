@@ -26,56 +26,76 @@ enum ResumeHint {
         since sinceMergeBase: String? = nil,
         chosenSeed: UInt64? = nil
     ) -> String {
-        var kept: [String] = []
-        var skipsValue = false
-        var waives = false
-        var replacesRef = false
+        var rewriter = KeptArguments(sinceMergeBase: sinceMergeBase)
         for argument in arguments {
-            if skipsValue {
-                skipsValue = false
-                continue
-            }
-            if replacesRef {
-                replacesRef = false
-                kept.append(sinceMergeBase ?? argument)
-                continue
-            }
-            if argument == "--since" {
-                replacesRef = true
-                kept.append(argument)
-                continue
-            }
-            if argument.hasPrefix("--since="), let sinceMergeBase {
-                kept.append("--since=" + sinceMergeBase)
-                continue
-            }
-            if waives {
-                waives = false
-                kept += ["--resume-ignoring", argument]
-                continue
-            }
-            if argument == "--resume" || argument == "--reuse" {
-                skipsValue = true
-                continue
-            }
-            if argument == "--reuse-ignoring" {
-                waives = true
-                continue
-            }
-            if argument.hasPrefix("--reuse-ignoring=") {
-                kept.append("--resume-ignoring=" + argument.dropFirst("--reuse-ignoring=".count))
-                continue
-            }
-            if ["--resume=", "--reuse="].contains(where: argument.hasPrefix)
-                || ["--force-resume", "--force-reuse"].contains(argument) {
-                continue
-            }
-            kept.append(argument)
+            rewriter.take(argument)
         }
+        var kept = rewriter.kept
         if let chosenSeed {
             kept += ["--seed", String(chosenSeed)]
         }
         return (["swift-mutator"] + kept.map(Logger.shellWord) + ["--resume", Logger.shellQuoted(resultsFile)])
             .joined(separator: " ")
+    }
+
+    /// The arguments `command(continuing:from:since:chosenSeed:)` keeps, as it goes through them in order.
+    private struct KeptArguments {
+        let sinceMergeBase: String?
+        var kept: [String] = []
+        var skipsValue = false
+        var waives = false
+        var replacesRef = false
+
+        /// Takes `argument`: drops it, replaces it, or keeps it.
+        mutating func take(_ argument: String) {
+            guard !takesValueOrSince(argument), !takesResumeOrReuse(argument) else { return }
+            kept.append(argument)
+        }
+
+        /// Whether `argument` was taken as the value of the one before it, or as `--since`, whose ref is replaced.
+        private mutating func takesValueOrSince(_ argument: String) -> Bool {
+            if skipsValue {
+                skipsValue = false
+                return true
+            }
+            if replacesRef {
+                replacesRef = false
+                kept.append(sinceMergeBase ?? argument)
+                return true
+            }
+            if argument == "--since" {
+                replacesRef = true
+                kept.append(argument)
+                return true
+            }
+            if argument.hasPrefix("--since="), let sinceMergeBase {
+                kept.append("--since=" + sinceMergeBase)
+                return true
+            }
+            return false
+        }
+
+        /// Whether `argument` was taken as a resume's or a reuse's, which the next resume drops or rewrites.
+        private mutating func takesResumeOrReuse(_ argument: String) -> Bool {
+            if waives {
+                waives = false
+                kept += ["--resume-ignoring", argument]
+                return true
+            }
+            if argument == "--resume" || argument == "--reuse" {
+                skipsValue = true
+                return true
+            }
+            if argument == "--reuse-ignoring" {
+                waives = true
+                return true
+            }
+            if argument.hasPrefix("--reuse-ignoring=") {
+                kept.append("--resume-ignoring=" + argument.dropFirst("--reuse-ignoring=".count))
+                return true
+            }
+            return ["--resume=", "--reuse="].contains(where: argument.hasPrefix)
+                || ["--force-resume", "--force-reuse"].contains(argument)
+        }
     }
 }

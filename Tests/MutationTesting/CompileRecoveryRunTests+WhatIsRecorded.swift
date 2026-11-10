@@ -22,7 +22,7 @@ extension CompileRecoveryRunTests {
 
         let records = try resultsFiles.records(MutantResult.self)
         XCTAssertEqual(
-            Set(records.filter { $0.leftOutWithOthers }.map(\.switchID)),
+            Set(records.filter(\.leftOutWithOthers).map(\.switchID)),
             Set(chain.map(\.id))
         )
         guard case let .mutationTestOutcomeGenerated(outcome)? = result.first else {
