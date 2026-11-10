@@ -74,15 +74,6 @@ struct SchemataMutationMapping: Sendable, Codable, Equatable, CustomStringConver
     }
 
     mutating func add(
-        _ codeBlockSyntax: CodeBlockItemListSyntax,
-        _ schemata: MutationSchemata
-    ) {
-        let key = CodeBlockKey(codeBlockSyntax)
-        codeBlockText[key] = codeBlockSyntax.description
-        mappings[key, default: []].append(contentsOf: schemata)
-    }
-
-    mutating func add(
         at place: MutationSwitchPlace,
         _ schemata: MutationSchema
     ) {

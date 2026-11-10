@@ -1,7 +1,7 @@
 import Foundation
 import SwiftSyntax
 
-final class MutationSourceCodePreparationChange: Nullable {
+final class MutationSourceCodePreparationChange: Equatable {
     static var null: MutationSourceCodePreparationChange {
         .init(
             newLines: 0

@@ -5,12 +5,6 @@ import XCTest
 final class PerformMutationTestingTests: MuterTestCase {
     let state = MutationTestState()
 
-    private let expectedMutationPoint = MutationPoint(
-        mutationOperatorId: .ror,
-        filePath: "/tmp/project/file.swift",
-        position: .firstPosition
-    )
-
     lazy var sut = PerformMutationTesting()
 
     override func setUpWithError() throws {

@@ -1,6 +1,6 @@
 @testable import muterCore
 
-class MutationStepSpy: Spy, MutationStep {
+class MutationStepSpy: MutationStep {
     private(set) var methodCalls: [String] = []
     private(set) var states: [AnyMutationTestState] = []
     var resultToReturn: Result<[MutationTestState.Change], MuterError>?

@@ -2,12 +2,8 @@ import Foundation
 @testable import muterCore
 
 // A test sets it up before the run. What parallel workers call is behind `lock`.
-final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @unchecked Sendable {
+final class MutationTestingDelegateSpy: MutationTestingIODelegate, @unchecked Sendable {
     private(set) var methodCalls: [String] = []
-    private(set) var backedUpFilePaths: [String] = []
-    private(set) var mutatedFileContents: [String] = []
-    private(set) var mutatedFilePaths: [String] = []
-    private(set) var restoredFilePaths: [String] = []
 
     private(set) var schematas: MutationSchemata = []
     private(set) var testRuns: [XCTestRun] = []
@@ -93,17 +89,6 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     /// Each run's output `keepOutput` was asked to move, and where to, nil to remove it, in order.
     private(set) var keptOutputs: [(output: String, path: String?)] = []
     private var mutantRunCount = 0
-
-    func backupFile(at path: String, using _: [FilePath: FilePath]) {
-        methodCalls.append(#function)
-        backedUpFilePaths.append(path)
-    }
-
-    func writeFile(to path: String, contents: String) throws {
-        methodCalls.append(#function)
-        mutatedFilePaths.append(path)
-        mutatedFileContents.append(contents)
-    }
 
     func runTestSuite(
         withSchemata schemata: MutationSchema,
@@ -275,10 +260,5 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     func keepOutput(at output: String, as path: String?) -> Bool {
         lock.withLock { keptOutputs.append((output, path)) }
         return false
-    }
-
-    func restoreFile(at path: String, using _: [FilePath: FilePath]) {
-        methodCalls.append(#function)
-        restoredFilePaths.append(path)
     }
 }

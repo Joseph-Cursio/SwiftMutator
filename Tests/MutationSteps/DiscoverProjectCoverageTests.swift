@@ -18,10 +18,6 @@ private final class CoverageStub: BuildSystemCoverage {
     func run(with _: MuterConfiguration) -> Result<Coverage, CoverageError> {
         result()
     }
-
-    func buildDirectory(_: MuterConfiguration) -> String? {
-        nil
-    }
 }
 
 final class DiscoverProjectCoverageTests: MuterTestCase {

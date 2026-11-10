@@ -13,8 +13,6 @@ extension XCTestCase {
 
     /// The fixtures the tests read.
     var fixturesDirectory: String { "\(rootTestDirectory)/fixtures" }
-    /// The fixtures' configuration file.
-    var configurationPath: String { "\(fixturesDirectory)/\(MuterConfiguration.fileNameWithExtension)" }
     /// The fixtures' example sources to mutate.
     var mutationExamplesDirectory: String { "\(fixturesDirectory)/MutationExamples" }
 }

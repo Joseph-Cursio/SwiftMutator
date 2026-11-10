@@ -282,10 +282,6 @@ struct LoadConfiguration: MutationStep {
         try fileManager
             .removeItem(atPath: "\(path.pathWithoutFileName)/\(MuterConfiguration.legacyFileNameWithExtension)")
     }
-
-    private func legacyPath(_ path: String) -> String {
-        path
-    }
 }
 
 private extension String {

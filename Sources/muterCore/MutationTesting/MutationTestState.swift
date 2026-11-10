@@ -4,13 +4,10 @@ import SwiftSyntax
 protocol AnyMutationTestState: AnyObject {
     var runOptions: Run.Options { get }
     var newVersion: String { get }
-    var mutationTestingStartTime: Date { get }
     var muterConfiguration: MuterConfiguration { get }
     var mutationOperatorList: MutationOperatorList { get }
     var projectDirectoryURL: URL { get }
     var mutatedProjectDirectoryURL: URL { get }
-    /// The lock on the mutated project, held until the state goes once the run's work has ended; nil until taken.
-    var mutatedProjectLock: MutatedProjectLock? { get }
     var projectXCTestRun: XCTestRun { get }
     /// Whether the xcodebuild in use lists `-collect-test-diagnostics never` in its `-help`; false until
     /// `BuildForTesting` has asked it, and for other build systems.
@@ -20,12 +17,10 @@ protocol AnyMutationTestState: AnyObject {
     /// What the build compiles with, for discovery to tell which `#if` branches it leaves out; nil if that can't be
     /// told.
     var buildConditions: ProjectBuildConditions? { get }
-    var mutationPoints: [MutationPoint] { get }
     var mutationMapping: [SchemataMutationMapping] { get }
     var droppedMutants: [DroppedMutant] { get }
     var sourceCodeByFilePath: [FilePath: SourceFileSyntax] { get }
     var filesToMutate: [String] { get }
-    var mutationTestOutcome: MutationTestOutcome { get }
     /// The folder the run's test logs are kept in, `<project>_muter_logs/<timestamp>`, so a step can keep other
     /// files of the run beside them; "" until the handler has created it.
     var loggingDirectory: String { get }
@@ -91,17 +86,16 @@ final class MutationTestState: AnyMutationTestState {
     var mutationOperatorList: MutationOperatorList = []
     var filesToMutate: [String] = []
     var newVersion: String = ""
-    var mutationTestingStartTime: Date = .init()
     var muterConfiguration: MuterConfiguration = .init()
     var projectDirectoryURL: URL = .init(fileURLWithPath: "path")
     var mutatedProjectDirectoryURL: URL = .init(fileURLWithPath: "path")
+    /// The lock on the mutated project, held until the state goes once the run's work has ended; nil until taken.
     var mutatedProjectLock: MutatedProjectLock?
     var projectXCTestRun: XCTestRun = .init()
     var testDiagnosticsCanBeTurnedOff = false
     var projectCoverage: Coverage = .null
     var sourceFileCandidates: [FilePath] = []
     var buildConditions: ProjectBuildConditions?
-    var mutationPoints: [MutationPoint] = []
     var mutationMapping: [SchemataMutationMapping] = []
     var droppedMutants: [DroppedMutant] = []
     var sourceCodeByFilePath: [FilePath: SourceFileSyntax] = [:]
@@ -146,7 +140,6 @@ final class MutationTestState: AnyMutationTestState {
         case projectCoverage(Coverage)
         case sourceFileCandidatesDiscovered([FilePath])
         case buildConditionsDiscovered(ProjectBuildConditions)
-        case mutationPointsDiscovered([MutationPoint])
         case mutationMappingsDiscovered([SchemataMutationMapping])
         case mutantsDropped([DroppedMutant])
         case sourceCodeParsed([FilePath: SourceFileSyntax])
@@ -185,9 +178,8 @@ final class MutationTestState: AnyMutationTestState {
              .mutatedProjectLocked, .projectXCTestRun, .testDiagnosticsOptionChecked, .projectCoverage:
             applyProjectChange(change)
 
-        case .sourceFileCandidatesDiscovered, .buildConditionsDiscovered, .mutationPointsDiscovered,
-             .mutationMappingsDiscovered, .mutantsDropped, .sourceCodeParsed, .mutationTestOutcomeGenerated,
-             .loggingDirectoryCreated:
+        case .sourceFileCandidatesDiscovered, .buildConditionsDiscovered, .mutationMappingsDiscovered,
+             .mutantsDropped, .sourceCodeParsed, .mutationTestOutcomeGenerated, .loggingDirectoryCreated:
             applyDiscoveryChange(change)
 
         case .projectTreeFingerprinted, .resumeStateLoaded, .projectChangesWaived, .reuseChangesFound,
@@ -243,9 +235,6 @@ final class MutationTestState: AnyMutationTestState {
 
         case let .buildConditionsDiscovered(buildConditions):
             self.buildConditions = buildConditions
-
-        case let .mutationPointsDiscovered(mutationPoints):
-            self.mutationPoints = mutationPoints
 
         case let .mutationMappingsDiscovered(mutationMapping):
             self.mutationMapping = mutationMapping

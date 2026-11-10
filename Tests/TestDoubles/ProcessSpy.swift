@@ -73,16 +73,6 @@ final class ProcessSpy: MuterProcess, @unchecked Sendable {
         return commandResult([url] + args)
     }
 
-    var terminateCalled = false
-
-    func terminate() {
-        terminateCalled = true
-    }
-
-    func interrupt() {
-        // A spy: nothing runs.
-    }
-
     // Override the protocol's default `terminateTree()` so tests can assert the timeout handler
     // reaches for the tree-kill without invoking the real `ps`/`kill` path.
     private(set) var terminateTreeCalled = false

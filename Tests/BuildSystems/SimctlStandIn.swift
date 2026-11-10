@@ -121,14 +121,6 @@ final class SimctlStandIn: MuterProcess, @unchecked Sendable { // every `var` it
         // A fake process: nothing runs.
     }
 
-    func terminate() {
-        // A fake process: nothing runs.
-    }
-
-    func interrupt() {
-        // A fake process: nothing runs.
-    }
-
     func terminateTree() {
         lock.withLock { killed += 1 }
     }

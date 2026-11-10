@@ -1,10 +1,7 @@
 import ArgumentParser
 import Foundation
 
-protocol RunCommand: AsyncParsableCommand {
-    func run(with options: Run.Options) async throws
-    func validate() throws
-}
+protocol RunCommand: AsyncParsableCommand {}
 
 extension RunCommand {
     func run(with options: Run.Options) async throws {
@@ -26,10 +23,6 @@ extension RunCommand {
         if let status = ended.exitStatus {
             Foundation.exit(status.rawValue)
         }
-    }
-
-    func validate() throws {
-        // Nothing to check beyond what ArgumentParser checks.
     }
 
     /// What a run command prints when its work failed with `error`. A refused resume, a run refused because another

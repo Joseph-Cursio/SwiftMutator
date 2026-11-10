@@ -8,8 +8,6 @@ protocol BuildSystemCoverage: AnyObject {
     func run(
         with configuration: MuterConfiguration
     ) async -> Result<Coverage, CoverageError>
-
-    func buildDirectory(_ configuration: MuterConfiguration) async -> String?
 }
 
 extension BuildSystemCoverage {

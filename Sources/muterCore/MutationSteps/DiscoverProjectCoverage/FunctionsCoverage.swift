@@ -5,7 +5,7 @@ struct FileCoverage: Equatable {
     static let empty = Self(functions: [])
 }
 
-final class FunctionsCoverage: Sendable, Equatable, Nullable {
+final class FunctionsCoverage: Sendable, Equatable {
     /// Keyed by canonical path, since llvm-cov may spell a file's path differently from SwiftMutator.
     private let coverage: [String: FileCoverage]
 

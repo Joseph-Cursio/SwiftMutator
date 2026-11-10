@@ -23,17 +23,6 @@ extension SyntaxProtocol {
         return withLeadingTrivia(Trivia(pieces: pieces))
     }
 
-    func appendingTrailingTrivia(
-        _ pieces: TriviaPiece...
-    ) -> Self {
-        var trivia = trailingTrivia
-        if !trivia.isEmpty {
-            pieces.forEach { trivia = trivia.appending($0) }
-            return withTrailingTrivia(trivia)
-        }
-        return withTrailingTrivia(Trivia(pieces: pieces))
-    }
-
     func withTrailingTrivia(
         _ trivia: Trivia?
     ) -> Self {

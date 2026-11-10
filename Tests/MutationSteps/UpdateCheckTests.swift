@@ -6,23 +6,6 @@ import TestingExtensions
 import Version
 import XCTest
 
-private class VersionFetcherSpy: Spy {
-    var methodCalls: [String] = []
-
-    private(set) var urlPassed: URL?
-    private(set) var optionsPassed: Data.ReadingOptions?
-    var dataToBeReturned = Data()
-
-    func fetch(_ url: URL, _ options: Data.ReadingOptions) throws -> Data {
-        methodCalls.append(#function)
-
-        urlPassed = url
-        optionsPassed = options
-
-        return dataToBeReturned
-    }
-}
-
 final class UpdateCheckTests: MuterTestCase {
     private let currentVersion = Version(1, 0, 0)
     private let state = MutationTestState()

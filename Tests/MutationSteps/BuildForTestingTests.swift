@@ -261,17 +261,5 @@ final class BuildForTestingTests: MuterTestCase {
     func loadXCTestRun() -> Data {
         FileManager.default.contents(atPath: buildDescriptionPath + "/project.xctestrun") ?? .init()
     }
-
-    func loadXCTestRunWithDebugFolder() -> Data {
-        FileManager.default.contents(atPath: buildDescriptionPath + "/projectWithDebugPath.xctestrun") ?? .init()
-    }
-}
-
-extension muterCore.XCTestRun {
-    static func from(_ data: Data) -> Self {
-        let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: AnyHashable]
-
-        return .init(plist ?? [:])
-    }
 }
 #endif

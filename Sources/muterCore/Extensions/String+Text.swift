@@ -22,10 +22,6 @@ extension String {
             .joined(separator: " ")
     }
 
-    func distance(to index: Index) -> Int {
-        distance(from: startIndex, to: index)
-    }
-
     var nilIfEmpty: String? {
         !isEmpty ? self : nil
     }

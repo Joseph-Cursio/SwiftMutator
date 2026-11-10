@@ -1,7 +1,7 @@
 import Foundation
 import SwiftSyntax
 
-struct MutationPoint: Equatable, Codable, Nullable {
+struct MutationPoint: Equatable, Codable {
     let mutationOperatorId: MutationOperator.Id
     let filePath: String
     let position: MutationPosition
@@ -19,7 +19,7 @@ struct MutationPoint: Equatable, Codable, Nullable {
     }
 }
 
-struct MutationSchema: Codable, Nullable, Equatable, CustomStringConvertible, CustomDebugStringConvertible {
+struct MutationSchema: Codable, Equatable, CustomStringConvertible, CustomDebugStringConvertible {
     /// What switches the mutant on (`MutationSwitch`): `<file name>_<path hash>_<operator>_<line>_<column>_<offset>`,
     /// the offset counting the header and import SwiftMutator inserts. The hash is of the file's path in the mutated
     /// project, so that same-named files, such as two executable targets' `main.swift`, don't share an ID: a test run

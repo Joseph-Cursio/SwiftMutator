@@ -1,21 +1,5 @@
 import Foundation
 
-private struct XCTestArenaInfo: Codable {
-    let buildProductsPath: String
-}
-
-private struct XCTestBuildParameters: Codable {
-    let arenaInfo: XCTestArenaInfo
-}
-
-private struct XCTestBuildRequest: Codable {
-    var buildProductsPath: String {
-        parameters.arenaInfo.buildProductsPath
-    }
-
-    private let parameters: XCTestBuildParameters
-}
-
 struct BuildForTesting: MutationStep {
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
@@ -187,14 +171,6 @@ struct BuildForTesting: MutationStep {
         xcodebuild build-for-testing failed with exit code \(status):
         \(details.joined(separator: "\n"))
         """
-    }
-
-    private func parseBuildRequest(_ path: String) throws -> XCTestBuildRequest {
-        guard let jsonContent = fileManager.contents(atPath: path) else {
-            throw MuterError.literal(reason: "Could not parse build request json at path: \(path)")
-        }
-
-        return try JSONDecoder().decode(XCTestBuildRequest.self, from: jsonContent)
     }
 
     private func copyBuildArtifactsAtPath(_ buildPath: String, to destination: String) throws {

@@ -4,7 +4,7 @@ typealias ReportOptions = (reporter: Reporter, path: String?)
 
 extension Run {
     /// Sendable: the command makes them, and the run's work reads them in a task of its own (`Interruptions.run`).
-    struct Options: Sendable, Equatable, Nullable {
+    struct Options: Sendable, Equatable {
         let reportOptions: ReportOptions
         /// `--report`: the reports saved besides `-f`'s, each in its own format, with their paths resolved, in place
         /// of `reports`; nil when none was given.

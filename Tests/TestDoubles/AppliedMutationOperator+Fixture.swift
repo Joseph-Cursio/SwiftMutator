@@ -1,13 +1,4 @@
 @testable import muterCore
-import SwiftSyntax
-
-extension MuterTestReport {
-    static func make(
-        outcome: MutationTestOutcome = .make()
-    ) -> MuterTestReport {
-        .init(from: outcome)
-    }
-}
 
 extension AppliedMutationOperator {
     static func make(
@@ -57,25 +48,6 @@ extension FileReport {
             path: path,
             mutationScore: mutationScore,
             appliedOperators: appliedOperators
-        )
-    }
-}
-
-extension AppliedMutationOperator {
-    static func make(
-        mutationOperator: MutationOperator.Id = .logicalOperator,
-        position: SwiftSyntax.SourceLocation = .init(integerLiteral: 0),
-        mutationSnapshot: MutationOperator.Snapshot = .null,
-        testOutcome: TestSuiteOutcome = .passed
-    ) -> Self {
-        Self(
-            mutationPoint: .make(
-                mutationOperatorId: mutationOperator,
-                filePath: "filePath",
-                position: MutationPosition(sourceLocation: position)
-            ),
-            mutationSnapshot: mutationSnapshot,
-            testSuiteOutcome: testOutcome
         )
     }
 }
