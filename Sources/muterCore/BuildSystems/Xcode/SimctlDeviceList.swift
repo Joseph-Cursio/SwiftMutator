@@ -1,54 +1,5 @@
 import Foundation
 
-/// The simulators `xcrun simctl list devices --json` lists, under the runtime each runs.
-///
-/// Read so that what another Xcode adds, drops or renames costs only the devices it touches: fields the list doesn't
-/// know are ignored, and a device that lacks one it needs, or holds one of another type, is left out rather than
-/// failing the whole list.
-struct SimctlDeviceList: Equatable, Sendable {
-    /// Each device listed, by its runtime's identifier and then in simctl's order.
-    let devices: [SimctlDevice]
-
-    init(devices: [SimctlDevice]) {
-        self.devices = devices
-    }
-
-    /// The devices in `json`, simctl's output, or nil if it isn't JSON with a `devices` object of runtimes.
-    init?(json: Data) {
-        guard let listing = try? JSONDecoder().decode(Listing.self, from: json) else {
-            return nil
-        }
-        devices = listing.devices.keys.sorted().flatMap { runtimeIdentifier in
-            (listing.devices[runtimeIdentifier]?.value ?? []).compactMap { entry in
-                entry.value.map { SimctlDevice($0, runtimeIdentifier: runtimeIdentifier) }
-            }
-        }
-    }
-
-    /// simctl's output: `{"devices": {"<runtime identifier>": [<device>, …], …}}`.
-    private struct Listing: Decodable {
-        let devices: [String: Lossy<[Lossy<Entry>]>]
-    }
-
-    /// A device as simctl lists it, with the fields SwiftMutator reads.
-    fileprivate struct Entry: Decodable {
-        let udid: String
-        let name: String
-        let state: String
-        let isAvailable: Bool
-        let deviceTypeIdentifier: String
-    }
-
-    /// A value, or nil where the JSON holds something that doesn't decode as one.
-    private struct Lossy<Value: Decodable>: Decodable {
-        let value: Value?
-
-        init(from decoder: Decoder) throws {
-            value = try? Value(from: decoder)
-        }
-    }
-}
-
 /// A simulator as `simctl list devices --json` lists it.
 struct SimctlDevice: Equatable, Sendable {
     let udid: String
@@ -78,7 +29,7 @@ struct SimctlDevice: Equatable, Sendable {
         self.runtimeIdentifier = runtimeIdentifier
     }
 
-    fileprivate init(_ entry: SimctlDeviceList.Entry, runtimeIdentifier: String) {
+    init(_ entry: SimctlDeviceList.Entry, runtimeIdentifier: String) {
         self.init(
             udid: entry.udid,
             name: entry.name,
@@ -133,5 +84,54 @@ struct SimctlRuntime: Equatable, Sendable {
             return nil
         }
         return Array(numbers.compactMap(\.self).reversed().drop { $0 == 0 }.reversed())
+    }
+}
+
+/// The simulators `xcrun simctl list devices --json` lists, under the runtime each runs.
+///
+/// Read so that what another Xcode adds, drops or renames costs only the devices it touches: fields the list doesn't
+/// know are ignored, and a device that lacks one it needs, or holds one of another type, is left out rather than
+/// failing the whole list.
+struct SimctlDeviceList: Equatable, Sendable {
+    /// Each device listed, by its runtime's identifier and then in simctl's order.
+    let devices: [SimctlDevice]
+
+    init(devices: [SimctlDevice]) {
+        self.devices = devices
+    }
+
+    /// The devices in `json`, simctl's output, or nil if it isn't JSON with a `devices` object of runtimes.
+    init?(json: Data) {
+        guard let listing = try? JSONDecoder().decode(Listing.self, from: json) else {
+            return nil
+        }
+        devices = listing.devices.keys.sorted().flatMap { runtimeIdentifier in
+            (listing.devices[runtimeIdentifier]?.value ?? []).compactMap { entry in
+                entry.value.map { SimctlDevice($0, runtimeIdentifier: runtimeIdentifier) }
+            }
+        }
+    }
+
+    /// simctl's output: `{"devices": {"<runtime identifier>": [<device>, …], …}}`.
+    private struct Listing: Decodable {
+        let devices: [String: Lossy<[Lossy<Entry>]>]
+    }
+
+    /// A device as simctl lists it, with the fields SwiftMutator reads.
+    struct Entry: Decodable {
+        let udid: String
+        let name: String
+        let state: String
+        let isAvailable: Bool
+        let deviceTypeIdentifier: String
+    }
+
+    /// A value, or nil where the JSON holds something that doesn't decode as one.
+    private struct Lossy<Value: Decodable>: Decodable {
+        let value: Value?
+
+        init(from decoder: Decoder) throws {
+            value = try? Value(from: decoder)
+        }
     }
 }

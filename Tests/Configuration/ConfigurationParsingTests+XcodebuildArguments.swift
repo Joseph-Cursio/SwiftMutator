@@ -54,9 +54,9 @@ extension ConfigurationParsingTests {
         let worker = MuterConfiguration.XcodeWorker(
             testRunFile: "muter-worker2.xctestrun",
             derivedData: "/path/App_mutated_worker2.DerivedData",
+            testDiagnosticsOff: true,
             destination: "platform=iOS Simulator,id=8C5A2F0E",
-            parallelTestingOff: true,
-            testDiagnosticsOff: true
+            parallelTestingOff: true
         )
 
         XCTAssertEqual(xcode.forXcodeWorker(worker).testWithoutBuildArguments(with: "muter.xctestrun"), [
@@ -125,9 +125,9 @@ extension ConfigurationParsingTests {
         let onASimulator = MuterConfiguration.XcodeWorker(
             testRunFile: "muter-worker1.xctestrun",
             derivedData: "/path/App_mutated_worker1.DerivedData",
+            testDiagnosticsOff: true,
             destination: "platform=iOS Simulator,id=8C5A2F0E",
-            parallelTestingOff: true,
-            testDiagnosticsOff: true
+            parallelTestingOff: true
         )
 
         XCTAssertEqual(xcode.forXcodeWorker(onTheDestination).testWithoutBuildArguments(with: "muter.xctestrun"), [

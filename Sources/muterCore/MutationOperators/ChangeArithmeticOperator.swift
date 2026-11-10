@@ -11,15 +11,15 @@ import SwiftSyntax
 enum ChangeArithmeticOperator {
     final class Visitor: TokenAwareVisitor {
         convenience init(
-            configuration: MuterConfiguration? = nil,
             sourceCodeInfo: SourceCodeInfo,
+            configuration: MuterConfiguration? = nil,
             coverage: FileCoverage = .empty
         ) {
             self.init(
-                configuration: configuration,
                 sourceCodeInfo: sourceCodeInfo,
                 mutationOperatorId: .arithmeticOperator,
-                coverage: coverage
+                coverage: coverage,
+                configuration: configuration
             )
 
             oppositeOperatorMapping = Self.changes

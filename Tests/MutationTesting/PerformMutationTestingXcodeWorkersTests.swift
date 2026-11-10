@@ -220,9 +220,9 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
             derivedData: MuterConfiguration.XcodeWorker.derivedData(
                 ofWorker: number, in: state.mutatedProjectDirectoryURL
             ),
+            testDiagnosticsOff: true,
             destination: "platform=iOS Simulator,id=SIM-\(number)",
-            parallelTestingOff: true,
-            testDiagnosticsOff: true
+            parallelTestingOff: true
         )
     }
 

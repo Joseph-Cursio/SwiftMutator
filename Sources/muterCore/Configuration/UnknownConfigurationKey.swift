@@ -106,8 +106,13 @@ struct UnknownConfigurationKey: Equatable, Sendable {
     /// `first` into `second`, each character edited once at most: `excldue` is one swap from `exclude`.
     private static func editDistance(_ first: String, _ second: String) -> Int {
         let firstCharacters = Array(first), secondCharacters = Array(second)
-        guard !firstCharacters.isEmpty, !secondCharacters.isEmpty else { return max(firstCharacters.count, secondCharacters.count) }
-        var table = [[Int]](repeating: [Int](repeating: 0, count: secondCharacters.count + 1), count: firstCharacters.count + 1)
+        guard !firstCharacters.isEmpty, !secondCharacters.isEmpty else {
+            return max(firstCharacters.count, secondCharacters.count)
+        }
+        var table = [[Int]](
+            repeating: [Int](repeating: 0, count: secondCharacters.count + 1),
+            count: firstCharacters.count + 1
+        )
         for row in 0 ... firstCharacters.count { table[row][0] = row }
         for column in 0 ... secondCharacters.count { table[0][column] = column }
         for row in 1 ... firstCharacters.count {
@@ -118,7 +123,9 @@ struct UnknownConfigurationKey: Equatable, Sendable {
                     table[row][column - 1] + 1,
                     table[row - 1][column - 1] + cost
                 )
-                if row > 1, column > 1, firstCharacters[row - 1] == secondCharacters[column - 2], firstCharacters[row - 2] == secondCharacters[column - 1] {
+                if row > 1, column > 1,
+                   firstCharacters[row - 1] == secondCharacters[column - 2],
+                   firstCharacters[row - 2] == secondCharacters[column - 1] {
                     best = min(best, table[row - 2][column - 2] + 1)
                 }
                 table[row][column] = best

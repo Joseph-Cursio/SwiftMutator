@@ -3,15 +3,15 @@ import SwiftSyntax
 enum SwapTernaryOperator {
     final class Visitor: MuterVisitor {
         convenience init(
-            configuration: MuterConfiguration? = nil,
             sourceCodeInfo: SourceCodeInfo,
+            configuration: MuterConfiguration? = nil,
             coverage: FileCoverage = .empty
         ) {
             self.init(
-                configuration: configuration,
                 sourceCodeInfo: sourceCodeInfo,
                 mutationOperatorId: .swapTernary,
-                coverage: coverage
+                coverage: coverage,
+                configuration: configuration
             )
         }
 

@@ -238,13 +238,14 @@ final class SwiftCoverage: BuildSystemCoverage {
     }
 
     private struct PackageDescription: Decodable {
-        let targets: [Target]
+        let targets: [PackageDescriptionTarget]
+    }
 
-        struct Target: Decodable {
-            let name: String
-            let type: String
-            let sources: [String]?
-        }
+    /// A target in a `PackageDescription`.
+    private struct PackageDescriptionTarget: Decodable {
+        let name: String
+        let type: String
+        let sources: [String]?
     }
 
     /// How to run the LLVM tool `name`, such as `llvm-cov`: the executable, and the arguments before the tool's own.

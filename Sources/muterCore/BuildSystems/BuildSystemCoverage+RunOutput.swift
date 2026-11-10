@@ -1,5 +1,27 @@
 import Foundation
 
+/// The suites, tests or runs a run's output shows starting, by name, and how many more times each started than it
+/// ended: several test processes print the same suite names, such as `All tests`.
+private struct StartedAndEnded {
+    private var running: [String: Int] = [:]
+    private var order: [String] = []
+
+    /// Those that started more times than they ended, in the order they first started.
+    var unfinished: [String] {
+        order.filter { running[$0, default: 0] > 0 }
+    }
+
+    /// Counts `line` as a start or an end when `started` or `ended`, each of which captures a name, matches it.
+    mutating func read(_ line: String, started: String, ended: String) {
+        if let name = line.firstCaptureOf(started) {
+            if running[name] == nil { order.append(name) }
+            running[name, default: 0] += 1
+        } else if let name = line.firstCaptureOf(ended) {
+            running[name, default: 0] -= 1
+        }
+    }
+}
+
 /// What a coverage run printed, read the same way for SwiftPM and xcodebuild.
 extension BuildSystemCoverage {
     /// What a command printed: its standard output, then its standard error from a new line.
@@ -76,27 +98,5 @@ extension BuildSystemCoverage {
         }
         let test = swiftTestingTests.unfinished.first.map { "during \($0)" }
         return ["Swift Testing", test].compactMap(\.self).joined(separator: ", ")
-    }
-}
-
-/// The suites, tests or runs a run's output shows starting, by name, and how many more times each started than it
-/// ended: several test processes print the same suite names, such as `All tests`.
-private struct StartedAndEnded {
-    private var running: [String: Int] = [:]
-    private var order: [String] = []
-
-    /// Those that started more times than they ended, in the order they first started.
-    var unfinished: [String] {
-        order.filter { running[$0, default: 0] > 0 }
-    }
-
-    /// Counts `line` as a start or an end when `started` or `ended`, each of which captures a name, matches it.
-    mutating func read(_ line: String, started: String, ended: String) {
-        if let name = line.firstCaptureOf(started) {
-            if running[name] == nil { order.append(name) }
-            running[name, default: 0] += 1
-        } else if let name = line.firstCaptureOf(ended) {
-            running[name, default: 0] -= 1
-        }
     }
 }

@@ -153,17 +153,32 @@ enum PackageSchemeBuildConditions {
         return ["Debug": "debug", "Release": "release"][arguments[index + 1]]
     }
 
-    /// A destination's platform, as `os(…)`, `targetEnvironment(…)` and the SDK name it, for each `platform=` value.
-    private static let platforms: [String: (system: String, environment: String?, sdk: String)] = [
-        "macOS": ("macOS", nil, "macosx"),
-        "iOS": ("iOS", nil, "iphoneos"),
-        "iOS Simulator": ("iOS", "simulator", "iphonesimulator"),
-        "tvOS": ("tvOS", nil, "appletvos"),
-        "tvOS Simulator": ("tvOS", "simulator", "appletvsimulator"),
-        "watchOS": ("watchOS", nil, "watchos"),
-        "watchOS Simulator": ("watchOS", "simulator", "watchsimulator"),
-        "visionOS": ("visionOS", nil, "xros"),
-        "visionOS Simulator": ("visionOS", "simulator", "xrsimulator"),
+    /// A destination's platform, as `os(…)`, `targetEnvironment(…)` and the SDK name it.
+    struct DestinationPlatform {
+        let system: String
+        let environment: String?
+        let sdk: String
+    }
+
+    /// What a `-destination` says of the platform: its `DestinationPlatform`, and its architectures if it names them.
+    struct Destination {
+        let system: String
+        let environment: String?
+        let sdk: String
+        let architectures: Set<String>?
+    }
+
+    /// Each `platform=` value's `DestinationPlatform`.
+    private static let platforms: [String: DestinationPlatform] = [
+        "macOS": DestinationPlatform(system: "macOS", environment: nil, sdk: "macosx"),
+        "iOS": DestinationPlatform(system: "iOS", environment: nil, sdk: "iphoneos"),
+        "iOS Simulator": DestinationPlatform(system: "iOS", environment: "simulator", sdk: "iphonesimulator"),
+        "tvOS": DestinationPlatform(system: "tvOS", environment: nil, sdk: "appletvos"),
+        "tvOS Simulator": DestinationPlatform(system: "tvOS", environment: "simulator", sdk: "appletvsimulator"),
+        "watchOS": DestinationPlatform(system: "watchOS", environment: nil, sdk: "watchos"),
+        "watchOS Simulator": DestinationPlatform(system: "watchOS", environment: "simulator", sdk: "watchsimulator"),
+        "visionOS": DestinationPlatform(system: "visionOS", environment: nil, sdk: "xros"),
+        "visionOS Simulator": DestinationPlatform(system: "visionOS", environment: "simulator", sdk: "xrsimulator"),
     ]
 
     /// The platform of the command's one `-destination`, with the modules of its SDK; nil if it gives none, several,
@@ -188,7 +203,7 @@ enum PackageSchemeBuildConditions {
     /// `arch=`: which ones the build compiles for otherwise goes by settings xcodebuild doesn't report here.
     static func destination(
         in arguments: [String]
-    ) -> (system: String, environment: String?, sdk: String, architectures: Set<String>?)? {
+    ) -> Destination? {
         let values = arguments.indices.dropLast().filter { arguments[$0] == "-destination" }.map { arguments[$0 + 1] }
         guard values.count == 1 else { return nil }
         var fields: [String: String] = [:]
@@ -203,6 +218,11 @@ enum PackageSchemeBuildConditions {
         else {
             return nil
         }
-        return (platform.system, platform.environment, platform.sdk, fields["arch"].map { [$0] })
+        return Destination(
+            system: platform.system,
+            environment: platform.environment,
+            sdk: platform.sdk,
+            architectures: fields["arch"].map { [$0] }
+        )
     }
 }

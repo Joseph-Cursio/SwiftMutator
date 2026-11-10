@@ -15,9 +15,7 @@ struct MutationTestLog {
     /// its results line names too. A mutant's log that `isKept` drops has the name it would have had, though no file
     /// holds it.
     var keptFileName = Self.baselineFileName
-}
 
-extension MutationTestLog {
     static let baselineFileName = "baseline run.log"
 
     /// The name of the file the run's log folder keeps the `number`th build's log in that failed on mutants that don't

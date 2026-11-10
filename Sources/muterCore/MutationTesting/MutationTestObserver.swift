@@ -67,7 +67,7 @@ final class MutationTestObserver {
     /// counts for nothing, and goes with the folder. Before `start()` there is no folder, and nothing is removed.
     func removeLoggingDirectoryIfEmpty() {
         guard !loggingDirectory.isEmpty else { return }
-        if removeFolderIfEmpty(atPath: loggingDirectory, ignoring: [RunMarker.fileName], fileManager: fileManager) {
+        if removeFolderIfEmpty(atPath: loggingDirectory, fileManager: fileManager, ignoring: [RunMarker.fileName]) {
             runMarker?.release()
         }
     }

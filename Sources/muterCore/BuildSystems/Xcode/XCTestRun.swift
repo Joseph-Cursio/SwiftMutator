@@ -24,7 +24,8 @@ struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of prop
             return plist.values.compactMap { $0 as? [String: AnyHashable] }
         }
         return testConfigurations.flatMap { testConfiguration in
-            let configuredTargets = (testConfiguration as? [String: AnyHashable])?["TestTargets"] as? [AnyHashable] ?? []
+            let configuration = testConfiguration as? [String: AnyHashable]
+            let configuredTargets = configuration?["TestTargets"] as? [AnyHashable] ?? []
             return configuredTargets.compactMap { $0 as? [String: AnyHashable] }
         }
     }

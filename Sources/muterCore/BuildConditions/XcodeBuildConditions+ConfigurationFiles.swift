@@ -1,7 +1,77 @@
 import Foundation
-#if canImport(FoundationXML)
-import FoundationXML
-#endif
+
+/// A project file's objects, and where its files and groups are.
+private struct ProjectFile {
+    let objects: [String: [String: Any]]
+    private let mainGroup: String
+    private let sourceRoot: FilePath
+    /// Each object's groups: one, in a project file Xcode wrote.
+    private let parents: [String: Set<String>]
+
+    init?(_ file: XcodeBuildConditions.BuildFile) {
+        guard !file.path.isEmpty,
+              let plist = try? PropertyListSerialization.propertyList(from: Data(file.text.utf8), format: nil),
+              let project = plist as? [String: Any],
+              let projectObjects = project["objects"] as? [String: [String: Any]],
+              let projectObject = (project["rootObject"] as? String).flatMap({ projectObjects[$0] }),
+              let mainGroupID = projectObject["mainGroup"] as? String
+        else {
+            return nil
+        }
+        let projectFolder = file.path.deletingLastPathComponent.deletingLastPathComponent
+        let projectDirectory = projectObject["projectDirPath"] as? String ?? ""
+        guard !projectDirectory.contains("$") else { return nil }
+
+        self.objects = projectObjects
+        self.mainGroup = mainGroupID
+        sourceRoot = projectDirectory.hasPrefix("/")
+            ? projectDirectory
+            : projectDirectory.isEmpty ? projectFolder : projectFolder + "/" + projectDirectory
+        var groupParents: [String: Set<String>] = [:]
+        for (id, object) in projectObjects {
+            for child in object["children"] as? [String] ?? [] {
+                groupParents[child, default: []].insert(id)
+            }
+        }
+        self.parents = groupParents
+    }
+
+    /// Where the file or group `id` is, as Xcode resolves it; nil if SwiftMutator can't tell.
+    func location(of id: String) -> FilePath? {
+        unnormalizedLocation(of: id).map(XcodeBuildConditions.lexicallyNormalized)
+    }
+
+    /// A project file is a tree, but one SwiftMutator didn't write may not be, so this gives up after as many steps
+    /// as there are objects, and on an object in more than one group.
+    private func unnormalizedLocation(of id: String, steps: Int = 0) -> FilePath? {
+        guard steps <= objects.count, let object = objects[id] else { return nil }
+        let path = object["path"] as? String ?? ""
+        guard !path.contains("$") else { return nil }
+        // Xcode takes an absolute path as it is, whatever it is relative to.
+        if path.hasPrefix("/") {
+            return path
+        }
+        let base: FilePath?
+        switch object["sourceTree"] as? String {
+        case "SOURCE_ROOT":
+            base = sourceRoot
+
+        case "<group>":
+            switch parents[id] {
+            case nil: base = id == mainGroup ? sourceRoot : nil
+
+            case let groups? where groups.count == 1:
+                base = groups.first.flatMap { unnormalizedLocation(of: $0, steps: steps + 1) }
+
+            default: base = nil
+            }
+
+        default:
+            base = nil
+        }
+        return base.map { path.isEmpty ? $0 : $0 + "/" + path }
+    }
+}
 
 extension XcodeBuildConditions {
     /// Whether a project file or build configuration file has a target build with settings from a build configuration
@@ -181,79 +251,6 @@ extension XcodeBuildConditions {
     }
 }
 
-/// A project file's objects, and where its files and groups are.
-private struct ProjectFile {
-    let objects: [String: [String: Any]]
-    private let mainGroup: String
-    private let sourceRoot: FilePath
-    /// Each object's groups: one, in a project file Xcode wrote.
-    private let parents: [String: Set<String>]
-
-    init?(_ file: XcodeBuildConditions.BuildFile) {
-        guard !file.path.isEmpty,
-              let plist = try? PropertyListSerialization.propertyList(from: Data(file.text.utf8), format: nil),
-              let project = plist as? [String: Any],
-              let projectObjects = project["objects"] as? [String: [String: Any]],
-              let projectObject = (project["rootObject"] as? String).flatMap({ projectObjects[$0] }),
-              let mainGroupID = projectObject["mainGroup"] as? String
-        else {
-            return nil
-        }
-        let projectFolder = file.path.deletingLastPathComponent.deletingLastPathComponent
-        let projectDirectory = projectObject["projectDirPath"] as? String ?? ""
-        guard !projectDirectory.contains("$") else { return nil }
-
-        self.objects = projectObjects
-        self.mainGroup = mainGroupID
-        sourceRoot = projectDirectory.hasPrefix("/")
-            ? projectDirectory
-            : projectDirectory.isEmpty ? projectFolder : projectFolder + "/" + projectDirectory
-        var groupParents: [String: Set<String>] = [:]
-        for (id, object) in projectObjects {
-            for child in object["children"] as? [String] ?? [] {
-                groupParents[child, default: []].insert(id)
-            }
-        }
-        self.parents = groupParents
-    }
-
-    /// Where the file or group `id` is, as Xcode resolves it; nil if SwiftMutator can't tell.
-    func location(of id: String) -> FilePath? {
-        unnormalizedLocation(of: id).map(XcodeBuildConditions.lexicallyNormalized)
-    }
-
-    /// A project file is a tree, but one SwiftMutator didn't write may not be, so this gives up after as many steps
-    /// as there are objects, and on an object in more than one group.
-    private func unnormalizedLocation(of id: String, steps: Int = 0) -> FilePath? {
-        guard steps <= objects.count, let object = objects[id] else { return nil }
-        let path = object["path"] as? String ?? ""
-        guard !path.contains("$") else { return nil }
-        // Xcode takes an absolute path as it is, whatever it is relative to.
-        if path.hasPrefix("/") {
-            return path
-        }
-        let base: FilePath?
-        switch object["sourceTree"] as? String {
-        case "SOURCE_ROOT":
-            base = sourceRoot
-
-        case "<group>":
-            switch parents[id] {
-            case nil: base = id == mainGroup ? sourceRoot : nil
-
-            case let groups? where groups.count == 1:
-                base = groups.first.flatMap { unnormalizedLocation(of: $0, steps: steps + 1) }
-
-            default: base = nil
-            }
-
-        default:
-            base = nil
-        }
-        return base.map { path.isEmpty ? $0 : $0 + "/" + path }
-    }
-}
-
 extension XcodeBuildConditions {
     /// Whether a condition some target builds with may be put together from a setting, as `EDITION_$(EDITION)`,
     /// `$(NAME:upper)` or `$(FLAGS_$(CONFIGURATION))` make one, or come from a setting whose value SwiftMutator can't
@@ -264,21 +261,7 @@ extension XcodeBuildConditions {
         _ arguments: [String],
         _ environment: [String: String]
     ) -> Bool {
-        var values: [String: [String]] = [:]
-        for file in buildFiles {
-            guard let settings = buildSettings(in: file) else { return true }
-            for (name, value) in settings {
-                values[name, default: []].append(value)
-            }
-        }
-        for argument in arguments where !argument.hasPrefix("-") {
-            guard let equals = argument.firstIndex(of: "=") else { continue }
-            let name = settingName(String(argument[..<equals]))
-            values[name, default: []].append(String(argument[argument.index(after: equals)...]))
-        }
-        for (name, value) in environment {
-            values[name, default: []].append(value)
-        }
+        guard let values = settingValues(buildFiles, arguments, environment) else { return true }
 
         var toFollow = ["SWIFT_ACTIVE_COMPILATION_CONDITIONS", "OTHER_SWIFT_FLAGS"]
         var followed: Set<String> = []
@@ -294,6 +277,31 @@ extension XcodeBuildConditions {
             }
         }
         return false
+    }
+
+    /// The values each setting has in the build files, the command's `NAME=value` settings and the environment. Nil
+    /// if a build file's settings can't be read.
+    private static func settingValues(
+        _ buildFiles: [BuildFile],
+        _ arguments: [String],
+        _ environment: [String: String]
+    ) -> [String: [String]]? {
+        var values: [String: [String]] = [:]
+        for file in buildFiles {
+            guard let settings = buildSettings(in: file) else { return nil }
+            for (name, value) in settings {
+                values[name, default: []].append(value)
+            }
+        }
+        for argument in arguments where !argument.hasPrefix("-") {
+            guard let equals = argument.firstIndex(of: "=") else { continue }
+            let name = settingName(String(argument[..<equals]))
+            values[name, default: []].append(String(argument[argument.index(after: equals)...]))
+        }
+        for (name, value) in environment {
+            values[name, default: []].append(value)
+        }
+        return values
     }
 
     /// The settings `value` refers to, as `$(NAME)`, `${NAME}` or `$NAME`, each a word of its own or after `-D`. Nil
@@ -327,152 +335,5 @@ extension XcodeBuildConditions {
             index = end
         }
         return names
-    }
-}
-
-extension XcodeBuildConditions {
-    /// The build configuration files the command has every target build with: each that `-xcconfig` names, and
-    /// `XCODE_XCCONFIG_FILE`'s, by where they are from `root`, which the command runs in, as written. xcodebuild takes
-    /// each `..` off the folder before it, whatever links there are, so the caller needs both forms read. Nil if a
-    /// `-xcconfig` names none, or one is from a variable.
-    static func configurationFiles(
-        ofCommand arguments: [String],
-        _ environment: [String: String],
-        root: FilePath
-    ) -> [FilePath]? {
-        var named: [String] = []
-        for (index, argument) in arguments.enumerated() where argument == "-xcconfig" {
-            guard index + 1 < arguments.count else { return nil }
-            named.append(arguments[index + 1])
-        }
-        if let file = environment["XCODE_XCCONFIG_FILE"] {
-            named.append(file)
-        }
-        guard !named.contains(where: { $0.isEmpty || $0.contains("$") || $0.hasPrefix("~") }) else { return nil }
-        return named.map { $0.hasPrefix("/") ? $0 : root + "/" + $0 }
-    }
-
-    /// Whether a workspace references a project or package whose build files the scan didn't read, as one outside
-    /// the project, or where SwiftMutator can't tell: by a kind of location it doesn't follow, as `developer:`, or in
-    /// a workspace it can't read. A project's are its project file, and a package's its manifest. A path is taken
-    /// both as Xcode may resolve it, with each `..` taking off the folder before it, and as the system does, through
-    /// links, and must be read both ways.
-    static func referencesAnUnreadProject(
-        _ workspace: BuildFile,
-        readProjects: Set<FilePath>,
-        readManifests: Set<FilePath>
-    ) -> Bool {
-        guard let references = locations(inWorkspace: workspace) else { return true }
-        return references.contains { reference in
-            [reference, lexicallyNormalized(reference)].contains { path in
-                if path.hasSuffix(".xcodeproj") {
-                    return !readProjects.contains((path + "/project.pbxproj").canonicalPath)
-                }
-                // A workspace in a workspace is no reference Xcode builds from, but SwiftMutator doesn't follow it.
-                if path.hasSuffix(".xcworkspace") {
-                    return true
-                }
-                let manifest = path + "/Package.swift"
-                return FileManager.default.fileExists(atPath: manifest)
-                    && !readManifests.contains(manifest.canonicalPath)
-            }
-        }
-    }
-
-    /// Where each `FileRef` in a workspace is, as written, through the `Group`s it is in: a `group:` location is
-    /// relative to its group, and a top-level one, as a `container:` location, to the folder that holds the
-    /// workspace; an `absolute:` one is a path of its own. Nil if the workspace doesn't parse, or has a location of
-    /// another kind, other than a `self:` one in the workspace itself, as a project's own workspace has.
-    static func locations(inWorkspace file: BuildFile) -> [FilePath]? {
-        guard !file.path.isEmpty else { return nil }
-        let container = file.path.deletingLastPathComponent.deletingLastPathComponent
-        let reader = WorkspaceLocations(container: container)
-        let parser = XMLParser(data: Data(file.text.utf8))
-        parser.delegate = reader
-        guard parser.parse(), !reader.hasAnUnknownLocation else { return nil }
-        return reader.locations
-    }
-}
-
-/// Reads a workspace's `FileRef` locations, resolving each against the `Group`s it is in.
-private final class WorkspaceLocations: NSObject, XMLParserDelegate {
-    private let container: FilePath
-    /// Where each group the parser is in is, innermost last; nil for one SwiftMutator can't place.
-    private var groups: [FilePath?] = []
-    private(set) var locations: [FilePath] = []
-    private(set) var hasAnUnknownLocation = false
-
-    init(container: FilePath) {
-        self.container = container
-    }
-
-    func parser(
-        _: XMLParser,
-        didStartElement elementName: String,
-        namespaceURI _: String?,
-        qualifiedName _: String?,
-        attributes attributeDict: [String: String] = [:]
-    ) {
-        switch elementName {
-        case "Group":
-            // A group without a location is only a name, so its references are relative to the group it is in.
-            groups.append(attributeDict["location"].map(resolve) ?? currentGroup)
-
-        case "FileRef":
-            guard let location = attributeDict["location"] else { return }
-            if location.hasPrefix("self:") {
-                // The project or workspace itself, or something in it.
-                let path = location.dropFirst("self:".count)
-                hasAnUnknownLocation = hasAnUnknownLocation || path.hasPrefix("/") || path.contains("..")
-                return
-            }
-            if let resolved = resolve(location) {
-                locations.append(resolved)
-            } else {
-                hasAnUnknownLocation = true
-            }
-
-        default:
-            break
-        }
-    }
-
-    func parser(
-        _: XMLParser,
-        didEndElement elementName: String,
-        namespaceURI _: String?,
-        qualifiedName _: String?
-    ) {
-        if elementName == "Group", !groups.isEmpty {
-            groups.removeLast()
-        }
-    }
-
-    private var currentGroup: FilePath? {
-        groups.last ?? container
-    }
-
-    private func resolve(_ location: String) -> FilePath? {
-        guard let colon = location.firstIndex(of: ":") else { return nil }
-        let path = String(location[location.index(after: colon)...])
-        guard !path.contains("$") else { return nil }
-        let kind = location[..<colon]
-        if kind == "absolute" {
-            return path.hasPrefix("/") ? path : nil
-        }
-        // Only an `absolute:` location is a path of its own.
-        guard !path.hasPrefix("/") else { return nil }
-        let base: FilePath?
-        switch kind {
-        case "group":
-            base = currentGroup
-
-        case "container":
-            base = container
-
-        default:
-            return nil
-        }
-        return base.map { path.isEmpty ? $0 : $0 + "/" + path }
     }
 }

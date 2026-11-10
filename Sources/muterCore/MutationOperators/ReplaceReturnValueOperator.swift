@@ -1,5 +1,34 @@
 import SwiftSyntax
 
+/// A function, property or subscript, by the name a protocol's requirement would give it, and its attributes.
+private struct NamedDeclaration {
+    let name: String
+    let attributes: AttributeListSyntax
+}
+
+/// What a file declares that the operator looks at: the names of its types, typealiases, associated types and generic
+/// parameters, at any depth, and the names of its protocols' requirements that carry an attribute that may be a
+/// result builder.
+private struct FileDeclarations {
+    private(set) var typeNames: Set<String> = []
+    private(set) var requirementsWithAttributes: Set<String> = []
+
+    /// Walks the whole file with a loop, not recursion, so a deep tree can't run out of a discovery thread's stack.
+    init(in root: Syntax) {
+        var stack: [Syntax] = [root]
+        while let node = stack.popLast() {
+            stack.append(contentsOf: node.children(viewMode: .sourceAccurate))
+            if let name = node.declaredTypeName {
+                typeNames.insert(name)
+            }
+            guard let protocolDecl = node.as(ProtocolDeclSyntax.self) else { continue }
+            for requirement in protocolDecl.requirements where requirement.attributes.mayHoldAResultBuilder {
+                requirementsWithAttributes.insert(requirement.name)
+            }
+        }
+    }
+}
+
 /// Replaces what a body returns with an empty value of its written return type, as PIT's EMPTY_RETURNS, NULL_RETURNS
 /// and PRIMITIVE_RETURNS do: `nil` for an optional, `[]` for an array or a set, `[:]` for a dictionary, `""` for a
 /// string and `0` for a number. A test that calls a function but never checks what comes back lets the mutant
@@ -12,15 +41,15 @@ enum ReplaceReturnValueOperator {
         private var declarations: FileDeclarations?
 
         convenience init(
-            configuration: MuterConfiguration? = nil,
             sourceCodeInfo: SourceCodeInfo,
+            configuration: MuterConfiguration? = nil,
             coverage: FileCoverage = .empty
         ) {
             self.init(
-                configuration: configuration,
                 sourceCodeInfo: sourceCodeInfo,
                 mutationOperatorId: .replaceReturnValue,
-                coverage: coverage
+                coverage: coverage,
+                configuration: configuration
             )
         }
 
@@ -99,153 +128,6 @@ enum ReplaceReturnValueOperator {
     }
 }
 
-/// The empty value of a written return type, which the operator puts in place of what the body returns.
-enum EmptyValue: Equatable {
-    case nilLiteral
-    case emptyArray
-    case emptyDictionary
-    case emptyString
-    case zero
-
-    /// The standard library's numeric types, whose empty value is `0`, and CoreGraphics' `CGFloat`.
-    private static let numbers: Set<String> = [
-        "Int", "Int8", "Int16", "Int32", "Int64", "UInt", "UInt8", "UInt16", "UInt32", "UInt64",
-        "Double", "Float", "CGFloat",
-    ]
-
-    /// The empty value of `type` as it's written, in parentheses or not; nil for a type that has none, or isn't
-    /// written in one of these forms: `T?`, `T!` or `Optional<T>`; `[T]`, `Array<T>` or `Set<T>`; `[K: V]` or
-    /// `Dictionary<K, V>`; `String` or `Substring`; or a number. `Swift.` may name the module. A name the file
-    /// declares as a type of its own, a typealias or a generic parameter, in `declaredNames`, is that type, unless the
-    /// module is named: an `Int` the file declares may not take `0`. One declared in another file isn't seen. A type
-    /// with a `some` anywhere in it, as `[some Shape]` or `(some Shape)?`, has none: Swift infers the opaque type from
-    /// each value returned, and can't from an empty one.
-    init?(writtenAs type: TypeSyntax, unless declaredNames: Set<String>) {
-        guard !type.tokens(viewMode: .sourceAccurate).contains(where: { $0.tokenKind == .keyword(.some) }) else {
-            return nil
-        }
-        var type = type
-        while let tuple = type.as(TupleTypeSyntax.self), tuple.elements.count == 1, let only = tuple.elements.first,
-              only.firstName == nil, only.inoutKeyword == nil, only.ellipsis == nil {
-            type = only.type
-        }
-        if type.is(OptionalTypeSyntax.self) || type.is(ImplicitlyUnwrappedOptionalTypeSyntax.self) {
-            self = .nilLiteral
-            return
-        }
-        if type.is(ArrayTypeSyntax.self) {
-            self = .emptyArray
-            return
-        }
-        if type.is(DictionaryTypeSyntax.self) {
-            self = .emptyDictionary
-            return
-        }
-        let name: String
-        let arguments: GenericArgumentClauseSyntax?
-        if let identifier = type.as(IdentifierTypeSyntax.self), !declaredNames.contains(identifier.name.plainName) {
-            (name, arguments) = (identifier.name.plainName, identifier.genericArgumentClause)
-        } else if let member = type.as(MemberTypeSyntax.self),
-                  let module = member.baseType.as(IdentifierTypeSyntax.self),
-                  module.name.plainName == "Swift", module.genericArgumentClause == nil {
-            (name, arguments) = (member.name.plainName, member.genericArgumentClause)
-        } else {
-            return nil
-        }
-        switch (name, arguments?.arguments.count ?? 0) {
-        case ("Optional", 1): self = .nilLiteral
-        case ("Array", 1), ("Set", 1): self = .emptyArray
-        case ("Dictionary", 2): self = .emptyDictionary
-        case ("String", 0), ("Substring", 0): self = .emptyString
-        case (let name, 0) where Self.numbers.contains(name): self = .zero
-        default: return nil
-        }
-    }
-
-    /// The value as it's written.
-    var text: String {
-        switch self {
-        case .nilLiteral: "nil"
-        case .emptyArray: "[]"
-        case .emptyDictionary: "[:]"
-        case .emptyString: "\"\""
-        case .zero: "0"
-        }
-    }
-
-    /// The value as a literal with no trivia.
-    var literal: ExprSyntax {
-        switch self {
-        case .nilLiteral:
-            ExprSyntax(NilLiteralExprSyntax())
-
-        case .emptyArray:
-            ExprSyntax(ArrayExprSyntax(elements: ArrayElementListSyntax([])))
-
-        case .emptyDictionary:
-            ExprSyntax(DictionaryExprSyntax(content: .colon(.colonToken())))
-
-        case .emptyString:
-            ExprSyntax(StringLiteralExprSyntax(
-                openingQuote: .stringQuoteToken(),
-                segments: StringLiteralSegmentListSyntax([]),
-                closingQuote: .stringQuoteToken()
-            ))
-
-        case .zero:
-            ExprSyntax(IntegerLiteralExprSyntax(literal: .integerLiteral("0")))
-        }
-    }
-
-    /// Whether `value`, inside any parentheses, is already this, so that its mutant would change nothing: `nil`, `[]`,
-    /// `[:]`, an empty string literal of any kind, or a number literal whose value is zero, as `0.0`, `0x0` or `-0`.
-    func isWritten(as value: ExprSyntax) -> Bool {
-        let core = value.withoutParentheses
-        switch self {
-        case .nilLiteral:
-            return core.is(NilLiteralExprSyntax.self)
-
-        case .emptyArray:
-            return core.as(ArrayExprSyntax.self)?.elements.isEmpty == true
-
-        case .emptyDictionary:
-            guard case .colon = core.as(DictionaryExprSyntax.self)?.content else { return false }
-            return true
-
-        case .emptyString:
-            return core.as(StringLiteralExprSyntax.self)?.segments.allSatisfy {
-                $0.as(StringSegmentSyntax.self)?.content.text.isEmpty == true
-            } == true
-
-        case .zero:
-            return core.isZero
-        }
-    }
-}
-
-/// What a file declares that the operator looks at: the names of its types, typealiases, associated types and generic
-/// parameters, at any depth, and the names of its protocols' requirements that carry an attribute that may be a
-/// result builder.
-private struct FileDeclarations {
-    private(set) var typeNames: Set<String> = []
-    private(set) var requirementsWithAttributes: Set<String> = []
-
-    /// Walks the whole file with a loop, not recursion, so a deep tree can't run out of a discovery thread's stack.
-    init(in root: Syntax) {
-        var stack: [Syntax] = [root]
-        while let node = stack.popLast() {
-            stack.append(contentsOf: node.children(viewMode: .sourceAccurate))
-            if let name = node.declaredTypeName {
-                typeNames.insert(name)
-            }
-            guard let protocolDecl = node.as(ProtocolDeclSyntax.self) else { continue }
-            for requirement in protocolDecl.requirements where requirement.attributes.mayHoldAResultBuilder {
-                requirementsWithAttributes.insert(requirement.name)
-            }
-        }
-    }
-}
-
 private extension ProtocolDeclSyntax {
     /// The functions, properties and subscripts this protocol requires, in any `#if` clause, at any depth, as well as
     /// outside one.
@@ -266,12 +148,6 @@ private extension ProtocolDeclSyntax {
         }
         return found
     }
-}
-
-/// A function, property or subscript, by the name a protocol's requirement would give it, and its attributes.
-private struct NamedDeclaration {
-    let name: String
-    let attributes: AttributeListSyntax
 }
 
 private extension Syntax {
@@ -386,38 +262,5 @@ private extension ExprSyntax {
             return false
         }
         return !empty.isWritten(as: self)
-    }
-
-    /// The expression inside any parentheses around it.
-    var withoutParentheses: ExprSyntax {
-        var expression = self
-        while let tuple = expression.as(TupleExprSyntax.self), tuple.elements.count == 1,
-              let only = tuple.elements.first, only.label == nil {
-            expression = only.expression
-        }
-        return expression
-    }
-
-    /// Whether this is a number literal whose value is zero, with a `-` or `+` in front or not: `0`, `0_0`, `0.0`,
-    /// `0e5`, `0x0`, `0b0`, `0o0` or `0x0p1`.
-    var isZero: Bool {
-        if let prefix = self.as(PrefixOperatorExprSyntax.self), ["-", "+"].contains(prefix.operator.text) {
-            return prefix.expression.withoutParentheses.isZero
-        }
-        let literal = self.as(IntegerLiteralExprSyntax.self)?.literal ?? self.as(FloatLiteralExprSyntax.self)?.literal
-        guard var text = literal?.text.lowercased().filter({ $0 != "_" }) else { return false }
-        let isHexadecimal = text.hasPrefix("0x")
-        if ["0x", "0b", "0o"].contains(where: text.hasPrefix) {
-            text.removeFirst(2)
-        }
-        let digits = text.prefix { isHexadecimal ? $0 != "p" : $0 != "e" }
-        return digits.contains("0") && digits.allSatisfy { $0 == "0" || $0 == "." }
-    }
-}
-
-private extension TokenSyntax {
-    /// The name this token gives, without the backticks around one written as `` `Type` ``.
-    var plainName: String {
-        text.filter { $0 != "`" }
     }
 }

@@ -244,9 +244,9 @@ struct SimulatorWorkerSetup {
                     ofWorker: worker,
                     in: state.mutatedProjectDirectoryURL
                 ),
+                testDiagnosticsOff: state.testDiagnosticsCanBeTurnedOff,
                 destination: simulator.destination,
-                parallelTestingOff: true,
-                testDiagnosticsOff: state.testDiagnosticsCanBeTurnedOff
+                parallelTestingOff: true
             )
         }
         session.xcodeWorkers = xcodeWorkers

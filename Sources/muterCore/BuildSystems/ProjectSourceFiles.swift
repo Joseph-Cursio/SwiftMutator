@@ -19,7 +19,9 @@ struct ProjectSourceFiles {
         let rootPrefixes = Set([root, root.canonicalPath]).map { $0.hasSuffix("/") ? $0 : $0 + "/" }
         self.roots = rootPrefixes
         self.buildFolders = buildFolders
-            .compactMap { Self.relativePath($0, to: rootPrefixes) ?? Self.relativePath($0.canonicalPath, to: rootPrefixes) }
+            .compactMap { folder in
+                Self.relativePath(folder, to: rootPrefixes) ?? Self.relativePath(folder.canonicalPath, to: rootPrefixes)
+            }
             .map { $0.hasSuffix("/") ? $0 : $0 + "/" }
         self.testFiles = Set(testFiles.compactMap {
             Self.relativePath($0, to: rootPrefixes) ?? Self.relativePath($0.canonicalPath, to: rootPrefixes)

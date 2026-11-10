@@ -252,9 +252,9 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
             derivedData: MuterConfiguration.XcodeWorker.derivedData(
                 ofWorker: worker, in: state.mutatedProjectDirectoryURL
             ),
+            testDiagnosticsOff: true,
             destination: "platform=iOS Simulator,id=SIM-\(worker)",
-            parallelTestingOff: true,
-            testDiagnosticsOff: true
+            parallelTestingOff: true
         ))
         return PerformMutationTesting.PoolWorker(
             directory: state.mutatedProjectDirectoryURL,

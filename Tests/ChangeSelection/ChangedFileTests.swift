@@ -4,9 +4,9 @@ import XCTest
 final class ChangedFileTests: XCTestCase {
     private let file = ChangedFile(
         path: "A.swift",
+        sha256: "",
         lines: [LineRange(first: 10, last: 12), LineRange(first: 30, last: 30)],
-        deletionsAfter: [20],
-        sha256: ""
+        deletionsAfter: [20]
     )
 
     func test_codeOnAChangedLine_isChanged() {

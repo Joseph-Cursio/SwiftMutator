@@ -13,7 +13,7 @@ extension MutantDiffTests {
         }
 
         """
-        let schema = try XCTUnwrap(schemata(SwapTernaryOperator.Visitor.init, in: source).first)
+        let schema = try XCTUnwrap(schemata(MutationOperator.Id.swapTernary.visitor, in: source).first)
 
         XCTAssertNil(MutantDiff.lines(
             original: source,

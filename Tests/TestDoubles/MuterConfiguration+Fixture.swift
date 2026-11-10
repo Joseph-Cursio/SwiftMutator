@@ -144,9 +144,9 @@ func configurationWithEveryFieldSet(
     .forXcodeWorker(MuterConfiguration.XcodeWorker(
         testRunFile: "muter-worker2.xctestrun",
         derivedData: "/path/to/project_mutated_worker2.DerivedData",
+        testDiagnosticsOff: true,
         destination: "platform=iOS Simulator,id=8C5A2F0E-1B2C-4D3E-9F40-5A6B7C8D9E0F",
-        parallelTestingOff: true,
-        testDiagnosticsOff: true
+        parallelTestingOff: true
     ))
     // So `testFilterArguments` is set too, as for a property rerun's runs.
     .withPropertyTestFilter() ?? MuterConfiguration()
