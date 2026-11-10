@@ -19,10 +19,10 @@ struct MutantKey: Hashable, Codable, CustomStringConvertible {
     }
 
     /// One key per schema, in order; a repeat of the same place and operator gets the next occurrence.
-    static func keys(for schemata: [MutationSchema], under mutatedRoot: URL) -> [MutantKey] {
-        var counts: [MutantKey: Int] = [:]
+    static func keys(for schemata: [MutationSchema], under mutatedRoot: URL) -> [Self] {
+        var counts: [Self: Int] = [:]
         return schemata.map { schema in
-            let first = MutantKey(
+            let first = Self(
                 path: RepoRelativePath.of(schema.filePath, under: mutatedRoot),
                 mutationOperatorId: schema.mutationOperatorId,
                 line: schema.position.line,
@@ -31,7 +31,7 @@ struct MutantKey: Hashable, Codable, CustomStringConvertible {
             )
             let occurrence = counts[first, default: 0]
             counts[first] = occurrence + 1
-            return MutantKey(
+            return Self(
                 path: first.path,
                 mutationOperatorId: first.mutationOperatorId,
                 line: first.line,

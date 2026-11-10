@@ -33,9 +33,9 @@ func mutationScore(from testResults: [TestSuiteOutcome]) -> Int {
 func mutationScoresOfFiles(from outcomes: [MutationTestOutcome.Mutation]) -> [String: Int] {
     var mutationScores: [String: Int] = [:]
 
-    let filePaths = outcomes.map { $0.point.filePath }.deduplicated()
+    let filePaths = outcomes.map(\.point.filePath).deduplicated()
     for filePath in filePaths {
-        let testSuiteOutcomes = outcomes.include { $0.point.filePath == filePath }.map { $0.testSuiteOutcome }
+        let testSuiteOutcomes = outcomes.include { $0.point.filePath == filePath }.map(\.testSuiteOutcome)
         mutationScores[filePath] = mutationScore(from: testSuiteOutcomes)
     }
 

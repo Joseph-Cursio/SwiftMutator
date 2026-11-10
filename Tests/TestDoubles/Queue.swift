@@ -42,7 +42,7 @@ public class Queue<A>: CustomDebugStringConvertible {
     }
 
     class Node<B>: CustomDebugStringConvertible {
-        public var debugDescription: String {
+        var debugDescription: String {
             "\(value)"
         }
 

@@ -318,7 +318,8 @@ extension MuterTestReport.AppliedMutationOperator {
                 mutationOperatorId: mutationOperator,
                 filePath: "filePath",
                 position: MutationPosition(sourceLocation: position)
-            ), mutationSnapshot: mutationSnapshot,
+            ),
+            mutationSnapshot: mutationSnapshot,
             testSuiteOutcome: testOutcome
         )
     }
@@ -418,14 +419,14 @@ extension FileCoverage {
     /// after that when it isn't code, and each function's first region its body.
     static func llvmCov(_ functions: [[[Int]]]) -> FileCoverage {
         FileCoverage(functions: functions.map { regions in
-            regions.map {
+            regions.map { region in
                 Region(
-                    lineStart: $0[0],
-                    columnStart: $0[1],
-                    lineEnd: $0[2],
-                    columnEnd: $0[3],
-                    executionCount: $0[4],
-                    kind: $0.count > 5 ? Region.Kind(rawValue: $0[5]) ?? .other : .code
+                    lineStart: region[0],
+                    columnStart: region[1],
+                    lineEnd: region[2],
+                    columnEnd: region[3],
+                    executionCount: region[4],
+                    kind: region.count > 5 ? Region.Kind(rawValue: region[5]) ?? .other : .code
                 )
             }
         })
@@ -718,7 +719,7 @@ extension Provenance {
                 testExecutableSHA256: nil,
                 environment: ["SDKROOT": "/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk"]
             ),
-            processIdentifier: 81234,
+            processIdentifier: 81_234,
             host: "host",
             arguments: ["-c", "mutation.conf.yml", "--skip-coverage"]
         )
@@ -848,7 +849,7 @@ extension MutantResult {
         line: Int = 73,
         column: Int = 22,
         occurrence: Int = 0,
-        utf8Offset: Int = 3361,
+        utf8Offset: Int = 3_361,
         mutationOperatorId: MutationOperator.Id = .ror,
         switchID: String? = nil,
         snapshot: MutationOperator.Snapshot = .make(before: ">", after: "<", description: "changed > to <"),
@@ -967,7 +968,7 @@ extension ControlRunResult {
             failedTests: failedTests,
             failedTestCount: failedTestCount ?? failedTests?.count,
             firstFailedTestLine: nil,
-            log: ControlRunResult.logName(of: number)
+            log: Self.logName(of: number)
         )
     }
 }

@@ -2,7 +2,7 @@ import ArgumentParser
 import Foundation
 
 struct MutateWithoutRunning: RunCommand {
-    public static let configuration = CommandConfiguration(
+    static let configuration = CommandConfiguration(
         commandName: "mutate-without-running",
         abstract: "Mutates the source code and outputs the test plan as JSON."
     )

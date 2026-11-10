@@ -145,7 +145,7 @@ final class CommandResultTests: XCTestCase {
         let ended = await endingWithin(10) {
             await process.runCommand(url: "/bin/sh", arguments: ["-c", script], timeLimit: timeLimit)
         }
-        return ended.flatMap { $0 }
+        return ended.flatMap(\.self)
     }
 
     /// What `work` gives, or nil, and a failure, if it doesn't end within `timeout` seconds. In a task of its own, so a

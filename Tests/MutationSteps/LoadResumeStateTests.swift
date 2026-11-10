@@ -62,13 +62,13 @@ final class LoadResumeStateTests: MuterTestCase {
     // lock long before it writes its session.
     func test_aLockedFile_isRefused_namingTheHolder() async throws {
         try await writeResults(
-            ResultsHeader.make(project: projectTree(), provenance: provenance(process: 1200, host: "laptop.local")),
+            ResultsHeader.make(project: projectTree(), provenance: provenance(process: 1_200, host: "laptop.local")),
             ResultsEnd.make(),
             ResultsHeader.make(
                 formatVersion: ResultsCoding.resumedFormatVersion,
                 session: 2,
                 project: projectTree(),
-                provenance: provenance(process: 81234, host: "studio.local")
+                provenance: provenance(process: 81_234, host: "studio.local")
             )
         )
         let written = try Data(contentsOf: URL(fileURLWithPath: resultsPath))
@@ -92,13 +92,13 @@ final class LoadResumeStateTests: MuterTestCase {
     // session is then all the file shows, which may not be the holder.
     func test_aFileLockedWithoutARecord_isRefused_namingTheLastSessionsProcessAndHost() async throws {
         try await writeResults(
-            ResultsHeader.make(project: projectTree(), provenance: provenance(process: 1200, host: "laptop.local")),
+            ResultsHeader.make(project: projectTree(), provenance: provenance(process: 1_200, host: "laptop.local")),
             ResultsEnd.make(),
             ResultsHeader.make(
                 formatVersion: ResultsCoding.resumedFormatVersion,
                 session: 2,
                 project: projectTree(),
-                provenance: provenance(process: 81234, host: "studio.local")
+                provenance: provenance(process: 81_234, host: "studio.local")
             )
         )
         let descriptor = open(resultsPath, O_RDONLY | O_CLOEXEC)
@@ -108,7 +108,7 @@ final class LoadResumeStateTests: MuterTestCase {
         await assertRefused(
             ResumeRefused(
                 path: resultsPath,
-                reasons: [.inUse(holder: nil, lastProcess: 81234, lastHost: "studio.local")],
+                reasons: [.inUse(holder: nil, lastProcess: 81_234, lastHost: "studio.local")],
                 beforeTheCopy: true
             )
         )

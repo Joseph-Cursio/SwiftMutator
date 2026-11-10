@@ -111,9 +111,8 @@ extension SyntaxProtocol {
         if !trivia.isEmpty {
             pieces.forEach { trivia = trivia.appending($0) }
             return withLeadingTrivia(trivia)
-        } else {
-            return withLeadingTrivia(Trivia(pieces: pieces))
         }
+        return withLeadingTrivia(Trivia(pieces: pieces))
     }
 
     func appendingTrailingTrivia(
@@ -123,9 +122,8 @@ extension SyntaxProtocol {
         if !trivia.isEmpty {
             pieces.forEach { trivia = trivia.appending($0) }
             return withTrailingTrivia(trivia)
-        } else {
-            return withTrailingTrivia(Trivia(pieces: pieces))
         }
+        return withTrailingTrivia(Trivia(pieces: pieces))
     }
 
     func withTrailingTrivia(
@@ -170,7 +168,7 @@ extension SyntaxChildren {
 }
 
 extension [Syntax] {
-    func containsSyntaxKind<A: SyntaxProtocol>(_ syntax: A.Type) -> Bool {
+    func containsSyntaxKind<A: SyntaxProtocol>(_: A.Type) -> Bool {
         contains { $0.is(A.self) }
     }
 }

@@ -311,9 +311,9 @@ private extension ProjectTree {
     /// for something that isn't there.
     static func digest(of url: URL) -> String? {
         switch (try? FileManager.default.attributesOfItem(atPath: url.path))?[.type] as? FileAttributeType {
-        case .typeRegular?:
+        case .typeRegular:
             return FileDigest.sha256(of: url)
-        case .typeSymbolicLink?:
+        case .typeSymbolicLink:
             return (try? FileManager.default.destinationOfSymbolicLink(atPath: url.path))
                 .map { FileDigest.sha256(of: Data($0.utf8)) }
                 .map { linkPrefix + $0 }

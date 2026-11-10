@@ -196,7 +196,7 @@ extension TriageSummary {
                 one: "label matches no mutant in these results, as its code changed or it wasn't tested:",
                 many: "labels match no mutant in these results, as their code changed or they weren't tested:"
             ) { "\($0.mutant) (\($0.label.words))" },
-        ].compactMap { $0 }
+        ].compactMap(\.self)
     }
 
     /// "2 labels …:" and a line for each of `items`, up to `shownLabels`, then how many more; nil without any.

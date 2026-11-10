@@ -58,6 +58,6 @@ struct RunDetails: Codable, Equatable {
             "SwiftMutator: \(swiftMutator.version)\(sha)",
             toolchainLine.map { "Toolchain: \($0)" },
             workers > 0 ? "Workers: \(workers)\(limit)" : "Workers: none, as no mutant was left to test",
-        ].compactMap { $0 }
+        ].compactMap(\.self)
     }
 }

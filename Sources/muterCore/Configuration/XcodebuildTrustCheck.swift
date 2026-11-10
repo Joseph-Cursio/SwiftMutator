@@ -25,7 +25,7 @@ enum XcodebuildTrustCheck: CaseIterable, Equatable {
     }
 
     /// The checks whose skipping argument is among `arguments`, in the order of `allCases`.
-    static func skipped(by arguments: [String]) -> [XcodebuildTrustCheck] {
+    static func skipped(by arguments: [String]) -> [Self] {
         allCases.filter { arguments.contains($0.skippingArgument) }
     }
 
@@ -42,7 +42,7 @@ enum XcodebuildTrustCheck: CaseIterable, Equatable {
     /// and resolved files describe the dependencies' builds, not this project's. A dependency's macro still shows, in
     /// the project's own `Package.resolved`, once its packages are resolved. Only a URL's relative path is looked at,
     /// so a project that is itself in such a folder, as a CI runner's may be, still has its own files read.
-    static func needed(by directoryContents: [URL]) -> [XcodebuildTrustCheck] {
+    static func needed(by directoryContents: [URL]) -> [Self] {
         let projectFiles = directoryContents.exclude(isInADependencyCheckout)
         let projects = contents(of: projectFiles) { $0 == "project.pbxproj" }
         let manifests = contents(of: projectFiles) { $0 == "Package.swift" || $0.matches("Package@*.swift") }

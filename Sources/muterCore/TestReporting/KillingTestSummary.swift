@@ -544,7 +544,7 @@ extension KillingTestSummary {
 
     /// `clauses` that aren't nil, in a sentence: "a, and b", or "a, b, and c".
     private static func listed(_ clauses: [String?]) -> String {
-        let present = clauses.compactMap { $0 }
+        let present = clauses.compactMap(\.self)
         guard let last = present.last, present.count > 1 else { return present.joined() }
         return present.dropLast().joined(separator: ", ") + ", and " + last
     }
@@ -680,5 +680,5 @@ struct SuspectTestThresholds: Equatable {
     /// In fewer than 10 files, a focused test reaches 40%. That doesn't hold on a smaller project: on 2026-11-06 good
     /// tests reached 37% of SwiftCloneDetector's 30 files and 42% of SwiftEffectInference's 19. So the rule says only
     /// which kills to test again alone, which is what settles it (`isSuspect(reachesEnoughFiles:…)`).
-    static let standard = SuspectTestThresholds(filePercent: 15, minimumFiles: 10)
+    static let standard = Self(filePercent: 15, minimumFiles: 10)
 }

@@ -56,8 +56,8 @@ enum ResultsCoding {
     /// `ISO8601FormatStyle`, which truncates: a date read back from `.004` is a hair under it, and would be written
     /// back as `.003`.
     private static func text(of date: Date) -> String {
-        let milliseconds = (date.timeIntervalSince1970 * 1000).rounded()
-        let seconds = (milliseconds / 1000).rounded(.down)
+        let milliseconds = (date.timeIntervalSince1970 * 1_000).rounded()
+        let seconds = (milliseconds / 1_000).rounded(.down)
         let time = utc.dateComponents(
             [.year, .month, .day, .hour, .minute, .second],
             from: Date(timeIntervalSince1970: seconds)
@@ -70,7 +70,7 @@ enum ResultsCoding {
             time.hour ?? 0,
             time.minute ?? 0,
             time.second ?? 0,
-            Int(milliseconds - seconds * 1000)
+            Int(milliseconds - seconds * 1_000)
         )
     }
 
@@ -423,7 +423,7 @@ extension MutantResult {
 
     /// `seconds` to the millisecond, as a results line records a run's duration.
     static func recordedSeconds(_ seconds: Double) -> Double {
-        (seconds * 1000).rounded() / 1000
+        (seconds * 1_000).rounded() / 1_000
     }
 }
 
@@ -525,7 +525,7 @@ extension MutantResult {
 
         /// This rerun as a reuse keeps it: which tests failed first still measures their reach, but what they did alone
         /// was on code and tests that may since have changed, as a reused run's control runs are never counted.
-        var withoutEvidence: Rerun {
+        var withoutEvidence: Self {
             var copy = self
             copy.alone = alone?.map { .init(name: $0.name, file: $0.file, result: nil) }
             return copy

@@ -34,8 +34,8 @@ final class BuildAbortReasonTests: XCTestCase {
         let list = MutationTestingAbortReason.failedTestsList(in: log)
 
         XCTAssertEqual(list?.split(separator: "\n").count, 22)
-        XCTAssertTrue(list?.hasPrefix("These 23 tests failed:\n") == true, list ?? "")
-        XCTAssertTrue(list?.hasSuffix("\n  -[CalcTests.CalcTests test20]\n  and 3 more") == true, list ?? "")
+        XCTAssertEqual(list?.hasPrefix("These 23 tests failed:\n"), true, list ?? "")
+        XCTAssertEqual(list?.hasSuffix("\n  -[CalcTests.CalcTests test20]\n  and 3 more"), true, list ?? "")
     }
 
     func test_aLogWithNoFailedTest_listsNone() {

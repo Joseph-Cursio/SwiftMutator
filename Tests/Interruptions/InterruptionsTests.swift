@@ -152,7 +152,7 @@ final class InterruptionsTests: MuterTestCase {
         XCTAssertEqual(Array(events.all.prefix(4)), ["killed", "killed", "ended the results", "exited by SIGINT"])
         XCTAssertEqual(ended.signal, SIGINT)
         XCTAssertEqual(said.all.count, 2)
-        XCTAssertTrue(said.all.last?.contains("so it is stopping at once") == true, "\(said.all)")
+        XCTAssertEqual(said.all.last?.contains("so it is stopping at once"), true, "\(said.all)")
     }
 
     // Ctrl-\ sends SIGQUIT, which reaches SwiftMutator alone. Its default action would leave every test process
@@ -169,7 +169,7 @@ final class InterruptionsTests: MuterTestCase {
         XCTAssertEqual(Array(events.all.prefix(3)), ["killed", "ended the results", "exited by SIGQUIT"])
         XCTAssertEqual(ended.signal, SIGQUIT)
         XCTAssertEqual(said.all.count, 1)
-        XCTAssertTrue(said.all.first?.hasPrefix("⏹ Stopping at once.") == true, "\(said.all)")
+        XCTAssertEqual(said.all.first?.hasPrefix("⏹ Stopping at once."), true, "\(said.all)")
     }
 
     // A worker not cancelled would start its next mutant's tests as soon as this one's are killed: nothing would kill

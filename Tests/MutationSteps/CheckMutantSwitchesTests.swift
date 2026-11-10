@@ -131,7 +131,7 @@ final class CheckMutantSwitchesTests: MuterTestCase {
     // A rewrite that missed thousands of mutants still gives an error that can be read.
     func test_aFilesMissingMutantsAreNamedUpToALimit() throws {
         let file = try mutatedFile(named: "Check")
-        let missing = Array(repeating: file.mapping.mutationSchemata, count: 10).flatMap { $0 }
+        let missing = Array(repeating: file.mapping.mutationSchemata, count: 10).flatMap(\.self)
         XCTAssertGreaterThan(missing.count, CheckMutantSwitches.namedPerFile)
 
         let reason = CheckMutantSwitches.reason(

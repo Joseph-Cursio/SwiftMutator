@@ -131,11 +131,11 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
     /// `bytes` in decimal units, to one decimal place: "1.9 GB", "512 bytes".
     static func size(_ bytes: Int64) -> String {
         let units = ["KB", "MB", "GB", "TB", "PB"]
-        guard bytes >= 1000 else { return bytes == 1 ? "1 byte" : "\(bytes) bytes" }
-        var value = Double(bytes) / 1000
+        guard bytes >= 1_000 else { return bytes == 1 ? "1 byte" : "\(bytes) bytes" }
+        var value = Double(bytes) / 1_000
         var unit = 0
         while value >= 999.95, unit < units.count - 1 {
-            value /= 1000
+            value /= 1_000
             unit += 1
         }
         return String(format: "%.1f ", value) + units[unit]
@@ -256,7 +256,7 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         }
         let fileNames = sourceFileCandidates
             .map(URL.init(fileURLWithPath:))
-            .map { $0.lastPathComponent }
+            .map(\.lastPathComponent)
             .joined(separator: "\n")
             .bold
 

@@ -66,7 +66,6 @@ enum XcodeBuildConditions {
                 compiler: compiler,
                 language: languageVersion(
                     of: targets,
-                    in: arguments,
                     buildFiles: buildFiles,
                     compiler: compiler,
                     aBuildFileItDidntReadMaySetIt: aBuildFileItDidntReadMaySetSome
@@ -401,7 +400,6 @@ enum XcodeBuildConditions {
     /// or if the project has a package, whose targets' modes the manifest sets.
     private static func languageVersion(
         of targets: [Settings],
-        in arguments: [String],
         buildFiles: [BuildFile],
         compiler: VersionTuple?,
         aBuildFileItDidntReadMaySetIt: Bool

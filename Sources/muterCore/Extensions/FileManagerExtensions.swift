@@ -56,7 +56,7 @@ extension FileManager: FileSystemManager {
         atPath path: String,
         sortedByDate order: ComparisonResult
     ) throws -> [String] {
-        guard let enumerator = FileManager.default.enumerator(
+        guard let enumerator = Self.default.enumerator(
             at: URL(fileURLWithPath: path),
             includingPropertiesForKeys: [.creationDateKey],
             options: [.skipsHiddenFiles]

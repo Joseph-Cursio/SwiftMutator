@@ -1,7 +1,7 @@
 import Foundation
 
 extension String {
-    func repeated(_ times: Int) -> String { (0 ..< times).reduce("") { current, _ in current + "\(self)" } }
+    func repeated(_ times: Int) -> String { String(repeating: self, count: times) }
 
     func removingSubrange(_ bounds: Range<String.Index>?) -> String {
         guard let bounds else {
@@ -16,7 +16,7 @@ extension String {
 
     var inlined: String {
         components(separatedBy: .newlines)
-            .map { $0.trimmed }
+            .map(\.trimmed)
             // A CRLF is two newlines to `.newlines`, with nothing between them.
             .filter { !$0.isEmpty }
             .joined(separator: " ")

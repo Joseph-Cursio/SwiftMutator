@@ -247,7 +247,7 @@ extension MergedShards {
         guard !absentShards.contains(where: { $0.mutants > 0 }) else { return nil }
         let ends = parts.map { $0.recorded.sessions.last?.end }
         guard ends.allSatisfy({ $0 != nil }) else { return nil }
-        let given = ends.compactMap { $0 }
+        let given = ends.compactMap(\.self)
         return given.first { $0.reason == .aborted } ?? given.first { $0.reason == .interrupted } ?? given.first
     }
 

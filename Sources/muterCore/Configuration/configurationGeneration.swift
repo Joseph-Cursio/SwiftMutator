@@ -15,7 +15,7 @@ extension MuterConfiguration {
     init(from directoryContents: [FilePath], in directory: FilePath? = nil) async {
         let base = directory.map { URL(fileURLWithPath: $0, isDirectory: true) }
         let directoryContents = directoryContents.map { URL(fileURLWithPath: $0, relativeTo: base) }
-        for generate in MuterConfiguration.generators {
+        for generate in Self.generators {
             if let generatedConfiguration = await generate(directoryContents) {
                 self = generatedConfiguration
                 return
@@ -126,7 +126,7 @@ private extension MuterConfiguration {
             .map(\.lastPathComponent)
     }
 
-    static func generateEmptyConfiguration(from directoryContents: [URL]) -> MuterConfiguration? {
+    static func generateEmptyConfiguration(from _: [URL]) -> MuterConfiguration? {
         MuterConfiguration(executable: "", arguments: [], excludeList: [])
     }
 }
@@ -139,8 +139,8 @@ private extension MuterConfiguration {
 
         var description: String { name }
 
-        static var fallback: Simulator {
-            Simulator(
+        static var fallback: Self {
+            Self(
                 isAvailable: true,
                 name: "iPhone SE (3rd generation)",
                 deviceTypeIdentifier: ""
@@ -165,7 +165,7 @@ private extension MuterConfiguration {
             ) ??
                 [:]
             let devices = (simulatorsJson["devices"] as? [String: AnyHashable]) ?? [:]
-            let newestRuntime = devices.keys.filter { $0.contains("iOS") }.sorted().last ?? ""
+            let newestRuntime = devices.keys.filter { $0.contains("iOS") }.max() ?? ""
             let devicesForRunTime = (devices[newestRuntime] as? [AnyHashable]) ?? []
             let device: Simulator? = try devicesForRunTime
                 .compactMap { try JSONSerialization.data(withJSONObject: $0) }

@@ -222,18 +222,18 @@ struct SchemataMutationMapping: Sendable {
 
     /// The same mutants with every path, the file's and each mutant's, relative to `root`, as a test plan writes
     /// them; a path outside `root` stays absolute. Each mutant keeps its ID and its place in the file's order.
-    func relative(to root: URL) -> SchemataMutationMapping {
+    func relative(to root: URL) -> Self {
         withPaths { RepoRelativePath.of($0, under: root) }
     }
 
     /// The same mutants with every relative path joined to `root`, as a test plan is read; an absolute path stays as
     /// it is. The inverse of `relative(to:)`.
-    func resolved(under root: URL) -> SchemataMutationMapping {
+    func resolved(under root: URL) -> Self {
         withPaths { RepoRelativePath.resolve($0, under: root.path) }
     }
 
-    private func withPaths(_ path: (String) -> String) -> SchemataMutationMapping {
-        SchemataMutationMapping(
+    private func withPaths(_ path: (String) -> String) -> Self {
+        Self(
             filePath: path(filePath),
             mappings: mappings.mapValues { schemata in schemata.map { $0.with(filePath: path($0.filePath)) } },
             codeBlockText: codeBlockText,
@@ -296,23 +296,25 @@ extension SchemataMutationMapping: Equatable {
     }
 }
 
-func + (
-    lhs: SchemataMutationMapping,
-    rhs: SchemataMutationMapping
-) -> SchemataMutationMapping {
-    var result = SchemataMutationMapping(
-        filePath: lhs.filePath
-    )
+extension SchemataMutationMapping {
+    static func + (
+        lhs: Self,
+        rhs: Self
+    ) -> Self {
+        var result = Self(
+            filePath: lhs.filePath
+        )
 
-    let mergedMappings = lhs.mappings.merging(rhs.mappings) { $0 + $1 }
-    let mergedText = lhs.codeBlockText.merging(rhs.codeBlockText) { current, _ in current }
+        let mergedMappings = lhs.mappings.merging(rhs.mappings) { $0 + $1 }
+        let mergedText = lhs.codeBlockText.merging(rhs.codeBlockText) { current, _ in current }
 
-    for (key, schemata) in mergedMappings {
-        result.add(key, text: mergedText[key] ?? key.text, schemata)
+        for (key, schemata) in mergedMappings {
+            result.add(key, text: mergedText[key] ?? key.text, schemata)
+        }
+        result.calledOnTheSpot = lhs.calledOnTheSpot.union(rhs.calledOnTheSpot)
+
+        return result
     }
-    result.calledOnTheSpot = lhs.calledOnTheSpot.union(rhs.calledOnTheSpot)
-
-    return result
 }
 
 extension [SchemataMutationMapping] {

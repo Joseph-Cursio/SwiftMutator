@@ -41,8 +41,8 @@ enum ToolReportFixture {
     /// Reads Rules.swift, Unrun.swift and the file outside the project; never Other.swift.
     static let read: ReadFile = { path in
         switch path {
-        case ToolReportFixture.project.path + "/Sources/Rules.swift": Data(ToolReportFixture.rules.utf8)
-        case ToolReportFixture.project.path + "/Sources/Unrun.swift": Data("func unrun() {}\n".utf8)
+        case Self.project.path + "/Sources/Rules.swift": Data(Self.rules.utf8)
+        case Self.project.path + "/Sources/Unrun.swift": Data("func unrun() {}\n".utf8)
         case "/elsewhere/Shared.swift": Data("let same = a == b\n".utf8)
         default: nil
         }

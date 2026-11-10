@@ -1,4 +1,5 @@
 @testable import muterCore
+import TestingExtensions
 import XCTest
 
 /// The verdict on a score against `--fail-under` or `failUnder`: which score, which runs, and what is said.
@@ -54,11 +55,11 @@ final class ScoreGateTests: MuterTestCase {
         XCTAssertEqual(none.verdict, .nothingScored(tested: 0))
         XCTAssertNil(none.exitStatus)
         XCTAssertNil(none.score)
-        XCTAssertEqual(none.passed, true)
+        XCTAssertTrue(none.passed)
         XCTAssertEqual(none.line, "No mutant was tested, so no score falls short of the required 80%.")
         let buildErrors = gate(killed: 0, of: 0, buildErrors: 2, failUnder: 80)
         XCTAssertEqual(buildErrors.verdict, .nothingScored(tested: 2))
-        XCTAssertEqual(buildErrors.passed, false)
+        XCTAssertFalse(buildErrors.passed)
         XCTAssertEqual(buildErrors.exitStatus, .scoreBelowThreshold)
         XCTAssertEqual(buildErrors.line, "Every mutant was a build error, so nothing shows the required 80% is met.")
     }
@@ -71,7 +72,7 @@ final class ScoreGateTests: MuterTestCase {
             progress: .init(results: 2, discovered: 9)
         )
 
-        XCTAssertEqual(unfinished.passed, false)
+        XCTAssertFalse(unfinished.passed)
         XCTAssertEqual(
             unfinished.line,
             "Every mutant with a result was a build error, so nothing shows the required 10% is met. "
@@ -85,7 +86,7 @@ final class ScoreGateTests: MuterTestCase {
         let noResults = ScoreGate(failUnder: 80, judging: .make([]), progress: .init(results: 0, discovered: 4))
 
         XCTAssertEqual(noResults.verdict, .nothingScored(tested: 0))
-        XCTAssertEqual(noResults.passed, false)
+        XCTAssertFalse(noResults.passed)
         XCTAssertEqual(noResults.exitStatus, .scoreBelowThreshold)
         XCTAssertNil(noResults.score)
         XCTAssertEqual(
@@ -132,7 +133,7 @@ final class ScoreGateTests: MuterTestCase {
 
         XCTAssertEqual(gate.verdict, .nothingScored(tested: 2))
         XCTAssertNil(gate.score)
-        XCTAssertEqual(gate.passed, false)
+        XCTAssertFalse(gate.passed)
         XCTAssertEqual(gate.line, "Every mutant was a build error, so nothing shows the required 0% is met.")
     }
 
@@ -196,15 +197,15 @@ final class ScoreGateTests: MuterTestCase {
             "Mutation score 71.4% is below the required 80%."
         )
         XCTAssertEqual(
-            gate(killed: 799, of: 1000, failUnder: 80).line,
+            gate(killed: 799, of: 1_000, failUnder: 80).line,
             "Mutation score 79.9% is below the required 80%."
         )
         XCTAssertEqual(
-            gate(killed: 1999, of: 2500, failUnder: 80).line,
+            gate(killed: 1_999, of: 2_500, failUnder: 80).line,
             "Mutation score 79.9% is below the required 80%."
         )
         XCTAssertEqual(
-            gate(killed: 1999, of: 2500, failUnder: 79.95).line,
+            gate(killed: 1_999, of: 2_500, failUnder: 79.95).line,
             "Mutation score 79.96% meets the required 79.95%."
         )
         XCTAssertEqual(

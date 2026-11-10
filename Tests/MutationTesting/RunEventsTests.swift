@@ -27,7 +27,7 @@ final class RunEventsTests: MuterTestCase {
 
         events.send(.muterLaunched)
 
-        XCTAssertTrue(handledOn === sender)
+        XCTAssertIdentical(handledOn, sender)
         withExtendedLifetime(subscription) {}
     }
 
@@ -117,7 +117,7 @@ private final class OverlapCounter: @unchecked Sendable { // every `var` is behi
             active += 1
         }
         // Long enough for another sender to arrive meanwhile.
-        Thread.sleep(forTimeInterval: 0.000_1)
+        Thread.sleep(forTimeInterval: 0.0001)
         lock.withLock {
             active -= 1
             handledCount += 1

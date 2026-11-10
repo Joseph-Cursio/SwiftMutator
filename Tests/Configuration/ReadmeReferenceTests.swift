@@ -112,6 +112,7 @@ final class ReadmeReferenceTests: MuterTestCase {
     private static let commandsWithEveryFlagInATable: [ParsableCommand.Type] = [Run.self, Triage.self]
 
     private static var displayedCommands: [ParsableCommand.Type] {
+        // swiftlint:disable:next prefer_key_path - as a key path, a static member of a metatype crashes the compiler
         MuterCommand.configuration.subcommands.filter { $0.configuration.shouldDisplay }
     }
 

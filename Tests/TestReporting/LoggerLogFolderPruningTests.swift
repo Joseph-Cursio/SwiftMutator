@@ -92,7 +92,7 @@ final class LoggerLogFolderPruningTests: MuterTestCase {
         XCTAssertEqual(Logger.size(0), "0 bytes")
         XCTAssertEqual(Logger.size(1), "1 byte")
         XCTAssertEqual(Logger.size(999), "999 bytes")
-        XCTAssertEqual(Logger.size(1000), "1.0 KB")
+        XCTAssertEqual(Logger.size(1_000), "1.0 KB")
         XCTAssertEqual(Logger.size(960_400), "960.4 KB")
         XCTAssertEqual(Logger.size(999_960), "1.0 MB")
         XCTAssertEqual(Logger.size(1_934_000_000), "1.9 GB")

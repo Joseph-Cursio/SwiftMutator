@@ -143,7 +143,7 @@ final class ResumeCheckTests: XCTestCase {
     // A limit only stops a step that runs too long, before any mutant is tested.
     func test_aChangedBuildTimeout_onlyNotifies() {
         let recorded = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"], buildTimeout: 900)
-        let changed = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"], buildTimeout: 1800)
+        let changed = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"], buildTimeout: 1_800)
 
         let verdict = check(current(configuration: changed), recorded: header(of: current(configuration: recorded)))
 
@@ -434,7 +434,7 @@ final class ResumeCheckTests: XCTestCase {
                 executableSHA256: Provenance.fixture.swiftMutator.executableSHA256
             ),
             toolchain: Provenance.fixture.toolchain,
-            processIdentifier: 4321,
+            processIdentifier: 4_321,
             host: "studio.local",
             arguments: ["run", "--resume", "results.jsonl"]
         )
@@ -896,8 +896,8 @@ final class ResumeCheckTests: XCTestCase {
     // MARK: - --sample
 
     func test_theSameSample_resumes_whetherOrNotSwiftMutatorChoseItsSeed() {
-        let sample = Sample(size: 500, seed: 1234, seedIsChosen: true)
-        let given = Sample(size: 500, seed: 1234, seedIsChosen: false)
+        let sample = Sample(size: 500, seed: 1_234, seedIsChosen: true)
+        let given = Sample(size: 500, seed: 1_234, seedIsChosen: false)
 
         XCTAssertEqual(
             check(current(sample: given), recorded: header(of: current(sample: sample))),
@@ -906,7 +906,7 @@ final class ResumeCheckTests: XCTestCase {
     }
 
     func test_anotherSizeOrSeed_orASampleOnOneSideOnly_refuses() {
-        let recorded = header(of: current(sample: Sample(size: 500, seed: 1234, seedIsChosen: false)))
+        let recorded = header(of: current(sample: Sample(size: 500, seed: 1_234, seedIsChosen: false)))
 
         let difference = ResumeCheck.Difference(name: "sample", was: #""500, seed 1234""#, isNow: #""500, seed 99""#)
         XCTAssertEqual(
@@ -919,7 +919,7 @@ final class ResumeCheckTests: XCTestCase {
                 + "A change to which mutants are tested needs a new run."
         )
         XCTAssertEqual(
-            check(current(sample: Sample(size: 600, seed: 1234, seedIsChosen: false)), recorded: recorded).refusals,
+            check(current(sample: Sample(size: 600, seed: 1_234, seedIsChosen: false)), recorded: recorded).refusals,
             [.selectionChanged(.init(name: "sample", was: #""500, seed 1234""#, isNow: #""600, seed 1234""#))]
         )
         XCTAssertEqual(
@@ -927,14 +927,14 @@ final class ResumeCheckTests: XCTestCase {
             [.selectionChanged(.init(name: "sample", was: #""500, seed 1234""#, isNow: nil))]
         )
         XCTAssertEqual(
-            check(current(sample: Sample(size: 500, seed: 1234, seedIsChosen: false))).refusals,
+            check(current(sample: Sample(size: 500, seed: 1_234, seedIsChosen: false))).refusals,
             [.selectionChanged(.init(name: "sample", was: nil, isNow: #""500, seed 1234""#))]
         )
     }
 
     // The shards of a sampled split share its sample: shards of different samples aren't one split.
     func test_aMerge_comparesTheSample() {
-        let sample = Sample(size: 500, seed: 1234, seedIsChosen: false)
+        let sample = Sample(size: 500, seed: 1_234, seedIsChosen: false)
         let first = header(of: current(shard: Shard(index: 1, count: 2), sample: sample))
 
         XCTAssertEqual(
@@ -954,7 +954,7 @@ final class ResumeCheckTests: XCTestCase {
 
     // A reuse keeps a result only for a mutant this sample holds, which holds whatever else is tested.
     func test_aReuse_doesntCompareTheSample_eitherWay() {
-        let sample = Sample(size: 500, seed: 1234, seedIsChosen: false)
+        let sample = Sample(size: 500, seed: 1_234, seedIsChosen: false)
 
         XCTAssertEqual(check(current(sample: sample), for: .reuse).refusals, [])
         XCTAssertEqual(check(current(), recorded: header(of: current(sample: sample)), for: .reuse).refusals, [])
@@ -1048,7 +1048,7 @@ final class ResumeCheckTests: XCTestCase {
             since: current.since,
             shard: current.shard.map { ShardSelection.make(index: $0.index, count: $0.count) },
             sample: current.sample.map {
-                SampleSelection(size: $0.size, seed: $0.seed, mutantsSampledFrom: 2463, mutantsSampled: $0.size)
+                SampleSelection(size: $0.size, seed: $0.seed, mutantsSampledFrom: 2_463, mutantsSampled: $0.size)
             },
             testPlan: current.testPlanSHA256.map {
                 TestPlanRecord(

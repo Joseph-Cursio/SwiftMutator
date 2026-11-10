@@ -41,7 +41,7 @@ final class RecordedOutcomeTests: MuterTestCase {
         current.now = {
             calls.change { count in
                 count += 1
-                return ResultsHeader.fixedStart.addingTimeInterval(count * 1.234_567)
+                return ResultsHeader.fixedStart.addingTimeInterval(count * 1.234567)
             }
         }
     }
@@ -332,7 +332,7 @@ final class RecordedOutcomeTests: MuterTestCase {
             ResultsEnd.make(testDurationSeconds: 100.5, recorded: 1),
             ResultsHeader.make(
                 session: 2,
-                startedAt: ResultsHeader.fixedStart + 3600,
+                startedAt: ResultsHeader.fixedStart + 3_600,
                 projectPath: "/moved",
                 mutatedProjectPath: "/moved_mutated",
                 coverage: CoverageSummary(percent: 78, filesWithoutCoverage: uncovered),
@@ -377,7 +377,7 @@ final class RecordedOutcomeTests: MuterTestCase {
         }
         var first = ResultsHeader.make()
         first.mutantsNotCovered = [uncovered(4), uncovered(8)]
-        var second = ResultsHeader.make(session: 2, startedAt: ResultsHeader.fixedStart + 3600)
+        var second = ResultsHeader.make(session: 2, startedAt: ResultsHeader.fixedStart + 3_600)
         second.mutantsNotCovered = [uncovered(8)]
 
         let rebuilt = try rebuild(
@@ -418,7 +418,7 @@ final class RecordedOutcomeTests: MuterTestCase {
             ResultsHeader.make(
                 formatVersion: ResultsCoding.resumedFormatVersion,
                 session: 2,
-                startedAt: ResultsHeader.fixedStart + 3600
+                startedAt: ResultsHeader.fixedStart + 3_600
             ),
             ResultsRetired(session: 2, keys: [jobs[1].key, jobs[3].key]),
             mutantResult(jobs[3].schema, jobs[3].key, outcome: .passed, session: 2),
@@ -591,7 +591,7 @@ private extension RecordedOutcomeTests {
         // The end line must keep the test duration exactly, so it is one that rounding to the millisecond changes.
         XCTAssertGreaterThan(expected.testDuration, 0, file: file, line: line)
         XCTAssertNotEqual(
-            (expected.testDuration * 1000).rounded() / 1000, expected.testDuration, file: file, line: line
+            (expected.testDuration * 1_000).rounded() / 1_000, expected.testDuration, file: file, line: line
         )
         freezeTheClock()
         let lines = resultsFiles.lines

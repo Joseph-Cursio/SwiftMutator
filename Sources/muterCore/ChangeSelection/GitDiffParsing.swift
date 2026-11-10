@@ -27,13 +27,13 @@ enum GitDiffParsing {
         var entries: [Entry] = []
         while let status = fields.popFirst(), !status.isEmpty {
             switch status.first {
-            case "A"?, "M"?, "D"?, "T"?, "U"?:
+            case "A", "M", "D", "T", "U":
                 guard let path = fields.popFirst() else { return entries }
                 let kinds: [Character: Entry.Status] = [
                     "A": .added, "M": .modified, "D": .deleted, "T": .replaced, "U": .replaced,
                 ]
                 entries.append(Entry(status: status.first.flatMap { kinds[$0] } ?? .replaced, path: path))
-            case "R"?, "C"?:
+            case "R", "C":
                 guard let old = fields.popFirst(), let new = fields.popFirst() else { return entries }
                 entries.append(Entry(status: status.first == "R" ? .renamed(from: old) : .added, path: new))
             default:

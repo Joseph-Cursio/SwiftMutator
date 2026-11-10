@@ -43,11 +43,11 @@ final class SampleRunTests: MuterTestCase {
         try prepare()
         let wholeRun = try await keys(discovering: nil)
 
-        let sampled = try await keys(discovering: Sample(size: 2, seed: 1234, seedIsChosen: false))
+        let sampled = try await keys(discovering: Sample(size: 2, seed: 1_234, seedIsChosen: false))
 
         XCTAssertEqual(sampled.count, 2)
         XCTAssertEqual(sampled, wholeRun.filter(Set(sampled).contains))
-        let chosen = try await keys(discovering: Sample(size: 2, seed: 1234, seedIsChosen: true))
+        let chosen = try await keys(discovering: Sample(size: 2, seed: 1_234, seedIsChosen: true))
         XCTAssertEqual(chosen, sampled)
     }
 
@@ -187,7 +187,7 @@ final class SampleRunTests: MuterTestCase {
     func test_theReports_sayWhatTheSampleTested_andTheMargin() throws {
         let outcome = MutationTestOutcome(
             mutations: [.make(testSuiteOutcome: .failed), .make(testSuiteOutcome: .passed)],
-            sample: SampleSelection(size: 2, seed: 1234, mutantsSampledFrom: 40, mutantsSampled: 2)
+            sample: SampleSelection(size: 2, seed: 1_234, mutantsSampledFrom: 40, mutantsSampled: 2)
         )
         let margin = SampleScope.marginOfError(killed: 1, scored: 2, sampled: 2, from: 40)
 
@@ -203,7 +203,7 @@ final class SampleRunTests: MuterTestCase {
         let sample = try XCTUnwrap(json["sample"] as? [String: Any])
         XCTAssertEqual(sample["mutantsSampled"] as? Int, 2)
         XCTAssertEqual(sample["mutantsSampledFrom"] as? Int, 40)
-        XCTAssertEqual(sample["seed"] as? Int, 1234)
+        XCTAssertEqual(sample["seed"] as? Int, 1_234)
         XCTAssertEqual(try XCTUnwrap(sample["marginOfError"] as? Double), margin, accuracy: 1e-9)
         XCTAssertTrue(HTMLReporter().report(from: outcome).contains("Sample tested, of 40 mutants (seed 1234)"))
     }
@@ -350,7 +350,7 @@ final class SampleRunTests: MuterTestCase {
         try prepare()
         let wholeRun = try await keys(discovering: nil)
         XCTAssertTrue(state.keysLeftOutOfTheSample.isEmpty)
-        let sample = Sample(size: 2, seed: 1234, seedIsChosen: false)
+        let sample = Sample(size: 2, seed: 1_234, seedIsChosen: false)
         let sampled = try await keys(discovering: sample)
         state.runOptions = .make(sample: sample)
 
@@ -362,10 +362,10 @@ final class SampleRunTests: MuterTestCase {
 
     // A whole run's results reused by a sample: most of them aren't of its mutants, which is no loss.
     func test_aReuseOfAnotherSample_saysWhy_ratherThanWarning() {
-        let sample = Sample(size: 500, seed: 1234, seedIsChosen: false)
+        let sample = Sample(size: 500, seed: 1_234, seedIsChosen: false)
 
         XCTAssertNil(ResumeSummary.sampleChange(from: nil, to: nil))
-        XCTAssertNil(ResumeSummary.sampleChange(from: sample, to: Sample(size: 500, seed: 1234, seedIsChosen: true)))
+        XCTAssertNil(ResumeSummary.sampleChange(from: sample, to: Sample(size: 500, seed: 1_234, seedIsChosen: true)))
         XCTAssertEqual(
             ResumeSummary.sampleChange(from: nil, to: sample),
             "This run tests only a sample of 500 (seed 1234), so no earlier result of a mutant outside it is reused."

@@ -423,7 +423,7 @@ extension ResultsFile {
         guard descriptor >= 0 else { return nil }
         defer { closeDescriptor(descriptor) }
         // A record is far shorter.
-        var buffer = [UInt8](repeating: 0, count: 4096)
+        var buffer = [UInt8](repeating: 0, count: 4_096)
         var count = read(descriptor, &buffer, buffer.count)
         while count < 0, errno == EINTR {
             count = read(descriptor, &buffer, buffer.count)

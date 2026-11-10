@@ -323,7 +323,7 @@ final class BaselineMatchesTests: XCTestCase {
         XCTAssertEqual(all.map(\.kind), [.killed, .survivor(.notCovered), .survivor(.notCovered), .notTested])
         XCTAssertEqual(all.map(\.isNotCovered), [false, true, true, false])
         XCTAssertEqual(all[1].line, "if count < limit {")
-        XCTAssertEqual(all[2].line, nil)
+        XCTAssertNil(all[2].line)
         XCTAssertTrue(all[2].lineUnread)
     }
 

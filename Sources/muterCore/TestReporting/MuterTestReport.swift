@@ -1,6 +1,7 @@
 import Foundation
 
 typealias FileName = String
+/// A path to a file or folder.
 public typealias FilePath = String
 
 struct MuterTestReport {
@@ -47,15 +48,15 @@ struct MuterTestReport {
         )
         killingTestSummary = summary
         propertyKillSummary = PropertyKillSummary(of: outcome.mutations, globs: outcome.propertyTests)
-        globalMutationScore = mutationScore(from: outcome.mutations.map { $0.testSuiteOutcome })
+        globalMutationScore = mutationScore(from: outcome.mutations.map(\.testSuiteOutcome))
         totalAppliedMutationOperators = outcome.mutations.count
         numberOfKilledMutants = outcome.mutations
             .count { $0.testSuiteOutcome == .failed || $0.testSuiteOutcome == .runtimeError }
         mutantsByOutcome = OutcomeCounts(outcome.mutations.map(\.testSuiteOutcome))
         projectCodeCoverage = outcome.coverage == .null ? nil : outcome.coverage.percent
         var sources = ReportSources(read: readSource, digests: outcome.sourceDigests)
-        let triaged = MuterTestReport.triaged(
-            MuterTestReport.fileReports(
+        let triaged = Self.triaged(
+            Self.fileReports(
                 from: outcome,
                 suspects: summary?.suspectIdentities ?? [],
                 sources: &sources
@@ -155,10 +156,10 @@ extension MuterTestReport {
 private extension TimeInterval {
     func formatted() -> String {
         let time = Int(self)
-        let milliseconds = Int(truncatingRemainder(dividingBy: 1) * 1000)
+        let milliseconds = Int(truncatingRemainder(dividingBy: 1) * 1_000)
         let seconds = time % 60
         let minutes = (time / 60) % 60
-        let hours = (time / 3600)
+        let hours = (time / 3_600)
 
         return String(
             format: "%0.2d:%0.2d:%0.2d.%0.3d",
@@ -167,7 +168,6 @@ private extension TimeInterval {
             seconds,
             milliseconds
         )
-
     }
 }
 
@@ -300,7 +300,7 @@ extension MuterTestReport {
             self.triage = triage
         }
 
-        public init(from decoder: Decoder) throws {
+        init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             mutationPoint = try container.decode(MutationPoint.self, forKey: .mutationPoint)
             testSuiteOutcome = try container.decode(TestSuiteOutcome.self, forKey: .testSuiteOutcome)

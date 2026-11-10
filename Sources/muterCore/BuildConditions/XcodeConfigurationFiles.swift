@@ -401,10 +401,10 @@ private final class WorkspaceLocations: NSObject, XMLParserDelegate {
     }
 
     func parser(
-        _ parser: XMLParser,
+        _: XMLParser,
         didStartElement elementName: String,
-        namespaceURI: String?,
-        qualifiedName qName: String?,
+        namespaceURI _: String?,
+        qualifiedName _: String?,
         attributes attributeDict: [String: String] = [:]
     ) {
         switch elementName {
@@ -430,10 +430,10 @@ private final class WorkspaceLocations: NSObject, XMLParserDelegate {
     }
 
     func parser(
-        _ parser: XMLParser,
+        _: XMLParser,
         didEndElement elementName: String,
-        namespaceURI: String?,
-        qualifiedName qName: String?
+        namespaceURI _: String?,
+        qualifiedName _: String?
     ) {
         if elementName == "Group", !groups.isEmpty {
             groups.removeLast()

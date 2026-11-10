@@ -10,7 +10,7 @@ final class RecordedResultsTests: XCTestCase {
     private let resumed = ResultsHeader.make(
         formatVersion: ResultsCoding.resumedFormatVersion,
         session: 2,
-        startedAt: ResultsHeader.fixedStart + 3600
+        startedAt: ResultsHeader.fixedStart + 3_600
     )
 
     func test_readsHeaderMutantsAndEnd() throws {
@@ -135,7 +135,7 @@ final class RecordedResultsTests: XCTestCase {
         XCTAssertEqual(orphan.propertyReruns, [:], "of no result")
         XCTAssertEqual(orphan.unreadableLines, [], "read, but kept for no result")
         let outcome = kept.mutationTestOutcome()
-        XCTAssertEqual(outcome.mutations.map(\.propertyRerun?.outcome).compactMap { $0 }, [.failed])
+        XCTAssertEqual(outcome.mutations.map(\.propertyRerun?.outcome).compactMap(\.self), [.failed])
     }
 
     func test_aRetiredLineOfNoEarlierSession_isUnreadable() throws {
@@ -231,7 +231,7 @@ final class RecordedResultsTests: XCTestCase {
 
     func test_theLastRecordOfAKeyWins() throws {
         let survived = MutantResult.make(path: sum.path, outcome: .passed)
-        let secondHeader = ResultsHeader.make(session: 2, startedAt: ResultsHeader.fixedStart + 3600)
+        let secondHeader = ResultsHeader.make(session: 2, startedAt: ResultsHeader.fixedStart + 3_600)
         let retested = MutantResult.make(session: 2, path: sum.path, outcome: .timeout)
 
         let sameSession = try read(file(header, sum, survived))
@@ -243,9 +243,9 @@ final class RecordedResultsTests: XCTestCase {
     }
 
     func test_testDuration_usesEndLines_andEstimatesSessionsWithout() throws {
-        let secondStart = ResultsHeader.fixedStart + 3600
+        let secondStart = ResultsHeader.fixedStart + 3_600
         let interrupted = ResultsHeader.make(session: 2, startedAt: secondStart)
-        let killedBeforeAnyMutant = ResultsHeader.make(session: 3, startedAt: secondStart + 3600)
+        let killedBeforeAnyMutant = ResultsHeader.make(session: 3, startedAt: secondStart + 3_600)
 
         let recorded = try read(
             file(

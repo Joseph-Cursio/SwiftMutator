@@ -151,13 +151,13 @@ struct PlainTextReporter: Reporter {
             "-------------\nKilling Tests\n-------------",
             KillingTestSummary.introduction,
             summary.countSentences.joined(separator: "\n"),
-            (tableLines + [summary.shownTestsSentence].compactMap { $0 }).joined(separator: "\n"),
+            (tableLines + [summary.shownTestsSentence].compactMap(\.self)).joined(separator: "\n"),
             summary.noVerdictSentence,
             summary.controlRunSentences.joined(separator: "\n"),
             summary.testedAloneSentences.joined(separator: "\n"),
             summary.suspectSentences(mutationScore: report.globalMutationScore).joined(separator: "\n"),
         ]
-        return paragraphs.compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n\n") + "\n\n\n"
+        return paragraphs.compactMap(\.self).filter { !$0.isEmpty }.joined(separator: "\n\n") + "\n\n\n"
     }
 
     /// The Examples and Properties section, followed by the blank lines that end a section. None without
@@ -171,9 +171,9 @@ struct PlainTextReporter: Reporter {
             "-----------------------\nExamples and Properties\n-----------------------",
             PropertyKillSummary.introduction + " " + summary.globSentence,
             summary.splitSentences.joined(separator: "\n"),
-            (tableLines + [summary.shownPropertiesSentence].compactMap { $0 }).joined(separator: "\n"),
+            (tableLines + [summary.shownPropertiesSentence].compactMap(\.self)).joined(separator: "\n"),
         ]
-        return paragraphs.compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n\n") + "\n\n\n"
+        return paragraphs.compactMap(\.self).filter { !$0.isEmpty }.joined(separator: "\n\n") + "\n\n\n"
     }
 
     /// The Triage section, followed by the blank lines that end a section. None without a triage file with entries, so
@@ -183,9 +183,9 @@ struct PlainTextReporter: Reporter {
         let paragraphs: [String?] = [
             "------\nTriage\n------",
             TriageSummary.introduction,
-            ([summary.countSentence] + [summary.labelSentence].compactMap { $0 }).joined(separator: "\n"),
+            ([summary.countSentence] + [summary.labelSentence].compactMap(\.self)).joined(separator: "\n"),
         ] + summary.attentionParagraphs.map { $0.joined(separator: "\n") }
-        return paragraphs.compactMap { $0 }.joined(separator: "\n\n") + "\n\n\n"
+        return paragraphs.compactMap(\.self).joined(separator: "\n\n") + "\n\n\n"
     }
 
     /// The score without suspect tests and which they are, each on a line of its own after the headline score, with

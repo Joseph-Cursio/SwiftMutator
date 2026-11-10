@@ -95,7 +95,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     private(set) var keptOutputs: [(output: String, path: String?)] = []
     private var mutantRunCount = 0
 
-    func backupFile(at path: String, using swapFilePaths: [FilePath: FilePath]) {
+    func backupFile(at path: String, using _: [FilePath: FilePath]) {
         methodCalls.append(#function)
         backedUpFilePaths.append(path)
     }
@@ -173,7 +173,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     }
 
     func benchmarkTests(
-        using configuration: MuterConfiguration,
+        using _: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String
     ) -> TestRun {
         methodCalls.append(#function)
@@ -186,7 +186,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
 
     /// Called concurrently for each worker clone, so it takes the lock.
     func benchmarkTests(
-        using configuration: MuterConfiguration,
+        using _: MuterConfiguration,
         savingResultsIntoFileNamed fileName: String,
         workingDirectory: URL
     ) async -> TestRun {
@@ -278,7 +278,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
         return false
     }
 
-    func restoreFile(at path: String, using swapFilePaths: [FilePath: FilePath]) {
+    func restoreFile(at path: String, using _: [FilePath: FilePath]) {
         methodCalls.append(#function)
         restoredFilePaths.append(path)
     }

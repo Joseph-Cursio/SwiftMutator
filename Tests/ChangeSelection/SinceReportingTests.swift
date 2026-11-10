@@ -104,7 +104,7 @@ final class SinceReportingTests: MuterTestCase {
         XCTAssertNil(ResumeSummary.selectionChange(from: nil, to: nil))
 
         Logger().resumePlanned(
-            .make(noLongerDiscovered: 2400, isReuse: true, selectionChange: "This run mutates only…")
+            .make(noLongerDiscovered: 2_400, isReuse: true, selectionChange: "This run mutates only…")
         )
 
         XCTAssertTrue(printer.linesPassed.contains("ℹ️ This run mutates only…"), "\(printer.linesPassed)")

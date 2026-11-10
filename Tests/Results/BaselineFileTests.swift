@@ -26,7 +26,7 @@ final class BaselineFileTests: MuterTestCase {
         BaselineFile(
             path: path ?? self.path,
             swiftMutator: "0.1.0",
-            score: .init(killed: 812, scored: 1003),
+            score: .init(killed: 812, scored: 1_003),
             scope: scope,
             survivors: survivors
         )
@@ -94,7 +94,7 @@ final class BaselineFileTests: MuterTestCase {
 
         XCTAssertEqual(read.formatVersion, BaselineFile.formatVersion)
         XCTAssertEqual(read.swiftMutator, "0.1.0")
-        XCTAssertEqual(read.score, .init(killed: 812, scored: 1003))
+        XCTAssertEqual(read.score, .init(killed: 812, scored: 1_003))
         XCTAssertEqual(read.scope, scope)
         XCTAssertEqual(read.survivors, saved.sortedSurvivors)
     }
@@ -160,8 +160,8 @@ final class BaselineFileTests: MuterTestCase {
         let read = try load(minimal)
 
         XCTAssertEqual(read.survivors, [])
-        XCTAssertEqual(read.scope.configuration.mutationTestTimeout, nil)
-        XCTAssertEqual(read.scope.configuration.buildSystem, nil)
+        XCTAssertNil(read.scope.configuration.mutationTestTimeout)
+        XCTAssertNil(read.scope.configuration.buildSystem)
     }
 
     func test_noFile_isRefused_sayingHowToWriteOne() {

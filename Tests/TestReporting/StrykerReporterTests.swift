@@ -49,7 +49,7 @@ final class StrykerReporterTests: MuterTestCase {
         XCTAssertEqual(byId["Sources/Rules.swift:2:25 RelationalOperatorReplacement"]?.killedBy, [
             "RulesTests.test_allows()", "RulesTests.test_equal()",
         ])
-        XCTAssertEqual(byId["Sources/Rules.swift:2:25 RelationalOperatorReplacement"]?.duration, 1250)
+        XCTAssertEqual(byId["Sources/Rules.swift:2:25 RelationalOperatorReplacement"]?.duration, 1_250)
         XCTAssertEqual(byId["Sources/Rules.swift:15:20 RemoveSideEffects"]?.replacement, "", "nothing in its place")
     }
 

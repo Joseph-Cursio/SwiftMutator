@@ -62,7 +62,7 @@ struct StrykerReporter: Reporter {
             status: status(of: mutation.testSuiteOutcome),
             statusReason: statusReason(of: mutation),
             killedBy: killingTests(of: mutation),
-            duration: mutation.durationSeconds.map { Int(($0 * 1000).rounded()) }
+            duration: mutation.durationSeconds.map { Int(($0 * 1_000).rounded()) }
         )
     }
 

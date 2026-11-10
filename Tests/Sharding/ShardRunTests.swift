@@ -168,7 +168,7 @@ final class ShardRunTests: MuterTestCase {
     }
 
     func test_theReports_sayWhichShardWasTested() throws {
-        let outcome = MutationTestOutcome(shards: ShardScope(.make(index: 1, count: 2, mutantsInAllShards: 2463)))
+        let outcome = MutationTestOutcome(shards: ShardScope(.make(index: 1, count: 2, mutantsInAllShards: 2_463)))
 
         XCTAssertTrue(
             PlainTextReporter().report(from: outcome).contains(
@@ -181,13 +181,13 @@ final class ShardRunTests: MuterTestCase {
         let shards = try XCTUnwrap(json["shards"] as? [String: Any])
         XCTAssertEqual(shards["indices"] as? [Int], [1])
         XCTAssertEqual(shards["count"] as? Int, 2)
-        XCTAssertEqual(shards["mutantsInAllShards"] as? Int, 2463)
+        XCTAssertEqual(shards["mutantsInAllShards"] as? Int, 2_463)
         XCTAssertTrue(HTMLReporter().report(from: outcome).contains("Shard tested, of 2463 mutants"))
     }
 
     // As a report of merged shards says, when some are missing.
     func test_aScopeOfSeveralShards_namesThemAll() {
-        let scope = ShardScope(indices: [3, 1], count: 4, mutantsInAllShards: 2463)
+        let scope = ShardScope(indices: [3, 1], count: 4, mutantsInAllShards: 2_463)
 
         XCTAssertEqual(scope.indices, [1, 3])
         XCTAssertEqual(

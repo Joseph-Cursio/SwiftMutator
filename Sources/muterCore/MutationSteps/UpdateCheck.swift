@@ -18,7 +18,6 @@ extension URLSession: Server {
                 } else if let error {
                     continuation.resume(throwing: error)
                 }
-
             }.resume()
         }
     }
@@ -42,7 +41,7 @@ struct UpdateCheck: MutationStep {
     }
 
     func run(
-        with state: AnyMutationTestState
+        with _: AnyMutationTestState
     ) async throws -> [MutationTestState.Change] {
         guard let releaseURL = URL(string: url) else {
             return []

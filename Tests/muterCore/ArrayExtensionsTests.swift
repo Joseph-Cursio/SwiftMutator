@@ -80,14 +80,14 @@ final class ArrayExtensionsTests: XCTestCase {
         let array = ["a", "b", "c", "d", "e"]
         let chunks = array.chunked(into: 2)
 
-        XCTAssertEqual(chunks.flatMap { $0 }, array)
+        XCTAssertEqual(chunks.flatMap(\.self), array)
     }
 
     func test_chunked_worksWithLargeArrays() {
-        let array = Array(1...1000)
+        let array = Array(1...1_000)
         let chunks = array.chunked(into: 50)
 
         XCTAssertEqual(chunks.count, 20)
-        XCTAssertEqual(chunks.flatMap { $0 }.count, 1000)
+        XCTAssertEqual(chunks.flatMap(\.self).count, 1_000)
     }
 }

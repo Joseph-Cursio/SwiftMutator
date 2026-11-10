@@ -317,7 +317,7 @@ enum ResumeCheck {
                 was: recorded.mutant.flatMap { json($0) },
                 isNow: current.mutant.flatMap { json($0) }
             ),
-        ].compactMap { $0 }
+        ].compactMap(\.self)
     }
 
     /// The differences in what `--since` compares the working tree with, by their keys in the header's `since`: its
@@ -332,7 +332,7 @@ enum ResumeCheck {
             return [
                 difference("since.mergeBase", recorded.mergeBase, current.mergeBase),
                 difference("since.changedLines", recorded.changedLines, current.changedLines),
-            ].compactMap { $0 }
+            ].compactMap(\.self)
         default:
             return [
                 Difference(

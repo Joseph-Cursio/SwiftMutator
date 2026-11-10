@@ -213,7 +213,7 @@ struct Triage: AsyncParsableCommand {
         triage.entries.removeAll { $0.mutant == entry.mutant }
         try triage.save(using: fileManager)
 
-        let details = [entry.label.words, entry.line, entry.note].compactMap { $0 }.joined(separator: ", ")
+        let details = [entry.label.words, entry.line, entry.note].compactMap(\.self).joined(separator: ", ")
         printer("\(entry.mutant): label removed from \(triagePath) (\(details))")
     }
 

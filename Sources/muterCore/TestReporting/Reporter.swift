@@ -10,5 +10,5 @@ protocol Reporter: Sendable {
 }
 
 extension Reporter {
-    func newMutationTestOutcomeAvailable(outcomeWithFlush: MutationOutcomeWithFlush) {}
+    func newMutationTestOutcomeAvailable(outcomeWithFlush _: MutationOutcomeWithFlush) {}
 }

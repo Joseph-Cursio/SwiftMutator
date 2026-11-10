@@ -89,7 +89,7 @@ final class ReportCommandTests: MuterTestCase {
 
         try await report(resultsPath)
 
-        XCTAssertTrue(printer.linesPassed.first?.contains("Triaged: equivalent") == true, "\(printer.linesPassed)")
+        XCTAssertEqual(printer.linesPassed.first?.contains("Triaged: equivalent"), true, "\(printer.linesPassed)")
     }
 
     func test_showsTheLabelsInTheCurrentFolder_whenTheRunsProjectHasNone() async throws {
@@ -101,7 +101,7 @@ final class ReportCommandTests: MuterTestCase {
 
         try await report(resultsPath)
 
-        XCTAssertTrue(printer.linesPassed.first?.contains("Triaged: missing test") == true, "\(printer.linesPassed)")
+        XCTAssertEqual(printer.linesPassed.first?.contains("Triaged: missing test"), true, "\(printer.linesPassed)")
     }
 
     func test_triageFlag_namesTheFile_whichMustBeThere() async throws {
@@ -112,7 +112,7 @@ final class ReportCommandTests: MuterTestCase {
 
         try writeTriage(to: file, label: "tool-limitation")
         try await report(resultsPath, "--triage", file)
-        XCTAssertTrue(printer.linesPassed.first?.contains("Triaged: tool limitation") == true, "\(printer.linesPassed)")
+        XCTAssertEqual(printer.linesPassed.first?.contains("Triaged: tool limitation"), true, "\(printer.linesPassed)")
     }
 
     func test_aBrokenTriageFile_isRefused() async throws {
@@ -437,7 +437,7 @@ final class ReportCommandTests: MuterTestCase {
     // Only an error: a run that was interrupted, or has no end line yet, says nothing about its mutants' code.
     func test_aRunThatWasInterrupted_orHasNoEndLine_exits0() async throws {
         for end in [ResultsEnd.make(reason: .interrupted, detail: "SIGINT"), nil] {
-            try write([ResultsHeader.make(), alpha3] + [end].compactMap { $0 }, to: resultsPath)
+            try write([ResultsHeader.make(), alpha3] + [end].compactMap(\.self), to: resultsPath)
 
             try await report(resultsPath)
         }
@@ -623,8 +623,9 @@ final class ReportCommandTests: MuterTestCase {
             XCTAssertEqual(error as? ExitCode, .abortedMidRun)
         }
 
-        XCTAssertTrue(
-            printer.linesPassed.first?.contains("Only the mutants in shard 1 of 2 were tested, of 3 discovered") == true
+        XCTAssertEqual(
+            printer.linesPassed.first?.contains("Only the mutants in shard 1 of 2 were tested, of 3 discovered"),
+            true
         )
         XCTAssertEqual(standardError.linesPassed, [
             "Report of 2 of 2 mutants in shard 1 of 2, from \(resultsPath): the run finished.",
@@ -806,7 +807,7 @@ final class ReportCommandTests: MuterTestCase {
     // What was tested is checked, and the verdict says it is partial; the job that ran it already got its signal.
     func test_failUnder_ofARunThatDidntFinish_checksWhatWasTested() async throws {
         for end in [ResultsEnd.make(reason: .interrupted, detail: "SIGINT"), nil] {
-            try write([ResultsHeader.make(), zeta9] + [end].compactMap { $0 }, to: resultsPath)
+            try write([ResultsHeader.make(), zeta9] + [end].compactMap(\.self), to: resultsPath)
 
             await AssertThrowsError(try await report(resultsPath, "--fail-under", "50")) { error in
                 XCTAssertEqual(error as? ExitCode, .scoreBelowThreshold)
@@ -823,7 +824,7 @@ final class ReportCommandTests: MuterTestCase {
     // threshold is met. A CI job shaped like `run || true; report --fail-under 80` must not go green on it.
     func test_failUnder_ofARunThatDidntFinish_withNoResults_exits2() async throws {
         for end in [ResultsEnd.make(reason: .interrupted, detail: "SIGTERM"), nil] {
-            try write([ResultsHeader.make()] + [end].compactMap { $0 }, to: resultsPath)
+            try write([ResultsHeader.make()] + [end].compactMap(\.self), to: resultsPath)
 
             await AssertThrowsError(try await report(resultsPath, "--fail-under", "50")) { error in
                 XCTAssertEqual(error as? ExitCode, .scoreBelowThreshold)
@@ -1062,7 +1063,7 @@ private extension ReportCommandTests {
             mutationPoint: MutationPoint(
                 mutationOperatorId: .ror,
                 filePath: "/project_mutated/\(path)",
-                position: MutationPosition(utf8Offset: 3361, line: line, column: 22)
+                position: MutationPosition(utf8Offset: 3_361, line: line, column: 22)
             ),
             mutationSnapshot: .make(before: ">", after: "<", description: "changed > to <"),
             originalProjectDirectoryUrl: URL(fileURLWithPath: "/project", isDirectory: true),

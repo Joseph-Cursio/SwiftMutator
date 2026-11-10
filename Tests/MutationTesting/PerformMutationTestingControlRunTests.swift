@@ -6,6 +6,7 @@ import XCTest
 /// Control runs: the test command with no mutant on, run among the mutants, whose failed tests are flaky.
 final class PerformMutationTestingControlRunTests: MuterTestCase {
     private typealias Task = PerformMutationTesting.PoolTask
+
     private let state = MutationTestState()
     private let workerClone = URL(fileURLWithPath: "/project_mutated_worker1")
     private let timing = "✘ Test timing() recorded an issue at TimingTests.swift:9:5: Expectation failed: 1.2 < 1.0"
@@ -233,8 +234,8 @@ final class PerformMutationTestingControlRunTests: MuterTestCase {
             outcome: .failed, worker: 2, failedTests: [.init(name: "timing()", location: "TimingTests.swift:9:5")]
         )
         let lines: [any Encodable] = [ResultsHeader.make(), earlier, ResultsEnd.make(recorded: 0)]
-        let session = TestingSession(number: 2, startedAt: ResultsHeader.fixedStart + 3600)
-        session.controlRuns = [.make(session: 2, finishedAt: ResultsHeader.fixedStart + 3700)]
+        let session = TestingSession(number: 2, startedAt: ResultsHeader.fixedStart + 3_600)
+        session.controlRuns = [.make(session: 2, finishedAt: ResultsHeader.fixedStart + 3_700)]
 
         state.resumeState = try ResumeState.make(lines: lines, file: resultsFiles.openForResume(at: "/r.jsonl"))
         XCTAssertEqual(

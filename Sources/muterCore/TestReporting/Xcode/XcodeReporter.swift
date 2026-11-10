@@ -24,7 +24,7 @@ struct XcodeReporter: Reporter {
         """
         // A warning without a file and line, which Xcode lists without a location: a mutant that was a build error has
         // no survivor's warning to show it wasn't tested.
-        let buildErrors = [outcome.buildErrorWarning, outcome.unprovenKillWarning].compactMap { $0 }
+        let buildErrors = [outcome.buildErrorWarning, outcome.unprovenKillWarning].compactMap(\.self)
             .map { "\nwarning: SwiftMutator: \($0)" }.joined()
         guard let suspects = report.suspectSummary, let warning = report.suspectWarning else {
             return summary + buildErrors

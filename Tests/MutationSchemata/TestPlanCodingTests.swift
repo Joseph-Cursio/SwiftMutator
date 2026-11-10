@@ -303,7 +303,7 @@ final class TestPlanCodingTests: XCTestCase {
     ) {
         let offsets = keys.map { text.range(of: $0)?.lowerBound }
         XCTAssertFalse(offsets.contains(nil), "Missing one of \(keys) in \(text)", file: file, line: line)
-        let found = offsets.compactMap { $0 }
+        let found = offsets.compactMap(\.self)
         XCTAssertEqual(found, found.sorted(), "\(keys) aren't in this order in \(text)", file: file, line: line)
     }
 }
