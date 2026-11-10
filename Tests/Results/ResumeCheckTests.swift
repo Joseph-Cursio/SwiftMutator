@@ -2,7 +2,6 @@
 import XCTest
 
 final class ResumeCheckTests: XCTestCase {
-
     func test_identicalRuns_resume() {
         XCTAssertEqual(check(current()), ResumeCheck.Verdict())
     }

@@ -2,7 +2,6 @@
 import XCTest
 
 final class ResultsRecordTests: XCTestCase {
-
     func test_aHeaderCountsTheDroppedMutants_andLeavesOutNone() throws {
         let state = MutationTestState()
         let header = {
