@@ -20,7 +20,7 @@ extension MutationTestingDelegateTests {
             for folder in [nil, URL(fileURLWithPath: "/runs/p_mutated_worker1")] {
                 var environments: [[String: String]] = []
                 for schemata in [MutationSchema.null, mutantA, mutantB] {
-                    let testProcess = try await sut.testProcess(
+                    let testProcess = try sut.testProcess(
                         with: configuration,
                         schemata: schemata,
                         and: FileHandle(fileDescriptor: 0),
@@ -55,7 +55,7 @@ extension MutationTestingDelegateTests {
         current.process = { MuterProcessFactory.makeProcess() }
         let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"])
 
-        let testProcess = try await sut.testProcess(
+        let testProcess = try sut.testProcess(
             with: configuration,
             schemata: .null,
             and: FileHandle(fileDescriptor: 0)
@@ -74,7 +74,7 @@ extension MutationTestingDelegateTests {
         let schemata = try MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1))
 
         for folder in ["/runs/p_mutated", "/runs/p_mutated_worker1"] {
-            let testProcess = try await sut.testProcess(
+            let testProcess = try sut.testProcess(
                 with: configuration,
                 schemata: schemata,
                 and: FileHandle(fileDescriptor: 0),
@@ -95,7 +95,7 @@ extension MutationTestingDelegateTests {
         let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"])
 
         for folder in [nil, URL(fileURLWithPath: "/runs/p_mutated_worker1")] {
-            _ = try await sut.testProcess(
+            _ = try sut.testProcess(
                 with: configuration,
                 schemata: .null,
                 and: FileHandle(fileDescriptor: 0),
@@ -122,7 +122,7 @@ extension MutationTestingDelegateTests {
         )
         let schemata = try MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1))
 
-        let testProcess = try await sut.testProcess(
+        let testProcess = try sut.testProcess(
             with: configuration,
             schemata: schemata,
             and: FileHandle(fileDescriptor: 0)
@@ -144,12 +144,12 @@ extension MutationTestingDelegateTests {
         for executable in ["/tmp/xcodebuild", "/tmp/run-tests.sh"] {
             let configuration = MuterConfiguration(executable: executable, arguments: ["test"])
 
-            let testProcess = try await sut.testProcess(
+            let testProcess = try sut.testProcess(
                 with: configuration,
                 schemata: schemata,
                 and: FileHandle(fileDescriptor: 0)
             )
-            let baselineProcess = try await sut.testProcess(
+            let baselineProcess = try sut.testProcess(
                 with: configuration,
                 schemata: .null,
                 and: FileHandle(fileDescriptor: 0)
@@ -188,7 +188,7 @@ extension MutationTestingDelegateTests {
         current.process = { MuterProcessFactory.makeProcess() }
         let schemata = try MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1))
 
-        let testProcess = try await sut.testProcess(
+        let testProcess = try sut.testProcess(
             with: directRunConfiguration(),
             schemata: schemata,
             and: FileHandle(fileDescriptor: 0)

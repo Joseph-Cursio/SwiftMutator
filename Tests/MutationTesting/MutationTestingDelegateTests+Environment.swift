@@ -61,7 +61,7 @@ extension MutationTestingDelegateTests {
 
         // The baseline too, although it is never stopped, so it runs as the mutants that stop do.
         for schemata in [mutant, .null] {
-            let testProcess = try await sut.testProcess(
+            let testProcess = try sut.testProcess(
                 with: configuration,
                 schemata: schemata,
                 and: FileHandle(fileDescriptor: 0)
@@ -86,7 +86,7 @@ extension MutationTestingDelegateTests {
             current.process = { Self.makeProcess(inheritingUnbufferedOutput: inherited) }
             for configuration in configurations {
                 for schemata in [mutant, .null] {
-                    let testProcess = try await sut.testProcess(
+                    let testProcess = try sut.testProcess(
                         with: configuration,
                         schemata: schemata,
                         and: FileHandle(fileDescriptor: 0)

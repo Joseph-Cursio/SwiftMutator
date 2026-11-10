@@ -206,7 +206,7 @@ final class RunEvents: @unchecked Sendable { // `observers` and `nextObserver` a
         private let cancelling: @Sendable () -> Void
         private var isCancelled = false
 
-        fileprivate init(cancelling: @escaping @Sendable () -> Void) {
+        init(cancelling: @escaping @Sendable () -> Void) {
             self.cancelling = cancelling
         }
 

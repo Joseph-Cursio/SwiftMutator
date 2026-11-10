@@ -15,7 +15,7 @@ final class RunsToTheirEndTests: MuterTestCase {
 
         var environments: [[String: String]] = []
         for configuration in [stops, stops.goingToEachRunsEnd()] {
-            let testProcess = try await sut.testProcess(
+            let testProcess = try sut.testProcess(
                 with: configuration,
                 schemata: mutant,
                 and: FileHandle(fileDescriptor: 0),

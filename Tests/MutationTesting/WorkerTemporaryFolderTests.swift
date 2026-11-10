@@ -43,7 +43,7 @@ final class WorkerTemporaryFolderTests: MuterTestCase {
             let worker = URL(fileURLWithPath: folder)
             let own = WorkerTemporaryFolder(forWorkerIn: worker, under: FileManager.default.temporaryDirectory)
             for ranMutant in [MutationSchema.null, schemata] {
-                let testProcess = try await MutationTestingDelegate().testProcess(
+                let testProcess = try MutationTestingDelegate().testProcess(
                     with: configuration,
                     schemata: ranMutant,
                     and: FileHandle(fileDescriptor: 0),
@@ -64,7 +64,7 @@ final class WorkerTemporaryFolderTests: MuterTestCase {
         process.environment = ["TMPDIR": "/inherited/"]
         let configuration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
 
-        let testProcess = try await MutationTestingDelegate().testProcess(
+        let testProcess = try MutationTestingDelegate().testProcess(
             with: configuration,
             schemata: try MutationSchema.make(),
             and: FileHandle(fileDescriptor: 0)

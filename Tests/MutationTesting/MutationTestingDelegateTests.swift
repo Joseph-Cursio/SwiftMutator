@@ -32,7 +32,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
             position: .init(line: 1)
         )
 
-        let testProcess = try await sut.testProcess(
+        let testProcess = try sut.testProcess(
             with: configuration,
             schemata: schemata,
             and: FileHandle(fileDescriptor: 0)
@@ -63,7 +63,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
             testDiagnosticsOff: true
         ))
 
-        let testProcess = try await sut.testProcess(
+        let testProcess = try sut.testProcess(
             with: configuration,
             schemata: MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1)),
             and: FileHandle(fileDescriptor: 0)
@@ -96,7 +96,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
             testDiagnosticsOff: true
         ))
 
-        let baselineProcess = try await sut.testProcess(
+        let baselineProcess = try sut.testProcess(
             with: configuration,
             schemata: .null,
             and: FileHandle(fileDescriptor: 0)
@@ -119,7 +119,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
             position: .init(line: 1)
         )
 
-        let testProcess = try await sut.testProcess(
+        let testProcess = try sut.testProcess(
             with: configuration,
             schemata: schemata,
             and: FileHandle(fileDescriptor: 0)

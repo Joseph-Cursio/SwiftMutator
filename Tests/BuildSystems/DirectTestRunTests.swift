@@ -20,7 +20,7 @@ final class DirectTestRunTests: MuterTestCase {
         current.process = { MuterProcessFactory.makeProcess() }
         let schemata = try MutationSchema.make(filePath: "/p/Sample.swift", position: .init(line: 1))
 
-        let process = try await sut.testProcess(
+        let process = try sut.testProcess(
             with: configuration, schemata: schemata, and: FileHandle(fileDescriptor: 0), workingDirectory: name
         )
 

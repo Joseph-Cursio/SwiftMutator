@@ -83,8 +83,7 @@ extension PerformMutationTesting {
             index: number,
             worker: worker.number,
             configuration: configuration,
-            instant: instant,
-            heartbeat: (heartbeat, place: place(ofControlRun: number))
+            timing: FinishedRun.Timing(instant: instant, heartbeat: heartbeat, place: place(ofControlRun: number))
         ) {
             await ioDelegate.runControlTests(
                 using: configuration,
