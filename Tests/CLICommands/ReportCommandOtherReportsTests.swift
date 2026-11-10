@@ -118,11 +118,9 @@ final class ReportCommandOtherReportsTests: MuterTestCase {
             MuterError.literal(reason: "SwiftMutator could not save the report to \(missing)")
         )
     }
-}
 
-private extension ReportCommandOtherReportsTests {
     /// Runs `swift-mutator report` with `arguments`.
-    func report(_ arguments: String...) async throws {
+    private func report(_ arguments: String...) async throws {
         let command = try MuterCommand.parseAsRoot(["report"] + arguments)
         guard let report = command as? Report else {
             XCTFail("Expected the report command, got \(command)")
@@ -132,7 +130,7 @@ private extension ReportCommandOtherReportsTests {
     }
 
     /// Checks that `expression` throws `expected`, and that nothing is printed on either output.
-    func assertRefused(
+    private func assertRefused(
         _ expression: @autoclosure () async throws -> Void,
         _ expected: MuterError,
         file: StaticString = #filePath,
@@ -145,7 +143,7 @@ private extension ReportCommandOtherReportsTests {
         XCTAssertEqual(standardError.linesPassed, [], file: file, line: line)
     }
 
-    func write(_ records: any Encodable..., to path: String) throws {
+    private func write(_ records: any Encodable..., to path: String) throws {
         let data = try records.reduce(into: Data()) { data, record in
             data += try ResultsCoding.encoder.encode(record) + Data("\n".utf8)
         }
