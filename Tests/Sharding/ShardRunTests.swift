@@ -253,11 +253,9 @@ final class ShardRunTests: MuterTestCase {
         )
         XCTAssertNil(ResumeSummary.selectionChange(from: (selection, nil, nil), to: (selection, nil, nil)))
     }
-}
 
-private extension ShardRunTests {
     /// The keys of the mutants discovery keeps with `shard`, in job order; nil discovers every one.
-    func keys(discovering shard: Shard?) async throws -> [MutantKey] {
+    private func keys(discovering shard: Shard?) async throws -> [MutantKey] {
         state.runOptions = .make(shard: shard)
         let changes = try await DiscoverMutationPoints().run(with: state)
         let mappings = changes.compactMap { change -> [SchemataMutationMapping]? in
@@ -268,12 +266,12 @@ private extension ShardRunTests {
     }
 
     /// A shard of `count` that holds some of the mutants.
-    func nonEmptyShard(of count: Int) async throws -> Shard? {
+    private func nonEmptyShard(of count: Int) async throws -> Shard? {
         let first = try await keys(discovering: nil).first
         return first.map { Shard(index: Shard.index(ofPlace: $0, among: count), count: count) }
     }
 
-    func prepare(source: String? = nil) throws {
+    private func prepare(source: String? = nil) throws {
         let project = try makeTemporaryDirectory()
         let path = "\(project)/Check.swift"
         try (source ?? self.source).write(toFile: path, atomically: true, encoding: .utf8)

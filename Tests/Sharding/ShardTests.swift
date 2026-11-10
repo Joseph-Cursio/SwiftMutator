@@ -48,11 +48,11 @@ final class ShardTests: XCTestCase {
     // A number's remainders by two counts are any pair whose difference their greatest common divisor divides.
     func test_shardsOverlap_unlessTheirRemaindersCantMeet() {
         func shard(_ text: String) -> Shard? { Shard(text) }
-        let pairs: [(String, String, Bool)] = [
-            ("1/2", "1/2", true), ("1/2", "2/2", false), ("2/2", "1/4", false), ("2/2", "2/4", true),
-            ("2/2", "1/3", true), ("3/4", "2/6", false), ("3/4", "3/6", true), ("1/1", "5/7", true),
+        let pairs: [(shards: (String, String), overlap: Bool)] = [
+            (("1/2", "1/2"), true), (("1/2", "2/2"), false), (("2/2", "1/4"), false), (("2/2", "2/4"), true),
+            (("2/2", "1/3"), true), (("3/4", "2/6"), false), (("3/4", "3/6"), true), (("1/1", "5/7"), true),
         ]
-        for (first, second, overlap) in pairs {
+        for ((first, second), overlap) in pairs {
             let one = shard(first)
             let other = shard(second)
             XCTAssertEqual(one.flatMap { first in other.map(first.overlaps) }, overlap, "\(first) and \(second)")

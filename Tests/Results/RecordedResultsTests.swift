@@ -2,17 +2,6 @@
 import XCTest
 
 final class RecordedResultsTests: XCTestCase {
-    private let path = "/logs/results.jsonl"
-    private let header = ResultsHeader.make()
-    private let sum = MutantResult.make(path: "Sources/Sum.swift", finishedAt: ResultsHeader.fixedStart + 31.25)
-    private let product = MutantResult.make(path: "Sources/Product.swift", finishedAt: ResultsHeader.fixedStart + 62.5)
-    private let end = ResultsEnd.make(testDurationSeconds: 100.5, recorded: 2)
-    private let resumed = ResultsHeader.make(
-        formatVersion: ResultsCoding.resumedFormatVersion,
-        session: 2,
-        startedAt: ResultsHeader.fixedStart + 3_600
-    )
-
     func test_readsHeaderMutantsAndEnd() throws {
         let recorded = try read(file(header, sum, product, end))
 
@@ -262,94 +251,5 @@ final class RecordedResultsTests: XCTestCase {
         XCTAssertEqual(recorded.sessions.map(\.lastFinishedAt), [sum.finishedAt, secondStart + 30.25, nil])
         XCTAssertEqual(recorded.sessions.map(\.testDuration), [100.5, 30.25, 0])
         XCTAssertEqual(recorded.testDuration, 130.75)
-    }
-}
-
-// A resumed header records its tree as what changed since an earlier session's, and is read with that tree made again.
-extension RecordedResultsTests {
-    func test_aResumedHeadersDelta_isReadAsTheWholeTree_sessionAfterSession() throws {
-        let first = projectTree(["Sum.swift": "1", "Total.swift": "2"])
-        let second = projectTree(["Sum.swift": "1", "Total.swift": "3", "Product.swift": "4"])
-        let third = projectTree(["Total.swift": "3", "Product.swift": "4"])
-
-        let recorded = try read(file(
-            ResultsHeader.make(project: first),
-            end,
-            resumed(session: 2, ProjectTreeDelta(from: first, to: second)),
-            resumed(session: 3, ProjectTreeDelta(from: second, to: third))
-        ))
-
-        XCTAssertEqual(recorded.headers.map(\.project), [first, second, third])
-        XCTAssertEqual(recorded.unreadableLines, [])
-    }
-
-    // Without the tree it was recorded against, as when that header's line was cut off, a delta's header doesn't read,
-    // and nor do its session's results, which a resume then tests again.
-    func test_aDeltaWithoutItsBase_leavesItsHeaderAndItsSessionsResultsUnread() throws {
-        let first = projectTree(["Sum.swift": "1"])
-        let second = projectTree(["Sum.swift": "2"])
-        let other = projectTree(["Total.swift": "9"])
-        let secondSum = MutantResult.make(session: 2, path: "Sources/Sum.swift")
-
-        let recorded = try read(file(
-            ResultsHeader.make(project: first),
-            end,
-            resumed(session: 2, ProjectTreeDelta(from: other, to: second)),
-            secondSum
-        ))
-
-        XCTAssertEqual(recorded.headers.map(\.session), [1])
-        XCTAssertEqual(recorded.unreadableLines, [3, 4])
-        XCTAssertEqual(recorded.latest.count, 0)
-    }
-}
-
-private extension RecordedResultsTests {
-    func projectTree(_ files: [String: String]) -> ProjectTree {
-        ProjectTree(listedBy: .git, files: files, excluded: [], treeSHA256: ProjectTree.treeHash(of: files))
-    }
-
-    func resumed(session: Int, _ delta: ProjectTreeDelta) -> ResultsHeader {
-        ResultsHeader.make(
-            formatVersion: ResultsCoding.projectDeltaFormatVersion,
-            session: session,
-            projectDelta: delta,
-            mutantsReused: 0
-        )
-    }
-
-    func read(_ data: Data) throws -> RecordedResults {
-        try RecordedResults.read(data, path: path)
-    }
-
-    func line(_ record: some Encodable) throws -> Data {
-        try ResultsCoding.encoder.encode(record) + Data("\n".utf8)
-    }
-
-    func file(_ records: any Encodable...) throws -> Data {
-        try records.reduce(into: Data()) { data, record in data += try line(record) }
-    }
-}
-
-private extension RecordedResultsTests {
-    func propertyRerun(of result: MutantResult, outcome: TestSuiteOutcome) -> PropertyRerunResult {
-        PropertyRerunResult(
-            session: result.session,
-            path: result.path,
-            line: result.line,
-            column: result.column,
-            occurrence: result.occurrence,
-            mutationOperatorId: result.mutationOperatorId,
-            outcome: outcome,
-            endedBy: .exited,
-            exitStatus: outcome == .passed ? 0 : 1,
-            durationSeconds: 1.5,
-            worker: 0,
-            finishedAt: result.finishedAt + 1,
-            killedBy: outcome == .passed ? nil : [.init(name: "ordered()", location: "SortProperties.swift:8:5")],
-            failedTestCount: outcome == .passed ? nil : 1,
-            firstFailedTestLine: nil,
-            log: nil
-        )
     }
 }

@@ -4,10 +4,9 @@ import XCTest
 
 /// The baseline file: what it saves, in what order, what it reads back, what it refuses, and the scopes it refuses.
 final class BaselineFileTests: MuterTestCase {
-    private var directory = ""
-    private var path: String { "\(directory)/\(BaselineFile.fileName)" }
+    var directory = ""
 
-    private let scope = BaselineScope(
+    let scope = BaselineScope(
         operators: ["SwapTernary", "RelationalOperatorReplacement"],
         skipCoverage: false,
         configuration: .init(
@@ -18,55 +17,9 @@ final class BaselineFileTests: MuterTestCase {
         )
     )
 
-    private func key(_ path: String, _ line: Int, _ column: Int = 9, occurrence: Int = 0) -> MutantKey {
-        MutantKey(path: path, mutationOperatorId: .ror, line: line, column: column, occurrence: occurrence)
-    }
-
-    private func file(_ survivors: [BaselineSurvivor], at path: String? = nil) -> BaselineFile {
-        BaselineFile(
-            path: path ?? self.path,
-            swiftMutator: "0.1.0",
-            score: .init(killed: 812, scored: 1_003),
-            scope: scope,
-            survivors: survivors
-        )
-    }
-
     override func setUpWithError() throws {
         try super.setUpWithError()
         directory = try makeTemporaryDirectory()
-    }
-
-    private func load(_ text: String) throws -> BaselineFile {
-        try text.write(toFile: path, atomically: true, encoding: .utf8)
-        return try BaselineFile.load(at: path, using: FileManager.default)
-    }
-
-    private func assertRefused(_ text: String, saying words: String, line: UInt = #line) {
-        XCTAssertThrowsError(try load(text), line: line) { error in
-            XCTAssertTrue(error is BaselineRefused, "\(error)", line: line)
-            XCTAssertTrue("\(error)".contains(words), "\(error)", line: line)
-            XCTAssertTrue("\(error)".contains(path), "names the file: \(error)", line: line)
-        }
-    }
-
-    private var minimal: String {
-        """
-        formatVersion: 1
-        swiftMutator: 0.1.0
-        score:
-          killed: 1
-          scored: 2
-        scope:
-          operators: [SwapTernary]
-          skipCoverage: false
-          configuration:
-            arguments: [test]
-            coverageThreshold: 0
-            exclude: []
-            excludeCalls: []
-        survivors: []
-        """
     }
 
     func test_aSavedFile_readsBackTheSame() throws {
@@ -262,169 +215,5 @@ final class BaselineFileTests: MuterTestCase {
         }
         XCTAssertNoThrow(try load(counted(0, 0)))
         XCTAssertNoThrow(try load(counted(2, 2)))
-    }
-
-    // `ProjectTree` leaves it out at the root, as it does the triage file, so committing a new one refuses no resume.
-    func test_theProjectTree_leavesOutTheBaselineFileAtTheRoot() {
-        XCTAssertTrue(ProjectTree.prunedAtRoot.contains("muter.baseline.yml"))
-    }
-
-    func test_theSameScope_isntRefused() throws {
-        let baseline = file([])
-        let same = BaselineScope(
-            operators: ["RelationalOperatorReplacement", "SwapTernary", "SwapTernary"],
-            skipCoverage: false,
-            configuration: .init(
-                arguments: ["test"],
-                exclude: ["!/Stubs/", "/Generated/", "/Generated/"],
-                mutationTestTimeout: 60.5
-            )
-        )
-
-        XCTAssertNoThrow(try BaselineRefused.check(same, against: baseline, subject: "this run"))
-    }
-
-    // Every difference is said, each key by its own name; an `--exclude` adds to `exclude`, so it's another scope.
-    func test_anotherScope_isRefused_namingEveryDifference() throws {
-        let other = BaselineScope(
-            operators: ["SwapTernary"],
-            skipCoverage: true,
-            configuration: .init(
-                arguments: ["test", "--parallel"],
-                buildSystem: "swift",
-                coverageThreshold: 20,
-                exclude: ["/Generated/", "!/Stubs/", "/Fixtures/"],
-                excludeCalls: ["print"],
-                mutationTestTimeout: nil
-            )
-        )
-
-        XCTAssertThrowsError(try BaselineRefused.check(other, against: file([]), subject: "this run")) { error in
-            let refused = error as? BaselineRefused
-            XCTAssertEqual(refused?.reasons, [
-                #"operators is ["RelationalOperatorReplacement","SwapTernary"] in the baseline file, and "#
-                    + #"["SwapTernary"] in this run."#,
-                "skipCoverage is false in the baseline file, and true in this run.",
-                #"arguments is ["test"] in the baseline file, and ["test","--parallel"] in this run."#,
-                #"buildSystem is not set in the baseline file, and "swift" in this run."#,
-                "coverageThreshold is 0 in the baseline file, and 20 in this run.",
-                #"exclude is ["!/Stubs/","/Generated/"] in the baseline file, and "#
-                    + #"["!/Stubs/","/Fixtures/","/Generated/"] in this run."#,
-                #"excludeCalls is [] in the baseline file, and ["print"] in this run."#,
-                "mutationTestTimeout is 60.5 in the baseline file, and not set in this run.",
-            ])
-            XCTAssertTrue(
-                "\(error)".hasSuffix("write a new baseline file with --write-baseline from a run of this scope.")
-            )
-            XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: error), .baselineRefused)
-        }
-    }
-
-    // `executable` is an absolute path, which differs between machines, so it's never compared.
-    func test_theScope_ofAConfiguration_leavesOutItsExecutable_andTakesItsFlags() {
-        let configuration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"], excludeList: ["/A/"])
-            .overriding(workers: 4, timeout: 30, exclude: ["/B/"])
-        let elsewhere = MuterConfiguration(executable: "/opt/bin/swift", arguments: ["test"], excludeList: ["/A/"])
-            .overriding(workers: 1, timeout: 30, exclude: ["/B/"])
-
-        let rorScope = BaselineScope(configuration: configuration, operators: [.ror], skipCoverage: false)
-
-        XCTAssertEqual(rorScope.configuration.exclude, ["/A/", "/B/"])
-        XCTAssertEqual(rorScope.configuration.mutationTestTimeout, 30)
-        XCTAssertEqual(rorScope, BaselineScope(configuration: elsewhere, operators: [.ror], skipCoverage: false))
-    }
-
-    // The score's counts, as `ScoreGate` takes them, and every mutant the tests didn't kill.
-    func test_aRunsBaselineFile_holdsItsSurvivors_andItsScoresCounts() {
-        let outcome = MutationTestOutcome(mutations: [
-            .make(testSuiteOutcome: .passed, key: key("A.swift", 1)),
-            .make(testSuiteOutcome: .timeout, key: key("A.swift", 2)),
-            .make(testSuiteOutcome: .noCoverage, key: key("A.swift", 3)),
-            .make(testSuiteOutcome: .failed, key: key("A.swift", 4)),
-            .make(testSuiteOutcome: .buildError, key: key("A.swift", 5)),
-        ])
-
-        let made = BaselineFile(of: outcome, scope: scope, version: "9.9", path: "b.yml") { _ in nil }
-
-        XCTAssertEqual(made.survivors.map(\.outcome), [.survived, .timedOut, .notCovered])
-        XCTAssertEqual(made.survivors.map(\.mutant.line), [1, 2, 3])
-        XCTAssertEqual(made.score, .init(killed: 1, scored: 4))
-        XCTAssertEqual(made.swiftMutator, "9.9")
-        XCTAssertEqual(made.path, "b.yml")
-    }
-
-    // Only a whole run's results make one, and a run that leaves some mutants out says why.
-    func test_resultsThatLeaveMutantsOut_makeNoBaselineFile() {
-        var whole = MutationTestOutcome(mutations: [.make(testSuiteOutcome: .passed, key: key("A.swift", 1))])
-        whole.baselineScope = scope
-        let target = "\(directory)/b.yml"
-
-        XCTAssertEqual(
-            BaselineFileSaving.save(whole, to: target, version: "0.1.0", using: FileManager.default),
-            .saved(path: target)
-        )
-
-        var since = whole
-        since = MutationTestOutcome(mutations: whole.mutations, since: .make())
-        since.baselineScope = scope
-        var files = whole
-        files.filesToMutate = ["Sources/A.swift"]
-        let cases: [(MutationTestOutcome, String)] = [
-            (MutationTestOutcome(mutations: whole.mutations, mutant: "A.swift:1:9 SwapTernary"), "(--mutant)"),
-            (
-                MutationTestOutcome(
-                    mutations: whole.mutations,
-                    shards: ShardScope(indices: [1], count: 2, mutantsInAllShards: 4)
-                ),
-                "the results are only shard 1 of 2's"
-            ),
-            (since, "the code --since chose"),
-            (files, "--files-to-mutate"),
-            (MutationTestOutcome(mutations: whole.mutations, sampleIsCutShort: true), "didn't test every mutant"),
-        ]
-        for (outcome, words) in cases {
-            let saving = BaselineFileSaving.save(outcome, to: target, version: "0.1.0", using: FileManager.default)
-            guard case let .leftOut(_, reason) = saving else {
-                XCTFail("\(saving)")
-                return
-            }
-            XCTAssertTrue(reason.contains(words), reason)
-            XCTAssertTrue(saving.plainLine.hasSuffix("and a baseline file holds a whole run's survivors."))
-        }
-        let stopped = BaselineFileSaving.save(
-            whole, to: target, version: "0.1.0", unless: "the run didn't finish", using: FileManager.default
-        )
-        XCTAssertEqual(
-            stopped.plainLine,
-            "No baseline file was saved to \(target): the run didn't finish, and a baseline file holds a whole run's "
-                + "survivors."
-        )
-    }
-
-    // Compile recovery takes every mutant out of the build and the run finishes, but it tested none: its file would
-    // record no survivor, and every survivor of a later run would be new.
-    func test_aRunWhoseEveryMutantWasABuildError_makesNoBaselineFile() {
-        var outcome = MutationTestOutcome(mutations: [
-            .make(testSuiteOutcome: .buildError, key: key("A.swift", 1)),
-            .make(testSuiteOutcome: .buildError, key: key("A.swift", 2)),
-        ])
-        outcome.baselineScope = scope
-        let target = "\(directory)/b.yml"
-
-        let saving = BaselineFileSaving.save(outcome, to: target, version: "0.1.0", using: FileManager.default)
-
-        XCTAssertEqual(
-            saving,
-            .leftOut(path: target, because: "every mutant was a build error, so none was tested")
-        )
-        XCTAssertFalse(FileManager.default.fileExists(atPath: target))
-
-        let killed = MutationTestOutcome.Mutation.make(testSuiteOutcome: .failed, key: key("A.swift", 3))
-        outcome = MutationTestOutcome(mutations: outcome.mutations + [killed])
-        outcome.baselineScope = scope
-        XCTAssertEqual(
-            BaselineFileSaving.save(outcome, to: target, version: "0.1.0", using: FileManager.default),
-            .saved(path: target)
-        )
     }
 }

@@ -1,6 +1,38 @@
 @testable import muterCore
 import XCTest
 
+/// A results file whose appends each wait for `finish`, after signalling `started`, as does each batch of lines, once
+/// for all of them. It keeps an end line as "end of <recorded>", and anything else as JSON.
+private final class SlowFile: ResultsRecording, @unchecked Sendable { // `written` and `closed` are behind `lock`
+    let path = "/logs/results.jsonl"
+    let writeError: Error? = nil
+    let started = DispatchSemaphore(value: 0)
+    let finish = DispatchSemaphore(value: 0)
+    private let lock = NSLock()
+    private var written: [String] = []
+    private var closed = false
+
+    var lines: [String] { lock.withLock { written } }
+    var isClosed: Bool { lock.withLock { closed } }
+
+    func append(_ line: some Encodable) -> Bool {
+        append(contentsOf: [line])
+    }
+
+    func append(contentsOf lines: [any Encodable]) -> Bool {
+        guard !lines.isEmpty else { return true }
+        started.signal()
+        finish.wait()
+        let texts = lines.map { line in (line as? ResultsEnd).map { "end of \($0.recorded)" } ?? json(line) }
+        lock.withLock { written += texts }
+        return true
+    }
+
+    func close() {
+        lock.withLock { closed = true }
+    }
+}
+
 /// A stop at once writes the end line from another thread while mutation testing may be writing a line.
 final class TestingSessionTests: XCTestCase {
     private let file = SlowFile()
@@ -104,38 +136,6 @@ final class TestingSessionTests: XCTestCase {
             testDurationSeconds: 0,
             recorded: recorded
         )
-    }
-}
-
-/// A results file whose appends each wait for `finish`, after signalling `started`, as does each batch of lines, once
-/// for all of them. It keeps an end line as "end of <recorded>", and anything else as JSON.
-private final class SlowFile: ResultsRecording, @unchecked Sendable { // `written` and `closed` are behind `lock`
-    let path = "/logs/results.jsonl"
-    let writeError: Error? = nil
-    let started = DispatchSemaphore(value: 0)
-    let finish = DispatchSemaphore(value: 0)
-    private let lock = NSLock()
-    private var written: [String] = []
-    private var closed = false
-
-    var lines: [String] { lock.withLock { written } }
-    var isClosed: Bool { lock.withLock { closed } }
-
-    func append(_ line: some Encodable) -> Bool {
-        append(contentsOf: [line])
-    }
-
-    func append(contentsOf lines: [any Encodable]) -> Bool {
-        guard !lines.isEmpty else { return true }
-        started.signal()
-        finish.wait()
-        let texts = lines.map { line in (line as? ResultsEnd).map { "end of \($0.recorded)" } ?? json(line) }
-        lock.withLock { written += texts }
-        return true
-    }
-
-    func close() {
-        lock.withLock { closed = true }
     }
 }
 

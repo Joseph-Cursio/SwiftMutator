@@ -23,38 +23,7 @@ final class OutsideProjectCodeTests: XCTestCase {
     // missing isn't either, nor is anything inside the project, a folder that holds it, or a location of another kind.
     func test_workspaceReferences_keepTheProjectsAndPackagesOutsideTheProject() throws {
         try write([
-            "App.xcworkspace/contents.xcworkspacedata": """
-            <?xml version="1.0" encoding="UTF-8"?>
-            <Workspace
-               version = "1.0">
-               <FileRef
-                  location = "group:App.xcodeproj">
-               </FileRef>
-               <FileRef
-                  location = "group:../Other/Other.xcodeproj">
-               </FileRef>
-               <FileRef location = "container:../Shared"></FileRef>
-               <FileRef location = "absolute:\(root)/Absolute/Absolute.xcodeproj"></FileRef>
-               <FileRef location = "group:../Notes.md"></FileRef>
-               <FileRef location = "group:../Docs"></FileRef>
-               <FileRef location = "group:../Missing/Missing.xcodeproj"></FileRef>
-               <FileRef location = "group:.."></FileRef>
-               <FileRef location = "group:Packages/Inside"></FileRef>
-               <FileRef location = "developer:Other/Other.xcodeproj"></FileRef>
-               <Group location = "group:../Libs" name = "Libs">
-                  <FileRef location = "group:Lib/Lib.xcodeproj"></FileRef>
-                  <Group location = "group:Nested" name = "Nested">
-                     <FileRef location = "group:Deep"></FileRef>
-                  </Group>
-               </Group>
-               <Group name = "Only a name">
-                  <FileRef location = "group:../Named &amp; Escaped"></FileRef>
-               </Group>
-               <Group location = "developer:Somewhere" name = "Elsewhere">
-                  <FileRef location = "group:Other/Other.xcodeproj"></FileRef>
-               </Group>
-            </Workspace>
-            """,
+            "App.xcworkspace/contents.xcworkspacedata": workspaceReferencingEveryKindOfLocation,
             "App.xcodeproj/project.pbxproj": "",
             "Packages/Inside/Package.swift": "",
         ], in: project)
@@ -207,11 +176,45 @@ final class OutsideProjectCodeTests: XCTestCase {
         XCTAssertFalse(OutsideProjectCode.isWorkspace("App.xcworkspace/xcshareddata/swiftpm/Package.resolved"))
         XCTAssertFalse(OutsideProjectCode.isWorkspace("Docs/contents.xcworkspacedata"))
     }
-}
 
-private extension OutsideProjectCodeTests {
+    /// A workspace with a reference of every kind of location, in groups with and without locations of their own.
+    private var workspaceReferencingEveryKindOfLocation: String {
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <Workspace
+           version = "1.0">
+           <FileRef
+              location = "group:App.xcodeproj">
+           </FileRef>
+           <FileRef
+              location = "group:../Other/Other.xcodeproj">
+           </FileRef>
+           <FileRef location = "container:../Shared"></FileRef>
+           <FileRef location = "absolute:\(root)/Absolute/Absolute.xcodeproj"></FileRef>
+           <FileRef location = "group:../Notes.md"></FileRef>
+           <FileRef location = "group:../Docs"></FileRef>
+           <FileRef location = "group:../Missing/Missing.xcodeproj"></FileRef>
+           <FileRef location = "group:.."></FileRef>
+           <FileRef location = "group:Packages/Inside"></FileRef>
+           <FileRef location = "developer:Other/Other.xcodeproj"></FileRef>
+           <Group location = "group:../Libs" name = "Libs">
+              <FileRef location = "group:Lib/Lib.xcodeproj"></FileRef>
+              <Group location = "group:Nested" name = "Nested">
+                 <FileRef location = "group:Deep"></FileRef>
+              </Group>
+           </Group>
+           <Group name = "Only a name">
+              <FileRef location = "group:../Named &amp; Escaped"></FileRef>
+           </Group>
+           <Group location = "developer:Somewhere" name = "Elsewhere">
+              <FileRef location = "group:Other/Other.xcodeproj"></FileRef>
+           </Group>
+        </Workspace>
+        """
+    }
+
     /// Writes each file, relative to `folder`, making its folders.
-    func write(_ files: [String: String], in folder: String) throws {
+    private func write(_ files: [String: String], in folder: String) throws {
         for (path, contents) in files {
             let file = URL(fileURLWithPath: "\(folder)/\(path)")
             try FileManager.default.createDirectory(
