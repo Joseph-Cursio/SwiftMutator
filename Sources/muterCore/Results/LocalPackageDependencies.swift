@@ -68,20 +68,18 @@ enum LocalPackageDependencies {
         return (Array(repeating: "..", count: root.count - shared) + components.dropFirst(shared))
             .joined(separator: "/")
     }
-}
 
-private extension LocalPackageDependencies {
     /// `.package(path: "…")`, and `.package(name: "…", path: "…")`.
-    static let packagePath = #"\.package\s*\(\s*(?:name\s*:\s*"[^"]*"\s*,\s*)?path\s*:\s*"((?:[^"\\]|\\.)*)""#
+    private static let packagePath = #"\.package\s*\(\s*(?:name\s*:\s*"[^"]*"\s*,\s*)?path\s*:\s*"((?:[^"\\]|\\.)*)""#
     /// An Xcode project's local package reference: `relativePath = ../Core;`, or quoted.
-    static let xcodeReference =
+    private static let xcodeReference =
         #"isa\s*=\s*XCLocalSwiftPackageReference\s*;\s*relativePath\s*=\s*(?:"((?:[^"\\]|\\.)*)"|([^;\s]+))\s*;"#
     /// A block comment, or a line that is only a comment: a dependency commented out is no dependency.
-    static let comment = #"(?m)/\*[\s\S]*?\*/|^[ \t]*//.*$"#
+    private static let comment = #"(?m)/\*[\s\S]*?\*/|^[ \t]*//.*$"#
 
     /// The folders the manifest at `manifest` names, standardized, and whether it names each by an absolute path: a
     /// package manifest's other paths are relative to its folder, and an Xcode project's to the folder that holds it.
-    static func packageFolders(namedIn manifest: URL) -> [(url: URL, isAbsolute: Bool)] {
+    private static func packageFolders(namedIn manifest: URL) -> [(url: URL, isAbsolute: Bool)] {
         guard let text = try? String(contentsOf: manifest, encoding: .utf8) else { return [] }
         let isXcodeProject = manifest.lastPathComponent == "project.pbxproj"
         let base = isXcodeProject
@@ -99,13 +97,13 @@ private extension LocalPackageDependencies {
     }
 
     /// The package manifests at the top of `folder`.
-    static func packageManifests(in folder: URL) -> [URL] {
+    private static func packageManifests(in folder: URL) -> [URL] {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
         return names.filter(isManifest).sorted().map { folder.appendingPathComponent($0) }
     }
 
     /// The first group of `pattern` that took part in each match in `text`, unescaped.
-    static func captures(of pattern: String, in text: String) -> [String] {
+    private static func captures(of pattern: String, in text: String) -> [String] {
         let expression = NSRegularExpression.regexWithPattern(pattern)
         return expression.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap { match in
             (1..<match.numberOfRanges)
@@ -117,11 +115,11 @@ private extension LocalPackageDependencies {
     }
 
     /// A quoted string's contents, with each `\"` and `\\` unescaped.
-    static func unescaped(_ quoted: String) -> String {
+    private static func unescaped(_ quoted: String) -> String {
         quoted.replacingOccurrences(of: #"\""#, with: "\"").replacingOccurrences(of: #"\\"#, with: #"\"#)
     }
 
-    static func replacing(_ pattern: String, in text: String) -> String {
+    private static func replacing(_ pattern: String, in text: String) -> String {
         NSRegularExpression.regexWithPattern(pattern)
             .stringByReplacingMatches(in: text, range: NSRange(text.startIndex..., in: text), withTemplate: "")
     }

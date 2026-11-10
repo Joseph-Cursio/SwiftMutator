@@ -154,10 +154,10 @@ private extension KillingTestSummary {
         var evidence: [FailedTestLine.TestIdentity: Evidence] = [:]
         for test in mutations.flatMap({ $0.rerun?.alone ?? [] }) {
             switch test.result {
-            case MutantResult.Rerun.TestAlone.failedAgain:
+            case MutantResult.TestAlone.failedAgain:
                 evidence[test.identity, default: Evidence()].failedAgain += 1
 
-            case MutantResult.Rerun.TestAlone.passed, MutantResult.Rerun.TestAlone.failedWithItsCodeNotRunning:
+            case MutantResult.TestAlone.passed, MutantResult.TestAlone.failedWithItsCodeNotRunning:
                 evidence[test.identity, default: Evidence()].notReproduced += 1
 
             default:

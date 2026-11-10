@@ -38,7 +38,7 @@ struct KillingTestSummary: Codable, Equatable {
         /// Whether it may fail whatever the mutant (`isSuspect(reachesEnoughFiles:…)`).
         let suspect: Bool
         /// When a mutant it failed for was tested again alone: how many times it failed again, and how many it didn't,
-        /// or failed with the mutant's code not running (`MutantResult.Rerun.TestAlone`).
+        /// or failed with the mutant's code not running (`MutantResult.TestAlone`).
         var failedAgainAlone = 0
         var notReproducedAlone = 0
         /// Whether those runs took it off the suspect tests, though it failed for mutants in enough files.

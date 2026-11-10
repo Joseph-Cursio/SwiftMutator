@@ -246,12 +246,20 @@ final class ShardRunTests: MuterTestCase {
         let selection = ChangeSelection.make(ref: "origin/main")
 
         XCTAssertEqual(
-            ResumeSummary.selectionChange(from: (nil, nil, nil), to: (selection, Shard(index: 1, count: 2), nil)),
+            ResumeSummary.selectionChange(
+                from: ResumeSummary.Selection(),
+                to: ResumeSummary.Selection(since: selection, shard: Shard(index: 1, count: 2))
+            ),
             "This run mutates only what changed since the merge base of origin/main and HEAD (ba5e000), so no earlier "
                 + "result of another mutant is reused. This run tests only shard 1 of 2, so no earlier result of "
                 + "another shard's mutant is reused."
         )
-        XCTAssertNil(ResumeSummary.selectionChange(from: (selection, nil, nil), to: (selection, nil, nil)))
+        XCTAssertNil(
+            ResumeSummary.selectionChange(
+                from: ResumeSummary.Selection(since: selection),
+                to: ResumeSummary.Selection(since: selection)
+            )
+        )
     }
 
     /// The keys of the mutants discovery keeps with `shard`, in job order; nil discovers every one.

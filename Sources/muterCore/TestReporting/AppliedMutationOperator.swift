@@ -168,6 +168,6 @@ struct AppliedMutationOperator: Codable, Equatable {
     /// `--force-reuse`, or their `--resume` counterparts); "-" for one this run tested. Never empty, as `killedByCell`.
     var reusedCell: String {
         guard let reusedFrom else { return "-" }
-        return reusedFrom.keptDespiteChanges ? "yes, despite changes" : "yes"
+        return reusedFrom.despiteChanges ? "yes, despite changes" : "yes"
     }
 }

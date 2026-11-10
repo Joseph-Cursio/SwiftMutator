@@ -185,7 +185,9 @@ Each result is written as it finishes, as a line of JSON in `results.jsonl` in t
 folder, `<project>_muter_logs/<run>/`
 ([`Results/ResultsFile.swift`](../Sources/muterCore/Results/ResultsFile.swift)). Its lines are of
 six kinds: `header`, `retired`, `mutant`, `control`, `propertyRerun` and `end`
-([`Results/ResultsRecords.swift`](../Sources/muterCore/Results/ResultsRecords.swift),
+([`Results/ResultsCoding.swift`](../Sources/muterCore/Results/ResultsCoding.swift) for how they are
+written, `ResultsHeader.swift`, `ResultsRetired.swift`, `MutantResult.swift` and `ResultsEnd.swift` in
+[`Results`](../Sources/muterCore/Results) for `header`, `retired`, `mutant` and `end`,
 [`Results/ControlRunResult.swift`](../Sources/muterCore/Results/ControlRunResult.swift) for
 `control`, and
 [`Results/PropertyRerunResult.swift`](../Sources/muterCore/Results/PropertyRerunResult.swift) for

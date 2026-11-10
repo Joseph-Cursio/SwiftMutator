@@ -97,8 +97,7 @@ extension ResultsRecordTests {
                 from: "/logs/a/results.jsonl",
                 headers: [.make(session: 1)],
                 in: 1,
-                utf8Offset: 4_000,
-                switchID: "Sum_new",
+                at: .init(utf8Offset: 4_000, switchID: "Sum_new"),
                 despiteChanges: false,
                 keepingLog: keepingLog
             )
@@ -107,7 +106,7 @@ extension ResultsRecordTests {
         XCTAssertEqual(reuse(true).log, tested.log)
         XCTAssertNil(reuse(false).log)
         XCTAssertNil(MutantResult.make(keptLog: false).reused(
-            from: "/r.jsonl", headers: [], in: 1, utf8Offset: 1, switchID: "s", despiteChanges: false
+            from: "/r.jsonl", headers: [], in: 1, at: .init(utf8Offset: 1, switchID: "s"), despiteChanges: false
         ).log, "a result with no log has none to keep")
     }
 

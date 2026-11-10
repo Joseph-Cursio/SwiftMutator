@@ -18,8 +18,8 @@ extension ProjectTreeTests {
             listingIn: projectURL,
             hashingIn: URL(fileURLWithPath: hashingRoot ?? project),
             excluding: excluded,
-            pruning: prunedFolders,
-            list: list
+            list: list,
+            pruning: prunedFolders
         )
     }
 

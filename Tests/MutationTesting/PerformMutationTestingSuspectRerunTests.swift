@@ -7,7 +7,7 @@ import XCTest
 /// mostly doesn't.
 final class PerformMutationTestingSuspectRerunTests: MuterTestCase {
     typealias Rerun = MutantResult.Rerun
-    typealias TestAlone = MutantResult.Rerun.TestAlone
+    typealias TestAlone = MutantResult.TestAlone
 
     private let state = MutationTestState()
     let timing = "✘ Test timing() recorded an issue at TimingTests.swift:9:5: Expectation failed: 1.2 < 1"

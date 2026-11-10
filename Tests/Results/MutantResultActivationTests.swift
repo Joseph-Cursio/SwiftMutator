@@ -11,8 +11,7 @@ final class MutantResultActivationTests: XCTestCase {
             from: "/logs/results.jsonl",
             headers: [],
             in: 1,
-            utf8Offset: 0,
-            switchID: "id",
+            at: .init(utf8Offset: 0, switchID: "id"),
             despiteChanges: false
         )
 

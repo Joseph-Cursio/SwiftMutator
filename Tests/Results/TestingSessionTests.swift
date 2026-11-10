@@ -76,15 +76,15 @@ final class TestingSessionTests: XCTestCase {
         XCTAssertEqual(file.lines, [])
     }
 
-    func test_onceEnded_nothingMoreIsWritten() throws {
+    func test_onceEnded_nothingMoreIsWritten() {
         file.finish.signal() // for the mutant's line
         file.finish.signal() // for the end line
-        XCTAssertTrue(try XCTUnwrap(session.append({ "mutant" }, isAMutant: true)))
+        XCTAssertEqual(session.append({ "mutant" }, isAMutant: true), .written)
 
-        XCTAssertTrue(try XCTUnwrap(session.end { Self.endLine(recorded: $0) }))
+        XCTAssertEqual(session.end { Self.endLine(recorded: $0) }, .written)
 
-        XCTAssertNil(session.append({ "mutant" }, isAMutant: true))
-        XCTAssertNil(session.end { Self.endLine(recorded: $0) })
+        XCTAssertEqual(session.append({ "mutant" }, isAMutant: true), .skipped)
+        XCTAssertEqual(session.end { Self.endLine(recorded: $0) }, .skipped)
         session.end(waitingAtMost: 1) { Self.endLine(recorded: $0) }
         XCTAssertEqual(file.lines, ["\"mutant\"", "end of 1"])
     }
@@ -92,7 +92,7 @@ final class TestingSessionTests: XCTestCase {
     // A resumed session's header and its `retired` line: an end line between them would end the session before it
     // retired the results it doesn't keep.
     func test_theEndLineAtOnce_comesAfterTheFirstLines_neverBetweenThem() throws {
-        let secondSession = TestingSession(number: 2, startedAt: Date(timeIntervalSince1970: 0))
+        let secondSession = TestingSession(startedAt: Date(timeIntervalSince1970: 0), number: 2)
         let header = ResultsHeader.make(formatVersion: ResultsCoding.resumedFormatVersion, session: 2)
         let retired = ResultsRetired(session: 2, keys: [MutantResult.make().key])
         let starting = Thread.detach { [file] in _ = secondSession.startResults(in: file, writing: [header, retired]) }

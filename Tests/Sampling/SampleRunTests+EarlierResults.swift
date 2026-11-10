@@ -162,7 +162,7 @@ extension SampleRunTests {
                 + "mutants in both have an earlier result."
         )
         XCTAssertEqual(
-            ResumeSummary.selectionChange(from: (nil, nil, nil), to: (nil, nil, sample)),
+            ResumeSummary.selectionChange(from: ResumeSummary.Selection(), to: ResumeSummary.Selection(sample: sample)),
             "This run tests only a sample of 500 (seed 1234), so no earlier result of a mutant outside it is reused."
         )
     }
