@@ -19,11 +19,11 @@ final class MutationTestingDelegateXcodeWorkerTests: MuterTestCase {
     }
 
     // Each xcodebuild worker tests from a file of its own, beside `muter.xctestrun`, which is left alone.
-    func test_switchOn_writesTheNamedTestRun() async throws {
+    func test_switchOn_writesTheNamedTestRun() throws {
         let schemata = try MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1))
         let testRun = XCTestRun(["Tests": ["BlueprintName": "Tests"] as [String: AnyHashable]])
 
-        try await sut.switchOn(schemata: schemata, for: testRun, at: outputFolderURL, named: "muter-worker2.xctestrun")
+        try sut.switchOn(schemata: schemata, for: testRun, at: outputFolderURL, named: "muter-worker2.xctestrun")
 
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: outputFolder), ["muter-worker2.xctestrun"])
         XCTAssertEqual(
@@ -39,10 +39,10 @@ final class MutationTestingDelegateXcodeWorkerTests: MuterTestCase {
     }
 
     // A worker's run with no mutant on, such as the one that checks it, still runs as SwiftMutator's runs do.
-    func test_switchOnNull_setsOnlyIsMuterRunning() async throws {
+    func test_switchOnNull_setsOnlyIsMuterRunning() throws {
         let testRun = XCTestRun(["Tests": ["BlueprintName": "Tests"] as [String: AnyHashable]])
 
-        try await sut.switchOn(schemata: .null, for: testRun, at: outputFolderURL, named: "muter-worker1.xctestrun")
+        try sut.switchOn(schemata: .null, for: testRun, at: outputFolderURL, named: "muter-worker1.xctestrun")
 
         XCTAssertEqual(
             try environmentVariables(in: "muter-worker1.xctestrun"),

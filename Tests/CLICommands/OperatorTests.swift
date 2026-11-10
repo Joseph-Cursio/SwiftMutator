@@ -13,7 +13,7 @@ private struct DocumentedSwap {
 /// `swift-mutator operator`, which describes a mutation operator, or all of them. The descriptions are read without
 /// their colour codes (`raw`), so the tests see the words a terminal shows.
 final class OperatorTests: MuterTestCase {
-    func test_eachOperator_isDescribedByItsName() async throws {
+    func test_eachOperator_isDescribedByItsName() throws {
         let titles: [MutationOperator.Id: String] = [
             .ror: "Relational Operator Replacement",
             .relationalBoundary: "Relational Boundary",
@@ -29,7 +29,7 @@ final class OperatorTests: MuterTestCase {
 
         for id in MutationOperator.Id.allCases {
             let printedBefore = printer.linesPassed.count
-            try await run(id.rawValue)
+            try run(id.rawValue)
 
             let printed = Array(printer.linesPassed.dropFirst(printedBefore))
             XCTAssertEqual(printed, [id.documentation], id.rawValue)
@@ -38,19 +38,19 @@ final class OperatorTests: MuterTestCase {
     }
 
     // In the order the operators are listed everywhere else, a blank line between each, and with spaces around "all".
-    func test_all_describesEveryOperator_inOrder() async throws {
-        try await run("all")
-        try await run(" all ")
+    func test_all_describesEveryOperator_inOrder() throws {
+        try run("all")
+        try run(" all ")
 
         let expected = MutationOperator.Id.allCases.map(\.documentation).joined(separator: "\n\n")
         XCTAssertEqual(printer.linesPassed, [expected, expected])
     }
 
     // An operator is named as the configuration and --operators name it, in full and in its case.
-    func test_anUnknownOperator_isRefused_namingTheOperators() async throws {
+    func test_anUnknownOperator_isRefused_namingTheOperators() throws {
         for name in ["ror", "relationaloperatorreplacement", "", "Everything"] {
             do {
-                try await run(name)
+                try run(name)
                 XCTFail("\(name) was described")
             } catch {
                 XCTAssertEqual(error as? MuterError, .literal(reason: MutationOperator.Id.description), name)
@@ -180,8 +180,8 @@ final class OperatorTests: MuterTestCase {
         }
     }
 
-    private func run(_ name: String) async throws {
+    private func run(_ name: String) throws {
         var command = try XCTUnwrap(try MuterCommand.parseAsRoot(["operator", name]) as? Operator)
-        try await command.run()
+        try command.run()
     }
 }

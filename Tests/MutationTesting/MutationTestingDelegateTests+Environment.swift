@@ -47,7 +47,7 @@ extension MutationTestingDelegateTests {
     // `swift test` relays its test runners' output through its own standard output, which holds output
     // bound for a file 4 KiB at a time until it exits. A run stopped at its first failed test would show
     // that failure late, or lose its whole log.
-    func test_whenStoppingAtFirstFailure_thenEveryTestProcessWritesUnbuffered() async throws {
+    func test_whenStoppingAtFirstFailure_thenEveryTestProcessWritesUnbuffered() throws {
         current.process = { Self.makeProcess(inheritingUnbufferedOutput: nil) }
         let configuration = MuterConfiguration(
             executable: "/tmp/swift",
@@ -61,7 +61,7 @@ extension MutationTestingDelegateTests {
 
         // The baseline too, although it is never stopped, so it runs as the mutants that stop do.
         for schemata in [mutant, .null] {
-            let testProcess = try await sut.testProcess(
+            let testProcess = try sut.testProcess(
                 with: configuration,
                 schemata: schemata,
                 and: FileHandle(fileDescriptor: 0)
@@ -71,7 +71,7 @@ extension MutationTestingDelegateTests {
         }
     }
 
-    func test_whenNotStoppingAtFirstFailure_thenOutputBufferingIsLeftAlone() async throws {
+    func test_whenNotStoppingAtFirstFailure_thenOutputBufferingIsLeftAlone() throws {
         let configurations = [
             MuterConfiguration(executable: "/tmp/swift", arguments: ["test"], stopAtFirstFailure: false),
             // Switched on, but xcodebuild runs can't be stopped.
@@ -86,7 +86,7 @@ extension MutationTestingDelegateTests {
             current.process = { Self.makeProcess(inheritingUnbufferedOutput: inherited) }
             for configuration in configurations {
                 for schemata in [mutant, .null] {
-                    let testProcess = try await sut.testProcess(
+                    let testProcess = try sut.testProcess(
                         with: configuration,
                         schemata: schemata,
                         and: FileHandle(fileDescriptor: 0)

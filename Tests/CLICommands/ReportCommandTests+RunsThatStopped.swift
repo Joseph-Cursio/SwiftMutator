@@ -10,7 +10,7 @@ extension ReportCommandTests {
         let end = ResultsEnd.make(reason: .aborted, detail: "mutantNotSwitchedOn")
         try write(ResultsHeader.make(), alpha3, end, to: resultsPath)
 
-        await AssertThrowsError(try await report(resultsPath)) { error in
+        await AssertThrowsError(try report(resultsPath)) { error in
             XCTAssertEqual(error as? ExitCode, .abortedMidRun)
             XCTAssertEqual(MuterCommand.exitCode(for: error).rawValue, 4)
             XCTAssertEqual(MuterCommand.fullMessage(for: error), "")
@@ -23,21 +23,21 @@ extension ReportCommandTests {
     }
 
     // Only an error: a run that was interrupted, or has no end line yet, says nothing about its mutants' code.
-    func test_aRunThatWasInterrupted_orHasNoEndLine_exits0() async throws {
+    func test_aRunThatWasInterrupted_orHasNoEndLine_exits0() throws {
         for end in [ResultsEnd.make(reason: .interrupted, detail: "SIGINT"), nil] {
             try write([ResultsHeader.make(), alpha3] + [end].compactMap(\.self), to: resultsPath)
 
-            try await report(resultsPath)
+            try report(resultsPath)
         }
 
         XCTAssertEqual(printer.linesPassed.count, 2)
     }
 
     // The run is still going, or was killed or crashed: the report holds what it had tested.
-    func test_aFileWithoutAnEndLine_isReported_sayingSo() async throws {
+    func test_aFileWithoutAnEndLine_isReported_sayingSo() throws {
         try write(ResultsHeader.make(), alpha3, to: resultsPath)
 
-        try await report(resultsPath)
+        try report(resultsPath)
 
         let soFar = ran(MutationTestOutcome(
             mutations: [mutation("Sources/Alpha.swift", line: 3, .failed)],

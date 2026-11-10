@@ -79,7 +79,11 @@ final class MutatedProjectLock: Equatable, @unchecked Sendable { // every `var` 
                 close(openDescriptor)
                 throw code == EWOULDBLOCK
                     ? MutatedProjectLockError.inUse(
-                        mutatedProject: MutatedProjectLock.copy(of: lockHolder, lockedAt: lockPath, refused: mutatedProject),
+                        mutatedProject: MutatedProjectLock.copy(
+                            of: lockHolder,
+                            lockedAt: lockPath,
+                            refused: mutatedProject
+                        ),
                         process: lockHolder?.process
                     )
                     : MutatedProjectLockError.cannotLock(

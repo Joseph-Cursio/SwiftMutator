@@ -36,7 +36,7 @@ final class ReportBaselineTests: MuterTestCase {
         try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
         try writeBaseline(survivors: [zeta9])
 
-        await AssertThrowsError(try await report(resultsPath, "--baseline", baselinePath)) { error in
+        await AssertThrowsError(try report(resultsPath, "--baseline", baselinePath)) { error in
             XCTAssertEqual(error as? ExitCode, .scoreBelowThreshold)
             XCTAssertEqual(MuterCommand.exitCode(for: error).rawValue, 2)
         }
@@ -47,7 +47,7 @@ final class ReportBaselineTests: MuterTestCase {
             "  Sources/Zeta.swift:10:22 RelationalOperatorReplacement: > → <",
         ])
 
-        try await report(resultsPath, "--baseline", baselinePath, "--max-new-survivors", "1")
+        try report(resultsPath, "--baseline", baselinePath, "--max-new-survivors", "1")
         XCTAssertTrue(
             standardError.linesPassed.contains { $0.hasPrefix("1 new survivor against the baseline file") },
             "\(standardError.linesPassed)"
@@ -55,12 +55,12 @@ final class ReportBaselineTests: MuterTestCase {
     }
 
     // Scripts read the verdict from the summary, beside the score's.
-    func test_theVerdict_isRecordedInTheSummary() async throws {
+    func test_theVerdict_isRecordedInTheSummary() throws {
         try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
         try writeBaseline(survivors: [zeta9, zeta10, alpha3])
         let summaryPath = "\(directory)/summary.json"
 
-        try await report(resultsPath, "--baseline", baselinePath, "--summary", summaryPath)
+        try report(resultsPath, "--baseline", baselinePath, "--summary", summaryPath)
 
         let saved = try String(contentsOfFile: summaryPath, encoding: .utf8)
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(saved.utf8)) as? [String: AnyHashable])
@@ -77,7 +77,7 @@ final class ReportBaselineTests: MuterTestCase {
         try write(ResultsHeader.make(operators: ["SwapTernary"]), zeta9, ResultsEnd.make(), to: resultsPath)
         try writeBaseline(survivors: [])
 
-        await AssertThrowsError(try await report(resultsPath, "--baseline", baselinePath)) { error in
+        await AssertThrowsError(try report(resultsPath, "--baseline", baselinePath)) { error in
             XCTAssertEqual(error as? ExitCode, .baselineRefused)
             XCTAssertEqual(MuterCommand.exitCode(for: error).rawValue, 8)
         }
@@ -93,7 +93,7 @@ final class ReportBaselineTests: MuterTestCase {
     }
 
     func test_noBaselineFile_isRefused_andExits8_beforeTheResultsAreRead() async throws {
-        await AssertThrowsError(try await report("\(directory)/none.jsonl", "--baseline", baselinePath)) { error in
+        await AssertThrowsError(try report("\(directory)/none.jsonl", "--baseline", baselinePath)) { error in
             XCTAssertEqual(error as? ExitCode, .baselineRefused)
         }
         XCTAssertEqual(standardError.linesPassed, [
@@ -108,7 +108,7 @@ final class ReportBaselineTests: MuterTestCase {
         try write(ResultsHeader.make(), zeta9, end, to: resultsPath)
         try writeBaseline(survivors: [])
 
-        await AssertThrowsError(try await report(resultsPath, "--baseline", baselinePath)) { error in
+        await AssertThrowsError(try report(resultsPath, "--baseline", baselinePath)) { error in
             XCTAssertEqual(error as? ExitCode, .abortedMidRun)
         }
         XCTAssertEqual(
@@ -123,7 +123,7 @@ final class ReportBaselineTests: MuterTestCase {
         try writeBaseline(survivors: [zeta9])
 
         await AssertThrowsError(
-            try await report(resultsPath, "--baseline", baselinePath, "--write-baseline", baselinePath)
+            try report(resultsPath, "--baseline", baselinePath, "--write-baseline", baselinePath)
         )
 
         XCTAssertTrue(standardError.linesPassed.contains("Baseline file saved to \(baselinePath)"))
@@ -133,14 +133,14 @@ final class ReportBaselineTests: MuterTestCase {
         XCTAssertEqual(written.swiftMutator, "1.0.0")
         XCTAssertEqual(written.score, .init(killed: 1, scored: 3))
         // Compared with it now, nothing is new.
-        try await report(resultsPath, "--baseline", baselinePath)
+        try report(resultsPath, "--baseline", baselinePath)
     }
 
-    func test_aRunThatDidntFinish_writesNone_andSaysWhy() async throws {
+    func test_aRunThatDidntFinish_writesNone_andSaysWhy() throws {
         let end = ResultsEnd.make(reason: .interrupted, detail: "SIGINT")
         try write(ResultsHeader.make(), zeta9, alpha3, zeta10, end, to: resultsPath)
 
-        try await report(resultsPath, "--write-baseline", baselinePath)
+        try report(resultsPath, "--write-baseline", baselinePath)
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: baselinePath))
         XCTAssertTrue(
@@ -159,13 +159,13 @@ final class ReportBaselineTests: MuterTestCase {
         try write(shardHeader(1, mutantsDiscovered: 2), zeta9, alpha3, ResultsEnd.make(), to: first)
         try write(shardHeader(2, mutantsDiscovered: 1), zeta10, ResultsEnd.make(), to: second)
 
-        try await report(first, second, "--write-baseline", baselinePath)
+        try report(first, second, "--write-baseline", baselinePath)
 
         let written = try BaselineFile.load(at: baselinePath, using: FileManager.default)
         XCTAssertEqual(written.survivors.map(\.mutant.line), [9, 10])
 
         try FileManager.default.removeItem(atPath: baselinePath)
-        await AssertThrowsError(try await report(first, "--write-baseline", baselinePath)) { error in
+        await AssertThrowsError(try report(first, "--write-baseline", baselinePath)) { error in
             XCTAssertEqual(error as? ExitCode, .abortedMidRun)
         }
         XCTAssertFalse(FileManager.default.fileExists(atPath: baselinePath))
@@ -178,13 +178,13 @@ final class ReportBaselineTests: MuterTestCase {
     }
 
     // Each shard split its own discovery, so their merge may miss mutants: it isn't known to be a whole run.
-    func test_mergedShards_thatDiscoveredDifferentMutants_writeNone() async throws {
+    func test_mergedShards_thatDiscoveredDifferentMutants_writeNone() throws {
         let first = "\(directory)/1.jsonl"
         let second = "\(directory)/2.jsonl"
         try write(shardHeader(1, mutantsDiscovered: 2), zeta9, alpha3, ResultsEnd.make(), to: first)
         try write(shardHeader(2, mutantsDiscovered: 1, allKeysSHA256: "b22"), zeta10, ResultsEnd.make(), to: second)
 
-        try await report(first, second, "--write-baseline", baselinePath)
+        try report(first, second, "--write-baseline", baselinePath)
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: baselinePath))
         XCTAssertTrue(
@@ -198,12 +198,12 @@ final class ReportBaselineTests: MuterTestCase {
 
     // A run of one mutant compares no survivors, and records every operator and coverage skipped, so its scope isn't
     // refused: it is said not to be compared, as the run says it.
-    func test_aOneMutantRunsResults_areNotCompared_norTheirScopeRefused() async throws {
+    func test_aOneMutantRunsResults_areNotCompared_norTheirScopeRefused() throws {
         let header = ResultsHeader.make(operators: ["SwapTernary"], mutant: "Sources/Zeta.swift:9:22")
         try write(header, zeta9, ResultsEnd.make(), to: resultsPath)
         try writeBaseline(survivors: [])
 
-        try await report(resultsPath, "--baseline", baselinePath)
+        try report(resultsPath, "--baseline", baselinePath)
 
         XCTAssertEqual(
             standardError.linesPassed.last,
@@ -219,7 +219,7 @@ final class ReportBaselineTests: MuterTestCase {
         try writeBaseline(survivors: [])
 
         await AssertThrowsError(
-            try await report(resultsPath, "--baseline", baselinePath, "--write-baseline", "\(directory)/new.yml")
+            try report(resultsPath, "--baseline", baselinePath, "--write-baseline", "\(directory)/new.yml")
         )
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: "\(directory)/new.yml"))
@@ -233,12 +233,12 @@ final class ReportBaselineTests: MuterTestCase {
 
     // As `--fail-under` says it: the verdict is on the results the file holds. An entry is then matched only at its own
     // key, as the mutants the run didn't reach aren't known.
-    func test_anUnfinishedRun_isCompared_sayingHowManyHaveResults() async throws {
+    func test_anUnfinishedRun_isCompared_sayingHowManyHaveResults() throws {
         let end = ResultsEnd.make(reason: .interrupted, detail: "SIGINT")
         try write(ResultsHeader.make(mutantsDiscovered: 10), zeta9, alpha3, end, to: resultsPath)
         try writeBaseline(survivors: [zeta9])
 
-        try await report(resultsPath, "--baseline", baselinePath)
+        try report(resultsPath, "--baseline", baselinePath)
 
         XCTAssertEqual(
             standardError.linesPassed.last,
@@ -258,7 +258,7 @@ final class ReportBaselineTests: MuterTestCase {
         let saved = "\(directory)/out/Baseline.yml"
 
         await AssertThrowsError(
-            try await report(resultsPath, "--write-baseline", saved, "--summary", "\(directory)/out/baseline.yml")
+            try report(resultsPath, "--write-baseline", saved, "--summary", "\(directory)/out/baseline.yml")
         ) { error in
             XCTAssertTrue("\(error)".contains("can't both be saved to"), "\(error)")
         }
@@ -290,7 +290,7 @@ final class ReportBaselineTests: MuterTestCase {
     func test_writeBaseline_atTheResultsFile_isRefused() async throws {
         try write(ResultsHeader.make(), zeta9, ResultsEnd.make(), to: resultsPath)
 
-        await AssertThrowsError(try await report(resultsPath, "--write-baseline", resultsPath)) { error in
+        await AssertThrowsError(try report(resultsPath, "--write-baseline", resultsPath)) { error in
             XCTAssertTrue(
                 "\(error)".contains(
                     "is the results file the report is made from: choose another --write-baseline path"

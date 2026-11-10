@@ -31,7 +31,7 @@ final class WorkerTemporaryFolderTests: MuterTestCase {
 
     // A test that writes a fixed name in the temporary directory would otherwise fail another worker's test. SwiftPM
     // keys its manifest cache on the whole environment, so a baseline and a mutant's run in a folder get the same one.
-    func test_eachSwiftPMWorker_hasATemporaryFolderOfItsOwn_forEveryRun() async throws {
+    func test_eachSwiftPMWorker_hasATemporaryFolderOfItsOwn_forEveryRun() throws {
         let configuration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
         let schemata = try MutationSchema.make()
         process.environment = [:]
@@ -43,7 +43,7 @@ final class WorkerTemporaryFolderTests: MuterTestCase {
             let worker = URL(fileURLWithPath: folder)
             let own = WorkerTemporaryFolder(forWorkerIn: worker, under: FileManager.default.temporaryDirectory)
             for ranMutant in [MutationSchema.null, schemata] {
-                let testProcess = try await MutationTestingDelegate().testProcess(
+                let testProcess = try MutationTestingDelegate().testProcess(
                     with: configuration,
                     schemata: ranMutant,
                     and: FileHandle(fileDescriptor: 0),
@@ -60,11 +60,11 @@ final class WorkerTemporaryFolderTests: MuterTestCase {
     }
 
     // An xcodebuild worker tests on a simulator of its own, with its own temporary directory.
-    func test_anotherBuildSystem_keepsTheTemporaryDirectory() async throws {
+    func test_anotherBuildSystem_keepsTheTemporaryDirectory() throws {
         process.environment = ["TMPDIR": "/inherited/"]
         let configuration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
 
-        let testProcess = try await MutationTestingDelegate().testProcess(
+        let testProcess = try MutationTestingDelegate().testProcess(
             with: configuration,
             schemata: try MutationSchema.make(),
             and: FileHandle(fileDescriptor: 0)

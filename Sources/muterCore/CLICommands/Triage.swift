@@ -3,7 +3,7 @@ import Foundation
 
 /// `swift-mutator triage`: labels a mutant that survived, in `muter.triage.yml`, which the reports then show. A plain
 /// command, as `report` is: it tests nothing, and changes no result and no score.
-struct Triage: AsyncParsableCommand {
+struct Triage: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "triage",
         abstract: "Labels a surviving mutant in muter.triage.yml, which the reports show. It changes no score."
@@ -88,7 +88,7 @@ struct Triage: AsyncParsableCommand {
         }
     }
 
-    func run() async throws {
+    func run() throws {
         let reference = try MutantReference.parse(mutant)
         if remove {
             try removeLabel(of: reference)
@@ -156,7 +156,12 @@ struct Triage: AsyncParsableCommand {
         try triage.save(using: fileManager)
 
         printer("\(key): \(label.words), in \(triagePath)")
-        let moved = others.count(where: \.moved)
+        sayWhatElseChanged(moved: others.count(where: \.moved), dropped: dropped, lineUnread: found.changedLine == nil)
+    }
+
+    /// Says how many other labels followed their code to `moved` new places, which labels were `dropped`, and that the
+    /// new label stays at its place when its line couldn't be read (`lineUnread`).
+    private func sayWhatElseChanged(moved: Int, dropped: [TriageEntry], lineUnread: Bool) {
         if moved > 0 {
             let (labels, places) = moved == 1
                 ? ("label that followed its code is", "its new place")
@@ -167,7 +172,7 @@ struct Triage: AsyncParsableCommand {
             printer("⚠️ Dropped the label of \(entry.mutant) (\(entry.label.words)): it matched no mutant, and that "
                 + "place is now another label's.")
         }
-        if found.changedLine == nil {
+        if lineUnread {
             printer(
                 "ℹ️ Its line couldn't be read, as its file changed since this run or its change spans lines, so "
                     + "this label stays at this place: it won't follow the code if the code moves."
@@ -194,9 +199,11 @@ struct Triage: AsyncParsableCommand {
                 against: run.mutants,
                 following: !run.outcome.leavesOutSomeMutants
             )
-            let onMutants = matches.matches.filter { match in
-                run.mutants[match.index].key.flatMap(MutantKey.init(wholeDescription:)).map(wanted.matches) ?? false
-            }.map(\.entry)
+            let onMutants = matches.matches
+                .filter { match in
+                    run.mutants[match.index].key.flatMap(MutantKey.init(wholeDescription:)).map(wanted.matches) ?? false
+                }
+                .map(\.entry)
             named = onMutants.isEmpty ? matches.unmatched.filter { wanted.matches($0.mutant) } : onMutants
         } else {
             let wanted = reference.relative(

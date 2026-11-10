@@ -1,6 +1,6 @@
 import Rainbow
 
-public enum MuterError: Error, Equatable {
+public enum MuterError: Error, Equatable, CustomStringConvertible {
     case configurationParsingError(reason: String)
     case projectCopyFailed(reason: String)
     case noSourceFilesDiscovered
@@ -10,9 +10,7 @@ public enum MuterError: Error, Equatable {
     case literal(reason: String)
     case removeProjectFromPreviousRunFailed(reason: String)
     case createTempDirectoryUrlFailed(reason: String)
-}
 
-extension MuterError: CustomStringConvertible {
     public var description: String {
         switch self {
         case let .configurationParsingError(reason):
@@ -34,7 +32,8 @@ extension MuterError: CustomStringConvertible {
 
         case let .projectCopyFailed(reason):
             return """
-            SwiftMutator was unable to create a temporary directory, or was unable to copy your project into a temporary directory, and cannot continue.
+            SwiftMutator was unable to create a temporary directory, or was unable to copy your project into a \
+            temporary directory, and cannot continue.
 
             This is unusual. Try running SwiftMutator again to see if that fixes the issue.
             Alternatively, try clearing all temp files from your temp directory by restarting your computer.
@@ -48,7 +47,8 @@ extension MuterError: CustomStringConvertible {
             return """
             SwiftMutator wasn't able to discover any code it could mutation test.
 
-            This is likely caused by misconfiguring SwiftMutator, usually by excluding a directory that contains your code.
+            This is likely caused by misconfiguring SwiftMutator, usually by excluding a directory that contains your \
+            code.
             """
 
         case .noSourceFilesOnExclusiveList:
@@ -62,7 +62,9 @@ extension MuterError: CustomStringConvertible {
             return """
             SwiftMutator wasn't able to discover any code it could mutation test.
 
-            This is likely caused by misconfiguring SwiftMutator, usually by excluding a directory that contains your code, or by choosing operators that don't apply to it, with --operators, --skip-operators, or the operators and skipOperators keys.
+            This is likely caused by misconfiguring SwiftMutator, usually by excluding a directory that contains your \
+            code, or by choosing operators that don't apply to it, with --operators, --skip-operators, or the \
+            operators and skipOperators keys.
             """
 
         case let .mutationTestingAborted(reason):

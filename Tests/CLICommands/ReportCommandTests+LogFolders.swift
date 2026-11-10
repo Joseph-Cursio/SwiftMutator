@@ -4,7 +4,7 @@ import TestingExtensions
 import XCTest
 
 extension ReportCommandTests {
-    func test_acceptsARunsLogFolder() async throws {
+    func test_acceptsARunsLogFolder() throws {
         let folder = "\(directory)/project_muter_logs/Oct 4, 2026 at 1:16 PM"
         try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
         try "a mutant's test log".write(
@@ -12,7 +12,7 @@ extension ReportCommandTests {
         )
         try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: "\(folder)/results.jsonl")
 
-        try await report(folder)
+        try report(folder)
 
         XCTAssertEqual(
             printer.linesPassed,
@@ -25,10 +25,10 @@ extension ReportCommandTests {
     }
 
     // A resumed session's folder holds no results file but a note naming the one it adds to, in the first session's.
-    func test_acceptsAResumedSessionsLogFolder() async throws {
+    func test_acceptsAResumedSessionsLogFolder() throws {
         let (first, resumed) = try makeAResumedRunsLogFolders()
 
-        try await report(resumed)
+        try report(resumed)
 
         XCTAssertEqual(
             printer.linesPassed,
@@ -40,7 +40,7 @@ extension ReportCommandTests {
         )
     }
 
-    func test_aResumedRunsFile_saysWhichSessionsTestedItsResults() async throws {
+    func test_aResumedRunsFile_saysWhichSessionsTestedItsResults() throws {
         let resumed = ResultsHeader.make(
             formatVersion: ResultsCoding.resumedFormatVersion, session: 2, mutantsReused: 1
         )
@@ -60,7 +60,7 @@ extension ReportCommandTests {
             to: resultsPath
         )
 
-        try await report(resultsPath)
+        try report(resultsPath)
 
         XCTAssertEqual(
             printer.linesPassed,
@@ -76,7 +76,7 @@ extension ReportCommandTests {
     }
 
     // As a glob over the run's log folders gives them, in any order: one file, reported as it is, not merged.
-    func test_aRunsFirstAndResumedFolders_reportItsFileOnce() async throws {
+    func test_aRunsFirstAndResumedFolders_reportItsFileOnce() throws {
         let (first, resumed) = try makeAResumedRunsLogFolders()
         let second = "\(directory)/project_muter_logs/session 3"
         try FileManager.default.createDirectory(atPath: second, withIntermediateDirectories: true)
@@ -86,7 +86,7 @@ extension ReportCommandTests {
             let printed = printer.linesPassed.count
             let said = standardError.linesPassed.count
 
-            try await report(folders)
+            try report(folders)
 
             XCTAssertEqual(
                 Array(printer.linesPassed.dropFirst(printed)),
@@ -103,7 +103,7 @@ extension ReportCommandTests {
 
     // The note spells the file's path as the resume was given it, here through a symbolic link to the logs, and the
     // glob spells it another way.
-    func test_aRunsFirstAndResumedFolders_reportItsFileOnce_howeverTheNoteSpellsItsPath() async throws {
+    func test_aRunsFirstAndResumedFolders_reportItsFileOnce_howeverTheNoteSpellsItsPath() throws {
         let (first, resumed) = try makeAResumedRunsLogFolders()
         let linked = "\(directory)/linked logs"
         try FileManager.default.createSymbolicLink(
@@ -112,7 +112,7 @@ extension ReportCommandTests {
         )
         try writeNote(pointingTo: "\(linked)/session 1/results.jsonl", session: 2, in: resumed)
 
-        try await report(first, resumed)
+        try report(first, resumed)
 
         XCTAssertEqual(
             printer.linesPassed,
@@ -130,7 +130,7 @@ extension ReportCommandTests {
         let (first, resumed) = try makeAResumedRunsLogFolders(header: shardHeader(1, mutantsDiscovered: 2))
 
         await assertRefused(
-            try await report(first, first, resumed),
+            try report(first, first, resumed),
             MergeRefused(reasons: [
                 .givenTwice(Shard(index: 1, count: 2), paths: ["\(first)/results.jsonl", "\(first)/results.jsonl"]),
             ])

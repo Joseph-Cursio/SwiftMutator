@@ -1,5 +1,46 @@
 import Foundation
 
+/// Shared flocks on the log folders of the run a `--reuse` reads, held until the reusing run exits, so a run that
+/// prunes log folders (`LogFolderPruning`) leaves them alone: the reusing run copies its kept logs from them long after
+/// it read their results file, and holds no other lock on them. A pruning run of the same project is refused by the
+/// project's lock long before, but a test plan's run, which locks the copy its plan names, may prune the same folders.
+///
+/// It locks each folder's marker (`RunMarker`), and, in the results file's own folder if it has no marker, as one an
+/// older SwiftMutator made, the results file. A shared lock stops neither a reader nor another reuse: only a pruning
+/// run's exclusive one. What can't be opened or locked is left unlocked, which stops nothing: a run still going holds
+/// its own marker's lock.
+final class ReusedFolders: @unchecked Sendable { // `descriptors` changes only in `init` and `deinit`
+    private let descriptors: [Int32]
+
+    /// Locks the log folders `folders` of the run whose results file is at `resultsFile`.
+    init(holding folders: [String], resultsFile: String) {
+        let resultsFolder = resultsFile.deletingLastPathComponent
+        let paths = folders.map { folder in
+            let marker = folder.appendingPathComponent(RunMarker.fileName)
+            var info = stat()
+            let standardized = folder.standardizingPath
+            let isResultsFolder = standardized == resultsFolder.standardizingPath
+            return lstat(marker, &info) != 0 && isResultsFolder ? resultsFile : marker
+        }
+        descriptors = paths.compactMap(Self.lockShared(_:))
+    }
+
+    deinit {
+        descriptors.forEach { _ = close($0) }
+    }
+
+    /// A descriptor holding a shared flock on the file at `path`, or nil when it can't be opened or locked.
+    private static func lockShared(_ path: String) -> Int32? {
+        let descriptor = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+        guard descriptor >= 0 else { return nil }
+        guard flock(descriptor, LOCK_SH | LOCK_NB) == 0 else {
+            _ = close(descriptor)
+            return nil
+        }
+        return descriptor
+    }
+}
+
 /// The hidden file `.swiftmutator-run` in a run's log folder, which the run makes as it claims the folder and holds an
 /// exclusive flock on until it exits. So a run that prunes log folders (`keepLogFolders:`, see `LogFolderPruning`)
 /// leaves the folder of every run still going alone: a long baseline's, which has no results file to lock yet, a
@@ -46,46 +87,5 @@ final class RunMarker {
         guard descriptor >= 0 else { return }
         _ = close(descriptor)
         descriptor = -1
-    }
-}
-
-/// Shared flocks on the log folders of the run a `--reuse` reads, held until the reusing run exits, so a run that
-/// prunes log folders (`LogFolderPruning`) leaves them alone: the reusing run copies its kept logs from them long after
-/// it read their results file, and holds no other lock on them. A pruning run of the same project is refused by the
-/// project's lock long before, but a test plan's run, which locks the copy its plan names, may prune the same folders.
-///
-/// It locks each folder's marker (`RunMarker`), and, in the results file's own folder if it has no marker, as one an
-/// older SwiftMutator made, the results file. A shared lock stops neither a reader nor another reuse: only a pruning
-/// run's exclusive one. What can't be opened or locked is left unlocked, which stops nothing: a run still going holds
-/// its own marker's lock.
-final class ReusedFolders: @unchecked Sendable { // `descriptors` changes only in `init` and `deinit`
-    private let descriptors: [Int32]
-
-    /// Locks the log folders `folders` of the run whose results file is at `resultsFile`.
-    init(holding folders: [String], resultsFile: String) {
-        let resultsFolder = resultsFile.deletingLastPathComponent
-        let paths = folders.map { folder in
-            let marker = folder.appendingPathComponent(RunMarker.fileName)
-            var info = stat()
-            let standardized = folder.standardizingPath
-            let isResultsFolder = standardized == resultsFolder.standardizingPath
-            return lstat(marker, &info) != 0 && isResultsFolder ? resultsFile : marker
-        }
-        descriptors = paths.compactMap(Self.lockShared(_:))
-    }
-
-    deinit {
-        descriptors.forEach { _ = close($0) }
-    }
-
-    /// A descriptor holding a shared flock on the file at `path`, or nil when it can't be opened or locked.
-    private static func lockShared(_ path: String) -> Int32? {
-        let descriptor = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
-        guard descriptor >= 0 else { return nil }
-        guard flock(descriptor, LOCK_SH | LOCK_NB) == 0 else {
-            _ = close(descriptor)
-            return nil
-        }
-        return descriptor
     }
 }

@@ -19,7 +19,9 @@ struct MuterCommand: AsyncParsableCommand {
     )
 }
 
+/// The entry point of the `swift-mutator` executable.
 public enum Muter {
+    /// Parses the command line and runs the command it names, or `run` when it names none.
     public static func start() async {
         await MuterCommand.main()
     }

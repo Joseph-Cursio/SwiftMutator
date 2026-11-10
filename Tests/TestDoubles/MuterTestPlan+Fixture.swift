@@ -16,10 +16,10 @@ extension MuterTestPlan {
             mutatedProjectURL: URL(fileURLWithPath: mutatedProjectPath),
             projectCoverage: projectCoverage < 0 ? .null : Coverage(percent: projectCoverage),
             scope: scope,
+            mappings: mappings,
             sources: sources,
             mutatedFiles: mutatedFiles,
             linkedFiles: linkedFiles,
-            mappings: mappings,
             mutantsNotCovered: mutantsNotCovered
         )
     }

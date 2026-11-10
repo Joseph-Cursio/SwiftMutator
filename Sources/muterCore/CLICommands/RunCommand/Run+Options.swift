@@ -4,7 +4,7 @@ typealias ReportOptions = (reporter: Reporter, path: String?)
 
 extension Run {
     /// Sendable: the command makes them, and the run's work reads them in a task of its own (`Interruptions.run`).
-    struct Options: Sendable {
+    struct Options: Sendable, Equatable, Nullable {
         let reportOptions: ReportOptions
         /// `--report`: the reports saved besides `-f`'s, each in its own format, with their paths resolved, in place
         /// of `reports`; nil when none was given.
@@ -91,6 +91,9 @@ extension Run {
         }
 
         init(
+            skipCoverage: Bool,
+            skipUpdateCheck: Bool,
+            configurationURL: URL?,
             filesToMutate: [String] = [],
             exclude: [String] = [],
             since: String? = nil,
@@ -103,10 +106,7 @@ extension Run {
             mutationOperatorsList: MutationOperatorList = .allOperators,
             operatorsAreNamed: Bool = false,
             skipOperators: [MutationOperator.Id]? = nil,
-            skipCoverage: Bool,
-            skipUpdateCheck: Bool,
             verbose: Bool = false,
-            configurationURL: URL?,
             testPlanURL: URL? = nil,
             workers: Int? = nil,
             timeout: Double? = nil,
@@ -170,73 +170,70 @@ extension Run {
                 path: reportURL?.path
             )
         }
-    }
-}
-extension Run.Options: Equatable {
-    static func == (lhs: Run.Options, rhs: Run.Options) -> Bool {
-        lhs.filesToMutate == rhs.filesToMutate &&
-            lhs.exclude == rhs.exclude &&
-            lhs.since == rhs.since &&
-            lhs.changedLinesOnly == rhs.changedLinesOnly &&
-            lhs.shard == rhs.shard &&
-            lhs.sample == rhs.sample &&
-            lhs.mutationOperatorsList == rhs.mutationOperatorsList &&
-            lhs.operatorsAreNamed == rhs.operatorsAreNamed &&
-            lhs.skipOperators == rhs.skipOperators &&
-            lhs.skipCoverage == rhs.skipCoverage &&
-            lhs.skipUpdateCheck == rhs.skipUpdateCheck &&
-            lhs.verbose == rhs.verbose &&
-            lhs.configurationURL == rhs.configurationURL &&
-            lhs.testPlanURL == rhs.testPlanURL &&
-            lhs.workers == rhs.workers &&
-            lhs.timeout == rhs.timeout &&
-            lhs.buildTimeout == rhs.buildTimeout &&
-            lhs.failUnder == rhs.failUnder &&
-            lhs.baseline == rhs.baseline &&
-            lhs.maxNewSurvivors == rhs.maxNewSurvivors &&
-            lhs.maxScoreDrop == rhs.maxScoreDrop &&
-            lhs.maxDoubtfulKills == rhs.maxDoubtfulKills &&
-            lhs.writeBaseline == rhs.writeBaseline &&
-            lhs.propertyTests == rhs.propertyTests &&
-            lhs.createTestPlan == rhs.createTestPlan &&
-            lhs.resumeURL == rhs.resumeURL &&
-            lhs.reuseURL == rhs.reuseURL &&
-            lhs.resumeIgnoring == rhs.resumeIgnoring &&
-            lhs.forceResume == rhs.forceResume &&
-            lhs.planIgnoring == rhs.planIgnoring &&
-            lhs.mutant == rhs.mutant &&
-            lhs.reports == rhs.reports &&
-            lhs.reportOptions.path == rhs.reportOptions.path &&
-            "\(lhs.reportOptions.reporter)" == "\(rhs.reportOptions.reporter)"
-    }
-}
 
-extension Run.Options: Nullable {
-    static var null: Run.Options {
-        .init(
-            filesToMutate: [],
-            since: nil,
-            changedLinesOnly: false,
-            shard: nil,
-            sample: nil,
-            reportFormat: .plain,
-            reportURL: nil,
-            mutationOperatorsList: [],
-            skipCoverage: false,
-            skipUpdateCheck: false,
-            verbose: false,
-            configurationURL: nil,
-            testPlanURL: nil,
-            workers: nil,
-            timeout: nil,
-            failUnder: nil,
-            createTestPlan: false,
-            resumeURL: nil,
-            reuseURL: nil,
-            resumeIgnoring: [],
-            forceResume: false,
-            planIgnoring: [],
-            mutant: nil
-        )
+        static func == (lhs: Run.Options, rhs: Run.Options) -> Bool {
+            lhs.filesToMutate == rhs.filesToMutate &&
+                lhs.exclude == rhs.exclude &&
+                lhs.since == rhs.since &&
+                lhs.changedLinesOnly == rhs.changedLinesOnly &&
+                lhs.shard == rhs.shard &&
+                lhs.sample == rhs.sample &&
+                lhs.mutationOperatorsList == rhs.mutationOperatorsList &&
+                lhs.operatorsAreNamed == rhs.operatorsAreNamed &&
+                lhs.skipOperators == rhs.skipOperators &&
+                lhs.skipCoverage == rhs.skipCoverage &&
+                lhs.skipUpdateCheck == rhs.skipUpdateCheck &&
+                lhs.verbose == rhs.verbose &&
+                lhs.configurationURL == rhs.configurationURL &&
+                lhs.testPlanURL == rhs.testPlanURL &&
+                lhs.workers == rhs.workers &&
+                lhs.timeout == rhs.timeout &&
+                lhs.buildTimeout == rhs.buildTimeout &&
+                lhs.failUnder == rhs.failUnder &&
+                lhs.baseline == rhs.baseline &&
+                lhs.maxNewSurvivors == rhs.maxNewSurvivors &&
+                lhs.maxScoreDrop == rhs.maxScoreDrop &&
+                lhs.maxDoubtfulKills == rhs.maxDoubtfulKills &&
+                lhs.writeBaseline == rhs.writeBaseline &&
+                lhs.propertyTests == rhs.propertyTests &&
+                lhs.createTestPlan == rhs.createTestPlan &&
+                lhs.resumeURL == rhs.resumeURL &&
+                lhs.reuseURL == rhs.reuseURL &&
+                lhs.resumeIgnoring == rhs.resumeIgnoring &&
+                lhs.forceResume == rhs.forceResume &&
+                lhs.planIgnoring == rhs.planIgnoring &&
+                lhs.mutant == rhs.mutant &&
+                lhs.reports == rhs.reports &&
+                lhs.reportOptions.path == rhs.reportOptions.path &&
+                "\(lhs.reportOptions.reporter)" == "\(rhs.reportOptions.reporter)"
+        }
+
+        static var null: Run.Options {
+            .init(
+                skipCoverage: false,
+                skipUpdateCheck: false,
+                configurationURL: nil,
+                filesToMutate: [],
+                since: nil,
+                changedLinesOnly: false,
+                shard: nil,
+                sample: nil,
+                reportFormat: .plain,
+                reportURL: nil,
+                mutationOperatorsList: [],
+                verbose: false,
+                testPlanURL: nil,
+                workers: nil,
+                timeout: nil,
+                failUnder: nil,
+                createTestPlan: false,
+                resumeURL: nil,
+                reuseURL: nil,
+                resumeIgnoring: [],
+                forceResume: false,
+                planIgnoring: [],
+                mutant: nil
+            )
+        }
     }
 }

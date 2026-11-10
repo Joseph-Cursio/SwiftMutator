@@ -5,6 +5,34 @@ import Crypto
 #endif
 import Foundation
 
+/// What a session run with `--shard` records of its split in the results file's header: which shard it tested, and
+/// what discovery found in every shard, so that `report` can check that the shards it merges discovered the same
+/// mutants, and say how many have no result, those of a shard whose file it wasn't given included.
+struct ShardSelection: Codable, Equatable, Sendable {
+    let index: Int
+    let count: Int
+    /// How many mutants discovery found in every shard together. The header's own `mutantsDiscovered` counts this
+    /// shard's.
+    let mutantsInAllShards: Int
+    /// How many of them each shard holds, shard 1's first, so that a shard with none, which writes no results file,
+    /// can be told from one whose file is missing.
+    let mutantsPerShard: [Int]
+    /// SHA-256 over a line for each of those mutants' keys (`keyLine`), sorted: shards whose discoveries found the same
+    /// mutants have the same.
+    let allKeysSHA256: String
+
+    var shard: Shard {
+        Shard(index: index, count: count)
+    }
+
+    /// What a report of this shard's results alone covers: this shard, unless no other shard holds a mutant, when its
+    /// results are the whole run's. The run's own report and `report` of its file both say so.
+    var scopeAlone: ShardScope? {
+        let othersAreEmpty = mutantsPerShard.indices.allSatisfy { $0 == index - 1 || mutantsPerShard[$0] == 0 }
+        return othersAreEmpty ? nil : ShardScope(self)
+    }
+}
+
 /// `--shard k/n`: the kth of n shards the discovered mutants are split into, so that n runs, on as many machines, test
 /// every mutant once between them. A mutant's shard follows from its place alone, its key without the occurrence
 /// (`MutantKey`): the same on every machine, whatever else each one discovers, with no plan to pass around.
@@ -70,59 +98,6 @@ struct Shard: Hashable, Sendable, CustomStringConvertible {
         let digest = SHA256.hash(data: Data(place.utf8))
         let number = digest.prefix(8).reduce(UInt64(0)) { $0 << 8 | UInt64($1) }
         return Int(number % UInt64(count)) + 1
-    }
-}
-
-/// What a session run with `--shard` records of its split in the results file's header: which shard it tested, and
-/// what discovery found in every shard, so that `report` can check that the shards it merges discovered the same
-/// mutants, and say how many have no result, those of a shard whose file it wasn't given included.
-struct ShardSelection: Codable, Equatable, Sendable {
-    let index: Int
-    let count: Int
-    /// How many mutants discovery found in every shard together. The header's own `mutantsDiscovered` counts this
-    /// shard's.
-    let mutantsInAllShards: Int
-    /// How many of them each shard holds, shard 1's first, so that a shard with none, which writes no results file,
-    /// can be told from one whose file is missing.
-    let mutantsPerShard: [Int]
-    /// SHA-256 over a line for each of those mutants' keys (`keyLine`), sorted: shards whose discoveries found the same
-    /// mutants have the same.
-    let allKeysSHA256: String
-
-    var shard: Shard {
-        Shard(index: index, count: count)
-    }
-
-    /// What a report of this shard's results alone covers: this shard, unless no other shard holds a mutant, when its
-    /// results are the whole run's. The run's own report and `report` of its file both say so.
-    var scopeAlone: ShardScope? {
-        let othersAreEmpty = mutantsPerShard.indices.allSatisfy { $0 == index - 1 || mutantsPerShard[$0] == 0 }
-        return othersAreEmpty ? nil : ShardScope(self)
-    }
-}
-
-extension ShardSelection {
-    /// The selection `shard` makes of `keys`, the keys of every mutant discovery found.
-    init(_ shard: Shard, of keys: [MutantKey]) {
-        let lines = keys.map(Self.keyLine).sorted { $0.utf8.lexicographicallyPrecedes($1.utf8) }
-        var perShard = Array(repeating: 0, count: shard.count)
-        for key in keys {
-            perShard[Shard.index(ofPlace: key, among: shard.count) - 1] += 1
-        }
-        self.init(
-            index: shard.index,
-            count: shard.count,
-            mutantsInAllShards: keys.count,
-            mutantsPerShard: perShard,
-            allKeysSHA256: FileDigest.sha256(of: Data(lines.joined().utf8))
-        )
-    }
-
-    /// The key's path, operator, line, column and occurrence, each followed by a NUL, then a line break.
-    static func keyLine(_ key: MutantKey) -> String {
-        [key.path, key.mutationOperatorId.rawValue, String(key.line), String(key.column), String(key.occurrence)]
-            .map { $0 + "\0" }
-            .joined() + "\n"
     }
 }
 

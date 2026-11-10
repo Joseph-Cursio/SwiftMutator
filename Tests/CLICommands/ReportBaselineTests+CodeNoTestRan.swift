@@ -11,7 +11,7 @@ extension ReportBaselineTests {
         header.mutantsNotCovered = [uncovered("Sources/Zeta.swift", line: 20)]
         try write(header, zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
 
-        try await report(resultsPath, "--write-baseline", baselinePath)
+        try report(resultsPath, "--write-baseline", baselinePath)
 
         let written = try BaselineFile.load(at: baselinePath, using: FileManager.default)
         XCTAssertEqual(written.survivors.map(\.mutant.line), [9, 10, 20])
@@ -20,7 +20,7 @@ extension ReportBaselineTests {
 
         header.mutantsNotCovered?.append(uncovered("Sources/New.swift", line: 4))
         try write(header, zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
-        await AssertThrowsError(try await report(resultsPath, "--baseline", baselinePath)) { error in
+        await AssertThrowsError(try report(resultsPath, "--baseline", baselinePath)) { error in
             XCTAssertEqual(error as? ExitCode, .scoreBelowThreshold)
         }
         XCTAssertEqual(
@@ -32,10 +32,10 @@ extension ReportBaselineTests {
     // Results whose header doesn't record the mutants of code no test ran, with coverage on, as an older SwiftMutator's
     // or a run of a test plan it made, would make a baseline file without them, against which each would be new: none
     // is written, and a comparison says new code no test ran isn't seen. With `skipCoverage` there are none to record.
-    func test_resultsThatDontRecordTheMutantsOfCodeNoTestRan_writeNone_andSaySo() async throws {
+    func test_resultsThatDontRecordTheMutantsOfCodeNoTestRan_writeNone_andSaySo() throws {
         try write(ResultsHeader.make(skipCoverage: false), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
 
-        try await report(resultsPath, "--write-baseline", baselinePath)
+        try report(resultsPath, "--write-baseline", baselinePath)
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: baselinePath))
         XCTAssertTrue(
@@ -54,7 +54,7 @@ extension ReportBaselineTests {
             scope: BaselineScope(header: ResultsHeader.make(skipCoverage: false)),
             survivors: []
         ).save(using: FileManager.default))
-        try await report(resultsPath, "--baseline", baselinePath, "--max-new-survivors", "2")
+        try report(resultsPath, "--baseline", baselinePath, "--max-new-survivors", "2")
         let unseen = "The results don't record the mutants of code no test ran, so new code no test ran isn't seen."
         XCTAssertTrue(
             standardError.linesPassed.contains { $0.hasSuffix(unseen) },
@@ -64,13 +64,13 @@ extension ReportBaselineTests {
         var recorded = ResultsHeader.make(skipCoverage: false)
         recorded.mutantsNotCovered = []
         try write(recorded, zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
-        try await report(resultsPath, "--write-baseline", baselinePath)
+        try report(resultsPath, "--write-baseline", baselinePath)
         let written = try BaselineFile.load(at: baselinePath, using: FileManager.default)
         XCTAssertEqual(written.survivors.map(\.mutant.line), [9, 10])
     }
 
     // Each shard records those it holds, and the merge takes them all, each once by its key.
-    func test_mergedShards_takeEveryShardsMutantsOfCodeNoTestRan() async throws {
+    func test_mergedShards_takeEveryShardsMutantsOfCodeNoTestRan() throws {
         let first = "\(directory)/1.jsonl"
         let second = "\(directory)/2.jsonl"
         var one = shardHeader(1, mutantsDiscovered: 2)
@@ -80,7 +80,7 @@ extension ReportBaselineTests {
         try write(one, zeta9, alpha3, ResultsEnd.make(), to: first)
         try write(two, zeta10, ResultsEnd.make(), to: second)
 
-        try await report(first, second, "--write-baseline", baselinePath)
+        try report(first, second, "--write-baseline", baselinePath)
 
         let written = try BaselineFile.load(at: baselinePath, using: FileManager.default)
         XCTAssertEqual(
@@ -100,7 +100,7 @@ extension ReportBaselineTests {
         recorded.mutantsNotCovered = one.mutantsNotCovered
         try write(recorded, zeta9, alpha3, ResultsEnd.make(), to: first)
         try write(shardHeader(2, mutantsDiscovered: 1, skipCoverage: false), zeta10, ResultsEnd.make(), to: second)
-        try await report(first, second, "--write-baseline", baselinePath)
+        try report(first, second, "--write-baseline", baselinePath)
         XCTAssertFalse(FileManager.default.fileExists(atPath: baselinePath))
     }
 }

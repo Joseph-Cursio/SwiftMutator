@@ -4,7 +4,7 @@ import TestingExtensions
 import XCTest
 
 extension ReportCommandTests {
-    func test_severalShardsResultsFiles_areMergedIntoTheWholeRunsReport() async throws {
+    func test_severalShardsResultsFiles_areMergedIntoTheWholeRunsReport() throws {
         let first = "\(directory)/first.jsonl"
         let second = "\(directory)/second.jsonl"
         try write(
@@ -16,7 +16,7 @@ extension ReportCommandTests {
         )
         try write(shardHeader(2, mutantsDiscovered: 1), zeta10, ResultsEnd.make(), to: second)
 
-        try await report(second, first)
+        try report(second, first)
 
         // The shards' files in shard order; their details are the first shard's.
         let reported = expected(from: [first, second], header: shardHeader(1, mutantsDiscovered: 2))
@@ -32,7 +32,7 @@ extension ReportCommandTests {
     func test_oneShardsFile_isReportedAsTheShard_andLacksTheOthers() async throws {
         try write(shardHeader(1, mutantsDiscovered: 2), zeta9, alpha3, ResultsEnd.make(), to: resultsPath)
 
-        await AssertThrowsError(try await report(resultsPath)) { error in
+        await AssertThrowsError(try report(resultsPath)) { error in
             XCTAssertEqual(error as? ExitCode, .abortedMidRun)
         }
 
@@ -47,7 +47,7 @@ extension ReportCommandTests {
     }
 
     // A small change can leave every other shard empty, and then one file is the whole run.
-    func test_oneShardsFile_whoseOthersAreEmpty_isTheWholeRunsReport() async throws {
+    func test_oneShardsFile_whoseOthersAreEmpty_isTheWholeRunsReport() throws {
         try write(
             shardHeader(1, mutantsDiscovered: 3, mutantsPerShard: [3, 0]),
             zeta9,
@@ -57,7 +57,7 @@ extension ReportCommandTests {
             to: resultsPath
         )
 
-        try await report(resultsPath, "--merge-ignoring", "*.md")
+        try report(resultsPath, "--merge-ignoring", "*.md")
 
         XCTAssertEqual(printer.linesPassed, [PlainTextReporter().report(from: expected)])
         XCTAssertEqual(standardError.linesPassed.last, "Shard 2 of 2 holds no mutant, so it has no results file.")
@@ -80,7 +80,7 @@ extension ReportCommandTests {
             to: "\(directory)/3.jsonl"
         )
 
-        await AssertThrowsError(try await report("\(directory)/1.jsonl", "\(directory)/3.jsonl")) { error in
+        await AssertThrowsError(try report("\(directory)/1.jsonl", "\(directory)/3.jsonl")) { error in
             XCTAssertEqual(error as? ExitCode, .abortedMidRun)
         }
         XCTAssertEqual(printer.linesPassed.count, 1)
@@ -95,7 +95,7 @@ extension ReportCommandTests {
         try write(ResultsHeader.make(), to: "\(directory)/whole.jsonl")
 
         await assertRefused(
-            try await report("\(directory)/1.jsonl", "\(directory)/whole.jsonl"),
+            try report("\(directory)/1.jsonl", "\(directory)/whole.jsonl"),
             MergeRefused(reasons: [.notAShard(path: "\(directory)/whole.jsonl")]),
             saying: """
             Error: SwiftMutator won't merge these results files, so that the report holds only results a whole run \
@@ -111,7 +111,7 @@ extension ReportCommandTests {
         try write(shardHeader(2, mutantsDiscovered: 1), to: "\(directory)/2.jsonl")
 
         await assertRefused(
-            try await report("\(directory)/1.jsonl", "\(directory)/2.jsonl", "-o", "\(directory)/2.jsonl"),
+            try report("\(directory)/1.jsonl", "\(directory)/2.jsonl", "-o", "\(directory)/2.jsonl"),
             MuterError.literal(
                 reason: "\(directory)/2.jsonl is one of the results files the report is made from: choose another "
                     + "output path"

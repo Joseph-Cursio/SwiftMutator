@@ -1,23 +1,5 @@
 import Foundation
 
-/// Why `report` won't merge the results files it was given: every reason it found, in one message.
-struct MergeRefused: Error, Equatable, CustomStringConvertible {
-    let reasons: [MergeRefusal]
-
-    var description: String {
-        var lines = [
-            "SwiftMutator won't merge these results files, so that the report holds only results a whole run would "
-                + "give:",
-        ]
-        for reason in reasons {
-            let reasonLines = reason.description.components(separatedBy: "\n")
-            lines.append("  - " + (reasonLines.first ?? ""))
-            lines += reasonLines.dropFirst().map { "    " + $0 }
-        }
-        return lines.joined(separator: "\n")
-    }
-}
-
 /// One reason a set of results files can't be merged, and what would let it be.
 enum MergeRefusal: Equatable, CustomStringConvertible {
     /// A results file, and the shard its last session tested.
@@ -137,26 +119,48 @@ enum MergeRefusal: Equatable, CustomStringConvertible {
         let named = changes.prefix(ResumeRefusal.changedFilesNamed)
         let others = changes.count - named.count
         let one = changes.count == 1
-        let files = named.map { change in
-            switch change.kind {
-            case .changed:
-                return "\(change.path) (differs)"
+        let listed = named
+            .map { change in
+                switch change.kind {
+                case .changed:
+                    return "\(change.path) (differs)"
 
-            case .added:
-                return "\(change.path) (only in \(Self.named(shard)))"
+                case .added:
+                    return "\(change.path) (only in \(Self.named(shard)))"
 
-            case .removed:
-                return "\(change.path) (only in \(Self.named(reference)))"
+                case .removed:
+                    return "\(change.path) (only in \(Self.named(reference)))"
+                }
             }
-        }.joined(separator: ", ") + (others > 0 ? ", and \(others) more" : "")
-        let flags = named.map { "--merge-ignoring " + Logger.shellQuoted(ResumeRefusal.glob(matching: $0.path)) }
+            .joined(separator: ", ")
+        let files = listed + (others > 0 ? ", and \(others) more" : "")
+        let globs = named
+            .map { "--merge-ignoring " + Logger.shellQuoted(ResumeRefusal.glob(matching: $0.path)) }
             .joined(separator: " ")
-            + (others > 0 ? ", plus globs for the other \(others)" : "")
+        let flags = globs + (others > 0 ? ", plus globs for the other \(others)" : "")
         return [
             "\(changes.count) project file\(one ? "" : "s") \(one ? "differs" : "differ") between "
                 + "\(Self.named(reference)) and \(Self.named(shard)): \(files).",
             "If \(one ? "it" : "they") can't change any test's result: \(flags)",
         ].joined(separator: "\n")
+    }
+}
+
+/// Why `report` won't merge the results files it was given: every reason it found, in one message.
+struct MergeRefused: Error, Equatable, CustomStringConvertible {
+    let reasons: [MergeRefusal]
+
+    var description: String {
+        var lines = [
+            "SwiftMutator won't merge these results files, so that the report holds only results a whole run would "
+                + "give:",
+        ]
+        for reason in reasons {
+            let reasonLines = reason.description.components(separatedBy: "\n")
+            lines.append("  - " + (reasonLines.first ?? ""))
+            lines += reasonLines.dropFirst().map { "    " + $0 }
+        }
+        return lines.joined(separator: "\n")
     }
 }
 

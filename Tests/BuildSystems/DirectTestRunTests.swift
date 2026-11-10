@@ -12,7 +12,7 @@ final class DirectTestRunTests: MuterTestCase {
     var helper: URL { directory.appendingPathComponent("swiftpm-testing-helper") }
 
     // A worker with no clone starts in the shared project, and runs its build, with what's its own named after it.
-    func test_aSharedBuild_isRunFromTheProject_withTheWorkersOwnFiles() async throws {
+    func test_aSharedBuild_isRunFromTheProject_withTheWorkersOwnFiles() throws {
         let shared = makeDirectTestRun(bundles: ["CoreTests"]).sharingBuild(of: worker)
         let name = directory.appendingPathComponent("p_mutated_worker1.noindex")
         let configuration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
@@ -20,7 +20,7 @@ final class DirectTestRunTests: MuterTestCase {
         current.process = { MuterProcessFactory.makeProcess() }
         let schemata = try MutationSchema.make(filePath: "/p/Sample.swift", position: .init(line: 1))
 
-        let process = try await sut.testProcess(
+        let process = try sut.testProcess(
             with: configuration, schemata: schemata, and: FileHandle(fileDescriptor: 0), workingDirectory: name
         )
 

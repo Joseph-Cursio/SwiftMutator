@@ -11,7 +11,7 @@ extension ReportBaselineTests {
         let summaryPath = "\(directory)/summary.json"
 
         await AssertThrowsError(
-            try await report(
+            try report(
                 resultsPath, "--baseline", baselinePath, "--max-score-drop", "2", "--summary", summaryPath
             )
         ) { error in
@@ -29,7 +29,7 @@ extension ReportBaselineTests {
         XCTAssertEqual(verdict["passed"] as? Bool, false)
         XCTAssertEqual(verdict["maxScoreDrop"] as? Double, 2)
 
-        try await report(resultsPath, "--baseline", baselinePath, "--max-score-drop", "40")
+        try report(resultsPath, "--baseline", baselinePath, "--max-score-drop", "40")
         XCTAssertEqual(
             standardError.linesPassed.last?.hasSuffix("within the 40 allowed."),
             true,
@@ -38,12 +38,12 @@ extension ReportBaselineTests {
     }
 
     // Its score is of only the mutants it reached, so it isn't the whole project's.
-    func test_anUnfinishedRun_doesntCompareTheScore() async throws {
+    func test_anUnfinishedRun_doesntCompareTheScore() throws {
         let end = ResultsEnd.make(reason: .interrupted, detail: "SIGINT")
         try write(ResultsHeader.make(mutantsDiscovered: 10), zeta9, alpha3, end, to: resultsPath)
         try writeBaseline(survivors: [zeta9], score: .init(killed: 9, scored: 10))
 
-        try await report(resultsPath, "--baseline", baselinePath, "--max-score-drop", "2")
+        try report(resultsPath, "--baseline", baselinePath, "--max-score-drop", "2")
 
         XCTAssertEqual(
             standardError.linesPassed.last,
@@ -75,13 +75,13 @@ extension ReportBaselineTests {
         )
         XCTAssertTrue(file.save(using: FileManager.default))
 
-        try await report(first, second, "--baseline", baselinePath, "--max-score-drop", "0")
+        try report(first, second, "--baseline", baselinePath, "--max-score-drop", "0")
         XCTAssertEqual(
             standardError.linesPassed.last,
             "Mutation score 33.3% is the same as the baseline file \(baselinePath)'s."
         )
 
-        await AssertThrowsError(try await report(first, "--baseline", baselinePath, "--max-score-drop", "0")) { error in
+        await AssertThrowsError(try report(first, "--baseline", baselinePath, "--max-score-drop", "0")) { error in
             XCTAssertEqual(error as? ExitCode, .abortedMidRun)
         }
         XCTAssertEqual(
@@ -96,7 +96,7 @@ extension ReportBaselineTests {
         neverRan.activated = false
         try write(ResultsHeader.make(), zeta9, neverRan, ResultsEnd.make(), to: resultsPath)
 
-        await AssertThrowsError(try await report(resultsPath, "--max-doubtful-kills", "0")) { error in
+        await AssertThrowsError(try report(resultsPath, "--max-doubtful-kills", "0")) { error in
             XCTAssertEqual(error as? ExitCode, .scoreBelowThreshold)
         }
         XCTAssertEqual(standardError.linesPassed.suffix(2), [
@@ -104,7 +104,7 @@ extension ReportBaselineTests {
             "  Sources/Alpha.swift:3:22 RelationalOperatorReplacement: > → < (its code never ran)",
         ])
 
-        try await report(resultsPath, "--max-doubtful-kills", "1")
+        try report(resultsPath, "--max-doubtful-kills", "1")
         XCTAssertEqual(
             standardError.linesPassed.suffix(2).first,
             "1 doubtful kill, within the 1 allowed: 1 kill whose code never ran."
@@ -118,7 +118,7 @@ extension ReportBaselineTests {
         try writeBaseline(survivors: [], score: .init(killed: 1, scored: 1))
         let flags = ["--baseline", baselinePath, "--max-score-drop", "2", "--max-doubtful-kills", "0"]
 
-        await AssertThrowsError(try await report(arguments: [resultsPath] + flags)) { error in
+        await AssertThrowsError(try report(arguments: [resultsPath] + flags)) { error in
             XCTAssertEqual(error as? ExitCode, .abortedMidRun)
         }
         XCTAssertEqual(standardError.linesPassed.suffix(2), [
@@ -128,7 +128,7 @@ extension ReportBaselineTests {
 
         let stopped = ResultsStopped.make(step: .baseline, reason: .failed, detail: "baselineTestFailed")
         try write(stopped, to: resultsPath)
-        await AssertThrowsError(try await report(arguments: [resultsPath] + flags))
+        await AssertThrowsError(try report(arguments: [resultsPath] + flags))
         XCTAssertEqual(standardError.linesPassed.suffix(2), [
             "The score isn't compared with the baseline file \(baselinePath)'s: the run stopped before its first "
                 + "mutant.",
@@ -139,7 +139,7 @@ extension ReportBaselineTests {
     // Each shard split its own discovery, so a mutant one discovered may fall to a shard whose run didn't discover it,
     // and have no result: the merge isn't known to be a whole run, so its score isn't compared, as no baseline file is
     // written from it. Here it would fall 66.7 points below the file's.
-    func test_mergedShards_thatDiscoveredDifferentMutants_dontCompareTheScore() async throws {
+    func test_mergedShards_thatDiscoveredDifferentMutants_dontCompareTheScore() throws {
         let first = "\(directory)/1.jsonl"
         let second = "\(directory)/2.jsonl"
         try write(shardHeader(1, mutantsDiscovered: 2), zeta9, alpha3, ResultsEnd.make(), to: first)
@@ -160,7 +160,7 @@ extension ReportBaselineTests {
         )
         XCTAssertTrue(file.save(using: FileManager.default))
 
-        try await report(first, second, "--baseline", baselinePath, "--max-score-drop", "2")
+        try report(first, second, "--baseline", baselinePath, "--max-score-drop", "2")
 
         XCTAssertEqual(
             standardError.linesPassed.last,
@@ -168,7 +168,7 @@ extension ReportBaselineTests {
                 + "same mutants, so some may have no result."
         )
         let summaryPath = "\(directory)/summary.json"
-        try await report(
+        try report(
             first, second, "--baseline", baselinePath, "--max-score-drop", "2", "--summary", summaryPath
         )
         let saved = try String(contentsOfFile: summaryPath, encoding: .utf8)
@@ -186,7 +186,7 @@ extension ReportBaselineTests {
         let end = ResultsEnd.make(reason: .interrupted, detail: "SIGTERM")
         try write(ResultsHeader.make(mutantsDiscovered: 10), zeta9, neverRan, end, to: resultsPath)
 
-        try await report(resultsPath, "--max-doubtful-kills", "0")
+        try report(resultsPath, "--max-doubtful-kills", "0")
         XCTAssertEqual(
             standardError.linesPassed.last,
             "Doubtful kills aren't counted: only 2 of 10 mutants have results, as the run didn't finish. --resume "
@@ -194,7 +194,7 @@ extension ReportBaselineTests {
         )
 
         try write(ResultsHeader.make(mutantsDiscovered: 2), zeta9, neverRan, end, to: resultsPath)
-        await AssertThrowsError(try await report(resultsPath, "--max-doubtful-kills", "0")) { error in
+        await AssertThrowsError(try report(resultsPath, "--max-doubtful-kills", "0")) { error in
             XCTAssertEqual(error as? ExitCode, .scoreBelowThreshold)
         }
         XCTAssertEqual(
@@ -227,7 +227,7 @@ extension ReportBaselineTests {
         try write(records: [header(1)] + kills(1) + [ResultsEnd.make()], to: first)
         try write(records: [header(2)] + kills(2) + [ResultsEnd.make()], to: second)
 
-        try await report(first, second, "--max-doubtful-kills", "0")
+        try report(first, second, "--max-doubtful-kills", "0")
         XCTAssertEqual(standardError.linesPassed.last, "No doubtful kills.")
 
         try write(
@@ -235,7 +235,7 @@ extension ReportBaselineTests {
                 + [ResultsEnd.make()],
             to: resultsPath
         )
-        await AssertThrowsError(try await report(resultsPath, "--max-doubtful-kills", "0")) { error in
+        await AssertThrowsError(try report(resultsPath, "--max-doubtful-kills", "0")) { error in
             XCTAssertEqual(error as? ExitCode, .scoreBelowThreshold)
         }
         XCTAssertTrue(

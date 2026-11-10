@@ -6,7 +6,7 @@ import XCTest
 extension ReportCommandTests {
     // Standard output holds the report alone, so `-f json > report.json` stays valid JSON: the warning of the run's
     // suspect tests is said on standard error, after what the file holds, and without the run's emoji.
-    func test_suspectTests_areSaidOnStandardErrorOnly_withoutEmoji() async throws {
+    func test_suspectTests_areSaidOnStandardErrorOnly_withoutEmoji() throws {
         let timing = FailedTestLine.FailedTest(name: "timing()", location: "TimingTests.swift:9:5")
         let files = (0 ..< 10).map { "Sources/F\($0).swift" }
         let header: [any Encodable] = [ResultsHeader.make(mutantsDiscovered: 11, mutantsToTest: 11)]
@@ -29,13 +29,13 @@ extension ReportCommandTests {
         let warning = "1 test may fail whatever the mutant: it failed for mutants in at least 15% of the 10 files "
             + "with a killed mutant (timing() in 10). Without its failures, the mutation score would be 0%, not 90%."
 
-        try await report(resultsPath)
+        try report(resultsPath)
 
         XCTAssertEqual(printer.linesPassed, [PlainTextReporter().report(from: outcome)])
         XCTAssertEqual(standardError.linesPassed, [status, warning])
 
         let output = "\(directory)/report.json"
-        try await report(resultsPath, "-f", "json", "-o", output)
+        try report(resultsPath, "-f", "json", "-o", output)
 
         XCTAssertEqual(
             try parsedJSON(String(contentsOfFile: output, encoding: .utf8)),
@@ -50,13 +50,13 @@ extension ReportCommandTests {
     }
 
     // `--summary` saves the run's summary.json, of how its last session ended, naming the report and the file.
-    func test_theSummary_isSavedWhereAsked() async throws {
+    func test_theSummary_isSavedWhereAsked() throws {
         let interrupted = ResultsEnd.make(reason: .interrupted, detail: "SIGTERM")
         try write(ResultsHeader.make(), zeta9, alpha3, zeta10, interrupted, to: resultsPath)
         let summaryPath = "\(directory)/summary.json"
         let output = "\(directory)/report.html"
 
-        try await report(resultsPath, "-f", "html", "-o", output, "--summary", summaryPath)
+        try report(resultsPath, "-f", "html", "-o", output, "--summary", summaryPath)
 
         let data = try Data(contentsOf: URL(fileURLWithPath: summaryPath))
         let summary = try JSONDecoder().decode(RunSummary.self, from: data)
@@ -70,8 +70,8 @@ extension ReportCommandTests {
         try write(ResultsHeader.make(), zeta9, ResultsEnd.make(), to: resultsPath)
         let output = "\(directory)/report.txt"
 
-        await AssertThrowsError(try await report(resultsPath, "--summary", resultsPath))
-        await AssertThrowsError(try await report(resultsPath, "-o", output, "--summary", output))
+        await AssertThrowsError(try report(resultsPath, "--summary", resultsPath))
+        await AssertThrowsError(try report(resultsPath, "-o", output, "--summary", output))
         XCTAssertFalse(FileManager.default.fileExists(atPath: output))
         XCTAssertTrue(try String(contentsOfFile: resultsPath, encoding: .utf8).contains(#""kind":"end""#))
     }
@@ -85,7 +85,7 @@ extension ReportCommandTests {
         try write(ResultsHeader.make(), zeta9, ResultsEnd.make(), to: resultsPath)
         let output = "\(directory)/Report.txt"
 
-        await AssertThrowsError(try await report(resultsPath, "-o", output, "--summary", "\(directory)/report.txt")) {
+        await AssertThrowsError(try report(resultsPath, "-o", output, "--summary", "\(directory)/report.txt")) {
             let refusal = "The report and the summary can't both be saved to \(output)"
             XCTAssertEqual($0 as? MuterError, .literal(reason: refusal))
         }
@@ -97,21 +97,21 @@ extension ReportCommandTests {
     func test_aSummaryPathThatIsAFolder_isRefusedAsTheSummarys() async throws {
         try write(ResultsHeader.make(), zeta9, ResultsEnd.make(), to: resultsPath)
 
-        await AssertThrowsError(try await report(resultsPath, "--summary", directory)) {
+        await AssertThrowsError(try report(resultsPath, "--summary", directory)) {
             let refusal = "\(directory) is a folder: name the file to save the summary to"
             XCTAssertEqual($0 as? MuterError, .literal(reason: refusal))
         }
-        await AssertThrowsError(try await report(resultsPath, "--summary", resultsPath)) {
+        await AssertThrowsError(try report(resultsPath, "--summary", resultsPath)) {
             let refusal = "\(resultsPath) is the results file the report is made from: choose another summary path"
             XCTAssertEqual($0 as? MuterError, .literal(reason: refusal))
         }
     }
 
     // The run stopped before any mutant finished.
-    func test_aFileWithOnlyItsHeader_givesAnEmptyReport() async throws {
+    func test_aFileWithOnlyItsHeader_givesAnEmptyReport() throws {
         try write(ResultsHeader.make(), to: resultsPath)
 
-        try await report(resultsPath, "-f", "json")
+        try report(resultsPath, "-f", "json")
 
         XCTAssertEqual(printer.linesPassed.count, 1)
         XCTAssertEqual(

@@ -141,9 +141,7 @@ struct World: Sendable {
     var projectFiles: @Sendable (URL) -> ProjectFiles? = { ProjectFiles.read(in: $0) }
     /// How many processors can run at once, which a SwiftPM run's default worker count goes by.
     var processorCount = ProcessInfo.processInfo.activeProcessorCount
-}
 
-extension World {
     /// Rainbow's test of where it can colour: standard output is a tty, and TERM is set and isn't "dumb". So the
     /// progress bar redraws itself wherever colour could show. NO_COLOR turns off the colour, not the bar.
     static func isTerminal(isatty: Bool, term: String?) -> Bool {

@@ -7,7 +7,7 @@ extension ReportCommandTests {
     func test_failUnder_aScoreBelowIt_exits2_afterTheReport() async throws {
         try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
 
-        await AssertThrowsError(try await report(resultsPath, "--fail-under", "50")) { error in
+        await AssertThrowsError(try report(resultsPath, "--fail-under", "50")) { error in
             XCTAssertEqual(error as? ExitCode, .scoreBelowThreshold)
             XCTAssertEqual(MuterCommand.exitCode(for: error).rawValue, 2)
             XCTAssertEqual(MuterCommand.fullMessage(for: error), "")
@@ -20,10 +20,10 @@ extension ReportCommandTests {
     }
 
     // Exactly 33.33…%, which the threshold's one decimal shows as it is.
-    func test_failUnder_aScoreAtOrAboveIt_exits0() async throws {
+    func test_failUnder_aScoreAtOrAboveIt_exits0() throws {
         try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
 
-        try await report(resultsPath, "--fail-under", "33.3")
+        try report(resultsPath, "--fail-under", "33.3")
 
         XCTAssertEqual(standardError.linesPassed.last, "Mutation score 33.3% meets the required 33.3%.")
     }
@@ -34,7 +34,7 @@ extension ReportCommandTests {
             let end = ResultsEnd.make(reason: .aborted, detail: detail)
             try write(ResultsHeader.make(), alpha3, end, to: resultsPath)
 
-            await AssertThrowsError(try await report(resultsPath, "--fail-under", "100")) { error in
+            await AssertThrowsError(try report(resultsPath, "--fail-under", "100")) { error in
                 XCTAssertEqual(error as? ExitCode, status, detail)
             }
             XCTAssertEqual(
@@ -50,7 +50,7 @@ extension ReportCommandTests {
         for end in [ResultsEnd.make(reason: .interrupted, detail: "SIGINT"), nil] {
             try write([ResultsHeader.make(), zeta9] + [end].compactMap(\.self), to: resultsPath)
 
-            await AssertThrowsError(try await report(resultsPath, "--fail-under", "50")) { error in
+            await AssertThrowsError(try report(resultsPath, "--fail-under", "50")) { error in
                 XCTAssertEqual(error as? ExitCode, .scoreBelowThreshold)
             }
             XCTAssertEqual(
@@ -67,7 +67,7 @@ extension ReportCommandTests {
         for end in [ResultsEnd.make(reason: .interrupted, detail: "SIGTERM"), nil] {
             try write([ResultsHeader.make()] + [end].compactMap(\.self), to: resultsPath)
 
-            await AssertThrowsError(try await report(resultsPath, "--fail-under", "50")) { error in
+            await AssertThrowsError(try report(resultsPath, "--fail-under", "50")) { error in
                 XCTAssertEqual(error as? ExitCode, .scoreBelowThreshold)
             }
             XCTAssertEqual(
@@ -79,10 +79,10 @@ extension ReportCommandTests {
     }
 
     // With no mutant to test, nothing falls short: a change that touches no Swift code doesn't fail.
-    func test_failUnder_ofARunWithNothingToMutate_exits0() async throws {
+    func test_failUnder_ofARunWithNothingToMutate_exits0() throws {
         try write(ResultsHeader.make(mutantsDiscovered: 0, mutantsToTest: 0), to: resultsPath)
 
-        try await report(resultsPath, "--fail-under", "50")
+        try report(resultsPath, "--fail-under", "50")
 
         XCTAssertEqual(
             standardError.linesPassed.last,
@@ -97,12 +97,12 @@ extension ReportCommandTests {
         try write(shardHeader(1, mutantsDiscovered: 2), zeta9, alpha3, ResultsEnd.make(), to: first)
         try write(shardHeader(2, mutantsDiscovered: 1), zeta10, ResultsEnd.make(), to: second)
 
-        await AssertThrowsError(try await report(first, second, "--fail-under", "34")) { error in
+        await AssertThrowsError(try report(first, second, "--fail-under", "34")) { error in
             XCTAssertEqual(error as? ExitCode, .scoreBelowThreshold)
         }
         XCTAssertEqual(standardError.linesPassed.last, "Mutation score 33.3% is below the required 34%.")
 
-        try await report(first, second, "--fail-under", "33")
+        try report(first, second, "--fail-under", "33")
         XCTAssertEqual(standardError.linesPassed.last, "Mutation score 33.3% meets the required 33%.")
     }
 
@@ -110,7 +110,7 @@ extension ReportCommandTests {
     func test_failUnder_ofShardsThatLackResults_isntChecked_andExits4() async throws {
         try write(shardHeader(1, mutantsDiscovered: 2), zeta9, alpha3, ResultsEnd.make(), to: resultsPath)
 
-        await AssertThrowsError(try await report(resultsPath, "--fail-under", "10")) { error in
+        await AssertThrowsError(try report(resultsPath, "--fail-under", "10")) { error in
             XCTAssertEqual(error as? ExitCode, .abortedMidRun)
         }
         XCTAssertEqual(
@@ -124,7 +124,7 @@ extension ReportCommandTests {
         try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
         let summaryPath = "\(directory)/summary.json"
 
-        await AssertThrowsError(try await report(resultsPath, "--fail-under", "50", "--summary", summaryPath))
+        await AssertThrowsError(try report(resultsPath, "--fail-under", "50", "--summary", summaryPath))
 
         let saved = try String(contentsOfFile: summaryPath, encoding: .utf8)
         let gate = try XCTUnwrap(parsedJSON(saved)["gate"] as? [String: AnyHashable], saved)
@@ -137,13 +137,13 @@ extension ReportCommandTests {
 
     // `report` reads no configuration, so the run's own failUnder, which its header records, is never checked: only
     // `--fail-under` sets a threshold, so a plain `report` of a low score exits 0 whatever the run required.
-    func test_failUnder_theRunsOwn_isntChecked_onlyTheFlag() async throws {
+    func test_failUnder_theRunsOwn_isntChecked_onlyTheFlag() throws {
         let configuration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"], failUnder: 80)
         let header = ResultsHeader.make(configuration: configuration)
         try write(header, zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
         let summaryPath = "\(directory)/summary.json"
 
-        try await report(resultsPath, "--summary", summaryPath)
+        try report(resultsPath, "--summary", summaryPath)
 
         let saved = try String(contentsOfFile: summaryPath, encoding: .utf8)
         let summary = try parsedJSON(saved)
@@ -154,7 +154,7 @@ extension ReportCommandTests {
         XCTAssertFalse(standardError.linesPassed.contains { $0.contains("required") }, "\(standardError.linesPassed)")
 
         // The flag's threshold is checked in its place, below the run's own.
-        try await report(resultsPath, "--fail-under", "30", "--summary", summaryPath)
+        try report(resultsPath, "--fail-under", "30", "--summary", summaryPath)
 
         let savedSummary = try parsedJSON(String(contentsOfFile: summaryPath, encoding: .utf8))
         let gate = savedSummary["gate"] as? [String: AnyHashable]
@@ -162,11 +162,11 @@ extension ReportCommandTests {
         XCTAssertEqual(standardError.linesPassed.last, "Mutation score 33.3% meets the required 30%.")
     }
 
-    func test_failUnder_withoutIt_theSummaryHasNoGate() async throws {
+    func test_failUnder_withoutIt_theSummaryHasNoGate() throws {
         try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
         let summaryPath = "\(directory)/summary.json"
 
-        try await report(resultsPath, "--summary", summaryPath)
+        try report(resultsPath, "--summary", summaryPath)
 
         let saved = try String(contentsOfFile: summaryPath, encoding: .utf8)
         XCTAssertNil(try parsedJSON(saved)["gate"], saved)

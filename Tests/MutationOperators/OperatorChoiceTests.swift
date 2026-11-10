@@ -9,12 +9,12 @@ final class OperatorChoiceTests: XCTestCase {
         mutant: MutantReference? = nil
     ) -> Run.Options {
         Run.Options(
-            mutationOperatorsList: named ?? .allOperators,
-            operatorsAreNamed: named != nil,
-            skipOperators: skipping,
             skipCoverage: false,
             skipUpdateCheck: false,
             configurationURL: nil,
+            mutationOperatorsList: named ?? .allOperators,
+            operatorsAreNamed: named != nil,
+            skipOperators: skipping,
             testPlanURL: testPlan,
             mutant: mutant
         )
