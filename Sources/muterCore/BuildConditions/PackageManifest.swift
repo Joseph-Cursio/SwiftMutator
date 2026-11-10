@@ -26,7 +26,7 @@ struct PackageManifest: Decodable {
     let swiftLanguageVersions: [String]?
 
     struct ToolsVersion: Decodable {
-        // swiftlint:disable:next identifier_name
+        // swiftlint:disable:next identifier_name - the key `swift package dump-package` writes
         let _version: String
     }
 
@@ -92,7 +92,7 @@ struct PackageManifest: Decodable {
         }
     }
 
-    // swiftlint:disable:next identifier_name
+    // swiftlint:disable:next identifier_name - the key `swift package dump-package` writes
     struct Payload<Value: Decodable>: Decodable { let _0: Value }
 
     struct Condition: Decodable {
