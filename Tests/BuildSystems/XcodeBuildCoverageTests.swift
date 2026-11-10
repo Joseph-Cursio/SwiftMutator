@@ -453,12 +453,12 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             ),
             existing: [true, false, true, false]
         ) { _ in
-            self.result(output: String(decoding: self.export(files: [
+            self.result(output: String(lossyUTF8: self.export(files: [
                 self.exportedFile("/project/App/Model.swift", count: 10, covered: 5),
                 self.exportedFile("/project/Packages/Core/Sources/Core/Parser.swift", count: 6, covered: 3),
                 self.exportedFile("/project/AppTests/ModelChecks.swift", count: 8, covered: 8),
                 self.exportedFile("/DerivedData/SourcePackages/checkouts/Dep/Sources/Dep.swift", count: 3, covered: 0),
-            ]), as: UTF8.self))
+            ])))
         }
 
         let coverage = try await sut.run(with: muterConfiguration).get()
@@ -924,7 +924,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
             buildSettings: "",
             profiles: [derivedData + "/Build/ProfileData/MAC/Coverage.profdata\n"]
         ) { _ in
-            self.result(output: String(decoding: self.export(files: [
+            self.result(output: String(lossyUTF8: self.export(files: [
                 self.exportedFile("/project/Sources/Calc/Calc.swift", count: 4, covered: 2),
                 self.exportedFile("/project/Specs/CalcSpecs.swift", count: 10, covered: 10),
                 self.exportedFile(
@@ -938,7 +938,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
                     count: 5,
                     covered: 0
                 ),
-            ]), as: UTF8.self))
+            ])))
         }
 
         let coverage = try await sut.run(with: muterConfiguration).get()
@@ -1066,7 +1066,7 @@ final class XcodeBuildCoverageTests: MuterTestCase {
         fileManager.currentDirectoryPathToReturn = "/project"
         fileManager.fileExistsToReturn = existing
         process.stdoutToBeReturned = "/path/to/xcrun"
-        process.stdoutToBeReturned = String(decoding: report, as: UTF8.self)
+        process.stdoutToBeReturned = String(lossyUTF8: report)
         process.stdoutToBeReturned = buildSettings
         for found in profiles ?? [profile + "\n"] {
             process.stdoutToBeReturned = found

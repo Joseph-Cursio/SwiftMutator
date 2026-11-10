@@ -413,7 +413,7 @@ final class LogFolderPruningTests: MuterTestCase {
             try write(header(naming: named ?? path, mutant: mutant, shard: shard), to: path + "/results.jsonl")
         } else if stopped {
             let line = ResultsStopped.make(step: .baseline, reason: .failed, detail: "baselineTestFailed")
-            try write(String(decoding: try resultsFileData([line]), as: UTF8.self), to: path + "/results.jsonl")
+            try write(String(lossyUTF8: try resultsFileData([line])), to: path + "/results.jsonl")
         }
         if let note {
             try write(ResultsFile.note(pointingTo: note, session: 2), to: path + "/" + ResultsFile.noteFileName)
@@ -434,7 +434,7 @@ final class LogFolderPruningTests: MuterTestCase {
             )
         }
         let line = ResultsHeader.make(logDirectory: logDirectory, shard: selection, mutant: mutant)
-        return String(decoding: try resultsFileData([line]), as: UTF8.self)
+        return String(lossyUTF8: try resultsFileData([line]))
     }
 
     /// Dates `path`, and everything in it, `minutes` after `start`: their modification and creation dates.

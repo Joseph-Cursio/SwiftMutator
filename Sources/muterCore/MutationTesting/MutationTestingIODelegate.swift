@@ -381,7 +381,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         // Decoded leniently: the log is whatever the test command wrote, and a run stopped at the time
         // limit, or a test process that crashed mid-write, can end partway through a character. Strict
         // decoding threw on that, and the run was reported as a build error, outside the score.
-        var testExecutionLog = try String(decoding: Data(contentsOf: logFileUrl), as: UTF8.self)
+        var testExecutionLog = try String(lossyUTF8: Data(contentsOf: logFileUrl))
         // Read back, the file stays: whatever records the run moves it to its log's kept name, or removes it.
         let testResult = TestSuiteOutcome.from(
             testLog: testExecutionLog,

@@ -39,7 +39,7 @@ enum TestPlanCoding {
             mappings: plan.mappings.map { $0.relative(to: plan.mutatedProjectURL) },
             mutantsNotCovered: plan.mutantsNotCovered
         )
-        return try String(decoding: encoder.encode(file), as: UTF8.self) + "\n"
+        return try String(lossyUTF8: encoder.encode(file)) + "\n"
     }
 
     /// The plan at `path`, whose bytes are `data`, with its paths resolved: a format-1 or later copy's under

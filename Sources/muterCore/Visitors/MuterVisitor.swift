@@ -245,7 +245,7 @@ class MuterVisitor: SyntaxAnyVisitor {
         // characters: `a && \u{064B}x` became `a ||  \u{064B}x`.
         var codeBlockBytes = Array(utf8)
         codeBlockBytes.replaceSubrange(bytes, with: mutationDescription.utf8)
-        let codeBlockWithMutation = String(decoding: codeBlockBytes, as: UTF8.self)
+        let codeBlockWithMutation = String(lossyUTF8: codeBlockBytes)
 
         let parseTransition = IncrementalParseTransition(
             previousIncrementalParseResult: .init(tree: codeBlockTree, lookaheadRanges: .init()),

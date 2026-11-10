@@ -253,7 +253,7 @@ extension XCTestCase {
         let data = output.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         XCTAssertEqual(process.terminationStatus, 0)
-        return String(decoding: data, as: UTF8.self)
+        return String(lossyUTF8: data)
             .split(separator: "\0", omittingEmptySubsequences: false)
             .dropLast()
             .map(String.init)

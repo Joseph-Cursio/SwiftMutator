@@ -325,7 +325,7 @@ final class DirectTestRunTests: MuterTestCase {
         try process.run()
         let data = output.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-        return String(decoding: data, as: UTF8.self)
+        return String(lossyUTF8: data)
     }
 
     private func makeDirectTestRun(bundles: [String], testFiles: [String: [String]] = [:]) -> DirectTestRun {

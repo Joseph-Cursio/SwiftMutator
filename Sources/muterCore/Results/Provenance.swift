@@ -74,7 +74,7 @@ extension Provenance {
         // One more than gethostname may fill, so a name it cuts short still ends in a NUL.
         var buffer = [CChar](repeating: 0, count: capacity + 1)
         guard gethostname(&buffer, capacity) == 0 else { return "" }
-        return String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+        return String(lossyUTF8: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) })
     }
 }
 

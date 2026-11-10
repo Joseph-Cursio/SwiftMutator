@@ -44,7 +44,7 @@ final class ReportRequestTests: MuterTestCase {
     func test_isCodedAsItsText() throws {
         let request = ReportRequest(format: .json, path: "/out/a:b.json")
 
-        let written = String(decoding: try JSONEncoder().encode([request]), as: UTF8.self)
+        let written = String(lossyUTF8: try JSONEncoder().encode([request]))
         XCTAssertEqual(written, #"["json:\/out\/a:b.json"]"#)
         XCTAssertEqual(try JSONDecoder().decode([ReportRequest].self, from: JSONEncoder().encode([request])), [request])
         XCTAssertThrowsError(try JSONDecoder().decode([ReportRequest].self, from: Data(#"["xcode:r.txt"]"#.utf8)))

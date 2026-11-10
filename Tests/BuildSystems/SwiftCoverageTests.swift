@@ -974,7 +974,7 @@ final class SwiftCoverageTests: MuterTestCase {
     }
 
     private var exportJSON: String {
-        String(decoding: export(
+        String(lossyUTF8: export(
             files: [
                 file("/project/Sources/Core/Shared.swift", count: 6, covered: 4),
                 file("/project/Sources/Core/Untested.swift", count: 2, covered: 0),
@@ -983,7 +983,7 @@ final class SwiftCoverageTests: MuterTestCase {
             {"filenames": ["/project/Sources/Core/Shared.swift"],
              "regions": [[1, 30, 6, 2, 3, 0, 0, 0], [3, 20, 5, 2, 0, 0, 0, 0]]}
             """
-        ), as: UTF8.self)
+        ))
     }
 
     private func export(files: [String], functions: String = "") -> Data {

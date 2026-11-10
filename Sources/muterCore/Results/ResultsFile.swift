@@ -440,7 +440,7 @@ extension ResultsFile {
         while count < 0, errno == EINTR {
             count = read(descriptor, &buffer, buffer.count)
         }
-        guard count > 0, let holder = LockHolder(record: String(decoding: buffer[..<count], as: UTF8.self)[...])
+        guard count > 0, let holder = LockHolder(record: String(lossyUTF8: buffer[..<count])[...])
         else { return nil }
         guard holder.isOnThisHost else { return .unchecked(holder) }
         return holder.stillRuns ? .running(holder) : nil

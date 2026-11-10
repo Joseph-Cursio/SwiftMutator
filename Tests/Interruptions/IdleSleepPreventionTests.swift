@@ -64,7 +64,7 @@ final class IdleSleepPreventionTests: XCTestCase {
         let data = output.fileHandleForReading.readDataToEndOfFile()
         pmset.waitUntilExit()
         let pid = "pid \(ProcessInfo.processInfo.processIdentifier)("
-        return String(decoding: data, as: UTF8.self)
+        return String(lossyUTF8: data)
             .split(separator: "\n")
             .map(String.init)
             .filter { $0.contains(pid) && $0.contains(IdleSleepPrevention.reason) }

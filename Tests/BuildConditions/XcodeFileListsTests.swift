@@ -234,7 +234,7 @@ final class XcodeFileListsTests: MuterTestCase {
         return CommandResult(
             status: 0,
             endedBySignal: false,
-            output: json.map { String(decoding: $0, as: UTF8.self) } ?? "",
+            output: json.map { String(lossyUTF8: $0) } ?? "",
             errors: ""
         )
     }

@@ -287,6 +287,6 @@ private extension GitChangesTests {
         let data = output.fileHandleForReading.readDataToEndOfFile()
         git.waitUntilExit()
         XCTAssertEqual(git.terminationStatus, status, "git \(arguments.joined(separator: " "))")
-        return String(decoding: data, as: UTF8.self)
+        return String(lossyUTF8: data)
     }
 }

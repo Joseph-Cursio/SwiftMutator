@@ -73,8 +73,8 @@ extension Foundation.Process {
         return CommandResult(
             status: exit.status,
             endedBySignal: exit.reason == .uncaughtSignal,
-            output: String(decoding: outputData, as: UTF8.self),
-            errors: String(decoding: errorsData, as: UTF8.self),
+            output: String(lossyUTF8: outputData),
+            errors: String(lossyUTF8: errorsData),
             timedOut: timedOut
         )
     }

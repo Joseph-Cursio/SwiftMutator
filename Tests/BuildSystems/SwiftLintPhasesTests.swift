@@ -121,7 +121,7 @@ final class SwiftLintCommandsTests: XCTestCase {
         for start in SwiftLintCommands.find(in: bytes).running.reversed() {
             bytes.insert(contentsOf: SwiftLintCommands.prefix.utf8, at: start)
         }
-        return String(decoding: bytes, as: UTF8.self)
+        return String(lossyUTF8: bytes)
     }
 }
 
@@ -151,7 +151,7 @@ final class SwiftLintPhasesTests: XCTestCase {
         let (bytes, phases) = SwiftLintPhases.turningOff(in: Array(file.utf8), project: "App.xcodeproj")
 
         // Before the escaped quote that starts the command, as the shell reads it: `: "${PODS_ROOT}/…/swiftlint"`.
-        XCTAssertEqual(String(decoding: bytes, as: UTF8.self), expected)
+        XCTAssertEqual(String(lossyUTF8: bytes), expected)
         XCTAssertEqual(phases, SwiftLintPhases(turnedOff: [
             .init(project: "App.xcodeproj", name: "Run SwiftLint", targets: ["App", "AppTests"]),
             .init(project: "App.xcodeproj", name: "Run Script", targets: ["App"]),
@@ -190,7 +190,7 @@ final class SwiftLintPhasesTests: XCTestCase {
         let (bytes, phases) = SwiftLintPhases.turningOff(in: Array(file.utf8), project: "App.xcodeproj")
 
         XCTAssertEqual(
-            String(decoding: bytes, as: UTF8.self),
+            String(lossyUTF8: bytes),
             project(phases: [("AAA1", "", "/bin/sh", #"": swiftlint autocorrect\n\"$SWIFTLINT\" lint\n""#)])
         )
         XCTAssertEqual(phases, SwiftLintPhases(turnedOff: [
@@ -205,7 +205,7 @@ final class SwiftLintPhasesTests: XCTestCase {
         let (bytes, phases) = SwiftLintPhases.turningOff(in: Array(file.utf8), project: "App.xcodeproj")
 
         XCTAssertEqual(
-            String(decoding: bytes, as: UTF8.self),
+            String(lossyUTF8: bytes),
             project(phases: [("AAA1", "", "/bin/sh", "\": swiftlint\"")])
         )
         XCTAssertEqual(phases.turnedOff.count, 1)
@@ -219,7 +219,7 @@ final class SwiftLintPhasesTests: XCTestCase {
         let (bytes, _) = SwiftLintPhases.turningOff(in: Array(file.utf8), project: "App.xcodeproj")
 
         XCTAssertEqual(
-            String(decoding: bytes, as: UTF8.self),
+            String(lossyUTF8: bytes),
             project(phases: [("AAA1", "", "/bin/sh", #""echo \"\U2014 lint —\"\n\t: swiftlint\n""#)])
         )
     }

@@ -114,7 +114,7 @@ final class ProvenanceTests: XCTestCase {
         ])
         // Unset differs from empty: DEVELOPER_DIR is absent, while TOOLCHAINS is there and empty.
         XCTAssertEqual(
-            String(decoding: try ResultsCoding.encoder.encode(provenance.toolchain), as: UTF8.self),
+            String(lossyUTF8: try ResultsCoding.encoder.encode(provenance.toolchain)),
             #"{"environment":{"SDKROOT":"/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk","TOOLCHAINS":""},"#
                 + #""testCommandVersion":"Apple Swift version 6.4"}"#
         )

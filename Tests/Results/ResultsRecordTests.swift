@@ -25,7 +25,7 @@ final class ResultsRecordTests: XCTestCase {
             )
         }
         XCTAssertNil(header().mutantsDropped)
-        XCTAssertFalse(String(decoding: try JSONEncoder().encode(header()), as: UTF8.self).contains("mutantsDropped"))
+        XCTAssertFalse(String(lossyUTF8: try JSONEncoder().encode(header())).contains("mutantsDropped"))
 
         state.droppedMutants = [
             DroppedMutant(
@@ -40,7 +40,7 @@ final class ResultsRecordTests: XCTestCase {
 
         XCTAssertEqual(header().mutantsDropped, 1)
         XCTAssertTrue(
-            String(decoding: try JSONEncoder().encode(header()), as: UTF8.self).contains(#""mutantsDropped":1"#)
+            String(lossyUTF8: try JSONEncoder().encode(header())).contains(#""mutantsDropped":1"#)
         )
     }
 
@@ -1040,7 +1040,7 @@ final class MutantResultActivationTests: XCTestCase {
     func test_aLineWithoutTheKey_showsNothing() throws {
         let encoded = try ResultsCoding.encoder.encode(MutantResult.make(session: 1, outcome: .passed))
 
-        let line = String(decoding: encoded, as: UTF8.self)
+        let line = String(lossyUTF8: encoded)
         XCTAssertFalse(line.contains("activated"), line)
         XCTAssertNil(try ResultsCoding.decoder.decode(MutantResult.self, from: encoded).activated)
     }

@@ -66,7 +66,7 @@ final class LoadMuterTestPlanTests: MuterTestCase {
     func test_aRelativePlan_resolvesToTheAbsolutePathsItWasMadeWith() async throws {
         let plan = MuterTestPlan.make(mutatedProjectPath: "/path/to/project_mutated", mappings: [try mapping()])
         let written = plan.toData(under: project)
-        XCTAssertTrue(String(decoding: written, as: UTF8.self).contains("\"mutatedProject\" : \"../project_mutated\""))
+        XCTAssertTrue(String(lossyUTF8: written).contains("\"mutatedProject\" : \"../project_mutated\""))
         state.runOptions = .make(testPlanURL: URL(fileURLWithPath: testPlanPath))
         state.projectDirectoryURL = project
         fileManager.fileContentsToReturn = written

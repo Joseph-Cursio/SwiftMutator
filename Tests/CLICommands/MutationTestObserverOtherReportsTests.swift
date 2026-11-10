@@ -78,7 +78,7 @@ final class MutationTestObserverOtherReportsTests: MuterTestCase {
         XCTAssertTrue(printer.linesPassed.contains("⚠️ Could not save the report to /out/summary.md"))
         let summary = try JSONDecoder().decode(RunSummary.self, from: Data((writeFile.contentPassed ?? "").utf8))
         XCTAssertNil(summary.reports)
-        XCTAssertFalse(String(decoding: summary.json, as: UTF8.self).contains("\"reports\""))
+        XCTAssertFalse(String(lossyUTF8: summary.json).contains("\"reports\""))
     }
 
     // Two paths the checks before the run take for two files, but that are one, as two that differ only in case are

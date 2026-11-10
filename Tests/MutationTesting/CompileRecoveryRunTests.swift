@@ -78,7 +78,7 @@ final class CompileRecoveryRunTests: MuterTestCase {
 
         // Its log says why, the failed build's log stays, and the baseline's is the passing one.
         let log = try XCTUnwrap(fileManager.createdFiles["/logs/" + MutationTestLog.keptFileName(for: line.key)])
-        XCTAssertTrue(String(decoding: log, as: UTF8.self).contains("no such operator"))
+        XCTAssertTrue(String(lossyUTF8: log).contains("no such operator"))
         XCTAssertEqual(
             fileManager.createdFiles["/logs/failed build 1.log"],
             Data(try errorLog(for: bad).utf8)

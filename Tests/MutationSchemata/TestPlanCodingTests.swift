@@ -43,10 +43,7 @@ final class TestPlanCodingTests: XCTestCase {
             "projectCoverage", "sources", "swiftMutatorVersion",
         ]
         assertInOrder(text, keys.map { "\"\($0)\"" })
-        let mutant = try String(
-            decoding: TestPlanCoding.encoder.encode(mutant(in: "\(copy)/Sources/Sum.swift", line: 1)),
-            as: UTF8.self
-        )
+        let mutant = try String(lossyUTF8: TestPlanCoding.encoder.encode(mutant(in: "\(copy)/Sources/Sum.swift", line: 1)))
         assertInOrder(mutant, ["\"filePath\"", "\"id\"", "\"mutationOperatorId\"", "\"position\"", "\"snapshot\""])
     }
 

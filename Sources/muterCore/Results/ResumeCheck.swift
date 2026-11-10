@@ -440,14 +440,14 @@ enum ResumeCheck {
         }
         return object.compactMapValues { value in
             (try? JSONSerialization.data(withJSONObject: value, options: jsonOptions))
-                .map { String(decoding: $0, as: UTF8.self) }
+                .map { String(lossyUTF8: $0) }
         }
     }
 
     private static func json<Value: Encodable>(_ value: Value) -> String? {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        return (try? encoder.encode(value)).map { String(decoding: $0, as: UTF8.self) }
+        return (try? encoder.encode(value)).map { String(lossyUTF8: $0) }
     }
 
     private static let jsonOptions: JSONSerialization.WritingOptions = [

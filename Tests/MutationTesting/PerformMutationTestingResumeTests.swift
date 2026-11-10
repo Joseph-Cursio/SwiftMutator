@@ -225,7 +225,7 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
 
         _ = try await sut.run(with: state)
 
-        let note = try XCTUnwrap(fileManager.createdFiles[notePath].map { String(decoding: $0, as: UTF8.self) })
+        let note = try XCTUnwrap(fileManager.createdFiles[notePath].map { String(lossyUTF8: $0) })
         XCTAssertTrue(note.hasPrefix(resultsPath + "\n\n"), note)
         XCTAssertEqual(note, ResultsFile.note(pointingTo: resultsPath, session: 2))
         XCTAssertTrue(note.contains("session 2 of a resumed run"), note)

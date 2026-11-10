@@ -134,7 +134,7 @@ final class TestProcessWatcher: @unchecked Sendable { // `descriptor` is behind 
             guard count > 0 else { break }
             pending += buffer[..<count]
             while let end = pending.firstIndex(of: UInt8(ascii: "\n")) {
-                apply(String(decoding: pending[..<end], as: UTF8.self), to: &running)
+                apply(String(lossyUTF8: pending[..<end]), to: &running)
                 pending.removeSubrange(...end)
             }
         }

@@ -122,6 +122,6 @@ final class ThreeBundleLogTests: XCTestCase {
             XCTFail("Unable to load the log file \(path)")
             return ""
         }
-        return String(decoding: data, as: UTF8.self)
+        return String(lossyUTF8: data)
     }
 }

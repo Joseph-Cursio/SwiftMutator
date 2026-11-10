@@ -26,7 +26,7 @@ struct CheckMutantSwitches: MutationStep {
                 gaps.append(Gap(mapping: mapping, missing: mapping.mutationSchemata, unreadable: true))
                 continue
             }
-            let missing = Self.mutantsWithoutASwitch(in: String(decoding: data, as: UTF8.self), of: mapping)
+            let missing = Self.mutantsWithoutASwitch(in: String(lossyUTF8: data), of: mapping)
             if !missing.isEmpty {
                 gaps.append(Gap(mapping: mapping, missing: missing, unreadable: false))
             }

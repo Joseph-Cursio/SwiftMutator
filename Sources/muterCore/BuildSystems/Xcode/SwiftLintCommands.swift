@@ -355,7 +355,7 @@ extension SwiftLintCommands {
                 }
             }
             index = min(index, script.count)
-            return String(decoding: word, as: UTF8.self)
+            return String(lossyUTF8: word)
         }
 
         /// The text between double quotes at `index`, unescaped, with any expansion in it as written.

@@ -78,10 +78,10 @@ enum MutantDiff {
         let changed = Array(text[..<found.offset]) + (isTouching ? [UInt8(ascii: " ")] : [])
             + Array(replacement(snapshot, mutationOperatorId).utf8)
             + (isTouchingAfter ? [UInt8(ascii: " ")] : []) + Array(rest)
-        let after = String(decoding: changed, as: UTF8.self)
+        let after = String(lossyUTF8: changed)
         return SourceChange(
             line: found.line,
-            before: String(decoding: text, as: UTF8.self),
+            before: String(lossyUTF8: text),
             after: after.trimmingCharacters(in: .whitespaces).isEmpty ? nil : after
         )
     }

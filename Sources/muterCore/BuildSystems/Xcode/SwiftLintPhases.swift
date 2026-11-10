@@ -75,7 +75,7 @@ struct SwiftLintPhases: Equatable {
     /// done. Every other byte is left as it was; a script Xcode wrote without quotes is quoted once it is changed.
     static func turningOff(in bytes: [UInt8], project: String) -> (bytes: [UInt8], phases: Self) {
         guard let file = XcodeProjectFile(bytes) else {
-            let named = String(decoding: bytes, as: UTF8.self).lowercased().contains("swiftlint")
+            let named = String(lossyUTF8: bytes).lowercased().contains("swiftlint")
             return (bytes, Self(unreadProjects: named ? [project] : []))
         }
         let targets = targetsOfPhases(in: file)

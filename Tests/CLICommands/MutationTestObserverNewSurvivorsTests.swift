@@ -66,7 +66,7 @@ final class MutationTestObserverNewSurvivorsTests: MuterTestCase {
 
         runEvents.send(.mutationTestingFinished(outcome()))
 
-        let report = String(decoding: try XCTUnwrap(fileManager.createdFiles["/out/report.md"]), as: UTF8.self)
+        let report = String(lossyUTF8: try XCTUnwrap(fileManager.createdFiles["/out/report.md"]))
         XCTAssertTrue(report.contains("### Checks"), report)
         XCTAssertTrue(report.contains("❌ Mutation score 33.3% is below the required 80%."), report)
         XCTAssertTrue(
@@ -106,7 +106,7 @@ final class MutationTestObserverNewSurvivorsTests: MuterTestCase {
             "❌ " + scoreDrop,
             "✅ No doubtful kills.",
         ])
-        let report = String(decoding: try XCTUnwrap(fileManager.createdFiles["/out/report.md"]), as: UTF8.self)
+        let report = String(lossyUTF8: try XCTUnwrap(fileManager.createdFiles["/out/report.md"]))
         XCTAssertTrue(report.contains("❌ " + MarkdownText.plain(scoreDrop)), report)
         XCTAssertTrue(report.contains("✅ No doubtful kills."), report)
         XCTAssertEqual(sut.checks.scoreDrop?.passed, false)
@@ -179,7 +179,7 @@ final class MutationTestObserverNewSurvivorsTests: MuterTestCase {
 
         let written = fileManager.paths.filter { ["/out/report.md", "/out/muter.baseline.yml"].contains($0) }
         XCTAssertEqual(written, ["/out/report.md", "/out/muter.baseline.yml"])
-        let text = String(decoding: try XCTUnwrap(fileManager.createdFiles["/out/muter.baseline.yml"]), as: UTF8.self)
+        let text = String(lossyUTF8: try XCTUnwrap(fileManager.createdFiles["/out/muter.baseline.yml"]))
         XCTAssertTrue(text.hasPrefix(BaselineFile.introduction), text)
         XCTAssertTrue(text.contains("- mutant: Sources/X.swift:1:17 RelationalBoundary"), text)
         XCTAssertTrue(text.contains("- mutant: Sources/X.swift:5:17 RelationalBoundary"), text)

@@ -53,8 +53,12 @@ final class Suspensions: @unchecked Sendable { // `total` and `since` are behind
     }
 
     /// Runs `work` on `queue` once `seconds` have passed that SwiftMutator wasn't suspended in.
-    // swiftlint:disable:next unneeded_escaping - `work` escapes through check(), which asyncAfter keeps
-    func after(_ seconds: TimeInterval, on queue: DispatchQueue, _ work: @escaping @Sendable () -> Void) {
+    func after(
+        _ seconds: TimeInterval,
+        on queue: DispatchQueue,
+        // swiftlint:disable:next unneeded_escaping - `work` escapes through check(), which asyncAfter keeps
+        _ work: @escaping @Sendable () -> Void
+    ) {
         let start = activeNanoseconds
         let limit = Self.nanoseconds(seconds)
         @Sendable func check() {

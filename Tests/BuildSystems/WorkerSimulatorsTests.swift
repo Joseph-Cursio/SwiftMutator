@@ -560,7 +560,7 @@ private final class SimctlStandIn: MuterProcess, @unchecked Sendable { // every 
             return CommandResult(
                 status: 0,
                 endedBySignal: false,
-                output: String(decoding: list, as: UTF8.self),
+                output: String(lossyUTF8: list),
                 errors: ""
             )
         }

@@ -298,7 +298,7 @@ final class MutatedProjectLock: Equatable, @unchecked Sendable { // every `var` 
             guard count > 0 else { break }
             bytes += buffer[..<count]
         }
-        return String(decoding: bytes, as: UTF8.self)
+        return String(lossyUTF8: bytes)
     }
 
     /// When the file at `descriptor` was last written, in seconds since 1970.

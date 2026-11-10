@@ -418,7 +418,7 @@ struct ResultsReport {
                 reports: reports.map(\.path),
                 checks: checks
             )
-            guard ReportWriter.save(String(decoding: summary.json, as: UTF8.self), to: summaryPath, using: fileManager)
+            guard ReportWriter.save(String(lossyUTF8: summary.json), to: summaryPath, using: fileManager)
             else {
                 throw MuterError.literal(reason: "SwiftMutator could not save the summary to \(summaryPath)")
             }

@@ -507,13 +507,13 @@ final class ConfigurationParsingTests: MuterTestCase {
         for (line, written) in lines {
             let configuration = try failing(line)
             let yaml = try configuration.asData
-            XCTAssertTrue(String(decoding: yaml, as: UTF8.self).contains("\nfailUnder: \(written)\n"), line)
+            XCTAssertTrue(String(lossyUTF8: yaml).contains("\nfailUnder: \(written)\n"), line)
             XCTAssertEqual(try MuterConfiguration(from: yaml), configuration, line)
             let json = try JSONEncoder().encode(configuration)
-            XCTAssertTrue(String(decoding: json, as: UTF8.self).contains("\"failUnder\":\(written)"), line)
+            XCTAssertTrue(String(lossyUTF8: json).contains("\"failUnder\":\(written)"), line)
             XCTAssertEqual(try JSONDecoder().decode(MuterConfiguration.self, from: json), configuration, line)
         }
-        XCTAssertFalse(try String(decoding: failing("mutationTestWorkers: 2").asData, as: UTF8.self).contains("fail"))
+        XCTAssertFalse(try String(lossyUTF8: failing("mutationTestWorkers: 2").asData).contains("fail"))
     }
 
     // A typo is a configuration error rather than "unset", and one out of range says the range.
@@ -574,8 +574,8 @@ final class ConfigurationParsingTests: MuterTestCase {
         XCTAssertTrue(try XCTUnwrap(always.oneWorkerSimulator))
         XCTAssertFalse(try XCTUnwrap(never.oneWorkerSimulator))
         XCTAssertNil(automatic.oneWorkerSimulator)
-        XCTAssertTrue(try String(decoding: always.asData, as: UTF8.self).contains("oneWorkerSimulator: true"))
-        XCTAssertFalse(try String(decoding: automatic.asData, as: UTF8.self).contains("oneWorkerSimulator"))
+        XCTAssertTrue(try String(lossyUTF8: always.asData).contains("oneWorkerSimulator: true"))
+        XCTAssertFalse(try String(lossyUTF8: automatic.asData).contains("oneWorkerSimulator"))
     }
 
     func test_oneWorkerSimulatorThatIsNotABoolean_failsToParse() {
@@ -894,7 +894,7 @@ final class ConfigurationParsingTests: MuterTestCase {
     func test_asData_writesStopAtFirstFailureOnlyWhenSet() throws {
         // Left out while unset, so `init` and the JSON-to-YAML migration write the same files as before.
         let unset = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
-        XCTAssertFalse(try String(decoding: unset.asData, as: UTF8.self).contains("stopAtFirstFailure"))
+        XCTAssertFalse(try String(lossyUTF8: unset.asData).contains("stopAtFirstFailure"))
 
         for value in [true, false] {
             let configuration = MuterConfiguration(
@@ -904,7 +904,7 @@ final class ConfigurationParsingTests: MuterTestCase {
             )
 
             XCTAssertTrue(
-                try String(decoding: configuration.asData, as: UTF8.self).contains("stopAtFirstFailure: \(value)")
+                try String(lossyUTF8: configuration.asData).contains("stopAtFirstFailure: \(value)")
             )
             XCTAssertEqual(try MuterConfiguration(from: configuration.asData), configuration)
         }

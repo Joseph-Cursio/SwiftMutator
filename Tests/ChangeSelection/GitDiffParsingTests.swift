@@ -125,17 +125,14 @@ final class ChangedFileTests: XCTestCase {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .sortedKeys
 
-        let json = try String(decoding: encoder.encode(file), as: UTF8.self)
+        let json = try String(lossyUTF8: encoder.encode(file))
 
         XCTAssertEqual(json, #"{"deletionsAfter":[20],"lines":[[10,12],[30,30]],"path":"A.swift","sha256":""}"#)
         XCTAssertEqual(try JSONDecoder().decode(ChangedFile.self, from: Data(json.utf8)), file)
     }
 
     func test_aWholeFile_leavesOutItsLines() throws {
-        let json = try String(
-            decoding: JSONEncoder().encode(ChangedFile(path: "New.swift", sha256: "ab")),
-            as: UTF8.self
-        )
+        let json = try String(lossyUTF8: JSONEncoder().encode(ChangedFile(path: "New.swift", sha256: "ab")))
 
         XCTAssertFalse(json.contains("lines"))
         XCTAssertFalse(json.contains("deletionsAfter"))

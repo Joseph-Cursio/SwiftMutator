@@ -143,7 +143,7 @@ private final class SlowFile: ResultsRecording, @unchecked Sendable { // `writte
 private func json(_ line: some Encodable) -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = .sortedKeys
-    return String(decoding: (try? encoder.encode(line)) ?? Data(), as: UTF8.self)
+    return String(lossyUTF8: (try? encoder.encode(line)) ?? Data())
 }
 
 private extension Thread {

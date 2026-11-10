@@ -667,7 +667,7 @@ private extension RecordedOutcomeTests {
 
     func rebuild(_ records: any Encodable...) throws -> MutationTestOutcome {
         let encoder = ResultsCoding.encoder
-        return try rebuild(from: records.map { String(decoding: try encoder.encode($0), as: UTF8.self) })
+        return try rebuild(from: records.map { String(lossyUTF8: try encoder.encode($0)) })
     }
 
     /// Each fixture job's schema and key, in job order.

@@ -344,7 +344,7 @@ extension MutationTestObserver {
     private func writeSummary(_ summary: RunSummary) {
         guard let path = RunSummary.path(besideResultsFile: resultsFilePath, loggingDirectory: loggingDirectory)
         else { return }
-        try? writeFile(String(decoding: summary.json, as: UTF8.self), path)
+        try? writeFile(String(lossyUTF8: summary.json), path)
     }
 
     /// Makes the run's checks first, so the reports can show them (`MutationTestOutcome.checks`): with a `failUnder`,

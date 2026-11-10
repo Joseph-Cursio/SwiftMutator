@@ -208,7 +208,7 @@ struct BaselineScope: Equatable {
     /// `values` as JSON on one line: `["RelationalBoundary","SwapTernary"]`.
     private static func json(_ values: [String]) -> String {
         (try? JSONSerialization.data(withJSONObject: values, options: [.withoutEscapingSlashes]))
-            .map { String(decoding: $0, as: UTF8.self) } ?? "\(values)"
+            .map { String(lossyUTF8: $0) } ?? "\(values)"
     }
 }
 

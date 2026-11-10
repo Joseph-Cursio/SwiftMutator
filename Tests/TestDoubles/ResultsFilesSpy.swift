@@ -62,7 +62,7 @@ final class ResultsFilesSpy: ResultsFileOpening, @unchecked Sendable {
                 if let failFromLine, lines.count + 1 >= failFromLine {
                     throw ResultsFileError.cannotWrite(path: path, errno: ENOSPC)
                 }
-                lines.append(String(decoding: try encoder.encode(line), as: UTF8.self))
+                lines.append(String(lossyUTF8: try encoder.encode(line)))
                 return true
             } catch {
                 writeError = error

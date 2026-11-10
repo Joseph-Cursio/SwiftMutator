@@ -195,7 +195,7 @@ private extension XcodeProjectFile {
             let range = start ..< index
             index += 1
             let decoded = XcodeProjectFile.decodedBytes(of: range, in: bytes).map(\.byte)
-            return Text(value: String(decoding: decoded, as: UTF8.self), range: range, isQuoted: true)
+            return Text(value: String(lossyUTF8: decoded), range: range, isQuoted: true)
         }
 
         private mutating func unquotedText() -> Text? {
@@ -205,7 +205,7 @@ private extension XcodeProjectFile {
             }
             guard index > start else { return nil }
             let range = start ..< index
-            return Text(value: String(decoding: bytes[range], as: UTF8.self), range: range, isQuoted: false)
+            return Text(value: String(lossyUTF8: bytes[range]), range: range, isQuoted: false)
         }
 
         private static func endsUnquotedText(_ byte: UInt8) -> Bool {

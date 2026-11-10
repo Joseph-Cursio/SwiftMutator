@@ -129,7 +129,7 @@ struct SourceLines {
         guard lines.indices.contains(number - 1), column >= 1 else { return nil }
         let lineBytes = Array(lines[number - 1].utf8)
         let offset = column - 1
-        let before = String(decoding: lineBytes.prefix(offset), as: UTF8.self)
+        let before = String(lossyUTF8: lineBytes.prefix(offset))
         return before.utf16.count + max(0, offset - lineBytes.count) + 1
     }
 
@@ -218,7 +218,7 @@ struct SourceLines {
             beforeBytes.replaceSubrange(index..<index + width, with: width > 0 ? [UInt8(ascii: " ")] : [])
             index += 1
         }
-        return String(decoding: beforeBytes, as: UTF8.self).trimmed
+        return String(lossyUTF8: beforeBytes).trimmed
     }
 
     /// Whether an operator's `before` keeps the comments beside its token, and places its mutant before them.
@@ -299,7 +299,7 @@ struct SourceLines {
         let lead = bytes[start]
         let width = lead >= 0xF0 ? 4 : lead >= 0xE0 ? 3 : lead >= 0xC0 ? 2 : 1
         guard start + width <= bytes.count, forward || start + width - 1 == index else { return 0 }
-        let scalars = String(decoding: bytes[start..<start + width], as: UTF8.self).unicodeScalars
+        let scalars = String(lossyUTF8: bytes[start..<start + width]).unicodeScalars
         guard scalars.count == 1, let scalar = scalars.first, CharacterSet.whitespacesAndNewlines.contains(scalar)
         else { return 0 }
         return width
@@ -347,7 +347,7 @@ struct OriginalFiles {
 
     /// The file at `path` as text, with a byte that isn't UTF-8 as U+FFFD; nil when it couldn't be read.
     func text(at path: String) -> String? {
-        contents[path].map { String(decoding: $0, as: UTF8.self) }
+        contents[path].map { String(lossyUTF8: $0) }
     }
 
     /// Reads a file from those already read, so `ReportSources` doesn't read it again.

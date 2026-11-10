@@ -124,7 +124,7 @@ enum XcodeBuildConditions {
         var aReportedListIsAllThere = false
         for list in fileLists(under: objectRoot, fileManager: fileManager) {
             guard let contents = fileManager.contents(atPath: list),
-                  let files = filePaths(inFileList: String(decoding: contents, as: UTF8.self))
+                  let files = filePaths(inFileList: String(lossyUTF8: contents))
             else {
                 return [:]
             }
@@ -230,7 +230,7 @@ enum XcodeBuildConditions {
                 else {
                     return true
                 }
-                let text = String(decoding: contents, as: UTF8.self)
+                let text = String(lossyUTF8: contents)
                 if tellTales.contains(where: text.contains) {
                     return true
                 }
@@ -515,7 +515,7 @@ enum XcodeBuildConditions {
                 || (name.hasPrefix("Package") && name.hasSuffix(".swift"))
                 || name == "contents.xcworkspacedata" || name.hasSuffix(".xcsettings")
             guard isABuildFile, let contents = fileManager.contents(atPath: root + "/" + path) else { return nil }
-            return BuildFile(name: name, text: String(decoding: contents, as: UTF8.self), path: root + "/" + path)
+            return BuildFile(name: name, text: String(lossyUTF8: contents), path: root + "/" + path)
         }
     }
 
