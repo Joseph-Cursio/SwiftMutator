@@ -88,8 +88,8 @@ private func claimFolder(named name: String, in folder: String, fileManager: Fil
 @discardableResult
 func removeFolderIfEmpty(
     atPath path: String,
-    ignoring ignored: Set<String> = [],
-    fileManager: FileSystemManager
+    fileManager: FileSystemManager,
+    ignoring ignored: Set<String> = []
 ) -> Bool {
     guard let contents = try? fileManager.contentsOfDirectory(atPath: path),
           contents.allSatisfy(ignored.contains)

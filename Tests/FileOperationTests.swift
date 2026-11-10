@@ -159,8 +159,8 @@ final class FileOperationTests: XCTestCase {
         try Data("kept".utf8).write(to: URL(fileURLWithPath: kept + "/baseline run.log"))
 
         let disk = FileManager.default
-        XCTAssertTrue(removeFolderIfEmpty(atPath: marked, ignoring: [RunMarker.fileName], fileManager: disk))
-        XCTAssertFalse(removeFolderIfEmpty(atPath: kept, ignoring: [RunMarker.fileName], fileManager: disk))
+        XCTAssertTrue(removeFolderIfEmpty(atPath: marked, fileManager: disk, ignoring: [RunMarker.fileName]))
+        XCTAssertFalse(removeFolderIfEmpty(atPath: kept, fileManager: disk, ignoring: [RunMarker.fileName]))
 
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root), ["kept"])
         XCTAssertEqual(

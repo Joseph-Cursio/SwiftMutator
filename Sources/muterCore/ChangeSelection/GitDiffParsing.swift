@@ -2,20 +2,21 @@ import Foundation
 
 /// Reads what `git diff` prints, as `GitChanges` asks for it.
 enum GitDiffParsing {
+    /// How a file in `git diff --name-status -z` changed.
+    enum EntryStatus: Equatable {
+        case added
+        case modified
+        case renamed(from: String)
+        case deleted
+        /// A type change, such as a file that became a symbolic link, or a conflict: no line of it is known to be the
+        /// merge base's.
+        case replaced
+    }
+
     /// A file in `git diff --name-status -z`: how it changed, and its path, with the path it had at the merge base if
     /// it was renamed.
     struct Entry: Equatable {
-        enum Status: Equatable {
-            case added
-            case modified
-            case renamed(from: String)
-            case deleted
-            /// A type change, such as a file that became a symbolic link, or a conflict: no line of it is known to be
-            /// the merge base's.
-            case replaced
-        }
-
-        let status: Status
+        let status: EntryStatus
         let path: String
     }
 
@@ -29,7 +30,7 @@ enum GitDiffParsing {
             switch status.first {
             case "A", "M", "D", "T", "U":
                 guard let path = fields.popFirst() else { return entries }
-                let kinds: [Character: Entry.Status] = [
+                let kinds: [Character: EntryStatus] = [
                     "A": .added, "M": .modified, "D": .deleted, "T": .replaced, "U": .replaced,
                 ]
                 entries.append(Entry(status: status.first.flatMap { kinds[$0] } ?? .replaced, path: path))

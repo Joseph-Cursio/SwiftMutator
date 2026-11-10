@@ -203,9 +203,9 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
         MuterConfiguration.XcodeWorker(
             testRunFile: "muter.xctestrun",
             derivedData: "/project_mutated.DerivedData.noindex",
+            testDiagnosticsOff: true,
             destination: "platform=iOS Simulator,id=SIM-0",
-            parallelTestingOff: true,
-            testDiagnosticsOff: true
+            parallelTestingOff: true
         )
     }
 

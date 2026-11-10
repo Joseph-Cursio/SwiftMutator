@@ -170,8 +170,8 @@ final class DiscoverUncoveredMutantsTests: MuterTestCase {
         let selection = ChangeSelection.make(
             changedLines: true,
             files: [
-                ChangedFile(path: "Sign.swift", lines: [LineRange(first: 3, last: 3)], sha256: ""),
-                ChangedFile(path: "Check.swift", lines: [LineRange(first: 4, last: 4)], sha256: ""),
+                ChangedFile(path: "Sign.swift", sha256: "", lines: [LineRange(first: 3, last: 3)]),
+                ChangedFile(path: "Check.swift", sha256: "", lines: [LineRange(first: 4, last: 4)]),
             ]
         )
         state.apply([.changesSelected(selection)])

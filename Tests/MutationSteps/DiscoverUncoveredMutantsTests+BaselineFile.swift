@@ -13,7 +13,7 @@ extension DiscoverUncoveredMutantsTests {
         state.projectCoverage = coverageMissingIsNegative(reportedAt: path)
         let selection = ChangeSelection.make(
             changedLines: true,
-            files: [ChangedFile(path: "Sign.swift", lines: [LineRange(first: 1, last: 1)], sha256: "")]
+            files: [ChangedFile(path: "Sign.swift", sha256: "", lines: [LineRange(first: 1, last: 1)])]
         )
         state.apply([.changesSelected(selection)])
 
@@ -97,7 +97,7 @@ extension DiscoverUncoveredMutantsTests {
         state.muterConfiguration = MuterConfiguration(executable: "", arguments: [])
         state.apply([.candidatePathsListed(["Check.swift"])])
         state.projectCoverage = Coverage.make(filesWithoutCoverage: [left])
-        let selection = ChangeSelection.make(files: [ChangedFile(path: "Check.swift", lines: [], sha256: "")])
+        let selection = ChangeSelection.make(files: [ChangedFile(path: "Check.swift", sha256: "", lines: [])])
         state.apply([.changesSelected(selection)])
 
         let nothing = await error { try await DiscoverSourceFiles().run(with: state) }
@@ -148,7 +148,7 @@ extension DiscoverUncoveredMutantsTests {
         let left = try write("struct Empty {}\n", to: "Empty.swift")
         state.sourceFileCandidates = []
         state.uncoveredSourceFiles = [left]
-        let selection = ChangeSelection.make(files: [ChangedFile(path: "Empty.swift", lines: [], sha256: "")])
+        let selection = ChangeSelection.make(files: [ChangedFile(path: "Empty.swift", sha256: "", lines: [])])
         state.apply([.changesSelected(selection)])
         state.runOptions = .make(baseline: "muter.baseline.yml")
         state.apply([.baselineFileLoaded(baselineFile(recording: []))])

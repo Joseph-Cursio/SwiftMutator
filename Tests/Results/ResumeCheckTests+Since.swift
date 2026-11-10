@@ -4,7 +4,7 @@ import XCTest
 extension ResumeCheckTests {
     static let selected = ChangeSelection.make(
         changedLines: true,
-        files: [ChangedFile(path: "Sources/Sum.swift", lines: [LineRange(first: 3, last: 4)], sha256: "ab12")]
+        files: [ChangedFile(path: "Sources/Sum.swift", sha256: "ab12", lines: [LineRange(first: 3, last: 4)])]
     )
 
     func test_theSameMergeBase_resumes_whateverTheRefIsCalled() {
@@ -54,9 +54,9 @@ extension ResumeCheckTests {
             ChangedFile(path: "Sources/Product.swift", sha256: "ef56"),
             ChangedFile(
                 path: "Sources/Sum.swift",
+                sha256: "ff",
                 lines: [LineRange(first: 3, last: 5)],
-                deletionsAfter: [9],
-                sha256: "ff"
+                deletionsAfter: [9]
             ),
         ])
 

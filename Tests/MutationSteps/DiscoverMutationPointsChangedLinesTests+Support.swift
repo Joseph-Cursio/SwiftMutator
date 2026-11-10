@@ -31,7 +31,7 @@ extension DiscoverMutationPointsChangedLinesTests {
         state.sourceFileCandidates = [path]
         let selection = ChangeSelection.make(
             changedLines: changedLines,
-            files: [ChangedFile(path: "Check.swift", lines: lines, deletionsAfter: deletions, sha256: "")]
+            files: [ChangedFile(path: "Check.swift", sha256: "", lines: lines, deletionsAfter: deletions)]
         )
         state.apply([.changesSelected(selection)])
         return selection

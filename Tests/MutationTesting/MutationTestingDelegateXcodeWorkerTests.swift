@@ -76,9 +76,9 @@ final class MutationTestingDelegateXcodeWorkerTests: MuterTestCase {
         .forXcodeWorker(MuterConfiguration.XcodeWorker(
             testRunFile: "muter-worker1.xctestrun",
             derivedData: "/path/App_mutated_worker1.DerivedData",
+            testDiagnosticsOff: true,
             destination: "platform=iOS Simulator,id=SIM-1",
-            parallelTestingOff: true,
-            testDiagnosticsOff: true
+            parallelTestingOff: true
         ))
 
         _ = await sut.runTestsWithoutBuilding(

@@ -1,5 +1,56 @@
 import Foundation
 
+/// Lines `first` through `last`, counted from 1; written as `[first, last]`.
+struct LineRange: Codable, Equatable, Sendable {
+    let first: Int
+    let last: Int
+
+    init(first: Int, last: Int) {
+        self.first = first
+        self.last = last
+    }
+
+    init(from decoder: Decoder) throws {
+        var container = try decoder.unkeyedContainer()
+        first = try container.decode(Int.self)
+        last = try container.decode(Int.self)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.unkeyedContainer()
+        try container.encode(first)
+        try container.encode(last)
+    }
+}
+
+/// A Swift file that changed since the merge base.
+struct ChangedFile: Codable, Equatable, Sendable {
+    /// Its path in the project, as the disk spells it, precomposed (NFC).
+    let path: String
+    /// Only with `--changed-lines`: the lines, in the working tree, that the change added or changed. nil when the
+    /// whole file is new to the change: added since the merge base, not yet known to git, or of another type then.
+    let lines: [LineRange]?
+    /// Only with `--changed-lines`: each line after which the change only removed lines; 0 is the file's start.
+    let deletionsAfter: [Int]?
+    /// The file's SHA-256 when it was compared with the merge base, which the copy's must equal.
+    let sha256: String
+
+    init(path: String, sha256: String, lines: [LineRange]? = nil, deletionsAfter: [Int]? = nil) {
+        self.path = path
+        self.lines = lines
+        self.deletionsAfter = deletionsAfter
+        self.sha256 = sha256
+    }
+
+    /// Whether code on the lines `span` was changed: any of them was added or changed, or lines were removed between
+    /// two of them, as from the middle of a statement. A whole file that is new to the change holds only changed code.
+    func isChanged(_ span: ClosedRange<Int>) -> Bool {
+        guard let lines else { return true }
+        return lines.contains { $0.first <= span.upperBound && span.lowerBound <= $0.last }
+            || (deletionsAfter ?? []).contains { span.lowerBound <= $0 && $0 + 1 <= span.upperBound }
+    }
+}
+
 /// What `--since` chose: the Swift files changed since the merge base of a ref and HEAD, in the working tree, as the
 /// project's copy holds them; and with `--changed-lines`, their changed lines. Recorded in the results file's header,
 /// and compared when a run is resumed.
@@ -62,56 +113,5 @@ struct ChangeSelection: Codable, Equatable, Sendable {
     /// The ref as said: abbreviated when it is the merge base itself, as a resumed session's command gives it.
     var shownRef: String {
         ref == mergeBase ? shortMergeBase : ref
-    }
-}
-
-/// A Swift file that changed since the merge base.
-struct ChangedFile: Codable, Equatable, Sendable {
-    /// Its path in the project, as the disk spells it, precomposed (NFC).
-    let path: String
-    /// Only with `--changed-lines`: the lines, in the working tree, that the change added or changed. nil when the
-    /// whole file is new to the change: added since the merge base, not yet known to git, or of another type then.
-    let lines: [LineRange]?
-    /// Only with `--changed-lines`: each line after which the change only removed lines; 0 is the file's start.
-    let deletionsAfter: [Int]?
-    /// The file's SHA-256 when it was compared with the merge base, which the copy's must equal.
-    let sha256: String
-
-    init(path: String, lines: [LineRange]? = nil, deletionsAfter: [Int]? = nil, sha256: String) {
-        self.path = path
-        self.lines = lines
-        self.deletionsAfter = deletionsAfter
-        self.sha256 = sha256
-    }
-
-    /// Whether code on the lines `span` was changed: any of them was added or changed, or lines were removed between
-    /// two of them, as from the middle of a statement. A whole file that is new to the change holds only changed code.
-    func isChanged(_ span: ClosedRange<Int>) -> Bool {
-        guard let lines else { return true }
-        return lines.contains { $0.first <= span.upperBound && span.lowerBound <= $0.last }
-            || (deletionsAfter ?? []).contains { span.lowerBound <= $0 && $0 + 1 <= span.upperBound }
-    }
-}
-
-/// Lines `first` through `last`, counted from 1; written as `[first, last]`.
-struct LineRange: Codable, Equatable, Sendable {
-    let first: Int
-    let last: Int
-
-    init(first: Int, last: Int) {
-        self.first = first
-        self.last = last
-    }
-
-    init(from decoder: Decoder) throws {
-        var container = try decoder.unkeyedContainer()
-        first = try container.decode(Int.self)
-        last = try container.decode(Int.self)
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.unkeyedContainer()
-        try container.encode(first)
-        try container.encode(last)
     }
 }
