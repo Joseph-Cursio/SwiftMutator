@@ -10,7 +10,7 @@ struct LoadMuterTestPlan: MutationStep {
     @Dependency(\.events)
     private var events: RunEvents
 
-    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+    func run(with state: AnyMutationTestState) throws -> [MutationTestState.Change] {
         guard let testPlanPath = state.runOptions.testPlanURL?.path else {
             throw MuterError.literal(reason: "Could not load the test plan")
         }

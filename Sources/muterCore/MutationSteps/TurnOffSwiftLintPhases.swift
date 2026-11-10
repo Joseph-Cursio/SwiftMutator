@@ -13,7 +13,7 @@ struct TurnOffSwiftLintPhases: MutationStep {
     @Dependency(\.events)
     private var events: RunEvents
 
-    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+    func run(with state: AnyMutationTestState) throws -> [MutationTestState.Change] {
         let configuration = state.muterConfiguration
         guard configuration.buildSystem == .xcodebuild, !configuration.keepsSwiftLintPhases else { return [] }
         let copy = state.mutatedProjectDirectoryURL

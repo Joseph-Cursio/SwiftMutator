@@ -9,7 +9,7 @@ struct LockMutatedProject: MutationStep {
     @Dependency(\.mutatedProjectLocker)
     private var locker: MutatedProjectLocking
 
-    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+    func run(with state: AnyMutationTestState) throws -> [MutationTestState.Change] {
         do {
             return [.mutatedProjectLocked(try locker.lock(state.mutatedProjectDirectoryURL))]
         } catch let error as MutatedProjectLockError {

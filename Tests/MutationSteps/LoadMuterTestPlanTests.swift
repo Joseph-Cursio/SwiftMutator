@@ -14,7 +14,7 @@ final class LoadMuterTestPlanTests: MuterTestCase {
         state.runOptions = .make(testPlanURL: nil)
 
         try await assertThrowsMuterError(
-            await sut.run(with: state),
+            sut.run(with: state),
             .literal(reason: "Could not load the test plan")
         )
     }
@@ -23,12 +23,12 @@ final class LoadMuterTestPlanTests: MuterTestCase {
         state.runOptions = .make(testPlanURL: URL(fileURLWithPath: testPlanPath))
 
         try await assertThrowsMuterError(
-            await sut.run(with: state),
+            sut.run(with: state),
             .literal(reason: "Could not load the test plan at path: \(testPlanPath)")
         )
     }
 
-    func test_loadMuterTestPlan() async throws {
+    func test_loadMuterTestPlan() throws {
         state.runOptions = .make(testPlanURL: URL(fileURLWithPath: testPlanPath))
         state.projectDirectoryURL = project
         let plan = MuterTestPlan.make(
@@ -38,7 +38,7 @@ final class LoadMuterTestPlanTests: MuterTestCase {
         let data = plan.toData(under: project)
         fileManager.fileContentsToReturn = data
 
-        let result = try await sut.run(with: state)
+        let result = try sut.run(with: state)
 
         XCTAssertEqual(
             result, [
@@ -64,7 +64,7 @@ final class LoadMuterTestPlanTests: MuterTestCase {
 
     // The plan names its copy as ../project_mutated and each mutant's file relative to the copy. A run resolves them
     // to the paths a plan from before format versions recorded, with no `..` left in the copy's.
-    func test_aRelativePlan_resolvesToTheAbsolutePathsItWasMadeWith() async throws {
+    func test_aRelativePlan_resolvesToTheAbsolutePathsItWasMadeWith() throws {
         let plan = MuterTestPlan.make(mutatedProjectPath: "/path/to/project_mutated", mappings: [try mapping()])
         let written = plan.toData(under: project)
         XCTAssertTrue(String(lossyUTF8: written).contains("\"mutatedProject\" : \"../project_mutated\""))
@@ -73,8 +73,8 @@ final class LoadMuterTestPlanTests: MuterTestCase {
         fileManager.fileContentsToReturn = written
         fileManager.fileContentsToReturn = plan.legacyData
 
-        let relative = try await sut.run(with: state)
-        let absolute = try await sut.run(with: state)
+        let relative = try sut.run(with: state)
+        let absolute = try sut.run(with: state)
 
         XCTAssertEqual(relative.first, .tempDirectoryUrlCreated(URL(fileURLWithPath: "/path/to/project_mutated")))
         XCTAssertEqual(mappings(in: relative), mappings(in: absolute))
@@ -88,7 +88,7 @@ final class LoadMuterTestPlanTests: MuterTestCase {
     }
 
     // A plan made by a SwiftMutator from before format versions: absolute paths, and -1 for coverage not gathered.
-    func test_aPlanInFormat0_loadsAsBefore() async throws {
+    func test_aPlanInFormat0_loadsAsBefore() throws {
         let plan = MuterTestPlan.make(
             mutatedProjectPath: "/path/to/project_mutated",
             projectCoverage: -1,
@@ -98,7 +98,7 @@ final class LoadMuterTestPlanTests: MuterTestCase {
         state.projectDirectoryURL = URL(fileURLWithPath: "/somewhere/else")
         fileManager.fileContentsToReturn = plan.legacyData
 
-        let result = try await sut.run(with: state)
+        let result = try sut.run(with: state)
 
         XCTAssertEqual(result.first, .tempDirectoryUrlCreated(URL(fileURLWithPath: "/path/to/project_mutated")))
         XCTAssertEqual(result[safe: 1], .projectCoverage(.null))
@@ -118,7 +118,7 @@ final class LoadMuterTestPlanTests: MuterTestCase {
 
     // `CheckTestPlanSources` checks the project against them, and `FingerprintProjectTree` the copy's mutated files
     // against what the plan left there.
-    func test_theProjectsFilesThePlanWasMadeFrom_andItsMutatedFiles_reachTheState() async throws {
+    func test_theProjectsFilesThePlanWasMadeFrom_andItsMutatedFiles_reachTheState() throws {
         let files = ["Sources/Check.swift": "abc"]
         let sources = ProjectTree(
             listedBy: .git,
@@ -132,7 +132,7 @@ final class LoadMuterTestPlanTests: MuterTestCase {
         fileManager.fileContentsToReturn = MuterTestPlan.make(sources: sources, mutatedFiles: mutatedFiles)
             .toData(under: project)
 
-        state.apply(try await sut.run(with: state))
+        state.apply(try sut.run(with: state))
 
         XCTAssertEqual(state.testPlan?.sources, sources)
         XCTAssertEqual(state.testPlan?.mutatedFiles, mutatedFiles)
@@ -140,7 +140,7 @@ final class LoadMuterTestPlanTests: MuterTestCase {
 
     // `--mutant` narrows the run's mappings, not the plan's files, which `CheckTestPlanSources` tells the project by. A
     // file outside the copy isn't the project's.
-    func test_theFilesThePlanMutates_andItsLinkedFiles_reachTheState() async throws {
+    func test_theFilesThePlanMutates_andItsLinkedFiles_reachTheState() throws {
         let outside = SchemataMutationMapping(filePath: "/elsewhere/Outside.swift")
         state.runOptions = .make(testPlanURL: URL(fileURLWithPath: testPlanPath))
         state.projectDirectoryURL = project
@@ -150,7 +150,7 @@ final class LoadMuterTestPlanTests: MuterTestCase {
         )
         fileManager.fileContentsToReturn = plan.toData(under: project)
 
-        state.apply(try await sut.run(with: state))
+        state.apply(try sut.run(with: state))
 
         XCTAssertEqual(state.testPlan?.mutatedPaths, ["Sources/Check.swift"])
         XCTAssertEqual(state.testPlan?.linkedFiles, ["Sources/Check.swift": "abc"])
@@ -159,7 +159,7 @@ final class LoadMuterTestPlanTests: MuterTestCase {
     // A run of the plan compares the mutants of code no test ran that it records, as a run that discovers its own
     // does; a plan that doesn't record them, as an older SwiftMutator's, leaves them unknown, as does `--mutant`,
     // whose run compares no survivors.
-    func test_theMutantsOfCodeNoTestRanThePlanRecords_reachTheState() async throws {
+    func test_theMutantsOfCodeNoTestRanThePlanRecords_reachTheState() throws {
         let uncovered = UncoveredMutant(
             key: MutantKey(path: "Sources/New.swift", mutationOperatorId: .ror, line: 4, column: 9, occurrence: 0),
             snapshot: .make(before: "<", after: ">", description: "changed < to >")
@@ -168,14 +168,14 @@ final class LoadMuterTestPlanTests: MuterTestCase {
         state.projectDirectoryURL = project
         fileManager.fileContentsToReturn = MuterTestPlan.make(mutantsNotCovered: [uncovered]).toData(under: project)
 
-        state.apply(try await sut.run(with: state))
+        state.apply(try sut.run(with: state))
         XCTAssertEqual(state.uncoveredMutants, [uncovered])
 
         let older = MutationTestState()
         older.runOptions = state.runOptions
         older.projectDirectoryURL = project
         fileManager.fileContentsToReturn = MuterTestPlan.make().toData(under: project)
-        older.apply(try await sut.run(with: older))
+        older.apply(try sut.run(with: older))
         XCTAssertNil(older.uncoveredMutants)
 
         let lone = MutationTestState()
@@ -185,17 +185,17 @@ final class LoadMuterTestPlanTests: MuterTestCase {
         )
         lone.projectDirectoryURL = project
         fileManager.fileContentsToReturn = MuterTestPlan.make(mutantsNotCovered: [uncovered]).toData(under: project)
-        lone.apply(try await sut.run(with: lone))
+        lone.apply(try sut.run(with: lone))
         XCTAssertNil(lone.uncoveredMutants)
     }
 
-    func test_theLoadedPlan_isKeptInTheState() async throws {
+    func test_theLoadedPlan_isKeptInTheState() throws {
         state.runOptions = .make(testPlanURL: URL(fileURLWithPath: testPlanPath))
         state.projectDirectoryURL = project
         let data = MuterTestPlan.make().toData(under: project)
         fileManager.fileContentsToReturn = data
 
-        state.apply(try await sut.run(with: state))
+        state.apply(try sut.run(with: state))
 
         XCTAssertEqual(state.testPlan?.path, testPlanPath)
         XCTAssertEqual(state.testPlan?.sha256, FileDigest.sha256(of: data))
@@ -203,7 +203,7 @@ final class LoadMuterTestPlanTests: MuterTestCase {
     }
 
     // A plan run's results file and its resume check describe the plan's mutants, not the command's defaults.
-    func test_theLoadedPlan_setsTheOperatorsAndFilesItWasChosenBy() async throws {
+    func test_theLoadedPlan_setsTheOperatorsAndFilesItWasChosenBy() throws {
         state.runOptions = .make(testPlanURL: URL(fileURLWithPath: testPlanPath))
         state.mutationOperatorList = .allOperators
         state.projectDirectoryURL = project
@@ -212,7 +212,7 @@ final class LoadMuterTestPlanTests: MuterTestCase {
         )
         fileManager.fileContentsToReturn = plan.toData(under: project)
 
-        state.apply(try await sut.run(with: state))
+        state.apply(try sut.run(with: state))
 
         XCTAssertEqual(state.mutationOperatorList, [.logicalOperator, .swapTernary])
         XCTAssertEqual(state.filesToMutate, ["Sources/Check.swift"])
@@ -223,13 +223,13 @@ final class LoadMuterTestPlanTests: MuterTestCase {
     }
 
     // A plan in format 0 doesn't say, and was made with every operator and file: what the run was given stays.
-    func test_aPlanInFormat0_leavesTheOperatorsAndFilesAsTheRunWasGiven() async throws {
+    func test_aPlanInFormat0_leavesTheOperatorsAndFilesAsTheRunWasGiven() throws {
         state.runOptions = .make(testPlanURL: URL(fileURLWithPath: testPlanPath))
         state.mutationOperatorList = .allOperators
         state.projectDirectoryURL = project
         fileManager.fileContentsToReturn = MuterTestPlan.make().legacyData
 
-        state.apply(try await sut.run(with: state))
+        state.apply(try sut.run(with: state))
 
         XCTAssertEqual(state.mutationOperatorList, .allOperators)
         XCTAssertEqual(state.filesToMutate, [])
@@ -238,7 +238,7 @@ final class LoadMuterTestPlanTests: MuterTestCase {
 
     // Another run of the project may be removing or rewriting the mutated project until it is locked, which comes
     // after this step: only the plan itself is read.
-    func test_readsNothingInTheMutatedProject() async throws {
+    func test_readsNothingInTheMutatedProject() throws {
         state.runOptions = .make(testPlanURL: URL(fileURLWithPath: testPlanPath))
         state.projectDirectoryURL = project
         state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
@@ -248,7 +248,7 @@ final class LoadMuterTestPlanTests: MuterTestCase {
         )
         fileManager.fileContentsToReturn = plan.toData(under: project)
 
-        let result = try await sut.run(with: state)
+        let result = try sut.run(with: state)
 
         XCTAssertEqual(result.first, .tempDirectoryUrlCreated(URL(fileURLWithPath: "/path/to/project_mutated")))
         XCTAssertEqual(fileManager.contentsAtPath, [testPlanPath])

@@ -9,7 +9,7 @@ struct LoadBaselineFile: MutationStep {
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
 
-    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+    func run(with state: AnyMutationTestState) throws -> [MutationTestState.Change] {
         guard let path = state.runOptions.baseline else { return [] }
         let file = try BaselineFile.load(at: path, using: fileManager)
         if state.runOptions.mutant == nil {

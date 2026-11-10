@@ -9,11 +9,11 @@ final class PreviousRunCleanUpTests: MuterTestCase {
     private var state = MutationTestState()
     private lazy var sut = PreviousRunCleanUp()
 
-    func test_removeTempDirectorySucceeds() async throws {
+    func test_removeTempDirectorySucceeds() throws {
         fileManager.fileExistsToReturn = [true]
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/some/projectName_mutated")
 
-        let result = try await sut.run(with: state)
+        let result = try sut.run(with: state)
 
         XCTAssertEqual(result, [])
         XCTAssertEqual(fileManager.paths, ["/some/projectName_mutated"])
@@ -30,7 +30,7 @@ final class PreviousRunCleanUpTests: MuterTestCase {
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/some/projectName_mutated")
 
         try await assertThrowsMuterError(
-            await sut.run(with: state)
+            sut.run(with: state)
         ) { error in
             guard case let .removeProjectFromPreviousRunFailed(reason) = error else {
                 XCTFail("Expected removeProjectFromPreviousRunFailed, got \(error)")
@@ -41,18 +41,18 @@ final class PreviousRunCleanUpTests: MuterTestCase {
         }
     }
 
-    func test_skipStep() async throws {
+    func test_skipStep() throws {
         fileManager.errorToThrow = RemoveTempDirectorySpecError.stub
         fileManager.fileExistsToReturn = [false]
 
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/some/projectName_mutated")
 
-        let result = try await sut.run(with: state)
+        let result = try sut.run(with: state)
 
         XCTAssertEqual(result, [])
     }
 
-    func test_removesWorkerClonesAnEarlierRunLeft_andNothingElse() async throws {
+    func test_removesWorkerClonesAnEarlierRunLeft_andNothingElse() throws {
         fileManager.fileExistsToReturn = [true]
         fileManager.contentsOfDirectoryToReturn = [
             "x",
@@ -66,7 +66,7 @@ final class PreviousRunCleanUpTests: MuterTestCase {
         ]
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/some/x_mutated")
 
-        let result = try await sut.run(with: state)
+        let result = try sut.run(with: state)
 
         XCTAssertEqual(result, [])
         XCTAssertEqual(fileManager.contentsOfDirectoryAtPath, ["/some"])
@@ -76,19 +76,19 @@ final class PreviousRunCleanUpTests: MuterTestCase {
         )
     }
 
-    func test_removesLeftoverWorkerClones_whenTheMutatedProjectIsGone() async throws {
+    func test_removesLeftoverWorkerClones_whenTheMutatedProjectIsGone() throws {
         fileManager.fileExistsToReturn = [false]
         fileManager.contentsOfDirectoryToReturn = ["x_mutated_worker1", "x_mutated_worker2"]
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/some/x_mutated")
 
-        let result = try await sut.run(with: state)
+        let result = try sut.run(with: state)
 
         XCTAssertEqual(result, [])
         XCTAssertEqual(fileManager.paths, ["/some/x_mutated_worker1", "/some/x_mutated_worker2"])
     }
 
     // A run stopped at once leaves the files beside the mutated project and its clones that named their active mutants.
-    func test_removesTheActiveMutantFilesAnEarlierRunLeft_andNoOthers() async throws {
+    func test_removesTheActiveMutantFilesAnEarlierRunLeft_andNoOthers() throws {
         fileManager.fileExistsToReturn = [false]
         fileManager.contentsOfDirectoryToReturn = [
             "x.active-mutant",
@@ -102,7 +102,7 @@ final class PreviousRunCleanUpTests: MuterTestCase {
         ]
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/some/x_mutated")
 
-        let result = try await sut.run(with: state)
+        let result = try sut.run(with: state)
 
         XCTAssertEqual(result, [])
         XCTAssertEqual(
@@ -112,7 +112,7 @@ final class PreviousRunCleanUpTests: MuterTestCase {
     }
 
     // The links direct runs start the helper through, so that each folder's tests have their own `UserDefaults`.
-    func test_removesTheHelperLinksAnEarlierRunLeft_andNoOthers() async throws {
+    func test_removesTheHelperLinksAnEarlierRunLeft_andNoOthers() throws {
         fileManager.fileExistsToReturn = [false]
         fileManager.contentsOfDirectoryToReturn = [
             "x_mutated.swiftpm-testing-helper",
@@ -123,7 +123,7 @@ final class PreviousRunCleanUpTests: MuterTestCase {
         ]
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/some/x_mutated")
 
-        _ = try await sut.run(with: state)
+        _ = try sut.run(with: state)
 
         XCTAssertEqual(
             fileManager.paths,
@@ -132,7 +132,7 @@ final class PreviousRunCleanUpTests: MuterTestCase {
     }
 
     // An xcodebuild run keeps each worker's derived data beside the mutated project, named as its clone would be.
-    func test_removesTheDerivedDataAnEarlierRunLeft_andNoOther() async throws {
+    func test_removesTheDerivedDataAnEarlierRunLeft_andNoOther() throws {
         fileManager.fileExistsToReturn = [false]
         fileManager.contentsOfDirectoryToReturn = [
             "x_mutated.DerivedData",
@@ -145,7 +145,7 @@ final class PreviousRunCleanUpTests: MuterTestCase {
         ]
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/some/x_mutated")
 
-        _ = try await sut.run(with: state)
+        _ = try sut.run(with: state)
 
         XCTAssertEqual(
             fileManager.paths,
@@ -155,12 +155,12 @@ final class PreviousRunCleanUpTests: MuterTestCase {
 
     // Another run of the project may hold it, and a run that removed it could lock a new file while that one held the
     // old.
-    func test_keepsTheMutatedProjectsLockFile() async throws {
+    func test_keepsTheMutatedProjectsLockFile() throws {
         fileManager.fileExistsToReturn = [false]
         fileManager.contentsOfDirectoryToReturn = ["x_mutated.lock"]
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/some/x_mutated")
 
-        let result = try await sut.run(with: state)
+        let result = try sut.run(with: state)
 
         XCTAssertEqual(result, [])
         XCTAssertEqual(fileManager.paths, [])
@@ -168,7 +168,7 @@ final class PreviousRunCleanUpTests: MuterTestCase {
 
     // The first run after an upgrade removes what an older SwiftMutator left under the names it gave them, its copy
     // too, as well as what a run of this one leaves. It holds the lock the older one took, `x_mutated.lock`.
-    func test_aCopyEndingInNoindex_removesWhatEitherNamingLeft_andNothingElse() async throws {
+    func test_aCopyEndingInNoindex_removesWhatEitherNamingLeft_andNothingElse() throws {
         fileManager.fileExistsToReturn = [true]
         fileManager.contentsOfDirectoryToReturn = [
             "x",
@@ -197,7 +197,7 @@ final class PreviousRunCleanUpTests: MuterTestCase {
         ]
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/some/x_mutated.noindex")
 
-        let result = try await sut.run(with: state)
+        let result = try sut.run(with: state)
 
         XCTAssertEqual(result, [])
         XCTAssertEqual(fileManager.paths, [
@@ -217,7 +217,7 @@ final class PreviousRunCleanUpTests: MuterTestCase {
 
     // A run of one mutant removes only what such runs left, never a test plan's copy, which may have been fixed by
     // hand.
-    func test_aOneMutantCopy_removesOnlyWhatRunsOfOneMutantLeft() async throws {
+    func test_aOneMutantCopy_removesOnlyWhatRunsOfOneMutantLeft() throws {
         fileManager.fileExistsToReturn = [false]
         fileManager.contentsOfDirectoryToReturn = [
             "x_mutant",
@@ -232,7 +232,7 @@ final class PreviousRunCleanUpTests: MuterTestCase {
         ]
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/some/x_mutant.noindex")
 
-        _ = try await sut.run(with: state)
+        _ = try sut.run(with: state)
 
         XCTAssertEqual(
             fileManager.paths,
@@ -247,7 +247,7 @@ final class PreviousRunCleanUpTests: MuterTestCase {
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/some/x_mutated")
 
         try await assertThrowsMuterError(
-            await sut.run(with: state)
+            sut.run(with: state)
         ) { error in
             guard case let .removeProjectFromPreviousRunFailed(reason) = error else {
                 XCTFail("Expected removeProjectFromPreviousRunFailed, got \(error)")

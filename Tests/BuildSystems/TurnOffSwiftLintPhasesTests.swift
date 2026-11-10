@@ -31,12 +31,12 @@ final class TurnOffSwiftLintPhasesTests: MuterTestCase {
         try write(script, to: "DerivedData/Old.xcodeproj/project.pbxproj")
     }
 
-    func test_turnsSwiftLintOff_inTheCopysProjects_andSaysWhere() async throws {
+    func test_turnsSwiftLintOff_inTheCopysProjects_andSaysWhere() throws {
         var sent: SwiftLintPhases?
         let token = runEvents.observe(.swiftLintPhasesTurnedOff) { sent = $0.object as? SwiftLintPhases }
         defer { token.cancel() }
 
-        let changes = try await sut.run(with: state)
+        let changes = try sut.run(with: state)
 
         XCTAssertEqual(changes, [])
         XCTAssertEqual(try read("App/App.xcodeproj/project.pbxproj"), script.replacingOccurrences(
@@ -50,7 +50,7 @@ final class TurnOffSwiftLintPhasesTests: MuterTestCase {
     }
 
     // Never the project's own file, even through a link the copy holds to it.
-    func test_aLinkToAFileOutsideTheCopy_isReplaced_notWrittenThrough() async throws {
+    func test_aLinkToAFileOutsideTheCopy_isReplaced_notWrittenThrough() throws {
         let outside = try makeTemporaryDirectory() + "/project.pbxproj"
         try Data(script.utf8).write(to: URL(fileURLWithPath: outside))
         try FileManager.default.createDirectory(
@@ -60,7 +60,7 @@ final class TurnOffSwiftLintPhasesTests: MuterTestCase {
             atPath: copy + "/Linked.xcodeproj/project.pbxproj", withDestinationPath: outside
         )
 
-        _ = try await sut.run(with: state)
+        _ = try sut.run(with: state)
 
         XCTAssertEqual(try String(contentsOfFile: outside, encoding: .utf8), script)
         XCTAssertEqual(try read("Linked.xcodeproj/project.pbxproj"), script.replacingOccurrences(
@@ -69,18 +69,18 @@ final class TurnOffSwiftLintPhasesTests: MuterTestCase {
     }
 
     // An atomic write puts a new file in the old one's place, which needs only the folder to be writable.
-    func test_aReadOnlyProjectFile_isTurnedOffAllTheSame() async throws {
+    func test_aReadOnlyProjectFile_isTurnedOffAllTheSame() throws {
         let path = copy + "/App/App.xcodeproj/project.pbxproj"
         try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: path)
 
-        _ = try await sut.run(with: state)
+        _ = try sut.run(with: state)
 
         XCTAssertEqual(try read("App/App.xcodeproj/project.pbxproj"), script.replacingOccurrences(
             of: #""swiftlint\n""#, with: #"": swiftlint\n""#
         ))
     }
 
-    func test_aProjectFileThatCantBeWritten_isSaid_andNotSaidToBeTurnedOff() async throws {
+    func test_aProjectFileThatCantBeWritten_isSaid_andNotSaidToBeTurnedOff() throws {
         let folder = copy + "/App/App.xcodeproj"
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder)
         defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder) }
@@ -88,13 +88,13 @@ final class TurnOffSwiftLintPhasesTests: MuterTestCase {
         let token = runEvents.observe(.swiftLintPhasesTurnedOff) { sent = $0.object as? SwiftLintPhases }
         defer { token.cancel() }
 
-        _ = try await sut.run(with: state)
+        _ = try sut.run(with: state)
 
         XCTAssertEqual(try read("App/App.xcodeproj/project.pbxproj"), script)
         XCTAssertEqual(sent, SwiftLintPhases(unreadProjects: ["App/App.xcodeproj"]))
     }
 
-    func test_keepSwiftLintPhases_keepsThem() async throws {
+    func test_keepSwiftLintPhases_keepsThem() throws {
         state.muterConfiguration = MuterConfiguration(
             executable: "/usr/bin/xcodebuild", arguments: ["test"], keepSwiftLintPhases: true
         )
@@ -102,17 +102,17 @@ final class TurnOffSwiftLintPhasesTests: MuterTestCase {
         let token = runEvents.observe(.swiftLintPhasesTurnedOff) { _ in sent = true }
         defer { token.cancel() }
 
-        _ = try await sut.run(with: state)
+        _ = try sut.run(with: state)
 
         XCTAssertEqual(try read("App/App.xcodeproj/project.pbxproj"), script)
         XCTAssertFalse(sent)
     }
 
     // A SwiftPM build has no build phases, even where the project has an Xcode project beside its package.
-    func test_aSwiftPMRun_leavesThemAlone() async throws {
+    func test_aSwiftPMRun_leavesThemAlone() throws {
         state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
 
-        _ = try await sut.run(with: state)
+        _ = try sut.run(with: state)
 
         XCTAssertEqual(try read("App/App.xcodeproj/project.pbxproj"), script)
     }
