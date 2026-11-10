@@ -82,15 +82,15 @@ struct MuterTestPlan: Equatable {
     let mutantsNotCovered: [UncoveredMutant]?
 
     init(
-        formatVersion: Int = TestPlanCoding.formatVersion,
-        swiftMutatorVersion: String? = version,
         mutatedProjectURL: URL,
         projectCoverage: Coverage,
         scope: TestPlanScope?,
+        mappings: [SchemataMutationMapping],
+        formatVersion: Int = TestPlanCoding.formatVersion,
+        swiftMutatorVersion: String? = version,
         sources: ProjectTree? = nil,
         mutatedFiles: [String: String]? = nil,
         linkedFiles: [String: String]? = nil,
-        mappings: [SchemataMutationMapping],
         mutantsNotCovered: [UncoveredMutant]? = nil
     ) {
         self.formatVersion = formatVersion

@@ -2,7 +2,25 @@ import Foundation
 import SwiftParser
 import SwiftSyntax
 
-struct MutationSchema {
+struct MutationPoint: Equatable, Codable, Nullable {
+    let mutationOperatorId: MutationOperator.Id
+    let filePath: String
+    let position: MutationPosition
+
+    var fileName: String {
+        URL(fileURLWithPath: filePath).lastPathComponent
+    }
+
+    static var null: Self {
+        Self(
+            mutationOperatorId: .removeSideEffects,
+            filePath: "",
+            position: .null
+        )
+    }
+}
+
+struct MutationSchema: Codable, Nullable, Equatable, CustomStringConvertible, CustomDebugStringConvertible {
     /// What switches the mutant on (`MutationSwitch`): `<file name>_<path hash>_<operator>_<line>_<column>_<offset>`,
     /// the offset counting the header and import SwiftMutator inserts. The hash is of the file's path in the mutated
     /// project, so that same-named files, such as two executable targets' `main.swift`, don't share an ID: a test run
@@ -66,9 +84,7 @@ struct MutationSchema {
             "\(position.utf8Offset)",
         ]).joined(separator: "_")
     }
-}
 
-extension MutationSchema: Codable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         filePath = try container.decode(String.self, forKey: .filePath)
@@ -97,11 +113,9 @@ extension MutationSchema: Codable {
         case position
         case snapshot
     }
-}
 
-extension MutationSchema: Nullable {
-    static var null: MutationSchema {
-        MutationSchema(
+    static var null: Self {
+        Self(
             filePath: "",
             mutationOperatorId: .ror,
             syntaxMutation: CodeBlockItemListSyntax([]),
@@ -109,10 +123,8 @@ extension MutationSchema: Nullable {
             snapshot: .null
         )
     }
-}
 
-extension MutationSchema: Equatable {
-    static func == (lhs: MutationSchema, rhs: MutationSchema) -> Bool {
+    static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.id == rhs.id &&
             lhs.filePath == rhs.filePath &&
             lhs.mutationOperatorId == rhs.mutationOperatorId &&
@@ -120,9 +132,7 @@ extension MutationSchema: Equatable {
             lhs.position == rhs.position &&
             lhs.snapshot == rhs.snapshot
     }
-}
 
-extension MutationSchema: CustomStringConvertible, CustomDebugStringConvertible {
     var debugDescription: String { description }
 
     var description: String {
@@ -137,31 +147,9 @@ extension MutationSchema: CustomStringConvertible, CustomDebugStringConvertible 
         )
         """
     }
-}
 
-extension MutationSchema {
     /// Where the mutant comes among its file's in mutation testing's jobs.
     var orderInFile: JobOrder.InFile {
         JobOrder.InFile(line: position.line, column: position.column, mutationOperatorId: mutationOperatorId)
-    }
-}
-
-struct MutationPoint: Equatable, Codable {
-    let mutationOperatorId: MutationOperator.Id
-    let filePath: String
-    let position: MutationPosition
-
-    var fileName: String {
-        URL(fileURLWithPath: filePath).lastPathComponent
-    }
-}
-
-extension MutationPoint: Nullable {
-    static var null: MutationPoint {
-        MutationPoint(
-            mutationOperatorId: .removeSideEffects,
-            filePath: "",
-            position: .null
-        )
     }
 }

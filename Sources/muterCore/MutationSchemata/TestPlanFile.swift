@@ -51,12 +51,12 @@ enum TestPlanCoding {
             let file = try JSONDecoder().decode(LegacyTestPlanFile.self, from: data)
             let copy = resolvedCopy(file.mutatedProjectPath, under: projectRoot)
             return MuterTestPlan(
-                formatVersion: 0,
-                swiftMutatorVersion: nil,
                 mutatedProjectURL: copy,
                 projectCoverage: file.projectCoverage < 0 ? .null : Coverage(percent: file.projectCoverage),
                 scope: nil,
-                mappings: file.mappings.map { $0.resolved(under: copy) }
+                mappings: file.mappings.map { $0.resolved(under: copy) },
+                formatVersion: 0,
+                swiftMutatorVersion: nil
             )
         }
         guard found <= newestFormatVersion else {
@@ -65,8 +65,6 @@ enum TestPlanCoding {
         let file = try JSONDecoder().decode(TestPlanFile.self, from: data)
         let copy = resolvedCopy(file.mutatedProject, under: projectRoot)
         return MuterTestPlan(
-            formatVersion: file.formatVersion,
-            swiftMutatorVersion: file.swiftMutatorVersion,
             mutatedProjectURL: copy,
             projectCoverage: file.projectCoverage.map { Coverage(percent: $0) } ?? .null,
             // A mutant by an operator this SwiftMutator doesn't know would have stopped the plan being read, so such
@@ -75,10 +73,12 @@ enum TestPlanCoding {
                 operators: file.operators.compactMap(MutationOperator.Id.init(rawValue:)),
                 filesToMutate: file.filesToMutate
             ),
+            mappings: file.mappings.map { $0.resolved(under: copy) },
+            formatVersion: file.formatVersion,
+            swiftMutatorVersion: file.swiftMutatorVersion,
             sources: file.sources,
             mutatedFiles: file.mutatedFiles,
             linkedFiles: file.linkedFiles,
-            mappings: file.mappings.map { $0.resolved(under: copy) },
             mutantsNotCovered: file.mutantsNotCovered
         )
     }

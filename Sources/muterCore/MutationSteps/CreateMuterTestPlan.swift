@@ -21,10 +21,10 @@ struct CreateMuterTestPlan: MutationStep {
             mutatedProjectURL: state.mutatedProjectDirectoryURL,
             projectCoverage: state.projectCoverage,
             scope: TestPlanScope(operators: state.mutationOperatorList, filesToMutate: state.filesToMutate),
+            mappings: state.mutationMapping,
             sources: state.projectTree,
             mutatedFiles: mutatedFiles(in: state),
             linkedFiles: linkedFiles(in: state),
-            mappings: state.mutationMapping,
             mutantsNotCovered: state.uncoveredMutants
         )
 
