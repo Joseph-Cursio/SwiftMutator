@@ -97,6 +97,14 @@ enum TestPlanCoding {
     }
 }
 
+/// A test plan as SwiftMutators from before `TestPlanFile` wrote it, which is format 0: with no `formatVersion`,
+/// absolute paths, and a coverage of -1 when it wasn't gathered.
+struct LegacyTestPlanFile: Codable, Equatable {
+    let mutatedProjectPath: String
+    let projectCoverage: Int
+    let mappings: [SchemataMutationMapping]
+}
+
 /// A test plan as it is written, in format 1 or 2, which have the same keys. Its paths are relative, so the project and
 /// its copy can move together: the copy's to the folder the plan was made in, and each mutant's to the copy. A path
 /// that isn't inside the folder it is relative to is kept absolute.
@@ -129,12 +137,4 @@ struct TestPlanFile: Codable, Equatable {
     /// key (`MuterTestPlan.mutantsNotCovered`); empty when there are none. A new key, so the format is the same: a
     /// plan from before it leaves it out, and its run records none, so it writes no baseline file.
     var mutantsNotCovered: [UncoveredMutant]?
-}
-
-/// A test plan as SwiftMutators from before `TestPlanFile` wrote it, which is format 0: with no `formatVersion`,
-/// absolute paths, and a coverage of -1 when it wasn't gathered.
-struct LegacyTestPlanFile: Codable, Equatable {
-    let mutatedProjectPath: String
-    let projectCoverage: Int
-    let mappings: [SchemataMutationMapping]
 }

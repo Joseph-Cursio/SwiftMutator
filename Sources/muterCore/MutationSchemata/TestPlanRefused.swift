@@ -1,20 +1,5 @@
 import Foundation
 
-/// Why SwiftMutator won't test a test plan: it might not describe the project, or can't be tested as it is. Nothing was
-/// tested.
-struct TestPlanRefused: Error, Equatable, CustomStringConvertible {
-    /// The plan's path.
-    let path: String
-    let reason: TestPlanRefusal
-
-    var description: String {
-        let reasonText = "\(reason)"
-        // A reason of several lines ends in a list or a command, which this sentence doesn't belong to.
-        let separator = reasonText.contains("\n") ? "\n" : " "
-        return "SwiftMutator won't test the plan \(Logger.shellQuoted(path)): \(reasonText)\(separator)Nothing was tested."
-    }
-}
-
 /// One reason a test plan isn't tested, and what would let it be.
 enum TestPlanRefusal: Equatable, CustomStringConvertible {
     /// The plan is in a format newer than `TestPlanCoding.newestFormatVersion`.
@@ -84,5 +69,20 @@ enum TestPlanRefusal: Equatable, CustomStringConvertible {
         case .removed:
             return "was removed"
         }
+    }
+}
+
+/// Why SwiftMutator won't test a test plan: it might not describe the project, or can't be tested as it is. Nothing was
+/// tested.
+struct TestPlanRefused: Error, Equatable, CustomStringConvertible {
+    /// The plan's path.
+    let path: String
+    let reason: TestPlanRefusal
+
+    var description: String {
+        let reasonText = "\(reason)"
+        // A reason of several lines ends in a list or a command, which this sentence doesn't belong to.
+        let separator = reasonText.contains("\n") ? "\n" : " "
+        return "SwiftMutator won't test the plan \(Logger.shellQuoted(path)): \(reasonText)\(separator)Nothing was tested."
     }
 }

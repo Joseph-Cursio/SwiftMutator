@@ -1,23 +1,5 @@
 import Foundation
 
-/// Why `report` won't merge the results files it was given: every reason it found, in one message.
-struct MergeRefused: Error, Equatable, CustomStringConvertible {
-    let reasons: [MergeRefusal]
-
-    var description: String {
-        var lines = [
-            "SwiftMutator won't merge these results files, so that the report holds only results a whole run would "
-                + "give:",
-        ]
-        for reason in reasons {
-            let reasonLines = reason.description.components(separatedBy: "\n")
-            lines.append("  - " + (reasonLines.first ?? ""))
-            lines += reasonLines.dropFirst().map { "    " + $0 }
-        }
-        return lines.joined(separator: "\n")
-    }
-}
-
 /// One reason a set of results files can't be merged, and what would let it be.
 enum MergeRefusal: Equatable, CustomStringConvertible {
     /// A results file, and the shard its last session tested.
@@ -157,6 +139,24 @@ enum MergeRefusal: Equatable, CustomStringConvertible {
                 + "\(Self.named(reference)) and \(Self.named(shard)): \(files).",
             "If \(one ? "it" : "they") can't change any test's result: \(flags)",
         ].joined(separator: "\n")
+    }
+}
+
+/// Why `report` won't merge the results files it was given: every reason it found, in one message.
+struct MergeRefused: Error, Equatable, CustomStringConvertible {
+    let reasons: [MergeRefusal]
+
+    var description: String {
+        var lines = [
+            "SwiftMutator won't merge these results files, so that the report holds only results a whole run would "
+                + "give:",
+        ]
+        for reason in reasons {
+            let reasonLines = reason.description.components(separatedBy: "\n")
+            lines.append("  - " + (reasonLines.first ?? ""))
+            lines += reasonLines.dropFirst().map { "    " + $0 }
+        }
+        return lines.joined(separator: "\n")
     }
 }
 
