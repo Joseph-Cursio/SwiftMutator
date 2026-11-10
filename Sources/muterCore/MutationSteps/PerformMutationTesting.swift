@@ -80,8 +80,8 @@ struct PerformMutationTesting: MutationStep {
         let resume = state.resumeState
         let resumed = resume.flatMap { $0.isReuse ? nil : $0 }
         let session = TestingSession(
-            number: (resumed?.lastSession ?? 0) + 1,
             startedAt: now(),
+            number: (resumed?.lastSession ?? 0) + 1,
             earlierTestDuration: resumed?.recorded.testDuration ?? 0
         )
         // After the end line and anything sent about an early end: removing large clones can take seconds, and a

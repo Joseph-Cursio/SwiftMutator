@@ -37,8 +37,8 @@ extension MutationTestObserver {
             of: outcome,
             ended: .finished,
             report: didSave ? reportPath : nil,
-            reports: others.filter(\.saved).map(\.path),
-            checks: checks
+            checks: checks,
+            reports: others.filter(\.saved).map(\.path)
         ))
 
         if let oneMutantRun {
@@ -160,10 +160,10 @@ extension MutationTestObserver {
         writeSummary(RunSummary(
             of: earlyEnd.outcome,
             ended: earlyEnd.reason,
-            endDetail: earlyEnd.detail,
             report: partialReport.flatMap { $0.saved ? $0.path : nil },
-            reports: otherPartialReports.filter(\.saved).map(\.path),
-            checks: checks
+            checks: checks,
+            endDetail: earlyEnd.detail,
+            reports: otherPartialReports.filter(\.saved).map(\.path)
         ))
         let continueCommand = runOptions.mutant != nil ? nil : resultsFilePath.map {
             ResumeHint.command(
@@ -176,11 +176,11 @@ extension MutationTestObserver {
         logger.mutationTestingEndedEarly(
             earlyEnd,
             partialReports: (partialReport.map { [$0] } ?? []) + otherPartialReports,
+            resultsFile: resultsFilePath,
+            continueCommand: continueCommand,
             baselineFile: runOptions.writeBaseline.map {
                 .leftOut(path: $0, because: "the run stopped before it finished")
-            },
-            resultsFile: resultsFilePath,
-            continueCommand: continueCommand
+            }
         )
     }
 }

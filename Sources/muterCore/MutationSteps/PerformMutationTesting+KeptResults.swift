@@ -39,8 +39,7 @@ extension PerformMutationTesting {
                 from: resume.path,
                 headers: resume.recorded.headers,
                 in: 1,
-                utf8Offset: schema.position.utf8Offset,
-                switchID: schema.id,
+                at: MutantResult.JobPlacement(utf8Offset: schema.position.utf8Offset, switchID: schema.id),
                 // What this run let through since the session that tested it, not since another session.
                 despiteChanges: state.reuseChanges?[entry.value.session]?.waived.isEmpty == false
                     || !resume.forced.isEmpty,
@@ -114,11 +113,11 @@ extension PerformMutationTesting {
             logDirectory: state.loggingDirectory,
             configuration: setup.configuration,
             baselineSeconds: setup.baselineSeconds,
-            testRunSeconds: setup.testRunSeconds,
             workers: setup.workers,
             mutantsDiscovered: session.keys.count,
             mutantsToTest: plan.toRun.count,
             provenance: sessionProvenance,
+            testRunSeconds: setup.testRunSeconds,
             mutantsReused: resume == nil ? nil : plan.reused.count,
             waived: resume == nil ? nil : state.resumeWaived,
             forced: resume?.forced,

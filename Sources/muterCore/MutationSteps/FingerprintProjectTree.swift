@@ -78,13 +78,14 @@ struct FingerprintProjectTree: MutationStep {
             excluding: ProjectTree.excludedPaths(of: state, under: state.projectDirectoryURL)
                 + (lastSession?.excluded ?? [])
                 + ProjectTree.relativePaths([state.testPlan?.path], under: state.projectDirectoryURL),
+            list: { [listProjectFiles, project = state.projectDirectoryURL] directory in
+                guard let copyListing, directory == project else { return await listProjectFiles(directory) }
+                return copyListing.paths
+            },
             pruning: state.testPlan == nil
                 ? []
                 : Self.foldersWritten(in: state.mutatedProjectDirectoryURL, by: state.muterConfiguration)
-        ) { [listProjectFiles, project = state.projectDirectoryURL] directory in
-            guard let copyListing, directory == project else { return await listProjectFiles(directory) }
-            return copyListing.paths
-        }
+        )
     }
 
     /// Says what the build uses from outside the project, and the code in it that a workspace or manifest names by an

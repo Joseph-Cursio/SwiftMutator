@@ -109,7 +109,11 @@ extension PerformMutationTesting {
                 coverage: state.projectCoverage,
                 in: state.mutatedProjectDirectoryURL,
                 reusing: resume.isReuse ? state.reuseChanges : nil,
-                selecting: (state.changeSelection, state.runOptions.shard, state.runOptions.sample),
+                selecting: .init(
+                    since: state.changeSelection,
+                    shard: state.runOptions.shard,
+                    sample: state.runOptions.sample
+                ),
                 sampleIsPartial: state.sampleSelection?.isPartial == true
             ))
         )
