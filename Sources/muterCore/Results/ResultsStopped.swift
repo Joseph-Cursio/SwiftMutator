@@ -34,7 +34,7 @@ struct ResultsStopped: Codable, Equatable, Sendable {
         case interrupted
     }
 
-    private(set) var kind = "stopped"
+    private(set) var kind = "stopped" // swiftlint:disable:this unused_declaration - results file key; Codable writes it
     /// When the run started, and when it stopped.
     let startedAt: Date
     let stoppedAt: Date

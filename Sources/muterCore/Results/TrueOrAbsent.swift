@@ -7,14 +7,20 @@ struct TrueOrAbsent: Codable, Hashable, Sendable {
 
 extension KeyedDecodingContainer {
     /// A `TrueOrAbsent` flag: set if the key holds `true`, unset if it is absent, `null` or `false`.
-    func decode(_: TrueOrAbsent.Type, forKey key: Key) throws -> TrueOrAbsent {
+    func decode( // swiftlint:disable:this unused_declaration - synthesized Codable of a @TrueOrAbsent calls it
+        _: TrueOrAbsent.Type,
+        forKey key: Key
+    ) throws -> TrueOrAbsent {
         try TrueOrAbsent(wrappedValue: decodeIfPresent(Bool.self, forKey: key) ?? false)
     }
 }
 
 extension KeyedEncodingContainer {
     /// A `TrueOrAbsent` flag: `true` if it is set, and no key otherwise.
-    mutating func encode(_ value: TrueOrAbsent, forKey key: Key) throws {
+    mutating func encode( // swiftlint:disable:this unused_declaration - synthesized Codable of a @TrueOrAbsent calls it
+        _ value: TrueOrAbsent,
+        forKey key: Key
+    ) throws {
         if value.wrappedValue {
             try encode(true, forKey: key)
         }

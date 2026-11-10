@@ -9,7 +9,7 @@ struct ResultsEnd: Codable, Equatable {
         case interrupted
     }
 
-    var kind = "end"
+    var kind = "end" // swiftlint:disable:this unused_declaration - results file key; Codable writes it
     let session: Int
     let endedAt: Date
     let reason: Reason

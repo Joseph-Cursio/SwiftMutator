@@ -15,7 +15,7 @@ extension BuildConditions.SDKModules {
 
     /// The Apple frameworks a Swift build elsewhere can't import, for a platform with no SDK folders to read. The rest
     /// of what `canImport` asks there is undecided: Foundation and Glibc come with the toolchain or the system.
-    static let withoutAnSDK = Self(
+    static let withoutAnSDK = Self( // swiftlint:disable:this unused_declaration - used under #if os(Linux) only
         present: [],
         absent: [
             "AppKit", "Cocoa", "Combine", "CoreGraphics", "Darwin", "ObjectiveC", "SwiftUI", "TVUIKit", "UIKit",

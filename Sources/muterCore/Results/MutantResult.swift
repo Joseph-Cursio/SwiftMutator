@@ -4,7 +4,7 @@ import Foundation
 /// has one, so `endedBy` is never `cancelled`. A mutant taken out of the build, as it doesn't compile, has one with no
 /// run: a `buildError` that `couldNotRun`, in no time on no worker (`leftOutOfTheBuild`).
 struct MutantResult: Codable, Equatable {
-    var kind = "mutant"
+    var kind = "mutant" // swiftlint:disable:this unused_declaration - results file key; Codable writes it
     let session: Int
     /// The key's fields (`MutantKey`).
     let path: String

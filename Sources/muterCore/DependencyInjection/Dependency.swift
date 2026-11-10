@@ -3,7 +3,7 @@
 @propertyWrapper
 struct Dependency<T> {
     private let keyPath: KeyPath<World, T> & Sendable
-    var wrappedValue: T {
+    var wrappedValue: T { // swiftlint:disable:this unused_declaration - read through every @Dependency property
         dependency(keyPath)
     }
 

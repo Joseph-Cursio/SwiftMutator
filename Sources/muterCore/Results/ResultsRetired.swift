@@ -2,7 +2,7 @@
 /// again, of those its discovery no longer finds, and of those its sample no longer takes. A reader drops each key's
 /// records before this line; a mutant line after it records the key again.
 struct ResultsRetired: Codable, Equatable {
-    var kind = "retired"
+    var kind = "retired" // swiftlint:disable:this unused_declaration - results file key; Codable writes it
     let session: Int
     let keys: [MutantKey]
 }
