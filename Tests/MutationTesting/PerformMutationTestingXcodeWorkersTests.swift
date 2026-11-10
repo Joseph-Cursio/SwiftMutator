@@ -150,7 +150,8 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
         // the slowest is 90 s however they interleave. Then the timed test run.
         let runs = Locked(0)
         ioDelegate.whileRunningTestsWithoutBuilding = {
-            let seconds: UInt64 = switch runs.change { $0 += 1; return $0 } {
+            let run = runs.change { $0 += 1; return $0 }
+            let seconds: UInt64 = switch run {
             case 1: 90
             case 2: 0
             default: 10

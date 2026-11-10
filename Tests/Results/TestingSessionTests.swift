@@ -1,4 +1,5 @@
 @testable import muterCore
+import TestingExtensions
 import XCTest
 
 /// A results file whose appends each wait for `finish`, after signalling `started`, as does each batch of lines, once

@@ -1,4 +1,5 @@
 @testable import muterCore
+import TestingExtensions
 import XCTest
 
 final class ResultsRecordTests: XCTestCase {

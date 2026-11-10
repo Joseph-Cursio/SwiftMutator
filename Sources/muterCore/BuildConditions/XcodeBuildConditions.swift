@@ -56,7 +56,6 @@ enum XcodeBuildConditions {
                 compiler: compiler,
                 language: languageVersion(
                     of: targets,
-                    in: arguments,
                     buildFiles: buildFiles,
                     compiler: compiler,
                     aBuildFileItDidntReadMaySetIt: aBuildFileItDidntReadMaySetSome

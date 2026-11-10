@@ -1,4 +1,5 @@
 @testable import muterCore
+import TestingExtensions
 import XCTest
 
 /// Which targets compiled each file in an xcodebuild build, from the lists of files the build leaves in derived data.

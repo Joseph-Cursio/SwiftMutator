@@ -1,4 +1,5 @@
 @testable import muterCore
+import TestingExtensions
 import XCTest
 
 /// Runs a worker's baseline and two of its mutants with a real test command, a shell script standing for

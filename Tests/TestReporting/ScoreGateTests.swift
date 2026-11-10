@@ -1,4 +1,5 @@
 @testable import muterCore
+import TestingExtensions
 import XCTest
 
 /// The verdict on a score against `--fail-under` or `failUnder`: which score, which runs, and what is said.

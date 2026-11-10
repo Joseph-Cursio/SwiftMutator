@@ -1,6 +1,7 @@
 import Foundation
 @testable import muterCore
 import TestingExtensions
+import XCTest
 
 /// The progress's total: the mutants the session tests, which the baseline's log carries, not those discovered.
 final class LoggerProgressTotalTests: MuterTestCase {

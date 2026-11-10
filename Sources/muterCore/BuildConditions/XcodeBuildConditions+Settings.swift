@@ -125,7 +125,6 @@ extension XcodeBuildConditions {
     /// or if the project has a package, whose targets' modes the manifest sets.
     static func languageVersion(
         of targets: [Settings],
-        in _: [String],
         buildFiles: [BuildFile],
         compiler: VersionTuple?,
         aBuildFileItDidntReadMaySetIt: Bool

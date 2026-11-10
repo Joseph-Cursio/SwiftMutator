@@ -1,6 +1,7 @@
 @testable import muterCore
 // As in PlainTextReporterTests: XCTest runs these tests one at a time on the main thread.
 @preconcurrency import Rainbow
+import TestingExtensions
 import XCTest
 
 /// Each mutant's path, key and duration, where the results came from, and `summary.json`.

@@ -1,5 +1,6 @@
 import ArgumentParser
 @testable import muterCore
+import TestingExtensions
 import XCTest
 
 /// The verdict on a run's score against a baseline file's: the drop compared exactly, what it says, which results it

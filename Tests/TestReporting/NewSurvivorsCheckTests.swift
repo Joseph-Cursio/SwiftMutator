@@ -1,5 +1,6 @@
 import ArgumentParser
 @testable import muterCore
+import TestingExtensions
 import XCTest
 
 /// The verdict on a run's survivors against a baseline file's: what it says, and the status it exits with.

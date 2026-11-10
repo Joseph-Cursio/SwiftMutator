@@ -1,4 +1,5 @@
 @testable import muterCore
+import TestingExtensions
 import XCTest
 
 /// The verdict on the kills a run's score counts that its own evidence doesn't back: which are doubtful, what it says,
