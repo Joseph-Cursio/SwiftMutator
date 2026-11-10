@@ -49,9 +49,9 @@ extension PerformMutationTesting {
     /// that didn't run its code, as `rerunRunsNotShownToReachTheirCode` has tested those. Never one tested so already.
     static func suspectKillCandidates(
         in outcomes: [Int: MutationTestOutcome.Mutation],
-        notInTheBuild: Set<Int> = [],
         suspects: Set<FailedTestLine.TestIdentity>,
-        limit: Int
+        limit: Int,
+        notInTheBuild: Set<Int> = []
     ) -> (indices: [Int], leftOut: Int) {
         let eligible = outcomes.filter { index, mutation in
             !notInTheBuild.contains(index) && mutation.testSuiteOutcome == .failed && mutation.reusedFrom == nil
@@ -146,9 +146,9 @@ extension PerformMutationTesting {
         else { return }
         let (indices, leftOut) = Self.suspectKillCandidates(
             in: context.session.outcomes,
-            notInTheBuild: context.session.notInTheBuild,
             suspects: summary.suspectsWhateverTheyDidAlone,
-            limit: context.configuration.killsToTestAgainAlone
+            limit: context.configuration.killsToTestAgainAlone,
+            notInTheBuild: context.session.notInTheBuild
         )
         guard !indices.isEmpty else { return }
         try Task.checkCancellation()
@@ -157,10 +157,9 @@ extension PerformMutationTesting {
         let baseline = try await Self.runControl(
             0,
             on: (0, alone),
-            workingDirectory: alone.directory,
+            at: (alone.directory, testOutput(named: Self.suspectBaselineLogName, state: context.state)),
             from: testRun,
-            fileName: testOutput(named: Self.suspectBaselineLogName, state: context.state),
-            using: (ioDelegate, instant, heartbeat)
+            using: runDependencies
         )
         try Self.throwIfCancelled(baseline.run)
         try abortingIfTheSimulatorIsGone(
@@ -191,10 +190,8 @@ extension PerformMutationTesting {
         events.send(.suspectKillRerunsStarted(SuspectKillReruns(count: indices.count, leftOut: leftOut)))
         var tally = SuspectKillRerunTally()
         try await runPool(
-            indices.map(PoolTask.mutant),
-            of: jobs,
+            PoolWork(tasks: indices.map(PoolTask.mutant), jobs: jobs, testRun: testRun),
             on: [alone],
-            switchingOnFrom: testRun,
             outputNamed: { testOutput(named: logFileName(forRerunOfJobAt: $0, $1), state: context.state) },
             recording: { finished in
                 try recordSuspectKillRerun(

@@ -59,10 +59,8 @@ extension PerformMutationTesting {
         events.send(.unprovenRunsRerunStarted(count: indices.count))
         var tally = UnprovenRunTally()
         try await runPool(
-            indices.map(PoolTask.mutant),
-            of: jobs,
+            PoolWork(tasks: indices.map(PoolTask.mutant), jobs: jobs, testRun: context.state.projectXCTestRun),
             on: [worker],
-            switchingOnFrom: context.state.projectXCTestRun,
             outputNamed: { testOutput(named: logFileName(forRerunOfJobAt: $0, $1), state: context.state) },
             recording: { finished in
                 // The session shows runs can say, so a run that says nothing didn't reach mutated code.

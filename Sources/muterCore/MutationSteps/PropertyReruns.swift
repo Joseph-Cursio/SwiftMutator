@@ -85,10 +85,9 @@ extension PerformMutationTesting {
         let baseline = try await Self.runControl(
             0,
             on: (0, first),
-            workingDirectory: first.directory,
+            at: (first.directory, testOutput(named: Self.propertyBaselineLogName, state: context.state)),
             from: testRun,
-            fileName: testOutput(named: Self.propertyBaselineLogName, state: context.state),
-            using: (ioDelegate, instant, heartbeat)
+            using: runDependencies
         )
         try Self.throwIfCancelled(baseline.run)
         let log = fileManager.keepLog(
@@ -107,10 +106,8 @@ extension PerformMutationTesting {
         events.send(.propertyRerunsStarted(reruns))
         var tally = PropertyRerunTally(reruns)
         try await runPool(
-            candidates.map(PoolTask.mutant),
-            of: jobs,
+            PoolWork(tasks: candidates.map(PoolTask.mutant), jobs: jobs, testRun: testRun),
             on: Array(pool.prefix(reruns.workers)),
-            switchingOnFrom: testRun,
             outputNamed: { testOutput(named: logFileName(forPropertyRerunOfJobAt: $0, $1), state: context.state) },
             recording: { finished in
                 try recordPropertyRerun(

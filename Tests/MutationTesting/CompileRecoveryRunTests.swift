@@ -243,7 +243,7 @@ final class CompileRecoveryRunTests: MuterTestCase {
         session.keys = MutantKey.keys(for: jobs.map(\.schema), under: state.mutatedProjectDirectoryURL)
         let sent = recordEvents(named: [.mutantsLeftOutOfTheBuild, .newMutationTestOutcomeAvailable])
 
-        sut.keepLeftOut(leftOut, testing: kept, leaving: jobs.count - 1, of: jobs, in: session, state: state)
+        sut.keepLeftOut(leftOut, testing: kept, of: jobs, in: session, state: state)
 
         XCTAssertEqual(session.leftOut, 0)
         XCTAssertTrue(session.outcomes.isEmpty)

@@ -97,8 +97,8 @@ extension PerformMutationTesting {
     func endResults(
         of session: TestingSession,
         _ reason: ResultsEnd.Reason,
-        detail: String? = nil,
-        testDuration: TimeInterval
+        testDuration: TimeInterval,
+        detail: String? = nil
     ) {
         let written = session.end { recorded in
             Self.endLine(

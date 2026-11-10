@@ -16,46 +16,7 @@ extension PerformMutationTesting {
         let reused = keptResults(plan, of: jobs, state: state)
         await sweepLeftoverSimulators(state)
 
-        if let resume = state.resumeState {
-            session.earlierBuildErrors = Set(
-                plan.toRun.filter { resume.recorded.latest[session.keys[$0]]?.outcome == .buildError }
-            )
-            events.send(
-                .resumePlanned(ResumeSummary(
-                    resume,
-                    plan,
-                    waived: state.resumeWaived,
-                    coverage: state.projectCoverage,
-                    in: state.mutatedProjectDirectoryURL,
-                    reusing: resume.isReuse ? state.reuseChanges : nil,
-                    selecting: (state.changeSelection, state.runOptions.shard, state.runOptions.sample),
-                    sampleIsPartial: state.sampleSelection?.isPartial == true
-                ))
-            )
-            // With every result kept there is nothing to test, so no baseline and no clones: the session is a header,
-            // the retired line of mutants no longer discovered or sampled, if any, and the end line `run(with:)`
-            // writes. A reuse
-            // after any change still runs the baseline, below: a changed test that now fails would otherwise go unseen.
-            if plan.toRun.isEmpty, !resume.isReuse || state.reuseChanges?.values.allSatisfy(\.isEmpty) != false {
-                session.baselinePassed = true
-                await startResults(
-                    await header(
-                        of: session,
-                        plan,
-                        state: state,
-                        configuration: state.muterConfiguration,
-                        baselineSeconds: nil,
-                        workers: 0
-                    ),
-                    retiring: plan.retired,
-                    copying: reused,
-                    in: session,
-                    state: state
-                )
-                keepReused(reused, of: jobs, in: session, state: state)
-                return
-            }
-        }
+        if await keptEveryResult(reused, of: jobs, plan, state: state, session: session) { return }
 
         events.send(.mutationTestingStarted)
 
@@ -79,25 +40,126 @@ extension PerformMutationTesting {
         let booting = workerSimulators
         async let booted = SimulatorWorkerSetup.boot(simulators, on: booting)
 
-        stoppedRun.enter(.baseline)
-        let (testSuiteOutcome, testLog, timePerBuildTestCycle, leftOut) = try await baselineLeavingOutMutants(
+        let baseline = try await passingBaseline(state: state)
+
+        // The mutants that don't compile have a result, written below, so they count in the header and a resume's plan,
+        // and aren't in anything that tests them.
+        let testing = plan.leavingOut { baseline.leftOut[jobs[$0].schema.id] != nil }
+        let muterConfiguration = mutantConfiguration(after: baseline, state: state)
+
+        // A lone worker's simulator can be deleted here, once the baseline shows it wouldn't be faster.
+        let checked = try await simulatorWorkerSetup.checkedAgainstTheBaseline(
+            try await booted, log: baseline.testLog, destination: state.muterConfiguration.firstDestination
+        )
+        // Before the workers: a direct run that wrote nothing in the project lets them share one build.
+        stoppedRun.enter(.directTestRun)
+        let direct = try await directRuns(
+            of: testing,
+            muterConfiguration,
+            baselineLog: baseline.testLog,
+            baselineSeconds: baseline.seconds,
             state: state
         )
+        stoppedRun.enter(muterConfiguration.buildSystem == .xcodebuild ? .workerCheckRuns : .workerBaselines)
+        let pool = try await workers(testing: testing, on: checked, after: direct, state: state, session: session)
+        stoppedRun.enter(.timedTestRun)
+        let setup = try await mutantRuns(
+            on: pool, testing: testing, after: direct, baselineSeconds: baseline.seconds, state: state
+        )
+        // Only now, with nothing awaited before the results start: a stop during the timed test run, like one during
+        // the baseline, has nothing to report.
+        session.baselinePassed = true
+
+        // Before the baseline's log, which starts the progress bar or lines, so the results file's path comes first.
+        await startResults(
+            await header(of: session, plan, state: state, setup: setup),
+            retiring: plan.retired,
+            copying: reused,
+            in: session,
+            state: state
+        )
+        keepReused(reused, of: jobs, in: session, state: state)
+        keepLeftOut(baseline.leftOut, testing: plan, of: jobs, in: session, state: state)
+        // A reuse with nothing left to test ran the baseline only to check the changed project, as a run whose mutants
+        // don't compile has only built it, so it sends no log to start the progress bar or lines. `baseline` kept its
+        // log.
+        guard !testing.toRun.isEmpty else { return }
+
+        let context = RunContext(state: state, configuration: setup.configuration, session: session)
+        try await runMutants(of: jobs, testing: testing, after: baseline, setup: setup, in: context)
+    }
+
+    /// Sends a resumed or reused run's plan, and, when it keeps every result, which leaves nothing to test, so no
+    /// baseline and no clones, writes the session's header and keeps the `reused` results of `jobs`: then true.
+    private func keptEveryResult(
+        _ reused: [Int: MutantResult],
+        of jobs: [MutantJob],
+        _ plan: ResumePlan,
+        state: AnyMutationTestState,
+        session: TestingSession
+    ) async -> Bool {
+        guard let resume = state.resumeState else { return false }
+        session.earlierBuildErrors = Set(
+            plan.toRun.filter { resume.recorded.latest[session.keys[$0]]?.outcome == .buildError }
+        )
+        events.send(
+            .resumePlanned(ResumeSummary(
+                resume,
+                plan,
+                waived: state.resumeWaived,
+                coverage: state.projectCoverage,
+                in: state.mutatedProjectDirectoryURL,
+                reusing: resume.isReuse ? state.reuseChanges : nil,
+                selecting: (state.changeSelection, state.runOptions.shard, state.runOptions.sample),
+                sampleIsPartial: state.sampleSelection?.isPartial == true
+            ))
+        )
+        // With every result kept there is nothing to test, so no baseline and no clones: the session is a header,
+        // the retired line of mutants no longer discovered or sampled, if any, and the end line `run(with:)`
+        // writes. A reuse
+        // after any change still runs the baseline, below: a changed test that now fails would otherwise go unseen.
+        guard plan.toRun.isEmpty, !resume.isReuse || state.reuseChanges?.values.allSatisfy(\.isEmpty) != false else {
+            return false
+        }
+        session.baselinePassed = true
+        await startResults(
+            await header(
+                of: session,
+                plan,
+                state: state,
+                setup: MutantRunSetup(configuration: state.muterConfiguration, workers: 0)
+            ),
+            retiring: plan.retired,
+            copying: reused,
+            in: session,
+            state: state
+        )
+        keepReused(reused, of: jobs, in: session, state: state)
+        return true
+    }
+
+    /// The baseline, with the mutants that fail its build taken out (`baselineLeavingOutMutants`), once it passed. A
+    /// baseline that fails aborts mutation testing.
+    private func passingBaseline(state: AnyMutationTestState) async throws -> BaselineRun {
+        stoppedRun.enter(.baseline)
+        let baseline = try await baselineLeavingOutMutants(state: state)
 
         // A failing baseline's log, which `baseline` kept, is exactly what the user needs on disk.
-        guard testSuiteOutcome == .passed else {
+        guard baseline.outcome == .passed else {
             throw MuterError.mutationTestingAborted(
                 reason: .baselineTestFailed(
-                    log: testLog,
+                    log: baseline.testLog,
                     mutatedFilePaths: state.mutationMapping.map(\.filePath)
                 )
             )
         }
+        return baseline
+    }
 
-        // The mutants that don't compile have a result, written below, so they count in the header and a resume's plan,
-        // and aren't in anything that tests them.
-        let testing = plan.leavingOut { leftOut[jobs[$0].schema.id] != nil }
-
+    /// The configuration the mutants run with, before the workers and the timed test run settle it, from the
+    /// configured one and what the passing `baseline` printed.
+    private func mutantConfiguration(after baseline: BaselineRun, state: AnyMutationTestState) -> MuterConfiguration {
+        let testLog = baseline.testLog
         // One mutant's run shows every test it fails, not only the first.
         var muterConfiguration = state.selectedMutant == nil
             ? state.muterConfiguration
@@ -116,96 +178,21 @@ extension PerformMutationTesting {
             }
             muterConfiguration = muterConfiguration.withUnreliableFailedTestLines(printedIn: [testLog])
         }
-
-        // A lone worker's simulator can be deleted here, once the baseline shows it wouldn't be faster.
-        let checked = try await simulatorWorkerSetup.checkedAgainstTheBaseline(
-            try await booted, log: testLog, destination: state.muterConfiguration.firstDestination
-        )
-        // Before the workers: a direct run that wrote nothing in the project lets them share one build.
-        stoppedRun.enter(.directTestRun)
-        let direct = try await directRuns(
-            of: testing, muterConfiguration, baselineLog: testLog, baselineSeconds: timePerBuildTestCycle, state: state
-        )
-        stoppedRun.enter(muterConfiguration.buildSystem == .xcodebuild ? .workerCheckRuns : .workerBaselines)
-        let pool = try await workers(
-            testing: testing,
-            on: checked,
-            with: direct.configuration,
-            mayShareBuild: direct.wroteNothing,
-            state: state,
-            session: session
-        )
-        muterConfiguration = pool.configuration
-        let workers = pool.count
-        stoppedRun.enter(.timedTestRun)
-        let (configuration, testRunSeconds) = try await mutantRuns(
-            muterConfiguration,
-            on: pool,
-            testing: testing,
-            directRunSeconds: direct.seconds,
-            baselineSeconds: timePerBuildTestCycle,
-            state: state
-        )
-        // Only now, with nothing awaited before the results start: a stop during the timed test run, like one during
-        // the baseline, has nothing to report.
-        session.baselinePassed = true
-
-        // Before the baseline's log, which starts the progress bar or lines, so the results file's path comes first.
-        await startResults(
-            await header(
-                of: session,
-                plan,
-                state: state,
-                configuration: configuration,
-                baselineSeconds: timePerBuildTestCycle,
-                testRunSeconds: testRunSeconds,
-                workers: workers
-            ),
-            retiring: plan.retired,
-            copying: reused,
-            in: session,
-            state: state
-        )
-        keepReused(reused, of: jobs, in: session, state: state)
-        keepLeftOut(leftOut, testing: plan, leaving: testing.toRun.count, of: jobs, in: session, state: state)
-        // A reuse with nothing left to test ran the baseline only to check the changed project, as a run whose mutants
-        // don't compile has only built it, so it sends no log to start the progress bar or lines. `baseline` kept its
-        // log.
-        guard !testing.toRun.isEmpty else { return }
-
-        // The first estimate of the time left: every mutant to test, spread over the workers.
-        events.send(
-            .newTestLogAvailable(MutationTestLog(
-                mutationPoint: .none,
-                testLog: testLog,
-                timePerBuildTestCycle: timePerBuildTestCycle,
-                remainingMutationPointsCount: testing.toRun.count,
-                workers: workers,
-                testRunSeconds: testRunSeconds
-            ))
-        )
-
-        let tasks = Self.tasks(testing.toRun, controlRunEvery: Self.controlRunEvery(state, configuration))
-        let context = RunContext(state: state, configuration: configuration, session: session)
-        if workers > 1 {
-            try await testMutationsInParallel(jobs, tasks, workers: workers, in: context)
-        } else {
-            try await testMutations(jobs, tasks, in: context)
-        }
+        return muterConfiguration
     }
 
-    /// The configuration `pool` tests `plan`'s mutants with, from `configuration`, the effective one: on the first
-    /// xcodebuild worker, and with the default time limit unless one is configured, from the baseline's
-    /// `baselineSeconds`, `directRunSeconds` or a timed test run. Also the timed test run's seconds, if one passed.
+    /// How `pool` tests `plan`'s mutants: with the configuration from `pool.configuration`, the effective one: on the
+    /// first xcodebuild worker, and with the default time limit unless one is configured, from the baseline's
+    /// `baselineSeconds`, the seconds `direct`'s run took or a timed test run. Also the timed test run's seconds, if
+    /// one passed.
     private func mutantRuns(
-        _ configuration: MuterConfiguration,
         on pool: SimulatorWorkerSetup.Workers,
         testing plan: ResumePlan,
-        directRunSeconds: TimeInterval?,
+        after direct: DirectRuns,
         baselineSeconds: TimeInterval,
         state: AnyMutationTestState
-    ) async throws -> (configuration: MuterConfiguration, testRunSeconds: TimeInterval?) {
-        var configuration = configuration
+    ) async throws -> MutantRunSetup {
+        var configuration = pool.configuration
         var testRunSeconds: TimeInterval?
         // A reuse with nothing left to test ran the baseline only to see that the changed tests pass. One mutant's run
         // saves no more than either costs, so its time limit is the configured one, or the baseline's default.
@@ -213,7 +200,7 @@ extension PerformMutationTesting {
         if configuration.buildSystem == .swift, timesATestRun {
             // The run that checked the direct runs is a mutant's run with no mutant on, which needn't run again.
             if configuration.testSuiteTimeout == nil {
-                testRunSeconds = directRunSeconds
+                testRunSeconds = direct.seconds
             }
             // Only a direct run's tests have `UserDefaults` of their own. Sent on Linux too, which never runs directly,
             // and which keeps the shared domain in `~/.config/<package>-test-runner.plist`.
@@ -239,26 +226,31 @@ extension PerformMutationTesting {
             )
         }
         let limit = Self.defaultTimeout(testRunSeconds: testRunSeconds, baselineSeconds: baselineSeconds, on: pool)
-        return (configuration.withDefaultTestSuiteTimeout(limit), testRunSeconds)
+        return MutantRunSetup(
+            configuration: configuration.withDefaultTestSuiteTimeout(limit),
+            workers: pool.count,
+            baselineSeconds: baselineSeconds,
+            testRunSeconds: testRunSeconds
+        )
     }
 
-    /// The workers that test `plan`'s mutants, with `configuration`, the effective one, said, with why fewer than asked
-    /// for, once they are known. A clone costs a copy and about a baseline build, and a simulator a boot, so there are
-    /// never more workers than mutants to test. An xcodebuild run's `simulators` are checked first, which can fall back
-    /// to one worker on the test command's destination, and can make failed-test lines unreliable
+    /// The workers that test `plan`'s mutants, with the configuration `direct` left, the effective one, said, with why
+    /// fewer than asked for, once they are known. A clone costs a copy and about a baseline build, and a simulator a
+    /// boot, so there are never more workers than mutants to test. An xcodebuild run's `simulators` are checked first,
+    /// which can fall back to one worker on the test command's destination, and can make failed-test lines unreliable
     /// (`SimulatorWorkerSetup`). A lone worker's said to test on a simulator of its own only when it does. A SwiftPM
     /// run's clones are then made and built (`clonesMade`), here rather than later, as without them a default run tests
     /// on one worker, which its time limit and its results file's header must say. A stop meanwhile throws a
-    /// CancellationError, with nothing yet to report. With `mayShareBuild`, a SwiftPM run needs no clones: its workers
-    /// beyond the first are only names, in `session` as clones are, and test from the mutated project's build.
+    /// CancellationError, with nothing yet to report. When `direct` wrote nothing, a SwiftPM run needs no clones: its
+    /// workers beyond the first are only names, in `session` as clones are, and test from the mutated project's build.
     private func workers(
         testing plan: ResumePlan,
         on simulators: SimulatorWorkerSetup.Simulators,
-        with configuration: MuterConfiguration,
-        mayShareBuild: Bool,
+        after direct: DirectRuns,
         state: AnyMutationTestState,
         session: TestingSession
     ) async throws -> SimulatorWorkerSetup.Workers {
+        let (configuration, mayShareBuild) = (direct.configuration, direct.wroteNothing)
         let workers = try await simulatorWorkerSetup.workers(
             configuration.workerCount(testing: plan.toRun.count, sharingBuild: mayShareBuild),
             on: simulators,
@@ -279,14 +271,14 @@ extension PerformMutationTesting {
             events.send(.workersChosen(choice))
         }
         guard configuration.buildSystem == .swift, workers.count > 1 else { return workers }
-        if sharesBuild, let direct = configuration.directTestRun {
+        if sharesBuild, let directRun = configuration.directTestRun {
             try Task.checkCancellation()
             let project = state.mutatedProjectDirectoryURL
             session.clones = (1..<workers.count).map { MutatedProjectNames.clone($0, of: project) }
             return SimulatorWorkerSetup.Workers(
                 count: workers.count,
                 unavailable: nil,
-                configuration: configuration.withDirectTestRun(direct.sharingBuild(of: project)),
+                configuration: configuration.withDirectTestRun(directRun.sharingBuild(of: project)),
                 xcodeWorkers: []
             )
         }

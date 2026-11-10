@@ -57,19 +57,19 @@ extension PerformMutationTesting {
         "control run \(number)"
     }
 
-    /// Runs control run `number` on worker `worker.number`, with its configuration, in `workingDirectory`, its folder,
-    /// or the current directory if nil, writing its output to `fileName` while it runs. An xcodebuild worker first
-    /// writes `testRun` with no mutant on to its own `.xctestrun`, in its folder: one that couldn't be written would
-    /// still switch on the mutant before, so that aborts mutation testing.
+    /// Runs control run `number` on worker `worker.number`, with its configuration, in `location.directory`, its
+    /// folder, or the current directory if nil, writing its output to `location.fileName` while it runs. An xcodebuild
+    /// worker first writes `testRun` with no mutant on to its own `.xctestrun`, in its folder: one that couldn't be
+    /// written would still switch on the mutant before, so that aborts mutation testing.
     static func runControl(
         _ number: Int,
         on worker: (number: Int, PoolWorker),
-        workingDirectory: URL?,
+        at location: (directory: URL?, fileName: String),
         from testRun: XCTestRun,
-        fileName: String,
-        using dependencies: (ioDelegate: MutationTestingIODelegate, instant: Instant, heartbeat: Heartbeat)
+        using dependencies: RunDependencies
     ) async throws -> FinishedRun {
-        let (ioDelegate, instant, heartbeat) = dependencies
+        let ioDelegate = dependencies.ioDelegate
+        let (workingDirectory, fileName) = location
         let (directory, configuration) = (worker.1.directory, worker.1.configuration)
         if configuration.buildSystem == .xcodebuild {
             do {
@@ -89,15 +89,16 @@ extension PerformMutationTesting {
             index: number,
             worker: worker.number,
             configuration: configuration,
-            instant: instant,
-            heartbeat: (heartbeat, place: place(ofControlRun: number))
+            instant: dependencies.instant,
+            heartbeat: (dependencies.heartbeat, place: place(ofControlRun: number))
         ) {
             await ioDelegate.runControlTests(
                 using: configuration,
                 savingResultsIntoFileNamed: fileName,
                 workingDirectory: workingDirectory
             )
-        }.writing(to: fileName)
+        }
+        .writing(to: fileName)
     }
 
     /// Writes `finished`, control run `number` of `runs.count`, of one for each `runs.every` mutants, to the results

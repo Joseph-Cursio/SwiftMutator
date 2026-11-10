@@ -78,85 +78,66 @@ extension PerformMutationTesting {
         let configuration: MuterConfiguration
     }
 
+    /// What a pool runs: its tasks, in the order they start, the jobs a mutant's task is the index of, and the
+    /// `.xctestrun` an xcodebuild worker switches each mutant on from.
+    struct PoolWork {
+        let tasks: [PoolTask]
+        let jobs: [MutantJob]
+        let testRun: XCTestRun
+    }
+
+    /// What a test run's task is given in place of the step: the delegate that runs the tests, the monotonic clock
+    /// that times them, and the heartbeat that names the runs under way.
+    struct RunDependencies {
+        let ioDelegate: MutationTestingIODelegate
+        let instant: Instant
+        let heartbeat: Heartbeat
+    }
+
+    /// The step's dependencies a test run's task uses.
+    var runDependencies: RunDependencies {
+        RunDependencies(ioDelegate: ioDelegate, instant: instant, heartbeat: heartbeat)
+    }
+
     /// The seconds from `start` to `end`, two readings of the monotonic clock; none if `end` is the earlier.
     static func seconds(from start: DispatchTime, to end: DispatchTime) -> TimeInterval {
         guard end >= start else { return 0 }
         return Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000_000
     }
 
-    /// Runs `tasks`, started in their order, one at a time on each of `workers`, and hands each mutant's run to
+    /// Runs `work.tasks`, started in their order, one at a time on each of `workers`, and hands each mutant's run to
     /// `record`, and each control run to `recordControlRun`, as it finishes; the worker that finished it then starts
     /// the next task. A control run writes its output to the file `controlOutputName` names (`runControl`), which only
     /// tasks with no control run may leave out. An xcodebuild worker first switches its job's mutant on in its own
-    /// `.xctestrun`, written from `testRun`, as the serial path does; a SwiftPM run writes its worker's active-mutant
-    /// file itself (see `MutationTestingDelegate.testProcess`). A worker runs one job at a time, so nothing rewrites
-    /// either file during a run. Each run writes its output to the file `outputName` names for its job while it runs.
-    /// Once mutation testing is cancelled, no job starts, and no run that returns is handed on.
+    /// `.xctestrun`, written from `work.testRun`, as the serial path does; a SwiftPM run writes its worker's
+    /// active-mutant file itself (see `MutationTestingDelegate.testProcess`). A worker runs one job at a time, so
+    /// nothing rewrites either file during a run. Each run writes its output to the file `outputName` names for its job
+    /// while it runs. Once mutation testing is cancelled, no job starts, and no run that returns is handed on.
     func runPool(
-        _ tasks: [PoolTask],
-        of jobs: [MutantJob],
+        _ work: PoolWork,
         on workers: [PoolWorker],
-        switchingOnFrom testRun: XCTestRun,
         outputNamed outputName: (_ index: Int, _ job: MutantJob) -> String,
         controlOutputNamed controlOutputName: (_ number: Int) -> String? = { _ in nil },
         recordingControlRun recordControlRun: (_ number: Int, FinishedRun) throws -> Void = { _, _ in },
         recording record: (FinishedRun) throws -> Void
     ) async throws {
-        // The worker job loop and its inline cancellation handling genuinely span >30 lines; pulling the body
-        // into a helper would split apart a tight loop-and-catch, so the length is disabled for this closure.
-        // swiftlint:disable:next closure_body_length
+        let tasks = work.tasks
         try await withThrowingTaskGroup(of: (task: PoolTask, finished: FinishedRun).self) { group in
             // The position in `tasks` of the next task to start.
             var next = 0
             // Throws once mutation testing is cancelled, rather than skip the task: with no run under way, the
             // loop below would end as if every mutant had been tested.
             func start(_ task: PoolTask, worker: Int) throws {
-                let (directory, configuration) = (workers[worker].directory, workers[worker].configuration)
-                guard case let .mutant(index) = task else {
-                    guard case let .control(number) = task else { return }
-                    // A run named "" has no output to keep or discard (`FinishedRun.writing(to:)`).
-                    let fileName = controlOutputName(number) ?? ""
-                    let poolWorker = workers[worker]
-                    let started = group.addTaskUnlessCancelled { [ioDelegate, instant, heartbeat] in
-                        let finished = try await Self.runControl(
-                            number,
-                            on: (worker, poolWorker),
-                            workingDirectory: directory,
-                            from: testRun,
-                            fileName: fileName,
-                            using: (ioDelegate, instant, heartbeat)
-                        )
-                        return (task, finished)
-                    }
-                    guard started else { throw CancellationError() }
-                    return
+                let run = run(
+                    task,
+                    on: (worker, workers[worker]),
+                    of: work,
+                    outputNamed: outputName,
+                    controlOutputNamed: controlOutputName
+                )
+                guard group.addTaskUnlessCancelled(operation: { (task, try await run()) }) else {
+                    throw CancellationError()
                 }
-                let job = jobs[index]
-                let fileName = outputName(index, job)
-                // A worker's task is given the values and the two dependencies it uses, not the step.
-                let started = group.addTaskUnlessCancelled { [ioDelegate, instant, heartbeat] in
-                    if configuration.buildSystem == .xcodebuild {
-                        try await Self.switchOn(
-                            job, from: testRun, in: directory, for: configuration, using: ioDelegate
-                        )
-                    }
-                    let finished = await FinishedRun.make(
-                        index: index,
-                        worker: worker,
-                        configuration: configuration,
-                        instant: instant,
-                        heartbeat: (heartbeat, place: Self.place(of: job))
-                    ) {
-                        await ioDelegate.runTestSuite(
-                            withSchemata: job.schema,
-                            using: configuration,
-                            savingResultsIntoFileNamed: fileName,
-                            workingDirectory: directory
-                        )
-                    }.writing(to: fileName)
-                    return (task, finished)
-                }
-                guard started else { throw CancellationError() }
             }
 
             for worker in workers.indices.prefix(tasks.count) {
@@ -180,6 +161,72 @@ extension PerformMutationTesting {
                 }
             }
         }
+    }
+
+    /// The run of `task` on `worker.1`, numbered `worker.number`, ready to start: a control run, writing its output to
+    /// the file `controlOutputName` names, or "" for none (`runControl`), or the mutant's run of a job of `work`,
+    /// writing its output to the file `outputName` names for it (`runMutant`). It is given the values and the
+    /// dependencies it uses, not the step.
+    private func run(
+        _ task: PoolTask,
+        on worker: (number: Int, PoolWorker),
+        of work: PoolWork,
+        outputNamed outputName: (_ index: Int, _ job: MutantJob) -> String,
+        controlOutputNamed controlOutputName: (_ number: Int) -> String?
+    ) -> @Sendable () async throws -> FinishedRun {
+        let (testRun, dependencies) = (work.testRun, runDependencies)
+        switch task {
+        case let .control(number):
+            // A run named "" has no output to keep or discard (`FinishedRun.writing(to:)`).
+            let fileName = controlOutputName(number) ?? ""
+            return {
+                try await Self.runControl(
+                    number, on: worker, at: (worker.1.directory, fileName), from: testRun, using: dependencies
+                )
+            }
+
+        case let .mutant(index):
+            let job = work.jobs[index]
+            let fileName = outputName(index, job)
+            return {
+                try await Self.runMutant(
+                    (index, job), on: worker, from: testRun, fileName: fileName, using: dependencies
+                )
+            }
+        }
+    }
+
+    /// Runs the mutant of `indexedJob`, the job at its index, on `worker.1`, numbered `worker.number`, with its
+    /// configuration, in its folder, writing its output to `fileName` while it runs. An xcodebuild worker first switches
+    /// the mutant on in its own `.xctestrun`, written from `testRun` (`switchOn`).
+    static func runMutant(
+        _ indexedJob: (index: Int, MutantJob),
+        on worker: (number: Int, PoolWorker),
+        from testRun: XCTestRun,
+        fileName: String,
+        using dependencies: RunDependencies
+    ) async throws -> FinishedRun {
+        let (index, job) = indexedJob
+        let (directory, configuration) = (worker.1.directory, worker.1.configuration)
+        let ioDelegate = dependencies.ioDelegate
+        if configuration.buildSystem == .xcodebuild {
+            try await switchOn(job, from: testRun, in: directory, for: configuration, using: ioDelegate)
+        }
+        return await FinishedRun.make(
+            index: index,
+            worker: worker.number,
+            configuration: configuration,
+            instant: dependencies.instant,
+            heartbeat: (dependencies.heartbeat, place: place(of: job))
+        ) {
+            await ioDelegate.runTestSuite(
+                withSchemata: job.schema,
+                using: configuration,
+                savingResultsIntoFileNamed: fileName,
+                workingDirectory: directory
+            )
+        }
+        .writing(to: fileName)
     }
 
     /// Switches `job`'s mutant on for a run with `configuration` in `directory`, by writing `testRun` with it on to

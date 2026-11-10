@@ -3,6 +3,36 @@ import SwiftSyntax
 
 /// The mutants' runs, one at a time or on several workers at once, and the files their output is written to.
 extension PerformMutationTesting {
+    /// Tests `plan`'s mutants of `jobs` with `setup`'s configuration, `context`'s, on its workers, one at a time or at
+    /// once, with the control runs among them, once the first estimate of the time left, from the passing `baseline`,
+    /// is sent.
+    func runMutants(
+        of jobs: [MutantJob],
+        testing plan: ResumePlan,
+        after baseline: BaselineRun,
+        setup: MutantRunSetup,
+        in context: RunContext
+    ) async throws {
+        // The first estimate of the time left: every mutant to test, spread over the workers.
+        events.send(
+            .newTestLogAvailable(MutationTestLog(
+                mutationPoint: .none,
+                testLog: baseline.testLog,
+                timePerBuildTestCycle: baseline.seconds,
+                remainingMutationPointsCount: plan.toRun.count,
+                workers: setup.workers,
+                testRunSeconds: setup.testRunSeconds
+            ))
+        )
+
+        let tasks = Self.tasks(plan.toRun, controlRunEvery: Self.controlRunEvery(context.state, context.configuration))
+        if setup.workers > 1 {
+            try await testMutationsInParallel(jobs, tasks, workers: setup.workers, in: context)
+        } else {
+            try await testMutations(jobs, tasks, in: context)
+        }
+    }
+
     /// Runs `tasks`, in their order, one at a time in the mutated project: the jobs' mutants, and the control runs
     /// among them.
     func testMutations(
@@ -16,25 +46,30 @@ extension PerformMutationTesting {
         heartbeat.begin(workers: 1, at: instant())
         let beating = beat()
         defer { beating.cancel() }
+        let worker = PoolWorker(
+            directory: context.state.mutatedProjectDirectoryURL,
+            configuration: context.configuration
+        )
 
         for task in tasks {
             try Task.checkCancellation()
-            let index: Int
             switch task {
-            case let .mutant(mutant):
-                index = mutant
+            case let .mutant(index):
+                let finished = try await runMutantInTheProject(jobs[index], at: index, in: context)
+                try record(
+                    finished,
+                    of: jobs[index],
+                    in: context,
+                    buildErrors: &buildErrors
+                )
 
             case let .control(number):
                 let finished = try await Self.runControl(
                     number,
-                    on: (0, PoolWorker(
-                        directory: context.state.mutatedProjectDirectoryURL,
-                        configuration: context.configuration
-                    )),
-                    workingDirectory: nil,
+                    on: (0, worker),
+                    at: (nil, testOutput(named: Self.place(ofControlRun: number), state: context.state)),
                     from: context.state.projectXCTestRun,
-                    fileName: testOutput(named: Self.place(ofControlRun: number), state: context.state),
-                    using: (ioDelegate, instant, heartbeat)
+                    using: runDependencies
                 )
                 try Self.throwIfCancelled(finished.run)
                 try recordControlRun(
@@ -43,56 +78,71 @@ extension PerformMutationTesting {
                     of: controlRuns,
                     in: context
                 )
-                continue
             }
-            let job = jobs[index]
-            try await Self.switchOn(
-                job,
-                from: context.state.projectXCTestRun,
-                in: context.state.mutatedProjectDirectoryURL,
-                for: context.configuration,
-                using: ioDelegate
-            )
-
-            let output = testOutput(named: logFileName(forJobAt: index, job), state: context.state)
-            let finished = await FinishedRun.make(
-                index: index,
-                worker: 0,
-                configuration: context.configuration,
-                instant: instant,
-                heartbeat: (heartbeat, place: Self.place(of: job))
-            ) {
-                await ioDelegate.runTestSuite(
-                    withSchemata: job.schema,
-                    using: context.configuration,
-                    savingResultsIntoFileNamed: output
-                )
-            }.writing(to: output)
-            try Self.throwIfCancelled(finished.run)
-
-            try record(
-                finished,
-                of: job,
-                in: context,
-                buildErrors: &buildErrors
-            )
         }
         // One worker has tested no timeout again, so they all count here.
+        try await rerunKills(of: jobs, on: [worker], includingTimeouts: true, in: context)
+    }
+
+    /// Runs `job`'s mutant, the job at `index`, in the mutated project, the current directory, with `context`'s
+    /// configuration, once it is switched on (`switchOn`). A run that returns once mutation testing is cancelled
+    /// throws.
+    private func runMutantInTheProject(
+        _ job: MutantJob,
+        at index: Int,
+        in context: RunContext
+    ) async throws -> FinishedRun {
+        try await Self.switchOn(
+            job,
+            from: context.state.projectXCTestRun,
+            in: context.state.mutatedProjectDirectoryURL,
+            for: context.configuration,
+            using: ioDelegate
+        )
+
+        let output = testOutput(named: logFileName(forJobAt: index, job), state: context.state)
+        let finished = await FinishedRun.make(
+            index: index,
+            worker: 0,
+            configuration: context.configuration,
+            instant: instant,
+            heartbeat: (heartbeat, place: Self.place(of: job))
+        ) {
+            await ioDelegate.runTestSuite(
+                withSchemata: job.schema,
+                using: context.configuration,
+                savingResultsIntoFileNamed: output
+            )
+        }
+        .writing(to: output)
+        try Self.throwIfCancelled(finished.run)
+        return finished
+    }
+
+    /// Once the mutants' runs are over, tests again, on `pool`'s first worker, the kills not shown to run their code,
+    /// and the timeouts too `includingTimeouts`, then the kills only suspect tests failed for, and then, on all of
+    /// `pool`, the kills by examples alone with the property tests.
+    private func rerunKills(
+        of jobs: [MutantJob],
+        on pool: [PoolWorker],
+        includingTimeouts: Bool,
+        in context: RunContext
+    ) async throws {
         try await rerunRunsNotShownToReachTheirCode(
             of: jobs,
-            on: PoolWorker(directory: context.state.mutatedProjectDirectoryURL, configuration: context.configuration),
-            includingTimeouts: true,
+            on: pool[0],
+            includingTimeouts: includingTimeouts,
             in: context
         )
         try await rerunSuspectKills(
             of: jobs,
-            on: PoolWorker(directory: context.state.mutatedProjectDirectoryURL, configuration: context.configuration),
+            on: pool[0],
             from: context.state.projectXCTestRun,
             in: context
         )
         try await rerunPropertyTests(
             of: jobs,
-            on: [PoolWorker(directory: context.state.mutatedProjectDirectoryURL, configuration: context.configuration)],
+            on: pool,
             from: context.state.projectXCTestRun,
             in: context
         )
@@ -122,7 +172,7 @@ extension PerformMutationTesting {
     /// active-mutant file, written just before the run (see `MutationTestingDelegate.testProcess`), so the clones' code
     /// never needs rewriting, and under xcodebuild in the worker's `.xctestrun` (`runPool`). Outcomes are recorded,
     /// and their events sent, as they finish. The timeouts are then tested again, on fewer workers (`rerunTimeouts`).
-    /// The clones are in `session`, made and built by `workers(testing:on:with:mayShareBuild:state:session:)`, and
+    /// The clones are in `session`, made and built by `workers(testing:on:after:state:session:)`, and
     /// `run(with:)` removes them once the end line is written. Once mutation testing is cancelled, no mutant starts,
     /// and none that returns is recorded.
     func testMutationsInParallel(
@@ -132,19 +182,7 @@ extension PerformMutationTesting {
         in context: RunContext
     ) async throws {
         try Task.checkCancellation()
-        let pool: [PoolWorker]
-        if context.configuration.buildSystem == .xcodebuild {
-            pool = context.session.xcodeWorkers.prefix(workers).map {
-                PoolWorker(
-                    directory: context.state.mutatedProjectDirectoryURL,
-                    configuration: context.configuration.forXcodeWorker($0)
-                )
-            }
-        } else {
-            pool = ([context.state.mutatedProjectDirectoryURL] + context.session.clones).map {
-                PoolWorker(directory: $0, configuration: context.configuration)
-            }
-        }
+        let pool = Self.pool(of: workers, in: context)
 
         var buildErrors = 0
         var timeouts: [Int] = []
@@ -155,10 +193,8 @@ extension PerformMutationTesting {
         defer { beating.cancel() }
 
         try await runPool(
-            tasks,
-            of: jobs,
+            PoolWork(tasks: tasks, jobs: jobs, testRun: context.state.projectXCTestRun),
             on: pool,
-            switchingOnFrom: context.state.projectXCTestRun,
             outputNamed: { testOutput(named: logFileName(forJobAt: $0, $1), state: context.state) },
             controlOutputNamed: { testOutput(named: Self.place(ofControlRun: $0), state: context.state) },
             recordingControlRun: { number, finished in
@@ -182,27 +218,25 @@ extension PerformMutationTesting {
                 }
             }
         )
-        try await rerunTimeouts(
-            timeouts.sorted(), of: jobs, on: pool, in: context
-        )
-        try await rerunRunsNotShownToReachTheirCode(
-            of: jobs,
-            on: pool[0],
-            includingTimeouts: false,
-            in: context
-        )
-        try await rerunSuspectKills(
-            of: jobs,
-            on: pool[0],
-            from: context.state.projectXCTestRun,
-            in: context
-        )
-        try await rerunPropertyTests(
-            of: jobs,
-            on: pool,
-            from: context.state.projectXCTestRun,
-            in: context
-        )
+        try await rerunTimeouts(timeouts.sorted(), of: jobs, on: pool, in: context)
+        try await rerunKills(of: jobs, on: pool, includingTimeouts: false, in: context)
+    }
+
+    /// The `workers` that test at once: an xcodebuild run's in the mutated project, each from its own `.xctestrun` and
+    /// on its own simulator, as `context.session.xcodeWorkers` has them; a SwiftPM run's in the mutated project and
+    /// each of its clones.
+    private static func pool(of workers: Int, in context: RunContext) -> [PoolWorker] {
+        if context.configuration.buildSystem == .xcodebuild {
+            return context.session.xcodeWorkers.prefix(workers).map {
+                PoolWorker(
+                    directory: context.state.mutatedProjectDirectoryURL,
+                    configuration: context.configuration.forXcodeWorker($0)
+                )
+            }
+        }
+        return ([context.state.mutatedProjectDirectoryURL] + context.session.clones).map {
+            PoolWorker(directory: $0, configuration: context.configuration)
+        }
     }
 
     /// Tests the jobs at `indices` again, whose runs timed out, in job order, on the first quarter of `workers` at
@@ -226,10 +260,8 @@ extension PerformMutationTesting {
         events.send(.timeoutRerunsStarted(reruns))
         var tally = TimeoutRerunTally(reruns)
         try await runPool(
-            indices.map(PoolTask.mutant),
-            of: jobs,
+            PoolWork(tasks: indices.map(PoolTask.mutant), jobs: jobs, testRun: context.state.projectXCTestRun),
             on: Array(workers.prefix(reruns.workers)),
-            switchingOnFrom: context.state.projectXCTestRun,
             outputNamed: { testOutput(named: logFileName(forRerunOfJobAt: $0, $1), state: context.state) },
             recording: { finished in
                 try recordRerun(

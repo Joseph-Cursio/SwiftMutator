@@ -66,11 +66,13 @@ extension PerformMutationTesting {
             var outcome = Self.outcome(
                 result.outcome,
                 of: jobs[index],
-                state: state,
-                killingTests: .init(result),
-                reusedFrom: result.reusedFrom,
                 key: result.key,
-                durationSeconds: result.durationSeconds,
+                state: state,
+                summary: RunSummary(
+                    killingTests: .init(result),
+                    durationSeconds: result.durationSeconds,
+                    reusedFrom: result.reusedFrom
+                ),
                 activated: result.activated
             )
             outcome.propertyRerun = reruns[result.key]?.rerun
@@ -81,17 +83,23 @@ extension PerformMutationTesting {
         }
     }
 
-    /// The session's header, for testing `plan.toRun` of the jobs `session.keys` are of, with `configuration`, the
-    /// effective one, on `workers` workers. A resumed session's says what it kept, and what its resume let through. A
-    /// reuse's says whether any line it copies names no log.
+    /// How a session's mutants are tested, as its header says: with `configuration`, the effective one, on `workers`
+    /// workers, after a baseline that took `baselineSeconds` and a timed test run that took `testRunSeconds`, if any.
+    struct MutantRunSetup {
+        let configuration: MuterConfiguration
+        let workers: Int
+        var baselineSeconds: Double?
+        var testRunSeconds: Double?
+    }
+
+    /// The session's header, for testing `plan.toRun` of the jobs `session.keys` are of, as `setup` says. A resumed
+    /// session's says what it kept, and what its resume let through. A reuse's says whether any line it copies names
+    /// no log.
     func header(
         of session: TestingSession,
         _ plan: ResumePlan,
         state: AnyMutationTestState,
-        configuration: MuterConfiguration,
-        baselineSeconds: Double?,
-        testRunSeconds: Double? = nil,
-        workers: Int
+        setup: MutantRunSetup
     ) async -> ResultsHeader {
         let resume = state.resumeState
         // A resume's was probed before the copy, and what was checked is what is recorded.
@@ -105,10 +113,10 @@ extension PerformMutationTesting {
             startedAt: session.startedAt,
             state: state,
             logDirectory: state.loggingDirectory,
-            configuration: configuration,
-            baselineSeconds: baselineSeconds,
-            testRunSeconds: testRunSeconds,
-            workers: workers,
+            configuration: setup.configuration,
+            baselineSeconds: setup.baselineSeconds,
+            testRunSeconds: setup.testRunSeconds,
+            workers: setup.workers,
             mutantsDiscovered: session.keys.count,
             mutantsToTest: plan.toRun.count,
             provenance: sessionProvenance,

@@ -28,9 +28,9 @@ extension PerformMutationTestingSuspectRerunTests {
     ) -> (indices: [Int], leftOut: Int) {
         PerformMutationTesting.suspectKillCandidates(
             in: outcomes,
-            notInTheBuild: notInTheBuild,
             suspects: Set(suspects.map(identity)),
-            limit: limit
+            limit: limit,
+            notInTheBuild: notInTheBuild
         )
     }
 

@@ -130,10 +130,12 @@ extension PerformMutationTesting {
         var outcome = Self.outcome(
             finished.run.outcome,
             of: job,
-            state: context.state,
-            killingTests: .init(failures, endedBy: finished.run.ending),
             key: key,
-            durationSeconds: MutantResult.recordedSeconds(finished.seconds),
+            state: context.state,
+            summary: RunSummary(
+                killingTests: .init(failures, endedBy: finished.run.ending),
+                durationSeconds: MutantResult.recordedSeconds(finished.seconds)
+            ),
             activated: finished.run.activated
         )
         outcome.rerun = rerun

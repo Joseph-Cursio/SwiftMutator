@@ -152,7 +152,7 @@ struct PerformMutationTesting: MutationStep {
                 ? interruption.signal.map(InterruptionRecord.name(of:))
                 : ResultsEnd.detail(for: error)
             let thisSession = now().timeIntervalSince(session.startedAt)
-            endResults(of: session, reason, detail: detail, testDuration: thisSession)
+            endResults(of: session, reason, testDuration: thisSession, detail: detail)
             sendEarlyEnd(
                 of: session,
                 reason,
