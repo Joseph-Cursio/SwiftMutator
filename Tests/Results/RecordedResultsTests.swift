@@ -135,7 +135,7 @@ final class RecordedResultsTests: XCTestCase {
         XCTAssertEqual(orphan.propertyReruns, [:], "of no result")
         XCTAssertEqual(orphan.unreadableLines, [], "read, but kept for no result")
         let outcome = kept.mutationTestOutcome()
-        XCTAssertEqual(outcome.mutations.map(\.propertyRerun?.outcome).compactMap { $0 }, [.failed])
+        XCTAssertEqual(outcome.mutations.map(\.propertyRerun?.outcome).compactMap(\.self), [.failed])
     }
 
     func test_aRetiredLineOfNoEarlierSession_isUnreadable() throws {

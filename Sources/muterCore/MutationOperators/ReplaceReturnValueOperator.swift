@@ -287,7 +287,7 @@ private extension Syntax {
             self.as(AssociatedTypeDeclSyntax.self)?.name,
             self.as(GenericParameterSyntax.self)?.name,
         ]
-        return names.lazy.compactMap { $0 }.first?.plainName
+        return names.lazy.compactMap(\.self).first?.plainName
     }
 
     /// The function, property or subscript whose value this body gives: a function itself, or the property or

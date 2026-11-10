@@ -59,7 +59,7 @@ struct MutationSchema {
         _ position: MutationPosition
     ) -> String {
         let baseName = URL(fileURLWithPath: filePath).deletingPathExtension().lastPathComponent
-        return ([baseName] + [pathHash].compactMap { $0 } + [
+        return ([baseName] + [pathHash].compactMap(\.self) + [
             mutationOperatorId.rawValue,
             "\(position.line)",
             "\(position.column)",

@@ -51,7 +51,7 @@ final class RelationalBoundaryOperatorTests: MuterTestCase {
 
         visitor.walk(source)
 
-        let mutations = visitor.schemataMappings.mutationSchemata.map { $0.syntaxMutation.description.trimmed }
+        let mutations = visitor.schemataMappings.mutationSchemata.map(\.syntaxMutation.description.trimmed)
         XCTAssertEqual(mutations, ["return count <= 10"])
     }
 

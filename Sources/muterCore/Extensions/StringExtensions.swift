@@ -16,7 +16,7 @@ extension String {
 
     var inlined: String {
         components(separatedBy: .newlines)
-            .map { $0.trimmed }
+            .map(\.trimmed)
             // A CRLF is two newlines to `.newlines`, with nothing between them.
             .filter { !$0.isEmpty }
             .joined(separator: " ")

@@ -551,7 +551,7 @@ extension KillingTestSummary {
 
     /// `clauses` that aren't nil, in a sentence: "a, and b", or "a, b, and c".
     private static func listed(_ clauses: [String?]) -> String {
-        let present = clauses.compactMap { $0 }
+        let present = clauses.compactMap(\.self)
         guard let last = present.last, present.count > 1 else { return present.joined() }
         return present.dropLast().joined(separator: ", ") + ", and " + last
     }

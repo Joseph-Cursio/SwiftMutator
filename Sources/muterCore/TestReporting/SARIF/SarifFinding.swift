@@ -155,7 +155,7 @@ extension SarifFinding {
     ) -> String {
         let line = lines?.line(span.start.line)
         let place = line.map { line in
-            let indent = line.prefix { $0.isWhitespace }.utf16.count
+            let indent = line.prefix(while: \.isWhitespace).utf16.count
             let repeated = repeats.flatMap { $0.indices.contains(span.start.line - 1) ? $0[span.start.line - 1] : nil }
             return "\(repeated ?? 0):\(span.start.column - 1 - indent)"
         } ?? "\(mutation.point.position.line):\(mutation.point.position.column)"

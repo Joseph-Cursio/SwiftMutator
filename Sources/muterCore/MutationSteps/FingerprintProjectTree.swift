@@ -140,7 +140,7 @@ struct FingerprintProjectTree: MutationStep {
         of plan: LoadedTestPlan,
         lastSession: ProjectTree?
     ) -> (paths: [String], listedBy: ProjectTree.Listing)? {
-        let trees = [plan.sources, lastSession].compactMap { $0 }
+        let trees = [plan.sources, lastSession].compactMap(\.self)
         guard let first = trees.first else { return nil }
         let paths = Set(trees.flatMap(\.files.keys)).filter { !$0.hasPrefix("../") }
         return (paths.sorted(), first.listedBy)

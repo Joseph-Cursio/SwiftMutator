@@ -1050,7 +1050,7 @@ private extension SyntaxProtocol {
 
 private extension [ExprSyntax] {
     var mayThrow: Bool {
-        contains { $0.mayThrow }
+        contains(where: \.mayThrow)
     }
 }
 

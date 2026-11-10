@@ -282,7 +282,7 @@ final class SwiftCoverage: BuildSystemCoverage {
         let bundle = line.firstCaptureOf(#"([^/\s']+\.xctest)(?=[/'\s]|$)"#)
             ?? line.firstCaptureOf(#"([^/\s']+-test-runner)(?=['\s]|$)"#)
         let signal = line.firstCaptureOf(#"signal code ([0-9]+)"#, options: .caseInsensitive).map { "signal \($0)" }
-        let named = [bundle, signal].compactMap { $0 }
+        let named = [bundle, signal].compactMap(\.self)
         return named.isEmpty ? String(line.prefix(FailedTestLine.lineLengthLimit)) : named.joined(separator: ", ")
     }
 }

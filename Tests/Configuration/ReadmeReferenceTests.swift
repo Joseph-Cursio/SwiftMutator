@@ -112,6 +112,7 @@ final class ReadmeReferenceTests: MuterTestCase {
     private static let commandsWithEveryFlagInATable: [ParsableCommand.Type] = [Run.self, Triage.self]
 
     private static var displayedCommands: [ParsableCommand.Type] {
+        // swiftlint:disable:next prefer_key_path - a key path through ParsableCommand.Type crashes Swift 6.4's SILGen
         MuterCommand.configuration.subcommands.filter { $0.configuration.shouldDisplay }
     }
 

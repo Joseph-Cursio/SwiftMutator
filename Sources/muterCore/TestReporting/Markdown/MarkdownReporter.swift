@@ -19,11 +19,11 @@ struct MarkdownReporter: Reporter {
             headline(of: report, outcome),
             warnings(of: report, outcome),
             checks(of: outcome),
-            [counts(of: report)].compactMap { $0 },
+            [counts(of: report)].compactMap(\.self),
             scoresByFile(of: report),
             survivors(of: report),
             notCovered(of: report),
-            [Self.coverageNote(of: report)].compactMap { $0 },
+            [Self.coverageNote(of: report)].compactMap(\.self),
         ]
         return blocks.joined().joined(separator: "\n\n") + "\n"
     }
@@ -44,13 +44,13 @@ struct MarkdownReporter: Reporter {
             report.mutant.map(MuterTestReport.oneMutantSentence),
         ]
         return ["**\(MarkdownText.plain(MuterTestReport.scoreLine(of: outcome)))**"]
-            + lines.compactMap { $0 }.map(MarkdownText.plain)
+            + lines.compactMap(\.self).map(MarkdownText.plain)
     }
 
     /// What the run warns of, each in a quote of its own: suspect tests, build errors, and kills whose code never ran.
     private func warnings(of report: MuterTestReport, _ outcome: MutationTestOutcome) -> [String] {
         [report.suspectWarning, outcome.buildErrorWarning, outcome.unprovenKillWarning]
-            .compactMap { $0 }
+            .compactMap(\.self)
             .map { "> ⚠️ " + MarkdownText.plain($0) }
     }
 

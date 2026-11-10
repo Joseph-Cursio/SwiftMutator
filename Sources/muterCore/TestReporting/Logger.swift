@@ -263,7 +263,7 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         }
         let fileNames = sourceFileCandidates
             .map(URL.init(fileURLWithPath:))
-            .map { $0.lastPathComponent }
+            .map(\.lastPathComponent)
             .joined(separator: "\n")
             .bold
 

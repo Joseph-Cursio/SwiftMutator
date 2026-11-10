@@ -69,13 +69,13 @@ extension BuildSystemCoverage {
         if !suites.unfinished.isEmpty || !testCases.unfinished.isEmpty {
             let bundle = suites.unfinished.first { $0.hasSuffix(".xctest") }
             let test = testCases.unfinished.first.map { "during \($0)" }
-            return [bundle ?? "XCTest", test].compactMap { $0 }.joined(separator: ", ")
+            return [bundle ?? "XCTest", test].compactMap(\.self).joined(separator: ", ")
         }
         guard !swiftTestingRuns.unfinished.isEmpty else {
             return nil
         }
         let test = swiftTestingTests.unfinished.first.map { "during \($0)" }
-        return ["Swift Testing", test].compactMap { $0 }.joined(separator: ", ")
+        return ["Swift Testing", test].compactMap(\.self).joined(separator: ", ")
     }
 }
 

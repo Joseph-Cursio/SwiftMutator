@@ -173,7 +173,7 @@ struct DoubtfulKillsCheck: Equatable, Sendable {
             suspectOnly == 0 ? nil : (suspectOnly == 1 ? "1 kill" : "\(suspectOnly) kills")
                 + " only suspect tests made, which no rerun alone settled",
             neverRan == 0 ? nil : (neverRan == 1 ? "1 kill" : "\(neverRan) kills") + " whose code never ran",
-        ].compactMap { $0 }
+        ].compactMap(\.self)
         var sentence = "\(count), \(limit): " + parts.joined(separator: ", and ") + "."
         let both = suspectOnly + neverRan - kills.count
         if both > 0 {

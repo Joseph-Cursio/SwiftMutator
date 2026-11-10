@@ -76,7 +76,7 @@ final class RemoveSideEffectsOperatorTests: MuterTestCase {
 
         visitor.walk(source)
 
-        let remaining = visitor.schemataMappings.mutationSchemata.map { $0.syntaxMutation.description.trimmed.inlined }
+        let remaining = visitor.schemataMappings.mutationSchemata.map(\.syntaxMutation.description.trimmed.inlined)
         XCTAssertEqual(remaining.sorted(), ["log(event) reload()", "reload() log(event)", "reload() reload()"])
     }
 

@@ -51,7 +51,7 @@ extension CLITable {
         let rows: [Row]
         /// The widest cell or title as shown: colour codes take no room on screen.
         var width: Int {
-            let stringLengths = rows.map { $0.value.raw.count } + [title.raw.count]
+            let stringLengths = rows.map(\.value.raw.count) + [title.raw.count]
             return stringLengths.reduce(0, max)
         }
 

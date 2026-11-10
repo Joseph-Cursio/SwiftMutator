@@ -47,7 +47,7 @@ struct MuterTestReport {
         )
         killingTestSummary = summary
         propertyKillSummary = PropertyKillSummary(of: outcome.mutations, globs: outcome.propertyTests)
-        globalMutationScore = mutationScore(from: outcome.mutations.map { $0.testSuiteOutcome })
+        globalMutationScore = mutationScore(from: outcome.mutations.map(\.testSuiteOutcome))
         totalAppliedMutationOperators = outcome.mutations.count
         numberOfKilledMutants = outcome.mutations
             .count { $0.testSuiteOutcome == .failed || $0.testSuiteOutcome == .runtimeError }

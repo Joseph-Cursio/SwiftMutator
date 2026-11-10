@@ -132,6 +132,6 @@ struct SimctlRuntime: Equatable, Sendable {
         guard !numbers.isEmpty, numbers.allSatisfy({ $0 != nil }) else {
             return nil
         }
-        return Array(numbers.compactMap { $0 }.reversed().drop { $0 == 0 }.reversed())
+        return Array(numbers.compactMap(\.self).reversed().drop { $0 == 0 }.reversed())
     }
 }

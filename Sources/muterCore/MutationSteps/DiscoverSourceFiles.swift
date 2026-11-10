@@ -381,7 +381,7 @@ private extension DiscoverSourceFiles {
     ) -> FilePath {
         URLComponents(string: path)
             .map(\.scheme)
-            .flatMap { $0 }
+            .flatMap(\.self)
             .map { path.removingSubrange(path.range(of: "\($0)://")) }
             ?? path
     }

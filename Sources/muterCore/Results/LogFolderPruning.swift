@@ -295,7 +295,7 @@ extension LogFolderPruning {
             self.identity = entryIdentity
             self.entries = entryNames
             self.resultsFiles = resultsFileNames
-            header = headers.first.flatMap { $0 }
+            header = headers.first.flatMap(\.self)
             isMarkedOrNamed = entryNames.contains(RunMarker.fileName) || namesItself
             let noted = entryNames.contains(ResultsFile.noteFileName) ? Self.notedFolder(of: entryPath, in: root) : nil
             notedFolder = noted?.identity
@@ -418,7 +418,7 @@ extension LogFolderPruning {
             return [
                 keys.contains(.contentModificationDateKey) ? values.contentModificationDate : nil,
                 keys.contains(.creationDateKey) ? values.creationDate : nil,
-            ].compactMap { $0 }
+            ].compactMap(\.self)
         }
     }
 

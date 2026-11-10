@@ -445,7 +445,7 @@ final class ReportCommandTests: MuterTestCase {
     // Only an error: a run that was interrupted, or has no end line yet, says nothing about its mutants' code.
     func test_aRunThatWasInterrupted_orHasNoEndLine_exits0() async throws {
         for end in [ResultsEnd.make(reason: .interrupted, detail: "SIGINT"), nil] {
-            try write([ResultsHeader.make(), alpha3] + [end].compactMap { $0 }, to: resultsPath)
+            try write([ResultsHeader.make(), alpha3] + [end].compactMap(\.self), to: resultsPath)
 
             try await report(resultsPath)
         }
@@ -815,7 +815,7 @@ final class ReportCommandTests: MuterTestCase {
     // What was tested is checked, and the verdict says it is partial; the job that ran it already got its signal.
     func test_failUnder_ofARunThatDidntFinish_checksWhatWasTested() async throws {
         for end in [ResultsEnd.make(reason: .interrupted, detail: "SIGINT"), nil] {
-            try write([ResultsHeader.make(), zeta9] + [end].compactMap { $0 }, to: resultsPath)
+            try write([ResultsHeader.make(), zeta9] + [end].compactMap(\.self), to: resultsPath)
 
             await AssertThrowsError(try await report(resultsPath, "--fail-under", "50")) { error in
                 XCTAssertEqual(error as? ExitCode, .scoreBelowThreshold)
@@ -832,7 +832,7 @@ final class ReportCommandTests: MuterTestCase {
     // threshold is met. A CI job shaped like `run || true; report --fail-under 80` must not go green on it.
     func test_failUnder_ofARunThatDidntFinish_withNoResults_exits2() async throws {
         for end in [ResultsEnd.make(reason: .interrupted, detail: "SIGTERM"), nil] {
-            try write([ResultsHeader.make()] + [end].compactMap { $0 }, to: resultsPath)
+            try write([ResultsHeader.make()] + [end].compactMap(\.self), to: resultsPath)
 
             await AssertThrowsError(try await report(resultsPath, "--fail-under", "50")) { error in
                 XCTAssertEqual(error as? ExitCode, .scoreBelowThreshold)
