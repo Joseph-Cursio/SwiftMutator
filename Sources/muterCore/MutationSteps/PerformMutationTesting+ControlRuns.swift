@@ -1,5 +1,11 @@
 import Foundation
 
+/// A control run, once its line is written, and how many the session runs.
+struct ControlRunFinished: Equatable {
+    let record: ControlRunResult
+    let count: Int
+}
+
 /// Control runs: the test command with no mutant on, run every so often among the mutants, on a worker of theirs and
 /// under the same time limit and load. A passing baseline shows the tests pass alone; a control run shows whether they
 /// pass beside the other workers' runs. A test that fails in one is flaky, and the reports count a kill that only such
@@ -137,10 +143,4 @@ extension PerformMutationTesting {
         let earlier = state.resumeState.map { $0.isReuse ? [] : $0.recorded.controlRuns } ?? []
         return (earlier + session.controlRuns).map(MutationTestOutcome.ControlRun.init)
     }
-}
-
-/// A control run, once its line is written, and how many the session runs.
-struct ControlRunFinished: Equatable {
-    let record: ControlRunResult
-    let count: Int
 }
