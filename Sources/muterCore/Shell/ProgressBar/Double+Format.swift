@@ -1,15 +1,3 @@
-#if os(Linux)
-import Glibc
-#else
-import Darwin.C
-#endif
-
-func getTimeOfDay() -> Double {
-    var time = timeval()
-    gettimeofday(&time, nil)
-    return Double(time.tv_sec) + Double(time.tv_usec) / 1_000_000
-}
-
 extension Double {
     func format(_ decimalPartLength: Int, minimumIntegerPartLength: Int = 0) -> String {
         let value = String(self)
@@ -37,19 +25,5 @@ extension Double {
 
     private func stringWithZeros(_ count: Int) -> String {
         Array(repeating: "0", count: count).joined()
-    }
-}
-
-extension String {
-    func substringWithRange(_ start: Int, end: Int) -> String {
-        var end = end
-        if start < 0 || start > count {
-            return ""
-        }
-        if end < 0 || end > count {
-            end = count
-        }
-        let range = index(startIndex, offsetBy: start) ..< index(startIndex, offsetBy: end)
-        return String(self[range])
     }
 }
