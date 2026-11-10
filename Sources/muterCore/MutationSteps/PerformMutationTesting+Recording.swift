@@ -3,6 +3,19 @@ import SwiftSyntax
 
 /// How a mutant's run is recorded: its result line, its outcome in the session, its log and its events.
 extension PerformMutationTesting {
+    /// What a session's runs are recorded against: the run's state, the effective configuration they ran with, whose
+    /// baseline may have made failed-test lines unreliable, and the session that keeps their outcomes and lines.
+    struct RunContext {
+        let state: AnyMutationTestState
+        let configuration: MuterConfiguration
+        let session: TestingSession
+
+        /// The same context, for runs with `configuration`, such as the property reruns' filtered one.
+        func with(_ configuration: MuterConfiguration) -> Self {
+            Self(state: state, configuration: configuration, session: session)
+        }
+    }
+
     /// Records `finished`, the run of `job`'s mutant (`keep`), sends its events, and aborts after
     /// `buildErrorsThreshold` build errors in a row, not counting a mutant that an earlier session recorded as one
     /// (`TestingSession.earlierBuildErrors`). The outcome is kept before the abort, so mutation testing that stops
@@ -10,50 +23,51 @@ extension PerformMutationTesting {
     func record(
         _ finished: FinishedRun,
         of job: MutantJob,
-        using state: AnyMutationTestState,
-        configuration: MuterConfiguration,
-        session: TestingSession,
+        in context: RunContext,
         buildErrors: inout Int
     ) throws {
         let (outcome, mutationLog) = try keep(
-            finished, of: job, rerun: nil, using: state, configuration: configuration, session: session
+            finished, of: job, rerun: nil, in: context
         )
 
         events.send(.newMutationTestOutcomeAvailable(outcome))
 
         events.send(.newTestLogAvailable(mutationLog))
 
-        if state.selectedMutant != nil {
+        if context.state.selectedMutant != nil {
             events.send(
                 .oneMutantTested(OneMutantRun(
-                    key: session.keys[finished.index],
+                    key: context.session.keys[finished.index],
                     switchID: job.schema.id,
                     snapshot: job.schema.snapshot,
-                    change: change(of: job.schema, key: session.keys[finished.index], in: outcome, state: state),
+                    change: change(
+                        of: job.schema, key: context.session.keys[finished.index], in: outcome, state: context.state
+                    ),
                     outcome: outcome.testSuiteOutcome,
                     killingTests: outcome.killingTests,
                     seconds: finished.seconds,
-                    timeoutSeconds: configuration.testSuiteTimeout,
+                    timeoutSeconds: context.configuration.testSuiteTimeout,
                     testLog: finished.run.testLog,
-                    logPath: state.loggingDirectory.isEmpty
+                    logPath: context.state.loggingDirectory.isEmpty
                         ? nil
-                        : state.loggingDirectory.appendingPathComponent(mutationLog.keptFileName),
-                    mutatedProject: state.mutatedProjectDirectoryURL.path,
-                    buildSystem: configuration.buildSystem,
-                    testCommand: [configuration.testCommandExecutable] + configuration.testCommandArguments
+                        : context.state.loggingDirectory.appendingPathComponent(mutationLog.keptFileName),
+                    mutatedProject: context.state.mutatedProjectDirectoryURL.path,
+                    buildSystem: context.configuration.buildSystem,
+                    testCommand: [context.configuration.testCommandExecutable]
+                        + context.configuration.testCommandArguments
                 ))
             )
         }
 
         if finished.run.outcome != .buildError {
             buildErrors = 0
-        } else if !session.earlierBuildErrors.contains(finished.index) {
+        } else if !context.session.earlierBuildErrors.contains(finished.index) {
             buildErrors += 1
         }
         if buildErrors >= buildErrorsThreshold {
             throw MuterError.mutationTestingAborted(reason: .tooManyBuildErrors)
         }
-        try noteActivation(in: finished, using: state, configuration: configuration, session: session)
+        try noteActivation(of: finished, in: context)
     }
 
     /// Records `finished`, the run that tested `job`'s timed-out mutant again (`keep`), counts it in `tally`, and sends
@@ -63,30 +77,26 @@ extension PerformMutationTesting {
         _ finished: FinishedRun,
         of job: MutantJob,
         tally: inout TimeoutRerunTally,
-        using state: AnyMutationTestState,
-        configuration: MuterConfiguration,
-        session: TestingSession
+        in context: RunContext
     ) throws {
         // Whichever run showed its block ran: a rerun that passes without showing it doesn't undo the first's. Once a
         // session's runs show they can say, one that says nothing didn't reach mutated code, as in
         // `rerunRunsNotShownToReachTheirCode`, which then tests a kill this comes to, as it failed unproven.
-        if finished.run.activated != nil { session.activationShown = true }
+        if finished.run.activated != nil { context.session.activationShown = true }
         var settled = finished
-        if session.outcomes[finished.index]?.activated == true {
+        if context.session.outcomes[finished.index]?.activated == true {
             settled.run.activated = true
-        } else if session.activationShown {
+        } else if context.session.activationShown {
             settled.run.activated = finished.run.activated ?? false
         }
         if settled.run.activated != true, [.failed, .runtimeError].contains(finished.run.outcome) {
-            session.killsNotShownToRunTheirCode.append(finished.index)
+            context.session.killsNotShownToRunTheirCode.append(finished.index)
         }
         let (outcome, mutationLog) = try keep(
             settled,
             of: job,
             rerun: MutantResult.Rerun(because: MutantResult.Rerun.timeout, workers: tally.reruns.workers),
-            using: state,
-            configuration: configuration,
-            session: session
+            in: context
         )
         tally.add(outcome.testSuiteOutcome)
         events.send(
@@ -111,18 +121,16 @@ extension PerformMutationTesting {
         _ finished: FinishedRun,
         of job: MutantJob,
         rerun: MutantResult.Rerun?,
-        using state: AnyMutationTestState,
-        configuration: MuterConfiguration,
-        session: TestingSession
+        in context: RunContext
     ) throws -> (outcome: MutationTestOutcome.Mutation, log: MutationTestLog) {
         // The failed tests are worked out here, not in `write`'s autoclosure: the outcome needs them without a results
         // file, or after a failed write. One scan of the log serves both.
-        let failures = MutantResult.failedTests(of: finished.run, ignoring: configuration.failedTestLookalikes)
-        let key = session.keys[finished.index]
+        let failures = MutantResult.failedTests(of: finished.run, ignoring: context.configuration.failedTestLookalikes)
+        let key = context.session.keys[finished.index]
         var outcome = Self.outcome(
             finished.run.outcome,
             of: job,
-            state: state,
+            state: context.state,
             killingTests: .init(failures, endedBy: finished.run.ending),
             key: key,
             durationSeconds: MutantResult.recordedSeconds(finished.seconds),
@@ -137,30 +145,35 @@ extension PerformMutationTesting {
         default: MutationTestLog.rerunFileName(for: key)
         }
         let keptLog = Self.keptLogName(
-            log, of: finished, failures: failures, configuration: configuration, state: state
+            log, of: finished, failures: failures, configuration: context.configuration, state: context.state
         )
-        try abortingIfTheSimulatorIsGone(in: finished, logName: log, configuration: configuration, state: state)
+        try abortingIfTheSimulatorIsGone(
+            in: finished,
+            logName: log,
+            configuration: context.configuration,
+            state: context.state
+        )
         write(
             MutantResult(
                 key: key,
                 schema: job.schema,
                 finished: finished,
                 failures: failures,
-                session: session.number,
+                session: context.session.number,
                 finishedAt: now(),
                 log: keptLog,
-                fileSHA256: state.projectTree?.files[key.path],
+                fileSHA256: context.state.projectTree?.files[key.path],
                 rerun: rerun
             ),
-            in: session,
+            in: context.session,
             isAMutant: true
         )
-        session.outcomes[finished.index] = outcome
+        context.session.outcomes[finished.index] = outcome
         // Before any event, so a log the console names, such as `--mutant`'s, is there.
         fileManager.keepLog(
-            finished.run.testLog, writtenTo: finished.output, by: ioDelegate, named: keptLog, state: state
+            finished.run.testLog, writtenTo: finished.output, by: ioDelegate, named: keptLog, state: context.state
         )
-        sendingTheRunTheSimulatorFailedToLaunch(before: finished, of: outcome, logName: log, state: state)
+        sendingTheRunTheSimulatorFailedToLaunch(before: finished, of: outcome, logName: log, state: context.state)
 
         let mutationLog = MutationTestLog(
             mutationPoint: outcome.point,

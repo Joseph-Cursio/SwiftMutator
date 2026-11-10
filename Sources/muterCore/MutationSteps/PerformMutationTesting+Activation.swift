@@ -8,30 +8,28 @@ extension PerformMutationTesting {
     /// reach no mutant; under xcodebuild, the test host may be unable to write; and a test plan's code may be an older
     /// SwiftMutator's, which writes no marker. Those only say so, after the mutants' runs.
     func noteActivation(
-        in finished: FinishedRun,
-        using state: AnyMutationTestState,
-        configuration: MuterConfiguration,
-        session: TestingSession
+        of finished: FinishedRun,
+        in context: RunContext
     ) throws {
         let run = finished.run
         guard run.outcome != .buildError else { return }
-        if run.activated != nil { session.activationShown = true }
-        if run.activated == nil { session.runsShowingNoActivation += 1 }
+        if run.activated != nil { context.session.activationShown = true }
+        if run.activated == nil { context.session.runsShowingNoActivation += 1 }
         if run.activated != true {
             if [.failed, .runtimeError].contains(run.outcome) {
-                session.killsNotShownToRunTheirCode.append(finished.index)
+                context.session.killsNotShownToRunTheirCode.append(finished.index)
             }
-            if run.outcome == .timeout { session.timeoutsNotShownToRunTheirCode.append(finished.index) }
+            if run.outcome == .timeout { context.session.timeoutsNotShownToRunTheirCode.append(finished.index) }
         }
-        guard !session.activationShown,
-              session.runsShowingNoActivation >= buildErrorsThreshold,
-              configuration.buildSystem == .swift,
-              state.projectCoverage != .null,
-              state.runOptions.testPlanURL == nil,
-              state.selectedMutant == nil
+        guard !context.session.activationShown,
+              context.session.runsShowingNoActivation >= buildErrorsThreshold,
+              context.configuration.buildSystem == .swift,
+              context.state.projectCoverage != .null,
+              context.state.runOptions.testPlanURL == nil,
+              context.state.selectedMutant == nil
         else { return }
         throw MuterError.mutationTestingAborted(
-            reason: .noMutantCodeShownRunning(runs: session.runsShowingNoActivation)
+            reason: .noMutantCodeShownRunning(runs: context.session.runsShowingNoActivation)
         )
     }
 
@@ -45,19 +43,17 @@ extension PerformMutationTesting {
         of jobs: [MutantJob],
         on worker: PoolWorker,
         includingTimeouts: Bool,
-        using state: AnyMutationTestState,
-        configuration: MuterConfiguration,
-        session: TestingSession
+        in context: RunContext
     ) async throws {
-        guard state.selectedMutant == nil else { return }
-        guard session.activationShown else {
-            if session.runsShowingNoActivation > 0 {
-                events.send(.activationNotShown(runs: session.runsShowingNoActivation))
+        guard context.state.selectedMutant == nil else { return }
+        guard context.session.activationShown else {
+            if context.session.runsShowingNoActivation > 0 {
+                events.send(.activationNotShown(runs: context.session.runsShowingNoActivation))
             }
             return
         }
-        let timeouts = includingTimeouts ? session.timeoutsNotShownToRunTheirCode : []
-        let indices = (session.killsNotShownToRunTheirCode + timeouts).sorted()
+        let timeouts = includingTimeouts ? context.session.timeoutsNotShownToRunTheirCode : []
+        let indices = (context.session.killsNotShownToRunTheirCode + timeouts).sorted()
         guard !indices.isEmpty else { return }
         try Task.checkCancellation()
         events.send(.unprovenRunsRerunStarted(count: indices.count))
@@ -66,20 +62,18 @@ extension PerformMutationTesting {
             indices.map(PoolTask.mutant),
             of: jobs,
             on: [worker],
-            switchingOnFrom: state.projectXCTestRun,
-            outputNamed: { testOutput(named: logFileName(forRerunOfJobAt: $0, $1), state: state) },
+            switchingOnFrom: context.state.projectXCTestRun,
+            outputNamed: { testOutput(named: logFileName(forRerunOfJobAt: $0, $1), state: context.state) },
             recording: { finished in
                 // The session shows runs can say, so a run that says nothing didn't reach mutated code.
                 var settled = finished
                 settled.run.activated = finished.run.activated ?? false
-                let first = session.outcomes[finished.index]?.testSuiteOutcome
+                let first = context.session.outcomes[finished.index]?.testSuiteOutcome
                 let (outcome, _) = try keep(
                     settled,
                     of: jobs[finished.index],
                     rerun: MutantResult.Rerun(because: MutantResult.Rerun.codeNotShownRunning, workers: 1),
-                    using: state,
-                    configuration: configuration,
-                    session: session
+                    in: context
                 )
                 tally.add(outcome)
                 events.send(.unprovenRunRerun(outcome, changed: outcome.testSuiteOutcome != first))

@@ -109,27 +109,40 @@ extension PerformMutationTesting {
         _ finished: FinishedRun,
         number: Int,
         of runs: (count: Int, every: Int),
-        using state: AnyMutationTestState,
-        configuration: MuterConfiguration,
-        session: TestingSession
+        in context: RunContext
     ) throws {
         let (count, every) = runs
         let log = ControlRunResult.logName(of: number)
-        try abortingIfTheSimulatorIsGone(in: finished, logName: log, configuration: configuration, state: state)
+        try abortingIfTheSimulatorIsGone(
+            in: finished,
+            logName: log,
+            configuration: context.configuration,
+            state: context.state
+        )
         let record = ControlRunResult(
             number: number,
             afterMutants: Self.mutantsBefore(controlRun: number, every: every),
             finished: finished,
-            failures: MutantResult.failedTests(of: finished.run, ignoring: configuration.failedTestLookalikes),
-            session: session.number,
+            failures: MutantResult.failedTests(of: finished.run, ignoring: context.configuration.failedTestLookalikes),
+            session: context.session.number,
             finishedAt: now(),
             log: log
         )
-        write(record, in: session)
-        session.controlRuns.append(record)
-        fileManager.keepLog(finished.run.testLog, writtenTo: finished.output, by: ioDelegate, named: log, state: state)
+        write(record, in: context.session)
+        context.session.controlRuns.append(record)
+        fileManager.keepLog(
+            finished.run.testLog,
+            writtenTo: finished.output,
+            by: ioDelegate,
+            named: log,
+            state: context.state
+        )
         if let failure = finished.launchFailure {
-            fileManager.keepLog(failure.testLog, named: MutationTestLog.launchFailedFileName(for: log), state: state)
+            fileManager.keepLog(
+                failure.testLog,
+                named: MutationTestLog.launchFailedFileName(for: log),
+                state: context.state
+            )
         }
         events.send(.controlRunFinished(ControlRunFinished(record: record, count: count)))
     }

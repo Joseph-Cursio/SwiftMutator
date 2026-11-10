@@ -135,22 +135,20 @@ extension PerformMutationTesting {
         of jobs: [MutantJob],
         on worker: PoolWorker,
         from testRun: XCTestRun,
-        using state: AnyMutationTestState,
-        configuration: MuterConfiguration,
-        session: TestingSession
+        in context: RunContext
     ) async throws {
-        guard state.selectedMutant == nil, configuration.killsToTestAgainAlone > 0,
+        guard context.state.selectedMutant == nil, context.configuration.killsToTestAgainAlone > 0,
               let summary = KillingTestSummary(
-                  of: session.outcomesInJobOrder,
-                  controlRuns: Self.controlRuns(of: session, state: state),
-                  thresholds: state.muterConfiguration.suspectTestThresholds
+                  of: context.session.outcomesInJobOrder,
+                  controlRuns: Self.controlRuns(of: context.session, state: context.state),
+                  thresholds: context.state.muterConfiguration.suspectTestThresholds
               )
         else { return }
         let (indices, leftOut) = Self.suspectKillCandidates(
-            in: session.outcomes,
-            notInTheBuild: session.notInTheBuild,
+            in: context.session.outcomes,
+            notInTheBuild: context.session.notInTheBuild,
             suspects: summary.suspectsWhateverTheyDidAlone,
-            limit: configuration.killsToTestAgainAlone
+            limit: context.configuration.killsToTestAgainAlone
         )
         guard !indices.isEmpty else { return }
         try Task.checkCancellation()
@@ -161,7 +159,7 @@ extension PerformMutationTesting {
             on: (0, alone),
             workingDirectory: alone.directory,
             from: testRun,
-            fileName: testOutput(named: Self.suspectBaselineLogName, state: state),
+            fileName: testOutput(named: Self.suspectBaselineLogName, state: context.state),
             using: (ioDelegate, instant, heartbeat)
         )
         try Self.throwIfCancelled(baseline.run)
@@ -169,13 +167,13 @@ extension PerformMutationTesting {
             in: baseline,
             logName: Self.suspectBaselineLogName,
             configuration: alone.configuration,
-            state: state
+            state: context.state
         )
         if let failure = baseline.launchFailure {
             fileManager.keepLog(
                 failure.testLog,
                 named: MutationTestLog.launchFailedFileName(for: Self.suspectBaselineLogName),
-                state: state
+                state: context.state
             )
         }
         let log = fileManager.keepLog(
@@ -183,7 +181,7 @@ extension PerformMutationTesting {
             writtenTo: baseline.output,
             by: ioDelegate,
             named: Self.suspectBaselineLogName,
-            state: state
+            state: context.state
         )
         guard baseline.run.outcome == .passed else {
             events.send(.suspectKillRerunsSkipped(log: log.map { _ in Self.suspectBaselineLogName }))
@@ -197,15 +195,13 @@ extension PerformMutationTesting {
             of: jobs,
             on: [alone],
             switchingOnFrom: testRun,
-            outputNamed: { testOutput(named: logFileName(forRerunOfJobAt: $0, $1), state: state) },
+            outputNamed: { testOutput(named: logFileName(forRerunOfJobAt: $0, $1), state: context.state) },
             recording: { finished in
                 try recordSuspectKillRerun(
                     finished,
                     of: jobs[finished.index],
                     tally: &tally,
-                    using: state,
-                    configuration: alone.configuration,
-                    session: session
+                    in: context.with(alone.configuration)
                 )
             }
         )
@@ -221,25 +217,28 @@ extension PerformMutationTesting {
         _ finished: FinishedRun,
         of job: MutantJob,
         tally: inout SuspectKillRerunTally,
-        using state: AnyMutationTestState,
-        configuration: MuterConfiguration,
-        session: TestingSession
+        in context: RunContext
     ) throws {
-        let first = session.outcomes[finished.index]
+        let first = context.session.outcomes[finished.index]
         guard ![.timeout, .buildError].contains(finished.run.outcome) else {
-            let name = MutationTestLog.suspectRerunFileName(for: session.keys[finished.index])
-            try abortingIfTheSimulatorIsGone(in: finished, logName: name, configuration: configuration, state: state)
+            let name = MutationTestLog.suspectRerunFileName(for: context.session.keys[finished.index])
+            try abortingIfTheSimulatorIsGone(
+                in: finished,
+                logName: name,
+                configuration: context.configuration,
+                state: context.state
+            )
             if let failure = finished.launchFailure {
                 fileManager.keepLog(
-                    failure.testLog, named: MutationTestLog.launchFailedFileName(for: name), state: state
+                    failure.testLog, named: MutationTestLog.launchFailedFileName(for: name), state: context.state
                 )
             }
             fileManager.keepLog(
                 finished.run.testLog,
                 writtenTo: finished.output,
                 by: ioDelegate,
-                named: state.loggingDirectory.isEmpty ? nil : name,
-                state: state
+                named: context.state.loggingDirectory.isEmpty ? nil : name,
+                state: context.state
             )
             tally.add(finished.run.outcome)
             return
@@ -255,13 +254,11 @@ extension PerformMutationTesting {
                 alone: Self.testsAlone(
                     first?.killingTests?.tests ?? [],
                     in: finished.run,
-                    ignoring: configuration.failedTestLookalikes,
-                    sessionShowsActivation: session.activationShown
+                    ignoring: context.configuration.failedTestLookalikes,
+                    sessionShowsActivation: context.session.activationShown
                 )
             ),
-            using: state,
-            configuration: configuration,
-            session: session
+            in: context
         )
         tally.add(outcome.testSuiteOutcome)
         events.send(.suspectKillRerun(outcome, changed: outcome.testSuiteOutcome != first?.testSuiteOutcome))

@@ -186,12 +186,11 @@ extension PerformMutationTesting {
         )
 
         let tasks = Self.tasks(testing.toRun, controlRunEvery: Self.controlRunEvery(state, configuration))
+        let context = RunContext(state: state, configuration: configuration, session: session)
         if workers > 1 {
-            try await testMutationsInParallel(
-                jobs, tasks, workers: workers, using: state, configuration: configuration, session: session
-            )
+            try await testMutationsInParallel(jobs, tasks, workers: workers, in: context)
         } else {
-            try await testMutations(jobs, tasks, using: state, configuration: configuration, session: session)
+            try await testMutations(jobs, tasks, in: context)
         }
     }
 
