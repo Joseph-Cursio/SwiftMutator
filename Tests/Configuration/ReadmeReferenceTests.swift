@@ -119,7 +119,8 @@ final class ReadmeReferenceTests: MuterTestCase {
     /// The long names on the help's option lines, such as `--configuration` in
     /// `  -c, --configuration <configuration>   The path to the configuration file.`, but not `--help`.
     private static func longFlags(inTheHelpOf arguments: ParsableArguments.Type) -> [String] {
-        arguments.helpMessage(columns: 200).split(separator: "\n")
+        arguments.helpMessage(columns: 200)
+            .split(separator: "\n")
             .filter { $0.hasPrefix("  -") }
             .flatMap { line in
                 let names = line.dropFirst(2).components(separatedBy: "  ").first ?? ""
@@ -136,7 +137,8 @@ final class ReadmeReferenceTests: MuterTestCase {
             .filter { $0.hasPrefix("| `") }
             .map { line in
                 let cell = line.dropFirst(2).components(separatedBy: " |").first ?? ""
-                return cell.components(separatedBy: "`").enumerated()
+                return cell.components(separatedBy: "`")
+                    .enumerated()
                     .filter { !$0.offset.isMultiple(of: 2) }
                     .compactMap { $0.element.split(separator: " ").first.map(String.init) }
                     .filter { $0.hasPrefix("-") }
