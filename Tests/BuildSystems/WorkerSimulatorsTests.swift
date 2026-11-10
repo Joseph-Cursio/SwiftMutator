@@ -9,7 +9,7 @@ final class WorkerSimulatorsTests: MuterTestCase {
     private let mutatedProject = URL(fileURLWithPath: "/tmp/App_mutated")
     /// The first 8 hex digits of the SHA-256 of `/tmp/App_mutated`.
     private let projectHash = "fd200ba3"
-    private let owner = RecordedProcess(id: 4242, started: 1_700_000_000_123_456)
+    private let owner = RecordedProcess(id: 4_242, started: 1_700_000_000_123_456)
     private var simctl = SimctlStandIn(list: nil)
 
     override func setUp() {
@@ -151,11 +151,11 @@ final class WorkerSimulatorsTests: MuterTestCase {
     func test_aCloneThatPrintsNoUDID_orTimesOut_isAFailure() async {
         simctl.answering { $0.first == "clone" ? .init(output: "done\n") : nil }
         let printed = await failingToPrepare(1, like: "id=\(iPhone17Pro)")
-        XCTAssertTrue(printed?.hasSuffix("` printed no UDID") == true, printed ?? "")
+        XCTAssertEqual(printed?.hasSuffix("` printed no UDID"), true, printed ?? "")
 
         simctl.answering { $0.first == "clone" ? .init(status: SIGKILL, endedBySignal: true, timedOut: true) : nil }
         let timedOut = await failingToPrepare(1, like: "id=\(iPhone17Pro)")
-        XCTAssertTrue(timedOut?.hasSuffix("` didn't finish within 60 seconds") == true, timedOut ?? "")
+        XCTAssertEqual(timedOut?.hasSuffix("` didn't finish within 60 seconds"), true, timedOut ?? "")
     }
 
     func test_aDestinationThatNamesNoSimulator_orNoneThatIsListed_makesNone() async {
@@ -596,7 +596,7 @@ private final class SimctlStandIn: MuterProcess, @unchecked Sendable { // every 
     var standardOutput: Any?
     var standardError: Any?
 
-    func runProcess(url: String, arguments args: [String]) async -> Data? { nil }
+    func runProcess(url _: String, arguments _: [String]) async -> Data? { nil }
 
     func run() throws {}
 

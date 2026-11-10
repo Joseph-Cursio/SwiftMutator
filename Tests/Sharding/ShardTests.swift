@@ -9,7 +9,7 @@ final class ShardTests: XCTestCase {
         XCTAssertEqual(Shard("2/2"), Shard(index: 2, count: 2))
         XCTAssertEqual(Shard("1/1"), Shard(index: 1, count: 1))
         XCTAssertEqual(Shard("07/10"), Shard(index: 7, count: 10))
-        XCTAssertEqual(Shard("1000/1000"), Shard(index: 1000, count: 1000))
+        XCTAssertEqual(Shard("1000/1000"), Shard(index: 1_000, count: 1_000))
         XCTAssertEqual(Shard("3/4")?.description, "3/4")
     }
 

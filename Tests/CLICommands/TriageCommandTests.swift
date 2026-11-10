@@ -109,7 +109,7 @@ final class TriageCommandTests: MuterTestCase {
         try await triage(survivor, "--results", resultsPath, "--label", "missing-test")
 
         XCTAssertEqual(try saved?.map(\.label), [.missingTest])
-        XCTAssertEqual(try saved?.first?.note, nil)
+        XCTAssertNil(try saved?.first?.note)
     }
 
     func test_labellingCodeThatMoved_replacesTheLabelItFollowed() async throws {
@@ -224,7 +224,7 @@ final class TriageCommandTests: MuterTestCase {
         try await triage(zeta(line: 4).description, "--remove", "--results", resultsPath)
 
         XCTAssertEqual(try saved?.map(\.note), ["second"], "line 4 shows the first label, whose key is line 3")
-        XCTAssertTrue(printer.linesPassed.last?.contains("equivalent, a > b, first") == true, "\(printer.linesPassed)")
+        XCTAssertEqual(printer.linesPassed.last?.contains("equivalent, a > b, first"), true, "\(printer.linesPassed)")
     }
 
     func test_removing_withResults_takesALabelThatMatchesNoMutantInThem() async throws {
@@ -269,7 +269,7 @@ final class TriageCommandTests: MuterTestCase {
 
         XCTAssertNil(try saved?.first?.line)
         XCTAssertEqual(try saved?.first?.before, ">")
-        XCTAssertTrue(printer.linesPassed.last?.contains("it won't follow the code") == true, "\(printer.linesPassed)")
+        XCTAssertEqual(printer.linesPassed.last?.contains("it won't follow the code"), true, "\(printer.linesPassed)")
     }
 
     func test_aMutantThatDidntSurvive_takesNoLabel() async throws {

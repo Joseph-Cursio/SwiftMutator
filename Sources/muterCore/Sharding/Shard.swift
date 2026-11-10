@@ -15,7 +15,7 @@ struct Shard: Hashable, Sendable, CustomStringConvertible {
 
     /// The most shards a run can be split into: far more machines than a split is worth, and few enough that every
     /// header's count of each shard's mutants (`ShardSelection.mutantsPerShard`) stays short.
-    static let largestCount = 1000
+    static let largestCount = 1_000
 
     init(index: Int, count: Int) {
         self.index = index
@@ -44,7 +44,7 @@ struct Shard: Hashable, Sendable, CustomStringConvertible {
     /// Whether this shard and `other` can hold a mutant in common: whether some number leaves this shard's remainder
     /// divided by its count, and `other`'s divided by its, which is when the two remainders are the same modulo the
     /// counts' greatest common divisor. Two shards of one split never can.
-    func overlaps(_ other: Shard) -> Bool {
+    func overlaps(_ other: Self) -> Bool {
         var (larger, smaller) = (max(count, other.count), min(count, other.count))
         while smaller > 0 {
             (larger, smaller) = (smaller, larger % smaller)

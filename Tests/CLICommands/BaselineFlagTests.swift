@@ -161,7 +161,7 @@ final class BaselineFlagTests: XCTestCase {
         )
     }
 
-    func assertUsageError(
+    private func assertUsageError(
         _ arguments: [String],
         _ message: String,
         file: StaticString = #filePath,

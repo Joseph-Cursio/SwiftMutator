@@ -174,7 +174,7 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
     /// the derived data. A Swift package's scheme has no `BUILD_DIR`: `-showBuildSettings` prints no settings for it,
     /// saying "Supported platforms for the buildables in the current scheme is empty".
     private func buildFolders(_ configuration: MuterConfiguration, derivedData: [String]) async -> [String] {
-        (derivedData.map { $0 + "/Build" } + [await buildDirectory(configuration)].compactMap { $0 })
+        (derivedData.map { $0 + "/Build" } + [await buildDirectory(configuration)].compactMap(\.self))
             .reduce(into: []) { folders, folder in
                 if !folders.contains(folder) { folders.append(folder) }
             }

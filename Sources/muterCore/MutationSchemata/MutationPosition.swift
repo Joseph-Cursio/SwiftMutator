@@ -63,10 +63,12 @@ extension MutationPosition: Nullable {
     }
 }
 
-func == (lhs: MutationPosition, rhs: AbsolutePosition) -> Bool {
-    lhs.utf8Offset == rhs.utf8Offset
-}
+extension MutationPosition {
+    static func == (lhs: Self, rhs: AbsolutePosition) -> Bool {
+        lhs.utf8Offset == rhs.utf8Offset
+    }
 
-func == (lhs: AbsolutePosition, rhs: MutationPosition) -> Bool {
-    lhs.utf8Offset == rhs.utf8Offset
+    static func == (lhs: AbsolutePosition, rhs: Self) -> Bool {
+        lhs.utf8Offset == rhs.utf8Offset
+    }
 }

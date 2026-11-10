@@ -26,7 +26,7 @@ enum MuterDirective: String, CaseIterable {
         default:
             return nil
         }
-        let word = text.drop { $0.isWhitespace }.prefix { !$0.isWhitespace }
+        let word = text.drop(while: \.isWhitespace).prefix { !$0.isWhitespace }
         self.init(rawValue: String(word))
     }
 }

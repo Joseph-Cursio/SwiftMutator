@@ -1,5 +1,6 @@
 import SwiftFormat
 
+/// `code` as swift-format lays it out, so a snapshot of generated code reads like code.
 public func formatCode(_ code: String) -> String {
     let formatter = SwiftFormatter(configuration: Configuration())
     var stream = OutputStream()

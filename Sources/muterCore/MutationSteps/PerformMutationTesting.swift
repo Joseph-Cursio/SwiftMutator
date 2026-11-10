@@ -58,8 +58,8 @@ struct PerformMutationTesting: MutationStep {
     }
 
     init(
-        makeWorkerDirectories: @escaping (URL, Int) async throws -> [URL] = PerformMutationTesting.cloneMutatedProject,
-        removeWorkerDirectories: @escaping ([URL]) -> Void = PerformMutationTesting.removeClones
+        makeWorkerDirectories: @escaping (URL, Int) async throws -> [URL] = Self.cloneMutatedProject,
+        removeWorkerDirectories: @escaping ([URL]) -> Void = Self.removeClones
     ) {
         self.makeWorkerDirectories = makeWorkerDirectories
         self.removeWorkerDirectories = removeWorkerDirectories

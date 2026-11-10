@@ -20,7 +20,7 @@ struct SarifFinding {
 
     /// Each mutant of `outcome` the tests didn't kill, with its columns and its fingerprint from its original file,
     /// which `read` reads.
-    static func all(of outcome: MutationTestOutcome, reading read: ReadFile) -> [SarifFinding] {
+    static func all(of outcome: MutationTestOutcome, reading read: ReadFile) -> [Self] {
         let paths = Set(outcome.mutations.map(\.originalProjectPath))
         let files = OriginalFiles(paths, read: read)
         let lines = Dictionary(uniqueKeysWithValues: paths.compactMap { path in
@@ -35,7 +35,7 @@ struct SarifFinding {
                 start: .init(line: span.start.line, column: 1),
                 end: fileLines?.span(ofLine: span.end.line)?.end ?? span.end
             )
-            return SarifFinding(
+            return Self(
                 relativePath: mutation.relativePath,
                 operatorId: mutation.point.mutationOperatorId,
                 level: level,
@@ -155,7 +155,7 @@ extension SarifFinding {
     ) -> String {
         let line = lines?.line(span.start.line)
         let place = line.map { line in
-            let indent = line.prefix { $0.isWhitespace }.utf16.count
+            let indent = line.prefix(while: \.isWhitespace).utf16.count
             let repeated = repeats.flatMap { $0.indices.contains(span.start.line - 1) ? $0[span.start.line - 1] : nil }
             return "\(repeated ?? 0):\(span.start.column - 1 - indent)"
         } ?? "\(mutation.point.position.line):\(mutation.point.position.column)"

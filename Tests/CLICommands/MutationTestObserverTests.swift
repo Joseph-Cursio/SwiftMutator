@@ -79,11 +79,12 @@ final class MutationTestObserverTests: MuterTestCase {
         runEvents.send(.packageSourceFilesUnavailable(reason: "/usr/bin/swift couldn't be started"))
 
         XCTAssertEqual(printer.linesPassed.count, 1)
-        XCTAssertTrue(
+        XCTAssertEqual(
             printer.linesPassed.first?.hasPrefix(
                 "⚠️ SwiftMutator couldn't tell which files the package's targets compile: "
                     + "/usr/bin/swift couldn't be started.\n"
-            ) == true,
+            ),
+            true,
             "\(printer.linesPassed)"
         )
     }
@@ -150,11 +151,12 @@ final class MutationTestObserverTests: MuterTestCase {
         runEvents.send(.projectCoverageDiscoveryFinished(nil))
 
         XCTAssertEqual(printer.linesPassed.count, 1)
-        XCTAssertTrue(
+        XCTAssertEqual(
             printer.linesPassed.first?.hasPrefix(
                 "❌ Gathering coverage failed: llvm-cov failed.\n"
                     + "The coverage run's output is in \("/logs/coverage run.log".bold)\n"
-            ) == true
+            ),
+            true
         )
     }
 

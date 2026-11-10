@@ -135,7 +135,7 @@ final class PerformMutationTestingActivationTests: MuterTestCase {
 
         XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.failed, .passed])
         XCTAssertEqual(outcome.mutations.map(\.activated), [false, true])
-        XCTAssertEqual(try XCTUnwrap(outcome.unprovenKillWarning).hasPrefix("1 kill's code never ran"), true)
+        XCTAssertTrue(try XCTUnwrap(outcome.unprovenKillWarning).hasPrefix("1 kill's code never ran"))
         let log = try resultsFiles.records(MutantResult.self).last?.log
         XCTAssertNotNil(log, "the log is what the warning has to show")
     }

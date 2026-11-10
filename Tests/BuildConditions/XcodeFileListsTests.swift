@@ -1,4 +1,5 @@
 @testable import muterCore
+import TestingExtensions
 import XCTest
 
 /// Which targets compiled each file in an xcodebuild build, from the lists of files the build leaves in derived data.
@@ -30,11 +31,11 @@ final class XcodeFileListsTests: MuterTestCase {
         let conditions = try await conditions(afterABuild: true)
 
         let app = conditions.conditions(ofFile: "App/App.swift")
-        XCTAssertEqual(holds("APP_FLAG", in: app), true)
-        XCTAssertEqual(holds("RELEASE_ONLY", in: app), false)
-        XCTAssertEqual(holds("CORE_FLAG", in: app), false)
-        XCTAssertEqual(holds("TEST_FLAG", in: app), false)
-        XCTAssertEqual(holds("RELEASE_ONLY", in: conditions.conditions(ofFile: "App/My View.swift")), false)
+        XCTAssertTrue(holds("APP_FLAG", in: app))
+        XCTAssertFalse(holds("RELEASE_ONLY", in: app))
+        XCTAssertFalse(holds("CORE_FLAG", in: app))
+        XCTAssertFalse(holds("TEST_FLAG", in: app))
+        XCTAssertFalse(holds("RELEASE_ONLY", in: conditions.conditions(ofFile: "App/My View.swift")))
         XCTAssertNil(holds("CORE_FLAG", in: conditions.conditions(ofFile: "Shared/Shared.swift")))
         XCTAssertNil(holds("RELEASE_ONLY", in: conditions.conditions(ofFile: "Shared/Shared.swift")))
         XCTAssertNil(conditions.customConditionsOfFile["Core/Core.swift"])
@@ -60,7 +61,7 @@ final class XcodeFileListsTests: MuterTestCase {
         let conditions = try await conditions(afterABuild: true)
 
         XCTAssertNil(holds("RELEASE_ONLY", in: conditions.conditions(ofFile: "App/App.swift")))
-        XCTAssertEqual(holds("RELEASE_ONLY", in: conditions.conditions(ofFile: "App/My View.swift")), false)
+        XCTAssertFalse(holds("RELEASE_ONLY", in: conditions.conditions(ofFile: "App/My View.swift")))
     }
 
     // xcodebuild spells a project in /private/var as /var, and a package's lists keep /private.
@@ -127,7 +128,7 @@ final class XcodeFileListsTests: MuterTestCase {
 
         let conditions = try await conditions(afterABuild: true)
 
-        XCTAssertEqual(holds("CORE_FLAG", in: conditions.conditions(ofFile: "App/App.swift")), false)
+        XCTAssertFalse(holds("CORE_FLAG", in: conditions.conditions(ofFile: "App/App.swift")))
     }
 
     // `-xcconfig` and `XCODE_XCCONFIG_FILE` name a build configuration file outside the project's build files.

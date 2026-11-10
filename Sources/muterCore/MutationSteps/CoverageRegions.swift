@@ -32,17 +32,17 @@ enum CoverageRegions {
             return .visitChildren
         }
 
-        override func visit(_ node: DeinitializerDeclSyntax) -> SyntaxVisitorContinueKind {
+        override func visit(_: DeinitializerDeclSyntax) -> SyntaxVisitorContinueKind {
             holdsCode = true
             return .skipChildren
         }
 
-        override func visit(_ node: AccessorBlockSyntax) -> SyntaxVisitorContinueKind {
+        override func visit(_: AccessorBlockSyntax) -> SyntaxVisitorContinueKind {
             holdsCode = true
             return .skipChildren
         }
 
-        override func visit(_ node: ClosureExprSyntax) -> SyntaxVisitorContinueKind {
+        override func visit(_: ClosureExprSyntax) -> SyntaxVisitorContinueKind {
             holdsCode = true
             return .skipChildren
         }

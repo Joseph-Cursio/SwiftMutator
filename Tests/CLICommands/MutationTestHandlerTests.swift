@@ -28,9 +28,9 @@ final class MutationTestHandlerTests: MuterTestCase {
         }
 
         let assertThatAllStepsShareTheState = {
-            XCTAssertTrue(self.stepSpy1.states.first === expectedState)
-            XCTAssertTrue(self.stepSpy2.states.first === expectedState)
-            XCTAssertTrue(self.stepSpy3.states.first === expectedState)
+            XCTAssertIdentical(self.stepSpy1.states.first, expectedState)
+            XCTAssertIdentical(self.stepSpy2.states.first, expectedState)
+            XCTAssertIdentical(self.stepSpy3.states.first, expectedState)
         }
 
         let assertThatReturnsSuccess = {
@@ -70,8 +70,8 @@ final class MutationTestHandlerTests: MuterTestCase {
         }
 
         let assertThatNoLaterStepGetsTheState = {
-            XCTAssertTrue(self.stepSpy1.states.first === self.state)
-            XCTAssertTrue(self.stepSpy2.states.first === self.state)
+            XCTAssertIdentical(self.stepSpy1.states.first, self.state)
+            XCTAssertIdentical(self.stepSpy2.states.first, self.state)
             XCTAssertTrue(self.stepSpy3.states.isEmpty)
         }
 
@@ -759,7 +759,7 @@ final class MutationTestHandlerTests: MuterTestCase {
 
 /// A step that refuses a resume, as `LoadResumeState` and `FingerprintProjectTree` do.
 private final class RefusingStep: MutationStep {
-    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+    func run(with _: AnyMutationTestState) async throws -> [MutationTestState.Change] {
         throw ResumeRefused(
             path: "/logs/results.jsonl",
             reasons: [.inUse(holder: nil, lastProcess: nil, lastHost: nil)],
@@ -782,7 +782,7 @@ private final class LoggingDirectoryProbe: MutationStep {
 private struct BuildForTestingStandIn: MutationStep {
     let interruption: InterruptionRecord
 
-    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+    func run(with _: AnyMutationTestState) async throws -> [MutationTestState.Change] {
         _ = interruption.record(SIGINT)
         interruption.stoppingAtOnce()
         throw CancellationError()

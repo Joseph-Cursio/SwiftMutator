@@ -9,10 +9,10 @@ struct LockHolder: Equatable, Sendable, CustomStringConvertible {
     let host: String
 
     /// This process, or nil if its start can't be read.
-    static func current() -> LockHolder? {
+    static func current() -> Self? {
         let process = getpid()
         return MutatedProjectLock.startTime(of: process).map {
-            LockHolder(process: process, started: $0, host: Provenance.hostName())
+            Self(process: process, started: $0, host: Provenance.hostName())
         }
     }
 

@@ -1,4 +1,5 @@
 @testable import muterCore
+import TestingExtensions
 import XCTest
 
 /// Runs a worker's baseline and two of its mutants with a real test command, a shell script standing for
@@ -45,8 +46,9 @@ final class MutantActivationProcessTests: MuterTestCase {
         let second = try await runTests(of: mutantB, in: worker, using: configuration)
 
         for (name, mutantsRun) in [("mutant A", first), ("mutant B", second)] {
-            XCTAssertTrue(
-                mutantsRun.environment == baseline.environment,
+            XCTAssertEqual(
+                mutantsRun.environment,
+                baseline.environment,
                 "\(name)'s run and the baseline differ in: \(mutantsRun.linesThatDiffer(from: baseline))"
             )
         }
@@ -84,9 +86,9 @@ final class MutantActivationProcessTests: MuterTestCase {
         let marker = #"marker=$(sed -n 2p "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE"); "#
 
         let ran = await run(marker + #"touch "$marker" "$marker.reached""#)
-        XCTAssertEqual(ran, true)
+        XCTAssertTrue(ran)
         let didntRun = await run(marker + #"touch "$marker.reached""#)
-        XCTAssertEqual(didntRun, false, "the marker of the run before doesn't count")
+        XCTAssertFalse(didntRun, "the marker of the run before doesn't count")
         let showsNothing = await run("true")
         XCTAssertNil(showsNothing, "the file of the run before doesn't count")
     }
@@ -112,7 +114,7 @@ final class MutantActivationProcessTests: MuterTestCase {
             }
         }
 
-        func linesThatDiffer(from other: Dump) -> [String] {
+        func linesThatDiffer(from other: Self) -> [String] {
             Set(environment).symmetricDifference(other.environment).sorted()
         }
     }

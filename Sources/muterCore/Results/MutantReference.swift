@@ -45,7 +45,7 @@ struct MutantReference: Hashable, CustomStringConvertible {
     ///    has.
     /// 3. The last one or two `:` fields, whole numbers from 1, are the line and then the column.
     /// 4. The rest, which mustn't be empty, is the path, with any leading `./` dropped.
-    static func parse(_ text: String) throws -> MutantReference {
+    static func parse(_ text: String) throws -> Self {
         var rest = Substring(text.trimmingCharacters(in: .whitespacesAndNewlines))
 
         var occurrence: Int?
@@ -90,7 +90,7 @@ struct MutantReference: Hashable, CustomStringConvertible {
         }
         guard !path.isEmpty else { throw usage }
 
-        return MutantReference(
+        return Self(
             path: String(path),
             line: line,
             column: column,
@@ -120,7 +120,7 @@ struct MutantReference: Hashable, CustomStringConvertible {
     /// symbolic link, as `/tmp` is `/private/tmp`, is inside a root when its folder, resolved, is inside the root,
     /// resolved: `getcwd()` gives the project's path resolved, and a shell's `$PWD` often doesn't. The file's own name
     /// isn't resolved, so a mutated file that is itself a link still names the link, as its key does.
-    func relative(toFirstOf roots: [URL]) -> MutantReference {
+    func relative(toFirstOf roots: [URL]) -> Self {
         guard path.hasPrefix("/") else { return self }
         if let relative = Self.relative(path, toFirstOf: roots) {
             return with(path: relative)
@@ -139,8 +139,8 @@ struct MutantReference: Hashable, CustomStringConvertible {
     }
 
     /// This reference with `path` in place of its own.
-    private func with(path: String) -> MutantReference {
-        MutantReference(
+    private func with(path: String) -> Self {
+        Self(
             path: path,
             line: line,
             column: column,

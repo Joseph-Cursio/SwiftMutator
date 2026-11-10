@@ -2,6 +2,9 @@
 import TestingExtensions
 import XCTest
 
+// The base of the tests that run SwiftMutator's steps: its subclasses use what it sets up, and the members that do it.
+// swiftlint:disable test_case_accessibility
+// swiftlint:disable:next final_test_case
 class MuterTestCase: XCTestCase {
     /// The operators `generateSchemataMappings` discovers with.
     var operatorsToDiscoverWith: MutationOperatorList {
@@ -120,9 +123,8 @@ class MuterTestCase: XCTestCase {
 
                 if !schemataMapping.isEmpty {
                     return newSchemataMappings + [schemataMapping]
-                } else {
-                    return newSchemataMappings
                 }
+                return newSchemataMappings
             }.mergeByFilePath()
     }
 
@@ -171,8 +173,9 @@ class MuterTestCase: XCTestCase {
             ?? ""
     }
 }
+// swiftlint:enable test_case_accessibility
 
-public extension XCTestCase {
+extension XCTestCase {
     var rootTestDirectory: String {
         String(
             URL(fileURLWithPath: #filePath)

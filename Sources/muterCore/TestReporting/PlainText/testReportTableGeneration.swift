@@ -185,8 +185,7 @@ func applyMutationTestResultsColor(to rows: [CLITable.Row]) -> [CLITable.Row] {
             ? $0.value.red
             : $0.value.green
 
-        let coloredRow = CLITable.Row(value: coloredValue)
-        return coloredRow
+        return CLITable.Row(value: coloredValue)
     }
 }
 

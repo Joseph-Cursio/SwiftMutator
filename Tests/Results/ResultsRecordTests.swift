@@ -1,4 +1,5 @@
 @testable import muterCore
+import TestingExtensions
 import XCTest
 
 final class ResultsRecordTests: XCTestCase {
@@ -96,7 +97,7 @@ final class ResultsRecordTests: XCTestCase {
     func test_aReusedResult_takesTheNewSessionAndPlace_andSaysWhereItWasTested() {
         let tested = MutantResult.make(
             session: 1,
-            utf8Offset: 3361,
+            utf8Offset: 3_361,
             outcome: .failed,
             killedBy: [.init(name: "sum()", location: nil)]
         )
@@ -105,13 +106,13 @@ final class ResultsRecordTests: XCTestCase {
             from: "/logs/a/results.jsonl",
             headers: [.make(session: 1)],
             in: 1,
-            utf8Offset: 4000,
+            utf8Offset: 4_000,
             switchID: "Sum_new",
             despiteChanges: false
         )
 
         XCTAssertEqual(copy.session, 1)
-        XCTAssertEqual(copy.utf8Offset, 4000)
+        XCTAssertEqual(copy.utf8Offset, 4_000)
         XCTAssertEqual(copy.switchID, "Sum_new")
         XCTAssertEqual(
             copy.reusedFrom,
@@ -123,7 +124,7 @@ final class ResultsRecordTests: XCTestCase {
             unmarked,
             MutantResult.make(
                 session: 1,
-                utf8Offset: 4000,
+                utf8Offset: 4_000,
                 switchID: "Sum_new",
                 outcome: .failed,
                 killedBy: tested.killedBy
@@ -134,7 +135,7 @@ final class ResultsRecordTests: XCTestCase {
             from: "/logs/a/results.jsonl",
             headers: [.make(session: 1), .make(formatVersion: 2, session: 2, waived: ["README.md"])],
             in: 1,
-            utf8Offset: 4000,
+            utf8Offset: 4_000,
             switchID: "Sum_new",
             despiteChanges: false
         )
@@ -145,7 +146,7 @@ final class ResultsRecordTests: XCTestCase {
             from: "/logs/b/results.jsonl",
             headers: [.make(session: 1)],
             in: 1,
-            utf8Offset: 4100,
+            utf8Offset: 4_100,
             switchID: "Sum_newer",
             despiteChanges: false
         )
@@ -194,7 +195,7 @@ final class ResultsRecordTests: XCTestCase {
             from: "/logs/a/results.jsonl",
             headers: [.make(session: 1)],
             in: 1,
-            utf8Offset: 4000,
+            utf8Offset: 4_000,
             switchID: "Sum_new",
             despiteChanges: false
         )
@@ -205,7 +206,7 @@ final class ResultsRecordTests: XCTestCase {
     func test_aHeaderAndAnEndRecordRoundTrip() throws {
         let header = makeHeader()
         let headerWithoutAProject = makeHeader(project: nil)
-        let resumedHeader = makeHeader(mutantsReused: 1103, waived: ["README.md"], forced: ["toolchain.environment"])
+        let resumedHeader = makeHeader(mutantsReused: 1_103, waived: ["README.md"], forced: ["toolchain.environment"])
         let end = makeEnd()
 
         XCTAssertEqual(try decode(ResultsHeader.self, from: line(header)), header)
@@ -280,7 +281,7 @@ final class ResultsRecordTests: XCTestCase {
         let readBack = try decode(ResultsEnd.self, from: written)
 
         XCTAssertTrue(written.contains(#""endedAt":"2026-10-04T14:02:11.004Z""#), written)
-        XCTAssertEqual(readBack.endedAt.timeIntervalSince1970, 1_791_122_531.004, accuracy: 0.000_01)
+        XCTAssertEqual(readBack.endedAt.timeIntervalSince1970, 1_791_122_531.004, accuracy: 0.00001)
         XCTAssertEqual(try line(readBack), written, "a date read back is written as it was")
     }
 
@@ -324,7 +325,7 @@ final class ResultsRecordTests: XCTestCase {
                 provenance: Provenance(
                     swiftMutator: .init(version: "1.0.0", executablePath: nil, executableSHA256: nil),
                     toolchain: .init(testCommandVersion: nil, testExecutableSHA256: nil, environment: [:]),
-                    processIdentifier: 81234,
+                    processIdentifier: 81_234,
                     host: "host",
                     arguments: []
                 )
@@ -398,7 +399,7 @@ final class ResultsRecordTests: XCTestCase {
                 line: 73,
                 column: 22,
                 occurrence: 1,
-                utf8Offset: 3361,
+                utf8Offset: 3_361,
                 mutationOperatorId: .ror,
                 switchID: "Sum_670192af8b34c2a4_RelationalOperatorReplacement_73_22_3361",
                 snapshot: .make(before: ">", after: "<", description: "changed > to <"),
@@ -806,7 +807,7 @@ final class ResultsRecordTests: XCTestCase {
                 from: "/logs/a/results.jsonl",
                 headers: [.make(session: 1)],
                 in: 1,
-                utf8Offset: 4000,
+                utf8Offset: 4_000,
                 switchID: "Sum_new",
                 despiteChanges: false,
                 keepingLog: keepingLog
@@ -886,7 +887,7 @@ private extension ResultsRecordTests {
         try MutationSchema.make(
             filePath: "/project_mutated/Sources/Sum.swift",
             mutationOperatorId: .ror,
-            position: MutationPosition(utf8Offset: 3361, line: 73, column: 22),
+            position: MutationPosition(utf8Offset: 3_361, line: 73, column: 22),
             snapshot: .make(before: ">", after: "<", description: "changed > to <"),
             under: mutatedRoot
         )
@@ -928,7 +929,7 @@ private extension ResultsRecordTests {
             line: 73,
             column: 22,
             occurrence: 0,
-            utf8Offset: 3361,
+            utf8Offset: 3_361,
             mutationOperatorId: .ror,
             switchID: "ExecutableTargetDetector_1202e16ea88d5e02_RelationalOperatorReplacement_73_22_3361",
             snapshot: snapshot,
@@ -988,8 +989,8 @@ private extension ResultsRecordTests {
             workers: 4,
             stopsAtFirstFailure: false,
             failedTestLinesAreReliable: true,
-            mutantsDiscovered: 2497,
-            mutantsToTest: 2497,
+            mutantsDiscovered: 2_497,
+            mutantsToTest: 2_497,
             project: project,
             mutantsReused: mutantsReused,
             waived: waived,
@@ -1012,8 +1013,8 @@ private extension ResultsRecordTests {
             endedAt: endedAt,
             reason: reason,
             detail: detail,
-            testDurationSeconds: 2766.493,
-            recorded: 1103
+            testDurationSeconds: 2_766.493,
+            recorded: 1_103
         )
     }
 }
@@ -1033,7 +1034,7 @@ final class MutantResultActivationTests: XCTestCase {
             despiteChanges: false
         )
 
-        XCTAssertEqual(reused.activated, false)
+        XCTAssertFalse(reused.activated)
     }
 
     // An older line has no such key, which says nothing either way.

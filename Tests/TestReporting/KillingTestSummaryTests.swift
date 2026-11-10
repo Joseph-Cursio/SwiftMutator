@@ -215,7 +215,7 @@ final class KillingTestSummaryTests: XCTestCase {
 
         XCTAssertEqual(summary.suspectOnlyKills, 2)
         XCTAssertEqual(summary.suspectOnlyKillsNotTestedAlone, 2)
-        XCTAssertTrue(summary.testedAloneSentences.last?.hasPrefix("2 mutants only suspect tests failed for") == true)
+        XCTAssertEqual(summary.testedAloneSentences.last?.hasPrefix("2 mutants only suspect tests failed for"), true)
     }
 
     func test_testedAloneSentences_areNone_withNoSuchRun() throws {

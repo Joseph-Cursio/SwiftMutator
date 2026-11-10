@@ -27,9 +27,9 @@ final class RemoveSideEffectsOperatorTests: MuterTestCase {
                 // be removed on that text alone; a declaration is not a side effect to remove.
                 MutationPosition(utf8Offset: 906, line: 39, column: 6),
                 MutationPosition(utf8Offset: 994, line: 44, column: 19),
-                MutationPosition(utf8Offset: 1049, line: 48, column: 19),
-                MutationPosition(utf8Offset: 1099, line: 52, column: 19),
-                MutationPosition(utf8Offset: 1138, line: 56, column: 19),
+                MutationPosition(utf8Offset: 1_049, line: 48, column: 19),
+                MutationPosition(utf8Offset: 1_099, line: 52, column: 19),
+                MutationPosition(utf8Offset: 1_138, line: 56, column: 19),
             ]
         )
     }
@@ -76,7 +76,7 @@ final class RemoveSideEffectsOperatorTests: MuterTestCase {
 
         visitor.walk(source)
 
-        let remaining = visitor.schemataMappings.mutationSchemata.map { $0.syntaxMutation.description.trimmed.inlined }
+        let remaining = visitor.schemataMappings.mutationSchemata.map(\.syntaxMutation.description.trimmed.inlined)
         XCTAssertEqual(remaining.sorted(), ["log(event) reload()", "reload() log(event)", "reload() reload()"])
     }
 

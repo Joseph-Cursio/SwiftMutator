@@ -127,7 +127,7 @@ final class TestProcessWatcher: @unchecked Sendable { // `descriptor` is behind 
     static func watch(readingFrom input: Int32) {
         var running: [Int32: RecordedProcess] = [:]
         var pending: [UInt8] = []
-        var buffer = [UInt8](repeating: 0, count: 4096)
+        var buffer = [UInt8](repeating: 0, count: 4_096)
         while true {
             let count = read(input, &buffer, buffer.count)
             if count < 0, errno == EINTR { continue }

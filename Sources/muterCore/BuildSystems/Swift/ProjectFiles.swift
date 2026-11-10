@@ -14,7 +14,7 @@ struct ProjectFiles: Equatable, Sendable {
     let entries: [String: Entry]
 
     /// `project`'s files, not following links, or nil if they can't be listed.
-    static func read(in project: URL) -> ProjectFiles? {
+    static func read(in project: URL) -> Self? {
         #if os(macOS)
         guard let enumerator = FileManager.default.enumerator(atPath: project.path) else { return nil }
         var entries: [String: Entry] = [:]
@@ -22,7 +22,7 @@ struct ProjectFiles: Equatable, Sendable {
         while let name = enumerator.nextObject() as? String {
             entries[name] = entry(atPath: project.path + "/" + name)
         }
-        return ProjectFiles(entries: entries)
+        return Self(entries: entries)
         #else
         return nil
         #endif
@@ -43,7 +43,7 @@ struct ProjectFiles: Equatable, Sendable {
 
     /// The first, by name, of the paths whose entry differs in `later`, or else "" for the project's own folder, which
     /// differs alone when something was made and removed at its top; nil if none does.
-    func firstChange(in later: ProjectFiles) -> String? {
+    func firstChange(in later: Self) -> String? {
         let changed = Set(entries.keys).union(later.entries.keys).filter { entries[$0] != later.entries[$0] }
         return changed.filter { !$0.isEmpty }.min() ?? changed.first
     }

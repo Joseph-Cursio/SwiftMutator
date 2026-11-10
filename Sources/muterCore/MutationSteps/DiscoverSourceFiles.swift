@@ -77,9 +77,8 @@ struct DiscoverSourceFiles: MutationStep {
         if !sourceFileCandidates.isEmpty || comparesUncovered {
             return [.sourceFileCandidatesDiscovered(sourceFileCandidates)]
                 + (uncovered.isEmpty ? [] : [.uncoveredSourceFilesDiscovered(uncovered)])
-        } else {
-            throw failure
         }
+        throw failure
     }
 
     /// Whether a run compares the mutants of code no test ran: with `--baseline`, but for a run of one mutant, which
@@ -148,7 +147,6 @@ extension DiscoverSourceFiles {
 
         return await pathsNotHiddenOrIgnored(in: rootPath, listedIn: state.projectDirectoryURL)
     }
-
 }
 
 private extension DiscoverSourceFiles {
@@ -353,7 +351,7 @@ private extension DiscoverSourceFiles {
         guard components.contains(".") || components.contains("..") else {
             return path
         }
-        let result = URL(
+        return URL(
             string: path,
             relativeTo: URL(
                 fileURLWithPath: fileManager.currentDirectoryPath
@@ -362,8 +360,6 @@ private extension DiscoverSourceFiles {
         .map(\.absoluteString)
         .map(dropScheme)
         ?? path
-
-        return result
     }
 
     private func includeSwiftFiles(
@@ -384,7 +380,7 @@ private extension DiscoverSourceFiles {
     ) -> FilePath {
         URLComponents(string: path)
             .map(\.scheme)
-            .flatMap { $0 }
+            .flatMap(\.self)
             .map { path.removingSubrange(path.range(of: "\($0)://")) }
             ?? path
     }

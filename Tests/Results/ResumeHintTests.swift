@@ -155,7 +155,7 @@ final class ResumeHintTests: XCTestCase {
     // A sample whose seed SwiftMutator chose is taken again only with that seed: a resume would choose another.
     func test_aChosenSeed_isGiven_soTheResumeTakesTheSameSample() {
         XCTAssertEqual(
-            ResumeHint.command(continuing: ["run", "--sample", "500"], from: "/logs/results.jsonl", chosenSeed: 1234),
+            ResumeHint.command(continuing: ["run", "--sample", "500"], from: "/logs/results.jsonl", chosenSeed: 1_234),
             "swift-mutator run --sample 500 --seed 1234 --resume '/logs/results.jsonl'"
         )
         XCTAssertEqual(

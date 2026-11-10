@@ -51,7 +51,7 @@ extension ControlRunResult {
             outcome: run.outcome,
             endedBy: run.ending,
             exitStatus: run.ending == .exited ? run.exitStatus : nil,
-            durationSeconds: (finished.seconds * 1000).rounded() / 1000,
+            durationSeconds: (finished.seconds * 1_000).rounded() / 1_000,
             worker: finished.worker,
             finishedAt: finishedAt,
             failedTests: failures?.tests,

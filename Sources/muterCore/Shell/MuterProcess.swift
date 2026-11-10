@@ -80,7 +80,7 @@ protocol MuterProcess: AnyObject, Sendable {
 
 extension MuterProcess {
     /// For test doubles that never run a command this way: as if it couldn't be started. `Foundation.Process` runs it.
-    func runCommand(url: String, arguments args: [String], timeLimit: TimeInterval?) async -> CommandResult? {
+    func runCommand(url _: String, arguments _: [String], timeLimit _: TimeInterval?) async -> CommandResult? {
         nil
     }
 

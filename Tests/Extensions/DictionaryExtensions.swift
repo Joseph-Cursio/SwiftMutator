@@ -1,4 +1,5 @@
 public extension [String: Any] {
+    /// The entries whose keys `shouldInclude` holds for, and likewise in each dictionary in them, however deep.
     func recursivelyFiltered(includingKeysMatching shouldInclude: @escaping (String) -> Bool) -> [String: Any] {
         var filteredDictionary: [String: Any] = [:]
 

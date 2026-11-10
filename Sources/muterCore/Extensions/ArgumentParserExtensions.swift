@@ -6,7 +6,7 @@ extension URL: @retroactive ExpressibleByArgument {
     /// after `--output=` or in quotes, and a report's missing folders are made (`ReportWriter`), so it would otherwise
     /// save into a folder named `~`.
     public init?(argument: String) {
-        let path = URL.expandingTilde(argument)
+        let path = Self.expandingTilde(argument)
         self = path.contains("/")
             ? URL(fileURLWithPath: path)
             : URL(fileURLWithPath: current.fileManager.currentDirectoryPath + "/" + path)

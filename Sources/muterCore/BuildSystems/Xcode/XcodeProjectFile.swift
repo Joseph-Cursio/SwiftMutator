@@ -14,11 +14,11 @@ struct XcodeProjectFile {
     indirect enum Value {
         case text(Text)
         /// A dictionary's entries, in the file's order.
-        case dictionary([(key: String, value: Value)])
-        case array([Value])
+        case dictionary([(key: String, value: Self)])
+        case array([Self])
 
         /// The value of `key`, if this is a dictionary that has it.
-        subscript(key: String) -> Value? {
+        subscript(key: String) -> Self? {
             guard case let .dictionary(entries) = self else { return nil }
             return entries.first { $0.key == key }?.value
         }
@@ -32,12 +32,12 @@ struct XcodeProjectFile {
             text?.value
         }
 
-        var items: [Value] {
+        var items: [Self] {
             guard case let .array(items) = self else { return [] }
             return items
         }
 
-        var entries: [(key: String, value: Value)] {
+        var entries: [(key: String, value: Self)] {
             guard case let .dictionary(entries) = self else { return [] }
             return entries
         }

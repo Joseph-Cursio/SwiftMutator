@@ -17,7 +17,7 @@ struct ParallelTestingSpread: Equatable {
     /// numbers its own clones, `Clone 1 of iPad Air - App (125)` as well as `Clone 1 of iPhone 17 Pro - App (123)`, but
     /// a mutant's run tests only on the first. So the device is the one named `deviceName`, the first destination's
     /// `name=`, when the log shows it, and otherwise the first the log shows.
-    static func of(baselineLog: String, onDeviceNamed deviceName: String? = nil) -> ParallelTestingSpread? {
+    static func of(baselineLog: String, onDeviceNamed deviceName: String? = nil) -> Self? {
         var devices: [DeviceSpread] = []
         // "\r\n" is a single Character, so a log with those line breaks isn't split at "\n" alone.
         let lines = baselineLog.split(whereSeparator: { $0 == "\n" || $0 == "\r\n" })
@@ -38,7 +38,7 @@ struct ParallelTestingSpread: Equatable {
             devices.first { $0.device == name || $0.device.hasPrefix(name + " - ") }
         }
         return (named ?? devices.first).map {
-            ParallelTestingSpread(clones: $0.clones.count, testSeconds: $0.testSeconds)
+            Self(clones: $0.clones.count, testSeconds: $0.testSeconds)
         }
     }
 

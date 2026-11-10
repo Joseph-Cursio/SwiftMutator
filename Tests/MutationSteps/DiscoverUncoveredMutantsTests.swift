@@ -240,7 +240,7 @@ final class DiscoverUncoveredMutantsTests: MuterTestCase {
 
         XCTAssertEqual(only.selection, selection)
         XCTAssertEqual(only.uncovered, 3)
-        XCTAssertEqual(only.check.passed, false)
+        XCTAssertFalse(only.check.passed)
         guard case let .checked(comparison) = only.check.verdict else { return XCTFail("\(only.check)") }
         XCTAssertEqual(comparison.newSurvivors.map(\.mutant), [
             "Sign.swift:1:47 RelationalBoundary", "Sign.swift:1:47 RelationalOperatorReplacement",
@@ -259,7 +259,7 @@ final class DiscoverUncoveredMutantsTests: MuterTestCase {
         // Allowed, they pass, and the run exits 0.
         state.runOptions = .make(baseline: "muter.baseline.yml", maxNewSurvivors: 3)
         let allowed = try await onlyUncoveredMutants(of: state)
-        XCTAssertEqual(allowed.check.passed, true)
+        XCTAssertTrue(allowed.check.passed)
         XCTAssertNil(ExitCode.exitStatus(afterRunFailedWith: allowed))
         XCTAssertNil(allowed.scoreDrop)
         XCTAssertNil(allowed.doubtfulKills)
@@ -313,7 +313,7 @@ final class DiscoverUncoveredMutantsTests: MuterTestCase {
         let only = try await onlyUncoveredMutants(of: state)
         XCTAssertEqual(only.selection, selection)
         XCTAssertGreaterThan(only.uncovered, 3)
-        XCTAssertEqual(only.check.passed, false)
+        XCTAssertFalse(only.check.passed)
 
         let whole = MutationTestState()
         whole.mutationOperatorList = state.mutationOperatorList

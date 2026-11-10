@@ -1,13 +1,12 @@
 import Foundation
 
 public extension URL {
+    /// The path, without `file://`.
     func withoutScheme() -> String {
-        let urlWithoutScheme = String(
+        String(
             pathComponents
                 .joined(separator: "/")
                 .dropFirst()
         )
-
-        return urlWithoutScheme
     }
 }

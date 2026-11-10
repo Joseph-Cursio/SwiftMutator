@@ -299,7 +299,7 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertFalse(fileManager.paths.contains(killsLog), "\(fileManager.paths)")
         let discarded = ioDelegate.keptOutputs.filter { $0.path == nil }.map(\.output)
         XCTAssertEqual(discarded.count, 1)
-        XCTAssertTrue(discarded.first?.hasPrefix("/logs/running/0_Sum.swift") == true, "\(discarded)")
+        XCTAssertEqual(discarded.first?.hasPrefix("/logs/running/0_Sum.swift"), true, "\(discarded)")
         let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
         XCTAssertEqual(header.formatVersion, ResultsCoding.omittedLogsFormatVersion)
     }

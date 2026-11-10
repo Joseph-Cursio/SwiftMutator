@@ -127,8 +127,9 @@ final class XcodeReporterTests: ReporterTestCase {
         )
 
         XCTAssertEqual(printer.linesPassed.count, 1)
-        XCTAssertTrue(
-            printer.linesPassed.first?.contains("warning: No test reached this mutant: changed from == to !=") == true,
+        XCTAssertEqual(
+            printer.linesPassed.first?.contains("warning: No test reached this mutant: changed from == to !="),
+            true,
             "\(printer.linesPassed)"
         )
     }

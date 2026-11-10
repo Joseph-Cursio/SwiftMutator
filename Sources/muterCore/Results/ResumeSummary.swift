@@ -121,7 +121,7 @@ extension ResumeSummary {
             selectionChange(from: earlier.since, to: current.since),
             shardChange(from: earlier.shard, to: current.shard),
             sampleChange(from: earlier.sample, to: current.sample),
-        ].compactMap { $0 }
+        ].compactMap(\.self)
         return sentences.isEmpty ? nil : sentences.joined(separator: " ")
     }
 

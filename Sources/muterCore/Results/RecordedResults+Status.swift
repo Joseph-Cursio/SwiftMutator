@@ -10,7 +10,7 @@ extension RecordedResults {
         guard let last = sessions.last else { return [] }
         return [
             "Report of \(latest.count) of \(last.header.mutantsDiscovered) mutants, from \(path): \(ending).",
-        ] + [oneMutant, resultSources, skippedLines].compactMap { $0 }
+        ] + [oneMutant, resultSources, skippedLines].compactMap(\.self)
     }
 
     /// That the run tested one mutant alone, which the score is of; nil for any other run.

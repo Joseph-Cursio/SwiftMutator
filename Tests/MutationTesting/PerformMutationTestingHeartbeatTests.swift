@@ -76,7 +76,7 @@ final class PerformMutationTestingHeartbeatTests: MuterTestCase {
         }
         ioDelegate.whileRunningMutant = { [clock] _ in
             clock.change { $0 += 59 }
-            usleep(20000)
+            usleep(20_000)
         }
 
         _ = try await sut.run(with: state)
@@ -99,7 +99,7 @@ final class PerformMutationTestingHeartbeatTests: MuterTestCase {
             }
             let deadline = Date().addingTimeInterval(5)
             while sent.value.count < count, Date() < deadline {
-                usleep(1000)
+                usleep(1_000)
             }
         }
         return sent

@@ -1,4 +1,5 @@
 @testable import muterCore
+import TestingExtensions
 import XCTest
 import Yams
 
@@ -133,11 +134,11 @@ final class ConfigurationParsingTests: MuterTestCase {
         let swift = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
         let asked = swift.overriding(workers: 8, timeout: nil)
 
-        let byDefault = [0: 0, 1: 1, 49: 1, 50: 2, 99: 2, 100: 3, 150: 4, 5000: 4]
+        let byDefault = [0: 0, 1: 1, 49: 1, 50: 2, 99: 2, 100: 3, 150: 4, 5_000: 4]
         for (mutants, count) in byDefault {
             XCTAssertEqual(swift.workerCount(testing: mutants), count, "\(mutants)")
         }
-        let whenSet = [0: 0, 1: 1, 3: 3, 49: 8, 5000: 8]
+        let whenSet = [0: 0, 1: 1, 3: 3, 49: 8, 5_000: 8]
         for (mutants, count) in whenSet {
             XCTAssertEqual(asked.workerCount(testing: mutants), count, "\(mutants)")
         }
@@ -148,7 +149,7 @@ final class ConfigurationParsingTests: MuterTestCase {
         current.processorCount = 18
         let swift = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
 
-        let sharing = [0: 0, 1: 1, 3: 3, 4: 4, 49: 4, 5000: 4]
+        let sharing = [0: 0, 1: 1, 3: 3, 4: 4, 49: 4, 5_000: 4]
         for (mutants, count) in sharing {
             XCTAssertEqual(swift.workerCount(testing: mutants, sharingBuild: true), count, "\(mutants)")
         }
@@ -235,8 +236,8 @@ final class ConfigurationParsingTests: MuterTestCase {
         let switchedOff = try MuterConfiguration(from: Data("\(swiftTest)\nstopAtFirstFailure: false".utf8))
         let unset = try MuterConfiguration(from: Data(swiftTest.utf8))
 
-        XCTAssertEqual(switchedOn.stopAtFirstFailure, true)
-        XCTAssertEqual(switchedOff.stopAtFirstFailure, false)
+        XCTAssertTrue(switchedOn.stopAtFirstFailure)
+        XCTAssertFalse(switchedOff.stopAtFirstFailure)
         XCTAssertNil(unset.stopAtFirstFailure)
     }
 
@@ -438,7 +439,7 @@ final class ConfigurationParsingTests: MuterTestCase {
         let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
         let keeping = { (line: String) in try MuterConfiguration(from: Data("\(swiftTest)\n\(line)".utf8)) }
 
-        XCTAssertEqual(try keeping("keepAllLogs: true").keepAllLogs, true)
+        XCTAssertTrue(try keeping("keepAllLogs: true").keepAllLogs)
         XCTAssertTrue(try keeping("keepAllLogs: true").keepsAllLogs)
         XCTAssertFalse(try keeping("keepAllLogs: false").keepsAllLogs)
         let unset = try MuterConfiguration(from: Data(swiftTest.utf8))
@@ -455,7 +456,7 @@ final class ConfigurationParsingTests: MuterTestCase {
         let xcodebuild = "executable: /usr/bin/xcodebuild\narguments: [-destination, platform=macOS, test]"
         let keeping = { (line: String) in try MuterConfiguration(from: Data("\(xcodebuild)\n\(line)".utf8)) }
 
-        XCTAssertEqual(try keeping("keepSwiftLintPhases: true").keepSwiftLintPhases, true)
+        XCTAssertTrue(try keeping("keepSwiftLintPhases: true").keepSwiftLintPhases)
         XCTAssertTrue(try keeping("keepSwiftLintPhases: true").keepsSwiftLintPhases)
         XCTAssertFalse(try keeping("keepSwiftLintPhases: false").keepsSwiftLintPhases)
         let unset = try MuterConfiguration(from: Data(xcodebuild.utf8))
@@ -571,8 +572,8 @@ final class ConfigurationParsingTests: MuterTestCase {
         let never = try MuterConfiguration(from: Data("\(xcodebuild)\noneWorkerSimulator: false".utf8))
         let automatic = try MuterConfiguration(from: Data(xcodebuild.utf8))
 
-        XCTAssertEqual(always.oneWorkerSimulator, true)
-        XCTAssertEqual(never.oneWorkerSimulator, false)
+        XCTAssertTrue(always.oneWorkerSimulator)
+        XCTAssertFalse(never.oneWorkerSimulator)
         XCTAssertNil(automatic.oneWorkerSimulator)
         XCTAssertTrue(try String(decoding: always.asData, as: UTF8.self).contains("oneWorkerSimulator: true"))
         XCTAssertFalse(try String(decoding: automatic.asData, as: UTF8.self).contains("oneWorkerSimulator"))

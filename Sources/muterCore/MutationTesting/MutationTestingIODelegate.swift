@@ -278,7 +278,6 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
                 )
             }
             return run
-
         } catch {
             // Reaching here means the test command never ran — the log file couldn't be opened, or
             // the process failed to spawn. There is no test output to report, so the thrown error is

@@ -3,13 +3,13 @@ import TestingExtensions
 import XCTest
 
 final class HTMLReportTests: MuterTestCase {
-    private let mutations: [MutationTestOutcome.Mutation] = (0 ... 50).map {
+    private let mutations: [MutationTestOutcome.Mutation] = (0 ... 50).map { index in
         MutationTestOutcome.Mutation.make(
-            testSuiteOutcome: nextMutationTestOutcome($0),
+            testSuiteOutcome: nextMutationTestOutcome(index),
             point: .make(
-                mutationOperatorId: nextMutationOperator($0),
-                filePath: "/root/file\($0).swift",
-                position: .init(integerLiteral: $0)
+                mutationOperatorId: nextMutationOperator(index),
+                filePath: "/root/file\(index).swift",
+                position: .init(integerLiteral: index)
             ),
             snapshot: .make(before: "before", after: "after"),
             originalProjectDirectoryUrl: URL(fileURLWithPath: "/root/")

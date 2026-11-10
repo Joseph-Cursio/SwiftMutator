@@ -44,7 +44,7 @@ struct MutationSchema {
 
     /// The same mutant in the file at `filePath`, as a test plan names it relative to its copy and resolves it again.
     /// The ID is kept, never made again: the plan's code switches the mutant on by the ID the plan records.
-    func with(filePath: String) -> MutationSchema {
+    func with(filePath: String) -> Self {
         var schema = self
         schema.filePath = filePath
         return schema
@@ -59,7 +59,7 @@ struct MutationSchema {
         _ position: MutationPosition
     ) -> String {
         let fileName = URL(fileURLWithPath: filePath).deletingPathExtension().lastPathComponent
-        return ([fileName] + [pathHash].compactMap { $0 } + [
+        return ([fileName] + [pathHash].compactMap(\.self) + [
             mutationOperatorId.rawValue,
             "\(position.line)",
             "\(position.column)",

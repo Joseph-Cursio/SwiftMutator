@@ -74,6 +74,7 @@ typealias Sleep = @Sendable (UInt64) async throws -> Void
 struct World: Sendable {
     /// What happens during the run, for its observer to report.
     var events = RunEvents()
+
     #if os(Linux)
     /// One of its own: FoundationEssentials traps when the shared FileManager is given a delegate, as the project
     /// copy gives this one.
@@ -81,6 +82,7 @@ struct World: Sendable {
     #else
     var fileManager: FileSystemManager = FileManager.default
     #endif
+
     var flushStandardOut: Flush = { fflush(stdout) }
     var logger: Logger = .init()
     var printer: Printer = { print($0) }
@@ -89,7 +91,7 @@ struct World: Sendable {
     var errorPrinter: Printer = { fputs($0 + "\n", stderr) }
     /// Whether standard output is a terminal, where the progress bar can redraw itself. A log file or a pipe gets a
     /// line per mutant instead.
-    var standardOutIsATerminal = World.isTerminal(
+    var standardOutIsATerminal = Self.isTerminal(
         isatty: isatty(STDOUT_FILENO) != 0,
         term: ProcessInfo.processInfo.environment["TERM"]
     )

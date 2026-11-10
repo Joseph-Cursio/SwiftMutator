@@ -274,8 +274,9 @@ final class ReportBaselineTests: MuterTestCase {
         XCTAssertEqual(verdict["maxScoreDrop"] as? Double, 2)
 
         try await report(resultsPath, "--baseline", baselinePath, "--max-score-drop", "40")
-        XCTAssertTrue(
-            standardError.linesPassed.last?.hasSuffix("within the 40 allowed.") == true,
+        XCTAssertEqual(
+            standardError.linesPassed.last?.hasSuffix("within the 40 allowed."),
+            true,
             "\(standardError.linesPassed)"
         )
     }

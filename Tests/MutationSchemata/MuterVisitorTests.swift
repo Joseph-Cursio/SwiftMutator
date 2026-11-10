@@ -2694,7 +2694,6 @@ final class MuterVisitorTests: MuterTestCase {
             .filter { ![.relationalBoundary, .negateConditional].contains($0.mutationOperatorId) }
             .map { "\($0.mutationOperatorId.rawValue)@\($0.position.line)" }
     }
-
 }
 
 private let sampleWithComplexDisableRules =

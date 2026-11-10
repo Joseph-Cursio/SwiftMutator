@@ -248,11 +248,11 @@ private final class CoverageStub: BuildSystemCoverage {
         self.result = result
     }
 
-    func run(with configuration: MuterConfiguration) -> Result<Coverage, CoverageError> {
+    func run(with _: MuterConfiguration) -> Result<Coverage, CoverageError> {
         result()
     }
 
-    func buildDirectory(_ configuration: MuterConfiguration) -> String? {
+    func buildDirectory(_: MuterConfiguration) -> String? {
         nil
     }
 }

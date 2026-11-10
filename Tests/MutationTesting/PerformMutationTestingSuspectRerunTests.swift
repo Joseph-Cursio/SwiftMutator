@@ -8,6 +8,7 @@ import XCTest
 final class PerformMutationTestingSuspectRerunTests: MuterTestCase {
     private typealias Rerun = MutantResult.Rerun
     private typealias TestAlone = MutantResult.Rerun.TestAlone
+
     private let state = MutationTestState()
     private let timing = "✘ Test timing() recorded an issue at TimingTests.swift:9:5: Expectation failed: 1.2 < 1"
     private let sum = "✘ Test sum() recorded an issue at SumTests.swift:12:5: Expectation failed: 3 == 4"
@@ -187,7 +188,7 @@ final class PerformMutationTestingSuspectRerunTests: MuterTestCase {
         XCTAssertEqual(
             try XCTUnwrap(outcome(of: changes)).mutations.map(\.testSuiteOutcome), [.failed, .failed, .passed]
         )
-        XCTAssertEqual(try resultsFiles.records(MutantResult.self).last?.activated, nil)
+        XCTAssertNil(try resultsFiles.records(MutantResult.self).last?.activated)
     }
 
     func test_aFirstRunShownToRunItsCode_staysShown_whenARerunThatPassesDoesntShowIt() async throws {

@@ -22,7 +22,7 @@ final class ExecutionCounts {
         let line: Int
         let column: Int
 
-        static func < (lhs: Point, rhs: Point) -> Bool {
+        static func < (lhs: Self, rhs: Self) -> Bool {
             (lhs.line, lhs.column) < (rhs.line, rhs.column)
         }
     }
@@ -42,7 +42,7 @@ final class ExecutionCounts {
         }
 
         /// llvm-cov's regions end before their end column.
-        func contains(_ other: Span) -> Bool {
+        func contains(_ other: Self) -> Bool {
             start <= other.start && other.end <= end
         }
     }
@@ -1048,7 +1048,7 @@ private extension SyntaxProtocol {
 
 private extension [ExprSyntax] {
     var mayThrow: Bool {
-        contains { $0.mayThrow }
+        contains(where: \.mayThrow)
     }
 }
 

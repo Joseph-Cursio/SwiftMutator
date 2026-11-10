@@ -12,9 +12,48 @@ strict: true
 # The rules the code passes, of the full set chosen in SwiftLint Rule Studio. Each other rule joins once its
 # violations are fixed.
 #
-# Left out on purpose: optional_data_string_conversion, which would replace String(decoding:as:) with the failable
-# String(bytes:encoding:). The code decodes test output, logs and source it didn't write, where a byte that isn't
-# UTF-8 should become U+FFFD, not cost the whole text.
+# Left out on purpose, besides the opt-in rules that the SwiftLint notes' Exclusions folder rejects:
+#
+# - optional_data_string_conversion would replace String(decoding:as:) with the failable String(bytes:encoding:). The
+#   code decodes test output, logs and source it didn't write, where a byte that isn't UTF-8 should become U+FFFD, not
+#   cost the whole text.
+# - async_without_await: nearly every declaration it finds conforms to an async requirement (each mutation step's
+#   `run`, the spies), which keeps `async` though this one doesn't await.
+# - balanced_xctest_lifecycle: a test that makes files has them removed by makeTemporaryDirectory's teardown block, so
+#   a tearDown would be empty, there only to match setUp.
+# - discouraged_default_parameter: defaults are how the code takes its dependencies (`fileManager: FileSystemManager =
+#   FileManager.default`) and how the tests' fixtures stay short. It finds 621.
+# - empty_count: much of the code's `count` is an execution count, not a size. Its fix turns a region's
+#   `count == 0` into `isEmpty`, and a progress bar's `isEmpty`, which reads `count`, into one that calls itself.
+# - file_name: files are named for what they do (a step, the functions of one job) as often as for a type in them.
+# - file_types_order: like type_contents_order, which the notes reject, it would move most extensions and helper types
+#   (182) for no change in meaning.
+# - function_default_parameter_at_end: parameters are in the order that reads as a sentence at the call. Moving the
+#   defaulted ones last reorders the labelled arguments at every call.
+# - implicitly_unwrapped_optional: the tests' fixtures are set in setUp, which runs before each test. As optionals
+#   they'd be unwrapped at every use.
+# - legacy_objc_type: the code uses NSString's path methods, which String lacks and whose URL counterparts normalize
+#   paths differently, NSDecimalNumber to write a decimal exactly, and NSDictionary to read the JSON a test checks.
+# - multiline_function_chains: a short call after a closing bracket (`).get()`, `}.joined()`) would need a line of its
+#   own.
+# - no_grouping_extension: an extension for each conformance or concern, in the type's own file, is how the code is
+#   laid out.
+# - prefer_nimble: the tests use XCTest, and Nimble isn't a dependency.
+# - prefixed_toplevel_constant: a `k` prefix isn't Swift's style.
+# - return_value_from_void_function: `guard ... else { return XCTFail(...) }` stops a test in one line, where the fix
+#   makes a call and a bare `return` of each of 91.
+# - strict_fileprivate: private_over_fileprivate, above, already makes private every fileprivate that can be. The rest
+#   share a member with an extension or a type in the same file.
+# - unneeded_escaping: it doesn't see a closure escape through a nested function: Suspensions.after hands `check`,
+#   which calls `work`, to asyncAfter.
+# - unowned_variable_capture: no closure it finds outlives what it captures, a test case or a visitor, so weak would
+#   only add `self?.` to each.
+# - variable_shadowing: the code shadows on purpose: `if let name`, and `let name = name` to capture a copy before a
+#   @Sendable closure.
+# - vertical_whitespace_between_cases: a switch whose cases take a line each reads as a table, which a blank line
+#   between cases would double.
+# - weak_delegate: it goes by name, and both it finds are spies that the test holds strongly on purpose. Weak, they'd
+#   be freed at once.
 only_rules:
   - trailing_comma
   - vertical_whitespace
@@ -192,9 +231,49 @@ only_rules:
   - unneeded_synthesized_initializer
   - implicit_optional_initialization
   - non_optional_string_data_conversion
+  - empty_xctest_method
+  - file_name_no_space
+  - flatmap_over_map_reduce
+  - identical_operands
+  - implicit_return
+  - operator_usage_whitespace
+  - unavailable_function
+  - sorted_first_last
+  - prefer_condition_list
+  - reduce_into
+  - final_test_case
+  - vertical_parameter_alignment_on_call
+  - joined_default_parameter
+  - static_operator
+  - lower_acl_than_parent
+  - direct_return
+  - vertical_whitespace_closing_braces
+  - shorthand_argument
+  - superfluous_else
+  - optional_enum_case_matching
+  - let_var_whitespace
+  - missing_docs
+  - test_case_accessibility
+  - prefer_key_path
+  - unused_parameter
+  - trailing_closure
+  - prefer_self_in_static_references
+  - number_separator
+  - xct_specific_matcher
 
 trailing_comma:
   mandatory_comma: true
+
+# Only a lone closure without a label must trail. One with a label keeps it, since the label says what the closure is
+# for (`uniquingKeysWith:`, `by:`), and the fix SwiftLint makes to a call over several lines leaves it misformatted.
+trailing_closure:
+  only_single_muted_parameter: true
+
+# Years are written as years: `2021`, not `2_021`.
+number_separator:
+  exclude_ranges:
+    - min: 2010.0
+      max: 2030.0
 
 # Run only by `swiftlint analyze`, which needs a verbose build's compiler log; CI doesn't run it yet. explicit_self is
 # left out: it wants the `self.` that redundant_self, above, removes.

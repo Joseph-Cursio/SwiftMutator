@@ -49,8 +49,8 @@ struct RecordedResults {
     }
 
     /// The results `data`, the contents of the file at `path`, recorded.
-    static func read(_ data: Data, path: String) throws -> RecordedResults {
-        var results = RecordedResults()
+    static func read(_ data: Data, path: String) throws -> Self {
+        var results = Self()
         let decoder = ResultsCoding.decoder
         let lines = data.split(separator: UInt8(ascii: "\n"), omittingEmptySubsequences: false)
         for (index, line) in lines.enumerated() where !line.isEmpty {

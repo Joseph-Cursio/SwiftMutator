@@ -20,7 +20,7 @@ final class LockMutatedProjectTests: MuterTestCase {
     }
 
     func test_aRunThatAnotherHoldsTheLockFor_isRefused() async {
-        let inUse = MutatedProjectLockError.inUse(mutatedProject: "/code/x_mutated", process: 81234)
+        let inUse = MutatedProjectLockError.inUse(mutatedProject: "/code/x_mutated", process: 81_234)
         mutatedProjectLocker.errorToThrow = inUse
 
         await AssertThrowsError(try await sut.run(with: state)) { error in

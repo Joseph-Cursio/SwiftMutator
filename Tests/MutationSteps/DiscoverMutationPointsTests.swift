@@ -626,7 +626,7 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         XCTAssertEqual(mappings.count, 2)
 
         // Verify mutations were found in both files
-        let fileNames = mappings.map { $0.fileName }
+        let fileNames = mappings.map(\.fileName)
         XCTAssertTrue(fileNames.contains { $0.contains("sampleForDiscoveringMutations") })
         XCTAssertTrue(fileNames.contains { $0.contains("sample With Spaces") })
     }

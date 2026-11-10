@@ -60,7 +60,7 @@ final class NegateConditionalOperatorTests: MuterTestCase {
             .sorted { $0.position.utf8Offset < $1.position.utf8Offset }
 
         XCTAssertEqual(schemata.map(\.snapshot.after), ["!(a)", "!(b)"])
-        XCTAssertEqual(schemata.map { $0.syntaxMutation.description.trimmed }, [
+        XCTAssertEqual(schemata.map(\.syntaxMutation.description.trimmed), [
             "if !(a), b { work() }",
             "if a, !(b) { work() }",
         ])

@@ -11,6 +11,7 @@ final class TestingTimeOutExecutorSpy: TestingTimeoutExecution, @unchecked Senda
     /// Runs the body, then the timeout handler, and returns the handler's value: the time limit fires
     /// just after the run ended, and its task finishes first.
     var firesAfterBody = false
+
     func withTimeLimit<T: Sendable>(
         _ timeLimit: TimeInterval,
         _ body: @escaping @Sendable () async throws -> T,
