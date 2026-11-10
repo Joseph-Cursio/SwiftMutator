@@ -197,8 +197,8 @@ extension PerformMutationTesting {
     }
 
     /// Runs the mutant of `indexedJob`, the job at its index, on `worker.1`, numbered `worker.number`, with its
-    /// configuration, in its folder, writing its output to `fileName` while it runs. An xcodebuild worker first switches
-    /// the mutant on in its own `.xctestrun`, written from `testRun` (`switchOn`).
+    /// configuration, in its folder, writing its output to `fileName` while it runs. An xcodebuild worker first
+    /// switches the mutant on in its own `.xctestrun`, written from `testRun` (`switchOn`).
     static func runMutant(
         _ indexedJob: (index: Int, MutantJob),
         on worker: (number: Int, PoolWorker),

@@ -14,6 +14,34 @@ extension PerformMutationTesting {
         testDuration: TimeInterval
     ) {
         guard session.baselinePassed else { return }
+        let outcome = Self.mutationTestOutcome(
+            of: session,
+            state: state,
+            testDuration: testDuration,
+            // As `report` of the results file judges it: a run can stop after its last mutant's result.
+            sampleIsCutShort: session.outcomesInJobOrder.count < session.keys.count
+        )
+        events.send(
+            .mutationTestingEndedEarly(EarlyEnd(
+                reason: reason,
+                detail: detail,
+                outcome: outcome,
+                discovered: session.keys.count,
+                reused: session.reused,
+                leftOut: session.leftOut
+            ))
+        )
+    }
+
+    /// What `session` tested and kept, taking `testDuration`, with what the end of the run compares and reports it
+    /// with (`addBaseline`), as the end of the run, or of a run that stopped early, which `sampleIsCutShort` may be,
+    /// reports it.
+    static func mutationTestOutcome(
+        of session: TestingSession,
+        state: AnyMutationTestState,
+        testDuration: TimeInterval,
+        sampleIsCutShort: Bool = false
+    ) -> MutationTestOutcome {
         var outcome = MutationTestOutcome(
             mutations: session.outcomesInJobOrder,
             coverage: state.projectCoverage.limited(
@@ -26,31 +54,21 @@ extension PerformMutationTesting {
             since: state.changeSelection,
             shards: state.shardSelection?.scopeAlone,
             sample: state.sampleSelection,
-            // As `report` of the results file judges it: a run can stop after its last mutant's result.
-            sampleIsCutShort: session.outcomesInJobOrder.count < session.keys.count,
+            sampleIsCutShort: sampleIsCutShort,
             mutant: state.selectedMutant?.description,
             suspectTestThresholds: state.muterConfiguration.suspectTestThresholds,
             failUnder: state.muterConfiguration.failUnder,
             propertyTests: state.muterConfiguration.propertyTests ?? [],
             reports: state.muterConfiguration.reportRequests(in: state.projectDirectoryURL),
-            triage: Self.triageFile(of: state),
-            controlRuns: Self.controlRuns(of: session, state: state),
+            triage: triageFile(of: state),
+            controlRuns: controlRuns(of: session, state: state),
             projectPath: state.projectDirectoryURL.path,
             mutatedProjectPath: state.mutatedProjectDirectoryURL.path,
-            sourceDigests: Self.sourceDigests(of: state),
-            run: Self.runDetails(of: session, state: state)
+            sourceDigests: sourceDigests(of: state),
+            run: runDetails(of: session, state: state)
         )
-        Self.addBaseline(of: state, to: &outcome)
-        events.send(
-            .mutationTestingEndedEarly(EarlyEnd(
-                reason: reason,
-                detail: detail,
-                outcome: outcome,
-                discovered: session.keys.count,
-                reused: session.reused,
-                leftOut: session.leftOut
-            ))
-        )
+        addBaseline(of: state, to: &outcome)
+        return outcome
     }
 
     /// Gives `outcome` what the end of the run compares its survivors with, and saves them by: `--baseline`'s file, as

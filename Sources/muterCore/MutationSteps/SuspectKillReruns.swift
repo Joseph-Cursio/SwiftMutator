@@ -154,6 +154,33 @@ extension PerformMutationTesting {
         try Task.checkCancellation()
         let alone = PoolWorker(directory: worker.directory, configuration: worker.configuration.goingToEachRunsEnd())
 
+        guard try await suspectBaselinePassed(on: alone, from: testRun, in: context) else { return }
+
+        events.send(.suspectKillRerunsStarted(SuspectKillReruns(count: indices.count, leftOut: leftOut)))
+        var tally = SuspectKillRerunTally()
+        try await runPool(
+            PoolWork(tasks: indices.map(PoolTask.mutant), jobs: jobs, testRun: testRun),
+            on: [alone],
+            outputNamed: { testOutput(named: logFileName(forRerunOfJobAt: $0, $1), state: context.state) },
+            recording: { finished in
+                try recordSuspectKillRerun(
+                    finished,
+                    of: jobs[finished.index],
+                    tally: &tally,
+                    in: context.with(alone.configuration)
+                )
+            }
+        )
+        events.send(.suspectKillRerunsFinished(tally))
+    }
+
+    /// Whether the tests, run alone on `alone` with no mutant on, from `testRun`, pass, as the suspect kills' reruns
+    /// need. Its log is kept, and one that fails says the reruns are skipped.
+    private func suspectBaselinePassed(
+        on alone: PoolWorker,
+        from testRun: XCTestRun,
+        in context: RunContext
+    ) async throws -> Bool {
         let baseline = try await Self.runControl(
             0,
             on: (0, alone),
@@ -184,25 +211,9 @@ extension PerformMutationTesting {
         )
         guard baseline.run.outcome == .passed else {
             events.send(.suspectKillRerunsSkipped(log: log.map { _ in Self.suspectBaselineLogName }))
-            return
+            return false
         }
-
-        events.send(.suspectKillRerunsStarted(SuspectKillReruns(count: indices.count, leftOut: leftOut)))
-        var tally = SuspectKillRerunTally()
-        try await runPool(
-            PoolWork(tasks: indices.map(PoolTask.mutant), jobs: jobs, testRun: testRun),
-            on: [alone],
-            outputNamed: { testOutput(named: logFileName(forRerunOfJobAt: $0, $1), state: context.state) },
-            recording: { finished in
-                try recordSuspectKillRerun(
-                    finished,
-                    of: jobs[finished.index],
-                    tally: &tally,
-                    in: context.with(alone.configuration)
-                )
-            }
-        )
-        events.send(.suspectKillRerunsFinished(tally))
+        return true
     }
 
     /// Records `finished`, a kill tested again alone, in place of its first run, with what it says of the tests that

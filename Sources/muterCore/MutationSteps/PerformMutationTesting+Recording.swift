@@ -139,21 +139,12 @@ extension PerformMutationTesting {
             activated: finished.run.activated
         )
         outcome.rerun = rerun
-        let log = switch rerun?.because {
-        case nil: MutationTestLog.keptFileName(for: key)
-
-        // A kill can be tested again for not showing its code ran, and then for this, each with a log of its own.
-        case MutantResult.Rerun.onlySuspectTestsFailed: MutationTestLog.suspectRerunFileName(for: key)
-        default: MutationTestLog.rerunFileName(for: key)
-        }
+        let log = Self.logName(for: key, rerun: rerun)
         let keptLog = Self.keptLogName(
             log, of: finished, failures: failures, configuration: context.configuration, state: context.state
         )
         try abortingIfTheSimulatorIsGone(
-            in: finished,
-            logName: log,
-            configuration: context.configuration,
-            state: context.state
+            in: finished, logName: log, configuration: context.configuration, state: context.state
         )
         write(
             MutantResult(
@@ -185,6 +176,17 @@ extension PerformMutationTesting {
             keptFileName: log
         )
         return (outcome, mutationLog)
+    }
+
+    /// The name the log of the run of the mutant keyed `key`, or of its `rerun`, is kept under, if its line keeps one.
+    private static func logName(for key: MutantKey, rerun: MutantResult.Rerun?) -> String {
+        switch rerun?.because {
+        case nil: MutationTestLog.keptFileName(for: key)
+
+        // A kill can be tested again for not showing its code ran, and then for this, each with a log of its own.
+        case MutantResult.Rerun.onlySuspectTestsFailed: MutationTestLog.suspectRerunFileName(for: key)
+        default: MutationTestLog.rerunFileName(for: key)
+        }
     }
 
     /// If the simulator failed to launch the run before `finished`, keeps its log beside `logName`, `finished`'s, and

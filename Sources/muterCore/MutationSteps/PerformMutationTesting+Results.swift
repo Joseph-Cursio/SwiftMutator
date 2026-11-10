@@ -101,13 +101,13 @@ extension PerformMutationTesting {
         detail: String? = nil
     ) {
         let written = session.end { recorded in
-            Self.endLine(
-                of: session,
-                reason,
+            ResultsEnd(
+                session: session.number,
+                endedAt: now(),
+                reason: reason,
                 detail: detail,
-                testDuration: testDuration,
-                recorded: recorded,
-                endedAt: now()
+                testDurationSeconds: testDuration,
+                recorded: recorded
             )
         }
         sayingAFailure(written, in: session)
