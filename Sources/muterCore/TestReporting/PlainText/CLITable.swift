@@ -42,9 +42,6 @@ struct CLITable: Equatable {
         let lengthOfPadding = previousColumnWidth - previousRowWidth
         return index == 0 ? "" : " ".repeated(lengthOfPadding + padding)
     }
-}
-
-extension CLITable {
 
     struct Column: Equatable {
         let title: String

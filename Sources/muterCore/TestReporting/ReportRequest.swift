@@ -90,9 +90,7 @@ struct ReportRequest: Hashable, Sendable, CustomStringConvertible, Codable {
         var container = encoder.singleValueContainer()
         try container.encode(description)
     }
-}
 
-extension ReportRequest {
     /// A report a command saves, by what names it in a refusal ("-o report.html", "--report markdown:summary.md") and
     /// the path it is saved at.
     typealias Output = (option: String, path: String)

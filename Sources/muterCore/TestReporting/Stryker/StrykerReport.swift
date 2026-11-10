@@ -54,6 +54,17 @@ struct StrykerReport: Codable, Equatable {
         let start: Position
         /// Just past the code the mutant changes.
         let end: Position
+
+        init(start: Position, end: Position) {
+            self.start = start
+            self.end = end
+        }
+
+        /// Where `span` is.
+        init(_ span: SourceSpan) {
+            start = StrykerReport.Position(line: span.start.line, column: span.start.column)
+            end = StrykerReport.Position(line: span.end.line, column: span.end.column)
+        }
     }
 
     /// From 1. The column counts UTF-16 code units, as the viewer's JavaScript does.
@@ -78,12 +89,5 @@ struct StrykerReport: Codable, Equatable {
     struct Test: Codable, Equatable {
         let id: String
         let name: String
-    }
-}
-
-extension StrykerReport.Location {
-    init(_ span: SourceSpan) {
-        start = StrykerReport.Position(line: span.start.line, column: span.start.column)
-        end = StrykerReport.Position(line: span.end.line, column: span.end.column)
     }
 }

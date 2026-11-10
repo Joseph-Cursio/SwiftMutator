@@ -1,7 +1,7 @@
 import Foundation
 
 /// A mutant the SARIF report gives as a result, with all its result says.
-struct SarifFinding {
+struct SarifFinding: Comparable {
     /// The key its fingerprint has in `partialFingerprints`, for tools other than GitHub, which reads only
     /// `lineHashKey`. A new way of making it would take a new version, so that a tool doesn't match one way's
     /// fingerprints against the other's.
@@ -123,19 +123,7 @@ struct SarifFinding {
             uriBaseId: SarifReporter.sourceRoot
         )
     }
-}
 
-extension SarifFinding: Comparable {
-    /// By path, line, column and operator; then warnings first, then by fingerprint, so the order is always the same.
-    static func < (lhs: Self, rhs: Self) -> Bool {
-        let left = (lhs.relativePath, lhs.span.start.line, lhs.span.start.column, lhs.operatorId.rawValue)
-        let right = (rhs.relativePath, rhs.span.start.line, rhs.span.start.column, rhs.operatorId.rawValue)
-        guard left == right else { return left < right }
-        return (lhs.level == .warning ? 0 : 1, lhs.fingerprint) < (rhs.level == .warning ? 0 : 1, rhs.fingerprint)
-    }
-}
-
-extension SarifFinding {
     /// The key GitHub code scanning matches results by across runs, the only one of `partialFingerprints` it reads.
     /// `github/codeql-action/upload-sarif` fills it from a hash of the line when a result has none, which two mutants
     /// on one line would share, so the report gives each mutant's own fingerprint here too.
@@ -168,6 +156,14 @@ extension SarifFinding {
             place,
         ]
         return FileDigest.sha256(of: Data(parts.joined(separator: "\u{0}").utf8))
+    }
+
+    /// By path, line, column and operator; then warnings first, then by fingerprint, so the order is always the same.
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        let left = (lhs.relativePath, lhs.span.start.line, lhs.span.start.column, lhs.operatorId.rawValue)
+        let right = (rhs.relativePath, rhs.span.start.line, rhs.span.start.column, rhs.operatorId.rawValue)
+        guard left == right else { return left < right }
+        return (lhs.level == .warning ? 0 : 1, lhs.fingerprint) < (rhs.level == .warning ? 0 : 1, rhs.fingerprint)
     }
 }
 
