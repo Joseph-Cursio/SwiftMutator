@@ -60,7 +60,7 @@ extension ReportCommandTests {
 
         let data = try Data(contentsOf: URL(fileURLWithPath: summaryPath))
         let summary = try JSONDecoder().decode(RunSummary.self, from: data)
-        XCTAssertEqual(summary, RunSummary(of: expected, ended: .interrupted, endDetail: "SIGTERM", report: output))
+        XCTAssertEqual(summary, RunSummary(of: expected, ended: .interrupted, report: output, endDetail: "SIGTERM"))
         XCTAssertEqual(summary.run?.resultsFiles, [resultsPath])
         XCTAssertEqual(standardError.linesPassed.last, "Summary saved to \(summaryPath)")
     }

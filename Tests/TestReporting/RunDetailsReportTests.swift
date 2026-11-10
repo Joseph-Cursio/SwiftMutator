@@ -206,7 +206,7 @@ final class RunDetailsReportTests: MuterTestCase {
     }
 
     func test_theSummary_ofASuspectRun_givesTheScoreWithoutThem_andOfNothingTested_noScore() {
-        let suspect = RunSummary(of: .withSuspectTests, ended: .interrupted, endDetail: "SIGINT", report: nil)
+        let suspect = RunSummary(of: .withSuspectTests, ended: .interrupted, report: nil, endDetail: "SIGINT")
         XCTAssertEqual(suspect.mutationScore, 92)
         XCTAssertEqual(suspect.mutationScoreWithoutSuspectTests, 50)
         XCTAssertTrue(try XCTUnwrap(suspect.scoreWithoutSuspectsIsALowerBound))

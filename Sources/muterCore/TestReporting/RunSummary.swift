@@ -193,16 +193,16 @@ struct RunSummary: Codable, Equatable {
     init(
         of outcome: MutationTestOutcome,
         ended: ResultsEnd.Reason?,
-        endDetail: String? = nil,
         report: String?,
-        reports: [String] = [],
-        checks: RunChecks
+        checks: RunChecks,
+        endDetail: String? = nil,
+        reports: [String] = []
     ) {
         self.init(
             of: outcome,
             ended: ended,
-            endDetail: endDetail,
             report: report,
+            endDetail: endDetail,
             reports: reports,
             gate: checks.scoreGate,
             newSurvivors: checks.newSurvivors,
@@ -214,8 +214,8 @@ struct RunSummary: Codable, Equatable {
     init(
         of outcome: MutationTestOutcome,
         ended: ResultsEnd.Reason?,
-        endDetail: String? = nil,
         report: String?,
+        endDetail: String? = nil,
         reports: [String] = [],
         gate: ScoreGate? = nil,
         newSurvivors: NewSurvivorsCheck? = nil,

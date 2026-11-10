@@ -413,10 +413,10 @@ struct ResultsReport {
             let summary = RunSummary(
                 of: outcome,
                 ended: ended?.reason,
-                endDetail: ended?.detail,
                 report: outputPath,
-                reports: reports.map(\.path),
-                checks: checks
+                checks: checks,
+                endDetail: ended?.detail,
+                reports: reports.map(\.path)
             )
             guard ReportWriter.save(String(lossyUTF8: summary.json), to: summaryPath, using: fileManager)
             else {
