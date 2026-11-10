@@ -83,7 +83,7 @@ struct ResultsStopped: Codable, Equatable, Sendable {
     var detailLines: [String] {
         var lines: [String] = []
         if let log {
-            lines.append("Its log is \((logDirectory as NSString).appendingPathComponent(log)).")
+            lines.append("Its log is \(logDirectory.appendingPathComponent(log)).")
         }
         if let failedTests, let failedTestCount, failedTestCount > 0 {
             let more = failedTestCount - failedTests.count

@@ -80,7 +80,7 @@ extension XcodeBuildConditions {
     /// variable or `<DEVELOPER_DIR>`, or for a line Xcode may read as a directive that it can't.
     static func configurationFiles(includedBy file: BuildFile) -> [FilePath]? {
         let blanks: Set<Character> = [" ", "\t", "\u{0B}", "\u{0C}"]
-        let folder = (file.path as NSString).deletingLastPathComponent
+        let folder = file.path.deletingLastPathComponent
         var files: [FilePath] = []
         for line in file.text.split(whereSeparator: \.isNewline) {
             let directive = line.drop { blanks.contains($0) }
@@ -199,7 +199,7 @@ private struct ProjectFile {
         else {
             return nil
         }
-        let projectFolder = ((file.path as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent
+        let projectFolder = file.path.deletingLastPathComponent.deletingLastPathComponent
         let projectDirectory = projectObject["projectDirPath"] as? String ?? ""
         guard !projectDirectory.contains("$") else { return nil }
 
@@ -385,7 +385,7 @@ extension XcodeBuildConditions {
     /// another kind, other than a `self:` one in the workspace itself, as a project's own workspace has.
     static func locations(inWorkspace file: BuildFile) -> [FilePath]? {
         guard !file.path.isEmpty else { return nil }
-        let container = ((file.path as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent
+        let container = file.path.deletingLastPathComponent.deletingLastPathComponent
         let reader = WorkspaceLocations(container: container)
         let parser = XMLParser(data: Data(file.text.utf8))
         parser.delegate = reader

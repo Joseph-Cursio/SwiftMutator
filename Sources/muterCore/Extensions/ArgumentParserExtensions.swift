@@ -14,7 +14,7 @@ extension URL: @retroactive ExpressibleByArgument {
 
     /// `path` with a leading `~` or `~user` turned into that home folder; any other path as it is.
     static func expandingTilde(_ path: String) -> String {
-        (path as NSString).expandingTildeInPath
+        path.expandingTildeInPath
     }
 
     public var defaultValueDescription: String {

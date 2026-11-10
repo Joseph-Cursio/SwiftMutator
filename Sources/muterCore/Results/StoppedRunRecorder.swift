@@ -116,7 +116,7 @@ final class StoppedRunRecorder: @unchecked Sendable {
     /// The step a failed baseline's kind of abort stopped in, why, its limit, its log's name, and the log's text, whose
     /// failed tests the record names; nil for any other abort.
     private static func step(of reason: MutationTestingAbortReason) -> Found? {
-        let name = { (path: String?) in path.map { ($0 as NSString).lastPathComponent } }
+        let name = { (path: String?) in path.map { ($0).lastPathComponent } }
         switch reason {
         case let .baselineTestFailed(log, _):
             return (.baseline, .failed, nil, MutationTestLog.baselineFileName, log)
@@ -156,7 +156,7 @@ final class StoppedRunRecorder: @unchecked Sendable {
         case .timedTestRun: running + "timed test run"
         case .preparing, .buildForTesting, .workerBaselines, .workerCheckRuns: nil
         }
-        guard let name, fileManager.fileExists(atPath: (logDirectory as NSString).appendingPathComponent(name)) else {
+        guard let name, fileManager.fileExists(atPath: logDirectory.appendingPathComponent(name)) else {
             return nil
         }
         return name

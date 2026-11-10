@@ -52,7 +52,7 @@ final class FileOperationTests: XCTestCase {
         let second = try create()
         let third = try create()
 
-        let name = (first as NSString).lastPathComponent
+        let name = first.lastPathComponent
         XCTAssertEqual(first, "\(project)_muter_logs/\(name)")
         XCTAssertEqual(second, "\(first) (2)")
         XCTAssertEqual(third, "\(first) (3)")
@@ -100,7 +100,7 @@ final class FileOperationTests: XCTestCase {
             timestamp: { Date(timeIntervalSince1970: 0) }
         )
 
-        let name = (loggingDirectory as NSString).lastPathComponent
+        let name = loggingDirectory.lastPathComponent
         XCTAssertEqual(loggingDirectory, "/Users/me/projects/App_muter_logs/\(name)")
         XCTAssertFalse(name.hasSuffix(")"), name)
         XCTAssertEqual(fileManagerSpy.paths, ["/Users/me/projects/App_muter_logs", loggingDirectory, loggingDirectory])

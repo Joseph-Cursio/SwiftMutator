@@ -274,11 +274,11 @@ final class ReadableReportTests: MuterTestCase {
         )
         let fileReports = try XCTUnwrap(json["fileReports"] as? [[String: Any]])
         let operators = try XCTUnwrap(fileReports.first?["appliedOperators"] as? [[String: Any]])
-        XCTAssertEqual(operators.last?["sourceChange"] as? NSDictionary, [
+        XCTAssertEqual(operators.last?["sourceChange"] as? [String: AnyHashable], [
             "line": 3,
             "before": "    return a < b",
             "after": "    return a > b",
-        ] as NSDictionary)
+        ] as [String: AnyHashable])
     }
 
     // A removed statement that leaves only spaces on its line has no line after.
@@ -332,9 +332,9 @@ final class ReadableReportTests: MuterTestCase {
         let json = try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(JsonReporter().report(from: outcome).utf8)) as? [String: Any]
         )
-        XCTAssertEqual(json["mutantsByOutcome"] as? NSDictionary, [
+        XCTAssertEqual(json["mutantsByOutcome"] as? [String: AnyHashable], [
             "killed": 2, "survived": 1, "timedOut": 1, "buildErrors": 2, "notCovered": 0,
-        ] as NSDictionary)
+        ] as [String: AnyHashable])
         XCTAssertEqual(MuterTestReport.scoreLine(of: outcome), "Mutation score: 50% (\(tally))")
     }
 

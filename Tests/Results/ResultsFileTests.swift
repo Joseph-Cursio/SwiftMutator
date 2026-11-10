@@ -66,7 +66,7 @@ final class ResultsFileTests: XCTestCase {
         for _ in 1...99 {
             let file = try ResultsFile.Opener().create(in: directory)
             file.close()
-            let name = (file.path as NSString).lastPathComponent
+            let name = file.path.lastPathComponent
             names.insert(name)
             XCTAssertTrue(ResultsFile.isResultsFileName(name), name)
         }
@@ -134,7 +134,7 @@ final class ResultsFileTests: XCTestCase {
     func test_theNotesName_isNotAResultsFileName_andDoesntStartWithOne() {
         XCTAssertFalse(ResultsFile.isResultsFileName(ResultsFile.noteFileName))
         XCTAssertFalse(ResultsFile.noteFileName.hasPrefix("results"))
-        XCTAssertNotEqual((ResultsFile.noteFileName as NSString).pathExtension, "jsonl")
+        XCTAssertNotEqual(ResultsFile.noteFileName.pathExtension, "jsonl")
     }
 
     func test_find_aResumedSessionsFolder_givesTheFileItsNoteNames() throws {

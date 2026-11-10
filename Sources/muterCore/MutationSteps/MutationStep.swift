@@ -11,7 +11,7 @@ extension FileSystemManager {
     @discardableResult
     func keepLog(_ log: String, named name: String, state: AnyMutationTestState) -> String? {
         guard !state.loggingDirectory.isEmpty else { return nil }
-        let path = (state.loggingDirectory as NSString).appendingPathComponent(name)
+        let path = state.loggingDirectory.appendingPathComponent(name)
         _ = createFile(atPath: path, contents: Data(log.utf8), attributes: nil)
         return path
     }
@@ -33,7 +33,7 @@ extension FileSystemManager {
             }
             return nil
         }
-        let path = (state.loggingDirectory as NSString).appendingPathComponent(name)
+        let path = state.loggingDirectory.appendingPathComponent(name)
         // Never `fileExists` first: the move says whether there was a file.
         if let output, ioDelegate.keepOutput(at: output, as: path) {
             return path

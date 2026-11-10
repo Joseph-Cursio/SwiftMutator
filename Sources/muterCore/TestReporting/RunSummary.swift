@@ -261,7 +261,7 @@ struct RunSummary: Codable, Equatable {
     /// Where a run writes it: beside `resultsFile`, in the first session's log folder, which a resumed run's later
     /// sessions write it to again; without a results file, in `loggingDirectory`; nowhere without either.
     static func path(besideResultsFile resultsFile: String?, loggingDirectory: String) -> String? {
-        let folder = resultsFile.map { ($0 as NSString).deletingLastPathComponent } ?? loggingDirectory
-        return folder.isEmpty ? nil : (folder as NSString).appendingPathComponent(fileName)
+        let folder = resultsFile.map { ($0).deletingLastPathComponent } ?? loggingDirectory
+        return folder.isEmpty ? nil : folder.appendingPathComponent(fileName)
     }
 }

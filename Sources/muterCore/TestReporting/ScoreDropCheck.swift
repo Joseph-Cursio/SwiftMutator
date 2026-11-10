@@ -179,7 +179,7 @@ struct ScoreDropCheck: Equatable, Sendable {
         guard passed != nil else { return nil }
         let scoreDrop = Self.drop(from: baselineScore, to: (killed, scored))
         // Through the decimal text, which `Double` reads with correct rounding, as it read the limit.
-        return Double(NSDecimalNumber(decimal: scoreDrop.points / scoreDrop.over).stringValue)
+        return Double((scoreDrop.points / scoreDrop.over).description)
     }
 
     /// What the run, or `report`, says of the verdict, after the score's: "Mutation score 81.2% is 1.4 points below
@@ -333,7 +333,7 @@ struct ScoreDropCheck: Equatable, Sendable {
 
     /// `value`, 0 or more with at most `decimals` decimals, written with exactly that many: "81.2".
     private static func written(_ value: Decimal, decimals: Int) -> String {
-        let written = NSDecimalNumber(decimal: value).stringValue
+        let written = value.description
         let parts = written.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: false)
         let fraction = parts.count > 1 ? String(parts[1]) : ""
         return "\(parts[0])." + fraction + String(repeating: "0", count: max(0, decimals - fraction.count))

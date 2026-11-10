@@ -549,10 +549,10 @@ final class MutationTestObserverTests: MuterTestCase {
         runEvents.send(.mutationTestingEndedEarly(earlyEnd))
 
         XCTAssertEqual(fileManager.paths.last, "/out/report.partial.json")
-        let written = try JSONSerialization.jsonObject(with: XCTUnwrap(fileManager.contents)) as? NSDictionary
+        let written = try JSONSerialization.jsonObject(with: XCTUnwrap(fileManager.contents)) as? [String: AnyHashable]
         let expected = try JSONSerialization.jsonObject(
             with: Data(JsonReporter().report(from: earlyEnd.outcome).utf8)
-        ) as? NSDictionary
+        ) as? [String: AnyHashable]
         XCTAssertNotNil(written)
         XCTAssertEqual(written, expected)
     }

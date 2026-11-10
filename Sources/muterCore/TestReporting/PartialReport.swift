@@ -7,7 +7,7 @@ enum PartialReport {
     /// testing stops, and the results file, say what was tested.
     static func path(besides requested: String?) -> String? {
         guard let requested, !requested.isEmpty else { return nil }
-        let path = requested as NSString
+        let path = requested
         let stem = path.deletingPathExtension
         return path.pathExtension.isEmpty ? stem + ".partial" : stem + ".partial." + path.pathExtension
     }

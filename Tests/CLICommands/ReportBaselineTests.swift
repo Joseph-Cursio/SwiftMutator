@@ -63,8 +63,8 @@ final class ReportBaselineTests: MuterTestCase {
         try await report(resultsPath, "--baseline", baselinePath, "--summary", summaryPath)
 
         let saved = try String(contentsOfFile: summaryPath, encoding: .utf8)
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(saved.utf8)) as? NSDictionary)
-        let verdict = try XCTUnwrap(json["newSurvivors"] as? NSDictionary, saved)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(saved.utf8)) as? [String: AnyHashable])
+        let verdict = try XCTUnwrap(json["newSurvivors"] as? [String: AnyHashable], saved)
         XCTAssertEqual(verdict["passed"] as? Bool, true)
         XCTAssertEqual(verdict["stillSurvive"] as? Int, 2)
         XCTAssertEqual(verdict["fixed"] as? Int, 1)
@@ -268,8 +268,8 @@ final class ReportBaselineTests: MuterTestCase {
                 + "allowed.",
         ])
         let saved = try String(contentsOfFile: summaryPath, encoding: .utf8)
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(saved.utf8)) as? NSDictionary)
-        let verdict = try XCTUnwrap(json["scoreDrop"] as? NSDictionary, saved)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(saved.utf8)) as? [String: AnyHashable])
+        let verdict = try XCTUnwrap(json["scoreDrop"] as? [String: AnyHashable], saved)
         XCTAssertEqual(verdict["passed"] as? Bool, false)
         XCTAssertEqual(verdict["maxScoreDrop"] as? Double, 2)
 
@@ -416,8 +416,8 @@ final class ReportBaselineTests: MuterTestCase {
             first, second, "--baseline", baselinePath, "--max-score-drop", "2", "--summary", summaryPath
         )
         let saved = try String(contentsOfFile: summaryPath, encoding: .utf8)
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(saved.utf8)) as? NSDictionary)
-        let verdict = try XCTUnwrap(json["scoreDrop"] as? NSDictionary, saved)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(saved.utf8)) as? [String: AnyHashable])
+        let verdict = try XCTUnwrap(json["scoreDrop"] as? [String: AnyHashable], saved)
         XCTAssertEqual(verdict["notChecked"] as? String, "discoveriesDiffer")
         XCTAssertNil(verdict["passed"])
     }

@@ -45,7 +45,7 @@ extension MutationTestLog {
     /// same-named files' mutants of one operator at the same place, such as in two executable targets' `main.swift`,
     /// keep a log each, even on a disk that ignores case.
     static func keptFileName(for key: MutantKey) -> String {
-        let fileName = (key.path as NSString).lastPathComponent
+        let fileName = key.path.lastPathComponent
         let repeated = key.occurrence > 0 ? " (#\(key.occurrence + 1))" : ""
         return "\(key.mutationOperatorId.rawValue) @ \(fileName)-\(key.line)-\(key.column) \(key.path.stableHash)"
             + repeated + ".log"

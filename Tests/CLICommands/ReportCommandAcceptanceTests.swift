@@ -234,7 +234,7 @@ final class ReportCommandAcceptanceTests: XCTestCase {
         let report = try runSwiftMutator(["report", folder.path, "-f", "json"])
 
         XCTAssertEqual(report.status, 0, report.standardError)
-        let printed = try JSONSerialization.jsonObject(with: Data(report.standardOutput.utf8)) as? NSDictionary
+        let printed = try JSONSerialization.jsonObject(with: Data(report.standardOutput.utf8)) as? [String: AnyHashable]
         XCTAssertEqual(printed, try parsedJSON(at: runReport))
         XCTAssertTrue(report.standardError.contains("Report of 4 of 4 mutants"), report.standardError)
         XCTAssertFalse(report.standardError.contains("Report saved"), report.standardError)
@@ -317,8 +317,8 @@ final class ReportCommandAcceptanceTests: XCTestCase {
     }
 
     /// JSON compared as parsed: JSONEncoder promises no key order.
-    private func parsedJSON(at file: URL) throws -> NSDictionary {
-        try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? NSDictionary)
+    private func parsedJSON(at file: URL) throws -> [String: AnyHashable] {
+        try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: AnyHashable])
     }
 
     /// Each mutant's outcome in a JSON report, sorted.

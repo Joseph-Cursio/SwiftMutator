@@ -64,9 +64,9 @@ struct ReportRequest: Hashable, Sendable, CustomStringConvertible, Codable {
     /// absolute path is kept. A leading `~` is the home folder: a shell expands it in `-o ~/r.md`, but not after
     /// `markdown:`, and YAML never does, so `markdown:~/r.md` would otherwise be a `~` folder in `folder`.
     func resolved(in folder: String) -> Self {
-        let expanded = (path as NSString).expandingTildeInPath
+        let expanded = path.expandingTildeInPath
         guard !expanded.hasPrefix("/") else { return Self(format: format, path: expanded) }
-        return Self(format: format, path: (folder as NSString).appendingPathComponent(path))
+        return Self(format: format, path: folder.appendingPathComponent(path))
     }
 
     /// This request with a relative path resolved against the current directory, as `-o`'s is.

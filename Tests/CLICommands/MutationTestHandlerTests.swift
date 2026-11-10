@@ -452,7 +452,7 @@ final class MutationTestHandlerTests: MuterTestCase {
             [second.loggingDirectory]
         )
         let secondRunsPaths = fileManager.paths.dropFirst(firstRunsPaths)
-        let logsRoot = (second.loggingDirectory as NSString).deletingLastPathComponent
+        let logsRoot = second.loggingDirectory.deletingLastPathComponent
         XCTAssertTrue(
             secondRunsPaths.allSatisfy { $0 == second.loggingDirectory || $0 == logsRoot },
             "\(secondRunsPaths)"

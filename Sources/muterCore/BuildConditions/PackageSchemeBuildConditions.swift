@@ -20,7 +20,7 @@ enum PackageSchemeBuildConditions {
         environment: [String: String]
     ) async -> Result<ProjectBuildConditions, BuildConditionsUnavailable> {
         let arguments = configuration.testCommandArguments
-        guard (configuration.testCommandExecutable as NSString).lastPathComponent == "xcodebuild",
+        guard configuration.testCommandExecutable.lastPathComponent == "xcodebuild",
               opensThePackage(at: root, with: arguments, fileManager: fileManager)
         else {
             return .failure(BuildConditionsUnavailable(reason: "xcodebuild reported no build settings"))

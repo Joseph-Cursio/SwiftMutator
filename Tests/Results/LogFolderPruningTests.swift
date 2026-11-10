@@ -450,7 +450,7 @@ final class LogFolderPruningTests: MuterTestCase {
 
     private func write(_ text: String, to path: String) throws {
         try FileManager.default.createDirectory(
-            atPath: (path as NSString).deletingLastPathComponent,
+            atPath: path.deletingLastPathComponent,
             withIntermediateDirectories: true
         )
         try Data(text.utf8).write(to: URL(fileURLWithPath: path))

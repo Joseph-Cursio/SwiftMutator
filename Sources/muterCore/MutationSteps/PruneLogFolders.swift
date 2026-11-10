@@ -30,11 +30,11 @@ struct PruneLogFolders: MutationStep {
         guard let keeping = state.muterConfiguration.keepLogFolders, !state.loggingDirectory.isEmpty else {
             return []
         }
-        let root = (state.loggingDirectory as NSString).deletingLastPathComponent
+        let root = state.loggingDirectory.deletingLastPathComponent
         // A resumed run's earlier sessions are this run, and the run a reuse reads is copied from much later, with no
         // lock held on it.
         let earlier = state.resumeState.map { resume in
-            [(resume.path as NSString).deletingLastPathComponent] + resume.recorded.headers.map(\.logDirectory)
+            [resume.path.deletingLastPathComponent] + resume.recorded.headers.map(\.logDirectory)
         } ?? []
         let isReuse = state.resumeState?.isReuse ?? false
         let pruning = prune(

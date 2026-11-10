@@ -131,10 +131,10 @@ enum WorkTree {
     ) -> String? {
         var folder = URL(fileURLWithPath: path, isDirectory: true).standardized.path
         while true {
-            if fileExists((folder as NSString).appendingPathComponent(".git")) {
+            if fileExists(folder.appendingPathComponent(".git")) {
                 return folder
             }
-            let parent = (folder as NSString).deletingLastPathComponent
+            let parent = folder.deletingLastPathComponent
             guard !parent.isEmpty, parent != folder else { return nil }
             folder = parent
         }

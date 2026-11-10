@@ -26,7 +26,7 @@ struct TurnOffSwiftLintPhases: MutationStep {
         let phases = projectFiles.sorted().reduce(SwiftLintPhases()) { phases, path in
             phases + SwiftLintPhases.turnOff(
                 inProjectFileAt: copy.appendingPathComponent(path),
-                shownAs: (path as NSString).deletingLastPathComponent
+                shownAs: path.deletingLastPathComponent
             )
         }
         if !phases.isEmpty {

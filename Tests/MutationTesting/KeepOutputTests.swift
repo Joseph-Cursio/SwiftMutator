@@ -35,7 +35,7 @@ final class KeepOutputTests: MuterTestCase {
     func test_aRunWhoseOutputCannotBeOpened_leavesNoFileThere_soItsExplanationIsKept() async throws {
         let file = outputFolderURL.appendingPathComponent("running/mutant.log").path
         try FileManager.default.createDirectory(
-            atPath: (file as NSString).deletingLastPathComponent,
+            atPath: file.deletingLastPathComponent,
             withIntermediateDirectories: true
         )
         XCTAssertTrue(FileManager.default.createFile(
@@ -122,7 +122,7 @@ final class KeepOutputTests: MuterTestCase {
         let target = try writeOutput("elsewhere.txt", "someone else's file")
         let link = outputFolderURL.appendingPathComponent("running/mutant.log").path
         try FileManager.default.createDirectory(
-            atPath: (link as NSString).deletingLastPathComponent, withIntermediateDirectories: true
+            atPath: link.deletingLastPathComponent, withIntermediateDirectories: true
         )
         try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: target)
 

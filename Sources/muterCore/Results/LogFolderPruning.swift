@@ -277,7 +277,7 @@ extension LogFolderPruning {
 
         /// The folder `name` in `root`: nil unless it is a folder, not a link to one, and holds something.
         init?(named name: String, in root: String) {
-            let entryPath = (root as NSString).appendingPathComponent(name)
+            let entryPath = root.appendingPathComponent(name)
             guard Self.type(of: entryPath) == S_IFDIR,
                   let entryIdentity = FileIdentity(of: entryPath),
                   let listed = try? FileManager.default.contentsOfDirectory(atPath: entryPath),
@@ -285,7 +285,7 @@ extension LogFolderPruning {
             else { return nil }
             let entryNames = Set(listed)
             let resultsFileNames = ResultsFile.fileNames.filter(entryNames.contains)
-            let inFolder = { (name: String) in (entryPath as NSString).appendingPathComponent(name) }
+            let inFolder = { (name: String) in entryPath.appendingPathComponent(name) }
             let headers = resultsFileNames.map { HeaderInfo(ofResultsFileAt: inFolder($0)) }
             let namesItself = headers.contains { header in
                 header?.logDirectory.flatMap(FileIdentity.init(of:)) == entryIdentity
@@ -324,10 +324,10 @@ extension LogFolderPruning {
         /// file's names in `root`.
         private static func notedFolder(of folder: String, in root: String) -> (path: String, identity: FileIdentity)? {
             guard let noted = ResultsFile.notedFile(in: folder, using: FileManager.default) else { return nil }
-            let folderOfNoted = (noted as NSString).deletingLastPathComponent
-            let moved = (root as NSString).appendingPathComponent((folderOfNoted as NSString).lastPathComponent)
+            let folderOfNoted = noted.deletingLastPathComponent
+            let moved = root.appendingPathComponent(folderOfNoted.lastPathComponent)
             for candidate in [folderOfNoted, moved] {
-                let file = (candidate as NSString).appendingPathComponent((noted as NSString).lastPathComponent)
+                let file = candidate.appendingPathComponent(noted.lastPathComponent)
                 if Self.type(of: file) == S_IFREG, let candidateIdentity = FileIdentity(of: candidate) {
                     return (candidate, candidateIdentity)
                 }
@@ -336,20 +336,20 @@ extension LogFolderPruning {
         }
 
         private static func parent(of path: String) -> String? {
-            let parent = (path as NSString).deletingLastPathComponent
+            let parent = path.deletingLastPathComponent
             return parent.isEmpty || parent == path ? nil : parent
         }
 
         /// The files whose locks show a run still uses the folder: its marker and its results files.
         var lockedFiles: [String] {
             ((entries.contains(RunMarker.fileName) ? [RunMarker.fileName] : []) + resultsFiles)
-                .map { (path as NSString).appendingPathComponent($0) }
+                .map { path.appendingPathComponent($0) }
         }
 
         /// Whether an older SwiftMutator, which made no marker, may still be testing here: its `running/` holds a run's
         /// output written to within `unmarkedFolderBusyInterval`.
         func isBusyWithoutMarker(now: Date) -> Bool {
-            let running = (path as NSString).appendingPathComponent(PerformMutationTesting.testOutputFolderName)
+            let running = path.appendingPathComponent(PerformMutationTesting.testOutputFolderName)
             guard !entries.contains(RunMarker.fileName),
                   let outputs = try? FileManager.default.contentsOfDirectory(atPath: running),
                   !outputs.isEmpty
@@ -363,11 +363,11 @@ extension LogFolderPruning {
         /// only files; macOS's `.DS_Store` is allowed too.
         var foreignEntries: [String] {
             entries.sorted().flatMap { entry -> [String] in
-                let entryPath = (path as NSString).appendingPathComponent(entry)
+                let entryPath = path.appendingPathComponent(entry)
                 if entry == PerformMutationTesting.testOutputFolderName, Self.type(of: entryPath) == S_IFDIR {
                     let outputs = ((try? FileManager.default.contentsOfDirectory(atPath: entryPath)) ?? []).sorted()
                     return outputs
-                        .filter { Self.type(of: (entryPath as NSString).appendingPathComponent($0)) != S_IFREG }
+                        .filter { Self.type(of: entryPath.appendingPathComponent($0)) != S_IFREG }
                         .map { "\(entry)/\($0)" }
                 }
                 return Self.type(of: entryPath) == S_IFREG && Self.isWrittenBySwiftMutator(entry) ? [] : [entry]
@@ -376,10 +376,10 @@ extension LogFolderPruning {
 
         /// The space the folder's files take on disk.
         var allocatedBytes: Int64 {
-            let running = (path as NSString).appendingPathComponent(PerformMutationTesting.testOutputFolderName)
+            let running = path.appendingPathComponent(PerformMutationTesting.testOutputFolderName)
             let outputs = ((try? FileManager.default.contentsOfDirectory(atPath: running)) ?? [])
-                .map { (running as NSString).appendingPathComponent($0) }
-            return (entries.map { (path as NSString).appendingPathComponent($0) } + outputs)
+                .map { running.appendingPathComponent($0) }
+            return (entries.map { path.appendingPathComponent($0) } + outputs)
                 .reduce(0) { $0 + Self.allocatedBytes(of: $1) }
         }
 

@@ -116,7 +116,7 @@ extension ReuseChanges {
         }
         // A file's type is its name's, up to a `+`: `ParsingTests+Helpers.swift` extends `ParsingTests`.
         let changedTypes = testFiles.map { change in
-            String((change.path as NSString).lastPathComponent.prefix { $0 != "+" && $0 != "." })
+            String(change.path.lastPathComponent.prefix { $0 != "+" && $0 != "." })
         }
         return !changedTypes.contains { Searched.containsIdentifier($0, in: text) }
     }
@@ -127,7 +127,7 @@ extension ReuseChanges {
     }
 
     private static func pathsByName(_ files: [String: String]) -> [String: [String]] {
-        Dictionary(grouping: files.keys) { ($0 as NSString).lastPathComponent }
+        Dictionary(grouping: files.keys) { ($0).lastPathComponent }
     }
 
     /// The only path whose file's name is `name`; nil if there is none, or more than one.

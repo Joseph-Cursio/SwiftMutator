@@ -91,7 +91,7 @@ private extension LocalPackageDependencies {
             ? captures(of: xcodeReference, in: text)
             : captures(of: packagePath, in: replacing(comment, in: text))
         return paths.map { path in
-            let expanded = (path as NSString).expandingTildeInPath
+            let expanded = path.expandingTildeInPath
             let isAbsolute = expanded.hasPrefix("/")
             let folder = isAbsolute ? URL(fileURLWithPath: expanded) : base.appendingPathComponent(expanded)
             return (folder.standardizedFileURL, isAbsolute)

@@ -106,7 +106,7 @@ final class FingerprintProjectTreeTests: MuterTestCase {
         ]
         try write(projectFiles, in: self.project)
         try write(projectFiles, in: copy)
-        let root = (self.project as NSString).deletingLastPathComponent
+        let root = self.project.deletingLastPathComponent
         try write(["Core/Package.swift": "core", "Other/Other.xcodeproj/project.pbxproj": "other"], in: root)
         let listed = recordListings(Array(projectFiles.keys))
         let said = recordPaths(of: .codeOutsideTheProjectBuilt)
@@ -134,7 +134,7 @@ final class FingerprintProjectTreeTests: MuterTestCase {
         ]
         try write(files, in: project)
         try write(files, in: copy)
-        let root = (project as NSString).deletingLastPathComponent
+        let root = project.deletingLastPathComponent
         try write(["Core/Package.swift": "core", "Other/Other.xcodeproj/project.pbxproj": "other"], in: root)
         let listed = recordListings([])
         try testPlan(at: "\(project)/muter-mappings.json", mutatedFiles: nil, sources: projectTree(of: files))

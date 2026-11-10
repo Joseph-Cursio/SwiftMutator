@@ -156,7 +156,7 @@ extension TriageSummary {
     /// "Of the 15 mutants that survived or timed out, 9 are triaged in muter.triage.yml, and 6 aren't." With mutants
     /// not covered among them, "that survived, timed out or no test reached".
     var countSentence: String {
-        let name = (file as NSString).lastPathComponent
+        let name = file.lastPathComponent
         let untriaged = survivors - triaged
         let mutants = survivors == 1 ? "the 1 mutant" : "the \(survivors) mutants"
         let kinds = (notCovered ?? 0) > 0 ? "survived, timed out or no test reached" : "survived or timed out"

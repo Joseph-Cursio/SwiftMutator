@@ -38,11 +38,11 @@ enum FoundationImportStyle {
 
     /// `…/Sources/<Target>` for a SwiftPM layout, otherwise the file's own folder.
     static func moduleDirectory(of path: String) -> String {
-        let components = (path as NSString).pathComponents
+        let components = path.pathComponents
         if let index = components.lastIndex(of: "Sources"), index + 1 < components.count - 1 {
-            return NSString.path(withComponents: Array(components[...(index + 1)]))
+            return String.path(withComponents: Array(components[...(index + 1)]))
         }
-        return (path as NSString).deletingLastPathComponent
+        return path.deletingLastPathComponent
     }
 
     private static func scan(_ module: String) -> String? {
@@ -51,9 +51,9 @@ enum FoundationImportStyle {
         }
         for case let relative as String in enumerator {
             guard relative.hasSuffix(".swift"),
-                  !(relative as NSString).pathComponents.contains(where: { $0.hasPrefix(".build") }),
+                  !relative.pathComponents.contains(where: { $0.hasPrefix(".build") }),
                   let text = try? String(
-                      contentsOfFile: (module as NSString).appendingPathComponent(relative),
+                      contentsOfFile: module.appendingPathComponent(relative),
                       encoding: .utf8
                   )
             else {

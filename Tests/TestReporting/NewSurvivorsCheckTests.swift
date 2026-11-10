@@ -286,8 +286,8 @@ final class NewSurvivorsCheckTests: XCTestCase {
         let verdict = check([key(1)], against: [(key(1), .failed), (key(5, path: "Sources/Y.swift"), .passed)])
         let summary = RunSummary(of: .make([.passed]), ended: .finished, report: nil, newSurvivors: verdict)
 
-        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: summary.json) as? NSDictionary)
-        XCTAssertEqual(json["newSurvivors"] as? NSDictionary, [
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: summary.json) as? [String: AnyHashable])
+        XCTAssertEqual(json["newSurvivors"] as? [String: AnyHashable], [
             "baseline": "muter.baseline.yml",
             "maxNewSurvivors": 0,
             "passed": false,
@@ -305,12 +305,12 @@ final class NewSurvivorsCheckTests: XCTestCase {
             report: nil,
             newSurvivors: check([], against: [], unless: .endedEarly)
         )
-        let notChecked = try XCTUnwrap(JSONSerialization.jsonObject(with: unchecked.json) as? NSDictionary)
-        XCTAssertEqual((notChecked["newSurvivors"] as? NSDictionary)?["notChecked"] as? String, "endedEarly")
-        XCTAssertNil((notChecked["newSurvivors"] as? NSDictionary)?["passed"])
+        let notChecked = try XCTUnwrap(JSONSerialization.jsonObject(with: unchecked.json) as? [String: AnyHashable])
+        XCTAssertEqual((notChecked["newSurvivors"] as? [String: AnyHashable])?["notChecked"] as? String, "endedEarly")
+        XCTAssertNil((notChecked["newSurvivors"] as? [String: AnyHashable])?["passed"])
         let without = try XCTUnwrap(
             JSONSerialization.jsonObject(with: RunSummary(of: .make([.passed]), ended: .finished, report: nil).json)
-                as? NSDictionary
+                as? [String: AnyHashable]
         )
         XCTAssertNil(without["newSurvivors"])
     }

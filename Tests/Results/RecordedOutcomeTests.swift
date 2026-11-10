@@ -632,8 +632,8 @@ private extension RecordedOutcomeTests {
                 continue
             }
             // JSONEncoder promises no order of keys, so JSON compares parsed.
-            let parsed = try JSONSerialization.jsonObject(with: Data(report.utf8)) as? NSDictionary
-            let expectedParsed = try JSONSerialization.jsonObject(with: Data(expectedReport.utf8)) as? NSDictionary
+            let parsed = try JSONSerialization.jsonObject(with: Data(report.utf8)) as? [String: AnyHashable]
+            let expectedParsed = try JSONSerialization.jsonObject(with: Data(expectedReport.utf8)) as? [String: AnyHashable]
             XCTAssertNotNil(expectedParsed, message, file: file, line: line)
             XCTAssertEqual(parsed, expectedParsed, "\(format), \(message)", file: file, line: line)
         }

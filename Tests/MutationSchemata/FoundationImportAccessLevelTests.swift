@@ -64,9 +64,9 @@ final class FoundationImportAccessLevelTests: MuterTestCase {
 
     @discardableResult
     private func write(_ relative: String, _ text: String) -> String {
-        let path = (root as NSString).appendingPathComponent(relative)
+        let path = root.appendingPathComponent(relative)
         try? FileManager.default.createDirectory(
-            atPath: (path as NSString).deletingLastPathComponent,
+            atPath: path.deletingLastPathComponent,
             withIntermediateDirectories: true
         )
         try? text.write(toFile: path, atomically: true, encoding: .utf8)

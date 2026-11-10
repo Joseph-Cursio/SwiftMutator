@@ -348,7 +348,7 @@ private extension DiscoverSourceFiles {
     private func standardizing(
         path: String
     ) -> String {
-        let components = (path as NSString).pathComponents
+        let components = path.pathComponents
         guard components.contains(".") || components.contains("..") else {
             return path
         }

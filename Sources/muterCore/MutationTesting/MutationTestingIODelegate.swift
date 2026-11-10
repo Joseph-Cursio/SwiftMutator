@@ -329,7 +329,7 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         try? files.removeItem(atPath: marker.path)
         try? files.removeItem(atPath: marker.reachedPath)
         try? files.createDirectory(
-            atPath: (marker.path as NSString).deletingLastPathComponent,
+            atPath: marker.path.deletingLastPathComponent,
             withIntermediateDirectories: true
         )
     }

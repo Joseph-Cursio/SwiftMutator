@@ -111,7 +111,7 @@ struct TriageFile: Equatable {
 
     /// `muter.triage.yml` in `folder`.
     static func path(in folder: String) -> String {
-        (folder as NSString).appendingPathComponent(fileName)
+        folder.appendingPathComponent(fileName)
     }
 
     /// The file at `path`; nil when there is none. A file with no entries is one with none to apply. Whatever a save

@@ -117,7 +117,7 @@ final class ResultsFile: ResultsRecording {
         func create(in directory: String) throws -> ResultsRecording {
             var filePath = directory
             for name in ResultsFile.fileNames {
-                filePath = (directory as NSString).appendingPathComponent(name)
+                filePath = directory.appendingPathComponent(name)
                 // O_EXCL: a file already there is kept.
                 let openDescriptor = open(filePath, O_WRONLY | O_CREAT | O_EXCL | O_APPEND | O_CLOEXEC, 0o644)
                 guard openDescriptor >= 0 else {
@@ -327,7 +327,7 @@ extension ResultsFile {
         let found = fileNames.filter(present.contains)
         switch found.count {
         case 1:
-            return ((path as NSString).appendingPathComponent(found[0]), false)
+            return (path.appendingPathComponent(found[0]), false)
 
         case 0:
             guard present.contains(noteFileName), let noted = notedFile(in: path, using: fileManager) else {
@@ -344,10 +344,10 @@ extension ResultsFile {
     /// is an absolute path to a file with a results file's name. Whether the file is there is left for reading it to
     /// refuse, which names the file. It is given without looking in it, so one note never leads to another.
     static func notedFile(in folder: String, using fileManager: FileSystemManager) -> String? {
-        let note = (folder as NSString).appendingPathComponent(noteFileName)
+        let note = folder.appendingPathComponent(noteFileName)
         guard let data = fileManager.contents(atPath: note), let text = String(data: data, encoding: .utf8),
               let firstLine = text.components(separatedBy: .newlines).first,
-              firstLine.hasPrefix("/"), isResultsFileName((firstLine as NSString).lastPathComponent) else {
+              firstLine.hasPrefix("/"), isResultsFileName(firstLine.lastPathComponent) else {
             return nil
         }
         return firstLine
@@ -404,7 +404,7 @@ extension ResultsFile {
     /// are resolved, so a run that reaches the file through a linked folder finds the same record. A hidden name
     /// that doesn't start with a results file name, so a glob for results files never finds it.
     static func holderPath(for path: String) -> String {
-        let file = resolved(path) as NSString
+        let file = resolved(path)
         return file.deletingLastPathComponent.appending("/.\(file.lastPathComponent).holder")
     }
 

@@ -31,7 +31,7 @@ final class RunMarker {
     /// that isn't there. That stops nothing: a folder with no marker is pruned only once it holds a results file, which
     /// its run holds a lock on while it writes it.
     static func hold(in folder: String) -> RunMarker? {
-        let markerPath = (folder as NSString).appendingPathComponent(fileName)
+        let markerPath = folder.appendingPathComponent(fileName)
         let openDescriptor = open(markerPath, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o644)
         guard openDescriptor >= 0 else { return nil }
         guard flock(openDescriptor, LOCK_EX | LOCK_NB) == 0 else {
@@ -63,12 +63,12 @@ final class ReusedFolders: @unchecked Sendable { // `descriptors` changes only i
 
     /// Locks the log folders `folders` of the run whose results file is at `resultsFile`.
     init(holding folders: [String], resultsFile: String) {
-        let resultsFolder = (resultsFile as NSString).deletingLastPathComponent
+        let resultsFolder = resultsFile.deletingLastPathComponent
         let paths = folders.map { folder in
-            let marker = (folder as NSString).appendingPathComponent(RunMarker.fileName)
+            let marker = folder.appendingPathComponent(RunMarker.fileName)
             var info = stat()
-            let standardized = (folder as NSString).standardizingPath
-            let isResultsFolder = standardized == (resultsFolder as NSString).standardizingPath
+            let standardized = folder.standardizingPath
+            let isResultsFolder = standardized == resultsFolder.standardizingPath
             return lstat(marker, &info) != 0 && isResultsFolder ? resultsFile : marker
         }
         descriptors = paths.compactMap(Self.lockShared(_:))

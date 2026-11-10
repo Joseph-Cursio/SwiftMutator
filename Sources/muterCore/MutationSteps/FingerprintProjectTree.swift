@@ -166,7 +166,7 @@ struct FingerprintProjectTree: MutationStep {
         since sources: ProjectTree
     ) -> [ProjectTree.FileChange] {
         changes.filter { change in
-            (change.path as NSString).lastPathComponent == "Package.resolved"
+            change.path.lastPathComponent == "Package.resolved"
                 && ProjectTree.isAlwaysIncluded(change.path)
                 && sources.files[change.path] == nil
         }

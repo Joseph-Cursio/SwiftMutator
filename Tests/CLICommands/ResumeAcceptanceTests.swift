@@ -195,7 +195,7 @@ final class ResumeAcceptanceTests: XCTestCase {
         XCTAssertEqual(rebuilt.status, 0, rebuilt.standardError)
         let sessions = "Of these, 2 were tested in the last session, session 2, and 2 in session 1."
         XCTAssertTrue(rebuilt.standardError.contains(sessions), rebuilt.standardError)
-        let rebuiltReport = try JSONSerialization.jsonObject(with: Data(rebuilt.standardOutput.utf8)) as? NSDictionary
+        let rebuiltReport = try JSONSerialization.jsonObject(with: Data(rebuilt.standardOutput.utf8)) as? [String: AnyHashable]
         XCTAssertEqual(rebuiltReport, try parsedJSON(at: report))
         // The resumed session's own log folder holds no results file, but a note naming the file, which `report`
         // follows.
@@ -203,7 +203,7 @@ final class ResumeAcceptanceTests: XCTestCase {
         XCTAssertEqual(try notedFile(in: resumedFolder), resultsFile.resolvingSymlinksInPath().path)
         let fromFolder = try waitForEnd(of: launch(["report", resumedFolder.path, "-f", "json"]))
         XCTAssertEqual(fromFolder.status, 0, fromFolder.standardError)
-        let folderReport = try JSONSerialization.jsonObject(with: Data(fromFolder.standardOutput.utf8)) as? NSDictionary
+        let folderReport = try JSONSerialization.jsonObject(with: Data(fromFolder.standardOutput.utf8)) as? [String: AnyHashable]
         XCTAssertEqual(folderReport, try parsedJSON(at: report))
         XCTAssertEqual(workerClones(), [], "no worker clone is left")
     }
@@ -621,8 +621,8 @@ final class ResumeAcceptanceTests: XCTestCase {
     }
 
     /// JSON compared as parsed: JSONEncoder promises no key order.
-    private func parsedJSON(at file: URL) throws -> NSDictionary {
-        try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? NSDictionary)
+    private func parsedJSON(at file: URL) throws -> [String: AnyHashable] {
+        try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: AnyHashable])
     }
 
     /// Each mutant's outcome in a JSON report, sorted.

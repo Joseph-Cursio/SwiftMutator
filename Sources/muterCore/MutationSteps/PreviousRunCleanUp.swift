@@ -24,7 +24,7 @@ struct PreviousRunCleanUp: MutationStep {
             .filter { $0 != mutated.lastPathComponent && MutatedProjectNames.isLeftover($0, of: stem) }
             .sorted()
         for name in leftovers {
-            try remove((parent as NSString).appendingPathComponent(name))
+            try remove(parent.appendingPathComponent(name))
             if name.hasSuffix(DirectTestRun.helperLinkSuffix) {
                 DirectTestRun.removeDefaultsDomain(name)
             }

@@ -47,14 +47,14 @@ final class JsonReporterTests: ReporterTestCase {
         let kill = try XCTUnwrap(operators.first { $0["testSuiteOutcome"] as? String == "failed" })
         let survivor = try XCTUnwrap(operators.first { $0["testSuiteOutcome"] as? String == "passed" })
 
-        XCTAssertEqual(kill["killingTests"] as? NSDictionary, [
+        XCTAssertEqual(kill["killingTests"] as? [String: AnyHashable], [
             "tests": [
                 ["name": "sum()", "location": "SumTests.swift:3:5"],
                 ["name": "-[Tests.SumTests testTotal]"],
             ],
             "count": 3,
             "isComplete": false,
-        ] as NSDictionary)
+        ] as [String: AnyHashable])
         let tests = try XCTUnwrap((kill["killingTests"] as? [String: Any])?["tests"] as? [[String: Any]])
         XCTAssertEqual(tests.last?.keys.sorted(), ["name"], "an XCTest name has no location")
         // And its path in the project, which every mutant has.
@@ -103,8 +103,8 @@ final class JsonReporterTests: ReporterTestCase {
         XCTAssertEqual(summary["killedMutants"] as? Int, 1)
         XCTAssertEqual(summary["suspectsChecked"] as? Bool, false)
         XCTAssertEqual(summary["controlRuns"] as? Int, 0)
-        XCTAssertEqual(summary["flakyTests"] as? NSArray, [])
-        XCTAssertEqual(summary["tests"] as? NSArray, [
+        XCTAssertEqual(summary["flakyTests"] as? [AnyHashable], [])
+        XCTAssertEqual(summary["tests"] as? [AnyHashable], [
             [
                 "name": "-[Tests.SumTests testTotal]",
                 "mutants": 1,
@@ -115,7 +115,7 @@ final class JsonReporterTests: ReporterTestCase {
                 "failedAgainAlone": 0,
                 "notReproducedAlone": 0,
                 "clearedAlone": false,
-            ],
+            ] as [String: AnyHashable],
             [
                 "name": "sum()",
                 "file": "SumTests.swift",
@@ -127,8 +127,8 @@ final class JsonReporterTests: ReporterTestCase {
                 "failedAgainAlone": 0,
                 "notReproducedAlone": 0,
                 "clearedAlone": false,
-            ],
-        ] as NSArray)
+            ] as [String: AnyHashable],
+        ] as [AnyHashable])
 
         let crashKill = MutationTestOutcome.Mutation.make(
             testSuiteOutcome: .runtimeError,

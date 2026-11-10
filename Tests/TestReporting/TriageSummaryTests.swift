@@ -285,7 +285,7 @@ final class TriageSummaryTests: MuterTestCase {
         // The JSON report doesn't sort its keys, so two encodes of one report can differ as text.
         let parsed = try [empty, bare].map { outcome in
             let json = JsonReporter().report(from: outcome)
-            return try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? NSDictionary, json)
+            return try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: AnyHashable], json)
         }
         XCTAssertEqual(parsed[0], parsed[1])
         XCTAssertNil(MuterTestReport(from: empty).triageSummary)

@@ -203,8 +203,8 @@ struct LoadConfiguration: MutationStep {
     /// `path` as a warning names it: relative to the current folder when it is in it, as `muter.conf.yml` or
     /// `ci/muter.conf.yml`, and else in full, so a file `--configuration` chose isn't taken for the project's own.
     private func shown(_ path: String) -> String {
-        let folder = NSString(string: fileManager.currentDirectoryPath).standardizingPath + "/"
-        let standardized = NSString(string: path).standardizingPath
+        let folder = fileManager.currentDirectoryPath.standardizingPath + "/"
+        let standardized = path.standardizingPath
         return standardized.hasPrefix(folder) ? String(standardized.dropFirst(folder.count)) : standardized
     }
 
@@ -278,6 +278,6 @@ private extension String {
     }
 
     var pathWithoutFileName: String {
-        pathContainsConfigExtension ? NSString(string: self).deletingLastPathComponent : self
+        pathContainsConfigExtension ? self.deletingLastPathComponent : self
     }
 }

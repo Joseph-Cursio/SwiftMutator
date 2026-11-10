@@ -125,8 +125,8 @@ struct MutantReference: Hashable, CustomStringConvertible {
         if let relative = Self.relative(path, toFirstOf: roots) {
             return with(path: relative)
         }
-        let resolvedPath = (ProjectTree.resolved((path as NSString).deletingLastPathComponent) as NSString)
-            .appendingPathComponent((path as NSString).lastPathComponent)
+        let resolvedPath = ProjectTree.resolved(path.deletingLastPathComponent)
+            .appendingPathComponent(path.lastPathComponent)
         let resolvedRoots = roots.map { URL(fileURLWithPath: ProjectTree.resolved($0.path)) }
         return Self.relative(resolvedPath, toFirstOf: resolvedRoots).map(with(path:)) ?? self
     }

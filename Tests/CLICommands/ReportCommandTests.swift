@@ -894,7 +894,7 @@ final class ReportCommandTests: MuterTestCase {
         await AssertThrowsError(try await report(resultsPath, "--fail-under", "50", "--summary", summaryPath))
 
         let saved = try String(contentsOfFile: summaryPath, encoding: .utf8)
-        let gate = try XCTUnwrap(parsedJSON(saved)["gate"] as? NSDictionary, saved)
+        let gate = try XCTUnwrap(parsedJSON(saved)["gate"] as? [String: AnyHashable], saved)
         XCTAssertEqual(gate, ["failUnder": 50, "passed": false, "score": 100.0 / 3])
         XCTAssertEqual(standardError.linesPassed.suffix(2), [
             "Summary saved to \(summaryPath)",
@@ -915,15 +915,15 @@ final class ReportCommandTests: MuterTestCase {
         let saved = try String(contentsOfFile: summaryPath, encoding: .utf8)
         let summary = try parsedJSON(saved)
         XCTAssertNil(summary["gate"], saved)
-        let run = try XCTUnwrap(summary["run"] as? NSDictionary, saved)
-        XCTAssertEqual((run["configuration"] as? NSDictionary)?["failUnder"] as? Double, 80, saved)
+        let run = try XCTUnwrap(summary["run"] as? [String: AnyHashable], saved)
+        XCTAssertEqual((run["configuration"] as? [String: AnyHashable])?["failUnder"] as? Double, 80, saved)
         XCTAssertEqual(standardError.linesPassed.last, "Summary saved to \(summaryPath)")
         XCTAssertFalse(standardError.linesPassed.contains { $0.contains("required") }, "\(standardError.linesPassed)")
 
         // The flag's threshold is checked in its place, below the run's own.
         try await report(resultsPath, "--fail-under", "30", "--summary", summaryPath)
 
-        let gate = try parsedJSON(String(contentsOfFile: summaryPath, encoding: .utf8))["gate"] as? NSDictionary
+        let gate = try parsedJSON(String(contentsOfFile: summaryPath, encoding: .utf8))["gate"] as? [String: AnyHashable]
         XCTAssertEqual(gate?["failUnder"] as? Double, 30)
         XCTAssertEqual(standardError.linesPassed.last, "Mutation score 33.3% meets the required 30%.")
     }
@@ -1045,8 +1045,8 @@ private extension ReportCommandTests {
     }
 
     /// JSONEncoder promises no order of keys, so JSON compares parsed.
-    func parsedJSON(_ text: String) throws -> NSDictionary {
-        try XCTUnwrap(JSONSerialization.jsonObject(with: Data(text.utf8)) as? NSDictionary, text)
+    func parsedJSON(_ text: String) throws -> [String: AnyHashable] {
+        try XCTUnwrap(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: AnyHashable], text)
     }
 
     func write(_ records: any Encodable..., to path: String) throws {

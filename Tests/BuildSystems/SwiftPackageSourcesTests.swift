@@ -387,7 +387,7 @@ final class SwiftPackageSourcesTests: MuterTestCase {
         for file in files {
             let path = directory + "/" + file
             try FileManager.default.createDirectory(
-                atPath: (path as NSString).deletingLastPathComponent,
+                atPath: path.deletingLastPathComponent,
                 withIntermediateDirectories: true
             )
             try "let value = 1\n".write(toFile: path, atomically: true, encoding: .utf8)

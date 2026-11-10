@@ -169,7 +169,7 @@ extension ProjectTree {
         var paths: [String] = []
         while let path = enumerator.nextObject() as? String {
             if enumerator.fileAttributes?[.type] as? FileAttributeType == .typeDirectory {
-                let name = (path as NSString).lastPathComponent
+                let name = path.lastPathComponent
                 if prunedComponents.contains(name) || prunedFolders.contains(path)
                     || skippingCheckouts && exists(root.appendingPathComponent(path).appendingPathComponent(".git")) {
                     // On Darwin, skipping the descendants of anything but a folder skips the next folder.
@@ -343,7 +343,7 @@ extension ProjectTree {
             missing.insert(existing.lastPathComponent, at: 0)
             existing.deleteLastPathComponent()
         }
-        return missing.reduce(existing.path.canonicalPath) { ($0 as NSString).appendingPathComponent($1) }
+        return missing.reduce(existing.path.canonicalPath) { ($0).appendingPathComponent($1) }
     }
 }
 

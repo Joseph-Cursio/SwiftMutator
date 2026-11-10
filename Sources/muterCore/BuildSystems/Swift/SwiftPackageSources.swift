@@ -96,7 +96,7 @@ enum SwiftPackageSources {
         process: ProcessFactory
     ) async -> Result<[Package], Failure> {
         let swift = configuration.testCommandExecutable
-        guard (swift as NSString).lastPathComponent == "swift" else {
+        guard swift.lastPathComponent == "swift" else {
             return .failure(.notSwift(swift))
         }
         // describe resolves the links in a package's own path, but not those in its local dependencies' paths, so
@@ -247,7 +247,7 @@ enum SwiftPackageSources {
         in root: FilePath,
         canonicalRoot: FilePath
     ) -> FilePath? {
-        let absolute = (root + "/" + source) as NSString
+        let absolute = root + "/" + source
         return relativePath(
             absolute.deletingLastPathComponent.canonicalPath + "/" + absolute.lastPathComponent,
             to: canonicalRoot

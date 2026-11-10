@@ -398,9 +398,3 @@ extension CompilerError {
         )
     }
 }
-
-private extension String {
-    var lastPathComponent: String {
-        URL(fileURLWithPath: self).lastPathComponent
-    }
-}

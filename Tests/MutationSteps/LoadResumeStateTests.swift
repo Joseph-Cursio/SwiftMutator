@@ -629,7 +629,7 @@ private extension LoadResumeStateTests {
 
     /// The log folder of a session that resumed the run in `logs`, beside it: it holds only its note naming the file.
     func makeAResumedSessionsLogFolder() throws -> String {
-        let folder = (logs as NSString).deletingLastPathComponent + "/Oct 6, 2026 at 9:40 AM"
+        let folder = logs.deletingLastPathComponent + "/Oct 6, 2026 at 9:40 AM"
         try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
         let note = Data(ResultsFile.note(pointingTo: resultsPath, session: 2).utf8)
         try note.write(to: URL(fileURLWithPath: "\(folder)/\(ResultsFile.noteFileName)"))

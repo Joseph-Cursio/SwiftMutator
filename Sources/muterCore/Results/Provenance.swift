@@ -85,7 +85,7 @@ extension Provenance.Toolchain {
     /// Whether `testCommand` is asked its version, which then identifies the toolchain. Any other test command is
     /// identified by its SHA-256.
     static func isAskedItsVersion(_ testCommand: String) -> Bool {
-        versionArguments[(testCommand as NSString).lastPathComponent] != nil
+        versionArguments[testCommand.lastPathComponent] != nil
     }
 }
 
@@ -96,7 +96,7 @@ private extension Provenance.Toolchain {
         output: (String, [String]) async -> String?,
         sha256: (URL) -> String?
     ) async {
-        let name = (testCommand as NSString).lastPathComponent
+        let name = testCommand.lastPathComponent
         if let arguments = Self.versionArguments[name] {
             await self.init(
                 testCommandVersion: output(testCommand, arguments)?.trimmed.nilIfEmpty,

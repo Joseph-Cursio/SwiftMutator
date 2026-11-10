@@ -247,7 +247,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
         }
         whileRunningTestsWithoutBuilding?()
         let (run, ending) = lock.withLock {
-            let name = (fileName as NSString).lastPathComponent
+            let name = fileName.lastPathComponent
             let run = firstTestRunsWithoutBuildingWritingTo.removeValue(forKey: name)
                 ?? testRunsWithoutBuildingWritingTo[name]
                 ?? (testRunsWithoutBuilding.isEmpty

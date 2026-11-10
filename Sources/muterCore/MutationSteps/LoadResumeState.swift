@@ -153,7 +153,7 @@ struct LoadResumeState: MutationStep {
             notices: verdict.notices,
             reusedFolders: file == nil
                 ? ReusedFolders(
-                    holding: [(path as NSString).deletingLastPathComponent] + recorded.headers.map(\.logDirectory),
+                    holding: [path.deletingLastPathComponent] + recorded.headers.map(\.logDirectory),
                     resultsFile: path
                 )
                 : nil

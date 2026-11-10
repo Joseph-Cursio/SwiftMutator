@@ -1006,7 +1006,7 @@ private extension PerformMutationTesting {
                     testLog: finished.run.testLog,
                     logPath: state.loggingDirectory.isEmpty
                         ? nil
-                        : (state.loggingDirectory as NSString).appendingPathComponent(mutationLog.keptFileName),
+                        : state.loggingDirectory.appendingPathComponent(mutationLog.keptFileName),
                     mutatedProject: state.mutatedProjectDirectoryURL.path,
                     buildSystem: configuration.buildSystem,
                     testCommand: [configuration.testCommandExecutable] + configuration.testCommandArguments
@@ -1115,7 +1115,7 @@ private extension PerformMutationTesting {
     /// with the output of the runs under way, or finished but not recorded.
     func removeTestOutputFolderIfEmpty(_ state: AnyMutationTestState) {
         guard !state.loggingDirectory.isEmpty else { return }
-        let folder = (state.loggingDirectory as NSString).appendingPathComponent(Self.testOutputFolderName)
+        let folder = state.loggingDirectory.appendingPathComponent(Self.testOutputFolderName)
         removeFolderIfEmpty(atPath: folder, fileManager: fileManager)
     }
 }
@@ -1188,7 +1188,7 @@ private extension PerformMutationTesting {
     func leaveANote(pointingTo path: String, session: Int, in loggingDirectory: String) {
         guard !loggingDirectory.isEmpty else { return }
         _ = fileManager.createFile(
-            atPath: (loggingDirectory as NSString).appendingPathComponent(ResultsFile.noteFileName),
+            atPath: loggingDirectory.appendingPathComponent(ResultsFile.noteFileName),
             contents: Data(ResultsFile.note(pointingTo: path, session: session).utf8),
             attributes: nil
         )
@@ -1207,8 +1207,8 @@ private extension PerformMutationTesting {
             guard let recorded = resume.recorded.latest[result.key], let folder = folders[recorded.session],
                   let name = recorded.log, let destinationName = result.log
             else { continue }
-            let source = (folder as NSString).appendingPathComponent(name)
-            let destination = (loggingDirectory as NSString).appendingPathComponent(destinationName)
+            let source = folder.appendingPathComponent(name)
+            let destination = loggingDirectory.appendingPathComponent(destinationName)
             try? fileManager.copyItem(atPath: source, toPath: destination)
         }
     }
@@ -1317,7 +1317,7 @@ extension PerformMutationTesting {
     /// log folder, or, without one, as a state that bypasses the handler has, the current directory.
     func testOutput(named name: String, state: AnyMutationTestState) -> String {
         guard !state.loggingDirectory.isEmpty else { return name }
-        return (state.loggingDirectory as NSString)
+        return state.loggingDirectory
             .appendingPathComponent(Self.testOutputFolderName)
             .appending("/\(name)")
     }

@@ -209,7 +209,7 @@ enum XcodeBuildConditions {
     /// file. A script runs in the folder of the project, which `SRCROOT` and `PROJECT_DIR` name.
     private static func runsAScriptThatMayCompile(_ file: BuildFile, fileManager: FileSystemManager) -> Bool {
         guard file.name == "project.pbxproj" else { return false }
-        let projectFolder = ((file.path as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent
+        let projectFolder = file.path.deletingLastPathComponent.deletingLastPathComponent
         let scripts = file.text.split(whereSeparator: \.isNewline).filter { $0.contains("shellScript = ") }
         for script in scripts {
             if script.contains("../") || script.contains("~/") || script.contains("$HOME") {
@@ -251,7 +251,7 @@ enum XcodeBuildConditions {
             .flatMap { entries(of: $0) }
             .flatMap { entries(of: $0, endingIn: ".build") }
             .flatMap { target in
-                entries(of: target).filter { ($0 as NSString).lastPathComponent.hasPrefix("Objects-") }
+                entries(of: target).filter { ($0).lastPathComponent.hasPrefix("Objects-") }
             }
             .flatMap { entries(of: $0) }
             .flatMap { entries(of: $0, endingIn: ".SwiftFileList") }
@@ -510,7 +510,7 @@ enum XcodeBuildConditions {
     /// settings.
     private static func buildFiles(inProjectAt root: FilePath, fileManager: FileSystemManager) -> [BuildFile] {
         (fileManager.subpaths(atPath: root) ?? []).compactMap { path in
-            let name = (path as NSString).lastPathComponent
+            let name = path.lastPathComponent
             let isABuildFile = name == "project.pbxproj" || name.hasSuffix(".xcconfig")
                 || (name.hasPrefix("Package") && name.hasSuffix(".swift"))
                 || name == "contents.xcworkspacedata" || name.hasSuffix(".xcsettings")

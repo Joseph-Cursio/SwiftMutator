@@ -979,7 +979,7 @@ final class DiscoverSourceFilesTests: MuterTestCase {
         for file in files {
             let path = "\(directory)/\(file)"
             try FileManager.default.createDirectory(
-                atPath: (path as NSString).deletingLastPathComponent,
+                atPath: path.deletingLastPathComponent,
                 withIntermediateDirectories: true
             )
             FileManager.default.createFile(atPath: path, contents: Data())
