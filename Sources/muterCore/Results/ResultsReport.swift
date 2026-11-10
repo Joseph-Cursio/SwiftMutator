@@ -384,8 +384,8 @@ struct ResultsReport {
                 outcome,
                 to: $0,
                 version: MutationTestObserver.version(of: outcome),
-                unless: incomplete,
-                using: fileManager
+                using: fileManager,
+                unless: incomplete
             )
         }
         if case .saved = baselineFile {

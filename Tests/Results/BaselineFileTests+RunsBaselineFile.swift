@@ -60,7 +60,7 @@ extension BaselineFileTests {
             XCTAssertTrue(saving.plainLine.hasSuffix("and a baseline file holds a whole run's survivors."))
         }
         let stopped = BaselineFileSaving.save(
-            whole, to: target, version: "0.1.0", unless: "the run didn't finish", using: FileManager.default
+            whole, to: target, version: "0.1.0", using: FileManager.default, unless: "the run didn't finish"
         )
         XCTAssertEqual(
             stopped.plainLine,
