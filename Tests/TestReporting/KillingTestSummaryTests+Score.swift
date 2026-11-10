@@ -29,7 +29,7 @@ extension KillingTestSummaryTests {
         let report = MuterTestReport(from: .make(mutations: mutations))
         XCTAssertEqual(report.globalMutationScore, 92)
         XCTAssertEqual(report.numberOfKilledMutants, 13)
-        let marked = report.fileReports.flatMap(\.appliedOperators).filter { $0.killedOnlyBySuspectTests != nil }
+        let marked = report.fileReports.flatMap(\.appliedOperators).filter(\.killedOnlyBySuspectTests)
         XCTAssertEqual(marked.map(\.killedOnlyBySuspectTests), Array(repeating: true, count: 4))
         XCTAssertEqual(Set(marked.map(\.mutationPoint.fileName)), ["F0.swift", "F1.swift", "F2.swift", "F3.swift"])
 
@@ -40,8 +40,11 @@ extension KillingTestSummaryTests {
         XCTAssertEqual(withFocusedTests.tests.filter(\.suspect).map(\.name), ["timing()"])
         XCTAssertEqual(withFocusedTests.suspectOnlyKills, 0)
         XCTAssertNil(withFocusedTests.mutationScoreWithoutSuspectOnlyKills)
-        XCTAssertNil(MuterTestReport(from: .make(mutations: [kill(in: "F0.swift", naming: [timing])])).fileReports
-            .first?.appliedOperators.first?.killedOnlyBySuspectTests)
+        XCTAssertEqual(
+            MuterTestReport(from: .make(mutations: [kill(in: "F0.swift", naming: [timing])])).fileReports
+                .first?.appliedOperators.first?.killedOnlyBySuspectTests,
+            false
+        )
     }
 
     func test_anIncompleteSuspectOnlyList_makesTheScoreALowerBound() throws {

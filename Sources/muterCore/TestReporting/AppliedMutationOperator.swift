@@ -8,9 +8,9 @@ struct AppliedMutationOperator: Codable, Equatable {
     /// The tests its run's log showed failing, as `MutationTestOutcome.Mutation` has them. Left out of the JSON
     /// when nil, so a survivor's is as it was before reports named them.
     let killingTests: MutationTestOutcome.KillingTests?
-    /// true when only suspect tests were recorded failing for it (`KillingTestSummary.isSuspectOnlyKill`), and
-    /// otherwise nil, so left out of the JSON.
-    let killedOnlyBySuspectTests: Bool?
+    /// Whether only suspect tests were recorded failing for it (`KillingTestSummary.isSuspectOnlyKill`). The JSON
+    /// holds it as `true`, and leaves it out otherwise.
+    let killedOnlyBySuspectTests: Bool
     /// Where it was tested, for a result the run reused from an earlier run (`--reuse`); left out of the JSON when
     /// nil.
     let reusedFrom: ReusedFrom?
@@ -49,7 +49,7 @@ struct AppliedMutationOperator: Codable, Equatable {
         mutationSnapshot: MutationOperator.Snapshot,
         testSuiteOutcome: TestSuiteOutcome,
         killingTests: MutationTestOutcome.KillingTests? = nil,
-        killedOnlyBySuspectTests: Bool? = nil,
+        killedOnlyBySuspectTests: Bool = false,
         reusedFrom: ReusedFrom? = nil,
         sourceChange: SourceChange? = nil,
         path: String? = nil,
@@ -81,13 +81,32 @@ struct AppliedMutationOperator: Codable, Equatable {
         )
         // A report written before reports named killing tests has none.
         killingTests = try container.decodeIfPresent(MutationTestOutcome.KillingTests.self, forKey: .killingTests)
-        killedOnlyBySuspectTests = try container.decodeIfPresent(Bool.self, forKey: .killedOnlyBySuspectTests)
+        killedOnlyBySuspectTests = try container.decodeIfPresent(Bool.self, forKey: .killedOnlyBySuspectTests) ?? false
         reusedFrom = try container.decodeIfPresent(ReusedFrom.self, forKey: .reusedFrom)
         sourceChange = try container.decodeIfPresent(SourceChange.self, forKey: .sourceChange)
         path = try container.decodeIfPresent(String.self, forKey: .path)
         key = try container.decodeIfPresent(String.self, forKey: .key)
         durationSeconds = try container.decodeIfPresent(Double.self, forKey: .durationSeconds)
         triage = try container.decodeIfPresent(TriageMark.self, forKey: .triage)
+    }
+
+    /// As a synthesized encoding would, key by key in `CodingKeys`' order, each nil left out, but
+    /// `killedOnlyBySuspectTests` only when it is true, as when it was nil otherwise.
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(mutationPoint, forKey: .mutationPoint)
+        try container.encode(testSuiteOutcome, forKey: .testSuiteOutcome)
+        try container.encode(mutationSnapshot, forKey: .mutationSnapshot)
+        try container.encodeIfPresent(killingTests, forKey: .killingTests)
+        if killedOnlyBySuspectTests {
+            try container.encode(true, forKey: .killedOnlyBySuspectTests)
+        }
+        try container.encodeIfPresent(reusedFrom, forKey: .reusedFrom)
+        try container.encodeIfPresent(sourceChange, forKey: .sourceChange)
+        try container.encodeIfPresent(path, forKey: .path)
+        try container.encodeIfPresent(key, forKey: .key)
+        try container.encodeIfPresent(durationSeconds, forKey: .durationSeconds)
+        try container.encodeIfPresent(triage, forKey: .triage)
     }
 
     /// What the reports' tables say of a mutant not covered, whose tests ran, where a file's row says it was skipped.
@@ -134,7 +153,7 @@ struct AppliedMutationOperator: Codable, Equatable {
         guard let killing = killedByTests else { return "-" }
         guard let first = killing.tests.first else { return "(none named)" }
         let more = killing.count > 1 ? " (+\(killing.count - 1))" : ""
-        let suspectOnly = killedOnlyBySuspectTests == true ? " (suspect only)" : ""
+        let suspectOnly = killedOnlyBySuspectTests ? " (suspect only)" : ""
         return Self.shownName(first.name) + more + suspectOnly
     }
 

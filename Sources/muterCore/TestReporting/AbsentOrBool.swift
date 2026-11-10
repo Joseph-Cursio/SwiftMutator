@@ -42,7 +42,7 @@ extension KeyedEncodingContainer {
 
 extension KeyedDecodingContainer {
     /// The Bool at `key` as a `Value`, and `whenAbsent` when the key is missing or null.
-    func decode<Value: AbsentOrBool>(_ type: Value.Type, forKey key: Key) throws -> Value {
+    func decode<Value: AbsentOrBool>(_: Value.Type, forKey key: Key) throws -> Value {
         guard let present = try decodeIfPresent(Bool.self, forKey: key) else { return .whenAbsent }
         return present ? .whenTrue : .whenFalse
     }

@@ -15,7 +15,7 @@ extension AppliedMutationOperator {
         mutationSnapshot: MutationOperator.Snapshot = .make(),
         testSuiteOutcome: TestSuiteOutcome = .passed,
         killingTests: MutationTestOutcome.KillingTests? = nil,
-        killedOnlyBySuspectTests: Bool? = nil,
+        killedOnlyBySuspectTests: Bool = false,
         reusedFrom: ReusedFrom? = nil,
         path: String? = nil
     ) -> Self {

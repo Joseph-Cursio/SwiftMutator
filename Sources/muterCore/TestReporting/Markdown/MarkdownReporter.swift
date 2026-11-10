@@ -115,7 +115,6 @@ struct MarkdownReporter: Reporter {
             + (more > 0 ? [rest] : [])
     }
 
-
     /// One row of how many mutants came to each verdict some came to, and their total; none without mutants.
     private func counts(of report: MuterTestReport) -> String? {
         guard let counts = report.mutantsByOutcome, report.totalAppliedMutationOperators > 0 else { return nil }

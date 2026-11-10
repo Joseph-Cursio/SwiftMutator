@@ -160,8 +160,7 @@ struct MuterTestReport: Equatable, Codable {
                     mutationSnapshot: mutation.snapshot,
                     testSuiteOutcome: mutation.testSuiteOutcome,
                     killingTests: mutation.killingTests,
-                    killedOnlyBySuspectTests: KillingTestSummary.isSuspectOnlyKill(mutation, suspects: suspects)
-                        ? true : nil,
+                    killedOnlyBySuspectTests: KillingTestSummary.isSuspectOnlyKill(mutation, suspects: suspects),
                     reusedFrom: mutation.reusedFrom,
                     sourceChange: sources.change(of: mutation),
                     path: mutation.relativePath,
