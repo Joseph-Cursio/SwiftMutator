@@ -16,12 +16,12 @@ final class ResumePlanTests: XCTestCase {
     func test_aKillWhoseCodeDidntRun_andThatWasntTestedAgain_isTestedAgain() {
         let keys = (1...4).map { key(line: $0) }
         var unproven = record(of: keys[0], outcome: .failed)
-        unproven.activated = false
+        unproven.activated = .didNotRun
         var settled = record(of: keys[1], outcome: .failed)
-        settled.activated = false
+        settled.activated = .didNotRun
         settled.rerun = MutantResult.Rerun(because: MutantResult.Rerun.codeNotShownRunning, workers: 1)
         var survivor = record(of: keys[2], outcome: .passed)
-        survivor.activated = false
+        survivor.activated = .didNotRun
         // Its session's other runs show they can say, so a run that says nothing, as a crash at launch, is one too.
         let showedNothing = record(of: keys[3], outcome: .runtimeError)
 
@@ -41,7 +41,7 @@ final class ResumePlanTests: XCTestCase {
         XCTAssertEqual(plan(keys, recorded: [older, reused]).toRun, [2])
 
         var showing = record(of: keys[2], outcome: .passed)
-        showing.activated = true
+        showing.activated = .ran
         XCTAssertEqual(plan(keys, recorded: [reused, showing]).toRun, [0])
     }
 

@@ -5,7 +5,7 @@ final class MutantResultActivationTests: XCTestCase {
     // A result reused from an earlier run says what that run showed of its code.
     func test_aReusedResult_keepsWhatItsRunShowed() {
         var result = MutantResult.make(session: 1, outcome: .passed)
-        result.activated = false
+        result.activated = .didNotRun
 
         let reused = result.reused(
             from: "/logs/results.jsonl",
@@ -15,7 +15,7 @@ final class MutantResultActivationTests: XCTestCase {
             despiteChanges: false
         )
 
-        XCTAssertFalse(try XCTUnwrap(reused.activated))
+        XCTAssertEqual(reused.activated, .didNotRun)
     }
 
     // An older line has no such key, which says nothing either way.
@@ -24,6 +24,6 @@ final class MutantResultActivationTests: XCTestCase {
 
         let line = String(lossyUTF8: encoded)
         XCTAssertFalse(line.contains("activated"), line)
-        XCTAssertNil(try ResultsCoding.decoder.decode(MutantResult.self, from: encoded).activated)
+        XCTAssertEqual(try ResultsCoding.decoder.decode(MutantResult.self, from: encoded).activated, .unknown)
     }
 }

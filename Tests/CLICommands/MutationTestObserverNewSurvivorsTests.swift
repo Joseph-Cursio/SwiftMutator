@@ -127,7 +127,7 @@ final class MutationTestObserverNewSurvivorsTests: MuterTestCase {
             snapshot: .make(before: "<", after: "<="),
             key: key(3)
         )
-        doubtful.activated = false
+        doubtful.activated = .didNotRun
         var finished = MutationTestOutcome(mutations: [doubtful])
         finished.maxDoubtfulKills = 0
 

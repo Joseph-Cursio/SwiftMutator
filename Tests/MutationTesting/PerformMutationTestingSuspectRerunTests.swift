@@ -181,24 +181,24 @@ final class PerformMutationTestingSuspectRerunTests: MuterTestCase {
     func test_aFlipInASessionThatCantShowItsCodeRan_isASurvivor_notUncovered() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed, .failed, .failed, .failed, .passed]
         ioDelegate.mutantTestLogs += [timing, timing, allPassed]
-        ioDelegate.mutantActivations = Array(repeating: nil, count: 6)
+        ioDelegate.mutantActivations = Array(repeating: .unknown, count: 6)
 
         let changes = try await sut.run(with: state)
 
         XCTAssertEqual(
             try XCTUnwrap(outcome(of: changes)).mutations.map(\.testSuiteOutcome), [.failed, .failed, .passed]
         )
-        XCTAssertNil(try resultsFiles.records(MutantResult.self).last?.activated)
+        XCTAssertEqual(try resultsFiles.records(MutantResult.self).last?.activated, .unknown)
     }
 
     func test_aFirstRunShownToRunItsCode_staysShown_whenARerunThatPassesDoesntShowIt() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed, .failed, .failed, .failed, .passed]
         ioDelegate.mutantTestLogs += [timing, timing, allPassed]
-        ioDelegate.mutantActivations = [true, true, true, true, true, nil]
+        ioDelegate.mutantActivations = [.ran, .ran, .ran, .ran, .ran, .unknown]
 
         let changes = try await sut.run(with: state)
 
         XCTAssertEqual(try XCTUnwrap(outcome(of: changes)).mutations.last?.testSuiteOutcome, .passed)
-        XCTAssertEqual(try resultsFiles.records(MutantResult.self).last?.activated, true)
+        XCTAssertEqual(try resultsFiles.records(MutantResult.self).last?.activated, .ran)
     }
 }

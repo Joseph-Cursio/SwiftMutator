@@ -36,21 +36,21 @@ final class PerformMutationTestingActivationTests: MuterTestCase {
     // The line keeps the run's own outcome, which reads as a survivor to anything older, and says its block didn't run.
     func test_aSurvivorWhoseBlockDidntRun_isNotCovered_andItsLineStillSaysItPassed() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .passed, .passed]
-        ioDelegate.mutantActivations = [false, true]
+        ioDelegate.mutantActivations = [.didNotRun, .ran]
 
         let outcome = try await run()
 
         XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.noCoverage, .passed])
-        XCTAssertEqual(outcome.mutations.map(\.activated), [false, true])
+        XCTAssertEqual(outcome.mutations.map(\.activated), [.didNotRun, .ran])
         let records = try resultsFiles.records(MutantResult.self)
         XCTAssertEqual(records.map(\.outcome), [.passed, .passed])
-        XCTAssertEqual(records.map(\.activated), [false, true])
+        XCTAssertEqual(records.map(\.activated), [.didNotRun, .ran])
     }
 
     // Both count alike in the score, which is #89's to change.
     func test_aMutantNotCovered_countsInTheScoreAsASurvivorDoes() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
-        ioDelegate.mutantActivations = [true, false]
+        ioDelegate.mutantActivations = [.ran, .didNotRun]
 
         let outcome = try await run()
 
@@ -60,17 +60,17 @@ final class PerformMutationTestingActivationTests: MuterTestCase {
 
     func test_aSurvivorThatShowsNothing_staysASurvivor_andItsLineSaysNothing() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .passed, .passed]
-        ioDelegate.mutantActivations = [nil, true]
+        ioDelegate.mutantActivations = [.unknown, .ran]
 
         let outcome = try await run()
 
         XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.passed, .passed])
-        XCTAssertEqual(try resultsFiles.records(MutantResult.self).map(\.activated), [nil, true])
+        XCTAssertEqual(try resultsFiles.records(MutantResult.self).map(\.activated), [.unknown, .ran])
     }
 
     func test_theResultsFile_readsAsTheRunReportedIt() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed]
-        ioDelegate.mutantActivations = [false, true]
+        ioDelegate.mutantActivations = [.didNotRun, .ran]
 
         let outcome = try await run()
 
@@ -92,7 +92,7 @@ final class PerformMutationTestingActivationTests: MuterTestCase {
         // Six, so a run that didn't stop tests one more than the stop allows.
         state.mutationMapping = (try? [makeMapping(lines: Array(1...6))]) ?? []
         ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .passed, count: 6)
-        ioDelegate.mutantActivations = Array(repeating: nil, count: 6)
+        ioDelegate.mutantActivations = Array(repeating: .unknown, count: 6)
     }
 
     /// The plan of a `--resume` of the results file as it stands, with every file as it was recorded.

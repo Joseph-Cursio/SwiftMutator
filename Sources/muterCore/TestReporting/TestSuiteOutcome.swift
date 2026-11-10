@@ -41,8 +41,8 @@ enum TestSuiteOutcome: String, Codable, CaseIterable {
     /// This run's verdict, given whether its mutant's block ran (`TestRun.activated`): a survivor whose block didn't is
     /// not covered, as no test reached it. A results line records the run's own outcome and `activated`, so that it
     /// still reads as a survivor to anything older. Both count alike in the score.
-    func judged(activated: Bool?) -> Self {
-        self == .passed && activated == false ? .noCoverage : self
+    func judged(activated: MutantActivation) -> Self {
+        self == .passed && activated == .didNotRun ? .noCoverage : self
     }
 
     /// `failedTestLinesAreReliable` is false once a passing baseline has printed a line `FailedTestLine`

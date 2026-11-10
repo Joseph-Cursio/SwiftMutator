@@ -86,11 +86,11 @@ final class MutantActivationProcessTests: MuterTestCase {
         let marker = #"marker=$(sed -n 2p "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE"); "#
 
         let ran = await run(marker + #"touch "$marker" "$marker.reached""#).activated
-        XCTAssertTrue(try XCTUnwrap(ran))
+        XCTAssertEqual(ran, .ran)
         let didntRun = await run(marker + #"touch "$marker.reached""#).activated
-        XCTAssertFalse(try XCTUnwrap(didntRun), "the marker of the run before doesn't count")
+        XCTAssertEqual(didntRun, .didNotRun, "the marker of the run before doesn't count")
         let showsNothing = await run("true").activated
-        XCTAssertNil(showsNothing, "the file of the run before doesn't count")
+        XCTAssertEqual(showsNothing, .unknown, "the file of the run before doesn't count")
     }
 
     // MARK: - Helpers

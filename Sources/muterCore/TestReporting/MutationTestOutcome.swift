@@ -171,7 +171,9 @@ struct MutationTestOutcome: Equatable {
     /// stopped run may not have tested them again yet, which `--resume` does. nil without any, and for one mutant's
     /// run, whose log shows it.
     var unprovenKillWarning: String? {
-        let count = mutations.count { [.failed, .runtimeError].contains($0.testSuiteOutcome) && $0.activated == false }
+        let count = mutations.count {
+            [.failed, .runtimeError].contains($0.testSuiteOutcome) && $0.activated == .didNotRun
+        }
         guard count > 0, mutant == nil else { return nil }
         return count == 1
             ? "1 kill's code never ran, though its tests failed: a flaky test or a crash at launch may be to blame, "
@@ -205,9 +207,8 @@ struct MutationTestOutcome: Equatable {
         /// Whether it was taken out of the build with others, as the compiler's error could be any of theirs
         /// (`LeftOutMutant.Blame`), so it may compile. As its results line records it.
         var leftOutWithOthers = false
-        /// Whether its block ran in its run, as its results line records it (`TestRun.activated`); nil when that is
-        /// unknown.
-        var activated: Bool?
+        /// Whether its block ran in its run, as its results line records it (`TestRun.activated`).
+        var activated: MutantActivation = .unknown
         /// Why its run was tested again, as its results line records it; nil for a first run.
         var rerun: MutantResult.Rerun?
 

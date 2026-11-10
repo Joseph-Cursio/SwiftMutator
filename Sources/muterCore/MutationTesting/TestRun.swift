@@ -36,10 +36,9 @@ struct TestRun: Equatable {
     var ending: Ending = .exited
     /// `terminationStatus` for an `.exited` run: its exit code, or the signal that ended it.
     var exitStatus: Int32?
-    /// Whether the mutant's block ran (`ActivationMarker`): true if its marker was created; false if the run reached
-    /// mutated code, but not the mutant's block; nil if the run showed neither, as a host that can't write there
-    /// doesn't. Always test for `false`, never `!= true`: nil keeps a verdict as it would be without markers.
-    var activated: Bool?
+    /// Whether the mutant's block ran (`MutantActivation`). Always test for `didNotRun`, never `!= .ran`: `unknown`
+    /// keeps a verdict as it would be without markers.
+    var activated: MutantActivation = .unknown
 
     /// The run that `run` makes with `configuration`, or, if the simulator failed to launch it
     /// (`SimulatorTrouble.launch`) and the task isn't cancelled, the one `run` makes next, on the same worker, in its

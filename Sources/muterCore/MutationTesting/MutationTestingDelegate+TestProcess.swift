@@ -27,10 +27,10 @@ extension MutationTestingDelegate {
     }
 
     /// What `marker` shows of the run that has just ended (`TestRun.activated`), and removes it.
-    func readActivation(of marker: ActivationMarker) -> Bool? {
+    func readActivation(of marker: ActivationMarker) -> MutantActivation {
         defer { clearActivation(of: marker) }
-        if FileManager.default.fileExists(atPath: marker.path) { return true }
-        return FileManager.default.fileExists(atPath: marker.reachedPath) ? false : nil
+        if FileManager.default.fileExists(atPath: marker.path) { return .ran }
+        return FileManager.default.fileExists(atPath: marker.reachedPath) ? .didNotRun : .unknown
     }
 
     /// The test command's process for a run with `schemata` switched on, writing to `fileHandle`, in

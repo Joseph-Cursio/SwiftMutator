@@ -50,7 +50,7 @@ extension PerformMutationTesting {
         let patterns = globs.map(PropertyTestPattern.init)
         return session.outcomes.sorted { $0.key < $1.key }.compactMap { index, mutation in
             guard !session.notInTheBuild.contains(index), mutation.testSuiteOutcome == .failed,
-                  mutation.propertyRerun == nil, mutation.activated != false,
+                  mutation.propertyRerun == nil, mutation.activated != .didNotRun,
                   let tests = mutation.killingTests?.tests, !tests.isEmpty,
                   !tests.contains(where: { test in patterns.contains { $0.matches(.init(test)) } })
             else { return nil }

@@ -55,12 +55,12 @@ struct MutantResult: Codable, Equatable {
     /// True on the line of a mutant taken out of the build with others (`LeftOutMutant.Blame`), as the compiler's error
     /// could be any of theirs, so it may compile: `--fail-under` counts it as not killed. Absent otherwise.
     @TrueOrAbsent var leftOutWithOthers = false
-    /// Whether the mutant's block ran in this run (`TestRun.activated`): true if it did, false if the run reached
-    /// mutated code but not that block, which makes a `passed` run a mutant not covered. Absent when the run showed
-    /// neither, as on a test host that can't write its marker, and on any line older than this key: nothing is known
-    /// then. A run that tested the mutant again (`rerun`) records false for showing neither too, as its session showed
-    /// that its runs can say.
-    var activated: Bool?
+    /// Whether the mutant's block ran in this run (`TestRun.activated`): `ran` (true) if it did, `didNotRun` (false) if
+    /// the run reached mutated code but not that block, which makes a `passed` run a mutant not covered. `unknown`
+    /// (absent) when the run showed neither, as on a test host that can't write its marker, and on any line older than
+    /// this key: nothing is known then. A run that tested the mutant again (`rerun`) records `didNotRun` for showing
+    /// neither too, as its session showed that its runs can say.
+    var activated: MutantActivation = .unknown
 
     var key: MutantKey {
         MutantKey(

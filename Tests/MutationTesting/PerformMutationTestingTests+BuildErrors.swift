@@ -123,7 +123,7 @@ extension PerformMutationTestingTests {
     }
 
     func test_whenEncountersFiveNonConsecutiveBuildErrors_thenPerformMutationTesting() async throws {
-        ioDelegate.mutantActivations = Array(repeating: nil, count: 5)
+        ioDelegate.mutantActivations = Array(repeating: .unknown, count: 5)
         ioDelegate.testSuiteOutcomes = [
             .passed,
             .buildError,

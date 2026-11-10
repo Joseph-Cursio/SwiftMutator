@@ -10,7 +10,7 @@ extension PerformMutationTestingSuspectRerunTests {
         _ outcome: TestSuiteOutcome,
         _ log: String,
         ending: TestRun.Ending = .exited,
-        activated: Bool? = true,
+        activated: MutantActivation = .ran,
         sessionShowsActivation: Bool = false
     ) -> String? {
         PerformMutationTesting.testsAlone(
@@ -22,14 +22,15 @@ extension PerformMutationTestingSuspectRerunTests {
 
     func test_aTestThatFailsAgain_failedAgain() {
         XCTAssertEqual(alone(.failed, timing), TestAlone.failedAgain)
-        XCTAssertEqual(alone(.failed, timing, activated: nil), TestAlone.failedAgain)
+        XCTAssertEqual(alone(.failed, timing, activated: .unknown), TestAlone.failedAgain)
     }
 
     func test_aTestThatFails_withItsMutantsCodeNotRunning_doesntFailForTheMutant() {
-        XCTAssertEqual(alone(.failed, timing, activated: false), TestAlone.failedWithItsCodeNotRunning)
+        XCTAssertEqual(alone(.failed, timing, activated: .didNotRun), TestAlone.failedWithItsCodeNotRunning)
         // Once a session's runs show they can say, one that says nothing didn't reach mutated code.
         XCTAssertEqual(
-            alone(.failed, timing, activated: nil, sessionShowsActivation: true), TestAlone.failedWithItsCodeNotRunning
+            alone(.failed, timing, activated: .unknown, sessionShowsActivation: true),
+            TestAlone.failedWithItsCodeNotRunning
         )
     }
 
@@ -56,7 +57,7 @@ extension PerformMutationTestingSuspectRerunTests {
     }
 
     func test_aFailureOnlyALookalikeShows_saysNothing() {
-        let run = TestRun(outcome: .failed, testLog: sum, ending: .exited, activated: true)
+        let run = TestRun(outcome: .failed, testLog: sum, ending: .exited, activated: .ran)
         let lookalike = FailedTestLine.TestIdentity(name: "sum()", file: "SumTests.swift")
 
         let results = PerformMutationTesting.testsAlone(

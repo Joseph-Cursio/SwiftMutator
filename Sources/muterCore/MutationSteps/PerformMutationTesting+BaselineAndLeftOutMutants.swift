@@ -182,7 +182,7 @@ extension PerformMutationTesting {
         key: MutantKey,
         state: AnyMutationTestState,
         summary: RunSummary,
-        activated: Bool? = nil
+        activated: MutantActivation = .unknown
     ) -> MutationTestOutcome.Mutation {
         var mutation = MutationTestOutcome.Mutation(
             testSuiteOutcome: testSuiteOutcome.judged(activated: activated),

@@ -26,7 +26,11 @@ final class DoubtfulKillsCheckTests: XCTestCase {
 
     /// A mutant at `line` of Sources/X.swift that came out `outcome`, its code shown running or not as `activated`
     /// says.
-    private func mutant(_ line: Int, _ outcome: TestSuiteOutcome, activated: Bool) -> MutationTestOutcome.Mutation {
+    private func mutant(
+        _ line: Int,
+        _ outcome: TestSuiteOutcome,
+        activated: MutantActivation
+    ) -> MutationTestOutcome.Mutation {
         var mutation = mutant(line, outcome)
         mutation.activated = activated
         return mutation
@@ -92,12 +96,12 @@ final class DoubtfulKillsCheckTests: XCTestCase {
     // have run isn't doubtful.
     func test_killsWhoseCodeNeverRan_areDoubtful() {
         let outcome = MutationTestOutcome.make(mutations: [
-            mutant(1, .failed, activated: false),
-            mutant(2, .runtimeError, activated: false),
+            mutant(1, .failed, activated: .didNotRun),
+            mutant(2, .runtimeError, activated: .didNotRun),
             mutant(3, .failed),
-            mutant(4, .failed, activated: true),
-            mutant(5, .passed, activated: false),
-            mutant(6, .timeout, activated: false),
+            mutant(4, .failed, activated: .ran),
+            mutant(5, .passed, activated: .didNotRun),
+            mutant(6, .timeout, activated: .didNotRun),
         ])
 
         let verdict = DoubtfulKillsCheck(maxDoubtfulKills: 1, judging: outcome)
@@ -119,7 +123,7 @@ final class DoubtfulKillsCheckTests: XCTestCase {
     // A kill only suspect tests made whose code never ran is one doubtful kill.
     func test_aKillThatIsBoth_countsOnce() throws {
         let outcome = suspectOnly { index, mutation in
-            if index == 6 { mutation.activated = false }
+            if index == 6 { mutation.activated = .didNotRun }
         }
 
         let verdict = DoubtfulKillsCheck(maxDoubtfulKills: 0, judging: outcome)
@@ -143,7 +147,7 @@ final class DoubtfulKillsCheckTests: XCTestCase {
     func test_noDoubtfulKill_passes() {
         let verdict = DoubtfulKillsCheck(
             maxDoubtfulKills: 0,
-            judging: .make(mutations: [mutant(1, .failed, activated: true), mutant(2, .passed)])
+            judging: .make(mutations: [mutant(1, .failed, activated: .ran), mutant(2, .passed)])
         )
 
         XCTAssertEqual(verdict.result, .passed)
@@ -154,7 +158,7 @@ final class DoubtfulKillsCheckTests: XCTestCase {
 
     // It counts what was tested, so a run that tested only some mutants is checked too.
     func test_aLimitedRun_isChecked() {
-        let mutations = [mutant(1, .failed, activated: false)]
+        let mutations = [mutant(1, .failed, activated: .didNotRun)]
         let limited = [
             MutationTestOutcome(mutations: mutations, mutant: "Sources/X.swift:1:17 RelationalBoundary"),
             MutationTestOutcome(
@@ -173,7 +177,7 @@ final class DoubtfulKillsCheckTests: XCTestCase {
     }
 
     func test_aRunThatStopped_isNotChecked() {
-        let outcome = MutationTestOutcome.make(mutations: [mutant(1, .failed, activated: false)])
+        let outcome = MutationTestOutcome.make(mutations: [mutant(1, .failed, activated: .didNotRun)])
 
         let ended = DoubtfulKillsCheck(maxDoubtfulKills: 0, judging: outcome, unless: .endedEarly)
         XCTAssertEqual(ended.result, .notChecked)
@@ -191,7 +195,7 @@ final class DoubtfulKillsCheckTests: XCTestCase {
     }
 
     func test_theLines_nameTheFirst20() {
-        let outcome = MutationTestOutcome.make(mutations: (1 ... 25).map { mutant($0, .failed, activated: false) })
+        let outcome = MutationTestOutcome.make(mutations: (1 ... 25).map { mutant($0, .failed, activated: .didNotRun) })
 
         let lines = DoubtfulKillsCheck(maxDoubtfulKills: 0, judging: outcome).consoleLines
 
@@ -210,7 +214,7 @@ final class DoubtfulKillsCheckTests: XCTestCase {
     }
 
     func test_theSummary_recordsTheVerdict() throws {
-        let outcome = MutationTestOutcome.make(mutations: [mutant(1, .failed, activated: false)])
+        let outcome = MutationTestOutcome.make(mutations: [mutant(1, .failed, activated: .didNotRun)])
         let summary = RunSummary(
             of: outcome,
             ended: .finished,

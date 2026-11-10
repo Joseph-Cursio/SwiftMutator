@@ -50,7 +50,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
     var mutantRunEndings: [TestRun.Ending] = []
     /// What each mutant's run shows of its block, in the order they're run (`TestRun.activated`); that it ran once
     /// empty.
-    var mutantActivations: [Bool?] = []
+    var mutantActivations: [MutantActivation] = []
     /// Called with each mutant run's zero-based number just before it returns, so a test can cancel
     /// mutation testing while a run is under way.
     var whileRunningMutant: ((Int) -> Void)?
@@ -168,7 +168,7 @@ final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @uncheck
         let testLog = mutantTestLogs.isEmpty ? "testLog" : mutantTestLogs.removeFirst()
         let ending = mutantRunEndings.isEmpty ? .exited : mutantRunEndings.removeFirst()
         let outcome = outcomesByMutant[schemata.id] ?? testSuiteOutcomes.remove(at: 0)
-        let activated = mutantActivations.isEmpty ? true : mutantActivations.removeFirst()
+        let activated = mutantActivations.isEmpty ? .ran : mutantActivations.removeFirst()
         return (TestRun(outcome: outcome, testLog: testLog, ending: ending, activated: activated), mutantRunCount)
     }
 

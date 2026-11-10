@@ -94,7 +94,7 @@ struct ResumePlan: Equatable {
         sessionsShowingNoCode: Set<Int> = []
     ) -> Self {
         let places = Dictionary(keys.map { (Place($0), 1) }, uniquingKeysWith: +)
-        let sessionsShowingActivation = Set(recorded.values.filter { $0.activated != nil }.map(\.session))
+        let sessionsShowingActivation = Set(recorded.values.filter { $0.activated != .unknown }.map(\.session))
         var keptResults: [Int: MutantResult] = [:]
         var indicesToRun: [Int] = []
         var reasons: [Reason: Int] = [:]
@@ -180,8 +180,8 @@ struct ResumePlan: Equatable {
             return .sessionShowedNoCodeRunning
         }
         guard [.failed, .runtimeError, .timeout].contains(record.outcome), record.rerun == nil else { return nil }
-        let unproven = record.activated == false
-            || record.activated == nil && showingActivation.contains(record.session)
+        let unproven = record.activated == .didNotRun
+            || record.activated == .unknown && showingActivation.contains(record.session)
         return unproven ? .codeNotShownRunning : nil
     }
 

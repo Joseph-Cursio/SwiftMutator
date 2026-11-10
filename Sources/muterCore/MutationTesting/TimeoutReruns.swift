@@ -64,7 +64,7 @@ struct UnprovenRunTally: Equatable {
     mutating func add(_ mutation: MutationTestOutcome.Mutation) {
         switch mutation.testSuiteOutcome {
         case .failed, .runtimeError:
-            if mutation.activated == true { killed += 1 } else { killedWithoutRunning += 1 }
+            if mutation.activated == .ran { killed += 1 } else { killedWithoutRunning += 1 }
 
         case .passed: survived += 1
         case .noCoverage: notCovered += 1

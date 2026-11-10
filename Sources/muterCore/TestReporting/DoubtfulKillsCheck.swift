@@ -123,7 +123,7 @@ struct DoubtfulKillsCheck: Equatable, Sendable {
             let suspectOnly = KillingTestSummary.isSuspectOnlyKill(mutation, suspects: suspects)
                 && !mutation.wasTestedAlone
             let codeNeverRan = [.failed, .runtimeError].contains(mutation.testSuiteOutcome)
-                && mutation.activated == false
+                && mutation.activated == .didNotRun
             guard suspectOnly || codeNeverRan else { return nil }
             return DoubtfulKill(
                 mutant: mutation.key?.description ?? "\(mutation.relativePath):\(mutation.point.position.line):"

@@ -93,7 +93,7 @@ extension ReportBaselineTests {
     // Doubtful kills need no baseline file: here, a kill whose code never ran.
     func test_aDoubtfulKill_exits2_withoutABaselineFile() async throws {
         var neverRan = alpha3
-        neverRan.activated = false
+        neverRan.activated = .didNotRun
         try write(ResultsHeader.make(), zeta9, neverRan, ResultsEnd.make(), to: resultsPath)
 
         await AssertThrowsError(try report(resultsPath, "--max-doubtful-kills", "0")) { error in
@@ -182,7 +182,7 @@ extension ReportBaselineTests {
     // counted yet; with none left, a resume reruns nothing, so they are counted as they stand.
     func test_anUnfinishedRun_countsTheDoubtfulKills_onlyWithNoMutantLeft() async throws {
         var neverRan = alpha3
-        neverRan.activated = false
+        neverRan.activated = .didNotRun
         let end = ResultsEnd.make(reason: .interrupted, detail: "SIGTERM")
         try write(ResultsHeader.make(mutantsDiscovered: 10), zeta9, neverRan, end, to: resultsPath)
 

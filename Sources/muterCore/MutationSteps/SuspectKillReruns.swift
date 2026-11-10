@@ -55,7 +55,8 @@ extension PerformMutationTesting {
     ) -> (indices: [Int], leftOut: Int) {
         let eligible = outcomes.filter { index, mutation in
             !notInTheBuild.contains(index) && mutation.testSuiteOutcome == .failed && mutation.reusedFrom == nil
-                && mutation.activated != false && mutation.rerun?.because != MutantResult.Rerun.onlySuspectTestsFailed
+                && mutation.activated != .didNotRun
+                && mutation.rerun?.because != MutantResult.Rerun.onlySuspectTestsFailed
                 && mutation.killingTests?.tests.isEmpty == false
         }
         func names(_ index: Int) -> Set<FailedTestLine.TestIdentity> {
@@ -111,7 +112,7 @@ extension PerformMutationTesting {
         let reachedItsEnd = run.ending == .exited && crash == nil
         let saysWhatFailed = run.outcome == .passed || run.outcome == .failed && !failed.isEmpty
         let ranEveryTest = reachedItsEnd && saysWhatFailed
-        let codeDidntRun = run.activated == false || run.activated == nil && sessionShowsActivation
+        let codeDidntRun = run.activated == .didNotRun || run.activated == .unknown && sessionShowsActivation
         return first.map { test in
             let identity = FailedTestLine.TestIdentity(test)
             let result: String? = if failed.contains(identity) {
@@ -252,7 +253,7 @@ extension PerformMutationTesting {
             return
         }
         var settled = finished
-        if first?.activated == true { settled.run.activated = true }
+        if first?.activated == .ran { settled.run.activated = .ran }
         let (outcome, _) = try keep(
             settled,
             of: job,

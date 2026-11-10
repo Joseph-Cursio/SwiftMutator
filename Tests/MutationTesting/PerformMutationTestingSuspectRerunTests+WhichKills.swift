@@ -73,7 +73,7 @@ extension PerformMutationTestingSuspectRerunTests {
 
     func test_candidates_leaveOutWhatCantOrNeedntBeTested() {
         var unproven = kill(naming: ["a"])
-        unproven.activated = false
+        unproven.activated = .didNotRun
         var tested = kill(naming: ["a"])
         tested.rerun = Rerun(because: Rerun.onlySuspectTestsFailed, workers: 1, alone: [])
         var unprovenThenProven = kill(naming: ["a"])

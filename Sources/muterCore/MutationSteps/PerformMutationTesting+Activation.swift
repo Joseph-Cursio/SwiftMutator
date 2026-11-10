@@ -13,9 +13,9 @@ extension PerformMutationTesting {
     ) throws {
         let run = finished.run
         guard run.outcome != .buildError else { return }
-        if run.activated != nil { context.session.activationShown = true }
-        if run.activated == nil { context.session.runsShowingNoActivation += 1 }
-        if run.activated != true {
+        if run.activated != .unknown { context.session.activationShown = true }
+        if run.activated == .unknown { context.session.runsShowingNoActivation += 1 }
+        if run.activated != .ran {
             if [.failed, .runtimeError].contains(run.outcome) {
                 context.session.killsNotShownToRunTheirCode.append(finished.index)
             }
@@ -65,7 +65,7 @@ extension PerformMutationTesting {
             recording: { finished in
                 // The session shows runs can say, so a run that says nothing didn't reach mutated code.
                 var settled = finished
-                settled.run.activated = finished.run.activated ?? false
+                settled.run.activated = finished.run.activated.ifUnknown(.didNotRun)
                 let first = context.session.outcomes[finished.index]?.testSuiteOutcome
                 let (outcome, _) = try keep(
                     settled,

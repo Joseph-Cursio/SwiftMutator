@@ -107,7 +107,7 @@ final class MarkdownReporterTests: MuterTestCase {
     // The score without them, and every warning the run ends with, each in a quote of its own.
     func test_withSuspectTests_andWarnings() {
         var unproven = mutant(.failed, "Sources/Unproven.swift", line: 1)
-        unproven.activated = false
+        unproven.activated = .didNotRun
         let suspects = MutationTestOutcome.withSuspectTests
         let outcome = MutationTestOutcome(
             mutations: suspects.mutations + [unproven, mutant(.buildError, "Sources/Broken.swift", line: 2)],

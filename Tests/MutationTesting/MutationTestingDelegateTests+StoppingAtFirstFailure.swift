@@ -17,7 +17,7 @@ extension MutationTestingDelegateTests {
         XCTAssertEqual(testProcess.terminateTreeCallCount, 1)
         // Only once it has ended, so that a shell has started the last process it will.
         XCTAssertEqual(testProcess.killProcessGroupCallCount, 1)
-        XCTAssertTrue(testProcess.hadEndedAtTheGroupKill)
+        XCTAssertEqual(testProcess.firstGroupKill, .afterItEnded)
         // Well under the process's own deadline, so the failed test, not that deadline, ended the run.
         XCTAssertLessThan(Date().timeIntervalSince(started), 3)
     }

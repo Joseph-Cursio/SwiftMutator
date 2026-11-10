@@ -28,7 +28,7 @@ final class PerformMutationTestingTests: MuterTestCase {
 
     func test_whenBaselinePasses_thenRunMutationTesting() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
-        ioDelegate.mutantActivations = [nil, nil]
+        ioDelegate.mutantActivations = [.unknown, .unknown]
 
         let result = try await sut.run(with: state)
 

@@ -8,7 +8,7 @@ extension PerformMutationTestingActivationTests {
     // A test host that can't write its marker has real kills. They keep their verdicts, and aren't tested again.
     func test_aRunThatNeverShowsAnything_keepsItsVerdicts_andSaysSo() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
-        ioDelegate.mutantActivations = [nil, nil]
+        ioDelegate.mutantActivations = [.unknown, .unknown]
         let sent = recordEvents(named: [.activationNotShown, .unprovenRunsRerunStarted])
 
         let outcome = try await run()
@@ -36,7 +36,7 @@ extension PerformMutationTestingActivationTests {
     func test_oneRunThatShowsSomething_keepsTheRunGoing() async throws {
         givenFiveMutantsThatShowNothing()
         state.projectCoverage = .make(percent: 78)
-        ioDelegate.mutantActivations = [false, nil, nil, nil, nil, nil]
+        ioDelegate.mutantActivations = [.didNotRun, .unknown, .unknown, .unknown, .unknown, .unknown]
 
         let outcome = try await run()
 
@@ -84,7 +84,7 @@ extension PerformMutationTestingActivationTests {
         state.mutationMapping = try [makeMapping(lines: Array(1...3))]
         state.projectCoverage = .make(percent: 78)
         ioDelegate.testSuiteOutcomes = [.passed, .buildError, .buildError, .buildError]
-        ioDelegate.mutantActivations = [nil, nil, nil]
+        ioDelegate.mutantActivations = [.unknown, .unknown, .unknown]
 
         let outcome = try await run()
 

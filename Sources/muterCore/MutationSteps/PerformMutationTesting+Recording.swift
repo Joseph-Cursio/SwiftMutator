@@ -81,14 +81,14 @@ extension PerformMutationTesting {
         // Whichever run showed its block ran: a rerun that passes without showing it doesn't undo the first's. Once a
         // session's runs show they can say, one that says nothing didn't reach mutated code, as in
         // `rerunRunsNotShownToReachTheirCode`, which then tests a kill this comes to, as it failed unproven.
-        if finished.run.activated != nil { context.session.activationShown = true }
+        if finished.run.activated != .unknown { context.session.activationShown = true }
         var settled = finished
-        if context.session.outcomes[finished.index]?.activated == true {
-            settled.run.activated = true
+        if context.session.outcomes[finished.index]?.activated == .ran {
+            settled.run.activated = .ran
         } else if context.session.activationShown {
-            settled.run.activated = finished.run.activated ?? false
+            settled.run.activated = finished.run.activated.ifUnknown(.didNotRun)
         }
-        if settled.run.activated != true, [.failed, .runtimeError].contains(finished.run.outcome) {
+        if settled.run.activated != .ran, [.failed, .runtimeError].contains(finished.run.outcome) {
             context.session.killsNotShownToRunTheirCode.append(finished.index)
         }
         let (outcome, mutationLog) = try keep(

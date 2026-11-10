@@ -8,7 +8,7 @@ extension PerformMutationTestingActivationTests {
     // A flaky test, say: with the mutant's block not run, its tests pass this time.
     func test_aKillWhoseBlockDidntRun_isTestedAgain_andWhatThatShowsStands() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed, .passed]
-        ioDelegate.mutantActivations = [false, true, false]
+        ioDelegate.mutantActivations = [.didNotRun, .ran, .didNotRun]
         let sent = recordEvents(named: [.newMutationTestOutcomeAvailable, .unprovenRunsRerunStarted, .unprovenRunRerun])
 
         let outcome = try await run()
@@ -29,35 +29,35 @@ extension PerformMutationTestingActivationTests {
 
     func test_aKillThatRunsItsCodeWhenTestedAgain_isAKill_withNoWarning() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed, .failed]
-        ioDelegate.mutantActivations = [false, true, true]
+        ioDelegate.mutantActivations = [.didNotRun, .ran, .ran]
 
         let outcome = try await run()
 
         XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.failed, .passed])
-        XCTAssertEqual(outcome.mutations.map(\.activated), [true, true])
+        XCTAssertEqual(outcome.mutations.map(\.activated), [.ran, .ran])
         XCTAssertNil(outcome.unprovenKillWarning)
     }
 
     func test_aFirstRunThatSurvivesWhenTestedAgain_withItsCodeRunning_isASurvivor() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .runtimeError, .passed, .passed]
-        ioDelegate.mutantActivations = [nil, true, true]
+        ioDelegate.mutantActivations = [.unknown, .ran, .ran]
 
         let outcome = try await run()
 
         XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.passed, .passed])
-        XCTAssertEqual(outcome.mutations.map(\.activated), [true, true])
+        XCTAssertEqual(outcome.mutations.map(\.activated), [.ran, .ran])
     }
 
     // Its tests fail whatever the mutant, so the kill stands, as the score has no other verdict for it, and the run
     // says so, with the log to show it.
     func test_aKillThatStillDoesntRunItsCode_standsWithAWarning() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed, .failed]
-        ioDelegate.mutantActivations = [false, true, nil]
+        ioDelegate.mutantActivations = [.didNotRun, .ran, .unknown]
 
         let outcome = try await run()
 
         XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.failed, .passed])
-        XCTAssertEqual(outcome.mutations.map(\.activated), [false, true])
+        XCTAssertEqual(outcome.mutations.map(\.activated), [.didNotRun, .ran])
         XCTAssertTrue(try XCTUnwrap(outcome.unprovenKillWarning).hasPrefix("1 kill's code never ran"))
         let log = try resultsFiles.records(MutantResult.self).last?.log
         XCTAssertNotNil(log, "the log is what the warning has to show")
@@ -66,7 +66,7 @@ extension PerformMutationTestingActivationTests {
     // Under `swift test`'s stop at the first failed test, a real kill's marker is there before its failure.
     func test_aKillThatRanItsCode_isntTestedAgain() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .runtimeError]
-        ioDelegate.mutantActivations = [true, true]
+        ioDelegate.mutantActivations = [.ran, .ran]
 
         _ = try await run()
 
@@ -80,7 +80,7 @@ extension PerformMutationTestingActivationTests {
         )
         state.mutationMapping = try [makeMapping(lines: [1])]
         ioDelegate.testSuiteOutcomes = [.passed, .failed]
-        ioDelegate.mutantActivations = [false]
+        ioDelegate.mutantActivations = [.didNotRun]
 
         _ = try await run()
 
@@ -92,7 +92,7 @@ extension PerformMutationTestingActivationTests {
     // One worker has tested no timeout again, so this is its one chance to be.
     func test_oneWorkersTimeoutThatDidntRunItsCode_isTestedAgain_butOneThatDid_isnt() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .timeout, .timeout, .passed]
-        ioDelegate.mutantActivations = [false, true, false]
+        ioDelegate.mutantActivations = [.didNotRun, .ran, .didNotRun]
 
         let outcome = try await run()
 
@@ -105,14 +105,14 @@ extension PerformMutationTestingActivationTests {
         state.muterConfiguration = swiftTest(workers: 2)
         // The baseline, the clone's build, the two mutants, then the timeouts' reruns.
         ioDelegate.testSuiteOutcomes = [.passed, .passed, .timeout, .timeout, .passed, .passed]
-        ioDelegate.mutantActivations = [true, false, nil, nil]
+        ioDelegate.mutantActivations = [.ran, .didNotRun, .unknown, .unknown]
 
         let outcome = try await run()
 
         XCTAssertEqual(try resultsFiles.records(MutantResult.self).count, 4, "each timeout again, and only once")
-        XCTAssertEqual(outcome.mutations.filter { $0.activated == true }.map(\.testSuiteOutcome), [.passed])
+        XCTAssertEqual(outcome.mutations.filter { $0.activated == .ran }.map(\.testSuiteOutcome), [.passed])
         // The session shows runs can say, so a rerun that says nothing didn't reach mutated code.
-        XCTAssertEqual(outcome.mutations.filter { $0.activated == false }.map(\.testSuiteOutcome), [.noCoverage])
+        XCTAssertEqual(outcome.mutations.filter { $0.activated == .didNotRun }.map(\.testSuiteOutcome), [.noCoverage])
     }
 
     // It failed without showing its code ran, as any other such kill has, so it is tested again, as one would be on
@@ -122,7 +122,7 @@ extension PerformMutationTestingActivationTests {
         state.mutationMapping = try [makeMapping(lines: [1, 2])]
         // The baseline, the clone's build, the two mutants, the timeout's rerun, then the kill's.
         ioDelegate.testSuiteOutcomes = [.passed, .passed, .timeout, .passed, .runtimeError, .passed]
-        ioDelegate.mutantActivations = [false, true, nil, false]
+        ioDelegate.mutantActivations = [.didNotRun, .ran, .unknown, .didNotRun]
 
         let outcome = try await run()
 
@@ -137,7 +137,7 @@ extension PerformMutationTestingActivationTests {
     func test_workersTestAKillAgainOnTheFirstWorker() async throws {
         state.muterConfiguration = swiftTest(workers: 2)
         ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .passed, .passed]
-        ioDelegate.mutantActivations = [false, true, false]
+        ioDelegate.mutantActivations = [.didNotRun, .ran, .didNotRun]
 
         let outcome = try await run()
 
@@ -149,7 +149,7 @@ extension PerformMutationTestingActivationTests {
     // A rerun that times out is what it comes to, and its line says it was run again, so a resume keeps it.
     func test_aKillThatTimesOutWhenTestedAgain_isATimeout_thatAResumeKeeps() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed, .timeout]
-        ioDelegate.mutantActivations = [false, true, true]
+        ioDelegate.mutantActivations = [.didNotRun, .ran, .ran]
         ioDelegate.mutantRunEndings = [.exited, .exited, .timedOut]
 
         let outcome = try await run()
@@ -163,7 +163,7 @@ extension PerformMutationTestingActivationTests {
     // The first runs' lines stay, and no rerun's is written, so a resume tests those kills again.
     func test_aStopBeforeTheRerun_leavesTheKillForAResumeToTestAgain() async throws {
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .runtimeError, .passed, .passed]
-        ioDelegate.mutantActivations = [false, nil, true, true]
+        ioDelegate.mutantActivations = [.didNotRun, .unknown, .ran, .ran]
         let mutationTesting = CancellableTask<[MutationTestState.Change]>()
         let observer = runEvents.observe(.unprovenRunsRerunStarted) { _ in mutationTesting.cancel() }
         addTeardownBlock { observer.cancel() }
@@ -193,7 +193,7 @@ extension PerformMutationTestingActivationTests {
         // Two kills without their code, then the first runs it, failing, and the second doesn't.
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed, .failed, .failed, .passed]
         ioDelegate.mutantTestLogs = [sum, sum, sum, sum, "✔ passed"]
-        ioDelegate.mutantActivations = [false, false, true, nil, true]
+        ioDelegate.mutantActivations = [.didNotRun, .didNotRun, .ran, .unknown, .ran]
         ioDelegate.controlRuns = [(.passed, "✔ Test run with 3 tests in 1 suite passed after 0.4 seconds.")]
 
         _ = try await run()
