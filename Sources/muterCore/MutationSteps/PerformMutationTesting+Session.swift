@@ -254,9 +254,7 @@ extension PerformMutationTesting {
         let workers = try await simulatorWorkerSetup.workers(
             configuration.workerCount(testing: plan.toRun.count, sharingBuild: mayShareBuild),
             on: simulators,
-            configuration: configuration,
-            state: state,
-            session: session
+            in: RunContext(state: state, configuration: configuration, session: session)
         ) { testOutput(named: $0, state: state) }
         let sharesBuild = workers.count > 1 && mayShareBuild
         if !plan.toRun.isEmpty {
