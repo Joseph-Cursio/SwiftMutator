@@ -112,4 +112,43 @@ struct AppliedMutationOperator: Codable, Equatable {
     var changedLine: String? {
         sourceChange?.before.trimmingCharacters(in: .whitespaces)
     }
+
+    /// How many characters of a test's name the plain report's tables show, and the HTML report's Killed By column.
+    static let killedByNameLimit = 60
+
+    /// `name` as those tables show it: cut at `killedByNameLimit` characters, the last of them "…".
+    static func shownName(_ name: String) -> String {
+        name.count > killedByNameLimit ? String(name.prefix(killedByNameLimit - 1)) + "…" : name
+    }
+
+    /// The tests recorded failing for a mutant they killed, by a failed test or a crash. nil for any other mutant: a
+    /// timeout's run records an empty list.
+    var killedByTests: MutationTestOutcome.KillingTests? {
+        [TestSuiteOutcome.failed, .runtimeError].contains(testSuiteOutcome) ? killingTests : nil
+    }
+
+    /// What the plain and HTML reports' Killed By column shows: the first test recorded failing, its name cut at 60
+    /// characters with "…", then how many more failed, and whether only suspect tests did. Never empty: CLITable
+    /// drops an empty line, which misaligns every row after it.
+    var killedByCell: String {
+        guard let killing = killedByTests else { return "-" }
+        guard let first = killing.tests.first else { return "(none named)" }
+        let more = killing.count > 1 ? " (+\(killing.count - 1))" : ""
+        let suspectOnly = killedOnlyBySuspectTests == true ? " (suspect only)" : ""
+        return Self.shownName(first.name) + more + suspectOnly
+    }
+
+    /// What the plain and HTML reports' Duration column shows: "2.4 s", to a tenth of a second; "-" when not known,
+    /// as for a file without coverage's row. Never empty, as `killedByCell`.
+    var durationCell: String {
+        durationSeconds.map(Logger.seconds) ?? "-"
+    }
+
+    /// What the plain and HTML reports' Reused column shows: "yes" for a result reused from an earlier run, and
+    /// "yes, despite changes" for one that changes were let through for since it was tested (`--reuse-ignoring`,
+    /// `--force-reuse`, or their `--resume` counterparts); "-" for one this run tested. Never empty, as `killedByCell`.
+    var reusedCell: String {
+        guard let reusedFrom else { return "-" }
+        return reusedFrom.keptDespiteChanges ? "yes, despite changes" : "yes"
+    }
 }

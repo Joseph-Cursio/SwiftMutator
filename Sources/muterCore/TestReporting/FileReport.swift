@@ -55,3 +55,20 @@ struct FileReport: Codable, Comparable {
         lhs.relativePath < rhs.relativePath
     }
 }
+
+extension [FileReport] {
+    /// Whether some killed mutant recorded its tests, so the reports show a Killed By column.
+    var showsKillingTests: Bool {
+        contains { report in report.appliedOperators.contains { $0.killedByTests != nil } }
+    }
+
+    /// Whether some result was reused from an earlier run, so the reports show a Reused column.
+    var showsReuse: Bool {
+        contains { report in report.appliedOperators.contains { $0.reusedFrom != nil } }
+    }
+
+    /// Whether some mutant's duration is known, so the reports show a Duration column.
+    var showsDurations: Bool {
+        contains { report in report.appliedOperators.contains { $0.durationSeconds != nil } }
+    }
+}

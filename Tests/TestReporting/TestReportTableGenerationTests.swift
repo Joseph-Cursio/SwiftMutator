@@ -46,7 +46,7 @@ final class TestReportTableGenerationTests: MuterTestCase {
             ]),
         ])
 
-        let generatedCLITable = generateAppliedMutationOperatorsCLITable(from: fileReports) { $0 }
+        let generatedCLITable = CLITable.appliedMutationOperators(from: fileReports) { $0 }
 
         XCTAssertEqual(generatedCLITable, expectedCLITable)
     }
@@ -168,7 +168,7 @@ final class TestReportTableGenerationTests: MuterTestCase {
             ]),
         ])
 
-        let generatedCLITable = generateMutationScoresCLITable(from: fileReports) { $0 }
+        let generatedCLITable = CLITable.mutationScores(from: fileReports) { $0 }
 
         XCTAssertEqual(generatedCLITable, expectedCLITable)
     }
@@ -179,7 +179,7 @@ final class TestReportTableGenerationTests: MuterTestCase {
             CLITable.Row(value: "failed"),
         ]
 
-        let coloredRows = applyMutationTestResultsColor(to: rows)
+        let coloredRows = CLITable.applyMutationTestResultsColor(to: rows)
 
         XCTAssertEqual(coloredRows.count, rows.count)
         for (colored, row) in zip(coloredRows, rows) {
@@ -195,7 +195,7 @@ final class TestReportTableGenerationTests: MuterTestCase {
             CLITable.Row(value: "76"),
         ]
 
-        let coloredRows = applyMutationScoreColor(to: rows)
+        let coloredRows = CLITable.applyMutationScoreColor(to: rows)
 
         XCTAssertEqual(coloredRows.count, rows.count)
         for (colored, row) in zip(coloredRows, rows) {
@@ -204,7 +204,7 @@ final class TestReportTableGenerationTests: MuterTestCase {
     }
 
     private func operatorsTable(_ operators: [AppliedMutationOperator]) -> CLITable {
-        generateAppliedMutationOperatorsCLITable(
+        CLITable.appliedMutationOperators(
             from: [.make(name: "Sum.swift", path: "/tmp/Sum.swift", mutationScore: 50, appliedOperators: operators)]
         ) { $0 }
     }
