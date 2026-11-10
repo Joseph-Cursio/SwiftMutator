@@ -99,8 +99,11 @@ final class CoverageRegionTests: MuterTestCase {
         )
 
         XCTAssertEqual(
-            coverage.coverage(ofFile: "/project/Shared.swift").functions.joined()
-                .include { $0.kind == .skipped }.map(\.span),
+            coverage.coverage(ofFile: "/project/Shared.swift")
+                .functions
+                .joined()
+                .include { $0.kind == .skipped }
+                .map(\.span),
             [[6, 5, 6, 11], [2, 5, 2, 18]]
         )
     }

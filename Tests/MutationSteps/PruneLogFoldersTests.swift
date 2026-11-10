@@ -4,7 +4,13 @@ import XCTest
 
 /// The step that prunes earlier runs' log folders (`keepLogFolders:`), with a pruner that touches no disk.
 final class PruneLogFoldersTests: MuterTestCase {
-    private typealias Call = (root: String, current: [String], protected: [String], keeping: Int)
+    /// One call to the pruner: the logs root, this run's folders, the folders it must keep, and how many to keep.
+    private struct Call {
+        let root: String
+        let current: [String]
+        let protected: [String]
+        let keeping: Int
+    }
 
     private let state = MutationTestState()
     private let calls = Locked<[Call]>([])
@@ -25,7 +31,7 @@ final class PruneLogFoldersTests: MuterTestCase {
         let callLog = calls
         let pruned = result
         return PruneLogFolders { root, current, protected, keeping in
-            callLog.change { $0.append((root, current, protected, keeping)) }
+            callLog.change { $0.append(Call(root: root, current: current, protected: protected, keeping: keeping)) }
             return pruned
         }
     }

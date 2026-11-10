@@ -2,6 +2,13 @@ import ArgumentParser
 @testable import muterCore
 import XCTest
 
+/// What a run command prints for an error, as `RunCommand.message(showing:)` gives it.
+private enum RunCommandTestsMessage {
+    static func message(_ error: Error) -> String {
+        Run.message(showing: error)
+    }
+}
+
 /// `--baseline`'s file, loaded as the run starts: refused at once when it can't be read or records another scope.
 final class LoadBaselineFileTests: MuterTestCase {
     private var directory = ""
@@ -112,12 +119,5 @@ final class LoadBaselineFileTests: MuterTestCase {
         )
 
         XCTAssertFalse(MutationTestHandler(options: .make()).steps.contains { $0 is LoadBaselineFile })
-    }
-}
-
-/// What a run command prints for an error, as `RunCommand.message(showing:)` gives it.
-private enum RunCommandTestsMessage {
-    static func message(_ error: Error) -> String {
-        Run.message(showing: error)
     }
 }
