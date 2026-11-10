@@ -1033,7 +1033,7 @@ final class MutantResultActivationTests: XCTestCase {
             despiteChanges: false
         )
 
-        XCTAssertEqual(reused.activated, false)
+        XCTAssertFalse(try XCTUnwrap(reused.activated))
     }
 
     // An older line has no such key, which says nothing either way.

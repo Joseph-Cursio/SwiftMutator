@@ -209,7 +209,7 @@ final class RunDetailsReportTests: MuterTestCase {
         let suspect = RunSummary(of: .withSuspectTests, ended: .interrupted, endDetail: "SIGINT", report: nil)
         XCTAssertEqual(suspect.mutationScore, 92)
         XCTAssertEqual(suspect.mutationScoreWithoutSuspectTests, 50)
-        XCTAssertEqual(suspect.scoreWithoutSuspectsIsALowerBound, true)
+        XCTAssertTrue(try XCTUnwrap(suspect.scoreWithoutSuspectsIsALowerBound))
         XCTAssertEqual(suspect.endDetail, "SIGINT")
 
         let empty = RunSummary(of: MutationTestOutcome(), ended: nil, report: nil)

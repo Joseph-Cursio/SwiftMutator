@@ -507,7 +507,7 @@ final class PerformMutationTestingXcodeWorkersTests: MuterTestCase {
             XCTAssertEqual(
                 line, "xcodebuild: error: Unable to find a device matching the provided destination specifier:"
             )
-            XCTAssertTrue(log?.hasSuffix(" (simulator gone).log") == true, String(describing: log))
+            XCTAssertEqual(log?.hasSuffix(" (simulator gone).log"), true, String(describing: log))
         }
     }
 

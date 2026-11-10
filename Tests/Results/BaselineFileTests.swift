@@ -160,8 +160,8 @@ final class BaselineFileTests: MuterTestCase {
         let read = try load(minimal)
 
         XCTAssertEqual(read.survivors, [])
-        XCTAssertEqual(read.scope.configuration.mutationTestTimeout, nil)
-        XCTAssertEqual(read.scope.configuration.buildSystem, nil)
+        XCTAssertNil(read.scope.configuration.mutationTestTimeout)
+        XCTAssertNil(read.scope.configuration.buildSystem)
     }
 
     func test_noFile_isRefused_sayingHowToWriteOne() {

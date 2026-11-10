@@ -166,13 +166,13 @@ final class BuildConditionsTests: XCTestCase {
     func test_aConditionEveryTargetSets_holds() {
         let conditions = conditions(custom: [["DEBUG"], ["DEBUG", "OTHER"]])
 
-        XCTAssertEqual(holds("DEBUG", in: conditions), true)
+        XCTAssertTrue(try XCTUnwrap(holds("DEBUG", in: conditions)))
     }
 
     func test_aConditionNoTargetSets_doesntHold() {
         let conditions = conditions(custom: [["DEBUG"]])
 
-        XCTAssertEqual(holds("NOBODY", in: conditions), false)
+        XCTAssertFalse(try XCTUnwrap(holds("NOBODY", in: conditions)))
     }
 
     func test_aConditionOnlySomeTargetsSet_isUndecided() {
@@ -193,14 +193,14 @@ final class BuildConditionsTests: XCTestCase {
         var conditions = conditions(custom: [["DEBUG"]])
         conditions.undecidedConditions = ["DEBUG"]
 
-        XCTAssertEqual(holds("DEBUG", in: conditions), true)
+        XCTAssertTrue(try XCTUnwrap(holds("DEBUG", in: conditions)))
     }
 
     // Xcode sets `SWIFT_PACKAGE` for a local package's code, and SwiftPM others for targets with resources.
     func test_aBuildSystemsOwnCondition_isUndecided_unlessEveryTargetSetsIt() {
         XCTAssertNil(holds("SWIFT_PACKAGE", in: conditions(custom: [["DEBUG"]])))
         XCTAssertNil(holds("SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE", in: conditions(custom: [["DEBUG"]])))
-        XCTAssertEqual(holds("SWIFT_PACKAGE", in: conditions(custom: [["SWIFT_PACKAGE"]])), true)
+        XCTAssertTrue(try XCTUnwrap(holds("SWIFT_PACKAGE", in: conditions(custom: [["SWIFT_PACKAGE"]]))))
     }
 
     func test_withNoTargets_noConditionIsDecided() {
@@ -212,9 +212,9 @@ final class BuildConditionsTests: XCTestCase {
     func test_theOS_undecidedWithoutAPlatform() {
         var conditions = conditions(custom: [[]])
 
-        XCTAssertEqual(holds("os(macOS)", in: conditions), true)
-        XCTAssertEqual(holds("os(OSX)", in: conditions), true)
-        XCTAssertEqual(holds("os(iOS)", in: conditions), false)
+        XCTAssertTrue(try XCTUnwrap(holds("os(macOS)", in: conditions)))
+        XCTAssertTrue(try XCTUnwrap(holds("os(OSX)", in: conditions)))
+        XCTAssertFalse(try XCTUnwrap(holds("os(iOS)", in: conditions)))
 
         conditions.platform = nil
         XCTAssertNil(holds("os(macOS)", in: conditions))
@@ -227,29 +227,29 @@ final class BuildConditionsTests: XCTestCase {
         var conditions = conditions(custom: [[]])
         conditions.platform = .init(system: "visionOS", architectures: ["arm64"])
 
-        XCTAssertEqual(holds("os(visionOS)", in: conditions), true)
-        XCTAssertEqual(holds("os(xrOS)", in: conditions), true)
+        XCTAssertTrue(try XCTUnwrap(holds("os(visionOS)", in: conditions)))
+        XCTAssertTrue(try XCTUnwrap(holds("os(xrOS)", in: conditions)))
     }
 
     func test_theEnvironment() {
         var conditions = conditions(custom: [[]])
-        XCTAssertEqual(holds("targetEnvironment(simulator)", in: conditions), false)
+        XCTAssertFalse(try XCTUnwrap(holds("targetEnvironment(simulator)", in: conditions)))
 
         conditions.platform = .init(system: "iOS", environment: "simulator", architectures: ["arm64"])
-        XCTAssertEqual(holds("targetEnvironment(simulator)", in: conditions), true)
-        XCTAssertEqual(holds("targetEnvironment(macCatalyst)", in: conditions), false)
+        XCTAssertTrue(try XCTUnwrap(holds("targetEnvironment(simulator)", in: conditions)))
+        XCTAssertFalse(try XCTUnwrap(holds("targetEnvironment(macCatalyst)", in: conditions)))
 
         conditions.platform = .init(system: "iOS", environment: "macCatalyst", architectures: ["arm64"])
-        XCTAssertEqual(holds("targetEnvironment(macCatalyst)", in: conditions), true)
-        XCTAssertEqual(holds("os(iOS)", in: conditions), true)
-        XCTAssertEqual(holds("os(macOS)", in: conditions), false)
+        XCTAssertTrue(try XCTUnwrap(holds("targetEnvironment(macCatalyst)", in: conditions)))
+        XCTAssertTrue(try XCTUnwrap(holds("os(iOS)", in: conditions)))
+        XCTAssertFalse(try XCTUnwrap(holds("os(macOS)", in: conditions)))
     }
 
     func test_theArchitecture_ofABuildForOne() {
         let conditions = conditions(custom: [[]])
 
-        XCTAssertEqual(holds("arch(arm64)", in: conditions), true)
-        XCTAssertEqual(holds("arch(x86_64)", in: conditions), false)
+        XCTAssertTrue(try XCTUnwrap(holds("arch(arm64)", in: conditions)))
+        XCTAssertFalse(try XCTUnwrap(holds("arch(x86_64)", in: conditions)))
     }
 
     // A build for two compiles each branch for one of them, though the tests run only one.
@@ -259,7 +259,7 @@ final class BuildConditionsTests: XCTestCase {
 
         XCTAssertNil(holds("arch(arm64)", in: conditions))
         XCTAssertNil(holds("arch(x86_64)", in: conditions))
-        XCTAssertEqual(holds("arch(arm)", in: conditions), false)
+        XCTAssertFalse(try XCTUnwrap(holds("arch(arm)", in: conditions)))
     }
 
     // As for a package's scheme, whose settings xcodebuild doesn't report: the platform is known, but not its
@@ -268,7 +268,7 @@ final class BuildConditionsTests: XCTestCase {
         var conditions = conditions(custom: [[]])
         conditions.platform = .init(system: "iOS", environment: "simulator", architectures: nil)
 
-        XCTAssertEqual(holds("os(iOS) && targetEnvironment(simulator)", in: conditions), true)
+        XCTAssertTrue(try XCTUnwrap(holds("os(iOS) && targetEnvironment(simulator)", in: conditions)))
         XCTAssertNil(holds("arch(arm64)", in: conditions))
         XCTAssertNil(holds("arch(arm)", in: conditions))
         XCTAssertNil(holds("_pointerBitWidth(_64)", in: conditions))
@@ -285,12 +285,12 @@ final class BuildConditionsTests: XCTestCase {
 
     func test_theRuntime_andTheObjectFormat() {
         var conditions = conditions(custom: [[]])
-        XCTAssertEqual(holds("_runtime(_ObjC)", in: conditions), true)
-        XCTAssertEqual(holds("_runtime(_Native)", in: conditions), false)
+        XCTAssertTrue(try XCTUnwrap(holds("_runtime(_ObjC)", in: conditions)))
+        XCTAssertFalse(try XCTUnwrap(holds("_runtime(_Native)", in: conditions)))
 
         conditions.platform = .init(system: "Linux", architectures: ["arm64"])
-        XCTAssertEqual(holds("_runtime(_ObjC)", in: conditions), false)
-        XCTAssertEqual(holds("_runtime(_Native)", in: conditions), true)
+        XCTAssertFalse(try XCTUnwrap(holds("_runtime(_ObjC)", in: conditions)))
+        XCTAssertTrue(try XCTUnwrap(holds("_runtime(_Native)", in: conditions)))
     }
 
     // MARK: canImport
@@ -298,8 +298,8 @@ final class BuildConditionsTests: XCTestCase {
     func test_canImport_answersForTheSDKsModules() {
         let conditions = conditions(custom: [[]])
 
-        XCTAssertEqual(holds("canImport(AppKit)", in: conditions), true)
-        XCTAssertEqual(holds("canImport(UIKit)", in: conditions), false)
+        XCTAssertTrue(try XCTUnwrap(holds("canImport(AppKit)", in: conditions)))
+        XCTAssertFalse(try XCTUnwrap(holds("canImport(UIKit)", in: conditions)))
     }
 
     // It may be a package's, or another target's in the project.
@@ -342,13 +342,13 @@ final class BuildConditionsTests: XCTestCase {
         var conditions = conditions(custom: [["DEBUG"]])
         conditions.compiler = VersionTuple(6, 4, 2)
 
-        XCTAssertEqual(holds("compiler(>=6.0)", in: conditions), true)
-        XCTAssertEqual(holds("compiler(>=6.4.2)", in: conditions), true)
-        XCTAssertEqual(holds("compiler(>=6.4.3)", in: conditions), false)
-        XCTAssertEqual(holds("compiler(>=6.4.2.1)", in: conditions), false)
-        XCTAssertEqual(holds("compiler(<6)", in: conditions), false)
-        XCTAssertEqual(holds("!compiler(>=7)", in: conditions), true)
-        XCTAssertEqual(holds("DEBUG && compiler(>=6.0)", in: conditions), true)
+        XCTAssertTrue(try XCTUnwrap(holds("compiler(>=6.0)", in: conditions)))
+        XCTAssertTrue(try XCTUnwrap(holds("compiler(>=6.4.2)", in: conditions)))
+        XCTAssertFalse(try XCTUnwrap(holds("compiler(>=6.4.3)", in: conditions)))
+        XCTAssertFalse(try XCTUnwrap(holds("compiler(>=6.4.2.1)", in: conditions)))
+        XCTAssertFalse(try XCTUnwrap(holds("compiler(<6)", in: conditions)))
+        XCTAssertTrue(try XCTUnwrap(holds("!compiler(>=7)", in: conditions)))
+        XCTAssertTrue(try XCTUnwrap(holds("DEBUG && compiler(>=6.0)", in: conditions)))
         // The language mode, and the old build numbers, are still not looked up.
         XCTAssertNil(holds("swift(>=5.0)", in: conditions))
         XCTAssertNil(holds("compiler(>=6.0) && swift(>=6.0)", in: conditions))
@@ -363,12 +363,12 @@ final class BuildConditionsTests: XCTestCase {
         conditions.compiler = VersionTuple(6, 4, 2)
         conditions.language = VersionTuple(5, 10)
 
-        XCTAssertEqual(holds("swift(>=5.9)", in: conditions), true)
-        XCTAssertEqual(holds("swift(>=5.10)", in: conditions), true)
-        XCTAssertEqual(holds("swift(>=5.10.1)", in: conditions), false)
-        XCTAssertEqual(holds("swift(>=6.0)", in: conditions), false)
-        XCTAssertEqual(holds("swift(<6) && compiler(>=6)", in: conditions), true)
-        XCTAssertEqual(holds("`swift`(>=6.0)", in: conditions), false)
+        XCTAssertTrue(try XCTUnwrap(holds("swift(>=5.9)", in: conditions)))
+        XCTAssertTrue(try XCTUnwrap(holds("swift(>=5.10)", in: conditions)))
+        XCTAssertFalse(try XCTUnwrap(holds("swift(>=5.10.1)", in: conditions)))
+        XCTAssertFalse(try XCTUnwrap(holds("swift(>=6.0)", in: conditions)))
+        XCTAssertTrue(try XCTUnwrap(holds("swift(<6) && compiler(>=6)", in: conditions)))
+        XCTAssertFalse(try XCTUnwrap(holds("`swift`(>=6.0)", in: conditions)))
     }
 
     // As probed with Swift 6.4.2: `-swift-version 4` compares as 4.1.50, and 6 as the compiler's own version.
@@ -419,10 +419,10 @@ final class BuildConditionsTests: XCTestCase {
 
         for architectures: Set in [["arm64"], ["arm64", "x86_64"], ["arm64e"], ["aarch64"]] {
             conditions.platform = .init(system: "macOS", architectures: architectures)
-            XCTAssertEqual(holds("_pointerBitWidth(_64)", in: conditions), true, "\(architectures)")
-            XCTAssertEqual(holds("_pointerBitWidth(_32)", in: conditions), false, "\(architectures)")
-            XCTAssertEqual(holds("_endian(little)", in: conditions), true, "\(architectures)")
-            XCTAssertEqual(holds("_endian(big)", in: conditions), false, "\(architectures)")
+            XCTAssertTrue(try XCTUnwrap(holds("_pointerBitWidth(_64)", in: conditions)), "\(architectures)")
+            XCTAssertFalse(try XCTUnwrap(holds("_pointerBitWidth(_32)", in: conditions)), "\(architectures)")
+            XCTAssertTrue(try XCTUnwrap(holds("_endian(little)", in: conditions)), "\(architectures)")
+            XCTAssertFalse(try XCTUnwrap(holds("_endian(big)", in: conditions)), "\(architectures)")
         }
         XCTAssertNil(holds("_hasAtomicBitWidth(_64)", in: conditions))
     }
@@ -434,7 +434,7 @@ final class BuildConditionsTests: XCTestCase {
         conditions.platform = .init(system: "watchOS", architectures: ["arm64_32", "arm64"])
         XCTAssertNil(holds("_pointerBitWidth(_64)", in: conditions))
         XCTAssertNil(holds("_pointerBitWidth(_32)", in: conditions))
-        XCTAssertEqual(holds("_endian(little)", in: conditions), true)
+        XCTAssertTrue(try XCTUnwrap(holds("_endian(little)", in: conditions)))
 
         conditions.platform = .init(system: "Linux", architectures: ["s390x"])
         XCTAssertNil(holds("_pointerBitWidth(_64)", in: conditions))
@@ -461,14 +461,14 @@ final class BuildConditionsTests: XCTestCase {
     func test_conditionsCombine() {
         let conditions = conditions(custom: [["DEBUG"]])
 
-        XCTAssertEqual(holds("os(macOS) && DEBUG", in: conditions), true)
-        XCTAssertEqual(holds("os(iOS) || DEBUG", in: conditions), true)
-        XCTAssertEqual(holds("os(iOS) && DEBUG", in: conditions), false)
-        XCTAssertEqual(holds("!(os(macOS) && DEBUG)", in: conditions), false)
+        XCTAssertTrue(try XCTUnwrap(holds("os(macOS) && DEBUG", in: conditions)))
+        XCTAssertTrue(try XCTUnwrap(holds("os(iOS) || DEBUG", in: conditions)))
+        XCTAssertFalse(try XCTUnwrap(holds("os(iOS) && DEBUG", in: conditions)))
+        XCTAssertFalse(try XCTUnwrap(holds("!(os(macOS) && DEBUG)", in: conditions)))
         XCTAssertNil(holds("DEBUG && canImport(SomePackage)", in: conditions))
         // What the left side settles, an import on the right can't change, and the compiler doesn't try it.
-        XCTAssertEqual(holds("os(iOS) && canImport(SomePackage)", in: conditions), false)
-        XCTAssertEqual(holds("os(macOS) || canImport(SomePackage)", in: conditions), true)
+        XCTAssertFalse(try XCTUnwrap(holds("os(iOS) && canImport(SomePackage)", in: conditions)))
+        XCTAssertTrue(try XCTUnwrap(holds("os(macOS) || canImport(SomePackage)", in: conditions)))
     }
 
     // MARK: Files
@@ -479,8 +479,8 @@ final class BuildConditionsTests: XCTestCase {
             customConditionsOfFile: ["Sources/App/App.swift": [["DEBUG", "APP"]]]
         )
 
-        XCTAssertEqual(holds("APP", in: project.conditions(ofFile: "Sources/App/App.swift")), true)
-        XCTAssertEqual(holds("LIB", in: project.conditions(ofFile: "Sources/App/App.swift")), false)
+        XCTAssertTrue(try XCTUnwrap(holds("APP", in: project.conditions(ofFile: "Sources/App/App.swift"))))
+        XCTAssertFalse(try XCTUnwrap(holds("LIB", in: project.conditions(ofFile: "Sources/App/App.swift"))))
         // A file no target is known to hold could be in any of them.
         XCTAssertNil(holds("APP", in: project.conditions(ofFile: "Other.swift")))
     }
@@ -496,8 +496,8 @@ final class BuildConditionsTests: XCTestCase {
             filesWithAllTheirConditions: ["App.swift", "Other.swift"]
         )
 
-        XCTAssertEqual(holds("RELEASE_ONLY", in: project.conditions(ofFile: "App.swift")), false)
-        XCTAssertEqual(holds("ANY_OTHER", in: project.conditions(ofFile: "App.swift")), false)
+        XCTAssertFalse(try XCTUnwrap(holds("RELEASE_ONLY", in: project.conditions(ofFile: "App.swift"))))
+        XCTAssertFalse(try XCTUnwrap(holds("ANY_OTHER", in: project.conditions(ofFile: "App.swift"))))
         XCTAssertNil(holds("RELEASE_ONLY", in: project.conditions(ofFile: "Lib.swift")))
         XCTAssertNil(holds("ANY_OTHER", in: project.conditions(ofFile: "Lib.swift")))
         // Without targets of its own, a file has every target's conditions, and their undecided names.
@@ -510,7 +510,7 @@ final class BuildConditionsTests: XCTestCase {
             customConditionsOfFile: ["Shared.swift": [["A"], ["A", "B"]]]
         )
 
-        XCTAssertEqual(holds("A", in: project.conditions(ofFile: "Shared.swift")), true)
+        XCTAssertTrue(try XCTUnwrap(holds("A", in: project.conditions(ofFile: "Shared.swift"))))
         XCTAssertNil(holds("B", in: project.conditions(ofFile: "Shared.swift")))
     }
 

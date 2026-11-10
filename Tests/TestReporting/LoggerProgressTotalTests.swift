@@ -19,7 +19,7 @@ final class LoggerProgressTotalTests: MuterTestCase {
         sut.newMutationTestLogAvailable(
             mutationTestLog: .make(timePerBuildTestCycle: 60, remainingMutationPointsCount: 1)
         )
-        XCTAssertTrue(printer.linesPassed.last?.hasSuffix("0 of 1 (0%) | 1 min left") == true, "\(printer.linesPassed)")
+        XCTAssertTrue(printer.linesPassed.last?.hasSuffix("0 of 1 (0%) | 1 min left"), "\(printer.linesPassed)")
         sut.mutantRunsStarted()
         seconds.change { $0 += 60 }
         sut.newMutationTestOutcomeAvailable(mutation: .make(testSuiteOutcome: .failed))

@@ -187,7 +187,7 @@ final class PerformMutationTestingSuspectRerunTests: MuterTestCase {
         XCTAssertEqual(
             try XCTUnwrap(outcome(of: changes)).mutations.map(\.testSuiteOutcome), [.failed, .failed, .passed]
         )
-        XCTAssertEqual(try resultsFiles.records(MutantResult.self).last?.activated, nil)
+        XCTAssertNil(try resultsFiles.records(MutantResult.self).last?.activated)
     }
 
     func test_aFirstRunShownToRunItsCode_staysShown_whenARerunThatPassesDoesntShowIt() async throws {

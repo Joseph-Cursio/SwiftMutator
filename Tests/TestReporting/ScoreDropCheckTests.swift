@@ -38,7 +38,7 @@ final class ScoreDropCheckTests: XCTestCase {
         let verdict = check(78, of: 100, against: (80, 100))
 
         XCTAssertEqual(verdict.verdict, .passed)
-        XCTAssertEqual(verdict.passed, true)
+        XCTAssertTrue(try XCTUnwrap(verdict.passed))
         XCTAssertNil(verdict.exitStatus)
         XCTAssertEqual(
             verdict.line,
@@ -76,7 +76,7 @@ final class ScoreDropCheckTests: XCTestCase {
     func test_theScoresAndTheDrop_showAsManyDecimalsAsTheLimit() {
         let verdict = check(66, of: 100, against: (2, 3), allowing: 0.25)
 
-        XCTAssertEqual(verdict.passed, false)
+        XCTAssertFalse(try XCTUnwrap(verdict.passed))
         XCTAssertEqual(
             verdict.line,
             "Mutation score 66.00% is 0.66 points below the baseline file muter.baseline.yml's 66.66%, more than the "
@@ -95,7 +95,7 @@ final class ScoreDropCheckTests: XCTestCase {
     func test_aDropPastTheLimit_thatShowsWithinIt_showsMoreDecimals() {
         let verdict = check(80, of: 100, against: (8_209, 10_000))
 
-        XCTAssertEqual(verdict.passed, false)
+        XCTAssertFalse(try XCTUnwrap(verdict.passed))
         XCTAssertEqual(
             verdict.line,
             "Mutation score 80.00% is 2.09 points below the baseline file muter.baseline.yml's 82.09%, more than the 2 "
@@ -125,7 +125,7 @@ final class ScoreDropCheckTests: XCTestCase {
     func test_theDrop_isExact_soADropEqualToTheLimit_isTheLimit() throws {
         for (run, recorded) in [((47, 150), (1, 3)), ((176, 1_200), (300, 1_800))] {
             let verdict = check(run.0, of: run.1, against: recorded)
-            XCTAssertEqual(verdict.passed, true)
+            XCTAssertTrue(try XCTUnwrap(verdict.passed))
             XCTAssertEqual(verdict.drop, 2)
             let summary = RunSummary(of: .make([.passed]), ended: .finished, report: nil, scoreDrop: verdict)
             let json = try XCTUnwrap(JSONSerialization.jsonObject(with: summary.json) as? [String: Any])
@@ -143,13 +143,13 @@ final class ScoreDropCheckTests: XCTestCase {
             "Mutation score 84.0% is 4.0 points above the baseline file muter.baseline.yml's 80.0%."
         )
         let same = check(160, of: 200, against: (80, 100), allowing: 0)
-        XCTAssertEqual(same.passed, true)
+        XCTAssertTrue(try XCTUnwrap(same.passed))
         XCTAssertEqual(same.line, "Mutation score 80.0% is the same as the baseline file muter.baseline.yml's.")
         XCTAssertEqual(
             check(33_334, of: 100_000, against: (1, 3), allowing: 0).line,
             "Mutation score 33.3% is less than 0.1 points above the baseline file muter.baseline.yml's 33.3%."
         )
-        XCTAssertEqual(check(84, of: 100, against: (80, 100), allowing: 0).passed, true)
+        XCTAssertTrue(try XCTUnwrap(check(84, of: 100, against: (80, 100), allowing: 0).passed))
     }
 
     // As `--fail-under` counts it: a mutant taken out of the build with others may compile, so counts as not killed.

@@ -67,9 +67,10 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
         ])
         // The check run, then the timed test run.
         XCTAssertEqual(ioDelegate.configurationsWithoutBuilding.map(\.xcodeWorker), [worker0, worker0])
-        XCTAssertTrue(
+        XCTAssertEqual(
             ioDelegate.configurationsWithoutBuilding.first?.testWithoutBuildArguments(with: "muter.xctestrun")
-                .joined(separator: " ").contains("-parallel-testing-enabled NO") == true
+                        .joined(separator: " ").contains("-parallel-testing-enabled NO"),
+            true
         )
         XCTAssertEqual(ioDelegate.configurations.map(\.xcodeWorker), Array(repeating: worker0, count: 6))
         let mutants = zip(ioDelegate.schematas, ioDelegate.testRunFileNames).filter { $0.0 != .null }
@@ -405,7 +406,7 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
             XCTFail("expected an abort")
         } catch let MuterError.mutationTestingAborted(reason: .simulatorUnavailable(worker, _, log)) {
             XCTAssertEqual(worker, 0)
-            XCTAssertTrue(log?.hasSuffix(" (simulator gone).log") == true, String(describing: log))
+            XCTAssertEqual(log?.hasSuffix(" (simulator gone).log"), true, String(describing: log))
         }
     }
 

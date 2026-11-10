@@ -1151,7 +1151,7 @@ final class PerformMutationTestingTests: MuterTestCase {
         XCTAssertFalse(header.stopsAtFirstFailure)
         XCTAssertEqual(header.workers, 1)
         // As loaded, which is what a resume compares.
-        XCTAssertEqual(header.configuration.stopAtFirstFailure, true)
+        XCTAssertTrue(header.configuration.stopAtFirstFailure)
         let outcome = try XCTUnwrap(finished().first?.object as? MutationTestOutcome)
         XCTAssertEqual(outcome.mutant, key.description)
     }

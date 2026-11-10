@@ -309,7 +309,7 @@ final class XcodeBuildConditionsTests: MuterTestCase {
                 try conditions.isCustomConditionSet(name: "CORE_ONLY"),
                 "\(path) \(text) \(arguments)"
             )
-            XCTAssertEqual(try conditions.isCustomConditionSet(name: "APP"), true)
+            XCTAssertTrue(try conditions.isCustomConditionSet(name: "APP"))
         }
     }
 
@@ -356,7 +356,7 @@ final class XcodeBuildConditionsTests: MuterTestCase {
 
             let conditions = try await conditions(arguments: ["test"])
 
-            XCTAssertEqual(try conditions.isCustomConditionSet(name: "CORE_ONLY"), false, text ?? "absolute")
+            XCTAssertFalse(try conditions.isCustomConditionSet(name: "CORE_ONLY"), text ?? "absolute")
         }
     }
 
@@ -387,7 +387,7 @@ final class XcodeBuildConditionsTests: MuterTestCase {
 
             let conditions = try await conditions(arguments: arguments + ["test"], environment: environment)
 
-            XCTAssertEqual(try conditions.isCustomConditionSet(name: "CORE_ONLY"), false, "\(arguments) \(environment)")
+            XCTAssertFalse(try conditions.isCustomConditionSet(name: "CORE_ONLY"), "\(arguments) \(environment)")
         }
     }
 
@@ -456,7 +456,7 @@ final class XcodeBuildConditionsTests: MuterTestCase {
         """, to: "Configs/Shared.xcconfig")
         settings(test: [macOSTarget], build: [])
         let plain = try await conditions(arguments: ["test"], environment: ["OTHER": "FROM_ENVIRONMENT"])
-        XCTAssertEqual(try plain.isCustomConditionSet(name: "EDITION_PRO"), false)
+        XCTAssertFalse(try plain.isCustomConditionSet(name: "EDITION_PRO"))
         for name in ["FROM_EXTRA", "FROM_MORE", "FROM_ENVIRONMENT"] {
             XCTAssertThrowsError(try plain.isCustomConditionSet(name: name), name)
         }
@@ -485,7 +485,7 @@ final class XcodeBuildConditionsTests: MuterTestCase {
             to: "App.xcodeproj/project.pbxproj"
         )
         let unnamed = try await conditions(arguments: ["test"], environment: ["ELSEWHERE": "-DCORE_ONLY"])
-        XCTAssertEqual(try unnamed.isCustomConditionSet(name: "CORE_ONLY"), false)
+        XCTAssertFalse(try unnamed.isCustomConditionSet(name: "CORE_ONLY"))
     }
 
     // A Swift package's scheme has none.

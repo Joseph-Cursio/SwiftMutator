@@ -54,11 +54,11 @@ final class ScoreGateTests: MuterTestCase {
         XCTAssertEqual(none.verdict, .nothingScored(tested: 0))
         XCTAssertNil(none.exitStatus)
         XCTAssertNil(none.score)
-        XCTAssertEqual(none.passed, true)
+        XCTAssertTrue(try XCTUnwrap(none.passed))
         XCTAssertEqual(none.line, "No mutant was tested, so no score falls short of the required 80%.")
         let buildErrors = gate(killed: 0, of: 0, buildErrors: 2, failUnder: 80)
         XCTAssertEqual(buildErrors.verdict, .nothingScored(tested: 2))
-        XCTAssertEqual(buildErrors.passed, false)
+        XCTAssertFalse(try XCTUnwrap(buildErrors.passed))
         XCTAssertEqual(buildErrors.exitStatus, .scoreBelowThreshold)
         XCTAssertEqual(buildErrors.line, "Every mutant was a build error, so nothing shows the required 80% is met.")
     }
@@ -71,7 +71,7 @@ final class ScoreGateTests: MuterTestCase {
             progress: .init(results: 2, discovered: 9)
         )
 
-        XCTAssertEqual(unfinished.passed, false)
+        XCTAssertFalse(try XCTUnwrap(unfinished.passed))
         XCTAssertEqual(
             unfinished.line,
             "Every mutant with a result was a build error, so nothing shows the required 10% is met. "
@@ -85,7 +85,7 @@ final class ScoreGateTests: MuterTestCase {
         let noResults = ScoreGate(failUnder: 80, judging: .make([]), progress: .init(results: 0, discovered: 4))
 
         XCTAssertEqual(noResults.verdict, .nothingScored(tested: 0))
-        XCTAssertEqual(noResults.passed, false)
+        XCTAssertFalse(try XCTUnwrap(noResults.passed))
         XCTAssertEqual(noResults.exitStatus, .scoreBelowThreshold)
         XCTAssertNil(noResults.score)
         XCTAssertEqual(
@@ -132,7 +132,7 @@ final class ScoreGateTests: MuterTestCase {
 
         XCTAssertEqual(gate.verdict, .nothingScored(tested: 2))
         XCTAssertNil(gate.score)
-        XCTAssertEqual(gate.passed, false)
+        XCTAssertFalse(try XCTUnwrap(gate.passed))
         XCTAssertEqual(gate.line, "Every mutant was a build error, so nothing shows the required 0% is met.")
     }
 

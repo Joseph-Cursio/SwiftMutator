@@ -31,7 +31,7 @@ final class MutationTestStateTests: MuterTestCase {
 
         sut.apply([.mutatedProjectLocked(lock)])
 
-        XCTAssertTrue(sut.mutatedProjectLock === lock)
+        XCTAssertIdentical(sut.mutatedProjectLock, lock)
     }
 
     func test_aRunThatIsntResumed_hasNoResumeState_andWaivesNothing() {
@@ -47,7 +47,7 @@ final class MutationTestStateTests: MuterTestCase {
 
         sut.apply([.resumeStateLoaded(resume), .projectChangesWaived(["README.md"])])
 
-        XCTAssertTrue(sut.resumeState === resume)
+        XCTAssertIdentical(sut.resumeState, resume)
         XCTAssertEqual(sut.resumeWaived, ["README.md"])
     }
 }

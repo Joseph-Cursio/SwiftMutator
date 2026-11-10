@@ -28,9 +28,9 @@ final class MutationTestHandlerTests: MuterTestCase {
         }
 
         let assertThatAllStepsShareTheState = {
-            XCTAssertTrue(self.stepSpy1.states.first === expectedState)
-            XCTAssertTrue(self.stepSpy2.states.first === expectedState)
-            XCTAssertTrue(self.stepSpy3.states.first === expectedState)
+            XCTAssertIdentical(self.stepSpy1.states.first, expectedState)
+            XCTAssertIdentical(self.stepSpy2.states.first, expectedState)
+            XCTAssertIdentical(self.stepSpy3.states.first, expectedState)
         }
 
         let assertThatReturnsSuccess = {
@@ -70,8 +70,8 @@ final class MutationTestHandlerTests: MuterTestCase {
         }
 
         let assertThatNoLaterStepGetsTheState = {
-            XCTAssertTrue(self.stepSpy1.states.first === self.state)
-            XCTAssertTrue(self.stepSpy2.states.first === self.state)
+            XCTAssertIdentical(self.stepSpy1.states.first, self.state)
+            XCTAssertIdentical(self.stepSpy2.states.first, self.state)
             XCTAssertTrue(self.stepSpy3.states.isEmpty)
         }
 

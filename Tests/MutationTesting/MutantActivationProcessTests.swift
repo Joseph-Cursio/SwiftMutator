@@ -45,8 +45,9 @@ final class MutantActivationProcessTests: MuterTestCase {
         let second = try await runTests(of: mutantB, in: worker, using: configuration)
 
         for (name, mutantsRun) in [("mutant A", first), ("mutant B", second)] {
-            XCTAssertTrue(
-                mutantsRun.environment == baseline.environment,
+            XCTAssertEqual(
+                mutantsRun.environment,
+                baseline.environment,
                 "\(name)'s run and the baseline differ in: \(mutantsRun.linesThatDiffer(from: baseline))"
             )
         }
@@ -84,9 +85,9 @@ final class MutantActivationProcessTests: MuterTestCase {
         let marker = #"marker=$(sed -n 2p "$SWIFTMUTATOR_ACTIVE_MUTANT_FILE"); "#
 
         let ran = await run(marker + #"touch "$marker" "$marker.reached""#)
-        XCTAssertEqual(ran, true)
+        XCTAssertTrue(try XCTUnwrap(ran))
         let didntRun = await run(marker + #"touch "$marker.reached""#)
-        XCTAssertEqual(didntRun, false, "the marker of the run before doesn't count")
+        XCTAssertFalse(try XCTUnwrap(didntRun), "the marker of the run before doesn't count")
         let showsNothing = await run("true")
         XCTAssertNil(showsNothing, "the file of the run before doesn't count")
     }

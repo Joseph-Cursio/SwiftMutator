@@ -291,7 +291,7 @@ final class ExecutionCountsTests: XCTestCase {
         """, coverage: .llvmCov([regions]))
 
         XCTAssertEqual(counts(of: walked)[5], [8, 6, 13, 2, 2])
-        XCTAssertEqual(walked.regionsRan[6], true)
+        XCTAssertTrue(walked.regionsRan[6])
     }
 
     // A chain of ternaries is one flat sequence, and the walk goes a call deeper for each, up to a limit well within

@@ -89,7 +89,7 @@ final class ReportCommandTests: MuterTestCase {
 
         try await report(resultsPath)
 
-        XCTAssertTrue(printer.linesPassed.first?.contains("Triaged: equivalent") == true, "\(printer.linesPassed)")
+        XCTAssertEqual(printer.linesPassed.first?.contains("Triaged: equivalent"), true, "\(printer.linesPassed)")
     }
 
     func test_showsTheLabelsInTheCurrentFolder_whenTheRunsProjectHasNone() async throws {
@@ -101,7 +101,11 @@ final class ReportCommandTests: MuterTestCase {
 
         try await report(resultsPath)
 
-        XCTAssertTrue(printer.linesPassed.first?.contains("Triaged: missing test") == true, "\(printer.linesPassed)")
+        XCTAssertEqual(
+            printer.linesPassed.first?.contains("Triaged: missing test"),
+            true,
+            "\(printer.linesPassed)"
+        )
     }
 
     func test_triageFlag_namesTheFile_whichMustBeThere() async throws {
@@ -112,7 +116,11 @@ final class ReportCommandTests: MuterTestCase {
 
         try writeTriage(to: file, label: "tool-limitation")
         try await report(resultsPath, "--triage", file)
-        XCTAssertTrue(printer.linesPassed.first?.contains("Triaged: tool limitation") == true, "\(printer.linesPassed)")
+        XCTAssertEqual(
+            printer.linesPassed.first?.contains("Triaged: tool limitation"),
+            true,
+            "\(printer.linesPassed)"
+        )
     }
 
     func test_aBrokenTriageFile_isRefused() async throws {
@@ -623,8 +631,9 @@ final class ReportCommandTests: MuterTestCase {
             XCTAssertEqual(error as? ExitCode, .abortedMidRun)
         }
 
-        XCTAssertTrue(
-            printer.linesPassed.first?.contains("Only the mutants in shard 1 of 2 were tested, of 3 discovered") == true
+        XCTAssertEqual(
+            printer.linesPassed.first?.contains("Only the mutants in shard 1 of 2 were tested, of 3 discovered"),
+            true
         )
         XCTAssertEqual(standardError.linesPassed, [
             "Report of 2 of 2 mutants in shard 1 of 2, from \(resultsPath): the run finished.",

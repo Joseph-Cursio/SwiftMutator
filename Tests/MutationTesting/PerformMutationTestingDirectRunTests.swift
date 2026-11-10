@@ -63,7 +63,7 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
         XCTAssertEqual(ioDelegate.configurations.map(\.directTestRun), [direct])
         XCTAssertEqual(sent(), [])
         let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
-        XCTAssertEqual(header.testBundlesRunDirectly, true)
+        XCTAssertTrue(header.testBundlesRunDirectly)
         XCTAssertNotNil(header.testRunSeconds)
         // The configuration as loaded, which the header records, has none.
         XCTAssertNil(header.configuration.directTestRun)

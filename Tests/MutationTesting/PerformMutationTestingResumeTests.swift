@@ -119,7 +119,7 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
 
         let reruns = ioDelegate.testLogs.filter { $0.contains("_rerun_") }
         XCTAssertEqual(reruns.count, 1, "\(ioDelegate.testLogs)")
-        XCTAssertTrue(reruns.first?.contains("Product.swift") == true, "\(reruns)")
+        XCTAssertEqual(reruns.first?.contains("Product.swift"), true, "\(reruns)")
     }
 
     // Product.swift's survivor and Sum.swift's kill still hold. Quotient.swift's build error and Total.swift's mutant,

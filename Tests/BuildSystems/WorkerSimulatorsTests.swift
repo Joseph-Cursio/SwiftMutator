@@ -153,11 +153,11 @@ final class WorkerSimulatorsTests: MuterTestCase {
     func test_aCloneThatPrintsNoUDID_orTimesOut_isAFailure() async {
         simctl.answering { $0.first == "clone" ? .init(output: "done\n") : nil }
         let printed = await failingToPrepare(1, like: "id=\(iPhone17Pro)")
-        XCTAssertTrue(printed?.hasSuffix("` printed no UDID") == true, printed ?? "")
+        XCTAssertEqual(printed?.hasSuffix("` printed no UDID"), true, printed ?? "")
 
         simctl.answering { $0.first == "clone" ? .init(status: SIGKILL, endedBySignal: true, timedOut: true) : nil }
         let timedOut = await failingToPrepare(1, like: "id=\(iPhone17Pro)")
-        XCTAssertTrue(timedOut?.hasSuffix("` didn't finish within 60 seconds") == true, timedOut ?? "")
+        XCTAssertEqual(timedOut?.hasSuffix("` didn't finish within 60 seconds"), true, timedOut ?? "")
     }
 
     func test_aDestinationThatNamesNoSimulator_orNoneThatIsListed_makesNone() async {

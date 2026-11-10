@@ -26,7 +26,7 @@ final class OperatorTests: MuterTestCase {
 
             let printed = Array(printer.linesPassed.dropFirst(printedBefore))
             XCTAssertEqual(printed, [id.documentation], id.rawValue)
-            XCTAssertTrue(printed.first?.raw.contains(try XCTUnwrap(titles[id])) == true, id.rawValue)
+            XCTAssertEqual(printed.first?.raw.contains(try XCTUnwrap(titles[id])), true, id.rawValue)
         }
     }
 

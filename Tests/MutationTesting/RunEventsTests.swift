@@ -27,7 +27,7 @@ final class RunEventsTests: MuterTestCase {
 
         events.send(.muterLaunched)
 
-        XCTAssertTrue(handledOn === sender)
+        XCTAssertIdentical(handledOn, sender)
         withExtendedLifetime(subscription) {}
     }
 

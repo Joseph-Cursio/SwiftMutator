@@ -452,15 +452,13 @@ final class LoggerTests: MuterTestCase {
         sut.newMutationTestLogAvailable(
             mutationTestLog: .make(timePerBuildTestCycle: 60, remainingMutationPointsCount: 1)
         )
-        XCTAssertTrue(
-            written.value.suffix(2) == ["[02:42:00] 0 of 1 (0%) | 1 min left", "(flushed)"], "\(written.value)"
-        )
+        XCTAssertEqual(written.value.suffix(2), ["[02:42:00] 0 of 1 (0%) | 1 min left", "(flushed)"])
 
         sut.newMutationTestOutcomeAvailable(mutation: .make(testSuiteOutcome: .failed))
 
-        XCTAssertTrue(written.value.last == "(flushed)", "\(written.value)")
+        XCTAssertEqual(written.value.last, "(flushed)")
         XCTAssertTrue(
-            written.value.dropLast().last?.hasPrefix("[02:42:00] 1 of 1 (100%) | 1 killed | ") == true,
+            written.value.dropLast().last?.hasPrefix("[02:42:00] 1 of 1 (100%) | 1 killed | "),
             "\(written.value)"
         )
     }
@@ -674,7 +672,7 @@ final class LoggerTests: MuterTestCase {
         }
 
         let printed = Array(printer.linesPassed.dropFirst(printedBefore))
-        XCTAssertTrue(printed.first?.hasPrefix("📊 Determined baseline for mutation testing.") == true, "\(printed)")
+        XCTAssertTrue(printed.first?.hasPrefix("📊 Determined baseline for mutation testing."), "\(printed)")
         XCTAssertEqual(Array(printed.dropFirst()), [
             "[09:58:10] 0 of 3 (0%) | 30 min left",
             "[09:59:10] 1 of 3 (33%) | 1 killed | 2 min left | killed at Module.swift:4:7 (changed == to !=)",
@@ -780,7 +778,7 @@ final class LoggerTests: MuterTestCase {
         let draws = printer.linesPassed.filter { $0.contains("Percentage complete:") }
         XCTAssertEqual(draws.map(percent), ["0%", "33%", "66%", "100%"])
         // Three mutants, 600 s each, on one worker.
-        XCTAssertTrue(draws.first?.contains("ETC: 30 ") == true, draws.first ?? "no draw")
+        XCTAssertTrue(draws.first?.contains("ETC: 30 "), draws.first ?? "no draw")
     }
 
     // The progress bar's printer redraws it by moving the cursor up over its two lines, which would overwrite the

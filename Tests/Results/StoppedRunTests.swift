@@ -197,7 +197,7 @@ final class StoppedRunTests: MuterTestCase {
         let status = try ResultsReport(format: .plain, outputPath: nil, failUnder: 80).make(from: [failed, finished])
 
         XCTAssertEqual(status, .baselineFailed)
-        XCTAssertTrue(standardError.linesPassed.first?.contains("stopped before its first mutant") == true)
+        XCTAssertEqual(standardError.linesPassed.first?.contains("stopped before its first mutant"), true)
         XCTAssertTrue(
             standardError.linesPassed.contains { $0.hasSuffix("isn't checked: the run stopped on an error.") },
             "\(standardError.linesPassed)"

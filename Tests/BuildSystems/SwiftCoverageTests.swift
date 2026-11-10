@@ -417,7 +417,7 @@ final class SwiftCoverageTests: MuterTestCase {
             with: MuterConfiguration(executable: "/path/to/swift", arguments: ["test"], buildTimeout: 900)
         )
 
-        XCTAssertTrue(process.commandsRun.first?.contains("--enable-code-coverage") == true)
+        XCTAssertEqual(process.commandsRun.first?.contains("--enable-code-coverage"), true)
         XCTAssertTrue(process.commandsRun.contains { $0.contains("llvm-profdata") })
         XCTAssertEqual(process.timeLimits, [900, nil, nil, nil, nil])
     }

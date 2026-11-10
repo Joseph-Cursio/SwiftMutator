@@ -47,7 +47,7 @@ final class IdleSleepPreventionTests: XCTestCase {
         defer { prevention.end() }
         let held = try assertionsOfThisProcess()
         XCTAssertEqual(held.count, 1, "\(held)")
-        XCTAssertTrue(held.first?.contains("PreventUserIdleSystemSleep") == true, "\(held)")
+        XCTAssertEqual(held.first?.contains("PreventUserIdleSystemSleep"), true, "\(held)")
 
         prevention.end()
         XCTAssertEqual(try assertionsOfThisProcess(), [])

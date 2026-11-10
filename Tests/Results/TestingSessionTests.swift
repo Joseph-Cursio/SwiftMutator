@@ -13,7 +13,7 @@ final class TestingSessionTests: XCTestCase {
     func test_theEndLineAtOnce_waitsForTheLineUnderWay_andCountsIt() throws {
         let sessionUnderTest = session
         let writing = Thread.detach { _ = sessionUnderTest.append({ "mutant" }, isAMutant: true) }
-        XCTAssertTrue(file.started.wait(timeout: .now() + 5) == .success)
+        XCTAssertEqual(file.started.wait(timeout: .now() + 5), .success)
 
         let ending = Thread.detach { sessionUnderTest.end(waitingAtMost: 5) { Self.endLine(recorded: $0) } }
         Thread.sleep(forTimeInterval: 0.1)
@@ -21,8 +21,8 @@ final class TestingSessionTests: XCTestCase {
         file.finish.signal() // for the mutant's line
         file.finish.signal() // for the end line
 
-        XCTAssertTrue(writing.wait(timeout: .now() + 5) == .success)
-        XCTAssertTrue(ending.wait(timeout: .now() + 5) == .success)
+        XCTAssertEqual(writing.wait(timeout: .now() + 5), .success)
+        XCTAssertEqual(ending.wait(timeout: .now() + 5), .success)
         XCTAssertEqual(file.lines, ["\"mutant\"", "end of 1"])
         XCTAssertTrue(file.isClosed)
     }
@@ -31,7 +31,7 @@ final class TestingSessionTests: XCTestCase {
     func test_theEndLineAtOnce_givesUpOnALineThatTakesTooLong() throws {
         let sessionUnderTest = session
         let writing = Thread.detach { _ = sessionUnderTest.append({ "mutant" }, isAMutant: true) }
-        XCTAssertTrue(file.started.wait(timeout: .now() + 5) == .success)
+        XCTAssertEqual(file.started.wait(timeout: .now() + 5), .success)
         defer {
             file.finish.signal()
             _ = writing.wait(timeout: .now() + 5)
@@ -47,9 +47,9 @@ final class TestingSessionTests: XCTestCase {
     func test_onceEnded_nothingMoreIsWritten() throws {
         file.finish.signal() // for the mutant's line
         file.finish.signal() // for the end line
-        XCTAssertEqual(session.append({ "mutant" }, isAMutant: true), true)
+        XCTAssertTrue(try XCTUnwrap(session.append({ "mutant" }, isAMutant: true)))
 
-        XCTAssertEqual(session.end { Self.endLine(recorded: $0) }, true)
+        XCTAssertTrue(try XCTUnwrap(session.end { Self.endLine(recorded: $0) }))
 
         XCTAssertNil(session.append({ "mutant" }, isAMutant: true))
         XCTAssertNil(session.end { Self.endLine(recorded: $0) })
@@ -64,18 +64,22 @@ final class TestingSessionTests: XCTestCase {
         let header = ResultsHeader.make(formatVersion: ResultsCoding.resumedFormatVersion, session: 2)
         let retired = ResultsRetired(session: 2, keys: [MutantResult.make().key])
         let starting = Thread.detach { [file] in _ = secondSession.startResults(in: file, writing: [header, retired]) }
-        XCTAssertTrue(file.started.wait(timeout: .now() + 5) == .success)
+        XCTAssertEqual(file.started.wait(timeout: .now() + 5), .success)
 
         // The end line waits for the first lines to be written, not only to start: if it reached the file while they
         // were under way, it would come among them.
         let ending = Thread.detach { secondSession.end(waitingAtMost: 5) { Self.endLine(recorded: $0) } }
-        XCTAssertTrue(file.started.wait(timeout: .now() + 0.2) == .timedOut, "the end line came among the first lines")
+        XCTAssertEqual(
+            file.started.wait(timeout: .now() + 0.2),
+            .timedOut,
+            "the end line came among the first lines"
+        )
         file.finish.signal() // for the first lines
-        XCTAssertTrue(file.started.wait(timeout: .now() + 5) == .success, "the end line wasn't written")
+        XCTAssertEqual(file.started.wait(timeout: .now() + 5), .success, "the end line wasn't written")
         file.finish.signal() // for the end line
 
-        XCTAssertTrue(starting.wait(timeout: .now() + 5) == .success)
-        XCTAssertTrue(ending.wait(timeout: .now() + 5) == .success)
+        XCTAssertEqual(starting.wait(timeout: .now() + 5), .success)
+        XCTAssertEqual(ending.wait(timeout: .now() + 5), .success)
         XCTAssertEqual(file.lines, [json(header), json(retired), "end of 0"])
         XCTAssertTrue(file.isClosed)
     }
