@@ -1,5 +1,3 @@
-import Foundation
-
 struct PlainTextReporter: Reporter {
     func report(from outcome: MutationTestOutcome) -> String {
         let report = MuterTestReport(from: outcome)

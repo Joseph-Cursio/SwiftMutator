@@ -1,5 +1,4 @@
 import ArgumentParser
-import Foundation
 
 /// The verdicts a finished run, or `report`, ends with, each of the check its flag asks for, nil without it: the score
 /// against `--fail-under` (`ScoreGate`), the survivors against a baseline file (`NewSurvivorsCheck`), the score

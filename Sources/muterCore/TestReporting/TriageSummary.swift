@@ -1,5 +1,3 @@
-import Foundation
-
 /// Which mutant each of a triage file's entries labels. A key moves with any edit above its mutant, and a different
 /// mutant can come to have it, so a key alone settles nothing:
 /// 1. An entry applies at its key when what it says its mutant changes is what the mutant there changes. An entry's

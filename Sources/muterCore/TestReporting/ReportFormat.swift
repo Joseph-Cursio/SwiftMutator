@@ -1,5 +1,3 @@
-import Foundation
-
 enum ReportFormat: String, CaseIterable {
     case plain
     case json

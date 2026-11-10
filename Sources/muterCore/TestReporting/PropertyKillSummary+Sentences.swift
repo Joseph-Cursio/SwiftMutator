@@ -1,5 +1,3 @@
-import Foundation
-
 /// What the plain and HTML reports' Examples and Properties section says. Never "killed" and a number at the start of
 /// a line: scripts read the killed count from the one line that says so.
 extension PropertyKillSummary {

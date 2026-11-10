@@ -1,5 +1,3 @@
-import Foundation
-
 /// The shards of a `--shard` split a report covers, as it says: the one a run tested, or those `report` merged when
 /// some are missing.
 struct ShardScope: Codable, Equatable {

@@ -1,5 +1,4 @@
 import ArgumentParser
-import Foundation
 
 /// The verdict of a run, or of `report`, on the kills its score counts that its own evidence doesn't back
 /// (`--max-doubtful-kills`): it fails when there are more than the limit, and then exits 2

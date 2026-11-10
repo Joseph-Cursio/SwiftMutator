@@ -10,6 +10,7 @@ struct RunSummary: Codable, Equatable {
     /// `survived` no longer holds mutants no test reached, which `notCovered` does.
     static let formatVersion = 2
 
+    // swiftlint:disable:next unused_declaration - summary.json's key, written by the synthesized Codable conformance
     var formatVersion = Self.formatVersion
     /// "finished", "interrupted" or "aborted", as the results file's end line says; nil when a run's last session has
     /// no end line yet: it is still running, or was killed.

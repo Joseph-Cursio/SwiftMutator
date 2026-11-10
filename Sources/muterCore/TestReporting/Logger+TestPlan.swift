@@ -1,5 +1,3 @@
-import Foundation
-
 /// What the Logger says about a mutation test plan: creating it, loading it, and how its sources compare with the
 /// project's.
 extension Logger {

@@ -1,5 +1,3 @@
-import Foundation
-
 /// What a tested mutant came to, as the progress lines and the reports count it. The score counts a crash as a kill,
 /// and a timeout or a mutant not covered as a survivor.
 enum MutantVerdict: CaseIterable {

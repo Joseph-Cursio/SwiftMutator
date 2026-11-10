@@ -1,5 +1,3 @@
-import Foundation
-
 /// The report of what mutation testing tested before it stopped early.
 enum PartialReport {
     /// Beside the requested report, and never replacing it: `report.txt` gives `report.partial.txt`, and `report`

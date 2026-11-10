@@ -1,5 +1,3 @@
-import Foundation
-
 /// The part of the project a `--since` run mutated, as its reports say.
 struct SinceScope: Codable, Equatable {
     let ref: String

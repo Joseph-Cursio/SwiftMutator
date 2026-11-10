@@ -1,5 +1,3 @@
-import Foundation
-
 /// One file's part of a report: its mutants, and their score.
 struct FileReport: Codable, Comparable {
     let fileName: FileName

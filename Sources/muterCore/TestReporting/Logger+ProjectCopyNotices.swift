@@ -1,5 +1,3 @@
-import Foundation
-
 /// What the Logger says about the project's copy: that it is being made and where it went, the files that vanished
 /// meanwhile, what its build uses from outside it, what an absolute path makes it build from the project, and the
 /// SwiftLint it turned off.

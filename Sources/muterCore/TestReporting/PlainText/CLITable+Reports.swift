@@ -1,4 +1,3 @@
-import Foundation
 import Rainbow
 
 /// The plain report's tables, and the colors of their cells.

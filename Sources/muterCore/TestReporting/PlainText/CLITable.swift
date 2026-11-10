@@ -3,8 +3,6 @@ import Rainbow
 /// A plain-text table. Columns are padded by the width shown, so a cell's colour codes don't push the columns after it
 /// out of line.
 struct CLITable: Equatable {
-    static let empty = Self(padding: 0, columns: [])
-
     let padding: Int
     let columns: [Column]
 

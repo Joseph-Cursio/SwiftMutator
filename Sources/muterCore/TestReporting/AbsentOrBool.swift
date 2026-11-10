@@ -1,5 +1,3 @@
-import Foundation
-
 /// A three-state value that a summary's JSON holds as a Bool that may be left out, as the `Bool?` it stands for was:
 /// `whenTrue` as `true`, `whenFalse` as `false`, and `whenAbsent` by leaving its key out.
 ///
@@ -33,7 +31,8 @@ extension AbsentOrBool {
 }
 
 extension KeyedEncodingContainer {
-    /// `value` at `key` as a Bool, or no key at all for `whenAbsent`.
+    // `value` at `key` as a Bool, or no key at all for `whenAbsent`.
+    // swiftlint:disable:next unused_declaration - only synthesized Codable conformances call it
     mutating func encode<Value: AbsentOrBool>(_ value: Value, forKey key: Key) throws {
         guard value != .whenAbsent else { return }
         try encode(value == .whenTrue, forKey: key)
@@ -41,7 +40,8 @@ extension KeyedEncodingContainer {
 }
 
 extension KeyedDecodingContainer {
-    /// The Bool at `key` as a `Value`, and `whenAbsent` when the key is missing or null.
+    // The Bool at `key` as a `Value`, and `whenAbsent` when the key is missing or null.
+    // swiftlint:disable:next unused_declaration - only synthesized Codable conformances call it
     func decode<Value: AbsentOrBool>(_: Value.Type, forKey key: Key) throws -> Value {
         guard let present = try decodeIfPresent(Bool.self, forKey: key) else { return .whenAbsent }
         return present ? .whenTrue : .whenFalse

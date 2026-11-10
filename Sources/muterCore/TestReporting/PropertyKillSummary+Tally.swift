@@ -1,5 +1,3 @@
-import Foundation
-
 /// The counts a `PropertyKillSummary` is made of, as its kills are added one at a time.
 private struct PropertyKillTally {
     var examplesOnly = 0

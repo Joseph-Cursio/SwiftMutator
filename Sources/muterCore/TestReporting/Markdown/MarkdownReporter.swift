@@ -1,5 +1,3 @@
-import Foundation
-
 /// A short report in Markdown, for a GitHub job summary or a pull request's comment: the score, the verdicts of the
 /// checks the run was asked for, the counts, the scores of up to `mostFiles` files, and the mutants to act on, up to
 /// `mostListed` of each kind, as the JSON report lists them all. GitHub keeps at most 1 MiB of a step's summary. Every

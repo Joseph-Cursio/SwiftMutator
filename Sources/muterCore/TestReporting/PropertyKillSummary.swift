@@ -1,5 +1,3 @@
-import Foundation
-
 /// A glob that picks out property tests among the tests a mutant's run recorded failing (`propertyTests:`,
 /// `--property-tests`). It matches a test when it matches the whole of the test's name, as the results file records
 /// it, or the whole of the file the test's issue was recorded in. So `*Properties*` matches Swift Testing's

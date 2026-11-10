@@ -1,5 +1,3 @@
-import Foundation
-
 /// The files a Stryker or SARIF report names.
 enum ReportedFile {
     /// Each file with a mutant, and each no test ran, by its path relative to the project, with its original file's

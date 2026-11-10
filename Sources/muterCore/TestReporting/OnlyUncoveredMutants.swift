@@ -1,5 +1,3 @@
-import Foundation
-
 /// A `--baseline` run whose chosen code holds no mutant to test, but mutants of code no test ran (`UncoveredMutant`),
 /// as a change that adds only a function no test calls, or only a file no test reaches, does. Those are compared with
 /// the baseline file at once (`check`), as no mutant is left to run, and the run ends there, as one with nothing to

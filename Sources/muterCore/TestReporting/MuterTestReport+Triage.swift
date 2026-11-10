@@ -1,5 +1,3 @@
-import Foundation
-
 /// How a triage file's labels mark a report's survivors.
 extension MuterTestReport {
     /// `fileReports` with each survivor `file` labels marked, and the summary of what `file` says; nil without a file,

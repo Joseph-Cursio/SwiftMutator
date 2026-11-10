@@ -1,4 +1,3 @@
-import Foundation
 import Plot
 
 /// The HTML report's tables of mutants: each file's score, every mutant applied, the survivors and those not

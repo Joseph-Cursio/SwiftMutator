@@ -1,5 +1,3 @@
-import Foundation
-
 /// A SARIF 2.1.0 log, as GitHub code scanning reads it: one run, with only the parts SwiftMutator has something to
 /// put in. Every optional part nil is left out. GitHub's page on what it reads:
 /// https://docs.github.com/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning

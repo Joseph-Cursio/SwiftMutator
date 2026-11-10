@@ -1,5 +1,3 @@
-import Foundation
-
 /// What the Logger says when a run resumes: which results still hold, what is left to test and why.
 extension Logger {
     /// How many of a resumed run's results still hold, and how many mutants are left to test and why; then how its

@@ -1,5 +1,3 @@
-import Foundation
-
 /// A report in the mutation-testing-elements schema, version 2, which Stryker's dashboard and report viewer read:
 /// https://github.com/stryker-mutator/mutation-testing-elements/tree/master/packages/report-schema. Only the parts
 /// SwiftMutator has something to put in; every other one is optional and left out.

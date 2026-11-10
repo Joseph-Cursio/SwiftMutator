@@ -119,11 +119,6 @@ struct BaselineMatches: Equatable {
             self.lineUnread = lineUnread
         }
 
-        /// "Sources/Lint/Rules.swift:42:17 RelationalBoundary: < → <=".
-        var described: String {
-            "\(key): \(before) → \(after)"
-        }
-
         /// Whether no test ran its code: one the run tested and judged not covered, or one of code coverage left out,
         /// which it didn't make.
         var isNotCovered: Bool {

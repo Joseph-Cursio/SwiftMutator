@@ -1,5 +1,3 @@
-import Foundation
-
 /// How a check the run was asked for came out (`ScoreGate`, `NewSurvivorsCheck`, `ScoreDropCheck`,
 /// `DoubtfulKillsCheck`). A summary's `passed` holds it as `true`, `false`, or no key when it wasn't checked.
 enum CheckResult: AbsentOrBool {
