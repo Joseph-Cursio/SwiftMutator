@@ -277,10 +277,22 @@ final class XcodeBuildConditionsTests: MuterTestCase {
             (pbxproj, sharedTwice, [], [:]),
             (pbxproj, projectFile(referencingProject: "../Core/Core.xcodeproj"), [], [:]),
             (pbxproj, #"lastKnownFileType = "wrapper.pb-project"; path = C.xcodeproj;"#, [], [:]),
-            (workspace, #"<FileRef location = "group:../Core/Core.xcodeproj">"#, [], [:]),
-            (workspace, #"<Group location = "group:.."><FileRef location = "group:Core/C.xcodeproj">"#, [], [:]),
-            (workspace, #"<FileRef location = "absolute:/src/Core.xcodeproj">"#, [], [:]),
+            (workspace, workspaceFile(#"<FileRef location = "group:../Core/Core.xcodeproj"/>"#), [], [:]),
+            (
+                workspace,
+                workspaceFile(#"<Group location = "group:.."><FileRef location = "group:Core/C.xcodeproj"/></Group>"#),
+                [],
+                [:]
+            ),
+            (workspace, workspaceFile(#"<FileRef location = "absolute:/src/Core.xcodeproj"/>"#), [], [:]),
+            (workspace, workspaceFile(#"<FileRef location = "developer:Examples/Core.xcodeproj"/>"#), [], [:]),
+            (workspace, workspaceFile(#"<FileRef location = "group:$(CORE)/Core.xcodeproj"/>"#), [], [:]),
+            (workspace, workspaceFile(#"<FileRef location = "container:Nested.xcworkspace"/>"#), [], [:]),
+            (workspace, #"<FileRef location = "group:Core.xcodeproj">"#, [], [:]),
             (pbxproj, "", ["-xcconfig", "/ci/Extra.xcconfig"], [:]),
+            (pbxproj, "", ["-xcconfig", "Missing.xcconfig"], [:]),
+            (pbxproj, "", ["-xcconfig", "$(CI)/Extra.xcconfig"], [:]),
+            (pbxproj, "", ["test", "-xcconfig"], [:]),
             (pbxproj, "", [], ["XCODE_XCCONFIG_FILE": "/ci/Extra.xcconfig"]),
         ]
         let app = macOSTarget.merging(["SWIFT_ACTIVE_COMPILATION_CONDITIONS": "APP"]) { _, new in new }
@@ -299,6 +311,21 @@ final class XcodeBuildConditionsTests: MuterTestCase {
             )
             XCTAssertEqual(try conditions.isCustomConditionSet(name: "APP"), true)
         }
+    }
+
+    // A package outside the project builds with the conditions its manifest sets, which the scan didn't read.
+    func test_aWorkspacesPackageOutsideTheProject_leavesAConditionNoTargetSetsUndecided() async throws {
+        let package = try makeTemporaryDirectory()
+        try #".define("CORE_ONLY")"#.write(toFile: package + "/Package.swift", atomically: true, encoding: .utf8)
+        try write(
+            workspaceFile(#"<FileRef location = "absolute:\#(package)"/>"#),
+            to: "W.xcworkspace/contents.xcworkspacedata"
+        )
+        settings(test: [macOSTarget], build: [])
+
+        let conditions = try await conditions(arguments: ["test"])
+
+        XCTAssertThrowsError(try conditions.isCustomConditionSet(name: "CORE_ONLY"))
     }
 
     func test_withEveryBuildFileRead_aConditionNoTargetSetsIsUnset() async throws {
@@ -333,6 +360,37 @@ final class XcodeBuildConditionsTests: MuterTestCase {
         }
     }
 
+    // A workspace's projects and packages in the project, and what it references that nothing builds from, as a
+    // file outside it, leave every build file read, and so do `-xcconfig`'s and `XCODE_XCCONFIG_FILE`'s in it.
+    func test_aWorkspaceAndCommandWithEveryBuildFileRead_leaveAConditionNoTargetSetsUnset() async throws {
+        try write("", to: "App.xcodeproj/project.pbxproj")
+        try write(
+            workspaceFile(#"<FileRef location = "self:"/>"#),
+            to: "App.xcodeproj/project.xcworkspace/contents.xcworkspacedata"
+        )
+        try write("// swift-tools-version:6.0", to: "Packages/Core/Package.swift")
+        try write("", to: "Configs/CI.xcconfig")
+        try write(workspaceFile("""
+        <FileRef location = "group:App.xcodeproj"/>
+        <Group name = "Packages"><FileRef location = "container:Packages/Core"/></Group>
+        <Group location = "group:Packages"><FileRef location = "group:Core"/></Group>
+        <FileRef location = "group:../Notes/README.md"/>
+        """), to: "W.xcworkspace/contents.xcworkspacedata")
+        let commands: [(arguments: [String], environment: [String: String])] = [
+            ([], [:]),
+            (["-xcconfig", "Configs/CI.xcconfig"], [:]),
+            (["-xcconfig", project.canonicalPath + "/Configs/CI.xcconfig"], [:]),
+            ([], ["XCODE_XCCONFIG_FILE": "Configs/CI.xcconfig"]),
+        ]
+        for (arguments, environment) in commands {
+            settings(test: [macOSTarget], build: [])
+
+            let conditions = try await conditions(arguments: arguments + ["test"], environment: environment)
+
+            XCTAssertEqual(try conditions.isCustomConditionSet(name: "CORE_ONLY"), false, "\(arguments) \(environment)")
+        }
+    }
+
     // Xcode takes `..` off the folder before it, whatever links there are, so `Link/../../X.xcconfig` is outside the
     // project even where `Link` leads two folders down in it.
     func test_aProjectFilesPathsAreResolvedAsXcodeDoes_notThroughLinks() async throws {
@@ -348,6 +406,24 @@ final class XcodeBuildConditionsTests: MuterTestCase {
         let conditions = try await conditions(arguments: ["test"])
 
         XCTAssertThrowsError(try conditions.isCustomConditionSet(name: "CORE_ONLY"))
+    }
+
+    // xcodebuild takes `..` off the folder before it in the files `-xcconfig` and `XCODE_XCCONFIG_FILE` name too.
+    func test_theCommandsConfigurationFiles_areResolvedAsXcodebuildDoes_notThroughLinks() async throws {
+        try write("", to: "X.xcconfig")
+        try FileManager.default.createDirectory(atPath: project + "/a/b", withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: project + "/Link", withDestinationPath: "a/b")
+        let commands: [(arguments: [String], environment: [String: String])] = [
+            (["-xcconfig", "Link/../../X.xcconfig"], [:]),
+            ([], ["XCODE_XCCONFIG_FILE": "Link/../../X.xcconfig"]),
+        ]
+        for (arguments, environment) in commands {
+            settings(test: [macOSTarget], build: [])
+
+            let conditions = try await conditions(arguments: arguments + ["test"], environment: environment)
+
+            XCTAssertThrowsError(try conditions.isCustomConditionSet(name: "CORE_ONLY"), "\(arguments) \(environment)")
+        }
     }
 
     // A condition put together from a setting, or from one Xcode sets itself for each target, is a word in no build
@@ -646,6 +722,17 @@ final class XcodeBuildConditionsTests: MuterTestCase {
             mainGroup: "G",
             #"G = {isa = PBXGroup; children = (F); path = "\#(group)"; sourceTree = "<group>"; };"# + "\n" + file
         )
+    }
+
+    /// A workspace's contents, as Xcode writes them, with `references`.
+    private func workspaceFile(_ references: String) -> String {
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <Workspace
+           version = "1.0">
+        \(references)
+        </Workspace>
+        """
     }
 
     /// One that references the project at `path`, as a project it builds a target of.

@@ -968,7 +968,7 @@ So what it can't work out doesn't cost you code your build compiles. These stay 
 - `swift(…)` where the compiler can't be told, or isn't a Swift 6 one, whose modes SwiftMutator knows; where targets
   build in different modes, or one's can't be told, as when a flag or a trait sets it; and with xcodebuild, in a
   project that holds a package, whose targets' modes its manifest sets, or where a build file SwiftMutator didn't
-  read may set one, as an `.xcconfig` outside the project, `-xcconfig`'s or `XCODE_XCCONFIG_FILE`'s;
+  read may set one, as an `.xcconfig` outside the project, even one `-xcconfig` or `XCODE_XCCONFIG_FILE` names;
 - `canImport` of a module in no SDK, which may be a package's, and any `canImport` in a Mac Catalyst build;
 - `arch(…)` in a build for several architectures, as a generic destination is, unless it is none of them, and in a
   package's scheme under xcodebuild, unless `-destination` names one with `arch=`;
@@ -979,18 +979,18 @@ So what it can't work out doesn't cost you code your build compiles. These stay 
   the scheme, as does every file with `--skip-coverage`, or where something can compile files out of the lists' sight:
   intermediate files outside derived data, a setting for an architecture or build variant, another project, a target
   an external tool builds, a script that runs the compiler or another build, or one SwiftMutator can't read, or a
-  build configuration file outside the project, from `-xcconfig` or `XCODE_XCCONFIG_FILE`. A list an earlier run left
-  in the mutated copy's derived data, of another configuration or a target since renamed, counts as another target's
-  until that folder is deleted;
+  build configuration file outside the project, even from `-xcconfig` or `XCODE_XCCONFIG_FILE`. A list an earlier
+  run left in the mutated copy's derived data, of another configuration or a target since renamed, counts as another
+  target's until that folder is deleted;
 - with xcodebuild, a condition no reported target sets but that a `project.pbxproj`, `.xcconfig` or package manifest in
   the project, or a `NAME=value` setting of the test command or an environment variable one of those names, names,
   as it may be set for a target that wasn't reported, except in a file only reported targets compiled; any condition
   no reported target sets where a build file SwiftMutator didn't read may set one for such a target: an `.xcconfig`
-  outside the project, or one whose path it can't follow, `-xcconfig`'s or `XCODE_XCCONFIG_FILE`'s, or another
-  project outside it that a workspace or project references; any condition no reported target sets where a setting
-  the conditions come from may put one together, as `EDITION_$(EDITION)` or `$(NAME:upper)` does, or refers to one
-  Xcode sets for each target, as `-D$(TARGET_NAME)` does; and any other `SWIFT_` condition, as Xcode sets
-  `SWIFT_PACKAGE` for a local package's code;
+  outside the project, or one whose path it can't follow, even one `-xcconfig` or `XCODE_XCCONFIG_FILE` names, or a
+  project or package outside it, or one it can't place, that a workspace or project references; any condition no
+  reported target sets where a setting the conditions come from may put one together, as `EDITION_$(EDITION)` or
+  `$(NAME:upper)` does, or refers to one Xcode sets for each target, as `-D$(TARGET_NAME)` does; and any other
+  `SWIFT_` condition, as Xcode sets `SWIFT_PACKAGE` for a local package's code;
 - with SwiftPM, a package's traits, and a `.define` that a trait enables.
 
 A later clause can still be decided after an undecided one: after `#if canImport(SomePackage)`, an `#elseif os(iOS)` is
