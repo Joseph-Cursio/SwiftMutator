@@ -10,11 +10,12 @@ final class DefaultWorkerCountRunTests: MuterTestCase {
     private var choices: [WorkerChoice] = []
 
     private lazy var sut = PerformMutationTesting(
-        makeWorkerDirectories: { [unowned self] _, count in
+        makeWorkerDirectories: { [weak self] _, count in
+            guard let self else { return [] }
             clonedCounts.append(count)
             return Array(repeating: workerClone, count: count)
         },
-        removeWorkerDirectories: { [unowned self] in removedClones.append($0) }
+        removeWorkerDirectories: { [weak self] in self?.removedClones.append($0) }
     )
 
     // After `setUpWithError`, as XCTest calls them, as the world is made anew in each.
@@ -31,8 +32,8 @@ final class DefaultWorkerCountRunTests: MuterTestCase {
         state.projectDirectoryURL = URL(fileURLWithPath: "/project")
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/project_mutated")
         state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
-        whenSent(.workersChosen) { [unowned self] event in
-            if case let .workersChosen(choice) = event { choices.append(choice) }
+        whenSent(.workersChosen) { [weak self] event in
+            if case let .workersChosen(choice) = event { self?.choices.append(choice) }
         }
     }
 
@@ -120,7 +121,7 @@ final class DefaultWorkerCountRunTests: MuterTestCase {
                     clone: workerClone, status: 1, error: "No space left on device"
                 )
             },
-            removeWorkerDirectories: { [unowned self] in removedClones.append($0) }
+            removeWorkerDirectories: { [weak self] in self?.removedClones.append($0) }
         )
 
         _ = try await testing.run(with: state)

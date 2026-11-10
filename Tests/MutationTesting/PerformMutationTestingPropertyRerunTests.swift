@@ -124,10 +124,8 @@ final class PerformMutationTestingPropertyRerunTests: MuterTestCase {
         )
         XCTAssertNotNil(PerformMutationTesting.whyPropertyRerunsMeanNothing(crashedEarly))
     }
-}
 
-private extension PerformMutationTestingPropertyRerunTests {
-    func configuration(filter: [String]? = ["Properties"]) -> MuterConfiguration {
+    private func configuration(filter: [String]? = ["Properties"]) -> MuterConfiguration {
         MuterConfiguration(
             executable: "/usr/bin/swift",
             arguments: ["test"],
@@ -137,12 +135,12 @@ private extension PerformMutationTestingPropertyRerunTests {
         )
     }
 
-    func outcome(of changes: [MutationTestState.Change]) -> MutationTestOutcome? {
+    private func outcome(of changes: [MutationTestState.Change]) -> MutationTestOutcome? {
         guard case let .mutationTestOutcomeGenerated(outcome)? = changes.first else { return nil }
         return outcome
     }
 
-    func recordEvents(named names: [RunEvent.Name]) -> () -> [RunEvent] {
+    private func recordEvents(named names: [RunEvent.Name]) -> () -> [RunEvent] {
         var sent: [RunEvent] = []
         for name in names {
             let observer = runEvents.observe(name) { sent.append($0) }
@@ -151,7 +149,7 @@ private extension PerformMutationTestingPropertyRerunTests {
         return { sent }
     }
 
-    func makeSchemataMapping(file: String, line: Int) throws -> SchemataMutationMapping {
+    private func makeSchemataMapping(file: String, line: Int) throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
             filePath: "/project_mutated/\(file)",
             (

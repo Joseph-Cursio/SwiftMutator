@@ -31,7 +31,8 @@ final class PerformMutationTestingControlRunTests: MuterTestCase {
 
     func test_tasks_putOneControlRunHalfwayThroughEachWholeStretch() {
         XCTAssertEqual(
-            PerformMutationTesting.tasks(Array(0 ..< 250), controlRunEvery: 100).enumerated()
+            PerformMutationTesting.tasks(Array(0 ..< 250), controlRunEvery: 100)
+                .enumerated()
                 .compactMap { position, task in task == .control(1) || task == .control(2) ? position : nil },
             [50, 151]
         )

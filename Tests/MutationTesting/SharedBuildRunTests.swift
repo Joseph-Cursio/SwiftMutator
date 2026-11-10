@@ -20,11 +20,12 @@ final class SharedBuildRunTests: MuterTestCase {
     private let readingsTaken = Locked(0)
 
     private lazy var sut = PerformMutationTesting(
-        makeWorkerDirectories: { [unowned self] _, count in
+        makeWorkerDirectories: { [weak self] _, count in
+            guard let self else { return [] }
             clonedCounts.append(count)
             return Array(repeating: named, count: count)
         },
-        removeWorkerDirectories: { [unowned self] in removedClones.append($0) }
+        removeWorkerDirectories: { [weak self] in self?.removedClones.append($0) }
     )
 
     override func setUp() {
@@ -45,8 +46,8 @@ final class SharedBuildRunTests: MuterTestCase {
         state.mutationMapping = try [makeSchemataMapping(line: 1), makeSchemataMapping(line: 2)]
         ioDelegate.baselineTestLog = "✔ Test run with 12 tests in 3 suites passed after 0.5 seconds.\n"
         ioDelegate.testRunsWithoutBuilding = [(.passed, ioDelegate.baselineTestLog)]
-        whenSent(.workersChosen) { [unowned self] event in
-            if case let .workersChosen(choice) = event { choices.append(choice) }
+        whenSent(.workersChosen) { [weak self] event in
+            if case let .workersChosen(choice) = event { self?.choices.append(choice) }
         }
     }
 

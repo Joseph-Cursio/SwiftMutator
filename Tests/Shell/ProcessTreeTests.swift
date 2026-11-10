@@ -3,15 +3,14 @@ import XCTest
 
 /// These run real processes, and kill every one they start however a test ends.
 final class ProcessTreeTests: XCTestCase {
-    private var directory: URL!
+    private let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("ProcessTreeTests-\(UUID().uuidString)", isDirectory: true)
     private var launched: [Foundation.Process] = []
     /// Descendants a test started that may still be running.
     private var unconfirmedGone: Set<Int32> = []
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ProcessTreeTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
 

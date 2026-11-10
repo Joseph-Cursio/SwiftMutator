@@ -56,12 +56,14 @@ final class LogLineBufferTests: XCTestCase {
 /// These follow real files, which each test writes as a test command would.
 final class TestLogFollowerTests: XCTestCase {
     private let pollInterval: TimeInterval = 0.005
-    private var logFileUrl: URL!
-    private var writer: FileHandle!
+    private let logFileUrl = URL(fileURLWithPath: XCTestCase.unusedTemporaryPath()).appendingPathComponent("test.log")
+    private var writer: FileHandle?
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        logFileUrl = try URL(fileURLWithPath: makeTemporaryDirectory()).appendingPathComponent("test.log")
+        let directory = logFileUrl.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
         XCTAssertTrue(FileManager.default.createFile(atPath: logFileUrl.path, contents: nil))
         writer = try FileHandle(forWritingTo: logFileUrl)
     }
@@ -171,7 +173,7 @@ final class TestLogFollowerTests: XCTestCase {
         let failedTestLine = "✘ Test mixedChainOnlyFlagsBadPairs() recorded an issue at "
             + "ModifierOrderVisitorTests.swift:239:9: Expectation failed: visitor.detectedIssues.count == 1"
         let start = try XCTUnwrap(log.range(of: Data(failedTestLine.utf8))).lowerBound
-        try writer.write(contentsOf: log[..<start])
+        try write(log[..<start])
         let following = follow()
 
         // Everything before the failed test's line: the XCTest summaries, and the lines the tests print.
@@ -183,7 +185,7 @@ final class TestLogFollowerTests: XCTestCase {
         addTeardownBlock { early.cancel() }
         let waited = await XCTWaiter().fulfillment(of: [returnedEarly], timeout: 0.2)
         XCTAssertEqual(waited, .timedOut, "it stopped before the failed test's line")
-        try writer.write(contentsOf: log[start...])
+        try write(log[start...])
 
         let line = await following.value
         XCTAssertEqual(line, .failedTest(line: failedTestLine))
@@ -195,7 +197,7 @@ final class TestLogFollowerTests: XCTestCase {
         let log = try logFixture(named: "testRunWithoutFailures_swiftTesting_threeBundles.log")
         XCTAssertGreaterThan(log.count, 10 * TestLogFollower.readSize)
         let lineAfterTheLog = "✘ Test afterTheLog() recorded an issue at AfterTests.swift:1:1: x"
-        try writer.write(contentsOf: log)
+        try write(log)
         try write(lineAfterTheLog + "\n")
 
         let line = await follow().value
@@ -216,7 +218,12 @@ final class TestLogFollowerTests: XCTestCase {
     // MARK: - Helpers
 
     private func write(_ text: String) throws {
-        try writer.write(contentsOf: Data(text.utf8))
+        try write(Data(text.utf8))
+    }
+
+    /// Appends `bytes` to the log, as the test command would.
+    private func write(_ bytes: Data) throws {
+        try XCTUnwrap(writer).write(contentsOf: bytes)
     }
 
     /// The bytes of the log fixture `name`, as the test command wrote them.

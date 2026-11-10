@@ -1,6 +1,30 @@
 @testable import muterCore
 import XCTest
 
+/// Counts the events an observer handles, and how many of them began while another was being handled.
+private final class OverlapCounter: @unchecked Sendable { // every `var` is behind `lock`
+    private let lock = NSLock()
+    private var active = 0
+    private var handledCount = 0
+    private var overlapCount = 0
+
+    var handled: Int { lock.withLock { handledCount } }
+    var overlaps: Int { lock.withLock { overlapCount } }
+
+    func handle() {
+        lock.withLock {
+            if active > 0 { overlapCount += 1 }
+            active += 1
+        }
+        // Long enough for another sender to arrive meanwhile.
+        Thread.sleep(forTimeInterval: 0.0001)
+        lock.withLock {
+            active -= 1
+            handledCount += 1
+        }
+    }
+}
+
 final class RunEventsTests: MuterTestCase {
     func test_eachObserver_getsEachEvent_inTheOrderTheyWereAdded() {
         let events = RunEvents()
@@ -98,29 +122,5 @@ final class RunEventsTests: MuterTestCase {
 
         XCTAssertNil(freed)
         XCTAssertEqual(printer.linesPassed, [])
-    }
-}
-
-/// Counts the events an observer handles, and how many of them began while another was being handled.
-private final class OverlapCounter: @unchecked Sendable { // every `var` is behind `lock`
-    private let lock = NSLock()
-    private var active = 0
-    private var handledCount = 0
-    private var overlapCount = 0
-
-    var handled: Int { lock.withLock { handledCount } }
-    var overlaps: Int { lock.withLock { overlapCount } }
-
-    func handle() {
-        lock.withLock {
-            if active > 0 { overlapCount += 1 }
-            active += 1
-        }
-        // Long enough for another sender to arrive meanwhile.
-        Thread.sleep(forTimeInterval: 0.0001)
-        lock.withLock {
-            active -= 1
-            handledCount += 1
-        }
     }
 }

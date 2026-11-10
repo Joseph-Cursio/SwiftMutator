@@ -72,17 +72,7 @@ final class PerformMutationTestingTimeoutRerunTests: MuterTestCase {
             Array(names.suffix(3)),
             [.timeoutRerunsStarted, .timeoutRerunFinished, .timeoutRerunsFinished]
         )
-        let reruns = try XCTUnwrap(sent().compactMap { $0.object as? TimeoutReruns }.first)
-        XCTAssertEqual(reruns.count, 1)
-        XCTAssertEqual(reruns.workers, 1)
-        XCTAssertEqual(reruns.limitSeconds, ioDelegate.configurations.first?.testSuiteTimeout)
-        let finished = try XCTUnwrap(sent().compactMap { $0.object as? TimeoutRerun }.first)
-        XCTAssertEqual(finished.rerun.testSuiteOutcome, .failed)
-        XCTAssertEqual(finished.log.keptFileName, rerun.log)
-        XCTAssertEqual([finished.number, finished.count], [1, 1])
-        XCTAssertTrue(finished.changed)
-        let tally = try XCTUnwrap(sent().compactMap { $0.object as? TimeoutRerunTally }.first)
-        XCTAssertEqual([tally.rerun, tally.killed, tally.changed], [1, 1, 1])
+        try assertOneTimeoutRerunAndKilled(in: sent(), rerun: rerun)
     }
 
     // A rerun killed by a test its line names keeps no ` (rerun)` log, as any such kill keeps none; the first run's
@@ -234,6 +224,22 @@ final class PerformMutationTestingTimeoutRerunTests: MuterTestCase {
     }
 
     /// The events sent with any of `names` so far, in order.
+    /// Asserts that `events` say one timeout was run again, on one worker under the first run's limit, and that the
+    /// rerun, whose line is `rerun`, killed the mutant.
+    private func assertOneTimeoutRerunAndKilled(in events: [RunEvent], rerun: MutantResult) throws {
+        let reruns = try XCTUnwrap(events.compactMap { $0.object as? TimeoutReruns }.first)
+        XCTAssertEqual(reruns.count, 1)
+        XCTAssertEqual(reruns.workers, 1)
+        XCTAssertEqual(reruns.limitSeconds, ioDelegate.configurations.first?.testSuiteTimeout)
+        let finished = try XCTUnwrap(events.compactMap { $0.object as? TimeoutRerun }.first)
+        XCTAssertEqual(finished.rerun.testSuiteOutcome, .failed)
+        XCTAssertEqual(finished.log.keptFileName, rerun.log)
+        XCTAssertEqual([finished.number, finished.count], [1, 1])
+        XCTAssertTrue(finished.changed)
+        let tally = try XCTUnwrap(events.compactMap { $0.object as? TimeoutRerunTally }.first)
+        XCTAssertEqual([tally.rerun, tally.killed, tally.changed], [1, 1, 1])
+    }
+
     private func recordEvents(named names: [RunEvent.Name]) -> () -> [RunEvent] {
         var sent: [RunEvent] = []
         let observer = runEvents.observe { event in

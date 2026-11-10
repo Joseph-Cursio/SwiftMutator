@@ -2,6 +2,22 @@
 import XCTest
 
 /// Time limits and durations count only the time SwiftMutator wasn't suspended in, by Ctrl-Z.
+/// A clock a test moves, read from any thread.
+private final class Clock: @unchecked Sendable { // `now` is behind `lock`
+    private let lock = NSLock()
+    private var now: UInt64
+
+    init(nanoseconds: UInt64) {
+        now = nanoseconds
+    }
+
+    var nanoseconds: UInt64 { lock.withLock { now } }
+
+    func advance(by nanoseconds: UInt64) {
+        lock.withLock { now += nanoseconds }
+    }
+}
+
 final class SuspensionsTests: XCTestCase {
     func test_theClockStandsStill_whileSuspended() {
         let uptime = Clock(nanoseconds: 1_000)
@@ -86,21 +102,5 @@ final class SuspensionsTests: XCTestCase {
         XCTAssertEqual(Suspensions.nanoseconds(-3), 0)
         XCTAssertEqual(Suspensions.nanoseconds(1e11), UInt64.max)
         XCTAssertEqual(Suspensions.nanoseconds(1e300), UInt64.max)
-    }
-}
-
-/// A clock a test moves, read from any thread.
-private final class Clock: @unchecked Sendable { // `now` is behind `lock`
-    private let lock = NSLock()
-    private var now: UInt64
-
-    init(nanoseconds: UInt64) {
-        now = nanoseconds
-    }
-
-    var nanoseconds: UInt64 { lock.withLock { now } }
-
-    func advance(by nanoseconds: UInt64) {
-        lock.withLock { now += nanoseconds }
     }
 }

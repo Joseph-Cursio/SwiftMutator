@@ -3,14 +3,15 @@ import XCTest
 
 /// These run real processes, and kill every one they start however a test ends.
 final class TestProcessWatcherTests: XCTestCase {
-    private var directory: URL!
+    private let directory = URL(fileURLWithPath: XCTestCase.unusedTemporaryPath())
     private var launched: [Foundation.Process] = []
     /// Descendants a test started that may still be running.
     private var unconfirmedGone: Set<Int32> = []
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        directory = try URL(fileURLWithPath: makeTemporaryDirectory())
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        addTeardownBlock { [directory] in try? FileManager.default.removeItem(at: directory) }
     }
 
     override func tearDownWithError() throws {

@@ -5,13 +5,14 @@ import XCTest
 /// process factory and time limit, and kill every process they start however a test ends.
 final class StopAtFirstFailureProcessTests: MuterTestCase {
     private let sut = MutationTestingDelegate()
-    private var directory: URL!
+    private let directory = URL(fileURLWithPath: XCTestCase.unusedTemporaryPath())
     private let launched = Locked<[Foundation.Process]>([])
 
     override func setUpWithError() throws {
         try super.setUpWithError()
 
-        directory = try URL(fileURLWithPath: makeTemporaryDirectory())
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        addTeardownBlock { [directory] in try? FileManager.default.removeItem(at: directory) }
         // Test logs are written to the current directory; keep them in the folder removed afterwards.
         fileManager.currentDirectoryPathToReturn = directory.path
         // Added after the folder's own teardown block, so it runs before that one.

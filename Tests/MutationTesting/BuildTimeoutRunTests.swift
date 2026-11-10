@@ -23,8 +23,8 @@ final class BuildTimeoutRunTests: MuterTestCase {
             executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 1, buildTimeout: 600
         )
         state.mutationMapping = try (1...4).map(makeSchemataMapping(line:))
-        let observer = runEvents.observe(.workersChosen) { [unowned self] event in
-            if case let .workersChosen(choice) = event { choices.append(choice) }
+        let observer = runEvents.observe(.workersChosen) { [weak self] event in
+            if case let .workersChosen(choice) = event { self?.choices.append(choice) }
         }
         addTeardownBlock { observer.cancel() }
     }

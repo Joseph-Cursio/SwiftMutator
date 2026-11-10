@@ -1,6 +1,22 @@
 @testable import muterCore
 import XCTest
 
+private final class Counts: @unchecked Sendable { // `held` and `released` are behind `lock`
+    private let lock = NSLock()
+    private var heldCount = 0
+    private var releasedCount = 0
+
+    var held: Int { lock.withLock { heldCount } }
+    var released: Int { lock.withLock { releasedCount } }
+
+    func add(held: Int = 0, released: Int = 0) {
+        lock.withLock {
+            heldCount += held
+            releasedCount += released
+        }
+    }
+}
+
 final class IdleSleepPreventionTests: XCTestCase {
     func test_beginningTwice_holdsOnce_andEndingTwice_releasesOnce() {
         let counts = Counts()
@@ -70,20 +86,4 @@ final class IdleSleepPreventionTests: XCTestCase {
             .filter { $0.contains(pid) && $0.contains(IdleSleepPrevention.reason) }
     }
     #endif
-}
-
-private final class Counts: @unchecked Sendable { // `held` and `released` are behind `lock`
-    private let lock = NSLock()
-    private var heldCount = 0
-    private var releasedCount = 0
-
-    var held: Int { lock.withLock { heldCount } }
-    var released: Int { lock.withLock { releasedCount } }
-
-    func add(held: Int = 0, released: Int = 0) {
-        lock.withLock {
-            heldCount += held
-            releasedCount += released
-        }
-    }
 }
