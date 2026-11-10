@@ -387,7 +387,7 @@ final class XcodeBuildConditionsTests: MuterTestCase {
 
             let conditions = try await conditions(arguments: arguments + ["test"], environment: environment)
 
-            XCTAssertEqual(try conditions.isCustomConditionSet(name: "CORE_ONLY"), false, "\(arguments) \(environment)")
+            XCTAssertFalse(try conditions.isCustomConditionSet(name: "CORE_ONLY"), "\(arguments) \(environment)")
         }
     }
 
