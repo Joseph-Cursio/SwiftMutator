@@ -9,8 +9,8 @@ final class ScoreGateTests: MuterTestCase {
     private func gate(
         killed: Int,
         of scored: Int,
-        buildErrors: Int = 0,
         failUnder: Double,
+        buildErrors: Int = 0,
         progress: ScoreGate.Progress? = nil
     ) -> ScoreGate {
         let outcomes = Array(repeating: TestSuiteOutcome.failed, count: killed)
@@ -42,7 +42,7 @@ final class ScoreGateTests: MuterTestCase {
 
     // Build errors aren't scored, as in the headline.
     func test_buildErrors_areLeftOut() {
-        let judged = gate(killed: 1, of: 2, buildErrors: 3, failUnder: 50)
+        let judged = gate(killed: 1, of: 2, failUnder: 50, buildErrors: 3)
         XCTAssertEqual(judged.verdict, .passed)
         XCTAssertEqual(judged.score, 50)
     }
@@ -56,7 +56,7 @@ final class ScoreGateTests: MuterTestCase {
         XCTAssertNil(none.score)
         XCTAssertTrue(try XCTUnwrap(none.passed))
         XCTAssertEqual(none.line, "No mutant was tested, so no score falls short of the required 80%.")
-        let buildErrors = gate(killed: 0, of: 0, buildErrors: 2, failUnder: 80)
+        let buildErrors = gate(killed: 0, of: 0, failUnder: 80, buildErrors: 2)
         XCTAssertEqual(buildErrors.verdict, .nothingScored(tested: 2))
         XCTAssertFalse(try XCTUnwrap(buildErrors.passed))
         XCTAssertEqual(buildErrors.exitStatus, .scoreBelowThreshold)
@@ -97,7 +97,7 @@ final class ScoreGateTests: MuterTestCase {
 
     // A threshold of 0 otherwise can't fail, but nothing was measured.
     func test_nothingButBuildErrors_failsEvenAThresholdOfZero() {
-        XCTAssertEqual(gate(killed: 0, of: 0, buildErrors: 2, failUnder: 0).exitStatus, .scoreBelowThreshold)
+        XCTAssertEqual(gate(killed: 0, of: 0, failUnder: 0, buildErrors: 2).exitStatus, .scoreBelowThreshold)
     }
 
     // They may compile, so taking them out can't help a run pass: 2 of 2 tested would be 100%.
@@ -139,11 +139,11 @@ final class ScoreGateTests: MuterTestCase {
     // Leaving mutants out raises the score, so a line about the score says some are left out.
     func test_theLine_saysHowManyAreLeftOut() {
         XCTAssertEqual(
-            gate(killed: 1, of: 2, buildErrors: 3, failUnder: 50).line,
+            gate(killed: 1, of: 2, failUnder: 50, buildErrors: 3).line,
             "Mutation score 50.0% meets the required 50%. 3 mutants were build errors, and aren't scored."
         )
         XCTAssertEqual(
-            gate(killed: 1, of: 2, buildErrors: 1, failUnder: 80).line,
+            gate(killed: 1, of: 2, failUnder: 80, buildErrors: 1).line,
             "Mutation score 50.0% is below the required 80%. 1 mutant was a build error, and isn't scored."
         )
     }

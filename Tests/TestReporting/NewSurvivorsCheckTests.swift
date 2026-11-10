@@ -4,45 +4,6 @@ import XCTest
 
 /// The verdict on a run's survivors against a baseline file's: what it says, and the status it exits with.
 final class NewSurvivorsCheckTests: XCTestCase {
-    private func key(_ line: Int, path: String = "Sources/X.swift") -> MutantKey {
-        MutantKey(path: path, mutationOperatorId: .relationalBoundary, line: line, column: 17, occurrence: 0)
-    }
-
-    private func baseline(_ survivors: [MutantKey], version: String = "0.1.0") -> BaselineFile {
-        BaselineFile(
-            path: "muter.baseline.yml",
-            swiftMutator: version,
-            score: .init(killed: 0, scored: 0),
-            scope: BaselineScope(operators: [], skipCoverage: false, configuration: .init()),
-            survivors: survivors.map { BaselineSurvivor(mutant: $0, outcome: .survived, before: "<", after: "<=") }
-        )
-    }
-
-    private func outcome(_ mutants: [(MutantKey, TestSuiteOutcome)], mutant: String? = nil) -> MutationTestOutcome {
-        MutationTestOutcome(
-            mutations: mutants.map { key, outcome in
-                .make(testSuiteOutcome: outcome, snapshot: .make(before: "<", after: "<="), key: key)
-            },
-            mutant: mutant
-        )
-    }
-
-    private func check(
-        _ survivors: [MutantKey],
-        against mutants: [(MutantKey, TestSuiteOutcome)],
-        allowing allowed: Int = 0,
-        version: String = "0.1.0",
-        mutant: String? = nil,
-        unless notChecked: NewSurvivorsCheck.NotChecked? = nil
-    ) -> NewSurvivorsCheck {
-        NewSurvivorsCheck(
-            baseline: baseline(survivors),
-            maxNewSurvivors: allowed,
-            judging: outcome(mutants, mutant: mutant),
-            version: version,
-            unless: notChecked
-        ) { _ in nil }
-    }
 
     func test_noNewSurvivor_passes_sayingWhatStillSurvives_andWhatWasFixed() {
         let verdict = check([key(1), key(2), key(3, path: "Sources/Gone.swift")], against: [
