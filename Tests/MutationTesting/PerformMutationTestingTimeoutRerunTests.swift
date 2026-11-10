@@ -58,7 +58,8 @@ final class PerformMutationTestingTimeoutRerunTests: MuterTestCase {
         )
         XCTAssertEqual(try resultsFiles.records(ResultsEnd.self).map(\.recorded), [5])
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertFalse(outcome.mutations.contains { $0.testSuiteOutcome == .timeout })
         XCTAssertEqual(outcome.mutations.count, 4)
@@ -125,7 +126,8 @@ final class PerformMutationTestingTimeoutRerunTests: MuterTestCase {
         XCTAssertEqual(records.map(\.outcome).filter { $0 == .timeout }.count, 2)
         XCTAssertNotNil(records.last?.rerun)
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertEqual(outcome.mutations.filter { $0.testSuiteOutcome == .timeout }.count, 1)
         XCTAssertEqual(tallies.map(\.timedOutAgain), [1])

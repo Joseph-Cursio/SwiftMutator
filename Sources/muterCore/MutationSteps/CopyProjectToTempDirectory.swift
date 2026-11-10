@@ -83,10 +83,10 @@ final class VanishedFileTolerance: NSObject, FileManagerDelegate {
     #endif
 
     func fileManager(
-        _ fileManager: FileManager,
+        _: FileManager,
         shouldProceedAfterError error: Error,
         copyingItemAtPath srcPath: String,
-        toPath dstPath: String
+        toPath _: String
     ) -> Bool {
         shouldProceed(afterError: error, copying: srcPath)
     }
@@ -124,94 +124,94 @@ final class VanishedFileTolerance: NSObject, FileManagerDelegate {
 /// forms, so a file that vanishes is tolerated there too.
 extension VanishedFileTolerance {
     func fileManager(
-        _ fileManager: FileManager,
+        _: FileManager,
         shouldProceedAfterError error: Error,
         copyingItemAt srcURL: URL,
-        to dstURL: URL
+        to _: URL
     ) -> Bool {
         shouldProceed(afterError: error, copying: srcURL.path)
     }
 
-    func fileManager(_ fileManager: FileManager, shouldCopyItemAtPath srcPath: String, toPath dstPath: String) -> Bool {
+    func fileManager(_: FileManager, shouldCopyItemAtPath _: String, toPath _: String) -> Bool {
         true
     }
 
-    func fileManager(_ fileManager: FileManager, shouldCopyItemAt srcURL: URL, to dstURL: URL) -> Bool {
+    func fileManager(_: FileManager, shouldCopyItemAt _: URL, to _: URL) -> Bool {
         true
     }
 
-    func fileManager(_ fileManager: FileManager, shouldMoveItemAtPath srcPath: String, toPath dstPath: String) -> Bool {
+    func fileManager(_: FileManager, shouldMoveItemAtPath _: String, toPath _: String) -> Bool {
         true
     }
 
-    func fileManager(_ fileManager: FileManager, shouldMoveItemAt srcURL: URL, to dstURL: URL) -> Bool {
+    func fileManager(_: FileManager, shouldMoveItemAt _: URL, to _: URL) -> Bool {
         true
     }
 
     func fileManager(
-        _ fileManager: FileManager,
-        shouldProceedAfterError error: Error,
-        movingItemAtPath srcPath: String,
-        toPath dstPath: String
+        _: FileManager,
+        shouldProceedAfterError _: Error,
+        movingItemAtPath _: String,
+        toPath _: String
     ) -> Bool {
         false
     }
 
     func fileManager(
-        _ fileManager: FileManager,
-        shouldProceedAfterError error: Error,
-        movingItemAt srcURL: URL,
-        to dstURL: URL
+        _: FileManager,
+        shouldProceedAfterError _: Error,
+        movingItemAt _: URL,
+        to _: URL
     ) -> Bool {
         false
     }
 
-    func fileManager(_ fileManager: FileManager, shouldLinkItemAtPath srcPath: String, toPath dstPath: String) -> Bool {
+    func fileManager(_: FileManager, shouldLinkItemAtPath _: String, toPath _: String) -> Bool {
         true
     }
 
-    func fileManager(_ fileManager: FileManager, shouldLinkItemAt srcURL: URL, to dstURL: URL) -> Bool {
-        true
-    }
-
-    func fileManager(
-        _ fileManager: FileManager,
-        shouldProceedAfterError error: Error,
-        linkingItemAtPath srcPath: String,
-        toPath dstPath: String
-    ) -> Bool {
-        false
-    }
-
-    func fileManager(
-        _ fileManager: FileManager,
-        shouldProceedAfterError error: Error,
-        linkingItemAt srcURL: URL,
-        to dstURL: URL
-    ) -> Bool {
-        false
-    }
-
-    func fileManager(_ fileManager: FileManager, shouldRemoveItemAtPath path: String) -> Bool {
-        true
-    }
-
-    func fileManager(_ fileManager: FileManager, shouldRemoveItemAt URL: URL) -> Bool {
+    func fileManager(_: FileManager, shouldLinkItemAt _: URL, to _: URL) -> Bool {
         true
     }
 
     func fileManager(
-        _ fileManager: FileManager,
-        shouldProceedAfterError error: Error,
-        removingItemAtPath path: String
+        _: FileManager,
+        shouldProceedAfterError _: Error,
+        linkingItemAtPath _: String,
+        toPath _: String
     ) -> Bool {
         false
     }
 
     func fileManager(
-        _ fileManager: FileManager,
-        shouldProceedAfterError error: Error,
-        removingItemAt URL: URL
+        _: FileManager,
+        shouldProceedAfterError _: Error,
+        linkingItemAt _: URL,
+        to _: URL
+    ) -> Bool {
+        false
+    }
+
+    func fileManager(_: FileManager, shouldRemoveItemAtPath _: String) -> Bool {
+        true
+    }
+
+    func fileManager(_: FileManager, shouldRemoveItemAt _: URL) -> Bool {
+        true
+    }
+
+    func fileManager(
+        _: FileManager,
+        shouldProceedAfterError _: Error,
+        removingItemAtPath _: String
+    ) -> Bool {
+        false
+    }
+
+    func fileManager(
+        _: FileManager,
+        shouldProceedAfterError _: Error,
+        removingItemAt _: URL
     ) -> Bool {
         false
     }

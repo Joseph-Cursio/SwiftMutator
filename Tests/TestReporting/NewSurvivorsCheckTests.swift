@@ -117,7 +117,10 @@ final class NewSurvivorsCheckTests: XCTestCase {
         let verdict = check([key(1)], against: [(key(1), .failed), (key(5), .passed)])
 
         XCTAssertEqual(verdict.passed, true)
-        guard case let .checked(comparison) = verdict.verdict else { return XCTFail("\(verdict)") }
+        guard case let .checked(comparison) = verdict.verdict else {
+            XCTFail("\(verdict)")
+            return
+        }
         XCTAssertEqual(comparison.stillSurvive, 1)
         XCTAssertEqual(comparison.fixed, 0)
         XCTAssertEqual(comparison.newSurvivors, [])

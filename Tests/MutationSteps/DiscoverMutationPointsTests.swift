@@ -30,7 +30,8 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         let change = try XCTUnwrap(result.first)
 
         guard case let .mutationMappingsDiscovered(mappings) = change else {
-            return XCTFail("Expected mappings, get \(change)")
+            XCTFail("Expected mappings, get \(change)")
+            return
         }
 
         XCTAssertEqual(mappings.count, 2)
@@ -313,7 +314,8 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         let result = try await sut.run(with: state)
 
         guard case let .mutationMappingsDiscovered(mappings) = try XCTUnwrap(result.first) else {
-            return XCTFail("Expected mappings, got \(result)")
+            XCTFail("Expected mappings, got \(result)")
+            return
         }
         // `count == 1`'s two constants, which a reference without a column names both of.
         XCTAssertEqual(mappings.flatMap(\.mutationSchemata).map(\.mutationOperatorId), [.ror, .ror])
@@ -351,7 +353,8 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         let result = try await sut.run(with: state)
 
         guard case let .mutationMappingsDiscovered(mappings) = try XCTUnwrap(result.first) else {
-            return XCTFail("Expected mappings, got \(result)")
+            XCTFail("Expected mappings, got \(result)")
+            return
         }
         XCTAssertEqual(mappings.flatMap(\.mutationSchemata).map(\.mutationOperatorId), [.swapTernary])
     }
@@ -518,7 +521,8 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         let change = try XCTUnwrap(result.first)
 
         guard case let .mutationMappingsDiscovered(mappings) = change else {
-            return XCTFail("Expected mappings, got \(change)")
+            XCTFail("Expected mappings, got \(change)")
+            return
         }
 
         XCTAssertEqual(mappings.map(\.filePath).sorted(), paths)
@@ -538,7 +542,8 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         let change = try XCTUnwrap(result.first)
 
         guard case let .mutationMappingsDiscovered(mappings) = change else {
-            return XCTFail("Expected mappings, got \(change)")
+            XCTFail("Expected mappings, got \(change)")
+            return
         }
 
         let ids = mappings.flatMap(\.mutationSchemata).map(\.id)
@@ -562,7 +567,8 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         let change = try XCTUnwrap(result.first)
 
         guard case let .mutationMappingsDiscovered(mappings) = change else {
-            return XCTFail("Expected mappings, got \(change)")
+            XCTFail("Expected mappings, got \(change)")
+            return
         }
 
         XCTAssertEqual(mappings.map(\.filePath), paths)
@@ -578,7 +584,8 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         let change = try XCTUnwrap(result.first)
 
         guard case let .mutationMappingsDiscovered(mappings) = change else {
-            return XCTFail("Expected mappings, got \(change)")
+            XCTFail("Expected mappings, got \(change)")
+            return
         }
 
         XCTAssertEqual(mappings.map(\.filePath), paths.sorted())
@@ -619,7 +626,8 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         let change = try XCTUnwrap(result.first)
 
         guard case let .mutationMappingsDiscovered(mappings) = change else {
-            return XCTFail("Expected mappings, got \(change)")
+            XCTFail("Expected mappings, got \(change)")
+            return
         }
 
         // Verify all files were processed
@@ -647,7 +655,8 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         }
 
         guard case let .sourceCodeParsed(sourceCode) = sourceCodeChange else {
-            return XCTFail("Expected sourceCodeParsed change")
+            XCTFail("Expected sourceCodeParsed change")
+            return
         }
 
         XCTAssertTrue(sourceCode.isEmpty, "Source code dictionary should be empty to prevent memory exhaustion")
@@ -673,7 +682,8 @@ final class DiscoverMutationPointsTests: MuterTestCase {
         let change = try XCTUnwrap(result.first)
 
         guard case let .mutationMappingsDiscovered(mappings) = change else {
-            return XCTFail("Expected mappings, got \(change)")
+            XCTFail("Expected mappings, got \(change)")
+            return
         }
 
         // Only Swift files should be processed

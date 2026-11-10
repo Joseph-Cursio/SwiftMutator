@@ -85,7 +85,10 @@ final class LoadConfigurationTests: MuterTestCase {
 
         let result = try await sut.run(with: state)
 
-        guard case let .configurationParsed(configuration)? = result.last else { return XCTFail("\(result)") }
+        guard case let .configurationParsed(configuration)? = result.last else {
+            XCTFail("\(result)")
+            return
+        }
         XCTAssertEqual(configuration.mutationTestWorkers, 6)
         XCTAssertEqual(configuration.testSuiteTimeout, 45.5)
         let fromFile = try XCTUnwrap(MuterConfiguration.fromFixture(
@@ -105,7 +108,10 @@ final class LoadConfigurationTests: MuterTestCase {
 
         let result = try await sut.run(with: state)
 
-        guard case let .configurationParsed(configuration)? = result.last else { return XCTFail("\(result)") }
+        guard case let .configurationParsed(configuration)? = result.last else {
+            XCTFail("\(result)")
+            return
+        }
         XCTAssertEqual(configuration.buildTimeout, 1_200)
     }
 
@@ -135,7 +141,10 @@ final class LoadConfigurationTests: MuterTestCase {
 
         let result = try await sut.run(with: state)
 
-        guard case let .configurationParsed(configuration)? = result.last else { return XCTFail("\(result)") }
+        guard case let .configurationParsed(configuration)? = result.last else {
+            XCTFail("\(result)")
+            return
+        }
         XCTAssertEqual(configuration.buildTimeout, 600)
     }
 
@@ -154,7 +163,10 @@ final class LoadConfigurationTests: MuterTestCase {
 
             let result = try await sut.run(with: state)
 
-            guard case let .configurationParsed(configuration)? = result.last else { return XCTFail("\(result)") }
+            guard case let .configurationParsed(configuration)? = result.last else {
+                XCTFail("\(result)")
+                return
+            }
             XCTAssertEqual(configuration.reports, expected)
         }
     }
@@ -242,7 +254,10 @@ final class LoadConfigurationTests: MuterTestCase {
 
         let result = try await sut.run(with: state)
 
-        guard case let .configurationParsed(configuration)? = result.last else { return XCTFail("\(result)") }
+        guard case let .configurationParsed(configuration)? = result.last else {
+            XCTFail("\(result)")
+            return
+        }
         XCTAssertEqual(configuration.excludeFileList, ["/Gen/", "!/Stubs/"])
     }
 
@@ -264,7 +279,10 @@ final class LoadConfigurationTests: MuterTestCase {
             "executable: /usr/bin/swift\narguments: [test]\nexclude:\n  - \"!/Stubs/\"\n".utf8
         )
         let result = try await sut.run(with: state)
-        guard case let .configurationParsed(quoted)? = result.last else { return XCTFail("\(result)") }
+        guard case let .configurationParsed(quoted)? = result.last else {
+            XCTFail("\(result)")
+            return
+        }
         XCTAssertEqual(quoted.excludeFileList, ["!/Stubs/"])
     }
 
@@ -276,7 +294,10 @@ final class LoadConfigurationTests: MuterTestCase {
 
         let result = try await sut.run(with: state)
 
-        guard case let .configurationParsed(configuration)? = result.last else { return XCTFail("\(result)") }
+        guard case let .configurationParsed(configuration)? = result.last else {
+            XCTFail("\(result)")
+            return
+        }
         XCTAssertEqual(configuration.failUnder, 72.5)
         let fromFile = try XCTUnwrap(MuterConfiguration.fromFixture(
             at: "\(fixturesDirectory)/\(MuterConfiguration.legacyFileNameWithExtension)"
@@ -378,7 +399,8 @@ final class LoadConfigurationTests: MuterTestCase {
         guard let actual,
               let expected
         else {
-            return XCTFail("Could not assert configurations")
+            XCTFail("Could not assert configurations")
+            return
         }
 
         let actualConfig = try? YAMLDecoder().decode(
@@ -540,7 +562,10 @@ final class LoadConfigurationTests: MuterTestCase {
         XCTAssertEqual(sent.events.count, 1)
         XCTAssertEqual(sent.events.first?.file, MuterConfiguration.fileNameWithExtension)
         XCTAssertEqual(sent.events.first?.keys, [.init(key: "mutationTestTimeOut", closest: "mutationTestTimeout")])
-        guard case let .configurationParsed(configuration)? = result.last else { return XCTFail("\(result)") }
+        guard case let .configurationParsed(configuration)? = result.last else {
+            XCTFail("\(result)")
+            return
+        }
         XCTAssertNil(configuration.testSuiteTimeout)
     }
 
@@ -598,7 +623,10 @@ final class LoadConfigurationTests: MuterTestCase {
 
         let result = try await sut.run(with: state)
 
-        guard case let .configurationParsed(configuration)? = result.last else { return XCTFail("\(result)") }
+        guard case let .configurationParsed(configuration)? = result.last else {
+            XCTFail("\(result)")
+            return
+        }
         XCTAssertNil(configuration.explicitBuildSystem)
     }
 
@@ -716,7 +744,10 @@ final class LoadConfigurationTests: MuterTestCase {
 
             let result = try await sut.run(with: state)
 
-            guard case .configurationParsed? = result.last else { return XCTFail("\(yaml): \(result)") }
+            guard case .configurationParsed? = result.last else {
+                XCTFail("\(yaml): \(result)")
+                return
+            }
         }
     }
 
@@ -730,7 +761,10 @@ final class LoadConfigurationTests: MuterTestCase {
 
         let result = try await sut.run(with: state)
 
-        guard case let .configurationParsed(configuration)? = result.last else { return XCTFail("\(result)") }
+        guard case let .configurationParsed(configuration)? = result.last else {
+            XCTFail("\(result)")
+            return
+        }
         XCTAssertEqual(configuration.testSuiteTimeout, 60)
         XCTAssertEqual(configuration.mutationTestWorkers, 2)
     }

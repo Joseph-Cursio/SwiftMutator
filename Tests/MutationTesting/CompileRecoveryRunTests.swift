@@ -85,7 +85,10 @@ final class CompileRecoveryRunTests: MuterTestCase {
         )
 
         // The outcome holds it, and the rest.
-        guard case let .mutationTestOutcomeGenerated(outcome)? = result.first else { return XCTFail("\(result)") }
+        guard case let .mutationTestOutcomeGenerated(outcome)? = result.first else {
+            XCTFail("\(result)")
+            return
+        }
         XCTAssertEqual(outcome.mutations.count, ids.count)
         XCTAssertEqual(outcome.mutations.filter { $0.testSuiteOutcome == .buildError }.count, 1)
 
@@ -298,7 +301,10 @@ final class CompileRecoveryRunTests: MuterTestCase {
             Set(records.filter { $0.leftOutWithOthers == true }.map(\.switchID)),
             Set(chain.map(\.id))
         )
-        guard case let .mutationTestOutcomeGenerated(outcome)? = result.first else { return XCTFail("\(result)") }
+        guard case let .mutationTestOutcomeGenerated(outcome)? = result.first else {
+            XCTFail("\(result)")
+            return
+        }
         XCTAssertEqual(outcome.mutations.count(where: \.leftOutWithOthers), chain.count)
     }
 
@@ -325,7 +331,10 @@ final class CompileRecoveryRunTests: MuterTestCase {
 
         let result = try await sut.run(with: state)
 
-        guard case let .mutationTestOutcomeGenerated(outcome)? = result.first else { return XCTFail("\(result)") }
+        guard case let .mutationTestOutcomeGenerated(outcome)? = result.first else {
+            XCTFail("\(result)")
+            return
+        }
         let resultsPath = "\(directory)/results.jsonl"
         let recorded = try RecordedResults.read(Data(contentsOf: URL(fileURLWithPath: resultsPath)), path: resultsPath)
         let reported = recorded.mutationTestOutcome()

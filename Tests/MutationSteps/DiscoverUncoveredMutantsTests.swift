@@ -241,7 +241,10 @@ final class DiscoverUncoveredMutantsTests: MuterTestCase {
         XCTAssertEqual(only.selection, selection)
         XCTAssertEqual(only.uncovered, 3)
         XCTAssertEqual(only.check.passed, false)
-        guard case let .checked(comparison) = only.check.verdict else { return XCTFail("\(only.check)") }
+        guard case let .checked(comparison) = only.check.verdict else {
+            XCTFail("\(only.check)")
+            return
+        }
         XCTAssertEqual(comparison.newSurvivors.map(\.mutant), [
             "Sign.swift:1:47 RelationalBoundary", "Sign.swift:1:47 RelationalOperatorReplacement",
             "Sign.swift:1:50 RelationalOperatorReplacement",

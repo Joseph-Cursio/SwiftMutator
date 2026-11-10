@@ -111,7 +111,8 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         let changes = try await sut.run(with: state)
 
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         let header = try XCTUnwrap(resultsFiles.records(ResultsHeader.self).first)
         XCTAssertEqual(outcome.run, RunDetails(of: [("/logs/results.jsonl", [header])]))
@@ -497,7 +498,8 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         let changes = try await sut.run(with: state)
 
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertEqual(try resultsFiles.kinds(), ["header", "mutant", "mutant", "end"])
         let end = try XCTUnwrap(resultsFiles.records(ResultsEnd.self).first)
@@ -708,7 +710,8 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(sent().map(\.name), [.resultsFileUnavailable])
         XCTAssertEqual(sent().first?.object as? String, "can't open /logs/results.jsonl: Permission denied")
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.failed, .passed])
         XCTAssertEqual(outcome.mutations.first?.killingTests, sumKilled, "worked out without a results file")
@@ -731,7 +734,8 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         )
         XCTAssertEqual(try resultsFiles.kinds(), ["header"])
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.failed, .failed])
         XCTAssertEqual(outcome.mutations.map(\.killingTests), [sumKilled, sumKilled], "worked out after a failed write")
@@ -749,7 +753,8 @@ final class PerformMutationTestingResultsTests: MuterTestCase {
         XCTAssertEqual(sent().map(\.name), [.resultsFileUnavailable])
         XCTAssertEqual(resultsFiles.lines, [])
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertEqual(outcome.mutations.count, 2)
     }

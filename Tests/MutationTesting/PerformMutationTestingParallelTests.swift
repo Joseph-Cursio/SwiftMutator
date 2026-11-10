@@ -217,7 +217,8 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
 
         // Outcomes keep the mutants' order, whichever worker finished first.
         guard case let .mutationTestOutcomeGenerated(outcome) = result.first else {
-            return XCTFail("Expected an outcome, got \(result)")
+            XCTFail("Expected an outcome, got \(result)")
+            return
         }
         XCTAssertEqual(outcome.mutations.map(\.point.position.line), [1, 2])
     }
@@ -241,7 +242,8 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
 
         XCTAssertNotEqual(finishedLines(), [1, 2, 3, 4], "the runs didn't finish out of order")
         guard case let .mutationTestOutcomeGenerated(outcome) = result.first else {
-            return XCTFail("Expected an outcome, got \(result)")
+            XCTFail("Expected an outcome, got \(result)")
+            return
         }
         XCTAssertEqual(outcome.mutations.map(\.point.position.line), [1, 2, 3, 4])
     }

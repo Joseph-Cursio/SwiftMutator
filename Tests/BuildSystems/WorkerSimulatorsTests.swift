@@ -598,7 +598,7 @@ private final class SimctlStandIn: MuterProcess, @unchecked Sendable { // every 
     var standardOutput: Any?
     var standardError: Any?
 
-    func runProcess(url: String, arguments args: [String]) async -> Data? { nil }
+    func runProcess(url _: String, arguments _: [String]) async -> Data? { nil }
 
     func run() throws {}
 

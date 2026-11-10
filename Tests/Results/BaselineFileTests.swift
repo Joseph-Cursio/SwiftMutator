@@ -384,7 +384,10 @@ final class BaselineFileTests: MuterTestCase {
         ]
         for (outcome, words) in cases {
             let saving = BaselineFileSaving.save(outcome, to: target, version: "0.1.0", using: FileManager.default)
-            guard case let .leftOut(_, reason) = saving else { return XCTFail("\(saving)") }
+            guard case let .leftOut(_, reason) = saving else {
+                XCTFail("\(saving)")
+                return
+            }
             XCTAssertTrue(reason.contains(words), reason)
             XCTAssertTrue(saving.plainLine.hasSuffix("and a baseline file holds a whole run's survivors."))
         }

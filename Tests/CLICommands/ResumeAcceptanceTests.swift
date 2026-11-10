@@ -495,7 +495,10 @@ final class ResumeAcceptanceTests: XCTestCase {
     /// group of its own.
     private func signalGroup(of launched: Launched, _ signal: Int32) {
         let pid = launched.process.processIdentifier
-        guard pid > 1, launched.process.isRunning else { return XCTFail("SwiftMutator isn't running") }
+        guard pid > 1, launched.process.isRunning else {
+            XCTFail("SwiftMutator isn't running")
+            return
+        }
         kill(-pid, signal)
     }
 
@@ -509,7 +512,8 @@ final class ResumeAcceptanceTests: XCTestCase {
     ) {
         let process = launched.process
         guard waitUntil(within: 15, { !process.isRunning }) else {
-            return XCTFail("SwiftMutator was still running after 15 s", file: file, line: line)
+            XCTFail("SwiftMutator was still running after 15 s", file: file, line: line)
+            return
         }
         XCTAssertEqual(
             describe(process),

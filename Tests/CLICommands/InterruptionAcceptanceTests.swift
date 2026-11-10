@@ -234,7 +234,8 @@ final class InterruptionAcceptanceTests: XCTestCase {
         let running = try startSwiftMutator(hangingIn: .mutantsWithAnUnlistedProcess)
 
         guard waitUntil(within: 60, { !running.isRunning }) else {
-            return XCTFail("SwiftMutator was still running after 60 s")
+            XCTFail("SwiftMutator was still running after 60 s")
+            return
         }
 
         XCTAssertFalse(contents(of: standardError).contains("Stopping"), contents(of: standardError))
@@ -251,7 +252,8 @@ final class InterruptionAcceptanceTests: XCTestCase {
         signalProcess(running, SIGINT)
 
         guard waitUntil(within: 15, { !running.isRunning }) else {
-            return XCTFail("SwiftMutator was still running after 15 s")
+            XCTFail("SwiftMutator was still running after 15 s")
+            return
         }
         assertNoTestProcessIsLeft()
         let signal = running.terminationReason == .uncaughtSignal ? running.terminationStatus : 0
@@ -331,7 +333,8 @@ final class InterruptionAcceptanceTests: XCTestCase {
         signalGroup(of: running, SIGCONT)
 
         guard waitUntil(within: 30, { !running.isRunning }) else {
-            return XCTFail("SwiftMutator was still running after 30 s: \(contents(of: standardError))")
+            XCTFail("SwiftMutator was still running after 30 s: \(contents(of: standardError))")
+            return
         }
         XCTAssertEqual(running.terminationReason, .exit, describe(running))
         assertNoTestProcessIsLeft()
@@ -453,13 +456,19 @@ final class InterruptionAcceptanceTests: XCTestCase {
     /// SwiftMutator starts leads a group of its own.
     private func signalGroup(of mutator: Foundation.Process, _ signal: Int32) {
         let pid = mutator.processIdentifier
-        guard pid > 1, mutator.isRunning else { return XCTFail("SwiftMutator isn't running") }
+        guard pid > 1, mutator.isRunning else {
+            XCTFail("SwiftMutator isn't running")
+            return
+        }
         kill(-pid, signal)
     }
 
     private func signalProcess(_ mutator: Foundation.Process, _ signal: Int32) {
         let pid = mutator.processIdentifier
-        guard pid > 1, mutator.isRunning else { return XCTFail("SwiftMutator isn't running") }
+        guard pid > 1, mutator.isRunning else {
+            XCTFail("SwiftMutator isn't running")
+            return
+        }
         kill(pid, signal)
     }
 
@@ -499,7 +508,8 @@ final class InterruptionAcceptanceTests: XCTestCase {
         line: UInt = #line
     ) {
         guard waitUntil(within: timeout, { !mutator.isRunning }) else {
-            return XCTFail("SwiftMutator was still running after \(timeout) s", file: file, line: line)
+            XCTFail("SwiftMutator was still running after \(timeout) s", file: file, line: line)
+            return
         }
         XCTAssertEqual(
             describe(mutator),

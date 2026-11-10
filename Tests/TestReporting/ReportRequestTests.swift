@@ -31,7 +31,10 @@ final class ReportRequestTests: MuterTestCase {
             ("xcode:report.txt", "save the Xcode format with -f xcode"),
         ]
         for (text, problem) in refused {
-            guard case let .failure(found) = ReportRequest.parse(text) else { return XCTFail(text) }
+            guard case let .failure(found) = ReportRequest.parse(text) else {
+                XCTFail(text)
+                return
+            }
             XCTAssertTrue(found.description.hasPrefix(problem), "\(text): \(found)")
             XCTAssertTrue(found.description.hasSuffix("such as markdown:summary.md"), "\(text): \(found)")
         }

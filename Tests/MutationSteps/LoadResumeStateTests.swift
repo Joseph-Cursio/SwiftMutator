@@ -277,7 +277,8 @@ final class LoadResumeStateTests: MuterTestCase {
 
         XCTAssertEqual(changes.count, 1)
         guard case .resumeStateLoaded? = changes.first else {
-            return XCTFail("Expected the resume to be loaded, got \(changes)")
+            XCTFail("Expected the resume to be loaded, got \(changes)")
+            return
         }
     }
 
@@ -304,7 +305,8 @@ final class LoadResumeStateTests: MuterTestCase {
         let changes = try await sut.run(with: state)
 
         guard case .resumeStateLoaded? = changes.first, changes.count == 1 else {
-            return XCTFail("Expected the resume to be loaded, got \(changes)")
+            XCTFail("Expected the resume to be loaded, got \(changes)")
+            return
         }
         XCTAssertEqual(listed.value, [], "the project was listed")
     }
@@ -521,7 +523,10 @@ extension LoadResumeStateTests {
         XCTAssertNotNil(state.resumeState?.reusedFolders)
         XCTAssertEqual(ResultsFile.probeLock(marker), .inUse)
         state.resumeState = nil
-        guard case let .held(probe) = ResultsFile.probeLock(marker) else { return XCTFail("still locked") }
+        guard case let .held(probe) = ResultsFile.probeLock(marker) else {
+            XCTFail("still locked")
+            return
+        }
         close(probe)
     }
 

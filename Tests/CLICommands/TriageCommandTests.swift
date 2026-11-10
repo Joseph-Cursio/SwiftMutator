@@ -38,7 +38,10 @@ final class TriageCommandTests: MuterTestCase {
 
     private func triage(_ arguments: String...) async throws {
         let command = try MuterCommand.parseAsRoot(["triage"] + arguments)
-        guard let triage = command as? Triage else { return XCTFail("Expected triage, got \(command)") }
+        guard let triage = command as? Triage else {
+            XCTFail("Expected triage, got \(command)")
+            return
+        }
         try await triage.run()
     }
 

@@ -359,7 +359,8 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         let changes = try await sut.run(with: state)
 
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertEqual(outcome.mutations.map(\.point.position.line), [7, 4, 3, 8])
         XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.passed, .failed, .failed, .passed])
@@ -393,7 +394,8 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         let changes = try await sut.run(with: state)
 
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertEqual(outcome.mutations.map(\.point.position.line), [7, 4, 3, 8])
         XCTAssertEqual(
@@ -462,7 +464,8 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         XCTAssertEqual(end.recorded, 0)
         XCTAssertEqual(resultsFiles.files.map(\.isClosed), [true])
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.passed, .runtimeError, .failed, .timeout])
         XCTAssertEqual(
@@ -565,7 +568,8 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         )
         XCTAssertEqual(try resultsFiles.records(MutantResult.self).map(\.path), ["Sources/Total.swift"])
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.passed, .failed, .failed, .passed])
     }
@@ -598,7 +602,8 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         XCTAssertEqual(try resultsFiles.records(MutantResult.self).map(\.path), ["Sources/Total.swift"])
         XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).first?.timeoutSeconds, 120)
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertEqual(outcome.mutations.map(\.testSuiteOutcome), [.passed, .failed, .failed, .failed])
     }
@@ -667,7 +672,8 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
             ]
         )
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertEqual(outcome.mutations.map(\.point.position.line), [7, 4, 3, 8])
     }
@@ -874,7 +880,8 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         let changes = try await sut.run(with: state)
 
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         let end = try XCTUnwrap(resultsFiles.records(ResultsEnd.self).first)
         XCTAssertGreaterThan(end.testDurationSeconds, 0)
@@ -933,7 +940,8 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         let changes = try await sut.run(with: state)
 
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         let file = try resultsFileData(recorded) + Data(resultsFiles.lines.map { $0 + "\n" }.joined().utf8)
         let fromTheFile = try RecordedResults.read(file, path: resultsPath)

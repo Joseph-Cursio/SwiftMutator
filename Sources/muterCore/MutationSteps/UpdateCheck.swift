@@ -41,7 +41,7 @@ struct UpdateCheck: MutationStep {
     }
 
     func run(
-        with state: AnyMutationTestState
+        with _: AnyMutationTestState
     ) async throws -> [MutationTestState.Change] {
         guard let releaseURL = URL(string: url) else {
             return []

@@ -123,7 +123,7 @@ final class ResultsFilesSpy: ResultsFileOpening, @unchecked Sendable {
     }
 
     /// The records of `Record`'s kind among `lines`, in order.
-    func records<Record: ResultsRecord>(_ type: Record.Type) throws -> [Record] {
+    func records<Record: ResultsRecord>(_: Record.Type) throws -> [Record] {
         let decoder = ResultsCoding.decoder
         return try lines.map { Data($0.utf8) }
             .filter { try decoder.decode(ResultsCoding.Kind.self, from: $0).kind == Record.recordKind }

@@ -759,7 +759,7 @@ final class MutationTestHandlerTests: MuterTestCase {
 
 /// A step that refuses a resume, as `LoadResumeState` and `FingerprintProjectTree` do.
 private final class RefusingStep: MutationStep {
-    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+    func run(with _: AnyMutationTestState) async throws -> [MutationTestState.Change] {
         throw ResumeRefused(
             path: "/logs/results.jsonl",
             reasons: [.inUse(holder: nil, lastProcess: nil, lastHost: nil)],
@@ -782,7 +782,7 @@ private final class LoggingDirectoryProbe: MutationStep {
 private struct BuildForTestingStandIn: MutationStep {
     let interruption: InterruptionRecord
 
-    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+    func run(with _: AnyMutationTestState) async throws -> [MutationTestState.Change] {
         _ = interruption.record(SIGINT)
         interruption.stoppingAtOnce()
         throw CancellationError()

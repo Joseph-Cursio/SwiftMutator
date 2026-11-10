@@ -220,7 +220,10 @@ final class DiscoverSourceFilesSinceTests: MuterTestCase {
 
         let changes = try await ListChangedSources().run(with: state)
 
-        guard case let .candidatePathsListed(paths)? = changes.first else { return XCTFail("\(changes)") }
+        guard case let .candidatePathsListed(paths)? = changes.first else {
+            XCTFail("\(changes)")
+            return
+        }
         XCTAssertTrue(paths.contains("file1.swift"), "\(paths)")
         state.apply(changes)
         let discovered = try await DiscoverSourceFiles().run(with: state)

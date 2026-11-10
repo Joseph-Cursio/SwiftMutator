@@ -71,7 +71,8 @@ final class RecordedOutcomeTests: MuterTestCase {
         let changes = try await sut.run(with: state)
 
         guard case let .mutationTestOutcomeGenerated(runOutcome)? = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertFalse(runOutcome.mutations.contains { $0.testSuiteOutcome == .timeout })
         let slow = FailedTestLine.FailedTest(name: "slow()", location: "SlowTests.swift:4:5")
@@ -109,7 +110,8 @@ final class RecordedOutcomeTests: MuterTestCase {
         let changes = try await sut.run(with: state)
 
         guard case let .mutationTestOutcomeGenerated(runOutcome)? = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         let report = MuterTestReport(from: runOutcome)
         let summary = try XCTUnwrap(report.killingTestSummary)
@@ -152,7 +154,8 @@ final class RecordedOutcomeTests: MuterTestCase {
         let changes = try await sut.run(with: state)
 
         guard case let .mutationTestOutcomeGenerated(runOutcome)? = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         let report = MuterTestReport(from: runOutcome)
         let summary = try XCTUnwrap(report.killingTestSummary)
@@ -190,7 +193,8 @@ final class RecordedOutcomeTests: MuterTestCase {
         let changes = try await sut.run(with: state)
 
         guard case let .mutationTestOutcomeGenerated(runOutcome)? = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertEqual(runOutcome.suspectTestThresholds, SuspectTestThresholds(filePercent: 60, minimumFiles: 3))
         let summary = try XCTUnwrap(MuterTestReport(from: runOutcome).killingTestSummary)
@@ -486,7 +490,8 @@ final class RecordedOutcomeTests: MuterTestCase {
         let changes = try await sut.run(with: state)
 
         guard case let .mutationTestOutcomeGenerated(runOutcome)? = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertTrue(runOutcome.coverageSkipped)
         XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).map(\.skipCoverage), [true])
@@ -556,7 +561,8 @@ private extension RecordedOutcomeTests {
         let changes = try await sut.run(with: state)
 
         guard case let .mutationTestOutcomeGenerated(runOutcome)? = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)", file: file, line: line)
+            XCTFail("Expected an outcome, got \(changes)", file: file, line: line)
+            return
         }
         XCTAssertEqual(runOutcome.mutations.count, 5, file: file, line: line)
         let killingTests = { (outcome: TestSuiteOutcome) in

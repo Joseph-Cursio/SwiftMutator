@@ -155,7 +155,8 @@ final class BuildTimeoutRunTests: MuterTestCase {
         _ = try await sut.run(with: state)
 
         guard case let .timedTestRunStopped(seconds, log)? = stopped.first, stopped.count == 1 else {
-            return XCTFail("\(stopped)")
+            XCTFail("\(stopped)")
+            return
         }
         XCTAssertEqual(seconds, 60)
         XCTAssertEqual(log, "/logs/timed test run.log")

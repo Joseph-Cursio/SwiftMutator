@@ -65,7 +65,7 @@ final class FileManagerSpy: Spy, FileSystemManager, @unchecked Sendable {
     func createDirectory(
         atPath path: String,
         withIntermediateDirectories createIntermediates: Bool,
-        attributes: [FileAttributeKey: Any]? = nil
+        attributes _: [FileAttributeKey: Any]? = nil
     ) throws {
         methodCalls.append(#function)
         paths.append(path)
@@ -79,7 +79,7 @@ final class FileManagerSpy: Spy, FileSystemManager, @unchecked Sendable {
     func createFile(
         atPath path: String,
         contents data: Data?,
-        attributes attr: [FileAttributeKey: Any]?
+        attributes _: [FileAttributeKey: Any]?
     ) -> Bool {
         methodCalls.append(#function)
         paths.append(path)
@@ -129,7 +129,7 @@ final class FileManagerSpy: Spy, FileSystemManager, @unchecked Sendable {
     }
 
     func subpaths(
-        atPath path: String
+        atPath _: String
     ) -> [String]? {
         methodCalls.append(#function)
         return subpathsToReturn

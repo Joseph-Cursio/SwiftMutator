@@ -58,7 +58,8 @@ final class SampleRunTests: MuterTestCase {
         let changes = try await DiscoverMutationPoints().run(with: state)
 
         guard case let .sampleSelected(selection)? = changes.first else {
-            return XCTFail("Expected the sample first, got \(changes)")
+            XCTFail("Expected the sample first, got \(changes)")
+            return
         }
         XCTAssertEqual(selection, SampleSelection(size: 3, seed: 7, mutantsSampledFrom: 11, mutantsSampled: 3))
         state.apply(changes)

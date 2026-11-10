@@ -371,7 +371,8 @@ final class LogFolderPruningTests: MuterTestCase {
         XCTAssertEqual(pruning.removed, [])
         XCTAssertEqual(pruning.left.map(\.folders), [["locked"]])
         guard case let .couldNotRemove(reason) = pruning.left.first?.reason else {
-            return XCTFail("\(pruning.left)")
+            XCTFail("\(pruning.left)")
+            return
         }
         XCTAssertFalse(reason.isEmpty)
         XCTAssertNil(LogFolderPruning.removeFolder(atPath: root + "/gone"))

@@ -22,7 +22,8 @@ public struct Operator: AsyncParsableCommand {
     public mutating func run() async throws {
         @Dependency(\.printer) var print: Printer
         if `operator`.trimmed == "all" {
-            return print(MutationOperator.Id.allCases.map(\.documentation).joined(separator: "\n\n"))
+            print(MutationOperator.Id.allCases.map(\.documentation).joined(separator: "\n\n"))
+            return
         }
 
         guard let mutationOperator = MutationOperator.Id(rawValue: `operator`) else {

@@ -97,7 +97,8 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
         XCTAssertEqual(kept.rerun?.alone?.map(\.result), [nil])
         XCTAssertFalse(ioDelegate.testLogs.contains { $0.contains("_rerun_") }, "\(ioDelegate.testLogs)")
         guard case let .mutationTestOutcomeGenerated(outcome)? = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertEqual(KillingTestSummary(of: outcome.mutations)?.killsTestedAlone, 0)
     }
@@ -145,7 +146,8 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
         let changes = try await sut.run(with: state)
 
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         XCTAssertLessThan(outcome.testDuration, 100)
     }
@@ -231,7 +233,8 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
         let changes = try await sut.run(with: state)
 
         guard case let .mutationTestOutcomeGenerated(outcome) = changes.first else {
-            return XCTFail("Expected an outcome, got \(changes)")
+            XCTFail("Expected an outcome, got \(changes)")
+            return
         }
         let file = Data(resultsFiles.lines.map { $0 + "\n" }.joined().utf8)
         let path = "/project_muter_logs/now/results.jsonl"

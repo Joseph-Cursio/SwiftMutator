@@ -168,7 +168,7 @@ extension SyntaxChildren {
 }
 
 extension [Syntax] {
-    func containsSyntaxKind<A: SyntaxProtocol>(_ syntax: A.Type) -> Bool {
+    func containsSyntaxKind<A: SyntaxProtocol>(_: A.Type) -> Bool {
         contains { $0.is(A.self) }
     }
 }

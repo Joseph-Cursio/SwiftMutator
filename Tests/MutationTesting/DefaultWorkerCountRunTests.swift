@@ -92,7 +92,8 @@ final class DefaultWorkerCountRunTests: MuterTestCase {
             ["runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)"]
         )
         guard case let .mutationTestOutcomeGenerated(outcome) = result.first else {
-            return XCTFail("Expected an outcome, got \(result)")
+            XCTFail("Expected an outcome, got \(result)")
+            return
         }
         XCTAssertEqual(outcome.mutations.count, 60)
         // The record is the one worker's, with one worker's time limit.

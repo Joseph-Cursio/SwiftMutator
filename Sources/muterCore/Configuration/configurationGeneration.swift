@@ -126,7 +126,7 @@ private extension MuterConfiguration {
             .map(\.lastPathComponent)
     }
 
-    static func generateEmptyConfiguration(from directoryContents: [URL]) -> MuterConfiguration? {
+    static func generateEmptyConfiguration(from _: [URL]) -> MuterConfiguration? {
         MuterConfiguration(executable: "", arguments: [], excludeList: [])
     }
 }

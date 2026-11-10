@@ -106,7 +106,8 @@ final class LoadMuterTestPlanTests: MuterTestCase {
             "/path/to/project_mutated/Sources/Check.swift"
         )
         guard case let .testPlanLoaded(loaded) = result.last else {
-            return XCTFail("The plan isn't recorded: \(result)")
+            XCTFail("The plan isn't recorded: \(result)")
+            return
         }
         XCTAssertEqual(loaded.formatVersion, 0)
         XCTAssertNil(loaded.swiftMutatorVersion)

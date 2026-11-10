@@ -67,7 +67,8 @@ final class ShardRunTests: MuterTestCase {
         let changes = try await DiscoverMutationPoints().run(with: state)
 
         guard case let .shardSelected(selection)? = changes.first else {
-            return XCTFail("Expected the shard first, got \(changes)")
+            XCTFail("Expected the shard first, got \(changes)")
+            return
         }
         XCTAssertEqual(selection.shard, shard)
         XCTAssertEqual(selection.mutantsInAllShards, 11)

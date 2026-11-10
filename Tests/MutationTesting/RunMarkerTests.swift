@@ -16,7 +16,8 @@ final class RunMarkerTests: MuterTestCase {
         XCTAssertNil(RunMarker.hold(in: folder), "a second holder")
         marker.release()
         guard case let .held(probe) = ResultsFile.probeLock(marker.path) else {
-            return XCTFail("\(ResultsFile.probeLock(marker.path))")
+            XCTFail("\(ResultsFile.probeLock(marker.path))")
+            return
         }
         close(probe)
         // The file stays, and marks the folder as SwiftMutator's.
@@ -32,7 +33,8 @@ final class RunMarkerTests: MuterTestCase {
         marker = nil
 
         guard case let .held(probe) = ResultsFile.probeLock(folder + "/" + RunMarker.fileName) else {
-            return XCTFail("still locked")
+            XCTFail("still locked")
+            return
         }
         close(probe)
         withExtendedLifetime(marker) {}
@@ -76,7 +78,8 @@ final class RunMarkerTests: MuterTestCase {
             FileManager.default.createFile(atPath: path, contents: Data(), attributes: [.posixPermissions: 0o444])
         )
         guard case let .held(probe) = ResultsFile.probeLock(path) else {
-            return XCTFail("\(ResultsFile.probeLock(path))")
+            XCTFail("\(ResultsFile.probeLock(path))")
+            return
         }
         close(probe)
     }
@@ -97,7 +100,10 @@ final class RunMarkerTests: MuterTestCase {
 
         reused = nil
         for path in [marked + "/" + RunMarker.fileName, results] {
-            guard case let .held(probe) = ResultsFile.probeLock(path) else { return XCTFail(path) }
+            guard case let .held(probe) = ResultsFile.probeLock(path) else {
+                XCTFail(path)
+                return
+            }
             close(probe)
         }
         withExtendedLifetime(reused) {}

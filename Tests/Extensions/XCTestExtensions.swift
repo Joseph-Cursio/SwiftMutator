@@ -30,7 +30,8 @@ public func XCTAssertTrue(
     line: UInt = #line
 ) {
     guard let actual = try? expression() else {
-        return XCTFail("Expected boolean, got nil")
+        XCTFail("Expected boolean, got nil")
+        return
     }
 
     XCTAssertTrue(actual, message(), file: file, line: line)
@@ -43,7 +44,8 @@ public func XCTAssertFalse(
     line: UInt = #line
 ) {
     guard let actual = try? expression() else {
-        return XCTFail("Expected boolean, got nil")
+        XCTFail("Expected boolean, got nil")
+        return
     }
 
     XCTAssertFalse(actual, message(), file: file, line: line)
@@ -56,7 +58,8 @@ public func XCTAssertTypeEqual(
     line: UInt = #line
 ) {
     guard let lhs else {
-        return XCTFail("First argument should not be nil", file: file, line: line)
+        XCTFail("First argument should not be nil", file: file, line: line)
+        return
     }
 
     if type(of: lhs) != rhs {

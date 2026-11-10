@@ -61,7 +61,8 @@ final class CompileRecoveryTests: MuterTestCase {
             (finalElse.line, finalElse.column + "} else { ".utf8.count + 8),
         ] {
             guard case let .wholeSwitch(chain) = locator(file).place(line: line, column: column) else {
-                return XCTFail(file.rewritten)
+                XCTFail(file.rewritten)
+                return
             }
             XCTAssertEqual(Set(chain), Set(file.ids))
         }
@@ -129,7 +130,8 @@ final class CompileRecoveryTests: MuterTestCase {
         let place = place(of: try branchBody(of: inner, in: file.rewritten), in: file.rewritten)
 
         guard case let .branch(id, _) = locator(file).place(line: place.line, column: place.column) else {
-            return XCTFail("\(file.rewritten)")
+            XCTFail("\(file.rewritten)")
+            return
         }
         XCTAssertEqual(id, inner)
     }
@@ -661,7 +663,8 @@ private extension CompileRecoveryTests {
         line: UInt = #line
     ) {
         guard case let .branch(found, chain) = locator(file).place(line: place.line, column: place.column) else {
-            return XCTFail(file.rewritten, file: fileName, line: line)
+            XCTFail(file.rewritten, file: fileName, line: line)
+            return
         }
         XCTAssertEqual(found, id, file: fileName, line: line)
         XCTAssertEqual(Set(chain), Set(file.ids), file: fileName, line: line)

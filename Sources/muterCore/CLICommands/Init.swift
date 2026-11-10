@@ -19,7 +19,7 @@ public struct Init: AsyncParsableCommand {
         self.fileManager = fileManager
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(from _: Decoder) throws {
         self.init(
             directory: FileManager.default.currentDirectoryPath,
             fileManager: .default

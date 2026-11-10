@@ -705,7 +705,8 @@ private extension ReportBaselineTests {
     func report(arguments: [String]) async throws {
         let command = try MuterCommand.parseAsRoot(["report"] + arguments)
         guard let report = command as? Report else {
-            return XCTFail("Expected the report command, got \(command)")
+            XCTFail("Expected the report command, got \(command)")
+            return
         }
         try await report.run()
     }
