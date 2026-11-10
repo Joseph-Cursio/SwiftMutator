@@ -1,8 +1,8 @@
 import Foundation
 
-/// What the Logger says about the project's copy once it is made: what its build uses from outside it, what an absolute
-/// path makes it build from the project, and the SwiftLint it turned off. Apart from `Logger.swift`, which is at its
-/// length limit.
+/// What the Logger says about the project's copy: that it is being made and where it went, the files that vanished
+/// meanwhile, what its build uses from outside it, what an absolute path makes it build from the project, and the
+/// SwiftLint it turned off.
 extension Logger {
     /// "ℹ️ Your project's build uses code outside its folder…", then up to 5 of `paths`, then how to mutate that code
     /// too. A notice, not a warning: the project builds and tests as it would anyway.
@@ -65,5 +65,29 @@ extension Logger {
                 + "run it."
         }
         print(lines.joined(separator: "\n"))
+    }
+
+    func projectCopyStarted() {
+        print("✂️ Copying your project to a temporary directory for testing...")
+    }
+
+    func projectCopySkippedVanishedFiles(_ paths: [String]) {
+        let shown = paths.prefix(5).map { "  \($0)" }
+        let more = paths.count > shown.count ? ["  … and \(paths.count - shown.count) more"] : []
+        print(
+            (["⚠️ Skipped \(paths.count) file(s) that disappeared while your project was being copied:"] + shown + more)
+                .joined(separator: "\n")
+        )
+    }
+
+    func projectCopyFinished(destinationPath: String) {
+        print(
+            """
+            ✅ Finished copying your project to a temporary directory for mutation testing.
+            You can find your copied project here:
+
+            \(destinationPath.bold)
+            """
+        )
     }
 }
