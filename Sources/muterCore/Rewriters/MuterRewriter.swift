@@ -52,6 +52,7 @@ final class MuterRewriter: SyntaxRewriter {
             return rewritten
         }
 
+        let reachedSuffix = ActivationMarker.reachedSuffix
         // A plain literal, so `\\(path)` keeps the interpolation in the generated code.
         let cache = Parser.parse(source: """
 
@@ -71,7 +72,7 @@ final class MuterRewriter: SyntaxRewriter {
                     }
                 }
                 if let marker = environment["\(activationMarkerKey)"] {
-                    try? "".write(toFile: marker + "\(ActivationMarker.reachedSuffix)", atomically: false, encoding: .utf8)
+                    try? "".write(toFile: marker + "\(reachedSuffix)", atomically: false, encoding: .utf8)
                 }
                 return environment
             }()
@@ -111,8 +112,7 @@ final class MuterRewriter: SyntaxRewriter {
                 with: childrenRewritten,
                 onALineStartingWith: MutationSwitch.startOfTheFirstLine(of: node),
                 readingEnvironmentFrom: environmentCacheName,
-                throwing: node.throwsInItsClosure,
-                awaiting: node.awaitsInItsClosure
+                effects: .init(throws: node.throwsInItsClosure, awaits: node.awaitsInItsClosure)
             )
         }
         return MutationSwitch.apply(
