@@ -12,7 +12,7 @@ final class DirectTestRunTests: MuterTestCase {
     var helper: URL { directory.appendingPathComponent("swiftpm-testing-helper") }
 
     // A worker with no clone starts in the shared project, and runs its build, with what's its own named after it.
-    func test_aSharedBuild_isRunFromTheProject_withTheWorkersOwnFiles() async throws {
+    func test_aSharedBuild_isRunFromTheProject_withTheWorkersOwnFiles() throws {
         let shared = makeDirectTestRun(bundles: ["CoreTests"]).sharingBuild(of: worker)
         let name = directory.appendingPathComponent("p_mutated_worker1.noindex")
         let configuration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])

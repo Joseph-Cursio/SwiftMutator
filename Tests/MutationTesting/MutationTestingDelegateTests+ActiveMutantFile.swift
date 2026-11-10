@@ -6,7 +6,7 @@ extension MutationTestingDelegateTests {
     // SwiftPM keys its cache of compiled package manifests on the whole environment, names and values, so a
     // variable of each mutant's own made every run recompile every manifest. A worker's runs, its baseline
     // included, get one environment, whether or not they stop at their first failed test.
-    func test_swiftTest_baselineAndEveryMutantGetTheSameEnvironment() async throws {
+    func test_swiftTest_baselineAndEveryMutantGetTheSameEnvironment() throws {
         current.process = { MuterProcessFactory.makeProcess() }
         let mutantA = try MutationSchema.make(filePath: "/path/Sample.swift", position: .init(line: 1))
         let mutantB = try MutationSchema.make(filePath: "/path/Other.swift", position: .init(line: 2))
@@ -51,7 +51,7 @@ extension MutationTestingDelegateTests {
 
     // A baseline names the file too, empty, so tests that can't read it fail the baseline rather than let every
     // mutant survive.
-    func test_swiftTest_aBaselineNamesNoMutant() async throws {
+    func test_swiftTest_aBaselineNamesNoMutant() throws {
         current.process = { MuterProcessFactory.makeProcess() }
         let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"])
 
@@ -68,7 +68,7 @@ extension MutationTestingDelegateTests {
     }
 
     // Workers test mutants at once, each in its own folder, so each names its mutant in a file of its own.
-    func test_swiftTest_eachWorkerHasItsOwnActiveMutantFile() async throws {
+    func test_swiftTest_eachWorkerHasItsOwnActiveMutantFile() throws {
         current.process = { MuterProcessFactory.makeProcess() }
         let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"])
         let schemata = try MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1))
@@ -90,7 +90,7 @@ extension MutationTestingDelegateTests {
 
     // A worker's folder is a whole copy of the project, `.git` included, so a test that lists the package's hidden
     // files, or needs a clean `git status`, would see a file written in it.
-    func test_swiftTest_theActiveMutantFileIsBesideTheWorkersFolder_neverInIt() async throws {
+    func test_swiftTest_theActiveMutantFileIsBesideTheWorkersFolder_neverInIt() throws {
         current.process = { MuterProcessFactory.makeProcess() }
         let configuration = MuterConfiguration(executable: "/tmp/swift", arguments: ["test"])
 
@@ -113,7 +113,7 @@ extension MutationTestingDelegateTests {
     }
 
     // A wrapper script counts as `swift test` with `buildSystem: swift`, and its runs switch mutants on as it does.
-    func test_aWrapperDeclaredSwiftUsesTheActiveMutantFile() async throws {
+    func test_aWrapperDeclaredSwiftUsesTheActiveMutantFile() throws {
         current.process = { MuterProcessFactory.makeProcess() }
         let configuration = MuterConfiguration(
             executable: "/tmp/run-tests.sh",
@@ -137,7 +137,7 @@ extension MutationTestingDelegateTests {
 
     // SwiftMutator can't tell whether a wrapper's tests can read a file on this machine: it may run them in
     // Docker or over ssh. xcodebuild passes variables on to a simulator's test host.
-    func test_otherTestCommands_stillSwitchTheMutantOnThroughItsOwnVariable() async throws {
+    func test_otherTestCommands_stillSwitchTheMutantOnThroughItsOwnVariable() throws {
         current.process = { MuterProcessFactory.makeProcess() }
         let schemata = try MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1))
 
@@ -184,7 +184,7 @@ extension MutationTestingDelegateTests {
 
     // The test bundles run directly, through `/bin/sh`, read the mutant from the same file as `swift test` does:
     // the script inherits the variable that names it, and adds only its own.
-    func test_whenTheTestBundlesRunDirectly_theMutantIsStillSwitchedOnThroughTheActiveMutantFile() async throws {
+    func test_whenTheTestBundlesRunDirectly_theMutantIsStillSwitchedOnThroughTheActiveMutantFile() throws {
         current.process = { MuterProcessFactory.makeProcess() }
         let schemata = try MutationSchema.make(filePath: "/path/fileName", position: .init(line: 1))
 

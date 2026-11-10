@@ -112,7 +112,7 @@ switch, and the copy is built once.
   creates that marker the first time a switch's condition holds, as each mutant's `if` reads it after
   its own check, and reading `environment` creates `<marker>.reached`
   ([`MutationTesting/ActivationMarker.swift`](../Sources/muterCore/MutationTesting/ActivationMarker.swift)).
-- [`MutationTesting/MutationTestingIODelegate.swift`](../Sources/muterCore/MutationTesting/MutationTestingIODelegate.swift)
+- [`MutationTesting/MutationTestingDelegate+TestProcess.swift`](../Sources/muterCore/MutationTesting/MutationTestingDelegate+TestProcess.swift)
   switches a mutant on for a test run. For SwiftPM it writes the ID to the worker's
   `<project>_mutated.active-mutant` file, beside its folder, and names that file in the
   variable: SwiftPM keys its manifest cache on the whole environment, so a variable per mutant
@@ -246,5 +246,5 @@ loads it as a run starts.
   the Mac awake while a run goes on.
 - [`Sampling`](../Sources/muterCore/Sampling) and [`Sharding`](../Sources/muterCore/Sharding):
   `--sample`, and `--shard` with merging shards' results.
-- [`CLICommands/ExitStatus.swift`](../Sources/muterCore/CLICommands/ExitStatus.swift): the exit
+- [`CLICommands/ExitCode+ExitStatus.swift`](../Sources/muterCore/CLICommands/ExitCode+ExitStatus.swift): the exit
   statuses.

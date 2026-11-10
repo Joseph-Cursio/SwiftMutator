@@ -59,17 +59,17 @@ extension ReportBaselineTests {
         )
     }
 
-    func report(_ arguments: String...) async throws {
-        try await report(arguments: arguments)
+    func report(_ arguments: String...) throws {
+        try report(arguments: arguments)
     }
 
-    func report(arguments: [String]) async throws {
+    func report(arguments: [String]) throws {
         let command = try MuterCommand.parseAsRoot(["report"] + arguments)
         guard let report = command as? Report else {
             XCTFail("Expected the report command, got \(command)")
             return
         }
-        try await report.run()
+        try report.run()
     }
 
     func write(_ records: any Encodable..., to path: String) throws {

@@ -36,13 +36,13 @@ final class TriageCommandTests: MuterTestCase {
         try data.write(to: URL(fileURLWithPath: resultsPath))
     }
 
-    func triage(_ arguments: String...) async throws {
+    func triage(_ arguments: String...) throws {
         let command = try MuterCommand.parseAsRoot(["triage"] + arguments)
         guard let triage = command as? Triage else {
             XCTFail("Expected triage, got \(command)")
             return
         }
-        try await triage.run()
+        try triage.run()
     }
 
     var saved: [TriageEntry]? {
@@ -62,10 +62,10 @@ final class TriageCommandTests: MuterTestCase {
         XCTAssertNoThrow(try MuterCommand.parseAsRoot(["triage", survivor, "--results", "r", "--label", "equivalent"]))
     }
 
-    func test_labelsASurvivor_inTheProjectsFile_withWhatItChanges() async throws {
+    func test_labelsASurvivor_inTheProjectsFile_withWhatItChanges() throws {
         try writeResults()
 
-        try await triage("Zeta.swift:9", "--results", resultsPath, "--label", "equivalent", "--note", "  why  ")
+        try triage("Zeta.swift:9", "--results", resultsPath, "--label", "equivalent", "--note", "  why  ")
 
         let entry = try XCTUnwrap(try saved?.first)
         XCTAssertEqual(entry.mutant.description, survivor)
@@ -77,17 +77,17 @@ final class TriageCommandTests: MuterTestCase {
         XCTAssertEqual(printer.linesPassed, ["\(survivor): equivalent, in \(triagePath)"])
     }
 
-    func test_takesAFolderOfTheRun_andAFileItsTold() async throws {
+    func test_takesAFolderOfTheRun_andAFileItsTold() throws {
         try writeResults()
         let other = "\(directory)/elsewhere.yml"
 
-        try await triage(survivor, "--results", directory, "--label", "missing-test", "--file", other)
+        try triage(survivor, "--results", directory, "--label", "missing-test", "--file", other)
 
         XCTAssertEqual(try TriageFile.load(at: other, using: FileManager.default)?.entries.first?.label, .missingTest)
         XCTAssertNil(try saved)
     }
 
-    func test_aProjectThatsGone_usesTheCurrentFolder() async throws {
+    func test_aProjectThatsGone_usesTheCurrentFolder() throws {
         let records: [any Encodable] = [
             ResultsHeader.make(projectPath: "/no/such/project"),
             MutantResult.make(path: "Sources/Zeta.swift", line: 9, outcome: .passed),
@@ -100,22 +100,22 @@ final class TriageCommandTests: MuterTestCase {
         FileManager.default.changeCurrentDirectoryPath(directory)
         defer { FileManager.default.changeCurrentDirectoryPath(before) }
 
-        try await triage(survivor, "--results", resultsPath, "--label", "equivalent")
+        try triage(survivor, "--results", resultsPath, "--label", "equivalent")
 
         XCTAssertEqual(try saved?.count, 1)
     }
 
-    func test_labellingAgain_replacesTheLabel() async throws {
+    func test_labellingAgain_replacesTheLabel() throws {
         try writeResults()
 
-        try await triage(survivor, "--results", resultsPath, "--label", "equivalent", "--note", "first")
-        try await triage(survivor, "--results", resultsPath, "--label", "missing-test")
+        try triage(survivor, "--results", resultsPath, "--label", "equivalent", "--note", "first")
+        try triage(survivor, "--results", resultsPath, "--label", "missing-test")
 
         XCTAssertEqual(try saved?.map(\.label), [.missingTest])
         XCTAssertNil(try saved?.first?.note)
     }
 
-    func test_labellingCodeThatMoved_replacesTheLabelItFollowed() async throws {
+    func test_labellingCodeThatMoved_replacesTheLabelItFollowed() throws {
         try writeResults()
         let earlier = MutantKey(
             path: "Sources/Zeta.swift", mutationOperatorId: .ror, line: 2, column: 22, occurrence: 0
@@ -124,7 +124,7 @@ final class TriageCommandTests: MuterTestCase {
             TriageEntry(mutant: earlier, label: .equivalent, before: ">", after: "<", line: "a > b"),
         ]).save(using: FileManager.default)
 
-        try await triage(survivor, "--results", resultsPath, "--label", "out-of-scope")
+        try triage(survivor, "--results", resultsPath, "--label", "out-of-scope")
 
         XCTAssertEqual(try saved?.map(\.mutant.description), [survivor])
         XCTAssertEqual(try saved?.map(\.label), [.outOfScope])
@@ -165,11 +165,11 @@ final class TriageCommandTests: MuterTestCase {
         ]).save(using: FileManager.default)
     }
 
-    func test_labellingAPlace_leavesTheLabelWhoseOldKeyIsThatPlace_andSavesItWhereItIsNow() async throws {
+    func test_labellingAPlace_leavesTheLabelWhoseOldKeyIsThatPlace_andSavesItWhereItIsNow() throws {
         try writeShiftedResults()
         try writeShiftedLabels()
 
-        try await triage(zeta(line: 4).description, "--results", resultsPath, "--label", "missing-test")
+        try triage(zeta(line: 4).description, "--results", resultsPath, "--label", "missing-test")
 
         let entries = try XCTUnwrap(try saved)
         XCTAssertEqual(entries.map(\.mutant.line), [4, 5])
@@ -178,14 +178,14 @@ final class TriageCommandTests: MuterTestCase {
         XCTAssertTrue(printer.linesPassed.contains { $0.contains("saved at its new place") }, "\(printer.linesPassed)")
     }
 
-    func test_aLabelThatMatchesNothing_whosePlaceIsTaken_isDroppedAndNamed() async throws {
+    func test_aLabelThatMatchesNothing_whosePlaceIsTaken_isDroppedAndNamed() throws {
         try writeShiftedResults()
         try TriageFile(path: triagePath, entries: [
             TriageEntry(mutant: zeta(line: 4), label: .outOfScope, before: ">", after: "<", line: "gone > now"),
             TriageEntry(mutant: zeta(line: 90), label: .equivalent, before: ">", after: "<", line: "gone > too"),
         ]).save(using: FileManager.default)
 
-        try await triage(zeta(line: 4).description, "--results", resultsPath, "--label", "missing-test")
+        try triage(zeta(line: 4).description, "--results", resultsPath, "--label", "missing-test")
 
         XCTAssertEqual(try saved?.map(\.mutant.line), [4, 90], "line 90's matches nothing, and is kept")
         XCTAssertEqual(try saved?.map(\.label), [.missingTest, .equivalent])
@@ -193,18 +193,18 @@ final class TriageCommandTests: MuterTestCase {
     }
 
     // Only line 4 of 2 was tested. Line 2's label isn't line 4's, though their lines are the same.
-    func test_labellingFromResultsThatLeaveOutMutants_keepsATwinsLabel() async throws {
+    func test_labellingFromResultsThatLeaveOutMutants_keepsATwinsLabel() throws {
         try writeShiftedResults(mutantsDiscovered: 3, onlyLine4: true)
         try TriageFile(path: triagePath, entries: [
             TriageEntry(mutant: zeta(line: 2), label: .equivalent, before: ">", after: "<", line: "a > b"),
         ]).save(using: FileManager.default)
 
-        try await triage(zeta(line: 4).description, "--results", resultsPath, "--label", "missing-test")
+        try triage(zeta(line: 4).description, "--results", resultsPath, "--label", "missing-test")
 
         XCTAssertEqual(try saved?.map(\.mutant.line), [2, 4])
     }
 
-    func test_aPathInTheCopy_namesTheMutant_asItDoesForDashDashMutant() async throws {
+    func test_aPathInTheCopy_namesTheMutant_asItDoesForDashDashMutant() throws {
         let copy = "\(directory)_mutated"
         let records: [any Encodable] = [
             ResultsHeader.make(projectPath: directory, mutatedProjectPath: copy),
@@ -215,27 +215,27 @@ final class TriageCommandTests: MuterTestCase {
         }
         try data.write(to: URL(fileURLWithPath: resultsPath))
 
-        try await triage("\(copy)/\(survivor)", "--results", resultsPath, "--label", "equivalent")
+        try triage("\(copy)/\(survivor)", "--results", resultsPath, "--label", "equivalent")
 
         XCTAssertEqual(try saved?.map(\.mutant.description), [survivor])
     }
 
-    func test_otherLabels_areKept() async throws {
+    func test_otherLabels_areKept() throws {
         try writeResults()
         let other = MutantKey(path: "Sources/Old.swift", mutationOperatorId: .ror, line: 2, column: 2, occurrence: 0)
         try TriageFile(path: triagePath, entries: [TriageEntry(mutant: other, label: .equivalent)])
             .save(using: FileManager.default)
 
-        try await triage(survivor, "--results", resultsPath, "--label", "missing-test")
+        try triage(survivor, "--results", resultsPath, "--label", "missing-test")
 
         XCTAssertEqual(try saved?.count, 2)
     }
 
-    func test_aFileWhoseLineCantBeRead_isLabelled_andSaysItWontFollow() async throws {
+    func test_aFileWhoseLineCantBeRead_isLabelled_andSaysItWontFollow() throws {
         try writeResults()
         current.readSourceFile = { _ in nil }
 
-        try await triage(survivor, "--results", resultsPath, "--label", "equivalent")
+        try triage(survivor, "--results", resultsPath, "--label", "equivalent")
 
         XCTAssertNil(try saved?.first?.line)
         XCTAssertEqual(try saved?.first?.before, ">")
@@ -250,7 +250,7 @@ final class TriageCommandTests: MuterTestCase {
         try writeResults()
 
         await assertRefused(
-            try await triage("Alpha.swift:3", "--results", resultsPath, "--label", "equivalent"),
+            try triage("Alpha.swift:3", "--results", resultsPath, "--label", "equivalent"),
             saying: "didn't survive this run (killed)"
         )
         XCTAssertNil(try saved)
@@ -260,7 +260,7 @@ final class TriageCommandTests: MuterTestCase {
         try writeResults()
 
         await assertRefused(
-            try await triage("Zeta.swift:99", "--results", resultsPath, "--label", "equivalent"),
+            try triage("Zeta.swift:99", "--results", resultsPath, "--label", "equivalent"),
             saying: "These results have no mutant at Zeta.swift:99."
         )
     }
@@ -277,7 +277,7 @@ final class TriageCommandTests: MuterTestCase {
         try data.write(to: URL(fileURLWithPath: resultsPath))
 
         await assertRefused(
-            try await triage("Zeta.swift:9", "--results", resultsPath, "--label", "equivalent"),
+            try triage("Zeta.swift:9", "--results", resultsPath, "--label", "equivalent"),
             saying: "Other/Zeta.swift:9:22 RelationalOperatorReplacement"
         )
     }
@@ -287,7 +287,7 @@ final class TriageCommandTests: MuterTestCase {
         try "mutants: [".write(toFile: triagePath, atomically: true, encoding: .utf8)
 
         await assertRefused(
-            try await triage(survivor, "--results", resultsPath, "--label", "equivalent"),
+            try triage(survivor, "--results", resultsPath, "--label", "equivalent"),
             saying: "Could not read"
         )
         XCTAssertEqual(try String(contentsOfFile: triagePath, encoding: .utf8), "mutants: [")

@@ -16,7 +16,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
         fileManager.currentDirectoryPathToReturn = outputFolder
     }
 
-    func test_testProcessForXcodeBuild() async throws {
+    func test_testProcessForXcodeBuild() throws {
         current.process = { MuterProcessFactory.makeProcess() }
 
         let configuration = MuterConfiguration(
@@ -51,7 +51,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
 
     // Each mutant's run starts with an empty derived data folder of its worker's, where xcodebuild writes its result
     // bundle and logs.
-    func test_testProcessForXcodeBuild_emptiesTheWorkersDerivedDataBeforeAMutantsRun() async throws {
+    func test_testProcessForXcodeBuild_emptiesTheWorkersDerivedDataBeforeAMutantsRun() throws {
         current.process = { MuterProcessFactory.makeProcess() }
         let configuration = MuterConfiguration(
             executable: "/tmp/xcodebuild",
@@ -84,7 +84,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
     }
 
     // The baseline builds, with the test command as it is, so its derived data is the user's.
-    func test_testProcessForXcodeBuild_leavesTheWorkersDerivedDataAloneForTheBaseline() async throws {
+    func test_testProcessForXcodeBuild_leavesTheWorkersDerivedDataAloneForTheBaseline() throws {
         current.process = { MuterProcessFactory.makeProcess() }
         let configuration = MuterConfiguration(
             executable: "/tmp/xcodebuild",
@@ -106,7 +106,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
         XCTAssertEqual(baselineProcess.arguments, ["-destination", "platform=macOS", "test"])
     }
 
-    func test_testProcessForSwiftBuild() async throws {
+    func test_testProcessForSwiftBuild() throws {
         current.process = { MuterProcessFactory.makeProcess() }
 
         let configuration = MuterConfiguration(

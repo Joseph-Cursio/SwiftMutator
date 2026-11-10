@@ -8,7 +8,7 @@ extension ReportCommandTests {
     // standard error; the status is the threshold's own, and ArgumentParser prints nothing more.
     // The run's header records its propertyTests, which the report splits the kills by; --property-tests replaces
     // them, and without either there is no such section.
-    func test_propertyTests_splitTheKills_asTheHeaderRecordsThem_unlessTheFlagGivesOthers() async throws {
+    func test_propertyTests_splitTheKills_asTheHeaderRecordsThem_unlessTheFlagGivesOthers() throws {
         let ordered = FailedTestLine.FailedTest(name: "ordered()", location: "SortProperties.swift:8:5")
         let sum = FailedTestLine.FailedTest(name: "sum()", location: "SumTests.swift:3:5")
         let configured = MuterConfiguration(
@@ -22,9 +22,9 @@ extension ReportCommandTests {
         ]
         try write(lines, to: resultsPath)
 
-        try await report(resultsPath)
-        try await report(resultsPath, "--property-tests", "sum()", "--property-tests", "ordered()")
-        try await report(resultsPath, "-f", "json")
+        try report(resultsPath)
+        try report(resultsPath, "--property-tests", "sum()", "--property-tests", "ordered()")
+        try report(resultsPath, "-f", "json")
 
         XCTAssertEqual(printer.linesPassed.count, 3)
         let (recorded, flagged) = (printer.linesPassed[0], printer.linesPassed[1])
@@ -35,7 +35,7 @@ extension ReportCommandTests {
         XCTAssertNotNil(try parsedJSON(printer.linesPassed[2])["propertyKillSummary"])
 
         try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
-        try await report(resultsPath)
+        try report(resultsPath)
         XCTAssertFalse(try XCTUnwrap(printer.linesPassed.last).contains("Examples and Properties"))
     }
 

@@ -31,18 +31,18 @@ extension ReportCommandTests {
     }
 
     /// Runs `swift-mutator report` with `arguments`.
-    func report(_ arguments: String...) async throws {
-        try await report(arguments)
+    func report(_ arguments: String...) throws {
+        try report(arguments)
     }
 
     /// Runs `swift-mutator report` with `arguments`.
-    func report(_ arguments: [String]) async throws {
+    func report(_ arguments: [String]) throws {
         let command = try MuterCommand.parseAsRoot(["report"] + arguments)
         guard let report = command as? Report else {
             XCTFail("Expected the report command, got \(command)")
             return
         }
-        try await report.run()
+        try report.run()
     }
 
     /// Checks that `expression` throws `expected`, which ArgumentParser shows as `message` on standard error, with exit

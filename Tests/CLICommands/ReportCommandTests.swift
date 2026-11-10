@@ -83,23 +83,23 @@ final class ReportCommandTests: MuterTestCase {
         XCTAssertThrowsError(try MuterCommand.parseAsRoot(["report"]))
     }
 
-    func test_showsTheLabelsInTheRunsProject() async throws {
+    func test_showsTheLabelsInTheRunsProject() throws {
         try write(ResultsHeader.make(projectPath: directory), zeta9, ResultsEnd.make(), to: resultsPath)
         try writeTriage(to: "\(directory)/\(TriageFile.fileName)", label: "equivalent")
 
-        try await report(resultsPath)
+        try report(resultsPath)
 
         XCTAssertEqual(printer.linesPassed.first?.contains("Triaged: equivalent"), true, "\(printer.linesPassed)")
     }
 
-    func test_showsTheLabelsInTheCurrentFolder_whenTheRunsProjectHasNone() async throws {
+    func test_showsTheLabelsInTheCurrentFolder_whenTheRunsProjectHasNone() throws {
         try write(ResultsHeader.make(), zeta9, ResultsEnd.make(), to: resultsPath)
         try writeTriage(to: "\(directory)/\(TriageFile.fileName)", label: "missing-test")
         let before = FileManager.default.currentDirectoryPath
         FileManager.default.changeCurrentDirectoryPath(directory)
         defer { FileManager.default.changeCurrentDirectoryPath(before) }
 
-        try await report(resultsPath)
+        try report(resultsPath)
 
         XCTAssertEqual(
             printer.linesPassed.first?.contains("Triaged: missing test"),
@@ -112,10 +112,10 @@ final class ReportCommandTests: MuterTestCase {
         try write(ResultsHeader.make(), zeta9, ResultsEnd.make(), to: resultsPath)
         let file = "\(directory)/labels.yml"
 
-        await XCTAssertThrowsErrorAsync(try await report(resultsPath, "--triage", file))
+        await XCTAssertThrowsErrorAsync(try report(resultsPath, "--triage", file))
 
         try writeTriage(to: file, label: "tool-limitation")
-        try await report(resultsPath, "--triage", file)
+        try report(resultsPath, "--triage", file)
         XCTAssertEqual(
             printer.linesPassed.first?.contains("Triaged: tool limitation"),
             true,
@@ -127,14 +127,14 @@ final class ReportCommandTests: MuterTestCase {
         try write(ResultsHeader.make(projectPath: directory), zeta9, ResultsEnd.make(), to: resultsPath)
         try "mutants: [".write(toFile: "\(directory)/\(TriageFile.fileName)", atomically: true, encoding: .utf8)
 
-        await XCTAssertThrowsErrorAsync(try await report(resultsPath))
+        await XCTAssertThrowsErrorAsync(try report(resultsPath))
         XCTAssertEqual(printer.linesPassed, [])
     }
 
-    func test_printsTheReportOnStandardOutput_andTheStatusOnStandardError() async throws {
+    func test_printsTheReportOnStandardOutput_andTheStatusOnStandardError() throws {
         try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
 
-        try await report(resultsPath)
+        try report(resultsPath)
 
         XCTAssertEqual(printer.linesPassed, [PlainTextReporter().report(from: expected)])
         XCTAssertEqual(
@@ -143,12 +143,12 @@ final class ReportCommandTests: MuterTestCase {
         )
     }
 
-    func test_savesTheReportToTheOutputPath_replacingAnOldOne() async throws {
+    func test_savesTheReportToTheOutputPath_replacingAnOldOne() throws {
         try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
         let output = "\(directory)/report.json"
         try "an older, longer report than this one".write(toFile: output, atomically: true, encoding: .utf8)
 
-        try await report(resultsPath, "-f", "json", "-o", output)
+        try report(resultsPath, "-f", "json", "-o", output)
 
         XCTAssertEqual(
             try parsedJSON(String(contentsOfFile: output, encoding: .utf8)),
@@ -166,7 +166,7 @@ final class ReportCommandTests: MuterTestCase {
     }
 
     // As in a run, each surviving mutant's warning is printed whether or not the report is saved to a file.
-    func test_theXcodeFormat_warnsOfEachSurvivor_inJobOrder_thenGivesItsSummary() async throws {
+    func test_theXcodeFormat_warnsOfEachSurvivor_inJobOrder_thenGivesItsSummary() throws {
         try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
         let warnings = [
             "/project/Sources/Zeta.swift:9:22: warning: Your test suite did not kill this mutant: changed > to <",
@@ -179,12 +179,12 @@ final class ReportCommandTests: MuterTestCase {
         Mutants by outcome: 1 killed, 2 survived
         """
 
-        try await report(resultsPath, "-f", "xcode")
+        try report(resultsPath, "-f", "xcode")
 
         XCTAssertEqual(printer.linesPassed, warnings + [summary])
 
         let output = "\(directory)/report.txt"
-        try await report(resultsPath, "-f", "xcode", "-o", output)
+        try report(resultsPath, "-f", "xcode", "-o", output)
 
         XCTAssertEqual(printer.linesPassed, warnings + [summary] + warnings)
         XCTAssertEqual(try String(contentsOfFile: output, encoding: .utf8), summary)
@@ -196,7 +196,7 @@ final class ReportCommandTests: MuterTestCase {
         let output = "\(directory)/report.txt"
 
         await assertRefused(
-            try await report(notResults, "-o", output),
+            try report(notResults, "-o", output),
             ResultsFileError.notAResultsFile(path: notResults),
             saying: "Error: \(notResults) isn't a SwiftMutator results file: it has no header line"
         )
@@ -207,7 +207,7 @@ final class ReportCommandTests: MuterTestCase {
         let missing = "\(directory)/missing.jsonl"
 
         await assertRefused(
-            try await report(missing),
+            try report(missing),
             ResultsFileError.unreadable(path: missing),
             saying: "Error: can't read \(missing)"
         )
@@ -218,7 +218,7 @@ final class ReportCommandTests: MuterTestCase {
         try write(ResultsHeader.make(), alpha3, ResultsEnd.make(), to: "\(directory)/results-2.jsonl")
 
         await assertRefused(
-            try await report(directory),
+            try report(directory),
             ResultsFileError.severalResultsFiles(folder: directory, names: ["results.jsonl", "results-2.jsonl"])
         )
     }
@@ -230,18 +230,18 @@ final class ReportCommandTests: MuterTestCase {
         let output = "\(directory)/notAFolder/report.txt"
 
         await assertRefused(
-            try await report(resultsPath, "-o", output),
+            try report(resultsPath, "-o", output),
             MuterError.literal(reason: "SwiftMutator could not save the report to \(output)"),
             saying: "Error: SwiftMutator could not save the report to \(output)"
         )
     }
 
     // CI jobs name a report in a folder they haven't made, such as out/report.txt.
-    func test_aReportsMissingFolders_areMade() async throws {
+    func test_aReportsMissingFolders_areMade() throws {
         try write(ResultsHeader.make(), zeta9, alpha3, zeta10, ResultsEnd.make(), to: resultsPath)
         let output = "\(directory)/out/reports/report.txt"
 
-        try await report(resultsPath, "-o", output, "--summary", "\(directory)/out/summaries/summary.json")
+        try report(resultsPath, "-o", output, "--summary", "\(directory)/out/summaries/summary.json")
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: output))
         XCTAssertTrue(FileManager.default.fileExists(atPath: "\(directory)/out/summaries/summary.json"))
@@ -264,7 +264,7 @@ final class ReportCommandTests: MuterTestCase {
             (resultsPath, "\(directory)/hard link.jsonl"),
         ] {
             await assertRefused(
-                try await report(results, "-o", output),
+                try report(results, "-o", output),
                 MuterError.literal(
                     reason: "\(output) is the results file the report is made from: choose another output path"
                 ),
@@ -284,7 +284,7 @@ final class ReportCommandTests: MuterTestCase {
         try "last week's report".write(toFile: "\(reports)/old.txt", atomically: true, encoding: .utf8)
 
         await assertRefused(
-            try await report(resultsPath, "-o", reports),
+            try report(resultsPath, "-o", reports),
             MuterError.literal(reason: "\(reports) is a folder: name the file to save the report to"),
             saying: "Error: \(reports) is a folder: name the file to save the report to"
         )

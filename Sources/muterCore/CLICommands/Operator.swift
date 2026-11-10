@@ -2,7 +2,7 @@ import ArgumentParser
 import Foundation
 import Rainbow
 
-public struct Operator: AsyncParsableCommand {
+public struct Operator: ParsableCommand {
 
     public static let configuration = CommandConfiguration(
         commandName: "operator",
@@ -21,7 +21,7 @@ public struct Operator: AsyncParsableCommand {
         // ArgumentParser sets the properties from the command line.
     }
 
-    public mutating func run() async throws {
+    public mutating func run() throws {
         @Dependency(\.printer) var print: Printer
         if `operator`.trimmed == "all" {
             print(MutationOperator.Id.allCases.map(\.documentation).joined(separator: "\n\n"))
