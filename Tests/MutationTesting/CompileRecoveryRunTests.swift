@@ -5,7 +5,7 @@ import XCTest
 
 /// A run whose baseline fails on mutants that don't compile: it builds without them, and tests the others.
 final class CompileRecoveryRunTests: MuterTestCase {
-    private let path = "/project_mutated/Sources/Check.swift"
+    let path = "/project_mutated/Sources/Check.swift"
     private let code = """
     func check(_ value: Int) -> Bool {
         return value > 1
@@ -20,10 +20,11 @@ final class CompileRecoveryRunTests: MuterTestCase {
     }
 
     """
-    private let state = MutationTestState()
-    private lazy var sut = PerformMutationTesting()
-    private var mapping: SchemataMutationMapping!
-    private var rewritten = ""
+    let state = MutationTestState()
+    lazy var sut = PerformMutationTesting()
+    /// `code`'s mutants, which `setUpWithError` discovers.
+    var mapping = SchemataMutationMapping(filePath: "")
+    var rewritten = ""
     private let written = Locked<[String]>([])
     private var writes: [String] { written.value }
 
@@ -47,7 +48,7 @@ final class CompileRecoveryRunTests: MuterTestCase {
         current.writeFile = { [written] code, _ in written.change { $0.append(code) } }
     }
 
-    private var ids: [String] { mapping.mutationSchemata.map(\.id) }
+    var ids: [String] { mapping.mutationSchemata.map(\.id) }
 
     func test_aMutantThatDoesntCompile_isRecordedAsABuildError_andTheOthersAreTested() async throws {
         let bad = try XCTUnwrap(ids.first)
@@ -278,104 +279,5 @@ final class CompileRecoveryRunTests: MuterTestCase {
 
         let early = try XCTUnwrap(sent().first?.object as? EarlyEnd)
         XCTAssertEqual(early.leftOut, 1)
-    }
-
-    // The gate of `report` reads only the results file, so its line has to say so.
-    func test_aMutantTakenOutWithOthers_isSaidToBe_inItsLine_andTheOutcome() async throws {
-        let bad = try XCTUnwrap(ids.first)
-        let keyword = try XCTUnwrap(rewritten.range(of: "if __SwiftMutator"))
-        let before = rewritten[..<keyword.lowerBound].utf8
-        let line = before.count { $0 == UInt8(ascii: "\n") } + 1
-        let lineStart = before.lastIndex(of: UInt8(ascii: "\n")).map { before.index(after: $0) } ?? before.startIndex
-        let column = before.distance(from: lineStart, to: before.endIndex) + 1
-        ioDelegate.baselineTestLogs = ["\(path):\(line):\(column): error: type mismatch", "Build complete!"]
-        let chain = mapping.mutationSchemata.filter { $0.position.line == mapping.mutationSchemata[0].position.line }
-        ioDelegate.testSuiteOutcomes = [.buildError, .passed]
-            + Array(repeating: .failed, count: ids.count - chain.count)
-        XCTAssertTrue(chain.map(\.id).contains(bad))
-
-        let result = try await sut.run(with: state)
-
-        let records = try resultsFiles.records(MutantResult.self)
-        XCTAssertEqual(
-            Set(records.filter { $0.leftOutWithOthers == true }.map(\.switchID)),
-            Set(chain.map(\.id))
-        )
-        guard case let .mutationTestOutcomeGenerated(outcome)? = result.first else {
-            XCTFail("\(result)")
-            return
-        }
-        XCTAssertEqual(outcome.mutations.count(where: \.leftOutWithOthers), chain.count)
-    }
-
-    func test_aMutantThatItselfDoesntCompile_isntSaidToGoWithOthers() async throws {
-        ioDelegate.baselineTestLogs = [try errorLog(for: try XCTUnwrap(ids.first)), "Build complete!"]
-        ioDelegate.testSuiteOutcomes = [.buildError, .passed] + Array(repeating: .failed, count: ids.count - 1)
-
-        _ = try await sut.run(with: state)
-
-        XCTAssertTrue(try resultsFiles.records(MutantResult.self).allSatisfy { $0.leftOutWithOthers == nil })
-        XCTAssertFalse(resultsFiles.lines.contains { $0.contains("leftOutWithOthers") })
-    }
-
-    /// Records a real results file, as `report` will read it, and reads it back: `report` must reach the outcome the
-    /// run did.
-    func test_reportOfTheResultsFile_isTheRunsOutcome() async throws {
-        let directory = try makeTemporaryDirectory()
-        current.resultsFiles = ResultsFile.Opener()
-        current.fileManager = fileManager
-        state.loggingDirectory = directory
-        let bad = try XCTUnwrap(ids.first)
-        ioDelegate.baselineTestLogs = [try errorLog(for: bad), "Build complete!"]
-        ioDelegate.testSuiteOutcomes = [.buildError, .passed] + Array(repeating: .failed, count: ids.count - 1)
-
-        let result = try await sut.run(with: state)
-
-        guard case let .mutationTestOutcomeGenerated(outcome)? = result.first else {
-            XCTFail("\(result)")
-            return
-        }
-        let resultsPath = "\(directory)/results.jsonl"
-        let recorded = try RecordedResults.read(Data(contentsOf: URL(fileURLWithPath: resultsPath)), path: resultsPath)
-        let reported = recorded.mutationTestOutcome()
-        XCTAssertEqual(reported.mutations.map(\.testSuiteOutcome), outcome.mutations.map(\.testSuiteOutcome))
-        XCTAssertEqual(reported.mutations.map(\.key), outcome.mutations.map(\.key))
-        XCTAssertEqual(reported.mutations.map(\.durationSeconds), outcome.mutations.map(\.durationSeconds))
-        XCTAssertEqual(reported.mutations.map(\.killingTests), outcome.mutations.map(\.killingTests))
-        XCTAssertEqual(reported.mutations.map(\.leftOutWithOthers), outcome.mutations.map(\.leftOutWithOthers))
-        XCTAssertFalse(reported.sampleIsCutShort)
-    }
-}
-
-private extension CompileRecoveryRunTests {
-    func recordEvents(named names: [RunEvent.Name]) -> () -> [RunEvent] {
-        var sent: [RunEvent] = []
-        for name in names {
-            let observer = runEvents.observe(name) { sent.append($0) }
-            addTeardownBlock { observer.cancel() }
-        }
-        return { sent }
-    }
-
-    func errorLog(for id: String) throws -> String {
-        try errorLine(for: id) + "\nerror: fatalError\n"
-    }
-
-    func errorLine(for id: String) throws -> String {
-        let place = try branchPlace(of: id, in: rewritten)
-        return "\(path):\(place.line):\(place.column): error: no such operator '\(id)'"
-    }
-
-    func branchPlace(of id: String, in code: String) throws -> (line: Int, column: Int) {
-        let idRange = try XCTUnwrap(code.range(of: "\"\(id)\"] != nil"), code)
-        let brace = try XCTUnwrap(code[idRange.upperBound...].firstIndex(of: "{"), code)
-        let condition = brace ..< code.index(after: brace)
-        let start = try XCTUnwrap(code[condition.upperBound...].firstIndex { !$0.isWhitespace && !$0.isNewline })
-        let before = code[..<start].utf8
-        let lineStart = before.lastIndex(of: UInt8(ascii: "\n")).map { before.index(after: $0) } ?? before.startIndex
-        return (
-            before.count { $0 == UInt8(ascii: "\n") } + 1,
-            before.distance(from: lineStart, to: before.endIndex) + 1
-        )
     }
 }

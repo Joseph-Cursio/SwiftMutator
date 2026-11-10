@@ -5,15 +5,15 @@ import XCTest
 /// standard error, so that no test signals, kills or ends the test runner. The acceptance tests send real signals to a
 /// SwiftMutator they start.
 final class InterruptionsTests: MuterTestCase {
-    private var observer = SignalObserverFake()
+    var observer = SignalObserverFake()
     /// What the stand-ins were asked to do, in order: "killed" for each kill of the descendants, and "exited by …".
-    private let events = Events()
+    let events = Events()
     /// What `Interruptions` said on standard error.
-    private let said = Events()
+    let said = Events()
     /// Opens when the stand-in for exiting is called, where SwiftMutator would have ended.
-    private let exited = Gate()
+    let exited = Gate()
     /// "held" each time idle sleep was stopped, and "released" each time it was let happen again.
-    private let idleSleep = Events()
+    let idleSleep = Events()
 
     // MARK: - InterruptionRecord
 
@@ -65,7 +65,7 @@ final class InterruptionsTests: MuterTestCase {
         let started = Gate()
         let eventLog = events
         let running = Running(makeInterruptions()) {
-            try await waitUntilCancelled(opening: started) { eventLog.append("cancelled") }
+            try await Self.waitUntilCancelled(opening: started) { eventLog.append("cancelled") }
         }
         XCTAssertTrue(started.wait())
         waitUntilObserving()
@@ -85,7 +85,7 @@ final class InterruptionsTests: MuterTestCase {
         let started = Gate()
         let eventLog = events
         let running = Running(makeInterruptions()) {
-            try await waitUntilCancelled(opening: started) {
+            try await Self.waitUntilCancelled(opening: started) {
                 eventLog.append(current.interruption.signal.map(InterruptionRecord.name(of:)) ?? "no signal")
             }
         }
@@ -155,105 +155,6 @@ final class InterruptionsTests: MuterTestCase {
         XCTAssertEqual(said.all.last?.contains("so it is stopping at once"), true, "\(said.all)")
     }
 
-    // Ctrl-\ sends SIGQUIT, which reaches SwiftMutator alone. Its default action would leave every test process
-    // running, and no end line.
-    func test_aSIGQUIT_stopsAtOnce_killingDescendants_andEndingTheResults() throws {
-        let exitGate = exited
-        endingTheResultsAtOnce()
-        let running = Running(makeInterruptions()) { exitGate.wait() }
-        waitUntilObserving()
-
-        XCTAssertTrue(observer.send(SIGQUIT))
-        let ended = try XCTUnwrap(running.wait())
-
-        XCTAssertEqual(Array(events.all.prefix(3)), ["killed", "ended the results", "exited by SIGQUIT"])
-        XCTAssertEqual(ended.signal, SIGQUIT)
-        XCTAssertEqual(said.all.count, 1)
-        XCTAssertEqual(said.all.first?.hasPrefix("⏹ Stopping at once."), true, "\(said.all)")
-    }
-
-    // A worker not cancelled would start its next mutant's tests as soon as this one's are killed: nothing would kill
-    // them once SwiftMutator had exited.
-    func test_aSIGQUIT_cancelsTheWork_beforeKillingDescendants() throws {
-        let started = Gate()
-        let eventLog = events
-        let running = Running(makeInterruptions()) {
-            try await waitUntilCancelled(opening: started) { eventLog.append("cancelled") }
-        }
-        XCTAssertTrue(started.wait())
-        waitUntilObserving()
-
-        XCTAssertTrue(observer.send(SIGQUIT))
-        _ = try XCTUnwrap(running.wait())
-
-        XCTAssertEqual(Array(eventLog.all.prefix(3)), ["cancelled", "killed", "exited by SIGQUIT"])
-    }
-
-    func test_aSIGQUIT_whileStopping_exitsByTheFirstSignal() throws {
-        let exitGate = exited
-        let running = Running(makeInterruptions()) { exitGate.wait() }
-        waitUntilObserving()
-
-        XCTAssertTrue(observer.send(SIGHUP))
-        XCTAssertTrue(observer.send(SIGQUIT))
-        let ended = try XCTUnwrap(running.wait())
-
-        XCTAssertEqual(Array(events.all.prefix(3)), ["killed", "killed", "exited by SIGHUP"])
-        XCTAssertEqual(ended.signal, SIGHUP)
-    }
-
-    // Once the work has ended, as when the results file is already closed, there's nothing to end.
-    func test_withNothingToEnd_stoppingAtOnceStillExits() throws {
-        let exitGate = exited
-        current.interruption.beforeStoppingAtOnce(nil)
-        let running = Running(makeInterruptions()) { exitGate.wait() }
-        waitUntilObserving()
-
-        XCTAssertTrue(observer.send(SIGQUIT))
-        _ = try XCTUnwrap(running.wait())
-
-        XCTAssertEqual(Array(events.all.prefix(2)), ["killed", "exited by SIGQUIT"])
-    }
-
-    // Ctrl-Z reaches SwiftMutator alone: its test processes lead process groups of their own. They are suspended with
-    // it, and no time limit counts the time.
-    func test_aSIGTSTP_suspendsSwiftMutatorWithItsDescendants_withoutCountingTheTime() throws {
-        let uptime = Clock()
-        current.suspensions = Suspensions { uptime.nanoseconds }
-        let finish = Gate()
-        let running = Running(makeInterruptions { [events] in
-            events.append("suspended")
-            uptime.advance(by: 5_000_000_000)
-        }) { finish.wait() }
-        waitUntilObserving()
-        let before = current.suspensions.activeNanoseconds
-
-        XCTAssertTrue(observer.send(SIGTSTP))
-        finish.open()
-        let ended = try XCTUnwrap(running.wait())
-
-        XCTAssertEqual(events.all, ["suspended"])
-        XCTAssertEqual(current.suspensions.activeNanoseconds, before, "the time suspended counted")
-        XCTAssertNil(ended.signal)
-        XCTAssertNoThrow(try ended.result.get())
-        XCTAssertEqual(said.all, [])
-        XCTAssertTrue(observer.stopped)
-    }
-
-    // It is about to end, and the grace period would count the time.
-    func test_aSIGTSTP_whileStopping_isIgnored() throws {
-        let running = Running(makeInterruptions { [events] in events.append("suspended") }) {
-            try await Task.sleep(nanoseconds: 10_000_000_000)
-        }
-        waitUntilObserving()
-
-        XCTAssertTrue(observer.send(SIGINT))
-        XCTAssertTrue(observer.send(SIGTSTP))
-        _ = try XCTUnwrap(running.wait())
-
-        XCTAssertFalse(events.all.contains("suspended"), "\(events.all)")
-    }
-
     // Steps start processes one after another, and no cancellation reaches the ones that block: killing one would only
     // let the next start.
     func test_afterTheFirstSignal_killsDescendantsUntilTheWorkEnds() throws {
@@ -320,165 +221,10 @@ final class InterruptionsTests: MuterTestCase {
         ])
     }
 
-    // MARK: - After the work ends
-
-    func test_withoutASignal_whatIsSetForAfterTheWork_runsOnce_afterIt() throws {
-        let eventLog = events
-        current.interruption.afterWorkEnds { eventLog.append("after the work") }
-        let running = Running(makeInterruptions()) { eventLog.append("work ended") }
-
-        _ = try XCTUnwrap(running.wait())
-        let record = current.interruption
-        let again = Gate()
-        Task { await record.workEnded(); again.open() }
-        XCTAssertTrue(again.wait())
-
-        XCTAssertEqual(eventLog.all, ["work ended", "after the work"])
-    }
-
-    // What it does starts processes, as `simctl delete`, which a kill of the descendants would kill.
-    func test_afterAFirstSignal_whatIsSetForAfterTheWork_runsAfterTheLastKill_withNoMoreKillsMeanwhile() throws {
-        let eventLog = events
-        current.interruption.afterWorkEnds {
-            eventLog.append("removing")
-            try? await Task.sleep(nanoseconds: 100_000_000)
-            eventLog.append("removed")
-        }
-        let started = Gate()
-        let running = Running(makeInterruptions(sweepInterval: 0.01)) {
-            try await waitUntilCancelled(opening: started) { eventLog.append("cancelled") }
-        }
-        XCTAssertTrue(started.wait())
-        waitUntilObserving()
-
-        XCTAssertTrue(observer.send(SIGINT))
-        let ended = try XCTUnwrap(running.wait())
-
-        XCTAssertEqual(ended.signal, SIGINT)
-        XCTAssertEqual(eventLog.all.suffix(3), ["killed", "removing", "removed"])
-        XCTAssertFalse(observer.stopped, "a second signal must still stop SwiftMutator at once")
-    }
-
-    // SwiftMutator ends at once, and its next run's sweep deletes the simulators.
-    func test_stoppingAtOnce_neverRunsWhatIsSetForAfterTheWork() throws {
-        let eventLog = events
-        let exitGate = exited
-        current.interruption.afterWorkEnds { eventLog.append("after the work") }
-        let running = Running(makeInterruptions()) { exitGate.wait() }
-        waitUntilObserving()
-
-        XCTAssertTrue(observer.send(SIGQUIT))
-        _ = try XCTUnwrap(running.wait())
-
-        // The stand-in for exiting returns, so the work ends, and is followed by the last kill.
-        XCTAssertEqual(Array(eventLog.all.prefix(2)), ["killed", "exited by SIGQUIT"])
-        XCTAssertFalse(eventLog.all.contains("after the work"), "\(eventLog.all)")
-    }
-
-    // `nohup` ignores SIGHUP, so that a run outlives its terminal.
-    func test_aSignalIgnoredAtStart_neverStopsTheWork() throws {
-        observer = SignalObserverFake(ignoredAtStart: [SIGHUP])
-        let finish = Gate()
-        let running = Running(makeInterruptions()) { finish.wait() }
-        waitUntilObserving()
-
-        XCTAssertFalse(observer.send(SIGHUP))
-        finish.open()
-        let ended = try XCTUnwrap(running.wait())
-
-        XCTAssertNil(ended.signal)
-        XCTAssertEqual(observer.observed, [SIGINT, SIGTERM, SIGQUIT, SIGTSTP])
-        XCTAssertEqual(events.all, [])
-        XCTAssertEqual(said.all, [])
-    }
-
-    // MARK: - Keeping the Mac awake
-
-    func test_theMacStaysAwake_whileTheWorkRuns_andNotOnceItHasFinished() async {
-        let idleSleepLog = idleSleep
-
-        let during = await makeInterruptions().run { idleSleepLog.all }
-
-        XCTAssertEqual(try during.result.get(), ["held"])
-        XCTAssertEqual(idleSleepLog.all, ["held", "released"])
-    }
-
-    func test_theMacCanSleep_onceTheWorkHasThrown() async {
-        let ended = await makeInterruptions().run { throw WorkError() }
-
-        XCTAssertThrowsError(try ended.result.get())
-        XCTAssertEqual(idleSleep.all, ["held", "released"])
-    }
-
-    // By the time the caller exits by the signal.
-    func test_theMacCanSleep_onceASignalHasStoppedTheWork() throws {
-        let started = Gate()
-        let running = Running(makeInterruptions()) { try await waitUntilCancelled(opening: started) {} }
-        XCTAssertTrue(started.wait())
-        waitUntilObserving()
-        XCTAssertEqual(idleSleep.all, ["held"])
-
-        XCTAssertTrue(observer.send(SIGTERM))
-        let ended = try XCTUnwrap(running.wait())
-
-        XCTAssertEqual(ended.signal, SIGTERM)
-        XCTAssertEqual(idleSleep.all, ["held", "released"])
-    }
-
-    // SwiftMutator ends with the work still running, so `run` never gets to end it.
-    func test_stoppingAtOnce_letsTheMacSleep_beforeExiting() throws {
-        let exitGate = exited
-        let idleSleepLog = idleSleep
-        let atExit = Events()
-        let onExit: @Sendable () -> Void = { atExit.append(idleSleepLog.all.joined(separator: " ")) }
-        let running = Running(makeInterruptions(onExit: onExit)) {
-            exitGate.wait()
-        }
-        waitUntilObserving()
-
-        XCTAssertTrue(observer.send(SIGQUIT))
-        _ = try XCTUnwrap(running.wait())
-
-        XCTAssertEqual(atExit.all, ["held released"])
-    }
-
-    // A run left suspended shouldn't keep a Mac awake for days.
-    func test_theMacCanSleep_whileSuspended_andStaysAwakeOnceContinued() throws {
-        let finish = Gate()
-        let idleSleepLog = idleSleep
-        let whileSuspended = Events()
-        let interruptions = makeInterruptions { whileSuspended.append(idleSleepLog.all.joined(separator: " ")) }
-        let running = Running(interruptions) { finish.wait() }
-        waitUntilObserving()
-
-        XCTAssertTrue(observer.send(SIGTSTP))
-        XCTAssertTrue(Self.waitUntil(within: 5) { idleSleepLog.all.count == 3 }, "\(idleSleepLog.all)")
-        XCTAssertEqual(idleSleepLog.all, ["held", "released", "held"], "still running, so it is held again")
-        finish.open()
-        _ = try XCTUnwrap(running.wait())
-
-        XCTAssertEqual(whileSuspended.all, ["held released"])
-        XCTAssertEqual(idleSleepLog.all, ["held", "released", "held", "released"])
-    }
-
-    // It is about to end, so it stays held until it does.
-    func test_aSIGTSTP_whileStopping_keepsTheMacAwakeUntilTheWorkEnds() throws {
-        let started = Gate()
-        let running = Running(makeInterruptions()) { try await waitUntilCancelled(opening: started) {} }
-        XCTAssertTrue(started.wait())
-        waitUntilObserving()
-
-        XCTAssertTrue(observer.send(SIGINT))
-        XCTAssertTrue(observer.send(SIGTSTP))
-        _ = try XCTUnwrap(running.wait())
-
-        XCTAssertEqual(idleSleep.all, ["held", "released"])
-    }
-
     // MARK: - Helpers
 
     /// Long grace periods and sweep intervals by default, so that only a test about them sees them.
-    private func makeInterruptions(
+    func makeInterruptions(
         gracePeriod: TimeInterval = 60,
         sweepInterval: TimeInterval = 60,
         suspend: @escaping @Sendable () -> Void = {},
@@ -508,13 +254,13 @@ final class InterruptionsTests: MuterTestCase {
     }
 
     /// Has stopping at once record "ended the results", as mutation testing writes its end line then.
-    private func endingTheResultsAtOnce() {
+    func endingTheResultsAtOnce() {
         let eventLog = events
         current.interruption.beforeStoppingAtOnce { eventLog.append("ended the results") }
     }
 
     /// A signal sent before `run` observes signals goes nowhere.
-    private func waitUntilObserving(file: StaticString = #filePath, line: UInt = #line) {
+    func waitUntilObserving(file: StaticString = #filePath, line: UInt = #line) {
         let signalObserver = observer
         XCTAssertTrue(
             Self.waitUntil(within: 5) { !signalObserver.observed.isEmpty },
@@ -525,124 +271,12 @@ final class InterruptionsTests: MuterTestCase {
     }
 
     /// Polls `condition` until it holds or `timeout` seconds pass, and returns whether it held.
-    private static func waitUntil(within timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
+    static func waitUntil(within timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while !condition() {
             guard Date() < deadline else { return false }
             Thread.sleep(forTimeInterval: 0.005)
         }
         return true
-    }
-}
-
-private struct WorkError: Error {}
-
-/// Work that runs until its task is cancelled: it opens `started` once `onCancel` is in place, then waits until
-/// `onCancel` has run, and throws CancellationError. Only the handler ends the wait. Work that saw the cancellation
-/// another way, as Task.sleep does, could end before `cancel()` ran the handler, and the handler would never run:
-/// `cancel()` sets the task's cancelled flag before it takes the lock under which it runs the handlers then in place,
-/// and work that ends meanwhile removes its own (Swift 6.2–6.4). Gives up after 10 seconds, so the work ends however
-/// the test goes.
-private func waitUntilCancelled(opening started: Gate, onCancel: @escaping @Sendable () -> Void) async throws {
-    let resumption = Resumption()
-    DispatchQueue.global().asyncAfter(deadline: .now() + 10) { resumption.resume() }
-    await withTaskCancellationHandler {
-        await withCheckedContinuation { continuation in
-            resumption.set(continuation)
-            started.open()
-        }
-    } onCancel: {
-        onCancel()
-        resumption.resume()
-    }
-    try Task.checkCancellation()
-}
-
-/// A continuation that `resume()` resumes, once, whether it was set before or after.
-private final class Resumption: @unchecked Sendable { // `continuation` and `resumed` are behind `lock`
-    private let lock = NSLock()
-    private var continuation: CheckedContinuation<Void, Never>?
-    private var resumed = false
-
-    func set(_ newContinuation: CheckedContinuation<Void, Never>) {
-        let alreadyResumed = lock.withLock { () -> Bool in
-            if resumed { return true }
-            continuation = newContinuation
-            return false
-        }
-        if alreadyResumed { newContinuation.resume() }
-    }
-
-    func resume() {
-        let waiting = lock.withLock { () -> CheckedContinuation<Void, Never>? in
-            resumed = true
-            defer { continuation = nil }
-            return continuation
-        }
-        waiting?.resume()
-    }
-}
-
-/// Strings appended from any thread, in order.
-private final class Events: @unchecked Sendable { // `list` is behind `lock`
-    private let lock = NSLock()
-    private var list: [String] = []
-
-    var all: [String] { lock.withLock { list } }
-
-    func append(_ event: String) {
-        lock.withLock { list.append(event) }
-    }
-
-    func count(of event: String) -> Int {
-        all.filter { $0 == event }.count
-    }
-}
-
-/// A clock a test moves, in nanoseconds, read from any thread.
-private final class Clock: @unchecked Sendable { // `now` is behind `lock`
-    private let lock = NSLock()
-    private var now: UInt64 = 1_000_000_000
-
-    var nanoseconds: UInt64 { lock.withLock { now } }
-
-    func advance(by nanoseconds: UInt64) {
-        lock.withLock { now += nanoseconds }
-    }
-}
-
-/// Opened from any thread; once open, it stays open.
-private final class Gate: Sendable {
-    private let semaphore = DispatchSemaphore(value: 0)
-
-    func open() {
-        semaphore.signal()
-    }
-
-    /// Blocks until the gate is open, at most `timeout` seconds, and returns whether it opened.
-    @discardableResult
-    func wait(within timeout: TimeInterval = 5) -> Bool {
-        guard semaphore.wait(timeout: .now() + timeout) == .success else { return false }
-        semaphore.signal() // for the next wait
-        return true
-    }
-}
-
-/// `Interruptions.run` under way in a task of its own, so that a test can send signals meanwhile. Every work a test
-/// runs ends within seconds, however the test goes.
-private final class Running: @unchecked Sendable { // `ended` is written before `finished` opens, and read after
-    private let finished = Gate()
-    private var ended: Interruptions.Ended<Void>?
-
-    init(_ interruptions: Interruptions, _ work: @escaping @Sendable () async throws -> Void) {
-        Task.detached { [self] in
-            ended = await interruptions.run(work)
-            finished.open()
-        }
-    }
-
-    /// How the run ended, or nil if it hasn't within `timeout` seconds.
-    func wait(within timeout: TimeInterval = 5) -> Interruptions.Ended<Void>? {
-        finished.wait(within: timeout) ? ended : nil
     }
 }

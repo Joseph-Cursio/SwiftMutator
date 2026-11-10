@@ -5,17 +5,18 @@ import XCTest
 
 /// The default test timeout and parallel workers.
 final class PerformMutationTestingParallelTests: MuterTestCase {
-    private let state = MutationTestState()
-    private let workerClone = URL(fileURLWithPath: "/project_mutated_worker1")
-    private var clonedCounts: [Int] = []
-    private var removedClones: [[URL]] = []
+    let state = MutationTestState()
+    let workerClone = URL(fileURLWithPath: "/project_mutated_worker1")
+    var clonedCounts: [Int] = []
+    var removedClones: [[URL]] = []
 
-    private lazy var sut = PerformMutationTesting(
-        makeWorkerDirectories: { [unowned self] _, count in
+    lazy var sut = PerformMutationTesting(
+        makeWorkerDirectories: { [weak self] _, count in
+            guard let self else { return [] }
             clonedCounts.append(count)
             return Array(repeating: workerClone, count: count)
         },
-        removeWorkerDirectories: { [unowned self] in removedClones.append($0) }
+        removeWorkerDirectories: { [weak self] in self?.removedClones.append($0) }
     )
 
     override func setUpWithError() throws {
@@ -102,7 +103,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         )
         ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
         var atTheStart: [[Int]] = []
-        whenSent(.mutantRunsStarted) { [unowned self] _ in
+        whenSent(.mutantRunsStarted) { [ioDelegate] _ in
             let mutantRuns = ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count
             atTheStart.append([ioDelegate.builtWorkerDirectories.count, mutantRuns])
         }
@@ -193,735 +194,13 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         XCTAssertFalse(ioDelegate.methodCalls.contains(timedRun))
     }
 
-    func test_withTwoWorkers_eachMutantRunsInAWorkerDirectory() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
-        )
-        // The baseline, the worker clone's build, then the two mutants.
-        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .passed]
-
-        let result = try await sut.run(with: state)
-
-        XCTAssertEqual(clonedCounts, [1])
-        XCTAssertEqual(removedClones, [[workerClone]])
-        XCTAssertEqual(ioDelegate.builtWorkerDirectories, [workerClone])
-        XCTAssertEqual(
-            ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") },
-            Array(repeating: "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:workingDirectory:)", count: 2)
-        )
-        XCTAssertFalse(ioDelegate.methodCalls.contains("switchOn(schemata:for:at:named:)"))
-        XCTAssertEqual(
-            Set(ioDelegate.workingDirectories),
-            [state.mutatedProjectDirectoryURL, workerClone]
-        )
-
-        // Outcomes keep the mutants' order, whichever worker finished first.
-        guard case let .mutationTestOutcomeGenerated(outcome) = result.first else {
-            XCTFail("Expected an outcome, got \(result)")
-            return
-        }
-        XCTAssertEqual(outcome.mutations.map(\.point.position.line), [1, 2])
-    }
-
-    func test_outcomesKeepTheMutantsOrder_whenTheirRunsFinishOutOfOrder() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
-        )
-        state.mutationMapping = try (1...4).map { try makeSchemataMapping(line: $0) }
-        ioDelegate.testSuiteOutcomes = [.passed, .passed] + Array(repeating: .failed, count: 4)
-        // The first run to start waits until the last one has started, so the other worker runs the other three
-        // mutants meanwhile. The wait is bounded, so the test can't hang.
-        let lastRunStarted = DispatchSemaphore(value: 0)
-        ioDelegate.whileRunningMutant = { number in
-            if number == 0 { _ = lastRunStarted.wait(timeout: .now() + 5) }
-            if number == 3 { lastRunStarted.signal() }
-        }
-        let finishedLines = linesOfSentOutcomes()
-
-        let result = try await sut.run(with: state)
-
-        XCTAssertNotEqual(finishedLines(), [1, 2, 3, 4], "the runs didn't finish out of order")
-        guard case let .mutationTestOutcomeGenerated(outcome) = result.first else {
-            XCTFail("Expected an outcome, got \(result)")
-            return
-        }
-        XCTAssertEqual(outcome.mutations.map(\.point.position.line), [1, 2, 3, 4])
-    }
-
-    func test_workersAreCappedAtTheNumberOfMutants() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 8
-        )
-        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
-
-        _ = try await sut.run(with: state)
-
-        XCTAssertEqual(clonedCounts, [1], "two mutants need one clone, not seven")
-    }
-
-    // Said, with why fewer than asked for, once the baseline has passed.
-    func test_theWorkersUsed_areSaid() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 8
-        )
-        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
-        var choices: [WorkerChoice] = []
-        let subscription = runEvents.observe(.workersChosen) { event in
-            if case let .workersChosen(choice) = event { choices.append(choice) }
-        }
-        defer { subscription.cancel() }
-
-        _ = try await sut.run(with: state)
-
-        XCTAssertEqual(choices, [WorkerChoice(asked: 8, used: 2, unsupportedReason: nil, mutantsToTest: 2)])
-    }
-
-    // The progress bar's first estimate spreads the mutants over the workers that test them, which are never more
-    // than the mutants.
-    func test_theBaselinesLog_namesTheWorkersThatTestTheMutants() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 8
-        )
-        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
-        var baselineLogs: [MutationTestLog] = []
-        whenSent(.newTestLogAvailable) { event in
-            if let log = event.object as? MutationTestLog, log.mutationPoint == nil {
-                baselineLogs.append(log)
-            }
-        }
-
-        _ = try await sut.run(with: state)
-
-        XCTAssertEqual(baselineLogs.map(\.workers), [2])
-        XCTAssertEqual(baselineLogs.map(\.remainingMutationPointsCount), [2])
-    }
-
-    // A mutant's run skips the build, so the first estimate is better based on the timed test run than the baseline.
-    func test_theBaselinesLog_carriesTheTimedTestRunsSeconds() async throws {
-        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
-        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
-        timeTheTestRun(seconds: 12)
-        var baselineLogs: [MutationTestLog] = []
-        whenSent(.newTestLogAvailable) { event in
-            if let log = event.object as? MutationTestLog, log.mutationPoint == nil {
-                baselineLogs.append(log)
-            }
-        }
-
-        _ = try await sut.run(with: state)
-
-        XCTAssertEqual(baselineLogs.map(\.testRunSeconds), [12])
-    }
-
-    // The clone is copied after the mutated project was built. Its tests must run from binaries built
-    // in the clone, or every path compiled into them, `#filePath` included, still points into the
-    // mutated project, and tests that write files next to their sources share them across workers.
-    func test_eachWorkerCloneIsBuiltBeforeAnyMutantRunsInIt() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
-        )
-        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
-
-        _ = try await sut.run(with: state)
-
-        XCTAssertEqual(ioDelegate.methodCalls.prefix(3), [
-            "benchmarkTests(using:savingResultsIntoFileNamed:)",
-            "benchmarkTests(using:savingResultsIntoFileNamed:workingDirectory:)",
-            timedRun,
-        ])
-        XCTAssertEqual(ioDelegate.testLogs.prefix(3), ["baseline run", "baseline run worker 1", "timed test run"])
-    }
-
-    // Never in the mutated project or a clone, where a test that lists the package's files, or asks git for untracked
-    // ones, would see it.
-    func test_everyTestRunWritesItsOutputInTheLogFoldersRunningFolder() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
-        )
-        state.loggingDirectory = "/logs"
-        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
-
-        _ = try await sut.run(with: state)
-
-        XCTAssertEqual(ioDelegate.testLogs.count, 5, "\(ioDelegate.testLogs)")
-        XCTAssertEqual(
-            ioDelegate.testLogs.prefix(3),
-            ["/logs/running/baseline run", "/logs/running/baseline run worker 1", "/logs/running/timed test run"]
-        )
-        XCTAssertEqual(ioDelegate.testLogs.filter { !$0.hasPrefix("/logs/running/") }, [])
-    }
-
-    // Each run's file is moved to the name its log is kept under. A failed worker baseline's is what says why the run
-    // stopped.
-    func test_eachWorkerBaselinesLog_isKeptInTheLogFolder_aFailedOneToo() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
-        )
-        state.loggingDirectory = "/logs"
-        ioDelegate.testSuiteOutcomes = [.passed, .buildError]
-
-        await assertThrowsMuterError(
-            try await sut.run(with: state),
-            .mutationTestingAborted(
-                reason: .workerBaselineTestFailed(worker: 1, directory: workerClone.path, log: "testLog")
-            )
-        )
-
-        XCTAssertEqual(
-            fileManager.paths.filter { $0.hasSuffix(".log") },
-            ["/logs/baseline run.log", "/logs/baseline run worker 1.log"]
-        )
-        XCTAssertEqual(fileManager.contents, Data("testLog".utf8), "the worker baseline's log, kept last")
-        XCTAssertEqual(
-            ioDelegate.keptOutputs.map(\.output),
-            ["/logs/running/baseline run", "/logs/running/baseline run worker 1"]
-        )
-        XCTAssertEqual(
-            ioDelegate.keptOutputs.map(\.path),
-            ["/logs/baseline run.log", "/logs/baseline run worker 1.log"]
-        )
-    }
-
-    // Each recorded run's output is moved to the name its log is kept under, so a finished run's log folder keeps only
-    // its own logs.
-    func test_theRunningFolder_isRemovedOnceEmpty() async throws {
-        state.loggingDirectory = "/logs"
-        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
-
-        _ = try await sut.run(with: state)
-
-        XCTAssertEqual(fileManager.contentsOfDirectoryAtPath, ["/logs/running"])
-        XCTAssertEqual(
-            fileManager.paths.filter { !$0.hasSuffix(".log") },
-            ["/project_mutated.Activation.noindex", "/logs/running"]
-        )
-    }
-
-    // A stop leaves the output of the runs under way, all there is to say what they were doing.
-    func test_theRunningFolder_isKeptWithWhatAStopLeftInIt() async throws {
-        state.loggingDirectory = "/logs"
-        fileManager.contentsOfDirectoryToReturn = ["Sample.swift_RelationalOperatorReplacement_0_1_0.log"]
-        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
-
-        _ = try await sut.run(with: state)
-
-        XCTAssertEqual(fileManager.paths.filter { !$0.hasSuffix(".log") }, ["/project_mutated.Activation.noindex"])
-    }
-
-    func test_aWorkerCloneWhoseBaselineFails_stopsTheRun() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
-        )
-        ioDelegate.testSuiteOutcomes = [.passed, .buildError]
-
-        await assertThrowsMuterError(
-            try await sut.run(with: state),
-            .mutationTestingAborted(
-                reason: .workerBaselineTestFailed(worker: 1, directory: workerClone.path, log: "testLog")
-            )
-        )
-
-        XCTAssertFalse(ioDelegate.methodCalls.contains { $0.hasPrefix("runTestSuite") })
-        XCTAssertEqual(removedClones, [[workerClone]])
-        XCTAssertEqual(try resultsFiles.kinds(), [], "the clones come before the results, as the baseline does")
-    }
-
-    func test_whenCancelled_noFurtherMutantStarts_andNothingMoreIsRecorded() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
-        )
-        state.mutationMapping = try (1...6).map { try makeSchemataMapping(line: $0) }
-        // The baseline, the worker clone's build, then every mutant, in case cancelling doesn't stop them.
-        ioDelegate.testSuiteOutcomes = [.passed, .passed] + Array(repeating: .failed, count: 6)
-        let recorded = cancelMutationTesting(whenSent: .newMutationTestOutcomeAvailable)
-
-        let result = await runInItsOwnTask()
-
-        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        XCTAssertEqual(recorded(), 1)
-        // The two that started together, and no other.
-        XCTAssertEqual(ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") }.count, 2)
-        XCTAssertEqual(removedClones, [[workerClone]])
-    }
-
-    // The run under way returns as if it had exited by itself, as a process killed before its run's cancellation
-    // handler is in place does.
-    func test_whenCancelledWithNoMutantLeftToStart_theRunUnderWayIsNotRecorded() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
-        )
-        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
-        let recorded = cancelMutationTesting(whenSent: .newMutationTestOutcomeAvailable)
-
-        let result = await runInItsOwnTask()
-
-        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        XCTAssertEqual(recorded(), 1)
-        XCTAssertEqual(removedClones, [[workerClone]])
-    }
-
-    // Each clone costs a copy and about one baseline build, which a stopped run would only throw away. With no run
-    // under way to return, mutation testing would also end as if every mutant had been tested.
-    func test_whenCancelledBeforeTheFirstMutant_noWorkerIsCloned() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
-        )
-        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
-        // Saying how many workers there are is the last thing before the worker clones are made.
-        _ = cancelMutationTesting(whenSent: .workersChosen)
-
-        let result = await runInItsOwnTask()
-
-        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        XCTAssertEqual(clonedCounts, [])
-        XCTAssertEqual(removedClones, [])
-        XCTAssertFalse(ioDelegate.methodCalls.contains { $0.hasPrefix("runTestSuite") })
-    }
-
-    // Stopping the run kills the clones' builds, which then fail. That says nothing about the clones.
-    func test_aCancelledWorkerBuild_throwsCancellation_notWorkerBaselineTestFailed() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
-        )
-        ioDelegate.testSuiteOutcomes = [.passed, .buildError]
-        let mutationTesting = CancellableTask<[MutationTestState.Change]>()
-        ioDelegate.whileRunningBaseline = { worker in
-            if worker == 1 { mutationTesting.cancel() }
-        }
-
-        let result = await mutationTesting.run { [sut, state] in try await sut.run(with: state) }
-
-        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        XCTAssertFalse(ioDelegate.methodCalls.contains { $0.hasPrefix("runTestSuite") })
-        XCTAssertEqual(removedClones, [[workerClone]])
-    }
-
-    // Stopping the run kills a `cp` under way, which then fails. That says nothing about cloning the project.
-    func test_aCloneThatFailsOnceCancelled_throwsCancellation() async throws {
-        let testing = PerformMutationTesting(
-            makeWorkerDirectories: { [workerClone] _, _ in
-                withUnsafeCurrentTask { $0?.cancel() }
-                throw PerformMutationTesting.WorkerDirectoryError(clone: workerClone, status: SIGKILL)
-            },
-            removeWorkerDirectories: { _ in }
-        )
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
-        )
-        ioDelegate.testSuiteOutcomes = [.passed]
-
-        let result = await testing.runInItsOwnTask(with: state)
-
-        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        XCTAssertEqual(ioDelegate.builtWorkerDirectories, [])
-    }
-
-    // A worker's run can finish before one that started earlier, and each outcome is kept as it is recorded, so what
-    // a stopped run tested is sorted back into the mutants' order for its partial report.
-    func test_anInterruptedRun_postsWhatItRecorded_inJobOrder() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
-        )
-        state.mutationMapping = try (1...6).map { try makeSchemataMapping(line: $0) }
-        ioDelegate.testSuiteOutcomes = [.passed, .passed] + Array(repeating: .failed, count: 6)
-        // The first run to start returns once the third mutant is recorded, and the fourth run to start once the
-        // first is, so the first run's mutant is recorded third, after the third mutant. Mutation testing is
-        // cancelled then. The waits are bounded, so the test can't hang.
-        let thirdMutantRecorded = DispatchSemaphore(value: 0)
-        let firstRunRecorded = DispatchSemaphore(value: 0)
-        ioDelegate.whileRunningMutant = { number in
-            if number == 0 { _ = thirdMutantRecorded.wait(timeout: .now() + 5) }
-            if number == 3 { _ = firstRunRecorded.wait(timeout: .now() + 5) }
-        }
-        var recordedLines: [Int] = []
-        whenSent(.newMutationTestOutcomeAvailable) { event in
-            guard let mutation = event.object as? MutationTestOutcome.Mutation else { return }
-            recordedLines.append(mutation.point.position.line)
-            if recordedLines.count == 2 { thirdMutantRecorded.signal() }
-            if recordedLines.count == 3 {
-                withUnsafeCurrentTask { $0?.cancel() }
-                firstRunRecorded.signal()
-            }
-        }
-        var earlyEnds: [EarlyEnd] = []
-        whenSent(.mutationTestingEndedEarly) { event in
-            (event.object as? EarlyEnd).map { earlyEnds.append($0) }
-        }
-
-        let result = await runInItsOwnTask()
-
-        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        XCTAssertEqual(recordedLines.count, 3)
-        XCTAssertNotEqual(recordedLines, recordedLines.sorted(), "the runs weren't recorded out of job order")
-        XCTAssertEqual(earlyEnds.count, 1)
-        let earlyEnd = try XCTUnwrap(earlyEnds.first)
-        XCTAssertEqual(earlyEnd.reason, .interrupted)
-        XCTAssertEqual(earlyEnd.discovered, 6)
-        XCTAssertEqual(earlyEnd.outcome.mutations.map(\.point.position.line), recordedLines.sorted())
-    }
-
-    func test_withThreeWorkers_everyCloneIsBuilt() async throws {
-        let clones = (1...2).map { URL(fileURLWithPath: "/project_mutated_worker\($0)") }
-        let testing = PerformMutationTesting(makeWorkerDirectories: { _, _ in clones }, removeWorkerDirectories: { _ in })
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 3
-        )
-        state.mutationMapping = try (1...3).map { try makeSchemataMapping(line: $0) }
-        ioDelegate.testSuiteOutcomes = [.passed, .passed, .passed, .failed, .failed, .failed]
-
-        _ = try await testing.run(with: state)
-
-        XCTAssertEqual(Set(ioDelegate.builtWorkerDirectories), Set(clones))
-        XCTAssertEqual(ioDelegate.builtWorkerDirectories.count, 2)
-    }
-
-    // Both clone builds fail, in whichever order they finish; the report names the same worker each time.
-    func test_whenWorkerClonesFail_theLowestNumberedWorkerIsNamed() async throws {
-        let clones = (1...2).map { URL(fileURLWithPath: "/project_mutated_worker\($0)") }
-        let testing = PerformMutationTesting(makeWorkerDirectories: { _, _ in clones }, removeWorkerDirectories: { _ in })
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 3
-        )
-        state.mutationMapping = try (1...3).map { try makeSchemataMapping(line: $0) }
-        ioDelegate.testSuiteOutcomes = [.passed, .buildError, .failed]
-
-        await assertThrowsMuterError(
-            try await testing.run(with: state),
-            .mutationTestingAborted(
-                reason: .workerBaselineTestFailed(worker: 1, directory: clones[0].path, log: "testLog")
-            )
-        )
-    }
-
-    // Clang module caches record the path they were built under, so the clone's own build would fail
-    // on the ones copied from the mutated project.
-    func test_cloningTheMutatedProject_discardsItsModuleCaches() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
-        let project = root.appendingPathComponent("project_mutated.noindex")
-        let files = [
-            "Sources/File.swift",
-            ".build/debug/kept.o",
-            ".build/debug/ModuleCache/Swift.pcm",
-            ".build/out/Intermediates.noindex/ModuleCache.noindex/Swift.pcm",
-        ]
-        for file in files {
-            let url = project.appendingPathComponent(file)
-            try FileManager.default.createDirectory(
-                at: url.deletingLastPathComponent(), withIntermediateDirectories: true
-            )
-            try Data().write(to: url)
-        }
-
-        let clones = try await PerformMutationTesting.cloneMutatedProject(project, count: 1)
-
-        XCTAssertEqual(clones.map(\.path), [root.appendingPathComponent("project_mutated_worker1.noindex").path])
-        let clone = try XCTUnwrap(clones.first)
-        let exists = { (directory: URL, path: String) in
-            FileManager.default.fileExists(atPath: directory.appendingPathComponent(path).path)
-        }
-        XCTAssertTrue(exists(clone, "Sources/File.swift"))
-        XCTAssertTrue(exists(clone, ".build/debug/kept.o"))
-        XCTAssertFalse(exists(clone, ".build/debug/ModuleCache"))
-        XCTAssertFalse(exists(clone, ".build/out/Intermediates.noindex/ModuleCache.noindex"))
-        XCTAssertTrue(files.allSatisfy { exists(project, $0) }, "the mutated project keeps its caches")
-    }
-
-    // Nothing else would remove them until a later parallel run replaced them.
-    func test_whenCloningTheSecondWorkerFails_theFirstCloneAndTheSecondsPartialCopyAreRemoved() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
-        let project = root.appendingPathComponent("project_mutated.noindex")
-        let source = project.appendingPathComponent("Sources/File.swift")
-        try FileManager.default.createDirectory(
-            at: source.deletingLastPathComponent(), withIntermediateDirectories: true
-        )
-        try Data("let answer = 42".utf8).write(to: source)
-        let failingClone = root.appendingPathComponent("project_mutated_worker2.noindex")
-
-        do {
-            _ = try await PerformMutationTesting.cloneMutatedProject(project, count: 3) { project, clone in
-                guard clone.path == failingClone.path else {
-                    return try FileManager.default.copyItem(at: project, to: clone)
-                }
-                // A copy that fails partway through leaves what it had copied.
-                try FileManager.default.createDirectory(at: clone, withIntermediateDirectories: true)
-                try Data().write(to: clone.appendingPathComponent("partial.o"))
-                throw PerformMutationTesting.WorkerDirectoryError(clone: clone, status: 1)
-            }
-            XCTFail("the clones were made")
-        } catch {
-            XCTAssertEqual((error as? PerformMutationTesting.WorkerDirectoryError)?.clone.path, failingClone.path)
-        }
-
-        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: root.path), ["project_mutated.noindex"])
-        XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "let answer = 42", "the project is intact")
-    }
-
-    // cp's own message says why, such as a full disk, which its exit status alone doesn't.
-    func test_whenCpFails_theCloneFailureSaysWhatCpSaid() async throws {
-        #if os(macOS)
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
-        let missingProject = root.appendingPathComponent("project_mutated.noindex")
-
-        do {
-            _ = try await PerformMutationTesting.cloneMutatedProject(missingProject, count: 1)
-            XCTFail("a project that doesn't exist was cloned")
-        } catch let error as PerformMutationTesting.WorkerDirectoryError {
-            XCTAssertEqual(error.status, 1)
-            XCTAssertEqual(error.error, "cp: \(missingProject.path): No such file or directory")
-            XCTAssertTrue(
-                error.description.hasSuffix("(cp exited 1): cp: \(missingProject.path): No such file or directory.")
-            )
-        }
-        #endif
-    }
-
-    // Each clone's file and link are named after it without `.noindex`, as SwiftMutators from before `.noindex` named
-    // them.
-    func test_removeClones_removesEveryCloneGiven_andTheActiveMutantFileBesideIt() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
-        let project = root.appendingPathComponent("project_mutated.noindex")
-        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
-        try Data().write(to: root.appendingPathComponent("project_mutated.active-mutant"))
-        let clones = try (1...3).map { index in
-            let clone = root.appendingPathComponent("project_mutated_worker\(index).noindex")
-            let object = clone.appendingPathComponent(".build/debug/File.o")
-            try FileManager.default.createDirectory(
-                at: object.deletingLastPathComponent(), withIntermediateDirectories: true
-            )
-            try Data("object \(index)".utf8).write(to: object)
-            try Data().write(to: root.appendingPathComponent("project_mutated_worker\(index).active-mutant"))
-            try FileManager.default.createSymbolicLink(
-                at: DirectTestRun.helperLink(forWorkerIn: clone), withDestinationURL: URL(fileURLWithPath: "/bin/sh")
-            )
-            return clone
-        }
-
-        PerformMutationTesting.removeClones(clones)
-
-        // The mutated project's own file goes at the end of the run. The links go, not what they lead to.
-        XCTAssertEqual(
-            try FileManager.default.contentsOfDirectory(atPath: root.path).sorted(),
-            ["project_mutated.active-mutant", "project_mutated.noindex"]
-        )
-        XCTAssertTrue(FileManager.default.fileExists(atPath: "/bin/sh"))
-    }
-
-    // The mutated project is kept after the run, for a look, but not the active-mutant file beside it.
-    func test_aSwiftPMRun_removesTheActiveMutantFileBesideTheMutatedProject() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], testSuiteTimeOut: 42
-        )
-        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
-
-        _ = try await sut.run(with: state)
-
-        XCTAssertEqual(fileManager.paths, ["/project_mutated.Activation.noindex", "/project_mutated.active-mutant"])
-    }
-
-    func test_aStoppedSwiftPMRun_removesTheActiveMutantFileBesideTheMutatedProject() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2
-        )
-        ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
-        _ = cancelMutationTesting(whenSent: .newMutationTestOutcomeAvailable)
-
-        let result = await runInItsOwnTask()
-
-        XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
-        XCTAssertEqual(fileManager.paths, ["/project_mutated.Activation.noindex", "/project_mutated.active-mutant"])
-        XCTAssertEqual(removedClones, [[workerClone]])
-    }
-
-    // Only a `swift test` run names its mutant in a file. An xcodebuild run removes its mutants' derived data instead.
-    func test_anXcodebuildRun_removesNoActiveMutantFile() async throws {
-        state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
-        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
-
-        _ = try await sut.run(with: state)
-
-        XCTAssertEqual(
-            fileManager.paths,
-            ["/project_mutated.Activation.noindex", "/project_mutated.DerivedData.noindex"]
-        )
-    }
-
-    // An xcodebuild project on a simulator gets one per worker, not a copy: every worker tests in the mutated project.
-    func test_anXcodebuildProjectOnASimulator_getsASimulatorPerWorker_andNoCopies() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/xcodebuild",
-            arguments: ["-destination", "platform=iOS Simulator,name=iPhone 17", "test"],
-            mutationTestWorkers: 4
-        )
-        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
-
-        _ = try await sut.run(with: state)
-
-        XCTAssertEqual(clonedCounts, [])
-        XCTAssertEqual(ioDelegate.builtWorkerDirectories, [])
-        XCTAssertEqual(workerSimulators.calls.prefix(3), [
-            "sweep /project_mutated",
-            "prepare 2 like platform=iOS Simulator,name=iPhone 17 for /project_mutated",
-            "boot SIM-0 SIM-1",
-        ])
-        XCTAssertEqual(
-            ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") },
-            Array(repeating: "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:workingDirectory:)", count: 2)
-        )
-        XCTAssertEqual(Set(ioDelegate.workingDirectories), [state.mutatedProjectDirectoryURL])
-        XCTAssertEqual(
-            Set(ioDelegate.configurations.compactMap(\.xcodeWorker?.destination)),
-            ["platform=iOS Simulator,id=SIM-0", "platform=iOS Simulator,id=SIM-1"]
-        )
-    }
-
-    // A Mac app's test runs share its defaults, so a macOS destination tests one mutant at a time, and says why.
-    func test_anXcodebuildProjectOnAMac_testsOneMutantAtATime() async throws {
-        state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/xcodebuild",
-            arguments: ["-destination", "platform=macOS", "test"],
-            mutationTestWorkers: 4
-        )
-        ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
-        var choices: [WorkerChoice] = []
-        whenSent(.workersChosen) { event in
-            if case let .workersChosen(choice) = event { choices.append(choice) }
-        }
-
-        _ = try await sut.run(with: state)
-
-        XCTAssertEqual(clonedCounts, [])
-        XCTAssertEqual(workerSimulators.calls, ["sweep /project_mutated"])
-        XCTAssertEqual(
-            ioDelegate.methodCalls.filter { $0.hasPrefix("runTestSuite") },
-            Array(repeating: "runTestSuite(withSchemata:using:savingResultsIntoFileNamed:)", count: 2)
-        )
-        // The timed test run's, then each mutant's.
-        XCTAssertEqual(ioDelegate.testRunFileNames, ["muter.xctestrun", "muter.xctestrun", "muter.xctestrun"])
-        XCTAssertEqual(choices.map(\.used), [1])
-        XCTAssertEqual(
-            choices.first?.sentence,
-            "👷 Testing one mutant at a time, though 4 workers were asked for: a Mac app's test runs share its "
-                + "UserDefaults, saved state and container, so workers would see each other's."
-        )
-    }
-
-    // An xcodebuild project's workers all run in the mutated project, each from an `.xctestrun` of its own, which it
-    // switches each of its mutants on in just before the mutant's run. While one worker's first run is under way, the
-    // other switches on its next mutants in its own file, never the one that run tests from.
-    func test_aPoolOfXcodebuildWorkers_testsEachMutantFromItsOwnWorkersTestRun() async throws {
-        let workers = (0...1).map(xcodebuildWorker)
-        let jobs = try xcodebuildJobs(4)
-        ioDelegate.testSuiteOutcomes = Array(repeating: .failed, count: 4)
-        // The first run waits until the last has started, so the other worker runs the other three meanwhile. The
-        // wait is bounded, so the test can't hang.
-        let lastRunStarted = DispatchSemaphore(value: 0)
-        ioDelegate.whileRunningMutant = { number in
-            if number == 0 { _ = lastRunStarted.wait(timeout: .now() + 5) }
-            if number == 3 { lastRunStarted.signal() }
-        }
-        var finished: [FinishedRun] = []
-
-        try await sut.runPool(
-            jobs.indices.map(PerformMutationTesting.PoolTask.mutant),
-            of: jobs,
-            on: workers,
-            switchingOnFrom: XCTestRun(),
-            outputNamed: { index, _ in "\(index).log" },
-            recording: { finished.append($0) }
-        )
-
-        XCTAssertEqual(finished.map(\.index).sorted(), [0, 1, 2, 3])
-        let runs = (0...1).map { worker in finished.filter { $0.worker == worker }.count }
-        XCTAssertEqual(runs.sorted(), [1, 3], "one worker ran three while the other's first run was under way")
-        XCTAssertEqual(ioDelegate.mutantsNotSwitchedOnForTheirRun, [])
-        XCTAssertEqual(ioDelegate.schematas.map(\.id).sorted(), jobs.map(\.schema.id).sorted())
-        let fileNames = ioDelegate.testRunFileNames
-        XCTAssertEqual(
-            (0...1).map(MutationTestingDelegate.testRunFileName(ofWorker:))
-                .map { name in fileNames.filter { $0 == name }.count },
-            runs
-        )
-        let destinations = ioDelegate.configurations.compactMap(\.xcodeWorker?.destination)
-        XCTAssertEqual(
-            (0...1).map { worker in destinations.filter { $0 == "platform=iOS Simulator,id=SIM-\(worker)" } }
-                .map(\.count),
-            runs
-        )
-        XCTAssertEqual(Set(ioDelegate.testRunPaths), [state.mutatedProjectDirectoryURL])
-        XCTAssertEqual(Set(ioDelegate.workingDirectories), [state.mutatedProjectDirectoryURL])
-    }
-
-    // As in the serial loop: a test run that couldn't be written would still switch on the mutant before.
-    func test_aPoolOfXcodebuildWorkers_stopsBeforeTheRunOfAMutantThatCanNotBeSwitchedOn() async throws {
-        let jobs = try xcodebuildJobs(2)
-        ioDelegate.testSuiteOutcomes = [.failed, .failed]
-        let error = CocoaError(.fileWriteOutOfSpace)
-        ioDelegate.switchOnError = error
-        var finished: [FinishedRun] = []
-
-        await assertThrowsMuterError(
-            try await sut.runPool(
-                [.mutant(0), .mutant(1)],
-                of: jobs,
-                on: [xcodebuildWorker(0)],
-                switchingOnFrom: XCTestRun(),
-                outputNamed: { index, _ in "\(index).log" },
-                recording: { finished.append($0) }
-            ),
-            .mutationTestingAborted(
-                reason: .mutantNotSwitchedOn(id: jobs[0].schema.id, description: error.localizedDescription)
-            )
-        )
-
-        XCTAssertEqual(ioDelegate.methodCalls, ["switchOn(schemata:for:at:named:)"])
-        XCTAssertEqual(finished.count, 0)
-    }
-
-    // A run the simulator failed to launch runs again on its worker, from the same `.xctestrun`, with the mutant still
-    // switched on, before that worker takes another job. Only the second run is handed on, with the first's failure.
-    func test_aPoolOfXcodebuildWorkers_runsAgainOnItsWorker_aRunTheSimulatorFailedToLaunch() async throws {
-        let workers = (0...1).map(xcodebuildWorker)
-        let jobs = try xcodebuildJobs(3)
-        ioDelegate.testSuiteOutcomes = Array(repeating: .failed, count: 4)
-        ioDelegate.mutantTestLogs = [loadFixture("SimulatorTrouble/launch_preflightBusy.log")]
-        var finished: [FinishedRun] = []
-
-        try await sut.runPool(
-            jobs.indices.map(PerformMutationTesting.PoolTask.mutant),
-            of: jobs,
-            on: workers,
-            switchingOnFrom: XCTestRun(),
-            outputNamed: { index, _ in "\(index).log" },
-            recording: { finished.append($0) }
-        )
-
-        XCTAssertEqual(finished.map(\.index).sorted(), [0, 1, 2])
-        let repeated = finished.filter { $0.launchFailure != nil }
-        XCTAssertEqual(repeated.count, 1)
-        let run = try XCTUnwrap(repeated.first)
-        XCTAssertEqual(run.launchFailure?.line, "Simulator device failed to launch com.example.MacCloud-client-iOS.")
-        XCTAssertEqual(run.run.testLog, "testLog")
-        let runsOfItsJob = zip(ioDelegate.testLogs, ioDelegate.configurations).filter { $0.0 == "\(run.index).log" }
-        XCTAssertEqual(
-            runsOfItsJob.map(\.1.xcodeWorker),
-            Array(repeating: workers[run.worker].configuration.xcodeWorker, count: 2)
-        )
-        XCTAssertEqual(ioDelegate.testLogs.count, 4)
-        XCTAssertEqual(ioDelegate.schematas.count, 3, "each mutant switched on once")
-        XCTAssertEqual(ioDelegate.mutantsNotSwitchedOnForTheirRun, [])
-    }
-
     /// Runs mutation testing in a task of its own, so a test that cancels it mid-run doesn't cancel itself.
-    private func runInItsOwnTask() async -> Result<[MutationTestState.Change], Error> {
+    func runInItsOwnTask() async -> Result<[MutationTestState.Change], Error> {
         await sut.runInItsOwnTask(with: state)
     }
 
     /// Cancels mutation testing whenever it sends `name`, from the task that sends it; returns how often it did.
-    private func cancelMutationTesting(whenSent name: RunEvent.Name) -> () -> Int {
+    func cancelMutationTesting(whenSent name: RunEvent.Name) -> () -> Int {
         var count = 0
         let observer = runEvents.observe(name) { _ in
             count += 1
@@ -932,13 +211,13 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
     }
 
     /// Calls `handler` with each event sent with `name`, from the task that sends it, until the test ends.
-    private func whenSent(_ name: RunEvent.Name, _ handler: @escaping (RunEvent) -> Void) {
+    func whenSent(_ name: RunEvent.Name, _ handler: @escaping (RunEvent) -> Void) {
         let observer = runEvents.observe(name, handler)
         addTeardownBlock { observer.cancel() }
     }
 
     /// The line of each mutant whose outcome is sent, in the order they're sent, until the test ends.
-    private func linesOfSentOutcomes() -> () -> [Int] {
+    func linesOfSentOutcomes() -> () -> [Int] {
         var lines: [Int] = []
         let observer = runEvents.observe(.newMutationTestOutcomeAvailable) { event in
             if let mutation = event.object as? MutationTestOutcome.Mutation {
@@ -949,11 +228,11 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         return { lines }
     }
 
-    private let timedRun = "runTestsWithoutBuilding(using:timeLimit:savingResultsIntoFileNamed:)"
+    let timedRun = "runTestsWithoutBuilding(using:timeLimit:savingResultsIntoFileNamed:)"
 
     /// Makes the timed test run take `seconds` by the injected clock. Every baseline and mutant run takes time too, so
     /// a limit taken from anything but the timed run alone comes out wrong.
-    private func timeTheTestRun(seconds: UInt64) {
+    func timeTheTestRun(seconds: UInt64) {
         let nanoseconds = Locked<UInt64>(1)
         current.instant = { DispatchTime(uptimeNanoseconds: nanoseconds.value) }
         ioDelegate.whileRunningBaseline = { _ in nanoseconds.change { $0 += 100_000_000_000 } }
@@ -962,7 +241,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
     }
 
     /// xcodebuild worker `worker` of the mutated project, on its own simulator.
-    private func xcodebuildWorker(_ worker: Int) -> PerformMutationTesting.PoolWorker {
+    func xcodebuildWorker(_ worker: Int) -> PerformMutationTesting.PoolWorker {
         let configuration = MuterConfiguration(
             executable: "/usr/bin/xcodebuild",
             arguments: ["-destination", "platform=iOS Simulator,name=iPhone 17", "test"],
@@ -984,7 +263,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
     }
 
     /// `count` jobs, a mutant on each line from 1 of one file.
-    private func xcodebuildJobs(_ count: Int) throws -> [PerformMutationTesting.MutantJob] {
+    func xcodebuildJobs(_ count: Int) throws -> [PerformMutationTesting.MutantJob] {
         try (1...count).map { line in
             try PerformMutationTesting.MutantJob(
                 fileName: "file.swift",
@@ -993,7 +272,7 @@ final class PerformMutationTestingParallelTests: MuterTestCase {
         }
     }
 
-    private func makeSchemataMapping(line: Int) throws -> SchemataMutationMapping {
+    func makeSchemataMapping(line: Int) throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
             filePath: "/some/path",
             (
