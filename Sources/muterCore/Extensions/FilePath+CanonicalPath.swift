@@ -1,4 +1,8 @@
-import Foundation
+#if os(Linux)
+import Glibc
+#else
+import Darwin.C
+#endif
 
 extension FilePath {
     /// This path with every symbolic link in it resolved, or the path unchanged if it is relative or

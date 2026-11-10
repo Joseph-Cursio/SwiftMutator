@@ -1,6 +1,4 @@
 @testable import muterCore
-import SwiftParser
-import SwiftSyntax
 import XCTest
 
 /// Mutants with no statement list of their own but a file's top level, which can't hold a switch: initial values,

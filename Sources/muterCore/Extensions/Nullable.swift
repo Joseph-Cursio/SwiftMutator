@@ -1,5 +1,3 @@
-import Foundation
-
 protocol Nullable: Equatable {
     static var null: Self { get }
 }

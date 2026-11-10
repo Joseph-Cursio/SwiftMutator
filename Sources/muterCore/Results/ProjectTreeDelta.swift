@@ -1,5 +1,3 @@
-import Foundation
-
 /// A resumed session's project tree, as what changed since the tree of the session it resumed, whose `treeSHA256` it
 /// names: a project's every hash in each session's header made it about 205 KB longer on SwiftProjectLint, where the
 /// files seldom change between sessions.

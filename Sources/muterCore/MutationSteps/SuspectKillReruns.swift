@@ -1,5 +1,3 @@
-import Foundation
-
 /// What those runs came to, so far.
 struct SuspectKillRerunTally: Equatable {
     /// Failed again, or crashed.

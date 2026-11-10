@@ -1,8 +1,4 @@
-@testable import muterCore
-import SnapshotTesting
-import SwiftSyntax
 import TestingExtensions
-import XCTest
 
 extension RemoveSideEffectsOperatorTests {
     // Only a call that never returns can end a `guard` body or a function that returns a value, and the

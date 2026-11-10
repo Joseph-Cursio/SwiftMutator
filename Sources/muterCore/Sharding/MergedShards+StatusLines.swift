@@ -1,5 +1,3 @@
-import Foundation
-
 extension MergedShards {
     /// What `report` says on standard error of the merge: how many mutants it covers, each shard's file and how its run
     /// ended and which of its sessions tested its results, the shards whose files weren't given, and what may make the

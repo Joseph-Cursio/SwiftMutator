@@ -1,5 +1,4 @@
 @testable import muterCore
-import SnapshotTesting
 import SwiftParser
 import SwiftSyntax
 import TestingExtensions

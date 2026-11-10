@@ -1,6 +1,3 @@
-import Foundation
-import Yams
-
 extension MuterConfiguration {
     /// The most workers a SwiftPM run uses when `mutationTestWorkers` doesn't say. On SwiftProjectLint on an 18-core
     /// Mac on 31 October, 2 workers took 39 min, 3 took 30, 4 took 27, 6 took 24 and 8 took 24, where two runs with 4

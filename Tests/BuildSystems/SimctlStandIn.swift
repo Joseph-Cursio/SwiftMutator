@@ -1,5 +1,5 @@
+import Foundation
 @testable import muterCore
-import XCTest
 
 /// `xcrun simctl`: `list devices --json` prints `list`, and every other command succeeds with no output unless
 /// `answering` says otherwise. Commands may run at once, from any thread.

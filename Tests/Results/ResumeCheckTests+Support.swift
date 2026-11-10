@@ -1,5 +1,4 @@
 @testable import muterCore
-import XCTest
 
 extension ResumeCheckTests {
     /// The fixture's configuration: `swift test`.

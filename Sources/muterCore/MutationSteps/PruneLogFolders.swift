@@ -1,5 +1,3 @@
-import Foundation
-
 /// Removes earlier runs' log folders beyond the newest `keepLogFolders:` runs, this one included, and says what it
 /// removed and left (see `LogFolderPruning`). Without the key, or without a log folder, it removes nothing. A run of
 /// one mutant (`--mutant`) doesn't have the step: it is a short probe, the run most likely to go alongside another.

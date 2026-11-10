@@ -1,5 +1,3 @@
-import Foundation
-
 /// The project's own source files among those a coverage report names, by their path in the project, as both build
 /// systems read them. Only these count toward the project's coverage: the reports also name test files, the packages
 /// the project depends on and files the build generates, by absolute path.

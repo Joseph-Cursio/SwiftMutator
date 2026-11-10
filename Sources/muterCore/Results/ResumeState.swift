@@ -1,5 +1,3 @@
-import Foundation
-
 /// What a resumed run carries from its results file to mutation testing, or a run that reuses an earlier run's results
 /// (`--reuse`). A resume's `file` stays open and locked until SwiftMutator exits or mutation testing ends it, so no
 /// other run writes to the file meanwhile. The steps run one after another, so one step at a time uses `file`:

@@ -1,7 +1,5 @@
-import ArgumentParser
+import Foundation
 @testable import muterCore
-import TestingExtensions
-import XCTest
 
 extension CheckTestPlanSourcesTests {
     /// A loaded plan made from the project's `recorded` files, with mutants in `paths`, relative to the copy.

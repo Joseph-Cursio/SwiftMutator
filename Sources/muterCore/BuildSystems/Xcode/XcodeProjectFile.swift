@@ -1,5 +1,3 @@
-import Foundation
-
 /// An Xcode project's `project.pbxproj`, read as the old-style property list Xcode writes, with where each string lies
 /// in the file's bytes: so a change to one string can leave every other byte of the file as it was, comments,
 /// spacing and the order of its objects included. A file in another format, as XML, isn't read.

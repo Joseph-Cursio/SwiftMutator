@@ -1,5 +1,3 @@
-import Foundation
-
 /// The commands of a shell script that run SwiftLint, found by a reading of the script that is only as close as it
 /// needs to be: each simple command, after `then`, `do`, `else`, `&&`, `;`, `|`, a newline and the like, is split into
 /// words, with their quotes, escapes and expansions kept whole, and judged by them. A command runs SwiftLint when its

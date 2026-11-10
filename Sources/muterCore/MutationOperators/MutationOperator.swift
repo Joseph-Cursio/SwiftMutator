@@ -1,6 +1,3 @@
-import Foundation
-import SwiftSyntax
-
 typealias VisitorInitializer = (MuterConfiguration?, SourceCodeInfo, FileCoverage) -> MuterVisitor
 typealias MutationOperatorList = [MutationOperator.Id]
 

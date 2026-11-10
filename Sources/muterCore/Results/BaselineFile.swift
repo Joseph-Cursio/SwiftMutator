@@ -1,5 +1,3 @@
-import Foundation
-
 /// A run's survivors, which `--write-baseline` saves and `--baseline` compares a later run's with
 /// (`NewSurvivorsCheck`), so a pull request's job fails on a survivor it adds and not on those the project already
 /// had. Meant to be committed as `muter.baseline.yml` at the project's root, which `ProjectTree` leaves out, as it does

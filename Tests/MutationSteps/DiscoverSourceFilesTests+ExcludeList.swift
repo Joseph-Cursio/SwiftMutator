@@ -1,6 +1,6 @@
+import Foundation
 @testable import muterCore
 import TestingExtensions
-import XCTest
 
 extension DiscoverSourceFilesTests {
     func test_exclusionList() async throws {

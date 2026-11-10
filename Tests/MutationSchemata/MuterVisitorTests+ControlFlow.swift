@@ -1,7 +1,5 @@
 @testable import muterCore
-import SwiftParser
 import TestingExtensions
-import XCTest
 
 extension MuterVisitorTests {
     // A `#if` inside the `#if` clause the build kept starts on a skipped directive too. The `return` in it still

@@ -1,5 +1,3 @@
-import Foundation
-
 struct Region: Equatable, Decodable {
     let lineStart: Int
     let columnStart: Int

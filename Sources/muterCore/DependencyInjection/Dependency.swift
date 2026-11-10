@@ -1,5 +1,3 @@
-import Foundation
-
 /// A dependency read from `current` each time it is used, so a test's replacement reaches every holder. It keeps a
 /// key path, not a closure, so a holder of one can be Sendable.
 @propertyWrapper

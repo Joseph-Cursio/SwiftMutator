@@ -1,5 +1,3 @@
-import Foundation
-
 /// What the Logger says about the runs repeated to settle a verdict: the control run, timeout, property, unproven and
 /// suspect-kill reruns, and runs repeated after a launch failure.
 extension Logger {

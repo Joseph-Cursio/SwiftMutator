@@ -1,6 +1,4 @@
-import ArgumentParser
 @testable import muterCore
-import XCTest
 
 extension NewSurvivorsCheckTests {
     func key(_ line: Int, path: String = "Sources/X.swift") -> MutantKey {

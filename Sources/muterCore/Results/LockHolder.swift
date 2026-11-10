@@ -1,4 +1,8 @@
-import Foundation
+#if os(Linux)
+import Glibc
+#else
+import Darwin.C
+#endif
 
 /// The process that holds a results file's lock, as it records itself while it holds it: its ID, when it started,
 /// which tells it apart from a later process given the same ID, and the host it runs on.

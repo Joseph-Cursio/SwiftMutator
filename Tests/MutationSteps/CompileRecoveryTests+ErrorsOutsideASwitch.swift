@@ -1,5 +1,4 @@
 @testable import muterCore
-import SwiftParser
 import XCTest
 
 extension CompileRecoveryTests {

@@ -1,5 +1,4 @@
 @testable import muterCore
-import Rainbow
 import TestingExtensions
 import XCTest
 

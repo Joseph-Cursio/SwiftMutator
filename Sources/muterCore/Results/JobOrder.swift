@@ -1,5 +1,3 @@
-import Foundation
-
 /// Where a mutant comes in a session's jobs. Discovery sorts files by path (`mergeByFilePath`) and each file's mutants
 /// by `InFile` (`SchemataMutationMapping.mutationSchemata`); a key's repeats come in the order they were found, which
 /// their occurrences number. A results file holds mutants in the order they finished; this gives back the order the

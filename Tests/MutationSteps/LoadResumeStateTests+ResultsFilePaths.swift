@@ -1,6 +1,5 @@
+import Foundation
 @testable import muterCore
-import TestingExtensions
-import XCTest
 
 extension LoadResumeStateTests {
     // Saving the report there would replace every result the resume keeps.

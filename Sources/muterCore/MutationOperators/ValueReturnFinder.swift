@@ -1,4 +1,3 @@
-import Foundation
 import SwiftSyntax
 
 final class ValueReturnFinder: SyntaxAnyVisitor {

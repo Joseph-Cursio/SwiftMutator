@@ -1,6 +1,5 @@
 import Foundation
 @testable import muterCore
-import Rainbow
 import TestingExtensions
 
 extension LoggerTests {

@@ -1,5 +1,4 @@
 @testable import muterCore
-import SwiftIfConfig
 import XCTest
 
 final class SwiftPackageBuildConditionsTests: MuterTestCase {

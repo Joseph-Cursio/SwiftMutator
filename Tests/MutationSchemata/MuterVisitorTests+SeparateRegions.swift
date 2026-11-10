@@ -1,7 +1,5 @@
 @testable import muterCore
-import SwiftParser
 import TestingExtensions
-import XCTest
 
 extension MuterVisitorTests {
     // Code that ran in a local function, or a local type's members, says nothing about the code that declares them,

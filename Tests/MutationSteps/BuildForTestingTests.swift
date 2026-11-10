@@ -1,6 +1,5 @@
 #if !os(Linux)
 @testable import muterCore
-import SwiftParser
 import TestingExtensions
 import XCTest
 

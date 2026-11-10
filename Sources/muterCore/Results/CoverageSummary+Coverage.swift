@@ -1,5 +1,3 @@
-import Foundation
-
 extension CoverageSummary {
     /// The summary of `coverage`; nil when the run has none, as when coverage couldn't be gathered.
     init?(_ coverage: Coverage) {

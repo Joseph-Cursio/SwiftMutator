@@ -1,6 +1,5 @@
 @testable import muterCore
 import TestingExtensions
-import XCTest
 
 /// `--changed-lines`: which of a changed file's mutants discovery keeps.
 final class DiscoverMutationPointsChangedLinesTests: MuterTestCase {

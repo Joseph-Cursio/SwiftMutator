@@ -1,5 +1,4 @@
 import ArgumentParser
-import Foundation
 
 struct MutateWithoutRunning: RunCommand {
     static let configuration = CommandConfiguration(

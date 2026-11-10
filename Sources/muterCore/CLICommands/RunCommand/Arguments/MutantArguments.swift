@@ -1,5 +1,4 @@
 import ArgumentParser
-import Foundation
 
 /// The one mutant a run tests on its own, for `run` and `run-without-mutating`.
 struct MutantArguments: ParsableArguments {

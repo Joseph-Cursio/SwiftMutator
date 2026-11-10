@@ -1,5 +1,4 @@
 @testable import muterCore
-import XCTest
 
 extension MuterTestReportTests {
     var exampleMutationTestResults: [MutationTestOutcome.Mutation] {

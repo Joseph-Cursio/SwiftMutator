@@ -1,5 +1,10 @@
+#if os(Linux)
+import Glibc
+#else
+import Darwin.C
+#endif
+
 import ArgumentParser
-import Foundation
 
 /// The watcher `TestProcessWatcher` starts, which kills SwiftMutator's test processes if SwiftMutator dies first.
 /// Hidden: SwiftMutator starts it itself.

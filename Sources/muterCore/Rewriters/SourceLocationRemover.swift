@@ -1,4 +1,3 @@
-import Foundation
 import SwiftSyntax
 
 /// Drops the `#sourceLocation` directives of a mutant's copy of a statement list, at any depth: from its

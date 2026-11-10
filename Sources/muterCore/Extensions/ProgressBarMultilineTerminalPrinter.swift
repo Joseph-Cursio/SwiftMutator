@@ -1,4 +1,4 @@
-import Foundation
+import Dispatch
 
 struct ProgressBarMultilineTerminalPrinter: ProgressBarPrinter {
     /// When the bar was last drawn, by the injected clock.

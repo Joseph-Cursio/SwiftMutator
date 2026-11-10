@@ -1,6 +1,5 @@
 @testable import muterCore
 import XCTest
-import Yams
 
 extension LoadConfigurationTests {
     func test_migrationToYaml() async throws {

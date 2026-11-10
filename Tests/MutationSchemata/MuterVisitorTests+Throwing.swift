@@ -1,7 +1,5 @@
 @testable import muterCore
-import SwiftParser
 import TestingExtensions
-import XCTest
 
 extension MuterVisitorTests {
     // What a `try` threw in a `where` or a ternary's branch makes the code after it run less. The tests call

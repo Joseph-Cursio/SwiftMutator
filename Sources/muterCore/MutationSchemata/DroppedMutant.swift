@@ -1,5 +1,3 @@
-import Foundation
-
 /// A mutant discovery found but can't test: its switch has nowhere to go in the build every mutant shares, or its code
 /// isn't in the build at all. It is in no mapping, so without this nothing would say a report covers less code than it
 /// seems to.

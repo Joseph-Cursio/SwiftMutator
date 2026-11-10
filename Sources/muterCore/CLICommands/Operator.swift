@@ -1,5 +1,4 @@
 import ArgumentParser
-import Foundation
 import Rainbow
 
 public struct Operator: ParsableCommand {

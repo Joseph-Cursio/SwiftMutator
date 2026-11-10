@@ -1,6 +1,5 @@
 @testable import muterCore
 import XCTest
-import Yams
 
 extension LoadConfigurationTests {
     // As --report's are: each needs a file of its own, resolved against the project's folder, which -o's is beside.

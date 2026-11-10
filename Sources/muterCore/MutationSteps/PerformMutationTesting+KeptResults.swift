@@ -1,5 +1,3 @@
-import Foundation
-
 /// What a session keeps of a resumed or reused run's results, and the header that says so.
 extension PerformMutationTesting {
     /// Every discovered mutant, in job order: file by file as discovery mapped them, and in each file in its order.

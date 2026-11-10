@@ -1,7 +1,6 @@
 @testable import muterCore
 import SwiftParser
 import SwiftSyntax
-import XCTest
 
 extension ExecutionCountsTests {
     func counts(in source: String, coverage: FileCoverage) throws -> [[Int]] {

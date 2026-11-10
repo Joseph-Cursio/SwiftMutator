@@ -1,7 +1,5 @@
 @testable import muterCore
-import SwiftParser
 import TestingExtensions
-import XCTest
 
 extension MuterVisitorTests {
     // A closure literal shares its region with the initializer that makes it, which ran each time the property was

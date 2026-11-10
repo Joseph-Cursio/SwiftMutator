@@ -1,8 +1,4 @@
-@testable import muterCore
-import SnapshotTesting
-import SwiftSyntax
 import TestingExtensions
-import XCTest
 
 extension RemoveSideEffectsOperatorTests {
     // Removing a call on a lock can leave a later call waiting for good, which ends as a timeout. Only four types

@@ -1,5 +1,4 @@
 import ArgumentParser
-import Foundation
 
 /// `swift-mutator report`: a run's report in any format, made from its results file. For a finished run it's the
 /// run's own report; for one that stopped, or is still going, it reports what the file holds so far. The results files

@@ -1,6 +1,4 @@
 @testable import muterCore
-import TestingExtensions
-import XCTest
 
 extension MarkdownReporterTests {
     /// A mutant in `Sources/Rules.swift`.

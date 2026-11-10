@@ -1,6 +1,5 @@
 @testable import muterCore
 import SwiftParser
-import XCTest
 
 extension MutantDiffTests {
     func schemata(_ visitor: VisitorInitializer, in source: String) -> [MutationSchema] {

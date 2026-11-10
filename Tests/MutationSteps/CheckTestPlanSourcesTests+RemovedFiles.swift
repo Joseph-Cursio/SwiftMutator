@@ -1,7 +1,6 @@
-import ArgumentParser
+import Foundation
 @testable import muterCore
 import TestingExtensions
-import XCTest
 
 extension CheckTestPlanSourcesTests {
     // A file the plan mutates that was renamed in the project is a change of the project, which `--plan-ignoring` can

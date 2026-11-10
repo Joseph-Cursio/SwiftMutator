@@ -1,5 +1,3 @@
-import Foundation
-
 /// One run of the test command with a mutant switched on: what `TestSuiteOutcome.from` made of it, its log, and
 /// how it ended. Only an `.exited` run has an exit status: SwiftMutator killed any other, or it couldn't run.
 struct TestRun: Equatable {

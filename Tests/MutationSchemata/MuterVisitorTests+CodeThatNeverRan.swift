@@ -1,7 +1,5 @@
 @testable import muterCore
-import SwiftParser
 import TestingExtensions
-import XCTest
 
 extension MuterVisitorTests {
     // The right-hand side of `&&` is a closure with a region of its own, and no node of its own: the sequence

@@ -1,5 +1,4 @@
 @testable import muterCore
-import XCTest
 
 extension KillingTestSummaryTests {
     /// A Swift Testing test whose issue was recorded in `file`, or, with no file, one without a location.

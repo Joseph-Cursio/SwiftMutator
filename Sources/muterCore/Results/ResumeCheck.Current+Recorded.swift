@@ -1,5 +1,3 @@
-import Foundation
-
 extension ResumeCheck.Current {
     /// What `state` would record in its header: the configuration as loaded, and the mutants asked for.
     init(state: AnyMutationTestState, provenance: Provenance) {

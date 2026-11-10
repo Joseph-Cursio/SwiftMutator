@@ -1,5 +1,3 @@
-import Foundation
-
 enum BuildSystem: String, Codable, Equatable {
     case xcodebuild
     case swift

@@ -1,8 +1,6 @@
 @testable import muterCore
-import SnapshotTesting
 import SwiftSyntax
 import TestingExtensions
-import XCTest
 
 extension RemoveSideEffectsOperatorTests {
     // A discarded result was recognised by searching the statement's text for `_ = `, so a string

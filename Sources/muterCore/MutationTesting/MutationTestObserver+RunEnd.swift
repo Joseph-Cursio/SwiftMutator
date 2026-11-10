@@ -1,5 +1,3 @@
-import Foundation
-
 extension MutationTestObserver {
     /// Writes `summary` beside the results file (`RunSummary.path`), replacing an earlier session's, or in the log
     /// folder once a write to that file failed. One that can't be written is left out: the results file holds

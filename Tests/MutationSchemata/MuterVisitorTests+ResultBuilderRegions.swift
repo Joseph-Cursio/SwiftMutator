@@ -1,7 +1,5 @@
 @testable import muterCore
-import SwiftParser
 import TestingExtensions
-import XCTest
 
 extension MuterVisitorTests {
     // In a builder, once the walk has lost the count, llvm-cov's counts can be stale, too high or too low, and it

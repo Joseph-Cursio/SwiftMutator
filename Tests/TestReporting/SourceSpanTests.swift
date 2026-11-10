@@ -1,5 +1,4 @@
 @testable import muterCore
-import SwiftParser
 import XCTest
 
 /// A mutant's place as the Stryker and SARIF reports give it: the code it changes, found from where its operator

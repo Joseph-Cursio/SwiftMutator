@@ -1,6 +1,5 @@
 import Foundation
 import SwiftParser
-import SwiftSyntax
 
 // MARK: - Source Code
 

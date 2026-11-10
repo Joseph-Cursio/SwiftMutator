@@ -1,7 +1,5 @@
 @testable import muterCore
-import SwiftParser
 import TestingExtensions
-import XCTest
 
 extension SwapTernaryOperatorTests {
     func test_identicalBranches_getNoMutant() throws {

@@ -1,5 +1,4 @@
 import ArgumentParser
-import Foundation
 
 /// How mutants are tested, for the commands that test them: each in place of its configuration key for this run.
 struct TestingArguments: ParsableArguments {

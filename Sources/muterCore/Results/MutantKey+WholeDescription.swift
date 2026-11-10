@@ -1,5 +1,3 @@
-import Foundation
-
 extension MutantKey {
     /// The key `text` spells whole, as `description` prints one; nil for anything that leaves out its column or
     /// operator, as a `MutantReference` may.

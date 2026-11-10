@@ -1,5 +1,4 @@
 import ArgumentParser
-import Foundation
 
 /// The results files of a split's shards (`run --shard`), merged into the results of the whole run: one shard's file
 /// alone too, a merge of one, so that a CI job's glob that finds one file is judged as one that finds two. Each shard

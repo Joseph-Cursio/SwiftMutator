@@ -1,5 +1,3 @@
-import Foundation
-
 /// One reason a run can't be resumed, and what would let it be.
 enum ResumeRefusal: Equatable, CustomStringConvertible {
     /// Another process holds the results file's lock: `holder`, if its record shows which. Without a record, the

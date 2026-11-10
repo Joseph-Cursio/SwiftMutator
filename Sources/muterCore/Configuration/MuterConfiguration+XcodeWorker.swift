@@ -1,5 +1,4 @@
 import Foundation
-import Yams
 
 extension MuterConfiguration {
     /// What one worker's xcodebuild mutant runs test from and write to, beyond the test command's own arguments.

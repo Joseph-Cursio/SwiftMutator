@@ -1,5 +1,3 @@
-import Foundation
-
 /// Which mutants' logs a session keeps, and so which of its results lines name one (`MutationTestLog.isKept`).
 extension PerformMutationTesting {
     /// The name `finished`'s log is kept under, `log`, or nil when it keeps none, as its line then names none: a kill

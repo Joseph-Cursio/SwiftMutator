@@ -1,5 +1,4 @@
 @testable import muterCore
-import SwiftSyntax
 import XCTest
 
 private final class PreparationCount: @unchecked Sendable { // `stored` is behind `lock`

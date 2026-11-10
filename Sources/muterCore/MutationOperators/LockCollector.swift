@@ -1,4 +1,3 @@
-import Foundation
 import SwiftSyntax
 
 /// Every variable, property or parameter in a file that holds a lock: made by a call to a lock type's initializer, or

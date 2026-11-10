@@ -1,5 +1,3 @@
-import XCTest
-
 extension InterruptionHarness {
     /// Where the test command hangs: in the coverage run, in the baseline, or in each mutant's run.
     enum Phase: String {

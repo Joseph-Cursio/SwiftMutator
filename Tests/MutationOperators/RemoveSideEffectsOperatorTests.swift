@@ -1,8 +1,6 @@
 @testable import muterCore
-import SnapshotTesting
 import SwiftSyntax
 import TestingExtensions
-import XCTest
 
 final class RemoveSideEffectsOperatorTests: MuterTestCase {
     private lazy var sourceWithSideEffects = fixtureSource(

@@ -1,5 +1,4 @@
 import Foundation
-import SwiftIfConfig
 
 /// What an xcodebuild test command compiles with, from `xcodebuild -showBuildSettings`, which follows its
 /// `-destination`.

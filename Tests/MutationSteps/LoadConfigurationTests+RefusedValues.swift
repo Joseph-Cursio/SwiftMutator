@@ -1,6 +1,5 @@
 @testable import muterCore
 import XCTest
-import Yams
 
 extension LoadConfigurationTests {
     // 0 was a limit of no time for every mutant, and below 0 trapped.

@@ -1,5 +1,4 @@
 import Foundation
-import SwiftSyntax
 
 struct PerformMutationTesting: MutationStep {
     // Only `interruption` is private: the step's extensions in other files, such as

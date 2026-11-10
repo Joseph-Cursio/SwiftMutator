@@ -1,5 +1,4 @@
 @testable import muterCore
-import XCTest
 
 extension BaselineMatchesTests {
     typealias Tested = BaselineMatches.TestedMutant

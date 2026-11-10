@@ -1,6 +1,5 @@
 import Foundation
 @testable import muterCore
-import XCTest
 
 extension LogFolderPruningTests {
     func prune(keeping: Int, now: Date = Date()) -> LogFolderPruning {

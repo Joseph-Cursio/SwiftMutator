@@ -1,5 +1,3 @@
-import Foundation
-
 /// What a session does with whether its mutants' blocks ran (`TestRun.activated`).
 extension PerformMutationTesting {
     /// Keeps what `finished`, a mutant's first run, showed of its block, and stops mutation testing once

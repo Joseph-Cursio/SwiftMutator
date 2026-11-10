@@ -1,7 +1,5 @@
 @testable import muterCore
-import SwiftParser
 import TestingExtensions
-import XCTest
 
 extension MuterVisitorTests {
     // In a builder, the count after a `try` is the wrong count before it less the times it threw, which is negative

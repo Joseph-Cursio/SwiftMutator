@@ -1,6 +1,5 @@
 @testable import muterCore
 import TestingExtensions
-import XCTest
 
 final class DisableLintersRewriterTests: MuterTestCase {
     func test_disableLinters() throws {

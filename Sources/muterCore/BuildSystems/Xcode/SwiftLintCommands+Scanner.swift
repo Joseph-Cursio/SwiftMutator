@@ -1,5 +1,3 @@
-import Foundation
-
 extension SwiftLintCommands {
     /// A simple command: where it starts in the script, and its words, unquoted, with expansions kept as written.
     struct Command: Equatable {

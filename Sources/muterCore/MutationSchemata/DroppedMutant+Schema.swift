@@ -1,5 +1,3 @@
-import Foundation
-
 extension DroppedMutant {
     init(_ schema: MutationSchema, path: String, reason: Reason) {
         self.init(

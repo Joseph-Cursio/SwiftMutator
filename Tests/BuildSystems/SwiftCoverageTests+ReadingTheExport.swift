@@ -1,6 +1,6 @@
+import Foundation
 @testable import muterCore
 import TestingExtensions
-import XCTest
 
 extension SwiftCoverageTests {
     // Only the project's own source files count: not its tests, by name or by folder, a build folder, or anything

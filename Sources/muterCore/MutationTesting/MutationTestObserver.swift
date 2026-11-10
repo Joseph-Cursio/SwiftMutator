@@ -3,9 +3,6 @@ import Glibc
 #else
 import Darwin.C
 #endif
-import Foundation
-import Rainbow
-import SwiftSyntax
 
 final class MutationTestObserver {
     @Dependency(\.logger)

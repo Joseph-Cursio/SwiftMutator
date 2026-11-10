@@ -1,6 +1,3 @@
-import Foundation
-import SwiftSyntax
-
 struct DiscoverMutationPoints: MutationStep {
     @Dependency(\.events)
     private var events: RunEvents

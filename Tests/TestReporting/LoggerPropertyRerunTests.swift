@@ -1,4 +1,3 @@
-import Foundation
 @testable import muterCore
 import TestingExtensions
 

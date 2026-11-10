@@ -1,5 +1,4 @@
 import ArgumentParser
-import Foundation
 
 extension RecordedResults {
     /// What `swift-mutator report` says on standard error about the results file at `path`: how many mutants its

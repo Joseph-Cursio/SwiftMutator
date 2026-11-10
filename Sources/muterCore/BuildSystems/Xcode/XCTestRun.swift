@@ -1,5 +1,3 @@
-import Foundation
-
 struct XCTestRun: Equatable, @unchecked Sendable { // `plist` is a `let` of property-list values, none of them mutable
     /// The .xctestrun as `PropertyListSerialization` reads it: strings, numbers, dates, data, and arrays and
     /// dictionaries of them, held as `AnyHashable`, which the compiler can't see are values.

@@ -1,5 +1,3 @@
-import Foundation
-
 /// How mutation testing stopped before testing every mutant, and what it tested until then.
 struct EarlyEnd {
     /// `.interrupted` or `.aborted`.

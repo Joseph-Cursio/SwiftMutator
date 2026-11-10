@@ -1,6 +1,6 @@
+import Foundation
 @testable import muterCore
 import TestingExtensions
-import XCTest
 
 extension DiscoverSourceFilesTests {
     /// Coverage has no regions for a global's or a static property's value, so its data doesn't name a file of nothing

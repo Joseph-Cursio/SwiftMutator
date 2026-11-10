@@ -1,5 +1,3 @@
-import Foundation
-
 /// Loads `--baseline`'s file as the run starts, so a typo, a missing file or one of another scope doesn't wait for a
 /// long run to end: refused (`BaselineRefused`, exit 8) before anything is copied. Its scope is compared with the run's
 /// once the run's operators are chosen: the configuration's, or `--operators`', for `run`, and the plan's for a run of

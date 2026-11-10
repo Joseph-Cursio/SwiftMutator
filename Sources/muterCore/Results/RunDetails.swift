@@ -1,5 +1,3 @@
-import Foundation
-
 /// Where a report's results came from: the results files, which `report`, `--resume` and `--reuse` read, how many
 /// sessions made them, then the SwiftMutator build, the toolchain and the settings the mutants were tested with, as the
 /// last session that tested any recorded them. A session with nothing left to test, which tests none, doesn't count,

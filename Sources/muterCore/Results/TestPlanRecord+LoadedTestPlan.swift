@@ -1,5 +1,3 @@
-import Foundation
-
 extension TestPlanRecord {
     init(_ plan: LoadedTestPlan) {
         self.init(

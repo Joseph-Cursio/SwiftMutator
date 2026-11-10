@@ -1,5 +1,3 @@
-import Foundation
-
 /// Where mutation testing writes its results as it goes, one line at a time.
 protocol ResultsRecording: AnyObject {
     var path: String { get }

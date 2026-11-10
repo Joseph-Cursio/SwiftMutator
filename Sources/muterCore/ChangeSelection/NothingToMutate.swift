@@ -1,5 +1,3 @@
-import Foundation
-
 /// A `--since` run with nothing left to mutate. Not a failure: SwiftMutator says why and exits with 0, writing no
 /// report or results file, so a CI job on a change that touches no Swift code passes.
 struct NothingToMutate: Error, Equatable, CustomStringConvertible {

@@ -1,4 +1,8 @@
-import Foundation
+#if os(Linux)
+import Glibc
+#else
+import Darwin.C
+#endif
 
 /// Shared flocks on the log folders of the run a `--reuse` reads, held until the reusing run exits, so a run that
 /// prunes log folders (`LogFolderPruning`) leaves them alone: the reusing run copies its kept logs from them long after

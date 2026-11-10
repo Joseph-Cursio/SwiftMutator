@@ -1,5 +1,4 @@
 @testable import muterCore
-import TestingExtensions
 import XCTest
 
 /// The base of the suites that run code against `current`: each test gets fresh doubles in a world of their own.

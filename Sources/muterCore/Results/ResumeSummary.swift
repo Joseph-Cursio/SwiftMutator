@@ -1,5 +1,3 @@
-import Foundation
-
 /// What a resumed run says before it tests anything, or a run that reuses an earlier run's results: how many of the
 /// results file's results still hold, how many mutants are left to test and why, how its discovery differs from the
 /// last session's, and what changed that it let through, or that made a reuse test everything again.

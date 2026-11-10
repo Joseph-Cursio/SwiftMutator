@@ -1,6 +1,5 @@
 @testable import muterCore
 import XCTest
-import Yams
 
 extension LoadConfigurationTests {
     // After the file's entries, so the header records both.

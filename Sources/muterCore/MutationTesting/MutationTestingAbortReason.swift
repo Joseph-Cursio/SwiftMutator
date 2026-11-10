@@ -1,5 +1,3 @@
-import Foundation
-
 public enum MutationTestingAbortReason: Equatable, Sendable {
     /// `mutatedFilePaths` are the files SwiftMutator rewrote to insert mutants. A compile error in one of
     /// them points at SwiftMutator's own rewriting rather than at the user's configuration, so the message

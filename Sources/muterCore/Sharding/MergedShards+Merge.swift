@@ -1,5 +1,3 @@
-import Foundation
-
 extension MergedShards {
     /// `files`, each read from its path, merged; refused, for every reason found, unless they are shards of one split
     /// that a whole run's results could be. `forcing` lets build and toolchain differences through, and `ignoring`'s

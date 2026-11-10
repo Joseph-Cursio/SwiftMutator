@@ -1,5 +1,5 @@
+import Foundation
 @testable import muterCore
-import XCTest
 
 extension InterruptionsTests {
     struct WorkError: Error {}

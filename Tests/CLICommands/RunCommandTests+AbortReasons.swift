@@ -1,6 +1,5 @@
 import ArgumentParser
 @testable import muterCore
-import XCTest
 
 extension RunCommandTests {
     /// One of each abort reason, with the status a run it stopped exits with: 3 when no mutant was tested because a

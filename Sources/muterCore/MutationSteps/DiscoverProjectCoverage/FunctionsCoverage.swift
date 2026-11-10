@@ -1,5 +1,3 @@
-import Foundation
-
 /// The regions llvm-cov reports in a file, by function, in its order: a function's first region is its whole body.
 struct FileCoverage: Equatable {
     let functions: [[Region]]

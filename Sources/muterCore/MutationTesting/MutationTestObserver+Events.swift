@@ -1,5 +1,3 @@
-import Foundation
-
 extension MutationTestObserver {
     /// Reports `event` as it happens, by the part of the run it is about.
     func handle(_ event: RunEvent) {

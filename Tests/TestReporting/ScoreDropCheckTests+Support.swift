@@ -1,6 +1,4 @@
-import ArgumentParser
 @testable import muterCore
-import XCTest
 
 extension ScoreDropCheckTests {
     /// Results judged that aren't the whole project's, the progress given with them, and why they aren't checked.

@@ -1,5 +1,4 @@
 import Foundation
-import Pathos
 
 /// A `--files-to-mutate` entry that leaves no file to mutate, and why.
 struct UnmatchedFilesToMutate: Equatable, Sendable {

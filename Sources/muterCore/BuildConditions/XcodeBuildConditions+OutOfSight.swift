@@ -1,5 +1,4 @@
 import Foundation
-import SwiftIfConfig
 
 extension XcodeBuildConditions {
     /// The settings that put a target's intermediate files, its file list among them, somewhere.

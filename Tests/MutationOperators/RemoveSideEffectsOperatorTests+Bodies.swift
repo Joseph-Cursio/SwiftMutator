@@ -1,8 +1,6 @@
 @testable import muterCore
-import SnapshotTesting
 import SwiftSyntax
 import TestingExtensions
-import XCTest
 
 extension RemoveSideEffectsOperatorTests {
     func test_removesACallUnderTryOrAwait() throws {

@@ -1,5 +1,5 @@
+import Foundation
 @testable import muterCore
-import XCTest
 
 extension RecordedResultsTests {
     var path: String { "/logs/results.jsonl" }

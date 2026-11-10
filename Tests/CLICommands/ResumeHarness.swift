@@ -1,4 +1,3 @@
-@testable import muterCore
 import XCTest
 
 /// `ResumeAcceptanceTests`' project, whose test command hangs in each mutant of Checks.swift while a marker exists,

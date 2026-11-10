@@ -1,5 +1,4 @@
 import Difference
-@testable import muterCore
 import SnapshotTesting
 import XCTest
 

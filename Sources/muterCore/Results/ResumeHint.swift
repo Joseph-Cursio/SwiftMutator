@@ -1,5 +1,3 @@
-import Foundation
-
 /// The command that continues a stopped run: SwiftMutator as it was started, resuming from the run's results file.
 enum ResumeHint {
     /// `swift-mutator`, then `arguments` without an earlier `--resume` and its value, or `--force-resume`, then

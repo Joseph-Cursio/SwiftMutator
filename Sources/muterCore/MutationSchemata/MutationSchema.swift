@@ -1,5 +1,4 @@
 import Foundation
-import SwiftParser
 import SwiftSyntax
 
 struct MutationPoint: Equatable, Codable, Nullable {

@@ -1,7 +1,5 @@
 @testable import muterCore
-import SwiftParser
 import TestingExtensions
-import XCTest
 
 extension MuterVisitorTests {
     // In a result builder, llvm-cov counts the code after an `if` that was never true as never run, and gives an

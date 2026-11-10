@@ -1,6 +1,6 @@
+import Foundation
 @testable import muterCore
 import TestingExtensions
-import XCTest
 
 extension XcodeBuildCoverageTests {
     // A file exactly at the threshold has no coverage, as on SwiftPM.

@@ -1,7 +1,5 @@
 @testable import muterCore
 import SwiftIfConfig
-import SwiftParser
-import SwiftSyntax
 import XCTest
 
 extension BuildConditionsTests {

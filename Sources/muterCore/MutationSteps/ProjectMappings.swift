@@ -1,5 +1,3 @@
-import Foundation
-
 struct ProjectMappings: MutationStep {
     @Dependency(\.events)
     private var events: RunEvents

@@ -1,6 +1,5 @@
 import Foundation
 @testable import muterCore
-import SwiftSyntax
 
 // A test sets it up before the run. What parallel workers call is behind `lock`.
 final class MutationTestingDelegateSpy: Spy, MutationTestingIODelegate, @unchecked Sendable {

@@ -1,4 +1,3 @@
-import Foundation
 import Rainbow
 
 /// What became of the baseline file `--write-baseline` asked for, as the run's end, or `report`, says it.

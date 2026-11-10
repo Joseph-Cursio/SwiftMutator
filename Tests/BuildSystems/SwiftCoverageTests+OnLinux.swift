@@ -1,6 +1,6 @@
+import Foundation
 @testable import muterCore
 import TestingExtensions
-import XCTest
 
 extension SwiftCoverageTests {
     // Swift Build makes for each test target a runner that loads the target's tests, and with them its coverage

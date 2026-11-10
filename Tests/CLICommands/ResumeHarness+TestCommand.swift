@@ -1,6 +1,3 @@
-@testable import muterCore
-import XCTest
-
 extension ResumeHarness {
     /// Writes down the active mutant of each run, or `baseline` for a run with none. Kills the mutants in Checks.swift,
     /// printing the line Swift Testing shows an issue of `check()` with, then the line it ends a failed run with, but

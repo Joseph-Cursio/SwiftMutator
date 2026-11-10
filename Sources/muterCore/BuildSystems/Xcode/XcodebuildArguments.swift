@@ -1,5 +1,3 @@
-import Foundation
-
 /// An xcodebuild test command's arguments, read one at a time: each action, such as `test`, each option with its value,
 /// if it takes one, and anything else, such as a build setting. An option takes the argument after it as its value only
 /// if xcodebuild takes a value for it (`optionsWithAValue`), so in `-scheme test` the `test` is a value, not an action.

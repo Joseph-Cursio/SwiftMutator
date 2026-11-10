@@ -1,7 +1,5 @@
 @testable import muterCore
-import SwiftParser
 import TestingExtensions
-import XCTest
 
 extension MuterVisitorTests {
     // A negative count Swift gets wrong is worked out again, but a negative count in it that the walk can't work out

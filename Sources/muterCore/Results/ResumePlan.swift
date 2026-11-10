@@ -1,5 +1,3 @@
-import Foundation
-
 /// Which of a results file's results a resumed run keeps, and which of its jobs it tests. A recorded result is kept
 /// for the job with its key only if that key's place and operator appear once in this run's discovery, it isn't a
 /// build error, its file's hash is this run's, its mutation is the job's, and it isn't a timeout of a session that

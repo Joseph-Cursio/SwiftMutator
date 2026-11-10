@@ -1,8 +1,4 @@
-@testable import muterCore
-import SnapshotTesting
-import SwiftSyntax
 import TestingExtensions
-import XCTest
 
 extension RemoveSideEffectsOperatorTests {
     // A builder that takes no `if` gets no mutant, its lowercase parts included, as no mutant's switch builds there.

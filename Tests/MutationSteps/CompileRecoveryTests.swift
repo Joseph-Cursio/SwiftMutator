@@ -1,5 +1,4 @@
 @testable import muterCore
-import SwiftParser
 import XCTest
 
 /// Pinning a failed build's compile errors on the mutants at fault, and writing their files again without them.

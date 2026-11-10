@@ -1,6 +1,3 @@
-import Foundation
-import Yams
-
 extension MuterConfiguration {
     /// Coverage counts each run of a piece of code by loading its counter and storing one more, so code that runs on
     /// two threads at once loses runs: Swift Testing runs tests in parallel, and a test can run code concurrently

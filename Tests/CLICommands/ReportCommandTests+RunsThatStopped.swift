@@ -1,7 +1,6 @@
 import ArgumentParser
 @testable import muterCore
 import TestingExtensions
-import XCTest
 
 extension ReportCommandTests {
     // A script that checks the report fails as one that checked the run would: the run exited 4 for its abort. The

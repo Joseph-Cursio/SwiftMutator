@@ -1,5 +1,4 @@
 @testable import muterCore
-import XCTest
 
 extension ResumePlanTests {
     /// The mutation every job makes, unless a test says otherwise.

@@ -1,6 +1,5 @@
 @testable import muterCore
 import XCTest
-import Yams
 
 extension LoadConfigurationTests {
     // #122: a misspelled key was dropped without a word.

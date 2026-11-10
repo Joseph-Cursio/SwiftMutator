@@ -1,6 +1,5 @@
 @testable import muterCore
 import SwiftParser
-import SwiftSyntax
 import XCTest
 
 /// A getter or function returning `some …` that is not a result builder compiles its switch as an

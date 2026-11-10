@@ -1,4 +1,3 @@
-import Foundation
 import SwiftSyntax
 
 /// Every call in a statement, those in its arguments and closures included, and the names it calls: each call's, and

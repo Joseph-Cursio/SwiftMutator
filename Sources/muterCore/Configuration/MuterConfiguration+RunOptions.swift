@@ -1,5 +1,4 @@
 import Foundation
-import Yams
 
 extension MuterConfiguration {
     /// `reports`, with each relative path resolved against `folder`, the project's: what a run saves; none without the

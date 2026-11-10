@@ -1,5 +1,4 @@
 import Foundation
-import Yams
 
 extension MuterConfiguration {
     /// A copy of this configuration whose test command runs `executable`.

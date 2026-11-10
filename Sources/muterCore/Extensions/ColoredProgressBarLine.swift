@@ -1,4 +1,3 @@
-import Foundation
 import Rainbow
 
 struct ColoredProgressBarLine: ProgressElementType {

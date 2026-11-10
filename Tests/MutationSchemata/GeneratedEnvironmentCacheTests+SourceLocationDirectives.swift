@@ -1,6 +1,3 @@
-@testable import muterCore
-import XCTest
-
 extension GeneratedEnvironmentCacheTests {
     /// The compiler takes a `#sourceLocation(file:line:)` that opens a location again, but not a `#sourceLocation()`
     /// that closes one when none is open. Each mutant's branch held a copy of the list, so after the first branch

@@ -1,5 +1,4 @@
 @testable import muterCore
-import SwiftSyntax
 import XCTest
 
 final class DiscoverMutationPointsTests: MuterTestCase {

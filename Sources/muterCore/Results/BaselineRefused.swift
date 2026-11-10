@@ -1,5 +1,3 @@
-import Foundation
-
 /// Why `--baseline`'s file can't be compared with: it can't be read, or it records a run of another scope, whose
 /// mutants differ. Every reason found, in one message, printed as it is (`RunCommand.message(showing:)`). A run exits
 /// 8 (`ExitCode.baselineRefused`), before any mutant is tested, and `report` too, before any report is made.

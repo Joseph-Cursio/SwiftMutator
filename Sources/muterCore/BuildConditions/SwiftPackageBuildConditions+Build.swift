@@ -1,6 +1,3 @@
-import Foundation
-import SwiftIfConfig
-
 extension SwiftPackageBuildConditions {
     /// The custom conditions and language modes of a run's targets, and of the files each target compiles.
     struct TargetConditions {

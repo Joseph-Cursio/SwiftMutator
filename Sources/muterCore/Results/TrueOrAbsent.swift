@@ -1,5 +1,3 @@
-import Foundation
-
 /// A flag a results line writes only when it is set: `true`, or no key at all, never `false`. A line read with the key
 /// absent, `null` or `false` has it unset.
 @propertyWrapper

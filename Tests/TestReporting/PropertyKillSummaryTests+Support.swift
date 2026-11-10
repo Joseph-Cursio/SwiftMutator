@@ -1,5 +1,4 @@
 @testable import muterCore
-import XCTest
 
 extension PropertyKillSummaryTests {
     /// Two property tests, one Swift Testing's in SortProperties.swift and one XCTest's, and an example. Killed: 2 by

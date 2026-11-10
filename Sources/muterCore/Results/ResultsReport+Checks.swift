@@ -1,5 +1,3 @@
-import Foundation
-
 extension ResultsReport {
     /// The verdict on `outcome`'s survivors against `baseline`'s, not checked for the reason `unless` gives;
     /// `progress` is that of a run that didn't finish.

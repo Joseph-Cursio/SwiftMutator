@@ -1,7 +1,5 @@
 @testable import muterCore
 import SnapshotTesting
-import TestingExtensions
-import XCTest
 
 extension RegressionTests {
     /// Keys left out of the snapshots: where and how long a run and each mutant took, the run's details (its log
