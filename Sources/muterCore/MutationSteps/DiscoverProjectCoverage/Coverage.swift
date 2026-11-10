@@ -1,6 +1,6 @@
 import Foundation
 
-final class Coverage: Sendable {
+final class Coverage: Sendable, Equatable, Nullable {
     let percent: Int
     let filesWithoutCoverage: [FilePath]
     let functionsCoverage: FunctionsCoverage
@@ -29,9 +29,7 @@ final class Coverage: Sendable {
     func coverage(ofFile filePath: FilePath) -> FileCoverage {
         functionsCoverage.coverage(ofFile: filePath)
     }
-}
 
-extension Coverage: Equatable {
     static func == (lhs: Coverage, rhs: Coverage) -> Bool {
         (
             lhs.percent == rhs.percent
@@ -42,9 +40,7 @@ extension Coverage: Equatable {
         )
             || lhs === rhs
     }
-}
 
-extension Coverage {
     /// The coverage a `--since` run reports: of the files without coverage, only those `selection` chose, as the others
     /// weren't the run's to test. The files are named by their paths in the copy at `copy`, or in the project. Without
     /// a selection, all of them.
@@ -61,9 +57,7 @@ extension Coverage {
             testsFailedWithCoverageOn: testsFailedWithCoverageOn
         )
     }
-}
 
-extension Coverage: Nullable {
     static var null: Coverage {
         Coverage(
             percent: -1,

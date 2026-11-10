@@ -3,6 +3,15 @@ import Foundation
 /// The baseline, which builds the project, without any mutant that doesn't compile (`CompileRecovery`), and the results
 /// of those mutants.
 extension PerformMutationTesting {
+    /// The baseline's last run, once no mutant that fails its build is left in the code: its outcome and log, the
+    /// seconds it took, and the mutants taken out of the build, by switch ID.
+    struct BaselineRun {
+        let outcome: TestSuiteOutcome
+        let testLog: String
+        let seconds: TimeInterval
+        let leftOut: [String: LeftOutMutant]
+    }
+
     /// The baseline, with any mutant that fails its build taken out of the code, until it no longer fails on one
     /// (`CompileRecovery`): its outcome and log, the seconds it took, and those mutants, with any `BuildForTesting`
     /// took out. Only the last run is timed: it is what a mutant's run costs, with failed builds' costs behind it.
@@ -11,14 +20,7 @@ extension PerformMutationTesting {
     /// xcodebuild's build came first, in `BuildForTesting`: a rewrite here would leave the tests it copied out of date.
     /// A run stopped at `buildTimeout` stops mutation testing: its log, cut short, says nothing about which mutants
     /// don't compile.
-    func baselineLeavingOutMutants(
-        state: AnyMutationTestState
-    ) async throws -> (
-        outcome: TestSuiteOutcome,
-        testLog: String,
-        seconds: TimeInterval,
-        leftOut: [String: LeftOutMutant]
-    ) {
+    func baselineLeavingOutMutants(state: AnyMutationTestState) async throws -> BaselineRun {
         var recovery = state.muterConfiguration.buildSystem == .xcodebuild ? nil : CompileRecovery(of: state)
         var started = instant()
         var (outcome, testLog) = try await baseline(state: state)
@@ -42,7 +44,12 @@ extension PerformMutationTesting {
             events.send(.stoppedTakingOutMutants(afterBuilds: CompileRecovery.maximumBuilds))
         }
         let seconds = seconds(since: started)
-        return (outcome, testLog, seconds, state.mutantsLeftOut.merging(recovery?.leftOut ?? [:]) { first, _ in first })
+        return BaselineRun(
+            outcome: outcome,
+            testLog: testLog,
+            seconds: seconds,
+            leftOut: state.mutantsLeftOut.merging(recovery?.leftOut ?? [:]) { first, _ in first }
+        )
     }
 
     /// The baseline run's outcome and log, which is kept, whatever it comes to. A baseline the simulator failed to
@@ -89,7 +96,6 @@ extension PerformMutationTesting {
     func keepLeftOut(
         _ leftOut: [String: LeftOutMutant],
         testing plan: ResumePlan,
-        leaving toTest: Int,
         of jobs: [MutantJob],
         in session: TestingSession,
         state: AnyMutationTestState
@@ -111,7 +117,7 @@ extension PerformMutationTesting {
             line.leftOutWithOthers = mutant.blame != .itself
             write(line, in: session, isAMutant: true)
             var outcome = Self.outcome(
-                .buildError, of: job, state: state, killingTests: nil, key: key, durationSeconds: 0
+                .buildError, of: job, key: key, state: state, summary: RunSummary(killingTests: nil, durationSeconds: 0)
             )
             outcome.leftOutWithOthers = mutant.blame != .itself
             session.outcomes[index] = outcome
@@ -120,43 +126,62 @@ extension PerformMutationTesting {
             events.send(.newMutationTestOutcomeAvailable(outcome))
             mutants.append(MutantsLeftOut.Mutant(key: key, change: job.schema.snapshot.description, mutant: mutant))
             if state.selectedMutant != nil {
-                events.send(
-                    .oneMutantTested(OneMutantRun(
-                        key: key,
-                        switchID: job.schema.id,
-                        snapshot: job.schema.snapshot,
-                        change: change(of: job.schema, key: key, in: outcome, state: state),
-                        outcome: .buildError,
-                        killingTests: nil,
-                        seconds: 0,
-                        timeoutSeconds: nil,
-                        testLog: mutant.log,
-                        logPath: logPath,
-                        mutatedProject: state.mutatedProjectDirectoryURL.path,
-                        buildSystem: state.muterConfiguration.buildSystem,
-                        testCommand: [state.muterConfiguration.testCommandExecutable]
-                            + state.muterConfiguration.testCommandArguments,
-                        leftOutOfTheBuild: true
-                    ))
-                )
+                sendOneMutantLeftOut(job, keyed: key, as: outcome, log: (mutant.log, logPath), state: state)
             }
         }
         // One mutant's run says it in its verdict.
         if !mutants.isEmpty, state.selectedMutant == nil {
+            let toTest = plan.leavingOut { leftOut[jobs[$0].schema.id] != nil }.toRun.count
             events.send(.mutantsLeftOutOfTheBuild(MutantsLeftOut(mutants: mutants, toTest: toTest)))
         }
     }
 
-    /// The outcome of `job`'s mutant, which `testSuiteOutcome` says, given whether its block ran, with the tests that
-    /// killed it, as the report shows it.
+    /// Sends what the end of the run prints of the one mutant `--mutant` tests, `job`'s, keyed `key`, when it was left
+    /// out of the build: `outcome`, its build error, and the log that says why, kept at `log.path` if anywhere.
+    private func sendOneMutantLeftOut(
+        _ job: MutantJob,
+        keyed key: MutantKey,
+        as outcome: MutationTestOutcome.Mutation,
+        log: (text: String, path: String?),
+        state: AnyMutationTestState
+    ) {
+        events.send(
+            .oneMutantTested(OneMutantRun(
+                key: key,
+                switchID: job.schema.id,
+                snapshot: job.schema.snapshot,
+                change: change(of: job.schema, key: key, in: outcome, state: state),
+                outcome: .buildError,
+                killingTests: nil,
+                seconds: 0,
+                timeoutSeconds: nil,
+                testLog: log.text,
+                logPath: log.path,
+                mutatedProject: state.mutatedProjectDirectoryURL.path,
+                buildSystem: state.muterConfiguration.buildSystem,
+                testCommand: [state.muterConfiguration.testCommandExecutable]
+                    + state.muterConfiguration.testCommandArguments,
+                leftOutOfTheBuild: true
+            ))
+        )
+    }
+
+    /// What the report shows of a mutant's run beyond its outcome: the tests that killed it, the seconds it took, and,
+    /// for a kept result, where it was tested.
+    struct RunSummary {
+        let killingTests: MutationTestOutcome.KillingTests?
+        let durationSeconds: Double
+        var reusedFrom: ReusedFrom?
+    }
+
+    /// The outcome of `job`'s mutant, keyed `key`, which `testSuiteOutcome` says, given whether its block ran
+    /// (`activated`), with what `summary` says of its run, as the report shows it.
     static func outcome(
         _ testSuiteOutcome: TestSuiteOutcome,
         of job: MutantJob,
-        state: AnyMutationTestState,
-        killingTests: MutationTestOutcome.KillingTests?,
-        reusedFrom: ReusedFrom? = nil,
         key: MutantKey,
-        durationSeconds: Double,
+        state: AnyMutationTestState,
+        summary: RunSummary,
         activated: Bool? = nil
     ) -> MutationTestOutcome.Mutation {
         var mutation = MutationTestOutcome.Mutation(
@@ -169,10 +194,10 @@ extension PerformMutationTesting {
             mutationSnapshot: job.schema.snapshot,
             originalProjectDirectoryUrl: state.projectDirectoryURL,
             mutatedProjectDirectoryURL: state.mutatedProjectDirectoryURL,
-            killingTests: killingTests,
-            reusedFrom: reusedFrom,
+            killingTests: summary.killingTests,
+            reusedFrom: summary.reusedFrom,
             key: key,
-            durationSeconds: durationSeconds
+            durationSeconds: summary.durationSeconds
         )
         mutation.activated = activated
         return mutation

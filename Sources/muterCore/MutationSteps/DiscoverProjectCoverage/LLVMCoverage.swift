@@ -1,6 +1,6 @@
 import Foundation
 
-struct Region: Equatable {
+struct Region: Equatable, Decodable {
     let lineStart: Int
     let columnStart: Int
     let lineEnd: Int
@@ -33,9 +33,7 @@ struct Region: Equatable {
         self.executionCount = executionCount
         self.kind = kind
     }
-}
 
-extension Region: Decodable {
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
 
@@ -52,7 +50,7 @@ extension Region: Decodable {
 
     /// Whether `other` lies entirely inside this region. Positions compare as (line, column) pairs,
     /// so a region that ends on a line before `other` starts never contains it, whatever the columns.
-    func contains(_ other: Region) -> Bool {
+    func contains(_ other: Self) -> Bool {
         (lineStart, columnStart) <= (other.lineStart, other.columnStart)
             && (other.lineEnd, other.columnEnd) <= (lineEnd, columnEnd)
     }
@@ -65,30 +63,31 @@ struct Function: Decodable {
     let regions: [Region]
 }
 
-struct LLVMCoverage: Decodable {
-    let data: [Data]
+/// One export of llvm-cov: its functions and each source file's summary.
+struct LLVMCoverageData: Decodable {
+    let functions: [Function]
+    /// Each source file's summary.
+    let files: [LLVMCoverage.File]
 
-    struct Data: Decodable {
-        let functions: [Function]
-        /// Each source file's summary.
-        let files: [File]
-
-        init(functions: [Function], files: [File] = []) {
-            self.functions = functions
-            self.files = files
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            functions = try container.decode([Function].self, forKey: .functions)
-            files = try container.decodeIfPresent([File].self, forKey: .files) ?? []
-        }
-
-        private enum CodingKeys: String, CodingKey {
-            case functions
-            case files
-        }
+    init(functions: [Function], files: [LLVMCoverage.File] = []) {
+        self.functions = functions
+        self.files = files
     }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        functions = try container.decode([Function].self, forKey: .functions)
+        files = try container.decodeIfPresent([LLVMCoverage.File].self, forKey: .files) ?? []
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case functions
+        case files
+    }
+}
+
+struct LLVMCoverage: Decodable {
+    let data: [LLVMCoverageData]
 
     struct File: Decodable {
         let filename: String

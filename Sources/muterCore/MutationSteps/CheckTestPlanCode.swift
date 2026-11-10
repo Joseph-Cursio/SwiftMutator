@@ -9,7 +9,7 @@ struct CheckTestPlanCode: MutationStep {
     @Dependency(\.fileManager)
     private var fileManager: FileSystemManager
 
-    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+    func run(with state: AnyMutationTestState) throws -> [MutationTestState.Change] {
         let copy = state.mutatedProjectDirectoryURL.path
         guard fileManager.fileExists(atPath: copy) else {
             throw TestPlanRefused(

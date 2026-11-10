@@ -1,5 +1,11 @@
 import Foundation
 
+/// A control run, once its line is written, and how many the session runs.
+struct ControlRunFinished: Equatable {
+    let record: ControlRunResult
+    let count: Int
+}
+
 /// Control runs: the test command with no mutant on, run every so often among the mutants, on a worker of theirs and
 /// under the same time limit and load. A passing baseline shows the tests pass alone; a control run shows whether they
 /// pass beside the other workers' runs. A test that fails in one is flaky, and the reports count a kill that only such
@@ -51,19 +57,19 @@ extension PerformMutationTesting {
         "control run \(number)"
     }
 
-    /// Runs control run `number` on worker `worker.number`, with its configuration, in `workingDirectory`, its folder,
-    /// or the current directory if nil, writing its output to `fileName` while it runs. An xcodebuild worker first
-    /// writes `testRun` with no mutant on to its own `.xctestrun`, in its folder: one that couldn't be written would
-    /// still switch on the mutant before, so that aborts mutation testing.
+    /// Runs control run `number` on worker `worker.number`, with its configuration, in `location.directory`, its
+    /// folder, or the current directory if nil, writing its output to `location.fileName` while it runs. An xcodebuild
+    /// worker first writes `testRun` with no mutant on to its own `.xctestrun`, in its folder: one that couldn't be
+    /// written would still switch on the mutant before, so that aborts mutation testing.
     static func runControl(
         _ number: Int,
         on worker: (number: Int, PoolWorker),
-        workingDirectory: URL?,
+        at location: (directory: URL?, fileName: String),
         from testRun: XCTestRun,
-        fileName: String,
-        using dependencies: (ioDelegate: MutationTestingIODelegate, instant: Instant, heartbeat: Heartbeat)
+        using dependencies: RunDependencies
     ) async throws -> FinishedRun {
-        let (ioDelegate, instant, heartbeat) = dependencies
+        let ioDelegate = dependencies.ioDelegate
+        let (workingDirectory, fileName) = location
         let (directory, configuration) = (worker.1.directory, worker.1.configuration)
         if configuration.buildSystem == .xcodebuild {
             do {
@@ -83,15 +89,16 @@ extension PerformMutationTesting {
             index: number,
             worker: worker.number,
             configuration: configuration,
-            instant: instant,
-            heartbeat: (heartbeat, place: place(ofControlRun: number))
+            instant: dependencies.instant,
+            heartbeat: (dependencies.heartbeat, place: place(ofControlRun: number))
         ) {
             await ioDelegate.runControlTests(
                 using: configuration,
                 savingResultsIntoFileNamed: fileName,
                 workingDirectory: workingDirectory
             )
-        }.writing(to: fileName)
+        }
+        .writing(to: fileName)
     }
 
     /// Writes `finished`, control run `number` of `runs.count`, of one for each `runs.every` mutants, to the results
@@ -103,27 +110,40 @@ extension PerformMutationTesting {
         _ finished: FinishedRun,
         number: Int,
         of runs: (count: Int, every: Int),
-        using state: AnyMutationTestState,
-        configuration: MuterConfiguration,
-        session: TestingSession
+        in context: RunContext
     ) throws {
         let (count, every) = runs
         let log = ControlRunResult.logName(of: number)
-        try abortingIfTheSimulatorIsGone(in: finished, logName: log, configuration: configuration, state: state)
+        try abortingIfTheSimulatorIsGone(
+            in: finished,
+            logName: log,
+            configuration: context.configuration,
+            state: context.state
+        )
         let record = ControlRunResult(
             number: number,
             afterMutants: Self.mutantsBefore(controlRun: number, every: every),
             finished: finished,
-            failures: MutantResult.failedTests(of: finished.run, ignoring: configuration.failedTestLookalikes),
-            session: session.number,
+            failures: MutantResult.failedTests(of: finished.run, ignoring: context.configuration.failedTestLookalikes),
+            session: context.session.number,
             finishedAt: now(),
             log: log
         )
-        write(record, in: session)
-        session.controlRuns.append(record)
-        fileManager.keepLog(finished.run.testLog, writtenTo: finished.output, by: ioDelegate, named: log, state: state)
+        write(record, in: context.session)
+        context.session.controlRuns.append(record)
+        fileManager.keepLog(
+            finished.run.testLog,
+            writtenTo: finished.output,
+            by: ioDelegate,
+            named: log,
+            state: context.state
+        )
         if let failure = finished.launchFailure {
-            fileManager.keepLog(failure.testLog, named: MutationTestLog.launchFailedFileName(for: log), state: state)
+            fileManager.keepLog(
+                failure.testLog,
+                named: MutationTestLog.launchFailedFileName(for: log),
+                state: context.state
+            )
         }
         events.send(.controlRunFinished(ControlRunFinished(record: record, count: count)))
     }
@@ -137,10 +157,4 @@ extension PerformMutationTesting {
         let earlier = state.resumeState.map { $0.isReuse ? [] : $0.recorded.controlRuns } ?? []
         return (earlier + session.controlRuns).map(MutationTestOutcome.ControlRun.init)
     }
-}
-
-/// A control run, once its line is written, and how many the session runs.
-struct ControlRunFinished: Equatable {
-    let record: ControlRunResult
-    let count: Int
 }

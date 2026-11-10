@@ -24,7 +24,7 @@ final class CreateMuterTestPlanTests: MuterTestCase {
             return true
         }
 
-        _ = try await sut.run(with: state)
+        _ = try sut.run(with: state)
 
         await fulfillment(of: [expect], timeout: 2)
 
@@ -32,10 +32,10 @@ final class CreateMuterTestPlanTests: MuterTestCase {
         XCTAssertEqual(writeFile.pathPassed, "/path/to/project/muter-mappings.json")
     }
 
-    func test_writesThePlanAsTestPlanCodingDoes() async throws {
+    func test_writesThePlanAsTestPlanCodingDoes() throws {
         let state = makeState()
 
-        _ = try await sut.run(with: state)
+        _ = try sut.run(with: state)
 
         let plan = MuterTestPlan.make(
             mutatedProjectPath: "/path/to/project_mutated",
@@ -52,10 +52,10 @@ final class CreateMuterTestPlanTests: MuterTestCase {
 
     // The copy is named from the project, and each mutant's file from the copy, so the two can move together. The
     // copy's code switches each mutant on by its ID, which stays as discovery made it.
-    func test_writesThePathsRelativeToTheProject_andKeepsEveryID() async throws {
+    func test_writesThePathsRelativeToTheProject_andKeepsEveryID() throws {
         let state = makeState()
 
-        _ = try await sut.run(with: state)
+        _ = try sut.run(with: state)
 
         let file = try JSONDecoder().decode(TestPlanFile.self, from: Data(try XCTUnwrap(writeFile.contentPassed).utf8))
         XCTAssertEqual(file.formatVersion, TestPlanCoding.formatVersion)
@@ -69,22 +69,22 @@ final class CreateMuterTestPlanTests: MuterTestCase {
     }
 
     // What `--operators` and `--files-to-mutate` chose, which a run of the plan records as its own.
-    func test_recordsTheOperatorsAndFilesTheMutantsWereChosenBy() async throws {
+    func test_recordsTheOperatorsAndFilesTheMutantsWereChosenBy() throws {
         let state = makeState()
         state.mutationOperatorList = [.swapTernary, .ror]
         state.filesToMutate = ["Sources/Check.swift"]
 
-        _ = try await sut.run(with: state)
+        _ = try sut.run(with: state)
 
         let file = try JSONDecoder().decode(TestPlanFile.self, from: Data(try XCTUnwrap(writeFile.contentPassed).utf8))
         XCTAssertEqual(file.operators, ["RelationalOperatorReplacement", "SwapTernary"])
         XCTAssertEqual(file.filesToMutate, ["Sources/Check.swift"])
     }
 
-    func test_withoutAChoice_everyOperatorAndNoFileIsRecorded() async throws {
+    func test_withoutAChoice_everyOperatorAndNoFileIsRecorded() throws {
         let state = makeState()
 
-        _ = try await sut.run(with: state)
+        _ = try sut.run(with: state)
 
         let file = try JSONDecoder().decode(TestPlanFile.self, from: Data(try XCTUnwrap(writeFile.contentPassed).utf8))
         XCTAssertEqual(file.operators, MutationOperatorList.allOperators.map(\.rawValue).sorted())
@@ -103,14 +103,14 @@ final class CreateMuterTestPlanTests: MuterTestCase {
             return true
         }
 
-        _ = try await sut.run(with: state)
+        _ = try sut.run(with: state)
 
         await fulfillment(of: [expect], timeout: 2)
     }
 
     // The project's files as they were before anything was rewritten, which a run of the plan checks the project
     // against, and each mutated file as the copy holds it once its switches are in.
-    func test_recordsTheProjectsFiles_andHashesTheMutatedFilesInTheCopy() async throws {
+    func test_recordsTheProjectsFiles_andHashesTheMutatedFilesInTheCopy() throws {
         let state = makeState()
         let files = ["Sources/Check.swift": "original", "Tests/CheckTests.swift": "tests"]
         state.projectTree = ProjectTree(
@@ -122,7 +122,7 @@ final class CreateMuterTestPlanTests: MuterTestCase {
         let rewritten = Data("func check(_ value: Int) -> Bool { /* switches */ }".utf8)
         fileManager.fileContentsToReturn = rewritten
 
-        _ = try await sut.run(with: state)
+        _ = try sut.run(with: state)
 
         let file = try JSONDecoder().decode(TestPlanFile.self, from: Data(try XCTUnwrap(writeFile.contentPassed).utf8))
         XCTAssertEqual(file.sources, state.projectTree)
@@ -133,7 +133,7 @@ final class CreateMuterTestPlanTests: MuterTestCase {
 
     // The project's files record a symbolic link only by where it points, so a file with mutants that is one is also
     // recorded by what the link's file holds, read in the project, never the copy, whose file the switches replaced.
-    func test_aFileWithMutantsThatIsALink_isRecordedByWhatItsFileHolds() async throws {
+    func test_aFileWithMutantsThatIsALink_isRecordedByWhatItsFileHolds() throws {
         let root = try makeTemporaryDirectory()
         let state = makeState()
         state.projectDirectoryURL = URL(fileURLWithPath: "\(root)/project")
@@ -152,17 +152,17 @@ final class CreateMuterTestPlanTests: MuterTestCase {
             treeSHA256: ProjectTree.treeHash(of: files)
         )
 
-        _ = try await sut.run(with: state)
+        _ = try sut.run(with: state)
 
         let file = try JSONDecoder().decode(TestPlanFile.self, from: Data(try XCTUnwrap(writeFile.contentPassed).utf8))
         XCTAssertEqual(file.linkedFiles, ["Sources/Check.swift": FileDigest.sha256(of: Data("shared".utf8))])
     }
 
-    func test_coverageThatWasntGathered_isLeftOut() async throws {
+    func test_coverageThatWasntGathered_isLeftOut() throws {
         let state = makeState()
         state.projectCoverage = .null
 
-        _ = try await sut.run(with: state)
+        _ = try sut.run(with: state)
 
         let file = try JSONDecoder().decode(TestPlanFile.self, from: Data(try XCTUnwrap(writeFile.contentPassed).utf8))
         XCTAssertNil(file.projectCoverage)
@@ -170,7 +170,7 @@ final class CreateMuterTestPlanTests: MuterTestCase {
 
     // A run of the plan compares them with `--baseline`'s file, and records them, as a run that discovers its own
     // mutants does; none is recorded as none. A plan made without them leaves the key out.
-    func test_recordsTheMutantsOfCodeNoTestRan() async throws {
+    func test_recordsTheMutantsOfCodeNoTestRan() throws {
         let state = makeState()
         let uncovered = UncoveredMutant(
             key: MutantKey(path: "Sources/New.swift", mutationOperatorId: .ror, line: 4, column: 9, occurrence: 0),
@@ -178,7 +178,7 @@ final class CreateMuterTestPlanTests: MuterTestCase {
         )
         state.apply([.mutantsNotCovered([uncovered])])
 
-        _ = try await sut.run(with: state)
+        _ = try sut.run(with: state)
 
         let written = try XCTUnwrap(writeFile.contentPassed)
         XCTAssertTrue(written.contains(#""path" : "Sources/New.swift""#), written)
@@ -186,11 +186,11 @@ final class CreateMuterTestPlanTests: MuterTestCase {
         XCTAssertEqual(plan.mutantsNotCovered, [uncovered])
 
         state.apply([.mutantsNotCovered([])])
-        _ = try await sut.run(with: state)
+        _ = try sut.run(with: state)
         let none = try JSONDecoder().decode(TestPlanFile.self, from: Data(try XCTUnwrap(writeFile.contentPassed).utf8))
         XCTAssertEqual(none.mutantsNotCovered, [])
 
-        _ = try await sut.run(with: makeState())
+        _ = try sut.run(with: makeState())
         XCTAssertFalse(try XCTUnwrap(writeFile.contentPassed).contains("mutantsNotCovered"))
     }
 

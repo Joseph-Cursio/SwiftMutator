@@ -12,8 +12,8 @@ final class LockMutatedProjectTests: MuterTestCase {
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/code/x_mutated")
     }
 
-    func test_locksTheMutatedProject_andKeepsTheLockInTheState() async throws {
-        let changes = try await sut.run(with: state)
+    func test_locksTheMutatedProject_andKeepsTheLockInTheState() throws {
+        let changes = try sut.run(with: state)
 
         XCTAssertEqual(mutatedProjectLocker.mutatedProjects, [URL(fileURLWithPath: "/code/x_mutated")])
         XCTAssertEqual(changes, [.mutatedProjectLocked(try XCTUnwrap(mutatedProjectLocker.locks.first))])
@@ -23,7 +23,7 @@ final class LockMutatedProjectTests: MuterTestCase {
         let inUse = MutatedProjectLockError.inUse(mutatedProject: "/code/x_mutated", process: 81_234)
         mutatedProjectLocker.errorToThrow = inUse
 
-        await AssertThrowsError(try await sut.run(with: state)) { error in
+        await AssertThrowsError(try sut.run(with: state)) { error in
             XCTAssertEqual(error as? MutatedProjectLockError, inUse)
         }
     }
@@ -38,7 +38,7 @@ final class LockMutatedProjectTests: MuterTestCase {
             )
             state.testPlan = Self.loadedPlan
 
-            await AssertThrowsError(try await sut.run(with: state)) { error in
+            await AssertThrowsError(try sut.run(with: state)) { error in
                 XCTAssertEqual(
                     error as? TestPlanRefused,
                     TestPlanRefused(path: "/code/x/muter-mappings.json", reason: .copyMissing(path: "/code/x_mutated"))
@@ -58,7 +58,7 @@ final class LockMutatedProjectTests: MuterTestCase {
             mutatedProjectLocker.errorToThrow = lockError
             state.testPlan = plan
 
-            await AssertThrowsError(try await sut.run(with: state)) { error in
+            await AssertThrowsError(try sut.run(with: state)) { error in
                 XCTAssertEqual(error as? MutatedProjectLockError, lockError)
             }
         }

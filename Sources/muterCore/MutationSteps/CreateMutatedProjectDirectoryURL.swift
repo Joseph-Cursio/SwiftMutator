@@ -7,7 +7,7 @@ import Foundation
 struct CreateMutatedProjectDirectoryURL: MutationStep {
     func run(
         with state: AnyMutationTestState
-    ) async throws -> [MutationTestState.Change] {
+    ) throws -> [MutationTestState.Change] {
         let copy = MutatedProjectNames.copy(
             of: state.projectDirectoryURL,
             forOneMutant: state.runOptions.mutant != nil

@@ -1,16 +1,5 @@
 import Foundation
 
-/// The kills a session tests again alone, once every mutant is tested: those only suspect tests failed for. A test can
-/// be suspect for failing for mutants in many files, which a broad test of the mutated code does too, so this run tells
-/// them apart: a kill a test really makes fails again, and one a flaky test made mostly doesn't. Its line replaces the
-/// first run's, unless it timed out or failed to build, which says nothing of the mutant.
-struct SuspectKillReruns: Equatable {
-    /// How many kills are tested again.
-    let count: Int
-    /// How many kills only suspect tests failed for are over `suspectKillReruns`, so aren't.
-    let leftOut: Int
-}
-
 /// What those runs came to, so far.
 struct SuspectKillRerunTally: Equatable {
     /// Failed again, or crashed.
@@ -28,6 +17,17 @@ struct SuspectKillRerunTally: Equatable {
         case .timeout, .buildError: unsettled += 1
         }
     }
+}
+
+/// The kills a session tests again alone, once every mutant is tested: those only suspect tests failed for. A test can
+/// be suspect for failing for mutants in many files, which a broad test of the mutated code does too, so this run tells
+/// them apart: a kill a test really makes fails again, and one a flaky test made mostly doesn't. Its line replaces the
+/// first run's, unless it timed out or failed to build, which says nothing of the mutant.
+struct SuspectKillReruns: Equatable {
+    /// How many kills are tested again.
+    let count: Int
+    /// How many kills only suspect tests failed for are over `suspectKillReruns`, so aren't.
+    let leftOut: Int
 }
 
 extension PerformMutationTesting {
@@ -49,9 +49,9 @@ extension PerformMutationTesting {
     /// that didn't run its code, as `rerunRunsNotShownToReachTheirCode` has tested those. Never one tested so already.
     static func suspectKillCandidates(
         in outcomes: [Int: MutationTestOutcome.Mutation],
-        notInTheBuild: Set<Int> = [],
         suspects: Set<FailedTestLine.TestIdentity>,
-        limit: Int
+        limit: Int,
+        notInTheBuild: Set<Int> = []
     ) -> (indices: [Int], leftOut: Int) {
         let eligible = outcomes.filter { index, mutation in
             !notInTheBuild.contains(index) && mutation.testSuiteOutcome == .failed && mutation.reusedFrom == nil
@@ -135,47 +135,71 @@ extension PerformMutationTesting {
         of jobs: [MutantJob],
         on worker: PoolWorker,
         from testRun: XCTestRun,
-        using state: AnyMutationTestState,
-        configuration: MuterConfiguration,
-        session: TestingSession
+        in context: RunContext
     ) async throws {
-        guard state.selectedMutant == nil, configuration.killsToTestAgainAlone > 0,
+        guard context.state.selectedMutant == nil, context.configuration.killsToTestAgainAlone > 0,
               let summary = KillingTestSummary(
-                  of: session.outcomesInJobOrder,
-                  controlRuns: Self.controlRuns(of: session, state: state),
-                  thresholds: state.muterConfiguration.suspectTestThresholds
+                  of: context.session.outcomesInJobOrder,
+                  controlRuns: Self.controlRuns(of: context.session, state: context.state),
+                  thresholds: context.state.muterConfiguration.suspectTestThresholds
               )
         else { return }
         let (indices, leftOut) = Self.suspectKillCandidates(
-            in: session.outcomes,
-            notInTheBuild: session.notInTheBuild,
+            in: context.session.outcomes,
             suspects: summary.suspectsWhateverTheyDidAlone,
-            limit: configuration.killsToTestAgainAlone
+            limit: context.configuration.killsToTestAgainAlone,
+            notInTheBuild: context.session.notInTheBuild
         )
         guard !indices.isEmpty else { return }
         try Task.checkCancellation()
         let alone = PoolWorker(directory: worker.directory, configuration: worker.configuration.goingToEachRunsEnd())
 
+        guard try await suspectBaselinePassed(on: alone, from: testRun, in: context) else { return }
+
+        events.send(.suspectKillRerunsStarted(SuspectKillReruns(count: indices.count, leftOut: leftOut)))
+        var tally = SuspectKillRerunTally()
+        try await runPool(
+            PoolWork(tasks: indices.map(PoolTask.mutant), jobs: jobs, testRun: testRun),
+            on: [alone],
+            outputNamed: { testOutput(named: logFileName(forRerunOfJobAt: $0, $1), state: context.state) },
+            recording: { finished in
+                try recordSuspectKillRerun(
+                    finished,
+                    of: jobs[finished.index],
+                    tally: &tally,
+                    in: context.with(alone.configuration)
+                )
+            }
+        )
+        events.send(.suspectKillRerunsFinished(tally))
+    }
+
+    /// Whether the tests, run alone on `alone` with no mutant on, from `testRun`, pass, as the suspect kills' reruns
+    /// need. Its log is kept, and one that fails says the reruns are skipped.
+    private func suspectBaselinePassed(
+        on alone: PoolWorker,
+        from testRun: XCTestRun,
+        in context: RunContext
+    ) async throws -> Bool {
         let baseline = try await Self.runControl(
             0,
             on: (0, alone),
-            workingDirectory: alone.directory,
+            at: (alone.directory, testOutput(named: Self.suspectBaselineLogName, state: context.state)),
             from: testRun,
-            fileName: testOutput(named: Self.suspectBaselineLogName, state: state),
-            using: (ioDelegate, instant, heartbeat)
+            using: runDependencies
         )
         try Self.throwIfCancelled(baseline.run)
         try abortingIfTheSimulatorIsGone(
             in: baseline,
             logName: Self.suspectBaselineLogName,
             configuration: alone.configuration,
-            state: state
+            state: context.state
         )
         if let failure = baseline.launchFailure {
             fileManager.keepLog(
                 failure.testLog,
                 named: MutationTestLog.launchFailedFileName(for: Self.suspectBaselineLogName),
-                state: state
+                state: context.state
             )
         }
         let log = fileManager.keepLog(
@@ -183,33 +207,13 @@ extension PerformMutationTesting {
             writtenTo: baseline.output,
             by: ioDelegate,
             named: Self.suspectBaselineLogName,
-            state: state
+            state: context.state
         )
         guard baseline.run.outcome == .passed else {
             events.send(.suspectKillRerunsSkipped(log: log.map { _ in Self.suspectBaselineLogName }))
-            return
+            return false
         }
-
-        events.send(.suspectKillRerunsStarted(SuspectKillReruns(count: indices.count, leftOut: leftOut)))
-        var tally = SuspectKillRerunTally()
-        try await runPool(
-            indices.map(PoolTask.mutant),
-            of: jobs,
-            on: [alone],
-            switchingOnFrom: testRun,
-            outputNamed: { testOutput(named: logFileName(forRerunOfJobAt: $0, $1), state: state) },
-            recording: { finished in
-                try recordSuspectKillRerun(
-                    finished,
-                    of: jobs[finished.index],
-                    tally: &tally,
-                    using: state,
-                    configuration: alone.configuration,
-                    session: session
-                )
-            }
-        )
-        events.send(.suspectKillRerunsFinished(tally))
+        return true
     }
 
     /// Records `finished`, a kill tested again alone, in place of its first run, with what it says of the tests that
@@ -221,25 +225,28 @@ extension PerformMutationTesting {
         _ finished: FinishedRun,
         of job: MutantJob,
         tally: inout SuspectKillRerunTally,
-        using state: AnyMutationTestState,
-        configuration: MuterConfiguration,
-        session: TestingSession
+        in context: RunContext
     ) throws {
-        let first = session.outcomes[finished.index]
+        let first = context.session.outcomes[finished.index]
         guard ![.timeout, .buildError].contains(finished.run.outcome) else {
-            let name = MutationTestLog.suspectRerunFileName(for: session.keys[finished.index])
-            try abortingIfTheSimulatorIsGone(in: finished, logName: name, configuration: configuration, state: state)
+            let name = MutationTestLog.suspectRerunFileName(for: context.session.keys[finished.index])
+            try abortingIfTheSimulatorIsGone(
+                in: finished,
+                logName: name,
+                configuration: context.configuration,
+                state: context.state
+            )
             if let failure = finished.launchFailure {
                 fileManager.keepLog(
-                    failure.testLog, named: MutationTestLog.launchFailedFileName(for: name), state: state
+                    failure.testLog, named: MutationTestLog.launchFailedFileName(for: name), state: context.state
                 )
             }
             fileManager.keepLog(
                 finished.run.testLog,
                 writtenTo: finished.output,
                 by: ioDelegate,
-                named: state.loggingDirectory.isEmpty ? nil : name,
-                state: state
+                named: context.state.loggingDirectory.isEmpty ? nil : name,
+                state: context.state
             )
             tally.add(finished.run.outcome)
             return
@@ -255,13 +262,11 @@ extension PerformMutationTesting {
                 alone: Self.testsAlone(
                     first?.killingTests?.tests ?? [],
                     in: finished.run,
-                    ignoring: configuration.failedTestLookalikes,
-                    sessionShowsActivation: session.activationShown
+                    ignoring: context.configuration.failedTestLookalikes,
+                    sessionShowsActivation: context.session.activationShown
                 )
             ),
-            using: state,
-            configuration: configuration,
-            session: session
+            in: context
         )
         tally.add(outcome.testSuiteOutcome)
         events.send(.suspectKillRerun(outcome, changed: outcome.testSuiteOutcome != first?.testSuiteOutcome))

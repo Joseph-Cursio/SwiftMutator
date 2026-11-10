@@ -30,7 +30,7 @@ final class CheckTestPlanCodeTests: MuterTestCase {
         """)
 
         try await assertThrowsMuterError(
-            await sut.run(with: state),
+            sut.run(with: state),
             .literal(reason: CheckTestPlanCode.codePredatesTheActiveMutantFile("/path/to/muted"))
         )
         let reason = CheckTestPlanCode.codePredatesTheActiveMutantFile("/path/to/muted")
@@ -54,38 +54,38 @@ final class CheckTestPlanCodeTests: MuterTestCase {
         """)
 
         try await assertThrowsMuterError(
-            await sut.run(with: state),
+            sut.run(with: state),
             .literal(reason: CheckTestPlanCode.codePredatesTheActiveMutantFile("/path/to/muted"))
         )
     }
 
-    func test_whenASwiftPackagePlansCodeReadsTheActiveMutantFile_thenItLoads() async throws {
+    func test_whenASwiftPackagePlansCodeReadsTheActiveMutantFile_thenItLoads() throws {
         let file = try mutatedCheck(named: "Check")
         queuePlan(testedWith: swiftTest, file.mapping)
         queueCode(file.rewritten)
 
-        let result = try await sut.run(with: state)
+        let result = try sut.run(with: state)
 
         XCTAssertEqual(result, [])
     }
 
     // A file can hold no switch although its mapping has mutants, if it couldn't be rewritten. It says
     // nothing about the SwiftMutator that made the plan, so the next file decides.
-    func test_aFileWithoutItsSwitchSettlesNothing() async throws {
+    func test_aFileWithoutItsSwitchSettlesNothing() throws {
         let first = try mutatedCheck(named: "First")
         let second = try mutatedCheck(named: "Second")
         queuePlan(testedWith: swiftTest, first.mapping, second.mapping)
         queueCode(first.original)
         queueCode(second.rewritten)
 
-        let result = try await sut.run(with: state)
+        let result = try sut.run(with: state)
 
         XCTAssertEqual(result, [])
         XCTAssertEqual(fileManager.contentsAtPath, [first.mapping.filePath, second.mapping.filePath])
     }
 
     // xcodebuild runs still switch each mutant on through its own variable, which old code reads too.
-    func test_anXcodebuildPlanMadeBeforeTheActiveMutantFileStillLoads() async throws {
+    func test_anXcodebuildPlanMadeBeforeTheActiveMutantFileStillLoads() throws {
         let file = try mutatedCheck(named: "Check")
         queuePlan(
             testedWith: MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"]),
@@ -102,7 +102,7 @@ final class CheckTestPlanCodeTests: MuterTestCase {
 
         """)
 
-        let result = try await sut.run(with: state)
+        let result = try sut.run(with: state)
 
         XCTAssertEqual(result, [])
         XCTAssertEqual(fileManager.contentsAtPath, [])
@@ -116,7 +116,7 @@ final class CheckTestPlanCodeTests: MuterTestCase {
         fileManager.fileExistsToReturn = [false]
         state.runOptions = .make(testPlanURL: URL(fileURLWithPath: "/path/to/project/muter-mappings.json"))
 
-        await AssertThrowsError(try await sut.run(with: state)) { error in
+        await AssertThrowsError(try sut.run(with: state)) { error in
             XCTAssertEqual(
                 error as? TestPlanRefused,
                 TestPlanRefused(

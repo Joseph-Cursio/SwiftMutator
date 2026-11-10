@@ -197,7 +197,7 @@ extension DiscoverMutationPointsTests {
         state.mutatedProjectDirectoryURL = file.deletingLastPathComponent()
 
         state.apply(try await sut.run(with: state))
-        state.apply(try await SelectMutant().run(with: state))
+        state.apply(try SelectMutant().run(with: state))
 
         return state.mutationMapping.flatMap(\.mutationSchemata)
     }

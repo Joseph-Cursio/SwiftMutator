@@ -6,7 +6,7 @@ struct PreviousRunCleanUp: MutationStep {
 
     func run(
         with state: AnyMutationTestState
-    ) async throws -> [MutationTestState.Change] {
+    ) throws -> [MutationTestState.Change] {
         let mutated = state.mutatedProjectDirectoryURL
         if fileManager.fileExists(atPath: mutated.path) {
             try remove(mutated.path)

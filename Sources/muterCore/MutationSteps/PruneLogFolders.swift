@@ -26,7 +26,7 @@ struct PruneLogFolders: MutationStep {
         self.prune = prune
     }
 
-    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+    func run(with state: AnyMutationTestState) throws -> [MutationTestState.Change] {
         guard let keeping = state.muterConfiguration.keepLogFolders, !state.loggingDirectory.isEmpty else {
             return []
         }

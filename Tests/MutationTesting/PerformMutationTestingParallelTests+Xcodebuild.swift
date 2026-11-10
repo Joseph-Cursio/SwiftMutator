@@ -81,10 +81,12 @@ extension PerformMutationTestingParallelTests {
         var finished: [FinishedRun] = []
 
         try await sut.runPool(
-            jobs.indices.map(PerformMutationTesting.PoolTask.mutant),
-            of: jobs,
+            PerformMutationTesting.PoolWork(
+                tasks: jobs.indices.map(PerformMutationTesting.PoolTask.mutant),
+                jobs: jobs,
+                testRun: XCTestRun()
+            ),
             on: workers,
-            switchingOnFrom: XCTestRun(),
             outputNamed: { index, _ in "\(index).log" },
             recording: { finished.append($0) }
         )
@@ -120,10 +122,8 @@ extension PerformMutationTestingParallelTests {
 
         await assertThrowsMuterError(
             try await sut.runPool(
-                [.mutant(0), .mutant(1)],
-                of: jobs,
+                PerformMutationTesting.PoolWork(tasks: [.mutant(0), .mutant(1)], jobs: jobs, testRun: XCTestRun()),
                 on: [xcodebuildWorker(0)],
-                switchingOnFrom: XCTestRun(),
                 outputNamed: { index, _ in "\(index).log" },
                 recording: { finished.append($0) }
             ),
@@ -146,10 +146,12 @@ extension PerformMutationTestingParallelTests {
         var finished: [FinishedRun] = []
 
         try await sut.runPool(
-            jobs.indices.map(PerformMutationTesting.PoolTask.mutant),
-            of: jobs,
+            PerformMutationTesting.PoolWork(
+                tasks: jobs.indices.map(PerformMutationTesting.PoolTask.mutant),
+                jobs: jobs,
+                testRun: XCTestRun()
+            ),
             on: workers,
-            switchingOnFrom: XCTestRun(),
             outputNamed: { index, _ in "\(index).log" },
             recording: { finished.append($0) }
         )

@@ -10,32 +10,16 @@ extension PerformMutationTesting {
     /// given the session and the two dependencies it reads, not the step.
     static func endResultsAtOnce(of session: TestingSession, stoppedBy interruption: InterruptionRecord, now: Now) {
         session.end(waitingAtMost: endLineWaitAtOnce) { recorded in
-            endLine(
-                of: session,
-                .interrupted,
-                detail: interruption.signal.map(InterruptionRecord.name(of:)),
-                testDuration: now().timeIntervalSince(session.startedAt),
-                recorded: recorded,
-                endedAt: now()
+            let detail = interruption.signal.map(InterruptionRecord.name(of:))
+            let testDuration = now().timeIntervalSince(session.startedAt)
+            return ResultsEnd(
+                session: session.number,
+                endedAt: now(),
+                reason: .interrupted,
+                detail: detail,
+                testDurationSeconds: testDuration,
+                recorded: recorded
             )
         }
-    }
-
-    static func endLine(
-        of session: TestingSession,
-        _ reason: ResultsEnd.Reason,
-        detail: String?,
-        testDuration: TimeInterval,
-        recorded: Int,
-        endedAt: Date
-    ) -> ResultsEnd {
-        ResultsEnd(
-            session: session.number,
-            endedAt: endedAt,
-            reason: reason,
-            detail: detail,
-            testDurationSeconds: testDuration,
-            recorded: recorded
-        )
     }
 }

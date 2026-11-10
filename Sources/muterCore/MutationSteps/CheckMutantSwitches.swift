@@ -19,7 +19,7 @@ struct CheckMutantSwitches: MutationStep {
     /// How many of a file's missing mutants the error names, so that a rewrite that missed thousands stays readable.
     static let namedPerFile = 10
 
-    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+    func run(with state: AnyMutationTestState) throws -> [MutationTestState.Change] {
         var gaps: [Gap] = []
         for mapping in state.mutationMapping where !mapping.isEmpty {
             guard let data = fileManager.contents(atPath: mapping.filePath) else {

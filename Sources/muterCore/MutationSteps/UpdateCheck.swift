@@ -4,29 +4,19 @@ import FoundationNetworking
 import Foundation
 import Version
 
-protocol Server: Sendable {
-    func data(from url: URL) async throws -> (Data, URLResponse)
+private let url = "https://api.github.com/repos/Joseph-Cursio/SwiftMutator/releases?per_page=1"
+
+private enum UpdateCheckError: Error {
+    case parsingError
 }
 
-#if os(Linux)
-extension URLSession: Server {
-    func data(from url: URL) async throws -> (Data, URLResponse) {
-        try await withCheckedThrowingContinuation { continuation in
-            dataTask(with: url) { data, urlResponse, error in
-                if let data, let urlResponse {
-                    continuation.resume(returning: (data, urlResponse))
-                } else if let error {
-                    continuation.resume(throwing: error)
-                }
-            }.resume()
-        }
+struct MuterVersion: Decodable {
+    let number: String
+
+    private enum CodingKeys: String, CodingKey {
+        case number = "tag_name"
     }
 }
-#else
-extension URLSession: Server {}
-#endif
-
-private let url = "https://api.github.com/repos/Joseph-Cursio/SwiftMutator/releases?per_page=1"
 
 struct UpdateCheck: MutationStep {
     @Dependency(\.events)
@@ -83,17 +73,5 @@ struct UpdateCheck: MutationStep {
         }
 
         return latestVersion
-    }
-}
-
-private enum UpdateCheckError: Error {
-    case parsingError
-}
-
-struct MuterVersion: Decodable {
-    let number: String
-
-    private enum CodingKeys: String, CodingKey {
-        case number = "tag_name"
     }
 }

@@ -1,6 +1,13 @@
 import Foundation
 
-final class FunctionsCoverage: Sendable {
+/// The regions llvm-cov reports in a file, by function, in its order: a function's first region is its whole body.
+struct FileCoverage: Equatable {
+    let functions: [[Region]]
+
+    static let empty = Self(functions: [])
+}
+
+final class FunctionsCoverage: Sendable, Equatable, Nullable {
     /// Keyed by canonical path, since llvm-cov may spell a file's path differently from SwiftMutator.
     private let coverage: [String: FileCoverage]
 
@@ -86,20 +93,10 @@ final class FunctionsCoverage: Sendable {
     func regionsForFile(_ filePath: FilePath) -> [Region] {
         coverage(ofFile: filePath).functions.joined().include { $0.executionCount == 0 }
     }
-}
-extension FunctionsCoverage: Equatable {
+
     static func == (lhs: FunctionsCoverage, rhs: FunctionsCoverage) -> Bool {
         lhs.coverage == rhs.coverage
     }
-}
 
-extension FunctionsCoverage: Nullable {
     static let null: FunctionsCoverage = .init()
-}
-
-/// The regions llvm-cov reports in a file, by function, in its order: a function's first region is its whole body.
-struct FileCoverage: Equatable {
-    let functions: [[Region]]
-
-    static let empty = Self(functions: [])
 }

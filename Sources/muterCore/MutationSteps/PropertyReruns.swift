@@ -1,16 +1,5 @@
 import Foundation
 
-/// The kills a session tests again with only the property tests `propertyTestFilter` selects, once every mutant is
-/// tested: those whose recorded tests include no property test, which `propertyTests` picks out. A run stopped at its
-/// first failed test records that test alone, so an example that failed first hides a property that would also have
-/// failed. This run tells "only by examples" from "by both". It never changes a mutant's result.
-struct PropertyReruns: Equatable {
-    /// How many kills are tested again.
-    let count: Int
-    /// How many of them are tested at once.
-    let workers: Int
-}
-
 /// What the property reruns came to, so far.
 struct PropertyRerunTally: Equatable {
     let reruns: PropertyReruns
@@ -36,6 +25,17 @@ struct PropertyRerunTally: Equatable {
             unsettled += 1
         }
     }
+}
+
+/// The kills a session tests again with only the property tests `propertyTestFilter` selects, once every mutant is
+/// tested: those whose recorded tests include no property test, which `propertyTests` picks out. A run stopped at its
+/// first failed test records that test alone, so an example that failed first hides a property that would also have
+/// failed. This run tells "only by examples" from "by both". It never changes a mutant's result.
+struct PropertyReruns: Equatable {
+    /// How many kills are tested again.
+    let count: Int
+    /// How many of them are tested at once.
+    let workers: Int
 }
 
 extension PerformMutationTesting {
@@ -67,14 +67,12 @@ extension PerformMutationTesting {
         of jobs: [MutantJob],
         on workers: [PoolWorker],
         from testRun: XCTestRun,
-        using state: AnyMutationTestState,
-        configuration: MuterConfiguration,
-        session: TestingSession
+        in context: RunContext
     ) async throws {
-        guard state.selectedMutant == nil, let globs = configuration.propertyTests,
-              configuration.withPropertyTestFilter() != nil
+        guard context.state.selectedMutant == nil, let globs = context.configuration.propertyTests,
+              context.configuration.withPropertyTestFilter() != nil
         else { return }
-        let candidates = Self.propertyRerunCandidates(in: session, globs: globs)
+        let candidates = Self.propertyRerunCandidates(in: context.session, globs: globs)
         guard !candidates.isEmpty else { return }
         try Task.checkCancellation()
         let pool = workers.compactMap { worker in
@@ -87,10 +85,9 @@ extension PerformMutationTesting {
         let baseline = try await Self.runControl(
             0,
             on: (0, first),
-            workingDirectory: first.directory,
+            at: (first.directory, testOutput(named: Self.propertyBaselineLogName, state: context.state)),
             from: testRun,
-            fileName: testOutput(named: Self.propertyBaselineLogName, state: state),
-            using: (ioDelegate, instant, heartbeat)
+            using: runDependencies
         )
         try Self.throwIfCancelled(baseline.run)
         let log = fileManager.keepLog(
@@ -98,7 +95,7 @@ extension PerformMutationTesting {
             writtenTo: baseline.output,
             by: ioDelegate,
             named: Self.propertyBaselineLogName,
-            state: state
+            state: context.state
         )
         if let reason = Self.whyPropertyRerunsMeanNothing(baseline.run) {
             events.send(.propertyRerunsSkipped(reason: reason, log: log.map { _ in Self.propertyBaselineLogName }))
@@ -109,14 +106,12 @@ extension PerformMutationTesting {
         events.send(.propertyRerunsStarted(reruns))
         var tally = PropertyRerunTally(reruns)
         try await runPool(
-            candidates.map(PoolTask.mutant),
-            of: jobs,
+            PoolWork(tasks: candidates.map(PoolTask.mutant), jobs: jobs, testRun: testRun),
             on: Array(pool.prefix(reruns.workers)),
-            switchingOnFrom: testRun,
-            outputNamed: { testOutput(named: logFileName(forPropertyRerunOfJobAt: $0, $1), state: state) },
+            outputNamed: { testOutput(named: logFileName(forPropertyRerunOfJobAt: $0, $1), state: context.state) },
             recording: { finished in
                 try recordPropertyRerun(
-                    finished, tally: &tally, using: state, configuration: first.configuration, session: session
+                    finished, tally: &tally, in: context.with(first.configuration)
                 )
             }
         )
@@ -159,32 +154,35 @@ extension PerformMutationTesting {
     func recordPropertyRerun(
         _ finished: FinishedRun,
         tally: inout PropertyRerunTally,
-        using state: AnyMutationTestState,
-        configuration: MuterConfiguration,
-        session: TestingSession
+        in context: RunContext
     ) throws {
-        let failures = MutantResult.failedTests(of: finished.run, ignoring: configuration.failedTestLookalikes)
-        let key = session.keys[finished.index]
+        let failures = MutantResult.failedTests(of: finished.run, ignoring: context.configuration.failedTestLookalikes)
+        let key = context.session.keys[finished.index]
         let name = MutationTestLog.propertyRerunFileName(for: key)
-        try abortingIfTheSimulatorIsGone(in: finished, logName: name, configuration: configuration, state: state)
+        try abortingIfTheSimulatorIsGone(
+            in: finished,
+            logName: name,
+            configuration: context.configuration,
+            state: context.state
+        )
         let keeps = finished.run.outcome == .passed
-            ? configuration.keepsAllLogs
+            ? context.configuration.keepsAllLogs
             : MutationTestLog.isKept(
-                outcome: finished.run.outcome, killedBy: failures?.tests, keepingAll: configuration.keepsAllLogs
+                outcome: finished.run.outcome, killedBy: failures?.tests, keepingAll: context.configuration.keepsAllLogs
             )
-        let keptLog = keeps && !state.loggingDirectory.isEmpty ? name : nil
+        let keptLog = keeps && !context.state.loggingDirectory.isEmpty ? name : nil
         let record = PropertyRerunResult(
             key: key,
             finished: finished,
             failures: failures,
-            session: session.number,
+            session: context.session.number,
             finishedAt: now(),
             log: keptLog
         )
-        write(record, in: session)
-        session.outcomes[finished.index]?.propertyRerun = record.rerun
+        write(record, in: context.session)
+        context.session.outcomes[finished.index]?.propertyRerun = record.rerun
         fileManager.keepLog(
-            finished.run.testLog, writtenTo: finished.output, by: ioDelegate, named: keptLog, state: state
+            finished.run.testLog, writtenTo: finished.output, by: ioDelegate, named: keptLog, state: context.state
         )
         tally.add(record.rerun)
     }
