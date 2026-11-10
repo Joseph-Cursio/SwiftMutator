@@ -203,7 +203,8 @@ let css =
       --bg-blue-dark: #142136;
       --bg-indigo: #6366f1;
 
-      font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif, Apple Color Emoji, Segoe UI Emoji
+      font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif, Apple Color Emoji, Segoe\
+     UI Emoji
 
       transition: background 0.2s linear;
     }
