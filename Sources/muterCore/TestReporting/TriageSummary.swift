@@ -24,7 +24,7 @@ struct TriageMatches {
 
     init(
         _ entries: [TriageEntry],
-        against mutants: [MuterTestReport.AppliedMutationOperator],
+        against mutants: [AppliedMutationOperator],
         following: Bool = true
     ) {
         var places: [String: Int] = [:]
@@ -63,14 +63,14 @@ struct TriageMatches {
 
 private extension TriageEntry {
     /// Whether what this entry says its mutant changes is what `mutant` changes, as far as both are known.
-    func describes(_ mutant: MuterTestReport.AppliedMutationOperator) -> Bool {
+    func describes(_ mutant: AppliedMutationOperator) -> Bool {
         (before.map { $0 == mutant.mutationSnapshot.before } ?? true)
             && (after.map { $0 == mutant.mutationSnapshot.after } ?? true)
             && (line.flatMap { line in mutant.changedLine.map { $0 == line } } ?? true)
     }
 
     /// Whether `mutant` is in this entry's file, by this entry's operator, and known to change this entry's line.
-    func follows(to mutant: MuterTestReport.AppliedMutationOperator) -> Bool {
+    func follows(to mutant: AppliedMutationOperator) -> Bool {
         mutant.path == self.mutant.path
             && mutant.mutationPoint.mutationOperatorId == self.mutant.mutationOperatorId
             && mutant.changedLine != nil
@@ -78,7 +78,7 @@ private extension TriageEntry {
     }
 }
 
-extension MuterTestReport.AppliedMutationOperator {
+extension AppliedMutationOperator {
     /// The line it changes, without the spaces around it, which an entry holds: moved code may be indented anew.
     var changedLine: String? {
         sourceChange?.before.trimmingCharacters(in: .whitespaces)

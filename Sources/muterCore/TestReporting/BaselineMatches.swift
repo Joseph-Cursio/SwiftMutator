@@ -118,8 +118,7 @@ struct BaselineMatches: Equatable {
                     relativePath: mutant.key.path,
                     snapshot: mutant.snapshot,
                     mutationOperatorId: mutant.key.mutationOperatorId,
-                    line: mutant.key.line,
-                    column: mutant.key.column
+                    at: MutationPosition(line: mutant.key.line, column: mutant.key.column)
                 )?.before
                 return Self(
                     key: mutant.key,

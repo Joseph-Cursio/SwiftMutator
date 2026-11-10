@@ -100,7 +100,7 @@ struct Triage: AsyncParsableCommand {
     /// What a results file says of its mutants, and the triage file that goes with them.
     private struct Results {
         let outcome: MutationTestOutcome
-        let mutants: [MuterTestReport.AppliedMutationOperator]
+        let mutants: [AppliedMutationOperator]
     }
 
     private func read(_ results: String) throws -> Results {
@@ -240,7 +240,7 @@ struct Triage: AsyncParsableCommand {
     private static func oneMutant(
         _ reference: MutantReference,
         in run: Results
-    ) throws -> MuterTestReport.AppliedMutationOperator {
+    ) throws -> AppliedMutationOperator {
         let wanted = relative(reference, in: run.outcome)
         let named = run.mutants.filter { mutant in
             mutant.key.flatMap(MutantKey.init(wholeDescription:)).map(wanted.matches) ?? false

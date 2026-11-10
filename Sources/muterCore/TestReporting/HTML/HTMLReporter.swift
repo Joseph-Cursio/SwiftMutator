@@ -258,7 +258,7 @@ extension Node where Context: HTML.BodyContext {
         )
     }
 
-    static func mutationScoreTable(from fileReports: [MuterTestReport.FileReport]) -> Self {
+    static func mutationScoreTable(from fileReports: [FileReport]) -> Self {
         .table(
             .id("mutation-operators-per-file"),
             .thead(
@@ -296,7 +296,7 @@ extension Node where Context: HTML.BodyContext {
         )
     }
 
-    static func appliedOperatorsTable(from fileReports: [MuterTestReport.FileReport]) -> Self {
+    static func appliedOperatorsTable(from fileReports: [FileReport]) -> Self {
         let reports = fileReports.sorted().flatMap { report in
             report.appliedOperators.map { appliedOperator in
                 (relativePath: report.relativePath, appliedOperator: appliedOperator)
@@ -445,7 +445,7 @@ extension Node where Context: HTML.BodyContext {
 
     /// The Killed By cell, with more than one test recorded opening to every one. Text nodes only: Plot escapes text,
     /// but not attribute values, and Swift Testing's names can hold `"`.
-    static func killedBy(_ appliedOperator: MuterTestReport.AppliedMutationOperator) -> Self {
+    static func killedBy(_ appliedOperator: AppliedMutationOperator) -> Self {
         guard let tests = appliedOperator.killedByTests?.tests, tests.count > 1 else {
             return .text(appliedOperator.killedByCell)
         }
@@ -548,7 +548,7 @@ extension Node where Context: HTML.BodyContext {
 
     /// The line the mutant changes, before and after, when its original file gives it; else its snapshot's change.
     /// Text nodes only: a line of code can hold anything.
-    static func diff(of appliedOperator: MuterTestReport.AppliedMutationOperator) -> Self {
+    static func diff(of appliedOperator: AppliedMutationOperator) -> Self {
         guard let change = appliedOperator.sourceChange else { return snapshotDiff(of: appliedOperator) }
         return .div(
             .class("source-change"),
@@ -561,7 +561,7 @@ extension Node where Context: HTML.BodyContext {
         )
     }
 
-    static func snapshotDiff(of appliedOperator: MuterTestReport.AppliedMutationOperator) -> Self {
+    static func snapshotDiff(of appliedOperator: AppliedMutationOperator) -> Self {
         .div(
             .class("snapshot-changes"),
             .if(
@@ -596,7 +596,7 @@ extension Node where Context: HTML.BodyContext {
     }
 }
 
-private extension MuterTestReport.AppliedMutationOperator {
+private extension AppliedMutationOperator {
     /// Its outcome's icon, titled as the tables say it. A mutant not covered has a survivor's icon, as its tests ran
     /// and passed, and the score counts it as one, where a file's row has the icon of one that was skipped.
     var outcomeIcon: String {
@@ -634,7 +634,7 @@ private extension TestSuiteOutcome {
     }
 }
 
-private extension MuterTestReport.FileReport {
+private extension FileReport {
     var scoreColor: String { coloredMutationScore(for: mutationScore) }
 }
 

@@ -2,7 +2,7 @@ import Foundation
 import Rainbow
 
 func generateAppliedMutationOperatorsCLITable(
-    from fileReports: [MuterTestReport.FileReport],
+    from fileReports: [FileReport],
     coloringFunction: ([CLITable.Row]) -> [CLITable.Row] = applyMutationTestResultsColor
 ) -> CLITable {
     var appliedMutations = [CLITable.Row]()
@@ -42,7 +42,7 @@ func generateAppliedMutationOperatorsCLITable(
     )
 }
 
-private func operatorsToTableRows(fileReport: MuterTestReport.FileReport) -> [(
+private func operatorsToTableRows(fileReport: FileReport) -> [(
     CLITable.Row,
     CLITable.Row,
     CLITable.Row,
@@ -60,7 +60,7 @@ private func operatorsToTableRows(fileReport: MuterTestReport.FileReport) -> [(
     }
 }
 
-extension MuterTestReport.AppliedMutationOperator {
+extension AppliedMutationOperator {
     /// How many characters of a test's name the plain report's tables show, and the HTML report's Killed By column.
     static let killedByNameLimit = 60
 
@@ -87,7 +87,7 @@ extension MuterTestReport.AppliedMutationOperator {
     }
 }
 
-extension MuterTestReport.AppliedMutationOperator {
+extension AppliedMutationOperator {
     /// What the plain and HTML reports' Duration column shows: "2.4 s", to a tenth of a second; "-" when not known,
     /// as for a file without coverage's row. Never empty, as `killedByCell`.
     var durationCell: String {
@@ -103,7 +103,7 @@ extension MuterTestReport.AppliedMutationOperator {
     }
 }
 
-extension [MuterTestReport.FileReport] {
+extension [FileReport] {
     /// Whether some killed mutant recorded its tests, so the reports show a Killed By column.
     var showsKillingTests: Bool {
         contains { report in report.appliedOperators.contains { $0.killedByTests != nil } }
@@ -127,7 +127,7 @@ func generateKillingTestsCLITable(from summary: KillingTestSummary) -> CLITable 
         CLITable.Column(title: title, rows: summary.tests.map { CLITable.Row(value: cell($0)) })
     }
     return CLITable(padding: 3, columns: [
-        column("Test") { MuterTestReport.AppliedMutationOperator.shownName($0.name) },
+        column("Test") { AppliedMutationOperator.shownName($0.name) },
         column("File") { $0.file ?? "-" },
         column("Mutants") { "\($0.mutants)" },
         column("Files") { "\($0.files)" },
@@ -143,7 +143,7 @@ func generatePropertyKillsCLITable(from summary: PropertyKillSummary) -> CLITabl
         CLITable.Column(title: title, rows: summary.properties.map { CLITable.Row(value: cell($0)) })
     }
     return CLITable(padding: 3, columns: [
-        column("Property") { MuterTestReport.AppliedMutationOperator.shownName($0.name) },
+        column("Property") { AppliedMutationOperator.shownName($0.name) },
         column("File") { $0.file ?? "-" },
         column("Mutants") { "\($0.mutants)" },
         column("Only Recorded Killer Of") { "\($0.onlyRecordedKillerOf)" },
@@ -151,7 +151,7 @@ func generatePropertyKillsCLITable(from summary: PropertyKillSummary) -> CLITabl
 }
 
 func generateMutationScoresCLITable(
-    from fileReports: [MuterTestReport.FileReport],
+    from fileReports: [FileReport],
     coloringFunction: ([CLITable.Row]) -> [CLITable.Row] = applyMutationScoreColor
 ) -> CLITable {
     var fileNames = [CLITable.Row]()
@@ -180,7 +180,7 @@ func applyMutationTestResultsColor(to rows: [CLITable.Row]) -> [CLITable.Row] {
         let coloredValue = [
             TestSuiteOutcome.passed.asMutationTestOutcome,
             TestSuiteOutcome.buildError.asMutationTestOutcome,
-            MuterTestReport.AppliedMutationOperator.notCoveredWords,
+            AppliedMutationOperator.notCoveredWords,
         ].contains($0.value)
             ? $0.value.red
             : $0.value.green

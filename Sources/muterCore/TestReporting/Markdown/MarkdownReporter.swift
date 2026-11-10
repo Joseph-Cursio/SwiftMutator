@@ -176,7 +176,7 @@ struct MarkdownReporter: Reporter {
     /// The first `mostListed` of `mutants`, grouped by file, each by its place in it, its operator and what it
     /// changes, whether it timed out, and its triage label; then how many more there are.
     private static func listed(
-        _ mutants: [(relativePath: String, appliedOperator: MuterTestReport.AppliedMutationOperator)]
+        _ mutants: [(relativePath: String, appliedOperator: AppliedMutationOperator)]
     ) -> [String] {
         var lines: [String] = []
         var file: String?
@@ -193,7 +193,7 @@ struct MarkdownReporter: Reporter {
     }
 
     /// "`42:17` RelationalOperatorReplacement: changed == to != (timed out) — Triaged: equivalent".
-    private static func line(of mutant: MuterTestReport.AppliedMutationOperator) -> String {
+    private static func line(of mutant: AppliedMutationOperator) -> String {
         let position = mutant.mutationPoint.position
         let description = mutant.mutationSnapshot.description
         let change = description.isEmpty ? "" : ": " + MarkdownText.plain(description)

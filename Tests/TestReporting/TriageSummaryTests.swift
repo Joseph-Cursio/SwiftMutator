@@ -36,9 +36,9 @@ final class TriageSummaryTests: MuterTestCase {
         file: String? = nil,
         before: String = "==",
         after: String = "!="
-    ) -> MuterTestReport.AppliedMutationOperator {
+    ) -> AppliedMutationOperator {
         let place = file ?? path
-        return MuterTestReport.AppliedMutationOperator(
+        return AppliedMutationOperator(
             mutationPoint: MutationPoint(
                 mutationOperatorId: id,
                 filePath: "/copy/\(place)",
@@ -62,7 +62,7 @@ final class TriageSummaryTests: MuterTestCase {
 
     private func matched(
         _ entries: [TriageEntry],
-        _ mutants: [MuterTestReport.AppliedMutationOperator]
+        _ mutants: [AppliedMutationOperator]
     ) -> Matched {
         let matches = TriageMatches(entries, against: mutants)
         return Matched(
@@ -181,7 +181,7 @@ final class TriageSummaryTests: MuterTestCase {
     }
 
     func test_aMutantThatsNotNamedByAKey_isntLabelled() {
-        let keyless = MuterTestReport.AppliedMutationOperator(
+        let keyless = AppliedMutationOperator(
             mutationPoint: .make(),
             mutationSnapshot: .make(before: "==", after: "!="),
             testSuiteOutcome: .passed,

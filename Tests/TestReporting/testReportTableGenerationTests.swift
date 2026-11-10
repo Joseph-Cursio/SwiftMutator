@@ -54,7 +54,7 @@ final class TestReportTableGenerationTests: MuterTestCase {
     func test_operatorsTable_withKillingTests_addsAKilledByColumn() {
         let sum = FailedTestLine.FailedTest(name: "sum()", location: "SumTests.swift:3:5")
         let total = FailedTestLine.FailedTest(name: "total()", location: "SumTests.swift:9:5")
-        let operators: [MuterTestReport.AppliedMutationOperator] = [
+        let operators: [AppliedMutationOperator] = [
             .make(testSuiteOutcome: .failed, killingTests: .init(tests: [sum], count: 1, isComplete: true)),
             .make(testSuiteOutcome: .failed, killingTests: .init(tests: [sum, total], count: 3, isComplete: false)),
             .make(testSuiteOutcome: .runtimeError, killingTests: .noneNamed),
@@ -129,7 +129,7 @@ final class TestReportTableGenerationTests: MuterTestCase {
         let sixtyCharacters = String(repeating: "a", count: 58) + "()"
         let sixtyOneCharacters = String(repeating: "b", count: 59) + "()"
         let killedBy = { (name: String, count: Int) in
-            MuterTestReport.AppliedMutationOperator.make(
+            AppliedMutationOperator.make(
                 testSuiteOutcome: .failed,
                 killingTests: .init(tests: [.init(name: name, location: nil)], count: count, isComplete: count == 1)
             )
@@ -203,7 +203,7 @@ final class TestReportTableGenerationTests: MuterTestCase {
         }
     }
 
-    private func operatorsTable(_ operators: [MuterTestReport.AppliedMutationOperator]) -> CLITable {
+    private func operatorsTable(_ operators: [AppliedMutationOperator]) -> CLITable {
         generateAppliedMutationOperatorsCLITable(
             from: [.make(name: "Sum.swift", path: "/tmp/Sum.swift", mutationScore: 50, appliedOperators: operators)]
         ) { $0 }

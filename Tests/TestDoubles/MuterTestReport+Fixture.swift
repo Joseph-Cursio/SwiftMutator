@@ -9,7 +9,7 @@ extension MuterTestReport {
     }
 }
 
-extension MuterTestReport.AppliedMutationOperator {
+extension AppliedMutationOperator {
     static func make(
         mutationPoint: MutationPoint = .make(),
         mutationSnapshot: MutationOperator.Snapshot = .make(),
@@ -45,12 +45,12 @@ extension MutationOperator.Snapshot {
     }
 }
 
-extension MuterTestReport.FileReport {
+extension FileReport {
     static func make(
         name: String,
         path: String,
         mutationScore: Int,
-        appliedOperators: [MuterTestReport.AppliedMutationOperator]
+        appliedOperators: [AppliedMutationOperator]
     ) -> Self {
         Self(
             fileName: name,
@@ -61,7 +61,7 @@ extension MuterTestReport.FileReport {
     }
 }
 
-extension MuterTestReport.AppliedMutationOperator {
+extension AppliedMutationOperator {
     static func make(
         mutationOperator: MutationOperator.Id = .logicalOperator,
         position: SwiftSyntax.SourceLocation = .init(integerLiteral: 0),
