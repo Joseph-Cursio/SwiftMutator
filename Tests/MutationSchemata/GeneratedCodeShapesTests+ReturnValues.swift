@@ -8,46 +8,7 @@ extension GeneratedCodeShapesTests {
     /// and a value touching `return`. All of them must compile together, each in a branch of its own, and each is
     /// switched on by itself.
     func test_theGeneratedCodeBuildsForReplacedReturnValues() throws {
-        let code = """
-        struct Store {
-            var items: [Int]
-            var byName: [String: Int] { Dictionary(uniqueKeysWithValues: items.map { ("n\\($0)", $0) }) }
-            var first: Int? { items.first }
-            var title: String { get { "store\\(items.count)" } }
-            var total: Int { get throws { try sum(items) } }
-            subscript(index: Int) -> Double { Double(items[index]) }
-        }
-
-        func sum(_ values: [Int]) throws -> Int { values.reduce(0, +) }
-
-        func unique(_ values: [Int]) -> Set<Int> { Set(values) }
-
-        func label(_ count: Int) -> Substring { "labels".prefix(count) }
-
-        func small(_ value: Int) -> Int8 { Int8(value) }
-
-        func ratio(_ value: Int) async -> Float { return Float(value) / 2 }
-
-        func lookup(_ value: Int) -> Optional<String> { value > 0 ? "found" : nil }
-
-        func noted(_ value: Int) -> UInt64 {
-            return(UInt64(value) + 1)
-        }
-
-        func unwrapped(_ value: Int) -> Int! { value * 3 }
-
-        func never(_ value: Int) -> Int { fatalError("never \\(value)") }
-
-        func make(_ value: Int) -> [Int] {
-            let doubled = { (item: Int) -> [Int] in [item, item] }
-            let counted = [1, 2].map { (item: Int) -> Int in return item * value }
-            // Read here too: a local only the replaced value reads is never used in its mutant, which warns.
-            print(doubled(0).count, counted.count)
-            return [doubled(value), counted].flatMap { $0 } // why
-        }
-
-        let globalNames: [String] = { () -> [String] in ["global"] }()
-        """
+        let code = Self.replacedReturnValuesCode
         let main = driver("""
         let store = Store(items: [4, 5])
         print(store.byName.count, store.first as Any, store.title, try store.total, store[1])
@@ -58,7 +19,8 @@ extension GeneratedCodeShapesTests {
 
         let replaced = { (text: String) -> [String] in
             compiled.mutants(in: "Values.swift", onTheLineHolding: text)
-                .filter { $0.mutationOperatorId == .replaceReturnValue }.map(\.snapshot.after)
+                .filter { $0.mutationOperatorId == .replaceReturnValue }
+                .map(\.snapshot.after)
         }
         XCTAssertEqual(replaced("var byName"), ["[:]"], "a getter's dictionary")
         XCTAssertEqual(replaced("var first"), ["nil"], "a getter's optional")
@@ -79,6 +41,11 @@ extension GeneratedCodeShapesTests {
         XCTAssertEqual(replaced("return [doubled"), ["[]"], "a return, and a comment")
         XCTAssertEqual(replaced("let globalNames"), ["[]"], "a closure called on the spot for a global's value")
 
+        try assertReplacedReturnValuesRun(compiled)
+    }
+
+    /// Runs the values program with no mutant, then with each of a few replaced values switched on.
+    private func assertReplacedReturnValuesRun(_ compiled: Compiled) throws {
         let first = "2 Optional(4) store2 9 5.0\n1 la 7 1.5 Optional(\"found\") 2 Optional(6)\n"
         XCTAssertEqual(
             try run(compiled.program).output,
@@ -105,56 +72,53 @@ extension GeneratedCodeShapesTests {
         XCTAssertEqual(try run(compiled.program, switchingOn: global).output, first + "2 2\n[2, 2, 2, 4] []\n")
     }
 
+    private static let replacedReturnValuesCode = """
+    struct Store {
+        var items: [Int]
+        var byName: [String: Int] { Dictionary(uniqueKeysWithValues: items.map { ("n\\($0)", $0) }) }
+        var first: Int? { items.first }
+        var title: String { get { "store\\(items.count)" } }
+        var total: Int { get throws { try sum(items) } }
+        subscript(index: Int) -> Double { Double(items[index]) }
+    }
+
+    func sum(_ values: [Int]) throws -> Int { values.reduce(0, +) }
+
+    func unique(_ values: [Int]) -> Set<Int> { Set(values) }
+
+    func label(_ count: Int) -> Substring { "labels".prefix(count) }
+
+    func small(_ value: Int) -> Int8 { Int8(value) }
+
+    func ratio(_ value: Int) async -> Float { return Float(value) / 2 }
+
+    func lookup(_ value: Int) -> Optional<String> { value > 0 ? "found" : nil }
+
+    func noted(_ value: Int) -> UInt64 {
+        return(UInt64(value) + 1)
+    }
+
+    func unwrapped(_ value: Int) -> Int! { value * 3 }
+
+    func never(_ value: Int) -> Int { fatalError("never \\(value)") }
+
+    func make(_ value: Int) -> [Int] {
+        let doubled = { (item: Int) -> [Int] in [item, item] }
+        let counted = [1, 2].map { (item: Int) -> Int in return item * value }
+        // Read here too: a local only the replaced value reads is never used in its mutant, which warns.
+        print(doubled(0).count, counted.count)
+        return [doubled(value), counted].flatMap { $0 } // why
+    }
+
+    let globalNames: [String] = { () -> [String] in ["global"] }()
+    """
+
     /// A result builder would take an empty value as a component, which it can't build, so the one expression of a
     /// body a builder may build is left alone: a function, property or subscript with an attribute that may be a
     /// builder, a closure passed to a call, and a member a protocol's requirement gives its builder. A `return` turns
     /// a builder off, so a closure's is replaced; a function's or property's would make the compiler warn already.
     func test_theGeneratedCodeBuildsForReturnValuesInAResultBuilder() throws {
-        let code = """
-        @resultBuilder enum Lines {
-            static func buildExpression(_ line: String) -> [String] { [line] }
-            static func buildBlock(_ parts: [String]...) -> [String] { parts.flatMap { $0 } }
-        }
-
-        func lines(@Lines _ make: () -> [String]) -> [String] { make() }
-
-        protocol Report {
-            @Lines var body: [String] { get }
-        }
-
-        protocol Summary {
-        #if !os(Linux)
-            @Lines var summary: [String] { get }
-        #endif
-        }
-
-        struct Daily: Report, Summary {
-            var count: Int
-            var body: [String] { String(count) }
-            var summary: [String] { String(count) }
-            @Lines dynamic var title: [String] { "title" }
-            @Lines var header: [String] { "header" }
-            @Lines subscript(index: Int) -> [String] { String(index) }
-            @Lines func footer() -> [String] { "footer" }
-            @discardableResult func plain() -> [String] { [String(count)] }
-            func passed() -> [String] { lines { () -> [String] in "passed" } }
-            func returned() -> [String] { lines { () -> [String] in return ["returned"] } }
-        }
-
-        extension Daily {
-            @_dynamicReplacement(for: title) var newTitle: [String] { "new" }
-        }
-
-        protocol Shape {}
-
-        struct Circle: Shape {}
-
-        func shapes(_ count: Int) -> [some Shape] { Array(repeating: Circle(), count: count) }
-
-        func named(_ name: String) -> [String: some Shape] { [name: Circle()] }
-
-        func shape(_ count: Int) -> (some Shape)? { count > 0 ? Circle() : nil }
-        """
+        let code = Self.returnValuesInABuilderCode
         let main = driver("""
         let daily = Daily(count: 1)
         print(daily.body, daily.header, daily[2], daily.footer(), daily.plain(), daily.passed(), daily.returned())
@@ -164,7 +128,8 @@ extension GeneratedCodeShapesTests {
 
         let replaced = { (text: String) -> [String] in
             compiled.mutants(in: "Builders.swift", onTheLineHolding: text)
-                .filter { $0.mutationOperatorId == .replaceReturnValue }.map(\.snapshot.before)
+                .filter { $0.mutationOperatorId == .replaceReturnValue }
+                .map(\.snapshot.before)
         }
         XCTAssertEqual(replaced("var body: [String] { String"), [], "a member a requirement gives its builder")
         XCTAssertEqual(replaced("var summary: [String] { String"), [], "and one a requirement in a #if gives it")
@@ -201,6 +166,52 @@ extension GeneratedCodeShapesTests {
         )
     }
 
+    private static let returnValuesInABuilderCode = """
+    @resultBuilder enum Lines {
+        static func buildExpression(_ line: String) -> [String] { [line] }
+        static func buildBlock(_ parts: [String]...) -> [String] { parts.flatMap { $0 } }
+    }
+
+    func lines(@Lines _ make: () -> [String]) -> [String] { make() }
+
+    protocol Report {
+        @Lines var body: [String] { get }
+    }
+
+    protocol Summary {
+    #if !os(Linux)
+        @Lines var summary: [String] { get }
+    #endif
+    }
+
+    struct Daily: Report, Summary {
+        var count: Int
+        var body: [String] { String(count) }
+        var summary: [String] { String(count) }
+        @Lines dynamic var title: [String] { "title" }
+        @Lines var header: [String] { "header" }
+        @Lines subscript(index: Int) -> [String] { String(index) }
+        @Lines func footer() -> [String] { "footer" }
+        @discardableResult func plain() -> [String] { [String(count)] }
+        func passed() -> [String] { lines { () -> [String] in "passed" } }
+        func returned() -> [String] { lines { () -> [String] in return ["returned"] } }
+    }
+
+    extension Daily {
+        @_dynamicReplacement(for: title) var newTitle: [String] { "new" }
+    }
+
+    protocol Shape {}
+
+    struct Circle: Shape {}
+
+    func shapes(_ count: Int) -> [some Shape] { Array(repeating: Circle(), count: count) }
+
+    func named(_ name: String) -> [String: some Shape] { [name: Circle()] }
+
+    func shape(_ count: Int) -> (some Shape)? { count > 0 ? Circle() : nil }
+    """
+
     /// A type the file declares under a standard library name may not take the empty value, so a return type that
     /// names it gets no mutant, nor does one that names a generic parameter of that name. `Swift.` names the standard
     /// library's.
@@ -224,7 +235,8 @@ extension GeneratedCodeShapesTests {
 
         let replaced = { (text: String) -> [String] in
             compiled.mutants(in: "Units.swift", onTheLineHolding: text)
-                .filter { $0.mutationOperatorId == .replaceReturnValue }.map(\.snapshot.after)
+                .filter { $0.mutationOperatorId == .replaceReturnValue }
+                .map(\.snapshot.after)
         }
         XCTAssertEqual(replaced("func half"), [], "a type the file declares")
         XCTAssertEqual(replaced("func whole"), ["0"], "the standard library's, by the module's name")

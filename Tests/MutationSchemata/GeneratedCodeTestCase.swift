@@ -10,7 +10,8 @@ class GeneratedCodeTestCase: MuterTestCase {
     let xcrun = "/usr/bin/xcrun"
     /// What the compiled program exits with when the generated code's fatal error traps.
     let trapExitStatus: Int32 = 70
-    private(set) var directory: URL!
+    /// The folder each test compiles in, made in `setUp` and removed when the test finishes.
+    let directory = URL(fileURLWithPath: XCTestCase.unusedTemporaryPath())
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -18,7 +19,8 @@ class GeneratedCodeTestCase: MuterTestCase {
             FileManager.default.isExecutableFile(atPath: xcrun),
             "compiling the generated code needs \(xcrun)"
         )
-        directory = try URL(fileURLWithPath: makeTemporaryDirectory())
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        addTeardownBlock { [directory] in try? FileManager.default.removeItem(at: directory) }
     }
 
     struct Run {

@@ -5,13 +5,33 @@ import SwiftSyntax
 import TestingExtensions
 import XCTest
 
+private struct OperatorIdAndPositionAssert: Equatable, CustomStringConvertible {
+    let id: MutationOperator.Id
+    let position: MutationPosition
+
+    var description: String {
+        """
+        OperatorIdAndPositionAssert(
+            id: .\(id),
+            position: MutationPosition(
+                utf8Offset: \(position.utf8Offset),
+                line: \(position.line),
+                column: \(position.column)
+            )
+        )
+        """
+    }
+}
+
 final class RewriterTests: MuterTestCase {
-    private var samplePath: String!
+    private let sampleFolder = XCTestCase.unusedTemporaryPath()
+    private var samplePath: String { sampleFolder + "/sampleWithAllOperators.swift" }
 
     override func setUpWithError() throws {
         try super.setUpWithError()
 
-        samplePath = try makeTemporaryDirectory() + "/sampleWithAllOperators.swift"
+        try FileManager.default.createDirectory(atPath: sampleFolder, withIntermediateDirectories: true)
+        addTeardownBlock { [sampleFolder] in try? FileManager.default.removeItem(atPath: sampleFolder) }
         FileManager.default.createFile(
             atPath: samplePath,
             contents: allOperatorsSourceCode.data(using: .utf8)
@@ -139,337 +159,6 @@ final class RewriterTests: MuterTestCase {
             }
         }
         return switches(in: Parser.parse(source: code).statements)
-    }
-
-    // `#if` is not a scope: a `let` in a clause is visible after `#endif`. Switching the clause's own
-    // statements put that `let` inside an `if` block and hid it from the code after `#endif`
-    // ("cannot find 'outputActual' in scope", swift-argument-parser's TestHelpers.swift). Such a
-    // clause's mutants are switched in the list around the `#if` instead.
-    func test_switchesAroundAnIfConfigClauseThatDeclaresSomething() throws {
-        let source = SourceCodeInfo(path: "/path/to/describe.swift", code: Parser.parse(source: """
-        func describe(_ flag: Bool) throws -> String {
-            #if os(macOS)
-            let value = flag ? "on" : "off"
-            #else
-            throw Failure()
-            #endif
-            return value
-        }
-        """))
-        let mapping = try XCTUnwrap(generateSchemataMappings(for: source).first)
-
-        XCTAssertEqual(mapping.codeBlocks.count, 1)
-        let block = try XCTUnwrap(mapping.codeBlocks.first)
-        XCTAssertTrue(block.contains("#endif") && block.contains("return value"), block)
-
-        // Each branch holds the whole `#if`, and the `return` after it: `return value`, or ReplaceReturnValue's
-        // `return ""` in its own branch.
-        let rewritten = MuterRewriter(mapping).rewrite(source.code).description
-        let branches = mapping.mutationSchemata.count + 1
-        XCTAssertEqual(rewritten.components(separatedBy: "#endif").count - 1, branches, rewritten)
-        XCTAssertEqual(rewritten.components(separatedBy: "return value").count - 1, branches - 1, rewritten)
-    }
-
-    // A macro expands its arguments from their syntax. Switched in its closure, `#Predicate { $0.id == id }` turned the
-    // switch's `if` and its `ProcessInfo` lookup into predicate expressions, which didn't compile ("cannot convert
-    // value of type 'PredicateExpressions.Conditional<…>'", MacCloud_client_iOS). Its mutants are switched in the list
-    // around the macro instead, each branch holding the macro with or without the mutant.
-    func test_switchesAroundAMacro_neverInsideItsArguments() throws {
-        let source = SourceCodeInfo(path: "/path/to/fetch.swift", code: Parser.parse(source: """
-        func fetch(_ id: String, in items: [Item]) -> [Item] {
-            let predicate = #Predicate<Item> { $0.id == id && $0.size > 0 }
-            return try items.filter(predicate)
-        }
-        """))
-        let mapping = try XCTUnwrap(generateSchemataMappings(for: source).first)
-
-        // `&&` gets one mutant, `==` two, RelationalOperatorReplacement's constants, and `>` three, that operator's
-        // swap and constant and RelationalBoundary's; and the returned array ReplaceReturnValue's `[]`.
-        XCTAssertEqual(mapping.mutationSchemata.count, 7)
-        XCTAssertEqual(mapping.codeBlocks.count, 1)
-        let block = try XCTUnwrap(mapping.codeBlocks.first)
-        XCTAssertTrue(block.contains("let predicate") && block.contains("return try"), block)
-
-        let rewritten = MuterRewriter(mapping).rewrite(source.code).description
-        let macroBodies = rewritten.components(separatedBy: "#Predicate<Item> {").dropFirst()
-            .map { $0.prefix { $0 != "}" } }
-        XCTAssertEqual(macroBodies.count, mapping.mutationSchemata.count + 1, rewritten)
-        XCTAssertFalse(macroBodies.contains { $0.contains("ProcessInfo") || $0.contains("if ") }, rewritten)
-    }
-
-    // A body whose value is its one macro, the usual way to write a SwiftData predicate. As the body's value, an `if`
-    // expression whose branches are `#Predicate { … }` doesn't compile ("value pack expansion can only appear inside a
-    // function argument list"), so each branch returns its macro: an `if` statement.
-    func test_aBodyWhoseValueIsAMacro_returnsItInEachBranch() throws {
-        let bodies = [
-            "func byID(_ id: String) -> Predicate<Item> { #Predicate { $0.id == id } }",
-            "var nonEmpty: Predicate<Item> { #Predicate { $0.size > 0 } }",
-            "var nonEmpty: Predicate<Item> { get { #Predicate { $0.size > 0 } } }",
-            "let byLimit = limits.map { limit in #Predicate<Item> { $0.size < limit } }",
-        ]
-        for body in bodies {
-            let source = SourceCodeInfo(path: "/path/to/Predicates.swift", code: Parser.parse(source: body))
-            let mapping = try XCTUnwrap(generateSchemataMappings(for: source).first, body)
-
-            let rewritten = MuterRewriter(mapping).rewrite(source.code).description
-            let returns = rewritten.components(separatedBy: "return #Predicate").count - 1
-            XCTAssertEqual(returns, mapping.mutationSchemata.count + 1, rewritten)
-        }
-    }
-
-    // An initializer may return no value, and `return` in a `case` would leave the function, so neither gets one.
-    func test_anInitializerOrACaseWhoseOneItemIsAMacro_returnsNothing() throws {
-        let bodies = [
-            "struct Check { init(_ size: Int) { #expect(size > 0) } }",
-            "func check(_ size: Int) { switch size { case 0: #expect(size < 1) default: break } }",
-        ]
-        for body in bodies {
-            let source = SourceCodeInfo(path: "/path/to/Check.swift", code: Parser.parse(source: body))
-            let mapping = try XCTUnwrap(generateSchemataMappings(for: source).first, body)
-
-            let rewritten = MuterRewriter(mapping).rewrite(source.code).description
-            XCTAssertFalse(rewritten.contains("return #expect"), rewritten)
-        }
-    }
-
-    // A macro in a closure inside a macro: the list switched is the one around the outermost macro.
-    func test_switchesAroundTheOutermostMacro() throws {
-        let source = SourceCodeInfo(path: "/path/to/check.swift", code: Parser.parse(source: """
-        func check(_ items: [Item]) {
-            #outer(items.map { item in
-                let fits = #inner { item.size < 9 }
-                return fits
-            })
-        }
-        """))
-        let mapping = try XCTUnwrap(generateSchemataMappings(for: source).first)
-
-        XCTAssertEqual(mapping.codeBlocks.count, 1)
-        let block = try XCTUnwrap(mapping.codeBlocks.first)
-        XCTAssertTrue(block.trimmed.hasPrefix("#outer"), block)
-    }
-
-    // At a file's top level, around a macro there is only the file's declarations, which a switch can't wrap, so the
-    // macro's mutants are left out, as a stored property's are.
-    func test_aMacroAtFileScope_hasNoMutants() throws {
-        let source = SourceCodeInfo(path: "/path/to/Preview.swift", code: Parser.parse(source: """
-        import SwiftUI
-
-        #Preview {
-            Text(1 < 2 ? "a" : "b")
-        }
-        """))
-
-        XCTAssertEqual(generateSchemataMappings(for: source).flatMap(\.mutationSchemata).count, 0)
-    }
-
-    func test_keepsSwitchingInsideAnIfConfigClauseWithoutDeclarations() throws {
-        let source = SourceCodeInfo(path: "/path/to/log.swift", code: Parser.parse(source: """
-        func log(_ flag: Bool) {
-            #if DEBUG
-            print(flag ? 1 : 2)
-            #endif
-            print("done")
-        }
-        """))
-        let mapping = try XCTUnwrap(generateSchemataMappings(for: source).first)
-
-        XCTAssertEqual(mapping.codeBlocks.count, 1)
-        XCTAssertFalse(try XCTUnwrap(mapping.codeBlocks.first).contains("#if"), mapping.codeBlocks.description)
-    }
-
-    // Each branch's closing brace took the statement list's leading trivia. When the first statement
-    // shares a line with the `{` that opens the block, that trivia has no line break, so the brace
-    // landed at the end of the block's last line: inside a `//` comment there, or after an `#endif`.
-    // Either way the file didn't compile, and the build every mutant shares failed with it.
-    func test_startsEachClosingBraceOnANewLine_whenTheBlockEndsInALineComment() throws {
-        // Two mutants, so the middle branch's brace is covered as well as the first and last.
-        let rewritten = try rewrite("""
-        func check(_ value: Int) -> Bool { let limit = value > 1
-            return limit && value < 9 // done
-        }
-        """)
-
-        XCTAssertFalse(Parser.parse(source: rewritten).hasError, rewritten)
-        XCTAssertFalse(rewritten.contains("// done}"), rewritten)
-    }
-
-    func test_startsEachClosingBraceOnANewLine_whenTheBlockEndsInAnEndif() throws {
-        let rewritten = try rewrite("""
-        func log(_ flag: Bool) { print(flag ? 1 : 2)
-            #if DEBUG
-            print("debug")
-            #endif
-        }
-        """)
-
-        XCTAssertFalse(Parser.parse(source: rewritten).hasError, rewritten)
-        XCTAssertFalse(rewritten.contains("#endif}"), rewritten)
-    }
-
-    // A `case` body written on the `case` line has no leading line break either.
-    func test_startsEachClosingBraceOnANewLine_inACaseOnOneLine() throws {
-        let rewritten = try rewrite("""
-        func name(_ value: Int) -> String {
-            switch value {
-            case 0: return value > 1 ? "a" : "b" // zero
-            default: return "c"
-            }
-        }
-        """)
-
-        XCTAssertFalse(Parser.parse(source: rewritten).hasError, rewritten)
-        XCTAssertFalse(rewritten.contains("// zero}"), rewritten)
-    }
-
-    // Each branch is checked by its own last line. Removing `notify()` leaves a mutant that ends in
-    // `// c` although the original doesn't, and its brace swallowed the next branch's `} else if`. That
-    // compiled, but the mutant after it could never run.
-    func test_startsAClosingBraceOnANewLine_whenOnlyTheMutantEndsInALineComment() throws {
-        let rewritten = try rewrite("""
-        func step(_ value: Int) { record(value > 1) // c
-            notify()
-        }
-        """)
-
-        XCTAssertFalse(Parser.parse(source: rewritten).hasError, rewritten)
-        XCTAssertFalse(rewritten.contains("// c}"), rewritten)
-    }
-
-    // Inside a one-line string interpolation a line break doesn't compile, so a closure there must keep
-    // its braces on its line. A line break before every brace, the first fix tried, broke these.
-    func test_keepsEachClosingBraceOnItsLine_inAStringInterpolation() throws {
-        let rewritten = try rewrite("""
-        func summary(_ values: [Int]) -> String {
-            let plain = "\\(values.filter { $0 > 1 }.count) big"
-            let raw = #"\\#(values.filter { $0 < 9 }.count) small"#
-            return plain + raw
-        }
-        """)
-
-        XCTAssertFalse(Parser.parse(source: rewritten).hasError, rewritten)
-    }
-
-    // Inside a multi-line string every line, those of an interpolation's code too, must start with the
-    // indentation of the closing `"""`. A brace started on a new line took the statement list's leading
-    // trivia, which is empty when the first statement shares the `{` line, so it landed at column 0.
-    func test_indentsEachClosingBraceOnANewLine_inAMultiLineString() throws {
-        let rewritten = try rewrite("""
-        func summary(_ items: [Int]) -> String {
-            \"""
-            Count: \\(items.filter { let limit = 1
-                return $0 > limit // the big ones
-            }.count)
-            Small: \\(items.filter { $0 < 9 // the small ones
-            }.count)
-            \"""
-        }
-        """)
-
-        XCTAssertFalse(Parser.parse(source: rewritten).hasError, rewritten)
-        // Like the branch's last line, and like the list's first line for a branch on one line.
-        XCTAssertTrue(rewritten.contains("// the big ones\n        } else {"), rewritten)
-        XCTAssertTrue(rewritten.contains("// the big ones\n        }\n    }.count)"), rewritten)
-        XCTAssertTrue(rewritten.contains("// the small ones\n    } else {"), rewritten)
-        XCTAssertTrue(rewritten.contains("// the small ones\n    }\n    }.count)"), rewritten)
-    }
-
-    // The closing `"""` is indented with a tab, so a line indented with spaces alone didn't compile.
-    func test_indentsEachClosingBraceOnANewLine_withTheTabsOfAMultiLineString() throws {
-        let rewritten = try rewrite("""
-        func summary(_ items: [Int]) -> String {
-        \t\"""
-        \tCount: \\(items.filter { let limit = 1
-        \t    return $0 > limit // the big ones
-        \t}.count)
-        \tSmall: \\(items.filter { $0 < 9 // the small ones
-        \t}.count)
-        \t\"""
-        }
-        """)
-
-        XCTAssertFalse(Parser.parse(source: rewritten).hasError, rewritten)
-    }
-
-    // A brace's line starts with the line break of the line whose indentation it copies, so a file's line
-    // endings stay as they are. A line feed alone mixed them, and after a lone carriage return the compiler
-    // checked the brace's line though it never checked the line it copied.
-    func test_startsEachClosingBraceOnANewLine_withTheFilesLineBreaks() throws {
-        let code = """
-        func summary(_ items: [Int]) -> String {
-            \"""
-            Count: \\(items.filter { let limit = 1
-                return $0 > limit // the big ones
-            }.count)
-            Small: \\(items.filter { $0 < 9 // the small ones
-            }.count)
-            \"""
-        }
-        """
-        for lineBreak in ["\r\n", "\r"] {
-            let rewritten = try rewrite(code.replacingOccurrences(of: "\n", with: lineBreak))
-
-            XCTAssertFalse(Parser.parse(source: rewritten).hasError, rewritten)
-            XCTAssertTrue(rewritten.contains("// the big ones\(lineBreak)        } else {"), rewritten)
-            XCTAssertTrue(rewritten.contains("// the small ones\(lineBreak)    } else {"), rewritten)
-        }
-    }
-
-    // Each mutant's branch held a copy of the list's directives, and a `#sourceLocation()` in a copy could close a
-    // location none had opened: test_theGeneratedCodeBuildsAroundSourceLocationDirectives compiles such files. Only
-    // the original's branch keeps them now, at any depth: in a closure, a type, a `case`, a list with a switch of
-    // its own, and a list whose first mutant removes the statement that holds one.
-    func test_keepsEachSourceLocationDirectiveInTheOriginalsBranchAlone() throws {
-        let code = """
-        func record(_ log: (() -> Void) -> Void, _ note: () -> Void) {
-            do {
-                log {
-        #sourceLocation()
-                }
-                note()
-            }
-        }
-        func located(_ items: [Int]) -> Int {
-            let count = items.count > 1 ? 1 : 2; #sourceLocation(file: "Located.swift.gyb", line: 1)
-            let run = { () -> Int in
-        #sourceLocation()
-                return count
-            }
-            struct Box {
-                let value = 1
-        #sourceLocation(file: "Located.swift.gyb", line: 10)
-            }
-            switch count {
-            case 1:
-        #sourceLocation()
-            default:
-                return 0
-            }
-            if count > 0 {
-                let other = count < 5 ? 3 : 4
-        #sourceLocation(file: "Located.swift.gyb", line: 20)
-                return other + run() + Box().value
-            }
-            return count
-        }
-        """
-        let rewritten = try rewrite(code)
-
-        XCTAssertFalse(Parser.parse(source: rewritten).hasError, rewritten)
-        XCTAssertEqual(
-            rewritten.components(separatedBy: "#sourceLocation").count,
-            code.components(separatedBy: "#sourceLocation").count,
-            rewritten
-        )
-        // A `case` that held nothing but a directive must still hold a statement, on the directive's line.
-        XCTAssertTrue(rewritten.contains("case 1:\ndo {}\n    default:"), rewritten)
-        XCTAssertTrue(rewritten.contains("case 1:\n#sourceLocation()\n    default:"), rewritten)
-    }
-
-    private func rewrite(_ code: String) throws -> String {
-        let source = SourceCodeInfo(path: "/path/to/file.swift", code: Parser.parse(source: code))
-        let mapping = try XCTUnwrap(generateSchemataMappings(for: source).first)
-        return MuterRewriter(mapping).rewrite(source.code).description
     }
 
     // A mutant is located in its block by position. Searching the block's text found the first copy of
@@ -663,23 +352,3 @@ private let allOperatorsSourceCode =
     }
 
     """
-
-private struct OperatorIdAndPositionAssert: Equatable {
-    let id: MutationOperator.Id
-    let position: MutationPosition
-}
-
-extension OperatorIdAndPositionAssert: CustomStringConvertible {
-    var description: String {
-        """
-        OperatorIdAndPositionAssert(
-            id: .\(id),
-            position: MutationPosition(
-                utf8Offset: \(position.utf8Offset),
-                line: \(position.line),
-                column: \(position.column)
-            )
-        )
-        """
-    }
-}
