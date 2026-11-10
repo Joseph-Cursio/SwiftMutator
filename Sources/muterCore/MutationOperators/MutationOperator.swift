@@ -4,16 +4,6 @@ import SwiftSyntax
 typealias VisitorInitializer = (MuterConfiguration?, SourceCodeInfo, FileCoverage) -> MuterVisitor
 typealias MutationOperatorList = [MutationOperator.Id]
 
-extension [MutationOperator.Id] {
-    static let allOperators = MutationOperator.Id.allCases
-
-    /// Each operator once, where it first appears: an operator listed twice would test each of its mutants twice.
-    var withoutRepeats: Self {
-        var seen: Set<MutationOperator.Id> = []
-        return filter { seen.insert($0).inserted }
-    }
-}
-
 enum MutationOperator {
     // swiftlint:disable:next type_name - named in every operator and report as `MutationOperator.Id`
     enum Id: String, Codable, CaseIterable {
@@ -31,34 +21,34 @@ enum MutationOperator {
         var visitor: VisitorInitializer {
             switch self {
             case .removeSideEffects:
-                return RemoveSideEffectsOperator.Visitor.init
+                return { RemoveSideEffectsOperator.Visitor(sourceCodeInfo: $1, configuration: $0, coverage: $2) }
 
             case .ror:
-                return ROROperator.Visitor.init
+                return { ROROperator.Visitor(sourceCodeInfo: $1, configuration: $0, coverage: $2) }
 
             case .relationalBoundary:
-                return RelationalBoundaryOperator.Visitor.init
+                return { RelationalBoundaryOperator.Visitor(sourceCodeInfo: $1, configuration: $0, coverage: $2) }
 
             case .logicalOperator:
-                return ChangeLogicalConnectorOperator.Visitor.init
+                return { ChangeLogicalConnectorOperator.Visitor(sourceCodeInfo: $1, configuration: $0, coverage: $2) }
 
             case .swapTernary:
-                return SwapTernaryOperator.Visitor.init
+                return { SwapTernaryOperator.Visitor(sourceCodeInfo: $1, configuration: $0, coverage: $2) }
 
             case .negateConditional:
-                return NegateConditionalOperator.Visitor.init
+                return { NegateConditionalOperator.Visitor(sourceCodeInfo: $1, configuration: $0, coverage: $2) }
 
             case .arithmeticOperator:
-                return ChangeArithmeticOperator.Visitor.init
+                return { ChangeArithmeticOperator.Visitor(sourceCodeInfo: $1, configuration: $0, coverage: $2) }
 
             case .flipBooleanLiteral:
-                return FlipBooleanLiteralOperator.Visitor.init
+                return { FlipBooleanLiteralOperator.Visitor(sourceCodeInfo: $1, configuration: $0, coverage: $2) }
 
             case .replaceBooleanValue:
-                return ReplaceBooleanValueOperator.Visitor.init
+                return { ReplaceBooleanValueOperator.Visitor(sourceCodeInfo: $1, configuration: $0, coverage: $2) }
 
             case .replaceReturnValue:
-                return ReplaceReturnValueOperator.Visitor.init
+                return { ReplaceReturnValueOperator.Visitor(sourceCodeInfo: $1, configuration: $0, coverage: $2) }
             }
         }
 
@@ -120,31 +110,37 @@ enum MutationOperator {
         }
     }
 
-    struct Snapshot: Codable, Equatable {
+    struct Snapshot: Codable, Equatable, CustomDebugStringConvertible {
+        static var null: MutationOperator.Snapshot {
+            MutationOperator.Snapshot(
+                before: "",
+                after: "",
+                description: ""
+            )
+        }
+
         let before: String
         let after: String
         let description: String
+
+        var debugDescription: String {
+            """
+            MutationOperator.Snapshot(
+                before: "\(before)",
+                after: "\(after)",
+                description: "\(description)"
+            )
+            """
+        }
     }
 }
 
-extension MutationOperator.Snapshot {
-    static var null: MutationOperator.Snapshot {
-        MutationOperator.Snapshot(
-            before: "",
-            after: "",
-            description: ""
-        )
-    }
-}
+extension [MutationOperator.Id] {
+    static let allOperators = MutationOperator.Id.allCases
 
-extension MutationOperator.Snapshot: CustomDebugStringConvertible {
-    var debugDescription: String {
-        """
-        MutationOperator.Snapshot(
-            before: "\(before)",
-            after: "\(after)",
-            description: "\(description)"
-        )
-        """
+    /// Each operator once, where it first appears: an operator listed twice would test each of its mutants twice.
+    var withoutRepeats: Self {
+        var seen: Set<MutationOperator.Id> = []
+        return filter { seen.insert($0).inserted }
     }
 }

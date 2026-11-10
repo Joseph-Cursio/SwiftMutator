@@ -74,10 +74,10 @@ class MuterVisitor: SyntaxAnyVisitor {
     }
 
     required init(
-        configuration: MuterConfiguration? = nil,
         sourceCodeInfo: SourceCodeInfo,
         mutationOperatorId: MutationOperator.Id,
-        coverage: FileCoverage
+        coverage: FileCoverage,
+        configuration: MuterConfiguration? = nil
     ) {
         self.configuration = configuration
         self.sourceCodeInfo = sourceCodeInfo

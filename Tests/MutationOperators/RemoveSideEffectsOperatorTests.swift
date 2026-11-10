@@ -249,8 +249,8 @@ final class RemoveSideEffectsOperatorTests: MuterTestCase {
     func removedStatements(in code: String, excludeCalls: [String] = []) throws -> [String] {
         let source = try sourceCode(code)
         let visitor = RemoveSideEffectsOperator.Visitor(
-            configuration: MuterConfiguration(excludeCallList: excludeCalls),
-            sourceCodeInfo: .init(path: "/path/to/file", code: source)
+            sourceCodeInfo: .init(path: "/path/to/file", code: source),
+            configuration: MuterConfiguration(excludeCallList: excludeCalls)
         )
 
         visitor.walk(source)

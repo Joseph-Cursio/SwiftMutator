@@ -6,7 +6,7 @@ final class MutantDiffTests: XCTestCase {
     // An operator's mutant is at its start, so the `>` of `->` on the same line isn't taken for it.
     func test_anOperatorsChange_isTheOneAtItsColumn() throws {
         let source = "func isPositive(_ value: Int) -> Bool { value > 0 }\n"
-        let schema = try XCTUnwrap(schemata(ROROperator.Visitor.init, in: source).first)
+        let schema = try XCTUnwrap(schemata(MutationOperator.Id.ror.visitor, in: source).first)
 
         XCTAssertEqual(diff(of: schema, in: source), [
             "-1: func isPositive(_ value: Int) -> Bool { value > 0 }",
@@ -22,7 +22,7 @@ final class MutantDiffTests: XCTestCase {
         }
 
         """
-        let schemata = schemata(ReplaceBooleanValueOperator.Visitor.init, in: source)
+        let schemata = schemata(MutationOperator.Id.replaceBooleanValue.visitor, in: source)
 
         XCTAssertEqual(schemata.map { diff(of: $0, in: source) }, [
             ["-2:     return queue.isEmpty", "+2:     return true"],
@@ -38,7 +38,7 @@ final class MutantDiffTests: XCTestCase {
         }
 
         """
-        let schemata = schemata(ReplaceBooleanValueOperator.Visitor.init, in: source)
+        let schemata = schemata(MutationOperator.Id.replaceBooleanValue.visitor, in: source)
 
         XCTAssertEqual(schemata.map { diff(of: $0, in: source) }, [
             ["-2:     return(a < b)", "+2:     return true"],
@@ -57,7 +57,7 @@ final class MutantDiffTests: XCTestCase {
         }
 
         """
-        let schemata = schemata(ReplaceReturnValueOperator.Visitor.init, in: source)
+        let schemata = schemata(MutationOperator.Id.replaceReturnValue.visitor, in: source)
 
         XCTAssertEqual(schemata.map { diff(of: $0, in: source) }, [
             ["-2:     return(x)", "+2:     return 0"],
@@ -76,7 +76,7 @@ final class MutantDiffTests: XCTestCase {
         }
 
         """
-        let schema = try XCTUnwrap(schemata(ReplaceReturnValueOperator.Visitor.init, in: source).first)
+        let schema = try XCTUnwrap(schemata(MutationOperator.Id.replaceReturnValue.visitor, in: source).first)
 
         XCTAssertEqual(schema.snapshot.before, "a + b")
         XCTAssertNil(diff(of: schema, in: source))
@@ -95,7 +95,7 @@ final class MutantDiffTests: XCTestCase {
         }
 
         """
-        let schemata = schemata(ROROperator.Visitor.init, in: source)
+        let schemata = schemata(MutationOperator.Id.ror.visitor, in: source)
 
         XCTAssertEqual(schemata.map { diff(of: $0, in: source) }, [
             ["-2:     if a == b { return a.count <= b }", "+2:     if true { return a.count <= b }"],
@@ -115,7 +115,7 @@ final class MutantDiffTests: XCTestCase {
         }
 
         """
-        let schema = try XCTUnwrap(schemata(SwapTernaryOperator.Visitor.init, in: source).first)
+        let schema = try XCTUnwrap(schemata(MutationOperator.Id.swapTernary.visitor, in: source).first)
 
         XCTAssertEqual(diff(of: schema, in: source), [
             "-2:     return flag ? 1 : 2",
@@ -132,7 +132,7 @@ final class MutantDiffTests: XCTestCase {
 
         """
         let schema = try XCTUnwrap(
-            schemata(SwapTernaryOperator.Visitor.init, in: source).first { $0.snapshot.before == "b ? 2 : 3" }
+            schemata(MutationOperator.Id.swapTernary.visitor, in: source).first { $0.snapshot.before == "b ? 2 : 3" }
         )
 
         XCTAssertEqual(diff(of: schema, in: source), [
@@ -154,7 +154,7 @@ final class MutantDiffTests: XCTestCase {
 
         """
         let schema = try XCTUnwrap(
-            schemata(SwapTernaryOperator.Visitor.init, in: source).first { $0.position.line == 4 }
+            schemata(MutationOperator.Id.swapTernary.visitor, in: source).first { $0.position.line == 4 }
         )
 
         XCTAssertNil(diff(of: schema, in: source))
