@@ -3,11 +3,11 @@
 class MutationStepSpy: Spy, MutationStep {
     private(set) var methodCalls: [String] = []
     private(set) var states: [AnyMutationTestState] = []
-    var resultToReturn: Result<[MutationTestState.Change], MuterError>!
+    var resultToReturn: Result<[MutationTestState.Change], MuterError>?
     /// Called as each run is under way, before it returns, so a test can cancel the run of the steps meanwhile.
     var whileRunning: (() -> Void)?
 
-    func run(with state: AnyMutationTestState) async throws -> [MutationTestState.Change] {
+    func run(with state: AnyMutationTestState) throws -> [MutationTestState.Change] {
         methodCalls.append(#function)
         states.append(state)
         whileRunning?()

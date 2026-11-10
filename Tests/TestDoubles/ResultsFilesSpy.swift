@@ -6,34 +6,6 @@ protocol ResultsRecord: Decodable {
     static var recordKind: String { get }
 }
 
-extension ResultsHeader: ResultsRecord {
-    static let recordKind = "header"
-}
-
-extension MutantResult: ResultsRecord {
-    static let recordKind = "mutant"
-}
-
-extension ResultsRetired: ResultsRecord {
-    static let recordKind = "retired"
-}
-
-extension ResultsEnd: ResultsRecord {
-    static let recordKind = "end"
-}
-
-extension ResultsStopped: ResultsRecord {
-    static let recordKind = "stopped"
-}
-
-extension ControlRunResult: ResultsRecord {
-    static let recordKind = "control"
-}
-
-extension PropertyRerunResult: ResultsRecord {
-    static let recordKind = "propertyRerun"
-}
-
 /// Makes results files in memory. Each keeps its lines as a results file would write them. A test sets it up, then
 /// the code under test uses it from one task at a time, so it needs no lock.
 final class ResultsFilesSpy: ResultsFileOpening, @unchecked Sendable {
@@ -135,4 +107,32 @@ final class ResultsFilesSpy: ResultsFileOpening, @unchecked Sendable {
         let decoder = ResultsCoding.decoder
         return try lines.map { try decoder.decode(ResultsCoding.Kind.self, from: Data($0.utf8)).kind }
     }
+}
+
+extension ResultsHeader: ResultsRecord {
+    static let recordKind = "header"
+}
+
+extension MutantResult: ResultsRecord {
+    static let recordKind = "mutant"
+}
+
+extension ResultsRetired: ResultsRecord {
+    static let recordKind = "retired"
+}
+
+extension ResultsEnd: ResultsRecord {
+    static let recordKind = "end"
+}
+
+extension ResultsStopped: ResultsRecord {
+    static let recordKind = "stopped"
+}
+
+extension ControlRunResult: ResultsRecord {
+    static let recordKind = "control"
+}
+
+extension PropertyRerunResult: ResultsRecord {
+    static let recordKind = "propertyRerun"
 }

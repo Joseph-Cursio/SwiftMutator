@@ -19,7 +19,7 @@ final class ServerSpy: Server, @unchecked Sendable {
     /// Called as each request is under way, before it returns or throws, so a test can cancel the check meanwhile.
     var whileFetching: (() -> Void)?
 
-    func data(from url: URL) async throws -> (Data, URLResponse) {
+    func data(from url: URL) throws -> (Data, URLResponse) {
         urlPassed = url
         whileFetching?()
 

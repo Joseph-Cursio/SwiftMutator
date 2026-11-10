@@ -1,4 +1,6 @@
-public extension [String: Any] {
+public extension Dictionary where Key == String, Value == Any {
+    /// Returns a copy keeping only the keys `shouldInclude` accepts, filtering nested dictionaries (also inside
+    /// arrays) the same way.
     func recursivelyFiltered(includingKeysMatching shouldInclude: @escaping (String) -> Bool) -> [String: Any] {
         var filteredDictionary: [String: Any] = [:]
 

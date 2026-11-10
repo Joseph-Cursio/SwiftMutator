@@ -28,11 +28,11 @@ final class WorkerSimulatorsSpy: WorkerSimulating, @unchecked Sendable { // ever
         lock.withLock { whileRemovingAll = hook }
     }
 
-    func sweep(_ mutatedProject: URL) async {
+    func sweep(_ mutatedProject: URL) {
         record("sweep \(mutatedProject.path)")
     }
 
-    func prepare(_ count: Int, like destination: String, for mutatedProject: URL) async throws -> [WorkerSimulator] {
+    func prepare(_ count: Int, like destination: String, for mutatedProject: URL) throws -> [WorkerSimulator] {
         record("prepare \(count) like \(destination) for \(mutatedProject.path)")
         let result = lock.withLock { preparing } ?? .success((0..<count).map { worker in
             WorkerSimulator(
@@ -44,14 +44,14 @@ final class WorkerSimulatorsSpy: WorkerSimulating, @unchecked Sendable { // ever
         return try result.get()
     }
 
-    func boot(_ simulators: [WorkerSimulator]) async throws {
+    func boot(_ simulators: [WorkerSimulator]) throws {
         record("boot \(simulators.map(\.udid).joined(separator: " "))")
         if let error = lock.withLock({ booting }) {
             throw error
         }
     }
 
-    func removeAll() async {
+    func removeAll() {
         record("removeAll")
         lock.withLock { whileRemovingAll }?()
     }
