@@ -38,6 +38,9 @@ extension Run.Options {
         mutant: MutantReference? = nil
     ) -> Self {
         .init(
+            skipCoverage: skipCoverage,
+            skipUpdateCheck: skipUpdateCheck,
+            configurationURL: configurationURL,
             filesToMutate: filesToMutate,
             exclude: exclude,
             since: since,
@@ -48,10 +51,7 @@ extension Run.Options {
             reportURL: reportURL,
             reports: reports,
             mutationOperatorsList: mutationOperatorsList,
-            skipCoverage: skipCoverage,
-            skipUpdateCheck: skipUpdateCheck,
             verbose: verbose,
-            configurationURL: configurationURL,
             testPlanURL: testPlanURL,
             workers: workers,
             timeout: timeout,

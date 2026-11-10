@@ -38,13 +38,13 @@ struct RunWithoutMutating: RunCommand {
     /// The options the command line gives the run.
     var runOptions: Run.Options {
         Run.Options(
+            skipCoverage: options.skipCoverage,
+            skipUpdateCheck: options.skipUpdateCheck,
+            configurationURL: options.configurationURL,
             reportFormat: reportOptions.reportFormat,
             reportURL: reportOptions.reportURL,
             reports: reportOptions.reportRequests,
-            skipCoverage: options.skipCoverage,
-            skipUpdateCheck: options.skipUpdateCheck,
             verbose: options.verbose,
-            configurationURL: options.configurationURL,
             testPlanURL: testPlanURL,
             workers: testing.workers,
             timeout: testing.timeout,

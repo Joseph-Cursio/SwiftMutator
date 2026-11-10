@@ -18,15 +18,15 @@ struct MutateWithoutRunning: RunCommand {
     /// The options the command line gives the run.
     var runOptions: Run.Options {
         Run.Options(
+            skipCoverage: options.skipCoverage,
+            skipUpdateCheck: options.skipUpdateCheck,
+            configurationURL: options.configurationURL,
             filesToMutate: selection.filesToMutate,
             exclude: selection.exclude,
             mutationOperatorsList: selection.mutationOperatorsList,
             operatorsAreNamed: selection.operatorsAreNamed,
             skipOperators: selection.skippedOperators,
-            skipCoverage: options.skipCoverage,
-            skipUpdateCheck: options.skipUpdateCheck,
             verbose: options.verbose,
-            configurationURL: options.configurationURL,
             buildTimeout: options.buildTimeout,
             createTestPlan: true
         )

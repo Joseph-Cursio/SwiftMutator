@@ -47,7 +47,8 @@ final class SampleTests: XCTestCase {
         for size in 1...6 {
             for seed: UInt64 in 0..<20 {
                 let sample = Sample(size: size, seed: seed, seedIsChosen: false)
-                let (kept, selection, leftOut) = mappings.keepingSample(sample, under: mutatedRoot)
+                let picked = mappings.keepingSample(sample, under: mutatedRoot)
+                let (kept, selection, leftOut) = (picked.mappings, picked.selection, picked.leftOut)
                 let sampled = keys(of: kept)
                 XCTAssertTrue(Set(sampled).isSubset(of: Set(wholeRun)), "\(size), seed \(seed)")
                 XCTAssertEqual(leftOut, Set(wholeRun).subtracting(sampled), "\(size), seed \(seed)")
@@ -66,7 +67,8 @@ final class SampleTests: XCTestCase {
     func test_aSampleOfAtLeastEveryMutant_isTheWholeRun() throws {
         let mappings = try manyPlaces()
         let sample = Sample(size: 500, seed: 3, seedIsChosen: true)
-        let (kept, selection, _) = mappings.keepingSample(sample, under: mutatedRoot)
+        let picked = mappings.keepingSample(sample, under: mutatedRoot)
+        let (kept, selection) = (picked.mappings, picked.selection)
 
         XCTAssertEqual(keys(of: kept), keys(of: mappings))
         XCTAssertEqual(selection, SampleSelection(size: 500, seed: 3, mutantsSampledFrom: 200, mutantsSampled: 200))
