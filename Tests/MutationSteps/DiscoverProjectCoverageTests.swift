@@ -2,6 +2,28 @@
 import TestingExtensions
 import XCTest
 
+/// A coverage run that ends however `run` says, after doing whatever it does, having printed `output`.
+private final class CoverageStub: BuildSystemCoverage {
+    @Dependency(\.process)
+    var process: ProcessFactory
+    let coverageRunOutput: String?
+
+    private let result: () -> Result<Coverage, CoverageError>
+
+    init(output: String? = nil, _ result: @escaping () -> Result<Coverage, CoverageError>) {
+        coverageRunOutput = output
+        self.result = result
+    }
+
+    func run(with _: MuterConfiguration) -> Result<Coverage, CoverageError> {
+        result()
+    }
+
+    func buildDirectory(_: MuterConfiguration) -> String? {
+        nil
+    }
+}
+
 final class DiscoverProjectCoverageTests: MuterTestCase {
     private let state = MutationTestState()
 
@@ -232,27 +254,5 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
         XCTAssertThrowsError(try result.get()) { XCTAssertTrue($0 is CancellationError, "\($0)") }
         XCTAssertEqual(fileManager.paths, ["/logs/coverage run.log"])
         XCTAssertEqual(fileManager.contents, Data("◇ Test hangs() started.\n".utf8))
-    }
-}
-
-/// A coverage run that ends however `run` says, after doing whatever it does, having printed `output`.
-private final class CoverageStub: BuildSystemCoverage {
-    @Dependency(\.process)
-    var process: ProcessFactory
-    let coverageRunOutput: String?
-
-    private let result: () -> Result<Coverage, CoverageError>
-
-    init(output: String? = nil, _ result: @escaping () -> Result<Coverage, CoverageError>) {
-        coverageRunOutput = output
-        self.result = result
-    }
-
-    func run(with _: MuterConfiguration) -> Result<Coverage, CoverageError> {
-        result()
-    }
-
-    func buildDirectory(_: MuterConfiguration) -> String? {
-        nil
     }
 }

@@ -4,6 +4,13 @@ import XCTest
 /// `// muter:disable` and `// muter:enable` act by where they are, once each, whichever nodes share the comment. A tag
 /// beside code leaves that code off: a `disable` covers the code it follows, and an `enable` starts after it.
 final class DisableTagTests: MuterTestCase {
+    /// A line of code with an `enable` beside it, the operator that mutates it, and the changes expected.
+    private struct EnableBesideCode {
+        let id: MutationOperator.Id
+        let line: String
+        let expected: [String]
+    }
+
     private func mutants(in code: String, by id: MutationOperator.Id) throws -> [MutationSchema] {
         let source = try sourceCode(code)
         let visitor = id.visitor(nil, .init(path: "/path/to/file", code: source), .empty)
@@ -47,16 +54,25 @@ final class DisableTagTests: MuterTestCase {
     }
 
     func test_anEnableBesideCode_leavesItOff_forEachKindOfOperator() throws {
-        let cases: [(MutationOperator.Id, String, [String])] = [
-            (
-                .ror,
-                "return a == b // muter:enable",
-                ["6 replaced the comparison with false", "6 replaced the comparison with true"]
+        let cases: [EnableBesideCode] = [
+            EnableBesideCode(
+                id: .ror,
+                line: "return a == b // muter:enable",
+                expected: ["6 replaced the comparison with false", "6 replaced the comparison with true"]
             ),
-            (.logicalOperator, "return a && b // muter:enable", ["6 changed && to ||"]),
-            (.arithmeticOperator, "return a - b // muter:enable", ["6 changed - to +"]),
+            EnableBesideCode(
+                id: .logicalOperator,
+                line: "return a && b // muter:enable",
+                expected: ["6 changed && to ||"]
+            ),
+            EnableBesideCode(
+                id: .arithmeticOperator,
+                line: "return a - b // muter:enable",
+                expected: ["6 changed - to +"]
+            ),
         ]
-        for (id, line, expected) in cases {
+        for testCase in cases {
+            let line = testCase.line
             let symbol = line.split(separator: " ")[2]
             let code = """
             func f() {
@@ -67,7 +83,7 @@ final class DisableTagTests: MuterTestCase {
                 return a \(symbol) b
             }
             """
-            XCTAssertEqual(try changes(in: code, by: id), expected, line)
+            XCTAssertEqual(try changes(in: code, by: testCase.id), testCase.expected, line)
         }
     }
 

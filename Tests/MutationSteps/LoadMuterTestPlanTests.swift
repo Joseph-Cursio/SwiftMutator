@@ -31,10 +31,11 @@ final class LoadMuterTestPlanTests: MuterTestCase {
     func test_loadMuterTestPlan() async throws {
         state.runOptions = .make(testPlanURL: URL(fileURLWithPath: testPlanPath))
         state.projectDirectoryURL = project
-        let data = MuterTestPlan.make(
+        let plan = MuterTestPlan.make(
             mutatedProjectPath: "/path/to/project_mutated",
             projectCoverage: 23
-        ).toData(under: project)
+        )
+        let data = plan.toData(under: project)
         fileManager.fileContentsToReturn = data
 
         let result = try await sut.run(with: state)
@@ -143,10 +144,11 @@ final class LoadMuterTestPlanTests: MuterTestCase {
         let outside = SchemataMutationMapping(filePath: "/elsewhere/Outside.swift")
         state.runOptions = .make(testPlanURL: URL(fileURLWithPath: testPlanPath))
         state.projectDirectoryURL = project
-        fileManager.fileContentsToReturn = MuterTestPlan.make(
+        let plan = MuterTestPlan.make(
             linkedFiles: ["Sources/Check.swift": "abc"],
             mappings: [try mapping(), outside]
-        ).toData(under: project)
+        )
+        fileManager.fileContentsToReturn = plan.toData(under: project)
 
         state.apply(try await sut.run(with: state))
 
@@ -205,9 +207,10 @@ final class LoadMuterTestPlanTests: MuterTestCase {
         state.runOptions = .make(testPlanURL: URL(fileURLWithPath: testPlanPath))
         state.mutationOperatorList = .allOperators
         state.projectDirectoryURL = project
-        fileManager.fileContentsToReturn = MuterTestPlan.make(
+        let plan = MuterTestPlan.make(
             scope: TestPlanScope(operators: [.swapTernary, .logicalOperator], filesToMutate: ["Sources/Check.swift"])
-        ).toData(under: project)
+        )
+        fileManager.fileContentsToReturn = plan.toData(under: project)
 
         state.apply(try await sut.run(with: state))
 
@@ -239,10 +242,11 @@ final class LoadMuterTestPlanTests: MuterTestCase {
         state.runOptions = .make(testPlanURL: URL(fileURLWithPath: testPlanPath))
         state.projectDirectoryURL = project
         state.muterConfiguration = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
-        fileManager.fileContentsToReturn = MuterTestPlan.make(
+        let plan = MuterTestPlan.make(
             mutatedProjectPath: "/path/to/project_mutated",
             mappings: [try mapping()]
-        ).toData(under: project)
+        )
+        fileManager.fileContentsToReturn = plan.toData(under: project)
 
         let result = try await sut.run(with: state)
 

@@ -4,6 +4,19 @@ import TestingExtensions
 import XCTest
 
 final class SelectMutantTests: MuterTestCase {
+    /// Where a mutant is, and by which operator.
+    private struct Place {
+        let line: Int
+        let column: Int
+        let mutationOperatorId: MutationOperator.Id
+
+        init(_ line: Int, _ column: Int, _ mutationOperatorId: MutationOperator.Id) {
+            self.line = line
+            self.column = column
+            self.mutationOperatorId = mutationOperatorId
+        }
+    }
+
     private let state = MutationTestState()
     private let sut = SelectMutant()
     private let project = URL(fileURLWithPath: "/code/project")
@@ -14,9 +27,9 @@ final class SelectMutantTests: MuterTestCase {
         state.projectDirectoryURL = project
         state.mutatedProjectDirectoryURL = copy
         state.mutationMapping = try [
-            mapping("Sources/Foo/Bar.swift", [(12, 9, .ror), (12, 20, .ror), (30, 5, .swapTernary)]),
-            mapping("Sources/Other/Bar.swift", [(12, 9, .ror)]),
-            mapping("Sources/Sum.swift", [(3, 4, .ror), (3, 4, .ror), (7, 1, .ror)]),
+            mapping("Sources/Foo/Bar.swift", [Place(12, 9, .ror), Place(12, 20, .ror), Place(30, 5, .swapTernary)]),
+            mapping("Sources/Other/Bar.swift", [Place(12, 9, .ror)]),
+            mapping("Sources/Sum.swift", [Place(3, 4, .ror), Place(3, 4, .ror), Place(7, 1, .ror)]),
         ]
     }
 
@@ -107,7 +120,7 @@ final class SelectMutantTests: MuterTestCase {
     // At most five, the nearest by line, listed in the run's order.
     func test_aPlaceWithNoMutant_listsAtMostFive() async throws {
         state.mutationMapping = try [
-            mapping("Sources/Long.swift", (1...9).map { (line: $0 * 10, column: 1, mutationOperatorId: .ror) }),
+            mapping("Sources/Long.swift", (1...9).map { Place($0 * 10, 1, .ror) }),
         ]
         state.runOptions = .make(mutant: try MutantReference.parse("Long.swift:52"))
 
@@ -169,7 +182,7 @@ final class SelectMutantTests: MuterTestCase {
 
     // A place with repeats is listed once, as a note rather than an option, since each of its mutants is refused; every
     // option listed is one that's accepted.
-    func test_aRefusalsList_marksAPlaceWithRepeats_andOffersOnlyMutantsTestedAlone() async throws {
+    func test_aRefusalsList_marksAPlaceWithRepeats_andOffersOnlyMutantsTestedAlone() throws {
         let keys = MutantKey.keys(for: state.mutationMapping.flatMap(\.mutationSchemata), under: copy)
         let note = "  'Sources/Sum.swift:3:4 RelationalOperatorReplacement': one of 2 RelationalOperatorReplacement "
             + "mutants that share one switch, so can't be tested alone"
@@ -188,7 +201,10 @@ final class SelectMutantTests: MuterTestCase {
         }
 
         state.mutationMapping = try [
-            mapping("Sources/Sum.swift", [(3, 4, .ror), (3, 4, .ror), (3, 9, .ror), (3, 9, .ror)]),
+            mapping(
+                "Sources/Sum.swift",
+                [Place(3, 4, .ror), Place(3, 4, .ror), Place(3, 9, .ror), Place(3, 9, .ror)]
+            ),
         ]
         let everyPlaceRepeated = MutantKey.keys(for: state.mutationMapping.flatMap(\.mutationSchemata), under: copy)
         XCTAssertThrowsError(
@@ -208,8 +224,14 @@ final class SelectMutantTests: MuterTestCase {
             )
         }
 
+        try assertOnlyMutantsTestedAloneAreOffered()
+    }
+
+    /// With a place of repeats beside one of a single mutant, the message offers only the single one, and that option
+    /// is accepted.
+    private func assertOnlyMutantsTestedAloneAreOffered() throws {
         state.mutationMapping = try [
-            mapping("Sources/Sum.swift", [(3, 4, .ror), (3, 9, .ror), (3, 9, .ror)]),
+            mapping("Sources/Sum.swift", [Place(3, 4, .ror), Place(3, 9, .ror), Place(3, 9, .ror)]),
         ]
         let repeatedKeys = MutantKey.keys(for: state.mutationMapping.flatMap(\.mutationSchemata), under: copy)
         var message = ""
@@ -242,7 +264,7 @@ final class SelectMutantTests: MuterTestCase {
     /// own.
     private func mapping(
         _ path: String,
-        _ places: [(line: Int, column: Int, mutationOperatorId: MutationOperator.Id)]
+        _ places: [Place]
     ) throws -> SchemataMutationMapping {
         let filePath = copy.appendingPathComponent(path).path
         var mapping = SchemataMutationMapping(filePath: filePath)

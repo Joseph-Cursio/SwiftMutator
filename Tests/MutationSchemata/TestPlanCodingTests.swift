@@ -43,7 +43,8 @@ final class TestPlanCodingTests: XCTestCase {
             "projectCoverage", "sources", "swiftMutatorVersion",
         ]
         assertInOrder(text, keys.map { "\"\($0)\"" })
-        let mutant = try String(lossyUTF8: TestPlanCoding.encoder.encode(mutant(in: "\(copy)/Sources/Sum.swift", line: 1)))
+        let encoded = try TestPlanCoding.encoder.encode(mutant(in: "\(copy)/Sources/Sum.swift", line: 1))
+        let mutant = String(lossyUTF8: encoded)
         assertInOrder(mutant, ["\"filePath\"", "\"id\"", "\"mutationOperatorId\"", "\"position\"", "\"snapshot\""])
     }
 
@@ -175,7 +176,8 @@ final class TestPlanCodingTests: XCTestCase {
         try FileManager.default.createDirectory(at: projectFolder, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: copyFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
-        let text = try TestPlanCoding.encode(MuterTestPlan.make(mutatedProjectPath: copyFolder.path), under: projectFolder)
+        let plan = MuterTestPlan.make(mutatedProjectPath: copyFolder.path)
+        let text = try TestPlanCoding.encode(plan, under: projectFolder)
 
         let read = try TestPlanCoding.read(Data(text.utf8), path: planPath, under: projectFolder)
 
