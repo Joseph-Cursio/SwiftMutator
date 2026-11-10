@@ -48,7 +48,7 @@ enum XcodeBuildConditions {
         let namesInBuildFiles = names(in: buildFiles, arguments: arguments, environment: environment)
         // A build file the scan didn't read may set conditions, for a target xcodebuild didn't report, that no file
         // it read names.
-        let aBuildFileItDidntReadMaySetSome = mayHaveUnreadBuildFiles(buildFiles, arguments, environment)
+        let aBuildFileItDidntReadMaySetSome = mayHaveUnreadBuildFiles(buildFiles, arguments, environment, root: root)
         // A target xcodebuild didn't report, such as the framework the tests test, may build with its own compiler.
         let aTargetMayPickItsCompiler = aBuildFileItDidntReadMaySetSome
             || !namesInBuildFiles.isDisjoint(with: ["TOOLCHAINS", "SWIFT_EXEC"])
@@ -69,7 +69,7 @@ enum XcodeBuildConditions {
                     in: arguments,
                     buildFiles: buildFiles,
                     compiler: compiler,
-                    environment: environment
+                    aBuildFileItDidntReadMaySetIt: aBuildFileItDidntReadMaySetSome
                 ),
                 anyConditionMayBeSetElsewhere: aBuildFileItDidntReadMaySetSome
                     || mayComposeConditions(buildFiles, arguments, environment)
@@ -169,14 +169,12 @@ enum XcodeBuildConditions {
     ]
 
     /// What in a build file may compile a file SwiftMutator doesn't find in a list in `OBJROOT`, or with conditions
-    /// `-showBuildSettings` doesn't report: in a workspace, a project outside the project's folder; in workspace
-    /// settings, a build location of their own; and in a project file or build configuration file, a setting for an
-    /// architecture or variant, another project, a target an external tool builds, a script that runs the compiler or
-    /// another build, or a setting that moves intermediate files.
+    /// `-showBuildSettings` doesn't report: in workspace settings, a build location of their own; and in a project file
+    /// or build configuration file, a setting for an architecture or variant, another project, a target an external
+    /// tool builds, a script that runs the compiler or another build, or a setting that moves intermediate files.
     private static func mayCompileOutOfSight(_ file: BuildFile) -> Bool {
-        if file.name == "contents.xcworkspacedata" {
-            return mayLeaveTheFolder(workspace: file.text)
-        }
+        // A workspace's projects are the caller's: it goes by the lists only where it read all their build files,
+        // which this then looks at in turn.
         if file.name.hasSuffix(".xcsettings") {
             return file.text.contains("BuildLocation")
         }
@@ -406,9 +404,9 @@ enum XcodeBuildConditions {
         in arguments: [String],
         buildFiles: [BuildFile],
         compiler: VersionTuple?,
-        environment: [String: String]
+        aBuildFileItDidntReadMaySetIt: Bool
     ) -> VersionTuple? {
-        guard !mayHaveUnreadBuildFiles(buildFiles, arguments, environment) else { return nil }
+        guard !aBuildFileItDidntReadMaySetIt else { return nil }
         let flags = targets.flatMap {
             ($0["OTHER_SWIFT_FLAGS"] ?? "").split(whereSeparator: \.isWhitespace).map(String.init)
         }
@@ -458,17 +456,23 @@ enum XcodeBuildConditions {
 
     /// Whether a build file SwiftMutator didn't read may set what a target builds with: a build configuration file
     /// that `-xcconfig` or `XCODE_XCCONFIG_FILE` names, or a project file or build configuration file bases settings
-    /// on (`namesAnUnreadConfigurationFile`), or the project file of a project a workspace or another project
-    /// references outside the project, or where SwiftMutator can't tell, with build configuration files of its own.
+    /// on (`namesAnUnreadConfigurationFile`), outside the project or where SwiftMutator can't tell, or the project
+    /// file or manifest of a project or package a workspace or another project references, likewise, with build
+    /// files of its own. `root` is the folder the test command runs in, which a relative path is from.
     static func mayHaveUnreadBuildFiles(
         _ buildFiles: [BuildFile],
         _ arguments: [String],
-        _ environment: [String: String]
+        _ environment: [String: String],
+        root: FilePath
     ) -> Bool {
         let readProjects = Set(buildFiles.filter { $0.name == "project.pbxproj" }.map(\.path.canonicalPath))
+        let readManifests = Set(buildFiles.filter { $0.name == "Package.swift" }.map(\.path.canonicalPath))
+        let readConfigurationFiles = Set(
+            buildFiles.filter { $0.name.hasSuffix(".xcconfig") }.map(\.path.canonicalPath)
+        )
         let referencesAnotherProject = buildFiles.contains { file in
             if file.name == "contents.xcworkspacedata" {
-                return mayLeaveTheFolder(workspace: file.text)
+                return referencesAnUnreadProject(file, readProjects: readProjects, readManifests: readManifests)
             }
             guard file.name == "project.pbxproj" else { return false }
             return referencedProjects(ofProject: file).map { projects in
@@ -479,17 +483,15 @@ enum XcodeBuildConditions {
         let movesTheProjectFolder = arguments.contains { argument in
             argument.firstIndex(of: "=").map { projectFolderSettings.contains(String(argument[..<$0])) } ?? false
         }
-        return arguments.contains("-xcconfig")
+        let commandsFilesAreRead = configurationFiles(ofCommand: arguments, environment, root: root).map { files in
+            files.allSatisfy { file in
+                [file, lexicallyNormalized(file)].allSatisfy { readConfigurationFiles.contains($0.canonicalPath) }
+            }
+        } ?? false
+        return !commandsFilesAreRead
             || movesTheProjectFolder
-            || environment["XCODE_XCCONFIG_FILE"] != nil
             || namesAnUnreadConfigurationFile(buildFiles)
             || referencesAnotherProject
-    }
-
-    /// Whether a workspace may reference a project outside the project's folder: by an absolute path, or one that goes
-    /// up a folder, as `group:../Core` or `group:..` does.
-    private static func mayLeaveTheFolder(workspace text: String) -> Bool {
-        text.contains("absolute:") || text.contains("..")
     }
 
     /// A project file, build configuration file or package manifest in the project, as `buildFiles` reads it.
