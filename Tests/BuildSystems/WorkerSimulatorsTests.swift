@@ -223,7 +223,8 @@ final class WorkerSimulatorsTests: MuterTestCase {
     /// Simulators made by `owner`, with only `running`, and `owner`, still running.
     func makeSimulators(running: Set<RecordedProcess> = []) -> WorkerSimulators {
         let stillRunning = running.union([owner])
-        current.process = { [simctl] in simctl }
+        let standIn = simctl
+        current.process = { standIn }
         return WorkerSimulators(owner: owner) { stillRunning.contains($0) }
     }
 
