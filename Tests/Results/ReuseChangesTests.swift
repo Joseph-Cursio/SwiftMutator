@@ -48,7 +48,7 @@ final class ReuseChangesTests: XCTestCase {
         ] {
             XCTAssertFalse(ReuseChanges.isTestFile(path, readSource: readSource), path)
         }
-        XCTAssertFalse(ReuseChanges.isTestFile("Tests/SumTests/SumTests.swift", readSource: { _ in nil }), "unreadable")
+        XCTAssertFalse(ReuseChanges.isTestFile("Tests/SumTests/SumTests.swift") { _ in nil }, "unreadable")
     }
 
     func test_init_splitsTestFilesFromOthers_andGlobsWaiveOnlyTheOthers() {
@@ -142,9 +142,8 @@ final class ReuseChangesTests: XCTestCase {
             let changes = ReuseChanges(
                 from: tree(Self.recorded.merging([path: "0007"]) { $1 }),
                 to: tree(Self.recorded.merging([path: "ffff"]) { $1 }),
-                waiving: [],
-                readSource: { changedSources[$0] }
-            )
+                waiving: []
+            ) { changedSources[$0] }
 
             XCTAssertFalse(changes.killHolds(kill(by: ("addsTwoNumbers()", "SumTests.swift:2:33"))), helper)
         }
@@ -188,9 +187,8 @@ final class ReuseChangesTests: XCTestCase {
             let changes = ReuseChanges(
                 from: tree(recordedCode),
                 to: tree(current),
-                waiving: [],
-                readSource: { Self.sources[$0] ?? "import Testing\n@Test func addsTwoNumbers() {}" }
-            )
+                waiving: []
+            ) { Self.sources[$0] ?? "import Testing\n@Test func addsTwoNumbers() {}" }
 
             XCTAssertFalse(changes.killHolds(kill(by: ("addsTwoNumbers()", "\(file):2:32"))), file)
         }
@@ -209,9 +207,8 @@ final class ReuseChangesTests: XCTestCase {
         let changes = ReuseChanges(
             from: tree(Self.recorded),
             to: tree(Self.recorded.merging(["Tests/SumTests/ProductTests.swift": "ffff"]) { $1 }),
-            waiving: [],
-            readSource: { changedSources[$0] }
-        )
+            waiving: []
+        ) { changedSources[$0] }
 
         for name in ["\"Adds two numbers\"", "add(_:)", "Suite \"Sums\"", "Suite SumTests"] {
             XCTAssertTrue(changes.killHolds(kill(by: (name, "SumTests.swift:2:5"))), name)
@@ -233,9 +230,8 @@ final class ReuseChangesTests: XCTestCase {
         let changes = ReuseChanges(
             from: tree(Self.recorded),
             to: tree(Self.recorded.merging(["Tests/SumTests/ProductTests.swift": "ffff"]) { $1 }),
-            waiving: [],
-            readSource: { $0 == "Tests/SumTests/ProductTests.swift" ? nil : Self.sources[$0] }
-        )
+            waiving: []
+        ) { $0 == "Tests/SumTests/ProductTests.swift" ? nil : Self.sources[$0] }
 
         XCTAssertEqual(changes.otherFiles, [.init(path: "Tests/SumTests/ProductTests.swift", kind: .changed)])
     }
@@ -253,7 +249,7 @@ private extension ReuseChangesTests {
 
     /// The changes from `recorded`'s tree to one holding `current`, with `sources` as the test files' text.
     func reuse(to current: [String: String], waiving globs: [String] = []) -> ReuseChanges {
-        ReuseChanges(from: tree(Self.recorded), to: tree(current), waiving: globs, readSource: { Self.sources[$0] })
+        ReuseChanges(from: tree(Self.recorded), to: tree(current), waiving: globs) { Self.sources[$0] }
     }
 
     /// The changes of a reuse after the test file at `path` changed to `text`, which imports Testing.
@@ -262,9 +258,8 @@ private extension ReuseChangesTests {
         return ReuseChanges(
             from: tree(Self.recorded),
             to: tree(Self.recorded.merging([path: "ffff"]) { $1 }),
-            waiving: [],
-            readSource: { sources[$0] }
-        )
+            waiving: []
+        ) { sources[$0] }
     }
 
     /// A kill recorded with the named tests failing, each at its location.

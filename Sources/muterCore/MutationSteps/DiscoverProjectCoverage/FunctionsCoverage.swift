@@ -43,9 +43,8 @@ final class FunctionsCoverage: Sendable {
         let count = { (index: Int) in body(index)?.executionCount ?? 0 }
         // llvm-cov names every function, but a test's record may have no name.
         let sharingABody = Dictionary(
-            grouping: functions.indices.filter { functions[$0].name != nil && body($0) != nil },
-            by: { body($0).map { [$0.lineStart, $0.columnStart, $0.lineEnd, $0.columnEnd] } }
-        )
+            grouping: functions.indices.filter { functions[$0].name != nil && body($0) != nil }
+        ) { body($0).map { [$0.lineStart, $0.columnStart, $0.lineEnd, $0.columnEnd] } }
         var regions = functions.map(\.regions)
         var dropped = Set<Int>()
         for records in sharingABody.values {

@@ -122,11 +122,11 @@ final class ProcessTreeTerminateTests: XCTestCase {
     // A process that ended by itself may have given its ID to another, which is no part of this tree.
     func test_aKill_leavesAProcessAlone_onceItsIDWentToAnother() {
         var checks = 0
-        let run = killing(root: 1, listings: [[2]], startTime: { pid in
+        let run = killing(root: 1, listings: [[2]]) { pid in
             guard pid == 2 else { return nil }
             checks += 1
             return checks < 2 ? 100 : 200
-        })
+        }
 
         XCTAssertEqual(run.steps, ["started 2", "started 1", "(2, KILL)", "(1, KILL)", "pause 1000", "started 2"])
     }
@@ -277,18 +277,14 @@ final class ProcessTreeTerminateTests: XCTestCase {
                 record.pauses.append(microseconds)
             }
         )
-        terminating(
-            root,
-            { _ in
-                listingCount += 1
-                return listings[min(listingCount, listings.count) - 1]
-            },
-            check,
-            { pid, signal in
-                record.sent.append(Sent(pid, signal))
-                if signal == SIGKILL { record.steps.append(Sent(pid, signal).description) }
-            }
-        )
+        let descendants = { (_: Int32) -> [Int32] in
+            listingCount += 1
+            return listings[min(listingCount, listings.count) - 1]
+        }
+        terminating(root, descendants, check) { pid, signal in
+            record.sent.append(Sent(pid, signal))
+            if signal == SIGKILL { record.steps.append(Sent(pid, signal).description) }
+        }
         return record
     }
 
@@ -347,20 +343,16 @@ final class ProcessTreeTerminateTests: XCTestCase {
                 return false
             }
         )
-        let stopped = ProcessTree.stopDescendants(
-            of: 1,
-            descendants: { parent in
-                XCTAssertEqual(parent, 1, "lists only the root's descendants", file: file, line: line)
-                listingCount += 1
-                steps.append("list")
-                return listings[min(listingCount, listings.count) - 1]
-            },
-            settling: settling,
-            signal: { pid, signal in
-                sent.append(Sent(pid, signal))
-                steps.append(Sent(pid, signal).description)
-            }
-        )
+        let descendants = { (parent: Int32) -> [Int32] in
+            XCTAssertEqual(parent, 1, "lists only the root's descendants", file: file, line: line)
+            listingCount += 1
+            steps.append("list")
+            return listings[min(listingCount, listings.count) - 1]
+        }
+        let stopped = ProcessTree.stopDescendants(of: 1, descendants: descendants, settling: settling) { pid, signal in
+            sent.append(Sent(pid, signal))
+            steps.append(Sent(pid, signal).description)
+        }
         return (sent, listingCount, steps, stopped)
     }
 
@@ -373,17 +365,17 @@ final class ProcessTreeTerminateTests: XCTestCase {
     ) -> (sent: [Sent], listings: Int) {
         var sent: [Sent] = []
         var listingCount = 0
-        terminating(
-            root,
-            { parent in
-                XCTAssertEqual(parent, root, "lists only the root's descendants", file: file, line: line)
-                listingCount += 1
-                return listings[min(listingCount, listings.count) - 1]
-            },
-            // Made-up IDs, each read as having ended, so that no check looks at a real process of that ID.
-            ProcessTree.KillCheck(startTime: { _ in nil }, pause: { _ in XCTFail("paused", file: file, line: line) }),
-            { pid, signal in sent.append(Sent(pid, signal)) }
+        let descendants = { (parent: Int32) -> [Int32] in
+            XCTAssertEqual(parent, root, "lists only the root's descendants", file: file, line: line)
+            listingCount += 1
+            return listings[min(listingCount, listings.count) - 1]
+        }
+        // Made-up IDs, each read as having ended, so that no check looks at a real process of that ID.
+        let check = ProcessTree.KillCheck(
+            startTime: { _ in nil },
+            pause: { _ in XCTFail("paused", file: file, line: line) }
         )
+        terminating(root, descendants, check) { pid, signal in sent.append(Sent(pid, signal)) }
         return (sent, listingCount)
     }
 }

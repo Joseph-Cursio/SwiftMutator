@@ -181,9 +181,9 @@ struct MuterDirectives {
     /// The innermost declaration that holds `token`. A `#if` among a declaration's attributes is one too, so the
     /// declaration whose attributes hold it is taken instead.
     private static func declaration(holding token: TokenSyntax) -> DeclSyntax? {
-        var found = token.parent?.ancestorOrSelf(mapping: { $0.as(DeclSyntax.self) })
+        var found = token.parent?.ancestorOrSelf { $0.as(DeclSyntax.self) }
         while let ifConfig = found?.as(IfConfigDeclSyntax.self), ifConfig.parent?.is(AttributeListSyntax.self) == true {
-            found = ifConfig.parent?.ancestorOrSelf(mapping: { $0.as(DeclSyntax.self) })
+            found = ifConfig.parent?.ancestorOrSelf { $0.as(DeclSyntax.self) }
         }
         return found
     }

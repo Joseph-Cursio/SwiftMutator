@@ -25,7 +25,7 @@ enum SimulatorTrouble: Equatable {
     /// `FailedTestLine.lineLengthLimit` characters.
     static func first(inLog log: String) -> Self? {
         // "\r\n" is a single Character, so a log with those line breaks isn't split at "\n" alone.
-        let lines = log.split(whereSeparator: { $0 == "\n" || $0 == "\r\n" })
+        let lines = log.split { $0 == "\n" || $0 == "\r\n" }
         guard !lines.contains(where: { FailedTestLine.matches($0) || showsParallelTestingFailure($0) }) else {
             return nil
         }

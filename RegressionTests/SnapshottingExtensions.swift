@@ -10,7 +10,7 @@ extension Snapshotting where Value: Encodable, Format == String {
                 options: []
             ) as! [String: Any]
 
-            let newDictionary = workingDictionary.recursivelyFiltered(includingKeysMatching: { !predicate($0) })
+            let newDictionary = workingDictionary.recursivelyFiltered { !predicate($0) }
             let data = try! JSONSerialization.data(
                 withJSONObject: newDictionary,
                 options: [.sortedKeys, .prettyPrinted]

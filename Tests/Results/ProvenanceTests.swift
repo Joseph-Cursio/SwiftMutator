@@ -61,9 +61,8 @@ final class ProvenanceTests: XCTestCase {
             let provenance = await Provenance.probe(
                 MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"]),
                 executable: nil,
-                environment: [:],
-                output: { _, _ in said }
-            )
+                environment: [:]
+            ) { _, _ in said }
 
             XCTAssertNil(provenance.toolchain.testCommandVersion, "\(String(describing: said))")
         }
@@ -79,12 +78,11 @@ final class ProvenanceTests: XCTestCase {
         let provenance = await Provenance.probe(
             MuterConfiguration(executable: wrapper, arguments: ["test"], buildSystem: .swift),
             executable: nil,
-            environment: [:],
-            output: { executable, _ in
-                ran.append(executable)
-                return self.swiftVersion
-            }
-        )
+            environment: [:]
+        ) { executable, _ in
+            ran.append(executable)
+            return self.swiftVersion
+        }
 
         XCTAssertEqual(ran, [])
         XCTAssertNil(provenance.toolchain.testCommandVersion)
@@ -104,9 +102,8 @@ final class ProvenanceTests: XCTestCase {
                 "PATH": "/usr/bin:/bin",
                 "HOME": "/Users/me",
                 "SDKROOT_BACKUP": "/elsewhere",
-            ],
-            output: { _, _ in "Apple Swift version 6.4" }
-        )
+            ]
+        ) { _, _ in "Apple Swift version 6.4" }
 
         XCTAssertEqual(provenance.toolchain.environment, [
             "SDKROOT": "/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk",
@@ -128,9 +125,8 @@ final class ProvenanceTests: XCTestCase {
         let provenance = await Provenance.probe(
             MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"]),
             executable: executable,
-            environment: [:],
-            output: { _, _ in nil }
-        )
+            environment: [:]
+        ) { _, _ in nil }
 
         XCTAssertEqual(provenance.swiftMutator, Provenance.Build(
             version: muterCore.version,
@@ -144,8 +140,8 @@ final class ProvenanceTests: XCTestCase {
         let missing = URL(fileURLWithPath: "\(directory)/swift-mutator")
         let wrapper = MuterConfiguration(executable: "\(directory)/test-with-sdk.sh", arguments: ["test"])
 
-        let deleted = await Provenance.probe(wrapper, executable: missing, environment: [:], output: { _, _ in nil })
-        let unknown = await Provenance.probe(wrapper, executable: nil, environment: [:], output: { _, _ in nil })
+        let deleted = await Provenance.probe(wrapper, executable: missing, environment: [:]) { _, _ in nil }
+        let unknown = await Provenance.probe(wrapper, executable: nil, environment: [:]) { _, _ in nil }
 
         XCTAssertEqual(
             deleted.swiftMutator,

@@ -282,7 +282,7 @@ private extension CodeBlockItemListSyntax {
             }
             ancestor = current.parent
         }
-        return outermostMacro?.parent?.ancestorOrSelf(mapping: { $0.as(CodeBlockItemListSyntax.self) })
+        return outermostMacro?.parent?.ancestorOrSelf { $0.as(CodeBlockItemListSyntax.self) }
     }
 
     /// The statement list around the code when this list is the one statement of a closure on the left of a `??`, or
@@ -295,7 +295,7 @@ private extension CodeBlockItemListSyntax {
                 return outer.enclosingListOutsideACoalescedClosure
             }
             if let elements = current.as(ExprListSyntax.self) {
-                return elements.isCoalescing(node) ? current.ancestorOrSelf(mapping: { $0.as(Self.self) }) : nil
+                return elements.isCoalescing(node) ? current.ancestorOrSelf { $0.as(Self.self) } : nil
             }
             node = current
         }

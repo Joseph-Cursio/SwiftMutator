@@ -219,12 +219,12 @@ final class InterruptionsTests: MuterTestCase {
     // it, and no time limit counts the time.
     func test_aSIGTSTP_suspendsSwiftMutatorWithItsDescendants_withoutCountingTheTime() throws {
         let uptime = Clock()
-        current.suspensions = Suspensions(uptime: { uptime.nanoseconds })
+        current.suspensions = Suspensions { uptime.nanoseconds }
         let finish = Gate()
-        let running = Running(makeInterruptions(suspend: { [events] in
+        let running = Running(makeInterruptions { [events] in
             events.append("suspended")
             uptime.advance(by: 5_000_000_000)
-        })) { finish.wait() }
+        }) { finish.wait() }
         waitUntilObserving()
         let before = current.suspensions.activeNanoseconds
 
@@ -242,7 +242,7 @@ final class InterruptionsTests: MuterTestCase {
 
     // It is about to end, and the grace period would count the time.
     func test_aSIGTSTP_whileStopping_isIgnored() throws {
-        let running = Running(makeInterruptions(suspend: { [events] in events.append("suspended") })) {
+        let running = Running(makeInterruptions { [events] in events.append("suspended") }) {
             try await Task.sleep(nanoseconds: 10_000_000_000)
         }
         waitUntilObserving()
@@ -430,7 +430,8 @@ final class InterruptionsTests: MuterTestCase {
         let exitGate = exited
         let idleSleepLog = idleSleep
         let atExit = Events()
-        let running = Running(makeInterruptions(onExit: { atExit.append(idleSleepLog.all.joined(separator: " ")) })) {
+        let onExit: @Sendable () -> Void = { atExit.append(idleSleepLog.all.joined(separator: " ")) }
+        let running = Running(makeInterruptions(onExit: onExit)) {
             exitGate.wait()
         }
         waitUntilObserving()
@@ -446,7 +447,7 @@ final class InterruptionsTests: MuterTestCase {
         let finish = Gate()
         let idleSleepLog = idleSleep
         let whileSuspended = Events()
-        let interruptions = makeInterruptions(suspend: { whileSuspended.append(idleSleepLog.all.joined(separator: " ")) })
+        let interruptions = makeInterruptions { whileSuspended.append(idleSleepLog.all.joined(separator: " ")) }
         let running = Running(interruptions) { finish.wait() }
         waitUntilObserving()
 
@@ -497,10 +498,10 @@ final class InterruptionsTests: MuterTestCase {
                 exitGate.open()
             },
             say: { saidLog.append($0) },
-            idleSleep: IdleSleepPrevention(hold: {
+            idleSleep: IdleSleepPrevention {
                 idleSleepLog.append("held")
                 return { idleSleepLog.append("released") }
-            }),
+            },
             gracePeriod: gracePeriod,
             sweepInterval: sweepInterval
         )

@@ -377,7 +377,7 @@ final class TriageSummaryTests: MuterTestCase {
         )
         // Line 4, with its `==` at the mutant's column, 9.
         let source = Data("\n\n\n        == b\n".utf8)
-        let result = MuterTestReport(from: outcome, readingSourcesWith: { _ in source })
+        let result = MuterTestReport(from: outcome) { _ in source }
 
         let summary = try XCTUnwrap(result.triageSummary)
         XCTAssertEqual(summary.moved, [])

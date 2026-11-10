@@ -285,7 +285,7 @@ final class CompileRecoveryRunTests: MuterTestCase {
         let bad = try XCTUnwrap(ids.first)
         let keyword = try XCTUnwrap(rewritten.range(of: "if __SwiftMutator"))
         let before = rewritten[..<keyword.lowerBound].utf8
-        let line = before.count(where: { $0 == UInt8(ascii: "\n") }) + 1
+        let line = before.count { $0 == UInt8(ascii: "\n") } + 1
         let lineStart = before.lastIndex(of: UInt8(ascii: "\n")).map { before.index(after: $0) } ?? before.startIndex
         let column = before.distance(from: lineStart, to: before.endIndex) + 1
         ioDelegate.baselineTestLogs = ["\(path):\(line):\(column): error: type mismatch", "Build complete!"]
@@ -374,7 +374,7 @@ private extension CompileRecoveryRunTests {
         let before = code[..<start].utf8
         let lineStart = before.lastIndex(of: UInt8(ascii: "\n")).map { before.index(after: $0) } ?? before.startIndex
         return (
-            before.count(where: { $0 == UInt8(ascii: "\n") }) + 1,
+            before.count { $0 == UInt8(ascii: "\n") } + 1,
             before.distance(from: lineStart, to: before.endIndex) + 1
         )
     }

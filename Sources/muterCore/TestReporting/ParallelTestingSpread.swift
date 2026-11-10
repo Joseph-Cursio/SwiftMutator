@@ -20,7 +20,7 @@ struct ParallelTestingSpread: Equatable {
     static func of(baselineLog: String, onDeviceNamed deviceName: String? = nil) -> Self? {
         var devices: [DeviceSpread] = []
         // "\r\n" is a single Character, so a log with those line breaks isn't split at "\n" alone.
-        let lines = baselineLog.split(whereSeparator: { $0 == "\n" || $0 == "\r\n" })
+        let lines = baselineLog.split { $0 == "\n" || $0 == "\r\n" }
         for line in lines where line.hasPrefix("Test case '") {
             guard let (clone, device) = clone(endedOnBy: line) else {
                 continue

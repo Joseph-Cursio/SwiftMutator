@@ -715,9 +715,8 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
                     cycle: mutationTestLog.testRunSeconds ?? mutationTestLog.timePerBuildTestCycle ?? 0,
                     workers: mutationTestLog.workers
                 ),
-                workers: mutationTestLog.workers,
-                elapsed: { [weak self] in self?.secondsSinceMutantRunsStarted() }
-            )
+                workers: mutationTestLog.workers
+            ) { [weak self] in self?.secondsSinceMutantRunsStarted() }
             if standardOutIsATerminal {
                 progressBar = ProgressBar(
                     count: total,

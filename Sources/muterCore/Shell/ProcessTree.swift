@@ -235,7 +235,7 @@ enum ProcessTree {
 
         var childrenByParent: [Int32: [Int32]] = [:]
         for line in text.split(separator: "\n").dropFirst() {
-            let cols = line.split(whereSeparator: { $0 == " " }).compactMap { Int32($0) }
+            let cols = line.split { $0 == " " }.compactMap { Int32($0) }
             guard cols.count == 2 else { continue }
             childrenByParent[cols[1], default: []].append(cols[0])
         }

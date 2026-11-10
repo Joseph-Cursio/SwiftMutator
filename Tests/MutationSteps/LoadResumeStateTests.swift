@@ -291,9 +291,8 @@ final class LoadResumeStateTests: MuterTestCase {
         let copyTree = await ProjectTree.fingerprint(
             listingIn: URL(fileURLWithPath: copy),
             hashingIn: URL(fileURLWithPath: copy),
-            excluding: [],
-            list: { _ in nil }
-        )
+            excluding: []
+        ) { _ in nil }
         let projectTree = await projectTree()
         XCTAssertNotEqual(copyTree.files, projectTree.files, "the copy differs from the project")
         try writeResults(
@@ -320,9 +319,8 @@ final class LoadResumeStateTests: MuterTestCase {
         let copyTree = await ProjectTree.fingerprint(
             listingIn: URL(fileURLWithPath: copy),
             hashingIn: URL(fileURLWithPath: copy),
-            excluding: [],
-            list: { _ in nil }
-        )
+            excluding: []
+        ) { _ in nil }
         try writeResults(
             ResultsHeader.make(project: copyTree, usingTestPlan: true, testPlan: planRecord(sha256: "91a")),
             ResultsEnd.make()
@@ -649,9 +647,8 @@ private extension LoadResumeStateTests {
         await ProjectTree.fingerprint(
             listingIn: URL(fileURLWithPath: project),
             hashingIn: URL(fileURLWithPath: project),
-            excluding: [],
-            list: { _ in nil }
-        )
+            excluding: []
+        ) { _ in nil }
     }
 
     /// `Provenance.fixture`, written by another process, or with another toolchain.

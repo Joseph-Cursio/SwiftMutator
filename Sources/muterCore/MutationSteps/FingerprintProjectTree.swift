@@ -44,12 +44,11 @@ struct FingerprintProjectTree: MutationStep {
                 + ProjectTree.relativePaths([state.testPlan?.path], under: state.projectDirectoryURL),
             pruning: state.testPlan == nil
                 ? []
-                : Self.foldersWritten(in: state.mutatedProjectDirectoryURL, by: state.muterConfiguration),
-            list: { [listProjectFiles, project = state.projectDirectoryURL] directory in
-                guard let copyListing, directory == project else { return await listProjectFiles(directory) }
-                return copyListing.paths
-            }
-        )
+                : Self.foldersWritten(in: state.mutatedProjectDirectoryURL, by: state.muterConfiguration)
+        ) { [listProjectFiles, project = state.projectDirectoryURL] directory in
+            guard let copyListing, directory == project else { return await listProjectFiles(directory) }
+            return copyListing.paths
+        }
         // A git that stopping the run killed reads as no repository, and the walk in its place lists what git ignores.
         try Task.checkCancellation()
         let fingerprinted = fingerprinting.tree

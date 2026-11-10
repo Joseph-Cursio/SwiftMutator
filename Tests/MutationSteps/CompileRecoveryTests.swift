@@ -695,7 +695,7 @@ private extension CompileRecoveryTests {
         let lastLineBreak = before.lastIndex(of: UInt8(ascii: "\n"))
         let lineStart = lastLineBreak.map { before.index(after: $0) } ?? before.startIndex
         return (
-            before.count(where: { $0 == UInt8(ascii: "\n") }) + 1,
+            before.count { $0 == UInt8(ascii: "\n") } + 1,
             before.distance(from: lineStart, to: before.endIndex) + 1
         )
     }

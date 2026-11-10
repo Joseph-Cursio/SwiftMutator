@@ -262,7 +262,7 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
             file: nil,
             forced: ["toolchain.environment"]
         )
-        state.reuseChanges = [1: ReuseChanges(from: tree, to: tree, waiving: [], readSource: { _ in nil })]
+        state.reuseChanges = [1: ReuseChanges(from: tree, to: tree, waiving: []) { _ in nil }]
         state.resumeWaived = []
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
         _ = try await sut.run(with: state)
@@ -305,8 +305,8 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
         ]
         state.resumeState = try ResumeState.make(path: earlierPath, lines: lines, file: nil)
         state.reuseChanges = [
-            1: ReuseChanges(from: tree, to: changed, waiving: ["README.md"], readSource: { _ in nil }),
-            2: ReuseChanges(from: changed, to: changed, waiving: ["README.md"], readSource: { _ in nil }),
+            1: ReuseChanges(from: tree, to: changed, waiving: ["README.md"]) { _ in nil },
+            2: ReuseChanges(from: changed, to: changed, waiving: ["README.md"]) { _ in nil },
         ]
         state.resumeWaived = ["README.md"]
         // So the kill's log is copied too.
@@ -396,7 +396,7 @@ private extension PerformMutationTestingReuseTests {
             treeSHA256: "e5b8"
         )
         let current = ProjectTree(listedBy: .git, files: files, excluded: [], treeSHA256: "f00d")
-        state.reuseChanges = [1: ReuseChanges(from: earlier, to: current, waiving: globs, readSource: { _ in nil })]
+        state.reuseChanges = [1: ReuseChanges(from: earlier, to: current, waiving: globs) { _ in nil }]
     }
 
     /// An earlier run whose every result this run keeps.

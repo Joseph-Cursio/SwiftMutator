@@ -460,9 +460,8 @@ private extension PerformMutationTesting {
             on: simulators,
             configuration: configuration,
             state: state,
-            session: session,
-            testOutput: { testOutput(named: $0, state: state) }
-        )
+            session: session
+        ) { testOutput(named: $0, state: state) }
         let sharesBuild = workers.count > 1 && mayShareBuild
         if !plan.toRun.isEmpty {
             let choice = WorkerChoice(
@@ -1200,9 +1199,8 @@ private extension PerformMutationTesting {
     /// doesn't depend on it.
     func copyLogs(of reused: [MutantResult], from resume: ResumeState, into loggingDirectory: String) {
         let folders = Dictionary(
-            resume.recorded.headers.map { ($0.session, $0.logDirectory) },
-            uniquingKeysWith: { _, last in last }
-        )
+            resume.recorded.headers.map { ($0.session, $0.logDirectory) }
+        ) { _, last in last }
         for result in reused {
             guard let recorded = resume.recorded.latest[result.key], let folder = folders[recorded.session],
                   let name = recorded.log, let destinationName = result.log

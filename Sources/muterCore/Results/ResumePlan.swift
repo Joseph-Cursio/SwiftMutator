@@ -197,16 +197,15 @@ extension ResumePlan {
     /// The workers of each session in `headers`, a results file's, by its number: the last header's of a number, as
     /// `RecordedResults` reads a session's records with it.
     static func workers(of headers: [ResultsHeader]) -> [Int: Int] {
-        Dictionary(headers.map { ($0.session, $0.workers) }, uniquingKeysWith: { _, last in last })
+        Dictionary(headers.map { ($0.session, $0.workers) }) { _, last in last }
     }
 
     /// The time limit of each session in `headers`, a results file's, by its number, as `workers(of:)` takes them; a
     /// session that recorded none, having tested nothing, is absent.
     static func limits(of headers: [ResultsHeader]) -> [Int: Double] {
         Dictionary(
-            headers.compactMap { header in header.timeoutSeconds.map { (header.session, $0) } },
-            uniquingKeysWith: { _, last in last }
-        )
+            headers.compactMap { header in header.timeoutSeconds.map { (header.session, $0) } }
+        ) { _, last in last }
     }
 
     /// Why a resume doesn't keep `record`, which holds for its job by itself, tested on `workers` workers at once

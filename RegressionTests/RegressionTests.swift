@@ -17,7 +17,7 @@ final class RegressionTests: XCTestCase {
 
     /// How a report is compared with its snapshot: as JSON, without `keysToExclude`.
     static var snapshotting: Snapshotting<MuterTestReport, String> {
-        .json(excludingKeysMatching: { keysToExclude.contains($0) })
+        .json { keysToExclude.contains($0) }
     }
 
     /// These tests read the reports `runRegressionTests.sh` wrote into `samples/`. That script recreates the

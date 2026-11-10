@@ -528,7 +528,7 @@ final class ResumePlanTests: XCTestCase {
         ) { first, _ in
             first
         }
-        return [1: ReuseChanges(from: tree(files), to: tree(current), waiving: globs, readSource: { allSources[$0] })]
+        return [1: ReuseChanges(from: tree(files), to: tree(current), waiving: globs) { allSources[$0] }]
     }
 
     private func tree(_ files: [String: String]) -> ProjectTree {

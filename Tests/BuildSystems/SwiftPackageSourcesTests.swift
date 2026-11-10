@@ -165,9 +165,8 @@ final class SwiftPackageSourcesTests: MuterTestCase {
     func test_aTestCommandThatIsntSwift_isNotAskedToDescribe() async {
         let files = await SwiftPackageSources.files(
             inProjectAt: "/project",
-            testedBy: MuterConfiguration(executable: "/usr/bin/env", arguments: ["swift", "test"], buildSystem: .swift),
-            process: { [process] in process }
-        )
+            testedBy: MuterConfiguration(executable: "/usr/bin/env", arguments: ["swift", "test"], buildSystem: .swift)
+        ) { [process] in process }
 
         XCTAssertEqual(files, .failure(.notSwift("/usr/bin/env")))
         XCTAssertEqual(files.failure?.reason, "the test command, /usr/bin/env, isn't swift")
@@ -326,9 +325,8 @@ final class SwiftPackageSourcesTests: MuterTestCase {
 
         let files = await SwiftPackageSources.files(
             inProjectAt: link,
-            testedBy: MuterConfiguration(executable: swiftPath, arguments: ["test"]),
-            process: { MuterProcessFactory.makeProcess() }
-        )
+            testedBy: MuterConfiguration(executable: swiftPath, arguments: ["test"])
+        ) { MuterProcessFactory.makeProcess() }
 
         XCTAssertEqual(files, .success([
             "Packages/Core/Sources/Core/Core.swift",
@@ -340,9 +338,8 @@ final class SwiftPackageSourcesTests: MuterTestCase {
     private func files(in root: FilePath) async -> Result<[FilePath], SwiftPackageSources.Failure> {
         await SwiftPackageSources.files(
             inProjectAt: root,
-            testedBy: MuterConfiguration(executable: swift, arguments: arguments),
-            process: { [process] in process }
-        )
+            testedBy: MuterConfiguration(executable: swift, arguments: arguments)
+        ) { [process] in process }
     }
 
     /// Answers `swift package describe` of each package path with a description of its `targets`, whose local

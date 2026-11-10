@@ -267,7 +267,7 @@ final class ResumeAcceptanceTests: XCTestCase {
         let olderMarker = olderCopy.appendingPathComponent("marker")
         try FileManager.default.createDirectory(at: olderCopy, withIntermediateDirectories: true)
         try "".write(to: olderMarker, atomically: true, encoding: .utf8)
-        let older = try MutatedProjectLock.Locker(startWatcher: { nil }).lock(olderCopy)
+        let older = try MutatedProjectLock.Locker { nil }.lock(olderCopy)
 
         let refused = try waitForEnd(of: launch(firstSessionArguments))
 

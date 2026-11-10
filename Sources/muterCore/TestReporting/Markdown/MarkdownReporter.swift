@@ -73,15 +73,14 @@ struct MarkdownReporter: Reporter {
             if case let .checked(comparison) = check.verdict {
                 blocks += Self.table(
                     of: comparison.newSurvivors,
-                    header: ["New survivor", "Change"],
-                    row: { survivor in
-                        [
-                            MarkdownText.codeInCell(survivor.mutant),
-                            MarkdownText.codeInCell(survivor.before) + " → " + MarkdownText.codeInCell(survivor.after)
-                                + (survivor.notCovered ? NewSurvivorsCheck.NewSurvivor.notCoveredNote : ""),
-                        ]
-                    }
-                )
+                    header: ["New survivor", "Change"]
+                ) { survivor in
+                    [
+                        MarkdownText.codeInCell(survivor.mutant),
+                        MarkdownText.codeInCell(survivor.before) + " → " + MarkdownText.codeInCell(survivor.after)
+                            + (survivor.notCovered ? NewSurvivorsCheck.NewSurvivor.notCoveredNote : ""),
+                    ]
+                }
             }
         }
         if let check = checks.scoreDrop, let line = check.line {
@@ -91,15 +90,14 @@ struct MarkdownReporter: Reporter {
             blocks.append(Self.mark(check.passed) + " " + MarkdownText.plain(line))
             blocks += Self.table(
                 of: check.doubtfulKills,
-                header: ["Doubtful kill", "Change", "Why"],
-                row: { kill in
-                    [
-                        MarkdownText.codeInCell(kill.mutant),
-                        MarkdownText.codeInCell(kill.before) + " → " + MarkdownText.codeInCell(kill.after),
-                        MarkdownText.plain(kill.why),
-                    ]
-                }
-            )
+                header: ["Doubtful kill", "Change", "Why"]
+            ) { kill in
+                [
+                    MarkdownText.codeInCell(kill.mutant),
+                    MarkdownText.codeInCell(kill.before) + " → " + MarkdownText.codeInCell(kill.after),
+                    MarkdownText.plain(kill.why),
+                ]
+            }
         }
         guard !blocks.isEmpty else { return [] }
         return ["### Checks"] + blocks

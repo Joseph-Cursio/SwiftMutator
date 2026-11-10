@@ -200,9 +200,8 @@ final class ReadableReportTests: MuterTestCase {
                 from: self.outcome(
                     [self.mutant(.passed, "Sources/F.swift", line: 3, column: column, .make(before: "<", after: ">"))],
                     digests: digests
-                ),
-                readingSourcesWith: { _ in Data(text.utf8) }
-            ).fileReports.first?.appliedOperators.first?.sourceChange
+                )
+            ) { _ in Data(text.utf8) }.fileReports.first?.appliedOperators.first?.sourceChange
         }
         let link = ["Sources/F.swift": ProjectTree.linkPrefix + "9a9a"]
 

@@ -292,9 +292,8 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
             report.targets
                 .excludeTestTargets()
                 .flatMap(\.files)
-                .compactMap { file in projectFiles.pathInProject(file.path).map { ($0, file) } },
-            uniquingKeysWith: { $0.coveredLines >= $1.coveredLines ? $0 : $1 }
-        )
+                .compactMap { file in projectFiles.pathInProject(file.path).map { ($0, file) } }
+        ) { $0.coveredLines >= $1.coveredLines ? $0 : $1 }
         .sorted { $0.key < $1.key }
         // xccov's report of a package tested through xcodebuild lists only its tests' files, so `run` reads llvm-cov's
         // export instead.

@@ -233,9 +233,8 @@ final class SwiftCoverage: BuildSystemCoverage {
         }
 
         return Dictionary(
-            package.targets.filter { $0.type == "test" }.map { ($0.name, $0.sources ?? []) },
-            uniquingKeysWith: { first, _ in first }
-        )
+            package.targets.filter { $0.type == "test" }.map { ($0.name, $0.sources ?? []) }
+        ) { first, _ in first }
     }
 
     private struct PackageDescription: Decodable {

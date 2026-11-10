@@ -326,7 +326,7 @@ final class ResultsFileTests: XCTestCase {
 
     func test_afterAFailedWrite_nothingMoreIsWritten() throws {
         var writes = 0
-        let file = try makeFile(writeBytes: { descriptor, bytes, count in
+        let file = try makeFile { descriptor, bytes, count in
             writes += 1
             switch writes {
             case 1: return write(descriptor, bytes, count)
@@ -336,7 +336,7 @@ final class ResultsFileTests: XCTestCase {
                 errno = ENOSPC
                 return -1
             }
-        })
+        }
 
         XCTAssertTrue(file.append(header))
         XCTAssertFalse(file.append(mutant))

@@ -131,7 +131,7 @@ final class Interruptions: @unchecked Sendable { // `timers` is touched only on 
             if signal == SIGTSTP {
                 suspendUnlessStopping()
             } else {
-                received(signal, stopping: { task.cancel() })
+                received(signal) { task.cancel() }
             }
         }
         let result = await task.result

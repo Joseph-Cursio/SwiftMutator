@@ -68,9 +68,8 @@ extension ResumeSummary {
     ) {
         let all = changes.map { Array($0.values) } ?? []
         let otherFiles = Dictionary(
-            all.flatMap(\.otherFiles).map { ($0.path, $0) },
-            uniquingKeysWith: { _, last in last }
-        )
+            all.flatMap(\.otherFiles).map { ($0.path, $0) }
+        ) { _, last in last }
         let testFiles = Set(all.flatMap(\.testFiles).map(\.path))
         self.init(
             path: resume.path,

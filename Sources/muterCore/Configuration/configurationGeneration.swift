@@ -171,7 +171,7 @@ private extension MuterConfiguration {
                 .compactMap { try JSONSerialization.data(withJSONObject: $0) }
                 .compactMap { try JSONDecoder().decode(Simulator.self, from: $0) }
                 .filter(\.isAvailable)
-                .sorted(by: { $0.deviceTypeIdentifier > $1.deviceTypeIdentifier })
+                .sorted { $0.deviceTypeIdentifier > $1.deviceTypeIdentifier }
                 .first { $0.name.contains("iPhone") }
 
             return device?.name ?? Simulator.fallback.name

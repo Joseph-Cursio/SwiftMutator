@@ -5,7 +5,7 @@ import XCTest
 final class SuspensionsTests: XCTestCase {
     func test_theClockStandsStill_whileSuspended() {
         let uptime = Clock(nanoseconds: 1_000)
-        let sut = Suspensions(uptime: { uptime.nanoseconds })
+        let sut = Suspensions { uptime.nanoseconds }
 
         uptime.advance(by: 500)
         XCTAssertEqual(sut.activeNanoseconds, 1_500)
@@ -56,7 +56,7 @@ final class SuspensionsTests: XCTestCase {
     // On the test's own clock: on the system's, a slow CI runner began the suspension after the work had run.
     func test_workAfterATime_ignoresTheTimeSuspended() {
         let uptime = Clock(nanoseconds: 1_000_000_000) // not 0, where a look that didn't count from `start` would pass
-        let sut = Suspensions(uptime: { uptime.nanoseconds })
+        let sut = Suspensions { uptime.nanoseconds }
         let done = expectation(description: "the work ran")
         let ranAt = Clock(nanoseconds: 0)
 

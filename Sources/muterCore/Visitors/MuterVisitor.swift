@@ -67,12 +67,11 @@ class MuterVisitor: SyntaxAnyVisitor {
     /// Lazy, because `sourceCodePreparationChange` is set after `init`.
     private lazy var executionCounts = ExecutionCounts(
         coverage: coverage,
-        source: sourceCodeInfo.code,
-        location: { [unowned self] position in
-            let pointPosition = mutationPosition(for: locationConverter.location(for: position))
-            return ExecutionCounts.Point(line: pointPosition.line, column: pointPosition.column)
-        }
-    )
+        source: sourceCodeInfo.code
+    ) { [unowned self] position in
+        let pointPosition = mutationPosition(for: locationConverter.location(for: position))
+        return ExecutionCounts.Point(line: pointPosition.line, column: pointPosition.column)
+    }
 
     required init(
         configuration: MuterConfiguration? = nil,

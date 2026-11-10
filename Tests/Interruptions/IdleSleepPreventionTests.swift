@@ -4,10 +4,10 @@ import XCTest
 final class IdleSleepPreventionTests: XCTestCase {
     func test_beginningTwice_holdsOnce_andEndingTwice_releasesOnce() {
         let counts = Counts()
-        let prevention = IdleSleepPrevention(hold: {
+        let prevention = IdleSleepPrevention {
             counts.add(held: 1)
             return { counts.add(released: 1) }
-        })
+        }
 
         prevention.begin()
         prevention.begin()
@@ -25,10 +25,10 @@ final class IdleSleepPreventionTests: XCTestCase {
 
     func test_endingWithoutBeginning_doesNothing() {
         let counts = Counts()
-        let prevention = IdleSleepPrevention(hold: {
+        let prevention = IdleSleepPrevention {
             counts.add(held: 1)
             return { counts.add(released: 1) }
-        })
+        }
 
         prevention.end()
 

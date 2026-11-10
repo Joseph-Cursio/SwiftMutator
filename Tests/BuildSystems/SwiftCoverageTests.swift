@@ -740,13 +740,13 @@ final class SwiftCoverageTests: MuterTestCase {
 
         fileManager.fileExistsToReturn = [true, true]
         _ = await onLinux.run(with: muterConfiguration)
-        XCTAssertEqual(process.commandsRun.last(where: { $0.contains("merge") }), ["/path/to/llvm-profdata"] + merge)
+        XCTAssertEqual(process.commandsRun.last { $0.contains("merge") }, ["/path/to/llvm-profdata"] + merge)
         XCTAssertEqual(fileManager.fileExistsAtPath.first, "/path/to/llvm-profdata")
 
         fileManager.fileExistsToReturn = [false, true]
         _ = await onLinux.run(with: muterConfiguration)
         XCTAssertEqual(
-            process.commandsRun.last(where: { $0.contains("merge") }),
+            process.commandsRun.last { $0.contains("merge") },
             ["/usr/bin/env", "llvm-profdata"] + merge
         )
     }
@@ -939,7 +939,7 @@ final class SwiftCoverageTests: MuterTestCase {
             if command.contains(where: { $0.hasSuffix("llvm-profdata") }) {
                 return self.result()
             }
-            return command.contains(where: { $0.hasSuffix("llvm-cov") })
+            return command.contains { $0.hasSuffix("llvm-cov") }
                 ? self.result(output: export)
                 : testRun ?? self.result(output: "Test run passed\n")
         }

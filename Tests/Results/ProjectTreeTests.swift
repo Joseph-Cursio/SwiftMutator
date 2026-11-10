@@ -97,7 +97,7 @@ final class ProjectTreeTests: XCTestCase {
 
         let listed = await fingerprint().files.keys.sorted()
         XCTAssertEqual(listed, kept, "listed by git")
-        let walked = await fingerprint(list: { _ in nil }).files.keys.sorted()
+        let walked = await fingerprint { _ in nil }.files.keys.sorted()
         XCTAssertEqual(walked, kept, "walked")
         XCTAssertTrue(ProjectTree.isPruned(".git/config"))
         XCTAssertTrue(ProjectTree.isPruned("Sub/.git/HEAD"))
@@ -119,7 +119,7 @@ final class ProjectTreeTests: XCTestCase {
 
         let listed = await fingerprint().files.keys.sorted()
         XCTAssertEqual(listed, kept, "listed by git")
-        let walked = await fingerprint(list: { _ in nil }).files.keys.sorted()
+        let walked = await fingerprint { _ in nil }.files.keys.sorted()
         XCTAssertEqual(walked, kept, "walked")
     }
 
@@ -131,7 +131,7 @@ final class ProjectTreeTests: XCTestCase {
         let options = Run.Options.make(reportURL: URL(fileURLWithPath: "\(folders.link)/report.txt"))
 
         let excluded = ProjectTree.reportPaths(options, under: projectURL)
-        let tree = await fingerprint(excluding: excluded, list: { _ in nil })
+        let tree = await fingerprint(excluding: excluded) { _ in nil }
 
         XCTAssertEqual(excluded, ["report.txt", "report.partial.txt"])
         XCTAssertEqual(tree.files.keys.sorted(), ["Sources/Sum.swift"])
@@ -350,7 +350,7 @@ final class ProjectTreeTests: XCTestCase {
 
         let listed = await fingerprint(pruning: ["TestContents", "build/dd"]).files.keys.sorted()
         XCTAssertEqual(listed, kept, "listed by git")
-        let walked = await fingerprint(pruning: ["TestContents", "build/dd"], list: { _ in nil }).files.keys.sorted()
+        let walked = await fingerprint(pruning: ["TestContents", "build/dd"]) { _ in nil }.files.keys.sorted()
         XCTAssertEqual(walked, kept, "walked")
     }
 
@@ -444,7 +444,7 @@ final class ProjectTreeTests: XCTestCase {
         let copy = "\(project)_mutated"
         try FileManager.default.copyItem(atPath: project, toPath: copy)
 
-        let tree = await fingerprint(list: { _ in nil })
+        let tree = await fingerprint { _ in nil }
 
         XCTAssertEqual(tree.files.keys.sorted(), [
             "../Base/Package.swift",
@@ -459,11 +459,11 @@ final class ProjectTreeTests: XCTestCase {
             "Sources/App/App.swift",
         ])
         XCTAssertEqual(tree.files["../Core/Sources/Core/Core.swift"], sha256("core"))
-        let inTheCopy = await fingerprint(hashingIn: copy, list: { _ in nil })
+        let inTheCopy = await fingerprint(hashingIn: copy) { _ in nil }
         XCTAssertEqual(inTheCopy, tree, "the copy builds the same folders")
 
         try write(["Core/Sources/Core/Core.swift": "changed"], in: root)
-        let changes = await fingerprint(list: { _ in nil }).changes(since: tree)
+        let changes = await fingerprint { _ in nil }.changes(since: tree)
         XCTAssertEqual(
             changes,
             [.init(path: "../Core/Sources/Core/Core.swift", kind: .changed)]
@@ -489,13 +489,13 @@ final class ProjectTreeTests: XCTestCase {
     func test_treeHash_doesNotDependOnListingOrder() async throws {
         try write(["a.txt": "a", "b.txt": "b"])
 
-        let forwards = await fingerprint(list: { _ in ["a.txt", "b.txt"] })
-        let backwards = await fingerprint(list: { _ in ["b.txt", "a.txt"] })
+        let forwards = await fingerprint { _ in ["a.txt", "b.txt"] }
+        let backwards = await fingerprint { _ in ["b.txt", "a.txt"] }
 
         XCTAssertEqual(forwards, backwards)
         XCTAssertEqual(forwards.treeSHA256, sha256("a.txt\0\(sha256("a"))\nb.txt\0\(sha256("b"))\n"))
         try write(["b.txt": "changed"])
-        let result = await fingerprint(list: { _ in ["a.txt", "b.txt"] }).treeSHA256
+        let result = await fingerprint { _ in ["a.txt", "b.txt"] }.treeSHA256
         XCTAssertNotEqual(result, forwards.treeSHA256)
     }
 

@@ -215,8 +215,8 @@ enum SwapTernaryOperator {
         }
 
         private func containsComplexExpressions(_ nodes: [ExprSyntax]) -> Bool {
-            nodes.contains(where: { $0.is(AsExprSyntax.self) })
-                || nodes.contains(where: { $0.is(UnresolvedAsExprSyntax.self) })
+            nodes.contains { $0.is(AsExprSyntax.self) }
+                || nodes.contains { $0.is(UnresolvedAsExprSyntax.self) }
         }
     }
 }

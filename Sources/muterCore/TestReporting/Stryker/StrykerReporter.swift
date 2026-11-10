@@ -25,7 +25,7 @@ struct StrykerReporter: Reporter {
     func strykerReport(of outcome: MutationTestOutcome) -> StrykerReport {
         let originals = ReportedFile.originals(of: outcome)
         let sources = OriginalFiles(originals.values, read: readSourceFile)
-        let byFile = Dictionary(grouping: outcome.mutations.indices, by: { outcome.mutations[$0].relativePath })
+        let byFile = Dictionary(grouping: outcome.mutations.indices) { outcome.mutations[$0].relativePath }
         let files = originals.keys.map { path -> (String, StrykerReport.File) in
             let source = originals[path].flatMap(sources.text(at:))
             let lines = source.map(SourceLines.init)

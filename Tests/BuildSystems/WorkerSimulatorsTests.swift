@@ -210,7 +210,7 @@ final class WorkerSimulatorsTests: MuterTestCase {
 
         simctl.answering { $0.first == "bootstatus" ? .init(status: 1) : nil }
         let made = [WorkerSimulator(udid: "SIM-0", name: "w0", destination: "id=SIM-0")]
-        let notBooted = await failure(of: { try await self.makeSimulators().boot(made) })
+        let notBooted = await failure { try await self.makeSimulators().boot(made) }
         XCTAssertEqual(notBooted?.destinationUnresolved, false)
     }
 
@@ -237,7 +237,7 @@ final class WorkerSimulatorsTests: MuterTestCase {
             return .init(status: SIGKILL, endedBySignal: true, timedOut: true)
         }
 
-        let error = await reason(of: { try await self.makeSimulators().boot(made) })
+        let error = await reason { try await self.makeSimulators().boot(made) }
 
         XCTAssertEqual(error, "`xcrun simctl bootstatus SIM-1 -b` didn't finish within 300 seconds")
     }
@@ -429,7 +429,7 @@ final class WorkerSimulatorsTests: MuterTestCase {
     private func makeSimulators(running: Set<RecordedProcess> = []) -> WorkerSimulators {
         let stillRunning = running.union([owner])
         current.process = { [simctl] in simctl }
-        return WorkerSimulators(owner: owner, isRunning: { stillRunning.contains($0) })
+        return WorkerSimulators(owner: owner) { stillRunning.contains($0) }
     }
 
     /// The reason `prepare` gave for not making `count` simulators like `destination`, or nil if it made them.
@@ -440,14 +440,14 @@ final class WorkerSimulatorsTests: MuterTestCase {
     ) async -> String? {
         let preparing = simulators ?? makeSimulators()
         let project = mutatedProject
-        return await reason(of: { try await preparing.prepare(count, like: destination, for: project) })
+        return await reason { try await preparing.prepare(count, like: destination, for: project) }
     }
 
     /// Why `prepare` didn't make `count` simulators like `destination`, or nil if it made them.
     private func unavailable(preparing count: Int, like destination: String) async -> WorkerSimulatorsUnavailable? {
         let simulators = makeSimulators()
         let project = mutatedProject
-        return await failure(of: { try await simulators.prepare(count, like: destination, for: project) })
+        return await failure { try await simulators.prepare(count, like: destination, for: project) }
     }
 
     /// Why `work` didn't make or boot simulators, or nil if it did.

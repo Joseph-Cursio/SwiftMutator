@@ -22,7 +22,7 @@ enum FailedTestLine {
     /// The first line of `log` that shows a failed test, without colour codes.
     static func first(inLog log: String) -> String? {
         // "\r\n" is a single Character, so a log with those line breaks isn't split at "\n" alone.
-        log.split(whereSeparator: { $0 == "\n" || $0 == "\r\n" })
+        log.split { $0 == "\n" || $0 == "\r\n" }
             .first(where: matches)
             .map(withoutColours)
     }
@@ -119,7 +119,7 @@ extension FailedTestLine {
         var tests: [FailedTest] = []
         var firstLine: String?
         // "\r\n" is a single Character, so a log with those line breaks isn't split at "\n" alone.
-        let lines = log.split(whereSeparator: { $0 == "\n" || $0 == "\r\n" })
+        let lines = log.split { $0 == "\n" || $0 == "\r\n" }
         for (index, line) in lines.enumerated() {
             guard let found = failure(in: line) else { continue }
             let test = found.locationMayFollow

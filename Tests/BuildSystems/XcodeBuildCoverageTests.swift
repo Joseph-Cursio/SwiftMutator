@@ -474,9 +474,8 @@ final class XcodeBuildCoverageTests: MuterTestCase {
         let xccovs = Coverage.make(percent: 10, filesWithoutCoverage: ["Sources/file1.swift"])
         answerWithACoverageRun(
             report: Data(coverageData.utf8),
-            existing: [true, false, false],
-            export: { _ in self.result(status: 1, errors: "error: failed to load coverage: 'Project': No such file\n") }
-        )
+            existing: [true, false, false]
+        ) { _ in self.result(status: 1, errors: "error: failed to load coverage: 'Project': No such file\n") }
 
         let whenLLVMCovFails = try await sut.run(with: muterConfiguration).get()
         XCTAssertEqual(whenLLVMCovFails, xccovs)

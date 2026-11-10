@@ -4,7 +4,7 @@ import XCTest
 final class MutatedProjectLockTests: XCTestCase {
     private var directory = ""
     /// No watcher: the executable running these tests isn't SwiftMutator.
-    private let locker = MutatedProjectLock.Locker(startWatcher: { nil })
+    private let locker = MutatedProjectLock.Locker { nil }
 
     /// Never made: a run takes the lock before it copies the project.
     private var mutatedProject: URL {
@@ -408,7 +408,7 @@ final class MutatedProjectLockTests: XCTestCase {
     // process, and ends as the lock is released, killing any still listed: no one would be left to kill it.
     func test_theWatcherStartsWithTheFirstTestProcess_andEndsWithTheLock() throws {
         let watchers = WatchersInThisProcess()
-        let watchedLocker = MutatedProjectLock.Locker(startWatcher: { watchers.start() })
+        let watchedLocker = MutatedProjectLock.Locker { watchers.start() }
         let lock = try watchedLocker.lock(mutatedProject)
         XCTAssertEqual(watchers.count, 0)
         let ended = try spawnSleeper()

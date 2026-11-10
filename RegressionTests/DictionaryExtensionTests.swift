@@ -17,7 +17,7 @@ final class DictionaryExtensionTests: XCTestCase {
             ] as [String: Any],
         ]
 
-        let results = dictionary.recursivelyFiltered(includingKeysMatching: { $0 != "toss" })
+        let results = dictionary.recursivelyFiltered { $0 != "toss" }
 
         XCTAssertTrue(results.keys.sorted().elementsEqual(["anotherKey", "key", "so"]))
 
