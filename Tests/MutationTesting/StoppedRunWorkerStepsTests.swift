@@ -22,7 +22,6 @@ final class StoppedRunWorkerStepsTests: MuterTestCase {
         )
         state.mutationMapping = try (1...4).map { line in
             try SchemataMutationMapping.make(
-                filePath: "/some/path",
                 (
                     source: "func bar() { }",
                     schemata: [
@@ -34,7 +33,8 @@ final class StoppedRunWorkerStepsTests: MuterTestCase {
                             snapshot: .null
                         ),
                     ]
-                )
+                ),
+                filePath: "/some/path"
             )
         }
     }

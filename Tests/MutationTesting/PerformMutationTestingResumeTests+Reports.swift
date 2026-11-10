@@ -40,9 +40,9 @@ extension PerformMutationTestingResumeTests {
         let gathered = CoverageSummary(percent: 80, filesWithoutCoverage: ["/project_mutated/Sources/Gone.swift"])
         recorded[0] = ResultsHeader.make(coverage: gathered, mutantsDiscovered: 5, mutantsToTest: 5, project: tree)
         state.resumeState = try ResumeState.make(
-            path: resultsPath,
             lines: recorded,
-            file: XCTUnwrap(state.resumeState).file
+            file: XCTUnwrap(state.resumeState).file,
+            path: resultsPath
         )
         state.projectCoverage = .make(percent: 80, filesWithoutCoverage: ["/project_mutated/Sources/Gone.swift"])
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
@@ -59,9 +59,9 @@ extension PerformMutationTestingResumeTests {
     func test_theSummary_ofATestPlansRun_namesTheCopy() async throws {
         recorded[0] = ResultsHeader.make(mutantsDiscovered: 5, mutantsToTest: 5, project: tree, usingTestPlan: true)
         state.resumeState = try ResumeState.make(
-            path: resultsPath,
             lines: recorded,
-            file: XCTUnwrap(state.resumeState).file
+            file: XCTUnwrap(state.resumeState).file,
+            path: resultsPath
         )
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
         let sent = recordEvents(named: [.resumePlanned])
@@ -88,9 +88,9 @@ extension PerformMutationTestingResumeTests {
             project: tree
         )
         state.resumeState = try ResumeState.make(
-            path: resultsPath,
             lines: recorded,
-            file: XCTUnwrap(state.resumeState).file
+            file: XCTUnwrap(state.resumeState).file,
+            path: resultsPath
         )
         state.projectCoverage = .make(percent: 80, filesWithoutCoverage: ["/project_mutated/Sources/Gone.swift"])
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]

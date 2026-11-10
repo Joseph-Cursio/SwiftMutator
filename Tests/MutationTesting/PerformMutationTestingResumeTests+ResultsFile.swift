@@ -12,9 +12,9 @@ extension PerformMutationTestingResumeTests {
             ResultsEnd.make(reason: .interrupted, recorded: 2),
         ]
         state.resumeState = try ResumeState.make(
-            path: resultsPath,
             lines: recorded,
-            file: resultsFiles.openForResume(at: resultsPath)
+            file: resultsFiles.openForResume(at: resultsPath),
+            path: resultsPath
         )
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
 
@@ -29,9 +29,9 @@ extension PerformMutationTestingResumeTests {
     func test_aRetiredLineThatCannotBeWritten_leavesTheFileUnannounced() async throws {
         resultsFiles.failFromLine = 2
         state.resumeState = try ResumeState.make(
-            path: resultsPath,
             lines: recorded,
-            file: resultsFiles.openForResume(at: resultsPath)
+            file: resultsFiles.openForResume(at: resultsPath),
+            path: resultsPath
         )
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
         var sent: [RunEvent.Name] = []

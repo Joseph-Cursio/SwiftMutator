@@ -10,7 +10,7 @@ extension PerformMutationTestingReuseTests {
         changes fileChanges: [ProjectTree.FileChange] = [],
         waiving globs: [String] = []
     ) throws {
-        state.resumeState = try ResumeState.make(path: earlierPath, lines: lines, file: nil)
+        state.resumeState = try ResumeState.make(lines: lines, file: nil, path: earlierPath)
         var files = tree.files
         for change in fileChanges {
             files[change.path] = change.kind == .removed ? nil : "ffff"
@@ -79,7 +79,6 @@ extension PerformMutationTestingReuseTests {
     /// A file in the mutated project with one mutant, at `line`, column 5.
     func makeSchemataMapping(file: String, line: Int) throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/project_mutated/\(file)",
             (
                 source: "func bar() { }",
                 schemata: [
@@ -91,7 +90,8 @@ extension PerformMutationTestingReuseTests {
                         snapshot: .make(before: ">", after: "<", description: "changed > to <")
                     ),
                 ]
-            )
+            ),
+            filePath: "/project_mutated/\(file)"
         )
     }
 

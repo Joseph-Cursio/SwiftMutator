@@ -241,7 +241,7 @@ extension PerformMutationTestingTests {
             snapshot: .make(before: "flag ? 1 : 2", after: "flag ? 2 : 1", description: "swapped ternary operator")
         )
         state.mutationMapping = try [
-            SchemataMutationMapping.make(filePath: path, (source: "func bar() { }", schemata: [schema])),
+            SchemataMutationMapping.make((source: "func bar() { }", schemata: [schema]), filePath: path),
         ]
         let key = MutantKey(
             path: "Sources/Bar.swift", mutationOperatorId: .swapTernary, line: 2, column: 24, occurrence: 0

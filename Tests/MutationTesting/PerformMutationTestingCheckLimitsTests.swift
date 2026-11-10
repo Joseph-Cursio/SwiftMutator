@@ -14,7 +14,6 @@ final class PerformMutationTestingCheckLimitsTests: MuterTestCase {
         state.mutatedProjectDirectoryURL = URL(fileURLWithPath: "/project_mutated")
         state.mutationMapping = try [
             SchemataMutationMapping.make(
-                filePath: "/some/path",
                 (
                     source: "func bar() { }",
                     schemata: [
@@ -26,7 +25,8 @@ final class PerformMutationTestingCheckLimitsTests: MuterTestCase {
                             snapshot: .null
                         ),
                     ]
-                )
+                ),
+                filePath: "/some/path"
             ),
         ]
     }

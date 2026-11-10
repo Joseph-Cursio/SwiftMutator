@@ -32,9 +32,9 @@ extension FingerprintProjectTreeTests {
             mutatedPaths: []
         )
         state.resumeState = try ResumeState.make(
-            path: resultsPath,
             lines: [ResultsHeader.make(project: recorded, usingTestPlan: true), ResultsEnd.make()],
-            file: resultsFiles.openForResume(at: resultsPath)
+            file: resultsFiles.openForResume(at: resultsPath),
+            path: resultsPath
         )
     }
 
@@ -103,9 +103,9 @@ extension FingerprintProjectTreeTests {
     func resume(_ recorded: ProjectTree, ignoring globs: [String] = []) throws {
         state.runOptions = .make(resumeURL: URL(fileURLWithPath: resultsPath), resumeIgnoring: globs)
         state.resumeState = try ResumeState.make(
-            path: resultsPath,
             lines: [ResultsHeader.make(project: recorded), ResultsEnd.make()],
-            file: resultsFiles.openForResume(at: resultsPath)
+            file: resultsFiles.openForResume(at: resultsPath),
+            path: resultsPath
         )
     }
 

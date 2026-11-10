@@ -5,8 +5,8 @@ typealias SchemataMutationMappings = (source: String, schemata: MutationSchemata
 
 extension SchemataMutationMapping {
     static func make(
-        filePath: String = "",
-        _ mappings: SchemataMutationMappings...
+        _ mappings: SchemataMutationMappings...,
+        filePath: String = ""
     ) throws -> SchemataMutationMapping {
         var schemataMutationMapping = SchemataMutationMapping(filePath: filePath)
 

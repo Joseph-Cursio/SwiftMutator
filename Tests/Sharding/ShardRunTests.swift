@@ -154,8 +154,8 @@ final class ShardRunTests: MuterTestCase {
 
     func test_theConsole_saysHowManyEveryShardHolds_andThisOne() throws {
         let mapping = try SchemataMutationMapping.make(
-            filePath: "/project_mutated/Sources/Sum.swift",
-            (source: "let value = a == b", schemata: [.make(filePath: "/project_mutated/Sources/Sum.swift")])
+            (source: "let value = a == b", schemata: [.make(filePath: "/project_mutated/Sources/Sum.swift")]),
+            filePath: "/project_mutated/Sources/Sum.swift"
         )
         let logger = Logger()
 

@@ -41,9 +41,9 @@ extension PerformMutationTestingReuseTests {
         XCTAssertEqual(try resultsFiles.records(ResultsHeader.self).first?.waived, ["README.md"])
 
         state.resumeState = try ResumeState.make(
-            path: earlierPath,
             lines: recorded,
             file: nil,
+            path: earlierPath,
             forced: ["toolchain.environment"]
         )
         state.reuseChanges = [1: ReuseChanges(from: tree, to: tree, waiving: []) { _ in nil }]
@@ -87,7 +87,7 @@ extension PerformMutationTestingReuseTests {
             ),
             ResultsEnd.make(session: 2, recorded: 1),
         ]
-        state.resumeState = try ResumeState.make(path: earlierPath, lines: lines, file: nil)
+        state.resumeState = try ResumeState.make(lines: lines, file: nil, path: earlierPath)
         state.reuseChanges = [
             1: ReuseChanges(from: tree, to: changed, waiving: ["README.md"]) { _ in nil },
             2: ReuseChanges(from: changed, to: changed, waiving: ["README.md"]) { _ in nil },

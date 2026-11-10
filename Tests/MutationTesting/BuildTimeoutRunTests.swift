@@ -178,7 +178,6 @@ final class BuildTimeoutRunTests: MuterTestCase {
 
     private func makeSchemataMapping(line: Int) throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/some/path",
             (
                 source: "func bar() { }",
                 schemata: [
@@ -190,7 +189,8 @@ final class BuildTimeoutRunTests: MuterTestCase {
                         snapshot: .null
                     ),
                 ]
-            )
+            ),
+            filePath: "/some/path"
         )
     }
 }

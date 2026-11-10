@@ -195,7 +195,6 @@ final class DefaultWorkerCountRunTests: MuterTestCase {
 
     private func makeSchemataMapping(line: Int) throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/some/path",
             (
                 source: "func bar() { }",
                 schemata: [
@@ -207,7 +206,8 @@ final class DefaultWorkerCountRunTests: MuterTestCase {
                         snapshot: .null
                     ),
                 ]
-            )
+            ),
+            filePath: "/some/path"
         )
     }
 }

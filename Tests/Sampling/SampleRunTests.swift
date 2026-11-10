@@ -82,8 +82,8 @@ final class SampleRunTests: MuterTestCase {
 
     func test_theConsole_saysWhatTheSampleHolds() throws {
         let mapping = try SchemataMutationMapping.make(
-            filePath: "/project_mutated/Sources/Sum.swift",
-            (source: "let value = a == b", schemata: [.make(filePath: "/project_mutated/Sources/Sum.swift")])
+            (source: "let value = a == b", schemata: [.make(filePath: "/project_mutated/Sources/Sum.swift")]),
+            filePath: "/project_mutated/Sources/Sum.swift"
         )
         let partial = SampleSelection(size: 1, seed: 7, mutantsSampledFrom: 9, mutantsSampled: 1)
 

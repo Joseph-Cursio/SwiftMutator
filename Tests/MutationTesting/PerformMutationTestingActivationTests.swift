@@ -129,7 +129,6 @@ final class PerformMutationTestingActivationTests: MuterTestCase {
 
     func makeMapping(lines: [Int]) throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/project_mutated/Sources/Sum.swift",
             (
                 source: "func bar() { }",
                 schemata: lines.map { line in
@@ -141,7 +140,8 @@ final class PerformMutationTestingActivationTests: MuterTestCase {
                         snapshot: .make(before: ">", after: "<", description: "changed > to <")
                     )
                 }
-            )
+            ),
+            filePath: "/project_mutated/Sources/Sum.swift"
         )
     }
 }

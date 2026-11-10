@@ -63,7 +63,6 @@ final class LoggerTests: MuterTestCase {
 
     func makeSchemataMapping() throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/some/path",
             (
                 source: "func bar() { }",
                 schemata: [
@@ -75,15 +74,16 @@ final class LoggerTests: MuterTestCase {
                         snapshot: .null
                     ),
                 ]
-            )
+            ),
+            filePath: "/some/path"
         )
     }
 
     func test_mutationsDiscoveryFinished_countsFilesWithTheSameNameTogether() throws {
         let mappings = try ["/project/First/main.swift", "/project/Second/main.swift"].map { path in
             try SchemataMutationMapping.make(
-                filePath: path,
-                (source: "func bar() { }", schemata: [.make(filePath: path, position: .firstPosition)])
+                (source: "func bar() { }", schemata: [.make(filePath: path, position: .firstPosition)]),
+                filePath: path
             )
         }
 

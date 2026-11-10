@@ -271,7 +271,6 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
 
     func makeSchemataMapping(line: Int) throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/project_mutated/file\(line).swift",
             (
                 source: "func bar() { }",
                 schemata: [
@@ -283,7 +282,8 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
                         snapshot: .null
                     ),
                 ]
-            )
+            ),
+            filePath: "/project_mutated/file\(line).swift"
         )
     }
 }

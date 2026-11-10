@@ -216,7 +216,11 @@ extension PerformMutationTesting {
             index: index,
             worker: worker.number,
             configuration: configuration,
-            timing: FinishedRun.Timing(instant: dependencies.instant, heartbeat: dependencies.heartbeat, place: place(of: job))
+            timing: FinishedRun.Timing(
+                instant: dependencies.instant,
+                heartbeat: dependencies.heartbeat,
+                place: place(of: job)
+            )
         ) {
             await ioDelegate.runTestSuite(
                 withSchemata: job.schema,

@@ -82,12 +82,12 @@ final class PruneLogFoldersTests: MuterTestCase {
     // every session's own.
     func test_aResume_keepsItsEarlierSessionsFolders_asThisRun() throws {
         state.resumeState = try ResumeState.make(
-            path: "/project_muter_logs/first/results.jsonl",
             lines: [
                 ResultsHeader.make(logDirectory: "/project_muter_logs/first"),
                 ResultsHeader.make(session: 2, logDirectory: "/project_muter_logs/second"),
             ],
-            file: ResultsFilesSpy.File(path: "/project_muter_logs/first/results.jsonl", failFromLine: nil)
+            file: ResultsFilesSpy.File(path: "/project_muter_logs/first/results.jsonl", failFromLine: nil),
+            path: "/project_muter_logs/first/results.jsonl"
         )
 
         _ = try sut.run(with: state)
@@ -104,9 +104,9 @@ final class PruneLogFoldersTests: MuterTestCase {
     // The run a reuse reads is copied from much later, holding no lock: its folders are kept besides the runs kept.
     func test_aReuse_protectsTheReusedRunsFolders() throws {
         state.resumeState = try ResumeState.make(
-            path: "/elsewhere_muter_logs/first/results.jsonl",
             lines: [ResultsHeader.make(logDirectory: "/elsewhere_muter_logs/first")],
-            file: nil
+            file: nil,
+            path: "/elsewhere_muter_logs/first/results.jsonl"
         )
 
         _ = try sut.run(with: state)

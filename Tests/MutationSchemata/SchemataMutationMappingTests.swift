@@ -11,14 +11,14 @@ final class SchemataMutationMappingTests: XCTestCase {
     // came in turn.
     func test_aFilesMutants_comeByLineAndColumn_asNumbers_thenByOperator() throws {
         let mapping = try SchemataMutationMapping.make(
-            filePath: path,
             (source: "let later = 1", schemata: [mutant(line: 10, column: 5), mutant(line: 9, column: 12)]),
             (source: "let earlier = 2", schemata: [
                 mutant(line: 100, column: 5),
                 mutant(line: 9, column: 5, .ror),
                 mutant(line: 11, column: 5, .removeSideEffects),
                 mutant(line: 9, column: 5, .logicalOperator),
-            ])
+            ]),
+            filePath: path
         )
 
         XCTAssertEqual(mapping.mutationSchemata.map(label), [
@@ -34,12 +34,12 @@ final class SchemataMutationMappingTests: XCTestCase {
     // Their occurrences number them in this order (`MutantKey.keys`), and so does a test plan's run.
     func test_repeatsOfAPlaceAndOperator_keepTheOrderDiscoveryFoundThemIn() throws {
         let mapping = try SchemataMutationMapping.make(
-            filePath: path,
             (source: "let first = 1", schemata: [
                 mutant(line: 9, column: 5, after: "first"),
                 mutant(line: 10, column: 5),
                 mutant(line: 9, column: 5, after: "second"),
-            ])
+            ]),
+            filePath: path
         )
 
         let repeats = mapping.mutationSchemata.filter { $0.position.line == 9 }
@@ -66,12 +66,12 @@ final class SchemataMutationMappingTests: XCTestCase {
     // each mutant on by the ID the plan records, so no ID may be made again from the relative path.
     func test_aMappingMadeRelative_andResolvedAgain_isTheSame() throws {
         let mapping = try SchemataMutationMapping.make(
-            filePath: path,
             (source: "let later = 1", schemata: [mutant(line: 10, column: 5), mutant(line: 9, column: 12)]),
             (source: "let earlier = 2", schemata: [
                 mutant(line: 9, column: 5, after: "first"),
                 mutant(line: 9, column: 5, after: "second"),
-            ])
+            ]),
+            filePath: path
         )
         let root = URL(fileURLWithPath: "/project_mutated")
 
@@ -89,8 +89,8 @@ final class SchemataMutationMappingTests: XCTestCase {
     // A file outside the copy has no path relative to it, so it keeps its own both ways.
     func test_aMappingOutsideTheRoot_keepsItsPaths() throws {
         let mapping = try SchemataMutationMapping.make(
-            filePath: path,
-            (source: "let value = 1", schemata: [mutant(line: 3, column: 5)])
+            (source: "let value = 1", schemata: [mutant(line: 3, column: 5)]),
+            filePath: path
         )
         let elsewhere = URL(fileURLWithPath: "/elsewhere")
 

@@ -91,7 +91,6 @@ final class KeptLogFileTests: MuterTestCase {
 
     private func makeSchemataMapping() throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/some/path",
             (
                 source: "func bar() { }",
                 schemata: [
@@ -103,7 +102,8 @@ final class KeptLogFileTests: MuterTestCase {
                         snapshot: .null
                     ),
                 ]
-            )
+            ),
+            filePath: "/some/path"
         )
     }
 }

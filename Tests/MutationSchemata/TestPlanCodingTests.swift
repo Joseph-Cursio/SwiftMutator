@@ -142,8 +142,8 @@ final class TestPlanCodingTests: XCTestCase {
             mutatedProjectPath: copy,
             mappings: [
                 try .make(
-                    filePath: outside,
-                    (source: "let generated = 1", schemata: [mutant(in: outside, line: 2)])
+                    (source: "let generated = 1", schemata: [mutant(in: outside, line: 2)]),
+                    filePath: outside
                 ),
             ]
         )
@@ -273,11 +273,11 @@ final class TestPlanCodingTests: XCTestCase {
             linkedFiles: ["Sources/Max.swift": "c"],
             mappings: [
                 try .make(
-                    filePath: "\(copyFolder)/Sources/Max.swift",
                     (
                         source: "let max = 1",
                         schemata: [mutant(in: "\(copyFolder)/Sources/Max.swift", line: 3, copy: copyFolder)]
-                    )
+                    ),
+                    filePath: "\(copyFolder)/Sources/Max.swift"
                 ),
                 sum,
             ]

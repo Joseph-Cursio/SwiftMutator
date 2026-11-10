@@ -258,7 +258,6 @@ final class PerformMutationTestingTimeoutRerunTests: MuterTestCase {
     /// Sum.swift in the mutated project, with a mutant at each of `lines`, column 5.
     private func makeSchemataMapping(lines: [Int]) throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/project_mutated/Sources/Sum.swift",
             (
                 source: "func bar() { }",
                 schemata: lines.map { line in
@@ -270,7 +269,8 @@ final class PerformMutationTestingTimeoutRerunTests: MuterTestCase {
                         snapshot: .make(before: ">", after: "<", description: "changed > to <")
                     )
                 }
-            )
+            ),
+            filePath: "/project_mutated/Sources/Sum.swift"
         )
     }
 }

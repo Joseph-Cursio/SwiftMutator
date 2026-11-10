@@ -56,7 +56,6 @@ extension PerformMutationTestingResultsTests {
     /// A file in the mutated project with one mutant, at `line`, column 5.
     func makeSchemataMapping(file: String, line: Int) throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/project_mutated/\(file)",
             (
                 source: "func bar() { }",
                 schemata: [
@@ -68,7 +67,8 @@ extension PerformMutationTestingResultsTests {
                         snapshot: .make(before: ">", after: "<", description: "changed > to <")
                     ),
                 ]
-            )
+            ),
+            filePath: "/project_mutated/\(file)"
         )
     }
 }

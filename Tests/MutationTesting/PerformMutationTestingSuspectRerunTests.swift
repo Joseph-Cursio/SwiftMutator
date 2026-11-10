@@ -54,7 +54,6 @@ final class PerformMutationTestingSuspectRerunTests: MuterTestCase {
 
     private func makeSchemataMapping(file: String, line: Int) throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/project_mutated/\(file)",
             (
                 source: "func bar() { }",
                 schemata: [
@@ -66,7 +65,8 @@ final class PerformMutationTestingSuspectRerunTests: MuterTestCase {
                         snapshot: .make(before: ">", after: "<", description: "changed > to <")
                     ),
                 ]
-            )
+            ),
+            filePath: "/project_mutated/\(file)"
         )
     }
 

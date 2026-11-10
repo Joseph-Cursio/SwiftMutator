@@ -21,7 +21,6 @@ final class SwapTernaryOperatorTests: MuterTestCase {
 
         let actualMappings = visitor.schemataMappings
         let expectedMappings = try SchemataMutationMapping.make(
-            filePath: sampleCode.path,
             (
                 source: "\n    return a ? \"true\" : \"false\"",
                 schemata: [
@@ -61,7 +60,8 @@ final class SwapTernaryOperatorTests: MuterTestCase {
                         )
                     ),
                 ]
-            )
+            ),
+            filePath: sampleCode.path
         )
 
         XCTAssertEqual(actualMappings, expectedMappings)

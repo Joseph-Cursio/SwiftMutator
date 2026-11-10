@@ -61,7 +61,6 @@ extension FingerprintProjectTreeTests {
         current.listProjectFiles = { _ in Array(now.keys) }
         state.runOptions = .make(reuseURL: URL(fileURLWithPath: resultsPath), resumeIgnoring: ["*.txt"])
         state.resumeState = try ResumeState.make(
-            path: resultsPath,
             lines: [
                 ResultsHeader.make(project: projectTree(of: first)),
                 ResultsHeader.make(
@@ -71,7 +70,8 @@ extension FingerprintProjectTreeTests {
                     waived: ["README.md"]
                 ),
             ],
-            file: nil
+            file: nil,
+            path: resultsPath
         )
 
         state.apply(try await sut.run(with: state))

@@ -306,7 +306,6 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
 
     private func makeSchemataMapping(line: Int = 1) throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/some/path",
             (
                 source: "func bar() { }",
                 schemata: [
@@ -318,7 +317,8 @@ final class PerformMutationTestingDirectRunTests: MuterTestCase {
                         snapshot: .null
                     ),
                 ]
-            )
+            ),
+            filePath: "/some/path"
         )
     }
 }

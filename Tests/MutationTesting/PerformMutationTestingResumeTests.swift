@@ -71,9 +71,9 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
         ]
         state.resumeWaived = ["README.md"]
         state.resumeState = try ResumeState.make(
-            path: resultsPath,
             lines: recorded,
             file: resultsFiles.openForResume(at: resultsPath),
+            path: resultsPath,
             provenance: checkedProvenance,
             forced: ["toolchain.testCommandVersion"],
             notices: ["mutationTestWorkers was 4 and is 1 now, which no result depends on."]
@@ -96,7 +96,6 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
             suspectKillReruns: 2
         )
         state.resumeState = try ResumeState.make(
-            path: resultsPath,
             lines: [
                 ResultsHeader.make(
                     mutantsDiscovered: 4, mutantsToTest: 4, project: tree, configuration: state.muterConfiguration
@@ -108,6 +107,7 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
                 ResultsEnd.make(reason: .interrupted, detail: "SIGINT", testDurationSeconds: 100.5, recorded: 2),
             ],
             file: resultsFiles.openForResume(at: resultsPath),
+            path: resultsPath,
             provenance: checkedProvenance,
             forced: [],
             notices: []
@@ -239,9 +239,9 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
             ResultsEnd.make(session: 2, reason: .interrupted),
         ]
         state.resumeState = try ResumeState.make(
-            path: resultsPath,
             lines: recorded,
-            file: resultsFiles.openForResume(at: resultsPath)
+            file: resultsFiles.openForResume(at: resultsPath),
+            path: resultsPath
         )
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
 

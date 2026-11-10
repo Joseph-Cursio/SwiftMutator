@@ -50,11 +50,11 @@ final class LoggerProgressTotalTests: MuterTestCase {
     /// A file's mapping with one mutant, as discovery reports it.
     private func discoveredMapping() throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/some/path",
             (
                 source: "func bar() { }",
                 schemata: [.make(filePath: "/tmp/project/file.swift", position: .firstPosition)]
-            )
+            ),
+            filePath: "/some/path"
         )
     }
 

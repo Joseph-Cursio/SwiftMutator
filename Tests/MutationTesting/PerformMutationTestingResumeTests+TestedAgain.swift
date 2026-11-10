@@ -8,7 +8,6 @@ extension PerformMutationTestingResumeTests {
     func test_aRunStoppedWhileRunningItsTimeoutsAgain_testsOnlyThoseNotRunAgain() async throws {
         let rerun = MutantResult.Rerun(because: MutantResult.Rerun.timeout, workers: 1)
         state.resumeState = try ResumeState.make(
-            path: resultsPath,
             lines: [
                 ResultsHeader.make(mutantsDiscovered: 4, mutantsToTest: 4, project: tree, workers: 4),
                 record(of: "Sources/Product.swift", line: 7, .passed, fileSHA256: "77e0"),
@@ -18,7 +17,8 @@ extension PerformMutationTestingResumeTests {
                 record(of: "Sources/Sum.swift", line: 3, .failed, fileSHA256: "5a1c", rerun: rerun),
                 ResultsEnd.make(reason: .interrupted, detail: "SIGINT", recorded: 5),
             ],
-            file: XCTUnwrap(state.resumeState).file
+            file: XCTUnwrap(state.resumeState).file,
+            path: resultsPath
         )
         ioDelegate.testSuiteOutcomes = [.passed, .passed]
         let sent = recordEvents(named: [.resumePlanned])
@@ -44,7 +44,6 @@ extension PerformMutationTestingResumeTests {
     // again, and keeps its other results: they ended in time under the shorter one.
     func test_aLongerLimit_testsOnlyTheTimeoutsAgain() async throws {
         state.resumeState = try ResumeState.make(
-            path: resultsPath,
             lines: [
                 ResultsHeader.make(mutantsDiscovered: 4, mutantsToTest: 4, project: tree, timeoutSeconds: 60),
                 record(of: "Sources/Product.swift", line: 7, .passed, fileSHA256: "77e0"),
@@ -53,7 +52,8 @@ extension PerformMutationTestingResumeTests {
                 record(of: "Sources/Total.swift", line: 8, .timeout, fileSHA256: "9e21"),
                 ResultsEnd.make(recorded: 4),
             ],
-            file: XCTUnwrap(state.resumeState).file
+            file: XCTUnwrap(state.resumeState).file,
+            path: resultsPath
         )
         state.muterConfiguration = state.muterConfiguration.overriding(workers: nil, timeout: 120)
         ioDelegate.testSuiteOutcomes = [.passed, .failed]
@@ -87,9 +87,9 @@ extension PerformMutationTestingResumeTests {
         }
         records.append(ResultsEnd.make(reason: .finished, recorded: 10))
         state.resumeState = try ResumeState.make(
-            path: resultsPath,
             lines: records,
-            file: XCTUnwrap(state.resumeState).file
+            file: XCTUnwrap(state.resumeState).file,
+            path: resultsPath
         )
         ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .buildError, count: 5)
 
@@ -103,12 +103,12 @@ extension PerformMutationTestingResumeTests {
     func test_newBuildErrors_stillStopItAfterFiveInARow() async throws {
         state.mutationMapping = try [makeSchemataMapping(file: "Sources/Sum.swift", lines: Array(1...10))]
         state.resumeState = try ResumeState.make(
-            path: resultsPath,
             lines: [
                 ResultsHeader.make(mutantsDiscovered: 10, mutantsToTest: 10, project: tree),
                 ResultsEnd.make(reason: .interrupted, detail: "SIGINT", recorded: 0),
             ],
-            file: XCTUnwrap(state.resumeState).file
+            file: XCTUnwrap(state.resumeState).file,
+            path: resultsPath
         )
         ioDelegate.testSuiteOutcomes = [.passed] + Array(repeating: .buildError, count: 5)
 

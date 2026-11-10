@@ -85,7 +85,6 @@ extension PerformMutationTestingResumeTests {
             executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 4
         )
         state.resumeState = try ResumeState.make(
-            path: resultsPath,
             lines: [
                 ResultsHeader.make(mutantsDiscovered: 4, mutantsToTest: 4, project: tree),
                 record(of: "Sources/Product.swift", line: 7, .passed, fileSHA256: "77e0"),
@@ -94,7 +93,8 @@ extension PerformMutationTestingResumeTests {
                 record(of: "Sources/Total.swift", line: 8, .timeout, fileSHA256: "9e21"),
                 ResultsEnd.make(reason: .interrupted, detail: "SIGINT", testDurationSeconds: 100.5, recorded: 4),
             ],
-            file: XCTUnwrap(state.resumeState).file
+            file: XCTUnwrap(state.resumeState).file,
+            path: resultsPath
         )
         ioDelegate.testSuiteOutcomes = []
         let sent = recordEvents(named: [.mutationTestingStarted, .newTestLogAvailable])
@@ -143,7 +143,6 @@ extension PerformMutationTestingResumeTests {
     // It writes no mutant line, so nothing in it needs format 4.
     func test_aResumedSessionWithNothingLeft_hasAFormat3Header() async throws {
         state.resumeState = try ResumeState.make(
-            path: resultsPath,
             lines: [
                 ResultsHeader.make(mutantsDiscovered: 4, mutantsToTest: 4, project: tree),
                 record(of: "Sources/Product.swift", line: 7, .passed, fileSHA256: "77e0"),
@@ -151,7 +150,8 @@ extension PerformMutationTestingResumeTests {
                 record(of: "Sources/Sum.swift", line: 3, .failed, fileSHA256: "5a1c", killedBy: [sumTest]),
                 record(of: "Sources/Total.swift", line: 8, .timeout, fileSHA256: "9e21"),
             ],
-            file: XCTUnwrap(state.resumeState).file
+            file: XCTUnwrap(state.resumeState).file,
+            path: resultsPath
         )
         ioDelegate.testSuiteOutcomes = []
 
@@ -169,7 +169,6 @@ extension PerformMutationTestingResumeTests {
         let folder = try makeTemporaryDirectory()
         state.loggingDirectory = folder
         state.resumeState = try ResumeState.make(
-            path: resultsPath,
             lines: [
                 ResultsHeader.make(mutantsDiscovered: 4, mutantsToTest: 4, project: tree),
                 record(of: "Sources/Product.swift", line: 7, .passed, fileSHA256: "77e0"),
@@ -178,7 +177,8 @@ extension PerformMutationTestingResumeTests {
                 record(of: "Sources/Total.swift", line: 8, .timeout, fileSHA256: "9e21"),
                 ResultsEnd.make(reason: .finished, testDurationSeconds: 100.5, recorded: 4),
             ],
-            file: XCTUnwrap(state.resumeState).file
+            file: XCTUnwrap(state.resumeState).file,
+            path: resultsPath
         )
 
         _ = try await sut.run(with: state)

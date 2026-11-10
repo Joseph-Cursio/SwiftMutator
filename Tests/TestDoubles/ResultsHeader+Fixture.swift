@@ -216,9 +216,9 @@ func resultsFileData(_ lines: [any Encodable]) throws -> Data {
 extension ResumeState {
     /// The resume of the results file at `path`, which holds `lines`, opened as `file`; a reuse of it without one.
     static func make(
-        path: String = "/project_muter_logs/session 1/results.jsonl",
         lines: [any Encodable],
         file: ResultsRecording?,
+        path: String = "/project_muter_logs/session 1/results.jsonl",
         provenance: Provenance = .fixture,
         forced: [String] = [],
         notices: [String] = []

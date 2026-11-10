@@ -51,7 +51,6 @@ final class ResultsFileIntegrationTests: MuterTestCase {
 
     private func makeSchemataMapping(line: Int) throws -> SchemataMutationMapping {
         try SchemataMutationMapping.make(
-            filePath: "/project_mutated/Sources/File\(line).swift",
             (
                 source: "func bar() { }",
                 schemata: [
@@ -63,7 +62,8 @@ final class ResultsFileIntegrationTests: MuterTestCase {
                         snapshot: .make(before: ">", after: "<", description: "changed > to <")
                     ),
                 ]
-            )
+            ),
+            filePath: "/project_mutated/Sources/File\(line).swift"
         )
     }
 }
