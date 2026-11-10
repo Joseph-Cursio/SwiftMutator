@@ -510,11 +510,11 @@ extension MutationTestObserver {
         logger.mutationTestingEndedEarly(
             earlyEnd,
             partialReports: (partialReport.map { [$0] } ?? []) + otherPartialReports,
+            resultsFile: resultsFilePath,
+            continueCommand: continueCommand,
             baselineFile: runOptions.writeBaseline.map {
                 .leftOut(path: $0, because: "the run stopped before it finished")
-            },
-            resultsFile: resultsFilePath,
-            continueCommand: continueCommand
+            }
         )
     }
 }

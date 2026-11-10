@@ -142,9 +142,9 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
     func mutationTestingEndedEarly(
         _ earlyEnd: EarlyEnd,
         partialReports: [(path: String, saved: Bool)],
-        baselineFile: BaselineFileSaving? = nil,
         resultsFile: String?,
-        continueCommand: String?
+        continueCommand: String?,
+        baselineFile: BaselineFileSaving? = nil
     ) {
         let results = earlyEnd.outcome.mutations.count
         var lines = [Self.stopped(earlyEnd)]

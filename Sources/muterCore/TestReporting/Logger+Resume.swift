@@ -9,6 +9,13 @@ extension Logger {
     /// the progress lines then count only the mutants left.
     func resumePlanned(_ summary: ResumeSummary) {
         numberOfMutationPoints = summary.toTest
+        printResumedResults(summary)
+        printDiscoveryChanges(summary)
+        printChangesLetThrough(summary)
+    }
+
+    /// "♻️ Resuming the run in …": how many results still hold, and how many mutants are left to test and why.
+    private func printResumedResults(_ summary: ResumeSummary) {
         let resuming = summary.isReuse
             ? "♻️ Reusing the results in \(summary.path.bold): "
             : "♻️ Resuming the run in \(summary.path.bold): "
@@ -28,6 +35,11 @@ extension Logger {
             let why = reasons.isEmpty ? "" : " (\(reasons.joined(separator: ", ")))"
             print(resuming + "\(reused), so \(left) left to test\(why).")
         }
+    }
+
+    /// How the selection, discovery or coverage changed since the last session, the earlier results the sample no
+    /// longer takes, and the summary's other notices.
+    private func printDiscoveryChanges(_ summary: ResumeSummary) {
         if let selectionChange = summary.selectionChange {
             print("ℹ️ \(selectionChange)")
         } else if let discoveryChange = Self.discoveryChange(summary) {
@@ -52,6 +64,11 @@ extension Logger {
         for notice in summary.notices {
             print("ℹ️ \(notice)")
         }
+    }
+
+    /// The changed files that make results tested again, and the changes `--force-resume` and `--resume-ignoring`
+    /// (or `--reuse`'s flags) let through.
+    private func printChangesLetThrough(_ summary: ResumeSummary) {
         if let otherFiles = Self.otherFilesChanged(summary) {
             print("⚠️ \(otherFiles)")
         } else if summary.testFilesChanged > 0 {
@@ -153,14 +170,8 @@ extension Logger {
         case .buildError:
             return "\(count) build error\(one ? "" : "s")"
 
-        case .fileChanged:
-            return "\(count) in \(one ? "a changed file" : "changed files")"
-
-        case .mutationChanged:
-            return "\(count) changed mutation\(one ? "" : "s")"
-
-        case .repeated:
-            return "\(count) repeated in \(one ? "its" : "their") file"
+        case .fileChanged, .mutationChanged, .repeated, .otherFileChanged, .testsChanged:
+            return retested(count, afterChange: reason)
 
         case .timeoutNotRerun:
             return "\(count) timeout\(one ? "" : "s") not run again at lower load"
@@ -176,12 +187,31 @@ extension Logger {
 
         case .sessionShowedNoCodeRunning:
             return "\(count) from a session that switched on no mutant"
+        }
+    }
+
+    /// "3 in changed files": how many mutants are tested again for `reason`, a change since their results were tested.
+    private static func retested(_ count: Int, afterChange reason: ResumePlan.Reason) -> String {
+        let one = count == 1
+        switch reason {
+        case .fileChanged:
+            return "\(count) in \(one ? "a changed file" : "changed files")"
+
+        case .mutationChanged:
+            return "\(count) changed mutation\(one ? "" : "s")"
+
+        case .repeated:
+            return "\(count) repeated in \(one ? "its" : "their") file"
 
         case .otherFileChanged:
             return "\(count) as other project files changed"
 
         case .testsChanged:
             return "\(count) as test files changed"
+
+        case .notRecorded, .buildError, .timeoutNotRerun, .timeoutUnderShorterLimit, .timedOut, .codeNotShownRunning,
+             .sessionShowedNoCodeRunning:
+            preconditionFailure("\(reason) is not a change; retested(_:because:) words it")
         }
     }
 

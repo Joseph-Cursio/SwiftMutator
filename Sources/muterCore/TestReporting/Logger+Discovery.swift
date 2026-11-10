@@ -215,32 +215,9 @@ extension Logger {
             filesSummary[mutation.fileName, default: 0] += mutation.mutationSchemata.count
         }
 
-        let discovered = switch (sample?.selection, shard) {
-        case (nil, nil):
-            "✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants in \(numberOfFiles) files"
-
-        case let (nil, shard?):
-            "✅ In total, SwiftMutator discovered \(shard.mutantsInAllShards) mutants, and shard \(shard.index) of "
-                + "\(shard.count) holds \(numberOfMutationPoints) of them, in \(numberOfFiles) files"
-
-        case let (sample?, nil) where sample.isPartial:
-            "✅ In total, SwiftMutator discovered \(sample.mutantsSampledFrom) mutants, and the sample of "
-                + "\(sample.size) holds \(numberOfMutationPoints) of them, in \(numberOfFiles) files"
-
-        case let (sample?, nil) where sample.mutantsSampledFrom <= sample.size:
-            "✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants in \(numberOfFiles) files, "
-                + "no more than the sample of \(sample.size), which holds them all"
-
-        // The last place it took had repeats enough to hold the rest.
-        case let (sample?, nil):
-            "✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants in \(numberOfFiles) files, and "
-                + "the sample of \(sample.size) holds them all"
-
-        case let (sample?, shard?):
-            "✅ In total, SwiftMutator discovered \(sample.mutantsSampledFrom) mutants, the sample of \(sample.size) "
-                + "holds \(sample.mutantsSampled) of them, and shard \(shard.index) of \(shard.count) holds "
-                + "\(numberOfMutationPoints) of those, in \(numberOfFiles) files"
-        }
+        let discovered = Self.discovered(
+            mutants: numberOfMutationPoints, files: numberOfFiles, sample: sample?.selection, shard: shard
+        )
         var lines = [discovered]
         if let sample, sample.seedIsChosen {
             let seed = sample.selection.seed
@@ -254,6 +231,39 @@ extension Logger {
         guard verbose else { return }
         for (fileName, mutantCount) in filesSummary {
             print("\(fileName) (\(mutantCount) mutants)".bold)
+        }
+    }
+
+    /// "✅ In total, SwiftMutator discovered …": how many `mutants` there are to test and in how many `files`, and
+    /// with a `sample` or a `shard`, how many were discovered in all.
+    private static func discovered(
+        mutants: Int, files: Int, sample: SampleSelection?, shard: ShardSelection?
+    ) -> String {
+        switch (sample, shard) {
+        case (nil, nil):
+            "✅ In total, SwiftMutator discovered \(mutants) mutants in \(files) files"
+
+        case let (nil, shard?):
+            "✅ In total, SwiftMutator discovered \(shard.mutantsInAllShards) mutants, and shard \(shard.index) of "
+                + "\(shard.count) holds \(mutants) of them, in \(files) files"
+
+        case let (sample?, nil) where sample.isPartial:
+            "✅ In total, SwiftMutator discovered \(sample.mutantsSampledFrom) mutants, and the sample of "
+                + "\(sample.size) holds \(mutants) of them, in \(files) files"
+
+        case let (sample?, nil) where sample.mutantsSampledFrom <= sample.size:
+            "✅ In total, SwiftMutator discovered \(mutants) mutants in \(files) files, "
+                + "no more than the sample of \(sample.size), which holds them all"
+
+        // The last place it took had repeats enough to hold the rest.
+        case let (sample?, nil):
+            "✅ In total, SwiftMutator discovered \(mutants) mutants in \(files) files, and "
+                + "the sample of \(sample.size) holds them all"
+
+        case let (sample?, shard?):
+            "✅ In total, SwiftMutator discovered \(sample.mutantsSampledFrom) mutants, the sample of \(sample.size) "
+                + "holds \(sample.mutantsSampled) of them, and shard \(shard.index) of \(shard.count) holds "
+                + "\(mutants) of those, in \(files) files"
         }
     }
 

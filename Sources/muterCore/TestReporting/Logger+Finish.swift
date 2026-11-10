@@ -45,7 +45,7 @@ extension Logger {
         isExportingReport: Bool,
         didSaveReport: Bool,
         scoreLine: String,
-        suspectWarning: String?,
+        suspectWarning: String? = nil,
         buildErrorWarning: String? = nil,
         unprovenKillWarning: String? = nil,
         otherReports: [(path: String, saved: Bool)] = []
