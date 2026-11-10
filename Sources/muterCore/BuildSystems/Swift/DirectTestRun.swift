@@ -34,12 +34,10 @@ struct DirectTestRun: Equatable, Sendable {
     struct Unavailable: Error, Equatable {
         let reason: String?
     }
-}
 
-extension DirectTestRun {
     /// This run with `more` given to each helper after its own arguments, such as a test filter.
-    func adding(_ more: [String]) -> DirectTestRun {
-        DirectTestRun(
+    func adding(_ more: [String]) -> Self {
+        Self(
             helper: helper,
             productsFolder: productsFolder,
             bundles: bundles,
@@ -53,7 +51,7 @@ extension DirectTestRun {
     /// This run with every worker's runs starting in `project`, on its build. What else is a worker's own goes by its
     /// folder's name, which then needs no folder: its active-mutant file, helper link, `UserDefaults`, activation
     /// markers and temporary folder.
-    func sharingBuild(of project: URL) -> DirectTestRun {
+    func sharingBuild(of project: URL) -> Self {
         var copy = self
         copy.sharedBuild = project
         return copy
@@ -143,188 +141,5 @@ extension DirectTestRun {
             "DYLD_LIBRARY_PATH": "\(products):\(platformDeveloperFolder)/usr/lib",
             "NO_COLOR": "1",
         ]
-    }
-}
-
-extension DirectTestRun {
-    /// Ends the name of the link to the helper, beside a worker's folder.
-    static let helperLinkSuffix = ".swiftpm-testing-helper"
-
-    /// The link `script(in:)` starts the helpers through for a worker's folder, the mutated project or a clone:
-    /// `<stem>.swiftpm-testing-helper`, beside it, named after the folder without `.noindex` as the active-mutant file
-    /// is, so an older SwiftMutator's link and its tests' domain have the names this one gives them. A process with no
-    /// bundle identifier, as the helper is, keeps its `UserDefaults` in a domain named after its executable's file,
-    /// which a link sets but a changed `argv[0]` doesn't. So each worker's tests get a domain of their own, where every
-    /// worker once shared the helper's, and with it every other `swift test` run on the Mac: tests that wrote a fixed
-    /// key there could fail another worker's tests, and kill mutants they don't check (#92).
-    static func helperLink(forWorkerIn folder: URL) -> URL {
-        MutatedProjectNames.file(helperLinkSuffix, beside: folder)
-    }
-
-    /// The `UserDefaults` domain of the tests run directly in `folder`: the name of its helper link.
-    static func defaultsDomain(forWorkerIn folder: URL) -> String {
-        helperLink(forWorkerIn: folder).lastPathComponent
-    }
-
-    /// Removes the helper link beside `folder` and its tests' `UserDefaults`, once SwiftMutator is done with the
-    /// folder.
-    static func removeOwnDefaults(forWorkerIn folder: URL) {
-        let link = helperLink(forWorkerIn: folder)
-        guard (try? FileManager.default.destinationOfSymbolicLink(atPath: link.path)) != nil else { return }
-        try? FileManager.default.removeItem(at: link)
-        removeDefaultsDomain(defaultsDomain(forWorkerIn: folder))
-    }
-
-    /// Removes `domain`, one of SwiftMutator's own, and the file in the user's preferences that held it. `defaults`
-    /// empties it, as SwiftMutator itself would write its copy back to disk when it exits, and the file left empty then
-    /// goes. Waits at most `timeLimit` seconds for `defaults`, which leaves the domain in place if it takes longer.
-    static func removeDefaultsDomain(_ domain: String, timeLimit: TimeInterval = 5) {
-        #if os(macOS)
-        let delete = Foundation.Process()
-        delete.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
-        delete.arguments = ["delete", domain]
-        delete.standardOutput = FileHandle.nullDevice
-        delete.standardError = FileHandle.nullDevice
-        let exited = DispatchSemaphore(value: 0)
-        delete.terminationHandler = { _ in exited.signal() }
-        guard (try? delete.run()) != nil, exited.wait(timeout: .now() + timeLimit) == .success else { return }
-        let file = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Preferences/\(domain).plist")
-        try? FileManager.default.removeItem(at: file)
-        #endif
-    }
-}
-
-extension DirectTestRun {
-    /// Why a mutant's tests can't run directly after a baseline that printed `baselineLog`, given a run that did with
-    /// no mutant on, which ended as `outcome` and printed `log`; nil if they can.
-    static func whyNot(baselineLog: String, outcome: TestSuiteOutcome, log: String) -> String? {
-        let expected = swiftTestingCounts(in: baselineLog).sorted()
-        let ran = swiftTestingCounts(in: log).sorted()
-        guard outcome == .passed else {
-            return "running the test bundles directly, with no mutant on, didn't pass, as `swift test` did"
-        }
-        guard !expected.isEmpty, expected.reduce(0, +) > 0 else {
-            return "the baseline ran no Swift Testing test"
-        }
-        guard ran == expected else {
-            let counts = { (counts: [Int]) in counts.map(String.init).joined(separator: ", ") }
-            return "running the test bundles directly ran \(counts(ran)) Swift Testing tests, "
-                + "where `swift test` ran \(counts(expected))"
-        }
-        return nil
-    }
-
-    /// Whether `log`, a `swift test` run's, shows an XCTest test run: XCTest's `Executed 3 tests, with …` line. A
-    /// bundle with none still prints one, for 0 tests.
-    static func ranXCTestTests(in log: String) -> Bool {
-        counts(of: #"Executed ([0-9]+) tests?, with "#, in: log).contains { $0 > 0 }
-    }
-
-    /// The tests each Swift Testing run in `log` ran, in order, from its `Test run with 12 tests in 3 suites …` line.
-    static func swiftTestingCounts(in log: String) -> [Int] {
-        counts(of: #"Test run with ([0-9]+) tests? "#, in: log)
-    }
-
-    private static func counts(of pattern: String, in log: String) -> [Int] {
-        let regex = NSRegularExpression.regexWithPattern(pattern)
-        return regex.matches(in: log, range: NSRange(log.startIndex..., in: log)).compactMap { match in
-            Range(match.range(at: 1), in: log).flatMap { Int(log[$0]) }
-        }
-    }
-}
-
-extension DirectTestRun {
-    /// How `configuration`'s test command would run the bundles of `project`, the mutated project, once its baseline
-    /// has built them.
-    static func probe(
-        _ configuration: MuterConfiguration,
-        in project: URL
-    ) async -> Result<DirectTestRun, Unavailable> {
-        #if os(macOS)
-        await Prober().probe(configuration, in: project)
-        #else
-        .failure(Unavailable(reason: nil))
-        #endif
-    }
-
-    private struct Prober {
-        @Dependency(\.process)
-        var process: ProcessFactory
-        @Dependency(\.fileManager)
-        var fileManager: FileSystemManager
-
-        func probe(_ configuration: MuterConfiguration, in project: URL) async -> Result<DirectTestRun, Unavailable> {
-            let executable = configuration.testCommandExecutable
-            guard URL(fileURLWithPath: executable).lastPathComponent == "swift",
-                  configuration.testCommandArguments.first == "test"
-            else {
-                return .failure(Unavailable(reason: nil))
-            }
-            guard let helper = await helper(of: executable) else {
-                return .failure(Unavailable(reason: "\(executable)'s toolchain has no swiftpm-testing-helper"))
-            }
-            guard let platform = await output(of: "/usr/bin/xcrun", ["--sdk", "macosx", "--show-sdk-platform-path"])
-            else {
-                return .failure(Unavailable(reason: "`xcrun` didn't say where the macOS platform is"))
-            }
-            let coverage = SwiftCoverage(platform: .darwin)
-            guard let products = await coverage.buildDirectory(configuration)?.canonicalPath else {
-                return .failure(Unavailable(reason: "`swift test --show-codecov-path` didn't say where the build is"))
-            }
-            let projectPath = project.path.canonicalPath
-            guard products.hasPrefix(projectPath + "/") else {
-                return .failure(Unavailable(reason: "the build, in \(products), is outside the project"))
-            }
-            let testTargets = await coverage.testTargetSources(configuration)
-            let bundles = coverage.testBundleFiles(in: products, testTargets: testTargets.map { Set($0.keys) })
-            guard !bundles.isEmpty else {
-                return .failure(Unavailable(reason: "there is no test bundle in \(products)"))
-            }
-            return .success(DirectTestRun(
-                helper: helper,
-                productsFolder: String(products.dropFirst(projectPath.count + 1)),
-                bundles: bundles.map(\.name),
-                // Swift Build names each bundle after its test target.
-                testFiles: (testTargets ?? [:]).mapValues { sources in
-                    sources.map { URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent }
-                },
-                platformDeveloperFolder: platform + "/Developer",
-                arguments: Array(configuration.testWithoutBuildArguments(with: "").dropFirst())
-            ))
-        }
-
-        /// The `swiftpm-testing-helper` beside the `swift` that `executable` runs: in `<toolchain>/usr/libexec`, where
-        /// its resource folder is `<toolchain>/usr/lib/swift`. Asked of `swift` itself, so `xcrun`'s and swiftly's
-        /// proxies, and `TOOLCHAINS`, choose the toolchain as they do for `swift test`.
-        private func helper(of executable: String) async -> String? {
-            guard let info = await output(of: executable, ["-print-target-info"]),
-                  let target = try? JSONDecoder().decode(TargetInfo.self, from: Data(info.utf8))
-            else {
-                return nil
-            }
-            let helper = URL(fileURLWithPath: target.paths.runtimeResourcePath)
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("libexec/swift/pm/swiftpm-testing-helper")
-                .path
-            return fileManager.fileExists(atPath: helper) ? helper : nil
-        }
-
-        private struct TargetInfo: Decodable {
-            let paths: TargetPaths
-        }
-
-        private struct TargetPaths: Decodable {
-            let runtimeResourcePath: String
-        }
-
-        /// What `executable` printed, trimmed, if it succeeded and printed anything.
-        private func output(of executable: String, _ arguments: [String]) async -> String? {
-            guard let result = await process().runCommand(url: executable, arguments: arguments), result.succeeded
-            else {
-                return nil
-            }
-            return result.output.trimmed.nilIfEmpty
-        }
     }
 }

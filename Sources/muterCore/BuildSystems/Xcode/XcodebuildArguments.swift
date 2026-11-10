@@ -6,16 +6,17 @@ import Foundation
 /// An option it doesn't list is taken to stand alone, so that a wrapper script's own flag and its value are both kept
 /// wherever they are.
 struct XcodebuildArguments: Equatable {
+    /// What an `Argument` is.
+    enum ArgumentKind: Equatable {
+        case action
+        case option
+        /// A build setting, as `SWIFT_TREAT_WARNINGS_AS_ERRORS=NO`, or anything else that is neither.
+        case other
+    }
+
     /// One action, option or other argument, as the test command gives it.
     struct Argument: Equatable {
-        enum Kind: Equatable {
-            case action
-            case option
-            /// A build setting, as `SWIFT_TREAT_WARNINGS_AS_ERRORS=NO`, or anything else that is neither.
-            case other
-        }
-
-        let kind: Kind
+        let kind: ArgumentKind
         /// The action, or the option's name, as `-only-testing` for `-only-testing:AppTests`; any other argument as it
         /// is written.
         let name: String
@@ -89,9 +90,7 @@ struct XcodebuildArguments: Equatable {
         "-parallel-testing-enabled", "-parallel-testing-worker-count", "-maximum-parallel-testing-workers",
         "-parallelize-tests-among-destinations",
     ]
-}
 
-extension XcodebuildArguments {
     /// The test command's arguments for an xcodebuild run from an `.xctestrun`, a mutant's, beside the
     /// `test-without-building`, `-destination` and `-xctestrun` the run is given, `worker`'s own arguments and the
     /// `-only-testing:` of a test filter, when `filtered`. So the options that say which tests run and how, such as
