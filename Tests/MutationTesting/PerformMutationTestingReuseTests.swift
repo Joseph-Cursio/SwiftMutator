@@ -38,7 +38,7 @@ final class PerformMutationTestingReuseTests: MuterTestCase {
     ]
 
     let keepingAllLogs = MuterConfiguration(
-        executable: "/usr/bin/swift", arguments: ["test"], keepAllLogs: true
+        executable: "/usr/bin/swift", arguments: ["test"], keepAllLogs: .enabled
     )
 
     lazy var sut = PerformMutationTesting(

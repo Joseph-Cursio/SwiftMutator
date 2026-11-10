@@ -129,7 +129,7 @@ extension PerformMutationTestingResumeTests {
     // Every mutant line it writes names a log, so it keeps to the format a resumed session had before format 4.
     func test_aResumedSessionKeepingAllLogs_hasAFormat3Header() async throws {
         state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], keepAllLogs: true
+            executable: "/usr/bin/swift", arguments: ["test"], keepAllLogs: .enabled
         )
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
 

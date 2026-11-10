@@ -36,22 +36,23 @@ struct MuterConfiguration: Equatable, Codable {
     /// `self` and change just this field.
     var mutationTestWorkers: Int?
     /// Whether a SwiftPM run's workers may share the mutated project's build rather than each have a clone
-    /// (`workersShareBuild:`): nil and true when a direct run of the tests with no mutant on wrote nothing in the
-    /// project, false never.
-    let workersShareBuild: Bool?
+    /// (`workersShareBuild:`): `unset` and `enabled` when a direct run of the tests with no mutant on wrote nothing in
+    /// the project, `disabled` never.
+    let workersShareBuild: ConfigurationSwitch
     /// Optional explicit build system from the `buildSystem:` config key. When set it overrides the
     /// executable-basename heuristic — needed when `executable` is a wrapper script (e.g. one that
     /// restores env / forwards SIMCTL_CHILD_ vars) whose filename isn't literally `xcodebuild`/`swift`.
     let explicitBuildSystem: BuildSystem?
     /// Whether a mutant's test run stops at its first failed test (`stopAtFirstFailure:`), which already
-    /// decides that the mutant is killed. nil leaves it to the default; see `stopsAtFirstFailure`. A `var` only so
+    /// decides that the mutant is killed. `unset` leaves it to the default; see `stopsAtFirstFailure`. A `var` only so
     /// `withoutStoppingAtFirstFailure` can copy `self` and change just this field.
-    var stopAtFirstFailure: Bool?
+    var stopAtFirstFailure: ConfigurationSwitch
     /// Whether one xcodebuild worker tests on a simulator SwiftMutator makes, rather than on the test command's
-    /// destination (`oneWorkerSimulator:`): nil decides from the project and the baseline
-    /// (`SimulatorWorkerSetup.oneWorkerPlan(for:state:)`), true whenever the destination is a simulator and there are 2
-    /// or more mutants to test, false never. Several workers test on simulators of their own whatever it says.
-    let oneWorkerSimulator: Bool?
+    /// destination (`oneWorkerSimulator:`): `unset` decides from the project and the baseline
+    /// (`SimulatorWorkerSetup.oneWorkerPlan(for:state:)`), `enabled` whenever the destination is a simulator and there
+    /// are 2 or more mutants to test, `disabled` never. Several workers test on simulators of their own whatever it
+    /// says.
+    let oneWorkerSimulator: ConfigurationSwitch
     /// When a test is suspect (`suspectTestFilePercent:`, from 1 to 100, and `suspectTestMinimumFiles:`, at least 1):
     /// nil leaves each to `SuspectTestThresholds.standard`. They change no result already recorded, only what the
     /// reports say and which kills a later session tests again alone, so a resume lets them change
@@ -66,20 +67,20 @@ struct MuterConfiguration: Equatable, Codable {
     /// number, 0 for none): nil leaves it to `defaultSuspectKillReruns`. It changes no result already recorded, so a
     /// resume lets it change.
     let suspectKillReruns: Int?
-    /// Whether every mutant's test run keeps its log (`keepAllLogs:`): nil and false keep a mutant's log only when its
-    /// results line can't stand in for it, true keeps every log. See `MutationTestLog.isKept`. Which logs are kept
-    /// changes no result, so a resume lets it change.
-    let keepAllLogs: Bool?
+    /// Whether every mutant's test run keeps its log (`keepAllLogs:`): `unset` and `disabled` keep a mutant's log only
+    /// when its results line can't stand in for it, `enabled` keeps every log. See `MutationTestLog.isKept`. Which logs
+    /// are kept changes no result, so a resume lets it change.
+    let keepAllLogs: ConfigurationSwitch
     /// How many runs' log folders to keep in `<project>_muter_logs` (`keepLogFolders:`, a whole number, at least 2),
     /// this run's included, so the run before it is always kept; nil, the default, removes none. A run's folders are
     /// those of each of its sessions, and only a run with a results file counts. See `LogFolderPruning`. Which folders
     /// are kept changes no result, so a resume lets it change.
     let keepLogFolders: Int?
-    /// Whether the build phases of the copy's Xcode projects keep running SwiftLint (`keepSwiftLintPhases:`): nil and
-    /// false turn it off in the copy, never in the project, true keeps it (`TurnOffSwiftLintPhases`). Each mutated
-    /// file turns every rule off, so a phase only costs time on each build of the copy. It changes no result, so a
-    /// resume lets it change.
-    let keepSwiftLintPhases: Bool?
+    /// Whether the build phases of the copy's Xcode projects keep running SwiftLint (`keepSwiftLintPhases:`): `unset`
+    /// and `disabled` turn it off in the copy, never in the project, `enabled` keeps it (`TurnOffSwiftLintPhases`).
+    /// Each mutated file turns every rule off, so a phase only costs time on each build of the copy. It changes no
+    /// result, so a resume lets it change.
+    let keepSwiftLintPhases: ConfigurationSwitch
     /// The percent, from 0 to 100, up to 6 decimals, below which a finished run's headline score fails it with status 2
     /// (`failUnder:`, `ScoreGate`); nil, the default, checks none. It changes no result, so a resume lets it change.
     /// A `var` only so `overriding` can copy `self` and change just this field.
@@ -183,17 +184,17 @@ struct MuterConfiguration: Equatable, Codable {
         testSuiteTimeOut timeout: Double? = nil,
         buildSystem: BuildSystem? = nil,
         mutationTestWorkers workers: Int? = nil,
-        workersShareBuild: Bool? = nil,
-        stopAtFirstFailure: Bool? = nil,
+        workersShareBuild: ConfigurationSwitch = .unset,
+        stopAtFirstFailure: ConfigurationSwitch = .unset,
         buildTimeout: Double? = nil,
-        oneWorkerSimulator: Bool? = nil,
+        oneWorkerSimulator: ConfigurationSwitch = .unset,
         suspectTestFilePercent: Int? = nil,
         suspectTestMinimumFiles: Int? = nil,
         controlRunEvery: Int? = nil,
         suspectKillReruns: Int? = nil,
-        keepAllLogs: Bool? = nil,
+        keepAllLogs: ConfigurationSwitch = .unset,
         keepLogFolders: Int? = nil,
-        keepSwiftLintPhases: Bool? = nil,
+        keepSwiftLintPhases: ConfigurationSwitch = .unset,
         failUnder: Double? = nil,
         propertyTests: [String]? = nil,
         propertyTestFilter: [String]? = nil,
@@ -243,17 +244,17 @@ struct MuterConfiguration: Equatable, Codable {
         buildTimeout = try Self.number(forKey: .buildTimeout, in: container)
         explicitBuildSystem = try Self.buildSystem(forKey: .explicitBuildSystem, in: container)
         mutationTestWorkers = try container.decodeIfPresent(Int.self, forKey: .mutationTestWorkers)
-        workersShareBuild = try container.decodeIfPresent(Bool.self, forKey: .workersShareBuild)
+        workersShareBuild = try container.decode(ConfigurationSwitch.self, forKey: .workersShareBuild)
         // Throws on a value that isn't a Boolean, so a typo is a configuration error rather than "unset".
-        stopAtFirstFailure = try container.decodeIfPresent(Bool.self, forKey: .stopAtFirstFailure)
-        oneWorkerSimulator = try container.decodeIfPresent(Bool.self, forKey: .oneWorkerSimulator)
+        stopAtFirstFailure = try container.decode(ConfigurationSwitch.self, forKey: .stopAtFirstFailure)
+        oneWorkerSimulator = try container.decode(ConfigurationSwitch.self, forKey: .oneWorkerSimulator)
         suspectTestFilePercent = try Self.whole(forKey: .suspectTestFilePercent, in: 1 ... 100, in: container)
         suspectTestMinimumFiles = try Self.whole(forKey: .suspectTestMinimumFiles, in: 1 ... Int.max, in: container)
         controlRunEvery = try Self.whole(forKey: .controlRunEvery, in: 0 ... Int.max, in: container)
         suspectKillReruns = try Self.whole(forKey: .suspectKillReruns, in: 0 ... Int.max, in: container)
-        keepAllLogs = try container.decodeIfPresent(Bool.self, forKey: .keepAllLogs)
+        keepAllLogs = try container.decode(ConfigurationSwitch.self, forKey: .keepAllLogs)
         keepLogFolders = try Self.whole(forKey: .keepLogFolders, in: 2 ... Int.max, in: container)
-        keepSwiftLintPhases = try container.decodeIfPresent(Bool.self, forKey: .keepSwiftLintPhases)
+        keepSwiftLintPhases = try container.decode(ConfigurationSwitch.self, forKey: .keepSwiftLintPhases)
         failUnder = try Self.percent(forKey: .failUnder, in: container)
         propertyTests = try Self.globs(forKey: .propertyTests, in: container)
         propertyTestFilter = try Self.globs(forKey: .propertyTestFilter, in: container)
@@ -285,16 +286,16 @@ struct MuterConfiguration: Equatable, Codable {
         try container.encodeIfPresent(buildTimeout, forKey: .buildTimeout)
         try container.encodeIfPresent(explicitBuildSystem, forKey: .explicitBuildSystem)
         try container.encodeIfPresent(mutationTestWorkers, forKey: .mutationTestWorkers)
-        try container.encodeIfPresent(workersShareBuild, forKey: .workersShareBuild)
-        try container.encodeIfPresent(stopAtFirstFailure, forKey: .stopAtFirstFailure)
-        try container.encodeIfPresent(oneWorkerSimulator, forKey: .oneWorkerSimulator)
+        try container.encode(workersShareBuild, forKey: .workersShareBuild)
+        try container.encode(stopAtFirstFailure, forKey: .stopAtFirstFailure)
+        try container.encode(oneWorkerSimulator, forKey: .oneWorkerSimulator)
         try container.encodeIfPresent(suspectTestFilePercent, forKey: .suspectTestFilePercent)
         try container.encodeIfPresent(suspectTestMinimumFiles, forKey: .suspectTestMinimumFiles)
         try container.encodeIfPresent(controlRunEvery, forKey: .controlRunEvery)
         try container.encodeIfPresent(suspectKillReruns, forKey: .suspectKillReruns)
-        try container.encodeIfPresent(keepAllLogs, forKey: .keepAllLogs)
+        try container.encode(keepAllLogs, forKey: .keepAllLogs)
         try container.encodeIfPresent(keepLogFolders, forKey: .keepLogFolders)
-        try container.encodeIfPresent(keepSwiftLintPhases, forKey: .keepSwiftLintPhases)
+        try container.encode(keepSwiftLintPhases, forKey: .keepSwiftLintPhases)
         try container.encodeIfPresent(failUnder.map(WrittenPercent.init), forKey: .failUnder)
         try container.encodeIfPresent(propertyTests, forKey: .propertyTests)
         try container.encodeIfPresent(propertyTestFilter, forKey: .propertyTestFilter)

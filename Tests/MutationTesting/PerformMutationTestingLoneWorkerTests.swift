@@ -156,7 +156,7 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
     }
 
     func test_oneWorker_aDestinationThatResolvesToNoSimulator_isSaid_whenOneWorkerSimulatorIsTrue() async throws {
-        configure(oneWorkerSimulator: true)
+        configure(oneWorkerSimulator: .enabled)
         let reason = "no available simulator matches `-destination \(destination)`, or more than one does"
         workerSimulators.preparing(.failure(WorkerSimulatorsUnavailable(reason: reason, destinationUnresolved: true)))
         let choices = sentChoices()
@@ -186,7 +186,7 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
     }
 
     func test_oneWorker_aMacDestination_saysWhy_whenOneWorkerSimulatorIsTrue() async throws {
-        configure(oneWorkerSimulator: true, destination: "platform=macOS")
+        configure(oneWorkerSimulator: .enabled, destination: "platform=macOS")
         let choices = sentChoices()
 
         _ = try await sut.run(with: state)
@@ -219,7 +219,7 @@ final class PerformMutationTestingLoneWorkerTests: MuterTestCase {
     }
 
     /// An xcodebuild test command with `-destination destination`, `arguments` and the key, and no workers asked for.
-    func configure(oneWorkerSimulator: Bool, destination: String? = nil, arguments: [String] = []) {
+    func configure(oneWorkerSimulator: ConfigurationSwitch, destination: String? = nil, arguments: [String] = []) {
         state.muterConfiguration = MuterConfiguration(
             executable: "/usr/bin/xcodebuild",
             arguments: testCommandArguments(destination: destination, arguments: arguments),

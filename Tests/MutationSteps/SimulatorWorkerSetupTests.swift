@@ -14,6 +14,15 @@ private enum OneWorkerSimulatorKey: CustomStringConvertible {
         case .setToFalse: "false"
         }
     }
+
+    /// The key as `MuterConfiguration` holds it.
+    var configured: ConfigurationSwitch {
+        switch self {
+        case .unset: .unset
+        case .setToTrue: .enabled
+        case .setToFalse: .disabled
+        }
+    }
 }
 
 /// A run's settings for `SimulatorWorkerSetup.oneWorkerPlan(for:state:)`, each at the default that gets a
@@ -130,7 +139,7 @@ final class SimulatorWorkerSetupTests: XCTestCase {
                 executable: testCase.executable,
                 arguments: (testCase.destination.map { ["-destination", $0] } ?? []) + testCase.arguments + ["test"],
                 mutationTestWorkers: testCase.workers,
-                oneWorkerSimulator: testCase.key == .unset ? nil : testCase.key == .setToTrue
+                oneWorkerSimulator: testCase.key.configured
             )
             state.apply([.projectXCTestRun(testCase.parallelizes ? .parallelizing : muterCore.XCTestRun())])
             if testCase.selected {

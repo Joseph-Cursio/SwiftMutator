@@ -27,14 +27,14 @@ extension MuterConfiguration {
         suspectKillReruns ?? Self.defaultSuspectKillReruns
     }
 
-    /// Whether every mutant's test run keeps its log: only when `keepAllLogs` is true.
+    /// Whether every mutant's test run keeps its log: only when `keepAllLogs` is `enabled`.
     var keepsAllLogs: Bool {
-        keepAllLogs == true
+        keepAllLogs == .enabled
     }
 
-    /// Whether the copy's build phases keep running SwiftLint: only when `keepSwiftLintPhases` is true.
+    /// Whether the copy's build phases keep running SwiftLint: only when `keepSwiftLintPhases` is `enabled`.
     var keepsSwiftLintPhases: Bool {
-        keepSwiftLintPhases == true
+        keepSwiftLintPhases == .enabled
     }
 
     /// When a test is suspect, from `suspectTestFilePercent` and `suspectTestMinimumFiles`.
@@ -57,13 +57,13 @@ extension MuterConfiguration {
         return nil
     }
 
-    /// Whether mutants' test runs stop at their first failed test: unless `stopAtFirstFailure` is false,
+    /// Whether mutants' test runs stop at their first failed test: unless `stopAtFirstFailure` is `disabled`,
     /// whenever this test command supports it and failed-test lines are reliable. Baselines never do.
     /// On by default since an A/B run on SwiftProjectLint (255 mutants, 4 workers) took 37% less time and
     /// the switch changed no mutant's verdict. A mutant that both fails a test and crashes can be reported
     /// killed by a test failure rather than by a runtime error, depending on which comes first.
     var stopsAtFirstFailure: Bool {
-        stopAtFirstFailureUnsupportedReason == nil && failedTestLinesAreReliable && (stopAtFirstFailure ?? true)
+        stopAtFirstFailureUnsupportedReason == nil && failedTestLinesAreReliable && stopAtFirstFailure != .disabled
     }
 
     /// Why `propertyTestFilter` can't be used with this configuration; nil when it can, or isn't set.

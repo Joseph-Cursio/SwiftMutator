@@ -20,7 +20,7 @@ extension ConfigurationParsingTests {
         let unset = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
         XCTAssertFalse(try String(lossyUTF8: unset.asData).contains("stopAtFirstFailure"))
 
-        for value in [true, false] {
+        for (value, written) in [(ConfigurationSwitch.enabled, "true"), (.disabled, "false")] {
             let configuration = MuterConfiguration(
                 executable: "/usr/bin/swift",
                 arguments: ["test"],
@@ -28,7 +28,7 @@ extension ConfigurationParsingTests {
             )
 
             XCTAssertTrue(
-                try String(lossyUTF8: configuration.asData).contains("stopAtFirstFailure: \(value)")
+                try String(lossyUTF8: configuration.asData).contains("stopAtFirstFailure: \(written)")
             )
             XCTAssertEqual(try MuterConfiguration(from: configuration.asData), configuration)
         }

@@ -152,7 +152,7 @@ final class MutationTestingDelegateTests: MuterTestCase {
         executable: "/tmp/swift",
         arguments: ["test"],
         testSuiteTimeOut: 60,
-        stopAtFirstFailure: true
+        stopAtFirstFailure: .enabled
     )
 
     /// Runs a mutant's tests with `testProcess` as the test command. Cancels the run after 10 seconds, which

@@ -7,7 +7,7 @@ extension ResultsRecordTests {
             executable: "/usr/bin/swift",
             arguments: ["test"],
             mutationTestWorkers: 4,
-            stopAtFirstFailure: true
+            stopAtFirstFailure: .enabled
         )
         let project = makeProjectTree()
         let state = stateOfARun(thatLoaded: loaded, fingerprinting: project)
@@ -96,7 +96,11 @@ extension ResultsRecordTests {
 
     func test_aHeaderFromARunsState_withAConfiguredTimeLimit_aTestPlanAndNoCoverage() {
         let state = MutationTestState(from: .make(testPlanURL: URL(fileURLWithPath: "/project/muter-mappings.json")))
-        let loaded = MuterConfiguration(executable: "/usr/bin/swift", testSuiteTimeOut: 60, stopAtFirstFailure: true)
+        let loaded = MuterConfiguration(
+            executable: "/usr/bin/swift",
+            testSuiteTimeOut: 60,
+            stopAtFirstFailure: .enabled
+        )
         state.muterConfiguration = loaded
 
         let header = ResultsHeader(

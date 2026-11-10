@@ -272,7 +272,7 @@ final class DirectTestRunTests: MuterTestCase {
             executable: "/usr/bin/swift",
             arguments: ["test", "--filter", "Core"],
             testSuiteTimeOut: 60,
-            stopAtFirstFailure: stoppingAtFirstFailure
+            stopAtFirstFailure: stoppingAtFirstFailure ? .enabled : .disabled
         ).withDirectTestRun(makeDirectTestRun(bundles: bundles, testFiles: testFiles))
         let mutant = try MutationSchema.make(filePath: "/path/Sample.swift", position: .init(line: 1))
         let workingDirectory = try folder ?? XCTUnwrap(worker)

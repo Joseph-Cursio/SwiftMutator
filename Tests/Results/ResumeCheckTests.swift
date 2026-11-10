@@ -116,7 +116,7 @@ final class ResumeCheckTests: XCTestCase {
             executable: "/usr/bin/swift",
             arguments: ["test"],
             mutationTestWorkers: 2,
-            stopAtFirstFailure: false
+            stopAtFirstFailure: .disabled
         )
 
         let verdict = check(current(configuration: changed), recorded: header(of: current(configuration: recorded)))

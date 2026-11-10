@@ -156,7 +156,7 @@ final class StopAtFirstFailureProcessTests: MuterTestCase {
             arguments: ["-c", script],
             testSuiteTimeOut: timeLimit,
             buildSystem: .swift,
-            stopAtFirstFailure: true
+            stopAtFirstFailure: .enabled
         )
     }
 

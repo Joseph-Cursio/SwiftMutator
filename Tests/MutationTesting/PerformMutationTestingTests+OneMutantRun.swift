@@ -14,7 +14,7 @@ extension PerformMutationTestingTests {
         state.mutationMapping = try [makeSchemataMapping()]
         state.apply([.mutantSelected(key)])
         state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], stopAtFirstFailure: true
+            executable: "/usr/bin/swift", arguments: ["test"], stopAtFirstFailure: .enabled
         )
         state.loggingDirectory = "/logs"
         current.directTestRun = { _, _ in
@@ -40,7 +40,7 @@ extension PerformMutationTestingTests {
         XCTAssertFalse(header.stopsAtFirstFailure)
         XCTAssertEqual(header.workers, 1)
         // As loaded, which is what a resume compares.
-        XCTAssertTrue(header.configuration.stopAtFirstFailure)
+        XCTAssertEqual(header.configuration.stopAtFirstFailure, .enabled)
         let outcome = try XCTUnwrap(finished().first?.object as? MutationTestOutcome)
         XCTAssertEqual(outcome.mutant, key.description)
     }

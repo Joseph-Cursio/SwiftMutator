@@ -7,7 +7,7 @@ extension ResultsRecordTests {
         let state = MutationTestState(from: .make())
         // Every mutant line then names a log, which format 4 is for.
         state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], keepAllLogs: true
+            executable: "/usr/bin/swift", arguments: ["test"], keepAllLogs: .enabled
         )
         let header = { (session: Int, mutantsReused: Int?, waived: [String]?, forced: [String]?) in
             ResultsHeader(
@@ -64,7 +64,7 @@ extension ResultsRecordTests {
         }
 
         let byDefault = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
-        let keepingAll = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"], keepAllLogs: true)
+        let keepingAll = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"], keepAllLogs: .enabled)
         let mutant = MutantKey(path: "Sources/Sum.swift", mutationOperatorId: .ror, line: 3, column: 5, occurrence: 0)
 
         XCTAssertEqual(header(1, byDefault, nil, 3, false), ResultsCoding.omittedLogsFormatVersion)

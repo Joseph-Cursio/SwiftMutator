@@ -57,7 +57,7 @@ extension ResumeCheckTests {
     func test_aChangedOneWorkerSimulator_onlyNotifies() {
         let recorded = MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"])
         let changed = MuterConfiguration(
-            executable: "/usr/bin/xcodebuild", arguments: ["test"], oneWorkerSimulator: true
+            executable: "/usr/bin/xcodebuild", arguments: ["test"], oneWorkerSimulator: .enabled
         )
 
         let verdict = check(current(configuration: changed), recorded: header(of: current(configuration: recorded)))

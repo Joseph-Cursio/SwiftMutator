@@ -124,18 +124,18 @@ struct SimulatorWorkerSetup {
         let wanted = configuration.oneWorkerSimulator
         guard configuration.buildSystem == .xcodebuild,
               (configuration.mutationTestWorkers ?? 1) <= 1,
-              wanted != false,
+              wanted != .disabled,
               state.selectedMutant == nil,
               mutantsToTest >= 2
         else {
             return .noSimulator
         }
         guard configuration.parallelWorkersUnsupportedReason == nil, configuration.firstDestination != nil else {
-            return wanted == true
+            return wanted == .enabled
                 ? .declined("a simulator of its own needs a first `-destination` that is a simulator")
                 : .noSimulator
         }
-        if wanted == true {
+        if wanted == .enabled {
             return .simulator(checkedAgainstBaseline: false)
         }
         let parallelizes = switch configuration.parallelTestingArguments {
@@ -186,7 +186,7 @@ struct SimulatorWorkerSetup {
                 checkedAgainstBaseline: checkedAgainstBaseline
             )
         } catch let unavailable as WorkerSimulatorsUnavailable {
-            if count == 1, unavailable.destinationUnresolved, configuration.oneWorkerSimulator == nil {
+            if count == 1, unavailable.destinationUnresolved, configuration.oneWorkerSimulator == .unset {
                 return Simulators()
             }
             return Simulators(unavailable: unavailable.reason)

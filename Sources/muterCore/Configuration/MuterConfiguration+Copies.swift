@@ -32,7 +32,7 @@ extension MuterConfiguration {
     /// This configuration with `stopAtFirstFailure` false, so a mutant's test run goes on after its first failed test.
     func withoutStoppingAtFirstFailure() -> Self {
         var copy = self
-        copy.stopAtFirstFailure = false
+        copy.stopAtFirstFailure = .disabled
         return copy
     }
 

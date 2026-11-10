@@ -96,7 +96,7 @@ final class TurnOffSwiftLintPhasesTests: MuterTestCase {
 
     func test_keepSwiftLintPhases_keepsThem() throws {
         state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/xcodebuild", arguments: ["test"], keepSwiftLintPhases: true
+            executable: "/usr/bin/xcodebuild", arguments: ["test"], keepSwiftLintPhases: .enabled
         )
         var sent = false
         let token = runEvents.observe(.swiftLintPhasesTurnedOff) { _ in sent = true }

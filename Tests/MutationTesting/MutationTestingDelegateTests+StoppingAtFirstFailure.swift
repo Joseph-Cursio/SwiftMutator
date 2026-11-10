@@ -87,7 +87,7 @@ extension MutationTestingDelegateTests {
                 executable: "/tmp/swift",
                 arguments: ["test"],
                 testSuiteTimeOut: 60,
-                stopAtFirstFailure: false
+                stopAtFirstFailure: .disabled
             ),
             // On by default, but a wrapper script counts as `swift test` only with `buildSystem: swift`.
             MuterConfiguration(executable: "/tmp/run-tests.sh", arguments: ["test"], testSuiteTimeOut: 60),
@@ -99,7 +99,7 @@ extension MutationTestingDelegateTests {
                 executable: "/tmp/xcodebuild",
                 arguments: ["test"],
                 testSuiteTimeOut: 60,
-                stopAtFirstFailure: true
+                stopAtFirstFailure: .enabled
             ),
         ]
         current.testingTimeOutExecutor = { TestingTimeoutExecutor() }
@@ -182,7 +182,7 @@ extension MutationTestingDelegateTests {
             executable: "/tmp/swift",
             arguments: ["test"],
             testSuiteTimeOut: 0.3,
-            stopAtFirstFailure: true
+            stopAtFirstFailure: .enabled
         ).withUnreliableFailedTestLines()
 
         let result = try await runMutantsTests(on: testProcess, using: configuration)

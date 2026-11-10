@@ -57,9 +57,9 @@ final class ConfigurationParsingTests: MuterTestCase {
         let switchedOff = try MuterConfiguration(from: Data("\(swiftTest)\nstopAtFirstFailure: false".utf8))
         let unset = try MuterConfiguration(from: Data(swiftTest.utf8))
 
-        XCTAssertTrue(try XCTUnwrap(switchedOn.stopAtFirstFailure))
-        XCTAssertFalse(try XCTUnwrap(switchedOff.stopAtFirstFailure))
-        XCTAssertNil(unset.stopAtFirstFailure)
+        XCTAssertEqual(switchedOn.stopAtFirstFailure, .enabled)
+        XCTAssertEqual(switchedOff.stopAtFirstFailure, .disabled)
+        XCTAssertEqual(unset.stopAtFirstFailure, .unset)
     }
 
     func test_stopAtFirstFailureThatIsNotABoolean_failsToParse() {

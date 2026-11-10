@@ -18,7 +18,7 @@ extension PerformMutationTestingLoneWorkerTests {
     }
 
     func test_oneWorker_aProjectWhoseTestsDoNotParallelize_getsOne_whenOneWorkerSimulatorIsTrue() async throws {
-        configure(oneWorkerSimulator: true)
+        configure(oneWorkerSimulator: .enabled)
         state.apply([.projectXCTestRun(muterCore.XCTestRun())])
 
         _ = try await sut.run(with: state)
@@ -32,7 +32,7 @@ extension PerformMutationTestingLoneWorkerTests {
         _ = try await sut.run(with: state)
         XCTAssertEqual(workerSimulators.calls, ["sweep /project_mutated"])
 
-        configure(oneWorkerSimulator: true)
+        configure(oneWorkerSimulator: .enabled)
         state.mutationMapping = try (1...2).map(makeSchemataMapping(line:))
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
         _ = try await sut.run(with: state)
@@ -46,7 +46,7 @@ extension PerformMutationTestingLoneWorkerTests {
 
     // One mutant needs no simulator of its own, whatever the key says, and nor does `--mutant`'s.
     func test_oneMutant_makesNoSimulator_withOneWorker() async throws {
-        configure(oneWorkerSimulator: true)
+        configure(oneWorkerSimulator: .enabled)
         state.mutationMapping = try [makeSchemataMapping(line: 1)]
         let choices = sentChoices()
 
@@ -57,7 +57,7 @@ extension PerformMutationTestingLoneWorkerTests {
     }
 
     func test_aSelectedMutant_makesNoSimulator_withOneWorker() async throws {
-        configure(oneWorkerSimulator: true)
+        configure(oneWorkerSimulator: .enabled)
         let key = MutantKey(path: "file1.swift", mutationOperatorId: .ror, line: 1, column: 0, occurrence: 0)
         state.apply([.mutantSelected(key)])
         let choices = sentChoices()
@@ -69,7 +69,7 @@ extension PerformMutationTestingLoneWorkerTests {
     }
 
     func test_oneWorkerSimulatorFalse_makesNone() async throws {
-        configure(oneWorkerSimulator: false)
+        configure(oneWorkerSimulator: .disabled)
         let choices = sentChoices()
 
         _ = try await sut.run(with: state)
@@ -196,7 +196,7 @@ extension PerformMutationTestingLoneWorkerTests {
     }
 
     func test_oneWorker_aBaselineSpreadOverClones_keepsTheSimulator_whenOneWorkerSimulatorIsTrue() async throws {
-        configure(oneWorkerSimulator: true)
+        configure(oneWorkerSimulator: .enabled)
         ioDelegate.baselineTestLog = spreadBaseline
 
         _ = try await sut.run(with: state)

@@ -127,7 +127,7 @@ extension PerformMutationTestingResultsTests {
     // `keepAllLogs: true` keeps the kill's log too, so every line names one and the header keeps to format 1.
     func test_keepingAllLogs_aKillByATestItsLineNames_keepsItsLog() async throws {
         state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], keepAllLogs: true
+            executable: "/usr/bin/swift", arguments: ["test"], keepAllLogs: .enabled
         )
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .passed]
         ioDelegate.mutantTestLogs = [killingLog, "survivor's log"]

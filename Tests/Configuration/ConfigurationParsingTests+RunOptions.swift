@@ -78,11 +78,11 @@ extension ConfigurationParsingTests {
         let swiftTest = "executable: /usr/bin/swift\narguments: [test]"
         let keeping = { (line: String) in try MuterConfiguration(from: Data("\(swiftTest)\n\(line)".utf8)) }
 
-        XCTAssertTrue(try XCTUnwrap(keeping("keepAllLogs: true").keepAllLogs))
+        XCTAssertEqual(try keeping("keepAllLogs: true").keepAllLogs, .enabled)
         XCTAssertTrue(try keeping("keepAllLogs: true").keepsAllLogs)
         XCTAssertFalse(try keeping("keepAllLogs: false").keepsAllLogs)
         let unset = try MuterConfiguration(from: Data(swiftTest.utf8))
-        XCTAssertNil(unset.keepAllLogs)
+        XCTAssertEqual(unset.keepAllLogs, .unset)
         XCTAssertFalse(unset.keepsAllLogs)
         // A typo is a configuration error rather than "unset".
         XCTAssertThrowsError(try keeping("keepAllLogs: maybe"))
@@ -95,11 +95,11 @@ extension ConfigurationParsingTests {
         let xcodebuild = "executable: /usr/bin/xcodebuild\narguments: [-destination, platform=macOS, test]"
         let keeping = { (line: String) in try MuterConfiguration(from: Data("\(xcodebuild)\n\(line)".utf8)) }
 
-        XCTAssertTrue(try XCTUnwrap(keeping("keepSwiftLintPhases: true").keepSwiftLintPhases))
+        XCTAssertEqual(try keeping("keepSwiftLintPhases: true").keepSwiftLintPhases, .enabled)
         XCTAssertTrue(try keeping("keepSwiftLintPhases: true").keepsSwiftLintPhases)
         XCTAssertFalse(try keeping("keepSwiftLintPhases: false").keepsSwiftLintPhases)
         let unset = try MuterConfiguration(from: Data(xcodebuild.utf8))
-        XCTAssertNil(unset.keepSwiftLintPhases)
+        XCTAssertEqual(unset.keepSwiftLintPhases, .unset)
         XCTAssertFalse(unset.keepsSwiftLintPhases)
         // A typo is a configuration error rather than "unset".
         XCTAssertThrowsError(try keeping("keepSwiftLintPhases: sometimes"))
@@ -211,9 +211,9 @@ extension ConfigurationParsingTests {
         let never = try MuterConfiguration(from: Data("\(xcodebuild)\noneWorkerSimulator: false".utf8))
         let automatic = try MuterConfiguration(from: Data(xcodebuild.utf8))
 
-        XCTAssertTrue(try XCTUnwrap(always.oneWorkerSimulator))
-        XCTAssertFalse(try XCTUnwrap(never.oneWorkerSimulator))
-        XCTAssertNil(automatic.oneWorkerSimulator)
+        XCTAssertEqual(always.oneWorkerSimulator, .enabled)
+        XCTAssertEqual(never.oneWorkerSimulator, .disabled)
+        XCTAssertEqual(automatic.oneWorkerSimulator, .unset)
         XCTAssertTrue(try String(lossyUTF8: always.asData).contains("oneWorkerSimulator: true"))
         XCTAssertFalse(try String(lossyUTF8: automatic.asData).contains("oneWorkerSimulator"))
     }

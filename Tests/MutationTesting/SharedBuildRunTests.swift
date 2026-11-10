@@ -140,7 +140,7 @@ final class SharedBuildRunTests: MuterTestCase {
 
     func test_theKey_turnsItOff() async throws {
         state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2, workersShareBuild: false
+            executable: "/usr/bin/swift", arguments: ["test"], mutationTestWorkers: 2, workersShareBuild: .disabled
         )
         ioDelegate.testSuiteOutcomes = [.passed, .passed, .failed, .failed]
 

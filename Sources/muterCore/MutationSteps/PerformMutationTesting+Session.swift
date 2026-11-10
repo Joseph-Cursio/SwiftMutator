@@ -22,7 +22,7 @@ extension PerformMutationTesting {
         // Only an explicit `true` asked for it, so only that is worth saying, and before the baseline run,
         // which can take minutes. Not a configuration error: the same configuration may be used with
         // another test command.
-        if state.muterConfiguration.stopAtFirstFailure == true,
+        if state.muterConfiguration.stopAtFirstFailure == .enabled,
            let reason = state.muterConfiguration.stopAtFirstFailureUnsupportedReason {
             events.send(.stopAtFirstFailureTurnedOff(reason: reason))
         }

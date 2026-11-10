@@ -301,16 +301,16 @@ extension MutationTestingDelegateTests {
     // the run's task, which is still waiting for the process. Cancelling it may not kill the tree again:
     // by then the process may have exited, and the system may have given its ID to another process.
     func test_whenTheTimeLimitComesFirst_thenTheRunTimesOutAndIsKilledOnce() async throws {
-        try await assertTheTimeLimitComingFirstTimesTheRunOutAndKillsItOnce(stopAtFirstFailure: false)
+        try await assertTheTimeLimitComingFirstTimesTheRunOutAndKillsItOnce(stopAtFirstFailure: .disabled)
     }
 
     // The run is also watched for a failed test, which never comes.
     func test_whenTheTimeLimitComesFirstWhileStoppingAtFirstFailure_thenTheRunTimesOutAndIsKilledOnce() async throws {
-        try await assertTheTimeLimitComingFirstTimesTheRunOutAndKillsItOnce(stopAtFirstFailure: true)
+        try await assertTheTimeLimitComingFirstTimesTheRunOutAndKillsItOnce(stopAtFirstFailure: .enabled)
     }
 
     private func assertTheTimeLimitComingFirstTimesTheRunOutAndKillsItOnce(
-        stopAtFirstFailure: Bool,
+        stopAtFirstFailure: ConfigurationSwitch,
         file: StaticString = #filePath,
         line: UInt = #line
     ) async throws {

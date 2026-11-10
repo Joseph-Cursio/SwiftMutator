@@ -11,7 +11,7 @@ extension MutationTestingDelegateTests {
         let mutantA = try MutationSchema.make(filePath: "/path/Sample.swift", position: .init(line: 1))
         let mutantB = try MutationSchema.make(filePath: "/path/Other.swift", position: .init(line: 2))
 
-        for stopAtFirstFailure in [false, true] {
+        for stopAtFirstFailure in [ConfigurationSwitch.disabled, .enabled] {
             let configuration = MuterConfiguration(
                 executable: "/tmp/swift",
                 arguments: ["test"],
@@ -34,7 +34,7 @@ extension MutationTestingDelegateTests {
                 for mutant in [mutantA, mutantB] {
                     XCTAssertEqual(environments.flatMap(\.keys).filter { $0.contains(mutant.id) }, [], description)
                 }
-                if stopAtFirstFailure {
+                if stopAtFirstFailure == .enabled {
                     XCTAssertEqual(environments[0][unbufferedOutputKey], unbufferedOutputValue, description)
                 }
             }

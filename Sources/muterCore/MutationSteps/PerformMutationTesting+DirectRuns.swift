@@ -25,7 +25,7 @@ extension PerformMutationTesting {
             configuration,
             baselineLog: baselineLog,
             timeLimit: timeLimit,
-            watchingFiles: configuration.workersShareBuild != false
+            watchingFiles: configuration.workersShareBuild != .disabled
                 && configuration.workerCount(testing: plan.toRun.count, sharingBuild: true) > 1,
             state: state
         )

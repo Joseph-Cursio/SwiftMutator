@@ -1,4 +1,4 @@
-/// A three-state value that a summary's JSON holds as a Bool that may be left out, as the `Bool?` it stands for was:
+/// A three-state value that JSON or YAML holds as a Bool that may be left out, as the `Bool?` it stands for was:
 /// `whenTrue` as `true`, `whenFalse` as `false`, and `whenAbsent` by leaving its key out.
 ///
 /// A property of such a type is coded through the `KeyedEncodingContainer` and `KeyedDecodingContainer` overloads

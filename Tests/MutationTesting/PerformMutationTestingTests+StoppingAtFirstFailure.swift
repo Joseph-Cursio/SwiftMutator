@@ -7,7 +7,7 @@ extension PerformMutationTestingTests {
     func test_whenThePassingBaselinePrintsAFailureLikeLine_thenMutantsRunWithStoppingOff() async throws {
         let lookalike = "✘ Test sum() recorded an issue at SumTests.swift:3:5: Expectation failed: 1 == 2"
         state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], stopAtFirstFailure: true
+            executable: "/usr/bin/swift", arguments: ["test"], stopAtFirstFailure: .enabled
         )
         // A test of a test reporter that prints a sample of its output, and passes.
         ioDelegate.baselineTestLog = """
@@ -34,7 +34,7 @@ extension PerformMutationTestingTests {
     func test_whenThePassingBaselinePrintsACrashLikeLine_thenMutantsRunWithStoppingOff() async throws {
         let lookalike = "error: Process '/p/Tests.xctest' exited with unexpected signal code 5"
         state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], stopAtFirstFailure: true
+            executable: "/usr/bin/swift", arguments: ["test"], stopAtFirstFailure: .enabled
         )
         ioDelegate.baselineTestLog = """
         ◇ Test run started.
@@ -54,7 +54,7 @@ extension PerformMutationTestingTests {
     // The line would also count a mutant whose run reaches the time limit after printing it as killed.
     func test_whenThePassingBaselinePrintsAFailureLikeLineWithoutStopping_thenItStillDoesNotCount() async throws {
         state.muterConfiguration = MuterConfiguration(
-            executable: "/usr/bin/swift", arguments: ["test"], stopAtFirstFailure: false
+            executable: "/usr/bin/swift", arguments: ["test"], stopAtFirstFailure: .disabled
         )
         ioDelegate.baselineTestLog = """
         ◇ Test run started.
@@ -91,7 +91,7 @@ extension PerformMutationTestingTests {
 
     func test_whenStopAtFirstFailureIsSetForXcodebuild_thenANoticeSaysItIsOff() async throws {
         let configuration = MuterConfiguration(
-            executable: "/usr/bin/xcodebuild", arguments: ["test"], stopAtFirstFailure: true
+            executable: "/usr/bin/xcodebuild", arguments: ["test"], stopAtFirstFailure: .enabled
         )
         state.muterConfiguration = configuration
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
@@ -118,7 +118,7 @@ extension PerformMutationTestingTests {
         let configuration = MuterConfiguration(
             executable: "/usr/bin/swift",
             arguments: ["test", "--repeat-until", "pass"],
-            stopAtFirstFailure: true
+            stopAtFirstFailure: .enabled
         )
         state.muterConfiguration = configuration
         ioDelegate.testSuiteOutcomes = [.passed, .failed, .failed]
@@ -139,7 +139,7 @@ extension PerformMutationTestingTests {
         // Only an explicit `true` asks for it, so a test command that can't use it is worth a notice only then.
         let configurations = [
             MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"]),
-            MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"], stopAtFirstFailure: false),
+            MuterConfiguration(executable: "/usr/bin/xcodebuild", arguments: ["test"], stopAtFirstFailure: .disabled),
         ]
         for configuration in configurations {
             state.muterConfiguration = configuration
