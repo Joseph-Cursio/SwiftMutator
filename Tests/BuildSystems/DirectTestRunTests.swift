@@ -2,11 +2,14 @@
 import XCTest
 
 final class DirectTestRunTests: MuterTestCase {
-    private let sut = MutationTestingDelegate()
-    private var directory: URL!
+    let sut = MutationTestingDelegate()
+    let directory = URL(fileURLWithPath: XCTestCase.unusedTemporaryPath())
     /// A worker's folder whose path a shell would split, or end a quoted word at.
-    private var worker: URL!
-    private var helper: URL!
+    var worker: URL { directory.appendingPathComponent("it's a project") }
+    /// Stands for swiftpm-testing-helper: says what it was given, then runs its bundle's "tests". The bundle's
+    /// executable is its second argument. A bundle that waits gives a stopped run time to stop before it ends. One
+    /// named for `UserDefaults` says what its domain, its process's name, holds, then writes to it.
+    var helper: URL { directory.appendingPathComponent("swiftpm-testing-helper") }
 
     // A worker with no clone starts in the shared project, and runs its build, with what's its own named after it.
     func test_aSharedBuild_isRunFromTheProject_withTheWorkersOwnFiles() async throws {
@@ -40,14 +43,9 @@ final class DirectTestRunTests: MuterTestCase {
     override func setUpWithError() throws {
         try super.setUpWithError()
 
-        directory = try URL(fileURLWithPath: makeTemporaryDirectory())
+        addTeardownBlock { [directory] in try? FileManager.default.removeItem(at: directory) }
         fileManager.currentDirectoryPathToReturn = directory.path
-        worker = directory.appendingPathComponent("it's a project")
         try FileManager.default.createDirectory(at: worker, withIntermediateDirectories: true)
-        // Stands for swiftpm-testing-helper: says what it was given, then runs its bundle's "tests". The bundle's
-        // executable is its second argument. A bundle that waits gives a stopped run time to stop before it ends. One
-        // named for `UserDefaults` says what its domain, its process's name, holds, then writes to it.
-        helper = directory.appendingPathComponent("swiftpm-testing-helper")
         try """
         #!/bin/sh
         printf 'ran:'; printf ' %s' "$@"; printf '\\n'
@@ -228,94 +226,12 @@ final class DirectTestRunTests: MuterTestCase {
         ])
     }
 
-    // MARK: - Bundle order
-
-    func test_bundles_putFirstThoseWithATestFileNamedAfterTheMutatedFile_eachInNameOrder() {
-        let direct = makeDirectTestRun(bundles: ["AppTests", "CLITests", "CoreTests", "UITests"], testFiles: [
-            "AppTests": ["ContentViewTests"],
-            "CLITests": ["CSVFormatterTests", "JSONFormatterTests"],
-            "CoreTests": ["CSVFormatterEscapingTests"],
-        ])
-
-        XCTAssertEqual(
-            direct.bundles(forMutantIn: "/project/Sources/Core/Export/CSVFormatter.swift"),
-            ["CLITests", "CoreTests", "AppTests", "UITests"]
-        )
-        XCTAssertEqual(
-            direct.bundles(forMutantIn: "/project/Sources/App/ContentView.swift"),
-            ["AppTests", "CLITests", "CoreTests", "UITests"]
-        )
-        XCTAssertEqual(
-            direct.bundles(forMutantIn: "/project/Sources/Core/Unmatched.swift"),
-            ["AppTests", "CLITests", "CoreTests", "UITests"]
-        )
-        XCTAssertEqual(direct.bundles(forMutantIn: nil), ["AppTests", "CLITests", "CoreTests", "UITests"])
-    }
-
-    // A run with no mutant on keeps name order, as the check's run did.
-    func test_theScript_runsTheBundlesInTheMutantsOrder() {
-        let direct = makeDirectTestRun(bundles: ["AppTests", "CoreTests"], testFiles: ["CoreTests": ["SampleTests"]])
-        let bundlesRun = { (script: String) in
-            script.split(separator: "\n").compactMap { line in
-                line.range(of: #"MacOS/[A-Za-z]+'"#, options: .regularExpression).map { line[$0] }
-            }
-        }
-
-        XCTAssertEqual(
-            bundlesRun(direct.script(in: worker, forMutantIn: "/p/Sample.swift")),
-            ["MacOS/CoreTests'", "MacOS/AppTests'"]
-        )
-        XCTAssertEqual(bundlesRun(direct.script(in: worker)), ["MacOS/AppTests'", "MacOS/CoreTests'"])
-    }
-
-    func test_isTestFile_takesTheNameThenMoreWordsOrNone_endingTests() {
-        XCTAssertTrue(DirectTestRun.isTestFile("CSVFormatterTests", of: "CSVFormatter"))
-        XCTAssertTrue(DirectTestRun.isTestFile("CSVFormatterEscapingTests", of: "CSVFormatter"))
-        XCTAssertTrue(DirectTestRun.isTestFile("CSVFormatterTest", of: "CSVFormatter"))
-        XCTAssertFalse(DirectTestRun.isTestFile("CSVFormatterTests", of: "CSVFormat"))
-        XCTAssertFalse(DirectTestRun.isTestFile("CSVFormatter", of: "CSVFormatter"))
-        XCTAssertFalse(DirectTestRun.isTestFile("CSVFormatterHelpers", of: "CSVFormatter"))
-        XCTAssertFalse(DirectTestRun.isTestFile("JSONFormatterTests", of: "CSVFormatter"))
-        XCTAssertFalse(DirectTestRun.isTestFile("Tests", of: ""))
-    }
-
-    // MARK: - Checks
-
-    func test_whyNot_acceptsARunOfTheBaselinesTestsInEachBundle_inAnyOrder() {
-        let baseline = """
-            Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
-            ✔ Test run with 4294 tests in 500 suites passed after 11.641 seconds.
-            ✔ Test run with 1 test in 1 suite passed after 0.040 seconds.
-            """
-        let direct = """
-            ✔ Test run with 1 test in 1 suite passed after 0.040 seconds.
-            ✔ Test run with 4294 tests in 500 suites passed after 11.889 seconds.
-            """
-
-        XCTAssertNil(DirectTestRun.whyNot(baselineLog: baseline, outcome: .passed, log: direct))
-        XCTAssertNotNil(DirectTestRun.whyNot(baselineLog: baseline, outcome: .failed, log: direct))
-        XCTAssertEqual(
-            DirectTestRun.whyNot(baselineLog: baseline, outcome: .passed, log: "✔ Test run with 4295 tests "),
-            "running the test bundles directly ran 4295 Swift Testing tests, where `swift test` ran 1, 4294"
-        )
-        XCTAssertEqual(
-            DirectTestRun.whyNot(baselineLog: "Executed 0 tests, with 0 failures", outcome: .passed, log: ""),
-            "the baseline ran no Swift Testing test"
-        )
-    }
-
-    func test_ranXCTestTests_countsOnlyARunOfSome() {
-        XCTAssertFalse(DirectTestRun.ranXCTestTests(in: "Executed 0 tests, with 0 failures (0 unexpected)"))
-        XCTAssertTrue(DirectTestRun.ranXCTestTests(in: "Executed 1 test, with 1 failure (0 unexpected)"))
-        XCTAssertFalse(DirectTestRun.ranXCTestTests(in: "✔ Test run with 12 tests in 3 suites passed"))
-    }
-
     // MARK: - Helpers
 
     /// What `defaults` printed with `arguments`, run as the tests' helpers would, outside this process: reading the
     /// domains here would leave a copy of them that is written back to disk when the tests end.
     @discardableResult
-    private func defaults(_ arguments: String...) throws -> String {
+    func defaults(_ arguments: String...) throws -> String {
         let process = Foundation.Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
         process.arguments = arguments
@@ -328,7 +244,7 @@ final class DirectTestRunTests: MuterTestCase {
         return String(lossyUTF8: data)
     }
 
-    private func makeDirectTestRun(bundles: [String], testFiles: [String: [String]] = [:]) -> DirectTestRun {
+    func makeDirectTestRun(bundles: [String], testFiles: [String: [String]] = [:]) -> DirectTestRun {
         DirectTestRun(
             helper: helper.path,
             productsFolder: ".build/out/Products/Debug",
@@ -342,7 +258,7 @@ final class DirectTestRunTests: MuterTestCase {
     /// Runs the tests of a mutant in `Sample.swift` in the worker's folder, as a worker runs them, with the bundles run
     /// directly. Cancels the run after 30 seconds, which kills its processes, so a run that never ends fails the test
     /// instead of hanging it.
-    private func runAMutant(
+    func runAMutant(
         bundles: [String],
         testFiles: [String: [String]] = [:],
         stoppingAtFirstFailure: Bool = false,

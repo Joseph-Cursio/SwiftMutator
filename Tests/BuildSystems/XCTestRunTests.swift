@@ -4,10 +4,8 @@ import TestingExtensions
 import XCTest
 
 final class XCTestRunTests: MuterTestCase {
-    private var sut: muterCore.XCTestRun!
-
     func test_updateEnvironmentVariable() throws {
-        sut = try muterCore.XCTestRun(loadPlist(for: "project"))
+        let sut = try muterCore.XCTestRun(loadPlist(for: "project"))
 
         let actualPlist = sut.updateEnvironmentVariable(
             setting: "keyToBeSet"
@@ -20,7 +18,7 @@ final class XCTestRunTests: MuterTestCase {
     }
 
     func test_updateEnvironmentVariable_forTestPlan() throws {
-        sut = try muterCore.XCTestRun(loadPlist(for: "projectWithTestPlan"))
+        let sut = try muterCore.XCTestRun(loadPlist(for: "projectWithTestPlan"))
 
         let actualPlist = sut.updateEnvironmentVariable(
             setting: "keyToBeSet"
@@ -39,7 +37,7 @@ final class XCTestRunTests: MuterTestCase {
     func test_updateEnvironmentVariable_createsEnvironmentVariablesWhenAbsent() {
         // A freshly generated .xctestrun target has no EnvironmentVariables dict. The var must still
         // be injected (regression: the old keys.contains guard skipped it → phantom 0% on simulator).
-        sut = muterCore.XCTestRun([
+        let sut = muterCore.XCTestRun([
             "SomeTestTarget": ["BlueprintName": "SomeTestTarget"] as [String: AnyHashable]
         ])
 
@@ -52,7 +50,7 @@ final class XCTestRunTests: MuterTestCase {
     }
 
     func test_updateEnvironmentVariable_forTestPlan_createsEnvironmentVariablesWhenAbsent() {
-        sut = muterCore.XCTestRun([
+        let sut = muterCore.XCTestRun([
             "TestConfigurations": [
                 ["TestTargets": [["BlueprintName": "SomeTestTarget"] as [String: AnyHashable]]] as [String: AnyHashable]
             ],
@@ -72,7 +70,7 @@ final class XCTestRunTests: MuterTestCase {
 
     // A run with no mutant on, as a worker's check run is, runs as SwiftMutator's runs do and switches nothing on.
     func test_updateEnvironmentVariable_withNoKey_setsOnlyIsMuterRunning() {
-        sut = muterCore.XCTestRun([
+        let sut = muterCore.XCTestRun([
             "SomeTestTarget": [
                 "EnvironmentVariables": ["OWN_VARIABLE": "1"] as [String: AnyHashable],
             ] as [String: AnyHashable],
