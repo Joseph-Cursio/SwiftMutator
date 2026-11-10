@@ -29,7 +29,8 @@ enum MarkdownText {
             longest = max(longest, run)
         }
         let fence = String(repeating: "`", count: longest + 1)
-        let padded = flattened.first == "`" || flattened.last == "`" || (flattened.first == " " && flattened.last == " ")
+        let padded = flattened.first == "`" || flattened.last == "`"
+            || (flattened.first == " " && flattened.last == " ")
         let pad = padded ? " " : ""
         return fence + pad + flattened + pad + fence
     }

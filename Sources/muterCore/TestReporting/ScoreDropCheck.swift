@@ -250,27 +250,38 @@ struct ScoreDropCheck: Equatable, Sendable {
     /// shows past it well before this.
     private static let mostDecimalsShown = 20
 
+    /// Why the score of the part of the project `reason` says was tested isn't compared: it isn't the whole's.
+    private func partialScoreClause(_ reason: NotChecked) -> String {
+        switch reason {
+        case .oneMutant:
+            return "one mutant's score (--mutant) isn't the project's."
+
+        case .shard:
+            return "a shard's score isn't the whole run's. Compare the merged report instead: "
+                + "swift-mutator report --baseline \(baseline) --max-score-drop \(ScoreGate.shown(maxScoreDrop)) "
+                + "<each shard's results file>"
+
+        case .sample:
+            return "a sample's score (--sample) isn't the whole project's."
+
+        case .since:
+            return "the score of the code --since chose isn't the whole project's."
+
+        case .filesToMutate:
+            return "the score of the files --files-to-mutate chose isn't the whole project's."
+
+        case .unfinished, .nothingScored, .stoppedOnAnError, .lacksResults, .discoveriesDiffer, .endedEarly:
+            preconditionFailure("\(reason) isn't a part of the project; notCheckedSentence(file:) words it")
+        }
+    }
+
     /// Why the scores aren't compared; nil for a run that ended early.
     private func notCheckedSentence(file: String) -> String? {
         guard case let .notChecked(reason) = verdict else { return nil }
         let notChecked = "The score isn't compared with \(file)'s"
         switch reason {
-        case .oneMutant:
-            return "\(notChecked): one mutant's score (--mutant) isn't the project's."
-
-        case .shard:
-            return "\(notChecked): a shard's score isn't the whole run's. Compare the merged report instead: "
-                + "swift-mutator report --baseline \(baseline) --max-score-drop \(ScoreGate.shown(maxScoreDrop)) "
-                + "<each shard's results file>"
-
-        case .sample:
-            return "\(notChecked): a sample's score (--sample) isn't the whole project's."
-
-        case .since:
-            return "\(notChecked): the score of the code --since chose isn't the whole project's."
-
-        case .filesToMutate:
-            return "\(notChecked): the score of the files --files-to-mutate chose isn't the whole project's."
+        case .oneMutant, .shard, .sample, .since, .filesToMutate:
+            return "\(notChecked): " + partialScoreClause(reason)
 
         case .unfinished:
             guard let progress else {

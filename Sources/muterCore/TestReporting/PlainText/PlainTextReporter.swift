@@ -12,14 +12,23 @@ struct PlainTextReporter: Reporter {
 
 
         """ + notCoveredMessage(from: report)
-        let appliedMutationsMessage = """
+        return survivorsMessage + appliedMutationsMessage(from: report) + killingTestsMessage(from: report)
+            + propertyKillsMessage(from: report) + triageMessage(from: report)
+            + mutationScoresMessage(from: report, coverageSkipped: outcome.coverageSkipped)
+            + runMessage(from: report)
+    }
+
+    /// The Applied Mutation Operators section: how many mutants each file has, and what each operator does.
+    private func appliedMutationsMessage(from report: MuterTestReport) -> String {
+        """
         --------------------------
         Applied Mutation Operators
         --------------------------
 
         These are all of the ways that SwiftMutator introduced changes into your code.
 
-        In total, SwiftMutator introduced \(report.totalAppliedMutationOperators) mutants in \(report.fileReports.count) files.
+        In total, SwiftMutator introduced \(report.totalAppliedMutationOperators) mutants in \
+        \(report.fileReports.count) files.
 
         \(generateAppliedMutationOperatorsCLITable(from: report.fileReports).description)\(
             operatorLegend(from: report)
@@ -27,14 +36,17 @@ struct PlainTextReporter: Reporter {
 
 
         """
+    }
 
+    /// The Mutation Test Scores section: the score, its counts and what it covers, and each file's score.
+    private func mutationScoresMessage(from report: MuterTestReport, coverageSkipped: Bool) -> String {
         let coloredGlobalScore = coloredMutationScore(
             for: report.globalMutationScore,
             appliedTo: "\(report.globalMutationScore)%"
         )
-        let projectCoverageMessage = Self.coverageMessage(from: report, skipped: outcome.coverageSkipped)
+        let projectCoverageMessage = Self.coverageMessage(from: report, skipped: coverageSkipped)
         let mutationScoreMessage = "Mutation Score of Test Suite: ".bold + "\(coloredGlobalScore)"
-        let mutationScoresMessage = """
+        return """
         --------------------
         Mutation Test Scores
         --------------------
@@ -60,10 +72,6 @@ struct PlainTextReporter: Reporter {
 
         \(generateMutationScoresCLITable(from: report.fileReports).description)
         """
-
-        return survivorsMessage + appliedMutationsMessage + killingTestsMessage(from: report)
-            + propertyKillsMessage(from: report) + triageMessage(from: report) + mutationScoresMessage
-            + runMessage(from: report)
     }
 
     /// What each operator in the table does, after a blank line; none without mutants.
