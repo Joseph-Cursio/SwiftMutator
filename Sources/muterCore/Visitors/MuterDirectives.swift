@@ -55,7 +55,8 @@ struct MuterDirectives {
                 (true, token.leadingTrivia, token.position),
                 (false, token.trailingTrivia, token.endPositionBeforeTrailingTrivia),
             ] {
-                if let disables = Self.lastSwitch(in: trivia) {
+                if let lastSwitch = Self.lastSwitch(in: trivia) {
+                    let disables = lastSwitch == .disable
                     let position = Self.switchPosition(disables, isLeading, token)
                     foundEffects.append(Effect(position: position, disables: disables))
                 }
@@ -69,7 +70,9 @@ struct MuterDirectives {
                     case .disableDeclaration:
                         let first = isLeading ? token : Self.firstToken(onTheLineOf: token, converter: converter)
                         let node = Self.declaration(startingWith: first)
-                        foundRanges.append(node.positionAfterSkippingLeadingTrivia ..< node.endPositionBeforeTrailingTrivia)
+                        foundRanges.append(
+                            node.positionAfterSkippingLeadingTrivia ..< node.endPositionBeforeTrailingTrivia
+                        )
 
                     default:
                         break
@@ -92,12 +95,12 @@ struct MuterDirectives {
         ranges.contains { $0.contains(position) }
     }
 
-    /// Whether the last `disable` or `enable` in `trivia` is a `disable`; nil if it holds neither.
-    private static func lastSwitch(in trivia: Trivia) -> Bool? {
+    /// The last `disable` or `enable` in `trivia`; nil if it holds neither.
+    private static func lastSwitch(in trivia: Trivia) -> MuterDirective? {
         for piece in trivia.reversed() {
             switch MuterDirective(piece) {
-            case .disable: return true
-            case .enable: return false
+            case .disable: return .disable
+            case .enable: return .enable
             default: continue
             }
         }
