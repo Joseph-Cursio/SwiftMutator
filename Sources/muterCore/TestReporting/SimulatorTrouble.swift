@@ -1,5 +1,25 @@
 import Foundation
 
+/// A mutant's run that the simulator failed to launch, which was run again in its place on the same worker.
+struct LaunchFailure: Equatable {
+    /// The line of its log that shows it (`SimulatorTrouble.launch`).
+    let line: String
+    let testLog: String
+}
+
+/// A mutant's run that the simulator failed to launch and that ran again, once the second run's result is written,
+/// before its outcome is sent. Never counted in the progress, which counts the second run.
+struct RepeatedRun {
+    /// The outcome of the second run, which the results file records.
+    let mutant: MutationTestOutcome.Mutation
+    /// The worker both ran on.
+    let worker: Int
+    /// The line that shows the first run's failure to launch.
+    let line: String
+    /// The first run's log, kept under a name of its own (`MutationTestLog.launchFailedFileName(for:)`).
+    let log: MutationTestLog
+}
+
 /// What an xcodebuild run's output shows went wrong with its simulator rather than with the mutant's tests. xcodebuild
 /// exits with 65 for both, with no failed test, so such a run would otherwise count as a kill.
 enum SimulatorTrouble: Equatable {
@@ -75,24 +95,4 @@ enum SimulatorTrouble: Equatable {
         "Unable to find a device matching the provided destination specifier",
         "No matching device (",
     ]
-}
-
-/// A mutant's run that the simulator failed to launch, which was run again in its place on the same worker.
-struct LaunchFailure: Equatable {
-    /// The line of its log that shows it (`SimulatorTrouble.launch`).
-    let line: String
-    let testLog: String
-}
-
-/// A mutant's run that the simulator failed to launch and that ran again, once the second run's result is written,
-/// before its outcome is sent. Never counted in the progress, which counts the second run.
-struct RepeatedRun {
-    /// The outcome of the second run, which the results file records.
-    let mutant: MutationTestOutcome.Mutation
-    /// The worker both ran on.
-    let worker: Int
-    /// The line that shows the first run's failure to launch.
-    let line: String
-    /// The first run's log, kept under a name of its own (`MutationTestLog.launchFailedFileName(for:)`).
-    let log: MutationTestLog
 }

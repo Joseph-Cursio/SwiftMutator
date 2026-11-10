@@ -1,5 +1,11 @@
 import Foundation
 
+private enum TestingBuildSystem {
+    case xcodebuild
+    case buck
+    case swift
+}
+
 enum TestSuiteOutcome: String, Codable, CaseIterable {
     /// Mutant survived
     case passed
@@ -31,13 +37,11 @@ enum TestSuiteOutcome: String, Codable, CaseIterable {
             return "time out"
         }
     }
-}
 
-extension TestSuiteOutcome {
     /// This run's verdict, given whether its mutant's block ran (`TestRun.activated`): a survivor whose block didn't is
     /// not covered, as no test reached it. A results line records the run's own outcome and `activated`, so that it
     /// still reads as a survivor to anything older. Both count alike in the score.
-    func judged(activated: Bool?) -> TestSuiteOutcome {
+    func judged(activated: Bool?) -> Self {
         self == .passed && activated == false ? .noCoverage : self
     }
 
@@ -48,7 +52,7 @@ extension TestSuiteOutcome {
         terminationStatus: Int32,
         timeoutExecution: TestingExecutionResult? = nil,
         failedTestLinesAreReliable: Bool = true
-    ) -> TestSuiteOutcome {
+    ) -> Self {
         // Stopped because a test failed (stopAtFirstFailure): the mutant is killed, whatever the log shows. The
         // log ends where the run was killed, with no summary for testFailureRegEx, and the exit status is our SIGKILL.
         if timeoutExecution == .stoppedAtFirstFailure {
@@ -85,7 +89,7 @@ extension TestSuiteOutcome {
     /// printed one has tests that print text shaped like it. A crash is common here: after one,
     /// xcodebuild collects diagnostics and relaunches the runner for each remaining test, which can take
     /// several times as long as the baseline run the limit is derived from.
-    private static func outcomeOfStoppedRun(_ testLog: String, failedTestLinesAreReliable: Bool) -> TestSuiteOutcome {
+    private static func outcomeOfStoppedRun(_ testLog: String, failedTestLinesAreReliable: Bool) -> Self {
         let firstFailedTestLine = FailedTestLine.first(inLog: testLog)
         let showsFailedTestLine = failedTestLinesAreReliable && firstFailedTestLine != nil
         if logContainsTestFailure(testLog) || logContainsFailedTestCase(testLog) || showsFailedTestLine {
@@ -160,10 +164,4 @@ extension TestSuiteOutcome {
             testLog.contains("Testing cancelled because the build failed") ||
             testLog.contains("Command failed with exit code 1.")
     }
-}
-
-private enum TestingBuildSystem {
-    case xcodebuild
-    case buck
-    case swift
 }

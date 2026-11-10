@@ -26,7 +26,7 @@ extension BaselineMatchesTests {
 
     func tested(
         _ key: MutantKey,
-        _ kind: Tested.Kind = .survivor(.survived),
+        _ kind: BaselineMatches.MutantKind = .survivor(.survived),
         before: String = "<",
         after: String = "<=",
         line: String? = "if count < limit {"

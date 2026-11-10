@@ -1,77 +1,5 @@
 import Foundation
 
-/// Where a mutant's code is in its original file, from its first character to just past its last, as the Stryker and
-/// SARIF reports give it: lines and columns from 1, columns in UTF-16 code units. Stryker's viewer is JavaScript,
-/// whose strings count those, and they are SARIF's default. SwiftSyntax counts columns in UTF-8 bytes
-/// (`MutationPosition`), so an `é` before the mutant is two of its columns but one here, and an emoji four but two.
-struct SourceSpan: Equatable {
-    struct Position: Equatable {
-        let line: Int
-        let column: Int
-    }
-
-    let start: Position
-    /// Just past the last character, as both formats want it.
-    let end: Position
-
-    init(start: Position, end: Position) {
-        self.start = start
-        self.end = end
-    }
-
-    /// The span of the code `mutation` changes, its `before`, in its original file, whose lines are `lines`, and
-    /// whether that code was found there (`SourceLines.span(of:placedAt:utf8Column:by:)`). Code not found where its
-    /// operator places it, as in a file changed since, spans the mutant's whole line. Without that line, as for a file
-    /// that can't be read, the columns stay in bytes, and the span is `before` from the mutant's place, or up to it for
-    /// an operator that places a mutant where its code ends.
-    static func of(_ mutation: MutationTestOutcome.Mutation, in lines: SourceLines?) -> (span: Self, isFound: Bool) {
-        let position = mutation.point.position
-        let operatorId = mutation.point.mutationOperatorId
-        let before = mutation.snapshot.before
-        let after = mutation.snapshot.after
-        if let found = lines?.span(
-            of: before,
-            placedAt: position.line,
-            utf8Column: position.column,
-            by: operatorId,
-            after: after
-        ) {
-            return (found, true)
-        }
-        if let line = lines?.span(ofLine: position.line) {
-            return (line, false)
-        }
-        return (
-            Self(placedAt: position.line, utf8Column: position.column, before: before, by: operatorId, after: after),
-            false
-        )
-    }
-
-    /// `before` from the UTF-8 `column` of `line`, in bytes, or up to it for a mutant placed where its code ends, as
-    /// `after` tells for a replaced Bool's and a comparison's constant; `before` may span lines.
-    init(
-        placedAt line: Int,
-        utf8Column column: Int,
-        before: String,
-        by operatorId: MutationOperator.Id,
-        after: String = ""
-    ) {
-        let isAConstant = MutantDiff.isAConstant(after: after, by: operatorId)
-        let parts = SourceLines.split(isAConstant ? before : SourceLines.code(of: before, by: operatorId))
-        let last = parts.last ?? ""
-        let endsThere = SourceLines.isPlacedWhereItsCodeEnds(operatorId) || isAConstant && after == "false"
-        if endsThere, parts.count == 1 {
-            let spanStart = Position(line: line, column: max(1, column - last.utf8.count))
-            self.init(start: spanStart, end: Position(line: line, column: column))
-            return
-        }
-        let spanStart = Position(line: line, column: column)
-        self.init(start: spanStart, end: parts.count == 1
-            ? Position(line: line, column: column + last.utf8.count)
-            : Position(line: line + parts.count - 1, column: 1 + last.utf8.count))
-    }
-}
-
 /// A file's text by line, as the reports read it: each line without its line break, which is `\n`, `\r\n` or a lone
 /// `\r`, as SwiftSyntax numbers lines.
 struct SourceLines {
@@ -353,5 +281,77 @@ struct OriginalFiles {
     /// Reads a file from those already read, so `ReportSources` doesn't read it again.
     var read: ReadFile {
         { [contents] path in contents[path] }
+    }
+}
+
+/// Where a mutant's code is in its original file, from its first character to just past its last, as the Stryker and
+/// SARIF reports give it: lines and columns from 1, columns in UTF-16 code units. Stryker's viewer is JavaScript,
+/// whose strings count those, and they are SARIF's default. SwiftSyntax counts columns in UTF-8 bytes
+/// (`MutationPosition`), so an `é` before the mutant is two of its columns but one here, and an emoji four but two.
+struct SourceSpan: Equatable {
+    struct Position: Equatable {
+        let line: Int
+        let column: Int
+    }
+
+    let start: Position
+    /// Just past the last character, as both formats want it.
+    let end: Position
+
+    init(start: Position, end: Position) {
+        self.start = start
+        self.end = end
+    }
+
+    /// The span of the code `mutation` changes, its `before`, in its original file, whose lines are `lines`, and
+    /// whether that code was found there (`SourceLines.span(of:placedAt:utf8Column:by:)`). Code not found where its
+    /// operator places it, as in a file changed since, spans the mutant's whole line. Without that line, as for a file
+    /// that can't be read, the columns stay in bytes, and the span is `before` from the mutant's place, or up to it for
+    /// an operator that places a mutant where its code ends.
+    static func of(_ mutation: MutationTestOutcome.Mutation, in lines: SourceLines?) -> (span: Self, isFound: Bool) {
+        let position = mutation.point.position
+        let operatorId = mutation.point.mutationOperatorId
+        let before = mutation.snapshot.before
+        let after = mutation.snapshot.after
+        if let found = lines?.span(
+            of: before,
+            placedAt: position.line,
+            utf8Column: position.column,
+            by: operatorId,
+            after: after
+        ) {
+            return (found, true)
+        }
+        if let line = lines?.span(ofLine: position.line) {
+            return (line, false)
+        }
+        return (
+            Self(placedAt: position.line, utf8Column: position.column, before: before, by: operatorId, after: after),
+            false
+        )
+    }
+
+    /// `before` from the UTF-8 `column` of `line`, in bytes, or up to it for a mutant placed where its code ends, as
+    /// `after` tells for a replaced Bool's and a comparison's constant; `before` may span lines.
+    init(
+        placedAt line: Int,
+        utf8Column column: Int,
+        before: String,
+        by operatorId: MutationOperator.Id,
+        after: String = ""
+    ) {
+        let isAConstant = MutantDiff.isAConstant(after: after, by: operatorId)
+        let parts = SourceLines.split(isAConstant ? before : SourceLines.code(of: before, by: operatorId))
+        let last = parts.last ?? ""
+        let endsThere = SourceLines.isPlacedWhereItsCodeEnds(operatorId) || isAConstant && after == "false"
+        if endsThere, parts.count == 1 {
+            let spanStart = Position(line: line, column: max(1, column - last.utf8.count))
+            self.init(start: spanStart, end: Position(line: line, column: column))
+            return
+        }
+        let spanStart = Position(line: line, column: column)
+        self.init(start: spanStart, end: parts.count == 1
+            ? Position(line: line, column: column + last.utf8.count)
+            : Position(line: line + parts.count - 1, column: 1 + last.utf8.count))
     }
 }

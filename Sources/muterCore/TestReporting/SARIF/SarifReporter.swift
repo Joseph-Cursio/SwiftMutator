@@ -1,5 +1,48 @@
 import Foundation
 
+/// The git work tree a folder is in.
+enum WorkTree {
+    /// Where a project is in a work tree: the tree's root, and the project's folder in it, "" for the root itself.
+    struct Place: Equatable {
+        let root: String
+        let projectFolder: String
+    }
+
+    /// Where the project recorded at `projectPath` is in the work tree it's in; nil outside one. When that folder is
+    /// gone, as for a results file from another machine or a project moved since, the current folder stands for it,
+    /// as `report` is run in the project, and never the nearest folder up from the old path that still has a `.git`.
+    static func place(
+        of projectPath: String,
+        currentFolder: String = FileManager.default.currentDirectoryPath,
+        fileExists: (String) -> Bool = FileManager.default.fileExists
+    ) -> Place? {
+        let recorded = URL(fileURLWithPath: projectPath, isDirectory: true).standardized.path
+        let folder = fileExists(recorded)
+            ? recorded
+            : URL(fileURLWithPath: currentFolder, isDirectory: true).standardized.path
+        guard let root = root(containing: folder, fileExists: fileExists) else { return nil }
+        let inRoot = RepoRelativePath.of(folder, under: URL(fileURLWithPath: root))
+        return Place(root: root, projectFolder: inRoot.hasPrefix("/") ? "" : inRoot)
+    }
+
+    /// The nearest folder from `path` up, it included, that holds a `.git`: a folder, or a file in a linked work tree
+    /// or a submodule. nil when none does.
+    static func root(
+        containing path: String,
+        fileExists: (String) -> Bool = FileManager.default.fileExists
+    ) -> String? {
+        var folder = URL(fileURLWithPath: path, isDirectory: true).standardized.path
+        while true {
+            if fileExists(folder.appendingPathComponent(".git")) {
+                return folder
+            }
+            let parent = folder.deletingLastPathComponent
+            guard !parent.isEmpty, parent != folder else { return nil }
+            folder = parent
+        }
+    }
+}
+
 /// The SARIF report (`-f sarif`), for GitHub code scanning: each mutant the tests didn't kill, at its place in its
 /// file, by its operator. A survivor and a timeout are warnings, as the score counts both as survivors, and a mutant
 /// no test reached is a note. Kills and build errors aren't results. The same for the same outcome and the same files:
@@ -95,48 +138,5 @@ struct SarifReporter: Reporter {
                     + "test reached."
             )
         )
-    }
-}
-
-/// The git work tree a folder is in.
-enum WorkTree {
-    /// Where a project is in a work tree: the tree's root, and the project's folder in it, "" for the root itself.
-    struct Place: Equatable {
-        let root: String
-        let projectFolder: String
-    }
-
-    /// Where the project recorded at `projectPath` is in the work tree it's in; nil outside one. When that folder is
-    /// gone, as for a results file from another machine or a project moved since, the current folder stands for it,
-    /// as `report` is run in the project, and never the nearest folder up from the old path that still has a `.git`.
-    static func place(
-        of projectPath: String,
-        currentFolder: String = FileManager.default.currentDirectoryPath,
-        fileExists: (String) -> Bool = FileManager.default.fileExists
-    ) -> Place? {
-        let recorded = URL(fileURLWithPath: projectPath, isDirectory: true).standardized.path
-        let folder = fileExists(recorded)
-            ? recorded
-            : URL(fileURLWithPath: currentFolder, isDirectory: true).standardized.path
-        guard let root = root(containing: folder, fileExists: fileExists) else { return nil }
-        let inRoot = RepoRelativePath.of(folder, under: URL(fileURLWithPath: root))
-        return Place(root: root, projectFolder: inRoot.hasPrefix("/") ? "" : inRoot)
-    }
-
-    /// The nearest folder from `path` up, it included, that holds a `.git`: a folder, or a file in a linked work tree
-    /// or a submodule. nil when none does.
-    static func root(
-        containing path: String,
-        fileExists: (String) -> Bool = FileManager.default.fileExists
-    ) -> String? {
-        var folder = URL(fileURLWithPath: path, isDirectory: true).standardized.path
-        while true {
-            if fileExists(folder.appendingPathComponent(".git")) {
-                return folder
-            }
-            let parent = folder.deletingLastPathComponent
-            guard !parent.isEmpty, parent != folder else { return nil }
-            folder = parent
-        }
     }
 }

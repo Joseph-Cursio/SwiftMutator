@@ -1,5 +1,20 @@
 import Foundation
 
+/// The line a mutant changes, as its original file holds it and as the mutant makes it (`MutantDiff.change`). The
+/// JSON report holds it as `{line, before, after?}`.
+struct SourceChange: Codable, Equatable {
+    /// From 1.
+    let line: Int
+    let before: String
+    /// nil for a removed statement that leaves nothing but spaces on its line.
+    let after: String?
+
+    /// "-12:     return a ? b : c" and "+12:     return a ? c : b"; a line removed whole has no `+` line.
+    var lines: [String] {
+        ["-\(line): \(before)"] + (after.map { ["+\(line): \($0)"] } ?? [])
+    }
+}
+
 /// The lines that show what a mutant changes, which a run of one mutant (`--mutant`) prints.
 enum MutantDiff {
     /// How many lines above its own a mutant's change is looked for: a mutant placed at the end of what it changes
@@ -147,20 +162,5 @@ enum MutantDiff {
         return (0...(line.count - needle.count)).filter { start in
             line[start..<(start + needle.count)].elementsEqual(needle)
         }
-    }
-}
-
-/// The line a mutant changes, as its original file holds it and as the mutant makes it (`MutantDiff.change`). The
-/// JSON report holds it as `{line, before, after?}`.
-struct SourceChange: Codable, Equatable {
-    /// From 1.
-    let line: Int
-    let before: String
-    /// nil for a removed statement that leaves nothing but spaces on its line.
-    let after: String?
-
-    /// "-12:     return a ? b : c" and "+12:     return a ? c : b"; a line removed whole has no `+` line.
-    var lines: [String] {
-        ["-\(line): \(before)"] + (after.map { ["+\(line): \($0)"] } ?? [])
     }
 }

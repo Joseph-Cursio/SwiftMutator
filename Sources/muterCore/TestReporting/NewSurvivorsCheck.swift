@@ -1,6 +1,39 @@
 import ArgumentParser
 import Foundation
 
+/// The verdicts a finished run, or `report`, ends with, each of the check its flag asks for, nil without it: the score
+/// against `--fail-under` (`ScoreGate`), the survivors against a baseline file (`NewSurvivorsCheck`), the score
+/// against the baseline file's (`ScoreDropCheck`), and the kills its evidence doesn't back (`DoubtfulKillsCheck`), in
+/// the order they're said.
+struct RunChecks: Equatable, Sendable {
+    var scoreGate: ScoreGate?
+    var newSurvivors: NewSurvivorsCheck?
+    var scoreDrop: ScoreDropCheck?
+    var doubtfulKills: DoubtfulKillsCheck?
+
+    init(
+        scoreGate: ScoreGate? = nil,
+        newSurvivors: NewSurvivorsCheck? = nil,
+        scoreDrop: ScoreDropCheck? = nil,
+        doubtfulKills: DoubtfulKillsCheck? = nil
+    ) {
+        self.scoreGate = scoreGate
+        self.newSurvivors = newSurvivors
+        self.scoreDrop = scoreDrop
+        self.doubtfulKills = doubtfulKills
+    }
+
+    /// Whether no check was asked for.
+    var isEmpty: Bool {
+        scoreGate == nil && newSurvivors == nil && scoreDrop == nil && doubtfulKills == nil
+    }
+
+    /// The status a command exits with when a check failed, `scoreBelowThreshold`; nil, so 0, otherwise.
+    var exitStatus: ExitCode? {
+        scoreGate?.exitStatus ?? newSurvivors?.exitStatus ?? scoreDrop?.exitStatus ?? doubtfulKills?.exitStatus
+    }
+}
+
 /// The verdict of a run, or of `report`, on its survivors against a baseline file's (`--baseline`, `BaselineMatches`):
 /// it fails when more of its survivors are new than `--max-new-survivors` allows, 0 unless it says otherwise, and then
 /// exits 2 (`ExitCode.scoreBelowThreshold`, the status of every failed check, as #96 gives them), once every report is
@@ -246,38 +279,5 @@ struct NewSurvivorsCheck: Equatable, Sendable {
     static func allowed(_ text: String) -> Int? {
         guard !text.isEmpty, text.allSatisfy({ ("0" ... "9").contains($0) }) else { return nil }
         return Int(text)
-    }
-}
-
-/// The verdicts a finished run, or `report`, ends with, each of the check its flag asks for, nil without it: the score
-/// against `--fail-under` (`ScoreGate`), the survivors against a baseline file (`NewSurvivorsCheck`), the score
-/// against the baseline file's (`ScoreDropCheck`), and the kills its evidence doesn't back (`DoubtfulKillsCheck`), in
-/// the order they're said.
-struct RunChecks: Equatable, Sendable {
-    var scoreGate: ScoreGate?
-    var newSurvivors: NewSurvivorsCheck?
-    var scoreDrop: ScoreDropCheck?
-    var doubtfulKills: DoubtfulKillsCheck?
-
-    init(
-        scoreGate: ScoreGate? = nil,
-        newSurvivors: NewSurvivorsCheck? = nil,
-        scoreDrop: ScoreDropCheck? = nil,
-        doubtfulKills: DoubtfulKillsCheck? = nil
-    ) {
-        self.scoreGate = scoreGate
-        self.newSurvivors = newSurvivors
-        self.scoreDrop = scoreDrop
-        self.doubtfulKills = doubtfulKills
-    }
-
-    /// Whether no check was asked for.
-    var isEmpty: Bool {
-        scoreGate == nil && newSurvivors == nil && scoreDrop == nil && doubtfulKills == nil
-    }
-
-    /// The status a command exits with when a check failed, `scoreBelowThreshold`; nil, so 0, otherwise.
-    var exitStatus: ExitCode? {
-        scoreGate?.exitStatus ?? newSurvivors?.exitStatus ?? scoreDrop?.exitStatus ?? doubtfulKills?.exitStatus
     }
 }

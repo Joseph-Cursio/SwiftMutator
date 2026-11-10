@@ -1,5 +1,24 @@
 import Foundation
 
+/// The files a Stryker or SARIF report names.
+enum ReportedFile {
+    /// Each file with a mutant, and each no test ran, by its path relative to the project, with its original file's
+    /// path, which the reports read. A file outside the project keeps its absolute path.
+    static func originals(of outcome: MutationTestOutcome) -> [String: String] {
+        var originals: [String: String] = [:]
+        for mutation in outcome.mutations {
+            originals[mutation.relativePath] = mutation.originalProjectPath
+        }
+        for path in outcome.coverage.filesWithoutCoverage {
+            let relativePath = outcome.relativePath(of: path)
+            if originals[relativePath] == nil {
+                originals[relativePath] = RepoRelativePath.resolve(relativePath, under: outcome.projectPath)
+            }
+        }
+        return originals
+    }
+}
+
 /// The Stryker report (`-f stryker`): JSON in the mutation-testing-elements schema (`StrykerReport`), for Stryker's
 /// dashboard and its report viewer, with each file's source, so the viewer can show every mutant in its code. The same
 /// for the same outcome, and the same files: sorted keys, and each file's mutants by line, column and id.
@@ -106,24 +125,5 @@ extension StrykerReport.Mutant: Comparable {
     static func < (lhs: Self, rhs: Self) -> Bool {
         (lhs.location.start.line, lhs.location.start.column, lhs.id)
             < (rhs.location.start.line, rhs.location.start.column, rhs.id)
-    }
-}
-
-/// The files a Stryker or SARIF report names.
-enum ReportedFile {
-    /// Each file with a mutant, and each no test ran, by its path relative to the project, with its original file's
-    /// path, which the reports read. A file outside the project keeps its absolute path.
-    static func originals(of outcome: MutationTestOutcome) -> [String: String] {
-        var originals: [String: String] = [:]
-        for mutation in outcome.mutations {
-            originals[mutation.relativePath] = mutation.originalProjectPath
-        }
-        for path in outcome.coverage.filesWithoutCoverage {
-            let relativePath = outcome.relativePath(of: path)
-            if originals[relativePath] == nil {
-                originals[relativePath] = RepoRelativePath.resolve(relativePath, under: outcome.projectPath)
-            }
-        }
-        return originals
     }
 }

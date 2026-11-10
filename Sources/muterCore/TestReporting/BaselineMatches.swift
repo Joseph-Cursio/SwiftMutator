@@ -1,5 +1,63 @@
 import Foundation
 
+/// How a baseline file's entry agrees with a mutant on what it changes (`BaselineSurvivor.match(with:)`).
+private enum ChangeMatch {
+    /// The change agrees, and so does the line, known on both sides.
+    case withItsLine
+    /// The change agrees, and either side's line isn't known.
+    case withoutALine
+    /// The change or the line differs.
+    case differs
+}
+
+/// A mutant a run discovered and didn't test, as `--shard`, `--sample` or `--changed-lines` left it out, which
+/// `BaselineMatches` pairs a baseline file's entry for it with, so that the entry can't take a mutant the run tested.
+struct UnselectedMutant: Equatable {
+    let key: MutantKey
+    /// What it replaces, and what with.
+    let snapshot: MutationOperator.Snapshot
+    /// Its file in the original project, which its line is read from.
+    let originalProjectPath: String
+}
+
+/// A mutant in code no test ran, which a run with coverage makes none of, as no test could kill it: in a region no test
+/// ran (`MuterVisitor.uncoveredMappings`), or in a file coverage leaves out as a whole, as one at or below
+/// `coverageThreshold`, such as a new file no test reaches. No score counts it, nor any count a report shows; only a
+/// baseline file records it, as a survivor not covered, and `--baseline` compares it, so a pull request that adds code
+/// no test runs adds survivors. Keyed as a whole run keys mutants, so it keeps its key when a test comes to run its
+/// code. With `--skip-coverage` there are none: every mutant is made and tested.
+///
+/// The results file's header records them, as `mutantsNotCovered`, so `report` sees what the run saw.
+struct UncoveredMutant: Codable, Equatable {
+    /// The key's fields (`MutantKey`).
+    let path: String
+    let line: Int
+    let column: Int
+    let occurrence: Int
+    let mutationOperatorId: MutationOperator.Id
+    /// What it would replace, and what with.
+    let snapshot: MutationOperator.Snapshot
+
+    init(key: MutantKey, snapshot: MutationOperator.Snapshot) {
+        path = key.path
+        line = key.line
+        column = key.column
+        occurrence = key.occurrence
+        mutationOperatorId = key.mutationOperatorId
+        self.snapshot = snapshot
+    }
+
+    var key: MutantKey {
+        MutantKey(
+            path: path,
+            mutationOperatorId: mutationOperatorId,
+            line: line,
+            column: column,
+            occurrence: occurrence
+        )
+    }
+}
+
 /// Which of a run's survivors a baseline file already records, and which are new. A key moves with any line added
 /// above its mutant, so a key alone settles nothing, and matching follows the triage file's scheme (`TriageMatches`):
 /// what a mutant changes (its path, operator, `before` and `after`) and the line it changes, without the spaces around
@@ -25,18 +83,19 @@ import Foundation
 /// aren't known (`exactKeysOnly`), as `report` of a sample's results, an entry is paired only at its own key. A
 /// renamed file's survivors are new, and its entries not tested: nothing maps an old path to a new one.
 struct BaselineMatches: Equatable {
+    /// What came of a mutant the run discovered, as the matching sees it.
+    enum MutantKind: Equatable {
+        /// The tests didn't kill it: it survived, timed out, or no test ran its code.
+        case survivor(BaselineSurvivor.Outcome)
+        case killed
+        /// It wasn't tested: a build error, or a mutant the run left out (`UnselectedMutant`).
+        case notTested
+    }
+
     /// A mutant the run discovered, as the matching sees it.
     struct TestedMutant: Equatable {
-        enum Kind: Equatable {
-            /// The tests didn't kill it: it survived, timed out, or no test ran its code.
-            case survivor(BaselineSurvivor.Outcome)
-            case killed
-            /// It wasn't tested: a build error, or a mutant the run left out (`UnselectedMutant`).
-            case notTested
-        }
-
         let key: MutantKey
-        let kind: Kind
+        let kind: MutantKind
         let before: String
         let after: String
         /// Its line, without the spaces around it; nil when not known.
@@ -46,20 +105,18 @@ struct BaselineMatches: Equatable {
         /// to another line changes: such a mutant never has a line.
         let lineUnread: Bool
 
-        init(
-            key: MutantKey,
-            kind: Kind,
-            before: String,
-            after: String,
-            line: String? = nil,
-            lineUnread: Bool? = nil
-        ) {
+        /// A mutant whose line is unread when it has none.
+        init(key: MutantKey, kind: MutantKind, before: String, after: String, line: String? = nil) {
+            self.init(key: key, kind: kind, before: before, after: after, line: line, lineUnread: line == nil)
+        }
+
+        init(key: MutantKey, kind: MutantKind, before: String, after: String, line: String?, lineUnread: Bool) {
             self.key = key
             self.kind = kind
             self.before = before
             self.after = after
             self.line = line?.trimmingCharacters(in: .whitespaces)
-            self.lineUnread = lineUnread ?? (line == nil)
+            self.lineUnread = lineUnread
         }
 
         /// "Sources/Lint/Rules.swift:42:17 RelationalBoundary: < → <=".
@@ -84,7 +141,7 @@ struct BaselineMatches: Equatable {
             var sources = ReportSources(read: readSource, digests: outcome.sourceDigests)
             let tested = outcome.mutations.compactMap { mutation -> Self? in
                 guard let mutantKey = mutation.key else { return nil }
-                let matchKind: Kind = if let survived = BaselineSurvivor.Outcome(mutation.testSuiteOutcome) {
+                let matchKind: MutantKind = if let survived = BaselineSurvivor.Outcome(mutation.testSuiteOutcome) {
                     .survivor(survived)
                 } else if [.failed, .runtimeError].contains(mutation.testSuiteOutcome) {
                     .killed
@@ -109,9 +166,9 @@ struct BaselineMatches: Equatable {
                         snapshot: mutant.snapshot,
                         originalProjectPath: RepoRelativePath.resolve(mutant.path, under: outcome.projectPath)
                     ),
-                    Kind.survivor(.notCovered)
+                    MutantKind.survivor(.notCovered)
                 )
-            } + (outcome.unselectedMutants ?? []).map { ($0, Kind.notTested) }
+            } + (outcome.unselectedMutants ?? []).map { ($0, MutantKind.notTested) }
             return tested + untested.map { mutant, kind in
                 let sourceLine = sources.change(
                     in: mutant.originalProjectPath,
@@ -126,7 +183,8 @@ struct BaselineMatches: Equatable {
                     before: mutant.snapshot.before,
                     after: mutant.snapshot.after,
                     line: sourceLine,
-                    lineUnread: sourceLine == nil && !sources.reads(mutant.originalProjectPath, relativePath: mutant.key.path)
+                    lineUnread: sourceLine == nil
+                        && !sources.reads(mutant.originalProjectPath, relativePath: mutant.key.path)
                 )
             }
         }
@@ -207,7 +265,7 @@ struct BaselineMatches: Equatable {
         var taken: Set<Int> = []
         var pairings: [Pairing] = []
         var unpaired = left
-        for withLine in [true, false] {
+        for pass in [ChangeMatch.withItsLine, .withoutALine] {
             for atItsKey in exactKeysOnly ? [true] : [true, false] {
                 unpaired = unpaired.filter { entryIndex in
                     let entry = entries[entryIndex]
@@ -218,7 +276,7 @@ struct BaselineMatches: Equatable {
                     let nearest = options
                         .filter {
                             !taken.contains($0) && Signature(mutants[$0]) == Signature(entry)
-                                && entry.matches(mutants[$0]) == withLine
+                                && entry.match(with: mutants[$0]) == pass
                         }
                         .min { distance($0) < distance($1) }
                     guard let nearest else { return true }
@@ -226,7 +284,7 @@ struct BaselineMatches: Equatable {
                     pairings.append(Pairing(
                         entry: entryIndex,
                         mutant: nearest,
-                        withoutLine: !withLine && entry.countsWithoutLine(mutants[nearest])
+                        withoutLine: pass == .withoutALine && entry.countsWithoutLine(mutants[nearest])
                     ))
                     return false
                 }
@@ -258,61 +316,14 @@ struct BaselineMatches: Equatable {
     }
 }
 
-/// A mutant a run discovered and didn't test, as `--shard`, `--sample` or `--changed-lines` left it out, which
-/// `BaselineMatches` pairs a baseline file's entry for it with, so that the entry can't take a mutant the run tested.
-struct UnselectedMutant: Equatable {
-    let key: MutantKey
-    /// What it replaces, and what with.
-    let snapshot: MutationOperator.Snapshot
-    /// Its file in the original project, which its line is read from.
-    let originalProjectPath: String
-}
-
-/// A mutant in code no test ran, which a run with coverage makes none of, as no test could kill it: in a region no test
-/// ran (`MuterVisitor.uncoveredMappings`), or in a file coverage leaves out as a whole, as one at or below
-/// `coverageThreshold`, such as a new file no test reaches. No score counts it, nor any count a report shows; only a
-/// baseline file records it, as a survivor not covered, and `--baseline` compares it, so a pull request that adds code
-/// no test runs adds survivors. Keyed as a whole run keys mutants, so it keeps its key when a test comes to run its
-/// code. With `--skip-coverage` there are none: every mutant is made and tested.
-///
-/// The results file's header records them, as `mutantsNotCovered`, so `report` sees what the run saw.
-struct UncoveredMutant: Codable, Equatable {
-    /// The key's fields (`MutantKey`).
-    let path: String
-    let line: Int
-    let column: Int
-    let occurrence: Int
-    let mutationOperatorId: MutationOperator.Id
-    /// What it would replace, and what with.
-    let snapshot: MutationOperator.Snapshot
-
-    init(key: MutantKey, snapshot: MutationOperator.Snapshot) {
-        path = key.path
-        line = key.line
-        column = key.column
-        occurrence = key.occurrence
-        mutationOperatorId = key.mutationOperatorId
-        self.snapshot = snapshot
-    }
-
-    var key: MutantKey {
-        MutantKey(
-            path: path,
-            mutationOperatorId: mutationOperatorId,
-            line: line,
-            column: column,
-            occurrence: occurrence
-        )
-    }
-}
-
 private extension BaselineSurvivor {
-    /// Whether `mutant` changes what this entry's mutant changed: true when their lines are known and agree too, false
-    /// when either line isn't known, and nil when they differ. Its path and operator are the caller's to compare.
-    func matches(_ mutant: BaselineMatches.TestedMutant) -> Bool? {
-        guard before == mutant.before, after == mutant.after else { return nil }
-        guard let line, let other = mutant.line else { return false }
-        return line == other ? true : nil
+    /// Whether `mutant` changes what this entry's mutant changed: with its line, when their lines are known and agree
+    /// too; without a line, when either line isn't known; or not, when they differ. Its path and operator are the
+    /// caller's to compare.
+    func match(with mutant: BaselineMatches.TestedMutant) -> ChangeMatch {
+        guard before == mutant.before, after == mutant.after else { return .differs }
+        guard let line, let other = mutant.line else { return .withoutALine }
+        return line == other ? .withItsLine : .differs
     }
 
     /// Whether pairing with `mutant` without the line is counted: unless neither has one, as `mutant`'s change isn't
