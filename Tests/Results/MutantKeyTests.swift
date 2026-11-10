@@ -40,7 +40,7 @@ final class MutantKeyTests: XCTestCase {
                         "/project_mutated/Sources/Sum.swift",
                         line: 73,
                         column: 22,
-                        utf8Offset: 3361,
+                        utf8Offset: 3_361,
                         mutationOperatorId: .ror
                     ),
                 ],
@@ -61,8 +61,8 @@ final class MutantKeyTests: XCTestCase {
     }
 
     func test_sameNamedFiles_getDistinctKeys_althoughTheyShareASwitchID() throws {
-        let example = try schema("/project_mutated/ExampleCode/View.swift", line: 30, column: 10, utf8Offset: 1233)
-        let app = try schema("/project_mutated/Sources/App/View.swift", line: 30, column: 10, utf8Offset: 1233)
+        let example = try schema("/project_mutated/ExampleCode/View.swift", line: 30, column: 10, utf8Offset: 1_233)
+        let app = try schema("/project_mutated/Sources/App/View.swift", line: 30, column: 10, utf8Offset: 1_233)
         XCTAssertEqual(example.id, app.id)
 
         let keys = MutantKey.keys(for: [example, app], under: mutatedRoot)

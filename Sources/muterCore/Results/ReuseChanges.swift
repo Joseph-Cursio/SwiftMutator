@@ -163,9 +163,11 @@ extension ReuseChanges {
             switch self {
             case let .displayName(quoted):
                 return text.contains(quoted)
+
             case let .function(name):
                 let declaration = #"\bfunc\s+"# + NSRegularExpression.escapedPattern(for: name) + #"\b"#
                 return text.range(of: declaration, options: .regularExpression) != nil
+
             case let .type(name):
                 return Self.containsIdentifier(name, in: text)
             }
@@ -176,6 +178,7 @@ extension ReuseChanges {
             switch self {
             case let .displayName(quoted):
                 return text.contains(quoted)
+
             case let .function(name), let .type(name):
                 return Self.containsIdentifier(name, in: text)
             }

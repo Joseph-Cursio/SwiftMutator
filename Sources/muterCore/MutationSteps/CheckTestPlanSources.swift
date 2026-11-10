@@ -105,8 +105,10 @@ struct CheckTestPlanSources: MutationStep {
             switch FileDigest.sha256(of: project.appendingPathComponent(path)) {
             case linkedFiles[path]:
                 return nil
+
             case nil:
                 return ProjectTree.FileChange(path: path, kind: .removed)
+
             default:
                 return ProjectTree.FileChange(path: path, kind: .changed)
             }

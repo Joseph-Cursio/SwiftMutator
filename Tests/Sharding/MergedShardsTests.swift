@@ -89,7 +89,7 @@ final class MergedShardsTests: XCTestCase {
             header(2, mutantsDiscovered: 2),
             header(2, mutantsInAllShards: -1, mutantsPerShard: [2, -3]),
             // Holds together but for the cap.
-            header(2, count: 1001, mutantsInAllShards: 1, mutantsPerShard: [0, 1] + Array(repeating: 0, count: 999)),
+            header(2, count: 1_001, mutantsInAllShards: 1, mutantsPerShard: [0, 1] + Array(repeating: 0, count: 999)),
             header(2, mutantsInAllShards: 0, mutantsPerShard: [Int.max, 1]),
             header(2, mutantsInAllShards: Int.max, mutantsPerShard: [Int.max, Int.max]),
         ]

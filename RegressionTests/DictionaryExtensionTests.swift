@@ -8,13 +8,13 @@ final class DictionaryExtensionTests: XCTestCase {
             "toss": [5],
             "so": [
                 ["toss": "", "keep": ""],
-                ["toss": "", "keep": ""]
+                ["toss": "", "keep": ""],
             ],
             "anotherKey": [
                 "keep": 5,
                 "yup": ["toss": "yuppppp"],
                 "toss": "get wrekt, son",
-            ] as [String: Any]
+            ] as [String: Any],
         ]
 
         let results = dictionary.recursivelyFiltered(includingKeysMatching: { $0 != "toss" })

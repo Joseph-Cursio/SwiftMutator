@@ -359,9 +359,8 @@ private extension DiscoverMutationPoints {
 
                 if !schemataMapping.isEmpty {
                     return newSchemataMappings + [schemataMapping]
-                } else {
-                    return newSchemataMappings
                 }
+                return newSchemataMappings
             }
 
         // Pruning has to see every operator's mutants for the file at once: an outer mutant from

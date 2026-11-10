@@ -180,11 +180,13 @@ enum SwiftPackageBuildConditions {
                 switch applies(setting.condition) {
                 case false?:
                     continue
+
                 case true?:
                     guard let mode = setting.kind.languageMode, targetsOwn == nil || targetsOwn == mode else {
                         return nil
                     }
                     targetsOwn = mode
+
                 case nil:
                     return nil
                 }

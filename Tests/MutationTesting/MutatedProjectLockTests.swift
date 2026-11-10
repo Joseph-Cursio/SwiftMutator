@@ -438,7 +438,7 @@ final class MutatedProjectLockTests: XCTestCase {
 
     func test_errorsSayWhatHappened() {
         XCTAssertEqual(
-            MutatedProjectLockError.inUse(mutatedProject: "/code/x_mutated", process: 81234).description,
+            MutatedProjectLockError.inUse(mutatedProject: "/code/x_mutated", process: 81_234).description,
             "SwiftMutator won't start: another SwiftMutator run (process 81234) is using /code/x_mutated, and two "
                 + "runs of a project can't share its copy. Wait for that run to end, or stop it, then run again. "
                 + "Nothing was copied or removed."

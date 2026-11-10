@@ -40,7 +40,7 @@ final class PerformMutationTestingResumeTests: MuterTestCase {
     private let checkedProvenance = Provenance(
         swiftMutator: .init(version: "1.0.0", executablePath: "/usr/local/bin/swift-mutator", executableSHA256: "4d1e"),
         toolchain: .init(testCommandVersion: "Apple Swift version 6.5", testExecutableSHA256: nil, environment: [:]),
-        processIdentifier: 90210,
+        processIdentifier: 90_210,
         host: "studio.local",
         arguments: ["--resume", "results.jsonl", "--force-resume"]
     )

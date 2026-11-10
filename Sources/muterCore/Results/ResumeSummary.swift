@@ -131,17 +131,22 @@ extension ResumeSummary {
         switch (earlier, current) {
         case (nil, nil):
             return nil
+
         case let (earlier?, current?) where earlier == current:
             return nil
+
         case let (nil, current?):
             return "This run tests only shard \(current.index) of \(current.count), "
                 + "so no earlier result of another shard's mutant is reused."
+
         case let (earlier?, nil):
             return "That run tested only shard \(earlier.index) of \(earlier.count), "
                 + "so this run's other mutants have no earlier result."
+
         case let (earlier?, current?) where !earlier.overlaps(current):
             return "That run tested shard \(earlier.index) of \(earlier.count), and this one tests shard "
                 + "\(current.index) of \(current.count), which share no mutant, so no earlier result is reused."
+
         case let (earlier?, current?):
             return "That run tested shard \(earlier.index) of \(earlier.count), and this one tests shard "
                 + "\(current.index) of \(current.count), so only the mutants in both have an earlier result."
@@ -157,12 +162,16 @@ extension ResumeSummary {
         switch (earlier, current) {
         case (nil, nil):
             return nil
+
         case let (earlier?, current?) where (earlier.size, earlier.seed) == (current.size, current.seed):
             return nil
+
         case let (nil, current?):
             return "This run tests only \(named(current)), so no earlier result of a mutant outside it is reused."
+
         case let (earlier?, nil):
             return "That run tested only \(named(earlier)), so this run's other mutants have no earlier result."
+
         case let (earlier?, current?):
             return "That run tested \(named(earlier)), and this one tests \(named(current)), "
                 + "so only the mutants in both have an earlier result."
@@ -179,11 +188,14 @@ extension ResumeSummary {
         switch (earlier, current) {
         case (nil, nil):
             return nil
+
         case let (earlier?, current?) where same(earlier, current):
             return nil
+
         case let (_, current?):
             return "This run mutates only what changed since the merge base of \(current.ref) and HEAD "
                 + "(\(current.shortMergeBase)), so no earlier result of another mutant is reused."
+
         case let (earlier?, nil):
             return "That run mutated only what changed since the merge base of \(earlier.ref) and HEAD "
                 + "(\(earlier.shortMergeBase)), so this run's other mutants have no earlier result."

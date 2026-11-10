@@ -13,8 +13,8 @@ final class TestingTimeOutExecutorSpy: TestingTimeoutExecution, @unchecked Senda
     var firesAfterBody = false
     func withTimeLimit<T: Sendable>(
         _ timeLimit: TimeInterval,
-        _ body: @escaping @Sendable () async throws -> T,
-        timeoutHandler: @escaping @Sendable () async throws -> T
+        _ body: @Sendable () async throws -> T,
+        timeoutHandler: @Sendable () async throws -> T
     ) async throws -> T {
         withTimeLimitCalled = true
         timeLimitPassed = timeLimit

@@ -135,10 +135,10 @@ final class ProcessTreeTerminateTests: XCTestCase {
         let run = killing(root: 1, listings: [[2]], endsAtCheck: [2: .max])
 
         let pauses = run.pauses
-        XCTAssertEqual(Array(pauses.prefix(6)), [1000, 2000, 4000, 8000, 10000, 10000])
+        XCTAssertEqual(Array(pauses.prefix(6)), [1_000, 2_000, 4_000, 8_000, 10_000, 10_000])
         XCTAssertEqual(Set(pauses.dropFirst(4)), [ProcessTree.longestKillPauseMicroseconds])
         // 1000 + 2000 + 4000 + 8000, then 10000 each until a full second has passed.
-        XCTAssertEqual(pauses.reduce(0, +), ProcessTree.longestKillWaitMicroseconds + 5000)
+        XCTAssertEqual(pauses.reduce(0, +), ProcessTree.longestKillWaitMicroseconds + 5_000)
         XCTAssertEqual(run.sent.filter { $0 == Sent(2, SIGKILL) }.count, pauses.count + 1)
     }
 

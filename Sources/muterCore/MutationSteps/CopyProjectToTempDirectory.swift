@@ -108,6 +108,7 @@ final class VanishedFileTolerance: NSObject, FileManagerDelegate {
              (NSCocoaErrorDomain, NSFileReadNoSuchFileError),
              (NSPOSIXErrorDomain, Int(ENOENT)):
             return true
+
         default:
             if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? Error {
                 return isNoSuchFile(underlying)

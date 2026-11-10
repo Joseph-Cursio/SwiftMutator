@@ -718,7 +718,7 @@ extension Provenance {
                 testExecutableSHA256: nil,
                 environment: ["SDKROOT": "/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk"]
             ),
-            processIdentifier: 81234,
+            processIdentifier: 81_234,
             host: "host",
             arguments: ["-c", "mutation.conf.yml", "--skip-coverage"]
         )
@@ -848,7 +848,7 @@ extension MutantResult {
         line: Int = 73,
         column: Int = 22,
         occurrence: Int = 0,
-        utf8Offset: Int = 3361,
+        utf8Offset: Int = 3_361,
         mutationOperatorId: MutationOperator.Id = .ror,
         switchID: String? = nil,
         snapshot: MutationOperator.Snapshot = .make(before: ">", after: "<", description: "changed > to <"),
@@ -967,7 +967,7 @@ extension ControlRunResult {
             failedTests: failedTests,
             failedTestCount: failedTestCount ?? failedTests?.count,
             firstFailedTestLine: nil,
-            log: ControlRunResult.logName(of: number)
+            log: Self.logName(of: number)
         )
     }
 }

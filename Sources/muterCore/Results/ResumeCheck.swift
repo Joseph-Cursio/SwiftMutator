@@ -136,10 +136,13 @@ enum ResumeCheck {
             switch self {
             case .gatheredOnlyNow:
                 return "coverage couldn't be gathered then, and is now"
+
             case .gatheredOnlyThen:
                 return "coverage was gathered then, and couldn't be now"
+
             case .filesWithoutCoverageChanged:
                 return "the files without coverage changed"
+
             case let .percentChanged(was, isNow):
                 return "coverage was \(was)% and is \(isNow)% now"
             }
@@ -225,10 +228,13 @@ enum ResumeCheck {
         switch (recorded, current) {
         case (nil, nil):
             return nil
+
         case (nil, _?):
             return .gatheredOnlyNow
+
         case (_?, nil):
             return .gatheredOnlyThen
+
         case let (recorded?, current?):
             let recordedFiles = Set(recorded.filesWithoutCoverage.map { RepoRelativePath.of($0, under: recordedCopy) })
             let currentFiles = Set(current.filesWithoutCoverage.map { RepoRelativePath.of($0, under: currentCopy) })
@@ -288,6 +294,7 @@ enum ResumeCheck {
         switch (recorded.usingTestPlan, current.usingTestPlan) {
         case (false, false):
             return recorded.project == nil ? [.noProjectTree] : []
+
         case (true, true):
             guard let plan = recorded.testPlan else { return [.testPlanNotRecorded] }
             guard plan.sha256 != current.testPlanSHA256 else { return [] }
@@ -300,6 +307,7 @@ enum ResumeCheck {
                     )
                 ),
             ]
+
         case (true, false), (false, true):
             return [.testPlanRun(recordedUsedOne: recorded.usingTestPlan)]
         }
@@ -328,11 +336,13 @@ enum ResumeCheck {
         switch (recorded, current) {
         case (nil, nil):
             return []
+
         case let (recorded?, current?):
             return [
                 difference("since.mergeBase", recorded.mergeBase, current.mergeBase),
                 difference("since.changedLines", recorded.changedLines, current.changedLines),
             ].compactMap { $0 }
+
         default:
             return [
                 Difference(

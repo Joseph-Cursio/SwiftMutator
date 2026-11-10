@@ -18,7 +18,6 @@ extension URLSession: Server {
                 } else if let error {
                     continuation.resume(throwing: error)
                 }
-
             }.resume()
         }
     }

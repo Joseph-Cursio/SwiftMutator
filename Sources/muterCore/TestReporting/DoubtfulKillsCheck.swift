@@ -211,12 +211,15 @@ struct DoubtfulKillsCheck: Equatable, Sendable {
         switch reason {
         case .stoppedOnAnError:
             return "Doubtful kills aren't counted: the run stopped on an error."
+
         case .lacksResults:
             return "Doubtful kills aren't counted: the merged report lacks results."
+
         case .unfinished:
             let results = progress.map { "only \($0.results) of \($0.discovered) mutants have results, as " } ?? ""
             return "Doubtful kills aren't counted: \(results)the run didn't finish. --resume tests the rest, then the "
                 + "kills only suspect tests made again alone."
+
         case .endedEarly:
             return nil
         }

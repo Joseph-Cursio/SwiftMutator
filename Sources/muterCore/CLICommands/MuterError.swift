@@ -31,6 +31,7 @@ extension MuterError: CustomStringConvertible {
             \(reason)
             ******************
             """
+
         case let .projectCopyFailed(reason):
             return """
             SwiftMutator was unable to create a temporary directory, or was unable to copy your project into a temporary directory, and cannot continue.
@@ -42,28 +43,33 @@ extension MuterError: CustomStringConvertible {
             *********************
             FileManager error: \(reason)
             """
+
         case .noSourceFilesDiscovered:
             return """
             SwiftMutator wasn't able to discover any code it could mutation test.
 
             This is likely caused by misconfiguring SwiftMutator, usually by excluding a directory that contains your code.
             """
+
         case .noSourceFilesOnExclusiveList:
             return """
             SwiftMutator wasn't able to discover any Swift file on the list provided by the `--files-to-mutate` flag.
 
             Please check the list of files and try again.
             """
+
         case .noMutationPointsDiscovered:
             return """
             SwiftMutator wasn't able to discover any code it could mutation test.
 
             This is likely caused by misconfiguring SwiftMutator, usually by excluding a directory that contains your code, or by choosing operators that don't apply to it, with --operators, --skip-operators, or the operators and skipOperators keys.
             """
+
         case let .mutationTestingAborted(reason):
             return """
             \(reason)
             """
+
         case let .removeProjectFromPreviousRunFailed(reason: reason):
             return """
             SwiftMutator wasn't able to remove project from previous run.
@@ -71,8 +77,10 @@ extension MuterError: CustomStringConvertible {
             ******************
             FileManager Error: \(reason)
             """
+
         case let .literal(reason):
             return reason
+
         case let .createTempDirectoryUrlFailed(reason: reason):
             return """
             SwiftMutator wasn't able to create a temporary directory.

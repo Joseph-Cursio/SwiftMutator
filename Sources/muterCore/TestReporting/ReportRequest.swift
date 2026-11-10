@@ -15,7 +15,7 @@ struct ReportRequest: Hashable, Sendable, CustomStringConvertible, Codable {
     /// The request `text` gives, as `format:path`, split at the first `:` only, as a path may hold one; or what is
     /// wrong with it, completing "give …" in a flag's refusal or a key's, without its period. The flag and the key
     /// both parse through this, so they refuse alike.
-    static func parse(_ text: String) -> Result<ReportRequest, Problem> {
+    static func parse(_ text: String) -> Result<Self, Problem> {
         guard let colon = text.firstIndex(of: ":"), colon != text.startIndex else {
             return .failure(Problem("name the format and then the path, as format:path, such as \(example)"))
         }
@@ -37,7 +37,7 @@ struct ReportRequest: Hashable, Sendable, CustomStringConvertible, Codable {
         guard !path.isEmpty else {
             return .failure(Problem("give a path after the format, as format:path, such as \(example)"))
         }
-        return .success(ReportRequest(format: format, path: path))
+        return .success(Self(format: format, path: path))
     }
 
     /// What is wrong with a `format:path`.
@@ -63,14 +63,14 @@ struct ReportRequest: Hashable, Sendable, CustomStringConvertible, Codable {
     /// This request with a relative path resolved against `folder`, as a run's own folder is the project's; an
     /// absolute path is kept. A leading `~` is the home folder: a shell expands it in `-o ~/r.md`, but not after
     /// `markdown:`, and YAML never does, so `markdown:~/r.md` would otherwise be a `~` folder in `folder`.
-    func resolved(in folder: String) -> ReportRequest {
+    func resolved(in folder: String) -> Self {
         let expanded = (path as NSString).expandingTildeInPath
-        guard !expanded.hasPrefix("/") else { return ReportRequest(format: format, path: expanded) }
-        return ReportRequest(format: format, path: (folder as NSString).appendingPathComponent(path))
+        guard !expanded.hasPrefix("/") else { return Self(format: format, path: expanded) }
+        return Self(format: format, path: (folder as NSString).appendingPathComponent(path))
     }
 
     /// This request with a relative path resolved against the current directory, as `-o`'s is.
-    var resolved: ReportRequest {
+    var resolved: Self {
         resolved(in: current.fileManager.currentDirectoryPath)
     }
 
@@ -80,6 +80,7 @@ struct ReportRequest: Hashable, Sendable, CustomStringConvertible, Codable {
         switch Self.parse(text) {
         case let .success(request):
             self = request
+
         case let .failure(problem):
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "\(problem), not \(text)")
         }

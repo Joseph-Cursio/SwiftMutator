@@ -305,7 +305,7 @@ final class ExecutionCountsTests: XCTestCase {
             _ = try? Self.executionCounts(in: source, coverage: .llvmCov([[[1, 50, 3, 2, 1]]]))
             finished.fulfill()
         }
-        thread.stackSize = 512 * 1024
+        thread.stackSize = 512 * 1_024
         thread.start()
 
         wait(for: [finished], timeout: 60)

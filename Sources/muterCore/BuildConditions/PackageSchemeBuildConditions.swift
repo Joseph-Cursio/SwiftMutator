@@ -91,6 +91,7 @@ enum PackageSchemeBuildConditions {
         let result = switch xcode {
         case .selected:
             await process().runCommand(url: "/usr/bin/xcrun", arguments: arguments)
+
         case let .developer(folder):
             await process().runCommand(
                 url: "/usr/bin/env",

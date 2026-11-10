@@ -133,11 +133,11 @@ final class ConfigurationParsingTests: MuterTestCase {
         let swift = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
         let asked = swift.overriding(workers: 8, timeout: nil)
 
-        let byDefault = [0: 0, 1: 1, 49: 1, 50: 2, 99: 2, 100: 3, 150: 4, 5000: 4]
+        let byDefault = [0: 0, 1: 1, 49: 1, 50: 2, 99: 2, 100: 3, 150: 4, 5_000: 4]
         for (mutants, count) in byDefault {
             XCTAssertEqual(swift.workerCount(testing: mutants), count, "\(mutants)")
         }
-        let whenSet = [0: 0, 1: 1, 3: 3, 49: 8, 5000: 8]
+        let whenSet = [0: 0, 1: 1, 3: 3, 49: 8, 5_000: 8]
         for (mutants, count) in whenSet {
             XCTAssertEqual(asked.workerCount(testing: mutants), count, "\(mutants)")
         }
@@ -148,7 +148,7 @@ final class ConfigurationParsingTests: MuterTestCase {
         current.processorCount = 18
         let swift = MuterConfiguration(executable: "/usr/bin/swift", arguments: ["test"])
 
-        let sharing = [0: 0, 1: 1, 3: 3, 4: 4, 49: 4, 5000: 4]
+        let sharing = [0: 0, 1: 1, 3: 3, 4: 4, 49: 4, 5_000: 4]
         for (mutants, count) in sharing {
             XCTAssertEqual(swift.workerCount(testing: mutants, sharingBuild: true), count, "\(mutants)")
         }

@@ -287,7 +287,7 @@ final class RunCommandTests: XCTestCase {
 
     func test_sample_reachesTheRunOptions_withTheSeedGiven_orOneChosen() throws {
         let given = try XCTUnwrap(MuterCommand.parseAsRoot(["run", "--sample", "500", "--seed", "1234"]) as? Run)
-        XCTAssertEqual(given.runOptions.sample, Sample(size: 500, seed: 1234, seedIsChosen: false))
+        XCTAssertEqual(given.runOptions.sample, Sample(size: 500, seed: 1_234, seedIsChosen: false))
 
         let run = try XCTUnwrap(MuterCommand.parseAsRoot(["run", "--sample", "40"]) as? Run)
         let chosen = try XCTUnwrap(run.runOptions.sample)
@@ -577,12 +577,12 @@ final class RunCommandTests: XCTestCase {
     func test_aRefusal_isShownWithoutTheBugReportBanner() {
         let refused = ResumeRefused(
             path: "/logs/results.jsonl",
-            reasons: [.inUse(holder: nil, lastProcess: 81234, lastHost: "studio.local")],
+            reasons: [.inUse(holder: nil, lastProcess: 81_234, lastHost: "studio.local")],
             beforeTheCopy: true
         )
 
         XCTAssertEqual(Run.message(showing: refused), "\(refused)")
-        let inUse = MutatedProjectLockError.inUse(mutatedProject: "/code/x_mutated", process: 81234)
+        let inUse = MutatedProjectLockError.inUse(mutatedProject: "/code/x_mutated", process: 81_234)
         XCTAssertEqual(Run.message(showing: inUse), "\(inUse)")
         let plan = TestPlanRefused(path: "/code/x/muter-mappings.json", reason: .copyMissing(path: "/code/x_mutated"))
         XCTAssertEqual(Run.message(showing: plan), "\(plan)")
@@ -638,7 +638,7 @@ final class RunCommandTests: XCTestCase {
             // Held, but refused for another reason too: it won't resume once the lock is free either.
             ResumeRefused(
                 path: "/logs/results.jsonl",
-                reasons: [.inUse(holder: nil, lastProcess: 81234, lastHost: "studio.local"), .filesChanged(changes)],
+                reasons: [.inUse(holder: nil, lastProcess: 81_234, lastHost: "studio.local"), .filesChanged(changes)],
                 beforeTheCopy: true
             ),
         ]
@@ -647,11 +647,11 @@ final class RunCommandTests: XCTestCase {
         }
         let lockedFile = ResumeRefused(
             path: "/logs/results.jsonl",
-            reasons: [.inUse(holder: nil, lastProcess: 81234, lastHost: "studio.local")],
+            reasons: [.inUse(holder: nil, lastProcess: 81_234, lastHost: "studio.local")],
             beforeTheCopy: true
         )
         XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: lockedFile), .anotherRunHoldsTheLock)
-        let lockedCopy = MutatedProjectLockError.inUse(mutatedProject: "/code/x_mutated", process: 81234)
+        let lockedCopy = MutatedProjectLockError.inUse(mutatedProject: "/code/x_mutated", process: 81_234)
         XCTAssertEqual(ExitCode.exitStatus(afterRunFailedWith: lockedCopy), .anotherRunHoldsTheLock)
         let plans = [
             TestPlanRefused(path: "/code/x/muter-mappings.json", reason: .newerFormat(found: 3)),
@@ -692,6 +692,7 @@ final class RunCommandTests: XCTestCase {
             let status: ExitCode = switch kind {
             case .baselineTestFailed, .workerBaselineTestFailed, .buildForTestingFailed, .buildTimeoutReached:
                 .baselineFailed
+
             case .tooManyBuildErrors, .mutantNotSwitchedOn, .controlRunNotSwitchedOff, .simulatorUnavailable,
                  .noMutantCodeShownRunning, .unknownError: .abortedMidRun
             }

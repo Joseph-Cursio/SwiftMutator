@@ -37,8 +37,8 @@ struct ChangeSelection: Codable, Equatable, Sendable {
 
     /// The same choice, from `ref`, which named `commit`: a resumed session's, whose command names the merge base,
     /// keeps the first one's.
-    func named(_ ref: String, commit: String) -> ChangeSelection {
-        ChangeSelection(
+    func named(_ ref: String, commit: String) -> Self {
+        Self(
             ref: ref,
             commit: commit,
             mergeBase: mergeBase,

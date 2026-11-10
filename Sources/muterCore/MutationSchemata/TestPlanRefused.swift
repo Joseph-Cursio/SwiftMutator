@@ -35,14 +35,17 @@ enum TestPlanRefusal: Equatable, CustomStringConvertible {
         case let .newerFormat(found):
             return "it is in test plan format \(found), which only a newer SwiftMutator can read. Test it with the "
                 + "SwiftMutator that made it, or make it again with `swift-mutator mutate-without-running`."
+
         case let .notThisProject(folder, files, mutatedProject):
             let none = files == 1
                 ? "the file it mutates isn't in \(folder)."
                 : "none of the \(files) files it mutates is in \(folder)."
             return none + " Run `swift-mutator run-without-mutating` in the folder of the project the plan was made "
                 + "from: the plan finds its copy, \(mutatedProject), from there."
+
         case let .sourcesChanged(changes):
             return Self.describe(changes)
+
         case let .copyMissing(path):
             return "its copy of the project isn't at \(path). If the copy was moved, or the project without it, move "
                 + "the copy there. A later `swift-mutator run` or `swift-mutator mutate-without-running` of the "
@@ -74,8 +77,10 @@ enum TestPlanRefusal: Equatable, CustomStringConvertible {
         switch change.kind {
         case .changed:
             return "changed"
+
         case .added:
             return "was added"
+
         case .removed:
             return "was removed"
         }

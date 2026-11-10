@@ -39,7 +39,7 @@ struct BaselineFile: Equatable {
 
     init(
         path: String,
-        formatVersion: Int = BaselineFile.formatVersion,
+        formatVersion: Int = Self.formatVersion,
         swiftMutator: String,
         score: Score,
         scope: BaselineScope,
@@ -187,7 +187,7 @@ struct BaselineScope: Equatable {
     /// How this scope differs from the `recorded` one, a baseline file's, by name: the operators, `skipCoverage`, then
     /// each configuration key that differs, by name, as a resume says them (`ResumeCheck.configurationDifferences`).
     /// Empty when they're the same.
-    func differences(from recorded: BaselineScope) -> [ResumeCheck.Difference] {
+    func differences(from recorded: Self) -> [ResumeCheck.Difference] {
         var differences: [ResumeCheck.Difference] = []
         if operators != recorded.operators {
             differences.append(
@@ -514,7 +514,7 @@ struct BaselineRefused: Error, Equatable, CustomStringConvertible {
     static func check(_ current: BaselineScope, against baseline: BaselineFile, subject: String) throws {
         let differences = current.differences(from: baseline.scope)
         guard !differences.isEmpty else { return }
-        throw BaselineRefused(
+        throw Self(
             path: baseline.path,
             reasons: differences.map { difference in
                 "\(difference.name) is \(difference.was ?? "not set") in the baseline file, and "
@@ -545,7 +545,7 @@ enum BaselineFileSaving: Equatable {
         version: String,
         unless stopped: String? = nil,
         using fileManager: FileSystemManager
-    ) -> BaselineFileSaving {
+    ) -> Self {
         if let reason = stopped ?? outcome.whyNoBaselineFile {
             return .leftOut(path: path, because: reason)
         }
@@ -573,8 +573,10 @@ enum BaselineFileSaving: Equatable {
         switch self {
         case let .saved(path):
             "Baseline file saved to \(path)"
+
         case let .notSaved(path):
             "Could not save the baseline file to \(path)"
+
         case let .leftOut(path, reason):
             "No baseline file was saved to \(path): \(reason), and a baseline file holds a whole run's survivors."
         }

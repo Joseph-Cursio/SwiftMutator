@@ -179,54 +179,79 @@ extension MutationTestState {
             switch change {
             case let .newVersionAvaiable(newVersion):
                 self.newVersion = newVersion
+
             case let .configurationParsed(muterConfiguration):
                 self.muterConfiguration = muterConfiguration
+
             case let .projectDirectoryUrlDiscovered(projectDirectoryURL):
                 self.projectDirectoryURL = projectDirectoryURL
+
             case let .tempDirectoryUrlCreated(mutatedProjectDirectoryURL):
                 self.mutatedProjectDirectoryURL = mutatedProjectDirectoryURL
+
             case let .mutatedProjectLocked(mutatedProjectLock):
                 self.mutatedProjectLock = mutatedProjectLock
+
             case let .projectXCTestRun(projectXCTestRun):
                 self.projectXCTestRun = projectXCTestRun
+
             case let .testDiagnosticsOptionChecked(canBeTurnedOff):
                 testDiagnosticsCanBeTurnedOff = canBeTurnedOff
+
             case let .projectCoverage(projectCoverage):
                 self.projectCoverage = projectCoverage
+
             case let .sourceFileCandidatesDiscovered(sourceFileCandidates):
                 self.sourceFileCandidates = sourceFileCandidates
+
             case let .buildConditionsDiscovered(buildConditions):
                 self.buildConditions = buildConditions
+
             case let .mutationPointsDiscovered(mutationPoints):
                 self.mutationPoints = mutationPoints
+
             case let .mutationMappingsDiscovered(mutationMapping):
                 self.mutationMapping = mutationMapping
+
             case let .mutantsDropped(droppedMutants):
                 self.droppedMutants = droppedMutants
+
             case let .sourceCodeParsed(sourceCodeByFilePath):
                 self.sourceCodeByFilePath = sourceCodeByFilePath
+
             case let .mutationTestOutcomeGenerated(mutationTestOutcome):
                 self.mutationTestOutcome = mutationTestOutcome
+
             case let .loggingDirectoryCreated(loggingDirectory):
                 self.loggingDirectory = loggingDirectory
+
             case let .projectTreeFingerprinted(projectTree):
                 self.projectTree = projectTree
+
             case let .resumeStateLoaded(resumeState):
                 self.resumeState = resumeState
+
             case let .projectChangesWaived(paths):
                 resumeWaived = paths
+
             case let .reuseChangesFound(changes):
                 reuseChanges = changes
+
             case let .changesSelected(selection):
                 changeSelection = selection
+
             case let .shardSelected(selection):
                 shardSelection = selection
+
             case let .sampleSelected(selection):
                 sampleSelection = selection
+
             case let .sampleLeftOut(keys):
                 keysLeftOutOfTheSample = keys
+
             case let .candidatePathsListed(paths):
                 candidatePaths = paths
+
             case let .testPlanLoaded(plan):
                 testPlan = plan
                 // So the results file, and a resume's check, describe the plan's mutants, not the command's defaults.
@@ -234,20 +259,28 @@ extension MutationTestState {
                     mutationOperatorList = scope.operators
                     filesToMutate = scope.filesToMutate
                 }
+
             case let .mutantSelected(key):
                 selectedMutant = key
+
             case let .operatorsChosen(operators):
                 mutationOperatorList = operators
+
             case let .preparedSourcesKept(sources):
                 preparedSources = sources
+
             case let .mutantsLeftOutOfTheBuild(mutants):
                 mutantsLeftOut = mutants
+
             case let .baselineFileLoaded(file):
                 baselineFile = file
+
             case let .mutantsNotSelected(mutants):
                 unselectedMutants = mutants
+
             case let .uncoveredSourceFilesDiscovered(files):
                 uncoveredSourceFiles = files
+
             case let .mutantsNotCovered(mutants):
                 uncoveredMutants = mutants
             }

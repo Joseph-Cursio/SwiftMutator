@@ -42,7 +42,7 @@ struct ProgressBar {
     var printer: ProgressBarPrinter
 
     var value: String {
-        let configuration = configuration ?? ProgressBar.defaultConfiguration
+        let configuration = configuration ?? Self.defaultConfiguration
         let values = configuration.map { $0.value(self) }
         return values.joined(separator: " ")
     }
@@ -63,14 +63,13 @@ struct ProgressBar {
     }
 
     mutating func setValue(_ index: Int) {
-        guard index <= count && index >= 0 else {
+        guard index <= count, index >= 0 else {
             return
         }
         element = index
         let anotherSelf = self
         printer.display(anotherSelf)
     }
-
 }
 
 // MARK: - GeneratorType

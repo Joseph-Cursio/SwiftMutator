@@ -64,10 +64,13 @@ enum ChangeArithmeticOperator {
             switch name {
             case "+", "-", "+=", "-=":
                 return value == 0
+
             case "*", "*=":
                 return abs(value) == 1 || (value == 0 && rightOperand.isAnIntegerLiteral)
+
             case "/", "/=":
                 return abs(value) == 1
+
             default:
                 return false
             }
@@ -79,6 +82,7 @@ enum ChangeArithmeticOperator {
             switch token.trailingTrivia.first {
             case .lineComment, .blockComment, .docLineComment, .docBlockComment:
                 return true
+
             default:
                 return false
             }

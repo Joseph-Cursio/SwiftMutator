@@ -117,12 +117,12 @@ struct TriageFile: Equatable {
     /// The file at `path`; nil when there is none. A file with no entries is one with none to apply. Whatever a save
     /// wouldn't keep is refused, as saving over it would lose it unsaid: a file that can't be read, text that isn't
     /// UTF-8, and a key it doesn't know, such as a misspelled one. Only comments are lost.
-    static func load(at path: String, using fileManager: FileSystemManager) throws -> TriageFile? {
+    static func load(at path: String, using fileManager: FileSystemManager) throws -> Self? {
         guard let data = fileManager.contents(atPath: path) else {
             guard fileManager.fileExists(atPath: path) else { return nil }
             throw MuterError.literal(reason: "Could not read \(path): SwiftMutator can't open it")
         }
-        return try TriageFile(path: path, entries: entries(in: data, path: path))
+        return try Self(path: path, entries: entries(in: data, path: path))
     }
 
     private static func entries(in data: Data, path: String) throws -> [TriageEntry] {

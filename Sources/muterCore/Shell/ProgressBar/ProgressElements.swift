@@ -20,7 +20,7 @@ struct ProgressBarLine: ProgressElementType {
 
         var barArray = [String](repeating: "-", count: completedBarElements)
         barArray += [String](repeating: " ", count: barLength - completedBarElements)
-        return "[" + barArray.joined(separator: "") + "]"
+        return "[" + barArray.joined() + "]"
     }
 }
 
@@ -69,7 +69,7 @@ struct ProgressTimeEstimates: ProgressElementType {
         let duration = Int(duration)
         let seconds = Double(duration % 60)
         let minutes = Double((duration / 60) % 60)
-        let hours = Double(duration / 3600)
+        let hours = Double(duration / 3_600)
         return "\(hours.format(0, minimumIntegerPartLength: 2)):"
             + "\(minutes.format(0, minimumIntegerPartLength: 2)):"
             + "\(seconds.format(0, minimumIntegerPartLength: 2))"

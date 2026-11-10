@@ -43,7 +43,7 @@ struct WorkerTemporaryFolder: Equatable {
         }
         #endif
         for place in places {
-            let own = WorkerTemporaryFolder(forWorkerIn: folder, under: place).path
+            let own = Self(forWorkerIn: folder, under: place).path
             for item in (try? files.contentsOfDirectory(atPath: own)) ?? [] {
                 try? files.removeItem(atPath: own + "/" + item)
             }

@@ -32,22 +32,31 @@ enum MutationOperator {
             switch self {
             case .removeSideEffects:
                 return RemoveSideEffectsOperator.Visitor.init
+
             case .ror:
                 return ROROperator.Visitor.init
+
             case .relationalBoundary:
                 return RelationalBoundaryOperator.Visitor.init
+
             case .logicalOperator:
                 return ChangeLogicalConnectorOperator.Visitor.init
+
             case .swapTernary:
                 return SwapTernaryOperator.Visitor.init
+
             case .negateConditional:
                 return NegateConditionalOperator.Visitor.init
+
             case .arithmeticOperator:
                 return ChangeArithmeticOperator.Visitor.init
+
             case .flipBooleanLiteral:
                 return FlipBooleanLiteralOperator.Visitor.init
+
             case .replaceBooleanValue:
                 return ReplaceBooleanValueOperator.Visitor.init
+
             case .replaceReturnValue:
                 return ReplaceReturnValueOperator.Visitor.init
             }
@@ -79,22 +88,31 @@ enum MutationOperator {
             case .ror:
                 return "Replaces a comparison with true or false, and turns less than and greater than into not equal, "
                     + "and at most and at least into equal."
+
             case .relationalBoundary:
                 return "Moves a comparison's boundary: less than and at most swap, as do greater than and at least."
+
             case .removeSideEffects:
                 return "Removes a call whose result isn't used, to check that a test notices its side effect is gone."
+
             case .logicalOperator:
                 return "Swaps a logical AND for OR, and OR for AND."
+
             case .swapTernary:
                 return "Swaps the two branches of a ternary expression."
+
             case .negateConditional:
                 return "Negates a condition of an if, guard or while, which sends the code down the other branch."
+
             case .arithmeticOperator:
                 return "Swaps arithmetic: plus and minus swap, as do times and divide, and remainder becomes times."
+
             case .flipBooleanLiteral:
                 return "Turns the literal true into false, and false into true."
+
             case .replaceBooleanValue:
                 return "Replaces a Bool that is returned or stored with true, and in a second mutant with false."
+
             case .replaceReturnValue:
                 return "Replaces a returned value with an empty one of its type: nil, an empty array, dictionary or "
                     + "string, or zero."

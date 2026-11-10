@@ -58,28 +58,38 @@ enum ResultsFileError: Error, Equatable, CustomStringConvertible {
         switch self {
         case let .cannotOpen(path, code):
             return "can't open \(path): \(String(cString: strerror(code)))"
+
         case let .inUse(path, holder):
             switch holder {
             case let .running(holder):
                 return "\(path) is in use by another SwiftMutator run (\(holder))"
+
             case let .unchecked(holder):
                 return "\(path) is in use by another SwiftMutator run (\(holder), by its record, which this host "
                     + "can't check)"
+
             case nil:
                 return "\(path) is in use by another SwiftMutator run"
             }
+
         case let .cannotWrite(path, code):
             return "can't write to \(path): \(String(cString: strerror(code)))"
+
         case let .unreadable(path):
             return "can't read \(path)"
+
         case let .notAResultsFile(path):
             return "\(path) isn't a SwiftMutator results file: it has no header line"
+
         case let .stoppedBeforeFirstMutant(path, stopped):
             return stopped.lines(path: path).joined(separator: "\n")
+
         case let .newerFormat(path, version):
             return "\(path) is in results format \(version), which only a newer SwiftMutator can read"
+
         case let .noResultsFile(folder):
             return "\(folder) holds no results file (results.jsonl)"
+
         case let .severalResultsFiles(folder, names):
             return "\(folder) holds \(names.count) results files, one for each run that started in that minute: "
                 + names.joined(separator: ", ") + ". Pass the one you want."
@@ -318,11 +328,13 @@ extension ResultsFile {
         switch found.count {
         case 1:
             return ((path as NSString).appendingPathComponent(found[0]), false)
+
         case 0:
             guard present.contains(noteFileName), let noted = notedFile(in: path, using: fileManager) else {
                 throw ResultsFileError.noResultsFile(folder: path)
             }
             return (noted, true)
+
         default:
             throw ResultsFileError.severalResultsFiles(folder: path, names: found)
         }
@@ -423,7 +435,7 @@ extension ResultsFile {
         guard descriptor >= 0 else { return nil }
         defer { closeDescriptor(descriptor) }
         // A record is far shorter.
-        var buffer = [UInt8](repeating: 0, count: 4096)
+        var buffer = [UInt8](repeating: 0, count: 4_096)
         var count = read(descriptor, &buffer, buffer.count)
         while count < 0, errno == EINTR {
             count = read(descriptor, &buffer, buffer.count)

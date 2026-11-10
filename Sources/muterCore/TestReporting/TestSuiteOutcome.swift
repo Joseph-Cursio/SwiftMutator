@@ -14,14 +14,19 @@ enum TestSuiteOutcome: String, Codable, CaseIterable {
         switch self {
         case .passed:
             return "mutant survived"
+
         case .failed:
             return "mutant killed (test failure)"
+
         case .buildError:
             return "build error"
+
         case .runtimeError:
             return "mutant killed (runtime error)"
+
         case .noCoverage:
             return "skipped (no coverage)"
+
         case .timeout:
             return "time out"
         }
@@ -62,9 +67,11 @@ extension TestSuiteOutcome {
 
         if logContainsBuildError(testLog) {
             return .buildError
-        } else if logContainsTestFailure(testLog) {
+        }
+        if logContainsTestFailure(testLog) {
             return .failed
-        } else if !terminationStatusIsSuccess(terminationStatus) {
+        }
+        if !terminationStatusIsSuccess(terminationStatus) {
             return .runtimeError
         }
 
@@ -83,7 +90,8 @@ extension TestSuiteOutcome {
         let showsFailedTestLine = failedTestLinesAreReliable && firstFailedTestLine != nil
         if logContainsTestFailure(testLog) || logContainsFailedTestCase(testLog) || showsFailedTestLine {
             return .failed
-        } else if logContainsCrash(testLog) {
+        }
+        if logContainsCrash(testLog) {
             return .runtimeError
         }
 

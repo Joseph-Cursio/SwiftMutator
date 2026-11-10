@@ -53,6 +53,7 @@ extension PerformMutationTesting {
         switch await directTestRun(configuration, state.mutatedProjectDirectoryURL) {
         case let .success(probed):
             direct = probed
+
         case let .failure(unavailable):
             try Task.checkCancellation()
             return unavailable.reason.map(notDirect) ?? notRunDirectly

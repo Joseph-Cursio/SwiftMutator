@@ -62,7 +62,7 @@ struct StrykerReporter: Reporter {
             status: status(of: mutation.testSuiteOutcome),
             statusReason: statusReason(of: mutation),
             killedBy: killingTests(of: mutation),
-            duration: mutation.durationSeconds.map { Int(($0 * 1000).rounded()) }
+            duration: mutation.durationSeconds.map { Int(($0 * 1_000).rounded()) }
         )
     }
 
@@ -83,9 +83,11 @@ struct StrykerReporter: Reporter {
         switch mutation.testSuiteOutcome {
         case .runtimeError:
             return "The tests crashed with this mutant on, which counts as a kill."
+
         case .buildError where mutation.leftOutWithOthers:
             return "Left out of the build with other mutants, as the compiler's error could be any of theirs, "
                 + "so it may compile."
+
         default:
             return nil
         }

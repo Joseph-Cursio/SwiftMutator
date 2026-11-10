@@ -282,6 +282,7 @@ struct MuterConfiguration: Equatable, Codable {
             switch ReportRequest.parse(entry) {
             case let .success(request):
                 return request
+
             case let .failure(problem):
                 throw DecodingError.dataCorruptedError(
                     forKey: key,
@@ -454,7 +455,7 @@ struct MuterConfiguration: Equatable, Codable {
     }
 
     /// This configuration with a mutant's run going to its end, past its first failed test (`runsGoToTheirEnd`).
-    func goingToEachRunsEnd() -> MuterConfiguration {
+    func goingToEachRunsEnd() -> Self {
         var copy = self
         copy.runsGoToTheirEnd = true
         return copy
@@ -592,8 +593,10 @@ struct MuterConfiguration: Equatable, Codable {
         switch buildSystem {
         case .swift:
             return nil
+
         case .unknown:
             return "only SwiftPM projects, and xcodebuild projects that test on a simulator, test more than one at once"
+
         case .xcodebuild:
             guard let destination = firstDestination else {
                 return "an xcodebuild project tests more than one at once only on a simulator, and the test command "
@@ -642,8 +645,10 @@ struct MuterConfiguration: Equatable, Codable {
         switch enabled?.written.dropFirst().first?.lowercased() {
         case "yes":
             return .enabled
+
         case "no":
             return .disabled
+
         default:
             return .unset
         }
@@ -672,7 +677,7 @@ struct MuterConfiguration: Equatable, Codable {
 
     /// This configuration with `failedTestLinesAreReliable` false, and the tests that the passing runs' `testLogs`
     /// show failing added to `failedTestLookalikes`.
-    func withUnreliableFailedTestLines(printedIn testLogs: [String] = []) -> MuterConfiguration {
+    func withUnreliableFailedTestLines(printedIn testLogs: [String] = []) -> Self {
         var copy = self
         copy.failedTestLinesAreReliable = false
         for testLog in testLogs {
@@ -682,14 +687,14 @@ struct MuterConfiguration: Equatable, Codable {
     }
 
     /// This configuration with `stopAtFirstFailure` false, so a mutant's test run goes on after its first failed test.
-    func withoutStoppingAtFirstFailure() -> MuterConfiguration {
+    func withoutStoppingAtFirstFailure() -> Self {
         var copy = self
         copy.stopAtFirstFailure = false
         return copy
     }
 
     /// This configuration with mutants' test runs starting the test bundles as `directTestRun` says.
-    func withDirectTestRun(_ directTestRun: DirectTestRun) -> MuterConfiguration {
+    func withDirectTestRun(_ directTestRun: DirectTestRun) -> Self {
         var copy = self
         copy.directTestRun = directTestRun
         return copy
@@ -698,7 +703,7 @@ struct MuterConfiguration: Equatable, Codable {
     /// This configuration with its runs testing only what `propertyTestFilter` selects: `swift test`, and the test
     /// bundles run directly, with `--filter` for each entry, and xcodebuild with `-only-testing:`. nil without a
     /// filter, or for a build system that takes neither (`propertyRerunsUnsupportedReason`).
-    func withPropertyTestFilter() -> MuterConfiguration? {
+    func withPropertyTestFilter() -> Self? {
         guard let filter = propertyTestFilter, !filter.isEmpty, propertyRerunsUnsupportedReason == nil else {
             return nil
         }
@@ -707,8 +712,10 @@ struct MuterConfiguration: Equatable, Codable {
         case .swift:
             copy.testFilterArguments = filter.flatMap { ["--filter", $0] }
             copy.directTestRun = directTestRun?.adding(copy.testFilterArguments)
+
         case .xcodebuild:
             copy.testFilterArguments = filter.map { "-only-testing:\($0)" }
+
         case .unknown:
             return nil
         }
@@ -729,7 +736,7 @@ struct MuterConfiguration: Equatable, Codable {
     }
 
     /// This configuration with an xcodebuild mutant's runs testing as `worker` says.
-    func forXcodeWorker(_ worker: XcodeWorker) -> MuterConfiguration {
+    func forXcodeWorker(_ worker: XcodeWorker) -> Self {
         var copy = self
         copy.xcodeWorker = worker
         return copy
@@ -747,7 +754,7 @@ struct MuterConfiguration: Equatable, Codable {
         propertyTests: [String]? = nil,
         reports: [ReportRequest]? = nil,
         exclude: [String] = []
-    ) -> MuterConfiguration {
+    ) -> Self {
         var copy = self
         copy.excludeFileList += exclude
         if let workers { copy.mutationTestWorkers = workers }
@@ -760,14 +767,14 @@ struct MuterConfiguration: Equatable, Codable {
     }
 
     /// This configuration with `exclude`'s entries sorted, once each, which choose the same files in any order.
-    var withExcludesInOrder: MuterConfiguration {
+    var withExcludesInOrder: Self {
         var copy = self
         copy.excludeFileList = Set(excludeFileList).sorted()
         return copy
     }
 
     /// This configuration with `testSuiteTimeout` set to `timeout`, unless it already has one.
-    func withDefaultTestSuiteTimeout(_ timeout: TimeInterval) -> MuterConfiguration {
+    func withDefaultTestSuiteTimeout(_ timeout: TimeInterval) -> Self {
         guard testSuiteTimeout == nil else { return self }
         var copy = self
         copy.testSuiteTimeout = timeout
@@ -776,11 +783,11 @@ struct MuterConfiguration: Equatable, Codable {
 
     init(from data: Data) throws {
         do {
-            self = try YAMLDecoder().decode(MuterConfiguration.self, from: data)
+            self = try YAMLDecoder().decode(Self.self, from: data)
         } catch {
             let yamlError = error
             do {
-                self = try JSONDecoder().decode(MuterConfiguration.self, from: data)
+                self = try JSONDecoder().decode(Self.self, from: data)
             } catch {
                 // YAML's reason, which names the key at fault, rather than that the file isn't JSON.
                 throw yamlError
@@ -835,6 +842,7 @@ extension MuterConfiguration {
                 arguments.append("OTHER_SWIFT_FLAGS=$(inherited) " + flags)
             }
             return arguments + ["-enableCodeCoverage", "YES"]
+
         case .swift:
             return arguments + ["--enable-code-coverage"]
                 + Self.atomicCoverageCountersFlags.flatMap { ["-Xswiftc", $0] }
@@ -850,6 +858,7 @@ extension MuterConfiguration {
         switch buildSystem {
         case .xcodebuild:
             return testArgumentsWithDerivedData() + ["clean", "build-for-testing"]
+
         case .swift,
              .unknown:
             return arguments
@@ -899,9 +908,11 @@ extension MuterConfiguration {
                 "-xctestrun",
                 xcodeWorker?.testRunFile ?? testRunFile,
             ] + kept + (xcodeWorker?.arguments ?? []) + testFilterArguments
+
         case .swift:
             let setsVerbosity = arguments.contains { Self.verbosityOptions.contains($0) }
             return arguments + ["--skip-build"] + (setsVerbosity ? [] : ["--quiet"]) + testFilterArguments
+
         case .unknown:
             return arguments
         }

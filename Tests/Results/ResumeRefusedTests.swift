@@ -53,7 +53,7 @@ final class ResumeRefusedTests: XCTestCase {
     }
 
     func test_aLockedFile_namesTheHolder() {
-        let holder = LockHolder(process: 81234, started: 1_700_000_000_000_000, host: "studio.local")
+        let holder = LockHolder(process: 81_234, started: 1_700_000_000_000_000, host: "studio.local")
         let refused = ResumeRefused(
             path: path,
             reasons: [.inUse(holder: .running(holder), lastProcess: nil, lastHost: nil)],
@@ -71,7 +71,7 @@ final class ResumeRefusedTests: XCTestCase {
     }
 
     func test_aLockedFile_whoseHolderNamesNoHost_namesItsProcess() {
-        let holder = LockHolder(process: 81234, started: 1_700_000_000_000_000, host: "")
+        let holder = LockHolder(process: 81_234, started: 1_700_000_000_000_000, host: "")
 
         XCTAssertEqual(
             "\(ResumeRefusal.inUse(holder: .running(holder), lastProcess: nil, lastHost: nil))",
@@ -82,7 +82,7 @@ final class ResumeRefusedTests: XCTestCase {
 
     // A record from another host may be one a killed run left, and a host's name can change while it runs.
     func test_aLockedFile_whoseHolderIsOnAnotherHost_saysItCantBeChecked() {
-        let holder = LockHolder(process: 81234, started: 1_700_000_000_000_000, host: "mini.local")
+        let holder = LockHolder(process: 81_234, started: 1_700_000_000_000_000, host: "mini.local")
 
         XCTAssertEqual(
             "\(ResumeRefusal.inUse(holder: .unchecked(holder), lastProcess: nil, lastHost: nil))",
@@ -94,13 +94,13 @@ final class ResumeRefusedTests: XCTestCase {
     // An older SwiftMutator records no holder, and a resume holds the lock long before it writes its session.
     func test_aLockedFile_withoutAHolder_namesTheLastSessionsProcessAndHost_asMaybeNotTheHolder() {
         XCTAssertEqual(
-            "\(ResumeRefusal.inUse(holder: nil, lastProcess: 81234, lastHost: "studio.local"))",
+            "\(ResumeRefusal.inUse(holder: nil, lastProcess: 81_234, lastHost: "studio.local"))",
             "another SwiftMutator run holds its lock, and doesn't say which. The file's last session was written by "
                 + "process 81234 on studio.local, but that run may not be the one: a resume holds the lock before it "
                 + "writes a session of its own."
         )
         XCTAssertEqual(
-            "\(ResumeRefusal.inUse(holder: nil, lastProcess: 81234, lastHost: ""))",
+            "\(ResumeRefusal.inUse(holder: nil, lastProcess: 81_234, lastHost: ""))",
             "another SwiftMutator run holds its lock, and doesn't say which. The file's last session was written by "
                 + "process 81234, but that run may not be the one: a resume holds the lock before it writes a "
                 + "session of its own."
@@ -121,7 +121,7 @@ final class ResumeRefusedTests: XCTestCase {
     }
 
     func test_isInUse_onlyWhenTheLockIsTheOnlyReason() {
-        let locked = ResumeRefusal.inUse(holder: nil, lastProcess: 81234, lastHost: "studio.local")
+        let locked = ResumeRefusal.inUse(holder: nil, lastProcess: 81_234, lastHost: "studio.local")
         let changed = ResumeRefusal.filesChanged([.init(path: "notes.txt", kind: .added)])
         let alone = ResumeRefused(path: path, reasons: [locked], beforeTheCopy: true)
         let otherReasons = ResumeRefused(path: path, reasons: [changed, .noProjectTree], beforeTheCopy: true)

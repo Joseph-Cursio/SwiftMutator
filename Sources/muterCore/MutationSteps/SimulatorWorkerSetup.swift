@@ -162,8 +162,10 @@ struct SimulatorWorkerSetup {
             switch Self.oneWorkerPlan(for: mutantsToTest, state: state) {
             case .noSimulator:
                 return Simulators()
+
             case let .declined(why):
                 return Simulators(unavailable: why)
+
             case let .simulator(checked):
                 checkedAgainstBaseline = checked
             }

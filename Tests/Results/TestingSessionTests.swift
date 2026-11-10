@@ -146,7 +146,7 @@ private extension Thread {
     /// Runs `body` on a thread of its own, and returns a semaphore signalled once it has.
     static func detach(_ body: @escaping @Sendable () -> Void) -> DispatchSemaphore {
         let done = DispatchSemaphore(value: 0)
-        Thread.detachNewThread {
+        Self.detachNewThread {
             body()
             done.signal()
         }

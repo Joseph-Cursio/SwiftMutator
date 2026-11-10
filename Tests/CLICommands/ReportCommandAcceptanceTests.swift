@@ -124,11 +124,13 @@ final class ReportCommandAcceptanceTests: XCTestCase {
                     try killingTestNames(inJSONReportAt: runReport),
                     ["Checks.swift": [["check()"], ["check()"]], "Bounds.swift": [nil, nil]]
                 )
+
             case "html":
                 XCTAssertEqual(
                     try withoutFooter(contents(of: runReport)),
                     try withoutFooter(contents(of: rebuiltReport))
                 )
+
             default:
                 XCTAssertEqual(try contents(of: runReport), try contents(of: rebuiltReport), format)
             }

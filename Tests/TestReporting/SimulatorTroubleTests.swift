@@ -157,7 +157,7 @@ final class SimulatorTroubleTests: MuterTestCase {
     }
 
     func test_aVeryLongLine_isCut() {
-        let line = "Simulator device failed to launch " + String(repeating: "x", count: 1000)
+        let line = "Simulator device failed to launch " + String(repeating: "x", count: 1_000)
 
         XCTAssertEqual(SimulatorTrouble.first(inLog: line)?.line.count, FailedTestLine.lineLengthLimit)
     }

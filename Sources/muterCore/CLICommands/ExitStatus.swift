@@ -66,18 +66,25 @@ extension ExitCode {
         switch error {
         case let error as OnlyUncoveredMutants:
             return error.checks.exitStatus
+
         case is NothingToMutate, is EmptyShard:
             return nil
+
         case let refused as ResumeRefused:
             return refused.isInUse ? .anotherRunHoldsTheLock : .resumeRefused
+
         case MutatedProjectLockError.inUse:
             return .anotherRunHoldsTheLock
+
         case is TestPlanRefused:
             return .testPlanRefused
+
         case is BaselineRefused:
             return .baselineRefused
+
         case let MuterError.mutationTestingAborted(reason):
             return reason.exitStatus
+
         default:
             return .stoppedOnAnError
         }
@@ -107,6 +114,7 @@ extension MutationTestingAbortReason {
             switch self {
             case .baselineTestFailed, .workerBaselineTestFailed, .buildForTestingFailed, .buildTimeoutReached:
                 return .baselineFailed
+
             case .tooManyBuildErrors, .mutantNotSwitchedOn, .controlRunNotSwitchedOff, .simulatorUnavailable,
                  .noMutantCodeShownRunning, .unknownError:
                 return .abortedMidRun

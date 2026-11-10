@@ -278,7 +278,6 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
                 )
             }
             return run
-
         } catch {
             // Reaching here means the test command never ran — the log file couldn't be opened, or
             // the process failed to spawn. There is no test output to report, so the thrown error is
@@ -468,9 +467,11 @@ struct MutationTestingDelegate: MutationTestingIODelegate {
         switch exit.reason {
         case .uncaughtSignal:
             return [SIGINT, SIGTERM, SIGHUP].contains(exit.status)
+
         // swiftly's proxy, and shells, pass a child's signal on as its number or 128 + it.
         case .exit:
             return [2, 15, 129, 130, 143].contains(exit.status)
+
         @unknown default:
             return false
         }

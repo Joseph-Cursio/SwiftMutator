@@ -98,8 +98,10 @@ struct ResultsStopped: Codable, Equatable, Sendable {
         switch reason {
         case .failed:
             "\(stepName) failed"
+
         case .timedOut:
             "\(stepName) didn't end within \(limitSeconds.map { String(format: "%g", $0) } ?? "?") s (buildTimeout)"
+
         case .interrupted:
             "\(detail ?? "a signal") stopped it during \(stepName)"
         }

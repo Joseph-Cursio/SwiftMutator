@@ -28,6 +28,7 @@ enum MutatedProjectLockError: Error, Equatable, CustomStringConvertible {
             return "SwiftMutator won't start: another SwiftMutator run\(holder) is using \(mutatedProject), and two "
                 + "runs of a project can't share its copy. Wait for that run to end, or stop it, then run again. "
                 + "Nothing was copied or removed."
+
         case let .cannotLock(path, code):
             return "can't lock \(path): \(String(cString: strerror(code)))"
         }
@@ -290,7 +291,7 @@ final class MutatedProjectLock: Equatable, @unchecked Sendable { // every `var` 
     /// What the file at `descriptor` holds, from its start, up to 1 MiB: a holder's record and list are far shorter.
     private static func contents(of descriptor: Int32) -> String {
         var bytes: [UInt8] = []
-        var buffer = [UInt8](repeating: 0, count: 4096)
+        var buffer = [UInt8](repeating: 0, count: 4_096)
         while bytes.count < 1 << 20 {
             let count = pread(descriptor, &buffer, buffer.count, off_t(bytes.count))
             if count < 0, errno == EINTR { continue }

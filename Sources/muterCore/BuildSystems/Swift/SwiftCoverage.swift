@@ -22,7 +22,7 @@ final class SwiftCoverage: BuildSystemCoverage {
         case linux
 
         /// The platform SwiftMutator was built for, and so runs on.
-        static var host: Platform {
+        static var host: Self {
             #if os(Linux)
             .linux
             #else
@@ -201,6 +201,7 @@ final class SwiftCoverage: BuildSystemCoverage {
                 let name = String(bundle.dropLast(".xctest".count))
                 return (name, "\(bundle)/Contents/MacOS/\(name)")
             }
+
         case .linux:
             let inFolder = Set(files)
             return files.compactMap { file in
@@ -256,6 +257,7 @@ final class SwiftCoverage: BuildSystemCoverage {
         switch platform {
         case .darwin:
             return ("/usr/bin/xcrun", [name])
+
         case .linux:
             let inToolchain = URL(fileURLWithPath: testCommand.canonicalPath)
                 .deletingLastPathComponent()

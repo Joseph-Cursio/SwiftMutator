@@ -23,7 +23,7 @@ enum SimulatorTrouble: Equatable {
     /// wouldn't launch either. The line is the first that shows it in the summary after `Testing failed:`, which
     /// xcodebuild ends its output with, or else the first anywhere, without its indent, at most
     /// `FailedTestLine.lineLengthLimit` characters.
-    static func first(inLog log: String) -> SimulatorTrouble? {
+    static func first(inLog log: String) -> Self? {
         // "\r\n" is a single Character, so a log with those line breaks isn't split at "\n" alone.
         let lines = log.split(whereSeparator: { $0 == "\n" || $0 == "\r\n" })
         guard !lines.contains(where: { FailedTestLine.matches($0) || showsParallelTestingFailure($0) }) else {
@@ -42,7 +42,7 @@ enum SimulatorTrouble: Equatable {
 
     /// What `run`, an xcodebuild run with `configuration`, shows went wrong with its simulator. Never anything for a
     /// run that passed or was cancelled, or another build system's run.
-    static func of(_ run: TestRun, with configuration: MuterConfiguration) -> SimulatorTrouble? {
+    static func of(_ run: TestRun, with configuration: MuterConfiguration) -> Self? {
         guard configuration.buildSystem == .xcodebuild, run.outcome != .passed, run.ending != .cancelled else {
             return nil
         }

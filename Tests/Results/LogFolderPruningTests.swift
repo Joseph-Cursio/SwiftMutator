@@ -20,7 +20,7 @@ final class LogFolderPruningTests: MuterTestCase {
     func test_keepsTheNewestRunsByDate_whenTheirNamesSortOtherwise() throws {
         try folder("Oct 9, 2026 at 9:00 AM", at: 0)
         try folder("Oct 9, 2026 at 9:00 AM (2)", at: 1)
-        try folder("Oct 10, 2026 at 8:00 AM", at: 1400)
+        try folder("Oct 10, 2026 at 8:00 AM", at: 1_400)
 
         let pruning = prune(keeping: 2)
 

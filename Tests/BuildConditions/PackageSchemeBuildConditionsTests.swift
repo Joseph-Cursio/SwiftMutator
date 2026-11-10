@@ -238,14 +238,19 @@ final class PackageSchemeBuildConditionsTests: MuterTestCase {
             switch command {
             case _ where command.last == "-json" && command.contains("-showBuildSettings"):
                 return success("[\n\n]\n")
+
             case ["/usr/bin/xcrun", "--find", "swift"]:
                 return success(swift + "\n")
+
             case [swift, "--version"]:
                 return success("Apple Swift version 6.4.2 (swiftlang-6.4.2.1.9 clang-2100.4.1.1)\n")
+
             case _ where command.first == swift && command.contains("describe"):
                 return success(packageDescription)
+
             case _ where command.first == swift && command.last == "dump-package":
                 return success(dumped)
+
             default:
                 return nil
             }

@@ -44,6 +44,7 @@ extension RunCommand {
         case is ResumeRefused, MutatedProjectLockError.inUse, is TestPlanRefused, is BaselineRefused, is MutantRefused,
              is ChangeSelectionError, is NothingToMutate, is EmptyShard, is OnlyUncoveredMutants:
             return "\(error)"
+
         default:
             break
         }
@@ -81,6 +82,7 @@ extension Interruptions.Ended where Value == RunChecks {
         switch result {
         case let .failure(error):
             ExitCode.exitStatus(afterRunFailedWith: error)
+
         case let .success(checks):
             checks.exitStatus
         }

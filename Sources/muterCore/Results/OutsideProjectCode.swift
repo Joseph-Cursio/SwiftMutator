@@ -143,10 +143,12 @@ private final class WorkspaceReader: NSObject, XMLParserDelegate {
             } else {
                 groups.append(currentGroup)
             }
+
         case "FileRef":
             if let location = attributeDict["location"], let reference = resolve(location) {
                 references.append(reference)
             }
+
         default:
             break
         }
@@ -176,10 +178,13 @@ private final class WorkspaceReader: NSObject, XMLParserDelegate {
         switch location[..<colon] {
         case "group":
             base = currentGroup
+
         case "container":
             base = container
+
         case "absolute":
             return WorkspaceReference(url: URL(fileURLWithPath: path).standardizedFileURL, isAbsolute: true)
+
         default:
             return nil
         }

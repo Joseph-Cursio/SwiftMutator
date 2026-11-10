@@ -299,11 +299,14 @@ struct MutantLocator {
         switch place {
         case .condition, .environmentCache, .importDeclaration:
             return nil
+
         case let .branch(id, chain):
             // The compiler reports this on the first branch of a differing type, whichever mutants are at fault.
             closely = error.message.contains("branches have mismatching types") ? (.itsSwitch, chain) : (.itself, [id])
+
         case let .wholeSwitch(chain):
             closely = (.itsSwitch, chain)
+
         case .outside:
             closely = removalsAround(error, removals: removals) ?? around(error, everyMutant: everyMutant)
         }

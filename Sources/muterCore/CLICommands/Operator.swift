@@ -95,6 +95,7 @@ extension MutationOperator.Id {
             )
 
             """
+
         case .removeSideEffects:
             return """
 
@@ -171,6 +172,7 @@ extension MutationOperator.Id {
                 """.onCodeBlock
             )
             """
+
         case .ror:
             return """
 
@@ -255,6 +257,7 @@ extension MutationOperator.Id {
                 """.onCodeBlock
             )
             """
+
         case .relationalBoundary:
             return """
 
@@ -294,6 +297,7 @@ extension MutationOperator.Id {
                 """.onCodeBlock
             )
             """
+
         case .negateConditional:
             return """
 
@@ -330,6 +334,7 @@ extension MutationOperator.Id {
                 """.onCodeBlock
             )
             """
+
         case .arithmeticOperator:
             return """
 
@@ -374,6 +379,7 @@ extension MutationOperator.Id {
                 """.onCodeBlock
             )
             """
+
         case .flipBooleanLiteral:
             return """
 
@@ -402,6 +408,7 @@ extension MutationOperator.Id {
                 """.onCodeBlock
             )
             """
+
         case .replaceBooleanValue:
             return """
 
@@ -443,6 +450,7 @@ extension MutationOperator.Id {
                 """.onCodeBlock
             )
             """
+
         case .replaceReturnValue:
             return """
 
@@ -474,6 +482,7 @@ extension MutationOperator.Id {
                 """.onCodeBlock
             )
             """
+
         case .swapTernary:
             return """
 

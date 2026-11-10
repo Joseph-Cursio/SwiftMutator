@@ -6,7 +6,7 @@ final class FileOperationTests: XCTestCase {
         let fileManagerSpy = FileManagerSpy()
         let timestamp = DateComponents(
             calendar: .init(identifier: .gregorian),
-            year: 2019,
+            year: 2_019,
             month: 5,
             day: 10,
             hour: 2,

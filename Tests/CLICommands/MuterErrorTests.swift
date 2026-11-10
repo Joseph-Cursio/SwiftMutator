@@ -135,6 +135,7 @@ private extension MuterError {
         case let .configurationParsingError(reason), let .projectCopyFailed(reason), let .literal(reason),
              let .removeProjectFromPreviousRunFailed(reason), let .createTempDirectoryUrlFailed(reason):
             reason
+
         case .noSourceFilesDiscovered, .noSourceFilesOnExclusiveList, .noMutationPointsDiscovered,
              .mutationTestingAborted:
             nil

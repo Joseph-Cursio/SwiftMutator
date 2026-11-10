@@ -35,6 +35,7 @@ final class CheckTestPlanSourcesTests: MuterTestCase {
             case .testPlanSourcesUnchecked, .testPlanSourcesDiffer, .testPlanUntestedFilesChanged,
                  .testPlanChangesWaived:
                 said.change { $0.append(event) }
+
             default:
                 break
             }

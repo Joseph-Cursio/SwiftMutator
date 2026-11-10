@@ -20,13 +20,13 @@ struct JobOrder: Comparable {
         let column: Int
         let mutationOperatorId: MutationOperator.Id
 
-        static func < (lhs: InFile, rhs: InFile) -> Bool {
+        static func < (lhs: Self, rhs: Self) -> Bool {
             (lhs.line, lhs.column, lhs.mutationOperatorId.rawValue)
                 < (rhs.line, rhs.column, rhs.mutationOperatorId.rawValue)
         }
     }
 
-    static func < (lhs: JobOrder, rhs: JobOrder) -> Bool {
+    static func < (lhs: Self, rhs: Self) -> Bool {
         (lhs.filePath, lhs.inFile, lhs.occurrence) < (rhs.filePath, rhs.inFile, rhs.occurrence)
     }
 }
@@ -84,7 +84,7 @@ extension MutationTestOutcome {
             .map { (record: $0, order: JobOrder(of: $0, under: header.mutatedProjectPath)) }
             .sorted { $0.order < $1.order }
             .map { record, order in
-                var mutation = MutationTestOutcome.Mutation(
+                var mutation = Self.Mutation(
                     testSuiteOutcome: record.outcome.judged(activated: record.activated),
                     mutationPoint: MutationPoint(
                         mutationOperatorId: record.mutationOperatorId,
@@ -125,7 +125,7 @@ extension MutationTestOutcome {
             mutant: header.mutant,
             suspectTestThresholds: header.configuration.suspectTestThresholds,
             propertyTests: header.configuration.propertyTests ?? [],
-            controlRuns: controlRuns.map(MutationTestOutcome.ControlRun.init),
+            controlRuns: controlRuns.map(Self.ControlRun.init),
             projectPath: header.projectPath,
             mutatedProjectPath: header.mutatedProjectPath,
             // A test plan's session records its rewritten copy, never the project.

@@ -90,6 +90,7 @@ final class StoppedRunRecorder: @unchecked Sendable {
         case let .interrupted(signal):
             found = (step, .interrupted, nil, Self.logWhileRunning(of: step, in: logDirectory, fileManager), nil)
             detail = InterruptionRecord.name(of: signal)
+
         case let .aborted(reason):
             guard reason.exitStatus == .baselineFailed, let what = Self.step(of: reason) else { return nil }
             found = what
@@ -119,10 +120,13 @@ final class StoppedRunRecorder: @unchecked Sendable {
         switch reason {
         case let .baselineTestFailed(log, _):
             return (.baseline, .failed, nil, MutationTestLog.baselineFileName, log)
+
         case let .workerBaselineTestFailed(worker, _, log):
             return (.workerBaselines, .failed, nil, "baseline run worker \(worker).log", log)
+
         case let .buildForTestingFailed(_, log):
             return (.buildForTesting, .failed, nil, name(log), nil)
+
         case let .buildTimeoutReached(step, seconds, output, log):
             let stopped: ResultsStopped.Step = switch step {
             case .buildForTesting: .buildForTesting
@@ -130,6 +134,7 @@ final class StoppedRunRecorder: @unchecked Sendable {
             case .workerBaseline: .workerBaselines
             }
             return (stopped, .timedOut, seconds, name(log), output)
+
         case .tooManyBuildErrors, .mutantNotSwitchedOn, .controlRunNotSwitchedOff, .simulatorUnavailable,
              .noMutantCodeShownRunning, .unknownError:
             return nil

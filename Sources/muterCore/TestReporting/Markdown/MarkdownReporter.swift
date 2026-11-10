@@ -10,7 +10,7 @@ struct MarkdownReporter: Reporter {
     static let mostListed = 100
     /// How many files the scores by file name: every file no test ran has a row, in a run of a shard too, and a
     /// project of thousands would pass GitHub's limit with the table alone.
-    static let mostFiles = 1000
+    static let mostFiles = 1_000
 
     func report(from outcome: MutationTestOutcome) -> String {
         let report = MuterTestReport(from: outcome)

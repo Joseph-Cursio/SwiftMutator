@@ -101,11 +101,14 @@ enum ResumeRefusal: Equatable, CustomStringConvertible {
                 ?? (reusing ? "start a run without --reuse" : "start a new run, without --resume")
             return (["its run \(stopped.stoppedClause)."] + stopped.detailLines + ["Fix that, then \(next)."])
                 .joined(separator: "\n")
+
         case let .inUse(.running(holder), _, _):
             return "another SwiftMutator run, \(holder), holds its lock. Wait for that run to end, or stop it, then "
                 + "resume again."
+
         case let .inUse(.unchecked(holder), _, _):
             return "another SwiftMutator run holds its lock: by its record, \(holder), which this host can't check."
+
         case let .inUse(nil, process, host):
             var writer = process.map { " by process \($0)" } ?? ""
             if let host, !host.isEmpty {
@@ -115,58 +118,73 @@ enum ResumeRefusal: Equatable, CustomStringConvertible {
             return "another SwiftMutator run holds its lock, and doesn't say which. The file's last session was "
                 + "written\(writer), but that run may not be the one: a resume holds the lock before it writes a "
                 + "session of its own."
+
         case let .configurationChanged(difference) where difference.name == ResumeCheck.timeLimitKey:
             return "\(difference.name) \(difference.change(absent: "not set")). A time limit shorter than a "
                 + "session's, or none, needs a new run: one at least as long as every session's only tests timeouts "
                 + "again."
+
         case let .configurationChanged(difference):
             return "\(difference.name) \(difference.change(absent: "not set")). "
                 + "A configuration change needs a new run."
+
         case let .timeLimitUnknown(difference):
             return "\(difference.name) \(difference.change(absent: "not set")). The file doesn't record the time "
                 + "limit every result was tested under, as for one --reuse kept, so a new limit needs a new run."
+
         case let .selectionChanged(difference):
             return "\(difference.name) \(difference.change(absent: "not set")). "
                 + "A change to which mutants are tested needs a new run."
+
         case let .needsForce(difference):
             let subject = "\(ResumeCheck.subject(of: difference.name)) (\(difference.name))"
             let change = difference.was == nil && difference.isNow == nil
                 ? "is unknown, so it may have changed"
                 : difference.change(absent: "unknown")
             return "\(subject) \(change). \(reusing ? "--force-reuse" : "--force-resume") reuses the results anyway."
+
         case let .filesChanged(changes):
             return Self.describe(changes, of: ("project file", "project files"), changedSince: "the run stopped")
+
         case let .copyChanged(changes, copy):
             return Self.describe(
                 changes,
                 of: ("file of the test plan's copy, \(copy),", "files of the test plan's copy, \(copy),"),
                 changedSince: "the run's last session, as a fix by hand would"
             )
+
         case .testPlanRun(recordedUsedOne: true):
             return "The file's run tested a test plan, so "
                 + (reusing ? "its results can't be reused: " : "")
                 + "only `swift-mutator run-without-mutating` with that plan and --resume can continue it."
+
         case .testPlanRun(recordedUsedOne: false):
             return "The file's run didn't test a test plan, so `swift-mutator run-without-mutating` can't continue "
                 + "it: `swift-mutator run` with --resume can."
+
         case let .testPlanChanged(difference):
             return "\(difference.name) \(difference.change(absent: "unknown")): the test plan was made again or "
                 + "edited, so its mutants may not be the ones the results are for. A new run is needed: "
                 + "`swift-mutator run-without-mutating` without --resume."
+
         case .testPlanNotRecorded:
             return "The file's last session tested a test plan with a SwiftMutator that recorded nothing to check it "
                 + "by. A new run is needed: `swift-mutator run-without-mutating` without --resume."
+
         case .noProjectTree:
             return "The file's last session recorded no project files, as SwiftMutator didn't before --resume, "
                 + "so nothing shows that they haven't changed. A new run is needed."
+
         case let .reportWouldReplaceTheResultsFile(path):
             return "-o \(Logger.shellQuoted(path)) is the results file itself, which the report would replace. "
                 + "Write the report to another file."
+
         case let .otherReportWouldReplaceTheResultsFile(request, isTheFlags):
             let named = isTheFlags
                 ? "--report \(Logger.shellQuoted(request.description)) is"
                 : "reports: names \(Logger.shellQuoted(request.description)),"
             return "\(named) the results file itself, which the report would replace. Save that report to another file."
+
         case let .baselineFileWouldReplaceTheResultsFile(path):
             return "--write-baseline \(Logger.shellQuoted(path)) is the results file itself, which the baseline file "
                 + "would replace. Save the baseline file to another file."

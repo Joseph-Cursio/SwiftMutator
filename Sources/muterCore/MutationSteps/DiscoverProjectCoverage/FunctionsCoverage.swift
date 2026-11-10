@@ -102,5 +102,5 @@ extension FunctionsCoverage: Nullable {
 struct FileCoverage: Equatable {
     let functions: [[Region]]
 
-    static let empty = FileCoverage(functions: [])
+    static let empty = Self(functions: [])
 }

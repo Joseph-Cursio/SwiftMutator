@@ -126,8 +126,10 @@ extension RecordedResults {
         switch end.reason {
         case .finished:
             return "the run finished"
+
         case .interrupted:
             return "the run was interrupted" + (end.detail.map { " by \($0)" } ?? "")
+
         case .aborted:
             return "the run stopped on an error" + (end.detail.map { " (\($0))" } ?? "")
         }

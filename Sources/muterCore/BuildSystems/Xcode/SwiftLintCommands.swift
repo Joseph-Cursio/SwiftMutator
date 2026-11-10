@@ -91,25 +91,25 @@ enum SwiftLintCommands {
         /// option.
         var endsAtDoubleDash = false
 
-        static let all: [String: Launcher] = [
-            "xcrun": Launcher(
+        static let all: [String: Self] = [
+            "xcrun": Self(
                 optionsWithValues: ["--sdk", "-sdk", "--toolchain", "-toolchain"],
                 lookups: ["-f", "--find"]
             ),
-            "mint": Launcher(subcommands: ["run"], optionsWithValues: ["-m", "--mintfile"]),
-            "swift": Launcher(
+            "mint": Self(subcommands: ["run"], optionsWithValues: ["-m", "--mintfile"]),
+            "swift": Self(
                 subcommands: ["run"],
                 optionsWithValues: [
                     "--package-path", "-c", "--configuration", "--scratch-path", "--build-path", "-Xswiftc",
                 ]
             ),
-            "mise": Launcher(subcommands: ["exec", "x"], endsAtDoubleDash: true),
-            "env": Launcher(optionsWithValues: ["-u", "-P", "-C"]),
-            "exec": Launcher(optionsWithValues: ["-a"]),
-            "command": Launcher(lookups: ["-v", "-V"]),
-            "nice": Launcher(optionsWithValues: ["-n"]),
-            "nohup": Launcher(),
-            "arch": Launcher(),
+            "mise": Self(subcommands: ["exec", "x"], endsAtDoubleDash: true),
+            "env": Self(optionsWithValues: ["-u", "-P", "-C"]),
+            "exec": Self(optionsWithValues: ["-a"]),
+            "command": Self(lookups: ["-v", "-V"]),
+            "nice": Self(optionsWithValues: ["-n"]),
+            "nohup": Self(),
+            "arch": Self(),
         ]
 
         /// The words of the command it runs, of `words`, those after its own name; nil when it runs none, or only
@@ -251,8 +251,10 @@ extension SwiftLintCommands {
                 case UInt8(ascii: ")"):
                     index += 1
                     return
+
                 case UInt8(ascii: "|"):
                     index += 1
+
                 default:
                     let before = index
                     _ = readWord()
@@ -323,6 +325,7 @@ extension SwiftLintCommands {
                         word.append(script[index + 1])
                     }
                     index += 2
+
                 case UInt8(ascii: "'"):
                     index += 1
                     while index < script.count, script[index] != UInt8(ascii: "'") {
@@ -330,10 +333,13 @@ extension SwiftLintCommands {
                         index += 1
                     }
                     index += 1
+
                 case UInt8(ascii: "\""):
                     word += readDoubleQuoted()
+
                 case UInt8(ascii: "`"):
                     word += readBackquoted()
+
                 case UInt8(ascii: ">"), UInt8(ascii: "<"):
                     // A redirection, as `2>&1`, whose `&` doesn't end the command.
                     word.append(byte)
@@ -342,6 +348,7 @@ extension SwiftLintCommands {
                         word.append(script[index])
                         index += 1
                     }
+
                 default:
                     word.append(byte)
                     index += 1

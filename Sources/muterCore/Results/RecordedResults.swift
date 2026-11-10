@@ -49,8 +49,8 @@ struct RecordedResults {
     }
 
     /// The results `data`, the contents of the file at `path`, recorded.
-    static func read(_ data: Data, path: String) throws -> RecordedResults {
-        var results = RecordedResults()
+    static func read(_ data: Data, path: String) throws -> Self {
+        var results = Self()
         let decoder = ResultsCoding.decoder
         let lines = data.split(separator: UInt8(ascii: "\n"), omittingEmptySubsequences: false)
         for (index, line) in lines.enumerated() where !line.isEmpty {
@@ -76,6 +76,7 @@ struct RecordedResults {
         switch kind {
         case "header":
             return try addHeader(line, path: path, using: decoder)
+
         case "mutant":
             guard let record = try? decoder.decode(MutantResult.self, from: line),
                   let session = sessionIndex(record.session)
@@ -84,6 +85,7 @@ struct RecordedResults {
             // A new result: a rerun of the mutant's properties is of the result it followed.
             propertyReruns.removeValue(forKey: record.key)
             sessions[session].lastFinishedAt = max(sessions[session].lastFinishedAt ?? .distantPast, record.finishedAt)
+
         case "retired":
             guard let retired = try? decoder.decode(ResultsRetired.self, from: line),
                   sessionIndex(retired.session) != nil
@@ -93,12 +95,14 @@ struct RecordedResults {
                 latest.removeValue(forKey: key)
                 propertyReruns.removeValue(forKey: key)
             }
+
         case "control":
             guard let record = try? decoder.decode(ControlRunResult.self, from: line),
                   let session = sessionIndex(record.session)
             else { return false }
             controlRuns.append(record)
             sessions[session].lastFinishedAt = max(sessions[session].lastFinishedAt ?? .distantPast, record.finishedAt)
+
         case "propertyRerun":
             guard let record = try? decoder.decode(PropertyRerunResult.self, from: line),
                   let session = sessionIndex(record.session)
@@ -108,14 +112,17 @@ struct RecordedResults {
                 propertyReruns[record.key] = record
             }
             sessions[session].lastFinishedAt = max(sessions[session].lastFinishedAt ?? .distantPast, record.finishedAt)
+
         case "stopped":
             guard let record = try? decoder.decode(ResultsStopped.self, from: line) else { return false }
             stopped = record
+
         case "end":
             guard let end = try? decoder.decode(ResultsEnd.self, from: line),
                   let session = sessionIndex(end.session)
             else { return false }
             sessions[session].end = end
+
         default:
             // A kind of record a later SwiftMutator writes.
             break

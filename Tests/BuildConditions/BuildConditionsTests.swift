@@ -570,6 +570,7 @@ final class BuildConditionsTests: XCTestCase {
         case ["elseBranch()"]: return true
         case ["ifBranch()"]: return false
         case []: return nil
+
         default:
             XCTFail("Both of \(condition)'s clauses left out: \(inactive)")
             return nil

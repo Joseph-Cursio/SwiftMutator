@@ -12,7 +12,7 @@ struct UnknownConfigurationKey: Equatable, Sendable {
     /// The keys of `data`'s top-level mapping, YAML or JSON, that no configuration key is, in the order they are
     /// written, once each; none if it isn't a mapping, which decoding refuses. A YAML merge key, `<<`, isn't one: the
     /// keys of the mappings it merges are checked in its place, as decoding reads them.
-    static func found(in data: Data) -> [UnknownConfigurationKey] {
+    static func found(in data: Data) -> [Self] {
         guard let text = String(data: data, encoding: .utf8),
               let mapping = (try? Yams.compose(yaml: text))?.mapping
         else {
@@ -22,7 +22,7 @@ struct UnknownConfigurationKey: Equatable, Sendable {
         var seen: Set<String> = []
         return keys(of: mapping)
             .filter { !known.contains($0) && seen.insert($0).inserted }
-            .map { UnknownConfigurationKey(key: $0, closest: closest(to: $0)) }
+            .map { Self(key: $0, closest: closest(to: $0)) }
     }
 
     /// `mapping`'s keys, with those of the mappings a merge key merges in its place.

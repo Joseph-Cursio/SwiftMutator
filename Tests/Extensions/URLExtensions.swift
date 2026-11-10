@@ -2,12 +2,10 @@ import Foundation
 
 public extension URL {
     func withoutScheme() -> String {
-        let urlWithoutScheme = String(
+        return String(
             pathComponents
                 .joined(separator: "/")
                 .dropFirst()
         )
-
-        return urlWithoutScheme
     }
 }

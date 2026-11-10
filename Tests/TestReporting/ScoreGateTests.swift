@@ -196,15 +196,15 @@ final class ScoreGateTests: MuterTestCase {
             "Mutation score 71.4% is below the required 80%."
         )
         XCTAssertEqual(
-            gate(killed: 799, of: 1000, failUnder: 80).line,
+            gate(killed: 799, of: 1_000, failUnder: 80).line,
             "Mutation score 79.9% is below the required 80%."
         )
         XCTAssertEqual(
-            gate(killed: 1999, of: 2500, failUnder: 80).line,
+            gate(killed: 1_999, of: 2_500, failUnder: 80).line,
             "Mutation score 79.9% is below the required 80%."
         )
         XCTAssertEqual(
-            gate(killed: 1999, of: 2500, failUnder: 79.95).line,
+            gate(killed: 1_999, of: 2_500, failUnder: 79.95).line,
             "Mutation score 79.96% meets the required 79.95%."
         )
         XCTAssertEqual(

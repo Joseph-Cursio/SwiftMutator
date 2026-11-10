@@ -114,12 +114,15 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
             switch left.reason {
             case .inUse:
                 return "⚠️ Left \(folders): another SwiftMutator run is using it."
+
             case let .couldNotCheck(reason):
                 return "⚠️ Left \(folders): couldn't tell whether another SwiftMutator run is using it: \(reason)"
+
             case let .foreignFiles(files):
                 let named = files.prefix(5).joined(separator: ", ")
                     + (files.count > 5 ? " and \(files.count - 5) more" : "")
                 return "⚠️ Left \(folders): it holds files SwiftMutator didn't write: \(named)"
+
             case let .couldNotRemove(reason):
                 return "⚠️ Couldn't remove \(folders): \(reason)"
             }
@@ -131,11 +134,11 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
     /// `bytes` in decimal units, to one decimal place: "1.9 GB", "512 bytes".
     static func size(_ bytes: Int64) -> String {
         let units = ["KB", "MB", "GB", "TB", "PB"]
-        guard bytes >= 1000 else { return bytes == 1 ? "1 byte" : "\(bytes) bytes" }
-        var value = Double(bytes) / 1000
+        guard bytes >= 1_000 else { return bytes == 1 ? "1 byte" : "\(bytes) bytes" }
+        var value = Double(bytes) / 1_000
         var unit = 0
         while value >= 999.95, unit < units.count - 1 {
-            value /= 1000
+            value /= 1_000
             unit += 1
         }
         return String(format: "%.1f ", value) + units[unit]
@@ -219,12 +222,16 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
             let why = switch unmatched.reason {
             case .noSwiftFile:
                 "names no Swift file"
+
             case .outsideTheProject:
                 "names only Swift files outside the project"
+
             case .excluded:
                 "names only files the excludes leave out; an \("exclude".bold) entry that starts with ! keeps them"
+
             case .neverMutated:
                 "names only package manifests or files in build folders, which are never mutated"
+
             case .withoutCoverage:
                 "names only files the excludes or the coverage filter leave out: those at or below "
                     + "\("coverageThreshold".bold), which by default are those whose code no test ran"
@@ -287,19 +294,24 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         let discovered = switch (sample?.selection, shard) {
         case (nil, nil):
             "✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants in \(numberOfFiles) files"
+
         case let (nil, shard?):
             "✅ In total, SwiftMutator discovered \(shard.mutantsInAllShards) mutants, and shard \(shard.index) of "
                 + "\(shard.count) holds \(numberOfMutationPoints) of them, in \(numberOfFiles) files"
+
         case let (sample?, nil) where sample.isPartial:
             "✅ In total, SwiftMutator discovered \(sample.mutantsSampledFrom) mutants, and the sample of "
                 + "\(sample.size) holds \(numberOfMutationPoints) of them, in \(numberOfFiles) files"
+
         case let (sample?, nil) where sample.mutantsSampledFrom <= sample.size:
             "✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants in \(numberOfFiles) files, "
                 + "no more than the sample of \(sample.size), which holds them all"
+
         // The last place it took had repeats enough to hold the rest.
         case let (sample?, nil):
             "✅ In total, SwiftMutator discovered \(numberOfMutationPoints) mutants in \(numberOfFiles) files, and "
                 + "the sample of \(sample.size) holds them all"
+
         case let (sample?, shard?):
             "✅ In total, SwiftMutator discovered \(sample.mutantsSampledFrom) mutants, the sample of \(sample.size) "
                 + "holds \(sample.mutantsSampled) of them, and shard \(shard.index) of \(shard.count) holds "
@@ -489,26 +501,37 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         switch reason {
         case .notRecorded:
             return "\(count) never tested"
+
         case .buildError:
             return "\(count) build error\(one ? "" : "s")"
+
         case .fileChanged:
             return "\(count) in \(one ? "a changed file" : "changed files")"
+
         case .mutationChanged:
             return "\(count) changed mutation\(one ? "" : "s")"
+
         case .repeated:
             return "\(count) repeated in \(one ? "its" : "their") file"
+
         case .timeoutNotRerun:
             return "\(count) timeout\(one ? "" : "s") not run again at lower load"
+
         case .timeoutUnderShorterLimit:
             return "\(count) timeout\(one ? "" : "s") under a shorter limit"
+
         case .timedOut:
             return "\(count) timeout\(one ? "" : "s")"
+
         case .codeNotShownRunning:
             return "\(count) failed without running \(one ? "its" : "their") code"
+
         case .sessionShowedNoCodeRunning:
             return "\(count) from a session that switched on no mutant"
+
         case .otherFileChanged:
             return "\(count) as other project files changed"
+
         case .testsChanged:
             return "\(count) as test files changed"
         }
@@ -587,9 +610,11 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
         case (1, 0):
             "1 mutant doesn't compile, so SwiftMutator took it out of the build, and won't test it. The score leaves "
                 + "it out, the reports list it as a build error, and --resume tries it again:"
+
         case (_, 0):
             "\(count) mutants don't compile, so SwiftMutator took them out of the build, and won't test them. The "
                 + "score leaves them out, the reports list them as build errors, and --resume tries them again:"
+
         default:
             "SwiftMutator took \(count) mutants out of the build, and won't test them: the compiler's errors could be "
                 + "pinned on \(count - withOthers), and \(withOthers) went with others around the errors, and may "
@@ -1071,12 +1096,16 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
             let tests = more > 0 ? named.joined(separator: ", ") + " and \(more) more" : listed(named)
             let count = killing.count == 1 ? "1 failed test" : "\(killing.count) failed tests"
             return "killed by \(tests) (\(count))" + took
+
         case .passed:
             return "survived" + took
+
         case .timeout:
             return "timed out after " + seconds(run.timeoutSeconds ?? run.seconds)
+
         case .buildError:
             return run.leftOutOfTheBuild ? "didn't compile, so its tests didn't run" : "build error" + took
+
         case .noCoverage:
             return "not covered"
         }
@@ -1099,11 +1128,13 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
                 "  printf '%s\\n' \(shellQuoted(run.switchID)) > \(file) && cd \(project) && \(muterRunning) "
                     + "\(activeMutantFileKey)=\(file) \(command)",
             ]
+
         case .xcodebuild:
             return [
                 "To run its tests with it on, set \(run.switchID)=YES and \(muterRunning) in their environment, and "
                     + "SIMCTL_CHILD_\(run.switchID)=YES for a simulator.",
             ]
+
         case .unknown:
             return [
                 "To run its tests with it on:",

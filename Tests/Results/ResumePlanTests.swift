@@ -185,7 +185,7 @@ final class ResumePlanTests: XCTestCase {
             path: sum.path,
             line: sum.line,
             column: sum.column,
-            utf8Offset: 9999,
+            utf8Offset: 9_999,
             switchID: "Sum_RelationalOperatorReplacement_73_22_9999",
             fileSHA256: "ab12"
         )

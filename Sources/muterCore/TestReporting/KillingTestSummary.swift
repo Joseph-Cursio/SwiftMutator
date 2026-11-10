@@ -202,8 +202,10 @@ extension KillingTestSummary {
             switch test.result {
             case MutantResult.Rerun.TestAlone.failedAgain:
                 evidence[test.identity, default: Evidence()].failedAgain += 1
+
             case MutantResult.Rerun.TestAlone.passed, MutantResult.Rerun.TestAlone.failedWithItsCodeNotRunning:
                 evidence[test.identity, default: Evidence()].notReproduced += 1
+
             default:
                 // None, or one a later SwiftMutator added, which says nothing this one can read.
                 break
@@ -413,6 +415,7 @@ extension KillingTestSummary {
         let theirKills = switch suspectOnlyKills {
         case 0 where killsThatSurvivedAlone > 0:
             "No mutant counts as killed only by suspect tests any more."
+
         case 0: "Another test was recorded failing for each mutant a suspect test failed for."
         case 1: "Only suspect tests were recorded failing for 1 mutant."
         default: "Only suspect tests were recorded failing for \(suspectOnlyKills) mutants."
@@ -425,11 +428,14 @@ extension KillingTestSummary {
             "\(these) failed for mutants in at least \(suspectFilePercent)% of the \(filesWithKills) files with a "
                 + "killed mutant. A test that is timing-sensitive, or flaky under load, does that, and so can a broad "
                 + "test of the mutated code."
+
         case (false, true, true):
             "\(these) failed in a control run, with no mutant on and under the same load, so may fail whatever the "
                 + "mutant."
+
         case (true, false, true):
             "\(these) didn't fail again often enough when tested alone, so may fail whatever the mutant."
+
         default:
             "Of \(these), " + Self.listed([
                 inControlRuns.isEmpty ? nil : "\(inControlRuns.count) failed in a control run, with no mutant on and "
@@ -513,6 +519,7 @@ extension KillingTestSummary {
         case (true, true, _): "\(they) failed \(forMutants)"
         case (false, true, true): "\(they) \(inControlRuns)"
         case (true, false, true): "\(they) \(notAgain)"
+
         default:
             Self.listed([
                 flaky.isEmpty ? nil : "\(flaky.count) \(inControlRuns)",
@@ -680,5 +687,5 @@ struct SuspectTestThresholds: Equatable {
     /// In fewer than 10 files, a focused test reaches 40%. That doesn't hold on a smaller project: on 2026-11-06 good
     /// tests reached 37% of SwiftCloneDetector's 30 files and 42% of SwiftEffectInference's 19. So the rule says only
     /// which kills to test again alone, which is what settles it (`isSuspect(reachesEnoughFiles:…)`).
-    static let standard = SuspectTestThresholds(filePercent: 15, minimumFiles: 10)
+    static let standard = Self(filePercent: 15, minimumFiles: 10)
 }

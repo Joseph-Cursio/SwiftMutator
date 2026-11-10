@@ -54,8 +54,8 @@ struct MuterTestReport {
         mutantsByOutcome = OutcomeCounts(outcome.mutations.map(\.testSuiteOutcome))
         projectCodeCoverage = outcome.coverage == .null ? nil : outcome.coverage.percent
         var sources = ReportSources(read: readSource, digests: outcome.sourceDigests)
-        let triaged = MuterTestReport.triaged(
-            MuterTestReport.fileReports(
+        let triaged = Self.triaged(
+            Self.fileReports(
                 from: outcome,
                 suspects: summary?.suspectIdentities ?? [],
                 sources: &sources
@@ -155,10 +155,10 @@ extension MuterTestReport {
 private extension TimeInterval {
     func formatted() -> String {
         let time = Int(self)
-        let milliseconds = Int(truncatingRemainder(dividingBy: 1) * 1000)
+        let milliseconds = Int(truncatingRemainder(dividingBy: 1) * 1_000)
         let seconds = time % 60
         let minutes = (time / 60) % 60
-        let hours = (time / 3600)
+        let hours = (time / 3_600)
 
         return String(
             format: "%0.2d:%0.2d:%0.2d.%0.3d",
@@ -167,7 +167,6 @@ private extension TimeInterval {
             seconds,
             milliseconds
         )
-
     }
 }
 

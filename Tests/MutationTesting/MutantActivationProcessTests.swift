@@ -112,7 +112,7 @@ final class MutantActivationProcessTests: MuterTestCase {
             }
         }
 
-        func linesThatDiffer(from other: Dump) -> [String] {
+        func linesThatDiffer(from other: Self) -> [String] {
             Set(environment).symmetricDifference(other.environment).sorted()
         }
     }

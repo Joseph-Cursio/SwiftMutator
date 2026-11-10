@@ -62,11 +62,13 @@ extension PerformMutationTesting {
             return "worker \(worker)'s copy of the project didn't pass the baseline the first one passed (its log is "
                 + "baseline run worker \(worker).log), so your tests may not run beside a copy of themselves, or the "
                 + "builds ran out of disk space or memory. `mutationTestWorkers: 1` skips trying"
+
         case let .buildTimeoutReached(.workerBaseline(worker, _), seconds, _, _):
             return "worker \(worker)'s copy of the project didn't build and pass the baseline within "
                 + "\(limit(seconds)) s (buildTimeout), though the first one did (its log is baseline run "
                 + "worker \(worker).log), so the builds may compete for too few cores, or your tests may hang beside a "
                 + "copy of themselves. `mutationTestWorkers: 1` skips trying"
+
         default:
             return "\(error) `mutationTestWorkers: 1` skips trying"
         }

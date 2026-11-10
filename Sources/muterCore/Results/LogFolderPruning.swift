@@ -133,6 +133,7 @@ extension LogFolderPruning {
         switch Self.holdIdle(group.members.flatMap(\.lockedFiles)) {
         case let .success(descriptors):
             held = descriptors
+
         case let .failure(unheld):
             left.append(Left(folders: folders, reason: unheld.reason))
             return
@@ -176,10 +177,13 @@ extension LogFolderPruning {
             case let .held(descriptor):
                 held.append(descriptor)
                 continue
+
             case .missing:
                 continue
+
             case .inUse:
                 reason = .inUse
+
             case let .failed(code):
                 reason = .couldNotCheck(String(cString: strerror(code)))
             }
@@ -224,7 +228,7 @@ extension LogFolderPruning {
         let shard: ShardInfo?
 
         /// The longest first line read: a header's list of the project's files takes about 140 bytes a file.
-        static let longestLine = 64 * 1024 * 1024
+        static let longestLine = 64 * 1_024 * 1_024
 
         /// The first line of the results file at `path`, as a header; nil if it isn't one, or can't be read.
         init?(ofResultsFileAt path: String) {
@@ -232,7 +236,7 @@ extension LogFolderPruning {
             guard descriptor >= 0 else { return nil }
             defer { _ = close(descriptor) }
             var line = Data()
-            var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+            var buffer = [UInt8](repeating: 0, count: 64 * 1_024)
             reading: while line.count < Self.longestLine {
                 let count = read(descriptor, &buffer, buffer.count)
                 if count < 0, errno == EINTR { continue }
@@ -308,7 +312,7 @@ extension LogFolderPruning {
 
         /// The units SwiftMutator made, of `units`: those that show it by themselves, and those whose note names a
         /// results file in one of them.
-        static func owned(_ units: [Unit]) -> [Unit] {
+        static func owned(_ units: [Self]) -> [Self] {
             let shown = Set(units.filter(\.isMarkedOrNamed).map(\.identity))
             return units.filter { unit in
                 unit.isMarkedOrNamed || unit.notedFolder.map { shown.contains($0) } == true
@@ -452,7 +456,7 @@ extension LogFolderPruning {
 
         /// `units` grouped: a resumed session's folder joins the folder whose results file its note names. Each
         /// group's folders are oldest first.
-        static func grouping(_ units: [Unit]) -> [Group] {
+        static func grouping(_ units: [Unit]) -> [Self] {
             var leader = Array(units.indices)
             func root(of index: Int) -> Int {
                 var index = index
@@ -468,7 +472,7 @@ extension LogFolderPruning {
             }
             return Dictionary(grouping: units.indices, by: root(of:))
                 .values
-                .map { indices in Group(members: indices.map { units[$0] }.sorted { $0.date < $1.date }) }
+                .map { indices in Self(members: indices.map { units[$0] }.sorted { $0.date < $1.date }) }
         }
     }
 }

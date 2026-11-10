@@ -81,6 +81,7 @@ extension MutationTestObserver {
 
         case .updateCheckStarted:
             logger.updateCheckStarted()
+
         case let .updateCheckFinished(newVersion):
             logger.updateCheckFinished(newVersion: newVersion)
 
@@ -96,17 +97,22 @@ extension MutationTestObserver {
 
         case .projectCopyStarted:
             logger.projectCopyStarted()
+
         case let .projectCopySkippedVanishedFiles(paths):
             logger.projectCopySkippedVanishedFiles(paths)
+
         case let .projectCopyFinished(destinationPath):
             logger.projectCopyFinished(destinationPath: destinationPath)
+
         case .codeOutsideTheProjectBuilt, .projectCodeNamedByAbsolutePath, .swiftLintPhasesTurnedOff:
             handleProjectCopyEvent(event)
 
         case .projectCoverageDiscoveryStarted:
             logger.projectCoverageDiscoveryStarted()
+
         case let .projectCoverageDiscoveryFinished(failure):
             logger.projectCoverageDiscoveryFinished(failureReason: failure?.reason, log: failure?.log)
+
         case let .projectCoverageTestsFailed(failed):
             logger.projectCoverageTestsFailed(failed)
 
@@ -114,13 +120,16 @@ extension MutationTestObserver {
         case let .packageSourceFilesUnavailable(reason): logger.packageSourceFilesUnavailable(reason: reason)
         case let .filesToMutateUnmatched(entries): logger.filesToMutateUnmatched(entries)
         case let .buildConditionsUnavailable(reason): logger.buildConditionsUnavailable(reason: reason)
+
         case let .sourceFileDiscoveryFinished(sourceFileCandidates):
             logger.sourceFileDiscoveryFinished(sourceFileCandidates: sourceFileCandidates, verbose: runOptions.verbose)
 
         case .mutationsDiscoveryStarted:
             logger.mutationsDiscoveryStarted()
+
         case let .mutationsDiscoveryFinished(mappings):
             logger.mutationsDiscoveryFinished(mutations: mappings, verbose: runOptions.verbose)
+
         case let .mutantsSelected(sample, shard, mappings):
             logger.mutationsDiscoveryFinished(
                 mutations: mappings,
@@ -128,45 +137,64 @@ extension MutationTestObserver {
                 sample: sample.map { (selection: $0, seedIsChosen: runOptions.sample?.seedIsChosen ?? false) },
                 shard: shard
             )
+
         case let .mutantsDropped(dropped):
             logger.mutantsDropped(dropped, verbose: runOptions.verbose)
 
         case let .resumePlanned(summary):
             logger.resumePlanned(summary)
+
         case .mutationTestingStarted:
             logger.mutationTestingStarted()
+
         case .mutantRunsStarted:
             logger.mutantRunsStarted()
+
         case let .stillTesting(still):
             logger.stillTesting(still)
+
         case let .workersChosen(choice):
             choice.sentence.map(logger.print)
+
         case let .stopAtFirstFailureTurnedOff(reason):
             logger.stopAtFirstFailureTurnedOff(reason: reason)
+
         case let .testBundlesNotRunDirectly(reason):
             logger.testBundlesNotRunDirectly(reason: reason)
+
         case let .timedTestRunStopped(seconds, log):
             logger.timedTestRunStopped(seconds: seconds, log: log)
+
         case let .stoppedRunRecorded(path):
             logger.stoppedRunRecorded(path: path)
+
         case .workersShareUserDefaults:
             logger.workersShareUserDefaults()
+
         case let .testBundlesWroteInTheProject(path):
             logger.testBundlesWroteInTheProject(path: path)
+
         case let .buildingAgainWithoutMutants(count):
             logger.buildingAgainWithoutMutants(count: count)
+
         case let .buildingAgainWithSwitchesInAClosure(count):
             logger.buildingAgainWithSwitchesInAClosure(count: count)
+
         case let .stoppedTakingOutMutants(builds):
             logger.stoppedTakingOutMutants(afterBuilds: builds)
+
         case let .mutantsLeftOutOfTheBuild(leftOut):
             logger.mutantsLeftOutOfTheBuild(leftOut)
+
         case let .controlRunFinished(control):
             logger.controlRunFinished(control)
+
         case let .activationNotShown(runs):
             logger.activationNotShown(runs: runs)
+
         case let .unprovenRunsRerunStarted(count):
             logger.unprovenRunsRerunStarted(count: count)
+
         case let .unprovenRunRerun(mutation, changed):
             // As a timeout's: a verdict that didn't change is no news, and the logger's outcome counts the progress.
             if changed {
@@ -174,12 +202,16 @@ extension MutationTestObserver {
                     outcomeWithFlush: MutationOutcomeWithFlush(mutation: mutation, fflush: flushStdOut)
                 )
             }
+
         case let .unprovenRunsRerunFinished(tally):
             logger.unprovenRunsRerunFinished(tally)
+
         case let .suspectKillRerunsSkipped(log):
             logger.suspectKillRerunsSkipped(log: log)
+
         case let .suspectKillRerunsStarted(reruns):
             logger.suspectKillRerunsStarted(reruns)
+
         case let .suspectKillRerun(mutation, changed):
             // As a timeout's: a verdict that didn't change is no news, and the logger's outcome counts the progress.
             if changed {
@@ -187,10 +219,13 @@ extension MutationTestObserver {
                     outcomeWithFlush: MutationOutcomeWithFlush(mutation: mutation, fflush: flushStdOut)
                 )
             }
+
         case let .suspectKillRerunsFinished(tally):
             logger.suspectKillRerunsFinished(tally)
+
         case let .timeoutRerunsStarted(reruns):
             logger.timeoutRerunsStarted(reruns)
+
         case let .timeoutRerunFinished(rerun):
             // A verdict that didn't change is no news. Never the logger's outcome or log, which count the progress
             // again.
@@ -200,22 +235,31 @@ extension MutationTestObserver {
                 )
             }
             logger.timeoutRerunFinished(rerun)
+
         case let .timeoutRerunsFinished(tally):
             logger.timeoutRerunsFinished(tally)
+
         case let .propertyRerunsStarted(reruns):
             logger.propertyRerunsStarted(reruns)
+
         case let .propertyRerunsFinished(tally):
             logger.propertyRerunsFinished(tally)
+
         case let .propertyRerunsSkipped(reason, log):
             logger.propertyRerunsSkipped(reason: reason, log: log)
+
         case let .runRepeatedAfterLaunchFailure(repeated):
             logger.runRepeatedAfterLaunchFailure(repeated)
+
         case let .baselineRepeatedAfterLaunchFailure(line, log):
             logger.baselineRepeatedAfterLaunchFailure(line: line, keptFileName: log.keptFileName)
+
         case let .oneMutantTested(run):
             oneMutantRun = run
+
         case let .mutationTestingFinished(outcome):
             mutationTestingFinished(outcome)
+
         case let .mutationTestingEndedEarly(earlyEnd):
             mutationTestingEndedEarly(earlyEnd)
 
@@ -224,11 +268,14 @@ extension MutationTestObserver {
                 outcomeWithFlush: MutationOutcomeWithFlush(mutation: mutation, fflush: flushStdOut)
             )
             logger.newMutationTestOutcomeAvailable(mutation: mutation)
+
         case let .newTestLogAvailable(mutationTestLog):
             logger.newMutationTestLogAvailable(mutationTestLog: mutationTestLog)
+
         case let .resultsFileCreated(path):
             resultsFilePath = path
             logger.resultsFileCreated(atPath: path)
+
         case let .resultsFileUnavailable(reason):
             // The file, if there is one, lacks every result after the failed write, so the end of the run doesn't name
             // it.
@@ -246,10 +293,13 @@ extension MutationTestObserver {
         switch event {
         case let .codeOutsideTheProjectBuilt(paths):
             logger.codeOutsideTheProjectBuilt(paths)
+
         case let .projectCodeNamedByAbsolutePath(paths):
             logger.projectCodeNamedByAbsolutePath(paths)
+
         case let .swiftLintPhasesTurnedOff(phases):
             logger.swiftLintPhasesTurnedOff(phases)
+
         default:
             break
         }
@@ -260,20 +310,28 @@ extension MutationTestObserver {
         switch event {
         case let .testPlanFileCreated(created):
             logger.testPlanFileCreated(created)
+
         case .muterMutationTestPlanLoaded:
             logger.muterMutationTestPlanLoaded()
+
         case .testPlanSourcesUnchecked:
             logger.testPlanSourcesUnchecked()
+
         case let .testPlanSourcesDiffer(changes):
             logger.testPlanSourcesDiffer(changes)
+
         case let .testPlanUntestedFilesChanged(changes):
             logger.testPlanUntestedFilesChanged(changes)
+
         case let .testPlanChangesWaived(paths):
             logger.testPlanChangesWaived(paths)
+
         case let .testPlanCopyEdited(paths):
             logger.testPlanCopyEdited(paths)
+
         case let .testPlanCopyResolutionChanged(changes):
             logger.testPlanCopyResolutionChanged(changes)
+
         default:
             break
         }

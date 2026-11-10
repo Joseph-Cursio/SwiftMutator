@@ -111,9 +111,8 @@ extension SyntaxProtocol {
         if !trivia.isEmpty {
             pieces.forEach { trivia = trivia.appending($0) }
             return withLeadingTrivia(trivia)
-        } else {
-            return withLeadingTrivia(Trivia(pieces: pieces))
         }
+        return withLeadingTrivia(Trivia(pieces: pieces))
     }
 
     func appendingTrailingTrivia(
@@ -123,9 +122,8 @@ extension SyntaxProtocol {
         if !trivia.isEmpty {
             pieces.forEach { trivia = trivia.appending($0) }
             return withTrailingTrivia(trivia)
-        } else {
-            return withTrailingTrivia(Trivia(pieces: pieces))
         }
+        return withTrailingTrivia(Trivia(pieces: pieces))
     }
 
     func withTrailingTrivia(
@@ -388,8 +386,10 @@ extension CodeBlockItemSyntax {
         switch item {
         case .decl:
             return false
+
         case let .expr(expression):
             return !expression.is(MacroExpansionExprSyntax.self)
+
         case let .stmt(statement):
             guard let guardStatement = statement.as(GuardStmtSyntax.self) else { return true }
             return guardStatement.conditions.allSatisfy { element in

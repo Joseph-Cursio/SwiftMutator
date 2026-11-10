@@ -126,11 +126,13 @@ struct MutantRefused: Error, Equatable, CustomStringConvertible {
             let inFiles = files == 1 ? "the file" : "the \(files) files"
             return "No mutant is at \(reference). Mutants near line \(reference.line) in \(inFiles) it names:\n"
                 + Self.options(nearby) + "\nNothing was tested."
+
         case let .ambiguous(places):
             let count = places.map(\.sharing).reduce(0, +)
             let choice = places.contains { $0.sharing == 1 }
                 ? "give one of these:" : "none of them can be tested on its own:"
             return "\(reference) names \(count) mutants; \(choice)\n" + Self.options(places) + "\nNothing was tested."
+
         case let .repeated(key, count):
             return "\(Logger.shellQuoted(key.description)) is one of \(count) \(key.mutationOperatorId.rawValue) "
                 + "mutants at the same place. They share one switch, so none of them can be tested on its own. "

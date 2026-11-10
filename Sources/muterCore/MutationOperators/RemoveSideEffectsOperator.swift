@@ -820,9 +820,11 @@ private extension CodeBlockItemSyntax {
                 switch ifExpr.elseBody {
                 case let .codeBlock(block):
                     branches.append(block.statements)
+
                 case let .ifExpr(next):
                     ifExpr = next
                     continue
+
                 case nil:
                     return false
                 }

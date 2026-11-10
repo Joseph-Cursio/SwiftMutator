@@ -15,7 +15,7 @@ extension MuterConfiguration {
     init(from directoryContents: [FilePath], in directory: FilePath? = nil) async {
         let base = directory.map { URL(fileURLWithPath: $0, isDirectory: true) }
         let directoryContents = directoryContents.map { URL(fileURLWithPath: $0, relativeTo: base) }
-        for generate in MuterConfiguration.generators {
+        for generate in Self.generators {
             if let generatedConfiguration = await generate(directoryContents) {
                 self = generatedConfiguration
                 return
@@ -139,8 +139,8 @@ private extension MuterConfiguration {
 
         var description: String { name }
 
-        static var fallback: Simulator {
-            Simulator(
+        static var fallback: Self {
+            Self(
                 isAvailable: true,
                 name: "iPhone SE (3rd generation)",
                 deviceTypeIdentifier: ""

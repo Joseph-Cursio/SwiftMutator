@@ -82,6 +82,7 @@ struct UnprovenRunTally: Equatable {
         switch mutation.testSuiteOutcome {
         case .failed, .runtimeError:
             if mutation.activated == true { killed += 1 } else { killedWithoutRunning += 1 }
+
         case .passed: survived += 1
         case .noCoverage: notCovered += 1
         case .timeout: timedOut += 1

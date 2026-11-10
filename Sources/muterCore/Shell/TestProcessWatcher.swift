@@ -127,7 +127,7 @@ final class TestProcessWatcher: @unchecked Sendable { // `descriptor` is behind 
     static func watch(readingFrom input: Int32) {
         var running: [Int32: RecordedProcess] = [:]
         var pending: [UInt8] = []
-        var buffer = [UInt8](repeating: 0, count: 4096)
+        var buffer = [UInt8](repeating: 0, count: 4_096)
         while true {
             let count = read(input, &buffer, buffer.count)
             if count < 0, errno == EINTR { continue }
@@ -150,9 +150,11 @@ final class TestProcessWatcher: @unchecked Sendable { // `descriptor` is behind 
         case ("+", 2):
             guard let id = Int32(fields[0]), let started = UInt64(fields[1]) else { return }
             running[id] = RecordedProcess(id: id, started: started)
+
         case ("-", 1):
             guard let id = Int32(fields[0]) else { return }
             running[id] = nil
+
         default:
             return
         }

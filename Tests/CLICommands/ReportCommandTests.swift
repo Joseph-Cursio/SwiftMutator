@@ -1062,7 +1062,7 @@ private extension ReportCommandTests {
             mutationPoint: MutationPoint(
                 mutationOperatorId: .ror,
                 filePath: "/project_mutated/\(path)",
-                position: MutationPosition(utf8Offset: 3361, line: line, column: 22)
+                position: MutationPosition(utf8Offset: 3_361, line: line, column: 22)
             ),
             mutationSnapshot: .make(before: ">", after: "<", description: "changed > to <"),
             originalProjectDirectoryUrl: URL(fileURLWithPath: "/project", isDirectory: true),

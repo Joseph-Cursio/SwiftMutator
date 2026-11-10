@@ -80,8 +80,10 @@ final class ScriptedProcessSpy: MuterProcess, @unchecked Sendable { // shared st
             case let .write(text, after: delay):
                 guard !isKilled(within: delay) else { return }
                 try? (standardOutput as? FileHandle)?.write(contentsOf: Data(text.utf8))
+
             case .runUntilKilled:
                 guard !isKilled(within: deadline) else { return }
+
             case let .dieOf(signal, after: delay):
                 guard !isKilled(within: delay) else { return }
                 lock.withLock {

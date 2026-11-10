@@ -257,32 +257,42 @@ struct ScoreDropCheck: Equatable, Sendable {
         switch reason {
         case .oneMutant:
             return "\(notChecked): one mutant's score (--mutant) isn't the project's."
+
         case .shard:
             return "\(notChecked): a shard's score isn't the whole run's. Compare the merged report instead: "
                 + "swift-mutator report --baseline \(baseline) --max-score-drop \(ScoreGate.shown(maxScoreDrop)) "
                 + "<each shard's results file>"
+
         case .sample:
             return "\(notChecked): a sample's score (--sample) isn't the whole project's."
+
         case .since:
             return "\(notChecked): the score of the code --since chose isn't the whole project's."
+
         case .filesToMutate:
             return "\(notChecked): the score of the files --files-to-mutate chose isn't the whole project's."
+
         case .unfinished:
             guard let progress else {
                 return "\(notChecked): the run didn't test every mutant it discovered."
             }
             return "\(notChecked): only \(progress.results) of \(progress.discovered) mutants have results, as the "
                 + "run didn't finish."
+
         case .nothingScored:
             return baselineScore.scored == 0
                 ? "\(notChecked): the baseline file records no mutant scored."
                 : "\(notChecked): no mutant was scored."
+
         case .stoppedOnAnError:
             return "\(notChecked): the run stopped on an error."
+
         case .lacksResults:
             return "\(notChecked): the merged report lacks results."
+
         case .discoveriesDiffer:
             return "\(notChecked): the shards' runs didn't discover the same mutants, so some may have no result."
+
         case .endedEarly:
             return nil
         }

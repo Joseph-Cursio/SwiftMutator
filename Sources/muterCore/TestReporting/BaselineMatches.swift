@@ -80,9 +80,9 @@ struct BaselineMatches: Equatable {
         static func all(
             of outcome: MutationTestOutcome,
             readingSourcesWith readSource: @escaping ReadFile = dependency(\.readSourceFile)
-        ) -> [TestedMutant] {
+        ) -> [Self] {
             var sources = ReportSources(read: readSource, digests: outcome.sourceDigests)
-            let tested = outcome.mutations.compactMap { mutation -> TestedMutant? in
+            let tested = outcome.mutations.compactMap { mutation -> Self? in
                 guard let key = mutation.key else { return nil }
                 let kind: Kind = if let survived = BaselineSurvivor.Outcome(mutation.testSuiteOutcome) {
                     .survivor(survived)
@@ -92,7 +92,7 @@ struct BaselineMatches: Equatable {
                     .notTested
                 }
                 let line = sources.change(of: mutation)?.before
-                return TestedMutant(
+                return Self(
                     key: key,
                     kind: kind,
                     before: mutation.snapshot.before,
@@ -121,7 +121,7 @@ struct BaselineMatches: Equatable {
                     line: mutant.key.line,
                     column: mutant.key.column
                 )?.before
-                return TestedMutant(
+                return Self(
                     key: mutant.key,
                     kind: kind,
                     before: mutant.snapshot.before,

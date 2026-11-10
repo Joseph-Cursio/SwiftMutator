@@ -161,6 +161,7 @@ extension RunEvent {
              .sourceFileDiscoveryStarted, .mutationsDiscoveryStarted, .mutationTestingStarted, .mutantRunsStarted,
              .workersShareUserDefaults, .muterMutationTestPlanLoaded, .testPlanSourcesUnchecked:
             nil
+
         case let .testBundlesWroteInTheProject(path): path
         case let .updateCheckFinished(newVersion): newVersion
         case let .buildingAgainWithoutMutants(count): count
@@ -216,8 +217,10 @@ extension RunEvent {
         case let .resultsFileCreated(path): path
         case let .resultsFileUnavailable(reason): reason
         case let .testPlanFileCreated(created): created
+
         case let .testPlanSourcesDiffer(changes), let .testPlanUntestedFilesChanged(changes),
              let .testPlanCopyResolutionChanged(changes): changes
+
         case let .testPlanChangesWaived(paths): paths
         case let .testPlanCopyEdited(paths): paths
         }

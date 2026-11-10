@@ -22,7 +22,7 @@ final class ExecutionCounts {
         let line: Int
         let column: Int
 
-        static func < (lhs: Point, rhs: Point) -> Bool {
+        static func < (lhs: Self, rhs: Self) -> Bool {
             (lhs.line, lhs.column) < (rhs.line, rhs.column)
         }
     }
@@ -42,7 +42,7 @@ final class ExecutionCounts {
         }
 
         /// llvm-cov's regions end before their end column.
-        func contains(_ other: Span) -> Bool {
+        func contains(_ other: Self) -> Bool {
             start <= other.start && other.end <= end
         }
     }
@@ -767,6 +767,7 @@ final class ExecutionCounts {
                     expectedOver[span(of: block)] = elseCount
                 }
                 elseLeftEarly = difference(elseCount, walk(block.statements, from: elseCount))
+
             case let .ifExpr(elseIf):
                 elseLeftEarly = difference(elseCount, walk(elseIf, from: elseCount))
             }
@@ -865,6 +866,7 @@ final class ExecutionCounts {
             switch element {
             case let .switchCase(switchCase):
                 total = sum(total, walk(switchCase))
+
             case let .ifConfigDecl(ifConfig):
                 guard let clause = keptClause(of: ifConfig), let elements = clause.elements else {
                     continue

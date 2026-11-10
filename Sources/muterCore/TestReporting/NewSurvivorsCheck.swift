@@ -164,6 +164,7 @@ struct NewSurvivorsCheck: Equatable, Sendable {
         switch verdict {
         case let .notChecked(reason):
             return Self.notCheckedSentence(reason, file: file)
+
         case let .checked(comparison):
             let new = comparison.newSurvivors.count
             let survivors = new == 1 ? "1 new survivor" : "\(new) new survivors"
@@ -229,10 +230,13 @@ struct NewSurvivorsCheck: Equatable, Sendable {
         switch reason {
         case .oneMutant:
             return "\(notChecked): one mutant's run (--mutant) isn't the project's."
+
         case .stoppedOnAnError:
             return "\(notChecked): the run stopped on an error."
+
         case .lacksResults:
             return "\(notChecked): the merged report lacks results."
+
         case .endedEarly:
             return nil
         }

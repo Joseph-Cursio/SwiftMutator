@@ -99,7 +99,7 @@ final class CompileRecoveryTests: MuterTestCase {
 
     func test_aPlacePastTheFilesEnd_isInNoSwitch() throws {
         let file = try file(oneChain)
-        XCTAssertEqual(locator(file).place(line: 9999, column: 1), .outside)
+        XCTAssertEqual(locator(file).place(line: 9_999, column: 1), .outside)
     }
 
     // The compiler counts columns in UTF-8 bytes, and takes a CR LF for one line break.

@@ -37,8 +37,8 @@ struct SwiftLintPhases: Equatable {
         turnedOff.isEmpty && leftRunning.isEmpty && unreadProjects.isEmpty
     }
 
-    static func + (lhs: SwiftLintPhases, rhs: SwiftLintPhases) -> SwiftLintPhases {
-        SwiftLintPhases(
+    static func + (lhs: Self, rhs: Self) -> Self {
+        Self(
             turnedOff: lhs.turnedOff + rhs.turnedOff,
             leftRunning: lhs.leftRunning + rhs.leftRunning,
             unreadProjects: lhs.unreadProjects + rhs.unreadProjects
@@ -55,8 +55,8 @@ struct SwiftLintPhases: Equatable {
     /// Turns SwiftLint off in the project file at `url`, whose project is shown as `project`, and says what it did.
     /// The file is written only when it changes, and atomically: a new file takes its place, so a link in the copy to
     /// a file outside it, such as the project's own, is replaced rather than written through.
-    static func turnOff(inProjectFileAt url: URL, shownAs project: String) -> SwiftLintPhases {
-        guard let data = FileManager.default.contents(atPath: url.path) else { return SwiftLintPhases() }
+    static func turnOff(inProjectFileAt url: URL, shownAs project: String) -> Self {
+        guard let data = FileManager.default.contents(atPath: url.path) else { return Self() }
         let bytes = [UInt8](data)
         let (changed, phases) = turningOff(in: bytes, project: project)
         guard changed != bytes else { return phases }
@@ -64,7 +64,7 @@ struct SwiftLintPhases: Equatable {
             try Data(changed).write(to: url, options: .atomic)
             return phases
         } catch {
-            return SwiftLintPhases(unreadProjects: [project])
+            return Self(unreadProjects: [project])
         }
     }
 
@@ -73,13 +73,13 @@ struct SwiftLintPhases: Equatable {
 
     /// `bytes`, a project file's, with SwiftLint turned off in each of its shell script build phases, and what was
     /// done. Every other byte is left as it was; a script Xcode wrote without quotes is quoted once it is changed.
-    static func turningOff(in bytes: [UInt8], project: String) -> (bytes: [UInt8], phases: SwiftLintPhases) {
+    static func turningOff(in bytes: [UInt8], project: String) -> (bytes: [UInt8], phases: Self) {
         guard let file = XcodeProjectFile(bytes) else {
             let named = String(decoding: bytes, as: UTF8.self).lowercased().contains("swiftlint")
-            return (bytes, SwiftLintPhases(unreadProjects: named ? [project] : []))
+            return (bytes, Self(unreadProjects: named ? [project] : []))
         }
         let targets = targetsOfPhases(in: file)
-        var phases = SwiftLintPhases()
+        var phases = Self()
         var insertions: [(offset: Int, text: String)] = []
         for (identifier, object) in file.objects where object["isa"]?.string == "PBXShellScriptBuildPhase" {
             guard let script = object["shellScript"]?.text else { continue }

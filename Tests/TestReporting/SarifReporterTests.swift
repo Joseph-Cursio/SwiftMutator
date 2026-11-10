@@ -12,11 +12,11 @@ final class SarifReporterTests: MuterTestCase {
         current.readSourceFile = Fixture.read
     }
 
-    private func report(_ outcome: MutationTestOutcome, mostResults: Int = 25000) -> String {
+    private func report(_ outcome: MutationTestOutcome, mostResults: Int = 25_000) -> String {
         SarifReporter(swiftMutatorVersion: "1.2.3", mostResults: mostResults).report(from: outcome)
     }
 
-    private func run(_ outcome: MutationTestOutcome, mostResults: Int = 25000) throws -> SarifLog.Run {
+    private func run(_ outcome: MutationTestOutcome, mostResults: Int = 25_000) throws -> SarifLog.Run {
         let log = try JSONDecoder().decode(SarifLog.self, from: Data(report(outcome, mostResults: mostResults).utf8))
         XCTAssertEqual(log.runs.count, 1)
         return try XCTUnwrap(log.runs.first)

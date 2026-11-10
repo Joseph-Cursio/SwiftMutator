@@ -10,7 +10,7 @@ struct RunSummary: Codable, Equatable {
     /// `survived` no longer holds mutants no test reached, which `notCovered` does.
     static let formatVersion = 2
 
-    var formatVersion = RunSummary.formatVersion
+    var formatVersion = Self.formatVersion
     /// "finished", "interrupted" or "aborted", as the results file's end line says; nil when a run's last session has
     /// no end line yet: it is still running, or was killed.
     let ended: ResultsEnd.Reason?
@@ -113,6 +113,7 @@ struct RunSummary: Codable, Equatable {
                 fixed = comparison.fixed
                 notTested = comparison.notTested
                 matchedWithoutLine = comparison.matchedWithoutLine
+
             case let .notChecked(reason):
                 notChecked = reason
                 new = 0
@@ -237,7 +238,7 @@ struct RunSummary: Codable, Equatable {
         scoreWithoutSuspectsIsALowerBound = score == nil ? nil : suspects?.scoreWithoutSuspectsIsALowerBound
         mutants = outcomes.count
         mutantsByOutcome = OutcomeCounts(outcomes)
-        durationSeconds = (outcome.testDuration * 1000).rounded() / 1000
+        durationSeconds = (outcome.testDuration * 1_000).rounded() / 1_000
         codeCoverage = outcome.coverage == .null ? nil : outcome.coverage.percent
         mutant = outcome.mutant
         shards = outcome.shards

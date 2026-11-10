@@ -52,25 +52,32 @@ enum MergeRefusal: Equatable, CustomStringConvertible {
         case let .notAShard(path):
             return "\(Logger.shellQuoted(path)) isn't the results file of a shard (run --shard), so it can't be "
                 + "merged with others."
+
         case let .inconsistentShard(path):
             return "\(Logger.shellQuoted(path)) records a shard whose counts don't hold together, as a header edited "
                 + "by hand might, so nothing shows what the shard holds."
+
         case let .otherSplits(files):
             let shards = files.map { "\(Logger.shellQuoted($0.path)) is \(Self.named($0.shard))" }
             return "The files are shards of different splits: \(Logger.listed(shards))."
+
         case let .givenTwice(shard, paths):
             let files = Set(paths).count == 1
                 ? "is given \(paths.count) times: \(Logger.shellQuoted(paths[0]))"
                 : "is given more than once: \(Logger.listed(paths.map(Logger.shellQuoted)))"
             return "The results file of \(Self.named(shard)) \(files)."
+
         case let .differs(shard, reference, refusal):
             return Self.describe(refusal, in: shard, from: reference)
+
         case let .filesDiffer(shard, reference, changes):
             return Self.describe(changes, in: shard, from: reference)
+
         case let .splitDifferently(shard, reference):
             return "\(Self.named(shard).capitalizedFirst) discovered the same mutants as \(Self.named(reference)), "
                 + "but split them differently, as a SwiftMutator that splits by another rule would. Run every shard "
                 + "with one SwiftMutator build."
+
         case let .testedTwice(keys):
             let named = keys.prefix(Self.mutantsNamed).map(\.description)
             let others = keys.count - named.count
@@ -95,20 +102,25 @@ enum MergeRefusal: Equatable, CustomStringConvertible {
         case let .configurationChanged(difference), let .timeLimitUnknown(difference):
             return "\(difference.name) \(values(difference, absent: "not set")). The shards must test with one "
                 + "configuration."
+
         case let .selectionChanged(difference):
             return "\(difference.name) \(values(difference, absent: "not set")), so the shards chose their mutants "
                 + "differently."
+
         case let .needsForce(difference):
             let subject = "\(ResumeCheck.subject(of: difference.name)) (\(difference.name))"
             let change = difference.was == nil && difference.isNow == nil
                 ? "is unknown in both, so it may differ"
                 : values(difference, absent: "unknown")
             return "\(subject) \(change). --force-merge merges them anyway."
+
         case .noProjectTree:
             return "\(named(shard).capitalizedFirst)'s file recorded no project files, so nothing shows that the "
                 + "shards tested the same project."
+
         case .testPlanRun, .testPlanChanged, .testPlanNotRecorded:
             return "A run that tests a test plan has no shards to merge."
+
         case .inUse, .filesChanged, .copyChanged, .reportWouldReplaceTheResultsFile,
              .otherReportWouldReplaceTheResultsFile, .baselineFileWouldReplaceTheResultsFile, .stoppedBeforeFirstMutant:
             return refusal.description
@@ -129,8 +141,10 @@ enum MergeRefusal: Equatable, CustomStringConvertible {
             switch change.kind {
             case .changed:
                 return "\(change.path) (differs)"
+
             case .added:
                 return "\(change.path) (only in \(Self.named(shard)))"
+
             case .removed:
                 return "\(change.path) (only in \(Self.named(reference)))"
             }

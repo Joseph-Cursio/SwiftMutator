@@ -128,15 +128,19 @@ struct ScoreGate: Equatable, Sendable {
         switch verdict {
         case .passed:
             sentence = "Mutation score \(shownScore)% meets the required \(threshold)."
+
         case .failed:
             sentence = "Mutation score \(shownScore)% is below the required \(threshold)."
+
         case .nothingScored(tested: 0):
             sentence = progress == nil
                 ? "No mutant was tested, so no score falls short of the required \(threshold)."
                 : "No mutant was tested, so nothing shows the required \(threshold) is met."
+
         case .nothingScored:
             let mutants = progress == nil ? "Every mutant was" : "Every mutant with a result was"
             sentence = "\(mutants) a build error, so nothing shows the required \(threshold) is met."
+
         case let .notChecked(reason):
             return Self.notCheckedSentence(reason, failUnder: failUnder)
         }
@@ -164,13 +168,17 @@ struct ScoreGate: Equatable, Sendable {
         switch reason {
         case .oneMutant:
             return "\(notChecked): one mutant's score (--mutant) isn't the project's."
+
         case .shard:
             return "\(notChecked): a shard's score isn't the whole run's. Check the merged report instead: "
                 + "swift-mutator report --fail-under \(shown(failUnder)) <each shard's results file>"
+
         case .stoppedOnAnError:
             return "\(notChecked): the run stopped on an error."
+
         case .lacksResults:
             return "\(notChecked): the merged report lacks results."
+
         case .endedEarly:
             return nil
         }

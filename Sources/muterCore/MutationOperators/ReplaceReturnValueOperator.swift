@@ -178,16 +178,20 @@ enum EmptyValue: Equatable {
         switch self {
         case .nilLiteral:
             ExprSyntax(NilLiteralExprSyntax())
+
         case .emptyArray:
             ExprSyntax(ArrayExprSyntax(elements: ArrayElementListSyntax([])))
+
         case .emptyDictionary:
             ExprSyntax(DictionaryExprSyntax(content: .colon(.colonToken())))
+
         case .emptyString:
             ExprSyntax(StringLiteralExprSyntax(
                 openingQuote: .stringQuoteToken(),
                 segments: StringLiteralSegmentListSyntax([]),
                 closingQuote: .stringQuoteToken()
             ))
+
         case .zero:
             ExprSyntax(IntegerLiteralExprSyntax(literal: .integerLiteral("0")))
         }
@@ -200,15 +204,19 @@ enum EmptyValue: Equatable {
         switch self {
         case .nilLiteral:
             return core.is(NilLiteralExprSyntax.self)
+
         case .emptyArray:
             return core.as(ArrayExprSyntax.self)?.elements.isEmpty == true
+
         case .emptyDictionary:
             guard case .colon = core.as(DictionaryExprSyntax.self)?.content else { return false }
             return true
+
         case .emptyString:
             return core.as(StringLiteralExprSyntax.self)?.segments.allSatisfy {
                 $0.as(StringSegmentSyntax.self)?.content.text.isEmpty == true
             } == true
+
         case .zero:
             return core.isZero
         }

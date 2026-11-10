@@ -22,23 +22,29 @@ enum ChangeSelectionError: Error, Equatable, CustomStringConvertible {
             return """
             --since needs the project in a git repository that doesn't ignore it, and \(project) isn't.
             """
+
         case let .unknownRef(ref):
             return """
             --since: git doesn't know \(ref) here. In a shallow clone, as CI checks out by default, fetch it first, \
             or fetch the whole history (actions/checkout's fetch-depth: 0).
             """
+
         case .noCommits:
             return "--since: HEAD names no commit yet, so there is nothing to compare the working tree with."
+
         case let .noMergeBase(ref):
             return """
             --since: \(ref) and HEAD have no common commit git knows. In a shallow clone, fetch more history \
             (actions/checkout's fetch-depth: 0).
             """
+
         case let .unmerged(paths):
             return "--since: resolve the merge conflicts in \(paths.joined(separator: ", ")) first."
+
         case let .gitFailed(arguments, errors):
             let trimmed = errors.trimmingCharacters(in: .whitespacesAndNewlines)
             return "--since: git \(arguments.joined(separator: " ")) failed" + (trimmed.isEmpty ? "." : ": \(trimmed)")
+
         case let .changedDuringTheRun(path):
             return """
             --since: \(path) changed after SwiftMutator compared it with the merge base, so its mutants' lines \
@@ -247,8 +253,10 @@ private extension GitDiffParsing.Entry {
         switch status {
         case .modified:
             return [path]
+
         case let .renamed(from):
             return [from, path]
+
         case .added, .deleted, .replaced:
             return nil
         }

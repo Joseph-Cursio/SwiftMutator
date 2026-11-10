@@ -119,16 +119,22 @@ extension XcodebuildArguments {
             switch (argument.kind, argument.name) {
             case (.action, _):
                 return true
+
             case (.option, "-derivedDataPath"):
                 return worker != nil
+
             case (.option, "-collect-test-diagnostics"):
                 return worker?.testDiagnosticsOff == true
+
             case let (.option, name) where Self.parallelTestingOptions.contains(name):
                 return worker?.parallelTestingOff == true
+
             case (.option, "-only-testing"):
                 return filtered
+
             case let (.option, name):
                 return Self.leftOutOfARunFromTheTestRunFile.contains(name)
+
             case (.other, _):
                 return false
             }
@@ -177,28 +183,35 @@ extension XcodebuildArguments {
              (.action, "clean"),
              (.action, "build"):
             return nil
+
         case (.action, "build-for-testing"),
              (.action, "test-without-building"):
             return "`\(name)` in `arguments` is an action SwiftMutator runs itself: it builds once with "
                 + "`build-for-testing`, then tests each mutant with `test-without-building`. Give `test` as the action "
                 + "instead."
+
         case (.action, _):
             return "`\(name)` in `arguments` isn't an action SwiftMutator can test with: it runs your tests with "
                 + "`test`, and builds them with `build-for-testing` itself. Give `test` as the action instead."
+
         case (.option, "-xctestrun"):
             return "`-xctestrun` in `arguments` names what SwiftMutator tests each mutant from itself, the "
                 + "`.xctestrun` its build for testing writes. Leave it out, and name the project or workspace and the "
                 + "scheme to build, with `-project` or `-workspace` and `-scheme`."
+
         case (.option, "-testProductsPath"):
             return "`-testProductsPath` in `arguments` can't be used: each mutant's run tests from the `.xctestrun` "
                 + "SwiftMutator's build for testing writes, which xcodebuild won't take with it. Leave it out."
+
         case (.option, "-resultBundlePath"):
             return "`-resultBundlePath` in `arguments` would have SwiftMutator's coverage run, build for testing and "
                 + "baseline write one result bundle, and xcodebuild fails a run whose bundle is already there. Leave "
                 + "it out."
+
         case (.option, "-enumerate-tests"):
             return "`-enumerate-tests` in `arguments` lists the tests without running them, so every mutant would "
                 + "survive. Leave it out."
+
         default:
             return nil
         }

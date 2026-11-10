@@ -44,6 +44,7 @@ final class DiscoverProjectCoverage: MutationStep {
             events.send(.projectCoverageDiscoveryFinished(nil))
 
             return [.projectCoverage(coverage)]
+
         case let .failure(error):
             events.send(.projectCoverageDiscoveryFinished(CoverageFailure(reason: error.reason, log: log)))
 

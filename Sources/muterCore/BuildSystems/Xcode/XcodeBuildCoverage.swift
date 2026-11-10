@@ -40,6 +40,7 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
             switch Self.failedTestsToKeep(in: testRun, log: log) {
             case let .success(failedTests):
                 return await coverage(configuration, printedBy: testRun, failedTests: failedTests)
+
             case let .failure(error): return .failure(error)
             }
         }
@@ -89,6 +90,7 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
                     testsFailedWithCoverageOn: failedTests
                 )
             )
+
         case .failure(.noProjectFilesInXccovReport):
             return await export().flatMap { export in
                 Self.coverage(
@@ -100,6 +102,7 @@ final class XcodeBuildCoverage: BuildSystemCoverage {
                     testsFailedWithCoverageOn: failedTests
                 )
             }
+
         case let .failure(error):
             return .failure(error)
         }

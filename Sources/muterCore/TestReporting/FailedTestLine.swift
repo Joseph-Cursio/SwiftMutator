@@ -228,9 +228,11 @@ extension FailedTestLine {
         switch text[separator] {
         case ": ":
             return nil
+
         case " at ":
             // Right there, so a location the issue's description mentions is never taken for it.
             (options, start) = (.anchored, separator.lowerBound)
+
         default:
             // " with 2 arguments ": the location follows the arguments.
             (options, start) = ([], separator.upperBound)

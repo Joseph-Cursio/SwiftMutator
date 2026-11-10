@@ -9,7 +9,7 @@ final class WorkerSimulatorsTests: MuterTestCase {
     private let mutatedProject = URL(fileURLWithPath: "/tmp/App_mutated")
     /// The first 8 hex digits of the SHA-256 of `/tmp/App_mutated`.
     private let projectHash = "fd200ba3"
-    private let owner = RecordedProcess(id: 4242, started: 1_700_000_000_123_456)
+    private let owner = RecordedProcess(id: 4_242, started: 1_700_000_000_123_456)
     private var simctl = SimctlStandIn(list: nil)
 
     override func setUp() {
@@ -125,8 +125,10 @@ final class WorkerSimulatorsTests: MuterTestCase {
                         + "(domain=com.apple.CoreSimulator.SimError, code=405):\n"
                         + "Unable to clone device in current state: Booted\n"
                 )
+
             case "clone":
                 .init(output: "CCCCCCCC-0000-0000-0000-00000000000\(arguments[2].suffix(1))\n")
+
             default:
                 nil
             }

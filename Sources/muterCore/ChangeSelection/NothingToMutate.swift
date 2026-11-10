@@ -31,19 +31,24 @@ struct NothingToMutate: Error, Equatable, CustomStringConvertible {
         switch reason {
         case .noSwiftFileChanged:
             why = "No Swift file changed \(since)"
+
         case let .everyFileExcluded(count):
             why = "\(files(count)) changed \(since), and the excludes leave out \(count == 1 ? "it" : "every one")"
+
         case let .noTargetCompiles(count):
             why = "\(files(count)) changed \(since), and no target compiles \(count == 1 ? "it" : "any of them")"
+
         case let .noFileDiscovered(count):
             why = "\(files(count)) changed \(since), and discovery leaves out \(count == 1 ? "it" : "every one"): "
                 + "no target compiles \(count == 1 ? "it" : "them"), "
                 + "or the tests don't cover \(count == 1 ? "it" : "them")"
+
         case let .noMutantInChangedFiles(count):
             let none = chosenOperators.map { "none of the operators chosen (\(Self.listed($0))) mutates" }
                 ?? "no operator mutates"
             why = "\(files(count)) changed \(since), and \(none) any code in "
                 + (count == 1 ? "it" : "them")
+
         case .noMutantOnChangedLines:
             let mutant = chosenOperators.map { "No mutant of the operators chosen (\(Self.listed($0)))" } ?? "No mutant"
             why = "\(mutant) is on a line added or changed \(since)"

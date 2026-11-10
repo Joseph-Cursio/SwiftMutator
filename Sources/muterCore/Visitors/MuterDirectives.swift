@@ -17,12 +17,16 @@ enum MuterDirective: String, CaseIterable {
         switch piece {
         case let .lineComment(comment):
             text = comment.dropFirst(2)
+
         case let .docLineComment(comment):
             text = comment.dropFirst(3)
+
         case let .blockComment(comment):
             text = comment.dropFirst(2).dropLast(2)
+
         case let .docBlockComment(comment):
             text = comment.dropFirst(3).dropLast(2)
+
         default:
             return nil
         }
@@ -61,10 +65,12 @@ struct MuterDirectives {
                     switch MuterDirective(piece) {
                     case .disableNextLine:
                         ranges.append(Self.line(after: end, converter: converter))
+
                     case .disableDeclaration:
                         let first = isLeading ? token : Self.firstToken(onTheLineOf: token, converter: converter)
                         let node = Self.declaration(startingWith: first)
                         ranges.append(node.positionAfterSkippingLeadingTrivia ..< node.endPositionBeforeTrailingTrivia)
+
                     default:
                         break
                     }

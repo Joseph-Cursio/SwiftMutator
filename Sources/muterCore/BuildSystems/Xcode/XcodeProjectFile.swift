@@ -14,11 +14,11 @@ struct XcodeProjectFile {
     indirect enum Value {
         case text(Text)
         /// A dictionary's entries, in the file's order.
-        case dictionary([(key: String, value: Value)])
-        case array([Value])
+        case dictionary([(key: String, value: Self)])
+        case array([Self])
 
         /// The value of `key`, if this is a dictionary that has it.
-        subscript(key: String) -> Value? {
+        subscript(key: String) -> Self? {
             guard case let .dictionary(entries) = self else { return nil }
             return entries.first { $0.key == key }?.value
         }
@@ -32,12 +32,12 @@ struct XcodeProjectFile {
             text?.value
         }
 
-        var items: [Value] {
+        var items: [Self] {
             guard case let .array(items) = self else { return [] }
             return items
         }
 
-        var entries: [(key: String, value: Value)] {
+        var entries: [(key: String, value: Self)] {
             guard case let .dictionary(entries) = self else { return [] }
             return entries
         }
@@ -83,6 +83,7 @@ struct XcodeProjectFile {
             case UInt8(ascii: "b"): decoded.append((0x08, offset))
             case UInt8(ascii: "f"): decoded.append((0x0C, offset))
             case UInt8(ascii: "v"): decoded.append((0x0B, offset))
+
             case UInt8(ascii: "U"):
                 var scalar: UInt32 = 0
                 var digits = 0
@@ -93,6 +94,7 @@ struct XcodeProjectFile {
                 }
                 let character = Unicode.Scalar(scalar) ?? "\u{FFFD}"
                 decoded += Array(String(character).utf8).map { ($0, offset) }
+
             case octalDigits:
                 var value = UInt32(escaped - UInt8(ascii: "0"))
                 var digits = 1
@@ -102,6 +104,7 @@ struct XcodeProjectFile {
                     digits += 1
                 }
                 decoded.append((UInt8(truncatingIfNeeded: value), offset))
+
             default:
                 decoded.append((escaped, offset))
             }
@@ -134,11 +137,14 @@ private extension XcodeProjectFile {
             case UInt8(ascii: "{"):
                 index += 1
                 return dictionary()
+
             case UInt8(ascii: "("):
                 index += 1
                 return array()
+
             case UInt8(ascii: "\""):
                 return quotedText().map(Value.text)
+
             default:
                 return unquotedText().map(Value.text)
             }

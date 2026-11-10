@@ -210,20 +210,26 @@ extension CoverageError {
         switch self {
         case .build:
             return "xcodebuild gave no coverage report"
+
         case let .couldNotRun(command):
             return "\(command) couldn't be started"
+
         case let .timedOut(seconds):
             return "the tests with coverage on didn't end within \(String(format: "%g", seconds)) s (buildTimeout), "
                 + "so SwiftMutator stopped them"
+
         case let .endedBySignal(signal):
             return "the tests with coverage on were ended by signal \(signal)"
+
         case let .testProcessCrashed(process, failedTests):
             return Self.withoutProfile("a test process crashed with coverage on (\(process))", failedTests)
+
         case let .testProcessUnfinished(process, failedTests):
             return Self.withoutProfile(
                 "a test process stopped before its tests finished with coverage on (\(process))",
                 failedTests
             )
+
         case let .testProcessRelaunched(process, failedTests):
             return Self.naming(
                 failedTests,
@@ -231,30 +237,42 @@ extension CoverageError {
                     + "and Xcode relaunched it without finishing the tests it was running, "
                     + "so the code they would have run would read as never run"
             )
+
         case let .runFailed(status, error?):
             return "the coverage run failed (exit status \(status)): \(error)"
+
         case let .runFailed(status, nil):
             return "the coverage run failed (exit status \(status)) without naming a failed test or an error"
+
         case .noBuildDirectory:
             return "`swift test --show-codecov-path` didn't say where the build is"
+
         case let .noProfileData(path):
             return "there is no profile data at \(path)"
+
         case let .noTestBundles(directory):
             return "there is no test bundle in \(directory)"
+
         case let .mergeFailed(message):
             let failed = "a test failed with coverage on, "
                 + "and llvm-profdata couldn't merge the profiles the test processes left"
             return message.isEmpty ? failed : "\(failed): \(message)"
+
         case let .llvmCovFailed(message):
             return message.isEmpty ? "llvm-cov failed" : "llvm-cov failed: \(message)"
+
         case .unreadableReport:
             return "llvm-cov's report couldn't be read"
+
         case .noProjectFiles:
             return "llvm-cov's report covers none of the project's source files"
+
         case .noProjectFilesInXccovReport:
             return "xccov's report covers none of the project's source files"
+
         case .noBuiltProducts:
             return "none of the products xccov says the coverage run built exists"
+
         case .noXcodeBuildFolder:
             return "the coverage run's profile couldn't be found: its result bundle isn't in <DerivedData>/Logs/Test, "
                 + "nor its products in <DerivedData>/Build/Products, "

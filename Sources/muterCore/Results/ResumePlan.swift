@@ -241,6 +241,7 @@ extension ResumePlan {
         switch record.outcome {
         case .failed, .runtimeError:
             return changes.killHolds(record) ? nil : .testsChanged
+
         default:
             return .testsChanged
         }

@@ -165,12 +165,14 @@ extension XcodeBuildConditions {
             switch component {
             case ".":
                 continue
+
             case "..":
                 if let last = components.last, last != ".." {
                     components.removeLast()
                 } else if !path.hasPrefix("/") {
                     components.append(component)
                 }
+
             default:
                 components.append(component)
             }
@@ -234,13 +236,17 @@ private struct ProjectFile {
         switch object["sourceTree"] as? String {
         case "SOURCE_ROOT":
             base = sourceRoot
+
         case "<group>":
             switch parents[id] {
             case nil: base = id == mainGroup ? sourceRoot : nil
+
             case let groups? where groups.count == 1:
                 base = groups.first.flatMap { unnormalizedLocation(of: $0, steps: steps + 1) }
+
             default: base = nil
             }
+
         default:
             base = nil
         }
@@ -411,6 +417,7 @@ private final class WorkspaceLocations: NSObject, XMLParserDelegate {
         case "Group":
             // A group without a location is only a name, so its references are relative to the group it is in.
             groups.append(attributeDict["location"].map(resolve) ?? currentGroup)
+
         case "FileRef":
             guard let location = attributeDict["location"] else { return }
             if location.hasPrefix("self:") {
@@ -424,6 +431,7 @@ private final class WorkspaceLocations: NSObject, XMLParserDelegate {
             } else {
                 hasAnUnknownLocation = true
             }
+
         default:
             break
         }
@@ -458,8 +466,10 @@ private final class WorkspaceLocations: NSObject, XMLParserDelegate {
         switch kind {
         case "group":
             base = currentGroup
+
         case "container":
             base = container
+
         default:
             return nil
         }

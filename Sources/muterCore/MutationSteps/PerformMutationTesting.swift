@@ -58,8 +58,8 @@ struct PerformMutationTesting: MutationStep {
     }
 
     init(
-        makeWorkerDirectories: @escaping (URL, Int) async throws -> [URL] = PerformMutationTesting.cloneMutatedProject,
-        removeWorkerDirectories: @escaping ([URL]) -> Void = PerformMutationTesting.removeClones
+        makeWorkerDirectories: @escaping (URL, Int) async throws -> [URL] = Self.cloneMutatedProject,
+        removeWorkerDirectories: @escaping ([URL]) -> Void = Self.removeClones
     ) {
         self.makeWorkerDirectories = makeWorkerDirectories
         self.removeWorkerDirectories = removeWorkerDirectories
@@ -732,6 +732,7 @@ private extension PerformMutationTesting {
             switch task {
             case let .mutant(mutant):
                 index = mutant
+
             case let .control(number):
                 let finished = try await Self.runControl(
                     number,
@@ -1265,6 +1266,7 @@ extension PerformMutationTesting {
         outcome.rerun = rerun
         let log = switch rerun?.because {
         case nil: MutationTestLog.keptFileName(for: key)
+
         // A kill can be tested again for not showing its code ran, and then for this, each with a log of its own.
         case MutantResult.Rerun.onlySuspectTestsFailed: MutationTestLog.suspectRerunFileName(for: key)
         default: MutationTestLog.rerunFileName(for: key)

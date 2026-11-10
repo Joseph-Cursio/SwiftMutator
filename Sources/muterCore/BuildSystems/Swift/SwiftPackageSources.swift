@@ -25,15 +25,20 @@ enum SwiftPackageSources {
             switch self {
             case let .notSwift(command):
                 return "the test command, \(command), isn't swift"
+
             case let .packageOutsideProject(path):
                 return "the package the test command names, \(path), isn't in the project"
+
             case let .couldNotRun(command):
                 return "\(command) couldn't be started"
+
             case let .describeFailed(path, error):
                 let failed = "`swift package describe` failed for \(path)"
                 return error.isEmpty ? failed : "\(failed): \(error)"
+
             case let .unreadableDescription(path):
                 return "what `swift package describe` printed for \(path) couldn't be read"
+
             case let .noPackage(path):
                 return "there's no Package.swift in \(path)"
             }
@@ -119,6 +124,7 @@ enum SwiftPackageSources {
             switch await describe(path, with: swift, options: options, process: process) {
             case let .success(packageDescription):
                 description = packageDescription
+
             case let .failure(failure):
                 return .failure(failure)
             }

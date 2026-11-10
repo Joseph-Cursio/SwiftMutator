@@ -75,7 +75,7 @@ struct ColoredProgressBarLine: ProgressElementType {
         let color = colorMap(completedBarElements)
         var barArray = [String](repeating: "-".applyingColor(color), count: completedBarElements)
         barArray += [String](repeating: " ", count: barLength - completedBarElements)
-        return "[" + barArray.joined(separator: "") + "]"
+        return "[" + barArray.joined() + "]"
     }
 }
 struct ProgressBarMultilineTerminalPrinter: ProgressBarPrinter {

@@ -262,7 +262,7 @@ extension AcceptanceTests {
             try contentsOfFileAsString("\(rootTestDirectory)/samples/muters_with_coverage_output.txt")
         }
     }
-    
+
     var muterWithTimeoutOutput: String {
         get throws {
             try contentsOfFileAsString("\(rootTestDirectory)/samples/muters_timeout_output.txt")

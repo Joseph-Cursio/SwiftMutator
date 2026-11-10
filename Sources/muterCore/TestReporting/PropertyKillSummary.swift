@@ -132,13 +132,16 @@ extension PropertyKillSummary {
                 // The properties the rerun saw failing killed it too, with the examples its own run recorded.
                 properties = Set((rerun?.killingTests?.tests ?? []).map(FailedTestLine.TestIdentity.init))
                     .filter(isProperty)
+
             case (true, _):
                 examplesOnly += 1
                 // Every property passed with it on, so no property was hidden, however the list was cut short.
                 if !isComplete, rerun?.outcome != .passed { examplesOnlyIncomplete += 1 }
+
             case (false, true):
                 propertiesOnly += 1
                 if !isComplete { propertiesOnlyIncomplete += 1 }
+
             case (false, false):
                 both += 1
             }

@@ -615,13 +615,17 @@ private extension TestSuiteOutcome {
         switch self {
         case .passed:
             icon = testPassed
+
         case .failed,
              .runtimeError:
             icon = testFailed
+
         case .buildError:
             icon = testBuildError
+
         case .noCoverage:
             icon = skipped
+
         case .timeout:
             icon = testTimeout
         }

@@ -15,8 +15,10 @@ class MutationStepSpy: Spy, MutationStep {
         switch resultToReturn {
         case let .success(result):
             return result
+
         case let .failure(failure):
             throw failure
+
         case .none:
             throw MuterError.literal(reason: #function)
         }

@@ -26,7 +26,7 @@ class MuterTestCase: XCTestCase {
     // Every field down to the minute is given, so there is always such a date.
     private let fixedNow = DateComponents(
         calendar: .init(identifier: .gregorian),
-        year: 2021,
+        year: 2_021,
         month: 1,
         day: 20,
         hour: 2,
@@ -120,9 +120,8 @@ class MuterTestCase: XCTestCase {
 
                 if !schemataMapping.isEmpty {
                     return newSchemataMappings + [schemataMapping]
-                } else {
-                    return newSchemataMappings
                 }
+                return newSchemataMappings
             }.mergeByFilePath()
     }
 

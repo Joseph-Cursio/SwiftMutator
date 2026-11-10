@@ -298,9 +298,11 @@ final class ResultsFileTests: XCTestCase {
                 writes += 1
                 switch writes {
                 case 1: return write(descriptor, bytes, 5)
+
                 case 2:
                     errno = EINTR
                     return -1
+
                 default: return write(descriptor, bytes, count)
                 }
             },
@@ -329,6 +331,7 @@ final class ResultsFileTests: XCTestCase {
             switch writes {
             case 1: return write(descriptor, bytes, count)
             case 2: return write(descriptor, bytes, 10)
+
             default:
                 errno = ENOSPC
                 return -1
@@ -472,7 +475,7 @@ final class ResultsFileTests: XCTestCase {
     func test_aRecordFromAnotherHost_isNamedAsUnchecked() throws {
         try writeHoldersRecord("81234 1700000000000000 another-host.invalid\n")
         try holdLockWithoutRecording(resultsPath)
-        let holder = LockHolder(process: 81234, started: 1_700_000_000_000_000, host: "another-host.invalid")
+        let holder = LockHolder(process: 81_234, started: 1_700_000_000_000_000, host: "another-host.invalid")
 
         XCTAssertThrowsError(try ResultsFile.Opener().openForResume(at: resultsPath)) { error in
             XCTAssertEqual(error as? ResultsFileError, .inUse(path: resultsPath, holder: .unchecked(holder)))
@@ -493,13 +496,13 @@ final class ResultsFileTests: XCTestCase {
     func test_aRecord_namesItsProcess_andItsHostIfItHasOne() {
         XCTAssertEqual(
             LockHolder(record: "81234 1700000000000000 studio.local\n"),
-            LockHolder(process: 81234, started: 1_700_000_000_000_000, host: "studio.local")
+            LockHolder(process: 81_234, started: 1_700_000_000_000_000, host: "studio.local")
         )
         XCTAssertEqual(
             LockHolder(record: "81234 1700000000000000\n"),
-            LockHolder(process: 81234, started: 1_700_000_000_000_000, host: "")
+            LockHolder(process: 81_234, started: 1_700_000_000_000_000, host: "")
         )
-        XCTAssertEqual(LockHolder(process: 81234, started: 1, host: "").line, "81234 1\n")
+        XCTAssertEqual(LockHolder(process: 81_234, started: 1, host: "").line, "81234 1\n")
         XCTAssertNil(LockHolder(record: "0 1700000000000000\n"))
     }
 
@@ -678,7 +681,7 @@ final class ResultsFileTests: XCTestCase {
             ResultsFileError.inUse(path: "/logs/results.jsonl", holder: nil).description,
             "/logs/results.jsonl is in use by another SwiftMutator run"
         )
-        let holder = LockHolder(process: 81234, started: 1_700_000_000_000_000, host: "studio.local")
+        let holder = LockHolder(process: 81_234, started: 1_700_000_000_000_000, host: "studio.local")
         XCTAssertEqual(
             ResultsFileError.inUse(path: "/logs/results.jsonl", holder: .running(holder)).description,
             "/logs/results.jsonl is in use by another SwiftMutator run (process 81234 on studio.local)"

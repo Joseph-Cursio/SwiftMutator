@@ -182,7 +182,7 @@ final class PerformMutationTestingTimeoutRerunTests: MuterTestCase {
         ioDelegate.testSuiteOutcomes = Array(repeating: .passed, count: 8) + Array(repeating: .timeout, count: 8)
             + Array(repeating: .passed, count: 8)
         // Each run takes a moment, so the reruns overlap.
-        ioDelegate.whileRunningMutant = { _ in usleep(2000) }
+        ioDelegate.whileRunningMutant = { _ in usleep(2_000) }
         var started: [TimeoutReruns] = []
         whenSent(.timeoutRerunsStarted) { ($0.object as? TimeoutReruns).map { started.append($0) } }
 

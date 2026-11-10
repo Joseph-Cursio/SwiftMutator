@@ -33,10 +33,10 @@ enum ProcessTree {
     /// How long a kill waits before it first checks that its processes ended. None measured read as ended in under
     /// 50 µs, so a check made at once would only find them all running. A small process took a median of 0.4 ms, and a
     /// `swiftpm-testing-helper` running SwiftProjectLint's tests, with 57 threads, a median of 11 ms.
-    static let firstKillPauseMicroseconds: useconds_t = 1000
+    static let firstKillPauseMicroseconds: useconds_t = 1_000
 
     /// The longest a kill waits between two checks.
-    static let longestKillPauseMicroseconds: useconds_t = 10000
+    static let longestKillPauseMicroseconds: useconds_t = 10_000
 
     /// How long a kill pauses in all, at most, for a process SIGKILL can't end, as one held in the kernel. It holds up
     /// the worker, or a second signal behind a stopping run's sweep, for that long, and longer under load, as pauses

@@ -528,7 +528,7 @@ final class LoggerTests: MuterTestCase {
     // Rounded up, so any time left reads as at least 1 min, and in hours once there are 60 minutes. It said "1 minutes"
     // and "2 minute", and gave a long run in minutes alone.
     func test_theTimeLeft_readsInWholeMinutes_andInHoursFromAnHour() {
-        let seconds: [TimeInterval] = [0, 1, 60, 61, 3540, 3600, 3660, 7500, 86400]
+        let seconds: [TimeInterval] = [0, 1, 60, 61, 3_540, 3_600, 3_660, 7_500, 86_400]
 
         XCTAssertEqual(seconds.map(SimpleTimeEstimate.text(secondsLeft:)), [
             "0 min", "1 min", "1 min", "2 min", "59 min",
@@ -617,15 +617,15 @@ final class LoggerTests: MuterTestCase {
     func test_theProgressBar_fitsIn80Columns() {
         let milliseconds = Locked<UInt64>(1_000_000)
         current.instant = { DispatchTime(uptimeNanoseconds: milliseconds.value * 1_000_000) }
-        sut.resumePlanned(.make(reused: 0, toTest: 2000, retestedBecause: [.notRecorded: 2000]))
+        sut.resumePlanned(.make(reused: 0, toTest: 2_000, retestedBecause: [.notRecorded: 2_000]))
 
         // 2,000 mutants, 46 s each, on one worker: "ETC: 25 h 34 min" at first.
         sut.newMutationTestLogAvailable(
-            mutationTestLog: .make(timePerBuildTestCycle: 46, remainingMutationPointsCount: 2000)
+            mutationTestLog: .make(timePerBuildTestCycle: 46, remainingMutationPointsCount: 2_000)
         )
         sut.mutantRunsStarted()
-        for _ in 0 ..< 2000 {
-            milliseconds.change { $0 += 46000 }
+        for _ in 0 ..< 2_000 {
+            milliseconds.change { $0 += 46_000 }
             sut.newMutationTestLogAvailable(mutationTestLog: .make(mutationPoint: .make()))
         }
 
@@ -633,7 +633,7 @@ final class LoggerTests: MuterTestCase {
         let widths = lines.map {
             $0.replacingOccurrences(of: "\u{1B}\\[[0-9;]*[A-Za-z]", with: "", options: .regularExpression).count
         }
-        XCTAssertEqual(lines.count, 2 * 2001) // every draw, from 0 to all 2,000
+        XCTAssertEqual(lines.count, 2 * 2_001) // every draw, from 0 to all 2,000
         let widest = widths.max() ?? 0
         XCTAssertTrue(widest <= 80, "\(widest) columns")
     }
@@ -646,7 +646,7 @@ final class LoggerTests: MuterTestCase {
         let seconds = Locked<UInt64>(0)
         let start = current.now()
         // 7 h 16 min 10 s on, so the times of day pad 0, 1 and 9 with a 0, but not 10.
-        current.now = { start.addingTimeInterval(TimeInterval(seconds.value) + 26170) }
+        current.now = { start.addingTimeInterval(TimeInterval(seconds.value) + 26_170) }
         current.instant = { DispatchTime(uptimeNanoseconds: (1 + seconds.value) * 1_000_000_000) }
         try sut.mutationsDiscoveryFinished(mutations: (0 ..< 3).map { _ in try makeSchemataMapping() })
         let printedBefore = printer.linesPassed.count
@@ -827,9 +827,9 @@ final class LoggerTests: MuterTestCase {
         try sut.mutationsDiscoveryFinished(mutations: Array(repeating: makeSchemataMapping(), count: 4))
         let printedBefore = printer.linesPassed.count
 
-        sut.resumePlanned(.make(reused: 1103, toTest: 1394, retestedBecause: [.buildError: 5, .notRecorded: 1389]))
+        sut.resumePlanned(.make(reused: 1_103, toTest: 1_394, retestedBecause: [.buildError: 5, .notRecorded: 1_389]))
 
-        XCTAssertEqual(sut.numberOfMutationPoints, 1394)
+        XCTAssertEqual(sut.numberOfMutationPoints, 1_394)
         sut.resumePlanned(
             .make(
                 reused: 1,
@@ -851,7 +851,7 @@ final class LoggerTests: MuterTestCase {
     }
 
     func test_resumePlanned_withNothingLeft_saysSo() {
-        sut.resumePlanned(.make(reused: 2497, toTest: 0, retestedBecause: [:]))
+        sut.resumePlanned(.make(reused: 2_497, toTest: 0, retestedBecause: [:]))
         sut.resumePlanned(.make(reused: 1, toTest: 0, retestedBecause: [:]))
 
         XCTAssertEqual(printer.linesPassed, [
@@ -950,16 +950,16 @@ final class LoggerTests: MuterTestCase {
     func test_resumePlanned_warnsOfEarlierResultsNoLongerDiscovered_inBothBranches() {
         sut.resumePlanned(
             .make(
-                reused: 1100,
+                reused: 1_100,
                 toTest: 100,
                 retestedBecause: [.notRecorded: 100],
                 noLongerDiscovered: 412,
-                discoveredBefore: 2000,
+                discoveredBefore: 2_000,
                 coverageChange: .gatheredOnlyNow
             )
         )
         sut.resumePlanned(
-            .make(reused: 1200, toTest: 0, retestedBecause: [:], noLongerDiscovered: 1, discoveredBefore: 1201)
+            .make(reused: 1_200, toTest: 0, retestedBecause: [:], noLongerDiscovered: 1, discoveredBefore: 1_201)
         )
         sut.resumePlanned(
             .make(
@@ -991,10 +991,10 @@ final class LoggerTests: MuterTestCase {
     func test_resumePlanned_warnsOfAChangedNumberOfMutantsDiscovered_withWhyWhenCoverageSays() {
         sut.resumePlanned(
             .make(
-                reused: 1200,
+                reused: 1_200,
                 toTest: 800,
                 retestedBecause: [.notRecorded: 800],
-                discoveredBefore: 1200,
+                discoveredBefore: 1_200,
                 coverageChange: .gatheredOnlyThen
             )
         )
@@ -1027,11 +1027,11 @@ final class LoggerTests: MuterTestCase {
     func test_resumePlanned_givesACoverageChangeAsTheReason_onlyWhenItCanMoveTheCountThatWay() {
         sut.resumePlanned(
             .make(
-                reused: 1100,
+                reused: 1_100,
                 toTest: 900,
                 retestedBecause: [.notRecorded: 900],
                 noLongerDiscovered: 30,
-                discoveredBefore: 1130,
+                discoveredBefore: 1_130,
                 coverageChange: .gatheredOnlyThen
             )
         )

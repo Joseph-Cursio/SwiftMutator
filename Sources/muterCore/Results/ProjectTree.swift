@@ -194,10 +194,13 @@ extension ProjectTree {
             switch (recorded.files[path], files[path]) {
             case let (was?, isNow?):
                 return was == isNow ? nil : FileChange(path: path, kind: .changed)
+
             case (nil, _?):
                 return FileChange(path: path, kind: .added)
+
             case (_?, nil):
                 return FileChange(path: path, kind: .removed)
+
             case (nil, nil):
                 return nil
             }
@@ -311,12 +314,14 @@ private extension ProjectTree {
     /// for something that isn't there.
     static func digest(of url: URL) -> String? {
         switch (try? FileManager.default.attributesOfItem(atPath: url.path))?[.type] as? FileAttributeType {
-        case .typeRegular?:
+        case .typeRegular:
             return FileDigest.sha256(of: url)
-        case .typeSymbolicLink?:
+
+        case .typeSymbolicLink:
             return (try? FileManager.default.destinationOfSymbolicLink(atPath: url.path))
                 .map { FileDigest.sha256(of: Data($0.utf8)) }
                 .map { linkPrefix + $0 }
+
         default:
             return nil
         }

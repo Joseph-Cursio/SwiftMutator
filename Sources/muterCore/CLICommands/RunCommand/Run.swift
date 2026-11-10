@@ -121,8 +121,8 @@ struct Run: RunCommand {
     /// the files and the operators alone, the configuration's too: its path may be the end of one, and a wrong operator
     /// is refused with the mutants near its place, whatever their operators, so every file is discovered with every
     /// operator, and `SelectMutant` picks the mutant.
-    var runOptions: Run.Options {
-        Run.Options(
+    var runOptions: Self.Options {
+        Self.Options(
             filesToMutate: selection.filesToMutate,
             exclude: selection.exclude,
             since: since,

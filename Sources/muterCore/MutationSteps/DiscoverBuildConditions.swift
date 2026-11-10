@@ -44,6 +44,7 @@ struct DiscoverBuildConditions: MutationStep {
         switch conditions {
         case let .success(conditions):
             return [.buildConditionsDiscovered(conditions)]
+
         case let .failure(failure):
             // A command that stopping the run killed reads as failed, and no notice is due.
             try Task.checkCancellation()

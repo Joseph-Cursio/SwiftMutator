@@ -8,7 +8,7 @@ final class SampleTests: XCTestCase {
     // it.
     func test_aPlacesRank_isFixed() {
         XCTAssertEqual(
-            [1, 2, 1234].map { Sample.rank(ofPlace: key("Sources/Sum.swift", line: 3, column: 4), seed: $0) },
+            [1, 2, 1_234].map { Sample.rank(ofPlace: key("Sources/Sum.swift", line: 3, column: 4), seed: $0) },
             [11_193_250_018_876_588_436, 4_200_978_237_720_625_508, 9_794_570_722_480_245_170]
         )
     }
@@ -24,7 +24,7 @@ final class SampleTests: XCTestCase {
 
     func test_theSameSeed_takesTheSameSample_whateverTheOrderOfTheFiles() throws {
         let mappings = try manyPlaces()
-        let sample = Sample(size: 40, seed: 1234, seedIsChosen: false)
+        let sample = Sample(size: 40, seed: 1_234, seedIsChosen: false)
 
         let first = keys(of: mappings.keepingSample(sample, under: mutatedRoot).mappings)
         let reordered = keys(of: Array(mappings.reversed()).keepingSample(sample, under: mutatedRoot).mappings)
@@ -78,7 +78,7 @@ final class SampleTests: XCTestCase {
     func test_aSmallChange_keepsMostOfTheSample() throws {
         let before = try manyPlaces()
         let after = try manyPlaces(skipping: Set(stride(from: 0, to: 200, by: 20)))
-        let sample = Sample(size: 50, seed: 1234, seedIsChosen: false)
+        let sample = Sample(size: 50, seed: 1_234, seedIsChosen: false)
 
         let kept = Set(keys(of: before.keepingSample(sample, under: mutatedRoot).mappings))
         let keptAfter = Set(keys(of: after.keepingSample(sample, under: mutatedRoot).mappings))
@@ -89,24 +89,24 @@ final class SampleTests: XCTestCase {
     // 500 of 2,497 mutants, 76% killed: the issue's own estimate, without Agresti–Coull's 2 and 2, was ±3.4 points.
     func test_theMargin_isTheIntervalsHalfWidth_narrowedForTheSampledPopulation() {
         XCTAssertEqual(
-            SampleScope.marginOfError(killed: 380, scored: 500, sampled: 500, from: 2497),
+            SampleScope.marginOfError(killed: 380, scored: 500, sampled: 500, from: 2_497),
             3.33,
             accuracy: 0.02
         )
         // A larger sample of the same population narrows it.
         XCTAssertLessThan(
-            SampleScope.marginOfError(killed: 760, scored: 1000, sampled: 1000, from: 2497),
-            SampleScope.marginOfError(killed: 380, scored: 500, sampled: 500, from: 2497)
+            SampleScope.marginOfError(killed: 760, scored: 1_000, sampled: 1_000, from: 2_497),
+            SampleScope.marginOfError(killed: 380, scored: 500, sampled: 500, from: 2_497)
         )
         // Every mutant tested: no sampling error.
         XCTAssertEqual(SampleScope.marginOfError(killed: 380, scored: 500, sampled: 500, from: 500), 0)
         // All killed, or none, still has a margin.
-        XCTAssertGreaterThan(SampleScope.marginOfError(killed: 50, scored: 50, sampled: 50, from: 1000), 0)
-        XCTAssertGreaterThan(SampleScope.marginOfError(killed: 0, scored: 50, sampled: 50, from: 1000), 0)
+        XCTAssertGreaterThan(SampleScope.marginOfError(killed: 50, scored: 50, sampled: 50, from: 1_000), 0)
+        XCTAssertGreaterThan(SampleScope.marginOfError(killed: 0, scored: 50, sampled: 50, from: 1_000), 0)
     }
 
     func test_aPartialSample_saysWhatItTested_andTheMargin() throws {
-        let selection = SampleSelection(size: 500, seed: 1234, mutantsSampledFrom: 2497, mutantsSampled: 500)
+        let selection = SampleSelection(size: 500, seed: 1_234, mutantsSampledFrom: 2_497, mutantsSampled: 500)
         let scope = try XCTUnwrap(SampleScope(selection, killed: 380, scored: 500, tested: 500, cutShort: false))
 
         XCTAssertEqual(
@@ -119,7 +119,7 @@ final class SampleTests: XCTestCase {
 
     // A run stopped early has the first files' results, no random part of the sample: no margin.
     func test_aSampleWithoutEveryResult_givesNoMargin() throws {
-        let selection = SampleSelection(size: 500, seed: 1234, mutantsSampledFrom: 2497, mutantsSampled: 500)
+        let selection = SampleSelection(size: 500, seed: 1_234, mutantsSampledFrom: 2_497, mutantsSampled: 500)
         let stopped = try XCTUnwrap(SampleScope(selection, killed: 76, scored: 100, tested: 100, cutShort: true))
 
         XCTAssertNil(stopped.marginOfError)

@@ -93,7 +93,7 @@ final class ScoreDropCheckTests: XCTestCase {
     // 82.09% and 80% show as 82.0% and 80.0% with the limit's one decimal, 2.0 apart, within the 2 allowed, though the
     // drop is past it: one more decimal shows it past it.
     func test_aDropPastTheLimit_thatShowsWithinIt_showsMoreDecimals() {
-        let verdict = check(80, of: 100, against: (8209, 10000))
+        let verdict = check(80, of: 100, against: (8_209, 10_000))
 
         XCTAssertEqual(verdict.passed, false)
         XCTAssertEqual(
@@ -103,19 +103,19 @@ final class ScoreDropCheckTests: XCTestCase {
         )
         // A drop past a limit of 0 that the shown scores hide, however little.
         XCTAssertEqual(
-            check(1, of: 3, against: (33334, 100_000), allowing: 0).line,
+            check(1, of: 3, against: (33_334, 100_000), allowing: 0).line,
             "Mutation score 33.333% is 0.001 points below the baseline file muter.baseline.yml's 33.334%, more than "
                 + "the 0 allowed."
         )
         // Within the limit, the shown scores may be the same.
         XCTAssertEqual(
-            check(1, of: 3, against: (33334, 100_000)).line,
+            check(1, of: 3, against: (33_334, 100_000)).line,
             "Mutation score 33.3% is less than 0.1 points below the baseline file muter.baseline.yml's 33.3%, within "
                 + "the 2 allowed."
         )
         // A rise shows as the difference of the two shown too: 84.0 - 82.0, though the exact rise is 1.91.
         XCTAssertEqual(
-            check(84, of: 100, against: (8209, 10000)).line,
+            check(84, of: 100, against: (8_209, 10_000)).line,
             "Mutation score 84.0% is 2.0 points above the baseline file muter.baseline.yml's 82.0%."
         )
     }
@@ -123,7 +123,7 @@ final class ScoreDropCheckTests: XCTestCase {
     // summary.json's drop is worked out from the counts, as the verdict is: one equal to the limit is the limit, never
     // the difference of two inexact scores, which here is 2.0000000000000036 or 2.0000000000000018.
     func test_theDrop_isExact_soADropEqualToTheLimit_isTheLimit() throws {
-        for (run, recorded) in [((47, 150), (1, 3)), ((176, 1200), (300, 1800))] {
+        for (run, recorded) in [((47, 150), (1, 3)), ((176, 1_200), (300, 1_800))] {
             let verdict = check(run.0, of: run.1, against: recorded)
             XCTAssertEqual(verdict.passed, true)
             XCTAssertEqual(verdict.drop, 2)
@@ -134,7 +134,7 @@ final class ScoreDropCheckTests: XCTestCase {
         }
         XCTAssertEqual(check(1, of: 10, against: (2, 10), allowing: 0.1).drop, 10)
         XCTAssertEqual(check(9, of: 10, against: (1, 10)).drop, -80)
-        XCTAssertEqual(check(899, of: 1000, against: (9, 10), allowing: 0.1).drop, 0.1)
+        XCTAssertEqual(check(899, of: 1_000, against: (9, 10), allowing: 0.1).drop, 0.1)
     }
 
     func test_aRise_orTheSameScore_passes() {

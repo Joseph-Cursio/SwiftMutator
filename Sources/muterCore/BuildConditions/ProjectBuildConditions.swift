@@ -119,7 +119,7 @@ enum LanguageMode: Comparable, Sendable {
 
     /// The language version of a build whose targets have `modes`: theirs if they all have one, and the same one; nil
     /// if any can't be told, or two differ.
-    static func languageVersion(of modes: [LanguageMode?], compiler: VersionTuple?) -> VersionTuple? {
+    static func languageVersion(of modes: [Self?], compiler: VersionTuple?) -> VersionTuple? {
         guard let first = modes.first, let mode = first, modes.allSatisfy({ $0 == mode }) else { return nil }
         return mode.languageVersion(compiler: compiler)
     }

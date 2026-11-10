@@ -175,8 +175,10 @@ private extension MutationTestingAbortReason {
         let what = switch step {
         case .buildForTesting:
             "xcodebuild's build for testing"
+
         case .baseline:
             "the baseline run, which builds your project and runs its tests with no mutant switched on,"
+
         case let .workerBaseline(worker, directory):
             "the baseline run in the copy it made for parallel worker \(worker), at \(directory),"
         }
