@@ -13,7 +13,7 @@ struct ProgressBarTerminalPrinter: ProgressBarPrinter {
 
     mutating func display(_ progressBar: ProgressBar) {
         let currentTime = getTimeOfDay()
-        if currentTime - lastPrintedTime > 0.1 || progressBar.element == progressBar.count {
+        if currentTime - lastPrintedTime > 0.1 || progressBar.element == progressBar.total {
             print("\u{1B}[1A\u{1B}[K\(progressBar.value)")
             lastPrintedTime = currentTime
         }
@@ -23,12 +23,12 @@ struct ProgressBarTerminalPrinter: ProgressBarPrinter {
 // MARK: - ProgressBar
 
 struct ProgressBar {
-    var isEmpty: Bool { count <= 0 }
+    var isEmpty: Bool { total <= 0 }
     /// How many items are done. `next()` draws it, then counts one more.
     private(set) var element = 0
     let startTime = getTimeOfDay()
 
-    let count: Int
+    let total: Int
     let configuration: [ProgressElementType]?
 
     static var defaultConfiguration: [ProgressElementType] {
@@ -48,13 +48,13 @@ struct ProgressBar {
     }
 
     init(count: Int, configuration: [ProgressElementType]? = nil, printer: ProgressBarPrinter? = nil) {
-        self.count = count
+        total = count
         self.configuration = configuration
         self.printer = printer ?? ProgressBarTerminalPrinter()
     }
 
     mutating func next() {
-        guard element <= count else {
+        guard element <= total else {
             return
         }
         let anotherSelf = self
@@ -63,7 +63,7 @@ struct ProgressBar {
     }
 
     mutating func setValue(_ index: Int) {
-        guard index <= count, index >= 0 else {
+        guard index <= total, index >= 0 else {
             return
         }
         element = index

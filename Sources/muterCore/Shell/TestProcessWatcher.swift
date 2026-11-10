@@ -118,7 +118,9 @@ final class TestProcessWatcher: @unchecked Sendable { // `descriptor` is behind 
         lock.withLock {
             guard descriptor >= 0 else { return }
             let bytes = Array(message.utf8)
-            while write(descriptor, bytes, bytes.count) < 0, errno == EINTR {}
+            while write(descriptor, bytes, bytes.count) < 0, errno == EINTR {
+                // Tries again when a signal interrupted the write.
+            }
         }
     }
 

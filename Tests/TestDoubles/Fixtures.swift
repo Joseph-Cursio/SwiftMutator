@@ -318,7 +318,8 @@ extension MuterTestReport.AppliedMutationOperator {
                 mutationOperatorId: mutationOperator,
                 filePath: "filePath",
                 position: MutationPosition(sourceLocation: position)
-            ), mutationSnapshot: mutationSnapshot,
+            ),
+            mutationSnapshot: mutationSnapshot,
             testSuiteOutcome: testOutcome
         )
     }
@@ -418,14 +419,14 @@ extension FileCoverage {
     /// after that when it isn't code, and each function's first region its body.
     static func llvmCov(_ functions: [[[Int]]]) -> FileCoverage {
         FileCoverage(functions: functions.map { regions in
-            regions.map {
+            regions.map { fields in
                 Region(
-                    lineStart: $0[0],
-                    columnStart: $0[1],
-                    lineEnd: $0[2],
-                    columnEnd: $0[3],
-                    executionCount: $0[4],
-                    kind: $0.count > 5 ? Region.Kind(rawValue: $0[5]) ?? .other : .code
+                    lineStart: fields[0],
+                    columnStart: fields[1],
+                    lineEnd: fields[2],
+                    columnEnd: fields[3],
+                    executionCount: fields[4],
+                    kind: fields.count > 5 ? Region.Kind(rawValue: fields[5]) ?? .other : .code
                 )
             }
         })

@@ -600,11 +600,17 @@ private final class SimctlStandIn: MuterProcess, @unchecked Sendable { // every 
 
     func runProcess(url _: String, arguments _: [String]) async -> Data? { nil }
 
-    func run() throws {}
+    func run() throws {
+        // A fake process: nothing runs.
+    }
 
-    func terminate() {}
+    func terminate() {
+        // A fake process: nothing runs.
+    }
 
-    func interrupt() {}
+    func interrupt() {
+        // A fake process: nothing runs.
+    }
 
     func terminateTree() {
         lock.withLock { killed += 1 }

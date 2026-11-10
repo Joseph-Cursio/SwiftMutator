@@ -350,10 +350,10 @@ extension AcceptanceTests {
 
 extension AcceptanceTests {
     func contentsOfLogFile(named fileName: String) throws -> String {
-        try contentsOfDirectory(muterLogsRootPath)
-            .first
-            .map { muterLogsRootPath + $0 + "/" + fileName }
-            .map(contentsOfFileAsString)!
+        guard let logFolder = try contentsOfDirectory(muterLogsRootPath).first else {
+            throw CocoaError(.fileNoSuchFile, userInfo: [NSFilePathErrorKey: muterLogsRootPath])
+        }
+        return try contentsOfFileAsString(muterLogsRootPath + logFolder + "/" + fileName)
     }
 
     func contentsOfDirectory(_ path: String) throws -> [String] {

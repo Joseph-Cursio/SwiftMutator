@@ -253,13 +253,13 @@ final class XcodeBuildCoverageTests: MuterTestCase {
 
     // Follows "Gathering coverage failed: ".
     func test_aRelaunchedTestProcess_saysWhy() {
-        let noTests = FailedTestLine.FailedTests(tests: [], count: 0, firstLine: nil)
+        let noTests = FailedTestLine.FailedTests(tests: [], total: 0, firstLine: nil)
         let twoTests = FailedTestLine.FailedTests(
             tests: [
                 .init(name: "sFails()", location: "STests.swift:10:5"),
                 .init(name: "-[ATests.ATests test_fails]", location: nil),
             ],
-            count: 2,
+            total: 2,
             firstLine: nil
         )
         let relaunched = "and Xcode relaunched it without finishing the tests it was running, "

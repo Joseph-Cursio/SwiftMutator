@@ -160,7 +160,7 @@ final class DiscoverProjectCoverageTests: MuterTestCase {
         state.loggingDirectory = "/logs"
         let failedTests = FailedTestLine.FailedTests(
             tests: [.init(name: "sum()", location: "SumTests.swift:12:5")],
-            count: 1,
+            total: 1,
             firstLine: nil
         )
         current.projectCoverage = { _ in

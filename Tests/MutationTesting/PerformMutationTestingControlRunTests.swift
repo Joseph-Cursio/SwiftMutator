@@ -6,6 +6,7 @@ import XCTest
 /// Control runs: the test command with no mutant on, run among the mutants, whose failed tests are flaky.
 final class PerformMutationTestingControlRunTests: MuterTestCase {
     private typealias Task = PerformMutationTesting.PoolTask
+
     private let state = MutationTestState()
     private let workerClone = URL(fileURLWithPath: "/project_mutated_worker1")
     private let timing = "✘ Test timing() recorded an issue at TimingTests.swift:9:5: Expectation failed: 1.2 < 1.0"

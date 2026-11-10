@@ -114,7 +114,9 @@ struct Run: RunCommand {
     )
     var forceReuse = false
 
-    init() {}
+    init() {
+        // ArgumentParser sets the properties from the command line.
+    }
 
     /// The options the command line gives the run. Without `--seed`, a `--sample` gets a seed chosen afresh each time,
     /// so `run()` asks once. `--mutant` skips coverage, which only leaves files and code out of discovery. It leaves

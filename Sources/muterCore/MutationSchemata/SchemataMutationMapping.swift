@@ -250,6 +250,25 @@ struct SchemataMutationMapping: Sendable {
         codeBlockText[key] = text
         mappings[key, default: []].append(contentsOf: schemata)
     }
+
+    static func + (
+        lhs: Self,
+        rhs: Self
+    ) -> Self {
+        var result = Self(
+            filePath: lhs.filePath
+        )
+
+        let mergedMappings = lhs.mappings.merging(rhs.mappings) { $0 + $1 }
+        let mergedText = lhs.codeBlockText.merging(rhs.codeBlockText) { current, _ in current }
+
+        for (key, schemata) in mergedMappings {
+            result.add(key, text: mergedText[key] ?? key.text, schemata)
+        }
+        result.calledOnTheSpot = lhs.calledOnTheSpot.union(rhs.calledOnTheSpot)
+
+        return result
+    }
 }
 
 extension SchemataMutationMapping: Codable {
@@ -294,25 +313,6 @@ extension SchemataMutationMapping: Equatable {
         lhs.codeBlocks == rhs.codeBlocks &&
             lhs.mutationSchemata == rhs.mutationSchemata
     }
-}
-
-func + (
-    lhs: SchemataMutationMapping,
-    rhs: SchemataMutationMapping
-) -> SchemataMutationMapping {
-    var result = SchemataMutationMapping(
-        filePath: lhs.filePath
-    )
-
-    let mergedMappings = lhs.mappings.merging(rhs.mappings) { $0 + $1 }
-    let mergedText = lhs.codeBlockText.merging(rhs.codeBlockText) { current, _ in current }
-
-    for (key, schemata) in mergedMappings {
-        result.add(key, text: mergedText[key] ?? key.text, schemata)
-    }
-    result.calledOnTheSpot = lhs.calledOnTheSpot.union(rhs.calledOnTheSpot)
-
-    return result
 }
 
 extension [SchemataMutationMapping] {

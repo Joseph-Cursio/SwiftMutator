@@ -138,9 +138,9 @@ extension MutationTestingAbortReason {
     /// nil if it shows none: what the whole log, which follows, can bury.
     static func failedTestsList(in log: String) -> String? {
         let failed = FailedTestLine.failedTests(inLog: log)
-        guard failed.count > 0 else { return nil }
+        guard failed.total > 0 else { return nil }
         let (names, more) = failed.named(upTo: FailedTestLine.killedByLimit)
-        let heading = failed.count == 1 ? "This test failed:" : "These \(failed.count) tests failed:"
+        let heading = failed.total == 1 ? "This test failed:" : "These \(failed.total) tests failed:"
         let lines = names.map { "  \($0)" } + (more > 0 ? ["  and \(more) more"] : [])
         return ([heading] + lines).joined(separator: "\n")
     }

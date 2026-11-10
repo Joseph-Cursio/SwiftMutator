@@ -145,7 +145,9 @@ struct ScoreGate: Equatable, Sendable {
             return Self.notCheckedSentence(reason, failUnder: failUnder)
         }
         var left = ""
-        if case .nothingScored = verdict {} else {
+        if case .nothingScored = verdict {
+            // Nothing was scored, so nothing was left out of the score.
+        } else {
             if leftOutWithOthers > 0 {
                 left += leftOutWithOthers == 1
                     ? " 1 mutant went out of the build with others, and counts here as not killed."

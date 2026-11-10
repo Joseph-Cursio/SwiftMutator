@@ -1,7 +1,7 @@
 import Foundation
 
 extension String {
-    func repeated(_ times: Int) -> String { (0 ..< times).reduce("") { current, _ in current + "\(self)" } }
+    func repeated(_ times: Int) -> String { String(repeating: self, count: max(times, 0)) }
 
     func removingSubrange(_ bounds: Range<String.Index>?) -> String {
         guard let bounds else {

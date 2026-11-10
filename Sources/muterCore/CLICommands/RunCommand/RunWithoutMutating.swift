@@ -31,7 +31,9 @@ struct RunWithoutMutating: RunCommand {
     )
     var testPlanURL: URL?
 
-    init() {}
+    init() {
+        // ArgumentParser sets the properties from the command line.
+    }
 
     /// The options the command line gives the run.
     var runOptions: Run.Options {

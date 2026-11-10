@@ -71,7 +71,9 @@ struct Triage: AsyncParsableCommand {
         case file
     }
 
-    init() {}
+    init() {
+        // ArgumentParser sets the properties from the command line.
+    }
 
     func validate() throws {
         _ = try MutantReference.parse(mutant)

@@ -299,7 +299,7 @@ extension MuterTestReport {
             self.triage = triage
         }
 
-        public init(from decoder: Decoder) throws {
+        init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             mutationPoint = try container.decode(MutationPoint.self, forKey: .mutationPoint)
             testSuiteOutcome = try container.decode(TestSuiteOutcome.self, forKey: .testSuiteOutcome)

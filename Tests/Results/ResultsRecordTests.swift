@@ -457,7 +457,7 @@ final class ResultsRecordTests: XCTestCase {
         let failures = try XCTUnwrap(MutantResult.failedTests(of: run, ignoring: configuration.failedTestLookalikes))
 
         XCTAssertEqual(failures.tests, [FailedTestLine.FailedTest(name: "sum()", location: "SumTests.swift:12:5")])
-        XCTAssertEqual(failures.count, 1)
+        XCTAssertEqual(failures.total, 1)
         XCTAssertEqual(failures.firstLine, real)
         // A run whose only such lines are the baseline's names no test.
         let lookalikeOnly = TestRun(outcome: .failed, testLog: lookalike, ending: .exited, exitStatus: 1)
@@ -468,7 +468,7 @@ final class ResultsRecordTests: XCTestCase {
         XCTAssertNil(none.firstLine)
         // A test the baseline didn't show failing is named even though failed-test lines aren't reliable.
         XCTAssertFalse(configuration.failedTestLinesAreReliable)
-        XCTAssertEqual(MutantResult.failedTests(of: run)?.count, 2)
+        XCTAssertEqual(MutantResult.failedTests(of: run)?.total, 2)
     }
 
     func test_aMutantRecordFromARun_roundsItsDurationToTheMillisecond_andHasAnExitStatusOnlyIfItExited() throws {

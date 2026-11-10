@@ -29,7 +29,7 @@ final class FileManagerSpy: Spy, FileSystemManager, @unchecked Sendable {
         }
     }
 
-    var delegate: FileManagerDelegate?
+    weak var delegate: FileManagerDelegate?
     private(set) var delegateDuringCopy: FileManagerDelegate?
     /// Files that "disappear" during `copyItem`: each is reported to the delegate as a
     /// no-such-file error, the way Foundation reports one, and the copy carries on if it

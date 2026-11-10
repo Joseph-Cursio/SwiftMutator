@@ -288,7 +288,7 @@ extension CoverageError {
 
     /// `reason`, then up to 5 of `failedTests`.
     private static func naming(_ failedTests: FailedTestLine.FailedTests, after reason: String) -> String {
-        guard failedTests.count > 0 else {
+        guard failedTests.total > 0 else {
             return reason
         }
         let (names, more) = failedTests.named(upTo: FailedTestLine.coverageMessageLimit)

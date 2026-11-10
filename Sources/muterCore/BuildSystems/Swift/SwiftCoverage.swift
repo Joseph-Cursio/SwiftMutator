@@ -123,7 +123,7 @@ final class SwiftCoverage: BuildSystemCoverage {
         if let unfinished = unfinishedTestProcess(inLog: log) {
             return .failure(.testProcessUnfinished(unfinished, failedTests: failedTests))
         }
-        guard failedTests.count > 0 else {
+        guard failedTests.total > 0 else {
             return .failure(.runFailed(status: testRun.status, error: firstError(in: log)))
         }
 

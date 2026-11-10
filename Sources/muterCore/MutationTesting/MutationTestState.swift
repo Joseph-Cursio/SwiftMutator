@@ -125,7 +125,9 @@ final class MutationTestState: AnyMutationTestState {
     var uncoveredSourceFiles: [FilePath] = []
     var uncoveredMutants: [UncoveredMutant]?
 
-    init() {}
+    init() {
+        // Every property starts at its default.
+    }
 
     init(from options: Run.Options) {
         runOptions = options

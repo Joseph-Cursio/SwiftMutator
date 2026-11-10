@@ -10,5 +10,7 @@ protocol Reporter: Sendable {
 }
 
 extension Reporter {
-    func newMutationTestOutcomeAvailable(outcomeWithFlush _: MutationOutcomeWithFlush) {}
+    func newMutationTestOutcomeAvailable(outcomeWithFlush _: MutationOutcomeWithFlush) {
+        // A reporter that writes only at the end ignores each outcome.
+    }
 }

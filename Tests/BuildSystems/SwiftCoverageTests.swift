@@ -212,7 +212,7 @@ final class SwiftCoverageTests: MuterTestCase {
             crashes.append(await sut.run(with: muterConfiguration))
         }
 
-        let noTests = FailedTestLine.FailedTests(tests: [], count: 0, firstLine: nil)
+        let noTests = FailedTestLine.FailedTests(tests: [], total: 0, firstLine: nil)
         XCTAssertEqual(crashes, [
             .failure(.testProcessCrashed("BTests.xctest, signal 5", failedTests: noTests)),
             .failure(.testProcessCrashed("ProjectPackageTests.xctest, signal 4", failedTests: noTests)),
@@ -256,7 +256,7 @@ final class SwiftCoverageTests: MuterTestCase {
                     "\(run.bundle), during -[CTests.CTests test_z_killed]",
                     failedTests: FailedTestLine.FailedTests(
                         tests: [.init(name: "-[ATests.ATests test_fails]", location: nil)],
-                        count: 1,
+                        total: 1,
                         firstLine: "Test Case '-[ATests.ATests test_fails]' failed (\(run.seconds) seconds)."
                     )
                 )),
@@ -563,11 +563,11 @@ final class SwiftCoverageTests: MuterTestCase {
 
     // Each follows "Gathering coverage failed: ".
     func test_eachFailure_saysWhy() {
-        let noTests = FailedTestLine.FailedTests(tests: [], count: 0, firstLine: nil)
+        let noTests = FailedTestLine.FailedTests(tests: [], total: 0, firstLine: nil)
         let sevenTests = FailedTestLine.FailedTests(
             tests: [.init(name: "-[CTests.CTests test_a]", location: nil)]
                 + (2 ... 7).map { .init(name: "test\($0)()", location: "BTests.swift:\($0):5") },
-            count: 7,
+            total: 7,
             firstLine: nil
         )
         let errors: [CoverageError] = [
@@ -965,7 +965,7 @@ final class SwiftCoverageTests: MuterTestCase {
             .init(name: "-[CTests.CTests test_failsOnlyUnderCoverage]", location: nil),
             .init(name: "failsOnlyUnderCoverage()", location: "BTests.swift:11:9"),
         ],
-        count: 2,
+        total: 2,
         firstLine: "Test Case '-[CTests.CTests test_failsOnlyUnderCoverage]' failed (0.039 seconds)."
     )
 

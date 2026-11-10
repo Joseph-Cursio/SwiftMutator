@@ -352,12 +352,12 @@ private extension CheckTestPlanSourcesTests {
             formatVersion: files == nil ? 0 : TestPlanCoding.formatVersion,
             swiftMutatorVersion: files == nil ? nil : muterCore.version,
             scope: nil,
-            sources: files.map {
+            sources: files.map { listed in
                 ProjectTree(
                     listedBy: .git,
-                    files: $0,
+                    files: listed,
                     excluded: ["muter.conf.yml"],
-                    treeSHA256: ProjectTree.treeHash(of: $0)
+                    treeSHA256: ProjectTree.treeHash(of: listed)
                 )
             },
             mutatedFiles: nil,

@@ -46,6 +46,7 @@ final class ProcessSpy: MuterProcess, @unchecked Sendable {
     private(set) var processesRun: [[String]] = []
     /// The status each process `runProcess` runs ends with, in order, before `terminationStatus` stands for the rest.
     var statusesToReturn: [Int32] = []
+
     func runProcess(url: String, arguments args: [String]) -> Data? {
         if !statusesToReturn.isEmpty {
             terminationStatus = statusesToReturn.removeFirst()
@@ -65,6 +66,7 @@ final class ProcessSpy: MuterProcess, @unchecked Sendable {
     private(set) var timeLimits: [TimeInterval?] = []
     /// What `runCommand` gives for a command, its executable first: nil, as for one that can't be started, unless set.
     var commandResult: ([String]) -> CommandResult? = { _ in nil }
+
     func runCommand(url: String, arguments args: [String], timeLimit: TimeInterval?) -> CommandResult? {
         commandsRun.append([url] + args)
         timeLimits.append(timeLimit)
@@ -72,15 +74,19 @@ final class ProcessSpy: MuterProcess, @unchecked Sendable {
     }
 
     var terminateCalled = false
+
     func terminate() {
         terminateCalled = true
     }
 
-    func interrupt() {}
+    func interrupt() {
+        // A spy: nothing runs.
+    }
 
     // Override the protocol's default `terminateTree()` so tests can assert the timeout handler
     // reaches for the tree-kill without invoking the real `ps`/`kill` path.
     private(set) var terminateTreeCalled = false
+
     func terminateTree() {
         terminateTreeCalled = true
     }

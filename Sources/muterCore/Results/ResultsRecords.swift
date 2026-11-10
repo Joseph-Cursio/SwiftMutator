@@ -459,7 +459,7 @@ extension MutantResult {
             worker: finished.worker,
             finishedAt: finishedAt,
             killedBy: failures?.tests,
-            failedTestCount: failures?.count,
+            failedTestCount: failures?.total,
             firstFailedTestLine: failures?.firstLine,
             log: log,
             fileSHA256: fileSHA256,

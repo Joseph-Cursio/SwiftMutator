@@ -165,7 +165,7 @@ private extension MuterConfiguration {
             ) ??
                 [:]
             let devices = (simulatorsJson["devices"] as? [String: AnyHashable]) ?? [:]
-            let newestRuntime = devices.keys.filter { $0.contains("iOS") }.sorted().last ?? ""
+            let newestRuntime = devices.keys.filter { $0.contains("iOS") }.max() ?? ""
             let devicesForRunTime = (devices[newestRuntime] as? [AnyHashable]) ?? []
             let device: Simulator? = try devicesForRunTime
                 .compactMap { try JSONSerialization.data(withJSONObject: $0) }

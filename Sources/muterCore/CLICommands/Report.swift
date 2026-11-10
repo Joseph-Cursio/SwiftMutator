@@ -61,7 +61,9 @@ struct Report: AsyncParsableCommand {
     )
     var triage: String?
 
-    init() {}
+    init() {
+        // ArgumentParser sets the properties from the command line.
+    }
 
     /// Makes the report, then exits with the status `ResultsReport.make` gives once it is made: for a run that
     /// stopped on an error, the one the run itself exited with (`RunCommand.run(with:)`), 4 or 255, so a script that

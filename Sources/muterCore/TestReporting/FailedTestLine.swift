@@ -87,7 +87,7 @@ extension FailedTestLine {
         /// Each failed test once, in the order it first failed, at most the limit.
         let tests: [FailedTest]
         /// How many distinct tests the log shows failing, uncapped.
-        let count: Int
+        let total: Int
         /// The first line that shows one, without colour codes, at most `lineLengthLimit` characters.
         let firstLine: String?
     }
@@ -134,7 +134,7 @@ extension FailedTestLine {
                 tests.append(test)
             }
         }
-        return FailedTests(tests: tests, count: seen.count, firstLine: firstLine)
+        return FailedTests(tests: tests, total: seen.count, firstLine: firstLine)
     }
 
     /// Every test `log` shows failing.
@@ -259,6 +259,6 @@ extension FailedTestLine.FailedTests {
     /// The first `limit` tests, each by its name and location, and how many more failed.
     func named(upTo limit: Int) -> (names: [String], more: Int) {
         let names = tests.prefix(limit).map(\.nameAndLocation)
-        return (names, count - names.count)
+        return (names, total - names.count)
     }
 }

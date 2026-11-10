@@ -9,7 +9,7 @@ struct SimpleTimeEstimate: ProgressElementType {
     let elapsed: () -> TimeInterval?
 
     func value(_ progressBar: ProgressBar) -> String {
-        "ETC: \(timeLeft(tested: progressBar.element, of: progressBar.count))"
+        "ETC: \(timeLeft(tested: progressBar.element, of: progressBar.total))"
     }
 
     /// The time left with `tested` of `total` mutants tested: "2 h 5 min".
@@ -39,10 +39,10 @@ struct SimpleTimeEstimate: ProgressElementType {
 
 struct ProgressOneIndexed: ProgressElementType {
     func value(_ progressBar: ProgressBar) -> String {
-        let index = progressBar.element + 1 > progressBar.count ?
+        let index = progressBar.element + 1 > progressBar.total ?
             progressBar.element :
             progressBar.element + 1
-        return "\(index) of \(progressBar.count)"
+        return "\(index) of \(progressBar.total)"
     }
 }
 
@@ -69,7 +69,7 @@ struct ColoredProgressBarLine: ProgressElementType {
             completedBarElements = barLength
         } else {
             let progress = Double(barLength) * Double(progressBar.element)
-            completedBarElements = Int(progress / Double(progressBar.count))
+            completedBarElements = Int(progress / Double(progressBar.total))
         }
 
         let color = colorMap(completedBarElements)
@@ -100,7 +100,7 @@ struct ProgressBarMultilineTerminalPrinter: ProgressBarPrinter {
         let now = instant()
         if let lastPrinted,
            now.uptimeNanoseconds < lastPrinted.uptimeNanoseconds + 100_000_000,
-           progressBar.element != progressBar.count {
+           progressBar.element != progressBar.total {
             return
         }
         // Up a line and erase it, for each line of the bar, so a shorter line leaves nothing of the one it replaces.

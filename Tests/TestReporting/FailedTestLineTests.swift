@@ -280,7 +280,7 @@ final class FailedTestLineTests: XCTestCase {
                     FailedTest(name: "a()", location: "A.swift:1:5"),
                     FailedTest(name: "-[M.C testX]", location: nil),
                 ],
-                count: 3,
+                total: 3,
                 firstLine: "✘ Test b() recorded an issue at B.swift:2:5: x"
             )
         )
@@ -300,7 +300,7 @@ final class FailedTestLineTests: XCTestCase {
             FailedTest(name: "ignoresTestFiles()", location: "GlobalStateTests.swift:40:9"),
             FailedTest(name: "ignoresTestFiles()", location: "PureFunctionTests.swift:52:9"),
         ])
-        XCTAssertEqual(failures.count, 2)
+        XCTAssertEqual(failures.total, 2)
     }
 
     // A multi-line string argument goes on past the issue's line, and the location follows it, as in this real log.
@@ -329,7 +329,7 @@ final class FailedTestLineTests: XCTestCase {
                         location: "MapUsedForSideEffectsVisitorTests.swift:105:9"
                     ),
                 ],
-                count: 1,
+                total: 1,
                 firstLine: firstLine
             )
         )
@@ -358,9 +358,9 @@ final class FailedTestLineTests: XCTestCase {
 
         XCTAssertEqual(FailedTestLine.killedByLimit, 20)
         XCTAssertEqual(failures.tests.map(\.name), (1...20).map { "test\($0)()" })
-        XCTAssertEqual(failures.count, 25)
+        XCTAssertEqual(failures.total, 25)
         XCTAssertEqual(FailedTestLine.failedTests(inLog: log, limit: 2).tests.map(\.name), ["test1()", "test2()"])
-        XCTAssertEqual(FailedTestLine.failedTests(inLog: log, limit: 2).count, 25)
+        XCTAssertEqual(FailedTestLine.failedTests(inLog: log, limit: 2).total, 25)
     }
 
     func test_failedTests_capsNamesAndTheFirstLine() {
@@ -386,7 +386,7 @@ final class FailedTestLineTests: XCTestCase {
 
         XCTAssertEqual(
             FailedTestLine.failedTests(inLog: log),
-            FailedTests(tests: [FailedTest(name: "a()", location: "A.swift:1:1")], count: 1, firstLine: stoppingLine)
+            FailedTests(tests: [FailedTest(name: "a()", location: "A.swift:1:1")], total: 1, firstLine: stoppingLine)
         )
     }
 
@@ -404,7 +404,7 @@ final class FailedTestLineTests: XCTestCase {
         let xctestFailures = FailedTestLine.failedTests(
             inLog: loadLogFile(named: "testRunWithFailures_withoutTestFailedFooter.log")
         )
-        XCTAssertEqual(xctestFailures.count, 8)
+        XCTAssertEqual(xctestFailures.total, 8)
         XCTAssertEqual(
             xctestFailures.tests.first,
             FailedTest(
@@ -426,7 +426,7 @@ final class FailedTestLineTests: XCTestCase {
             let log = loadLogFile(named: name)
             let failures = FailedTestLine.failedTests(inLog: log)
             XCTAssertEqual(failures.firstLine, FailedTestLine.first(inLog: log), name)
-            XCTAssertEqual(failures.count == 0, failures.firstLine == nil, name)
+            XCTAssertEqual(failures.total == 0, failures.firstLine == nil, name)
         }
     }
 

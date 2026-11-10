@@ -49,7 +49,7 @@ final class ExecutionCounts {
 
     private struct CountedRegion {
         let span: Span
-        var count: Int
+        var executionCount: Int
         /// llvm-cov's count.
         let reportedCount: Int
         /// A function's whole body: never worked out again.
@@ -84,7 +84,7 @@ final class ExecutionCounts {
 
         init(span: Span, count: Int, isFixed: Bool, makesAClosure: Bool = false) {
             self.span = span
-            self.count = count
+            executionCount = count
             reportedCount = count
             self.isFixed = isFixed
             self.makesAClosure = makesAClosure
@@ -236,7 +236,7 @@ final class ExecutionCounts {
         walking = nil
 
         for index in regions.indices
-        where isDirectlyCounted(regions[index]) && (1...Int.max / 2).contains(regions[index].count) {
+        where isDirectlyCounted(regions[index]) && (1...Int.max / 2).contains(regions[index].executionCount) {
             let apart = runApart.filter { $0.code.contains(regions[index].span) }
             var ancestor = regions[index].parent
             while let current = ancestor, !regions[current].holdsCodeThatRan {
@@ -258,19 +258,19 @@ final class ExecutionCounts {
         for index in regions.indices {
             let span = regions[index].span
             if !regions[index].isFixed, let count = expectedOver[span] ?? expectedFrom[span.start] {
-                regions[index].count = count
+                regions[index].executionCount = count
                 regions[index].wasWorkedOut = true
             }
             let region = regions[index]
             let parentsCountsSayNothing = region.parent.map { regions[$0].countsInItSayNothing } ?? false
             if region.isFixed {
-                regions[index].countsInItSayNothing = region.count == 0
+                regions[index].countsInItSayNothing = region.executionCount == 0
                     || madeWhereWritten.contains(span) && parentsCountsSayNothing
             } else if directlyCounted.contains(span) || countedApart.contains(span) {
-                regions[index].countsInItSayNothing = region.count == 0 || parentsCountsSayNothing
+                regions[index].countsInItSayNothing = region.executionCount == 0 || parentsCountsSayNothing
             } else {
                 regions[index].countsInItSayNothing = region.reportedCount == 0
-                    || region.wasWorkedOut && region.count == 0 || parentsCountsSayNothing
+                    || region.wasWorkedOut && region.executionCount == 0 || parentsCountsSayNothing
             }
         }
         // A count shown as the largest one, a negative one, counts as run: tests that run at once can lose updates to
@@ -283,12 +283,12 @@ final class ExecutionCounts {
             let isOwnCount = region.isFixed || region.wasWorkedOut || directlyCounted.contains(region.span)
                 || countedApart.contains(region.span)
             let saysNothing = !isOwnCount && isInRegionWhoseCountsSayNothing(index)
-            if region.holdsCodeThatRan || !saysNothing && (1...Int.max / 2).contains(region.count) {
+            if region.holdsCodeThatRan || !saysNothing && (1...Int.max / 2).contains(region.executionCount) {
                 regions[index].ran = true
             } else if saysNothing, runWithTheCodeBefore.contains(region.span), let parent = region.parent {
                 regions[index].ran = regions[parent].ran
             } else {
-                regions[index].ran = region.count != 0 && !isInRegionWhoseCountsSayNothing(index)
+                regions[index].ran = region.executionCount != 0 && !isInRegionWhoseCountsSayNothing(index)
             }
         }
     }
@@ -356,7 +356,7 @@ final class ExecutionCounts {
                 columnStart: $0.span.start.column,
                 lineEnd: $0.span.end.line,
                 columnEnd: $0.span.end.column,
-                executionCount: $0.count
+                executionCount: $0.executionCount
             )
         }
     }
@@ -612,8 +612,8 @@ final class ExecutionCounts {
         for index in inside where regions[index].span.end > end {
             let region = regions[index]
             if count != 0 {
-                if let parent = region.parent, regions[parent].count <= Int.max / 2, region.count <= Int.max / 2 {
-                    after = difference(after, regions[parent].count - region.count)
+                if let parent = region.parent, regions[parent].executionCount <= Int.max / 2, region.executionCount <= Int.max / 2 {
+                    after = difference(after, regions[parent].executionCount - region.executionCount)
                 } else {
                     after = nil
                 }

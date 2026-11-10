@@ -17,7 +17,9 @@ public struct Operator: AsyncParsableCommand {
     )
     var `operator`: String
 
-    public init() {}
+    public init() {
+        // ArgumentParser sets the properties from the command line.
+    }
 
     public mutating func run() async throws {
         @Dependency(\.printer) var print: Printer

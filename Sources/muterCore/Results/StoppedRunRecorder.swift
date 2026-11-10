@@ -106,7 +106,7 @@ final class StoppedRunRecorder: @unchecked Sendable {
             limitSeconds: found.limit,
             log: found.log,
             failedTests: failed?.tests,
-            failedTestCount: failed?.count,
+            failedTestCount: failed?.total,
             projectPath: projectPath,
             logDirectory: logDirectory,
             resuming: resuming

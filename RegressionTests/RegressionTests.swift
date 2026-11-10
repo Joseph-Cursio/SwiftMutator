@@ -53,14 +53,14 @@ final class RegressionTests: XCTestCase {
                 line: line
             )
             return .success(())
-        } catch let deserializationError {
+        } catch {
             return .failure(
                 .literal(reason: """
                 Unable to deserialize a valid Muter test report from \(path)
 
                 \(String(data: data, encoding: .utf8) ?? "no-content")
 
-                \(deserializationError)
+                \(error)
                 """)
             )
         }

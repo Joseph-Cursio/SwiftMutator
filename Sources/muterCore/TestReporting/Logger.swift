@@ -193,7 +193,7 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
     /// kept.
     func projectCoverageTestsFailed(_ failed: TestsFailedWithCoverage) {
         let (names, more) = failed.tests.named(upTo: FailedTestLine.coverageMessageLimit)
-        let tests = failed.tests.count == 1 ? "1 test" : "\(failed.tests.count) tests"
+        let tests = failed.tests.total == 1 ? "1 test" : "\(failed.tests.total) tests"
         let lines = ["⚠️ \(tests) failed with coverage on, but coverage was still gathered from every test process:"]
             + names.map { "  \($0)" }
             + (more > 0 ? ["  … and \(more) more"] : [])
@@ -1377,7 +1377,7 @@ final class Logger: @unchecked Sendable { // events reach it one at a time (see 
     /// takes. The redraw moves the cursor up over those lines rather than over the end of the message. The bar's
     /// `next()` redraws it only while `element <= count`, so the bar's last redraw needs no room after it.
     private func leaveRoomForTheProgressBar() {
-        guard let progressBar, progressBar.element <= progressBar.count else {
+        guard let progressBar, progressBar.element <= progressBar.total else {
             return
         }
         for _ in 0 ..< Self.progressBarLines {

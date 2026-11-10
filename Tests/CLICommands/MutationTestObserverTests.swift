@@ -165,7 +165,7 @@ final class MutationTestObserverTests: MuterTestCase {
 
         runEvents.send(
             .projectCoverageTestsFailed(TestsFailedWithCoverage(
-                tests: .init(tests: [.init(name: "sum()", location: nil)], count: 1, firstLine: nil),
+                tests: .init(tests: [.init(name: "sum()", location: nil)], total: 1, firstLine: nil),
                 log: nil
             ))
         )

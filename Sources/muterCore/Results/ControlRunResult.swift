@@ -55,7 +55,7 @@ extension ControlRunResult {
             worker: finished.worker,
             finishedAt: finishedAt,
             failedTests: failures?.tests,
-            failedTestCount: failures?.count,
+            failedTestCount: failures?.total,
             firstFailedTestLine: failures?.firstLine,
             log: log
         )

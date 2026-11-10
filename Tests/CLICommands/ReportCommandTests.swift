@@ -1041,7 +1041,9 @@ private extension ReportCommandTests {
         do {
             try await expression()
             XCTFail("Expected an error", line: line)
-        } catch {}
+        } catch {
+            // The error is the expected outcome.
+        }
     }
 
     /// JSONEncoder promises no order of keys, so JSON compares parsed.

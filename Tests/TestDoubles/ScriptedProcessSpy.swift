@@ -119,7 +119,11 @@ final class ScriptedProcessSpy: MuterProcess, @unchecked Sendable { // shared st
 
     func runProcess(url _: String, arguments _: [String]) -> Data? { nil }
 
-    func terminate() {}
+    func terminate() {
+        // A spy: nothing runs.
+    }
 
-    func interrupt() {}
+    func interrupt() {
+        // A spy: nothing runs.
+    }
 }

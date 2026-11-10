@@ -271,7 +271,7 @@ extension MutationTestOutcome.KillingTests {
 
     /// The tests `failures` names, for a run that ended `endedBy`.
     init?(_ failures: FailedTestLine.FailedTests?, endedBy: TestRun.Ending) {
-        self.init(killedBy: failures?.tests, failedTestCount: failures?.count, endedBy: endedBy)
+        self.init(killedBy: failures?.tests, failedTestCount: failures?.total, endedBy: endedBy)
     }
 
     /// The tests a results line records.

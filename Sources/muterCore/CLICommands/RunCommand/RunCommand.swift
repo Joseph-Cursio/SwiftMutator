@@ -28,7 +28,9 @@ extension RunCommand {
         }
     }
 
-    func validate() throws {}
+    func validate() throws {
+        // Nothing to check beyond what ArgumentParser checks.
+    }
 
     /// What a run command prints when its work failed with `error`. A refused resume, a run refused because another
     /// is using the project's copy, a refused test plan, a refused baseline file, a `--mutant` that names no mutant to

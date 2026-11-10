@@ -8,6 +8,7 @@ import XCTest
 final class PerformMutationTestingSuspectRerunTests: MuterTestCase {
     private typealias Rerun = MutantResult.Rerun
     private typealias TestAlone = MutantResult.Rerun.TestAlone
+
     private let state = MutationTestState()
     private let timing = "✘ Test timing() recorded an issue at TimingTests.swift:9:5: Expectation failed: 1.2 < 1"
     private let sum = "✘ Test sum() recorded an issue at SumTests.swift:12:5: Expectation failed: 3 == 4"

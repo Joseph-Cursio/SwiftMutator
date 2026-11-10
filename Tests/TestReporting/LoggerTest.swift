@@ -386,7 +386,7 @@ final class LoggerTests: MuterTestCase {
             + (2 ... 6).map { FailedTestLine.FailedTest(name: "test\($0)()", location: "BTests.swift:\($0):5") }
 
         sut.projectCoverageTestsFailed(TestsFailedWithCoverage(
-            tests: .init(tests: tests, count: 8, firstLine: nil),
+            tests: .init(tests: tests, total: 8, firstLine: nil),
             log: "/logs/coverage run.log"
         ))
 
@@ -407,7 +407,7 @@ final class LoggerTests: MuterTestCase {
 
     func test_projectCoverageTestsFailed_withOneTest_andNoLogFolder() {
         sut.projectCoverageTestsFailed(TestsFailedWithCoverage(
-            tests: .init(tests: [.init(name: "sum()", location: "SumTests.swift:12:5")], count: 1, firstLine: nil),
+            tests: .init(tests: [.init(name: "sum()", location: "SumTests.swift:12:5")], total: 1, firstLine: nil),
             log: nil
         ))
 
