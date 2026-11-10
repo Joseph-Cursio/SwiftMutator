@@ -32,69 +32,49 @@ final class ChangeLogicalConnectorOperatorTests: MuterTestCase {
 
         let actualSchemata = visitor.schemataMappings
         let expectedSchemata = try SchemataMutationMapping.make(
-            (
+            connectorMapping(
                 source: "\n    // バルーンの表示判定\n    return false && false",
-                schemata: [
-                    .make(
-                        filePath: sourceWithLogicalOperators.path,
-                        mutationOperatorId: .logicalOperator,
-                        syntaxMutation: "\n    // バルーンの表示判定\n    return false || false",
-                        position: MutationPosition(
-                            utf8Offset: 256,
-                            line: 15,
-                            column: 18
-                        ),
-                        snapshot: .make(
-                            before: "&&",
-                            after: "||",
-                            description: "changed && to ||"
-                        )
-                    ),
-                ]
+                mutation: "\n    // バルーンの表示判定\n    return false || false",
+                at: MutationPosition(utf8Offset: 256, line: 15, column: 18),
+                changing: "&&",
+                to: "||"
             ),
-            (
+            connectorMapping(
                 source: "\n    return false && false",
-                schemata: [
-                    .make(
-                        filePath: sourceWithLogicalOperators.path,
-                        mutationOperatorId: .logicalOperator,
-                        syntaxMutation: "\n    return true && true",
-                        position: MutationPosition(
-                            utf8Offset: 160,
-                            line: 10,
-                            column: 17
-                        ),
-                        snapshot: .make(
-                            before: "||",
-                            after: "&&",
-                            description: "changed || to &&"
-                        )
-                    ),
-                ]
+                mutation: "\n    return true && true",
+                at: MutationPosition(utf8Offset: 160, line: 10, column: 17),
+                changing: "||",
+                to: "&&"
             ),
-            (
+            connectorMapping(
                 source: "\n    return true || true",
-                schemata: [
-                    .make(
-                        filePath: sourceWithLogicalOperators.path,
-                        mutationOperatorId: .logicalOperator,
-                        syntaxMutation: "\n    return false || false",
-                        position: MutationPosition(
-                            utf8Offset: 101,
-                            line: 6,
-                            column: 18
-                        ),
-                        snapshot: .make(
-                            before: "&&",
-                            after: "||",
-                            description: "changed && to ||"
-                        )
-                    ),
-                ]
+                mutation: "\n    return false || false",
+                at: MutationPosition(utf8Offset: 101, line: 6, column: 18),
+                changing: "&&",
+                to: "||"
             )
         )
 
         XCTAssertEqual(actualSchemata, expectedSchemata)
+    }
+
+    /// The mappings entry `test_visitor` expects for one connector of the fixture: the statement holding it, and the
+    /// one mutant that changes it from `before` to `after`.
+    private func connectorMapping(
+        source: String,
+        mutation: String,
+        at position: MutationPosition,
+        changing before: String,
+        to after: String
+    ) throws -> SchemataMutationMappings {
+        let schema = try MutationSchema.make(
+            filePath: sourceWithLogicalOperators.path,
+            mutationOperatorId: .logicalOperator,
+            syntaxMutation: mutation,
+            position: position,
+            snapshot: .make(before: before, after: after, description: "changed \(before) to \(after)")
+        )
+        return (source: source, schemata: [schema])
     }
 
     func test_sampleWithFailuresParsing() throws {

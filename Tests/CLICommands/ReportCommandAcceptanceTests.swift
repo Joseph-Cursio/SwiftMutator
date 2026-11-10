@@ -1,6 +1,3 @@
-#if os(Linux)
-import Glibc
-#endif
 import XCTest
 
 /// Runs the built `swift-mutator` on a two-file project whose test command is a shell script, in each report format,
@@ -36,9 +33,14 @@ final class ReportCommandAcceptanceTests: XCTestCase {
         var description: String { "swift-mutator \(arguments.joined(separator: " ")) ran over 120 s, so it was killed" }
     }
 
-    private var swiftMutator: URL!
-    private var root: URL!
-    private var project: URL!
+    /// The `swift-mutator` that `swift test` builds next to the test bundle.
+    private var swiftMutator: URL {
+        get throws { try XCTUnwrap(BuildProducts.folder).appendingPathComponent("swift-mutator") }
+    }
+    /// The test's temporary folder, which holds the project and each process's output.
+    private let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("ReportCommandAcceptanceTests-\(UUID().uuidString)", isDirectory: true)
+    private var project: URL { root.appendingPathComponent("project", isDirectory: true) }
     private var logs: URL { root.appendingPathComponent("project_muter_logs", isDirectory: true) }
     /// The SwiftMutator a test is waiting for.
     private var running: Foundation.Process?
@@ -46,15 +48,10 @@ final class ReportCommandAcceptanceTests: XCTestCase {
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        let products = try XCTUnwrap(BuildProducts.folder)
-        swiftMutator = products.appendingPathComponent("swift-mutator")
-        guard FileManager.default.isExecutableFile(atPath: swiftMutator.path) else {
+        guard try FileManager.default.isExecutableFile(atPath: swiftMutator.path) else {
             throw XCTSkip("No swift-mutator next to the test bundle, which `swift test` builds")
         }
 
-        root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ReportCommandAcceptanceTests-\(UUID().uuidString)", isDirectory: true)
-        project = root.appendingPathComponent("project", isDirectory: true)
         let sources = project.appendingPathComponent("Sources/Lib", isDirectory: true)
         try FileManager.default.createDirectory(at: sources, withIntermediateDirectories: true)
         // The comparisons are `!=`, which only RelationalOperatorReplacement mutates, in closures that use `$0` nowhere
@@ -93,7 +90,7 @@ final class ReportCommandAcceptanceTests: XCTestCase {
         if let running, running.isRunning {
             stop(running)
         }
-        if let root { try? FileManager.default.removeItem(at: root) }
+        try? FileManager.default.removeItem(at: root)
         try super.tearDownWithError()
     }
 
@@ -269,7 +266,7 @@ final class ReportCommandAcceptanceTests: XCTestCase {
         }
 
         let process = Foundation.Process()
-        process.executableURL = swiftMutator
+        process.executableURL = try swiftMutator
         process.arguments = arguments
         process.currentDirectoryURL = project
         process.standardOutput = outputFile
@@ -290,80 +287,10 @@ final class ReportCommandAcceptanceTests: XCTestCase {
         )
     }
 
-    /// Kills a SwiftMutator that is still running, and the process group Foundation.Process started it in, which holds
-    /// it alone.
-    private func stop(_ process: Foundation.Process) {
-        let pid = process.processIdentifier
-        guard pid > 1 else { return }
-        #if os(Linux)
-        Glibc.kill(-pid, SIGKILL)
-        Glibc.kill(pid, SIGKILL)
-        #else
-        Darwin.kill(-pid, SIGKILL)
-        Darwin.kill(pid, SIGKILL)
-        #endif
-        process.waitUntilExit()
-    }
-
     /// The run's log folder, `project_muter_logs/<run>/`, which a test expects to be the only one.
     private func onlyLogFolder() throws -> URL {
         let folders = try FileManager.default.contentsOfDirectory(at: logs, includingPropertiesForKeys: nil)
         XCTAssertEqual(folders.count, 1, "\(folders)")
         return try XCTUnwrap(folders.first)
-    }
-
-    private func contents(of file: URL) throws -> String {
-        try String(contentsOf: file, encoding: .utf8)
-    }
-
-    /// JSON compared as parsed: JSONEncoder promises no key order.
-    private func parsedJSON(at file: URL) throws -> [String: AnyHashable] {
-        try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: AnyHashable])
-    }
-
-    /// Each mutant's outcome in a JSON report, sorted.
-    private func outcomes(inJSONReportAt file: URL) throws -> [String] {
-        let fileReports = try XCTUnwrap(parsedJSON(at: file)["fileReports"] as? [[String: Any]])
-        return fileReports
-            .flatMap { ($0["appliedOperators"] as? [[String: Any]]) ?? [] }
-            .compactMap { $0["testSuiteOutcome"] as? String }
-            .sorted()
-    }
-
-    /// The names of the tests each mutant's `killingTests` lists in a JSON report, by file, or nil for a mutant without
-    /// them.
-    private func killingTestNames(inJSONReportAt file: URL) throws -> [String: [[String]?]] {
-        let fileReports = try XCTUnwrap(parsedJSON(at: file)["fileReports"] as? [[String: Any]])
-        var names: [String: [[String]?]] = [:]
-        for fileReport in fileReports {
-            let fileName = try XCTUnwrap(fileReport["fileName"] as? String)
-            names[fileName] = ((fileReport["appliedOperators"] as? [[String: Any]]) ?? []).map { appliedOperator in
-                ((appliedOperator["killingTests"] as? [String: Any])?["tests"] as? [[String: Any]])
-                    .map { tests in tests.compactMap { $0["name"] as? String } }
-            }
-        }
-        return names
-    }
-
-    /// The HTML report with its footer, the time it was made, left empty.
-    private func withoutFooter(_ html: String) -> String {
-        html.replacingOccurrences(
-            of: #"<footer class="footer">[^<]*</footer>"#,
-            with: #"<footer class="footer"></footer>"#,
-            options: .regularExpression
-        )
-    }
-
-    /// The Xcode format's warnings in `output`, in the order printed, without any escape codes around them, such as a
-    /// progress bar's on a terminal.
-    private func warnings(in output: String) -> [String] {
-        let pattern = #"/[^\u001B\n]*: warning: Your test suite did not kill this mutant: [^\u001B\n]*"#
-        guard let expression = try? NSRegularExpression(pattern: pattern) else {
-            XCTFail("The warning pattern doesn't compile")
-            return []
-        }
-        return expression
-            .matches(in: output, range: NSRange(output.startIndex..., in: output))
-            .compactMap { Range($0.range, in: output).map { String(output[$0]) } }
     }
 }

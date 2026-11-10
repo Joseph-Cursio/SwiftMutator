@@ -29,27 +29,26 @@ final class RegressionSnapshotKeysTests: XCTestCase {
         """#.utf8))
         let untimed = outcome(namingKillingTests: false)
 
-        let unfiltered = try XCTUnwrap(String(data: JSONEncoder().encode(MuterTestReport(from: timed)), encoding: .utf8))
+        let encodedReport = try JSONEncoder().encode(MuterTestReport(from: timed))
+        let unfiltered = try XCTUnwrap(String(data: encodedReport, encoding: .utf8))
         for key in ["durationSeconds", "run"] {
             XCTAssertTrue(unfiltered.contains("\"\(key)\""), "the report has no \(key) to leave out")
             XCTAssertTrue(RegressionTests.keysToExclude.contains(key), key)
         }
         XCTAssertEqual(snapshot(of: MuterTestReport(from: timed)), snapshot(of: MuterTestReport(from: untimed)))
     }
-}
 
-private extension RegressionSnapshotKeysTests {
     /// What the regression tests compare with their snapshot.
-    func snapshot(of report: MuterTestReport) -> String? {
+    private func snapshot(of report: MuterTestReport) -> String? {
         var snapshot: String?
         RegressionTests.snapshotting.snapshot(report).run { snapshot = $0 }
         return snapshot
     }
 
     /// A kill, a crash, a time-out and a survivor in each of ten files, with the tests that failed for each, as a run
-    /// records them, or with none, each taking `durationSeconds`, if given. The kills' tests failed in every file, so they are suspect, and each kill is theirs
-    /// alone.
-    func outcome(namingKillingTests: Bool, durationSeconds: Double? = nil) -> MutationTestOutcome {
+    /// records them, or with none, each taking `durationSeconds`, if given. The kills' tests failed in every file, so
+    /// they are suspect, and each kill is theirs alone.
+    private func outcome(namingKillingTests: Bool, durationSeconds: Double? = nil) -> MutationTestOutcome {
         let killingTests: [TestSuiteOutcome: MutationTestOutcome.KillingTests] = [
             .failed: .init(
                 tests: [

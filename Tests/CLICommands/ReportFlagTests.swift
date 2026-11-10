@@ -124,11 +124,9 @@ final class ReportFlagTests: XCTestCase {
 
         XCTAssertTrue(command.contains("--report markdown:/out/summary.md"), command)
     }
-}
 
-private extension ReportFlagTests {
     /// Checks that parsing `arguments` fails validation with `message`.
-    func assertUsageError(
+    private func assertUsageError(
         _ arguments: [String],
         _ message: String,
         file: StaticString = #filePath,

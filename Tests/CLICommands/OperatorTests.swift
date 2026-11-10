@@ -3,6 +3,13 @@ import Rainbow
 import SwiftParser
 import XCTest
 
+/// An operator's change as its documentation's example shows it: the code before, and after.
+private struct DocumentedSwap {
+    let id: MutationOperator.Id
+    let before: String
+    let after: String
+}
+
 /// `swift-mutator operator`, which describes a mutation operator, or all of them. The descriptions are read without
 /// their colour codes (`raw`), so the tests see the words a terminal shows.
 final class OperatorTests: MuterTestCase {
@@ -95,11 +102,13 @@ final class OperatorTests: MuterTestCase {
         // where a comparison gets no constant, which the text below the table says.
         let rorRow = try NSRegularExpression(pattern: #"^\|\s+(\S+)\s+\|\s*(\S*)\s*\|\s+(.+?)\s+\|$"#)
         let lines = MutationOperator.Id.ror.documentation.raw.split(separator: "\n").map(String.init)
-        let rorRows = lines.compactMap { line in
-            rorRow.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)).map { match in
-                (1...3).compactMap { Range(match.range(at: $0), in: line).map { String(line[$0]) } }
+        let rorRows = lines
+            .compactMap { line in
+                rorRow.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)).map { match in
+                    (1...3).compactMap { Range(match.range(at: $0), in: line).map { String(line[$0]) } }
+                }
             }
-        }.filter { ROROperator.comparisons.contains($0[0]) }
+            .filter { ROROperator.comparisons.contains($0[0]) }
         let mapping = ROROperator.Visitor(sourceCodeInfo: source).oppositeOperatorMapping
         XCTAssertEqual(
             Set(rorRows.filter { !$0[1].isEmpty }.map { "\($0[0]) → \($0[1])" }),
@@ -108,8 +117,8 @@ final class OperatorTests: MuterTestCase {
         XCTAssertEqual(
             Dictionary(uniqueKeysWithValues: rorRows.map { ($0[0], $0[2]) }),
             Dictionary(uniqueKeysWithValues: ROROperator.comparisons.map { comparison in
-                (comparison, ROROperator.constants(for: comparison).map { $0 == .true ? "true" : "false" }
-                    .joined(separator: ", "))
+                let constants = ROROperator.constants(for: comparison).map { $0 == .true ? "true" : "false" }
+                return (comparison, constants.joined(separator: ", "))
             })
         )
         XCTAssertTrue(
@@ -132,19 +141,23 @@ final class OperatorTests: MuterTestCase {
 
     // Each example's code before and after differs by the operator's change.
     func test_eachExample_showsTheOperatorsChange() {
-        let swaps: [(MutationOperator.Id, before: String, after: String)] = [
-            (
-                .logicalOperator,
-                "return meetsMinimumLength && passwordsMatch",
-                "return meetsMinimumLength || passwordsMatch"
+        let swaps = [
+            DocumentedSwap(
+                id: .logicalOperator,
+                before: "return meetsMinimumLength && passwordsMatch",
+                after: "return meetsMinimumLength || passwordsMatch"
             ),
-            (.ror, "if myValue == 50 {", "if true {"),
-            (.ror, "return count < limit", "return count != limit"),
-            (.swapTernary, #"return a ? "true" : "false""#, #"return a ? "false" : "true""#),
+            DocumentedSwap(id: .ror, before: "if myValue == 50 {", after: "if true {"),
+            DocumentedSwap(id: .ror, before: "return count < limit", after: "return count != limit"),
+            DocumentedSwap(
+                id: .swapTernary,
+                before: #"return a ? "true" : "false""#,
+                after: #"return a ? "false" : "true""#
+            ),
         ]
-        for (id, before, after) in swaps {
-            XCTAssertTrue(id.documentation.raw.contains(before), "\(id.rawValue): \(before)")
-            XCTAssertTrue(id.documentation.raw.contains(after), "\(id.rawValue): \(after)")
+        for swap in swaps {
+            XCTAssertTrue(swap.id.documentation.raw.contains(swap.before), "\(swap.id.rawValue): \(swap.before)")
+            XCTAssertTrue(swap.id.documentation.raw.contains(swap.after), "\(swap.id.rawValue): \(swap.after)")
         }
 
         // Each removed statement is in the code before only.
@@ -166,10 +179,8 @@ final class OperatorTests: MuterTestCase {
             XCTAssertTrue(all.contains(heading), heading)
         }
     }
-}
 
-private extension OperatorTests {
-    func run(_ name: String) async throws {
+    private func run(_ name: String) async throws {
         var command = try XCTUnwrap(try MuterCommand.parseAsRoot(["operator", name]) as? Operator)
         try await command.run()
     }
