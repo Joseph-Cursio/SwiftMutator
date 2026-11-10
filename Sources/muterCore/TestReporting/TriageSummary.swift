@@ -61,30 +61,6 @@ struct TriageMatches {
     }
 }
 
-private extension TriageEntry {
-    /// Whether what this entry says its mutant changes is what `mutant` changes, as far as both are known.
-    func describes(_ mutant: AppliedMutationOperator) -> Bool {
-        (before.map { $0 == mutant.mutationSnapshot.before } ?? true)
-            && (after.map { $0 == mutant.mutationSnapshot.after } ?? true)
-            && (line.flatMap { line in mutant.changedLine.map { $0 == line } } ?? true)
-    }
-
-    /// Whether `mutant` is in this entry's file, by this entry's operator, and known to change this entry's line.
-    func follows(to mutant: AppliedMutationOperator) -> Bool {
-        mutant.path == self.mutant.path
-            && mutant.mutationPoint.mutationOperatorId == self.mutant.mutationOperatorId
-            && mutant.changedLine != nil
-            && describes(mutant)
-    }
-}
-
-extension AppliedMutationOperator {
-    /// The line it changes, without the spaces around it, which an entry holds: moved code may be indented anew.
-    var changedLine: String? {
-        sourceChange?.before.trimmingCharacters(in: .whitespaces)
-    }
-}
-
 /// A surviving mutant's label, as a report shows it.
 struct TriageMark: Codable, Equatable {
     let label: TriageLabel
@@ -148,9 +124,7 @@ struct TriageSummary: Codable, Equatable {
     /// Labels on mutants that were build errors, as those that didn't compile are: they weren't tested, so this says
     /// nothing of the label. nil without any.
     var notTested: [NoLongerSurviving]?
-}
 
-extension TriageSummary {
     static let introduction = "Labels people gave surviving mutants. They change no score."
 
     /// "Of the 15 mutants that survived or timed out, 9 are triaged in muter.triage.yml, and 6 aren't." With mutants
@@ -214,71 +188,19 @@ extension TriageSummary {
     }
 }
 
-extension MuterTestReport {
-    /// `fileReports` with each survivor `file` labels marked, and the summary of what `file` says; nil without a file,
-    /// or one with no entries, so such a report is as it was.
-    static func triaged(
-        _ fileReports: [FileReport],
-        by file: TriageFile?,
-        following: Bool
-    ) -> (fileReports: [FileReport], summary: TriageSummary?) {
-        guard let file, !file.entries.isEmpty else { return (fileReports, nil) }
-        var fileReports = fileReports
-        // Where each mutant is in `fileReports`, and the mutants in that order.
-        let places = fileReports.indices.flatMap { fileIndex in
-            fileReports[fileIndex].appliedOperators.indices.map { (file: fileIndex, mutant: $0) }
-        }
-        let mutants = places.map { fileReports[$0.file].appliedOperators[$0.mutant] }
-        let matches = TriageMatches(file.entries, against: mutants, following: following)
+private extension TriageEntry {
+    /// Whether what this entry says its mutant changes is what `mutant` changes, as far as both are known.
+    func describes(_ mutant: AppliedMutationOperator) -> Bool {
+        (before.map { $0 == mutant.mutationSnapshot.before } ?? true)
+            && (after.map { $0 == mutant.mutationSnapshot.after } ?? true)
+            && (line.flatMap { line in mutant.changedLine.map { $0 == line } } ?? true)
+    }
 
-        var labels: [TriageLabel: Int] = [:]
-        var noLongerSurviving: [TriageSummary.NoLongerSurviving] = []
-        var notTested: [TriageSummary.NoLongerSurviving] = []
-        for match in matches.matches {
-            let mutant = mutants[match.index]
-            guard mutant.takesATriageLabel else {
-                let item = TriageSummary.NoLongerSurviving(
-                    mutant: mutant.key ?? match.entry.mutant.description,
-                    label: match.entry.label,
-                    verdict: MutantVerdict(mutant.testSuiteOutcome).words(1),
-                    savedAs: match.entry.mutant.description
-                )
-                if mutant.testSuiteOutcome == .buildError {
-                    notTested.append(item)
-                } else {
-                    noLongerSurviving.append(item)
-                }
-                continue
-            }
-            labels[match.entry.label, default: 0] += 1
-            let place = places[match.index]
-            fileReports[place.file].appliedOperators[place.mutant].triage = TriageMark(
-                label: match.entry.label,
-                note: match.entry.note
-            )
-        }
-
-        let notCovered = mutants.count(where: \.isANotCoveredMutant)
-        let summary = TriageSummary(
-            file: file.path,
-            survivors: mutants.count(where: \.takesATriageLabel),
-            notCovered: notCovered > 0 ? notCovered : nil,
-            triaged: labels.values.reduce(0, +),
-            byLabel: TriageLabel.allCases.map { .init(label: $0, mutants: labels[$0] ?? 0) },
-            // One that no longer survives is said once, there.
-            moved: matches.matches.filter {
-                $0.moved && mutants[$0.index].takesATriageLabel
-            }.map {
-                .init(
-                    from: $0.entry.mutant.description,
-                    now: mutants[$0.index].key ?? $0.entry.mutant.description,
-                    label: $0.entry.label
-                )
-            },
-            noLongerSurviving: noLongerSurviving,
-            unmatched: matches.unmatched.map { .init(mutant: $0.mutant.description, label: $0.label) },
-            notTested: notTested.isEmpty ? nil : notTested
-        )
-        return (fileReports, summary)
+    /// Whether `mutant` is in this entry's file, by this entry's operator, and known to change this entry's line.
+    func follows(to mutant: AppliedMutationOperator) -> Bool {
+        mutant.path == self.mutant.path
+            && mutant.mutationPoint.mutationOperatorId == self.mutant.mutationOperatorId
+            && mutant.changedLine != nil
+            && describes(mutant)
     }
 }

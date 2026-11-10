@@ -107,4 +107,9 @@ struct AppliedMutationOperator: Codable, Equatable {
     var outcomeWords: String {
         isANotCoveredMutant ? Self.notCoveredWords : testSuiteOutcome.asMutationTestOutcome
     }
+
+    /// The line it changes, without the spaces around it, which an entry holds: moved code may be indented anew.
+    var changedLine: String? {
+        sourceChange?.before.trimmingCharacters(in: .whitespaces)
+    }
 }
