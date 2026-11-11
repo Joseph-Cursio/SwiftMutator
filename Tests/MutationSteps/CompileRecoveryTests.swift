@@ -428,14 +428,15 @@ final class CompileRecoveryTests: MuterTestCase {
         }
     }
 
-    // A missing `return` comes of a statement that is gone: the rest may be innocent, and go only if it stays.
+    // A use before initialization comes of a statement that is gone: the rest may be innocent, and go only if it stays.
     func test_anErrorAroundAMutantThatRemovesAStatement_takesThatOneOutFirst() async throws {
         let code = """
         func die() -> Never { fatalError() }
         func check(_ value: Int) -> Bool {
-            if value > 1 { return true }
             if value < 0 { return false }
-            die()
+            let result: Bool
+            if value > 1 { result = true } else { die() }
+            return result
         }
 
         """
@@ -451,13 +452,73 @@ final class CompileRecoveryTests: MuterTestCase {
             ),
             in: file.rewritten
         )
-        let log = "\(path):\(closingBrace.line + 1):1: error: missing return in global function"
+        let log = "\(path):\(closingBrace.line + 1):1: error: constant 'result' used before being initialized"
 
         let count = try await recovery.takeOutMutants(failing: log, keptAs: "log")
 
         XCTAssertEqual(count, 1)
         XCTAssertEqual(Array(recovery.leftOut.keys), [removal.id])
         XCTAssertEqual(recovery.leftOut[removal.id]?.blame, .itself)
+    }
+
+    // The chain around `return result` is the function's: `die()` is in a list nested in its final `else`.
+    func test_anErrorInAFinalElse_ofAStatementGoneFromANestedList_takesThatOneOutFirst() async throws {
+        let code = """
+        func die() -> Never { fatalError() }
+        func check(_ value: Int) -> Bool {
+            if value < 0 { return false }
+            let result: Bool
+            if value > 1 { result = true } else { die() }
+            return result
+        }
+
+        """
+        let file = try file(code)
+        let removal = try XCTUnwrap(
+            file.mapping.mutationSchemata.first { $0.mutationOperatorId == .removeSideEffects && $0.position.line == 5 }
+        )
+        var recovery = try recovery(of: file)
+        let use = place(
+            of: try XCTUnwrap(file.rewritten.range(of: "return result", options: .backwards)),
+            in: file.rewritten
+        )
+        guard case .wholeSwitch = locator(file).place(line: use.line, column: use.column) else {
+            return XCTFail(file.rewritten)
+        }
+        let log = "\(path):\(use.line):\(use.column): error: constant 'result' used before being initialized"
+
+        let count = try await recovery.takeOutMutants(failing: log, keptAs: "log")
+
+        XCTAssertEqual(count, 1)
+        XCTAssertEqual(Array(recovery.leftOut.keys), [removal.id])
+        XCTAssertEqual(recovery.leftOut[removal.id]?.blame, .itself)
+    }
+
+    // A mutant of the list around it can't cause an error in a body of its own.
+    func test_anErrorInABodyInAFinalElse_isNotThatChains() throws {
+        let bodies = [
+            "let f: () -> Int = {\n        let unused = 1\n        return unused\n    }",
+            "struct S {\n        var v: Int {\n            let unused = 1\n            return unused\n        }\n    }",
+            """
+            struct S {
+                var v: Int {
+                    get {
+                        let unused = 1
+                        return unused
+                    }
+                }
+            }
+            """,
+            "class C {\n        deinit {\n            let unused = 1\n        }\n    }",
+        ]
+        for body in bodies {
+            let file = try file("func outer(_ n: Int) {\n    if n > 1 { a() }\n    \(body)\n}\n")
+            let error = place(
+                of: try XCTUnwrap(file.rewritten.range(of: "let unused", options: .backwards), body),
+                in: file.rewritten
+            )
+            XCTAssertEqual(locator(file).place(line: error.line, column: error.column), .outside, file.rewritten)
+        }
     }
 
     // A command that builds something else first, a quoted line, and a test's own failure.

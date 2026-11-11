@@ -104,9 +104,8 @@ extension MutationOperator.Id {
             It will determine your code is causing a side effect based on a few rules:
                 • A line contains a function call which is explicitly discarding a return result.
                 • A line contains a function call and doesn't save the result of the function call into a named variable or constant (i.e. a line implicitly discards a return result or doesn't produce one).
-                • A line does not contain a call to \("print".onCodeEscape), \("exit".onCodeEscape), \("fatalError"
-                .onCodeEscape), \("preconditionFailure".onCodeEscape), \("abort".onCodeEscape), or any function listed in \(
-                    "muter.conf.yml".onCodeEscape) under the \("excludeCalls".onCodeEscape) key.
+                • A line does not contain a call to \("print".onCodeEscape), \("debugPrint".onCodeEscape), \("dump".onCodeEscape), \("NSLog".onCodeEscape), \("os_log".onCodeEscape), \("fatalError".onCodeEscape), \("preconditionFailure".onCodeEscape), \("precondition".onCodeEscape), \("assert".onCodeEscape), \("assertionFailure".onCodeEscape), \("dispatchPrecondition".onCodeEscape), \("exit".onCodeEscape), \("_exit".onCodeEscape), \("pthread_exit".onCodeEscape), \("abort".onCodeEscape), or any function listed in \(
+                    "muter.conf.yml".onCodeEscape) under the \("excludeCalls".onCodeEscape) key. These match called names: \("print".onCodeEscape) keeps \("Swift.print(x)".onCodeEscape), not \("printer.flush()".onCodeEscape).
             The purpose of this operator is to highlight how your tests respond to the absence of expected side effects.
 
             \("Mutating an explicitly discarded return result".bold)

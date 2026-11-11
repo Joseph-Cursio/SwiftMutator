@@ -129,7 +129,7 @@ None of the 8 came from SMT's shared sandbox (#187). Only these 8 were rerun, th
   - **219 relational boundary mutants,** such as `>` → `>=`. 131 of them survive (60%). SwiftMutator's #102 proposes the same mutants.
     - The other 4 relational ones are two `==`/`!=` flips SwiftMutator didn't make, and two unviable mutants of non-expressions: a generic constraint and an operator declaration.
   - **872 remove-side-effects mutants,** of which 577 are killed, 208 survive, 82 are "no coverage" and 5 time out.
-    - What decides which calls only SMT removes is where they sit. SwiftMutator mutates only the top level of function, `for`, `guard`, `while`, `repeat` and `do` bodies. It skips `if`/`else` bodies, closures, and functions that also hold a loop, `guard` or `do` (#112). SMT also removes calls in all of those, and expressions in SwiftUI view builders such as `Text("Tab 2").tag(1)`.
+    - What decides which calls only SMT removes is where they sit. SwiftMutator mutates only the top level of function, `for`, `guard`, `while`, `repeat` and `do` bodies. It skips `if`/`else` bodies, closures, and functions that also hold a loop, `guard` or `do` (#112). SMT also removes calls in all of those, and expressions in SwiftUI view builders such as `Text("Tab 2").tag(1)`. SwiftMutator has looked in all those blocks since #112, but still leaves such expressions alone in a builder's own lists.
     - The 577 kills are test strength SwiftMutator doesn't measure, although the view-builder mutants are mostly noise.
 - **Only SwiftMutator: 103,** all remove side effects (56 killed, 44 survived, 3 timed out). Each comes from a rule of SMT's:
   - about 70 are the only statement of their body, such as `typeStack.removeLast()` (`RemoveSideEffectsVisitor.isSoleStatementOfBody`);
@@ -163,7 +163,7 @@ None of the 8 came from SMT's shared sandbox (#187). Only these 8 were rerun, th
 
 - **SMT on `assertIdempotent.swift`** made 2 mutants, the two `==`. Both were killed, by a crash, since `precondition` fails. It took 26 s.
   - SMT makes no mutant that removes a `precondition`, because it has a deny list.
-  - SwiftMutator removes them (#112).
+  - SwiftMutator removed them then. It hasn't since #112.
 - **The matched mutants agree.** 27 matched. All 21 kills agree, and SwiftMutator's 6 matched survivors are SMT's "no coverage" mutants in `examples/`.
 - **`examples/` is #86 again.** It holds sample packages that the root package doesn't build.
   - Leaving `examples/` aside, both tools killed every viable mutant they tested in `Sources/`.

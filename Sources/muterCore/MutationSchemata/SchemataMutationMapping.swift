@@ -381,7 +381,9 @@ private extension CodeBlockItemListSyntax {
         }
         return false
     }
+}
 
+extension CodeBlockItemListSyntax {
     /// The statements of a getter or function whose result type is `some …` and that is not a
     /// result builder: neither marked `@…Builder` nor a `body`, which `View` makes a builder.
     var isOpaqueNonBuilderBody: Bool {
@@ -453,7 +455,7 @@ private extension TypeSyntax {
     }
 }
 
-private extension AttributeListSyntax {
+extension AttributeListSyntax {
     var containsResultBuilder: Bool {
         contains { element in
             element.as(AttributeSyntax.self)?.attributeName.trimmedDescription.hasSuffix("Builder") == true

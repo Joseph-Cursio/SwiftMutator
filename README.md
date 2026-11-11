@@ -204,6 +204,19 @@ and fixes wait months for review. SwiftMutator starts from Muter's `main` and ad
   counts for `RemoveSideEffects` on the statements after it. So a file with such tags can find
   different mutants. See
   [Disable muter in code](Docs/Muter-README.md#disable-muter-in-code).
+- **`RemoveSideEffects` looks in more blocks, and goes by called names:** it now also removes calls in
+  `if`, `else`, `switch` cases, `catch`, `defer`, `init`, `deinit`, accessors and closures, in a
+  function that holds a loop, `guard` or `do`, and under `try`, `await` and `unsafe`
+  ([#112](https://github.com/Joseph-Cursio/SwiftMutator/issues/112)). It no longer removes `assert`,
+  `precondition`, calls on a lock, or what the code needs in order to compile. This nearly doubles its
+  mutants, and adds 11% to all the mutants of SwiftProjectLint and SwiftCloneDetector. None of them
+  fails the build, and SwiftProjectLint's full build took no longer, with its test run 5% longer. So a
+  score can fall with no change to your tests: this operator's kills went from 40 of 45 to 71 of 94 on
+  SwiftCloneDetector, as the new mutants find calls its tests don't check. `excludeCalls`
+  now matches whole names in a call, not any text in the statement, so `log` no longer keeps
+  `logger.debug()` or `catalog.add()`: list `logger` for that. A run recorded before this is continued
+  with `--force-resume`, which keeps the results of the mutants still found, and tests the new ones.
+  See [what it never removes](Docs/mutation_operators.md#what-it-never-removes).
 - **Logging through the injected printer**, so log output can be captured and tested.
 
 Fixes that apply to Muter are offered upstream too.
@@ -809,6 +822,7 @@ the JSON file alone. The options are documented in
 | `propertyTestFilter` | A list of test filters that select the property tests alone, as `swift test --filter` or xcodebuild's `-only-testing:` takes them: once every mutant is tested, each kill whose recorded tests include no property test is tested again with only those tests (default: unset, which tests none again; needs `propertyTests`) |
 | `operators` | A list of the operators to use, at least one (default: all of them). See [Choosing the operators](#choosing-the-operators) |
 | `skipOperators` | A list of the operators to leave out (default: none). See [Choosing the operators](#choosing-the-operators) |
+| `excludeCalls` | A list of calls `RemoveSideEffects` never removes, beside those it always keeps. An entry matches whole names in a call, on any value: `log` keeps `log()` and `log.debug()`, not `logger.debug()`. See [what it never removes](Docs/mutation_operators.md#what-it-never-removes) |
 | `buildTimeout` | Seconds before the coverage run, which builds your project and runs its tests with coverage on, is stopped. Mutation testing then goes on without coverage, as after any coverage failure. For now it limits only the coverage run, not the baseline or other builds (default: no limit) |
 
 `--workers N` and `--timeout S`, on `run` and `run-without-mutating`, set `mutationTestWorkers`

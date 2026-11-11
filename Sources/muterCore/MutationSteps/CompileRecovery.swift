@@ -269,7 +269,10 @@ struct MutantLocator {
             // The compiler reports this on the first branch of a differing type, whichever mutants are at fault.
             closely = error.message.contains("branches have mismatching types") ? (.itsSwitch, chain) : (.itself, [id])
         case let .wholeSwitch(chain):
-            closely = (.itsSwitch, chain)
+            // In a final `else`, this may be of a statement gone from a list nested in it, which isn't in that chain.
+            closely = comesOfARemovedStatement(error)
+                ? removalsAround(error, removals: removals) ?? (.itsSwitch, chain)
+                : (.itsSwitch, chain)
         case .outside:
             closely = removalsAround(error, removals: removals) ?? around(error, everyMutant: everyMutant)
         }
@@ -290,6 +293,10 @@ struct MutantLocator {
         return (around.count == 1 ? .itself : .itsEnclosingCode, around)
     }
 
+    private func comesOfARemovedStatement(_ error: CompilerError) -> Bool {
+        ["missing return", "must not fall through", "initializ", "must yield"].contains(where: error.message.contains)
+    }
+
     private func around(_ error: CompilerError, everyMutant: [String]) -> (LeftOutMutant.Blame, [String]) {
         let around = mutantsInEnclosingBody(line: error.line, column: error.column)
         return around.isEmpty ? (.itsFile, everyMutant) : (.itsEnclosingCode, around)
@@ -299,10 +306,12 @@ struct MutantLocator {
         guard let token = token(line: line, column: column) else { return .outside }
         var node = Syntax(token)
         var inFinalElseOf: IfExprSyntax?
+        var inABodyInsideFinalElse = false
         while let parent = node.parent {
             defer { node = parent }
             if parent.as(EnumDeclSyntax.self)?.name.text == cacheName { return .environmentCache }
             if parent.is(ImportDeclSyntax.self) { return .importDeclaration }
+            if inFinalElseOf == nil, parent.isBodyOfItsOwn { inABodyInsideFinalElse = true }
             guard let link = parent.as(IfExprSyntax.self), let id = mutantID(of: link) else { continue }
             if node.id == link.conditions.id { return .condition }
             if node.id == link.body.id { return .branch(id, chain: chain(around: link)) }
@@ -312,6 +321,10 @@ struct MutantLocator {
             }
             return .wholeSwitch(chain: chain(around: link))
         }
+        // A closure's `missing return` is its own body's: a mutant of the list around the closure can't cause it, and
+        // being in that list's final `else` would take out every one of them, while the culprit stays for another
+        // build.
+        if inABodyInsideFinalElse { return .outside }
         return inFinalElseOf.map { .wholeSwitch(chain: chain(around: $0)) } ?? .outside
     }
 
@@ -321,9 +334,7 @@ struct MutantLocator {
     func mutantsInEnclosingBody(line: Int, column: Int) -> [String] {
         var ancestor = token(line: line, column: column)?.parent
         while let node = ancestor {
-            if node.is(ClosureExprSyntax.self) || node.is(FunctionDeclSyntax.self)
-                || node.is(InitializerDeclSyntax.self) || node.is(AccessorDeclSyntax.self)
-                || node.is(PatternBindingSyntax.self) || node.is(SubscriptDeclSyntax.self)
+            if node.isBodyOfItsOwn || node.is(PatternBindingSyntax.self) || node.is(SubscriptDeclSyntax.self)
                 || node.is(FunctionParameterSyntax.self) || node.is(EnumCaseParameterSyntax.self) {
                 let mutants = node.tokens(viewMode: .sourceAccurate).compactMap { token -> String? in
                     guard token.tokenKind == .keyword(.if), let link = token.parent?.as(IfExprSyntax.self) else {
@@ -366,5 +377,14 @@ struct MutantLocator {
             head = previous
         }
         return sequence(first: head) { $0.elseBody?.as(IfExprSyntax.self) }.compactMap(mutantID)
+    }
+}
+
+private extension Syntax {
+    /// Code with a body of its own, whose `return` or end is its own.
+    var isBodyOfItsOwn: Bool {
+        self.is(ClosureExprSyntax.self) || self.is(FunctionDeclSyntax.self) || self.is(InitializerDeclSyntax.self)
+            || self.is(DeinitializerDeclSyntax.self) || self.is(AccessorDeclSyntax.self)
+            || self.is(AccessorBlockSyntax.self)
     }
 }

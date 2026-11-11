@@ -21,7 +21,7 @@ final class RemoveSideEffectsOperatorTests: MuterTestCase {
         assertMutationPositions(
             actualSchemata, [
                 MutationPosition(utf8Offset: 80, line: 3, column: 27),
-                MutationPosition(utf8Offset: 186, line: 10, column: 27),
+                // Line 10 is the last statement of a function that returns a value, so it stays.
                 MutationPosition(utf8Offset: 423, line: 20, column: 62),
                 // Lines 30 and 31 declare variables whose string literal contains `_ = `. They used to
                 // be removed on that text alone; a declaration is not a side effect to remove.

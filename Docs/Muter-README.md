@@ -174,7 +174,7 @@ Should you need to modify any of the options, you can use the list below to unde
 
 - `excludeCalls` - a list of function names you want Muter to ignore in the [Remove Side Effects](https://github.com/muter-mutation-testing/muter/blob/master/Docs/mutation_operators.md) mutation operator, such as custom logging functions. Mutants in which these functions aren't called will not be created (note that mutations within the functions themselves are *not* skipped, only calls to those functions).
 
-    **NOTE**: Doesn't support overloading currently - all function calls with a matching name will be skipped.
+    **NOTE**: An entry matches whole names in the call, on any value: `log` keeps `log()`, `log.debug()` and `Logger.log()`, not `logger.debug()`, and `Logger.log` keeps `Logger.log()`, not `log()` or `Other.log()`. Doesn't support overloading currently - all function calls with a matching name will be skipped.
 
 - `coverageThreshold` - a percentage from 0 to 100, 0 by default. Files whose share of lines the tests run is at or below it are left out, so by default only the files no test runs are. A file with no lines to run is never left out. It is a percentage for every build system: Muter compared an xcodebuild project's coverage with it as a fraction from 0 to 1.
 - `mutationTestTimeout` - the maximum time in seconds that a test suite is allowed to run before being terminated. This prevents mutations from causing infinite loops or hanging tests. If not specified, tests will run without a timeout.

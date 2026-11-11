@@ -639,9 +639,8 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
     /// RemoveSideEffects removing the call to a function that never returns, the last statement of a `guard` body or
     /// of a function that returns a value, leaves code that falls through: "'guard' body must not fall through" and
     /// "missing return in global function expected to return 'Int'". Only a full build finds the first; a type check
-    /// doesn't. #112 tracks the `guard` body; the function that returns a value is the same bug in another place.
+    /// doesn't.
     func test_theGeneratedCodeBuildsWithoutACallThatNeverReturns() throws {
-        try XCTSkipIf(true, "RemoveSideEffects removing a call that never returns doesn't compile; see #112")
         let usage = """
         func usage() -> Never {
             while true {}
@@ -660,5 +659,95 @@ final class GeneratedCodeShapesTests: GeneratedCodeTestCase {
         }
         """
         _ = try compileMutated(["Usage.swift": usage])
+    }
+
+    /// RemoveSideEffects, in each kind of block it looks in, with what must stay at the end of those that give a value.
+    func test_theGeneratedCodeBuildsWithoutACallInEachKindOfBlock() throws {
+        let code = """
+        import Foundation
+
+        nonisolated(unsafe) var count = 0
+        func work() { count += 1 }
+        func value() -> Int { count }
+        func fails() throws { if count < 0 { throw CocoaError(.fileNoSuchFile) } }
+        func failsWithValue() throws -> Int { try fails(); return 1 }
+        func never() -> Never { fatalError() }
+
+        func branches(_ c: Bool, _ n: Int) -> Int {
+            if c { work(); never() } else if n > 1 { work() } else { work(); work() }
+            switch n {
+            case 0: work()
+            case 1: work(); fallthrough
+            case 2: if c { work() }
+            default: never()
+            }
+            if c { work(); return 1 } else { never() }
+        }
+
+        func exits(_ c: Bool) {
+            guard c else {
+                if count > 0 { work(); return } else { work(); never() }
+            }
+            for _ in 0 ..< 1 { work() }
+            work()
+            repeat { work() } while count < 0
+            defer { work(); work() }
+            print("end")
+        }
+
+        func errors() async throws -> Int {
+            do {
+                try fails()
+                work()
+                try await Task.sleep(nanoseconds: 1)
+                return try failsWithValue()
+            } catch {
+                work()
+                throw error
+            }
+        }
+
+        let asValue: Int = {
+            let n = if count > 0 { value() } else { 1 }
+            let m = switch n { case 1: value() default: 2 }
+            return n + m
+        }()
+
+        final class Base {
+            var state = 0 {
+                willSet { work() }
+                didSet { work(); work() }
+            }
+            init() { work() }
+            init(n: Int) { work(); state = n; work() }
+            deinit { work() }
+        }
+
+        final class Sub {
+            let base: Base
+            var stored: Int { get { work(); return 1 } set { work() } }
+            var shorthand: Int { work(); return value() }
+            subscript(i: Int) -> Int { work(); return i }
+            init() { work(); base = Base(); work() }
+            convenience init(n: Int) { self.init(); work() }
+        }
+
+        let queue = DispatchQueue(label: "q")
+        let giving: @Sendable () -> Int = { () -> Int in work(); return value() }
+        let doing: @Sendable () -> Void = { () -> Void in work() }
+
+        func closures(_ items: [Int]) async {
+            items.forEach { _ in work() }
+            items.forEach { _ in work(); work() }
+            _ = items.map { $0 + value() }
+            queue.sync { work() }
+            Task { @MainActor in work() }
+            await withTaskCancellationHandler { work() } onCancel: { work() }
+        }
+        """
+        let compiled = try compileMutated(["Blocks.swift": code])
+        let mapping = try XCTUnwrap(compiled.mappings["Blocks.swift"])
+        let removals = mapping.mutationSchemata.filter { $0.mutationOperatorId == .removeSideEffects }
+        XCTAssertGreaterThan(removals.count, 40)
     }
 }
