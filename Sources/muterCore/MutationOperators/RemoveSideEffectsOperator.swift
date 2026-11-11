@@ -7,22 +7,36 @@ enum RemoveSideEffectsOperator {
         private var lockNames = Set<String>()
 
         /// The calls a statement is never removed for, whatever `excludeCalls` adds. Each is matched by the name it's
-        /// called by, as `name(_:matchesAnyOf:)` says. The assertions are here because tests rarely take their
-        /// failing path, so removing one nearly always survives. An initializer that delegates must call `super.init`
-        /// or `self.init`.
+        /// called by, as `name(_:matchesAnyOf:)` says. Output and logging are here because a test rarely reads them.
+        /// The assertions are here because tests rarely take their failing path, so removing one nearly always
+        /// survives. A call that ends the process or the thread never returns, so it can be what ends code control
+        /// must not fall out of. `Task.yield()` only lets other tasks run. An initializer that delegates must call
+        /// `super.init` or `self.init`.
         static let alwaysExcludedCalls = [
             "print",
             "debugPrint",
+            "dump",
+            "NSLog",
+            "os_log",
             "fatalError",
             "preconditionFailure",
             "precondition",
             "assert",
             "assertionFailure",
+            "dispatchPrecondition",
             "exit",
+            "_exit",
             "abort",
+            "pthread_exit",
+            "Task.yield",
             "super.init",
             "self.init",
         ]
+
+        /// The methods a statement is never removed for, on whatever value they're called: an actor's or an
+        /// executor's isolation checks, which are assertions, and `reserveCapacity(_:)`, which only saves
+        /// reallocations, so removing it changes no result a test can see.
+        static let methodsExcludedOnAnyValue: Set = ["assertIsolated", "preconditionIsolated", "reserveCapacity"]
 
         /// The types whose calls take, release or wait for a lock. Removing one can leave a later call waiting for
         /// good, which ends as a timeout, or release a lock that wasn't taken. `Mutex` isn't one: it's used only
@@ -37,12 +51,23 @@ enum RemoveSideEffectsOperator {
             "OSAllocatedUnfairLock",
         ]
 
-        /// The functions that take or release the lock passed to them.
+        /// The functions that take, release or wait for the lock or condition passed to them.
         static let lockFunctions = [
             "os_unfair_lock_lock",
+            "os_unfair_lock_trylock",
             "os_unfair_lock_unlock",
             "pthread_mutex_lock",
+            "pthread_mutex_trylock",
             "pthread_mutex_unlock",
+            "pthread_rwlock_rdlock",
+            "pthread_rwlock_tryrdlock",
+            "pthread_rwlock_wrlock",
+            "pthread_rwlock_trywrlock",
+            "pthread_rwlock_unlock",
+            "pthread_cond_wait",
+            "pthread_cond_timedwait",
+            "pthread_cond_signal",
+            "pthread_cond_broadcast",
         ]
 
         private lazy var untestedFunctionNames: [String] = Self.alwaysExcludedCalls
@@ -136,13 +161,15 @@ enum RemoveSideEffectsOperator {
         ) -> Bool {
             let doesntContainVariableAssignment = doesntContainVariableAssignment(statement.allChildren)
             let containsDiscardedResult = discardsAResult(statement)
-            let containsFunctionCall = statement.item.withoutTryOrAwait.is(FunctionCallExprSyntax.self)
+            let containsFunctionCall = statement.item.withoutTryAwaitOrUnsafe.is(FunctionCallExprSyntax.self)
                 && !(statements.mayBeABuildersParts && Self.makesAValueOfAType(statement.item))
 
             let found = CallCollector(viewMode: .sourceAccurate)
             found.walk(statement)
             let callsNothingItMustKeep = !found.names.contains { Self.name($0, matchesAnyOf: untestedFunctionNames) }
+                && !found.names.contains(where: Self.isAMethodExcludedOnAnyValue)
                 && !found.calls.contains(where: isCallOnALock)
+                && !found.calls.contains(where: Self.resumesAContinuation)
                 && !found.references.contains { isOnALock($0, methods: Self.lockMethods) }
 
             return doesntContainVariableAssignment
@@ -155,7 +182,7 @@ enum RemoveSideEffectsOperator {
         /// result builder's, that is one of its parts, which isn't a side effect, and whose builder may take no `if`,
         /// so the mutant's switch wouldn't build. `Task { … }`, which starts work, is the exception.
         static func makesAValueOfAType(_ item: some SyntaxProtocol) -> Bool {
-            guard var call = item.withoutTryOrAwait.as(FunctionCallExprSyntax.self) else {
+            guard var call = item.withoutTryAwaitOrUnsafe.as(FunctionCallExprSyntax.self) else {
                 return false
             }
             // The call a chain of modifiers starts from.
@@ -245,6 +272,27 @@ enum RemoveSideEffectsOperator {
                 parts.removeFirst()
             }
             return parts.count == 1 && lockNames.contains(String(parts[0]))
+        }
+
+        /// Whether `calledName` is one of `methodsExcludedOnAnyValue`, alone or on any value, as in
+        /// `executor.assertIsolated()` or `items.reserveCapacity(10)`.
+        static func isAMethodExcludedOnAnyValue(_ calledName: String) -> Bool {
+            calledName.split(separator: ".").last.map { methodsExcludedOnAnyValue.contains(String($0)) } ?? false
+        }
+
+        /// Whether the call resumes a continuation, as `continuation.resume(returning: value)` or
+        /// `self.pendingContinuation?.resume()` do: `resume` on a value with `continuation` in its name, in any case.
+        /// Removing one leaves the task that awaits it suspended for good, which ends as a timeout. A continuation is
+        /// known only by its name, so `task.resume()` is removed.
+        static func resumesAContinuation(_ call: FunctionCallExprSyntax) -> Bool {
+            guard let member = call.calledExpression.as(MemberAccessExprSyntax.self),
+                  member.declName.baseName.text == "resume",
+                  let base = member.base,
+                  let value = name(of: base).split(separator: ".").last
+            else {
+                return false
+            }
+            return value.lowercased().contains("continuation")
         }
 
         private static let withLockMethods: Set<String> = ["withLock", "withLockUnchecked", "withLockIfAvailable"]
@@ -850,14 +898,16 @@ private extension CodeBlockItemSyntax {
 }
 
 private extension SyntaxProtocol {
-    /// The expression under any `try` and `await`, as `save()` is in `try await save()`.
-    var withoutTryOrAwait: Syntax {
+    /// The expression under any `try`, `await` and `unsafe`, as `save()` is in `try await save()`.
+    var withoutTryAwaitOrUnsafe: Syntax {
         var node = Syntax(self)
         while true {
             if let tryExpr = node.as(TryExprSyntax.self) {
                 node = Syntax(tryExpr.expression)
             } else if let awaitExpr = node.as(AwaitExprSyntax.self) {
                 node = Syntax(awaitExpr.expression)
+            } else if let unsafeExpr = node.as(UnsafeExprSyntax.self) {
+                node = Syntax(unsafeExpr.expression)
             } else {
                 return node
             }
@@ -917,7 +967,8 @@ private extension ClosureExprSyntax {
             return false
         }
         var node = Syntax(call)
-        while let parent = node.parent, parent.is(TryExprSyntax.self) || parent.is(AwaitExprSyntax.self) {
+        while let parent = node.parent,
+              parent.is(TryExprSyntax.self) || parent.is(AwaitExprSyntax.self) || parent.is(UnsafeExprSyntax.self) {
             node = parent
         }
         if let sequence = node.parent?.parent?.as(SequenceExprSyntax.self),
