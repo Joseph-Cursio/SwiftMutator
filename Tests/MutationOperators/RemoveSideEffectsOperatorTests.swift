@@ -345,6 +345,46 @@ final class RemoveSideEffectsOperatorTests: MuterTestCase {
         XCTAssertEqual(removed, ["store(value)"])
     }
 
+    // Output and logging are rarely read by a test, an isolation check is an assertion, a call that ends the process
+    // or the thread never returns, and `Task.yield()` only lets other tasks run.
+    func test_neverRemovesOutputLoggingAndCallsThatNeverReturn() throws {
+        let removed = try removedStatements(
+            in: """
+            func shutDown(_ state: State) async {
+                dump(state)
+                NSLog("closing %@", state.name)
+                os_log(.debug, "closing")
+                dispatchPrecondition(condition: .onQueue(.main))
+                await Task.yield()
+                Darwin._exit(0)
+                pthread_exit(nil)
+                store(state)
+            }
+            """
+        )
+
+        XCTAssertEqual(removed, ["store(state)"])
+    }
+
+    // These are matched on any value, unlike the calls above, which a method of a value doesn't match.
+    func test_neverRemovesAnIsolationCheckOrReserveCapacity_onAnyValue() throws {
+        let removed = try removedStatements(
+            in: """
+            func fill(_ items: inout [Int]) {
+                executor.assertIsolated()
+                MainActor.preconditionIsolated("main only")
+                self.assertIsolated()
+                items.reserveCapacity(10)
+                buffer?.reserveCapacity(10)
+                printer.dump(items)
+                items.append(1)
+            }
+            """
+        )
+
+        XCTAssertEqual(removed, ["printer.dump(items)", "items.append(1)"])
+    }
+
     // Only a call that never returns can end a `guard` body or a function that returns a value, and the
     // project's own, as `usage()`, isn't on the deny-list. Removing it leaves a body that falls through, which
     // doesn't compile, and fails the build every mutant shares. The calls before it are removed as usual.
@@ -570,6 +610,48 @@ final class RemoveSideEffectsOperatorTests: MuterTestCase {
         XCTAssertEqual(removed, [
             "queue.async(execute: refresh)", "register(group.debugDescription)", "print2(\"\\(self.group.hash)\")",
         ])
+    }
+
+    // A read-write lock and a condition are taken and waited for through functions, as `pthread_mutex_lock` is.
+    // Removing a continuation's `resume` leaves the task that awaits it suspended for good; a continuation is known by
+    // its name.
+    func test_neverRemovesALockFunctionOrAContinuationsResume() throws {
+        let removed = try removedStatements(
+            in: """
+            func read(_ continuation: CheckedContinuation<Int, Never>) {
+                pthread_rwlock_rdlock(&rwlock)
+                pthread_rwlock_unlock(&rwlock)
+                pthread_cond_wait(&condition, &mutex)
+                pthread_cond_signal(&condition)
+                _ = pthread_mutex_trylock(&mutex)
+                os_unfair_lock_trylock(&unfair)
+                continuation.resume(returning: 1)
+                self.pendingContinuation?.resume()
+                Continuation.resume(throwing: error)
+                task.resume()
+                resume()
+            }
+            """
+        )
+
+        XCTAssertEqual(removed, ["task.resume()", "resume()"])
+    }
+
+    // `unsafe` marks an expression as `try` and `await` do, so the call under it is removed as theirs is.
+    func test_removesACallUnderUnsafe() throws {
+        let removed = try removedStatements(
+            in: """
+            func release(_ pointer: UnsafeMutableRawPointer) throws {
+                unsafe free(pointer)
+                try unsafe close(pointer)
+                _ = unsafe pointer.load(as: Int.self)
+            }
+            """
+        )
+
+        XCTAssertEqual(
+            removed, ["unsafe free(pointer)", "try unsafe close(pointer)", "_ = unsafe pointer.load(as: Int.self)"]
+        )
     }
 
     func test_removesACallUnderTryOrAwait() throws {
