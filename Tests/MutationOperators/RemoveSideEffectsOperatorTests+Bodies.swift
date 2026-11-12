@@ -3,6 +3,23 @@ import SwiftSyntax
 import TestingExtensions
 
 extension RemoveSideEffectsOperatorTests {
+    // `unsafe` marks an expression as `try` and `await` do, so the call under it is removed as theirs is.
+    func test_removesACallUnderUnsafe() throws {
+        let removed = try removedStatements(
+            in: """
+            func release(_ pointer: UnsafeMutableRawPointer) throws {
+                unsafe free(pointer)
+                try unsafe close(pointer)
+                _ = unsafe pointer.load(as: Int.self)
+            }
+            """
+        )
+
+        XCTAssertEqual(
+            removed, ["unsafe free(pointer)", "try unsafe close(pointer)", "_ = unsafe pointer.load(as: Int.self)"]
+        )
+    }
+
     func test_removesACallUnderTryOrAwait() throws {
         let removed = try removedStatements(
             in: """

@@ -103,4 +103,44 @@ extension RemoveSideEffectsOperatorTests {
 
         XCTAssertEqual(removed, ["store(value)"])
     }
+
+    // Output and logging are rarely read by a test, an isolation check is an assertion, a call that ends the process
+    // or the thread never returns, and `Task.yield()` only lets other tasks run.
+    func test_neverRemovesOutputLoggingAndCallsThatNeverReturn() throws {
+        let removed = try removedStatements(
+            in: """
+            func shutDown(_ state: State) async {
+                dump(state)
+                NSLog("closing %@", state.name)
+                os_log(.debug, "closing")
+                dispatchPrecondition(condition: .onQueue(.main))
+                await Task.yield()
+                Darwin._exit(0)
+                pthread_exit(nil)
+                store(state)
+            }
+            """
+        )
+
+        XCTAssertEqual(removed, ["store(state)"])
+    }
+
+    // These are matched on any value, unlike the calls above, which a method of a value doesn't match.
+    func test_neverRemovesAnIsolationCheckOrReserveCapacity_onAnyValue() throws {
+        let removed = try removedStatements(
+            in: """
+            func fill(_ items: inout [Int]) {
+                executor.assertIsolated()
+                MainActor.preconditionIsolated("main only")
+                self.assertIsolated()
+                items.reserveCapacity(10)
+                buffer?.reserveCapacity(10)
+                printer.dump(items)
+                items.append(1)
+            }
+            """
+        )
+
+        XCTAssertEqual(removed, ["printer.dump(items)", "items.append(1)"])
+    }
 }

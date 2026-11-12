@@ -4,7 +4,8 @@ import XCTest
 
 final class AcceptanceTests: XCTestCase {
     private let messages = (
-        mutationScoreOfTestSuite: "Mutation Score of Test Suite: 30%",
+        // Module.swift's 2 mutants are the only kills of the 9, and the score is truncated: 2 / 9 is 22%.
+        mutationScoreOfTestSuite: "Mutation Score of Test Suite: 22%",
         mutationScoresHeader: """
         --------------------
         Mutation Test Scores

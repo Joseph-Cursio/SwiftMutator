@@ -52,7 +52,8 @@ extension ClosureExprSyntax {
             return false
         }
         var node = Syntax(call)
-        while let parent = node.parent, parent.is(TryExprSyntax.self) || parent.is(AwaitExprSyntax.self) {
+        while let parent = node.parent,
+              parent.is(TryExprSyntax.self) || parent.is(AwaitExprSyntax.self) || parent.is(UnsafeExprSyntax.self) {
             node = parent
         }
         if let sequence = node.parent?.parent?.as(SequenceExprSyntax.self),

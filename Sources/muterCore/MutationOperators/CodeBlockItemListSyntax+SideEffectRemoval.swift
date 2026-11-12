@@ -319,14 +319,16 @@ extension CodeBlockItemSyntax {
 }
 
 extension SyntaxProtocol {
-    /// The expression under any `try` and `await`, as `save()` is in `try await save()`.
-    var withoutTryOrAwait: Syntax {
+    /// The expression under any `try`, `await` and `unsafe`, as `save()` is in `try await save()`.
+    var withoutTryAwaitOrUnsafe: Syntax {
         var node = Syntax(self)
         while true {
             if let tryExpr = node.as(TryExprSyntax.self) {
                 node = Syntax(tryExpr.expression)
             } else if let awaitExpr = node.as(AwaitExprSyntax.self) {
                 node = Syntax(awaitExpr.expression)
+            } else if let unsafeExpr = node.as(UnsafeExprSyntax.self) {
+                node = Syntax(unsafeExpr.expression)
             } else {
                 return node
             }

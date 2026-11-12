@@ -1,7 +1,8 @@
 # Runs `make acceptance-test`: SwiftMutator on the sample projects in Repositories/, its iOS app on a simulator, then
 # the checks of what each run printed and wrote. Too slow to hold up a pull request, so this runs on main once a day and
 # by hand, and blocks nothing. A failure means main's output no longer passes the checks in AcceptanceTests/, or a run
-# exited with a status it shouldn't: the run's summary says which.
+# exited with a status it shouldn't: the run's summary says which. As nothing blocks on it, a scheduled run that fails
+# opens an issue, or comments on the one still open, so a failure is seen.
 name: Acceptance tests
 
 on:
@@ -99,3 +100,29 @@ jobs:
             ${{ runner.temp }}/acceptance-samples.tar.gz
           if-no-files-found: ignore
           retention-days: 14
+
+  report-failure:
+    name: Report a failed scheduled run
+    needs: acceptance-tests
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open an issue, or comment on the open one
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: |
+          title="The nightly acceptance run failed"
+          number=$(gh issue list --state open --search "\"$title\" in:title" --json number,title \
+            --jq "map(select(.title == \"$title\")) | first | .number // empty")
+          body="The scheduled acceptance run at \`${SHA:0:8}\` failed: $RUN_URL. Its summary names the failed checks, and its artifact holds the log, the samples and any mismatched snapshots."
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$title" --label bug --body "$body"
+          fi

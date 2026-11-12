@@ -89,4 +89,29 @@ extension RemoveSideEffectsOperatorTests {
             "queue.async(execute: refresh)", "register(group.debugDescription)", "print2(\"\\(self.group.hash)\")",
         ])
     }
+
+    // A read-write lock and a condition are taken and waited for through functions, as `pthread_mutex_lock` is.
+    // Removing a continuation's `resume` leaves the task that awaits it suspended for good; a continuation is known by
+    // its name.
+    func test_neverRemovesALockFunctionOrAContinuationsResume() throws {
+        let removed = try removedStatements(
+            in: """
+            func read(_ continuation: CheckedContinuation<Int, Never>) {
+                pthread_rwlock_rdlock(&rwlock)
+                pthread_rwlock_unlock(&rwlock)
+                pthread_cond_wait(&condition, &mutex)
+                pthread_cond_signal(&condition)
+                _ = pthread_mutex_trylock(&mutex)
+                os_unfair_lock_trylock(&unfair)
+                continuation.resume(returning: 1)
+                self.pendingContinuation?.resume()
+                Continuation.resume(throwing: error)
+                task.resume()
+                resume()
+            }
+            """
+        )
+
+        XCTAssertEqual(removed, ["task.resume()", "resume()"])
+    }
 }
