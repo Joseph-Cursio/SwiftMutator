@@ -1,8 +1,9 @@
 OVERVIEW: Creates the configuration file that SwiftMutator uses
 
-USAGE: swift-mutator init
+USAGE: swift-mutator init [--force]
 
 OPTIONS:
+  --force                 Replace a muter.conf.yml that is already there.
   --version               Show the version.
   -h, --help              Show help information.
 

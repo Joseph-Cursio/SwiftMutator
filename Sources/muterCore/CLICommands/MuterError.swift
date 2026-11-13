@@ -22,7 +22,9 @@ public enum MuterError: Error, Equatable, CustomStringConvertible {
                     .fileNameWithExtension
             )
 
-            You can run \("swift-mutator init".bold) to generate or regenerate a configuration file.
+            You can run \("swift-mutator init".bold) to generate a configuration file, or \(
+                "swift-mutator init --force".bold
+            ) to replace the one there.
 
             ******************
             FileManager Error:

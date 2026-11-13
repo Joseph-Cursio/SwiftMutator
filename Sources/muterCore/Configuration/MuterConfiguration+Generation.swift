@@ -1,105 +1,73 @@
 import Foundation
 
-extension MuterConfiguration {
-    /// Tried in order. The last makes a configuration from anything.
-    private static let generators: [@Sendable ([URL]) async -> MuterConfiguration?] = [
-        generateXcodeProjectConfiguration,
-        generateXcodeWorkspaceConfiguration,
-        generateSPMConfiguration,
-        generateEmptyConfiguration,
-    ]
-
-    /// The configuration the first generator that knows the project in `directoryContents` makes. A relative path is
-    /// read from `directory`, or from the current folder when there is none, and keeps its relative form, so that
-    /// what `XcodebuildTrustCheck` looks for in it is looked for only below the project's folder.
-    init(from directoryContents: [FilePath], in directory: FilePath? = nil) async {
-        let base = directory.map { URL(fileURLWithPath: $0, isDirectory: true) }
-        let contentURLs = directoryContents.map { URL(fileURLWithPath: $0, relativeTo: base) }
-        for generate in Self.generators {
-            if let generatedConfiguration = await generate(contentURLs) {
-                self = generatedConfiguration
-                return
-            }
-        }
-        self = MuterConfiguration(executable: "", arguments: [], excludeList: [])
+/// What `xcodebuild -list -json` prints: a workspace's or a project's schemes.
+private struct XcodebuildListing: Decodable {
+    struct Container: Decodable {
+        let schemes: [String]?
     }
+
+    let workspace: Container?
+    let project: Container?
 }
 
-private extension MuterConfiguration {
-    static func generateXcodeProjectConfiguration(from directoryContents: [URL]) async -> MuterConfiguration? {
-        guard !directoryContainsXcodeWorkspace(directoryContents),
-              let index = directoryContents.firstIndex(where: { $0.lastPathComponent.contains(".xcodeproj") }),
-              let arguments = await arguments(
-                  forProjectFileAt: directoryContents[index],
-                  isWorkSpace: false,
-                  in: directoryContents
-              )
-        else {
-            return nil
+extension MuterConfiguration {
+    /// The configuration for the project whose folder `directory` holds `directoryContents`, paths relative to it.
+    /// Each path keeps its relative form, so that what `XcodebuildTrustCheck` looks for in it is looked for only below
+    /// the project's folder. An Xcode workspace or project at the top of the folder wins, then a `Package.swift`;
+    /// otherwise it is empty, to fill in. It throws when there are several workspaces, or no workspace and several
+    /// projects.
+    static func generated(from directoryContents: [FilePath], in directory: FilePath) async throws
+        -> GeneratedConfiguration {
+        let base = URL(fileURLWithPath: directory, isDirectory: true)
+        let contentURLs = directoryContents.map { URL(fileURLWithPath: $0, relativeTo: base) }
+        let topLevel = contentURLs.filter { !$0.relativePath.trimmingCharacters(in: ["/"]).contains("/") }
+
+        if let container = try XcodeContainer.find(among: topLevel),
+           let generated = await xcodeConfiguration(for: container, besides: topLevel, in: contentURLs) {
+            return generated
         }
-
-        return await MuterConfiguration(
-            executable: executablePath("xcodebuild"),
-            arguments: arguments
-        )
-    }
-
-    static func generateXcodeWorkspaceConfiguration(from directoryContents: [URL]) async -> MuterConfiguration? {
-        guard directoryContainsXcodeWorkspace(directoryContents),
-              let index = directoryContents.firstIndex(where: { $0.lastPathComponent.contains(".xcodeproj") }),
-              let arguments = await arguments(
-                  forProjectFileAt: directoryContents[index],
-                  isWorkSpace: true,
-                  in: directoryContents
-              )
-        else {
-            return nil
+        if let configuration = await packageConfiguration(from: topLevel) {
+            return GeneratedConfiguration(configuration: configuration, scheme: nil)
         }
-
-        return await MuterConfiguration(
-            executable: executablePath("xcodebuild"),
-            arguments: arguments
-        )
+        return GeneratedConfiguration(configuration: MuterConfiguration(), scheme: nil)
     }
 
-    static func directoryContainsXcodeWorkspace(_ directoryContents: [URL]) -> Bool {
-        let indexOfUserGeneratedWorkSpace = directoryContents
-            .exclude { $0.absoluteString.contains("project.xcworkspace") }
-            .firstIndex { $0.lastPathComponent.contains(".xcworkspace") }
-
-        return indexOfUserGeneratedWorkSpace != nil
-    }
-
-    /// The arguments that test the project at `url`. They skip the trust checks the project in `directoryContents`
-    /// needs, so that a run with no one at the Mac to trust its plugins and macros, as on CI, still builds.
-    static func arguments(
-        forProjectFileAt url: URL,
-        isWorkSpace: Bool,
+    /// `xcodebuild` with the container, the scheme `xcodebuild -list` names for it, the trust checks the project in
+    /// `directoryContents` needs skipped, so that a run with no one at the Mac to trust its plugins and macros, as on
+    /// CI, still builds, and a destination. nil for a project whose `project.pbxproj` can't be read.
+    private static func xcodeConfiguration(
+        for container: XcodeContainer,
+        besides topLevel: [URL],
         in directoryContents: [URL]
-    ) async -> [String]? {
-        guard let projectFile = try? String(
-            contentsOf: url.appendingPathComponent("project.pbxproj"),
-            encoding: .utf8
-        ),
-            let projectName = url.lastPathComponent.split(separator: ".").first
-        else {
+    ) async -> GeneratedConfiguration? {
+        let projectFiles = container.projectFiles(besides: topLevel).compactMap { project in
+            try? String(contentsOf: project.appendingPathComponent("project.pbxproj"), encoding: .utf8)
+        }
+        if case .project = container, projectFiles.isEmpty {
             return nil
         }
 
-        let defaultArguments = [
-            isWorkSpace ? "-workspace" : "-project",
-            isWorkSpace ? "\(projectName).xcworkspace" : "\(projectName).xcodeproj",
-            "-scheme",
-            "\(projectName)",
-        ]
-
-        let destination = projectFile.contains("SDKROOT = iphoneos") ?
-            ["-destination", "platform=iOS Simulator,name=\(await iosDestination())"] :
-            ["-destination", await macOSDestionation(defaultArguments)]
-
+        let scheme = SchemeChoice(listed: await schemes(of: container), containerName: container.name)
+        let containerArguments = [container.argument, container.url.lastPathComponent, "-scheme", scheme.chosen]
+        let probeArguments = [container.argument, container.url.path, "-scheme", scheme.chosen]
+        let destination = projectFiles.contains { $0.contains("SDKROOT = iphoneos") }
+            ? "platform=iOS Simulator,name=\(await iosDestination())"
+            : await macOSDestination(probeArguments)
         let skippedTrustChecks = XcodebuildTrustCheck.needed(by: directoryContents).map(\.skippingArgument)
 
-        return defaultArguments + skippedTrustChecks + destination + ["test"]
+        let configuration = await MuterConfiguration(
+            executable: executablePath("xcodebuild"),
+            arguments: containerArguments + skippedTrustChecks + ["-destination", destination, "test"]
+        )
+        return GeneratedConfiguration(configuration: configuration, scheme: scheme)
+    }
+
+    /// `swift test`. The manifests need no `exclude`: `SourceFileExcludes` always leaves them out.
+    private static func packageConfiguration(from topLevel: [URL]) async -> MuterConfiguration? {
+        guard topLevel.contains(where: { $0.lastPathComponent == "Package.swift" }) else {
+            return nil
+        }
+        return await MuterConfiguration(executable: executablePath("swift"), arguments: ["test"])
     }
 
     private static func executablePath(_ exec: String) async -> String {
@@ -107,27 +75,42 @@ private extension MuterConfiguration {
     }
 }
 
-private extension MuterConfiguration {
-    static func generateSPMConfiguration(from directoryContents: [URL]) async -> MuterConfiguration? {
-        if directoryContents.contains(where: { $0.lastPathComponent == "Package.swift" }) {
-            return await MuterConfiguration(
-                executable: executablePath("swift"),
-                arguments: ["test"],
-                excludeList: swiftPackageManifestFiles(from: directoryContents)
-            )
+extension MuterConfiguration {
+    /// The schemes `xcodebuild -list -json` names for the workspace or project, in its order; none when it can't be
+    /// run, or prints something else.
+    static func schemes(of container: XcodeContainer) async -> [String] {
+        guard let output: String = await current.process().runProcess(
+            url: "/usr/bin/xcodebuild",
+            arguments: [container.argument, container.url.path, "-list", "-json"]
+        ) else {
+            return []
         }
-
-        return nil
+        return schemes(inListing: output)
     }
 
-    private static func swiftPackageManifestFiles(from directoryContents: [URL]) -> [String] {
-        directoryContents
-            .include { $0.lastPathComponent.matches("Package@*.swift") }
-            .map(\.lastPathComponent)
+    /// The schemes in `xcodebuild -list -json`'s output, which may start with lines that aren't JSON.
+    static func schemes(inListing output: String) -> [String] {
+        guard let start = output.firstIndex(of: "{"),
+              let listing = try? JSONDecoder().decode(XcodebuildListing.self, from: Data(output[start...].utf8))
+        else {
+            return []
+        }
+        return listing.workspace?.schemes ?? listing.project?.schemes ?? []
     }
 
-    static func generateEmptyConfiguration(from _: [URL]) -> MuterConfiguration? {
-        MuterConfiguration(executable: "", arguments: [], excludeList: [])
+    /// Of `simctl list --json`'s runtimes, the newest iOS one, by version, so iOS 18.2 is newer than iOS 9.3, which a
+    /// comparison of the names would put last.
+    static func newestIOSRuntime(among runtimes: some Sequence<String>) -> String? {
+        runtimes
+            .compactMap { runtime -> (runtime: String, version: [Int])? in
+                guard let marker = runtime.range(of: "iOS-") else {
+                    return nil
+                }
+                let version = runtime[marker.upperBound...].split(separator: "-").compactMap { Int($0) }
+                return (runtime, version)
+            }
+            .max { $0.version.lexicographicallyPrecedes($1.version) }?
+            .runtime
     }
 }
 
@@ -165,7 +148,7 @@ private extension MuterConfiguration {
             ) ??
                 [:]
             let devices = (simulatorsJson["devices"] as? [String: AnyHashable]) ?? [:]
-            let newestRuntime = devices.keys.filter { $0.contains("iOS") }.max() ?? ""
+            let newestRuntime = newestIOSRuntime(among: devices.keys) ?? ""
             let devicesForRunTime = (devices[newestRuntime] as? [AnyHashable]) ?? []
             let device: Simulator? = try devicesForRunTime
                 .compactMap { try JSONSerialization.data(withJSONObject: $0) }
@@ -180,7 +163,7 @@ private extension MuterConfiguration {
         }
     }
 
-    private static func macOSDestionation(_ projectArguments: [String]) async -> String {
+    private static func macOSDestination(_ projectArguments: [String]) async -> String {
         let process = current.process()
         guard let destinationsOutput: String = await process.runProcess(
             url: "/usr/bin/xcodebuild",

@@ -40,7 +40,8 @@ final class MuterErrorTests: XCTestCase {
 
         XCTAssertTrue(description.contains("SwiftMutator was unable to parse your configuration file."), description)
         XCTAssertTrue(description.contains(MuterConfiguration.fileNameWithExtension), description)
-        XCTAssertTrue(description.contains("swift-mutator init"), description)
+        XCTAssertTrue(description.contains("swift-mutator init to generate"), description)
+        XCTAssertTrue(description.contains("swift-mutator init --force to replace the one there"), description)
         XCTAssertTrue(description.contains("FileManager Error:\n\(Self.reason)"), description)
     }
 

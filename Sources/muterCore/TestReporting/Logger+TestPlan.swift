@@ -23,6 +23,28 @@ extension Logger {
         }
     }
 
+    /// Says which scheme the configuration `init` wrote tests, when that is a guess: `xcodebuild -list` named none, or
+    /// several and none after the workspace or project.
+    func schemeGuessed(_ scheme: SchemeChoice?) {
+        guard let scheme, scheme.isAGuess else {
+            return
+        }
+
+        let file = MuterConfiguration.fileNameWithExtension
+        if scheme.listed.isEmpty {
+            print(
+                "⚠️ xcodebuild -list named no scheme, so the arguments take `-scheme \(scheme.chosen)`, the "
+                    + "workspace's or project's name. Check it in \(file)."
+            )
+        } else {
+            print(
+                "⚠️ No scheme is named after \(scheme.containerName), so the arguments take `-scheme "
+                    + "\(scheme.chosen)`, the first of \(scheme.listed.joined(separator: ", ")). Change it in \(file) "
+                    + "if another one runs your tests."
+            )
+        }
+    }
+
     /// Says which of Xcode's trust checks the configuration `init` wrote skips, as each lets a plugin or macro run that
     /// no one approved, so that someone who doesn't trust that code takes the argument out.
     func trustChecksSkipped(_ checks: [XcodebuildTrustCheck]) {

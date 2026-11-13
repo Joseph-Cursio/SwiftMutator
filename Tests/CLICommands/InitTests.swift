@@ -21,6 +21,65 @@ final class InitTests: MuterTestCase {
         }
     }
 
+    // A second init would lose a file edited by hand: it says how to replace it, and leaves it as it is.
+    func test_aFileThatIsAlreadyThere_isLeftAlone_unlessForced() async throws {
+        let path = "\(directory)/muter.conf.yml"
+        try "executable: /usr/bin/swift\narguments: [test]\n# mine\n".write(
+            toFile: path,
+            atomically: true,
+            encoding: .utf8
+        )
+
+        do {
+            try await sut.run()
+            XCTFail("init replaced \(path)")
+        } catch {
+            XCTAssertEqual(
+                "\(error)",
+                "\(path) is already there, so init left it as it is. `swift-mutator init --force` replaces it."
+            )
+        }
+        XCTAssertTrue(try String(contentsOfFile: path, encoding: .utf8).contains("# mine"))
+
+        var forced = Init(directory: directory, force: true)
+        try await forced.run()
+        XCTAssertFalse(try String(contentsOfFile: path, encoding: .utf8).contains("# mine"))
+    }
+
+    // `--force` is the only flag.
+    func test_parsesForce() throws {
+        XCTAssertFalse(try Init.parse([]).force)
+        XCTAssertTrue(try Init.parse(["--force"]).force)
+    }
+
+    // Every key, with a comment, and those at their defaults commented out: no `coverageThreshold: 0e+0`.
+    func test_writesEveryKeyWithAComment() async throws {
+        try await sut.run()
+
+        let text = try String(contentsOfFile: "\(directory)/muter.conf.yml", encoding: .utf8)
+        XCTAssertTrue(text.hasPrefix("# SwiftMutator's configuration, written by `swift-mutator init`."), text)
+        XCTAssertTrue(text.contains("\n# coverageThreshold: 0\n"), text)
+        XCTAssertFalse(text.contains("0e+0"), text)
+    }
+
+    // A scheme init chose among several, none named after the project, or guessed with none listed.
+    func test_schemeGuessed_saysSo_onlyForAGuess() {
+        let logger = Logger()
+
+        logger.schemeGuessed(nil)
+        logger.schemeGuessed(SchemeChoice(listed: ["Shop"], containerName: "Shop"))
+        XCTAssertEqual(printer.linesPassed, [])
+
+        logger.schemeGuessed(SchemeChoice(listed: ["Core", "Shop App"], containerName: "Shop"))
+        logger.schemeGuessed(SchemeChoice(listed: [], containerName: "Shop"))
+        XCTAssertEqual(printer.linesPassed, [
+            "⚠️ No scheme is named after Shop, so the arguments take `-scheme Core`, the first of Core, Shop App. "
+                + "Change it in muter.conf.yml if another one runs your tests.",
+            "⚠️ xcodebuild -list named no scheme, so the arguments take `-scheme Shop`, the workspace's or "
+                + "project's name. Check it in muter.conf.yml.",
+        ])
+    }
+
     // No run observes init, so nothing it sent was ever said: it printed nothing at all.
     func test_saysWhereItCreatedTheConfigurationFile() async throws {
         try await sut.run()
@@ -43,6 +102,7 @@ final class InitTests: MuterTestCase {
         )
         try (iOSProject + XcodebuildTrustCheckTests.projectUsingSwiftLintPlugin)
             .write(toFile: "\(project)/project.pbxproj", atomically: true, encoding: .utf8)
+        process.stdoutToBeReturned = #"{ "project" : { "name" : "App", "schemes" : [ "App" ] } }"#
 
         try await sut.run()
 
