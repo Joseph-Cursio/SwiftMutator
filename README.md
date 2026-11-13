@@ -389,39 +389,49 @@ mutant on its own (see [Testing one mutant](#testing-one-mutant)).
 ### Setting up
 
 `swift-mutator init`, in the project's folder, writes `muter.conf.yml` there with the test command
-it guesses, replacing any file of that name. It looks through the folder and every folder in it,
-and takes the first of:
+it guesses. It leaves a `muter.conf.yml` that is already there as it is, and says so, unless you add
+`--force`. It looks only at the top of the folder, and takes the first of:
 
-- an Xcode project: `xcodebuild` with `-project`, or `-workspace` when there is a workspace of your
-  own, each named after the `.xcodeproj`, then `-scheme` with the same name, and `-destination`: an
-  iPhone simulator of the newest iOS runtime it finds for an iOS project, or else the first
-  destination `xcodebuild -showdestinations` lists;
+- an Xcode workspace, or else an Xcode project: `xcodebuild` with `-workspace` or `-project` and its
+  file name, `-scheme`, and `-destination`. The scheme is the one `xcodebuild -list` names after the
+  workspace or project, else the only one it lists, else the first, and `init` says when it
+  guessed. The destination is an iPhone simulator of the newest iOS runtime, by version, for an iOS
+  project, or else the first destination `xcodebuild -showdestinations` lists for that scheme. With
+  two workspaces, or no workspace and two projects, it can't tell which one runs your tests, so it
+  writes nothing, and says so;
 - a `Package.swift`: `swift test`;
 - otherwise, an empty `executable` and `arguments` to fill in.
 
-So a package with an Xcode project anywhere in it, such as an example app's, gets an `xcodebuild`
-configuration: change it to `swift`, as below. It looks in hidden folders too, so in a package you
-have built, a dependency's Xcode project or workspace in `.build/checkouts` wins: run `init` in a
-fresh clone, or remove `.build` first. A project it finds in a folder below the project's is named
-without that folder, so add the folder to the `-project` or `-workspace` value. The scheme is a
-guess too ([#122](https://github.com/Joseph-Cursio/SwiftMutator/issues/122)). Run the command it
-wrote yourself, from the project's folder, and check that it runs your tests and they pass. For a
-package it writes (an `exclude` with `Package.swift` once for each manifest it finds, one in a
-fresh clone):
+A workspace or project in a folder below, such as an example app's, or a dependency's in
+`.build/checkouts`, isn't looked at, so a package with one gets `swift test`. A package with an
+Xcode project beside `Package.swift` gets an `xcodebuild` configuration: change it to `swift`, as
+below ([#261](https://github.com/Joseph-Cursio/SwiftMutator/issues/261)). Run the command it wrote
+yourself, from the project's folder, and check that it runs your tests and they pass.
+
+The file holds every key, each under a comment that says what it does and its default.
+`executable` and `arguments` are set, and every other key is commented out, with its default or an
+example, so that removing its `# ` sets it. For a package, it starts:
 
 ```yaml
+# SwiftMutator's configuration, written by `swift-mutator init`. Keep it at the project's root, and
+# commit it. A key commented out is at its default: remove its `# ` to set it. SwiftMutator's README
+# says more of each key, in Configuration.
+
+# The program that runs your tests, such as /usr/bin/swift or /usr/bin/xcodebuild, or a script that
+# runs them. It must be set.
+executable: /usr/bin/swift
+
+# What executable is given to run the tests. With xcodebuild they must include -destination, and
+# mutants are tested on the first one. They must be set.
 arguments:
 - test
-executable: /usr/bin/swift
-exclude:
-- Package.swift
-excludeCalls: []
-coverageThreshold: 0e+0
+
+# swift or xcodebuild, for an executable whose file name is neither, such as a wrapper script.
+# Default: from executable's file name.
+# buildSystem: xcodebuild
 ```
 
-`0e+0` is 0. The `exclude` entry also leaves out any file whose path ends in `Package.swift`, such
-as `Sources/Shop/CartPackage.swift`; the defaults already leave out the manifests, so it can go.
-For an iOS app:
+For an iOS app, the arguments are:
 
 ```yaml
 arguments:
@@ -432,14 +442,10 @@ arguments:
 - -destination
 - platform=iOS Simulator,name=iPhone 17 Pro
 - test
-executable: /usr/bin/xcodebuild
-exclude: []
-excludeCalls: []
-coverageThreshold: 0e+0
 ```
 
-`init` writes only these keys; [Configuration](#configuration) lists the others. `executable` is the
-full path on the Mac that ran `init`. Commit the file rather than running `init` on each machine.
+[Configuration](#configuration) says more of each key. `executable` is the full path on the Mac
+that ran `init`. Commit the file rather than running `init` on each machine.
 
 #### Plugins and macros
 
@@ -3583,11 +3589,14 @@ and lists them.
 ### init
 
 `swift-mutator init` writes `muter.conf.yml` in the current folder, with the executable and
-arguments for the Xcode workspace or project, or the Swift package, it finds there. It replaces a
-`muter.conf.yml` that is already there (see [Setting up](#setting-up) and
+arguments for the Xcode workspace or project, or the Swift package, at the top of it, and every other
+key commented out under a comment that says what it does (see [Setting up](#setting-up) and
 [Configuration](#configuration)). For an Xcode project that seems to use package plugins or macros,
 the arguments skip Xcode's check that you trust them (see [Plugins and macros](#plugins-and-macros)).
-It takes no flags.
+
+| Flag | Meaning | Default |
+|---|---|---|
+| `--force` | Replace a `muter.conf.yml` that is already there | Off: `init` leaves it as it is, says so, and exits with 1 |
 
 ## Development
 

@@ -37,7 +37,9 @@ echo "🧟‍♂️ Running SwiftMutator on an iOS codebase with a test suite...
 cd ./AcceptanceTests/Repositories/ExampleApp || exit 1
 
 echo " > Creating a configuration file..."
-muter 0 init
+# The repository has one, which init leaves as it is unless forced.
+muter 1 init
+muter 0 init --force
 cp ./muter.conf.yml "$samplesdir"/created_iOS_config.yml
 
 echo " > Running in CLI mode..."
