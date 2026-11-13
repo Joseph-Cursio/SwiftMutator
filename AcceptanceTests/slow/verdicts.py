@@ -12,7 +12,7 @@ import re
 import statistics
 import sys
 
-FORMAT_VERSIONS = {1, 2}
+FORMAT_VERSIONS = {1, 2, 3, 4}
 VERDICTS = {"failed": "killed", "runtimeError": "killed", "passed": "survived", "timeout": "timedOut"}
 # Signals a stopped run's test process can end by, and the shell's 128 + n form of them: a run recorded with one of
 # these was cancelled, not tested.
@@ -20,8 +20,14 @@ STOP_STATUSES = {2, 9, 15, 130, 137, 143}
 # The target's tests now and then hang, or slow down past the time limit, under some random mutant: a run may differ
 # from the reference by this many timeouts alone. Any other difference fails at once.
 MAX_TIMEOUT_FLIPS = 3
-DEFAULT_EXCLUDES = ["/.swiftpm/", "/.build/", "/Build/", "/Carthage/", "/muter_tmp/", "/Pods/", "/Spec/", "/Tests/",
-                    "Tests.swift", "/fastlane/", "/Package.swift", "/Package@swift-"]
+# SwiftMutator's own excludes, as Sources/muterCore/MutationSteps/SourceFileExcludes.swift lists them, `alwaysExcluded`
+# then `excludedByDefault`; a selftest keeps the two the same. The tier's EXCLUDES keep nothing with a `!` entry.
+DEFAULT_EXCLUDES = ["/.swiftpm/", "/.build/", "/muter_tmp/",
+                    "/Package.swift", "/Package@swift-", "/Build/", "/DerivedData/", "/Carthage/", "/Pods/", "/fastlane/",
+                    "/Spec/", "/Tests/", "Tests.swift", "Spec.swift", "/Mocks/", "/Stubs/", "/Fakes/", "/TestHelpers/",
+                    "/TestSupport/", "Mock.swift", "/Snippets/"]
+# Under a minute, a time measured in whole seconds gives no ratio worth reading, and `since-nothing`'s is 0.
+MINIMUM_TIMED_SECONDS = 60
 
 
 class Results:
@@ -66,6 +72,10 @@ def place(record_key):
 
 
 def verdict(record):
+    """SwiftMutator's verdict: a survivor whose code it saw didn't run (`activated: false`) is not covered, as its
+    reports count it, though the line says `passed`. A line that doesn't say stays a survivor."""
+    if record["outcome"] == "passed" and record.get("activated") is False:
+        return "notCovered"
     return VERDICTS.get(record["outcome"], record["outcome"])
 
 
@@ -109,6 +119,33 @@ def timeouts_not_rerun(run):
                   and record["session"] in finished and workers.get(record["session"], 1) > 1)
 
 
+def operators(run):
+    """The operators a run mutated with, as its first header records them, sorted."""
+    return sorted(run.headers[0].get("operators") or []) if run.headers else []
+
+
+def operator_problems(run, reference):
+    """One problem when a run mutated with other operators than the reference's: every mutant would differ, so it
+    names the cause once, ahead of them."""
+    expected = reference.get("operators")
+    if expected is None:
+        return ["the reference records no operators: it was made before they were pinned, so make it again"]
+    found = operators(run)
+    if found == expected:
+        return []
+    added, dropped = sorted(set(found) - set(expected)), sorted(set(expected) - set(found))
+    return [f"the run mutated with other operators than the reference's (added {added}, missing {dropped}): "
+            "target.env's OPERATORS changed, so make a new reference"]
+
+
+def unfinished(run):
+    """Why a run can't stand for a whole run: its last session didn't finish, or left timeouts it never ran again."""
+    problems = []
+    if not run.ends or run.ends[-1].get("reason") != "finished":
+        problems.append(f"the last session ended {run.ends[-1].get('reason') if run.ends else 'without an end line'}")
+    return problems + [f"{k}: a timeout its session never ran again at lower load" for k in timeouts_not_rerun(run)]
+
+
 def killers(record):
     return ", ".join(f"{test.get('name')} ({test.get('location')})" for test in (record.get("killedBy") or [])[:3])
 
@@ -121,7 +158,13 @@ def command_reference(args):
     only by a minority of timeouts or by a timeout of the majority's."""
     runs = [Results(path) for path in args.runs]
     keys = [set(run.latest) for run in runs]
-    problems = []
+    pinned = sorted(set(args.operators)) if args.operators is not None else None
+    problems = [f"{run.path} mutated with {operators(run)}, not {pinned} as target.env pins"
+                for run in runs if pinned is not None and operators(run) != pinned]
+    # A run a check would refuse can't vote either.
+    problems += [f"{run.path}: {problem}" for run in runs for problem in unfinished(run)]
+    problems += [f"{run.path} mutated with {operators(run)}, unlike {runs[0].path}'s {operators(runs[0])}"
+                 for run in runs[1:] if operators(run) != operators(runs[0])]
     for run, found in zip(runs[1:], keys[1:]):
         if found != keys[0]:
             problems.append(f"{run.path} discovers {len(found ^ keys[0])} mutants unlike {runs[0].path}'s")
@@ -142,11 +185,17 @@ def command_reference(args):
         mutants[record_key] = {"verdict": majority, **mutation(records[0])}
     for line in tolerated:
         print(f"  timeouts only, the majority's verdict kept: {line}")
+    # What a check of each run against this reference would count as timeout flips, against MAX_TIMEOUT_FLIPS.
+    for run in runs:
+        flips = sum(verdict(record) != mutants[k]["verdict"] and timeout_only({verdict(record), mutants[k]["verdict"]})
+                    for k, record in run.latest.items() if k in mutants)
+        print(f"  {run.path}: {flips} timeout flips against the majority (a check allows {MAX_TIMEOUT_FLIPS})")
     if fail(problems, "reference"):
         return 1
     reference = {
         "pin": args.pin,
         "packageResolvedSHA256": args.resolved_sha256,
+        "operators": operators(runs[0]),
         "runs": [{"resultsFile": run.path, "swiftMutatorSHA256": run.headers[0]["provenance"]["swiftMutator"].get(
             "executableSHA256"), "mutantsDiscovered": run.headers[0]["mutantsDiscovered"]} for run in runs],
         "mutants": mutants,
@@ -185,12 +234,11 @@ def command_check(args):
     """A run's results against the reference: the same mutants, each with its mutation and verdict."""
     run, reference = Results(args.results), load_json(args.reference)
     expected, found = set(reference["mutants"]), set(run.latest)
-    problems = [f"{k}: not discovered" for k in sorted(expected - found)]
+    problems = operator_problems(run, reference)
+    problems += [f"{k}: not discovered" for k in sorted(expected - found)]
     problems += [f"{k}: not in the reference" for k in sorted(found - expected)]
     problems += compare(run, reference, allowlist(args.allowlist), found & expected)
-    if not run.ends or run.ends[-1].get("reason") != "finished":
-        problems.append(f"the last session ended {run.ends[-1].get('reason') if run.ends else 'without an end line'}")
-    problems += [f"{k}: a timeout its session never ran again at lower load" for k in timeouts_not_rerun(run)]
+    problems += unfinished(run)
     # A result `--reuse` kept keeps the `rerun` it was tested with, though its own session never ran it again.
     reruns = [line for line in run.lines if line.get("rerun", {}).get("because") == "timeout" and not line.get("reusedFrom")]
     unproven = sum(line.get("rerun", {}).get("because") == "codeNotShownRunning" and not line.get("reusedFrom") for line in run.lines)
@@ -200,6 +248,20 @@ def command_check(args):
           f"{unproven} failed runs run again for not showing their code ran, "
           f"{alone} kills tested again alone")
     return fail(problems, "check")
+
+
+def command_expect_operators(args):
+    """The reference was made with the operators target.env pins: the driver's check before any run, as every run
+    would otherwise fail on each mutant."""
+    reference = load_json(args.reference)
+    expected = reference.get("operators")
+    if expected is None:
+        return fail([f"{args.reference} records no operators: it was made before they were pinned"], "expect-operators")
+    pinned = sorted(set(args.operators))
+    if pinned == expected:
+        return 0
+    return fail([f"target.env's OPERATORS add {sorted(set(pinned) - set(expected))} and drop "
+                 f"{sorted(set(expected) - set(pinned))}, against the reference's"], "expect-operators")
 
 
 # MARK: - reuse
@@ -293,7 +355,7 @@ def command_expect_stop_resume(args):
     """A run stopped by SIGINT and resumed: the first session ended by the signal, recorded no cancelled run, and the
     second tested what the first left; the results it stands by then match the reference."""
     run, reference = Results(args.results), load_json(args.reference)
-    problems = []
+    problems = operator_problems(run, reference)
     first_end = next((end for end in run.ends if end["session"] == 1), None)
     if not first_end or first_end.get("reason") != "interrupted" or first_end.get("detail") != "SIGINT":
         problems.append(f"session 1 ended {first_end}, not interrupted by SIGINT")
@@ -382,7 +444,7 @@ def command_expect_since(args):
     required = {k for k, mutant in reference["mutants"].items()
                 if (path := k.split(":")[0]) in changed and (path in news or int(k.split(":")[1]) in lines[path])}
     found = set(run.latest)
-    problems = []
+    problems = operator_problems(run, reference)
     if not required:
         problems.append("the diff requires no mutant: choose another SINCE_BASE")
     problems += [f"{k}: on a changed line, and not tested" for k in sorted(required - found)]
@@ -426,7 +488,9 @@ def command_times(args):
         medians = baseline.get(row["name"])
         wall = float(row["wall_s"])
         note = "no baseline yet"
-        if medians:
+        if medians and medians["wall_s"] < MINIMUM_TIMED_SECONDS:
+            note = "its median is under a minute: no ratio"
+        elif medians:
             ratio = wall / medians["wall_s"]
             note = f"{ratio:.2f}× its median {medians['wall_s'] / 60:.1f} min"
             if ratio > 1.2 and float(row["load_at_start"]) < 4:
@@ -462,6 +526,7 @@ def main():
     reference.add_argument("runs", nargs="+")
     reference.add_argument("--pin", required=True)
     reference.add_argument("--resolved-sha256", required=True)
+    reference.add_argument("--operators", nargs="+")
     reference.add_argument("--allowlist")
     reference.add_argument("--out", required=True)
 
@@ -469,6 +534,10 @@ def main():
     check.add_argument("results")
     check.add_argument("--reference", required=True)
     check.add_argument("--allowlist")
+
+    expect_operators = commands.add_parser("expect-operators")
+    expect_operators.add_argument("reference")
+    expect_operators.add_argument("operators", nargs="+")
 
     reuse = commands.add_parser("expect-reuse")
     reuse.add_argument("full")
@@ -510,7 +579,8 @@ def main():
 
     args = parser.parse_args()
     handlers = {
-        "reference": command_reference, "check": command_check, "expect-reuse": command_expect_reuse,
+        "reference": command_reference, "check": command_check,
+        "expect-operators": command_expect_operators, "expect-reuse": command_expect_reuse,
         "expect-none-reused": command_expect_none_reused, "expect-test-change": command_expect_test_change,
         "expect-stop-resume": command_expect_stop_resume, "expect-since": command_expect_since,
         "pick-test-change": command_pick_test_change, "times": command_times,
