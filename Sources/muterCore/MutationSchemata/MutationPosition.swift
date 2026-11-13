@@ -30,10 +30,11 @@ struct MutationPosition: Codable, Equatable, Comparable, CustomStringConvertible
         )
     }
 
+    /// By offset, then line, then column: a strict weak ordering, so `sorted()` sorts positions. (Joining the three
+    /// comparisons with `&&` made most pairs of positions neither less nor greater, and `sorted()` left them as they
+    /// were.)
     static func < (lhs: Self, rhs: Self) -> Bool {
-        lhs.utf8Offset < rhs.utf8Offset &&
-            lhs.line < rhs.line &&
-            lhs.column < rhs.column
+        (lhs.utf8Offset, lhs.line, lhs.column) < (rhs.utf8Offset, rhs.line, rhs.column)
     }
 
     var description: String {

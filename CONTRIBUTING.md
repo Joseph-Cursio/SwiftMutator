@@ -82,6 +82,23 @@ output, update the snapshot file and check the diff. Don't loosen the test.
 `make project` opens the package in Xcode (`xed .`). You can run the unit tests there. Don't run
 the acceptance or regression targets from Xcode: they depend on files the scripts generate.
 
+### Package.resolved's pin for Swift 6.3
+
+`Package.resolved` pins `xctest-dynamic-overlay` 1.13.1, which only Swift 6.3 uses, and Swift 6.4
+drops that pin whenever it rewrites the file: `swift package update` or `resolve` does, and so can
+`swift build` or `swift test`. Don't commit the file without it. Without the pin, CI's Xcode 26.6
+job fails at "Resolve dependencies from Package.resolved". If only the pin went, take the change
+back with `git checkout Package.resolved`.
+
+Why: swift-custom-dump, which swift-snapshot-testing brings in, ships a second manifest,
+`Package@swift-6.1.swift`, which Swift 6.1 to 6.3 read. It names swift-issue-reporting by its old
+name, `xctest-dynamic-overlay`, at 1.x. Swift 6.4 reads the `Package.swift` beside it, which wants
+swift-issue-reporting 2.x. Each toolchain uses the pin its manifest needs and ignores the other
+([#164](https://github.com/Joseph-Cursio/SwiftMutator/pull/164)). After a dependency update, put
+the pin back if it went, and check that `swift package resolve --force-resolved-versions` leaves
+the file alone under both Xcode 26.6 and Xcode 27. The pin can go once swift-custom-dump stops
+shipping its 6.1 manifest, or CI stops testing Xcode 26.6.
+
 ### Acceptance and regression tests
 
 ```

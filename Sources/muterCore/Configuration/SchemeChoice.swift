@@ -1,5 +1,3 @@
-import Foundation
-
 /// The scheme `init` wrote, of those `xcodebuild -list` named.
 struct SchemeChoice: Equatable {
     let chosen: String
